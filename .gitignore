@@ -1,0 +1,15 @@
+node_modules/
+dist/
+out/
+.env
+.video-tool/
+coverage/
+.cleanup-quarantine/
+*.log
+*.tsbuildinfo
+.DS_Store
+
+# Remotion
+remotion-render-*/
+/renders/
+**/.remotion/

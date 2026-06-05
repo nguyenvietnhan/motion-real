@@ -1,0 +1,29 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "jsx": "react-jsx",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "verbatimModuleSyntax": false,
+    "noUncheckedIndexedAccess": true,
+    "types": ["node"],
+    "baseUrl": ".",
+    "paths": {
+      "@news/schema": ["packages/schema/src/index.ts"],
+      "@news/design": ["packages/design/src/index.ts"],
+      "@news/tts": ["packages/tts/src/index.ts"],
+      "@news/compositions": ["packages/compositions/src/index.ts"],
+      "@news/compositions/*": ["packages/compositions/src/*"],
+      "@news/pipeline": ["packages/pipeline/src/index.ts"],
+      "@news/pipeline/*": ["packages/pipeline/src/*"]
+    }
+  },
+  "include": ["apps/**/*", "packages/**/*", "tests/**/*", "scripts/**/*"],
+  "exclude": ["**/__fixtures__/**"]
+}

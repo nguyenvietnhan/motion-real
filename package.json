@@ -1,0 +1,27 @@
+{
+  "name": "news-remotion-tool",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "AI-driven Vietnamese short-form news video generator built on Remotion (React) for diverse, code-generated visuals.",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "studio": "npm --workspace @news/remotion run studio",
+    "render": "npm --workspace @news/remotion run render",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "build": "tsx scripts/build.ts",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.1",
+    "@types/react": "^19.2.7",
+    "@types/react-dom": "^19.2.3",
+    "fast-check": "^3.23.2",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.14"
+  }
+}

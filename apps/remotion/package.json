@@ -1,0 +1,22 @@
+{
+  "name": "@news/remotion",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "studio": "remotion studio",
+    "render": "remotion render",
+    "render:sample": "remotion render NewsVideo out/sample.mp4",
+    "upgrade": "remotion upgrade"
+  },
+  "dependencies": {
+    "@news/compositions": "0.1.0",
+    "@news/design": "0.1.0",
+    "@news/schema": "0.1.0",
+    "@remotion/cli": "4.0.472",
+    "react": "^19.2.1",
+    "react-dom": "^19.2.1",
+    "remotion": "4.0.472",
+    "zod": "^4.1.13"
+  }
+}
