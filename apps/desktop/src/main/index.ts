@@ -2,7 +2,7 @@ import { app, BrowserWindow, ipcMain, shell } from "electron";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { createTools } from "@news/mcp";
-import { loadManifest, writeJson } from "@news/pipeline";
+import { loadManifest, writeJson, projectPaths, videoToolHome, vivibeApiKey, defaultVivibeVoiceId } from "@news/pipeline";
 import { registerIpcRouter, type InvokeHandlers } from "./ipc-router.js";
 import { ModelGatewayManager } from "./gateway/model-gateway-manager.js";
 import { buildNineRouterGatewayDeps } from "./gateway/ninerouter-deps.js";
@@ -15,8 +15,8 @@ import { defaultSettings } from "../renderer/settings/settings-model.js";
 import { validateCreateInput } from "./create/create-controller.js";
 import { registerMediaScheme, handleMediaProtocol, mediaUrl } from "./media-protocol.js";
 import { events, setEventTarget } from "./event-bus.js";
-import { projectPaths } from "@news/pipeline";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { rm } from "node:fs/promises";
 import type { LicenseState, ModelInfo, ProjectStage, SceneCard, SettingsModel, StoryboardModel } from "../shared/types.js";
 
 // The `media://` scheme must be registered before the app is ready.
@@ -30,15 +30,45 @@ registerMediaScheme();
  * launchable for review without a live License_Service.
  */
 
-const tools = createTools();
+const SETTINGS_FILE = join(videoToolHome(), "news-studio-settings.json");
+
+function loadSettings(): SettingsModel {
+  const base = defaultSettings(videoToolHome());
+  try {
+    if (existsSync(SETTINGS_FILE)) {
+      const saved = JSON.parse(readFileSync(SETTINGS_FILE, "utf8")) as Partial<SettingsModel>;
+      return { ...base, ...saved, voiceProvider: "vivibe", aiAccount: base.aiAccount };
+    }
+  } catch {
+    /* fall back to defaults */
+  }
+  return base;
+}
+
+function saveSettings(): void {
+  try {
+    const { aiAccount: _omit, ...persisted } = settings;
+    writeFileSync(SETTINGS_FILE, `${JSON.stringify(persisted, null, 2)}\n`, "utf8");
+  } catch {
+    /* non-fatal */
+  }
+}
+
+let settings: SettingsModel = loadSettings();
+let selectedModel: ModelInfo | undefined;
+let activeProjectId: string | null = null;
+
+// TTS config: a user-entered voice key/id (Settings) overrides the .env fallback.
+const tools = createTools({
+  ttsConfig: () => ({
+    apiKey: settings.voiceApiKey?.trim() || vivibeApiKey() || "",
+    voiceId: settings.voiceId?.trim() || defaultVivibeVoiceId() || "",
+  }),
+});
 const nrClient = new NineRouterClient();
 const gateway = new ModelGatewayManager(
   buildNineRouterGatewayDeps({ client: nrClient, openExternal: (url) => void shell.openExternal(url) }),
 );
-
-let settings: SettingsModel = defaultSettings(process.env.VIDEO_TOOL_HOME ?? "");
-let selectedModel: ModelInfo | undefined;
-let activeProjectId: string | null = null;
 
 // The authoring brain: AI writes a kit-based manifest; we admit + render. Drives
 // the SAME tools / one registry; render progress is forwarded to the UI.
@@ -197,6 +227,16 @@ const handlers: InvokeHandlers = {
       return { projectId: id, scenes: [], globalNotes: "" };
     }
   },
+  "projects:delete": async (projectId) => {
+    const id = String(projectId);
+    stages.delete(id);
+    await rm(projectPaths(id).root, { recursive: true, force: true });
+    return undefined;
+  },
+  "projects:reveal": async (projectId) => {
+    await shell.openPath(projectPaths(String(projectId)).root);
+    return undefined;
+  },
 
   "script:get": async (projectId) => {
     const id = String(projectId);
@@ -233,6 +273,7 @@ const handlers: InvokeHandlers = {
   },
   "script:setEnabled": (enabled) => {
     settings = { ...settings, scriptGateEnabled: Boolean(enabled) };
+    saveSettings();
     return undefined;
   },
 
@@ -242,6 +283,7 @@ const handlers: InvokeHandlers = {
   "settings:get": () => settings,
   "settings:update": (patch) => {
     settings = { ...settings, ...(patch as Partial<SettingsModel>), voiceProvider: "vivibe" };
+    saveSettings();
     return settings;
   },
 };

@@ -46,6 +46,12 @@ const Icon = {
   spark: (p: { size?: number }) => (
     <svg width={p.size ?? 18} height={p.size ?? 18} viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l1.9 5.6L19.5 9l-5.6 1.4L12 16l-1.9-5.6L4.5 9l5.6-1.4Z" /></svg>
   ),
+  trash: (p: { size?: number }) => (
+    <svg width={p.size ?? 16} height={p.size ?? 16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2m2 0v14a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V6" /></svg>
+  ),
+  folder: (p: { size?: number }) => (
+    <svg width={p.size ?? 16} height={p.size ?? 16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 5h5l2 2h9a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Z" /></svg>
+  ),
 };
 
 // --- AI status ------------------------------------------------------------
@@ -171,12 +177,18 @@ const StatusPill: React.FC<{ status: FriendlyStatus }> = ({ status }) => (
   </span>
 );
 
-const ProjectGrid: React.FC<{ cards: ProjectCardVM[]; onOpen: (id: string) => void }> = ({ cards, onOpen }) => (
+const ProjectGrid: React.FC<{
+  cards: ProjectCardVM[];
+  onOpen: (id: string) => void;
+  onDelete?: (id: string) => void;
+  onReveal?: (id: string) => void;
+}> = ({ cards, onOpen, onDelete, onReveal }) => (
   <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 16 }}>
     {cards.map((c) => (
-      <button key={c.projectId} className="ns-card ns-project" onClick={() => onOpen(c.projectId)}>
-        <div style={{ height: 140, background: "linear-gradient(135deg, #1a1d24, #14161b)", display: "grid", placeItems: "center", color: "#3a3f49" }}>
-          {Icon.film({ size: 30 })}
+      <div key={c.projectId} className="ns-card ns-project" role="button" tabIndex={0} onClick={() => onOpen(c.projectId)}
+        onKeyDown={(e) => { if (e.key === "Enter") onOpen(c.projectId); }}>
+        <div style={{ height: 140, background: c.thumbnailPath ? `center/cover #14161b url(${c.thumbnailPath})` : "linear-gradient(135deg, #1a1d24, #14161b)", display: "grid", placeItems: "center", color: "#3a3f49" }}>
+          {!c.thumbnailPath && Icon.film({ size: 30 })}
         </div>
         <div style={{ padding: 14 }}>
           <strong style={{ display: "block", marginBottom: 8, fontSize: 14 }}>{c.title}</strong>
@@ -184,8 +196,20 @@ const ProjectGrid: React.FC<{ cards: ProjectCardVM[]; onOpen: (id: string) => vo
             <StatusPill status={c.status} />
             <span style={{ color: "var(--muted-foreground)", fontSize: 12 }}>{c.createdAtLabel}</span>
           </div>
+          {(onReveal || onDelete) && (
+            <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
+              {onReveal && (
+                <button className="ns-btn" title="Mở thư mục dự án" style={{ padding: "6px 10px" }}
+                  onClick={(e) => { e.stopPropagation(); onReveal(c.projectId); }}>{Icon.folder({ size: 15 })}</button>
+              )}
+              {onDelete && (
+                <button className="ns-btn" title="Xoá dự án" style={{ padding: "6px 10px", color: "var(--danger)" }}
+                  onClick={(e) => { e.stopPropagation(); onDelete(c.projectId); }}>{Icon.trash({ size: 15 })}</button>
+              )}
+            </div>
+          )}
         </div>
-      </button>
+      </div>
     ))}
   </div>
 );
@@ -208,7 +232,9 @@ export const HomeView: React.FC<{
   onCreate: (raw: string) => void;
   onOpen: (projectId: string) => void;
   onConnectPrompt: () => void;
-}> = ({ aiReady, load, cards, onCreate, onOpen, onConnectPrompt }) => {
+  onDelete?: (id: string) => void;
+  onReveal?: (id: string) => void;
+}> = ({ aiReady, load, cards, onCreate, onOpen, onConnectPrompt, onDelete, onReveal }) => {
   const [raw, setRaw] = useState("");
   const valid = validateCreateInput({ raw });
   const canCreate = aiReady && valid.ok;
@@ -272,7 +298,7 @@ export const HomeView: React.FC<{
           hint="Tạo video đầu tiên bằng ô “Tạo video mới” ở trên — chỉ cần một chủ đề hoặc đường dẫn."
         />
       )}
-      {load === "populated" && <ProjectGrid cards={recent} onOpen={onOpen} />}
+      {load === "populated" && <ProjectGrid cards={recent} onOpen={onOpen} onDelete={onDelete} onReveal={onReveal} />}
     </div>
   );
 };
@@ -284,7 +310,9 @@ export const ProjectsView: React.FC<{
   cards: ProjectCardVM[];
   onOpen: (id: string) => void;
   onNew: () => void;
-}> = ({ load, cards, onOpen, onNew }) => (
+  onDelete?: (id: string) => void;
+  onReveal?: (id: string) => void;
+}> = ({ load, cards, onOpen, onNew, onDelete, onReveal }) => (
   <div className="ns-content">
     <PageHeader
       title="Dự án"
@@ -293,7 +321,7 @@ export const ProjectsView: React.FC<{
     />
     {load === "loading" && <p style={{ color: "var(--muted-foreground)" }}>Đang tải…</p>}
     {load === "empty" && <EmptyState icon={Icon.film({ size: 34 })} title="Chưa có dự án" hint="Bấm “Tạo video” để bắt đầu." />}
-    {load === "populated" && <ProjectGrid cards={cards} onOpen={onOpen} />}
+    {load === "populated" && <ProjectGrid cards={cards} onOpen={onOpen} onDelete={onDelete} onReveal={onReveal} />}
   </div>
 );
 
@@ -320,9 +348,9 @@ export const SettingsView: React.FC<{
 
   return (
     <div className="ns-content" style={{ maxWidth: 760 }}>
-      <PageHeader title="Cài đặt" subtitle="Tài khoản AI, model, giọng đọc và tuỳ chọn dựng." />
+      <PageHeader title="Cài đặt" subtitle="Tài khoản AI, giọng đọc và tuỳ chọn dựng video." />
 
-      <Section title="Tài khoản AI">
+      <Section title="Tài khoản AI & model">
         {gateway.kind === "starting" && <p style={{ color: "var(--muted-foreground)", margin: 0 }}>Đang khởi động dịch vụ AI…</p>}
         {gateway.kind === "unavailable" && (
           <p style={{ color: "var(--danger)", margin: 0 }}>Không khởi động được 9Router. Hãy kiểm tra 9Router đã cài rồi mở lại app.</p>
@@ -335,26 +363,32 @@ export const SettingsView: React.FC<{
             <button className="ns-btn ns-btn-primary" onClick={onManageAccounts}>
               {connected.length ? "Thêm / quản lý tài khoản (mở 9Router)" : "Đăng nhập tài khoản AI (mở 9Router)"}
             </button>
-            <p style={{ color: "var(--muted-foreground)", fontSize: 12, marginBottom: 0 }}>
-              Cửa sổ 9Router sẽ mở để bạn đăng nhập đúng cách của từng nhà cung cấp (Kiro, Codex, Gemini, OpenRouter…).
-            </p>
+            {connected.length > 0 && (
+              <div style={{ marginTop: 16 }}>
+                <label style={{ display: "block", color: "var(--muted-foreground)", fontSize: 13, marginBottom: 6 }}>Model dùng để dựng</label>
+                <select className="ns-input" aria-label="model-select" value={selectedModelId} onChange={(e) => onSelectModel(e.target.value)} style={{ minWidth: 360 }}>
+                  <option value="" disabled>— chọn model —</option>
+                  {models.map((m) => (<option key={m.id} value={m.id}>{m.id}</option>))}
+                </select>
+              </div>
+            )}
           </>
         )}
       </Section>
 
-      {connected.length > 0 && (
-        <Section title="Model dùng để dựng">
-          <select className="ns-input" aria-label="model-select" value={selectedModelId} onChange={(e) => onSelectModel(e.target.value)} style={{ minWidth: 360 }}>
-            <option value="" disabled>— chọn model —</option>
-            {models.map((m) => (
-              <option key={m.id} value={m.id}>{m.id}</option>
-            ))}
-          </select>
-        </Section>
-      )}
+      <Section title="Giọng đọc">
+        <label style={{ display: "block", color: "var(--muted-foreground)", fontSize: 13, marginBottom: 6 }}>Nhà cung cấp giọng</label>
+        <input className="ns-input" value={settings.voiceProvider} disabled style={{ minWidth: 220, marginBottom: 12, opacity: 0.7 }} />
+        <label style={{ display: "block", color: "var(--muted-foreground)", fontSize: 13, marginBottom: 6 }}>API key giọng đọc (Vivibe)</label>
+        <input className="ns-input" type="password" placeholder="dán API key…" value={settings.voiceApiKey ?? ""}
+          onChange={(e) => onUpdate({ voiceApiKey: e.target.value })} style={{ width: "100%", marginBottom: 12 }} />
+        <label style={{ display: "block", color: "var(--muted-foreground)", fontSize: 13, marginBottom: 6 }}>Voice ID</label>
+        <input className="ns-input" placeholder="voice id…" value={settings.voiceId ?? ""}
+          onChange={(e) => onUpdate({ voiceId: e.target.value })} style={{ width: "100%" }} />
+        <p style={{ color: "var(--muted-foreground)", fontSize: 12, marginBottom: 0 }}>Bỏ trống sẽ dùng cấu hình trong file .env (nếu có).</p>
+      </Section>
 
-      <Section title="Tuỳ chọn dựng">
-        <p style={{ color: "var(--foreground)", marginTop: 0 }}>Giọng đọc: <strong>{settings.voiceProvider}</strong></p>
+      <Section title="Dựng video">
         <label style={{ display: "block", marginBottom: 12 }}>
           Số lần tự sửa tối đa{" "}
           <input className="ns-input" type="number" min={1} max={10} value={settings.maxRepairAttempts}

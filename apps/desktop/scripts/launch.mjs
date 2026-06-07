@@ -14,6 +14,10 @@ import electronPath from "electron";
  */
 const here = dirname(fileURLToPath(import.meta.url));
 const appDir = resolve(here, "..");
+const repoRoot = resolve(appDir, "..", "..");
+// Share the SAME project store as the CLI/build-scripts (repo .video-tool),
+// so existing projects show up and new ones land alongside them.
+const VIDEO_TOOL_HOME = resolve(repoRoot, ".video-tool");
 const PORT = 5174;
 const DEV_URL = `http://localhost:${PORT}`;
 
@@ -60,7 +64,7 @@ async function main() {
   const electron = spawn(electronPath, ["."], {
     cwd: appDir,
     stdio: "inherit",
-    env: { ...process.env, VITE_DEV_SERVER_URL: DEV_URL },
+    env: { ...process.env, VITE_DEV_SERVER_URL: DEV_URL, VIDEO_TOOL_HOME },
   });
 
   const shutdown = () => {

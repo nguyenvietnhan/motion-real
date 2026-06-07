@@ -18,6 +18,8 @@ export const INVOKE_CHANNELS = [
   "projects:list",
   "projects:open",
   "projects:stage",
+  "projects:delete",
+  "projects:reveal",
   "script:get",
   "script:applyEdits",
   "script:approve",

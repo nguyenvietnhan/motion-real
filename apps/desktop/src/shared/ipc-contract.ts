@@ -49,6 +49,8 @@ export interface DashboardApi {
     list(): Promise<ProjectCardVM[]>;
     open(projectId: string): Promise<StoryboardModel>;
     stage(projectId: string): Promise<ProjectStage>;
+    delete(projectId: string): Promise<void>;
+    reveal(projectId: string): Promise<void>;
   };
   script: {
     get(projectId: string): Promise<ScriptGateModel>;

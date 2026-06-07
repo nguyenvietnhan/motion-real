@@ -115,6 +115,7 @@ export type SettingsModel = {
   aiAccount: AiAccountState;
   voiceProvider: "vivibe";
   voiceId?: string;
+  voiceApiKey?: string;
   outputDir: string;
   maxRepairAttempts: number;
   scriptGateEnabled: boolean;

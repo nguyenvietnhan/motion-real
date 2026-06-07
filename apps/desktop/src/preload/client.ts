@@ -45,6 +45,8 @@ export function createDashboardClient(ipc: IpcLike): DashboardApi {
       list: () => inv("projects:list"),
       open: (projectId) => inv("projects:open", projectId),
       stage: (projectId) => inv("projects:stage", projectId),
+      delete: (projectId) => inv("projects:delete", projectId),
+      reveal: (projectId) => inv("projects:reveal", projectId),
     },
     script: {
       get: (projectId) => inv("script:get", projectId),

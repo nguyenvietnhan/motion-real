@@ -114,6 +114,16 @@ export const App: React.FC = () => {
     void refreshGallery();
   };
 
+  const onDelete = (projectId: string) => {
+    if (!dash) return;
+    const ok = typeof window !== "undefined" && typeof window.confirm === "function"
+      ? window.confirm("Xoá vĩnh viễn dự án này? Hành động không thể hoàn tác.")
+      : true;
+    if (!ok) return;
+    void dash.projects.delete(projectId).then(refreshGallery);
+  };
+  const onReveal = (projectId: string) => void dash?.projects.reveal(projectId);
+
   return (
     <div className="ns-shell">
       <Sidebar active={screen} gateway={gateway} account={account} onNavigate={setScreen} />
@@ -126,6 +136,8 @@ export const App: React.FC = () => {
             onConnectPrompt={() => setScreen("settings")}
             onCreate={(raw) => void dash?.projects.create({ raw }).then((r) => openProject(r.projectId))}
             onOpen={openProject}
+            onDelete={onDelete}
+            onReveal={onReveal}
           />
         )}
 
@@ -135,6 +147,8 @@ export const App: React.FC = () => {
             cards={state.gallery.cards}
             onOpen={openProject}
             onNew={() => setScreen("home")}
+            onDelete={onDelete}
+            onReveal={onReveal}
           />
         )}
 
