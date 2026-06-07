@@ -228,6 +228,9 @@ before the app renders, so that I can fix wording early and save a render round.
    to the first Draft render.
 7. WHERE the user disables the Script_Approval_Gate, THE Agent_Worker SHALL
    proceed directly to the first Draft render without presenting the text gate.
+8. IF the user approves the Script_Approval_Gate before its enabled/disabled state
+   has been initialized, THEN THE Agent_Worker SHALL wait until the gate state is
+   configured before proceeding to the first Draft render.
 
 ### Requirement 5: Silent Draft Generation with Progress
 
@@ -251,8 +254,9 @@ me progress, so that I can see a first result without doing technical work.
    describing the problem in non-technical terms, SHALL offer a retry action that
    restarts draft generation, and SHALL retain the user's existing inputs so no
    data is lost.
-6. THE Dashboard SHALL produce a reviewable Draft before initiating any
-   Full_Render (draft-first invariant).
+6. THE Dashboard SHALL produce a reviewable Draft only when draft generation
+   starts successfully, and SHALL produce that reviewable Draft before initiating
+   any Full_Render (draft-first invariant).
 
 ### Requirement 6: Generate-Validate-Repair Authoring Loop
 
@@ -355,6 +359,9 @@ internals.
 13. IF the user requests removal of the last remaining Scene, THEN THE Dashboard
     SHALL reject the removal and SHALL surface an indication that the Storyboard
     must contain at least one Scene.
+14. WHEN a Plain_Text_Edit is applied to the Manifest, THE Dashboard SHALL first
+    run the engine's content validation/normalization (including the Vietnamese
+    number and phonetics rules) and SHALL write the normalized text.
 
 ### Requirement 9: Approve and Full Render
 
@@ -408,9 +415,10 @@ that I can manage multiple projects without confusion.
    placeholder thumbnail in the project card.
 7. WHEN the user selects a project card, THE Dashboard SHALL open that project's
    Storyboard/review surface for the selected project within 2 seconds.
-8. WHILE the user has no projects, THE Dashboard SHALL display an empty-state
-   message indicating that no videos exist and SHALL NOT display any project
-   cards.
+8. WHILE the gallery has finished loading and the user has zero projects, THE
+   Dashboard SHALL display an empty-state message indicating that no videos exist
+   and SHALL NOT display any project cards; WHILE the gallery is still loading,
+   THE Dashboard SHALL NOT display the empty-state message.
 9. WHERE the user opens the Advanced/Batch view, THE Dashboard SHALL display the
    bulk tracker and its run and resume controls.
 
@@ -457,8 +465,10 @@ quality bar that is the product's moat.
    hard-error/warning classification as the engine, N1–N30) through the
    Orchestrator on every render, unchanged.
 2. IF the Safety_Grid reports a hard error, THEN THE Orchestrator SHALL block the
-   lock/render/done step and SHALL surface the failing check id(s) to the
-   Agent_Worker / logs (not to the end user).
+   specific lock/render/done operation that triggered it (not unrelated
+   operations), SHALL allow operations to continue when only soft warnings are
+   present, and SHALL surface the failing check id(s) to the Agent_Worker / logs
+   (not to the end user).
 3. THE Dashboard SHALL enforce the Evidence_Gate (N9) so that no fabricated
    specifics are presented as fact.
 4. IF the Evidence_Gate detects a fabricated specific, THEN THE Orchestrator SHALL
