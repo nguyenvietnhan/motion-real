@@ -1,0 +1,9 @@
+{
+  "recordedAt": null,
+  "runs": [],
+  "passed": 0,
+  "total": 0,
+  "decision": "X",
+  "executed": false,
+  "notes": "POC_Spike not yet executed: the path-Y headless agent-runtime (OpenCode/Cline) and the bundled Model_Gateway (9Router) are not embedded in this environment, so the 10x live run cannot be performed here. Per Req 7.4 the decision defaults to the safe fallback path X (custom loop + Preprompt) until a real spike clears >=8/10. Implementation task 5.1 reads this artifact: with decision=X it builds the custom-loop adapter. Re-run runSpike() with the embedded runtime to overwrite this with executed=true and a measured decision."
+}

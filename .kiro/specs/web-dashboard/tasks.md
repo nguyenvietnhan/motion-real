@@ -47,7 +47,7 @@ Language: TypeScript (existing monorepo). Tests run under Vitest with
 
 ## Tasks
 
-- [ ] 1. Project scaffold, Electron shell, and typed IPC skeleton
+- [x] 1. Project scaffold, Electron shell, and typed IPC skeleton
   - [x] 1.1 Scaffold the `apps/desktop` package and Electron process model
     - Create `apps/desktop` as a workspace package depending on `@news/pipeline`
       and `@news/mcp`; add Electron + React + Vite (or equivalent) build wiring
@@ -74,7 +74,7 @@ Language: TypeScript (existing monorepo). Tests run under Vitest with
       unsubscribe cleanly with a fake `ipcRenderer`
     - _Requirements: 11.5_
 
-- [ ] 2. Engine `get_safety_report` tool, AgentWorker interface, and the POC_Spike (FIRST BUILD RISK)
+- [x] 2. Engine `get_safety_report` tool, AgentWorker interface, and the POC_Spike (FIRST BUILD RISK)
   - [x] 2.1 Add the `get_safety_report` MCP tool to `@news/mcp`
     - Add `getSafetyReportInput` Zod schema and the `get_safety_report` tool in
       `packages/mcp/src/tools.ts`, reading the orchestrator's last report for a
@@ -93,7 +93,7 @@ Language: TypeScript (existing monorepo). Tests run under Vitest with
       surfaces `check` ids only in the tool result (not redacted yet)
     - _Requirements: 6.1, 6.2_
 
-  - [ ] 2.3 Build the headless POC_Spike harness (path Y evaluation)
+  - [x] 2.3 Build the headless POC_Spike harness (path Y evaluation)
     - Create `apps/desktop/spike/` with a headless harness that runs the path-Y
       agent-runtime (auto-loading `SKILL.md` + `AGENTS.md`, calling the MCP
       tools, using the Model_Gateway as model source) 10 consecutive times with
@@ -104,18 +104,18 @@ Language: TypeScript (existing monorepo). Tests run under Vitest with
       attempt with its captured cause
     - _Requirements: 7.1, 7.2, 7.6_
 
-  - [ ] 2.4 Implement the adoption-decision rule and record the outcome
+  - [x] 2.4 Implement the adoption-decision rule and record the outcome
     - Implement a pure `decideAgentPath(runs)` that returns `"Y"` when ≥8 of 10
       runs passed, else `"X"`; persist the spike result + decision as a committed
       artifact the implementation tasks read
     - _Requirements: 7.3, 7.4_
 
-  - [ ]* 2.5 Write unit test for the adoption-decision rule
+  - [x]* 2.5 Write unit test for the adoption-decision rule
     - Assert the ≥8/10 boundary exactly (7/10 ⇒ X, 8/10 ⇒ Y, 10/10 ⇒ Y) over
       representative run vectors
     - _Requirements: 7.3, 7.4_
 
-  - [ ] 2.6 Define the `AgentWorker` interface and shared authoring types
+  - [x] 2.6 Define the `AgentWorker` interface and shared authoring types
     - Create `apps/desktop/main/agent/agent-worker.ts` with the `AgentWorker`
       interface (`author`, `reauthorScenes`, `generateValidateRepair`),
       `AuthorJob`, `ReauthorJob`, `RepairLoopOptions`, `RepairOutcome`,
