@@ -4,8 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ProjectBrief, RenderProjectResult, ScaffoldVideoProjectResult } from "@news/pipeline";
 import { createTools, type ToolDeps } from "@news/mcp";
-import { CreateController, type CreateBackend } from "./create/create-controller.js";
-import type { AgentWorker, AuthorOutcome } from "./agent/agent-worker.js";
+import { CreateController } from "./create/create-controller.js";
 
 /**
  * Feature: web-dashboard, Task 12.1 — the dashboard never bypasses the engine's
@@ -39,13 +38,6 @@ const renderOk = (): RenderProjectResult =>
 const scaffoldOk = (projectId: string): ScaffoldVideoProjectResult =>
   ({ projectId, brief: {} as ProjectBrief, manifestPath: "m.json", authoredDir: "authored" });
 
-const stubWorker = (outcome: AuthorOutcome): AgentWorker => ({
-  author: async () => outcome,
-  reauthorScenes: async (): Promise<AuthorOutcome> => ({ kind: "authored", sceneIds: [] }),
-  generateValidateRepair: async () => ({ kind: "passed" as const, attempts: 1 }),
-});
-const noopHooks = { onProgress() {}, onSceneProduced() {}, onRepair() {} };
-
 describe("Task 12.1: preserved engine invariants at the dashboard boundary", () => {
   it("full render is refused without a reviewed draft and never delegates (R8.2)", async () => {
     let delegated = false;
@@ -72,15 +64,15 @@ describe("Task 12.1: preserved engine invariants at the dashboard boundary", () 
         return scaffoldOk(input.projectId ?? "p1");
       },
     });
-    const backend: CreateBackend = {
+    const ctrl = new CreateController({
       scaffold: async (prompt) => {
         const res = await tools.scaffold_project({ prompt });
-        return res.ok ? { ok: true, projectId: res.data.projectId } : { ok: false, error: res.error };
+        return res.ok ? { ok: true, projectId: res.data.projectId } : { ok: false, cause: res.error.cause };
       },
-    };
-    const ctrl = new CreateController(backend, stubWorker({ kind: "authored", sceneIds: ["scene-01"] }));
-    const result = await ctrl.start({ raw: "tin công nghệ" }, noopHooks, () => {});
-    expect(result.ok).toBe(true);
+      beginScript: () => {},
+    });
+    const result = await ctrl.create("tin công nghệ");
+    expect(result).toEqual({ projectId: "p1" });
     expect(scaffolds).toBe(1);
   });
 

@@ -58,11 +58,11 @@ và hành vi quan sát được của app KHÔNG đổi (R6). Khi cập nhật m
   - [x] 5.8 Chạy lưới verify.
   - _Requirements: R2.1–R2.9, R1.4, R1.7, R5.6_
 
-- [ ] 6. S5 — `CreateController` cập nhật + wire
-  - [ ] 6.1 Cập nhật class `CreateController` khớp Current_Behavior: `create(raw)` = `validateCreateInput` (invalid → ném `reason`, KHÔNG scaffold) → `tools.scaffold_project` (fail → ném `res.error.cause`) → `beginScript(projectId, input)` qua `WorkspaceController` → trả `{ projectId }`. Dùng `validateCreateInput` từ `shared/create-validation.ts` (GIỮ, R5.7).
-  - [ ] 6.2 Property test P10 — Create invalid input ném `reason` và KHÔNG gọi `scaffold_project`. `Property 10` (_R1.3_). Cập nhật `create-controller.test.ts` + `create-flow.test.ts` khẳng định hành vi current (scaffold đúng 1 lần qua 1 registry, gọi `beginScript`).
-  - [ ] 6.3 Wire `projects:create` qua `CreateController`; gỡ logic create nội tuyến khỏi `index.ts`.
-  - [ ] 6.4 Chạy lưới verify.
+- [x] 6. S5 — `CreateController` cập nhật + wire
+  - [x] 6.1 Cập nhật class `CreateController` khớp Current_Behavior: `create(raw)` = `validateCreateInput` (invalid → ném `reason`, KHÔNG scaffold) → `scaffold` seam (fail → ném `cause`) → `beginScript(projectId, input)` qua `WorkspaceController` → trả `{ projectId }`. Dùng `validateCreateInput` từ `shared/create-validation.ts` (GIỮ, R5.7).
+  - [x] 6.2 Property test P10 — Create invalid input ném `reason` và KHÔNG gọi `scaffold`. `Property 10` (_R1.3_). Viết lại `create-flow.test.ts` + cập nhật test single-registry trong `preserved-invariants.test.ts` cho API `create()`.
+  - [x] 6.3 Wire `projects:create` qua `CreateController`; gỡ logic create nội tuyến khỏi `index.ts`.
+  - [x] 6.4 Chạy lưới verify.
   - _Requirements: R1.3, R2.1, R4.5, R4.6_
 
 - [ ] 7. S6 — Gỡ `Disclosure_Map` + làm gầy Composition_Root

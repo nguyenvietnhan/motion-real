@@ -12,11 +12,10 @@ import { CustomLoopAgentWorker } from "./agent/custom-loop-worker.js";
 import { LicenseManager } from "./license/license-manager.js";
 import { DevLicenseService } from "./license/dev-license-service.js";
 import { WorkspaceController } from "./workspace/workspace-controller.js";
-import type { AuthorInput } from "./agent/agent-worker.js";
+import { CreateController } from "./create/create-controller.js";
 import { toCards } from "../renderer/gallery/gallery-controller.js";
 import { defaultSettings } from "../renderer/settings/settings-model.js";
 import { SettingsStore } from "./settings/settings-store.js";
-import { validateCreateInput } from "./create/create-controller.js";
 import { registerMediaScheme, handleMediaProtocol, mediaUrl } from "./media-protocol.js";
 import { events, setEventTarget } from "./event-bus.js";
 import { existsSync } from "node:fs";
@@ -89,6 +88,16 @@ const workspace = new WorkspaceController({
   },
 });
 
+// Create flow (validate → scaffold via the ONE registry → hand off to the
+// staged workspace) lives in the tested CreateController (reconcile S5).
+const create = new CreateController({
+  scaffold: async (prompt) => {
+    const res = await tools.scaffold_project({ prompt });
+    return res.ok ? { ok: true, projectId: res.data.projectId } : { ok: false, cause: res.error.cause };
+  },
+  beginScript: (id, input) => workspace.beginScript(id, input),
+});
+
 // Dev license: starts unactivated so the activation screen shows. The dev code
 // "123" activates it via the tested LicenseManager over a DevLicenseService
 // (the LicenseService seam; HttpLicenseService is the future online adapter).
@@ -110,19 +119,7 @@ const handlers: InvokeHandlers = {
   "ai:selectedModel": () => gateway.selectedModel(),
 
   "projects:list": () => workspace.list(),
-  "projects:create": async (input) => {
-    const raw = (input as { raw: string }).raw;
-    const v = validateCreateInput({ raw });
-    if (!v.ok) throw new Error(v.reason);
-    const prompt = v.classified.kind === "url" ? v.classified.url : v.classified.text;
-    const res = await tools.scaffold_project({ prompt });
-    if (!res.ok) throw new Error(res.error.cause);
-    const projectId = res.data.projectId;
-    const authorInput: AuthorInput =
-      v.classified.kind === "url" ? { kind: "url", url: v.classified.url } : { kind: "topic", text: v.classified.text };
-    workspace.beginScript(projectId, authorInput); // stage 1: write the script
-    return { projectId };
-  },
+  "projects:create": (input) => create.create((input as { raw: string }).raw),
   "projects:stage": (projectId) => workspace.stage(String(projectId)),
   "projects:open": (projectId) => workspace.open(String(projectId)),
   "projects:delete": (projectId) => workspace.delete(String(projectId)),

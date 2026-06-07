@@ -1,77 +1,71 @@
 import { describe, expect, it, vi } from "vitest";
-import { CreateController, type CreateBackend } from "./create-controller.js";
-import type { AgentHooks, AgentWorker, AuthorOutcome } from "../agent/agent-worker.js";
-import type { FriendlyError } from "../../shared/types.js";
+import fc from "fast-check";
+import { CreateController, type CreateDeps } from "./create-controller.js";
+import type { AuthorInput } from "../agent/agent-worker.js";
 
 /**
- * Feature: web-dashboard, Task 7.2 — create→scaffold single-registry wiring.
- * Create routes through `scaffold_project` (one backend/registry); validation
- * and scaffold failures never start authoring; an ingest/search failure surfaces
- * a friendly message and leaves authoring unstarted. (Req 3.6, 3.9, 3.10, 12.10)
+ * Feature: reconcile-main-controllers, S5 — create→scaffold→beginScript wiring.
+ * Reproduces the inline Current_Behavior of index.ts `projects:create`: validate
+ * → scaffold once through the single registry → hand off to the staged
+ * workspace. Validation/scaffold failures throw and never start the workspace.
+ * (R1.3, R2.1, R4.5, R4.6)
  */
 
-const noopHooks: AgentHooks = { onProgress() {}, onSceneProduced() {}, onRepair() {} };
-const tick = () => new Promise((r) => setTimeout(r, 5));
-
-function worker(outcome: AuthorOutcome): AgentWorker {
-  return {
-    author: vi.fn(async () => outcome),
-    reauthorScenes: vi.fn(async (): Promise<AuthorOutcome> => ({ kind: "authored", sceneIds: [] })),
-    generateValidateRepair: vi.fn(async () => ({ kind: "passed" as const, attempts: 1 })),
+function deps(over: Partial<CreateDeps> = {}): { deps: CreateDeps; scaffold: ReturnType<typeof vi.fn>; began: { id: string; input: AuthorInput }[] } {
+  const began: { id: string; input: AuthorInput }[] = [];
+  const scaffold = (over.scaffold as ReturnType<typeof vi.fn>) ?? vi.fn(async (_prompt: string) => ({ ok: true as const, projectId: "p1" }));
+  const d: CreateDeps = {
+    scaffold,
+    beginScript: (id, input) => began.push({ id, input }),
+    ...over,
   };
+  return { deps: d, scaffold, began };
 }
 
-describe("CreateController.start", () => {
-  it("rejects an empty input with a friendly error and never scaffolds", async () => {
-    const scaffold = vi.fn(async () => ({ ok: true as const, projectId: "p1" }));
-    const backend: CreateBackend = { scaffold };
-    const ctrl = new CreateController(backend, worker({ kind: "authored", sceneIds: [] }));
-    const result = await ctrl.start({ raw: "   " }, noopHooks, () => {});
-    expect(result).toEqual({ ok: false, error: { message: expect.any(String), retry: "create" } });
-    expect(scaffold).not.toHaveBeenCalled();
-  });
-
-  it("scaffolds exactly once through the one backend and hands off to author", async () => {
-    const scaffold = vi.fn(async () => ({ ok: true as const, projectId: "proj-7" }));
-    const w = worker({ kind: "authored", sceneIds: ["scene-01"] });
-    const ctrl = new CreateController({ scaffold }, w);
-
-    const result = await ctrl.start({ raw: "tin công nghệ" }, noopHooks, () => {});
-    expect(result).toEqual({ ok: true, projectId: "proj-7" });
+describe("CreateController.create", () => {
+  it("scaffolds once with the prompt and hands a topic off to beginScript", async () => {
+    const { deps: d, scaffold, began } = deps({
+      scaffold: vi.fn(async () => ({ ok: true as const, projectId: "proj-7" })),
+    });
+    const ctrl = new CreateController(d);
+    const result = await ctrl.create("tin công nghệ");
+    expect(result).toEqual({ projectId: "proj-7" });
     expect(scaffold).toHaveBeenCalledOnce();
     expect(scaffold).toHaveBeenCalledWith("tin công nghệ");
-    await tick();
-    expect(w.author).toHaveBeenCalledWith(
-      expect.objectContaining({ projectId: "proj-7", input: { kind: "topic", text: "tin công nghệ" } }),
-      noopHooks,
-    );
+    expect(began).toEqual([{ id: "proj-7", input: { kind: "topic", text: "tin công nghệ" } }]);
   });
 
-  it("surfaces a scaffold failure as a friendly error and never authors", async () => {
-    const w = worker({ kind: "authored", sceneIds: [] });
-    const backend: CreateBackend = {
-      scaffold: async () => ({ ok: false, error: { message: "[config] boom", stage: "config", cause: "boom", severity: "error" } }),
-    };
-    const ctrl = new CreateController(backend, w);
-    const result = await ctrl.start({ raw: "abc" }, noopHooks, () => {});
-    expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.error.message.length).toBeGreaterThan(0);
-    await tick();
-    expect(w.author).not.toHaveBeenCalled();
+  it("classifies a URL input and passes a url AuthorInput", async () => {
+    const { deps: d, began } = deps();
+    const ctrl = new CreateController(d);
+    await ctrl.create("https://news.example.com/a");
+    expect(began).toEqual([{ id: "p1", input: { kind: "url", url: "https://news.example.com/a" } }]);
   });
 
-  it("surfaces an ingest failure via onError, leaving authoring unstarted", async () => {
-    const errors: FriendlyError[] = [];
-    const w = worker({ kind: "ingest-failed", message: "Không tải được trang." });
-    const ctrl = new CreateController({ scaffold: async () => ({ ok: true, projectId: "p9" }) }, w);
+  it("throws the scaffold cause and never starts the workspace", async () => {
+    const { deps: d, began } = deps({ scaffold: vi.fn(async () => ({ ok: false as const, cause: "boom" })) });
+    const ctrl = new CreateController(d);
+    await expect(ctrl.create("abc")).rejects.toThrow("boom");
+    expect(began).toEqual([]);
+  });
+});
 
-    const result = await ctrl.start(
-      { raw: "https://news.example.com/a" },
-      noopHooks,
-      (e) => errors.push(e),
+// Property 10: Create invalid input throws reason and never scaffolds
+describe("Property 10: create invalid input throws reason, no scaffold", () => {
+  it("for any input invalid per validateCreateInput, create throws its reason and scaffold is not called", async () => {
+    const invalidArb = fc.oneof(
+      fc.constantFrom("", "   ", "\t\n"), // empty
+      fc.constantFrom("http://nodot", "https://localhost"), // malformed-url
+      fc.constant(`k${"x".repeat(20001)}`), // too-long topic
     );
-    expect(result).toEqual({ ok: true, projectId: "p9" });
-    await tick();
-    expect(errors).toEqual([{ projectId: "p9", message: "Không tải được trang.", retry: "create" }]);
+    await fc.assert(
+      fc.asyncProperty(invalidArb, async (raw) => {
+        const { deps: d, scaffold } = deps();
+        const ctrl = new CreateController(d);
+        await expect(ctrl.create(raw)).rejects.toBeInstanceOf(Error);
+        expect(scaffold).not.toHaveBeenCalled();
+      }),
+      { numRuns: 100 },
+    );
   });
 });
