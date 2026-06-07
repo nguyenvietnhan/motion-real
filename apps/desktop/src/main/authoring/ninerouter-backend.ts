@@ -81,18 +81,30 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
     const messages = buildAuthorMessages(job.input, research);
     let reply: string;
     try {
+      console.log(`[authoring] calling AI model "${model}" for project ${job.projectId}…`);
       reply = await this.deps.client.chat(model, messages, { apiKey: this.deps.apiKey() });
+      console.log(`[authoring] AI replied (${reply.length} chars) for project ${job.projectId}.`);
     } catch (e) {
+      console.error(`[authoring] AI call failed for project ${job.projectId}:`, e);
       return { scenes: [], message: e instanceof Error ? e.message : "Gọi AI thất bại." };
     }
 
     const parsed = parseAuthorManifest(reply);
     if (!parsed.ok) {
+      console.error(`[authoring] manifest parse failed (${parsed.reason}). Raw reply (first 2000 chars):\n${reply.slice(0, 2000)}`);
       return { scenes: [], message: `AI trả về kịch bản chưa hợp lệ (${parsed.reason}).` };
     }
 
     // Write only the kit components actually used, plus the manifest.
     const used = new Set<string>(parsed.manifest.scenes.map((s) => s.component));
+    const known = new Set<string>(SCENE_KIT.map((e) => e.id));
+    const unknown = [...used].filter((id) => !known.has(id));
+    if (unknown.length > 0) {
+      console.error(
+        `[authoring] AI used component ids NOT in the kit: ${unknown.join(", ")}. ` +
+          `Allowed ids: ${[...known].join(", ")}. These scenes have no module and will fail admission.`,
+      );
+    }
     for (const entry of SCENE_KIT) {
       if (used.has(entry.id)) await writeAuthoredScene(job.projectId, entry.file, entry.code);
     }
@@ -101,6 +113,10 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
 
     const admitted = await admitProjectScenes(job.projectId);
     if (!admitted.ok) {
+      console.error(
+        "[authoring] admission failed:\n" +
+          admitted.violations.map((v) => `  ${v.check} ${v.path}: ${v.message}`).join("\n"),
+      );
       return { scenes: [], message: "Một số cảnh chưa hợp lệ. Hãy thử tạo lại." };
     }
 

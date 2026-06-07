@@ -3,6 +3,7 @@ import { buildStoryboard } from "../review/storyboard.js";
 import type { AgentHooks, AgentWorker, AuthorInput } from "../agent/agent-worker.js";
 import type {
   ApplyResult,
+  FriendlyStatus,
   ProjectCardVM,
   ProjectStage,
   ScriptEdit,
@@ -11,6 +12,18 @@ import type {
   SceneCard,
   StoryboardModel,
 } from "../../shared/types.js";
+
+/** Map a live workspace stage to the gallery's friendly status. */
+function stageToFriendlyStatus(kind: ProjectStage["kind"]): FriendlyStatus {
+  switch (kind) {
+    case "ready":
+      return "draft-ready";
+    case "error":
+      return "error";
+    default:
+      return "building"; // writing | script | rendering
+  }
+}
 
 /**
  * WorkspaceController (reconcile-main-controllers S4) — the tested home for the
@@ -148,7 +161,16 @@ export class WorkspaceController {
   // --- read/IPC operations ------------------------------------------------
 
   list(): Promise<ProjectCardVM[]> {
-    return this.deps.listProjects();
+    return this.deps.listProjects().then((cards) =>
+      cards.map((c) => {
+        // Overlay the live in-memory stage so the gallery card matches the
+        // workspace (the on-disk brief.state isn't updated on dashboard-level
+        // authoring failures, which otherwise showed "building" while the
+        // workspace showed "error").
+        const stage = this.stages.get(c.projectId);
+        return stage ? { ...c, status: stageToFriendlyStatus(stage.kind) } : c;
+      }),
+    );
   }
 
   /** Recover a stage for a project no longer in memory (R2.8). */
