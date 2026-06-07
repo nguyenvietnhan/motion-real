@@ -124,56 +124,56 @@ Language: TypeScript (existing monorepo). Tests run under Vitest with
       interface keeps the rest of the design independent of the spike outcome
     - _Requirements: 7.5_
 
-- [ ] 3. Checkpoint - engine tool + spike resolved
+- [x] 3. Checkpoint - engine tool + spike resolved
   - Ensure all tests pass and the existing engine suite stays green; confirm the
     POC_Spike decision (Y vs X) before committing the authoring-plane impl.
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 4. Pure control-plane logic (no AI, no render — fully testable)
-  - [ ] 4.1 Implement the License manager and `canCreate` gate
+- [x] 4. Pure control-plane logic (no AI, no render — fully testable)
+  - [x] 4.1 Implement the License manager and `canCreate` gate
     - Create `apps/desktop/main/license/license-manager.ts` with `LicenseState`,
       `LicenseService`, `ActivationOutcome`, `LicenseManager` (`current`,
       `activate` with 30s timeout + retry-same-key, `verifyAtLaunch` with
       node-locked skip, `canCreate`); the renderer sees state only, never the key
     - _Requirements: 1.3, 1.5, 1.6, 1.7, 1.8, 1.9_
 
-  - [ ]* 4.2 Write property test for the creation license gate
+  - [x]* 4.2 Write property test for the creation license gate
     - **Property 2: License gates new creation iff active**
     - **Validates: Requirements 1.7, 1.9**
 
-  - [ ] 4.3 Implement the Create-input validator (`CreateController.validate`)
+  - [x] 4.3 Implement the Create-input validator (`CreateController.validate`)
     - Create `apps/desktop/main/create/create-controller.ts` with a pure, total
       `validate` over arbitrary strings: empty/whitespace ⇒ `empty`; topic > 500
       or URL > 2048 ⇒ `too-long`; URL-shaped-but-malformed ⇒ `malformed-url`;
       else classify URL vs topic; never start creation for `ok:false`, retain text
     - _Requirements: 3.1, 3.7, 3.8_
 
-  - [ ]* 4.4 Write property test for create-input validation
+  - [x]* 4.4 Write property test for create-input validation
     - **Property 1: Create input validation is total and correct**
     - **Validates: Requirements 3.1, 3.7, 3.8**
 
-  - [ ] 4.5 Implement the AI-ready gate (`aiReady`)
+  - [x] 4.5 Implement the AI-ready gate (`aiReady`)
     - Add the pure `aiReady(gw, acc)` to the Model_Gateway manager module:
       true iff gateway `ready` and account `connected`; used to gate the Create
       action and block silent draft start when false
     - _Requirements: 2.4, 2.9_
 
-  - [ ]* 4.6 Write property test for the AI-generation gate
+  - [x]* 4.6 Write property test for the AI-generation gate
     - **Property 3: AI generation is gated by gateway-ready and account-connected**
     - **Validates: Requirements 2.4, 2.9**
 
-  - [ ] 4.7 Implement script-edit application with empty-narration guard
+  - [x] 4.7 Implement script-edit application with empty-narration guard
     - Create the script-gate apply logic: apply confirmed `ScriptEdit[]` to the
       manifest; reject any edit leaving zero non-whitespace narration (retain
       prior text, identify the scene); on write failure leave the pre-edit
       manifest unchanged (`ApplyResult`)
     - _Requirements: 4.3, 4.4, 4.5_
 
-  - [ ]* 4.8 Write property test for script-edit narration safety
+  - [x]* 4.8 Write property test for script-edit narration safety
     - **Property 4: Script edits never write an empty narration**
     - **Validates: Requirements 4.3, 4.4, 4.5**
 
-  - [ ] 4.9 Implement the EditRouter (plain-text vs visual classification)
+  - [x] 4.9 Implement the EditRouter (plain-text vs visual classification)
     - Create `apps/desktop/main/review/edit-router.ts` with `EditClass`,
       `ParsedSceneEdit`, `EditRouter.classify` (pure, total) and `route` that
       splits a batch into plain-text edits (apply to manifest, no AI) and the
@@ -181,42 +181,42 @@ Language: TypeScript (existing monorepo). Tests run under Vitest with
       engine's content normalization before manifest write
     - _Requirements: 8.6, 8.7, 8.8, 8.14_
 
-  - [ ]* 4.10 Write property test for edit routing
+  - [x]* 4.10 Write property test for edit routing
     - **Property 7: Edit routing — plain-text never invokes AI, visual touches only affected scenes**
     - **Validates: Requirements 8.6, 8.7, 8.8, 8.14**
 
-  - [ ] 4.11 Implement batch submission validation (empty + last-scene guards)
+  - [x] 4.11 Implement batch submission validation (empty + last-scene guards)
     - Add `BatchSubmitController.validateBatch`: reject a batch with no per-scene
       text and no global notes (`no-changes`); reject removal of the only
       remaining scene (`last-scene`); leave the current Draft unchanged in both
     - _Requirements: 8.11, 8.13_
 
-  - [ ]* 4.12 Write property test for empty and last-scene rejection
+  - [x]* 4.12 Write property test for empty and last-scene rejection
     - **Property 8: Empty and last-scene submissions are rejected without changing the draft**
     - **Validates: Requirements 8.11, 8.13**
 
-  - [ ] 4.13 Implement the friendly-status mapping (`toFriendlyStatus`)
+  - [x] 4.13 Implement the friendly-status mapping (`toFriendlyStatus`)
     - Create `apps/desktop/renderer/gallery/friendly-status.ts` with
       `FriendlyStatus`, `FRIENDLY_LABELS`, and a TOTAL `toFriendlyStatus` mapping
       every `ProjectState` plus any unknown string to `building` by default;
       never returns an internal state name
     - _Requirements: 10.2, 10.3, 10.4_
 
-  - [ ]* 4.14 Write property test for the friendly-status mapping
+  - [x]* 4.14 Write property test for the friendly-status mapping
     - **Property 10: Friendly-status mapping is total and leaks no internal state name**
     - **Validates: Requirements 10.2, 10.3, 10.4**
 
-  - [ ] 4.15 Implement the disclosure-level map (`disclosureOf`)
+  - [x] 4.15 Implement the disclosure-level map (`disclosureOf`)
     - Create `apps/desktop/renderer/settings/disclosure.ts` with
       `DisclosureLevel`, `ControlId`, and a pure total `disclosureOf` placing
       every control; L0 ids map to `L0` and are never rendered
     - _Requirements: 11.1, 11.2, 11.4, 11.5_
 
-  - [ ]* 4.16 Write property test for disclosure placement
+  - [x]* 4.16 Write property test for disclosure placement
     - **Property 12: Disclosure placement is total and hides all L0 internals**
     - **Validates: Requirements 11.1, 11.2, 11.4, 11.5**
 
-  - [ ] 4.17 Implement the main-process redaction boundary (FriendlyError/FriendlyFix)
+  - [x] 4.17 Implement the main-process redaction boundary (FriendlyError/FriendlyFix)
     - Create `apps/desktop/main/redact/friendly.ts` translating
       `SerializedPipelineError` / `SafetyIssue` into `FriendlyError` /
       `FriendlyFix` with a non-empty plain-language message and stripping every
@@ -224,7 +224,7 @@ Language: TypeScript (existing monorepo). Tests run under Vitest with
     - This is the ONLY error/fix shape allowed to cross IPC
     - _Requirements: 6.8, 11.5, 11.6, 12.2_
 
-  - [ ]* 4.18 Write property test for engine-internal redaction
+  - [x]* 4.18 Write property test for engine-internal redaction
     - **Property 6: No engine internals leak into user-facing messages**
     - **Validates: Requirements 6.8, 11.5, 11.6, 12.2**
 

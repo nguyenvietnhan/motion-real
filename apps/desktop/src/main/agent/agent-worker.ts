@@ -57,7 +57,8 @@ export type RepairOutcome =
   | { kind: "exhausted"; attempts: number; remainingHardErrors: number };
 
 /** A plain-language auto-fix description (NEVER an N-code / engine internal; Req 6.8). */
-export type FriendlyFix = { sceneId?: string; message: string };
+export type { FriendlyFix } from "../../shared/types.js";
+import type { FriendlyFix } from "../../shared/types.js";
 
 /**
  * Streaming callbacks the worker uses to surface progress to the UI. The worker
