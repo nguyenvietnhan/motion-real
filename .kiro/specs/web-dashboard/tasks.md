@@ -346,7 +346,7 @@ Language: TypeScript (existing monorepo). Tests run under Vitest with
       tools
     - _Requirements: 10.1, 10.6, 10.7, 10.8, 10.9_
 
-  - [ ]* 9.4 Write property test for the draft-first approve/full gate
+  - [x]* 9.4 Write property test for the draft-first approve/full gate
     - **Property 9: Approve and full render are gated by a reviewed draft (draft-first)**
     - **Validates: Requirements 5.6, 9.1, 9.2, 9.4, 12.5**
 
