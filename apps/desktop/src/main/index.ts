@@ -12,10 +12,11 @@ import { CustomLoopAgentWorker } from "./agent/custom-loop-worker.js";
 import type { AgentHooks, AuthorInput } from "./agent/agent-worker.js";
 import { toCards } from "../renderer/gallery/gallery-controller.js";
 import { defaultSettings } from "../renderer/settings/settings-model.js";
+import { SettingsStore } from "./settings/settings-store.js";
 import { validateCreateInput } from "./create/create-controller.js";
 import { registerMediaScheme, handleMediaProtocol, mediaUrl } from "./media-protocol.js";
 import { events, setEventTarget } from "./event-bus.js";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { rm } from "node:fs/promises";
 import type { LicenseState, ModelInfo, ProjectStage, SceneCard, SettingsModel, StoryboardModel } from "../shared/types.js";
 
@@ -32,37 +33,20 @@ registerMediaScheme();
 
 const SETTINGS_FILE = join(videoToolHome(), "news-studio-settings.json");
 
-function loadSettings(): SettingsModel {
-  const base = defaultSettings(videoToolHome());
-  try {
-    if (existsSync(SETTINGS_FILE)) {
-      const saved = JSON.parse(readFileSync(SETTINGS_FILE, "utf8")) as Partial<SettingsModel>;
-      return { ...base, ...saved, voiceProvider: "vivibe", aiAccount: base.aiAccount };
-    }
-  } catch (e) {
-    console.warn("[settings] failed to read settings file, using defaults:", e);
-  }
-  return base;
-}
-
-function saveSettings(): void {
-  try {
-    const { aiAccount: _omit, ...persisted } = settings;
-    writeFileSync(SETTINGS_FILE, `${JSON.stringify(persisted, null, 2)}\n`, "utf8");
-  } catch (e) {
-    console.warn("[settings] failed to persist settings file:", e);
-  }
-}
-
-let settings: SettingsModel = loadSettings();
+// Settings persistence lives in the tested SettingsStore (reconcile S2): load
+// merged over defaults (aiAccount forced from default), update/save excluding
+// aiAccount, voiceConfig with .env fallback.
+const settingsStore = new SettingsStore({
+  filePath: SETTINGS_FILE,
+  defaults: () => defaultSettings(videoToolHome()),
+  envApiKey: vivibeApiKey,
+  envVoiceId: defaultVivibeVoiceId,
+});
 let selectedModel: ModelInfo | undefined;
 
 // TTS config: a user-entered voice key/id (Settings) overrides the .env fallback.
 const tools = createTools({
-  ttsConfig: () => ({
-    apiKey: settings.voiceApiKey?.trim() || vivibeApiKey() || "",
-    voiceId: settings.voiceId?.trim() || defaultVivibeVoiceId() || "",
-  }),
+  ttsConfig: () => settingsStore.voiceConfig(),
 });
 const nrClient = new NineRouterClient();
 const gateway = new ModelGatewayManager(
@@ -111,13 +95,13 @@ async function runScript(projectId: string, input: AuthorInput): Promise<void> {
   setStage(projectId, { kind: "writing" });
   const hooks: AgentHooks = { onProgress: () => {}, onSceneProduced: () => {}, onRepair: () => {} };
   try {
-    const authored = await worker.author({ projectId, input, scriptGate: settings.scriptGateEnabled }, hooks);
+    const authored = await worker.author({ projectId, input, scriptGate: settingsStore.scriptGateEnabled }, hooks);
     if (authored.kind !== "authored") {
       setStage(projectId, { kind: "error", message: authored.message });
       events.friendlyError({ projectId, message: authored.message, retry: "create" });
       return;
     }
-    if (settings.scriptGateEnabled) {
+    if (settingsStore.scriptGateEnabled) {
       setStage(projectId, { kind: "script", lines: await scriptLinesOf(projectId) });
     } else {
       await runRender(projectId);
@@ -141,7 +125,7 @@ async function runRender(projectId: string): Promise<void> {
     onRepair: () => {},
   };
   try {
-    const outcome = await worker.generateValidateRepair(projectId, { maxAttempts: settings.maxRepairAttempts }, hooks);
+    const outcome = await worker.generateValidateRepair(projectId, { maxAttempts: settingsStore.maxRepairAttempts }, hooks);
     if (outcome.kind === "passed") {
       setStage(projectId, { kind: "ready", scenes: await storyboardScenesOf(projectId) });
     } else {
@@ -239,9 +223,9 @@ const handlers: InvokeHandlers = {
     const id = String(projectId);
     try {
       const lines = await scriptLinesOf(id);
-      return { projectId: id, enabled: settings.scriptGateEnabled, scenes: lines.map((l) => ({ sceneId: l.sceneId, order: l.order, narration: l.narration, headline: l.headline })) };
+      return { projectId: id, enabled: settingsStore.scriptGateEnabled, scenes: lines.map((l) => ({ sceneId: l.sceneId, order: l.order, narration: l.narration, headline: l.headline })) };
     } catch {
-      return { projectId: id, enabled: settings.scriptGateEnabled, scenes: [] };
+      return { projectId: id, enabled: settingsStore.scriptGateEnabled, scenes: [] };
     }
   },
   "script:applyEdits": async (projectId, edits) => {
@@ -269,20 +253,15 @@ const handlers: InvokeHandlers = {
     return undefined;
   },
   "script:setEnabled": (enabled) => {
-    settings = { ...settings, scriptGateEnabled: Boolean(enabled) };
-    saveSettings();
+    settingsStore.setScriptGateEnabled(enabled);
     return undefined;
   },
 
   "review:submitEdits": () => ({ ok: true, revision: 1 }),
   "review:approveDraft": () => ({ ok: false, reason: "draft-first" }),
 
-  "settings:get": () => settings,
-  "settings:update": (patch) => {
-    settings = { ...settings, ...(patch as Partial<SettingsModel>), voiceProvider: "vivibe" };
-    saveSettings();
-    return settings;
-  },
+  "settings:get": () => settingsStore.current(),
+  "settings:update": (patch) => settingsStore.update(patch as Partial<SettingsModel>),
 };
 
 registerIpcRouter(ipcMain, handlers);

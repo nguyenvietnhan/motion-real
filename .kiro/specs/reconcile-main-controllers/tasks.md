@@ -28,15 +28,15 @@ và hành vi quan sát được của app KHÔNG đổi (R6). Khi cập nhật m
   - [x] 2.5 Chạy lưới verify.
   - _Requirements: R5.5, R5.6, R1.5, R1.6_
 
-- [ ] 3. S2 — `SettingsStore` (mới, có property test)
-  - [ ] 3.1 Tạo `apps/desktop/src/main/settings/settings-store.ts` khớp Current_Behavior: `current()`, `load` (merge saved chồng lên `defaultSettings(videoToolHome())` với saved ưu tiên, ép `voiceProvider="vivibe"`, ép `aiAccount = default.aiAccount`, lỗi đọc/parse → defaults không ném), `update(patch)` (merge patch ưu tiên + ép `voiceProvider` + save + return, KHÔNG clamp), `setScriptGateEnabled(Boolean(v))` + save, `voiceConfig()` (setting.trim() nếu khác rỗng, else env fallback), `save()` (ghi JSON loại trừ `aiAccount`). Tiêm seam đọc/ghi file để test không cần đĩa thật.
-  - [ ] 3.2 Property test P2 — Settings load merge precedence. `// Feature: reconcile-main-controllers, Property 2: Settings load merge precedence` (_R3.4_).
-  - [ ] 3.3 Property test P3 — Settings update merge precedence (không clamp) + persisted khớp return. `Property 3` (_R3.8_).
-  - [ ] 3.4 Property test P4 — Persistence loại trừ `aiAccount`. `Property 4` (_R3.6_).
-  - [ ] 3.5 Property test P5 — Voice config resolution. `Property 5` (_R3.7_).
-  - [ ] 3.6 Property test P6 — `setScriptGateEnabled` là Boolean coercion + ghi đĩa. `Property 6` (_R3.9_).
-  - [ ] 3.7 Wire `settings:get`/`settings:update`/`script:setEnabled` và callback `ttsConfig` của `createTools` qua `SettingsStore`; gỡ `loadSettings`/`saveSettings` nội tuyến trong `index.ts`; gỡ `normalizeSettings` (+ test mồ côi) khỏi `settings-model.ts`, GIỮ `defaultSettings`.
-  - [ ] 3.8 Chạy lưới verify.
+- [x] 3. S2 — `SettingsStore` (mới, có property test)
+  - [x] 3.1 Tạo `apps/desktop/src/main/settings/settings-store.ts` khớp Current_Behavior: `current()`, `load` (merge saved chồng lên `defaultSettings(videoToolHome())` với saved ưu tiên, ép `voiceProvider="vivibe"`, ép `aiAccount = default.aiAccount`, lỗi đọc/parse → defaults không ném), `update(patch)` (merge patch ưu tiên + ép `voiceProvider` + save + return, KHÔNG clamp), `setScriptGateEnabled(Boolean(v))` + save, `voiceConfig()` (setting.trim() nếu khác rỗng, else env fallback), `save()` (ghi JSON loại trừ `aiAccount`). Tiêm seam đọc/ghi file để test không cần đĩa thật.
+  - [x] 3.2 Property test P2 — Settings load merge precedence. `// Feature: reconcile-main-controllers, Property 2: Settings load merge precedence` (_R3.4_).
+  - [x] 3.3 Property test P3 — Settings update merge precedence (không clamp) + persisted khớp return. `Property 3` (_R3.8_).
+  - [x] 3.4 Property test P4 — Persistence loại trừ `aiAccount`. `Property 4` (_R3.6_).
+  - [x] 3.5 Property test P5 — Voice config resolution. `Property 5` (_R3.7_).
+  - [x] 3.6 Property test P6 — `setScriptGateEnabled` là Boolean coercion + ghi đĩa. `Property 6` (_R3.9_).
+  - [x] 3.7 Wire `settings:get`/`settings:update`/`script:setEnabled` và callback `ttsConfig` của `createTools` qua `SettingsStore`; gỡ `loadSettings`/`saveSettings` nội tuyến trong `index.ts`; gỡ `normalizeSettings` (+ test mồ côi) khỏi `settings-model.ts`, GIỮ `defaultSettings`.
+  - [x] 3.8 Chạy lưới verify.
   - _Requirements: R3.4–R3.9, R8.4_
 
 - [ ] 4. S3 — License: `DevLicenseService` + wire (GIỮ `HttpLicenseService`)
