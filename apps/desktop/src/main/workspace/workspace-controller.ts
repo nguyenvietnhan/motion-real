@@ -52,6 +52,8 @@ export interface WorkspaceDeps {
   hasStill: (projectId: string, sceneId: string) => boolean;
   deleteProject: (projectId: string) => Promise<void>;
   revealProject: (projectId: string) => Promise<void>;
+  /** Redact L0 engine tokens from any message before it reaches the UI (R8.5). */
+  redact: (message: string) => string;
 }
 
 export class WorkspaceController {
@@ -95,8 +97,9 @@ export class WorkspaceController {
     try {
       const authored = await this.deps.worker.author({ projectId, input, scriptGate: this.deps.settings.scriptGateEnabled }, hooks);
       if (authored.kind !== "authored") {
-        this.setStage(projectId, { kind: "error", message: authored.message });
-        this.deps.events.friendlyError({ projectId, message: authored.message, retry: "create" });
+        const message = this.deps.redact(authored.message ?? "Chưa tìm được nguồn nội dung phù hợp.");
+        this.setStage(projectId, { kind: "error", message });
+        this.deps.events.friendlyError({ projectId, message, retry: "create" });
         return;
       }
       if (this.deps.settings.scriptGateEnabled) {
@@ -105,7 +108,7 @@ export class WorkspaceController {
         await this.runRender(projectId);
       }
     } catch (e) {
-      const message = e instanceof Error ? e.message : "Có lỗi khi viết kịch bản.";
+      const message = this.deps.redact(e instanceof Error ? e.message : "Có lỗi khi viết kịch bản.");
       this.setStage(projectId, { kind: "error", message });
       this.deps.events.friendlyError({ projectId, message, retry: "create" });
     }
@@ -136,7 +139,7 @@ export class WorkspaceController {
         this.deps.events.friendlyError({ projectId, message, retry: "draft" });
       }
     } catch (e) {
-      const message = e instanceof Error ? e.message : "Có lỗi khi dựng video.";
+      const message = this.deps.redact(e instanceof Error ? e.message : "Có lỗi khi dựng video.");
       this.setStage(projectId, { kind: "error", message });
       this.deps.events.friendlyError({ projectId, message, retry: "draft" });
     }

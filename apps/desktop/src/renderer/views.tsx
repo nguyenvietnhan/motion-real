@@ -234,7 +234,8 @@ export const HomeView: React.FC<{
   onConnectPrompt: () => void;
   onDelete?: (id: string) => void;
   onReveal?: (id: string) => void;
-}> = ({ aiReady, load, cards, onCreate, onOpen, onConnectPrompt, onDelete, onReveal }) => {
+  createError?: string;
+}> = ({ aiReady, load, cards, onCreate, onOpen, onConnectPrompt, onDelete, onReveal, createError }) => {
   const [raw, setRaw] = useState("");
   const valid = validateCreateInput({ raw });
   const canCreate = aiReady && valid.ok;
@@ -283,6 +284,7 @@ export const HomeView: React.FC<{
           {!aiReady && <span style={{ color: "var(--muted-foreground)", fontSize: 13 }}>Cần kết nối AI trước.</span>}
           {aiReady && reason && <span style={{ color: "var(--warn)", fontSize: 13 }}>{reason}</span>}
         </div>
+        {createError && <p style={{ color: "var(--danger)", fontSize: 13, margin: "10px 0 0" }}>{createError}</p>}
       </div>
 
       <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 14 }}>

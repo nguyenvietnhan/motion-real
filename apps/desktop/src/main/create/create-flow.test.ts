@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import fc from "fast-check";
 import { CreateController, type CreateDeps } from "./create-controller.js";
 import type { AuthorInput } from "../agent/agent-worker.js";
+import type { SerializedPipelineError } from "@news/pipeline";
 
 /**
  * Feature: reconcile-main-controllers, S5 — create→scaffold→beginScript wiring.
@@ -43,10 +44,24 @@ describe("CreateController.create", () => {
     expect(began).toEqual([{ id: "p1", input: { kind: "url", url: "https://news.example.com/a" } }]);
   });
 
-  it("throws the scaffold cause and never starts the workspace", async () => {
-    const { deps: d, began } = deps({ scaffold: vi.fn(async () => ({ ok: false as const, cause: "boom" })) });
+  it("throws a REDACTED friendly message on scaffold failure and never starts the workspace (R8.5)", async () => {
+    const leaky: SerializedPipelineError = {
+      message: "[render] N14 leaked from /proj/scene-01.tsx",
+      stage: "render",
+      cause: "N14 overflow in scene-01.tsx",
+      severity: "error",
+    };
+    const { deps: d, began } = deps({ scaffold: vi.fn(async () => ({ ok: false as const, error: leaky })) });
     const ctrl = new CreateController(d);
-    await expect(ctrl.create("abc")).rejects.toThrow("boom");
+    let message = "";
+    try {
+      await ctrl.create("abc");
+    } catch (e) {
+      message = (e as Error).message;
+    }
+    // No raw engine tokens leak (no N-code, no .tsx, no raw cause).
+    expect(message).not.toMatch(/N14|\.tsx|overflow/);
+    expect(message.length).toBeGreaterThan(0);
     expect(began).toEqual([]);
   });
 });

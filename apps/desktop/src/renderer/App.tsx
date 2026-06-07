@@ -30,6 +30,7 @@ export const App: React.FC = () => {
   const [models, setModels] = useState<ModelInfo[]>([]);
   const [openProjectId, setOpenProjectId] = useState<string | null>(null);
   const [stage, setStage] = useState<ProjectStage>({ kind: "writing" });
+  const [createError, setCreateError] = useState<string>("");
 
   const dash = typeof window !== "undefined" ? window.dashboard : undefined;
   const ready = aiReady(gateway, account);
@@ -134,10 +135,17 @@ export const App: React.FC = () => {
             load={state.gallery.load}
             cards={state.gallery.cards}
             onConnectPrompt={() => setScreen("settings")}
-            onCreate={(raw) => void dash?.projects.create({ raw }).then((r) => openProject(r.projectId))}
+            onCreate={(raw) => {
+              setCreateError("");
+              void dash?.projects
+                .create({ raw })
+                .then((r) => openProject(r.projectId))
+                .catch((err: unknown) => setCreateError(err instanceof Error ? err.message : "Không tạo được dự án. Hãy thử lại."));
+            }}
             onOpen={openProject}
             onDelete={onDelete}
             onReveal={onReveal}
+            createError={createError}
           />
         )}
 

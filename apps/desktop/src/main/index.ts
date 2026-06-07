@@ -13,6 +13,7 @@ import { LicenseManager } from "./license/license-manager.js";
 import { DevLicenseService } from "./license/dev-license-service.js";
 import { WorkspaceController } from "./workspace/workspace-controller.js";
 import { CreateController } from "./create/create-controller.js";
+import { stripL0Tokens } from "./redact/friendly.js";
 import { toCards } from "../renderer/gallery/gallery-controller.js";
 import { defaultSettings } from "../renderer/settings/settings-model.js";
 import { SettingsStore } from "./settings/settings-store.js";
@@ -86,6 +87,7 @@ const workspace = new WorkspaceController({
   revealProject: async (id) => {
     await shell.openPath(projectPaths(id).root);
   },
+  redact: stripL0Tokens,
 });
 
 // Create flow (validate → scaffold via the ONE registry → hand off to the
@@ -93,7 +95,7 @@ const workspace = new WorkspaceController({
 const create = new CreateController({
   scaffold: async (prompt) => {
     const res = await tools.scaffold_project({ prompt });
-    return res.ok ? { ok: true, projectId: res.data.projectId } : { ok: false, cause: res.error.cause };
+    return res.ok ? { ok: true, projectId: res.data.projectId } : { ok: false, error: res.error };
   },
   beginScript: (id, input) => workspace.beginScript(id, input),
 });

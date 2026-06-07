@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import fc from "fast-check";
 import { WorkspaceController, type WorkspaceDeps, type WsManifest } from "./workspace-controller.js";
+import { stripL0Tokens } from "../redact/friendly.js";
 import type { AgentHooks, AgentWorker, AuthorOutcome, RepairOutcome } from "../agent/agent-worker.js";
 import type { ProjectStage, ScriptEdit } from "../../shared/types.js";
 
@@ -25,6 +26,7 @@ function baseDeps(over: Partial<WorkspaceDeps> = {}): WorkspaceDeps {
     hasStill: () => false,
     deleteProject: async () => {},
     revealProject: async () => {},
+    redact: (m) => m,
     ...over,
   };
 }
@@ -118,7 +120,25 @@ describe("Property 8: project stage recovery rules", () => {
   });
 });
 
-// Property 9: Render progress mapping attaches the correct projectId
+// Redaction at the workspace error boundary (R8.5)
+describe("error-stage messages are redacted", () => {
+  it("strips L0 engine tokens (N-codes, .tsx) from the error message", async () => {
+    const worker: AgentWorker = {
+      author: async (): Promise<AuthorOutcome> => ({ kind: "ingest-failed", message: "Lỗi N14 ở /p/scene-01.tsx" }),
+      reauthorScenes: async (): Promise<AuthorOutcome> => ({ kind: "authored", sceneIds: [] }),
+      generateValidateRepair: async (): Promise<RepairOutcome> => ({ kind: "passed", attempts: 1 }),
+    };
+    const ctrl = new WorkspaceController(baseDeps({ worker, redact: stripL0Tokens }));
+    ctrl.beginScript("p1", { kind: "topic", text: "x" });
+    await flush();
+    const st = await ctrl.stage("p1");
+    expect(st.kind).toBe("error");
+    if (st.kind === "error") {
+      expect(st.message).not.toMatch(/N14|\.tsx/);
+      expect(st.message.length).toBeGreaterThan(0);
+    }
+  });
+});
 describe("Property 9: render progress mapping", () => {
   it("percent = round(ratio*100); events.progress carries {projectId, ratio, phase:'draft'}", () => {
     fc.assert(
