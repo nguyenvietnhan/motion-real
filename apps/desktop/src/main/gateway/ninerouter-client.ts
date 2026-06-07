@@ -152,4 +152,23 @@ export class NineRouterClient {
       return null;
     }
   }
+
+  /** One OpenAI-compatible chat completion; returns the assistant message text. */
+  async chat(
+    model: string,
+    messages: { role: "system" | "user" | "assistant"; content: string }[],
+    opts: { apiKey?: string; signal?: AbortSignal } = {},
+  ): Promise<string> {
+    const headers: Record<string, string> = { "content-type": "application/json" };
+    if (opts.apiKey) headers.authorization = `Bearer ${opts.apiKey}`;
+    const res = await fetch(`${this.base}/v1/chat/completions`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ model, messages, stream: false }),
+      ...(opts.signal ? { signal: opts.signal } : {}),
+    });
+    if (!res.ok) throw new Error(`9router chat → HTTP ${res.status}`);
+    const data = (await res.json()) as { choices?: { message?: { content?: string } }[] };
+    return data.choices?.[0]?.message?.content ?? "";
+  }
 }
