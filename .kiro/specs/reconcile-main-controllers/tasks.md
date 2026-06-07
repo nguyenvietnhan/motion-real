@@ -65,12 +65,12 @@ và hành vi quan sát được của app KHÔNG đổi (R6). Khi cập nhật m
   - [x] 6.4 Chạy lưới verify.
   - _Requirements: R1.3, R2.1, R4.5, R4.6_
 
-- [ ] 7. S6 — Gỡ `Disclosure_Map` + làm gầy Composition_Root
-  - [ ] 7.1 Xoá `apps/desktop/src/renderer/settings/disclosure.ts` + `disclosure.test.ts` (không nơi nào dùng).
-  - [ ] 7.2 Rà soát `index.ts` chỉ còn 4 loại wiring (init phụ thuộc, lắp ráp controller, đăng ký handler qua IPC_Router, vòng đời cửa sổ/gateway + `registerMediaScheme`/`handleMediaProtocol` + `setEventTarget`); chuyển mọi logic nghiệp vụ còn sót vào controller (R4.1–R4.3).
-  - [ ] 7.3 Xác nhận `INVOKE_CHANNELS`/`EVENT_CHANNELS` (`channels.ts`) và `DashboardApi` (`ipc-contract.ts`) KHÔNG đổi; preload chỉ phơi `window.dashboard`. Giữ test `client.test.ts`/`ipc-router` xanh.
-  - [ ] 7.4 Xác nhận wiring `media://` + `setEventTarget(win)/null` còn nguyên (R7.6, R7.7).
-  - [ ] 7.5 Chạy lưới verify.
+- [x] 7. S6 — Gỡ `Disclosure_Map` + làm gầy Composition_Root
+  - [x] 7.1 Xoá `apps/desktop/src/renderer/settings/disclosure.ts` + `disclosure.test.ts` (không nơi nào dùng).
+  - [x] 7.2 Rà soát `index.ts` chỉ còn 4 loại wiring (init phụ thuộc, lắp ráp controller, đăng ký handler qua IPC_Router, vòng đời cửa sổ/gateway + `registerMediaScheme`/`handleMediaProtocol` + `setEventTarget`); handlers đều là thin pass-through (trừ `review:*` stub có chủ đích) (R4.1–R4.3).
+  - [x] 7.3 Xác nhận `INVOKE_CHANNELS`/`EVENT_CHANNELS` (`channels.ts`) và `DashboardApi` (`ipc-contract.ts`) KHÔNG đổi; preload chỉ phơi `window.dashboard`. Giữ test `client.test.ts`/`ipc-router` xanh.
+  - [x] 7.4 Xác nhận wiring `media://` + `setEventTarget(win)/null` còn nguyên (R7.6, R7.7).
+  - [x] 7.5 Chạy lưới verify.
   - _Requirements: R4.1–R4.3, R5.1, R7.1–R7.7_
 
 - [ ] 8. S7 — Quét cuối + đối chiếu baseline
