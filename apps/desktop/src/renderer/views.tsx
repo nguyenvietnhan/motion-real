@@ -3,7 +3,9 @@ import type {
   AiAccountState,
   GatewayState,
   LicenseState,
+  ModelInfo,
   ProjectCardVM,
+  ProviderInfo,
   SettingsModel,
   StoryboardModel,
 } from "../shared/types.js";
@@ -34,11 +36,13 @@ export const OnboardingView: React.FC<{
   license: LicenseState;
   gateway: GatewayState;
   account: AiAccountState;
+  providers: ProviderInfo[];
+  models: ModelInfo[];
   onActivate: (key: string) => void;
-  onConnect: (provider?: "kiro" | "codex" | "gemini") => void;
-}> = ({ license, gateway, account, onActivate, onConnect }) => {
+  onConnect: (providerId: string) => void;
+  onSelectModel: (modelId: string) => void;
+}> = ({ license, gateway, account, providers, models, onActivate, onConnect, onSelectModel }) => {
   const [key, setKey] = useState("");
-  const [advanced, setAdvanced] = useState(false);
   const licenseMsg: Record<LicenseState["kind"], string> = {
     unactivated: "Nhập mã kích hoạt để bắt đầu.",
     activating: "Đang kích hoạt…",
@@ -46,9 +50,17 @@ export const OnboardingView: React.FC<{
     lapsed: "Giấy phép đã hết hiệu lực — các video cũ vẫn xem được.",
     error: "Kích hoạt chưa hoàn tất. Hãy thử lại với cùng mã.",
   };
+  const loginHint: Record<ProviderInfo["loginType"], string> = {
+    browser: "đăng nhập mở ở trình duyệt ngoài",
+    device: "đăng nhập bằng mã thiết bị",
+    "api-key": "dán API key",
+    custom: "nhà cung cấp tự thêm",
+  };
+  const connectedLabels =
+    account.kind === "connected" ? account.accounts.map((a) => a.label).join(", ") : "";
 
   return (
-    <section style={{ ...box, maxWidth: 520 }}>
+    <section style={{ ...box, maxWidth: 620 }}>
       <h2 style={{ marginTop: 0, color: ink }}>Chào mừng</h2>
       <p style={{ color: ink }}>{licenseMsg[license.kind]}</p>
       {license.kind !== "active" && (
@@ -65,26 +77,57 @@ export const OnboardingView: React.FC<{
           </button>
         </div>
       )}
+
       {license.kind === "active" && (
         <div style={{ marginTop: 16 }}>
-          <p style={{ color: ink }}>
-            {account.kind === "connected" ? `Đã kết nối: ${account.label}` : "Kết nối tài khoản AI để bắt đầu tạo video."}
-          </p>
-          {account.kind !== "connected" && (
-            <button onClick={() => onConnect()} disabled={gateway.kind !== "ready"} style={{ padding: "8px 16px", background: accent, color: cream }}>
-              Kết nối tài khoản AI
-            </button>
-          )}
-          <button onClick={() => setAdvanced((a) => !a)} style={{ marginLeft: 8, padding: "8px 12px" }}>
-            Nâng cao
-          </button>
-          {advanced && (
-            <div style={{ marginTop: 8, display: "flex", gap: 8 }}>
-              <button onClick={() => onConnect("codex")}>Codex</button>
-              <button onClick={() => onConnect("gemini")}>Gemini</button>
-            </div>
-          )}
+          <h3 style={{ color: ink, marginBottom: 4 }}>Kết nối tài khoản AI</h3>
           {gateway.kind === "unavailable" && <p style={{ color: "#9B2C2C" }}>Dịch vụ nội bộ chưa khởi động được.</p>}
+          {gateway.kind !== "ready" && gateway.kind !== "unavailable" && (
+            <p style={{ color: "#6E6757" }}>Đang khởi động dịch vụ AI…</p>
+          )}
+
+          {gateway.kind === "ready" && (
+            <>
+              {connectedLabels && <p style={{ color: ink }}>Đã kết nối: {connectedLabels}</p>}
+              <p style={{ color: "#6E6757", margin: "8px 0 4px" }}>Chọn nhà cung cấp để kết nối:</p>
+              <div style={{ display: "grid", gap: 6 }}>
+                {providers.map((p) => (
+                  <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 8, justifyContent: "space-between", border: `1px solid ${ink}`, padding: 8 }}>
+                    <span style={{ color: ink }}>
+                      <strong>{p.name}</strong>{" "}
+                      <span style={{ color: "#9B958A", fontSize: 12 }}>
+                        ({loginHint[p.loginType]}{p.connectedCount > 0 ? ` · đã nối ${p.connectedCount}` : ""})
+                      </span>
+                    </span>
+                    <button onClick={() => onConnect(p.id)} style={{ padding: "6px 12px" }}>
+                      Kết nối
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              {account.kind === "connected" && account.accounts.length > 0 && (
+                <div style={{ marginTop: 12 }}>
+                  <label style={{ color: ink, display: "block", marginBottom: 4 }}>Chọn model để dựng:</label>
+                  <select
+                    aria-label="model-select"
+                    value={account.selectedModel?.id ?? ""}
+                    onChange={(e) => onSelectModel(e.target.value)}
+                    style={{ padding: 8, border: `2px solid ${ink}`, minWidth: 260 }}
+                  >
+                    <option value="" disabled>
+                      — chọn model —
+                    </option>
+                    {models.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.id}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </>
+          )}
         </div>
       )}
     </section>

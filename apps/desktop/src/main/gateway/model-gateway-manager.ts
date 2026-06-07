@@ -1,69 +1,68 @@
-import type { AiAccountState, AiProviderId, GatewayState } from "../../shared/types.js";
+import type {
+  AiAccountState,
+  AiProviderId,
+  ConnectedAccount,
+  GatewayState,
+  ModelInfo,
+  ProviderInfo,
+} from "../../shared/types.js";
 
 /**
- * Model_Gateway (9Router) manager module (web-dashboard design §Model_Gateway).
+ * Model_Gateway (9router) manager module (web-dashboard design §Model_Gateway).
  *
- * This file currently owns only the PURE AI-ready gate (Task 4.5, Req 2.4/2.9);
- * the network/child-process lifecycle (`start` retry, OAuth `connectAccount`,
- * `ensureLocalKey`) lands in tasks 6.3/6.4. Keeping the gate pure lets the
- * Create action and silent-draft start be tested without any process spawn.
+ * Owns the bundled 9router child + the AI-account connections (Req 2). Providers
+ * are DISCOVERED dynamically; login is DELEGATED to the gateway's own UI (the
+ * dashboard never reimplements OAuth/device-code/api-key screens); multiple
+ * connections may be active; the user selects a model. The `Local_Gateway_Key`
+ * is generated + wired internally and never leaves the main process.
  */
 
 export const GATEWAY_BASE_URL = "http://localhost:20128/v1";
 
 /**
  * Pure gate (Property 3): silent draft generation may start IFF the local
- * gateway is `ready` AND an AI account is `connected`. Any other combination
- * (starting/unavailable gateway, or disconnected/connecting account) is false,
- * which blocks the Create action with a "connect an account first" prompt.
+ * gateway is `ready`, at least one account is `connected`, AND a model is
+ * selected. Any other combination is false and blocks the Create action.
  */
 export function aiReady(gw: GatewayState, acc: AiAccountState): boolean {
-  return gw.kind === "ready" && acc.kind === "connected";
+  return (
+    gw.kind === "ready" &&
+    acc.kind === "connected" &&
+    acc.accounts.length > 0 &&
+    acc.selectedModel !== undefined
+  );
 }
 
 export const MAX_START_ATTEMPTS = 3;
-export const CONNECT_TIMEOUT_MS = 120_000;
 
-/** The process/OAuth/key effects the manager drives — injected so it is testable. */
+/** The process/discovery/login effects the manager drives — injected so it is testable. */
 export type GatewayDeps = {
   /** Start ONE gateway child attempt on localhost (no window/console). */
   launch: () => Promise<boolean>;
-  /** OAuth connect for an AI account; resolves ok + a display label, or not-ok. */
-  oauth: (provider: AiProviderId, signal: AbortSignal) => Promise<{ ok: boolean; label?: string }>;
+  /** Discover the provider catalog + connection counts from the gateway (Req 2.4). */
+  listProviders: () => Promise<ProviderInfo[]>;
+  /** Delegate provider login to the gateway UI; report where it appears (Req 2.6). */
+  beginConnect: (providerId: AiProviderId) => Promise<{ loginSurface: "external-browser" | "in-app" }>;
+  /** Read the currently completed connections from the gateway (Req 2.7/2.8). */
+  pollConnections: () => Promise<ConnectedAccount[]>;
+  /** List models the gateway reports as available (Req 2.11). */
+  listModels: () => Promise<ModelInfo[]>;
   /** Generate the internal Local_Gateway_Key (never returned over IPC). */
   generateKey?: () => string;
   /** Auto-wire the local key into the gateway/client. */
   wireKey?: (key: string) => void | Promise<void>;
   maxStartAttempts?: number;
-  connectTimeoutMs?: number;
 };
 
-/** Run an OAuth call with a hard timeout; abort/throw ⇒ not connected. */
-async function connectWithTimeout(
-  call: (signal: AbortSignal) => Promise<{ ok: boolean; label?: string }>,
-  ms: number,
-): Promise<{ ok: boolean; label?: string }> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), ms);
-  try {
-    return await call(controller.signal);
-  } catch {
-    return { ok: false };
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
 /**
- * Owns the 9Router child + the AI-account connection (web-dashboard Task 6.3/6.4,
- * Req 2). The `Local_Gateway_Key` is generated + wired INTERNALLY and never
- * leaves the main process; the UI never sees the term "API key". Vivibe stays the
+ * Owns the 9router child + AI-account connections (web-dashboard Task 6.3/6.4,
+ * Req 2). Concrete gateway is 9router on localhost:20128. Vivibe stays the
  * default voice — the gateway's TTS is unused.
  */
 export class ModelGatewayManager {
   private gw: GatewayState = { kind: "starting", attempt: 0 };
-  private acc: AiAccountState = { kind: "disconnected" };
-  private lastConnected: AiAccountState | null = null;
+  private accounts: ConnectedAccount[] = [];
+  private selected: ModelInfo | undefined;
   private localKey: string | null = null;
   private readonly deps: GatewayDeps;
 
@@ -75,12 +74,18 @@ export class ModelGatewayManager {
     return this.gw;
   }
 
+  /** The set of completed connections + selected model as a view-model. */
   account(): AiAccountState {
-    return this.acc;
+    if (this.accounts.length === 0) return { kind: "disconnected" };
+    return { kind: "connected", accounts: [...this.accounts], selectedModel: this.selected };
+  }
+
+  selectedModel(): ModelInfo | undefined {
+    return this.selected;
   }
 
   aiReady(): boolean {
-    return aiReady(this.gw, this.acc);
+    return aiReady(this.gw, this.account());
   }
 
   /** Generate + auto-wire the local key. Returns void — the key never leaves main. */
@@ -106,22 +111,30 @@ export class ModelGatewayManager {
     return this.gw;
   }
 
-  /**
-   * Connect an AI account (default kiro, 120s timeout). Success records + enables
-   * AI; failure/cancel/timeout RETAINS any previously connected account (Req 2.8).
-   */
-  async connectAccount(provider: AiProviderId = "kiro"): Promise<AiAccountState> {
-    this.acc = { kind: "connecting", provider };
-    const result = await connectWithTimeout(
-      (signal) => this.deps.oauth(provider, signal),
-      this.deps.connectTimeoutMs ?? CONNECT_TIMEOUT_MS,
-    );
-    if (result.ok) {
-      this.acc = { kind: "connected", provider, label: result.label ?? provider };
-      this.lastConnected = this.acc;
-    } else {
-      this.acc = this.lastConnected ?? { kind: "disconnected" };
-    }
-    return this.acc;
+  /** Discover providers (name, login-type, connected count) from the gateway. */
+  async listProviders(): Promise<ProviderInfo[]> {
+    return this.deps.listProviders();
+  }
+
+  /** List available models for selection. */
+  async listModels(): Promise<ModelInfo[]> {
+    return this.deps.listModels();
+  }
+
+  /** Begin connecting a provider — delegated to the gateway's own login UI. */
+  async beginConnect(providerId: AiProviderId): Promise<{ loginSurface: "external-browser" | "in-app" }> {
+    return this.deps.beginConnect(providerId);
+  }
+
+  /** Poll the gateway for completed connections and refresh state (Req 2.7/2.8). */
+  async refreshConnections(): Promise<AiAccountState> {
+    this.accounts = await this.deps.pollConnections();
+    return this.account();
+  }
+
+  /** Select the model used for generation (Req 2.11). */
+  selectModel(model: ModelInfo): AiAccountState {
+    this.selected = model;
+    return this.account();
   }
 }

@@ -455,3 +455,30 @@ Language: TypeScript (existing monorepo). Tests run under Vitest with
   ]
 }
 ```
+
+## Concrete Model_Gateway integration (9router)
+
+Requirement 2 was revised from a fixed `kiro|codex|gemini` single-OAuth model to
+9router's real DYNAMIC multi-provider model. The bundled Model_Gateway is the
+locally-installed **9router** (OpenAI-compatible on `http://localhost:20128`).
+Tasks 6.3/6.4 are realized concretely by:
+
+- `main/gateway/ninerouter-client.ts` — HTTP client: cli-token auth for `/api/*`,
+  provider catalog (15 providers, login type browser/device/api-key) merged with
+  live connection counts from `GET /api/providers`, models from `GET /v1/models`,
+  key minting via `POST /api/keys`.
+- `main/gateway/ninerouter-deps.ts` — real `GatewayDeps`: `launch` reuses a
+  running 9router else spawns it headless (`9router -n -t --skip-update`) and
+  polls until reachable; `beginConnect` DELEGATES login to 9router's own Web UI
+  (opened in the external browser) — the dashboard never reimplements provider
+  sign-in; `pollConnections`/`listModels` read live state.
+- `main/index.ts` — wires the real gateway + IPC handlers (license dev-bypassed
+  for review; projects via `list_projects`/`scaffold_project`; settings in-memory).
+- `scripts/gateway-smoke.ts` — `npx tsx apps/desktop/scripts/gateway-smoke.ts`
+  exercises the live integration (verified: 15 providers, Kiro connected, 13
+  models, gate correctly not-ready until a model is selected).
+
+Remaining for a full in-Electron launch: bundle `main`/`preload` (esbuild/
+electron-vite) so the `@news/*` source imports resolve at runtime, plus the
+Agent_Worker authoring backend (the LLM-driven scene authoring) — both tracked as
+follow-up.

@@ -4,6 +4,7 @@ import { reduceDesktop, progressPercent, type DesktopState } from "./state/deskt
 import { canCreate } from "../main/license/license-manager.js";
 import { aiReady } from "../main/gateway/model-gateway-manager.js";
 import { defaultSettings } from "./settings/settings-model.js";
+import type { ModelInfo, ProviderInfo } from "../shared/types.js";
 
 /**
  * Renderer root (web-dashboard Task 11). Composes the views over the typed
@@ -29,6 +30,8 @@ export const App: React.FC = () => {
   const [gateway, setGateway] = useState(initial.gateway);
   const [account, setAccount] = useState(initial.aiAccount);
   const [settings, setSettings] = useState(initial.settings);
+  const [providers, setProviders] = useState<ProviderInfo[]>([]);
+  const [models, setModels] = useState<ModelInfo[]>([]);
 
   const dash = typeof window !== "undefined" ? window.dashboard : undefined;
 
@@ -37,7 +40,9 @@ export const App: React.FC = () => {
     void (async () => {
       setLicense(await dash.license.get());
       setGateway(await dash.ai.gatewayState());
-      setAccount(await dash.ai.accountState());
+      setAccount(await dash.ai.connectedAccounts());
+      setProviders(await dash.ai.listProviders());
+      setModels(await dash.ai.listModels());
       setSettings(await dash.settings.get());
       dispatch({ type: "gallery", load: "loading", cards: [] });
       const cards = await dash.projects.list();
@@ -76,8 +81,17 @@ export const App: React.FC = () => {
           license={license}
           gateway={gateway}
           account={account}
+          providers={providers}
+          models={models}
           onActivate={(key) => void dash?.license.activate(key).then(setLicense)}
-          onConnect={(provider) => void dash?.ai.connect(provider).then(setAccount)}
+          onConnect={(providerId) =>
+            void dash?.ai.beginConnect(providerId).then(async () => {
+              // Login is delegated to the gateway UI; poll for the new connection.
+              setAccount(await dash.ai.connectedAccounts());
+              setProviders(await dash.ai.listProviders());
+            })
+          }
+          onSelectModel={(modelId) => void dash?.ai.selectModel(modelId).then(setAccount)}
         />
       )}
 

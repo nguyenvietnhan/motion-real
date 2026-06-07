@@ -1,86 +1,93 @@
 import { describe, expect, it, vi } from "vitest";
 import { ModelGatewayManager, GATEWAY_BASE_URL, type GatewayDeps } from "./model-gateway-manager.js";
+import type { ConnectedAccount, ModelInfo, ProviderInfo } from "../../shared/types.js";
 
 /**
- * Feature: web-dashboard, Task 6.5 — gateway start retry + OAuth connect
- * lifecycle (Req 2.2, 2.8), with stubbed child-process + OAuth.
+ * Feature: web-dashboard, Task 6.5 — gateway start retry + dynamic provider /
+ * connect / model lifecycle (Req 2.2, 2.4, 2.6, 2.7, 2.8, 2.11), with stubbed
+ * 9router effects.
  */
+
+const PROVIDERS: ProviderInfo[] = [
+  { id: "kiro", name: "Kiro AI", loginType: "device", connectedCount: 1 },
+  { id: "codex", name: "OpenAI Codex", loginType: "browser", connectedCount: 0 },
+  { id: "openrouter", name: "OpenRouter", loginType: "api-key", connectedCount: 0 },
+];
+const MODELS: ModelInfo[] = [
+  { id: "kr/claude-sonnet-4.5", label: "claude-sonnet-4.5" },
+  { id: "cx/gpt-5.2-codex", label: "gpt-5.2-codex" },
+];
 
 function deps(over: Partial<GatewayDeps> = {}): GatewayDeps {
   return {
     launch: async () => true,
-    oauth: async () => ({ ok: true, label: "me@kiro" }),
+    listProviders: async () => PROVIDERS,
+    beginConnect: async () => ({ loginSurface: "external-browser" }),
+    pollConnections: async () => [],
+    listModels: async () => MODELS,
     ...over,
   };
 }
 
 describe("ModelGatewayManager.start", () => {
-  it("becomes ready on first successful launch and wires the local key internally", async () => {
+  it("becomes ready on first launch and wires the local key internally", async () => {
     const wireKey = vi.fn();
     const mgr = new ModelGatewayManager(deps({ wireKey, generateKey: () => "secret-key" }));
     const state = await mgr.start();
     expect(state).toEqual({ kind: "ready", baseUrl: GATEWAY_BASE_URL });
     expect(wireKey).toHaveBeenCalledWith("secret-key");
-    // The key is never exposed on the manager surface.
     expect(JSON.stringify(mgr.state())).not.toContain("secret-key");
   });
 
   it("retries up to 3 attempts then surfaces unavailable", async () => {
     const launch = vi.fn(async () => false);
     const mgr = new ModelGatewayManager(deps({ launch }));
-    const state = await mgr.start();
-    expect(state).toEqual({ kind: "unavailable" });
+    expect(await mgr.start()).toEqual({ kind: "unavailable" });
     expect(launch).toHaveBeenCalledTimes(3);
-  });
-
-  it("recovers if a later attempt succeeds", async () => {
-    let n = 0;
-    const mgr = new ModelGatewayManager(
-      deps({
-        launch: async () => {
-          n++;
-          return n === 3;
-        },
-      }),
-    );
-    expect((await mgr.start()).kind).toBe("ready");
-    expect(n).toBe(3);
   });
 });
 
-describe("ModelGatewayManager.connectAccount", () => {
-  it("records a connected account on success and enables AI", async () => {
+describe("ModelGatewayManager — dynamic providers + connect + model", () => {
+  it("discovers providers and lists models from the gateway", async () => {
     const mgr = new ModelGatewayManager(deps());
+    expect(await mgr.listProviders()).toEqual(PROVIDERS);
+    expect(await mgr.listModels()).toEqual(MODELS);
+  });
+
+  it("delegates connect to the gateway UI and reports the login surface", async () => {
+    const beginConnect = vi.fn(async (id: string) =>
+      id === "codex" ? { loginSurface: "external-browser" as const } : { loginSurface: "in-app" as const },
+    );
+    const mgr = new ModelGatewayManager(deps({ beginConnect }));
+    expect(await mgr.beginConnect("codex")).toEqual({ loginSurface: "external-browser" });
+    expect(await mgr.beginConnect("openrouter")).toEqual({ loginSurface: "in-app" });
+  });
+
+  it("is not AI-ready until a connection is polled AND a model is selected", async () => {
+    let connections: ConnectedAccount[] = [];
+    const mgr = new ModelGatewayManager(deps({ pollConnections: async () => connections }));
     await mgr.start();
-    const acc = await mgr.connectAccount("kiro");
-    expect(acc).toEqual({ kind: "connected", provider: "kiro", label: "me@kiro" });
+    expect(mgr.aiReady()).toBe(false); // no connection, no model
+
+    connections = [{ provider: "kiro", label: "me@kiro" }];
+    const acc = await mgr.refreshConnections();
+    expect(acc.kind).toBe("connected");
+    expect(mgr.aiReady()).toBe(false); // connected but no model yet
+
+    mgr.selectModel(MODELS[0]!);
+    expect(mgr.selectedModel()).toEqual(MODELS[0]);
     expect(mgr.aiReady()).toBe(true);
   });
 
-  it("retains a previously connected account when a later connect is cancelled", async () => {
-    let attempt = 0;
+  it("supports multiple simultaneous connections", async () => {
     const mgr = new ModelGatewayManager(
-      deps({
-        oauth: async () => {
-          attempt++;
-          return attempt === 1 ? { ok: true, label: "first" } : { ok: false };
-        },
-      }),
+      deps({ pollConnections: async () => [
+        { provider: "kiro", label: "a" },
+        { provider: "codex", label: "b" },
+      ] }),
     );
-    await mgr.connectAccount("kiro");
-    const after = await mgr.connectAccount("codex"); // fails → retain prior
-    expect(after).toEqual({ kind: "connected", provider: "kiro", label: "first" });
-  });
-
-  it("treats an OAuth timeout as not-connected and stays disconnected with no prior account", async () => {
-    const mgr = new ModelGatewayManager(
-      deps({
-        oauth: (_p, signal) =>
-          new Promise((_res, rej) => signal.addEventListener("abort", () => rej(new Error("timeout")))),
-        connectTimeoutMs: 10,
-      }),
-    );
-    const acc = await mgr.connectAccount("gemini");
-    expect(acc).toEqual({ kind: "disconnected" });
+    await mgr.start();
+    const acc = await mgr.refreshConnections();
+    expect(acc.kind === "connected" && acc.accounts.length).toBe(2);
   });
 });

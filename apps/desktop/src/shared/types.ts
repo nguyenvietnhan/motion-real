@@ -18,17 +18,33 @@ export type LicenseState =
 
 // --- AI gateway + account (Req 2) ------------------------------------------
 
-export type AiProviderId = "kiro" | "codex" | "gemini";
+/** Open provider id discovered from the gateway (NOT a fixed union). */
+export type AiProviderId = string;
 
 export type GatewayState =
   | { kind: "starting"; attempt: number }
   | { kind: "ready"; baseUrl: string }
   | { kind: "unavailable" };
 
+/** A provider discovered from the gateway's management API (Req 2.4). */
+export type ProviderInfo = {
+  id: AiProviderId;
+  name: string;
+  loginType: "browser" | "device" | "api-key" | "custom";
+  connectedCount: number;
+};
+
+/** A model the gateway reports as available (Req 2.11), e.g. "kr/claude-sonnet-4.5". */
+export type ModelInfo = { id: string; label: string };
+
+/** One completed AI-account connection. */
+export type ConnectedAccount = { provider: AiProviderId; label: string };
+
+/** Many connections may be active at once (Req 2.10); a model may be unselected (Req 2.13). */
 export type AiAccountState =
   | { kind: "disconnected" }
   | { kind: "connecting"; provider: AiProviderId }
-  | { kind: "connected"; provider: AiProviderId; label: string };
+  | { kind: "connected"; accounts: ConnectedAccount[]; selectedModel?: ModelInfo };
 
 // --- create (Req 3) --------------------------------------------------------
 

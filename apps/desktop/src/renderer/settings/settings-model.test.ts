@@ -29,8 +29,8 @@ describe("normalizeSettings", () => {
 
   it("prefers the live AI-account state when provided", () => {
     const base = defaultSettings("/o");
-    const out = normalizeSettings(base, {}, { kind: "connected", provider: "kiro", label: "me" });
-    expect(out.aiAccount).toEqual({ kind: "connected", provider: "kiro", label: "me" });
+    const out = normalizeSettings(base, {}, { kind: "connected", accounts: [{ provider: "kiro", label: "me" }] });
+    expect(out.aiAccount).toEqual({ kind: "connected", accounts: [{ provider: "kiro", label: "me" }] });
   });
 
   it("preserves unrelated fields on a partial update", () => {

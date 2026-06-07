@@ -123,10 +123,10 @@ graph TB
 
   subgraph External["External (network)"]
     LS[License_Service · Gumroad/Lemon Squeezy/Keygen]
-    AIACC[AI_Account OAuth provider · Kiro/Codex/Gemini]
+    AIACC[AI provider sign-in delegated via the Model_Gateway UI\nbrowser / device-code / api-key · open provider set]
   end
   LIC -->|activate/verify| LS
-  GW -->|OAuth connect| AIACC
+  GW -->|delegated login + poll connection state| AIACC
 ```
 
 The new code is a single workspace package, **`apps/desktop`** (Electron main +
@@ -251,11 +251,37 @@ creation. The 30-second timeout, the offline/invalid/limit/revoked branches, and
 "retry with same key" all map to the `LicenseState` error reasons, each rendered
 as a plain-language message (Req 1.3/1.5/1.6).
 
-### Bundled Model_Gateway manager (lifecycle + OAuth + key wiring)
+### Bundled Model_Gateway manager (lifecycle + dynamic provider connect + model selection)
 
-Owns the 9Router child process and the AI-account connection (Req 2). The
-`Local_Gateway_Key` is generated and wired internally and is **never** returned
-across IPC.
+Owns the **9router** child process (OpenAI-compatible API at
+`http://localhost:20128/v1`, management API under `http://localhost:20128/api/*`)
+and the set of AI-account connections (Req 2). The `Local_Gateway_Key` — the
+internal OpenAI bearer the Agent_Worker uses to call `/v1` — is generated and
+wired internally and is **never** returned across IPC (Req 2.3). Note the term
+"API key" may legitimately appear as a provider *login-type label* (see
+`ProviderInfo.loginType`), but never refers to the `Local_Gateway_Key`.
+
+Providers are **not** a fixed set and are **not** a single OAuth flow. The manager
+**discovers** the available providers from the gateway (the set is open and
+includes user-defined custom providers), and the gateway owns three distinct
+login flows plus custom nodes:
+
+- **OAuth Authorization-Code** (e.g. Claude Code, Codex, Gemini CLI, Antigravity,
+  iFlow) — login happens in an **external browser** page (which may itself be a
+  Google/GitHub page).
+- **OAuth Device-Code** (e.g. GitHub Copilot, Qwen, Kiro) — a verification URL +
+  user code; the gateway polls for completion.
+- **API-Key** (e.g. OpenRouter, GLM, Minimax, Kimi, OpenAI, Anthropic, Gemini) —
+  paste a provider key.
+- **Custom provider** nodes the user defines in the gateway.
+
+The Dashboard **delegates** provider-specific login to the gateway's own login
+interface (it does NOT reimplement OAuth / device-code / api-key screens). It
+signposts whether login appears in an external browser or in-app, then **polls**
+the gateway connection state to detect a completed connection. Multiple
+connections may be active at once; the user then selects which **model** (from
+the gateway's model list, e.g. `kr/claude-sonnet-4.5`, `cx/gpt-5.2-codex`) is
+used for generation.
 
 ```ts
 export type GatewayState =
@@ -263,30 +289,70 @@ export type GatewayState =
   | { kind: "ready"; baseUrl: "http://localhost:20128/v1" }
   | { kind: "unavailable" };                  // surfaced after 3 failed attempts
 
+/** Open provider id discovered from the gateway (NOT a fixed union). */
+export type AiProviderId = string;
+
+/** A provider discovered from the gateway's management API. */
+export type ProviderInfo = {
+  id: AiProviderId;
+  name: string;
+  loginType: "browser" | "device" | "api-key" | "custom"; // login-type indicator (Req 2.4)
+  connectedCount: number;                                  // active connections (Req 2.4)
+};
+
+/** A model the gateway reports as available (GET /v1/models). */
+export type ModelInfo = { id: string; label: string };
+
+/** One completed AI-account connection. */
+export type ConnectedAccount = { provider: AiProviderId; label: string };
+
 export type AiAccountState =
   | { kind: "disconnected" }
   | { kind: "connecting"; provider: AiProviderId }
-  | { kind: "connected"; provider: AiProviderId; label: string };
-
-export type AiProviderId = "kiro" | "codex" | "gemini";
+  // many connections may be active at once (Req 2.10); selectedModel may be unset (Req 2.13)
+  | { kind: "connected"; accounts: ConnectedAccount[]; selectedModel?: ModelInfo };
 
 export interface ModelGatewayManager {
   start(): Promise<GatewayState>;             // localhost only, no window/console (Req 2.1)
   state(): GatewayState;
-  /** Internal: generate + auto-wire the local key. Returns void — key never leaves main. */
-  ensureLocalKey(): Promise<void>;            // Req 2.3 (no "API key" term in UI)
-  connectAccount(provider?: AiProviderId): Promise<AiAccountState>; // default kiro, 120s (Req 2.5/2.8)
+  /** Internal: generate + auto-wire the Local_Gateway_Key. Returns void — key never leaves main. */
+  ensureLocalKey(): Promise<void>;            // Req 2.3 (never shown; no "API key" term for it)
+  /** Discover the open provider set from the gateway (Req 2.4). */
+  listProviders(): Promise<ProviderInfo[]>;
+  /** Delegate login to the gateway's own UI; report where it appears (Req 2.6). */
+  beginConnect(providerId: AiProviderId): Promise<{ loginSurface: "external-browser" | "in-app" }>;
+  /** Poll the gateway connection state for newly completed connections (Req 2.7). */
+  pollConnections(): Promise<ConnectedAccount[]>;
+  /** The set of currently connected accounts — supports many (Req 2.8/2.10). */
   account(): AiAccountState;
-  /** Pure gate: may silent draft generation start? (Req 2.9) */
-  aiReady(gw: GatewayState, acc: AiAccountState): boolean; // gw.ready && acc.connected
+  /** Models the gateway reports as available (Req 2.11). */
+  listModels(): Promise<ModelInfo[]>;
+  selectModel(modelId: string): Promise<AiAccountState>;   // Req 2.11
+  selectedModel(): ModelInfo | undefined;
+  /** Pure gate: may silent draft generation start? (Req 2.12/2.13) */
+  aiReady(gw: GatewayState, acc: AiAccountState): boolean;
+  // true iff gw.ready && acc.kind==="connected" && acc.accounts.length>0 && acc.selectedModel set
 }
 ```
 
-The renderer shows exactly one "Connect AI account" action while disconnected
-(Req 2.4), Advanced reveals Codex/Gemini (Req 2.6), and `aiReady` gates the
-Create action so an attempt to start generation with no account is blocked with a
-"connect an account first" prompt (Req 2.9). Vivibe stays the default voice
-(Req 2.10) — the gateway's TTS is not used.
+The renderer shows the **discovered** provider list — each with its name, active
+connection count, and login-type indicator (Req 2.4) — with **no** provider
+preselected (Req 2.5). Initiating a connect delegates to the gateway's login UI
+and signposts whether it opens in an external browser or in-app (Req 2.6), after
+which the manager polls until a connection completes (Req 2.7/2.8). `aiReady`
+gates the Create action: it requires the gateway ready, **at least one** connected
+account, **and** a selected model — so an attempt to start generation with no
+account is blocked with a "connect an account first" prompt (Req 2.12), and with
+an account but no model selected is blocked with a "select a model" prompt
+(Req 2.13). Vivibe stays the default voice (Req 2.14) — the gateway's TTS is not
+used.
+
+> **Implementation note.** This revises the implementation of tasks **6.3/6.4**
+> and the shared IPC types: the fixed `kiro | codex | gemini` provider union and
+> the single `connectAccount` OAuth flow are replaced by dynamic discovery,
+> delegated login (browser/device/api-key/custom), multi-connection state, and
+> explicit model selection. The bundled gateway is concretely **9router**
+> (OpenAI-compatible `/v1` at `http://localhost:20128`, management API `/api/*`).
 
 ### Agent_Worker abstraction (one interface, two implementations)
 
@@ -570,8 +636,12 @@ export interface DashboardApi {
   // AI account + gateway (Req 2)
   ai: {
     gatewayState(): Promise<GatewayState>;
-    accountState(): Promise<AiAccountState>;
-    connect(provider?: AiProviderId): Promise<AiAccountState>;
+    listProviders(): Promise<ProviderInfo[]>;                  // discovered set (Req 2.4)
+    connectedAccounts(): Promise<AiAccountState>;              // many connections (Req 2.8/2.10)
+    beginConnect(providerId: AiProviderId): Promise<{ loginSurface: "external-browser" | "in-app" }>; // Req 2.6
+    listModels(): Promise<ModelInfo[]>;                        // Req 2.11
+    selectModel(modelId: string): Promise<AiAccountState>;     // Req 2.11
+    selectedModel(): Promise<ModelInfo | undefined>;
   };
   // create / projects (Req 3, 10)
   projects: {
@@ -758,11 +828,11 @@ videos remains available.
 ### Property 3: AI generation is gated by gateway-ready and account-connected
 
 *For any* `GatewayState` and `AiAccountState`, `aiReady(gw, acc)` is true if and
-only if the gateway is `ready` and an account is `connected`; and any attempt to
-start silent draft generation when `aiReady` is false is blocked and leaves draft
-generation unstarted.
+only if the gateway is `ready`, at least one account is `connected`, AND a model
+is selected; and any attempt to start silent draft generation when `aiReady` is
+false is blocked and leaves draft generation unstarted.
 
-**Validates: Requirements 2.4, 2.9**
+**Validates: Requirements 2.12, 2.13**
 
 ### Property 4: Script edits never write an empty narration
 

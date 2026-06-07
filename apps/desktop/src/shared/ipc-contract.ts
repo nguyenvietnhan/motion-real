@@ -8,8 +8,10 @@ import type {
   FriendlyError,
   GatewayState,
   LicenseState,
+  ModelInfo,
   ProgressEvent,
   ProjectCardVM,
+  ProviderInfo,
   SceneEvent,
   ScriptEdit,
   ScriptGateModel,
@@ -34,8 +36,12 @@ export interface DashboardApi {
   };
   ai: {
     gatewayState(): Promise<GatewayState>;
-    accountState(): Promise<AiAccountState>;
-    connect(provider?: AiProviderId): Promise<AiAccountState>;
+    listProviders(): Promise<ProviderInfo[]>;
+    connectedAccounts(): Promise<AiAccountState>;
+    beginConnect(providerId: AiProviderId): Promise<{ loginSurface: "external-browser" | "in-app" }>;
+    listModels(): Promise<ModelInfo[]>;
+    selectModel(modelId: string): Promise<AiAccountState>;
+    selectedModel(): Promise<ModelInfo | undefined>;
   };
   projects: {
     create(input: CreateInput): Promise<{ projectId: string }>;

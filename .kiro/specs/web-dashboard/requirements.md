@@ -53,8 +53,15 @@ single-process orchestrator with one `@news/compositions` registry instance.
 - **Model_Gateway**: The bundled local model gateway (9Router) run silently on
   localhost inside the Dashboard; provides AI models to the Agent_Worker via an
   OpenAI-compatible endpoint.
-- **AI_Account**: The user's connected AI provider account (default Kiro free via
-  OAuth; Codex/Gemini/others under Advanced) that the Model_Gateway routes to.
+- **AI_Account**: A user's connected AI provider account that the Model_Gateway
+  authenticates and routes to; more than one AI_Account may be connected at the
+  same time.
+- **AI_Provider**: An AI model provider offered through the Model_Gateway,
+  discovered dynamically from the Model_Gateway at runtime rather than fixed in
+  the Dashboard. The set of providers is not hardcoded and may include
+  user-defined custom providers. Each AI_Provider uses one of three login flows —
+  browser sign-in (OAuth authorization-code), device code (OAuth device-code), or
+  API key — surfaced by the Model_Gateway's own login interface.
 - **Local_Gateway_Key**: The credential the Model_Gateway requires, auto-generated
   and auto-wired by the Dashboard; never seen or handled by the user.
 - **Safety_Grid**: The enumerated quality checks N1–N30 enforced by the engine
@@ -127,8 +134,9 @@ purchase.
 
 ### Requirement 2: Connect AI Account (Bundled Model Gateway)
 
-**User Story:** As a non-technical user, I want to connect my AI account with one
-button, so that the app can generate videos without me handling any API key.
+**User Story:** As a non-technical user, I want to connect any AI account the
+bundled gateway supports without handling provider logins myself, so that the app
+can generate videos using a provider and model I choose.
 
 #### Acceptance Criteria
 
@@ -142,30 +150,41 @@ button, so that the app can generate videos without me handling any API key.
    surfacing the failure.
 3. WHEN the Model_Gateway becomes reachable on localhost, THE Dashboard SHALL
    generate the Local_Gateway_Key and auto-wire it to the Model_Gateway without
-   displaying the key value, and without using the term "API key" anywhere in the
-   user-facing interface.
-4. WHILE no AI_Account is connected, THE Dashboard SHALL present exactly one
-   "Connect AI account" action as the only AI-connection control on the screen.
-5. WHEN the user selects "Connect AI account", THE Dashboard SHALL initiate an
-   OAuth sign-in with the default provider (Kiro free) without requiring any
-   additional input before the provider's sign-in step.
-6. WHERE the user opens Advanced options, THE Dashboard SHALL present alternative
-   providers (including Codex and Gemini), each selectable to initiate OAuth
-   sign-in with that provider.
-7. WHEN an AI_Account OAuth sign-in completes successfully, THE Dashboard SHALL
-   record the connected account, SHALL replace the "Connect AI account" action
-   with an indication that the account is connected, and SHALL enable AI
-   authoring features.
-8. IF an AI_Account OAuth sign-in fails, is cancelled, or does not complete within
-   120 seconds of initiation, THEN THE Dashboard SHALL display a plain-language
+   displaying the key value, and without using the term "API key" to refer to the
+   Local_Gateway_Key anywhere in the user-facing interface.
+4. THE Dashboard SHALL present the AI_Providers discovered from the Model_Gateway,
+   and for each AI_Provider SHALL display its provider name, its count of active
+   connections, and a login-type indicator of browser sign-in, device code, or
+   API key.
+5. THE Dashboard SHALL allow the user to select any AI_Provider in the discovered
+   provider list, with no AI_Provider preselected as a forced default.
+6. WHEN the user initiates connecting a selected AI_Provider, THE Dashboard SHALL
+   delegate the provider-specific login to the Model_Gateway's own login
+   interface, and SHALL indicate to the user whether the login appears in an
+   external browser or within the Dashboard.
+7. WHILE a provider connection is awaiting completion, THE Dashboard SHALL poll
+   the Model_Gateway connection state to detect a newly completed connection.
+8. WHEN a provider connection completes successfully, THE Dashboard SHALL record
+   the connected AI_Account and its AI_Provider and SHALL enable AI authoring
+   features.
+9. IF a provider connection fails, is cancelled, or does not complete within 120
+   seconds of initiation, THEN THE Dashboard SHALL display a plain-language
    message stating that the connection did not complete, SHALL leave AI authoring
-   features disabled, and SHALL retain any previously connected AI_Account
+   features disabled, and SHALL retain any previously connected AI_Accounts
    unchanged.
-9. WHILE no AI_Account is connected, IF the user attempts to start silent draft
-   generation, THEN THE Dashboard SHALL block the start, SHALL display a prompt
-   directing the user to connect an AI account first, and SHALL leave draft
-   generation unstarted.
-10. THE Dashboard SHALL use Vivibe as the default voice provider for narration.
+10. THE Dashboard SHALL allow multiple AI_Account connections to be active
+    simultaneously.
+11. THE Dashboard SHALL allow the user to select which model, from the models the
+    Model_Gateway reports as available, is used for AI authoring.
+12. WHILE no AI_Account is connected, IF the user attempts to start silent draft
+    generation, THEN THE Dashboard SHALL block the start, SHALL display a prompt
+    directing the user to connect an AI account first, and SHALL leave draft
+    generation unstarted.
+13. WHILE an AI_Account is connected and no model is selected, IF the user
+    attempts to start silent draft generation, THEN THE Dashboard SHALL block the
+    start, SHALL display a prompt directing the user to select a model, and SHALL
+    leave draft generation unstarted.
+14. THE Dashboard SHALL use Vivibe as the default voice provider for narration.
 
 ### Requirement 3: Create a Video from a Topic or URL
 

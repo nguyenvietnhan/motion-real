@@ -49,8 +49,12 @@ describe("createDashboardClient — invoke channel mapping", () => {
     await api.license.get();
     await api.license.activate("KEY-123");
     await api.ai.gatewayState();
-    await api.ai.accountState();
-    await api.ai.connect("codex");
+    await api.ai.listProviders();
+    await api.ai.connectedAccounts();
+    await api.ai.beginConnect("kiro");
+    await api.ai.listModels();
+    await api.ai.selectModel("kr/claude-sonnet-4.5");
+    await api.ai.selectedModel();
     await api.projects.create({ raw: "topic" });
     await api.projects.list();
     await api.projects.open("p1");

@@ -33,8 +33,12 @@ export function createDashboardClient(ipc: IpcLike): DashboardApi {
     },
     ai: {
       gatewayState: () => inv("ai:gatewayState"),
-      accountState: () => inv("ai:accountState"),
-      connect: (provider) => inv("ai:connect", provider),
+      listProviders: () => inv("ai:listProviders"),
+      connectedAccounts: () => inv("ai:connectedAccounts"),
+      beginConnect: (providerId) => inv("ai:beginConnect", providerId),
+      listModels: () => inv("ai:listModels"),
+      selectModel: (modelId) => inv("ai:selectModel", modelId),
+      selectedModel: () => inv("ai:selectedModel"),
     },
     projects: {
       create: (input) => inv("projects:create", input),
