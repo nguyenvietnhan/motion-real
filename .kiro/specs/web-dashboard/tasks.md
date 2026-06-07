@@ -228,7 +228,7 @@ Language: TypeScript (existing monorepo). Tests run under Vitest with
     - **Property 6: No engine internals leak into user-facing messages**
     - **Validates: Requirements 6.8, 11.5, 11.6, 12.2**
 
-- [ ] 5. Agent_Worker implementation and the generate-validate-repair loop
+- [x] 5. Agent_Worker implementation and the generate-validate-repair loop
   - [x] 5.1 Implement the chosen `AgentWorker` adapter (BLOCKED ON POC — task 2.4)
     - If the spike adopted path Y: implement the headless-runtime adapter
       (wrap the embedded runtime, point it at the Model_Gateway, auto-load
@@ -320,7 +320,7 @@ Language: TypeScript (existing monorepo). Tests run under Vitest with
       disable-skips-gate paths with a stubbed Agent_Worker
     - _Requirements: 4.1, 4.2, 4.6, 4.7, 4.8_
 
-- [ ] 9. Storyboard review, batch submit, and approve/full render wiring
+- [x] 9. Storyboard review, batch submit, and approve/full render wiring
   - [x] 9.1 Implement the Storyboard model and batch-submit controller
     - Implement `SceneCard`/`StoryboardModel` reading existing review keyframes
       (`review/<sceneId>.png`), the per-scene (≤2000) and global notes (≤4000)
@@ -330,7 +330,7 @@ Language: TypeScript (existing monorepo). Tests run under Vitest with
       re-render failure
     - _Requirements: 8.1, 8.2, 8.3, 8.4, 8.5, 8.8, 8.10, 8.12_
 
-  - [ ] 9.2 Implement approve → full render with the draft-first gate
+  - [x] 9.2 Implement approve → full render with the draft-first gate
     - Implement `approveDraft` enabling Approve iff a reviewed Draft exists and
       driving `render_full` (begins within 2s); a full render with no reviewed
       draft and no force-full is refused (`RefusedResult`) leaving project
@@ -354,14 +354,14 @@ Language: TypeScript (existing monorepo). Tests run under Vitest with
     - **Property 11: Gallery cards are complete and ordered newest-first**
     - **Validates: Requirements 10.1, 10.6**
 
-  - [ ]* 9.6 Write integration test for progress forwarding and badge updates
+  - [x]* 9.6 Write integration test for progress forwarding and badge updates
     - With a fake clock and stubbed orchestrator `onProgress`, assert ratio →
       percentage forwarding, draft cadence ≥ every 2s / full ≥ every 5s, scenes
       appear within 2s of production, and status badges update within 5s on
       state change
     - _Requirements: 5.2, 5.3, 10.5_
 
-- [ ] 10. Settings, progressive disclosure, and defaults
+- [x] 10. Settings, progressive disclosure, and defaults
   - [x] 10.1 Implement the SettingsModel with pre-populated L3 defaults
     - Implement `SettingsModel` (`voiceProvider:"vivibe"` default, default
       output dir under `.video-tool` home, `maxRepairAttempts` default 3 clamped

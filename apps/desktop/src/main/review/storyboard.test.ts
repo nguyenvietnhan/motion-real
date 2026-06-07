@@ -10,7 +10,7 @@ import type { EditBatch, EvidenceWarning } from "../../shared/types.js";
  */
 
 function okBackend(over: Partial<StoryboardBackend> = {}): StoryboardBackend {
-  return { reauthorAndRender: vi.fn(async () => ({ ok: true })), ...over };
+  return { reauthorAndRender: vi.fn(async () => ({ ok: true as const })), ...over };
 }
 
 describe("buildStoryboard", () => {
