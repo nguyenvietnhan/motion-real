@@ -91,7 +91,10 @@ export class LicenseManager {
   async activate(key?: string): Promise<LicenseState> {
     if (key !== undefined) this.lastKey = key;
     const useKey = this.lastKey;
-    if (!useKey) return this.state;
+    // Only short-circuit when NO key has ever been provided. An explicit key —
+    // including an empty string — must go through the service so it maps to the
+    // same outcome as the dashboard's Current_Behavior (empty ⇒ error invalid).
+    if (useKey == null) return this.state;
     this.state = { kind: "activating" };
     const outcome = await withTimeout(
       (signal) => this.deps.service.activate(useKey, this.deps.machineId, signal),

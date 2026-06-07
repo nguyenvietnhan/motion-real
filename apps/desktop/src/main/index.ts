@@ -9,6 +9,8 @@ import { buildNineRouterGatewayDeps } from "./gateway/ninerouter-deps.js";
 import { NineRouterClient } from "./gateway/ninerouter-client.js";
 import { NineRouterAuthoringBackend } from "./authoring/ninerouter-backend.js";
 import { CustomLoopAgentWorker } from "./agent/custom-loop-worker.js";
+import { LicenseManager } from "./license/license-manager.js";
+import { DevLicenseService } from "./license/dev-license-service.js";
 import type { AgentHooks, AuthorInput } from "./agent/agent-worker.js";
 import { toCards } from "../renderer/gallery/gallery-controller.js";
 import { defaultSettings } from "../renderer/settings/settings-model.js";
@@ -18,7 +20,7 @@ import { registerMediaScheme, handleMediaProtocol, mediaUrl } from "./media-prot
 import { events, setEventTarget } from "./event-bus.js";
 import { existsSync } from "node:fs";
 import { rm } from "node:fs/promises";
-import type { LicenseState, ModelInfo, ProjectStage, SceneCard, SettingsModel, StoryboardModel } from "../shared/types.js";
+import type { ModelInfo, ProjectStage, SceneCard, SettingsModel, StoryboardModel } from "../shared/types.js";
 
 // The `media://` scheme must be registered before the app is ready.
 registerMediaScheme();
@@ -140,20 +142,14 @@ async function runRender(projectId: string): Promise<void> {
   }
 }
 
-// Dev license: starts unactivated so the activation screen shows; the dev code
-// "123" activates it (no real License_Service in dev).
-const DEV_LICENSE_CODE = "123";
-let license: LicenseState = { kind: "unactivated" };
+// Dev license: starts unactivated so the activation screen shows. The dev code
+// "123" activates it via the tested LicenseManager over a DevLicenseService
+// (the LicenseService seam; HttpLicenseService is the future online adapter).
+const licenseManager = new LicenseManager({ service: new DevLicenseService(), machineId: "dev" });
 
 const handlers: InvokeHandlers = {
-  "license:get": () => license,
-  "license:activate": (key) => {
-    license =
-      String(key).trim() === DEV_LICENSE_CODE
-        ? { kind: "active", machineLocked: true, lastVerifiedAt: new Date().toISOString() }
-        : { kind: "error", reason: "invalid" };
-    return license;
-  },
+  "license:get": () => licenseManager.current(),
+  "license:activate": (key) => licenseManager.activate(String(key)),
 
   "ai:gatewayState": () => gateway.state(),
   "ai:listProviders": () => gateway.listProviders(),

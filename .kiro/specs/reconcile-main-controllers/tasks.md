@@ -39,12 +39,12 @@ và hành vi quan sát được của app KHÔNG đổi (R6). Khi cập nhật m
   - [x] 3.8 Chạy lưới verify.
   - _Requirements: R3.4–R3.9, R8.4_
 
-- [ ] 4. S3 — License: `DevLicenseService` + wire (GIỮ `HttpLicenseService`)
-  - [ ] 4.1 Tạo `apps/desktop/src/main/license/dev-license-service.ts` (`DevLicenseService implements LicenseService`): `activate` → trim `"123"` ⇒ `{ ok: true, nodeLocked: true }`, ngược lại `{ ok: false, reason: "invalid" }`; `verify` → `{ ok: false, reason: "invalid" }`. Thêm test cho nó.
-  - [ ] 4.2 Property test P1 — License activate mapping qua `LicenseManager` + `DevLicenseService`. `Property 1` (_R3.2, R3.3_).
-  - [ ] 4.3 Wire `license:get`/`license:activate` qua `LicenseManager` (dùng `DevLicenseService`); gỡ `DEV_LICENSE_CODE` và biến `license` nội tuyến trong `index.ts`. Khởi tạo license `unactivated` (R3.1).
-  - [ ] 4.4 GIỮ `license-service.ts` (`HttpLicenseService`) + `interface LicenseService` + describe test của nó (R5.4 — adapter licensing online tương lai, đứng sau seam).
-  - [ ] 4.5 Chạy lưới verify.
+- [x] 4. S3 — License: `DevLicenseService` + wire (GIỮ `HttpLicenseService`)
+  - [x] 4.1 Tạo `apps/desktop/src/main/license/dev-license-service.ts` (`DevLicenseService implements LicenseService`): `activate` → trim `"123"` ⇒ `{ ok: true, nodeLocked: true }`, ngược lại `{ ok: false, reason: "invalid" }`; `verify` → `{ ok: false, reason: "invalid" }`. Thêm test cho nó.
+  - [x] 4.2 Property test P1 — License activate mapping qua `LicenseManager` + `DevLicenseService`. `Property 1` (_R3.2, R3.3_).
+  - [x] 4.3 Wire `license:get`/`license:activate` qua `LicenseManager` (dùng `DevLicenseService`); gỡ `DEV_LICENSE_CODE` và biến `license` nội tuyến trong `index.ts`. Khởi tạo license `unactivated` (R3.1). Sửa `LicenseManager.activate` để key rỗng đi qua service (khớp Current_Behavior: rỗng → error invalid), R4.4.
+  - [x] 4.4 GIỮ `license-service.ts` (`HttpLicenseService`) + `interface LicenseService` + describe test của nó (R5.4 — adapter licensing online tương lai, đứng sau seam).
+  - [x] 4.5 Chạy lưới verify.
   - _Requirements: R3.1–R3.3, R5.1, R5.4_
 
 - [ ] 5. S4 — `WorkspaceController` (mới, có property test)
