@@ -19,7 +19,7 @@ const DEV_URL = `http://localhost:${PORT}`;
 
 const run = (cmd, args, opts = {}) =>
   new Promise((res, rej) => {
-    const p = spawn(cmd, args, { stdio: "inherit", shell: process.platform === "win32", ...opts });
+    const p = spawn(cmd, args, { stdio: "inherit", ...opts });
     p.on("exit", (code) => (code === 0 ? res() : rej(new Error(`${cmd} exited ${code}`))));
     p.on("error", rej);
   });
