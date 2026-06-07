@@ -254,7 +254,7 @@ Language: TypeScript (existing monorepo). Tests run under Vitest with
     - **Property 5: The generate-validate-repair loop respects its budget**
     - **Validates: Requirements 6.3, 6.4, 6.6, 6.7**
 
-  - [ ]* 5.4 Write integration test for the evidence-gate-on-edit path
+  - [x]* 5.4 Write integration test for the evidence-gate-on-edit path
     - With a stubbed Agent_Worker/N9 result, assert a visual edit requesting an
       unsupported figure leaves the scene's figure unchanged and returns an
       `EvidenceWarning` naming the figure
@@ -321,7 +321,7 @@ Language: TypeScript (existing monorepo). Tests run under Vitest with
     - _Requirements: 4.1, 4.2, 4.6, 4.7, 4.8_
 
 - [ ] 9. Storyboard review, batch submit, and approve/full render wiring
-  - [ ] 9.1 Implement the Storyboard model and batch-submit controller
+  - [x] 9.1 Implement the Storyboard model and batch-submit controller
     - Implement `SceneCard`/`StoryboardModel` reading existing review keyframes
       (`review/<sceneId>.png`), the per-scene (≤2000) and global notes (≤4000)
       boxes, `SceneAction`s, and `BatchSubmitController.submit` that batches,
