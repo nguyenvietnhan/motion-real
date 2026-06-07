@@ -104,5 +104,8 @@ export type FriendlyError = {
   retry?: "draft" | "full" | "create" | "activate" | "connect";
 };
 
+/** A plain-language auto-fix description that may cross IPC (never an N-code). */
+export type FriendlyFix = { sceneId?: string; message: string };
+
 /** Total mapping target reused by the gallery (Req 10.2/10.3). */
 export type { ProjectState };
