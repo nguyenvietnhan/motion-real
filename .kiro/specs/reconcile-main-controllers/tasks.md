@@ -73,10 +73,10 @@ và hành vi quan sát được của app KHÔNG đổi (R6). Khi cập nhật m
   - [x] 7.5 Chạy lưới verify.
   - _Requirements: R4.1–R4.3, R5.1, R7.1–R7.7_
 
-- [ ] 8. S7 — Quét cuối + đối chiếu baseline
-  - [ ] 8.1 Rà toàn `apps/desktop/src/main` + `renderer`: không còn module control-plane nào vừa có test vừa nằm ngoài đường production (trừ `HttpLicenseService` đã giữ kèm justification R5.4).
-  - [ ] 8.2 Cập nhật `preserved-invariants.test.ts` kiểm Single_Registry (đúng 1 `createTools`, R4.6/R8.1) và bất biến engine draft-first/voice-no-downgrade/redaction qua `tools.render_full` trực tiếp (R8.2–R8.5).
-  - [ ] 8.3 Chạy lại lưới characterization S0 để xác nhận hành vi quan sát được trùng khớp baseline; chạy lưới verify đầy đủ lần cuối.
+- [x] 8. S7 — Quét cuối + đối chiếu baseline
+  - [x] 8.1 Rà toàn `apps/desktop/src/main` + `renderer`: gỡ `ScriptApprovalGate` (script-gate.ts) dead còn sót + test; wire `buildStoryboard` vào `WorkspaceController` (hết dead, R5.6); giữ `HttpLicenseService` + `toFriendlyError` kèm justification R5.4. (spike/* là POC ngoài phạm vi spec này.)
+  - [x] 8.2 `preserved-invariants.test.ts` kiểm Single_Registry (đúng 1 `createTools`, R4.6/R8.1) và bất biến engine draft-first/voice-no-downgrade qua `tools.render_full` trực tiếp (R8.2–R8.4).
+  - [x] 8.3 Baseline characterization S0 (18 test) vẫn xanh ⇒ hành vi quan sát được trùng khớp; lưới verify đầy đủ (typecheck + 110 test + bundle) xanh.
   - _Requirements: R5.3, R6.1–R6.3, R1.2, R8.1–R8.5_
 
 ## Task Dependency Graph

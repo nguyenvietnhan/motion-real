@@ -11,9 +11,10 @@ import type { AuthorInput } from "../agent/agent-worker.js";
  * (R1.3, R2.1, R4.5, R4.6)
  */
 
-function deps(over: Partial<CreateDeps> = {}): { deps: CreateDeps; scaffold: ReturnType<typeof vi.fn>; began: { id: string; input: AuthorInput }[] } {
+function deps(over: Partial<CreateDeps> = {}): { deps: CreateDeps; scaffold: CreateDeps["scaffold"]; began: { id: string; input: AuthorInput }[] } {
   const began: { id: string; input: AuthorInput }[] = [];
-  const scaffold = (over.scaffold as ReturnType<typeof vi.fn>) ?? vi.fn(async (_prompt: string) => ({ ok: true as const, projectId: "p1" }));
+  const scaffold: CreateDeps["scaffold"] =
+    over.scaffold ?? vi.fn(async (_prompt: string) => ({ ok: true as const, projectId: "p1" }));
   const d: CreateDeps = {
     scaffold,
     beginScript: (id, input) => began.push({ id, input }),

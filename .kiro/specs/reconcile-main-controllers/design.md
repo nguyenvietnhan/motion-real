@@ -272,7 +272,8 @@ export class CreateController {
 ### §Quyết định mở (đề xuất, cần xác nhận khi triển khai)
 
 - **`HttpLicenseService`**: **GIỮ** (đã chốt). Đây là adapter licensing online tương lai, đứng sau seam `interface LicenseService`, hoàn toàn độc lập và KHÔNG shadow đường production (khác bản chất với chuỗi Review_Edit_Loop) — test của nó kiểm đúng chính nó, không tạo "false confidence". Theo R5.4 nó được giữ kèm justification này. `DevLicenseService` là impl được wire vào production; để bật online về sau chỉ cần đổi đúng một dòng wiring `new DevLicenseService()` → `new HttpLicenseService({ endpoint })` và thêm endpoint config — không đụng `LicenseManager`/IPC/renderer.
-- **`Disclosure_Map`**: đề xuất **GỠ** vì `views.tsx` không dùng và nó không nằm trong seam tương lai nào. Nếu màn Settings sẽ dùng progressive-disclosure, R5.4 cho phép giữ kèm justification.
+- **`Disclosure_Map`**: **GỠ** (đã chốt, S6) — `views.tsx` không dùng và không nằm trong seam tương lai nào.
+- **`toFriendlyError` (`redact/friendly.ts`)**: **GIỮ** (R5.4 justification). Tiện ích redaction thuần (Property 6 test test chính nó). Current_Behavior của dashboard hiện surfacing `e.message`/`error.cause` trực tiếp, KHÔNG đi qua `toFriendlyError` — wiring nó vào sẽ đổi message hiển thị = đổi hành vi (ngoài phạm vi refactor). Giữ lại cho bước cải thiện dashboard-redaction về sau (và khi hiện thực Review_Edit_Loop). Bất biến redaction R8.5 hiện được kiểm ở biên engine-tool trong `preserved-invariants.test.ts`.
 
 ## Data Models
 

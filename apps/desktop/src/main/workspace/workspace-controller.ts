@@ -1,4 +1,5 @@
 import { computeScriptEdits, type ManifestScene } from "../script/script-gate-apply.js";
+import { buildStoryboard } from "../review/storyboard.js";
 import type { AgentHooks, AgentWorker, AuthorInput } from "../agent/agent-worker.js";
 import type {
   ApplyResult,
@@ -72,12 +73,15 @@ export class WorkspaceController {
 
   private async storyboardScenesOf(projectId: string): Promise<SceneCard[]> {
     const manifest = await this.deps.loadManifest(projectId);
-    return manifest.scenes.map((s, i) => ({
-      sceneId: s.id,
-      order: i,
-      stillPath: this.deps.reviewStill(projectId, s.id),
-      editText: "",
-    }));
+    // Reuse the tested buildStoryboard view-model builder (R5.6), mapping each
+    // still through the mediaUrl-wrapping seam.
+    return buildStoryboard(
+      projectId,
+      "",
+      manifest.scenes.map((s) => s.id),
+      "",
+      (_root, sceneId) => this.deps.reviewStill(projectId, sceneId),
+    ).scenes;
   }
 
   /** Stage 1: AI writes the script; then wait for approval unless the gate is off (R2.1–R2.3, R2.7). */
