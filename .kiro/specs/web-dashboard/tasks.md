@@ -375,14 +375,14 @@ Language: TypeScript (existing monorepo). Tests run under Vitest with
       preserves in-progress project state
     - _Requirements: 11.7, 11.8_
 
-- [ ] 11. React UI views wiring each surface over typed IPC
-  - [ ] 11.1 Implement Onboarding/License and AI-connect views
+- [x] 11. React UI views wiring each surface over typed IPC
+  - [x] 11.1 Implement Onboarding/License and AI-connect views
     - Build the activation screen (in-progress indicator, plain-language
       timeout/offline/invalid messages, retry-same-key) and the single "Connect
       AI account" action with Advanced (Codex/Gemini), driven by `window.dashboard`
     - _Requirements: 1.1, 1.2, 2.4, 2.5, 2.6, 2.7, 2.9_
 
-  - [ ] 11.2 Implement Create, Storyboard, Gallery, and Settings views
+  - [x] 11.2 Implement Create, Storyboard, Gallery, and Settings views
     - Wire the topic/URL input + Create action, the per-scene Storyboard with
       stills + edit boxes + L2 collapsed actions, the embedded draft player +
       Approve, the project gallery (cards, empty-state, friendly badges), and the
@@ -390,13 +390,13 @@ Language: TypeScript (existing monorepo). Tests run under Vitest with
       and rendering only translated view-models (no L0 internals)
     - _Requirements: 3.1, 5.4, 8.1, 8.2, 8.3, 8.4, 9.1, 9.6, 10.1, 10.8, 11.1, 11.2, 11.3_
 
-  - [ ] 11.3 Wire streaming events into the renderer state
+  - [x] 11.3 Wire streaming events into the renderer state
     - Subscribe `onProgress`/`onScene`/`onStatus`/`onFriendlyError` to update the
       `DesktopState` (progress %, growing Storyboard, status badges, friendly
       errors with the correct retry action)
     - _Requirements: 5.2, 5.3, 5.5, 9.5, 9.7, 10.5_
 
-  - [ ]* 11.4 Write unit tests for view-model rendering and friendly errors
+  - [x]* 11.4 Write unit tests for view-model rendering and friendly errors
     - With stubbed IPC, assert views render only translated view-models, show the
       correct retry per `FriendlyError`, and never surface L0 tokens
     - _Requirements: 11.5, 11.6_
