@@ -246,8 +246,8 @@ property number.
       "registration not found" error (no second registry instance)
     - _Requirements: 3.3, 5.2_
 
-- [ ] 8. Resumable bulk automation over the tracker (Phase 3)
-  - [ ] 8.1 Implement `runBulkLoop`
+- [x] 8. Resumable bulk automation over the tracker (Phase 3)
+  - [x] 8.1 Implement `runBulkLoop`
     - Reduce over non-`done` tracker items (ingest → scaffold → author hand-off
       → draft → full → mark done) by reusing the MCP tools / orchestrator path;
       update item status as it progresses; on usage limit record
@@ -256,19 +256,19 @@ property number.
       caches; record per-item outcomes
     - _Requirements: 5.2, 5.7, 5.8, 10.3_
 
-  - [ ]* 8.2 Write property test for resumability
+  - [x]* 8.2 Write property test for resumability
     - **Property 12: Bulk loop resumes without redoing work**
     - **Validates: Requirements 5.4**
 
-  - [ ]* 8.3 Write property test for graceful usage-limit pause
+  - [x]* 8.3 Write property test for graceful usage-limit pause
     - **Property 13: Usage-limit pause is graceful and resumable**
     - **Validates: Requirements 5.5**
 
-  - [ ]* 8.4 Write property test for per-item isolation
+  - [x]* 8.4 Write property test for per-item isolation
     - **Property 14: Bulk per-item isolation**
     - **Validates: Requirements 5.6, 5.7**
 
-  - [ ]* 8.5 Write property test for cache reuse across surfaces
+  - [x]* 8.5 Write property test for cache reuse across surfaces
     - **Property 15: Caches are reused across surfaces**
     - **Validates: Requirements 5.8, 10.3**
 

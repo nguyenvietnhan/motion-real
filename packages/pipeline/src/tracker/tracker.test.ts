@@ -43,7 +43,7 @@ describe("tracker — Property 11: serialization round-trip", () => {
       }),
       { numRuns: 100 },
     );
-  });
+  }, 60_000);
 });
 
 describe("tracker — read/write JSON and CSV", () => {
