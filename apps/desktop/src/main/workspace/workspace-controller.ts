@@ -1,0 +1,214 @@
+import { computeScriptEdits, type ManifestScene } from "../script/script-gate-apply.js";
+import type { AgentHooks, AgentWorker, AuthorInput } from "../agent/agent-worker.js";
+import type {
+  ApplyResult,
+  ProjectCardVM,
+  ProjectStage,
+  ScriptEdit,
+  ScriptGateModel,
+  ScriptLine,
+  SceneCard,
+  StoryboardModel,
+} from "../../shared/types.js";
+
+/**
+ * WorkspaceController (reconcile-main-controllers S4) — the tested home for the
+ * staged-workspace orchestration that was inline in `index.ts`
+ * (`stages`/`setStage`/`runScript`/`runRender`/`scriptLinesOf`/
+ * `storyboardScenesOf`) plus the project/script read handlers
+ * (`projects:list/stage/open/delete/reveal`, `script:get/applyEdits/approve`).
+ *
+ * It reproduces the EXACT Current_Behavior (authoritative, R4.4) and injects all
+ * Electron/engine/pipeline access through seams so it is testable without
+ * Electron. Validates R2.1–R2.9, R1.4, R1.7, R5.6.
+ */
+
+/** A manifest scene as the dashboard needs it (other fields preserved opaquely). */
+export type WsScene = { id: string; narration?: string; headline?: string };
+export type WsManifest = { scenes: WsScene[] };
+
+export interface WorkspaceEvents {
+  progress(e: { projectId: string; ratio: number; phase: "draft" | "full" }): void;
+  scene(e: { projectId: string; sceneId: string; stillPath: string }): void;
+  status(e: { projectId: string; status: "building" | "draft-ready" | "done" | "error" }): void;
+  friendlyError(e: { projectId?: string; message: string; retry?: "draft" | "full" | "create" | "activate" | "connect" }): void;
+}
+
+export interface WorkspaceDeps {
+  worker: AgentWorker;
+  events: WorkspaceEvents;
+  /** Live settings reads (SettingsStore). */
+  settings: { readonly scriptGateEnabled: boolean; readonly maxRepairAttempts: number };
+  /** Gallery cards, already mediaUrl-wrapped + fallback-to-[] at the seam (R1.7). */
+  listProjects: () => Promise<ProjectCardVM[]>;
+  loadManifest: (projectId: string) => Promise<WsManifest>;
+  writeManifest: (projectId: string, manifest: WsManifest) => Promise<void>;
+  /** mediaUrl-wrapped path to a scene's review still (`review/<sceneId>.png`). */
+  reviewStill: (projectId: string, sceneId: string) => string;
+  /** Wrap an absolute still path for the renderer (mediaUrl, falling back to the path). */
+  toMedia: (absPath: string) => string;
+  /** Whether a scene's review still exists on disk. */
+  hasStill: (projectId: string, sceneId: string) => boolean;
+  deleteProject: (projectId: string) => Promise<void>;
+  revealProject: (projectId: string) => Promise<void>;
+}
+
+export class WorkspaceController {
+  private readonly stages = new Map<string, ProjectStage>();
+
+  constructor(private readonly deps: WorkspaceDeps) {}
+
+  /** Set + broadcast a stage (status mirrors the kind, as Current_Behavior). */
+  setStage(projectId: string, stage: ProjectStage): void {
+    this.stages.set(projectId, stage);
+    const status = stage.kind === "ready" ? "draft-ready" : stage.kind === "error" ? "error" : "building";
+    this.deps.events.status({ projectId, status });
+  }
+
+  private async scriptLinesOf(projectId: string): Promise<ScriptLine[]> {
+    const manifest = await this.deps.loadManifest(projectId);
+    return manifest.scenes.map((s, i) => ({ sceneId: s.id, order: i, headline: s.headline ?? "", narration: s.narration ?? "" }));
+  }
+
+  private async storyboardScenesOf(projectId: string): Promise<SceneCard[]> {
+    const manifest = await this.deps.loadManifest(projectId);
+    return manifest.scenes.map((s, i) => ({
+      sceneId: s.id,
+      order: i,
+      stillPath: this.deps.reviewStill(projectId, s.id),
+      editText: "",
+    }));
+  }
+
+  /** Stage 1: AI writes the script; then wait for approval unless the gate is off (R2.1–R2.3, R2.7). */
+  beginScript(projectId: string, input: AuthorInput): void {
+    this.setStage(projectId, { kind: "writing" });
+    void this.runScript(projectId, input);
+  }
+
+  private async runScript(projectId: string, input: AuthorInput): Promise<void> {
+    const hooks: AgentHooks = { onProgress: () => {}, onSceneProduced: () => {}, onRepair: () => {} };
+    try {
+      const authored = await this.deps.worker.author({ projectId, input, scriptGate: this.deps.settings.scriptGateEnabled }, hooks);
+      if (authored.kind !== "authored") {
+        this.setStage(projectId, { kind: "error", message: authored.message });
+        this.deps.events.friendlyError({ projectId, message: authored.message, retry: "create" });
+        return;
+      }
+      if (this.deps.settings.scriptGateEnabled) {
+        this.setStage(projectId, { kind: "script", lines: await this.scriptLinesOf(projectId) });
+      } else {
+        await this.runRender(projectId);
+      }
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "Có lỗi khi viết kịch bản.";
+      this.setStage(projectId, { kind: "error", message });
+      this.deps.events.friendlyError({ projectId, message, retry: "create" });
+    }
+  }
+
+  /** Stage 2: render voice + draft via generate-validate-repair (R2.4–R2.7, R2.9). */
+  approve(projectId: string): void {
+    void this.runRender(projectId);
+  }
+
+  private async runRender(projectId: string): Promise<void> {
+    this.setStage(projectId, { kind: "rendering", percent: 0 });
+    const hooks: AgentHooks = {
+      onProgress: (ratio) => {
+        this.setStage(projectId, { kind: "rendering", percent: Math.round(ratio * 100) });
+        this.deps.events.progress({ projectId, ratio, phase: "draft" });
+      },
+      onSceneProduced: (sceneId, stillPath) => this.deps.events.scene({ projectId, sceneId, stillPath: this.deps.toMedia(stillPath) }),
+      onRepair: () => {},
+    };
+    try {
+      const outcome = await this.deps.worker.generateValidateRepair(projectId, { maxAttempts: this.deps.settings.maxRepairAttempts }, hooks);
+      if (outcome.kind === "passed") {
+        this.setStage(projectId, { kind: "ready", scenes: await this.storyboardScenesOf(projectId) });
+      } else {
+        const message = "Chưa hoàn tất được video sau nhiều lần thử. Hãy thử tạo lại.";
+        this.setStage(projectId, { kind: "error", message });
+        this.deps.events.friendlyError({ projectId, message, retry: "draft" });
+      }
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "Có lỗi khi dựng video.";
+      this.setStage(projectId, { kind: "error", message });
+      this.deps.events.friendlyError({ projectId, message, retry: "draft" });
+    }
+  }
+
+  // --- read/IPC operations ------------------------------------------------
+
+  list(): Promise<ProjectCardVM[]> {
+    return this.deps.listProjects();
+  }
+
+  /** Recover a stage for a project no longer in memory (R2.8). */
+  async stage(projectId: string): Promise<ProjectStage> {
+    const known = this.stages.get(projectId);
+    if (known) return known;
+    try {
+      const manifest = await this.deps.loadManifest(projectId);
+      if (manifest.scenes.length === 0) return { kind: "writing" };
+      const hasStills = manifest.scenes.some((s) => this.deps.hasStill(projectId, s.id));
+      if (hasStills) return { kind: "ready", scenes: await this.storyboardScenesOf(projectId) };
+      return { kind: "script", lines: await this.scriptLinesOf(projectId) };
+    } catch {
+      return { kind: "writing" };
+    }
+  }
+
+  async open(projectId: string): Promise<StoryboardModel> {
+    try {
+      return { projectId, scenes: await this.storyboardScenesOf(projectId), globalNotes: "" };
+    } catch {
+      return { projectId, scenes: [], globalNotes: "" };
+    }
+  }
+
+  async delete(projectId: string): Promise<void> {
+    this.stages.delete(projectId);
+    await this.deps.deleteProject(projectId);
+  }
+
+  async reveal(projectId: string): Promise<void> {
+    await this.deps.revealProject(projectId);
+  }
+
+  async scriptGate(projectId: string): Promise<ScriptGateModel> {
+    const enabled = this.deps.settings.scriptGateEnabled;
+    try {
+      const lines = await this.scriptLinesOf(projectId);
+      return { projectId, enabled, scenes: lines.map((l) => ({ sceneId: l.sceneId, order: l.order, narration: l.narration, headline: l.headline })) };
+    } catch {
+      return { projectId, enabled, scenes: [] };
+    }
+  }
+
+  /** Apply confirmed script edits (empty-narration guard first, then write) (R1.4). */
+  async applyEdits(projectId: string, edits: ScriptEdit[]): Promise<ApplyResult> {
+    try {
+      const manifest = await this.deps.loadManifest(projectId);
+      // Pure guard over manifest-order scenes (reports the first offending scene).
+      const ms: ManifestScene[] = manifest.scenes.map((s) => ({ sceneId: s.id, narration: s.narration ?? "", headline: s.headline }));
+      const guard = computeScriptEdits(ms, edits);
+      if (!guard.ok) return guard;
+      // Apply edits onto the real manifest objects, preserving other fields.
+      const byId = new Map(edits.map((e) => [e.sceneId, e]));
+      for (const s of manifest.scenes) {
+        const e = byId.get(s.id);
+        if (!e) continue;
+        if (e.narration !== undefined) s.narration = e.narration;
+        if (e.headline !== undefined) s.headline = e.headline;
+      }
+      await this.deps.writeManifest(projectId, manifest);
+      if (this.stages.get(projectId)?.kind === "script") {
+        this.setStage(projectId, { kind: "script", lines: await this.scriptLinesOf(projectId) });
+      }
+      return { ok: true };
+    } catch {
+      return { ok: false, reason: "write-failed" };
+    }
+  }
+}

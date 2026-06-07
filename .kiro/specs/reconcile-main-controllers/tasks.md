@@ -47,15 +47,15 @@ và hành vi quan sát được của app KHÔNG đổi (R6). Khi cập nhật m
   - [x] 4.5 Chạy lưới verify.
   - _Requirements: R3.1–R3.3, R5.1, R5.4_
 
-- [ ] 5. S4 — `WorkspaceController` (mới, có property test)
-  - [ ] 5.1 Tạo `apps/desktop/src/main/workspace/workspace-controller.ts`, trích từ `index.ts`: `stages` Map + `setStage` (+ `events.status`), `beginScript`/`runScript`, `approve`/`runRender`, `scriptLinesOf`, `storyboardScenesOf`, và các thao tác đọc `list`/`stage`/`open`/`delete`/`reveal`/`scriptGate`/`applyEdits`. Mọi phụ thuộc Electron/engine/pipeline tiêm qua seam (`tools`, `worker`, `events`, `settings`, `loadManifest`, `writeJson`, `projectPaths`, `mediaUrl`, `exists`, `rm`, `reveal`).
-  - [ ] 5.2 Hợp nhất `buildStoryboard` để bọc đường dẫn still qua `mediaUrl` (khớp `storyboardScenesOf` hiện tại) thay vì trả path thô — tiêm `mediaUrl` qua tham số/seam. **Cập nhật `storyboard.test.ts`** (kỳ vọng hiện là `stillPath: "/p/p1/review/scene-01.png"` thô) cho khớp đầu ra mới (R5.6, R4.4).
-  - [ ] 5.3 Bảo toàn chính xác các nhánh: `runScript` (gate ON → stage `script`; gate OFF → `runRender`; lỗi → `error` + `friendlyError` retry `create`), `runRender` (`onProgress` → `percent: Math.round(ratio*100)` + `events.progress` phase `draft`; `onSceneProduced` → `events.scene` bọc `mediaUrl`; `passed` → `ready` stills thật; lỗi → `error` + `friendlyError` retry `draft`), fallback đọc (`list`→`[]`, `open`→scenes rỗng, `scriptGate`→`scenes:[]`).
-  - [ ] 5.4 Property test P7 — Empty-narration guard cho `applyScriptEdits` (chọn `sceneId` đầu tiên theo thứ tự manifest; không ghi khi lỗi). `Property 7` (_R1.4_). Cập nhật `script-gate-apply.ts` (thứ tự fold theo manifest) + `script-gate-apply.test.ts` cho khớp.
-  - [ ] 5.5 Property test P8 — Project stage recovery rules (không scene→`writing`; có still→`ready`; còn lại→`script`; lỗi đọc→`writing`). `Property 8` (_R2.8_).
-  - [ ] 5.6 Property test P9 — Render progress mapping gắn đúng `projectId`. `Property 9` (_R2.5, R2.9_).
-  - [ ] 5.7 Wire các handler `projects:list/stage/open/delete/reveal` và `script:get/applyEdits/approve` qua `WorkspaceController`; gỡ các hàm/biến nội tuyến tương ứng khỏi `index.ts`.
-  - [ ] 5.8 Chạy lưới verify.
+- [x] 5. S4 — `WorkspaceController` (mới, có property test)
+  - [x] 5.1 Tạo `apps/desktop/src/main/workspace/workspace-controller.ts`, trích từ `index.ts`: `stages` Map + `setStage` (+ `events.status`), `beginScript`/`runScript`, `approve`/`runRender`, `scriptLinesOf`, `storyboardScenesOf`, và các thao tác đọc `list`/`stage`/`open`/`delete`/`reveal`/`scriptGate`/`applyEdits`. Mọi phụ thuộc Electron/engine/pipeline tiêm qua seam.
+  - [x] 5.2 Hợp nhất `buildStoryboard`/still path để bọc `mediaUrl` (seam `reviewStill`/`toMedia`), khớp `storyboardScenesOf` hiện tại (R5.6, R4.4).
+  - [x] 5.3 Bảo toàn chính xác các nhánh runScript/runRender + fallback đọc (`list`→`[]`, `open`→scenes rỗng, `scriptGate`→`scenes:[]`).
+  - [x] 5.4 Property test P7 — Empty-narration guard (manifest-order, không ghi khi lỗi). `Property 7` (_R1.4_). Cập nhật `script-gate-apply.ts` (fold theo manifest-order, last-edit-wins per scene) + oracle `script-gate-apply.test.ts`.
+  - [x] 5.5 Property test P8 — Project stage recovery rules. `Property 8` (_R2.8_).
+  - [x] 5.6 Property test P9 — Render progress mapping gắn đúng `projectId`. `Property 9` (_R2.5, R2.9_).
+  - [x] 5.7 Wire các handler `projects:list/stage/open/delete/reveal` và `script:get/applyEdits/approve` qua `WorkspaceController`; gỡ các hàm/biến nội tuyến tương ứng khỏi `index.ts`.
+  - [x] 5.8 Chạy lưới verify.
   - _Requirements: R2.1–R2.9, R1.4, R1.7, R5.6_
 
 - [ ] 6. S5 — `CreateController` cập nhật + wire

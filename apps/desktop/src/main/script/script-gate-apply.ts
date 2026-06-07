@@ -26,14 +26,17 @@ const hasText = (s: string | undefined): boolean => (s ?? "").trim().length > 0;
  */
 export function computeScriptEdits(scenes: ManifestScene[], edits: ScriptEdit[]): ComputeResult {
   const next = scenes.map((s) => ({ ...s }));
-  const byId = new Map(next.map((s) => [s.sceneId, s]));
+  const editById = new Map(edits.map((e) => [e.sceneId, e]));
 
-  for (const edit of edits) {
-    const scene = byId.get(edit.sceneId);
-    if (!scene) continue; // edits to unknown scenes are no-ops
+  // Iterate in MANIFEST order (not edits order) so the first offending scene
+  // reported matches the dashboard's Current_Behavior, which scans
+  // `manifest.scenes` rather than the edit list (reconcile-main-controllers R4.4).
+  for (const scene of next) {
+    const edit = editById.get(scene.sceneId);
+    if (!edit) continue; // scenes without an edit are untouched
     if (edit.narration !== undefined) {
       if (!hasText(edit.narration)) {
-        return { ok: false, reason: "empty-narration", sceneId: edit.sceneId };
+        return { ok: false, reason: "empty-narration", sceneId: scene.sceneId };
       }
       scene.narration = edit.narration;
     }

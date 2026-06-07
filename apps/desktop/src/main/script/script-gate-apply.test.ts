@@ -51,7 +51,12 @@ describe("Property 4: script edits never write an empty narration", () => {
         ),
         ([scenes, edits]) => {
           const result = computeScriptEdits(scenes, edits);
-          const wouldEmpty = edits.some(
+          // Current_Behavior semantics: edits collapse into a per-scene map where
+          // the LAST edit per sceneId wins (mirrors `new Map(edits.map(...))` in
+          // index.ts), and scenes are scanned in MANIFEST order.
+          const effective = new Map<string, ScriptEdit>();
+          for (const e of edits) effective.set(e.sceneId, e);
+          const wouldEmpty = [...effective.values()].some(
             (e) => e.narration !== undefined && e.narration.trim().length === 0,
           );
           if (wouldEmpty) {
