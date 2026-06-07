@@ -211,6 +211,16 @@ export const HomeView: React.FC<{
   const valid = validateCreateInput({ raw });
   const canCreate = aiReady && valid.ok;
   const recent = cards.slice(0, 8);
+  const reason =
+    raw.trim() === ""
+      ? ""
+      : valid.ok
+        ? ""
+        : !valid.ok && valid.reason === "too-long"
+          ? "Nội dung quá dài (tối đa 20.000 ký tự)."
+          : valid.reason === "malformed-url"
+            ? "Đường dẫn không hợp lệ."
+            : "Nội dung chưa hợp lệ.";
 
   return (
     <div className="ns-content">
@@ -243,6 +253,7 @@ export const HomeView: React.FC<{
             {Icon.plus({ size: 16 })} Tạo bản nháp
           </button>
           {!aiReady && <span style={{ color: "var(--muted-foreground)", fontSize: 13 }}>Cần kết nối AI trước.</span>}
+          {aiReady && reason && <span style={{ color: "var(--warn)", fontSize: 13 }}>{reason}</span>}
         </div>
       </div>
 

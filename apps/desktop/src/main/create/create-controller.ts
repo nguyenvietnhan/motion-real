@@ -6,14 +6,14 @@ import type { CreateInput } from "../../shared/types.js";
  * strings (Property 1):
  *   - empty / whitespace-only            ⇒ { ok:false, reason:"empty" }
  *   - URL-shaped but over 2048 chars     ⇒ { ok:false, reason:"too-long" }
- *   - topic over 500 chars               ⇒ { ok:false, reason:"too-long" }
+ *   - topic/content over 20000 chars     ⇒ { ok:false, reason:"too-long" }
  *   - URL-shaped but malformed           ⇒ { ok:false, reason:"malformed-url" }
  *   - otherwise classified as url | topic ⇒ { ok:true, classified }
  * Creation must never start for an `ok:false` result and the entered text is
  * retained by the caller.
  */
 
-export const MAX_TOPIC_LEN = 500;
+export const MAX_TOPIC_LEN = 20000;
 export const MAX_URL_LEN = 2048;
 
 export type CreateClassified = { kind: "url"; url: string } | { kind: "topic"; text: string };
