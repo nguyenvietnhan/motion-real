@@ -260,7 +260,7 @@ Language: TypeScript (existing monorepo). Tests run under Vitest with
       `EvidenceWarning` naming the figure
     - _Requirements: 8.9_
 
-- [ ] 6. License + Model_Gateway lifecycle managers (main process)
+- [x] 6. License + Model_Gateway lifecycle managers (main process)
   - [x] 6.1 Implement the License_Service client and activation/verify lifecycle
     - Implement the network-facing `LicenseService.activate`/`verify` (30s
       timeout via `AbortSignal`) wired into `LicenseManager`; map
@@ -273,7 +273,7 @@ Language: TypeScript (existing monorepo). Tests run under Vitest with
       the node-locked launch skip, with a stubbed `LicenseService`
     - _Requirements: 1.3, 1.5, 1.6, 1.8_
 
-  - [ ] 6.3 Implement the bundled Model_Gateway manager (9Router lifecycle)
+  - [x] 6.3 Implement the bundled Model_Gateway manager (9Router lifecycle)
     - Create `apps/desktop/main/gateway/model-gateway-manager.ts`: start the
       9Router child on localhost with no window/console, retry up to 3 attempts
       then surface `unavailable`; `ensureLocalKey` generates + auto-wires the
@@ -281,14 +281,14 @@ Language: TypeScript (existing monorepo). Tests run under Vitest with
       "API key" in UI)
     - _Requirements: 2.1, 2.2, 2.3_
 
-  - [ ] 6.4 Implement AI-account OAuth connect (Kiro default + Codex/Gemini)
+  - [x] 6.4 Implement AI-account OAuth connect (Kiro default + Codex/Gemini)
     - Implement `connectAccount(provider?)` (default kiro, 120s timeout) and
       `account()`; success records the account and enables AI features; failure/
       cancel/timeout retains any previously connected account; keep Vivibe as the
       default voice (gateway TTS unused)
     - _Requirements: 2.5, 2.6, 2.7, 2.8, 2.10_
 
-  - [ ]* 6.5 Write integration tests for gateway start retry and OAuth lifecycle
+  - [x]* 6.5 Write integration tests for gateway start retry and OAuth lifecycle
     - With stubbed child-process + OAuth, assert the 3-attempt start retry →
       `unavailable`, and the connect success/cancel/timeout branches retain prior
       account state (1–3 representative cases each)
