@@ -12,12 +12,14 @@
     "build": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "@news/schema": "0.1.0",
-    "@news/design": "0.1.0",
-    "@news/tts": "0.1.0",
+    "@mozilla/readability": "^0.6.0",
     "@news/compositions": "0.1.0",
+    "@news/design": "0.1.0",
+    "@news/schema": "0.1.0",
+    "@news/tts": "0.1.0",
     "@remotion/bundler": "4.0.472",
     "@remotion/renderer": "4.0.472",
+    "linkedom": "^0.18.0",
     "typescript": "^5.9.3",
     "zod": "^4.1.13"
   }

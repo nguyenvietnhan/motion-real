@@ -38,6 +38,11 @@ export function renderCacheDir(): string {
   return join(videoToolHome(), "cache", "renders");
 }
 
+/** Research files from URL ingest live here (under VIDEO_TOOL_HOME, never repo root). */
+export function planningDir(): string {
+  return join(videoToolHome(), "planning");
+}
+
 /** Standard sub-paths inside a project folder. */
 export function projectPaths(projectId: string) {
   const root = projectPath(projectId);

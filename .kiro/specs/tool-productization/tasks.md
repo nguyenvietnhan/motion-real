@@ -119,8 +119,8 @@ property number.
 - [x] 3. Checkpoint - Phase 1 look layer
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 4. URL ingest into grounded research files (Phase 1)
-  - [ ] 4.1 Implement `ingestUrl`
+- [x] 4. URL ingest into grounded research files (Phase 1)
+  - [x] 4.1 Implement `ingestUrl`
     - Create `packages/pipeline/src/ingest/url-ingest.ts` with `IngestResult`,
       `ArticleMetadata`, and `ingestUrl(url, opts)`; add `@mozilla/readability`
       and `linkedom` deps
@@ -132,19 +132,19 @@ property number.
       `PipelineError(stage: "ingest")` and write no partial/empty file
     - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.6, 2.7, 2.8, 2.9_
 
-  - [ ]* 4.2 Write property test for extraction and provenance fidelity
+  - [x]* 4.2 Write property test for extraction and provenance fidelity
     - **Property 5: Ingest extraction and provenance fidelity**
     - **Validates: Requirements 2.1, 2.9**
 
-  - [ ]* 4.3 Write property test for text-and-metadata-only ingest
+  - [x]* 4.3 Write property test for text-and-metadata-only ingest
     - **Property 6: Ingest is text and metadata only**
     - **Validates: Requirements 2.3, 10.4**
 
-  - [ ]* 4.4 Write property test for failed-ingest cleanliness
+  - [x]* 4.4 Write property test for failed-ingest cleanliness
     - **Property 7: Failed ingest leaves no partial file**
     - **Validates: Requirements 2.6, 2.7**
 
-  - [ ]* 4.5 Write unit tests for the evidence-gate interaction
+  - [x]* 4.5 Write unit tests for the evidence-gate interaction
     - Assert research files are not read in the render path and that ingested
       facts remain subject to the `N9` evidence gate
     - _Requirements: 2.5_

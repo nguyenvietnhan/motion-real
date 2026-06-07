@@ -18,7 +18,7 @@ describe("style-pack fonts — Property 19: Vietnamese coverage + render-safe", 
   });
 
   it("every style pack's font families are render-safe loaded families", () => {
-    const loaded = new Set([interFamily, bvpFamily, cascadiaFamily]); // Inter, Be Vietnam Pro, Cascadia Mono
+    const loaded = new Set<string>([interFamily, bvpFamily, cascadiaFamily]); // Inter, Be Vietnam Pro, Cascadia Mono
     for (const id of listStylePackIds()) {
       const f = getStylePack(id)!.chrome.fontFamily;
       for (const stack of [f.display, f.body, f.mono]) {
