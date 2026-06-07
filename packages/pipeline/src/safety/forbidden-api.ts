@@ -1,7 +1,7 @@
 import { readFileSync, readdirSync, type Dirent } from "node:fs";
 import { extname, join, relative } from "node:path";
 import { makeReport, type SafetyIssue, type SafetyReport } from "../types.js";
-import { workspaceRoot } from "../renderer.js";
+import { workspaceRoot } from "../render/renderer.js";
 
 /**
  * Forbidden-API guard for registered scene code (N5, Requirement 7.1).
@@ -100,6 +100,11 @@ export function compositionsSrcDir(): string {
   return join(workspaceRoot(), "packages", "compositions", "src");
 }
 
+/** Absolute path to the @news/blocks sources (also forbidden-API linted; R2.3). */
+export function blocksSrcDir(): string {
+  return join(workspaceRoot(), "packages", "blocks", "src");
+}
+
 /**
  * Lint every `.ts`/`.tsx` source under `dir` (default: the compositions package
  * sources) for forbidden constructs. Each violation becomes a hard N5 error.
@@ -141,10 +146,15 @@ function collectSourceFiles(dir: string): string[] {
     const full = join(dir, entry.name);
     if (entry.isDirectory()) {
       if (entry.name === "node_modules" || entry.name === "dist") continue;
+      // Test fixtures intentionally contain banned constructs; never lint them.
+      if (entry.name === "__fixtures__" || entry.name === "__tests__") continue;
       out.push(...collectSourceFiles(full));
       continue;
     }
     if (!entry.isFile()) continue;
+    // Skip test/spec files: the lint targets shippable scene/block runtime code,
+    // and tests legitimately use mocks / dynamic import.
+    if (/\.(test|spec)\.tsx?$/.test(entry.name)) continue;
     const ext = extname(entry.name);
     if ((ext === ".ts" || ext === ".tsx") && !entry.name.endsWith(".d.ts")) {
       out.push(full);

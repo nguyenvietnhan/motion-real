@@ -2,7 +2,7 @@ import { existsSync, statSync } from "node:fs";
 import { isAbsolute, join } from "node:path";
 import { validateLockedTimings, type LockedVideoSpec } from "@news/schema";
 import { makeReport, type SafetyIssue, type SafetyReport } from "../types.js";
-import { projectPaths } from "../store.js";
+import { projectPaths } from "../store/store.js";
 
 /**
  * Tier-2 build / type checks (N10–N13), run after lock and before render.

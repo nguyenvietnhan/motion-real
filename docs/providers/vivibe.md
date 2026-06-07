@@ -62,7 +62,9 @@ Completed polling response:
 }
 ```
 
-The adapter ignores `srtUrl` because this tool does not auto-generate subtitles.
-Audio is downloaded from `url`. If a key, endpoint, or voice id is missing, the
-pipeline stops and reports the exact missing setting rather than falling back to
-a lower-quality voice.
+The adapter captures `srtUrl` when the provider returns one: the SRT is
+downloaded next to the audio and drives the burned-in caption timing (see
+`audio/captions.ts`). If no SRT is available, captions fall back to even-split
+timing. Audio is downloaded from `url`. If a key, endpoint, or voice id is
+missing, the pipeline stops and reports the exact missing setting rather than
+falling back to a lower-quality voice.

@@ -30,7 +30,7 @@ export type AdmissionPolicy = {
 };
 
 export const DEFAULT_ADMISSION_POLICY: AdmissionPolicy = {
-  allowedImports: ["react", "remotion", "@news/design", "@news/compositions", "zod"],
+  allowedImports: ["react", "remotion", "@news/design", "@news/blocks", "@news/compositions", "zod"],
   bannedApis: [
     "Math.random",
     "Date.now",

@@ -4,6 +4,7 @@ import { z } from "zod";
 import { FPS, LockedVideoSpecSchema, type LockedVideoSpec } from "@news/schema";
 import { VideoComposition } from "@news/compositions";
 import { theme } from "@news/design";
+import "./demo-scenes.js"; // side-effect: registers demo scene components for the sample
 import { sampleSpec } from "./fixtures/sample-spec.js";
 
 const { width, height } = theme.canvas;

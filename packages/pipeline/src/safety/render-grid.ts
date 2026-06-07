@@ -1,8 +1,25 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import type { LockedVideoSpec } from "@news/schema";
+import {
+  CAPTION_BAND,
+  CONTENT_ZONE,
+  CANVAS,
+  T_TRANSITION_SECONDS,
+  type LockedVideoSpec,
+} from "@news/schema";
 import { makeReport, type SafetyIssue, type SafetyReport } from "../types.js";
-import { decodePng, type DecodedImage } from "./png.js";
+import { MAX_CAPTION_LINE_CHARS } from "../audio/captions.js";
+import { decodePng } from "./png.js";
+import {
+  analyzeFrame,
+  backgroundColor,
+  colorDistance,
+  contrastRatio,
+  relativeLuminance,
+  type Frame,
+  type FrameStats,
+  type Rgb,
+} from "./frame-stats.js";
 
 /**
  * Tier-3 deterministic-render oracles (N14–N23; Requirement 9). These inspect
@@ -16,15 +33,22 @@ import { decodePng, type DecodedImage } from "./png.js";
  * proving it fires on a known-bad input and passes on a clean one.
  *
  * Limitations are honest and documented: from a single midpoint still some
- * defects can only be approximated. N15 (overlap) and N17 (truncation) need
- * layout hints (block rects / a content box) that a flat raster does not carry,
- * so they are exported as oracles you feed those hints to; `runRenderGrid`
- * invokes the frame-only oracles (N14/N18/N19), the pure spec-level oracles
- * (N20/N22), and a coarse adjacent-still transition check (N21). N23 (richness)
- * needs several frames per scene and is exported for callers that sample them.
+ * defects can only be approximated. `runRenderGrid` auto-runs the frame-only
+ * oracles (N14 content-zone + caption-clearance, N18, N19, N30), the pure
+ * spec-level oracles (N20, N22, N28, N29), and a coarse adjacent-still
+ * transition check (N21). Three oracles are exported + self-tested but are NOT
+ * auto-run, because a flat midpoint still lacks the inputs they need:
+ *   - N15 (overlap) and N17 (truncation) need per-block layout rects / a content
+ *     box, which a flat raster does not carry — feed them those hints to use them.
+ *   - N23 (richness) needs several frames per scene; and because the always-on
+ *     ambient tilt (useTilt) moves every scene's pixels each frame, an
+ *     inter-frame-motion oracle cannot separate a rich scene from a lazy static
+ *     one on a real render. Richness is instead nudged by N30 + N19 + the
+ *     visualization playbook guidance. The function stays for callers that sample
+ *     tilt-free frames.
  */
 
-export type Frame = DecodedImage;
+export type { Frame };
 export type Rect = { x: number; y: number; width: number; height: number };
 
 export type RenderGridOptions = {
@@ -39,12 +63,27 @@ export type RenderGridOptions = {
   minContrast?: number;
   /** Max words-per-second before a scene is too short for its narration (N20). */
   maxWordsPerSecond?: number;
-  /** Allowed |audio − video| drift in seconds (N22). */
+  /** Allowed |audio − video| drift in seconds (N22), on top of transition padding. */
   audioDriftTolerance?: number;
+  /**
+   * Outer decorative-frame ring (as a fraction of the smaller canvas side) that
+   * N14 ignores: a thin editorial border / corner ticks at the very edge is
+   * chrome the host platform overlays anyway, not content. Genuine content
+   * pushed into the platform-UI reserve still lies INSIDE this ring and fires.
+   */
+  chromeMarginRatio?: number;
+  /** Soft target total duration in seconds (N28-duration); 0/undefined disables. */
+  targetDurationSeconds?: number;
+  /** Allowed +/- seconds around the duration target before the soft check warns. */
+  durationTolerance?: number;
   /** A scene longer than this many seconds must show motion (N23). */
   richnessMinSeconds?: number;
   /** Below this inter-frame diff fraction a long scene is a static hold (N23). */
   staticDiffFraction?: number;
+  /** Max fraction of the caption-clearance gap that may be content before N14 fires (HARD). */
+  captionClearanceTolerance?: number;
+  /** Above this content-zone fill fraction, a scene reads as overcrowded (N30, advisory). */
+  densityFraction?: number;
 };
 
 const DEFAULTS: Required<RenderGridOptions> = {
@@ -55,89 +94,14 @@ const DEFAULTS: Required<RenderGridOptions> = {
   minContrast: 3,
   maxWordsPerSecond: 3.0,
   audioDriftTolerance: 0.5,
+  chromeMarginRatio: 0.045,
+  targetDurationSeconds: 0,
+  durationTolerance: 20,
   richnessMinSeconds: 4,
   staticDiffFraction: 0.005,
+  captionClearanceTolerance: 0.01,
+  densityFraction: 0.6,
 };
-
-type Rgb = { r: number; g: number; b: number };
-
-function colorDistance(a: Rgb, r: number, g: number, b: number): number {
-  return Math.abs(a.r - r) + Math.abs(a.g - g) + Math.abs(a.b - b);
-}
-
-function relativeLuminance(r: number, g: number, b: number): number {
-  const f = (v: number): number => {
-    const s = v / 255;
-    return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
-  };
-  return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);
-}
-
-function contrastRatio(l1: number, l2: number): number {
-  const hi = Math.max(l1, l2) + 0.05;
-  const lo = Math.min(l1, l2) + 0.05;
-  return hi / lo;
-}
-
-/** Estimate the background color as the most frequent (coarsely quantized) pixel. */
-function backgroundColor(frame: Frame): Rgb {
-  const buckets = new Map<number, { count: number; r: number; g: number; b: number }>();
-  const { width, height, data } = frame;
-  const stepX = Math.max(1, Math.floor(width / 64));
-  const stepY = Math.max(1, Math.floor(height / 64));
-  for (let y = 0; y < height; y += stepY) {
-    for (let x = 0; x < width; x += stepX) {
-      const i = (y * width + x) * 4;
-      const r = data[i]!;
-      const g = data[i + 1]!;
-      const b = data[i + 2]!;
-      const key = ((r >> 3) << 10) | ((g >> 3) << 5) | (b >> 3);
-      const bucket = buckets.get(key);
-      if (bucket) {
-        bucket.count += 1;
-      } else {
-        buckets.set(key, { count: 1, r, g, b });
-      }
-    }
-  }
-  let best: { count: number; r: number; g: number; b: number } | null = null;
-  for (const bucket of buckets.values()) {
-    if (!best || bucket.count > best.count) best = bucket;
-  }
-  return best ? { r: best.r, g: best.g, b: best.b } : { r: 0, g: 0, b: 0 };
-}
-
-type FrameStats = {
-  bg: Rgb;
-  total: number;
-  contentCount: number;
-  contentFraction: number;
-  avgContent: Rgb | null;
-};
-
-function analyzeFrame(frame: Frame, threshold: number): FrameStats {
-  const bg = backgroundColor(frame);
-  const { width, height, data } = frame;
-  const total = width * height;
-  let contentCount = 0;
-  let sr = 0;
-  let sg = 0;
-  let sb = 0;
-  for (let p = 0; p < total; p += 1) {
-    const i = p * 4;
-    const r = data[i]!;
-    const g = data[i + 1]!;
-    const b = data[i + 2]!;
-    if (colorDistance(bg, r, g, b) > threshold) {
-      contentCount += 1;
-      sr += r;
-      sg += g;
-      sb += b;
-    }
-  }
-  const avgContent = contentCount > 0 ? { r: sr / contentCount, g: sg / contentCount, b: sb / contentCount } : null;
-  return { bg, total, contentCount, contentFraction: contentCount / total, avgContent };
-}
 
 function countWords(value: string): number {
   return value.trim().split(/\s+/).filter(Boolean).length;
@@ -176,6 +140,121 @@ export function checkSafeArea(frame: Frame, sceneId?: string, options?: RenderGr
         severity: "error",
         sceneId,
         message: `Content paints into the 9:16 safe-area margin (${(fraction * 100).toFixed(2)}% of the edge band); keep content inside the safe rect.`,
+      },
+    ];
+  }
+  return [];
+}
+
+// --- N14 (zone-aware): content must live in the content zone / caption band ---
+
+/**
+ * Zone-aware N14 (author-mode-v2 R15.4): authored content must stay inside the
+ * CONTENT_ZONE and captions inside the CAPTION_BAND; nothing may paint into the
+ * platform-UI reserve (bottom band / right action rail). We allow content in the
+ * union of the content zone and the caption band (captions paint there), and
+ * flag any meaningful content outside that union — which catches content sliding
+ * into the bottom UI reserve or out past the safe margins. Zones are defined in
+ * the 1080×1920 space and scaled to the actual still size.
+ */
+export function checkContentZone(frame: Frame, sceneId?: string, options?: RenderGridOptions): SafetyIssue[] {
+  const o = opt(options);
+  const { width, height, data } = frame;
+  const bg = backgroundColor(frame);
+  const sx = width / CANVAS.width;
+  const sy = height / CANVAS.height;
+  // Allowed band: from the top of the content zone down through the bottom of
+  // the caption band, within the widest horizontal margins. This flags content
+  // in the top margin, the side margins, and the bottom platform-UI reserve
+  // (below the caption band) — without nitpicking the small gap between the
+  // content zone and the caption band.
+  const allowed = {
+    top: CONTENT_ZONE.top * sy,
+    bottom: CAPTION_BAND.bottom * sy,
+    left: Math.min(CONTENT_ZONE.left, CAPTION_BAND.left) * sx,
+    right: Math.max(CONTENT_ZONE.right, CAPTION_BAND.right) * sx,
+  };
+  const inside = (x: number, y: number) =>
+    x >= allowed.left && x <= allowed.right && y >= allowed.top && y <= allowed.bottom;
+
+  // Ignore a thin decorative-frame ring at the very canvas edge (editorial
+  // border + corner registration ticks are chrome the platform overlays, not
+  // content). Content genuinely intruding into the UI reserve sits inside this
+  // ring and is still flagged.
+  const ring = Math.floor(Math.min(width, height) * o.chromeMarginRatio);
+  const inChromeRing = (x: number, y: number) =>
+    x < ring || x >= width - ring || y < ring || y >= height - ring;
+
+  let total = 0;
+  let outside = 0;
+  const stepX = Math.max(1, Math.floor(width / 256));
+  const stepY = Math.max(1, Math.floor(height / 256));
+  for (let y = 0; y < height; y += stepY) {
+    for (let x = 0; x < width; x += stepX) {
+      total += 1;
+      const i = (y * width + x) * 4;
+      if (colorDistance(bg, data[i]!, data[i + 1]!, data[i + 2]!) <= o.contentThreshold) continue;
+      if (!inside(x, y) && !inChromeRing(x, y)) outside += 1;
+    }
+  }
+  const fraction = total > 0 ? outside / total : 0;
+  if (fraction > o.safeAreaTolerance) {
+    return [
+      {
+        check: "N14",
+        severity: "error",
+        sceneId,
+        message: `Content paints outside the content zone / caption band (${(fraction * 100).toFixed(2)}% of sampled pixels), e.g. into the platform-UI reserve; keep content inside the content zone.`,
+      },
+    ];
+  }
+  return [];
+}
+
+// --- N14 (caption clearance): authored content must keep clear of captions (HARD) ---
+
+/**
+ * Authored content must NOT creep down toward the caption band — there must be a
+ * visible gap (the global divider line sits at the content-zone bottom, above
+ * this gap). We scan ONLY the clearance gap between the content zone and the
+ * caption band: captions never render there, so ANY meaningful content in this
+ * band is authored overflow drifting into the captions, and is a hard error.
+ * (Scanning the caption band itself would false-positive on the burned-in
+ * captions, so we deliberately scan the gap above it.)
+ */
+export function checkCaptionClearance(frame: Frame, sceneId?: string, options?: RenderGridOptions): SafetyIssue[] {
+  const o = opt(options);
+  const { width, height, data } = frame;
+  const bg = backgroundColor(frame);
+  const sx = width / CANVAS.width;
+  const sy = height / CANVAS.height;
+  // The gap between the content zone and the caption band. Start a few px below
+  // the content-zone bottom so the global divider line (drawn at that boundary)
+  // is not counted as overflow.
+  const top = Math.floor((CONTENT_ZONE.bottom + 8) * sy);
+  const bottom = Math.floor(CAPTION_BAND.top * sy);
+  const left = Math.floor(CONTENT_ZONE.left * sx);
+  const right = Math.ceil(CONTENT_ZONE.right * sx);
+  // Need enough vertical resolution to resolve the ~32px gap; on tiny frames the
+  // band collapses and would false-positive, so skip (real stills are full/half res).
+  if (bottom - top < 6) return [];
+  let band = 0;
+  let content = 0;
+  for (let y = top; y < bottom; y += 1) {
+    for (let x = left; x < right; x += 1) {
+      band += 1;
+      const i = (y * width + x) * 4;
+      if (colorDistance(bg, data[i]!, data[i + 1]!, data[i + 2]!) > o.contentThreshold) content += 1;
+    }
+  }
+  const fraction = band > 0 ? content / band : 0;
+  if (fraction > o.captionClearanceTolerance) {
+    return [
+      {
+        check: "N14",
+        severity: "error",
+        sceneId,
+        message: `Content reaches into the caption clearance gap (${(fraction * 100).toFixed(2)}% of the gap band); keep authored content above the divider, clear of the caption band.`,
       },
     ];
   }
@@ -360,30 +439,129 @@ export function checkTransition(a: Frame, b: Frame, sceneId?: string, options?: 
 export function checkAudioSync(locked: LockedVideoSpec, options?: RenderGridOptions): SafetyIssue[] {
   const o = opt(options);
   const issues: SafetyIssue[] = [];
+  const n = locked.scenes.length;
   const scenesWithAudio = locked.scenes.filter((s) => typeof s.audio?.duration === "number");
   if (scenesWithAudio.length === 0) return issues; // no narration → nothing to sync
 
-  for (const scene of scenesWithAudio) {
-    const audio = scene.audio!.duration;
+  // The lock pads each scene's video by the transitions touching it (T per
+  // adjacent transition), so video > audio by a KNOWN amount. Compare the
+  // residual drift after subtracting that expected transition padding. The
+  // transition length is defined in SECONDS (fps-independent), so this is
+  // correct for both the 30fps final and a lower-fps draft.
+  const tSeconds = T_TRANSITION_SECONDS;
+  locked.scenes.forEach((scene, i) => {
+    if (typeof scene.audio?.duration !== "number") return;
+    const audio = scene.audio.duration;
     const video = scene.durationInFrames / locked.fps;
-    if (Math.abs(audio - video) > o.audioDriftTolerance) {
+    const adjacentTransitions = (i > 0 ? 1 : 0) + (i < n - 1 ? 1 : 0);
+    const expectedPadding = adjacentTransitions * tSeconds;
+    const residual = video - audio - expectedPadding;
+    if (Math.abs(residual) > o.audioDriftTolerance) {
       issues.push({
         check: "N22",
         severity: "warning",
         sceneId: scene.id,
-        message: `${scene.id} audio (${audio.toFixed(2)}s) drifts from its video length (${video.toFixed(2)}s) beyond ${o.audioDriftTolerance}s.`,
+        message: `${scene.id} audio (${audio.toFixed(2)}s) drifts from its video length (${video.toFixed(2)}s, incl. ${expectedPadding.toFixed(2)}s transition) by ${residual.toFixed(2)}s.`,
+      });
+    }
+  });
+
+  const totalAudio = scenesWithAudio.reduce((sum, s) => sum + (s.audio!.duration ?? 0), 0);
+  const totalVideo = locked.durationInFrames / locked.fps;
+  const expectedTotalPadding = Math.max(0, n - 1) * tSeconds;
+  const totalResidual = totalVideo - totalAudio - expectedTotalPadding;
+  if (Math.abs(totalResidual) > o.audioDriftTolerance) {
+    issues.push({
+      check: "N22",
+      severity: "warning",
+      message: `Total narration (${totalAudio.toFixed(2)}s) drifts from total video (${totalVideo.toFixed(2)}s, incl. ${expectedTotalPadding.toFixed(2)}s transitions) by ${totalResidual.toFixed(2)}s.`,
+    });
+  }
+  return issues;
+}
+
+// --- N28-duration: soft total-duration target (WARNING, pure spec) --------
+
+/**
+ * Soft duration check: when a target is configured, warn if the finished video
+ * lands outside `target ± tolerance`. Advisory only (free pacing stands), but it
+ * surfaces "way under/over the brief" so a video that should be ~2 min does not
+ * silently ship at ~1 min. "Rather over than under" is the editorial rule, so
+ * the message distinguishes the two directions.
+ */
+export function checkDuration(locked: LockedVideoSpec, options?: RenderGridOptions): SafetyIssue[] {
+  const o = opt(options);
+  if (!o.targetDurationSeconds || o.targetDurationSeconds <= 0) return [];
+  const total = locked.durationInFrames / locked.fps;
+  const low = o.targetDurationSeconds - o.durationTolerance;
+  const high = o.targetDurationSeconds + o.durationTolerance;
+  if (total < low) {
+    return [
+      {
+        check: "N28",
+        severity: "warning",
+        message: `Video is ${total.toFixed(1)}s — under the ${o.targetDurationSeconds}s target (min ${low.toFixed(0)}s); add scenes/narration ("rather over than under").`,
+      },
+    ];
+  }
+  if (total > high) {
+    return [
+      {
+        check: "N28",
+        severity: "warning",
+        message: `Video is ${total.toFixed(1)}s — over the ${o.targetDurationSeconds}s target (max ${high.toFixed(0)}s); tighten narration.`,
+      },
+    ];
+  }
+  return [];
+}
+
+// --- N29: caption track (WARNING) -----------------------------------------
+
+/**
+ * N29 caption oracle (author-mode-v2 R16): a scene that has narration should
+ * carry a caption while it plays, every cue must fit within the video, and a
+ * cue line should not be so long it overflows the caption band. Severity is
+ * advisory (warning); contrast + in-band placement are guaranteed structurally
+ * by the `Captions` block (scrim + CAPTION_BAND), so this focuses on coverage
+ * and line length. `maxLineChars` overflow uses a generous 1.4× allowance.
+ */
+export function checkCaptions(locked: LockedVideoSpec, maxLineChars = MAX_CAPTION_LINE_CHARS): SafetyIssue[] {
+  const issues: SafetyIssue[] = [];
+  const captions = locked.captions ?? [];
+
+  for (const scene of locked.scenes) {
+    const hasSpeech = typeof scene.audio?.duration === "number" && scene.audio.duration > 0;
+    if (!hasSpeech) continue;
+    const covered = captions.some((c) => c.sceneId === scene.id);
+    if (!covered) {
+      issues.push({
+        check: "N29",
+        severity: "warning",
+        sceneId: scene.id,
+        message: `${scene.id} has narration but no caption cue; viewers with sound off get no caption while it plays.`,
       });
     }
   }
 
-  const totalAudio = scenesWithAudio.reduce((sum, s) => sum + (s.audio!.duration ?? 0), 0);
-  const totalVideo = locked.durationInFrames / locked.fps;
-  if (Math.abs(totalAudio - totalVideo) > o.audioDriftTolerance) {
-    issues.push({
-      check: "N22",
-      severity: "warning",
-      message: `Total narration (${totalAudio.toFixed(2)}s) drifts from total video (${totalVideo.toFixed(2)}s) beyond ${o.audioDriftTolerance}s.`,
-    });
+  const overflowLimit = Math.ceil(maxLineChars * 1.4);
+  for (const cue of captions) {
+    if (cue.text.length > overflowLimit) {
+      issues.push({
+        check: "N29",
+        severity: "warning",
+        sceneId: cue.sceneId,
+        message: `Caption line is ${cue.text.length} chars (> ${overflowLimit}); it may overflow the single-line caption band.`,
+      });
+    }
+    if (cue.startFrame < 0 || cue.endFrame > locked.durationInFrames || cue.endFrame <= cue.startFrame) {
+      issues.push({
+        check: "N29",
+        severity: "warning",
+        sceneId: cue.sceneId,
+        message: `Caption cue [${cue.startFrame}, ${cue.endFrame}) is out of the video range [0, ${locked.durationInFrames}).`,
+      });
+    }
   }
   return issues;
 }
@@ -416,6 +594,50 @@ export function checkRichness(
   return [];
 }
 
+// --- N30: content density / overcrowding (WARNING) ------------------------
+
+/**
+ * Flags an OVERCROWDED scene: too much of the content zone is filled with
+ * content (text + blocks packed edge-to-edge), which reads as cluttered and
+ * usually means too many ideas were stuffed into one scene. Advisory only — a
+ * legitimately busy chart can be dense — so it surfaces in the report to nudge
+ * "one idea per scene / split it / trim text", never blocks the render. Measured
+ * over the CONTENT_ZONE (not the whole frame) so empty margins don't dilute it.
+ */
+export function checkDensity(frame: Frame, sceneId?: string, options?: RenderGridOptions): SafetyIssue[] {
+  const o = opt(options);
+  const { width, height, data } = frame;
+  const bg = backgroundColor(frame);
+  const sx = width / CANVAS.width;
+  const sy = height / CANVAS.height;
+  const top = Math.floor(CONTENT_ZONE.top * sy);
+  const bottom = Math.floor(CONTENT_ZONE.bottom * sy);
+  const left = Math.floor(CONTENT_ZONE.left * sx);
+  const right = Math.floor(CONTENT_ZONE.right * sx);
+  if (bottom - top < 40 || right - left < 40) return [];
+  let zone = 0;
+  let content = 0;
+  for (let y = top; y < bottom; y += 1) {
+    for (let x = left; x < right; x += 1) {
+      zone += 1;
+      const i = (y * width + x) * 4;
+      if (colorDistance(bg, data[i]!, data[i + 1]!, data[i + 2]!) > o.contentThreshold) content += 1;
+    }
+  }
+  const frac = zone > 0 ? content / zone : 0;
+  if (frac > o.densityFraction) {
+    return [
+      {
+        check: "N30",
+        severity: "warning",
+        sceneId,
+        message: `${sceneId ?? "scene"} fills ${(frac * 100).toFixed(0)}% of the content zone (> ${(o.densityFraction * 100).toFixed(0)}%) — it reads overcrowded; split it into more scenes or trim text (one idea per scene).`,
+      },
+    ];
+  }
+  return [];
+}
+
 // --- aggregator -----------------------------------------------------------
 
 export type RenderGridArtifacts = {
@@ -427,11 +649,13 @@ export type RenderGridArtifacts = {
 
 /**
  * Run the deterministic-render grid over a locked spec + its per-scene stills.
- * Spec-level oracles (N20/N22) always run; frame oracles (N14/N18/N19) run per
- * decoded still; a coarse adjacent-still transition check (N21) runs between
- * consecutive scenes. Missing/undecodable stills become non-blocking warnings so
- * the grid never crashes. N15/N17 (need layout hints) and N23 (needs multiple
- * frames per scene) are exported separately for callers that have those inputs.
+ * Spec-level oracles (N20/N22/N28/N29) always run; frame oracles
+ * (N14/N18/N19/N30) run per decoded still; a coarse adjacent-still transition
+ * check (N21) runs between consecutive scenes. Missing/undecodable stills become
+ * non-blocking warnings so the grid never crashes. N15/N17 (need layout hints)
+ * and N23 (needs tilt-free multi-frame samples) are exported separately for
+ * callers that have those inputs — see the file header for why they don't
+ * auto-run.
  */
 export async function runRenderGrid(
   locked: LockedVideoSpec,
@@ -443,6 +667,8 @@ export async function runRenderGrid(
   // Spec-level oracles (no pixels needed).
   issues.push(...checkPacing(locked, options));
   issues.push(...checkAudioSync(locked, options));
+  issues.push(...checkDuration(locked, options));
+  issues.push(...checkCaptions(locked));
 
   // Decode one still per scene.
   const frames: Array<Frame | null> = [];
@@ -465,7 +691,9 @@ export async function runRenderGrid(
   locked.scenes.forEach((scene, i) => {
     const frame = frames[i];
     if (!frame) return;
-    issues.push(...checkSafeArea(frame, scene.id, options));
+    issues.push(...checkContentZone(frame, scene.id, options));
+    issues.push(...checkCaptionClearance(frame, scene.id, options));
+    issues.push(...checkDensity(frame, scene.id, options));
     issues.push(...checkDeadAir(frame, scene.id, options));
     issues.push(...checkContrast(frame, scene.id, options));
   });

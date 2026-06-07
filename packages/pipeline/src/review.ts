@@ -5,8 +5,8 @@ import { isAbsolute, join, relative, resolve } from "node:path";
 import { promisify } from "node:util";
 import type { LockedVideoSpec } from "@news/schema";
 import { makeReport, type ReviewChecklist, type SafetyIssue, type SafetyReport } from "./types.js";
-import { appendEvent, ensureProject, projectPaths, writeJson } from "./store.js";
-import { renderSceneStills, type RenderSceneStillsOptions } from "./renderer.js";
+import { appendEvent, ensureProject, projectPaths, writeJson } from "./store/store.js";
+import { renderSceneStills, type RenderSceneStillsOptions } from "./render/renderer.js";
 
 /**
  * Tier-4 perceptual review loop gate (N24, N25; Requirement 10). Mirrors

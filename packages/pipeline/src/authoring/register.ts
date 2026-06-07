@@ -1,5 +1,5 @@
 import { pathToFileURL } from "node:url";
-import { getComponent, validateProps } from "@news/compositions";
+import { getComponent, registerComponent, validateProps, type SceneComponentDefinition } from "@news/compositions";
 import type { SafetyIssue } from "../types.js";
 import { admitAuthoredComponent, DEFAULT_ADMISSION_POLICY, type AdmissionPolicy } from "./admission.js";
 
@@ -66,6 +66,24 @@ export async function admitAndRegisterAuthored(
   const violations: SafetyIssue[] = [];
 
   // The import side-effect must have registered the component under its id.
+  // When an authored file is loaded from the project store, package resolution can
+  // occasionally materialize a second @news/compositions registry instance via
+  // the workspace junction. In that case the default export is still the
+  // component definition returned by registerComponent(...); mirror it into this
+  // registry before treating the handshake as failed.
+  if (!getComponent(componentId) && isSceneDefinition(mod.default, componentId)) {
+    try {
+      registerComponent(mod.default);
+    } catch (error) {
+      violations.push({
+        check: "N4",
+        severity: "error",
+        path: tsxPath,
+        message: `Authored module default export could not be mirrored into the registry: ${msg(error)}`,
+      });
+    }
+  }
+
   if (!getComponent(componentId)) {
     violations.push({
       check: "N4",
@@ -98,6 +116,12 @@ export async function admitAndRegisterAuthored(
 
   if (violations.length > 0) return { ok: false, violations };
   return { ok: true, componentId };
+}
+
+function isSceneDefinition(value: unknown, componentId: string): value is SceneComponentDefinition {
+  if (!value || typeof value !== "object") return false;
+  const candidate = value as Partial<SceneComponentDefinition>;
+  return candidate.id === componentId && Boolean(candidate.schema) && typeof candidate.Component === "function";
 }
 
 function msg(error: unknown): string {

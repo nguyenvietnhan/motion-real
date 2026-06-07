@@ -39,7 +39,7 @@ import {
   reviewGatePassed,
   type ComposeContactSheet,
 } from "./review.js";
-import { projectPaths } from "./store.js";
+import { projectPaths } from "./store/store.js";
 import type { ReviewChecklist } from "./types.js";
 
 let tempRoot: string;
@@ -119,6 +119,7 @@ function lockedSpec(): LockedVideoSpec {
       },
     ],
     audio: {},
+    captions: [],
   };
 }
 

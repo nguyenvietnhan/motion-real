@@ -11,8 +11,10 @@
     "build": "tsc -p tsconfig.json"
   },
   "dependencies": {
+    "@news/blocks": "0.1.0",
     "@news/design": "0.1.0",
     "@news/schema": "0.1.0",
+    "@remotion/transitions": "4.0.472",
     "zod": "^4.1.13"
   },
   "peerDependencies": {

@@ -21,7 +21,7 @@ import {
   remotionAppRoot,
   remotionEntry,
   workspaceRoot,
-} from "../packages/pipeline/src/renderer.js";
+} from "../packages/pipeline/src/render/renderer.js";
 
 async function main(): Promise<void> {
   const root = workspaceRoot();

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { z } from "zod";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { getComponent, listComponents } from "@news/compositions";
@@ -74,5 +75,27 @@ describe("admitAndRegisterAuthored (handshake)", () => {
     expect(result.ok).toBe(false);
     // The banned module was rejected statically and never imported/registered.
     expect(getComponent("authored-bad-api")).toBeUndefined();
+  });
+
+  it("mirrors the default export into the registry when a second instance didn't register it", async () => {
+    // Simulate the Windows dual-instance case: the authored module's import
+    // side-effect registered into a DIFFERENT @news/compositions registry, so
+    // this registry has nothing — but the default export is a valid definition.
+    const id = "authored-mirror-demo";
+    expect(getComponent(id)).toBeUndefined();
+    const def = {
+      id,
+      displayName: "Authored Mirror Demo",
+      promptGuide: "x",
+      schema: z.object({ label: z.string() }),
+      Component: () => null,
+      example: { label: "Mirror" },
+    };
+    const result = await admitAndRegisterAuthored(fixture("mirror-card.tsx"), {
+      load: async () => ({ default: def, schema: def.schema, example: def.example }),
+    });
+    expect(result.ok).toBe(true);
+    // The handshake mirrored the un-registered definition into this registry.
+    expect(getComponent(id)).toBeDefined();
   });
 });

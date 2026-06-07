@@ -10,6 +10,7 @@ import type { DurationPreset, VideoSpec, LockedVideoSpec } from "@news/schema";
 export type ProjectState =
   | "planning"
   | "planned"
+  | "scaffolded"
   | "tts"
   | "locking"
   | "rendering"
@@ -56,6 +57,8 @@ export type TtsManifestScene = {
   audioPath: string; // absolute path to the synthesized clip
   duration: number; // measured seconds
   source: "synthesized" | "cached" | "mock" | "skipped";
+  /** Parsed SRT segments (relative seconds) for caption timing, when available. */
+  srt?: Array<{ startSec: number; endSec: number; text: string }>;
 };
 
 /** tts-manifest.json */

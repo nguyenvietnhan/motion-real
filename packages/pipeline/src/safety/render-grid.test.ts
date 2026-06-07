@@ -5,8 +5,13 @@ import { join } from "node:path";
 import type { LockedVideoSpec } from "@news/schema";
 import {
   checkAudioSync,
+  checkCaptions,
+  checkCaptionClearance,
+  checkDensity,
+  checkContentZone,
   checkContrast,
   checkDeadAir,
+  checkDuration,
   checkOverlap,
   checkPacing,
   checkRichness,
@@ -64,6 +69,7 @@ function lockedFixture(overrides: Partial<LockedVideoSpec> & { scenes: LockedVid
     fps: 30,
     durationInFrames: overrides.scenes.reduce((s, sc) => s + sc.durationInFrames, 0),
     audio: {},
+    captions: [],
     ...overrides,
   };
 }
@@ -98,6 +104,33 @@ describe("N14 safe-area / overflow", () => {
     const f = makeFrame(200, 200);
     paint(f, { x: 80, y: 80, width: 40, height: 40 }, WHITE);
     expect(checkSafeArea(f)).toEqual([]);
+  });
+});
+
+describe("N14 caption clearance", () => {
+  it("fires when content reaches into the caption clearance gap", () => {
+    const f = makeFrame(1080, 1920);
+    paint(f, { x: 120, y: 1205, width: 500, height: 20 }, WHITE); // inside the gap band
+    expect(checkCaptionClearance(f).some((i) => i.check === "N14")).toBe(true);
+  });
+  it("passes when content stays above the divider, clear of the gap", () => {
+    const f = makeFrame(1080, 1920);
+    paint(f, { x: 120, y: 400, width: 500, height: 300 }, WHITE); // up in the content zone
+    expect(checkCaptionClearance(f)).toEqual([]);
+  });
+});
+
+describe("N30 content density", () => {
+  it("warns when content fills most of the content zone (overcrowded)", () => {
+    const f = makeFrame(1080, 1920);
+    paint(f, { x: 90, y: 110, width: 900, height: 1060 }, WHITE); // packs the content zone
+    const issues = checkDensity(f, "scene-01");
+    expect(issues.some((i) => i.check === "N30" && i.severity === "warning")).toBe(true);
+  });
+  it("passes for a clean scene with breathing room", () => {
+    const f = makeFrame(1080, 1920);
+    paint(f, { x: 200, y: 300, width: 500, height: 260 }, WHITE);
+    expect(checkDensity(f, "scene-01")).toEqual([]);
   });
 });
 
@@ -157,6 +190,61 @@ describe("N19 dead air / blank", () => {
   });
 });
 
+describe("N14 zone-aware (content zone / caption band)", () => {
+  it("fires when content paints into the bottom platform-UI reserve", () => {
+    const f = makeFrame(1080, 1920); // full canvas so zones map 1:1
+    paint(f, { x: 300, y: 1700, width: 480, height: 150 }, WHITE); // below the caption band
+    expect(checkContentZone(f, "scene-01").some((i) => i.check === "N14")).toBe(true);
+  });
+  it("passes when content stays in the content zone and a caption sits in the band", () => {
+    const f = makeFrame(1080, 1920);
+    paint(f, { x: 200, y: 300, width: 600, height: 600 }, WHITE); // inside CONTENT_ZONE
+    paint(f, { x: 220, y: 1330, width: 600, height: 120 }, WHITE); // inside CAPTION_BAND
+    expect(checkContentZone(f, "scene-01")).toEqual([]);
+  });
+  it("tolerates a thin decorative frame border + corner ticks at the very edge", () => {
+    const f = makeFrame(1080, 1920);
+    paint(f, { x: 200, y: 300, width: 600, height: 600 }, WHITE); // real content, in zone
+    // A 4px editorial border just inside the canvas edge (inset ~40px) + ticks.
+    paint(f, { x: 40, y: 40, width: 1000, height: 4 }, WHITE); // top
+    paint(f, { x: 40, y: 1876, width: 1000, height: 4 }, WHITE); // bottom (in UI reserve)
+    paint(f, { x: 40, y: 40, width: 4, height: 1840 }, WHITE); // left
+    paint(f, { x: 1036, y: 40, width: 4, height: 1840 }, WHITE); // right
+    expect(checkContentZone(f, "scene-01")).toEqual([]);
+  });
+});
+
+describe("N29 caption track", () => {
+  it("fires when a narrated scene has no caption cue", () => {
+    const locked = lockedFixture({
+      scenes: [scene("scene-01", 0, 90, "Một câu đọc thử", { src: "a.wav", duration: 3 })],
+      captions: [],
+    });
+    expect(checkCaptions(locked).some((i) => i.check === "N29")).toBe(true);
+  });
+  it("fires when a caption line is too long to fit one line", () => {
+    const locked = lockedFixture({
+      scenes: [scene("scene-01", 0, 90, "Một câu đọc thử", { src: "a.wav", duration: 3 })],
+      captions: [{ startFrame: 0, endFrame: 60, text: "x".repeat(80), sceneId: "scene-01" }],
+    });
+    expect(checkCaptions(locked).some((i) => i.check === "N29")).toBe(true);
+  });
+  it("passes when each narrated scene has a short in-range cue", () => {
+    const locked = lockedFixture({
+      scenes: [scene("scene-01", 0, 90, "Một câu đọc thử", { src: "a.wav", duration: 3 })],
+      captions: [{ startFrame: 0, endFrame: 60, text: "Dòng phụ đề ngắn gọn", sceneId: "scene-01" }],
+    });
+    expect(checkCaptions(locked)).toEqual([]);
+  });
+  it("does not require captions for a scene without narration", () => {
+    const locked = lockedFixture({
+      scenes: [scene("scene-01", 0, 90, "Không có audio")],
+      captions: [],
+    });
+    expect(checkCaptions(locked)).toEqual([]);
+  });
+});
+
 describe("N20 pacing", () => {
   it("fires when a scene is too short for its narration", () => {
     const narration = Array.from({ length: 30 }, (_, i) => `tu${i}`).join(" ");
@@ -204,6 +292,52 @@ describe("N22 audio sync", () => {
       scenes: [scene("scene-01", 0, 300, "n", { src: "a.mp3", duration: 10.1 })],
     });
     expect(checkAudioSync(locked)).toEqual([]);
+  });
+  it("passes a multi-scene timeline where video exceeds audio only by transition padding", () => {
+    // T_TRANSITION = 12 frames @ 30fps = 0.4s. Middle scene gets 2T (0.8s),
+    // first/last get T (0.4s) of padding by lock design — not a real drift.
+    // Real locks OVERLAP transitions, so total = Σspeech + (n−1)·T = 900 + 24.
+    const locked = lockedFixture({
+      durationInFrames: 924,
+      scenes: [
+        scene("scene-01", 0, 312, "n", { src: "a.mp3", duration: 10 }), // 10.4s video, +T
+        scene("scene-02", 312, 324, "n", { src: "b.mp3", duration: 10 }), // 10.8s video, +2T
+        scene("scene-03", 636, 312, "n", { src: "c.mp3", duration: 10 }), // 10.4s video, +T
+      ],
+    });
+    expect(checkAudioSync(locked)).toEqual([]);
+  });
+  it("still fires when a scene drifts beyond the transition padding", () => {
+    const locked = lockedFixture({
+      durationInFrames: 924,
+      scenes: [
+        scene("scene-01", 0, 312, "n", { src: "a.mp3", duration: 10 }),
+        scene("scene-02", 312, 360, "n", { src: "b.mp3", duration: 10 }), // 12s video, +2s drift
+        scene("scene-03", 672, 312, "n", { src: "c.mp3", duration: 10 }),
+      ],
+    });
+    expect(checkAudioSync(locked).some((i) => i.check === "N22" && i.sceneId === "scene-02")).toBe(true);
+  });
+});
+
+describe("N28 duration target (soft)", () => {
+  const narrated = (frames: number) =>
+    lockedFixture({ scenes: [scene("scene-01", 0, frames, "n", { src: "a.mp3", duration: frames / 30 })] });
+  it("is disabled when no target is set", () => {
+    expect(checkDuration(narrated(3600))).toEqual([]);
+  });
+  it("warns when the video is well under the target", () => {
+    // 70s video vs a 120s target (±20s → min 100s).
+    const issues = checkDuration(narrated(70 * 30), { targetDurationSeconds: 120 });
+    expect(issues.some((i) => i.check === "N28" && /under/.test(i.message))).toBe(true);
+  });
+  it("warns when the video is well over the target", () => {
+    const issues = checkDuration(narrated(180 * 30), { targetDurationSeconds: 120 });
+    expect(issues.some((i) => i.check === "N28" && /over/.test(i.message))).toBe(true);
+  });
+  it("passes within the tolerance band", () => {
+    const issues = checkDuration(narrated(125 * 30), { targetDurationSeconds: 120 });
+    expect(issues).toEqual([]);
   });
 });
 

@@ -11,71 +11,45 @@ import { z } from "zod";
  * lives in code (React) rather than in a closed enum.
  */
 
+// Layout zones (content zone / caption band / platform-UI reserve) live in their
+// own module but are part of the shared contract, so re-export them here.
+export * from "./zones.js";
+
 export const FPS = 30 as const;
 
+/**
+ * Shared timing constants (author-mode-v2 R3/R4/R5/R11.3) — the single source of
+ * truth reused by transitions, TTS breath gaps, the lock math, and the master
+ * composition.
+ *
+ * Transition length is defined in SECONDS so it is identical at any render fps
+ * (the 30fps final and the 20fps fast draft feel the same). `T_TRANSITION` is
+ * the 30fps frame count kept for back-compat; `transitionFrames(fps)` is the
+ * fps-correct value the lock + composition actually use. The breath gap (silent
+ * pause between scene narration clips) equals the transition seconds so each
+ * transition overlap lands on silence and no speech is ever clipped.
+ */
+export const T_TRANSITION_SECONDS = 0.5;
+/** Per-boundary transition overlap in frames at a given fps. */
+export function transitionFrames(fps: number = FPS): number {
+  return Math.max(1, Math.round(T_TRANSITION_SECONDS * fps));
+}
+/** Back-compat 30fps frame count (= transitionFrames(FPS)). */
+export const T_TRANSITION = transitionFrames(FPS);
+/** Breath gap between consecutive scene narration clips, in seconds. */
+export const BREATH_GAP_SECONDS = T_TRANSITION_SECONDS;
+
+/** A pacing target is advisory; videos may run shorter/longer than any preset. */
 export const DURATION_PRESETS = [60, 90, 120, 180] as const;
 export type DurationPreset = (typeof DURATION_PRESETS)[number];
 
+/** Minimum narration words per scene (free pacing): a floor that still guards against too-fast cuts. */
+export const MIN_SCENE_NARRATION_WORDS = 8;
+
+/** Hold time (seconds) for a scene that carries no narration, so it is still on screen. */
+export const DEFAULT_HOLD_SECONDS = 4;
+
 export const DEFAULT_TTS_SPEED = 1.0;
-
-export const SCENE_PACING: Record<
-  DurationPreset,
-  {
-    min: number;
-    target: number;
-    max: number;
-    sceneSeconds: string;
-    sceneNarrationWords: string;
-    totalNarrationWords: string;
-  }
-> = {
-  60: {
-    min: 10,
-    target: 12,
-    max: 14,
-    sceneSeconds: "9.0-11.0",
-    sceneNarrationWords: "20-24",
-    totalNarrationWords: "160-200",
-  },
-  90: {
-    min: 14,
-    target: 16,
-    max: 18,
-    sceneSeconds: "10.0-12.0",
-    sceneNarrationWords: "22-26",
-    totalNarrationWords: "240-290",
-  },
-  120: {
-    min: 18,
-    target: 20,
-    max: 22,
-    sceneSeconds: "11.0-13.0",
-    sceneNarrationWords: "24-28",
-    totalNarrationWords: "340-400",
-  },
-  180: {
-    min: 24,
-    target: 26,
-    max: 28,
-    sceneSeconds: "11.5-14.0",
-    sceneNarrationWords: "25-30",
-    totalNarrationWords: "480-570",
-  },
-};
-
-export const SCENE_BOUNDS: Record<DurationPreset, { min: number; max: number }> = {
-  60: { min: SCENE_PACING[60].min, max: SCENE_PACING[60].max },
-  90: { min: SCENE_PACING[90].min, max: SCENE_PACING[90].max },
-  120: { min: SCENE_PACING[120].min, max: SCENE_PACING[120].max },
-  180: { min: SCENE_PACING[180].min, max: SCENE_PACING[180].max },
-};
-
-export const DurationPresetSchema = z.union([
-  z.literal(60),
-  z.literal(90),
-  z.literal(120),
-  z.literal(180),
-]);
 
 export const SceneSpecSchema = z.object({
   /** Sequential id: scene-01, scene-02, ... */
@@ -95,17 +69,52 @@ export const SceneSpecSchema = z.object({
   props: z.record(z.string(), z.unknown()).default({}),
   /** Optional sound-effect cue. */
   sfx: z.enum(["none", "transition", "alert", "emphasis", "success"]).default("none").optional(),
+  /**
+   * Transition INTO the next scene. `slide` (default) and `fade` are the calm
+   * baseline; `wipe`/`clockWipe`/`zoom` are punchier accents for section breaks
+   * or emphasis. All are deterministic DOM transitions (no WebGL).
+   */
+  transitionToNext: z.enum(["slide", "fade", "wipe", "clockWipe", "zoom"]).optional(),
+  /**
+   * AI-chosen in-scene emphasis. `"zoom"` applies a whole-scene punch-in that
+   * settles — reserve it for the beats that deserve a spotlight (the hook, a key
+   * reveal), NOT every scene. Omit for a calm scene. (The ambient 3D tilt is
+   * always on; this is the deliberate, per-scene accent on top.)
+   */
+  emphasis: z.enum(["zoom"]).optional(),
 });
 
 export type SceneSpec = z.infer<typeof SceneSpecSchema>;
+
+/**
+ * Per-project palette. The planner picks ONE dominant color that fits the
+ * topic; the whole video's palette (background tint, accent, companion tone) is
+ * derived from it deterministically, so each project has its own coherent color
+ * while sharing the same layout grammar. Optional for back-compat: when absent,
+ * the renderer falls back to the default dominant.
+ */
+export const ThemeSpecSchema = z.object({
+  /** Dominant color as a 6-digit hex (e.g. "#5B8CFF"). */
+  dominant: z.string().regex(/^#[0-9a-fA-F]{6}$/, "dominant must be a 6-digit hex color like #5B8CFF"),
+  /** Optional short mood label for human readability (e.g. "calm tech blue"). */
+  mood: z.string().max(40).optional(),
+});
+
+export type ThemeSpec = z.infer<typeof ThemeSpecSchema>;
 
 export const VideoSpecSchema = z.object({
   version: z.literal(1),
   title: z.string().min(1).max(140),
   styleId: z.literal("clean-luxury-tech"),
-  duration: DurationPresetSchema,
+  /**
+   * Optional pacing TARGET in seconds (free pacing, R6): not a hard constraint.
+   * Scene count and total duration are free; a longer measured render is fine.
+   */
+  duration: z.number().positive().optional(),
   ratio: z.literal("9:16"),
   language: z.literal("vi"),
+  /** Per-project dominant color the AI chose (optional → default palette). */
+  theme: ThemeSpecSchema.optional(),
   scenes: z.array(SceneSpecSchema),
 });
 
@@ -128,8 +137,43 @@ export const LockedSceneSpecSchema = SceneSpecSchema.extend({
 
 export type LockedSceneSpec = z.infer<typeof LockedSceneSpecSchema>;
 
+/**
+ * A single burned-in caption line (author-mode-v2 R16). Cues are derived from
+ * narration (+ TTS timing), baked into the locked spec, and rendered in the
+ * caption band — so caption rendering is a pure function of the frame
+ * (deterministic, N16-safe), never a live transcript.
+ */
+export const CaptionCueSchema = z.object({
+  /** Absolute start frame (already offset by the scene's startFrame). */
+  startFrame: z.number().int().min(0),
+  /** Exclusive end frame; the cue is visible on [startFrame, endFrame). */
+  endFrame: z.number().int().positive(),
+  /** A single line that fits the caption band width at the caption font size. */
+  text: z.string().min(1),
+  /**
+   * Per-word timing for KARAOKE highlighting (author-mode-v2 R16). Word frames
+   * are derived (approximately) from the cue span — proportional to word length
+   * — since the TTS SRT is sentence-level. Deterministic + frame-pure. Optional:
+   * when absent the renderer shows the whole `text` line without highlighting.
+   */
+  words: z
+    .array(
+      z.object({
+        text: z.string().min(1),
+        startFrame: z.number().int().min(0),
+        endFrame: z.number().int().positive(),
+      }),
+    )
+    .optional(),
+  /** Provenance, for oracles/review. */
+  sceneId: z.string(),
+});
+
+export type CaptionCue = z.infer<typeof CaptionCueSchema>;
+
 export const LockedVideoSpecSchema = VideoSpecSchema.extend({
-  fps: z.literal(FPS).default(FPS),
+  /** Render fps. 30 for the final; a fast draft may re-lock at a lower fps (e.g. 20). */
+  fps: z.number().int().positive().default(FPS),
   durationInFrames: z.number().int().positive(),
   scenes: z.array(LockedSceneSpecSchema),
   audio: z
@@ -137,6 +181,8 @@ export const LockedVideoSpecSchema = VideoSpecSchema.extend({
       narrationSrc: z.string().optional(),
     })
     .default({}),
+  /** Burned-in single-line caption cues (sorted, non-overlapping). */
+  captions: z.array(CaptionCueSchema).default([]),
 });
 
 export type LockedVideoSpec = z.infer<typeof LockedVideoSpecSchema>;
@@ -145,15 +191,6 @@ export type ValidationResult = {
   ok: boolean;
   errors: string[];
 };
-
-export function parseDurationPreset(value: unknown): DurationPreset {
-  const parsed = typeof value === "string" ? Number(value) : value;
-  const result = DurationPresetSchema.safeParse(parsed);
-  if (!result.success) {
-    throw new Error("Duration must be one of 60, 90, 120, or 180 seconds.");
-  }
-  return result.data;
-}
 
 export function parseAiJsonOutput(raw: string): unknown {
   const trimmed = raw.trim();
@@ -179,23 +216,20 @@ function countWords(value: string): number {
  * Structural + narration validation that is independent of which visual
  * component a scene uses. Component-specific prop validation happens in the
  * compositions package (each component owns its zod schema).
+ *
+ * Free pacing (author-mode-v2 R6): there are NO fixed scene-count bounds and NO
+ * duration-preset equality. What stays enforced: sequential `scene-NN` ids,
+ * single-paragraph narration, a scannable headline, a per-scene narration floor
+ * (guards against too-fast cuts), and unknown-component detection.
  */
 export function validateVideoSpecStructure(
   spec: VideoSpec,
   knownComponents?: ReadonlySet<string>,
 ): ValidationResult {
   const errors: string[] = [];
-  const bounds = SCENE_BOUNDS[spec.duration];
 
-  if (spec.scenes.length < bounds.min || spec.scenes.length > bounds.max) {
-    errors.push(
-      `Scene count for ${spec.duration}s must be between ${bounds.min} and ${bounds.max}; received ${spec.scenes.length}.`,
-    );
-  }
-
-  const total = spec.scenes.reduce((sum, scene) => sum + scene.durationInSeconds, 0);
-  if (Math.abs(total - spec.duration) > 0.01) {
-    errors.push(`Scene durations must total ${spec.duration}s; received ${total.toFixed(2)}s.`);
+  if (spec.scenes.length === 0) {
+    errors.push("Spec must contain at least one scene.");
   }
 
   const ids = new Set<string>();
@@ -214,46 +248,59 @@ export function validateVideoSpecStructure(
     if (headlineWords > 10) {
       errors.push(`${scene.id} headline has ${headlineWords} words; keep visual headlines under 10 words.`);
     }
+    const narrationWords = countWords(scene.narration);
+    if (narrationWords < MIN_SCENE_NARRATION_WORDS) {
+      errors.push(
+        `${scene.id} narration has ${narrationWords} words; minimum is ${MIN_SCENE_NARRATION_WORDS} to avoid a too-fast cut.`,
+      );
+    }
     if (knownComponents && !knownComponents.has(scene.component)) {
       errors.push(`${scene.id} uses unknown component "${scene.component}".`);
     }
   }
 
-  // --- Narration pacing (prevents too-fast scene cuts) ---
-  const pacing = SCENE_PACING[spec.duration];
-  const [minWordsStr] = pacing.sceneNarrationWords.split("-");
-  const minWords = Number(minWordsStr);
-  const [minTotalStr] = pacing.totalNarrationWords.split("-");
-  const minTotal = Number(minTotalStr);
-  let totalNarrationWords = 0;
-  for (const scene of spec.scenes) {
-    const wordCount = countWords(scene.narration);
-    totalNarrationWords += wordCount;
-    if (wordCount < minWords) {
-      errors.push(
-        `${scene.id} narration has ${wordCount} words; minimum is ${minWords} for ${spec.duration}s videos.`,
-      );
-    }
-  }
-  if (totalNarrationWords < minTotal) {
-    errors.push(
-      `Total narration word count is ${totalNarrationWords}; minimum for ${spec.duration}s videos is ${minTotal}.`,
-    );
-  }
-
   return { ok: errors.length === 0, errors };
 }
 
+/**
+ * Overlap-aware locked-timing validation (N12, author-mode-v2 R5.3). With
+ * `TransitionSeries`, adjacent scene sequences OVERLAP by the transition frames,
+ * so the timeline is no longer strictly contiguous. What must still hold:
+ *  - the first scene starts at frame 0;
+ *  - scenes are monotonic and leave NO gap (each scene starts at or before the
+ *    previous scene's end — an overlap is fine, a gap is not);
+ *  - the last scene ends exactly at `durationInFrames`.
+ * This accepts both a contiguous timeline (overlap 0) and a transition-aware one
+ * (overlap = T_TRANSITION), and still fires when scenes fail to tile the total.
+ */
 export function validateLockedTimings(spec: LockedVideoSpec): ValidationResult {
   const errors: string[] = [];
-  const last = spec.scenes.at(-1);
-  if (!last) {
+  const scenes = spec.scenes;
+  if (scenes.length === 0) {
     errors.push("Locked spec must contain scenes.");
-  } else {
-    const end = last.startFrame + last.durationInFrames;
-    if (end !== spec.durationInFrames) {
-      errors.push(`Locked timeline must end at ${spec.durationInFrames} frames; received ${end}.`);
+    return { ok: false, errors };
+  }
+
+  if (scenes[0]!.startFrame !== 0) {
+    errors.push(`First scene must start at frame 0; received ${scenes[0]!.startFrame}.`);
+  }
+
+  for (let i = 1; i < scenes.length; i += 1) {
+    const prev = scenes[i - 1]!;
+    const cur = scenes[i]!;
+    const prevEnd = prev.startFrame + prev.durationInFrames;
+    if (cur.startFrame < prev.startFrame) {
+      errors.push(`${cur.id} starts (${cur.startFrame}) before the previous scene (${prev.startFrame}).`);
+    } else if (cur.startFrame > prevEnd) {
+      errors.push(`Gap before ${cur.id}: it starts at ${cur.startFrame} but the previous scene ends at ${prevEnd}.`);
     }
   }
+
+  const last = scenes.at(-1)!;
+  const end = last.startFrame + last.durationInFrames;
+  if (end !== spec.durationInFrames) {
+    errors.push(`Locked timeline must end at ${spec.durationInFrames} frames; received ${end}.`);
+  }
+
   return { ok: errors.length === 0, errors };
 }

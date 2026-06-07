@@ -60,13 +60,16 @@ const SPACED_ABBREV_PATTERNS: Array<[RegExp, string]> = [
   [/\bL[\s.\-]+L[\s.\-]+M\b/, "LLM"],
 ];
 
-// --- N8: narration must spell numbers; display must keep them compact ---
+// --- N8: narration may use DIGITS (the TTS layer reads them as natural
+//        Vietnamese, hướng B); only flag forms the reader can't voice well.
+//        Display must still keep numbers compact.
 
+// Forms the Vietnamese number normalizer does NOT expand, so they'd be
+// mispronounced if left in narration: currency symbols and English magnitude
+// suffixes glued to a number. Plain digits, years, and "%" are fine now.
 const NARRATION_NUMERIC_PATTERNS: RegExp[] = [
   /[$€¥₫]\s?\d/,
-  /\b\d+(?:[.,]\d+)?\s?%/,
-  /\b\d+(?:[.,]\d+)?[KMBT]\b/i,
-  /\b(?:19|20)\d{2}\b/,
+  /\b\d+(?:[.,]\d+)?[KMBT]\b/,
 ];
 
 const DISPLAY_SPOKEN_NUMBER_PATTERNS: Array<[RegExp, string]> = [
@@ -99,6 +102,12 @@ function genericCtaReason(scene: VideoSpec["scenes"][number]): string | null {
   }
   if (/\b(binh luan|comment)\b/.test(joined) || /\bde lai\s+(?:y kien|binh luan|comment)\b/.test(joined)) {
     return "avoid generic comment prompts";
+  }
+  if (/\bchia se\b/.test(joined)) {
+    return "avoid generic 'chia sẻ' engagement-bait";
+  }
+  if (/\b(ben duoi|phia duoi)\b/.test(joined)) {
+    return "avoid 'bên dưới' comment/share bait";
   }
   if (/\bban nghi sao\b/.test(joined) || /\bban thay sao\b/.test(joined)) {
     return "avoid vague 'Bạn nghĩ sao?' closers";
@@ -140,7 +149,9 @@ export function runContentRules(spec: VideoSpec): SafetyIssue[] {
       }
     }
 
-    // N8a: narration with display-style numbers (warning)
+    // N8a: narration with un-voiceable number forms (warning). Plain digits,
+    // years, and "%" are fine (the TTS layer reads them); only currency symbols
+    // and English magnitude suffixes (1.5M) need spelling out as Vietnamese.
     for (const pattern of NARRATION_NUMERIC_PATTERNS) {
       const matched = scene.narration.match(pattern)?.[0];
       if (matched) {
@@ -149,7 +160,7 @@ export function runContentRules(spec: VideoSpec): SafetyIssue[] {
           severity: "warning",
           sceneId: scene.id,
           path: "narration",
-          message: `${scene.id} narration contains display-style number "${matched}"; spell numbers out naturally in Vietnamese for TTS.`,
+          message: `${scene.id} narration has "${matched}" which the TTS reader can't voice; write the unit in Vietnamese (e.g. "triệu", "tỷ", "đô la") and keep the digits.`,
         });
         break;
       }
@@ -172,16 +183,19 @@ export function runContentRules(spec: VideoSpec): SafetyIssue[] {
       }
     }
 
-    // N9: media / subtitle bans (hard)
+    // N9: media bans (hard). Captions are now a first-class FEATURE (rendered
+    // centrally from narration), so "caption"/"subtitle" are NO LONGER banned
+    // here (author-mode-v2 R16.5). Media payloads, full transcripts, and karaoke
+    // remain banned in scene props.
     const propText = JSON.stringify(scene.props ?? {}).toLowerCase();
-    for (const banned of ["assetref", "subtitle", "caption", "transcript", "karaoke", "imageurl", "logourl"]) {
+    for (const banned of ["assetref", "transcript", "karaoke", "imageurl", "logourl"]) {
       if (propText.includes(banned)) {
         issues.push({
           check: "N9",
           severity: "error",
           sceneId: scene.id,
           path: "props",
-          message: `${scene.id} props contain forbidden key matching "${banned}"; V2 is no-media and no-subtitles.`,
+          message: `${scene.id} props contain forbidden key matching "${banned}"; this tool is no-media (captions are generated centrally from narration, not via props).`,
         });
       }
     }

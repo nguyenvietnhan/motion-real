@@ -1,19 +1,14 @@
 /**
- * @news/compositions — the diversity layer.
+ * @news/compositions — the registry + master composition layer (pure AUTHOR
+ * mode). This package NO LONGER ships built-in scene templates: importing it
+ * registers nothing. The registry is populated only by AI-AUTHORED scene
+ * modules that self-register after passing the admission gate
+ * (`@news/pipeline` admit + register), and the master `VideoComposition`
+ * renders whatever the project's locked spec references.
  *
- * Importing a scene module has the side effect of registering its component.
- * Add a new visual by creating `scenes/<id>.tsx` that calls registerComponent,
- * then exporting it here.
+ * Reusable, slot-based layout blocks live in `@news/blocks`; authored scenes
+ * compose those for structure and author bespoke code for imagery.
  */
-
-// Scene components (registration side-effects):
-export { heroAnnouncement } from "./scenes/hero-announcement.js";
-export { priceSpotlight } from "./scenes/price-spotlight.js";
-export { insightStack } from "./scenes/insight-stack.js";
-export { finalCta } from "./scenes/final-cta.js";
-export { quotePull } from "./scenes/quote-pull.js";
-export { comparisonSplit } from "./scenes/comparison-split.js";
-export { statGrid } from "./scenes/stat-grid.js";
 
 // Registry + validation:
 export {
@@ -27,16 +22,8 @@ export {
   type PropValidationIssue,
 } from "./registry.js";
 
-// Primitives (for authoring new scenes):
-export {
-  SceneFrame,
-  Content,
-  StoryHeader,
-  VisualFrame,
-  useSceneProgress,
-  bezier,
-  type SceneContext,
-} from "./primitives.js";
+// Per-project theme propagation (re-exported from @news/blocks; one shared context):
+export { ThemeProvider, useTheme } from "./theme-context.js";
 
 // Master composition:
-export { VideoComposition, type VideoCompositionProps } from "./video.js";
+export { VideoComposition, SceneContent, MissingComponent, type VideoCompositionProps } from "./video.js";

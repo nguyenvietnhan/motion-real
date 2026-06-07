@@ -13,7 +13,7 @@
     "render": "npm --workspace @news/remotion run render",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "build": "tsx scripts/build.ts",
-    "test": "vitest run"
+    "test": "tsx scripts/test.ts"
   },
   "devDependencies": {
     "@types/node": "^24.10.1",

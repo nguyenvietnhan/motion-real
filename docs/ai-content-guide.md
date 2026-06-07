@@ -1,59 +1,103 @@
 # AI Content Guide
 
-This guide is for any AI that plans video content for `news_remotion_tool`. The
-contract is narrow: produce a valid `VideoSpec` (`video-spec.json`); the app
-owns the React components, visual rendering, TTS, locking, and MP4 export.
+This guide is for any AI that authors video content for `news_remotion_tool`. The
+contract: write brand-new Remotion (React) scene modules AND produce a project
+manifest; the app owns admission, the design system, blocks, TTS, locking,
+captions, and MP4 export.
 
-Adapted from `news_video_tool`'s content guide. The stack changed (open Remotion
-component registry instead of ~40 fixed templates), but the Vietnamese / TTS /
-evidence / story / pacing rules are unchanged and are enforced by
+Adapted from `news_video_tool`'s content guide. The stack changed (pure AUTHOR
+mode + a slot-based block library instead of fixed templates), but the
+Vietnamese / TTS / evidence / story rules are unchanged and are enforced by
 `packages/pipeline/src/safety/content-rules.ts` (N6–N9, N26, N27).
 
 ## Operating Mode
 
-- As the planner, return only a `VideoSpec` JSON object. Do not choose TTS
-  providers, write render commands, capture screenshots, or run tests.
-- Emit only `component` ids returned by `listComponents()` (PICK mode). Never
-  invent a component id that is not in the registry. Authored (AUTHOR-mode) ids
-  are referenceable only after they pass admission + registration.
+- Author one `.tsx` scene module per distinct visual under the project's
+  `authored/` dir (each self-registers via `registerComponent` and exports
+  `default`/`schema`/`example`), and fill `manifest.json` referencing those
+  authored component ids with Zod-valid `props` + narration.
+- Compose `@news/blocks` (`Frame`, `Content`, `TitleBlock`, `IdeaPanel`,
+  `KeyPoints`, `Callout`, `StatChip`) for text/structure; author bespoke code
+  only for imagery. A plain text/list scene is a valid first-class choice.
+- **Vary the visual form; don't lean on the same blocks.** For each scene pick a
+  form that fits the content from `docs/visualization-playbook.md`, and author
+  bespoke topic-specific imagery for the signature beats. Reusing one project's
+  components for the next video (swapping only text) is a FAIL — a video that is
+  mostly the same block repeated is lazy.
+- A manifest may reference an authored id only AFTER its module passes the
+  admission gate (import whitelist + banned-API blacklist + required exports).
 - Preserve the configured TTS provider/voice. If Vivibe is configured, use it;
   do not silently fall back to `mock`/`none` unless the user asks for no voice.
 - If TTS config is missing a key/endpoint/voice, stop and report the exact
   setting. Do not substitute a lower-quality voice.
+- **Always render a low-res DRAFT first and show it to the user** before the full
+  render; only do the full-quality render after they approve (or ask to skip).
 - After the final MP4 renders and the review gate passes, stop and report the
   output path. No extra screenshot/preview/QA loops unless asked.
 
 ## Output Contract
 
-- Return JSON only. No Markdown, comments, HTML, CSS, or JS.
-- `version: 1`, `styleId: "clean-luxury-tech"`, `ratio: "9:16"`,
-  `language: "vi"`.
-- `duration` is the target pacing preset and must equal the brief: `60`, `90`,
-  `120`, or `180`.
-- Scene ids are sequential: `scene-01`, `scene-02`, … and scene
-  `durationInSeconds` must sum exactly to the requested duration.
-- After natural Vietnamese TTS, the locked spec / render may show a longer
-  `renderDuration` than the preset. That is NOT a planner error or a rerender
-  reason when the voice is complete, natural, uncut, and unrushed.
-- Each scene supplies `component`, `headline`, optional `body`/`eyebrow`,
-  `narration`, `props` (matching that component's Zod schema), and optional
-  `sfx` (`none`/`transition`/`alert`/`emphasis`/`success`).
-- Do not generate subtitles, transcripts, captions, or karaoke.
-- Do not add media: no `assetRef`, logo URL, image URL, screenshot, video demo,
-  upload field, or auto-fetch instruction.
-- Validation is strict. Missing/invalid props, unknown component ids, or
-  out-of-bounds scene counts fail before render — they are not padded,
-  truncated, or replaced with fake fallback content.
+- The manifest carries `theme.dominant` + ordered scenes; the renderer derives
+  the rest. `styleId: "clean-luxury-tech"`, `ratio: "9:16"`, `language: "vi"`.
+- **Free pacing**: there is NO fixed duration preset and NO scene-count bound.
+  `duration` is an optional pacing target only; scene count and total length are
+  free. Use as many scenes as the story needs.
+- Scene ids are sequential: `scene-01`, `scene-02`, … Real timing follows the
+  measured Vietnamese TTS, so the locked render may be longer than any target —
+  that is NOT an error when the voice is complete, natural, uncut, and unrushed.
+- Each scene supplies `component` (an admitted authored id), `headline`,
+  optional `body`/`eyebrow`, `narration`, `props` (matching that component's Zod
+  schema), optional `sfx`, and optional `transitionToNext` (`slide`/`fade`).
+- **Captions are generated for you**, centrally, as single-line Vietnamese
+  captions from each scene's `narration` (timed from the TTS SRT) and burned in.
+  Do NOT author captions/subtitles in props. Captions are word-paged karaoke
+  (the active word is smoothly highlighted); this is also produced centrally,
+  never authored per scene.
+- Do not add real/external media: no `assetRef`, logo URL, image URL, screenshot,
+  video demo, upload field, or auto-fetch. This does NOT restrict things you DRAW
+  in SVG/CSS — figure/avatar silhouettes, icons, glyphs, diagrams, charts and
+  metaphors are encouraged where they aid clarity or polish.
+- Validation is strict. Missing/invalid props, unknown (un-admitted) component
+  ids, or banned APIs fail before render — they are not padded or replaced with
+  fake fallback content.
+
+## Layout & design
+
+> The LOOK is owned by `docs/design-language.md`; the menu of visual FORMS and
+> the count/shape composition rules by `docs/visualization-playbook.md`. Read
+> both — don't rely on this section to restate them. The only layout rules that
+> matter for the content contract:
+
+- Put a scene's primary content in the upper **content zone** (compose `Content`
+  from `@news/blocks`, which constrains layout to that zone). The bottom
+  **caption band** + **platform-UI reserve** must stay clear so short-platform
+  UI and the burned-in captions never cover the message.
+- **Balance the content zone.** `Content`/`Story` centre vertically, so a scene
+  with only a short title + one line reads top-heavy / half-empty. Either give a
+  sparse beat a confident visual anchor (a bold stat, a small bespoke diagram, a
+  metaphor) or let one element own the zone — don't leave a tiny block floating
+  at the top. (The flip side, overcrowding, is what N30 warns about.)
+- Do NOT render a small-uppercase eyebrow above a left-pinned headline in the
+  top-left corner; use `TitleBlock` (eyebrow-free).
+- Selective visualization: decompose each scene's narration/headline for an
+  embedded number, relationship, change, or process, and author bespoke imagery
+  that carries it (per the playbook). A clean text/list block is a deliberate
+  choice for definitions/recaps/CTAs — not a default, and not meaningless
+  decoration.
 
 ## Pacing
 
-- `60s`: 10–14 scenes, target 12.
-- `90s`: 14–18 scenes, target 16.
-- `120s`: 18–22 scenes, target 20.
-- `180s`: 24–28 scenes, target 26.
-- Narration should sound natural at a professional Vietnamese pace. Word counts
-  are a guide, not permission to overload a short scene (N20 flags scenes that
-  are too short for their narration).
+- Pacing is FREE: choose the scene count the story needs (a 60–90s short is
+  often 10–18 scenes; longer explainers more). There is no preset or scene-count
+  bound.
+- Narration should sound natural at a professional Vietnamese pace. N20 flags
+  scenes that are too short for their narration; the per-scene narration floor
+  guards against too-fast cuts.
+- **Hit the brief's duration target (rather over than under).** When a target is
+  set (e.g. ~2 minutes), land within `target ± 20s`; N28 warns (advisory) if the
+  finished video falls outside that band. If you must miss, miss LONG — reach the
+  target with more scenes / richer narration, never by padding holds with
+  silence. A ~2-minute brief should never ship at ~1 minute.
 
 ## Story Rules
 
@@ -89,8 +133,11 @@ evidence / story / pacing rules are unchanged and are enforced by
   `GPU`).
 - Prefer concrete nouns, named entities, dates, prices, and percentages **when
   supplied by the prompt**.
-- Never invent facts, numbers, release dates, quotes, benchmarks, or source
-  names (evidence gate, N9).
+- Do not **fabricate** facts, numbers, release dates, quotes, benchmarks, or
+  source names, and never present an invented figure as fact (evidence gate,
+  N9). The prompt is research material, not a verbatim script: enriching it with
+  context you genuinely know/verify to be true is welcome and often sharpens the
+  story — just keep anything you can't stand behind as real out of the video.
 
 ## Vietnamese And TTS
 
@@ -105,43 +152,43 @@ evidence / story / pacing rules are unchanged and are enforced by
   `Giê mi nai`, `A Pê I` (N6). The TTS layer handles pronunciation.
 - No spaced/punctuated abbreviations: write `AI`, `API`, `GPT`, `LLM`, never
   `A I`, `A P I`, `G P T`, `L L M` (N7).
-- Keep numbers compact in display fields so viewers can scan: `92%`, `$1.5M`,
-  `2026`, `128K token`, `4/5`. Write the same values as natural Vietnamese words
-  in narration (N8). Never write spoken-out numbers in display fields (use
-  `2026`, not `năm hai nghìn không trăm hai mươi sáu`).
+- Keep numbers as **digits** in BOTH display and narration: `92%`, `2026`,
+  `110.000`, `920 triệu`, `30 tỷ`, `180 đến 190 tỷ`. The TTS layer reads digits
+  as natural Vietnamese (`2026` → "hai nghìn không trăm hai mươi sáu"), so do NOT
+  hand-spell numbers and NEVER English-pair a year ("hai mươi hai sáu" is wrong).
+  Write dates as `ngày 5 tháng 6 năm 2026`. Keep the magnitude word in Vietnamese
+  (`triệu`/`tỷ`/`nghìn`/`phần trăm`); avoid the `$` symbol and English suffixes
+  like `1.5M` (write `1,5 triệu USD`) — the reader can't voice those (N8 warns).
 
-## Component Selection
+## Authoring Scenes
 
-- The registry is open and extensible: read each component's `promptGuide`,
-  `schema`, and `example` from `listComponents()` and pick the most specific
-  honest fit, then optimize for variety.
-- **Evidence gate:** do not upgrade weak context into a high-evidence component
-  (a metric/number/quote/source component used without supplied evidence is a
-  template-fit warning, N28). If the number, source, quote, or date is not
-  supplied or verified, choose a safe editorial component instead.
-- Scene-01 should open with a hook component (e.g. `hero-announcement`); the
-  final scene should be a CTA component (e.g. `final-cta`).
-- Avoid repeating the same component in adjacent scenes. Use a varied mix; a 60s
-  video should use several distinct components. Semantic fit always wins over a
-  diversity quota.
-- Do not manually number items inside list-style payloads (`insight-stack`,
-  step lists); components own their numbering and layout rhythm.
-- Use the real item count for list payloads; do not add filler items to fill a
-  grid. Components adapt to shorter payloads.
+- Author each distinct visual as a `.tsx` module that composes `@news/blocks`
+  for text/structure and adds bespoke React only for imagery. Keep it
+  deterministic (no `Math.random`/`Date`/network/fs; use Remotion `random(seed)`).
+- **Evidence gate:** do not invent a metric/number/quote/source to justify a
+  data-heavy visual. If the number, source, quote, or date is not supplied or
+  verified, choose a safe editorial layout (text/`KeyPoints`/`IdeaPanel`).
+- Scene-01 opens with a strong hook; the final scene is a topic-specific CTA.
+- Vary the visual approach across scenes; avoid repeating the same layout back
+  to back. Semantic fit always wins over novelty.
+- Do not manually number items inside `KeyPoints`/list blocks; blocks own their
+  numbering and rhythm. Use the real item count; do not pad to fill a grid.
 
-## Checklist Before Returning JSON
+## Checklist Before Returning
 
-- JSON parses with no Markdown wrapper.
-- `duration` is the exact requested preset; scene ids sequential; durations sum
-  to the preset.
-- Every `component` id exists in the registry; every `props` satisfies its Zod
-  schema.
+- Every authored scene module passes admission (whitelisted imports incl.
+  `@news/blocks`, no banned APIs, exports `default`/`schema`/`example`, one
+  literal `registerComponent` id).
+- Manifest scene ids are sequential; every `component` is an admitted authored
+  id; every `props` satisfies its Zod schema.
 - Scene-01 is a hook (not greeting/definition); final scene is a topic-specific
   CTA.
-- No subtitles/captions; no media fields/`assetRef`/URLs.
-- No phonetic display text; no spaced abbreviations.
-- Display numbers compact; narration spells numbers naturally.
-- No manually numbered list items.
-- No invented facts/sources/numbers/quotes.
+- Content sits in the content zone; the bottom band stays clear; no top-left
+  eyebrow header; squared/neutral look.
+- No media fields/`assetRef`/URLs; no caption/subtitle text in props (captions
+  are generated centrally).
+- No phonetic display text; no spaced abbreviations; numbers written as digits
+  in both display and narration (the TTS reads them; no hand-spelled years).
+- No manually numbered list items; no invented facts/sources/numbers/quotes.
 - If audience/context was unspecified, the default 25–34 Vietnamese profile
   shaped the tone; the hidden creative brief was used but not emitted.

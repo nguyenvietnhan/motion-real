@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { LockedVideoSpec } from "@news/schema";
 import { runBuildGridStatic, typecheckIssues, bundleIssues } from "./build-grid.js";
-import { ensureProject, projectPaths } from "../store.js";
+import { ensureProject, projectPaths } from "../store/store.js";
 
 let home: string;
 const prevHome = process.env.VIDEO_TOOL_HOME;
@@ -52,6 +52,7 @@ function lockedNoAudio(): LockedVideoSpec {
       },
     ],
     audio: {},
+    captions: [],
   };
 }
 

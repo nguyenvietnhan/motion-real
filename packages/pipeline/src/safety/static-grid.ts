@@ -9,7 +9,8 @@ import { runContentRules } from "./content-rules.js";
 /**
  * Tier-1 static safety grid (N1–N9): runs on the spec BEFORE TTS/lock. Pure,
  * fast, no render. Combines:
- *  - N1: structural rules (scene count/bounds, duration sum, ids, pacing)
+ *  - N1: structural rules (free pacing: sequential ids, single-paragraph
+ *        narration, scannable headline, per-scene narration floor)
  *  - N2: unknown component id
  *  - N3: per-component Zod prop validation
  *  - N6/N7: phonetic spellings / spaced abbreviations (hard)

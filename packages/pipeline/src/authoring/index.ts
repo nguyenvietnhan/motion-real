@@ -9,3 +9,16 @@ export {
   type AuthoredRegistration,
   type AdmitAndRegisterOptions,
 } from "./register.js";
+export {
+  scaffoldProject,
+  loadManifest,
+  loadManifestAsSpec,
+  manifestToVideoSpec,
+  listAuthoredScenes,
+  admitProjectScenes,
+  writeAuthoredScene,
+  emptyManifest,
+  type Manifest,
+  type ManifestScene,
+  type AdmitProjectResult,
+} from "./manifest.js";

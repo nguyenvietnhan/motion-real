@@ -27,6 +27,8 @@ export type TTSResult = {
   audioPath: string;
   duration: number;
   raw: unknown;
+  /** Absolute path to the downloaded SRT sidecar, when the provider returns one. */
+  srtPath?: string;
 };
 
 export type VivibeClientOptions = {
@@ -87,6 +89,7 @@ export class VivibeClient {
 
     let resolved: Extract<NormalizedAudio, { kind: "url" | "base64" }>;
     let raw: unknown = null;
+    let pollRaw: unknown = null;
     let exportId = resumeExportId;
     const sidecarPath = `${input.outputPath}.export-id`;
 
@@ -99,7 +102,9 @@ export class VivibeClient {
     }
 
     if (exportId && exportId.length > 0) {
-      resolved = await this.pollExportStatus(exportId);
+      const polled = await this.pollExportStatus(exportId);
+      resolved = polled.audio;
+      pollRaw = polled.raw;
       raw = { resumedExportId: exportId };
     } else {
       raw = await this.call<unknown>("ttsLongText", {
@@ -111,7 +116,9 @@ export class VivibeClient {
       if (audio.kind === "job") {
         exportId = audio.id;
         await writeFile(sidecarPath, exportId, "utf8");
-        resolved = await this.pollExportStatus(audio.id);
+        const polled = await this.pollExportStatus(audio.id);
+        resolved = polled.audio;
+        pollRaw = polled.raw;
       } else {
         resolved = audio;
       }
@@ -127,6 +134,26 @@ export class VivibeClient {
       await writeFile(finalPath, Buffer.from(stripDataPrefix(resolved.data), "base64"));
     }
 
+    // Capture the SRT sidecar (for captions) when the provider returns one.
+    // Best-effort: a missing/failed SRT never blocks synthesis.
+    let srtPath: string | undefined;
+    const srtUrl = findSrtUrl(pollRaw) ?? findSrtUrl(raw);
+    if (srtUrl) {
+      const candidate = `${finalPath}.srt`;
+      try {
+        await downloadText(srtUrl, candidate);
+        srtPath = candidate;
+      } catch (error) {
+        // Non-fatal: captions fall back to even-split timing. Warn so a
+        // persistently missing SRT (degraded caption sync) is visible.
+        console.warn(
+          `[tts] SRT caption download failed; captions will use even-split timing: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      }
+    }
+
     if (existsSync(sidecarPath)) {
       try {
         await rm(sidecarPath, { force: true });
@@ -140,6 +167,7 @@ export class VivibeClient {
       duration: await measureAudioDuration(finalPath),
       raw,
       exportId,
+      srtPath,
     };
   }
 
@@ -196,7 +224,9 @@ export class VivibeClient {
     return json.result as T;
   }
 
-  private async pollExportStatus(projectExportId: string): Promise<Extract<NormalizedAudio, { kind: "url" | "base64" }>> {
+  private async pollExportStatus(
+    projectExportId: string,
+  ): Promise<{ audio: Extract<NormalizedAudio, { kind: "url" | "base64" }>; raw: unknown }> {
     const deadline = Date.now() + this.pollTimeoutMs;
     let lastResult: unknown = null;
     while (Date.now() < deadline) {
@@ -205,7 +235,7 @@ export class VivibeClient {
       try {
         const normalized = normalizeAudioResponse(result, { allowJob: false });
         if (normalized.kind === "url" || normalized.kind === "base64") {
-          return normalized;
+          return { audio: normalized, raw: result };
         }
       } catch {
         /* intermediate state without audio yet */
@@ -274,6 +304,65 @@ export async function concatAudio(inputs: string[], outputPath: string): Promise
   await runProcess(ffmpegStatic ?? "ffmpeg", ["-y", "-f", "concat", "-safe", "0", "-i", listPath, "-c", "copy", outputPath]);
 }
 
+/**
+ * Concatenate narration clips with a SILENT BREATH GAP between consecutive
+ * clips (author-mode-v2 R4). Re-encodes through a filtergraph so the inserted
+ * `anullsrc` silence and the (possibly mixed-codec) clips share one sample
+ * format. The total length is `Σ clip_i + (n−1)·gap`, which the lock mirrors so
+ * each transition overlap lands on a gap. `gapSeconds <= 0` or a single clip
+ * falls back to a plain re-encode/concat.
+ */
+export async function concatAudioWithGaps(
+  inputs: string[],
+  gapSeconds: number,
+  outputPath: string,
+): Promise<void> {
+  if (!inputs.length) {
+    throw new Error("Cannot concatenate zero audio files.");
+  }
+  await mkdir(dirname(outputPath), { recursive: true });
+  if (inputs.length === 1 || gapSeconds <= 0) {
+    await concatAudio(inputs, outputPath);
+    return;
+  }
+
+  const sr = 48000;
+  const args: string[] = ["-y"];
+  for (const input of inputs) args.push("-i", input);
+  const gapCount = inputs.length - 1;
+  for (let i = 0; i < gapCount; i += 1) {
+    args.push("-f", "lavfi", "-t", gapSeconds.toFixed(4), "-i", `anullsrc=channel_layout=stereo:sample_rate=${sr}`);
+  }
+
+  const norm = (label: string, out: string) =>
+    `[${label}]aresample=${sr},aformat=sample_fmts=fltp:channel_layouts=stereo[${out}]`;
+  const parts: string[] = [];
+  const order: string[] = [];
+  inputs.forEach((_, i) => {
+    parts.push(norm(`${i}:a`, `c${i}`));
+    order.push(`[c${i}]`);
+    if (i < gapCount) {
+      const silenceIdx = inputs.length + i;
+      parts.push(norm(`${silenceIdx}:a`, `g${i}`));
+      order.push(`[g${i}]`);
+    }
+  });
+  const filter = `${parts.join(";")};${order.join("")}concat=n=${order.length}:v=0:a=1[outa]`;
+
+  await runProcess(ffmpegStatic ?? "ffmpeg", [
+    ...args,
+    "-filter_complex",
+    filter,
+    "-map",
+    "[outa]",
+    "-ar",
+    String(sr),
+    "-ac",
+    "2",
+    outputPath,
+  ]);
+}
+
 export async function normalizeAudioDuration(
   inputPath: string,
   outputPath: string,
@@ -324,7 +413,7 @@ export async function mixBgm(
   voicePath: string,
   bgmPath: string,
   outputPath: string,
-  volume = 0.1,
+  volume = 0.2,
   fadeDurationSeconds = 3.0,
 ): Promise<void> {
   await mkdir(dirname(outputPath), { recursive: true });
@@ -397,6 +486,36 @@ async function downloadAudio(url: string, outputPath: string): Promise<void> {
   }
   const buffer = Buffer.from(await res.arrayBuffer());
   await writeFile(outputPath, buffer);
+}
+
+/** Find an SRT subtitle URL anywhere in a Vivibe response (used for captions). */
+function findSrtUrl(raw: unknown): string | null {
+  for (const item of collectObjects(raw)) {
+    for (const key of ["srtUrl", "subtitleUrl", "captionUrl", "srt"]) {
+      const value = item[key];
+      if (typeof value === "string" && /^https?:\/\//i.test(value)) return value;
+    }
+    // Any string field that points at a .srt file.
+    for (const value of Object.values(item)) {
+      if (typeof value === "string" && /^https?:\/\/\S+\.srt(\?|$)/i.test(value)) return value;
+    }
+  }
+  return null;
+}
+
+/** Download a text resource (e.g. an SRT file) to disk. Best-effort, with retry. */
+async function downloadText(url: string, outputPath: string): Promise<void> {
+  const attempts = vivibeRetryAttempts();
+  const res = await fetchWithRetry(() => fetch(url), {
+    attempts,
+    baseDelayMs: vivibeRetryBaseDelayMs(),
+    label: "Vivibe SRT download",
+  });
+  if (!res.ok) {
+    throw new Error(`Failed to download SRT: ${res.status} ${res.statusText}`);
+  }
+  await mkdir(dirname(outputPath), { recursive: true });
+  await writeFile(outputPath, await res.text(), "utf8");
 }
 
 const RETRYABLE_HTTP_STATUSES = new Set([408, 425, 429, 500, 502, 503, 504]);

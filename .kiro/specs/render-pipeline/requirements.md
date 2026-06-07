@@ -109,6 +109,9 @@ spellings or unreadable numbers.
 3. IF a narration field contains display-style numbers (`92%`, `$1.5M`, `2026`),
    THEN the system SHALL report that numbers must be spelled out naturally in
    Vietnamese for narration.
+   > **Superseded (author-mode-v2, hướng B):** narration may now use DIGITS;
+   > the TTS layer reads them as natural Vietnamese. N8 only warns on forms the
+   > reader can't voice (`$`, `1.5M`). Display still stays compact.
 4. IF a display field contains spelled-out numbers (e.g.
    `năm hai nghìn không trăm hai mươi sáu`), THEN the system SHALL report that
    display numbers must stay compact (`N8`, warning).

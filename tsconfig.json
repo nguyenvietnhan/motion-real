@@ -17,6 +17,7 @@
     "paths": {
       "@news/schema": ["packages/schema/src/index.ts"],
       "@news/design": ["packages/design/src/index.ts"],
+      "@news/blocks": ["packages/blocks/src/index.ts"],
       "@news/tts": ["packages/tts/src/index.ts"],
       "@news/compositions": ["packages/compositions/src/index.ts"],
       "@news/compositions/*": ["packages/compositions/src/*"],

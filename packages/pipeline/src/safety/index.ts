@@ -5,6 +5,7 @@ export { lintSceneSources, compositionsSrcDir } from "./forbidden-api.js";
 export {
   runRenderGrid,
   checkSafeArea,
+  checkContentZone,
   checkOverlap,
   checkTruncation,
   checkContrast,
@@ -12,6 +13,8 @@ export {
   checkPacing,
   checkTransition,
   checkAudioSync,
+  checkDuration,
+  checkCaptions,
   checkRichness,
   frameDiffFraction,
   type Frame,

@@ -1,20 +1,22 @@
 /**
  * @news/pipeline — the orchestration brain (the analogue of math_video_tool's
- * mvlib.build). Wires planner + TTS + locking + safety grid + renderer + review
- * + project store together. Modules are added task by task; this barrel
+ * mvlib.build). Wires authoring/admission + TTS + locking + safety grid +
+ * renderer + review + project store together for pure AUTHOR mode. This barrel
  * re-exports the stable public surface.
  */
 
 export * from "./types.js";
-export * from "./store.js";
+export * from "./store/store.js";
 export * from "./safety/index.js";
-export * from "./planner/index.js";
-export * from "./lock.js";
-export * from "./sfx.js";
-export * from "./tts.js";
-export * from "./renderer.js";
-export * from "./cache.js";
-export * from "./determinism.js";
+export * from "./audio/captions.js";
+export * from "./audio/lock.js";
+export * from "./audio/sfx.js";
+export * from "./audio/tts.js";
+export * from "./render/renderer.js";
+export * from "./authoring/authored-entry.js";
+export * from "./render/cache.js";
+export * from "./render/determinism.js";
 export * from "./review.js";
 export * from "./authoring/index.js";
+export * from "./cli/cli.js";
 export * from "./orchestrator.js";

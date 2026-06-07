@@ -1,0 +1,91 @@
+import { mkdir, writeFile } from "node:fs/promises";
+import { dirname, relative } from "node:path";
+
+/**
+ * AUTHOR-mode render bundling (the missing link for Requirement 13.5).
+ *
+ * In PICK mode the Remotion bundle only contains the components imported by
+ * `@news/compositions`. AI-AUTHORED scenes live OUTSIDE that barrel — in a
+ * project's `authored/` dir — so they are not in the default bundle and cannot
+ * render. This generator writes a project-specific Remotion entry that:
+ *   1. imports every (already admitted) authored scene module, whose
+ *      `registerComponent(...)` side effect puts it in the SAME registry the
+ *      master `VideoComposition` reads from, and
+ *   2. registers the `NewsVideo` composition driven by the project's locked spec.
+ *
+ * The renderer then bundles THIS entry (with the workspace webpack override that
+ * aliases `@news/*` to their TS sources), so authored scenes render exactly like
+ * built-in ones — but the code is per-project and lives in the project folder,
+ * keeping each video self-contained.
+ */
+
+export type AuthoredEntryOptions = {
+  /** Absolute path to write the generated entry (inside the project folder). */
+  entryPath: string;
+  /** Absolute paths to the admitted authored scene `.tsx` files. */
+  authoredFiles: readonly string[];
+  /** Absolute path to the project's `video-spec.lock.json`. */
+  lockJsonPath: string;
+};
+
+/** Build the entry source text (pure; exported for unit testing). */
+export function buildAuthoredEntrySource(opts: AuthoredEntryOptions): string {
+  const dir = dirname(opts.entryPath);
+  const importLines = opts.authoredFiles
+    .map((file) => `import ${JSON.stringify(toModuleSpecifier(dir, file))};`)
+    .join("\n");
+  const lockRel = toRelImport(dir, opts.lockJsonPath);
+
+  return `// GENERATED — per-project Remotion entry for AUTHOR-mode render. Safe to delete; regenerated each render.
+import React from "react";
+import { Composition, registerRoot } from "remotion";
+import { z } from "zod";
+import { FPS, LockedVideoSpecSchema } from "@news/schema";
+import { VideoComposition } from "@news/compositions";
+import { theme } from "@news/design";
+${importLines}
+import lockedSpec from ${JSON.stringify(lockRel)};
+
+const { width, height } = theme.canvas;
+const spec = lockedSpec as unknown as import("@news/schema").LockedVideoSpec;
+
+const Root: React.FC = () =>
+  React.createElement(Composition, {
+    id: "NewsVideo",
+    component: VideoComposition,
+    schema: z.object({ spec: LockedVideoSpecSchema }),
+    defaultProps: { spec },
+    width,
+    height,
+    fps: spec.fps ?? FPS,
+    durationInFrames: spec.durationInFrames,
+    calculateMetadata: ({ props }: { props: { spec: typeof spec } }) => ({
+      durationInFrames: props.spec.durationInFrames,
+      fps: props.spec.fps ?? FPS,
+      width,
+      height,
+    }),
+  });
+
+registerRoot(Root);
+`;
+}
+
+/** Write the generated entry to disk and return its path. */
+export async function generateAuthoredEntry(opts: AuthoredEntryOptions): Promise<string> {
+  await mkdir(dirname(opts.entryPath), { recursive: true });
+  await writeFile(opts.entryPath, buildAuthoredEntrySource(opts), "utf8");
+  return opts.entryPath;
+}
+
+/** Relative module specifier for an authored scene (extension stripped; webpack resolves .tsx). */
+function toModuleSpecifier(fromDir: string, file: string): string {
+  return toRelImport(fromDir, file).replace(/\.(tsx|ts|jsx|js)$/i, "");
+}
+
+/** Forward-slashed, dot-prefixed relative import path. */
+function toRelImport(fromDir: string, target: string): string {
+  let rel = relative(fromDir, target).split("\\").join("/");
+  if (!rel.startsWith(".")) rel = `./${rel}`;
+  return rel;
+}
