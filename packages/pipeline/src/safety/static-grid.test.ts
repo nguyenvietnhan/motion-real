@@ -1,6 +1,7 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { z } from "zod";
 import { getComponent, registerComponent } from "@news/compositions";
+import { listStylePackIds } from "@news/design";
 import type { VideoSpec } from "@news/schema";
 import { runStaticGrid } from "./static-grid.js";
 
@@ -197,6 +198,35 @@ describe("static grid — N26 weak hook (warning)", () => {
     const issues = runStaticGrid(spec).issues.filter((i) => i.check === "N26");
     expect(issues.length).toBe(1);
     expect(issues[0]!.severity).toBe("warning");
+  });
+});
+
+describe("static grid — N1 unknown style pack (hard)", () => {
+  it("fires a hard error when theme.stylePackId is not registered", () => {
+    const spec = validSpec();
+    spec.theme = { dominant: "#2F5FF0", stylePackId: "totally-made-up-pack" };
+    const issues = runStaticGrid(spec).issues.filter((i) => /stylePackId/i.test(i.message));
+    expect(issues.length).toBe(1);
+    expect(issues[0]!.severity).toBe("error");
+    expect(runStaticGrid(spec).ok).toBe(false);
+  });
+
+  it("accepts a registered style pack and the default (no id)", () => {
+    const withPack = validSpec();
+    withPack.theme = { dominant: "#2F5FF0", stylePackId: "clean-premium" };
+    expect(runStaticGrid(withPack).issues.some((i) => /stylePackId/i.test(i.message))).toBe(false);
+
+    const noPack = validSpec();
+    expect(runStaticGrid(noPack).issues.some((i) => /stylePackId/i.test(i.message))).toBe(false);
+  });
+
+  it("every registered style pack passes the static grid with no hard error (2.14)", () => {
+    for (const id of listStylePackIds()) {
+      const spec = validSpec();
+      spec.theme = { dominant: "#2F5FF0", stylePackId: id };
+      const errors = runStaticGrid(spec).issues.filter((i) => i.severity === "error");
+      expect(errors, `pack ${id} should pass the static grid`).toEqual([]);
+    }
   });
 });
 

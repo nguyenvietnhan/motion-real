@@ -1,9 +1,10 @@
 import React from "react";
 import { useCurrentFrame, useVideoConfig } from "remotion";
-import { withAlpha, onColor, PRINT } from "@news/design";
+import { onColor, PRINT } from "@news/design";
 import { CONTENT_ZONE, rectHeight, rectWidth } from "@news/schema";
 import { useTheme } from "./theme-context.js";
 import { useReveal, useRamp, usePop, useTilt, frameRamp } from "./motion.js";
+import { chromeBorder, chromeBorderWidth, chromeShadow } from "./chrome.js";
 
 /**
  * Editorial "boxed" blocks for the LIGHT print look: ink-on-cream, bold borders,
@@ -55,7 +56,7 @@ export const Tag: React.FC<{ children: React.ReactNode; tone?: Tone; solid?: boo
         padding: "8px 16px",
         background: solid ? c : "transparent",
         color: solid ? onColor(c) : theme.colors.fg,
-        border: `3px solid ${PRINT.ink}`,
+        border: chromeBorder(theme),
         whiteSpace: "nowrap",
       }}
     >
@@ -77,7 +78,7 @@ export const HeaderBar: React.FC<{ eyebrow: string; label?: string; meta?: strin
       style={{
         display: "flex",
         alignItems: "stretch",
-        border: `4px solid ${PRINT.ink}`,
+        border: chromeBorder(theme),
         background: theme.colors.panel,
         clipPath: `inset(0 ${(1 - r) * 100}% 0 0)`,
       }}
@@ -94,7 +95,7 @@ export const HeaderBar: React.FC<{ eyebrow: string; label?: string; meta?: strin
           padding: "16px 24px",
           display: "flex",
           alignItems: "center",
-          borderRight: `4px solid ${PRINT.ink}`,
+          borderRight: `${chromeBorderWidth(theme)}px solid ${PRINT.ink}`,
         }}
       >
         {eyebrow}
@@ -147,14 +148,14 @@ export const Panel: React.FC<{
   return (
     <div
       style={{
-        border: `4px solid ${PRINT.ink}`,
+        border: chromeBorder(theme),
         background: theme.colors.panel,
         opacity: r,
         transform: `translateY(${(1 - r) * 22}px)`,
-        boxShadow: `10px 10px 0 ${withAlpha(c, 0.9)}`,
+        boxShadow: chromeShadow(theme, c),
       }}
     >
-      <div style={{ height: 12, background: c, borderBottom: `4px solid ${PRINT.ink}` }} />
+      <div style={{ height: 12, background: c, borderBottom: `${chromeBorderWidth(theme)}px solid ${PRINT.ink}` }} />
       <div style={{ padding: "30px 34px", display: "grid", gap: 18 }}>
         {title ? (
           <div style={{ display: "flex" }}>
@@ -195,14 +196,14 @@ export const StatBlock: React.FC<{ value: string; unit?: string; label: string; 
     <div
       style={{
         display: "flex",
-        border: `4px solid ${PRINT.ink}`,
+        border: chromeBorder(theme),
         background: theme.colors.panel,
         opacity: r,
         transform: `translateY(${(1 - r) * 24}px)`,
-        boxShadow: `10px 10px 0 ${withAlpha(c, 0.9)}`,
+        boxShadow: chromeShadow(theme, c),
       }}
     >
-      <div style={{ width: 20, background: c, borderRight: `4px solid ${PRINT.ink}` }} />
+      <div style={{ width: 20, background: c, borderRight: `${chromeBorderWidth(theme)}px solid ${PRINT.ink}` }} />
       <div style={{ padding: "36px 40px", display: "grid", gap: 8, minWidth: 0 }}>
         <div style={{ display: "flex", alignItems: "baseline", gap: 16, flexWrap: "wrap" }}>
           <span
@@ -283,7 +284,7 @@ export const BarChart: React.FC<{ items: Array<{ label: string; value: number; t
               <span>{it.label}</span>
               <span style={{ color: c, fontWeight: 800 }}>{Math.round(pct * 100)}%</span>
             </div>
-            <div style={{ height: 40, border: `4px solid ${PRINT.ink}`, background: theme.colors.bg }}>
+            <div style={{ height: 40, border: chromeBorder(theme), background: theme.colors.bg }}>
               <div style={{ height: "100%", width: `${pct * 100}%`, background: c }} />
             </div>
           </div>

@@ -40,7 +40,7 @@ export type ManifestScene = {
 
 export type Manifest = {
   title?: string;
-  theme?: { dominant: string; mood?: string };
+  theme?: { dominant: string; mood?: string; stylePackId?: string };
   scenes: ManifestScene[];
 };
 
@@ -60,7 +60,13 @@ export function manifestToVideoSpec(manifest: Manifest): VideoSpec {
     styleId: "clean-luxury-tech",
     ratio: "9:16",
     language: "vi",
-    theme: manifest.theme?.dominant ? { dominant: manifest.theme.dominant, mood: manifest.theme.mood } : undefined,
+    theme: manifest.theme?.dominant
+      ? {
+          dominant: manifest.theme.dominant,
+          mood: manifest.theme.mood,
+          ...(manifest.theme.stylePackId ? { stylePackId: manifest.theme.stylePackId } : {}),
+        }
+      : undefined,
     scenes: manifest.scenes.map((scene) => ({
       id: scene.id,
       component: scene.component,

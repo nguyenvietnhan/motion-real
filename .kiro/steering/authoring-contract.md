@@ -121,6 +121,20 @@ URLs, auto-fetch), never for things you draw yourself.
 > `useTheme()` dominant color driving `accent`/`signal` + data-viz only. Keep
 > text high-contrast (N18).
 
+**Reading style-pack chrome tokens (tool-productization R1).** The chosen
+**style pack** (`bold-editorial` default, `clean-premium`, …) drives the decorative
+"chrome". Bespoke imagery you author should READ these from `useTheme()` rather
+than hard-coding the bold look, so the same scene adapts to the selected pack:
+- `theme.chrome.border` / `theme.fonts` — or the `@news/blocks` helpers
+  `chromeBorder(theme)`, `chromeBorderWidth(theme)`, `chromeShadow(theme, accent)`
+  for borders/shadows.
+- `theme.chrome.grid` / `theme.chrome.registrationTicks` — only draw the grid /
+  ticks when the pack enables them (the `Frame` block already does this).
+- `theme.chrome.accentCount` / `theme.chrome.density` — lean on a single accent
+  and more whitespace when the pack is restrained.
+Composed `@news/blocks` already adapt automatically; this only matters for the
+bespoke SVG/CSS you draw yourself.
+
 ## Captions
 
 Single-line Vietnamese captions are generated centrally from each scene's

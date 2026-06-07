@@ -98,6 +98,12 @@ export const ThemeSpecSchema = z.object({
   dominant: z.string().regex(/^#[0-9a-fA-F]{6}$/, "dominant must be a 6-digit hex color like #5B8CFF"),
   /** Optional short mood label for human readability (e.g. "calm tech blue"). */
   mood: z.string().max(40).optional(),
+  /**
+   * Optional selectable design style pack id (tool-productization R1), e.g.
+   * "bold-editorial" (default) or "clean-premium". Validated against the
+   * registered packs at spec-build time; absent ⇒ the default pack.
+   */
+  stylePackId: z.string().optional(),
 });
 
 export type ThemeSpec = z.infer<typeof ThemeSpecSchema>;

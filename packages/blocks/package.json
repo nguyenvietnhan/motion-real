@@ -12,7 +12,8 @@
   },
   "dependencies": {
     "@news/design": "0.1.0",
-    "@news/schema": "0.1.0"
+    "@news/schema": "0.1.0",
+    "@remotion/google-fonts": "4.0.472"
   },
   "peerDependencies": {
     "react": ">=19",

@@ -15,6 +15,14 @@
 
 // --- Color math (pure, deterministic) -------------------------------------
 
+import {
+  getStylePack,
+  listStylePackIds,
+  DEFAULT_STYLE_PACK_ID,
+  type ChromeLevel,
+  type StylePack,
+} from "./style-packs.js";
+
 function clamp(n: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, n));
 }
@@ -102,12 +110,6 @@ export function withAlpha(hex: string, alpha: number): string {
 
 // --- Constant grammar (the stable defaults) -------------------------------
 
-const FONTS = {
-  display: '"Aptos Display", "Segoe UI Variable Display", "Segoe UI", sans-serif',
-  body: '"Aptos", "Segoe UI Variable Text", "Segoe UI", sans-serif',
-  mono: '"Cascadia Mono", "Consolas", monospace',
-} as const;
-
 const RADIUS = { sm: 0, md: 0, lg: 0 } as const;
 
 const CANVAS = { width: 1080, height: 1920 } as const;
@@ -185,23 +187,30 @@ export type Theme = {
   name: string;
   /** The dominant hex this palette was derived from. */
   dominant: string;
+  /** The resolved style-pack id (tool-productization R1). */
+  stylePackId: string;
+  /** Pack-driven chrome tokens; blocks read these instead of hard-coding chrome. */
+  chrome: ChromeLevel;
   colors: ThemeColors;
-  fonts: typeof FONTS;
+  fonts: { display: string; body: string; mono: string };
   radius: typeof RADIUS;
   space: (n: number) => number;
   canvas: typeof CANVAS;
 };
 
 /**
- * Derive a LIGHT editorial palette: a warm cream paper base with near-black ink
- * text + bold ink borders, and a vivid accent pair from the per-project
- * dominant. The base (paper/ink/borders) is fixed and high-contrast (readable in
- * any lighting); only `accent`/`signal` follow the dominant. Print accents
- * (`PRINT.*`) are available for multi-color semantic use.
+ * Derive a LIGHT editorial palette for a given dominant hue and style pack. The
+ * base (paper/ink/borders philosophy) is fixed and high-contrast; only
+ * `accent`/`signal` follow the dominant, and the selected style pack supplies
+ * the `chrome` tokens + `fonts`. Pure + deterministic — same
+ * `(dominant, stylePackId)` ⇒ identical tokens (R1.8). No `stylePackId` ⇒ the
+ * default `bold-editorial` pack (R1.5); an UNREGISTERED id throws (callers
+ * surface a friendly hard error before render — R1.6).
  */
-export function makeTheme(dominant: string = DEFAULT_DOMINANT): Theme {
+export function makeTheme(dominant: string = DEFAULT_DOMINANT, stylePackId?: string): Theme {
   const hex = normalizeHex(dominant) ?? DEFAULT_DOMINANT;
   const [h, s] = hexToHsl(hex);
+  const pack = resolveStylePack(stylePackId);
 
   // Accent: vivid, dark enough to carry paper-colored text on a solid chip and
   // to read against the cream base.
@@ -213,6 +222,8 @@ export function makeTheme(dominant: string = DEFAULT_DOMINANT): Theme {
     id: "editorial-light",
     name: "Editorial Light",
     dominant: hex,
+    stylePackId: pack.id,
+    chrome: pack.chrome,
     colors: {
       bg: PRINT.paper, // warm cream
       bgElevated: "#EAE2CE", // a touch deeper cream
@@ -223,15 +234,32 @@ export function makeTheme(dominant: string = DEFAULT_DOMINANT): Theme {
       signal,
       line: PRINT.ink, // bold ink borders
     },
-    fonts: FONTS,
+    fonts: { ...pack.chrome.fontFamily },
     radius: RADIUS,
     space: (n: number) => n * 8,
     canvas: CANVAS,
   };
 }
 
+/**
+ * Resolve a style pack: no id ⇒ the default pack; a registered id ⇒ that pack;
+ * an UNREGISTERED id throws (never silently defaults), so a typo can't quietly
+ * ship the wrong look. The spec-build / static grid catches this earlier with a
+ * friendlier `PipelineError`; this throw is the safety net at render time.
+ */
+function resolveStylePack(stylePackId?: string): StylePack {
+  if (stylePackId === undefined) return getStylePack(DEFAULT_STYLE_PACK_ID)!;
+  const pack = getStylePack(stylePackId);
+  if (!pack) {
+    throw new Error(`Unknown stylePackId "${stylePackId}". Registered packs: ${listStylePackIds().join(", ")}.`);
+  }
+  return pack;
+}
+
 /** Default theme (used by Studio / tests / any consumer with no project palette). */
 export const theme: Theme = makeTheme(DEFAULT_DOMINANT);
+
+export * from "./style-packs.js";
 
 /** Easing tuned to feel deliberate / premium rather than bouncy. */
 export const easing = {

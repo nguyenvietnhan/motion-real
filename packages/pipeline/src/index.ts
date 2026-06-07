@@ -6,6 +6,7 @@
  */
 
 export * from "./types.js";
+export * from "./errors.js";
 export * from "./store/store.js";
 export * from "./safety/index.js";
 export * from "./audio/captions.js";

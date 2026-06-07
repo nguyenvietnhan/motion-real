@@ -4,6 +4,9 @@ import { withAlpha, PRINT } from "@news/design";
 import { CONTENT_ZONE, rectHeight, rectWidth } from "@news/schema";
 import { useTheme } from "./theme-context.js";
 import { useKenBurnsScale } from "./motion.js";
+import { chromeBorder } from "./chrome.js";
+// Side-effect: render-safe load of all style-pack fonts (Vietnamese subset).
+import "./fonts.js";
 
 /**
  * `Frame` — full-bleed CREAM paper background with a faint ink grid, a bold
@@ -27,25 +30,27 @@ export const Frame: React.FC<{ children: React.ReactNode }> = ({ children }) => 
         overflow: "hidden",
       }}
     >
-      {/* faint grid — slow ambient Ken Burns zoom */}
-      <div
-        style={{
-          position: "absolute",
-          inset: 0,
-          backgroundImage:
-            `linear-gradient(90deg, ${grid} 1px, transparent 1px),` +
-            `linear-gradient(0deg, ${grid} 1px, transparent 1px)`,
-          backgroundSize: "72px 72px",
-          opacity: 0.8,
-          pointerEvents: "none",
-          transform: `scale(${kb.toFixed(4)})`,
-          transformOrigin: "50% 42%",
-        }}
-      />
-      {/* bold outer border */}
-      <div style={{ position: "absolute", inset: 40, border: `4px solid ${PRINT.ink}`, pointerEvents: "none" }} />
-      {/* corner registration ticks */}
-      <CornerTicks />
+      {/* faint grid — slow ambient Ken Burns zoom (only when the pack uses it) */}
+      {theme.chrome.grid ? (
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            backgroundImage:
+              `linear-gradient(90deg, ${grid} 1px, transparent 1px),` +
+              `linear-gradient(0deg, ${grid} 1px, transparent 1px)`,
+            backgroundSize: "72px 72px",
+            opacity: 0.8,
+            pointerEvents: "none",
+            transform: `scale(${kb.toFixed(4)})`,
+            transformOrigin: "50% 42%",
+          }}
+        />
+      ) : null}
+      {/* bold outer border (pack-driven width/style) */}
+      <div style={{ position: "absolute", inset: 40, border: chromeBorder(theme), pointerEvents: "none" }} />
+      {/* corner registration ticks (only when the pack uses them) */}
+      {theme.chrome.registrationTicks ? <CornerTicks /> : null}
       {children}
     </AbsoluteFill>
   );

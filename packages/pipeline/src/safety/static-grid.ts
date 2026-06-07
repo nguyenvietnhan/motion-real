@@ -3,6 +3,7 @@ import {
   type VideoSpec,
 } from "@news/schema";
 import { knownComponentIds, validateProps } from "@news/compositions";
+import { listStylePackIds } from "@news/design";
 import { makeReport, type SafetyIssue, type SafetyReport } from "../types.js";
 import { runContentRules } from "./content-rules.js";
 
@@ -49,6 +50,17 @@ export function runStaticGrid(spec: VideoSpec): SafetyReport {
         });
       }
     }
+  }
+
+  // N1 (structure): a specified style pack must be registered (R1.6). Unknown
+  // id is a hard error before TTS, naming the id + the registered packs.
+  const stylePackId = spec.theme?.stylePackId;
+  if (stylePackId !== undefined && !listStylePackIds().includes(stylePackId)) {
+    issues.push({
+      check: "N1",
+      severity: "error",
+      message: `Unknown stylePackId "${stylePackId}"; registered style packs: ${listStylePackIds().join(", ")}.`,
+    });
   }
 
   // N6–N9 / N26 / N27: content rules

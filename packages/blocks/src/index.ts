@@ -56,3 +56,6 @@ export {
 
 // Caption track (used by the master composition, not authored scenes):
 export { Captions, CAPTION_RENDER_BAND, CAPTION_CANVAS } from "./captions.js";
+
+// Pack-driven chrome helpers (style packs read border/shadow from the theme):
+export { chromeBorder, chromeBorderWidth, chromeShadow } from "./chrome.js";
