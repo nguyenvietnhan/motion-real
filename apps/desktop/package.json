@@ -1,0 +1,22 @@
+{
+  "name": "@news/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "dist-electron/main/index.js",
+  "scripts": {
+    "dev": "vite",
+    "build:renderer": "vite build"
+  },
+  "dependencies": {
+    "@news/mcp": "0.1.0",
+    "@news/pipeline": "0.1.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.4",
+    "electron": "^33.2.1",
+    "vite": "^7.0.0"
+  }
+}

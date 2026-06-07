@@ -48,7 +48,7 @@ Language: TypeScript (existing monorepo). Tests run under Vitest with
 ## Tasks
 
 - [ ] 1. Project scaffold, Electron shell, and typed IPC skeleton
-  - [ ] 1.1 Scaffold the `apps/desktop` package and Electron process model
+  - [x] 1.1 Scaffold the `apps/desktop` package and Electron process model
     - Create `apps/desktop` as a workspace package depending on `@news/pipeline`
       and `@news/mcp`; add Electron + React + Vite (or equivalent) build wiring
       and a `vitest` config that reuses the repo's existing Vitest setup
