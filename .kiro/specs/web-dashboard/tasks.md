@@ -75,7 +75,7 @@ Language: TypeScript (existing monorepo). Tests run under Vitest with
     - _Requirements: 11.5_
 
 - [ ] 2. Engine `get_safety_report` tool, AgentWorker interface, and the POC_Spike (FIRST BUILD RISK)
-  - [ ] 2.1 Add the `get_safety_report` MCP tool to `@news/mcp`
+  - [x] 2.1 Add the `get_safety_report` MCP tool to `@news/mcp`
     - Add `getSafetyReportInput` Zod schema and the `get_safety_report` tool in
       `packages/mcp/src/tools.ts`, reading the orchestrator's last report for a
       project (from the render result / `review.json`) and returning
@@ -87,7 +87,7 @@ Language: TypeScript (existing monorepo). Tests run under Vitest with
       existing tools so it is stubbable in tests
     - _Requirements: 6.1, 6.2, 12.1, 12.2_
 
-  - [ ]* 2.2 Write unit/integration test for `get_safety_report`
+  - [x]* 2.2 Write unit/integration test for `get_safety_report`
     - With a stubbed orchestrator report (via `createTools` deps), assert it
       returns the hard-error subset and warnings for a given `projectId` and
       surfaces `check` ids only in the tool result (not redacted yet)

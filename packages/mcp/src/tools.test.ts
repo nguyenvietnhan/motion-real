@@ -186,3 +186,63 @@ describe("single-process orchestrator path — 7.13", () => {
     }
   });
 });
+
+describe("get_safety_report — 7.x (web-dashboard Task 2.1)", () => {
+  const reportWith = (issues: Array<{ check: string; severity: "error" | "warning"; message: string }>): RenderProjectResult =>
+    ({
+      projectId: "p",
+      mp4Path: "out.mp4",
+      locked: {} as never,
+      report: { ok: !issues.some((i) => i.severity === "error"), issues } as never,
+      cached: false,
+    });
+
+  it("persists the last render's report and returns hard errors split from warnings", async () => {
+    const issues = [
+      { check: "N14", severity: "error" as const, message: "content in caption band" },
+      { check: "N30", severity: "warning" as const, message: "dense scene" },
+    ];
+    const tools = createTools({
+      draftExistsFor: () => true,
+      ttsConfig: okConfig,
+      renderProject: async () => reportWith(issues),
+    });
+
+    const draft = await tools.render_draft({ projectId: "rep-1" });
+    expect(draft.ok).toBe(true);
+
+    const res = await tools.get_safety_report({ projectId: "rep-1" });
+    expect(res.ok).toBe(true);
+    if (res.ok) {
+      expect(res.data.ok).toBe(false); // a hard error is present
+      expect(res.data.hardErrors.map((i) => i.check)).toEqual(["N14"]);
+      expect(res.data.warnings.map((i) => i.check)).toEqual(["N30"]);
+    }
+  });
+
+  it("reports ok:true with no hard errors when the report is clean", async () => {
+    const tools = createTools({
+      draftExistsFor: () => true,
+      ttsConfig: okConfig,
+      renderProject: async () => reportWith([{ check: "N30", severity: "warning", message: "advisory" }]),
+    });
+    await tools.render_draft({ projectId: "rep-2" });
+    const res = await tools.get_safety_report({ projectId: "rep-2" });
+    expect(res.ok).toBe(true);
+    if (res.ok) {
+      expect(res.data.ok).toBe(true);
+      expect(res.data.hardErrors).toEqual([]);
+      expect(res.data.warnings).toHaveLength(1);
+    }
+  });
+
+  it("fails with a structured error when no report exists yet", async () => {
+    const tools = createTools();
+    const res = await tools.get_safety_report({ projectId: "never-rendered" });
+    expect(res.ok).toBe(false);
+    if (!res.ok) {
+      expect(res.error.stage).toBe("render-oracle");
+      expect(res.error.cause).toMatch(/no safety report/i);
+    }
+  });
+});

@@ -11,6 +11,8 @@ import {
   writeTracker,
   upsertItem,
   projectPaths,
+  writeJson,
+  readJson,
   PipelineError,
   serializeError,
   vivibeApiKey,
@@ -22,6 +24,8 @@ import {
   type ProjectSummary,
   type TrackerItem,
   type TrackerStatus,
+  type SafetyReport,
+  type SafetyIssue,
 } from "@news/pipeline";
 import { ok, err, type ToolResult } from "./types.js";
 
@@ -96,6 +100,10 @@ export const renderFullInput = z.object({
   forceFull: z.boolean().optional(),
 });
 
+export const getSafetyReportInput = z.object({
+  projectId: z.string().min(1),
+});
+
 export const doctorInput = z.object({});
 
 export const listProjectsInput = z.object({});
@@ -119,6 +127,25 @@ export const trackerUpdateInput = z.object({
   reason: z.string().optional(),
   projectId: z.string().optional(),
 });
+
+// --- safety-report persistence (web-dashboard Task 2.1, R6.1/R6.2) ---------
+
+/** Where the last render's safety report is persisted, per project. */
+function safetyReportPath(projectId: string): string {
+  return join(projectPaths(projectId).root, "safety-report.json");
+}
+
+/** Persist the report from the latest render so the repair loop can read it back. */
+async function persistSafetyReport(projectId: string, report: SafetyReport): Promise<void> {
+  try {
+    await writeJson(safetyReportPath(projectId), report);
+  } catch {
+    // best-effort: a persistence failure must never fail the render itself.
+  }
+}
+
+/** The shape `get_safety_report` returns: the hard-error subset split from warnings. */
+export type SafetyReportView = { ok: boolean; hardErrors: SafetyIssue[]; warnings: SafetyIssue[] };
 
 // --- TTS guard (R3.6, R10.9, Property 10) ----------------------------------
 
@@ -182,6 +209,7 @@ export function createTools(overrides: Partial<ToolDeps> = {}) {
           quality: "draft",
           ...(onProgress ? { onProgress } : {}),
         });
+        await persistSafetyReport(input.projectId, res.report);
         return ok(res);
       } catch (e) {
         return err(serializeError(e, "render"));
@@ -212,9 +240,36 @@ export function createTools(overrides: Partial<ToolDeps> = {}) {
           forceFull,
           ...(onProgress ? { onProgress } : {}),
         });
+        await persistSafetyReport(input.projectId, res.report);
         return ok(res);
       } catch (e) {
         return err(serializeError(e, "render"));
+      }
+    },
+
+    async get_safety_report(
+      input: z.infer<typeof getSafetyReportInput>,
+    ): Promise<ToolResult<SafetyReportView>> {
+      // Read the report the orchestrator already produced for the last render of
+      // this project; split hard errors from warnings for the repair loop
+      // (R6.1/R6.2). The grid is NOT re-run here — this only exposes the report.
+      try {
+        const path = safetyReportPath(input.projectId);
+        if (!existsSync(path)) {
+          return err(
+            new PipelineError({
+              stage: "render-oracle",
+              cause: `no safety report found for "${input.projectId}" (render a draft first)`,
+              remediation: "Run render_draft for this project before requesting its safety report.",
+            }).toSerialized(),
+          );
+        }
+        const report = await readJson<SafetyReport>(path);
+        const hardErrors = report.issues.filter((i) => i.severity === "error");
+        const warnings = report.issues.filter((i) => i.severity !== "error");
+        return ok({ ok: hardErrors.length === 0, hardErrors, warnings });
+      } catch (e) {
+        return err(serializeError(e, "render-oracle"));
       }
     },
 

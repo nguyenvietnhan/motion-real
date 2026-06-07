@@ -12,6 +12,7 @@ import {
   trackerListInput,
   trackerAddInput,
   trackerUpdateInput,
+  getSafetyReportInput,
 } from "./tools.js";
 import type { ToolResult } from "./types.js";
 
@@ -84,6 +85,17 @@ export function createMcpServer(overrides: Partial<ToolDeps> = {}): McpServer {
       inputSchema: renderFullInput.shape,
     },
     async (args, extra) => toCallResult(await tools.render_full(args, makeProgress(extra))),
+  );
+
+  server.registerTool(
+    "get_safety_report",
+    {
+      title: "Get the safety-grid report",
+      description:
+        "Return the last render's safety-grid report for a project, split into hard errors and warnings (drives the generate-validate-repair loop).",
+      inputSchema: getSafetyReportInput.shape,
+    },
+    async (args) => toCallResult(await tools.get_safety_report(args)),
   );
 
   server.registerTool(
