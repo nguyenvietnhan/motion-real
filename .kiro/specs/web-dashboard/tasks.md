@@ -338,7 +338,7 @@ Language: TypeScript (existing monorepo). Tests run under Vitest with
       progress, retain the draft, offer retry
     - _Requirements: 9.1, 9.2, 9.3, 9.4, 9.5, 9.6, 9.7, 12.5_
 
-  - [ ] 9.3 Implement the gallery controller (`toCards` + load state)
+  - [x] 9.3 Implement the gallery controller (`toCards` + load state)
     - Implement `GalleryController.toCards` building `ProjectCardVM[]` from
       `ProjectSummary[]` newest-first with title, thumbnail-or-placeholder,
       friendly status, and `ngày D tháng M năm YYYY` date; `loadState` returns
@@ -350,7 +350,7 @@ Language: TypeScript (existing monorepo). Tests run under Vitest with
     - **Property 9: Approve and full render are gated by a reviewed draft (draft-first)**
     - **Validates: Requirements 5.6, 9.1, 9.2, 9.4, 12.5**
 
-  - [ ]* 9.5 Write property test for gallery card completeness and ordering
+  - [x]* 9.5 Write property test for gallery card completeness and ordering
     - **Property 11: Gallery cards are complete and ordered newest-first**
     - **Validates: Requirements 10.1, 10.6**
 
@@ -362,7 +362,7 @@ Language: TypeScript (existing monorepo). Tests run under Vitest with
     - _Requirements: 5.2, 5.3, 10.5_
 
 - [ ] 10. Settings, progressive disclosure, and defaults
-  - [ ] 10.1 Implement the SettingsModel with pre-populated L3 defaults
+  - [x] 10.1 Implement the SettingsModel with pre-populated L3 defaults
     - Implement `SettingsModel` (`voiceProvider:"vivibe"` default, default
       output dir under `.video-tool` home, `maxRepairAttempts` default 3 clamped
       [1,10], `scriptGateEnabled` default true) so the full flow runs without
@@ -370,7 +370,7 @@ Language: TypeScript (existing monorepo). Tests run under Vitest with
       L3 controls live on a separate Settings screen
     - _Requirements: 11.3, 11.4, 11.7, 11.8_
 
-  - [ ]* 10.2 Write unit tests for settings defaults and state preservation
+  - [x]* 10.2 Write unit tests for settings defaults and state preservation
     - Assert every L3 setting is pre-populated and that a settings round-trip
       preserves in-progress project state
     - _Requirements: 11.7, 11.8_
