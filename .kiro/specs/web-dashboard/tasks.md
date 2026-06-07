@@ -307,15 +307,15 @@ Language: TypeScript (existing monorepo). Tests run under Vitest with
       failures return friendly messages that leave authoring unstarted
     - _Requirements: 3.6, 3.9, 3.10, 12.10_
 
-- [ ] 8. Script-approval gate wiring
-  - [ ] 8.1 Implement the Script_Approval_Gate model and sequencing
+- [x] 8. Script-approval gate wiring
+  - [x] 8.1 Implement the Script_Approval_Gate model and sequencing
     - Implement `ScriptGateModel`, default-ON state (Req 4.1), gate sequencing so
       the first Draft does not begin until the user approves or disables the gate,
       and the approve-before-initialized wait; on approve proceed to first draft,
       on disable skip the text gate; reuse the empty-narration apply logic (4.6)
     - _Requirements: 4.1, 4.2, 4.6, 4.7, 4.8_
 
-  - [ ]* 8.2 Write unit tests for gate default and sequencing
+  - [x]* 8.2 Write unit tests for gate default and sequencing
     - Assert default ON, approve-before-initialized waits for config, and
       disable-skips-gate paths with a stubbed Agent_Worker
     - _Requirements: 4.1, 4.2, 4.6, 4.7, 4.8_
