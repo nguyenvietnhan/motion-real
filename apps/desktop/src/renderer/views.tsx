@@ -191,7 +191,7 @@ const ProjectGrid: React.FC<{
           {!c.thumbnailPath && Icon.film({ size: 30 })}
         </div>
         <div style={{ padding: 14 }}>
-          <strong style={{ display: "block", marginBottom: 8, fontSize: 14 }}>{c.title}</strong>
+          <strong className="ns-project-title" title={c.title} style={{ marginBottom: 8, fontSize: 14 }}>{c.title}</strong>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <StatusPill status={c.status} />
             <span style={{ color: "var(--muted-foreground)", fontSize: 12 }}>{c.createdAtLabel}</span>
@@ -392,7 +392,7 @@ export const SettingsView: React.FC<{
         <label style={{ display: "block", marginBottom: 12 }}>
           Số lần tự sửa tối đa{" "}
           <input className="ns-input" type="number" min={1} max={10} value={settings.maxRepairAttempts}
-            onChange={(e) => onUpdate({ maxRepairAttempts: Number(e.target.value) })} style={{ width: 80, marginLeft: 8, padding: "6px 10px" }} />
+            onChange={(e) => onUpdate({ maxRepairAttempts: Math.min(10, Math.max(1, Number(e.target.value) || 1)) })} style={{ width: 80, marginLeft: 8, padding: "6px 10px" }} />
         </label>
         <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <input type="checkbox" checked={settings.scriptGateEnabled} onChange={(e) => onUpdate({ scriptGateEnabled: e.target.checked })} />
@@ -483,7 +483,7 @@ export const ProjectWorkspaceView: React.FC<{
         </div>
       )}
       {stage.kind === "ready" && (
-        <StoryboardView inline model={{ projectId: "", scenes: stage.scenes, globalNotes: "" }} percent={null} canApprove
+        <StoryboardView inline readOnly model={{ projectId: "", scenes: stage.scenes, globalNotes: "" }} percent={null} canApprove={false}
           onBack={onBack} onSubmit={onSubmitEdits} onApprove={onApproveDraft} />
       )}
       {stage.kind === "error" && (
@@ -501,10 +501,11 @@ export const StoryboardView: React.FC<{
   percent: number | null;
   canApprove: boolean;
   inline?: boolean;
+  readOnly?: boolean;
   onBack: () => void;
   onSubmit: (perScene: { sceneId: string; text: string }[], globalNotes: string) => void;
   onApprove: () => void;
-}> = ({ model, percent, canApprove, inline, onBack, onSubmit, onApprove }) => {
+}> = ({ model, percent, canApprove, inline, readOnly, onBack, onSubmit, onApprove }) => {
   const [edits, setEdits] = useState<Record<string, string>>({});
   const [notes, setNotes] = useState("");
 
@@ -513,6 +514,14 @@ export const StoryboardView: React.FC<{
       {!inline && (
         <PageHeader title="Duyệt video" subtitle="Xem từng cảnh, ghi điều muốn sửa, rồi duyệt để xuất bản."
           action={<button className="ns-btn" onClick={onBack}>← Quay lại</button>} />
+      )}
+      {readOnly && (
+        <div className="ns-card" style={{ padding: 14, marginBottom: 16, borderColor: "var(--brand)" }}>
+          <strong style={{ display: "block", marginBottom: 4 }}>Bản nháp đã sẵn sàng</strong>
+          <span style={{ color: "var(--muted-foreground)", fontSize: 13 }}>
+            Xem trước từng cảnh bên dưới. Mở thư mục dự án để xem video nháp đầy đủ. (Sửa từng cảnh và xuất bản sẽ có ở bản cập nhật sau.)
+          </span>
+        </div>
       )}
       {percent !== null && (
         <div className="ns-card" style={{ padding: 12, marginBottom: 16 }}>
@@ -534,19 +543,25 @@ export const StoryboardView: React.FC<{
                 background: s.stillPath ? `center/contain no-repeat #0c0e12 url(${s.stillPath})` : "#101216" }}>
                 {!s.stillPath && Icon.film({ size: 26 })}
               </div>
-              <textarea aria-label={`edit-${s.sceneId}`} className="ns-input" value={edits[s.sceneId] ?? ""} maxLength={2000}
-                onChange={(e) => setEdits((m) => ({ ...m, [s.sceneId]: e.target.value }))} placeholder="Muốn sửa gì ở cảnh này?" rows={2}
-                style={{ width: "100%", marginTop: 10 }} />
+              {!readOnly && (
+                <textarea aria-label={`edit-${s.sceneId}`} className="ns-input" value={edits[s.sceneId] ?? ""} maxLength={2000}
+                  onChange={(e) => setEdits((m) => ({ ...m, [s.sceneId]: e.target.value }))} placeholder="Muốn sửa gì ở cảnh này?" rows={2}
+                  style={{ width: "100%", marginTop: 10 }} />
+              )}
             </div>
           ))}
         </div>
       )}
-      <textarea aria-label="global-notes" className="ns-input" value={notes} maxLength={4000}
-        onChange={(e) => setNotes(e.target.value)} placeholder="Ghi chú chung cho cả video…" rows={2} style={{ width: "100%", marginTop: 16 }} />
-      <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
-        <button className="ns-btn" onClick={() => onSubmit(Object.entries(edits).map(([sceneId, text]) => ({ sceneId, text })), notes)}>Gửi chỉnh sửa</button>
-        <button className="ns-btn ns-btn-primary" onClick={onApprove} disabled={!canApprove}>Duyệt &amp; xuất bản</button>
-      </div>
+      {!readOnly && (
+        <>
+          <textarea aria-label="global-notes" className="ns-input" value={notes} maxLength={4000}
+            onChange={(e) => setNotes(e.target.value)} placeholder="Ghi chú chung cho cả video…" rows={2} style={{ width: "100%", marginTop: 16 }} />
+          <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
+            <button className="ns-btn" onClick={() => onSubmit(Object.entries(edits).map(([sceneId, text]) => ({ sceneId, text })), notes)}>Gửi chỉnh sửa</button>
+            <button className="ns-btn ns-btn-primary" onClick={onApprove} disabled={!canApprove}>Duyệt &amp; xuất bản</button>
+          </div>
+        </>
+      )}
     </div>
   );
 };
