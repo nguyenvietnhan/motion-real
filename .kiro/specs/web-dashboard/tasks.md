@@ -261,14 +261,14 @@ Language: TypeScript (existing monorepo). Tests run under Vitest with
     - _Requirements: 8.9_
 
 - [ ] 6. License + Model_Gateway lifecycle managers (main process)
-  - [ ] 6.1 Implement the License_Service client and activation/verify lifecycle
+  - [x] 6.1 Implement the License_Service client and activation/verify lifecycle
     - Implement the network-facing `LicenseService.activate`/`verify` (30s
       timeout via `AbortSignal`) wired into `LicenseManager`; map
       timeout/offline/invalid/limit/revoked to `LicenseState` error reasons;
       node-locked launch skips re-entry; expose state over IPC, never the key
     - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.8_
 
-  - [ ]* 6.2 Write unit tests for the activation outcome → state table
+  - [x]* 6.2 Write unit tests for the activation outcome → state table
     - Cover each branch (valid, invalid, limit, revoked, timeout, offline) and
       the node-locked launch skip, with a stubbed `LicenseService`
     - _Requirements: 1.3, 1.5, 1.6, 1.8_
