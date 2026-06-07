@@ -171,8 +171,8 @@ const PageHeader: React.FC<{ title: string; subtitle?: string; action?: React.Re
 );
 
 const StatusPill: React.FC<{ status: FriendlyStatus }> = ({ status }) => (
-  <span className="ns-pill" style={{ background: "color-mix(in srgb, transparent 84%, " + STATUS_COLOR[status] + ")", color: STATUS_COLOR[status] }}>
-    <span style={{ width: 6, height: 6, borderRadius: 999, background: STATUS_COLOR[status] }} />
+  <span className="ns-pill" style={{ alignSelf: "flex-start", background: "color-mix(in srgb, transparent 84%, " + STATUS_COLOR[status] + ")", color: STATUS_COLOR[status] }}>
+    <span style={{ width: 6, height: 6, borderRadius: 999, background: STATUS_COLOR[status], flexShrink: 0 }} />
     {FRIENDLY_LABELS[status]}
   </span>
 );
@@ -191,8 +191,8 @@ const ProjectGrid: React.FC<{
           {!c.thumbnailPath && Icon.film({ size: 30 })}
         </div>
         <div style={{ padding: 14 }}>
-          <strong className="ns-project-title" title={c.title} style={{ marginBottom: 8, fontSize: 14 }}>{c.title}</strong>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <strong className="ns-project-title" title={c.title} style={{ marginBottom: 10, fontSize: 14 }}>{c.title}</strong>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             <StatusPill status={c.status} />
             <span style={{ color: "var(--muted-foreground)", fontSize: 12 }}>{c.createdAtLabel}</span>
           </div>
@@ -238,7 +238,7 @@ export const HomeView: React.FC<{
 }> = ({ aiReady, load, cards, onCreate, onOpen, onConnectPrompt, onDelete, onReveal, createError }) => {
   const [raw, setRaw] = useState("");
   const valid = validateCreateInput({ raw });
-  const canCreate = aiReady && valid.ok;
+  const inputValid = valid.ok;
   const recent = cards.slice(0, 8);
   const reason =
     raw.trim() === ""
@@ -278,10 +278,10 @@ export const HomeView: React.FC<{
           style={{ width: "100%", resize: "vertical" }}
         />
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 14 }}>
-          <button className="ns-btn ns-btn-primary" onClick={() => onCreate(raw)} disabled={!canCreate}>
+          <button className="ns-btn ns-btn-primary" onClick={() => (aiReady ? onCreate(raw) : onConnectPrompt())} disabled={!inputValid}>
             {Icon.plus({ size: 16 })} Tạo bản nháp
           </button>
-          {!aiReady && <span style={{ color: "var(--muted-foreground)", fontSize: 13 }}>Cần kết nối AI trước.</span>}
+          {!aiReady && <span style={{ color: "var(--muted-foreground)", fontSize: 13 }}>Chưa sẵn sàng AI — bấm để mở Cài đặt.</span>}
           {aiReady && reason && <span style={{ color: "var(--warn)", fontSize: 13 }}>{reason}</span>}
         </div>
         {createError && <p style={{ color: "var(--danger)", fontSize: 13, margin: "10px 0 0" }}>{createError}</p>}

@@ -249,6 +249,7 @@ select {
   font-weight: 600;
   padding: 3px 10px;
   border-radius: 999px;
+  white-space: nowrap;
 }
 
 @keyframes ns-spin {
