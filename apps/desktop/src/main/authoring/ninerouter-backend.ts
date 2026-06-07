@@ -89,7 +89,7 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
     }
 
     // Write only the kit components actually used, plus the manifest.
-    const used = new Set(parsed.manifest.scenes.map((s) => s.component));
+    const used = new Set<string>(parsed.manifest.scenes.map((s) => s.component));
     for (const entry of SCENE_KIT) {
       if (used.has(entry.id)) await writeAuthoredScene(job.projectId, entry.file, entry.code);
     }

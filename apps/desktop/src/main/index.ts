@@ -16,7 +16,6 @@ import { validateCreateInput } from "./create/create-controller.js";
 import { registerMediaScheme, handleMediaProtocol, mediaUrl } from "./media-protocol.js";
 import { events, setEventTarget } from "./event-bus.js";
 import { projectPaths } from "@news/pipeline";
-import { join } from "node:path";
 import type { LicenseState, ModelInfo, SceneCard, SettingsModel, StoryboardModel } from "../shared/types.js";
 
 // The `media://` scheme must be registered before the app is ready.
@@ -31,6 +30,7 @@ registerMediaScheme();
  */
 
 const tools = createTools();
+const nrClient = new NineRouterClient();
 const gateway = new ModelGatewayManager(
   buildNineRouterGatewayDeps({ client: nrClient, openExternal: (url) => void shell.openExternal(url) }),
 );
