@@ -272,14 +272,14 @@ property number.
     - **Property 15: Caches are reused across surfaces**
     - **Validates: Requirements 5.8, 10.3**
 
-- [ ] 9. CLI surface wiring
-  - [ ] 9.1 Add the new CLI verbs
+- [x] 9. CLI surface wiring
+  - [x] 9.1 Add the new CLI verbs
     - Wire `ingest <url> [--id]`, `tracker list|add|update`, `bulk [--tracker]
       [--limit]`, the extended `doctor`, and `mcp` (start server) into the CLI,
       reusing the same orchestrator/tools paths as MCP
     - _Requirements: 2.1, 5.1, 6.5_
 
-  - [ ]* 9.2 Write unit tests for CLI parsing and dispatch
+  - [x]* 9.2 Write unit tests for CLI parsing and dispatch
     - Assert each verb parses args and dispatches to the shared implementation
     - _Requirements: 6.5_
 
