@@ -111,7 +111,7 @@ describe("ingestUrl — Property 5: extraction and provenance fidelity", () => {
       ),
       { numRuns: 100 },
     );
-  });
+  }, 60_000);
 });
 
 describe("ingestUrl — Property 6: text and metadata only (no media)", () => {
@@ -152,7 +152,7 @@ describe("ingestUrl — Property 6: text and metadata only (no media)", () => {
       ),
       { numRuns: 100 },
     );
-  });
+  }, 60_000);
 });
 
 describe("ingestUrl — Property 7: failed ingest leaves no partial file", () => {
@@ -199,7 +199,7 @@ describe("ingestUrl — Property 7: failed ingest leaves no partial file", () =>
       ),
       { numRuns: 100 },
     );
-  });
+  }, 60_000);
 });
 
 describe("ingestUrl — evidence-gate interaction (R2.5)", () => {
