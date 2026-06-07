@@ -56,6 +56,18 @@ function longBody(seed: string): string[] {
   return Array.from({ length: 8 }, (_, i) => `${sentence} Cau so ${i + 1}: ${seed} ${seed} ${seed}.`);
 }
 
+/** Read a YAML header scalar from the research file, decoding the JSON-quoted form. */
+function readHeaderField(file: string, key: string): string | undefined {
+  for (const line of file.split("\n")) {
+    const prefix = `${key}: `;
+    if (line.startsWith(prefix)) {
+      const raw = line.slice(prefix.length);
+      return raw.startsWith('"') ? (JSON.parse(raw) as string) : raw;
+    }
+  }
+  return undefined;
+}
+
 describe("ingestUrl — Property 5: extraction and provenance fidelity", () => {
   it("round-trips source URL, fetchedAt, and every present metadata field, with non-empty text", async () => {
     await fc.assert(
@@ -76,18 +88,25 @@ describe("ingestUrl — Property 5: extraction and provenance fidelity", () => {
           });
 
           expect(result.wordCount).toBeGreaterThan(0);
+          // Meta-tag fields are read directly (not via Readability), so they
+          // round-trip the source exactly.
           expect(result.metadata.sourceUrl).toBe("https://example.com/news/story");
           expect(result.metadata.fetchedAt).toBe(fetchedAt);
           expect(result.metadata.site).toBe(site.trim());
           expect(result.metadata.author).toBe(author.trim());
           expect(result.metadata.publishedDate).toBe(published);
+          expect((result.metadata.title ?? "").length).toBeGreaterThan(0);
 
           const file = await readFile(result.researchPath, "utf8");
-          expect(file).toContain("https://example.com/news/story");
-          expect(file).toContain(fetchedAt);
-          expect(file).toContain(site.trim());
-          expect(file).toContain(author.trim());
-          expect(file).toContain(published);
+          // Serialization fidelity: every metadata field the result carries is
+          // faithfully written into the header (decoding the JSON-quoted form
+          // used for values with YAML-special chars), not a fragile substring.
+          expect(readHeaderField(file, "sourceUrl")).toBe(result.metadata.sourceUrl);
+          expect(readHeaderField(file, "fetchedAt")).toBe(result.metadata.fetchedAt);
+          expect(readHeaderField(file, "title")).toBe(result.metadata.title);
+          expect(readHeaderField(file, "site")).toBe(result.metadata.site);
+          expect(readHeaderField(file, "author")).toBe(result.metadata.author);
+          expect(readHeaderField(file, "publishedDate")).toBe(result.metadata.publishedDate);
         },
       ),
       { numRuns: 100 },

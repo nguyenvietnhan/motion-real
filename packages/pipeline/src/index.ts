@@ -9,6 +9,7 @@ export * from "./types.js";
 export * from "./errors.js";
 export * from "./store/store.js";
 export * from "./ingest/url-ingest.js";
+export * from "./tracker/tracker.js";
 export * from "./safety/index.js";
 export * from "./audio/captions.js";
 export * from "./audio/lock.js";

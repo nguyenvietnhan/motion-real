@@ -149,19 +149,19 @@ property number.
       facts remain subject to the `N9` evidence gate
     - _Requirements: 2.5_
 
-- [ ] 5. Tracker work queue
-  - [ ] 5.1 Implement the tracker store
+- [x] 5. Tracker work queue
+  - [x] 5.1 Implement the tracker store
     - Create `packages/pipeline/src/tracker/` with `TrackerItem`,
       `TrackerStatus`, `readTracker`, `writeTracker`, `upsertItem`; support both
       JSON and CSV with `id`, `url`, `title`, `source`, `status` (+ optional
       `reason`, `projectId`, `updatedAt`) at a stable location, never repo root
     - _Requirements: 5.1, 9.4_
 
-  - [ ]* 5.2 Write property test for tracker serialization round-trip
+  - [x]* 5.2 Write property test for tracker serialization round-trip
     - **Property 11: Tracker serialization round-trip**
     - **Validates: Requirements 5.1**
 
-  - [ ]* 5.3 Write unit tests for tracker read/write/malformed files
+  - [x]* 5.3 Write unit tests for tracker read/write/malformed files
     - Cover JSON and CSV readers/writers and malformed-file handling
     - _Requirements: 5.1_
 

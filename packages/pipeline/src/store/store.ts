@@ -43,6 +43,11 @@ export function planningDir(): string {
   return join(videoToolHome(), "planning");
 }
 
+/** Default tracker work-queue location (under VIDEO_TOOL_HOME, never repo root). */
+export function trackerPath(): string {
+  return join(videoToolHome(), "tracker.json");
+}
+
 /** Standard sub-paths inside a project folder. */
 export function projectPaths(projectId: string) {
   const root = projectPath(projectId);
