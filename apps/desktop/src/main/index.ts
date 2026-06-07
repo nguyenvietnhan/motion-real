@@ -8,7 +8,12 @@ import { buildNineRouterGatewayDeps } from "./gateway/ninerouter-deps.js";
 import { toCards } from "../renderer/gallery/gallery-controller.js";
 import { defaultSettings } from "../renderer/settings/settings-model.js";
 import { validateCreateInput } from "./create/create-controller.js";
+import { registerMediaScheme, handleMediaProtocol, mediaUrl } from "./media-protocol.js";
+import { events, setEventTarget } from "./event-bus.js";
 import type { LicenseState, ModelInfo, SettingsModel } from "../shared/types.js";
+
+// The `media://` scheme must be registered before the app is ready.
+registerMediaScheme();
 
 /**
  * Electron main = the ENGINE HOST (web-dashboard). Imports the MCP tools (and
@@ -53,7 +58,7 @@ const handlers: InvokeHandlers = {
 
   "projects:list": async () => {
     const res = await tools.list_projects();
-    return res.ok ? toCards(res.data) : [];
+    return res.ok ? toCards(res.data).map((c) => ({ ...c, thumbnailPath: mediaUrl(c.thumbnailPath) })) : [];
   },
   "projects:create": async (input) => {
     const raw = (input as { raw: string }).raw;
@@ -62,6 +67,7 @@ const handlers: InvokeHandlers = {
     const prompt = v.classified.kind === "url" ? v.classified.url : v.classified.text;
     const res = await tools.scaffold_project({ prompt });
     if (!res.ok) throw new Error(res.error.cause);
+    events.status({ projectId: res.data.projectId, status: "building" });
     return { projectId: res.data.projectId };
   },
   "projects:open": (projectId) => ({ projectId: String(projectId), scenes: [], globalNotes: "" }),
@@ -108,6 +114,8 @@ async function createWindow(): Promise<void> {
       sandbox: false,
     },
   });
+  setEventTarget(win.webContents);
+  win.on("closed", () => setEventTarget(null));
 
   const devUrl = process.env.VITE_DEV_SERVER_URL;
   if (devUrl) {
@@ -120,6 +128,7 @@ async function createWindow(): Promise<void> {
 app
   .whenReady()
   .then(() => {
+    handleMediaProtocol();
     startGateway();
     return createWindow();
   })
