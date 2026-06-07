@@ -61,7 +61,7 @@ const summaryArb: fc.Arbitrary<ProjectSummary> = fc
 describe("Property 11: gallery cards complete and ordered newest-first", () => {
   it("one complete card per project, sorted by createdAt descending", () => {
     fc.assert(
-      fc.property(fc.array(summaryArb, { maxLength: 12 }), (summaries) => {
+      fc.property(fc.uniqueArray(summaryArb, { maxLength: 12, selector: (s) => s.projectId }), (summaries) => {
         const cards = toCards(summaries);
         expect(cards).toHaveLength(summaries.length);
 

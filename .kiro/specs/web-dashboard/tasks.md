@@ -482,3 +482,27 @@ Remaining for a full in-Electron launch: bundle `main`/`preload` (esbuild/
 electron-vite) so the `@news/*` source imports resolve at runtime, plus the
 Agent_Worker authoring backend (the LLM-driven scene authoring) — both tracked as
 follow-up.
+
+## App UX redesign (Home-first, delegate-login, dark theme)
+
+Post-review feedback reshaped the control-plane UX (supersedes the wizard-style
+gating implied by Req 1/2/11 onboarding):
+
+- **Guide, don't gate.** The app opens to **Home (projects)**; it never blocks on
+  an onboarding wizard. AI status lives in a **top-bar chip**
+  (`aiReadyLabel`): starting / unavailable / not-connected / connected·model.
+- **Login delegated to 9router (decision: option 1).** A single "Đăng nhập /
+  quản lý tài khoản AI" action in **Settings** opens 9router's own Web UI; the app
+  polls `/api/providers` to detect the new connection. No reimplementation of the
+  15 providers' varied login flows.
+- **Smart default model.** Once connected, the first available model is
+  auto-selected so the user isn't forced to choose; changeable in Settings.
+- **Polling stops when ready.** The gateway poll runs only until AI is ready
+  (gateway up + a connection + a model), then clears — no flicker/churn.
+- **Dark app theme** (`views.theme`) for the app chrome; the cream/squared
+  `design-language` remains ONLY for rendered video, not the app UI.
+
+Screens: `home` (create bar + project grid + connect prompt), `settings`
+(accounts/model/voice/output), `storyboard`. Gateway auto-starts silently on app
+launch (main `gateway.start()`); preload is built as CommonJS (`.cjs`) so the
+contextIsolated bridge loads.

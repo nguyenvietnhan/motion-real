@@ -2,10 +2,8 @@ import React, { useState } from "react";
 import type {
   AiAccountState,
   GatewayState,
-  LicenseState,
   ModelInfo,
   ProjectCardVM,
-  ProviderInfo,
   SettingsModel,
   StoryboardModel,
 } from "../shared/types.js";
@@ -13,189 +11,252 @@ import { FRIENDLY_LABELS } from "./gallery/friendly-status.js";
 import { validateCreateInput } from "../main/create/create-controller.js";
 
 /**
- * React views (web-dashboard Task 11.1/11.2). Thin surfaces over the typed
- * `window.dashboard` IPC client and the pure controllers/maps; they render ONLY
- * already-translated view-models (no L0 internals). Logic lives in the tested
- * pure modules — these compose them.
+ * React views (web-dashboard, redesigned). Own DARK theme for the app chrome —
+ * the cream/squared `design-language` is ONLY for rendered video, not the app.
+ * Standard product flow: a persistent shell (top bar + AI status chip), a
+ * Home-first project surface that GUIDES instead of GATES, and a Settings screen
+ * that delegates AI-account login to 9router's own UI.
  */
 
-const ink = "#1A1714";
-const cream = "#FBF7EF";
-const accent = "#2B6CB0";
-
-const box: React.CSSProperties = {
-  border: `2px solid ${ink}`,
-  background: cream,
-  padding: 16,
-  borderRadius: 0,
+export const theme = {
+  bg: "#0F1115",
+  panel: "#181B21",
+  panel2: "#1F242C",
+  border: "#2A2F37",
+  text: "#E6E8EB",
+  muted: "#9AA0A8",
+  accent: "#4F8CFF",
+  good: "#3FB950",
+  warn: "#D29922",
+  danger: "#F85149",
+  radius: 10,
 };
 
-// --- Onboarding: license + AI connect (Req 1, 2) ---------------------------
+const card: React.CSSProperties = {
+  background: theme.panel,
+  border: `1px solid ${theme.border}`,
+  borderRadius: theme.radius,
+  padding: 20,
+};
 
-export const OnboardingView: React.FC<{
-  license: LicenseState;
+const btn = (kind: "primary" | "ghost" = "ghost", disabled = false): React.CSSProperties => ({
+  padding: "9px 16px",
+  borderRadius: 8,
+  border: kind === "primary" ? "none" : `1px solid ${theme.border}`,
+  background: disabled ? "#2A2F37" : kind === "primary" ? theme.accent : "transparent",
+  color: disabled ? theme.muted : kind === "primary" ? "#fff" : theme.text,
+  cursor: disabled ? "not-allowed" : "pointer",
+  fontSize: 14,
+});
+
+const input: React.CSSProperties = {
+  background: theme.panel2,
+  border: `1px solid ${theme.border}`,
+  borderRadius: 8,
+  color: theme.text,
+  padding: "10px 12px",
+  fontSize: 14,
+  outline: "none",
+};
+
+// --- AI status chip (top bar) ----------------------------------------------
+
+export function aiReadyLabel(gateway: GatewayState, account: AiAccountState): { dot: string; text: string; color: string } {
+  if (gateway.kind === "starting") return { dot: "○", text: "Đang khởi động AI…", color: theme.muted };
+  if (gateway.kind === "unavailable") return { dot: "⚠", text: "AI chưa khởi động được", color: theme.danger };
+  if (account.kind !== "connected" || account.accounts.length === 0)
+    return { dot: "○", text: "Chưa kết nối AI", color: theme.warn };
+  const who = account.accounts[0]?.label ?? "AI";
+  const model = account.selectedModel?.id ? ` · ${account.selectedModel.id}` : "";
+  return { dot: "●", text: `${who}${model}`, color: theme.good };
+}
+
+export const TopBar: React.FC<{
   gateway: GatewayState;
   account: AiAccountState;
-  providers: ProviderInfo[];
-  models: ModelInfo[];
-  onActivate: (key: string) => void;
-  onConnect: (providerId: string) => void;
-  onSelectModel: (modelId: string) => void;
-}> = ({ license, gateway, account, providers, models, onActivate, onConnect, onSelectModel }) => {
-  const [key, setKey] = useState("");
-  const licenseMsg: Record<LicenseState["kind"], string> = {
-    unactivated: "Nhập mã kích hoạt để bắt đầu.",
-    activating: "Đang kích hoạt…",
-    active: "Đã kích hoạt.",
-    lapsed: "Giấy phép đã hết hiệu lực — các video cũ vẫn xem được.",
-    error: "Kích hoạt chưa hoàn tất. Hãy thử lại với cùng mã.",
-  };
-  const loginHint: Record<ProviderInfo["loginType"], string> = {
-    browser: "đăng nhập mở ở trình duyệt ngoài",
-    device: "đăng nhập bằng mã thiết bị",
-    "api-key": "dán API key",
-    custom: "nhà cung cấp tự thêm",
-  };
-  const connectedLabels =
-    account.kind === "connected" ? account.accounts.map((a) => a.label).join(", ") : "";
+  onHome: () => void;
+  onSettings: () => void;
+}> = ({ gateway, account, onHome, onSettings }) => {
+  const s = aiReadyLabel(gateway, account);
+  return (
+    <header
+      style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        padding: "12px 20px",
+        borderBottom: `1px solid ${theme.border}`,
+        background: theme.panel,
+      }}
+    >
+      <button onClick={onHome} style={{ ...btn("ghost"), border: "none", fontWeight: 700, fontSize: 16 }}>
+        News Studio
+      </button>
+      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <span style={{ color: s.color, fontSize: 13 }} title="Trạng thái dịch vụ AI">
+          {s.dot} {s.text}
+        </span>
+        <button onClick={onSettings} style={btn("ghost")}>
+          ⚙ Cài đặt
+        </button>
+      </div>
+    </header>
+  );
+};
+
+// --- Home: create bar + project grid (guides, never gates) -----------------
+
+export const HomeView: React.FC<{
+  aiReady: boolean;
+  load: "loading" | "empty" | "populated";
+  cards: ProjectCardVM[];
+  onCreate: (raw: string) => void;
+  onOpen: (projectId: string) => void;
+  onConnectPrompt: () => void;
+}> = ({ aiReady, load, cards, onCreate, onOpen, onConnectPrompt }) => {
+  const [raw, setRaw] = useState("");
+  const valid = validateCreateInput({ raw });
+  const canCreate = aiReady && valid.ok;
 
   return (
-    <section style={{ ...box, maxWidth: 620 }}>
-      <h2 style={{ marginTop: 0, color: ink }}>Chào mừng</h2>
-      <p style={{ color: ink }}>{licenseMsg[license.kind]}</p>
-      {license.kind !== "active" && (
-        <div style={{ display: "flex", gap: 8 }}>
-          <input
-            aria-label="license-key"
-            value={key}
-            onChange={(e) => setKey(e.target.value)}
-            placeholder="Mã kích hoạt"
-            style={{ flex: 1, padding: 8, border: `2px solid ${ink}` }}
-          />
-          <button onClick={() => onActivate(key)} disabled={license.kind === "activating"} style={{ padding: "8px 16px" }}>
-            Kích hoạt
+    <div style={{ padding: 24, maxWidth: 1100, margin: "0 auto" }}>
+      {!aiReady && (
+        <div style={{ ...card, marginBottom: 16, borderColor: theme.accent, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <span style={{ color: theme.text }}>Kết nối tài khoản AI để bắt đầu tạo video.</span>
+          <button onClick={onConnectPrompt} style={btn("primary")}>
+            Kết nối AI
           </button>
         </div>
       )}
 
-      {license.kind === "active" && (
-        <div style={{ marginTop: 16 }}>
-          <h3 style={{ color: ink, marginBottom: 4 }}>Kết nối tài khoản AI</h3>
-          {gateway.kind === "unavailable" && <p style={{ color: "#9B2C2C" }}>Dịch vụ nội bộ chưa khởi động được.</p>}
-          {gateway.kind !== "ready" && gateway.kind !== "unavailable" && (
-            <p style={{ color: "#6E6757" }}>Đang khởi động dịch vụ AI…</p>
-          )}
+      <div style={{ ...card, marginBottom: 24 }}>
+        <h2 style={{ margin: "0 0 12px", color: theme.text }}>Tạo video mới</h2>
+        <textarea
+          aria-label="topic-input"
+          value={raw}
+          onChange={(e) => setRaw(e.target.value)}
+          placeholder="Dán đường dẫn bài báo hoặc mô tả chủ đề bằng tiếng Việt…"
+          rows={3}
+          style={{ ...input, width: "100%", resize: "vertical" }}
+        />
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 12 }}>
+          <button onClick={() => onCreate(raw)} disabled={!canCreate} style={btn("primary", !canCreate)}>
+            Tạo bản nháp
+          </button>
+          {!aiReady && <span style={{ color: theme.muted, fontSize: 13 }}>Cần kết nối AI trước.</span>}
+        </div>
+      </div>
 
-          {gateway.kind === "ready" && (
-            <>
-              {connectedLabels && <p style={{ color: ink }}>Đã kết nối: {connectedLabels}</p>}
-              <p style={{ color: "#6E6757", margin: "8px 0 4px" }}>Chọn nhà cung cấp để kết nối:</p>
-              <div style={{ display: "grid", gap: 6 }}>
-                {providers.map((p) => (
-                  <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 8, justifyContent: "space-between", border: `1px solid ${ink}`, padding: 8 }}>
-                    <span style={{ color: ink }}>
-                      <strong>{p.name}</strong>{" "}
-                      <span style={{ color: "#9B958A", fontSize: 12 }}>
-                        ({loginHint[p.loginType]}{p.connectedCount > 0 ? ` · đã nối ${p.connectedCount}` : ""})
-                      </span>
-                    </span>
-                    <button onClick={() => onConnect(p.id)} style={{ padding: "6px 12px" }}>
-                      Kết nối
-                    </button>
-                  </div>
-                ))}
+      <h3 style={{ color: theme.text }}>Video của tôi</h3>
+      {load === "loading" && <p style={{ color: theme.muted }}>Đang tải…</p>}
+      {load === "empty" && <p style={{ color: theme.muted }}>Chưa có video nào. Tạo video đầu tiên ở trên.</p>}
+      {load === "populated" && (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 14 }}>
+          {cards.map((c) => (
+            <button key={c.projectId} onClick={() => onOpen(c.projectId)} style={{ ...card, padding: 0, textAlign: "left", cursor: "pointer", overflow: "hidden" }}>
+              <div style={{ height: 124, background: c.thumbnailPath ? `center/cover url(${c.thumbnailPath})` : theme.panel2 }} />
+              <div style={{ padding: 12 }}>
+                <strong style={{ color: theme.text, display: "block" }}>{c.title}</strong>
+                <span style={{ color: theme.muted, fontSize: 13 }}>{FRIENDLY_LABELS[c.status]}</span>
+                <div style={{ color: "#6b7280", fontSize: 12 }}>{c.createdAtLabel}</div>
               </div>
-
-              {account.kind === "connected" && account.accounts.length > 0 && (
-                <div style={{ marginTop: 12 }}>
-                  <label style={{ color: ink, display: "block", marginBottom: 4 }}>Chọn model để dựng:</label>
-                  <select
-                    aria-label="model-select"
-                    value={account.selectedModel?.id ?? ""}
-                    onChange={(e) => onSelectModel(e.target.value)}
-                    style={{ padding: 8, border: `2px solid ${ink}`, minWidth: 260 }}
-                  >
-                    <option value="" disabled>
-                      — chọn model —
-                    </option>
-                    {models.map((m) => (
-                      <option key={m.id} value={m.id}>
-                        {m.id}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
-            </>
-          )}
+            </button>
+          ))}
         </div>
       )}
-    </section>
-  );
-};
-
-// --- Create (Req 3) --------------------------------------------------------
-
-export const CreateView: React.FC<{ canCreate: boolean; onCreate: (raw: string) => void }> = ({ canCreate, onCreate }) => {
-  const [raw, setRaw] = useState("");
-  const validation = validateCreateInput({ raw });
-  const hint =
-    raw.trim() === ""
-      ? ""
-      : validation.ok
-        ? validation.classified.kind === "url"
-          ? "Sẽ lấy nội dung từ đường dẫn này."
-          : "Sẽ tạo video từ chủ đề này."
-        : "Nội dung chưa hợp lệ.";
-
-  return (
-    <section style={{ ...box, maxWidth: 640 }}>
-      <h2 style={{ marginTop: 0, color: ink }}>Tạo video mới</h2>
-      <textarea
-        aria-label="topic-input"
-        value={raw}
-        onChange={(e) => setRaw(e.target.value)}
-        placeholder="Dán đường dẫn bài báo hoặc mô tả chủ đề…"
-        rows={3}
-        style={{ width: "100%", padding: 8, border: `2px solid ${ink}` }}
-      />
-      <p style={{ color: "#6E6757", minHeight: 20 }}>{hint}</p>
-      <button
-        onClick={() => onCreate(raw)}
-        disabled={!canCreate || !validation.ok}
-        style={{ padding: "10px 20px", background: accent, color: cream }}
-      >
-        Tạo bản nháp
-      </button>
-      {!canCreate && <p style={{ color: "#9B2C2C" }}>Hãy kích hoạt và kết nối tài khoản AI trước.</p>}
-    </section>
-  );
-};
-
-// --- Gallery (Req 10) ------------------------------------------------------
-
-export const GalleryView: React.FC<{
-  load: "loading" | "empty" | "populated";
-  cards: ProjectCardVM[];
-  onOpen: (projectId: string) => void;
-}> = ({ load, cards, onOpen }) => {
-  if (load === "loading") return <p style={{ color: ink }}>Đang tải dự án…</p>;
-  if (load === "empty") return <p style={{ color: ink }}>Chưa có video nào. Hãy tạo video đầu tiên.</p>;
-  return (
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 12 }}>
-      {cards.map((c) => (
-        <button key={c.projectId} onClick={() => onOpen(c.projectId)} style={{ ...box, textAlign: "left", cursor: "pointer" }}>
-          <div style={{ height: 120, background: c.thumbnailPath ? `center/cover url(${c.thumbnailPath})` : "#E7E0D2" }} />
-          <strong style={{ color: ink, display: "block", marginTop: 8 }}>{c.title}</strong>
-          <span style={{ color: "#6E6757" }}>{FRIENDLY_LABELS[c.status]}</span>
-          <div style={{ color: "#9B958A", fontSize: 12 }}>{c.createdAtLabel}</div>
-        </button>
-      ))}
     </div>
   );
 };
 
-// --- Storyboard (Req 8, 9) -------------------------------------------------
+// --- Settings: delegate AI login to 9router + model/voice/output -----------
+
+export const SettingsView: React.FC<{
+  gateway: GatewayState;
+  account: AiAccountState;
+  models: ModelInfo[];
+  settings: SettingsModel;
+  onManageAccounts: () => void;
+  onSelectModel: (modelId: string) => void;
+  onUpdate: (patch: Partial<SettingsModel>) => void;
+}> = ({ gateway, account, models, settings, onManageAccounts, onSelectModel, onUpdate }) => {
+  const connected = account.kind === "connected" ? account.accounts : [];
+  const selectedModelId = account.kind === "connected" ? account.selectedModel?.id ?? "" : "";
+
+  return (
+    <div style={{ padding: 24, maxWidth: 720, margin: "0 auto", display: "grid", gap: 16 }}>
+      <h2 style={{ color: theme.text, margin: 0 }}>Cài đặt</h2>
+
+      <section style={card}>
+        <h3 style={{ marginTop: 0, color: theme.text }}>Tài khoản AI</h3>
+        {gateway.kind === "starting" && <p style={{ color: theme.muted }}>Đang khởi động dịch vụ AI…</p>}
+        {gateway.kind === "unavailable" && (
+          <p style={{ color: theme.danger }}>Không khởi động được 9Router. Hãy kiểm tra 9Router đã cài rồi mở lại app.</p>
+        )}
+        {gateway.kind === "ready" && (
+          <>
+            <p style={{ color: connected.length ? theme.good : theme.muted }}>
+              {connected.length ? `✓ Đã kết nối: ${connected.map((a) => a.label).join(", ")}` : "Chưa có tài khoản nào."}
+            </p>
+            <button onClick={onManageAccounts} style={btn("primary")}>
+              {connected.length ? "Thêm / quản lý tài khoản (mở 9Router)" : "Đăng nhập tài khoản AI (mở 9Router)"}
+            </button>
+            <p style={{ color: theme.muted, fontSize: 12, marginBottom: 0 }}>
+              Cửa sổ 9Router sẽ mở để bạn đăng nhập đúng cách của từng nhà cung cấp.
+            </p>
+          </>
+        )}
+      </section>
+
+      {connected.length > 0 && (
+        <section style={card}>
+          <h3 style={{ marginTop: 0, color: theme.text }}>Model dùng để dựng</h3>
+          <select
+            aria-label="model-select"
+            value={selectedModelId}
+            onChange={(e) => onSelectModel(e.target.value)}
+            style={{ ...input, minWidth: 340 }}
+          >
+            <option value="" disabled>
+              — chọn model —
+            </option>
+            {models.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.id}
+              </option>
+            ))}
+          </select>
+        </section>
+      )}
+
+      <section style={card}>
+        <h3 style={{ marginTop: 0, color: theme.text }}>Khác</h3>
+        <p style={{ color: theme.text }}>Giọng đọc: {settings.voiceProvider}</p>
+        <label style={{ color: theme.text, display: "block", marginTop: 8 }}>
+          Số lần tự sửa tối đa
+          <input
+            type="number"
+            min={1}
+            max={10}
+            value={settings.maxRepairAttempts}
+            onChange={(e) => onUpdate({ maxRepairAttempts: Number(e.target.value) })}
+            style={{ ...input, width: 72, marginLeft: 8 }}
+          />
+        </label>
+        <label style={{ color: theme.text, display: "block", marginTop: 8 }}>
+          <input
+            type="checkbox"
+            checked={settings.scriptGateEnabled}
+            onChange={(e) => onUpdate({ scriptGateEnabled: e.target.checked })}
+          />{" "}
+          Duyệt kịch bản trước khi dựng
+        </label>
+        <p style={{ color: theme.muted, fontSize: 12 }}>Thư mục lưu: {settings.outputDir || "(mặc định)"}</p>
+      </section>
+    </div>
+  );
+};
+
+// --- Storyboard (dark) -----------------------------------------------------
 
 export const StoryboardView: React.FC<{
   model: StoryboardModel;
@@ -208,12 +269,15 @@ export const StoryboardView: React.FC<{
   const [notes, setNotes] = useState("");
 
   return (
-    <section>
-      {percent !== null && <p style={{ color: ink }}>Đang dựng… {percent}%</p>}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 12 }}>
+    <div style={{ padding: 24, maxWidth: 1100, margin: "0 auto" }}>
+      {percent !== null && <p style={{ color: theme.text }}>Đang dựng… {percent}%</p>}
+      {model.scenes.length === 0 && (
+        <p style={{ color: theme.muted }}>Chưa có cảnh nào. (Bộ máy dựng cảnh sẽ điền storyboard ở đây.)</p>
+      )}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 14 }}>
         {model.scenes.map((s) => (
-          <div key={s.sceneId} style={box}>
-            <div style={{ height: 140, background: `center/cover url(${s.stillPath})`, border: `1px solid ${ink}` }} />
+          <div key={s.sceneId} style={card}>
+            <div style={{ height: 140, background: `center/cover url(${s.stillPath})`, borderRadius: 6, border: `1px solid ${theme.border}` }} />
             <textarea
               aria-label={`edit-${s.sceneId}`}
               value={edits[s.sceneId] ?? ""}
@@ -221,7 +285,7 @@ export const StoryboardView: React.FC<{
               onChange={(e) => setEdits((m) => ({ ...m, [s.sceneId]: e.target.value }))}
               placeholder="Muốn sửa gì ở cảnh này?"
               rows={2}
-              style={{ width: "100%", marginTop: 8, border: `2px solid ${ink}` }}
+              style={{ ...input, width: "100%", marginTop: 10 }}
             />
           </div>
         ))}
@@ -233,58 +297,19 @@ export const StoryboardView: React.FC<{
         onChange={(e) => setNotes(e.target.value)}
         placeholder="Ghi chú chung cho cả video…"
         rows={2}
-        style={{ width: "100%", marginTop: 12, border: `2px solid ${ink}` }}
+        style={{ ...input, width: "100%", marginTop: 16 }}
       />
-      <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+      <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
         <button
-          onClick={() =>
-            onSubmit(
-              Object.entries(edits).map(([sceneId, text]) => ({ sceneId, text })),
-              notes,
-            )
-          }
-          style={{ padding: "10px 20px" }}
+          onClick={() => onSubmit(Object.entries(edits).map(([sceneId, text]) => ({ sceneId, text })), notes)}
+          style={btn("ghost")}
         >
           Gửi chỉnh sửa
         </button>
-        <button onClick={onApprove} disabled={!canApprove} style={{ padding: "10px 20px", background: accent, color: cream }}>
+        <button onClick={onApprove} disabled={!canApprove} style={btn("primary", !canApprove)}>
           Duyệt &amp; xuất bản
         </button>
       </div>
-    </section>
+    </div>
   );
 };
-
-// --- Settings (Req 11) -----------------------------------------------------
-
-export const SettingsView: React.FC<{ settings: SettingsModel; onUpdate: (patch: Partial<SettingsModel>) => void }> = ({
-  settings,
-  onUpdate,
-}) => (
-  <section style={{ ...box, maxWidth: 520 }}>
-    <h2 style={{ marginTop: 0, color: ink }}>Cài đặt</h2>
-    <label style={{ display: "block", color: ink }}>
-      Giọng đọc: {settings.voiceProvider}
-    </label>
-    <label style={{ display: "block", color: ink, marginTop: 8 }}>
-      Số lần tự sửa tối đa
-      <input
-        type="number"
-        min={1}
-        max={10}
-        value={settings.maxRepairAttempts}
-        onChange={(e) => onUpdate({ maxRepairAttempts: Number(e.target.value) })}
-        style={{ marginLeft: 8, width: 64, border: `2px solid ${ink}` }}
-      />
-    </label>
-    <label style={{ display: "block", color: ink, marginTop: 8 }}>
-      <input
-        type="checkbox"
-        checked={settings.scriptGateEnabled}
-        onChange={(e) => onUpdate({ scriptGateEnabled: e.target.checked })}
-      />{" "}
-      Duyệt kịch bản trước khi dựng
-    </label>
-    <p style={{ color: "#9B958A", marginTop: 8 }}>Thư mục lưu: {settings.outputDir}</p>
-  </section>
-);
