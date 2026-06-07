@@ -300,7 +300,7 @@ property number.
       consistent with the canonical contract docs
     - _Requirements: 8.1, 8.2, 8.3, 8.4, 8.5, 8.6_
 
-- [ ] 11. Final checkpoint
+- [x] 11. Final checkpoint
   - Ensure all tests pass (`npm run typecheck`, `npm test`, `npm run build`),
     ask the user if questions arise.
 
