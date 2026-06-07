@@ -1,9 +1,9 @@
 import React, { useEffect, useReducer, useState } from "react";
-import { HomeView, ProjectsView, SettingsView, Sidebar, StoryboardView, type Screen } from "./views.js";
+import { HomeView, LicenseView, ProjectsView, SettingsView, Sidebar, StoryboardView, type Screen } from "./views.js";
 import { reduceDesktop, progressPercent, type DesktopState } from "./state/desktop-state.js";
 import { aiReady } from "../main/gateway/model-gateway-manager.js";
 import { defaultSettings } from "./settings/settings-model.js";
-import type { ModelInfo } from "../shared/types.js";
+import type { LicenseState, ModelInfo } from "../shared/types.js";
 
 /**
  * Renderer root (web-dashboard) — enterprise shell: a left Sidebar + a content
@@ -23,6 +23,7 @@ const initial: DesktopState = {
 export const App: React.FC = () => {
   const [state, dispatch] = useReducer(reduceDesktop, initial);
   const [screen, setScreen] = useState<Screen>("home");
+  const [license, setLicense] = useState<LicenseState>({ kind: "unactivated" });
   const [gateway, setGateway] = useState(initial.gateway);
   const [account, setAccount] = useState(initial.aiAccount);
   const [settings, setSettings] = useState(initial.settings);
@@ -34,6 +35,7 @@ export const App: React.FC = () => {
   useEffect(() => {
     if (!dash) return;
     void (async () => {
+      setLicense(await dash.license.get());
       setSettings(await dash.settings.get());
       dispatch({ type: "gallery", load: "loading", cards: [] });
       const cards = await dash.projects.list();
@@ -82,6 +84,10 @@ export const App: React.FC = () => {
       dispatch({ type: "openProject", project: { projectId, storyboard, draft: { hasReviewedDraft: false, revision: 0 } } });
       setScreen("storyboard");
     });
+
+  if (license.kind !== "active") {
+    return <LicenseView state={license} onActivate={(key) => void dash?.license.activate(key).then(setLicense)} />;
+  }
 
   return (
     <div className="ns-shell">

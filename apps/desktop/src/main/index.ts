@@ -25,12 +25,20 @@ const gateway = new ModelGatewayManager(
 
 let settings: SettingsModel = defaultSettings(process.env.VIDEO_TOOL_HOME ?? "");
 let selectedModel: ModelInfo | undefined;
-// Dev license bypass: no License_Service in dev, so treat as active.
-const license: LicenseState = { kind: "active", machineLocked: true, lastVerifiedAt: new Date().toISOString() };
+// Dev license: starts unactivated so the activation screen shows; the dev code
+// "123" activates it (no real License_Service in dev).
+const DEV_LICENSE_CODE = "123";
+let license: LicenseState = { kind: "unactivated" };
 
 const handlers: InvokeHandlers = {
   "license:get": () => license,
-  "license:activate": () => license,
+  "license:activate": (key) => {
+    license =
+      String(key).trim() === DEV_LICENSE_CODE
+        ? { kind: "active", machineLocked: true, lastVerifiedAt: new Date().toISOString() }
+        : { kind: "error", reason: "invalid" };
+    return license;
+  },
 
   "ai:gatewayState": () => gateway.state(),
   "ai:listProviders": () => gateway.listProviders(),
