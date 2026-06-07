@@ -216,48 +216,60 @@ Lưu ý: với kiến trúc Tầng 1–4 ở mục 5 (phân rã + RAG + repair),
 
 ---
 
-## 8. CHỐT LẠI (điền khi bàn xong → biến thành spec `.kiro/specs/web-dashboard/`)
+## 8. CHỐT LẠI — quyết định cuối (2026-06-07)
 
-> Mục này để TRỐNG cho tới khi cả hai thấy đã đủ. Khi chốt:
-> - Quyết: phạm vi web dashboard v1 (control plane trước?).
-> - Quyết: worker (X) hay (Y); model/combo mặc định qua 9Router.
-> - Quyết: authoring engine bắt đầu tầng nào (đề xuất: Phân rã + Generate-
->   Validate-Repair trước, RAG + caching sau, fine-tune để dành).
-> - Quyết: UI review per-scene (slide grid) là tính năng v1 hay v2.
-> - Quyết: hosting (local cho người mua vs SaaS).
-> Sau đó: tạo spec chính thức và build từ đó.
+> Bàn xong. Đây là các quyết định nền để tạo spec `.kiro/specs/web-dashboard/`.
 
-### Quyết định đã đồng thuận tạm thời (cập nhật 2026-06-07)
-- **Không dùng ô chat.** Tương tác = bảng slide review từng cảnh + ô sửa từng
-  cảnh + ô ghi chú tổng + nút thao tác (mục 4). ✔ đồng thuận.
-- **Silent-first:** AI author âm thầm tới bản nháp; người dùng chỉ thấy tiến độ +
-  storyboard mọc dần; chỉ tương tác ở bước review (mục 9.2, 9.6). ✔
-- **Progressive disclosure 4 mức** (Mức 0 ẩn engine / 1 luôn hiện / 2 theo ngữ
-  cảnh / 3 settings riêng) làm xương sống cho việc "cái nào hiện lúc nào" (mục
-  9.3). ✔
-- **Ngôn ngữ người dùng:** dịch state kỹ thuật → nhãn thân thiện; lỗi grid hiện
-  dạng "đã tự sửa / cần sửa", không phơi mã N-check (mục 9.3, 9.4). ✔
-- **Nguồn AI = 9Router** (đa nhà cung cấp, có Kiro free), authoring worker dùng
-  endpoint OpenAI-compatible; vòng lặp agent là code của ta (mục 3, 6). ✔
-- **Authoring engine xếp tầng:** phân rã (A→B→C) + RAG full-fidelity + prompt
-  caching + **generate-validate-repair với grid là trụ cột**; fine-tune để dành
-  (mục 5). ✔ (đồng thuận về hướng; thứ tự triển khai sẽ chốt sau)
-- **Mọi cổng chất lượng giữ nguyên** (admission, N1–N30, evidence gate,
-  draft-first) ở mọi surface. ✔ (bất biến)
+### Định vị & đóng gói
+- **Desktop app** (Electron — đã kèm Chromium, tái dùng cho Remotion render;
+  engine Node bọc thẳng). Render + AI **chạy trên máy người dùng**.
+- **Bán đứt** + **license key kích hoạt online** (Gumroad/Lemon Squeezy/Keygen —
+  rẻ, thu hồi được). **Không cloud brain/render** (không đủ nguồn lực) — để ngỏ
+  lớp Pro cloud cho tương lai, không chặn khởi động.
+- Moat: grid N1–N30 + design system + style packs + update liên tục + thương
+  hiệu (KHÔNG dựa vào việc giấu prompt — prompt không giấu được khi gọi qua
+  9Router local).
 
-### Câu hỏi mở cần chốt (bàn tiếp để làm rõ)
-1. **Phạm vi web v1:** chỉ control plane (settings + projects + tạo + xem
-   draft/full), hay v1 đã gồm luôn **review-per-scene (slide + ô sửa)**? (cái
-   này là trái tim trải nghiệm — có thể đáng đưa vào v1 dù khó hơn.)
-2. **Worker khởi đầu:** (X) tự dựng vòng lặp + preprompt, hay (Y) cắm
-   agent-runtime headless tự nạp skill+MCP? (ảnh hưởng công sức + độ "đúng chất
-   Kiro".)
-3. **Định vị bán:** giao repo cho người mua chạy **local** (họ tự dựng 9Router +
-   .env), hay **host SaaS** tập trung? (ảnh hưởng kiến trúc, TOS, chi phí.)
-4. **Stage 2 (duyệt kịch bản dạng chữ):** bắt buộc, tùy chọn, hay bỏ? (đỡ 1 vòng
-   render nhưng thêm 1 bước.)
-5. **Render ở đâu:** máy người dùng (Remotion + Chromium nặng) hay server? (liên
-   quan câu 3 + cấu hình máy người mua.)
+### Nguồn AI & kết nối
+- **9Router gói sẵn trong app, chạy ngầm** (`localhost`). Người dùng chỉ thấy nút
+  **"Đăng nhập tài khoản AI"** → OAuth provider (mặc định Kiro free một-cú-bấm;
+  Codex/Gemini/… trong "Nâng cao"). Key 9Router local do app **tự sinh tự cắm** —
+  người dùng không đụng tới khái niệm "API key"/"9Router".
+- Giọng: **Vivibe** mặc định (đã chứng minh tốt cho tiếng Việt); 9Router TTS để
+  dành.
+
+### Authoring brain
+- **Thử Hướng (Y) bằng POC trước:** nhúng một agent-runtime mã nguồn mở headless
+  (OpenCode/Cline…) tự nạp `SKILL.md` + `AGENTS.md` + gọi **MCP tools** của ta;
+  9Router làm nguồn model. **Không được headless ổn định → rớt về (X)** (tự dựng
+  vòng lặp + preprompt).
+- **Generate-validate-repair là trụ cột:** phơi `render_draft` + "lấy báo cáo
+  grid" thành MCP tool để agent tự render → đọc lỗi N-check → sửa → lặp.
+- Engine xếp tầng (mục 5): phân rã + generate-validate-repair **trước**; RAG +
+  prompt caching **sau**; fine-tune để dành.
+
+### Giao diện
+- **Silent-first + review-per-scene (KHÔNG chat).** v1 gồm **bản tối giản**: ảnh
+  từng cảnh + ô sửa từng cảnh + ô ghi chú tổng + Approve; **sửa-chữ-thuần áp
+  thẳng (không AI, tức thì)**, **sửa-hình → AI chỉ đụng cảnh đó**, **re-render chỉ
+  cảnh đã đổi**. Clip-mini từng cảnh + lịch sử version → v2.
+- **Progressive disclosure 4 mức** (mục 9.3) là xương sống "cái nào hiện lúc nào".
+- **Stage 2 (duyệt kịch bản chữ trước render):** tùy chọn, **mặc định bật**.
+- Ngôn ngữ người dùng: dịch state kỹ thuật → nhãn thân thiện; lỗi grid hiện
+  "đã tự sửa / cần sửa", không phơi mã N-check.
+
+### Bất biến (giữ nguyên ở mọi surface)
+- Admission gate + grid N1–N30 + evidence gate (N9) + draft-first + một
+  orchestrator một-tiến-trình + determinism. Web/desktop chỉ là adapter mỏng.
+
+### Bước tiếp theo
+- Tạo spec chính thức `.kiro/specs/web-dashboard/` (Requirements → Design →
+  Tasks) từ các quyết định trên. POC Hướng (Y) là một trong các task đầu (spike)
+  để xác nhận trước khi cam kết.
+
+---
+
+## (Phần dưới là nhật ký thảo luận chi tiết — giữ để tra cứu)
 
 ---
 
@@ -369,3 +381,67 @@ Stage 5 · XONG:  full render → xem + tải + (về sau) đăng nhiều nền 
   seedance.tv/blog/seedance-storyboard-workflow-2026 (scene-by-scene)
 
 > Nội dung các nguồn đã được diễn giải lại để tuân thủ giấy phép.
+
+---
+
+## 10. Đóng gói & mô hình kinh doanh (desktop app) — bàn 2026-06-07
+
+### 10.1 Quyết định: **Desktop app** (Phương án 3 / Hybrid)
+- Người dùng tải app về, render chạy **trên máy họ**, AI dùng **key riêng của họ**
+  (qua 9Router). Đối tượng mua: ~50/50 non-tech và dân kỹ thuật → desktop app
+  dung hòa tốt nhất (UX gần SaaS, chi phí render+token đẩy về người dùng).
+- Kỹ thuật: Electron (đã kèm Chromium → tái dùng cho Remotion render) hoặc
+  Tauri + Node sidecar. Engine Node + pipeline hiện tại bọc trong vỏ desktop +
+  web UI local.
+
+### 10.2 Sự thật phũ về "mã hóa chống ăn cắp"
+- App JS/Node + React/Remotion **không thể bảo vệ tuyệt đối**. Obfuscate /
+  bytenode (compile V8 bytecode) chỉ **làm khó**, không chặn được người quyết tâm.
+- **IP thật sự không chỉ là code**, mà là: (a) authoring contract + prompt
+  library + "gu" thiết kế, (b) safety grid + oracles, (c) style packs, (d) know-how
+  tích lũy / fine-tuned model. → Bảo vệ bằng cách **giữ phần quý nhất ở server**,
+  không ship plaintext.
+
+### 10.3 Hướng khuyến nghị: tách "vỏ local" và "não có giấy phép"
+- **Vỏ chạy local (ship cho người dùng):** web UI + render Remotion + pipeline
+  cơ khí + dùng key AI của họ. Phần này lộ cũng ít nguy hại.
+- **Não có giấy phép (bảo vệ):** authoring engine + prompt library + RAG index +
+  (sau này) fine-tuned model. Gating bằng **license key kích hoạt online**
+  (node-locked + phone-home định kỳ). Hết hạn license → vẫn giữ video đã làm,
+  nhưng **không tạo mới được** (hoặc rớt về chế độ local hạn chế).
+- → Cho phép cảm giác "mua đứt" mà vẫn bảo vệ được não + bật được gói tháng cho
+  ai muốn update/não cloud.
+
+### 10.4 Căng thẳng cốt lõi cần CHỌN: "giấu prompt" ↔ "chạy hoàn toàn local"
+- Nếu authoring chạy **hoàn toàn local qua 9Router của người dùng** → prompt
+  (IP) **đi qua máy họ → họ xem/log được**. Không giấu được.
+- Nếu muốn **giấu prompt/engine** → lệnh gọi LLM phải **xuất phát từ server của
+  ta** (assemble prompt server-side, gọi provider từ server). Khi đó: hoặc ta
+  bỏ tiền token, hoặc người dùng BYO key lưu server-side.
+- **Trung dung khả thi:** ship một **prompt local "đủ tốt nhưng không phải bí
+  kíp"**; giữ **prompt tinh chỉnh nhất + fine-tuned model** ở **não cloud trả
+  phí** (premium). Người dùng cơ bản chạy local; người trả tháng được não xịn.
+
+### 10.5 Mô hình giá (đề xuất để cân nhắc)
+- **License key** = trục chính: kích hoạt online, node-locked.
+- Lựa chọn: **mua đứt 1 phiên bản + 1 năm update**, HOẶC **gói tháng rẻ** mở
+  "não cloud" + update liên tục. Có thể chạy song song (mua đứt bản cơ bản local,
+  thuê bao cho não cloud premium).
+- Render & token: **người dùng tự chịu** (máy họ + key họ) → giá phần mềm rẻ được.
+
+### 10.6 Câu hỏi mở (ưu tiên cao — quyết kiến trúc)
+- **Q-A — ĐÃ CHỐT: Cách 2 (local hoàn toàn) + license rẻ, BÁN ĐỨT.** Không làm
+  cloud brain (không đủ nguồn lực). Chấp nhận prompt không giấu được trọn; moat
+  dựa vào grid + design system + update + thương hiệu. Để ngỏ lớp Pro cloud cho
+  tương lai (không chặn khởi động).
+- **Q-B — ĐÃ CHỐT: mua đứt** (license kích hoạt online qua Gumroad/Lemon
+  Squeezy/Keygen — rẻ, thu hồi được). Render + token đều ở phía người dùng.
+- Q-C: Electron hay Tauri+Node sidecar? (chưa chốt)
+
+### 10.7 Hệ quả của Cách 2 (ghi để khỏi quên)
+- Render LUÔN ở máy người dùng (Remotion + Chromium local).
+- AI dùng key người dùng qua 9Router local.
+- "Cloud" duy nhất = **license server tí hon** (kích hoạt + thu hồi), không phải
+  AI/render cloud.
+- Vì prompt không giấu được khi gọi qua 9Router của họ → **đừng tốn công giấu
+  prompt**; tập trung vào chất lượng engine + update.
