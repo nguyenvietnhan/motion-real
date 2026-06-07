@@ -1,18 +1,16 @@
-import React, { useEffect, useReducer, useRef, useState } from "react";
-import { HomeView, SettingsView, StoryboardView, TopBar, theme } from "./views.js";
+import React, { useEffect, useReducer, useState } from "react";
+import { HomeView, ProjectsView, SettingsView, Sidebar, StoryboardView, type Screen } from "./views.js";
 import { reduceDesktop, progressPercent, type DesktopState } from "./state/desktop-state.js";
 import { aiReady } from "../main/gateway/model-gateway-manager.js";
 import { defaultSettings } from "./settings/settings-model.js";
 import type { ModelInfo } from "../shared/types.js";
 
 /**
- * Renderer root (web-dashboard, redesigned). A persistent dark shell with a
- * Home-first flow: the app never blocks on onboarding — AI status lives in the
- * top bar, AI login is delegated to 9router via Settings, and a sensible default
- * model is auto-selected once connected. Streaming events fold into DesktopState.
+ * Renderer root (web-dashboard) — enterprise shell: a left Sidebar + a content
+ * area, Home-first. AI status lives in the sidebar; login is delegated to
+ * 9router via Settings; a default model auto-selects once connected. Gateway is
+ * polled only until AI is ready.
  */
-
-type Screen = "home" | "storyboard" | "settings";
 
 const initial: DesktopState = {
   license: { kind: "active", machineLocked: true, lastVerifiedAt: "" },
@@ -29,8 +27,6 @@ export const App: React.FC = () => {
   const [account, setAccount] = useState(initial.aiAccount);
   const [settings, setSettings] = useState(initial.settings);
   const [models, setModels] = useState<ModelInfo[]>([]);
-  const modelsRef = useRef<ModelInfo[]>([]);
-  modelsRef.current = models;
 
   const dash = typeof window !== "undefined" ? window.dashboard : undefined;
   const ready = aiReady(gateway, account);
@@ -51,9 +47,8 @@ export const App: React.FC = () => {
       dash.events.onFriendlyError((e) => dispatch({ type: "friendlyError", error: e })),
     ];
 
-    // Poll the gateway only until AI is ready (gateway up + a connection + a
-    // model). Auto-select a sensible default model so the user isn't forced to
-    // choose. Once ready, stop polling (no flicker / churn).
+    // Poll only until AI is ready (gateway up + a connection + a model); auto-pick
+    // a default model so the user isn't forced to choose; then stop (no churn).
     const poll = setInterval(() => {
       void (async () => {
         const gw = await dash.ai.gatewayState();
@@ -63,7 +58,7 @@ export const App: React.FC = () => {
         if (ms.length) setModels(ms);
         let acc = await dash.ai.connectedAccounts();
         if (acc.kind === "connected" && acc.accounts.length > 0 && !acc.selectedModel && ms.length) {
-          acc = await dash.ai.selectModel(ms[0]!.id); // smart default
+          acc = await dash.ai.selectModel(ms[0]!.id);
         }
         setAccount(acc);
         if (aiReady(gw, acc)) clearInterval(poll);
@@ -82,56 +77,59 @@ export const App: React.FC = () => {
     dispatch({ type: "gallery", load: cards.length === 0 ? "empty" : "populated", cards });
   };
 
-  const manageAccounts = () => {
-    // Delegate login to 9router's own UI; the poll picks up the new connection.
-    void dash?.ai.beginConnect("");
-  };
+  const openProject = (projectId: string) =>
+    void dash?.projects.open(projectId).then((storyboard) => {
+      dispatch({ type: "openProject", project: { projectId, storyboard, draft: { hasReviewedDraft: false, revision: 0 } } });
+      setScreen("storyboard");
+    });
 
   return (
-    <div style={{ background: theme.bg, minHeight: "100vh", fontFamily: "Inter, system-ui, sans-serif", color: theme.text }}>
-      <TopBar gateway={gateway} account={account} onHome={() => setScreen("home")} onSettings={() => setScreen("settings")} />
+    <div className="ns-shell">
+      <Sidebar active={screen} gateway={gateway} account={account} onNavigate={setScreen} />
+      <main className="ns-main">
+        {screen === "home" && (
+          <HomeView
+            aiReady={ready}
+            load={state.gallery.load}
+            cards={state.gallery.cards}
+            onConnectPrompt={() => setScreen("settings")}
+            onCreate={(raw) => void dash?.projects.create({ raw }).then(() => refreshGallery())}
+            onOpen={openProject}
+          />
+        )}
 
-      {screen === "home" && (
-        <HomeView
-          aiReady={ready}
-          load={state.gallery.load}
-          cards={state.gallery.cards}
-          onConnectPrompt={() => setScreen("settings")}
-          onCreate={(raw) =>
-            void dash?.projects.create({ raw }).then(async () => {
-              await refreshGallery();
-            })
-          }
-          onOpen={(projectId) =>
-            void dash?.projects.open(projectId).then((storyboard) => {
-              dispatch({ type: "openProject", project: { projectId, storyboard, draft: { hasReviewedDraft: false, revision: 0 } } });
-              setScreen("storyboard");
-            })
-          }
-        />
-      )}
+        {screen === "projects" && (
+          <ProjectsView
+            load={state.gallery.load}
+            cards={state.gallery.cards}
+            onOpen={openProject}
+            onNew={() => setScreen("home")}
+          />
+        )}
 
-      {screen === "settings" && (
-        <SettingsView
-          gateway={gateway}
-          account={account}
-          models={models}
-          settings={settings}
-          onManageAccounts={manageAccounts}
-          onSelectModel={(modelId) => void dash?.ai.selectModel(modelId).then(setAccount)}
-          onUpdate={(patch) => void dash?.settings.update(patch).then(setSettings)}
-        />
-      )}
+        {screen === "settings" && (
+          <SettingsView
+            gateway={gateway}
+            account={account}
+            models={models}
+            settings={settings}
+            onManageAccounts={() => void dash?.ai.beginConnect("")}
+            onSelectModel={(modelId) => void dash?.ai.selectModel(modelId).then(setAccount)}
+            onUpdate={(patch) => void dash?.settings.update(patch).then(setSettings)}
+          />
+        )}
 
-      {screen === "storyboard" && state.openProject && (
-        <StoryboardView
-          model={state.openProject.storyboard}
-          percent={progressPercent(state)}
-          canApprove={state.openProject.draft.hasReviewedDraft}
-          onSubmit={(perScene, globalNotes) => void dash?.review.submitEdits(state.openProject!.projectId, { perScene, globalNotes })}
-          onApprove={() => void dash?.review.approveDraft(state.openProject!.projectId)}
-        />
-      )}
+        {screen === "storyboard" && state.openProject && (
+          <StoryboardView
+            model={state.openProject.storyboard}
+            percent={progressPercent(state)}
+            canApprove={state.openProject.draft.hasReviewedDraft}
+            onBack={() => setScreen("home")}
+            onSubmit={(perScene, globalNotes) => void dash?.review.submitEdits(state.openProject!.projectId, { perScene, globalNotes })}
+            onApprove={() => void dash?.review.approveDraft(state.openProject!.projectId)}
+          />
+        )}
+      </main>
     </div>
   );
 };
