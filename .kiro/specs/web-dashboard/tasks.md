@@ -401,8 +401,8 @@ Language: TypeScript (existing monorepo). Tests run under Vitest with
       correct retry per `FriendlyError`, and never surface L0 tokens
     - _Requirements: 11.5, 11.6_
 
-- [ ] 12. Preserved-invariants verification and final checkpoint
-  - [ ]* 12.1 Write integration tests asserting preserved engine invariants
+- [x] 12. Preserved-invariants verification and final checkpoint
+  - [x]* 12.1 Write integration tests asserting preserved engine invariants
     - Through the stubbed orchestrator/tools boundary, assert the dashboard never
       bypasses the grid, draft-first, Vivibe guard, hygiene, or the single
       registry: full render refused without a reviewed draft (Req 12.5), no
@@ -411,7 +411,7 @@ Language: TypeScript (existing monorepo). Tests run under Vitest with
       and artifacts stay under `.video-tool/`/`planning/` (Req 12.9)
     - _Requirements: 12.1, 12.3, 12.4, 12.5, 12.6, 12.7, 12.8, 12.9, 12.10_
 
-  - [ ] 12.2 Final checkpoint
+  - [x] 12.2 Final checkpoint
     - Ensure all tests pass (`npm run typecheck`, `npm test`, `npm run build`)
       and the EXISTING engine suite stays green; ask the user if questions arise.
 

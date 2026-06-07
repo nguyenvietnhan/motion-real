@@ -29,6 +29,7 @@ export default defineConfig({
       "@news/tts": pkg("tts"),
       "@news/compositions": pkg("compositions"),
       "@news/pipeline": pkg("pipeline"),
+      "@news/mcp": pkg("mcp"),
     },
   },
   test: {
