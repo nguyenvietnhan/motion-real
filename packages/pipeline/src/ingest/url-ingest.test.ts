@@ -4,7 +4,7 @@ import { existsSync } from "node:fs";
 import { mkdtemp, readFile, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { ingestUrl, type FetchLike } from "./url-ingest.js";
+import { ingestUrl, type FetchLike, normalizePublishedDate } from "./url-ingest.js";
 import { isPipelineError } from "../errors.js";
 import { planningDir } from "../store/store.js";
 
@@ -225,5 +225,26 @@ describe("ingestUrl — evidence-gate interaction (R2.5)", () => {
     const result = await ingestUrl("https://example.com/chip", { fetchImpl: okFetch(html) });
     expect(result.id).toMatch(/^[a-z0-9-]+$/);
     expect(result.id.startsWith("gia-chip-ai")).toBe(true);
+  });
+});
+
+describe("ingestUrl — publishedDate normalization", () => {
+  it("converts a Unix epoch (seconds / ms) to an ISO date and keeps real dates verbatim", () => {
+    expect(normalizePublishedDate("1780424047")).toBe(new Date(1780424047 * 1000).toISOString());
+    expect(normalizePublishedDate("1780424047000")).toBe(new Date(1780424047000).toISOString());
+    expect(normalizePublishedDate("2026-06-03T10:00:00Z")).toBe("2026-06-03T10:00:00Z");
+    expect(normalizePublishedDate("  ")).toBeUndefined();
+    expect(normalizePublishedDate(undefined)).toBeUndefined();
+  });
+
+  it("an ingested article with an epoch date writes a readable ISO date in the header", async () => {
+    const html = articleHtml({
+      title: "Epoch date story",
+      paragraphs: longBody("epoch"),
+      extraHead: `<meta property="article:published_time" content="1780424047" />`,
+    });
+    const result = await ingestUrl("https://example.com/epoch", { id: "epoch", fetchImpl: okFetch(html) });
+    expect(result.metadata.publishedDate).toBe(new Date(1780424047 * 1000).toISOString());
+    expect(result.metadata.publishedDate).toMatch(/^\d{4}-\d{2}-\d{2}T/);
   });
 });

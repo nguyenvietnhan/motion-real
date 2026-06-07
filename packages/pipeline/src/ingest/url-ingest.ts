@@ -116,7 +116,27 @@ function extractMetadata(
     ]) ?? document.querySelector("time[datetime]")?.getAttribute("datetime")?.trim() ?? undefined;
   void url;
   void fetchedAt;
-  return { title, site, author, publishedDate };
+  return { title, site, author, publishedDate: normalizePublishedDate(publishedDate) };
+}
+
+/**
+ * Normalize a publication date for the provenance header. Some sites expose a
+ * raw Unix epoch (seconds or milliseconds) in the date meta; convert those to an
+ * ISO timestamp so the header is human-readable. A value that is already a date
+ * string is kept verbatim.
+ */
+export function normalizePublishedDate(raw?: string): string | undefined {
+  const trimmed = raw?.trim();
+  if (!trimmed) return undefined;
+  if (/^\d{10}$/.test(trimmed)) {
+    const d = new Date(Number(trimmed) * 1000);
+    return Number.isNaN(d.getTime()) ? trimmed : d.toISOString();
+  }
+  if (/^\d{13}$/.test(trimmed)) {
+    const d = new Date(Number(trimmed));
+    return Number.isNaN(d.getTime()) ? trimmed : d.toISOString();
+  }
+  return trimmed;
 }
 
 /** YAML-escape a scalar (provenance values are simple strings). */
