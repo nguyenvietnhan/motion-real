@@ -6,7 +6,10 @@
   "main": "dist-electron/main/index.js",
   "scripts": {
     "dev": "vite",
-    "build:renderer": "vite build"
+    "build:renderer": "vite build",
+    "build:main": "node build-electron.mjs",
+    "app": "node scripts/launch.mjs",
+    "smoke:gateway": "tsx scripts/gateway-smoke.ts"
   },
   "dependencies": {
     "@news/mcp": "0.1.0",
