@@ -248,7 +248,7 @@ Language: TypeScript (existing monorepo). Tests run under Vitest with
       budget; stop on first zero-hard-error report and present; on exhaustion
       return `{ kind:"exhausted" }` driving a friendly "could not complete" +
       retry-from-new-draft; emit auto-fixes via `onRepair` as plain language
-    - _Requirements: 6.3, 6.4, 6.6, 6.7, 6.8_
+    - _Requirements: 6.3, 6.4, 6.5, 6.6, 6.7, 6.8_
 
   - [ ]* 5.3 Write property test for the repair-loop budget
     - **Property 5: The generate-validate-repair loop respects its budget**
