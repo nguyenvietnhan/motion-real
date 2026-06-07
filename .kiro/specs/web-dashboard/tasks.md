@@ -294,14 +294,14 @@ Language: TypeScript (existing monorepo). Tests run under Vitest with
       account state (1–3 representative cases each)
     - _Requirements: 2.2, 2.8_
 
-- [ ] 7. Create / ingest controller and project scaffolding wiring
-  - [ ] 7.1 Implement `CreateController.start` over the orchestrator
+- [x] 7. Create / ingest controller and project scaffolding wiring
+  - [x] 7.1 Implement `CreateController.start` over the orchestrator
     - Wire `start(input)` to scaffold the project via `scaffold_project` through
       the one registry, applying selected or default style pack + accent color;
       hand off to the Agent_Worker `author` job with the configured script gate
     - _Requirements: 3.2, 3.3, 3.4, 3.5, 3.6_
 
-  - [ ]* 7.2 Write integration test for create→scaffold single-registry wiring
+  - [x]* 7.2 Write integration test for create→scaffold single-registry wiring
     - With a stubbed orchestrator/tools (via `createTools`), assert create routes
       through `scaffold_project` with no second registry, and ingest/search
       failures return friendly messages that leave authoring unstarted
