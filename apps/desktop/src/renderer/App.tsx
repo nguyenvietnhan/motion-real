@@ -54,7 +54,26 @@ export const App: React.FC = () => {
       dash.events.onStatus((e) => dispatch({ type: "status", event: e })),
       dash.events.onFriendlyError((e) => dispatch({ type: "friendlyError", error: e })),
     ];
-    return () => unsubs.forEach((u) => u());
+
+    // Poll the gateway until it is ready, then keep refreshing providers +
+    // connections so a newly completed login (delegated to 9router) shows up
+    // (Req 2.7). Gateway start runs in the background in the main process.
+    const poll = setInterval(() => {
+      void (async () => {
+        const gw = await dash.ai.gatewayState();
+        setGateway(gw);
+        if (gw.kind === "ready") {
+          setProviders(await dash.ai.listProviders());
+          setAccount(await dash.ai.connectedAccounts());
+          setModels(await dash.ai.listModels());
+        }
+      })();
+    }, 1500);
+
+    return () => {
+      clearInterval(poll);
+      unsubs.forEach((u) => u());
+    };
   }, [dash]);
 
   useEffect(() => {
