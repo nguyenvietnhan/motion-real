@@ -181,67 +181,67 @@ property number.
     - Assert pass/fail rendering and remediation string per check
     - _Requirements: 6.1, 6.2_
 
-- [ ] 7. MCP server exposing the pipeline (Phase 2)
-  - [ ] 7.1 Scaffold the `@news/mcp` package and `ToolResult` type
+- [x] 7. MCP server exposing the pipeline (Phase 2)
+  - [x] 7.1 Scaffold the `@news/mcp` package and `ToolResult` type
     - Create the new leaf package depending on `@news/pipeline` only, with the
       `ToolResult<T>` discriminated union whose failure branch carries the
       serialized `PipelineError`
     - _Requirements: 3.2, 7.5_
 
-  - [ ] 7.2 Implement the MCP tools over the orchestrator
+  - [x] 7.2 Implement the MCP tools over the orchestrator
     - Implement `ingest_url`, `scaffold_project`, `render_draft`, `render_full`,
       `doctor`, `list_projects`, and `tracker_list`/`tracker_add`/
       `tracker_update`, each with a typed Zod input schema, importing
       `@news/pipeline` from source (single registry instance)
     - _Requirements: 3.1, 3.3, 3.7, 3.8_
 
-  - [ ] 7.3 Enforce the draft-first gate in `render_full`
+  - [x] 7.3 Enforce the draft-first gate in `render_full`
     - Refuse a full render unless a prior draft exists, unless an explicit
       force-full flag is supplied
     - _Requirements: 3.4, 10.8_
 
-  - [ ] 7.4 Preserve the Vivibe provider in render tools
+  - [x] 7.4 Preserve the Vivibe provider in render tools
     - Keep configured Vivibe provider/voice; on incomplete TTS config fail with
       the exact missing key/endpoint/voice id and never downgrade to mock/none
     - _Requirements: 3.6, 10.9_
 
-  - [ ] 7.5 Run the full grid and gate "done" on it
+  - [x] 7.5 Run the full grid and gate "done" on it
     - Ensure every render through the server runs `N1–N30`; a hard-check failure
       returns `ok: false` naming the failing checks and never reports done
     - _Requirements: 3.5, 10.1_
 
-  - [ ] 7.6 Surface progress and preserve hygiene
+  - [x] 7.6 Surface progress and preserve hygiene
     - Map orchestrator `onProgress` to MCP progress notifications and always
       return a terminal result; ensure artifacts stay under `.video-tool/` +
       `planning/` and scratch is cleaned in the orchestrator `finally`
     - _Requirements: 3.9, 3.10, 9.3_
 
-  - [ ] 7.7 Register the MCP server in `.kiro/settings/mcp.json`
+  - [x] 7.7 Register the MCP server in `.kiro/settings/mcp.json`
     - Add the stdio server entry so MCP-capable agents discover the tools
     - _Requirements: 3.1_
 
-  - [ ]* 7.8 Write property test for the draft-first gate
+  - [x]* 7.8 Write property test for the draft-first gate
     - **Property 8: Draft-first gate**
     - **Validates: Requirements 3.4, 10.8**
 
-  - [ ]* 7.9 Write property test for TTS provider preservation
+  - [x]* 7.9 Write property test for TTS provider preservation
     - **Property 10: TTS provider is never downgraded**
     - **Validates: Requirements 3.6, 10.9**
 
-  - [ ]* 7.10 Write property test for the grid on every surface
+  - [x]* 7.10 Write property test for the grid on every surface
     - **Property 9: The full grid is in force on every surface**
     - **Validates: Requirements 3.5, 5.3, 10.1**
 
-  - [ ]* 7.11 Write property test for doctor parity across surfaces
+  - [x]* 7.11 Write property test for doctor parity across surfaces
     - **Property 17: Doctor is equivalent across CLI and MCP**
     - **Validates: Requirements 6.5**
 
-  - [ ]* 7.12 Write unit tests for tool schemas and result shapes
+  - [x]* 7.12 Write unit tests for tool schemas and result shapes
     - Validate representative good/bad inputs against each Zod schema and assert
       the `ToolResult` success vs `{ ok:false, error }` shape
     - _Requirements: 3.2_
 
-  - [ ]* 7.13 Write single-process registry regression test
+  - [x]* 7.13 Write single-process registry regression test
     - Exercise a scaffold → register → render-fixture round-trip and assert no
       "registration not found" error (no second registry instance)
     - _Requirements: 3.3, 5.2_

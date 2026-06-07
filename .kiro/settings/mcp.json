@@ -1,5 +1,15 @@
 {
   "mcpServers": {
+    "news": {
+      "command": "npx",
+      "args": [
+        "tsx",
+        "--env-file=.env",
+        "packages/mcp/src/bin.ts"
+      ],
+      "env": {},
+      "disabled": false
+    },
     "playwright": {
       "command": "npx",
       "args": [
