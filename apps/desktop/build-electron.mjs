@@ -25,28 +25,30 @@ const alias = {
 const common = {
   bundle: true,
   platform: "node",
-  format: "esm",
   target: "node18",
   packages: "external", // keep node_modules deps external
   alias,
   sourcemap: true,
   logLevel: "info",
-  // ESM interop for bundled CJS deps that use __dirname etc.
+};
+
+// Main: ESM (uses import.meta.url). Shim require for any bundled CJS deps.
+await build({
+  ...common,
+  format: "esm",
   banner: {
     js: "import { createRequire as __cr } from 'node:module'; const require = __cr(import.meta.url);",
   },
-};
-
-await build({
-  ...common,
   entryPoints: [resolve(here, "src/main/index.ts")],
   outfile: resolve(here, "dist-electron/main/index.js"),
 });
 
+// Preload: CommonJS — Electron's contextIsolated preload must be CJS, not ESM.
 await build({
   ...common,
+  format: "cjs",
   entryPoints: [resolve(here, "src/preload/index.ts")],
-  outfile: resolve(here, "dist-electron/preload/index.js"),
+  outfile: resolve(here, "dist-electron/preload/index.cjs"),
 });
 
-console.log("[build-electron] main + preload bundled → dist-electron/");
+console.log("[build-electron] main (esm) + preload (cjs) bundled → dist-electron/");
