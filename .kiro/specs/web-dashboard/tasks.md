@@ -229,7 +229,7 @@ Language: TypeScript (existing monorepo). Tests run under Vitest with
     - **Validates: Requirements 6.8, 11.5, 11.6, 12.2**
 
 - [ ] 5. Agent_Worker implementation and the generate-validate-repair loop
-  - [ ] 5.1 Implement the chosen `AgentWorker` adapter (BLOCKED ON POC — task 2.4)
+  - [x] 5.1 Implement the chosen `AgentWorker` adapter (BLOCKED ON POC — task 2.4)
     - If the spike adopted path Y: implement the headless-runtime adapter
       (wrap the embedded runtime, point it at the Model_Gateway, auto-load
       `SKILL.md`/`AGENTS.md`, translate runtime tool calls/results into
@@ -241,7 +241,7 @@ Language: TypeScript (existing monorepo). Tests run under Vitest with
       driving the SAME MCP tools
     - _Requirements: 7.5, 5.1, 8.7_
 
-  - [ ] 5.2 Implement `generateValidateRepair` with budget enforcement
+  - [x] 5.2 Implement `generateValidateRepair` with budget enforcement
     - Implement the loop: `render_draft` → `get_safety_report` → if hard errors
       and attempts remain, re-author flagged scenes and re-render; clamp
       `maxAttempts` to [1,10] (default 3); count a failed render toward the
@@ -250,7 +250,7 @@ Language: TypeScript (existing monorepo). Tests run under Vitest with
       retry-from-new-draft; emit auto-fixes via `onRepair` as plain language
     - _Requirements: 6.3, 6.4, 6.5, 6.6, 6.7, 6.8_
 
-  - [ ]* 5.3 Write property test for the repair-loop budget
+  - [x]* 5.3 Write property test for the repair-loop budget
     - **Property 5: The generate-validate-repair loop respects its budget**
     - **Validates: Requirements 6.3, 6.4, 6.6, 6.7**
 
