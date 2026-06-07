@@ -33,8 +33,8 @@ export type NineRouterBackendDeps = {
   model: () => string | undefined;
   /** The internal gateway key for /v1 auth, if minted. */
   apiKey: () => string | undefined;
-  /** Forward fine-grained render progress to the UI. */
-  onRenderProgress?: (ratio: number) => void;
+  /** Forward fine-grained render progress to the UI (per project). */
+  onRenderProgress?: (ratio: number, projectId: string) => void;
 };
 
 function manifestPathOf(projectId: string): string {
@@ -72,7 +72,10 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
     let research: string | undefined;
     if (job.input.kind === "url") {
       const ing = await this.deps.tools.ingest_url({ url: job.input.url }).catch(() => null);
-      if (ing && ing.ok) research = (ing.data as { text?: string }).text;
+      if (ing && ing.ok) {
+        const text = (ing.data as { text?: unknown } | undefined)?.text;
+        if (typeof text === "string" && text.trim()) research = text;
+      }
     }
 
     const messages = buildAuthorMessages(job.input, research);
@@ -117,7 +120,7 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
   async renderDraft(projectId: string): Promise<{ ok: boolean }> {
     const res = await this.deps.tools.render_draft(
       { projectId },
-      this.deps.onRenderProgress ? (r) => this.deps.onRenderProgress!(r) : undefined,
+      this.deps.onRenderProgress ? (r) => this.deps.onRenderProgress!(r, projectId) : undefined,
     );
     return { ok: res.ok };
   }

@@ -11,7 +11,7 @@ import type {
   StoryboardModel,
 } from "../shared/types.js";
 import { FRIENDLY_LABELS } from "./gallery/friendly-status.js";
-import { validateCreateInput } from "../main/create/create-controller.js";
+import { validateCreateInput } from "../shared/create-validation.js";
 
 /**
  * React views (web-dashboard) — enterprise SaaS shell: a left Sidebar for

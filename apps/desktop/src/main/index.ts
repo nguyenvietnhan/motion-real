@@ -39,8 +39,8 @@ function loadSettings(): SettingsModel {
       const saved = JSON.parse(readFileSync(SETTINGS_FILE, "utf8")) as Partial<SettingsModel>;
       return { ...base, ...saved, voiceProvider: "vivibe", aiAccount: base.aiAccount };
     }
-  } catch {
-    /* fall back to defaults */
+  } catch (e) {
+    console.warn("[settings] failed to read settings file, using defaults:", e);
   }
   return base;
 }
@@ -49,14 +49,13 @@ function saveSettings(): void {
   try {
     const { aiAccount: _omit, ...persisted } = settings;
     writeFileSync(SETTINGS_FILE, `${JSON.stringify(persisted, null, 2)}\n`, "utf8");
-  } catch {
-    /* non-fatal */
+  } catch (e) {
+    console.warn("[settings] failed to persist settings file:", e);
   }
 }
 
 let settings: SettingsModel = loadSettings();
 let selectedModel: ModelInfo | undefined;
-let activeProjectId: string | null = null;
 
 // TTS config: a user-entered voice key/id (Settings) overrides the .env fallback.
 const tools = createTools({
@@ -77,7 +76,7 @@ const authoringBackend = new NineRouterAuthoringBackend({
   tools,
   model: () => selectedModel?.id,
   apiKey: () => undefined, // 9router /v1 is open on localhost
-  onRenderProgress: (ratio) => events.progress({ projectId: activeProjectId ?? "", ratio, phase: "draft" }),
+  onRenderProgress: (ratio, projectId) => events.progress({ projectId, ratio, phase: "draft" }),
 });
 const worker = new CustomLoopAgentWorker(authoringBackend);
 
@@ -109,7 +108,6 @@ async function storyboardScenesOf(projectId: string): Promise<SceneCard[]> {
 
 /** Stage 1: AI writes the script (manifest). Then wait for approval unless the gate is off. */
 async function runScript(projectId: string, input: AuthorInput): Promise<void> {
-  activeProjectId = projectId;
   setStage(projectId, { kind: "writing" });
   const hooks: AgentHooks = { onProgress: () => {}, onSceneProduced: () => {}, onRepair: () => {} };
   try {
@@ -133,7 +131,6 @@ async function runScript(projectId: string, input: AuthorInput): Promise<void> {
 
 /** Stage 2: render voice + draft with the generate-validate-repair loop. */
 async function runRender(projectId: string): Promise<void> {
-  activeProjectId = projectId;
   setStage(projectId, { kind: "rendering", percent: 0 });
   const hooks: AgentHooks = {
     onProgress: (ratio) => {
