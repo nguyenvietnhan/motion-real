@@ -165,19 +165,19 @@ property number.
     - Cover JSON and CSV readers/writers and malformed-file handling
     - _Requirements: 5.1_
 
-- [ ] 6. Health / doctor check (cross-cutting)
-  - [ ] 6.1 Extend `runDoctor`
+- [x] 6. Health / doctor check (cross-cutting)
+  - [x] 6.1 Extend `runDoctor`
     - Add style-pack registry, MCP-wiring, and per-pack font-coverage checks to
       the existing Vivibe/ffmpeg/browser/registry checks; run all checks (never
       short-circuit) and emit pass/fail plus actionable remediation per item and
       an overall ready/not-ready result
     - _Requirements: 6.1, 6.2, 6.3, 6.4_
 
-  - [ ]* 6.2 Write property test for doctor reporting every failure
+  - [x]* 6.2 Write property test for doctor reporting every failure
     - **Property 16: Doctor reports every failure**
     - **Validates: Requirements 6.2, 6.3, 6.4**
 
-  - [ ]* 6.3 Write unit tests for each doctor check
+  - [x]* 6.3 Write unit tests for each doctor check
     - Assert pass/fail rendering and remediation string per check
     - _Requirements: 6.1, 6.2_
 

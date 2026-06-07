@@ -59,3 +59,6 @@ export { Captions, CAPTION_RENDER_BAND, CAPTION_CANVAS } from "./captions.js";
 
 // Pack-driven chrome helpers (style packs read border/shadow from the theme):
 export { chromeBorder, chromeBorderWidth, chromeShadow } from "./chrome.js";
+
+// Render-safe font loading + Vietnamese-coverage report (for the doctor check):
+export { LOADED_FONT_FAMILIES, fontCoverageReport, type FontCoverage } from "./fonts.js";

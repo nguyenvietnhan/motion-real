@@ -1,9 +1,12 @@
 import { spawn } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { parseArgs } from "node:util";
 import { pathToFileURL } from "node:url";
 
 import { listComponents } from "@news/compositions";
+import { getStylePack, listStylePackIds } from "@news/design";
+import { fontCoverageReport } from "@news/blocks";
 import { defaultVivibeVoiceId, vivibeApiKey } from "@news/tts";
 import type { TtsProvider } from "../types.js";
 import { projectPaths } from "../store/store.js";
@@ -208,14 +211,20 @@ export type DoctorDeps = {
   checkFfmpeg?: () => Promise<DoctorCheck>;
   checkBrowser?: () => Promise<DoctorCheck>;
   checkRegistry?: () => DoctorCheck;
+  checkStylePacks?: () => DoctorCheck;
+  checkFonts?: () => DoctorCheck;
+  checkMcp?: () => DoctorCheck;
 };
 
 /**
  * Verify environment readiness: Vivibe `.env` config, ffmpeg, a usable headless
- * browser, and registry health. Each probe is injectable so tests never spawn
- * ffmpeg or download Chromium. In pure AUTHOR mode the registry is empty until a
- * project's authored scenes are admitted, so the registry check reports the
- * count without failing on zero.
+ * browser, registry health, the style-pack registry, per-pack Vietnamese font
+ * coverage, and MCP wiring (tool-productization R6). Each probe is injectable so
+ * tests never spawn ffmpeg or download Chromium. ALL checks run (never
+ * short-circuit) so a single report lists every failure (R6.4); overall ready
+ * only when every check passes (R6.3). In pure AUTHOR mode the registry is empty
+ * until a project's authored scenes are admitted, so the registry check reports
+ * the count without failing on zero.
  */
 export async function runDoctor(deps: DoctorDeps = {}): Promise<DoctorReport> {
   const checks: DoctorCheck[] = [
@@ -223,6 +232,9 @@ export async function runDoctor(deps: DoctorDeps = {}): Promise<DoctorReport> {
     await (deps.checkFfmpeg ?? defaultCheckFfmpeg)(),
     await (deps.checkBrowser ?? defaultCheckBrowser)(),
     (deps.checkRegistry ?? defaultCheckRegistry)(),
+    (deps.checkStylePacks ?? defaultCheckStylePacks)(),
+    (deps.checkFonts ?? defaultCheckFonts)(),
+    (deps.checkMcp ?? defaultCheckMcp)(),
   ];
   return { ok: checks.every((check) => check.ok), checks };
 }
@@ -266,6 +278,91 @@ function defaultCheckRegistry(): DoctorCheck {
       count > 0
         ? `${count} component(s) registered`
         : "0 components (pure AUTHOR mode: scenes register per project at render time)",
+  };
+}
+
+/** R6.1: the style-pack registry resolves and ships the required packs. */
+export function defaultCheckStylePacks(): DoctorCheck {
+  const required = ["bold-editorial", "clean-premium"];
+  const ids = listStylePackIds();
+  const missing = required.filter((id) => !getStylePack(id));
+  return {
+    name: "style packs",
+    ok: missing.length === 0,
+    detail:
+      missing.length === 0
+        ? `${ids.length} pack(s): ${ids.join(", ")}`
+        : `missing required style pack(s): ${missing.join(", ")} (registered: ${ids.join(", ") || "none"})`,
+  };
+}
+
+/** R6 / design §6: every style pack's font families cover the Vietnamese subset. */
+export function defaultCheckFonts(): DoctorCheck {
+  const coverage = new Map(fontCoverageReport().map((f) => [f.family, f.hasVietnamese]));
+  const leading = (stack: string): string => (stack.split(",")[0] ?? "").trim().replace(/^["']|["']$/g, "");
+  const problems: string[] = [];
+  for (const id of listStylePackIds()) {
+    const pack = getStylePack(id);
+    if (!pack) continue;
+    const families = pack.chrome.fontFamily;
+    for (const [role, stack] of Object.entries(families)) {
+      const family = leading(stack);
+      if (coverage.get(family) !== true) {
+        problems.push(`${id}.${role} → ${family || "(empty)"}`);
+      }
+    }
+  }
+  return {
+    name: "fonts (vietnamese coverage)",
+    ok: problems.length === 0,
+    detail:
+      problems.length === 0
+        ? "all style-pack fonts load the vietnamese subset"
+        : `font(s) missing vietnamese coverage or not loaded: ${problems.join(", ")}`,
+  };
+}
+
+/** Find the workspace root by walking up from cwd for a `.kiro` directory. */
+function findWorkspaceRoot(start: string = process.cwd()): string | undefined {
+  let dir = start;
+  for (let i = 0; i < 10; i++) {
+    if (existsSync(join(dir, ".kiro"))) return dir;
+    const parent = dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  return undefined;
+}
+
+/** R6.1: the MCP server package resolves and is registered in `.kiro/settings/mcp.json`. */
+export function defaultCheckMcp(): DoctorCheck {
+  const root = findWorkspaceRoot();
+  const remediation =
+    "create the @news/mcp package and add its stdio server entry to .kiro/settings/mcp.json";
+  if (!root) {
+    return { name: "MCP wiring", ok: false, detail: `workspace root not found; ${remediation}` };
+  }
+  const hasPackage = existsSync(join(root, "packages", "mcp", "package.json"));
+  const mcpJson = join(root, ".kiro", "settings", "mcp.json");
+  let listed = false;
+  if (existsSync(mcpJson)) {
+    try {
+      const cfg = JSON.parse(readFileSync(mcpJson, "utf8")) as { mcpServers?: Record<string, unknown> };
+      const servers = cfg.mcpServers ?? {};
+      listed = Object.keys(servers).some(
+        (key) => /news/i.test(key) || /news[\\/]?mcp/i.test(JSON.stringify(servers[key])),
+      );
+    } catch {
+      listed = false;
+    }
+  }
+  const missing: string[] = [];
+  if (!hasPackage) missing.push("packages/mcp not found");
+  if (!listed) missing.push(".kiro/settings/mcp.json has no news MCP server entry");
+  return {
+    name: "MCP wiring",
+    ok: hasPackage && listed,
+    detail: missing.length === 0 ? "@news/mcp package present and registered" : `${missing.join("; ")}; ${remediation}`,
   };
 }
 
@@ -318,7 +415,7 @@ function usage(): string {
     "                                      Draft-first: render --draft for a preview, then full (gated on a prior draft; --force-full to override)",
     "  render --sample [--out <path>]      Render the bundled no-voice sample draft (no Vivibe needed)",
     "  preview <id>                        Print the Studio command for a project's locked spec",
-    "  doctor | probe                      Check .env (Vivibe), ffmpeg, browser, and registry health",
+    "  doctor | probe                      Check .env (Vivibe), ffmpeg, browser, registry, style packs, fonts, and MCP wiring",
   ].join("\n");
 }
 

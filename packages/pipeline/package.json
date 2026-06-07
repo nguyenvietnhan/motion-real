@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@mozilla/readability": "^0.6.0",
+    "@news/blocks": "0.1.0",
     "@news/compositions": "0.1.0",
     "@news/design": "0.1.0",
     "@news/schema": "0.1.0",

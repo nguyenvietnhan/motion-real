@@ -1,6 +1,9 @@
 import { loadFont as loadInter } from "@remotion/google-fonts/Inter";
 import { loadFont as loadBeVietnamPro } from "@remotion/google-fonts/BeVietnamPro";
 import { loadFont as loadCascadiaMono } from "@remotion/google-fonts/CascadiaMono";
+import { getInfo as interInfo } from "@remotion/google-fonts/Inter";
+import { getInfo as bvpInfo } from "@remotion/google-fonts/BeVietnamPro";
+import { getInfo as cascadiaInfo } from "@remotion/google-fonts/CascadiaMono";
 
 /**
  * Render-safe font loading (tool-productization R1, Property 19).
@@ -26,3 +29,19 @@ export const LOADED_FONT_FAMILIES = {
   bodyPremium: "Be Vietnam Pro",
   mono: "Cascadia Mono",
 } as const;
+
+/** One loaded font's Vietnamese-coverage status (for the doctor font check). */
+export type FontCoverage = { family: string; hasVietnamese: boolean };
+
+/**
+ * Report whether each loaded style-pack font ships the `vietnamese` subset — the
+ * coverage that prevents diacritic fallback ("nét to nét nhỏ"). Used by the
+ * doctor font-coverage check (tool-productization R6 / design §6).
+ */
+export function fontCoverageReport(): FontCoverage[] {
+  return [
+    { family: "Inter", hasVietnamese: interInfo().subsets.includes("vietnamese") },
+    { family: "Be Vietnam Pro", hasVietnamese: bvpInfo().subsets.includes("vietnamese") },
+    { family: "Cascadia Mono", hasVietnamese: cascadiaInfo().subsets.includes("vietnamese") },
+  ];
+}

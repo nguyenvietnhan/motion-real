@@ -36,6 +36,9 @@ describe("runDoctor", () => {
       checkEnv: () => PASS("Vivibe .env"),
       checkFfmpeg: async () => PASS("ffmpeg"),
       checkBrowser: async () => PASS("browser"),
+      checkStylePacks: () => PASS("style packs"),
+      checkFonts: () => PASS("fonts (vietnamese coverage)"),
+      checkMcp: () => PASS("MCP wiring"),
     });
     expect(report.ok).toBe(true);
     const registry = report.checks.find((c) => c.name === "registry");
@@ -49,9 +52,30 @@ describe("runDoctor", () => {
       checkFfmpeg: async () => PASS("ffmpeg"),
       checkBrowser: async () => PASS("browser"),
       checkRegistry: () => PASS("registry"),
+      checkStylePacks: () => PASS("style packs"),
+      checkFonts: () => PASS("fonts (vietnamese coverage)"),
+      checkMcp: () => PASS("MCP wiring"),
     });
     expect(report.ok).toBe(false);
     expect(report.checks.filter((c) => !c.ok).map((c) => c.name)).toEqual(["Vivibe .env"]);
+  });
+
+  it("runs ALL checks and lists EVERY failure (never short-circuits)", async () => {
+    const report = await runDoctor({
+      checkEnv: () => FAIL("Vivibe .env"),
+      checkFfmpeg: async () => PASS("ffmpeg"),
+      checkBrowser: async () => PASS("browser"),
+      checkRegistry: () => PASS("registry"),
+      checkStylePacks: () => FAIL("style packs"),
+      checkFonts: () => PASS("fonts (vietnamese coverage)"),
+      checkMcp: () => FAIL("MCP wiring"),
+    });
+    expect(report.ok).toBe(false);
+    expect(report.checks.filter((c) => !c.ok).map((c) => c.name).sort()).toEqual(
+      ["MCP wiring", "Vivibe .env", "style packs"].sort(),
+    );
+    // All seven checks are present even though several failed.
+    expect(report.checks).toHaveLength(7);
   });
 });
 
