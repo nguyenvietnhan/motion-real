@@ -283,8 +283,8 @@ property number.
     - Assert each verb parses args and dispatches to the shared implementation
     - _Requirements: 6.5_
 
-- [ ] 10. Skill packaging and buyer documentation (cross-cutting)
-  - [ ] 10.1 Create the skill / power package
+- [x] 10. Skill packaging and buyer documentation (cross-cutting)
+  - [x] 10.1 Create the skill / power package
     - Bundle references to `AGENTS.md`, the authoring-contract, the
       visualization-playbook, and the design-language; document the end-to-end
       workflow (scaffold → author → draft → review → full incl. the draft-first
@@ -293,7 +293,7 @@ property number.
       planner)
     - _Requirements: 4.1, 4.2, 4.3, 4.4, 4.5, 4.6, 4.7_
 
-  - [ ] 10.2 Write buyer-facing documentation
+  - [x] 10.2 Write buyer-facing documentation
     - Cover install/config (incl. Vivibe keys) + doctor, the CLI and MCP
       workflows, style-pack selection, the bulk tracker workflow incl. resume,
       and the quality guarantees/invariants and explicit non-goals; keep it

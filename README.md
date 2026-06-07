@@ -71,8 +71,24 @@ npx tsx --env-file=.env packages/pipeline/src/cli/cli.ts render <projectId>
 # No-voice visual draft of the bundled sample (no Vivibe needed):
 npx tsx packages/pipeline/src/cli/cli.ts render --sample
 
-# Environment readiness (Vivibe .env, ffmpeg, browser, registry):
+# Environment readiness (Vivibe .env, ffmpeg, browser, registry, style packs, fonts, MCP):
 npx tsx packages/pipeline/src/cli/cli.ts doctor
+```
+
+Productization verbs (same single-process orchestrator):
+
+```bash
+# Ground a topic from an article (text + metadata only) → planning/<id>.md:
+npx tsx packages/pipeline/src/cli/cli.ts ingest <url> [--id <id>]
+
+# Bulk work queue + resumable overnight loop:
+npx tsx packages/pipeline/src/cli/cli.ts tracker add <url> --id n1 --title "..." --source "..."
+npx tsx packages/pipeline/src/cli/cli.ts tracker list
+npx tsx --env-file=.env packages/pipeline/src/cli/cli.ts bulk --tracker tracker.json --limit 20
+
+# MCP server (typed tools over stdio; also registered in .kiro/settings/mcp.json):
+npx tsx packages/pipeline/src/cli/cli.ts mcp
+npx tsx --env-file=.env packages/mcp/src/bin.ts
 ```
 
 Render quality is `full` (30 fps deliverable) by default; a `draft` quality
@@ -109,3 +125,8 @@ Checks: `npm run typecheck`, `npm test`, `npm run build`.
 See `.kiro/specs/author-mode-v2/{requirements,design,tasks}.md` for the current
 spec, `AGENTS.md` for the agent contract, `docs/ai-content-guide.md` for the
 content contract, and `docs/design-language.md` for the design system.
+
+For productization (selectable looks, URL grounding, the MCP API, bulk
+production, ops) see `.kiro/specs/tool-productization/`, the buyer guide
+`docs/buyer-guide.md`, and the authoring skill
+`.kiro/skills/news-video-author/SKILL.md`.
