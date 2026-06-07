@@ -1,7 +1,8 @@
-import { app, BrowserWindow } from "electron";
+import { app, BrowserWindow, ipcMain } from "electron";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { createTools } from "@news/mcp";
+import { registerIpcRouter } from "./ipc-router.js";
 
 /**
  * Electron main = the ENGINE HOST (web-dashboard Task 1.1).
@@ -16,7 +17,13 @@ import { createTools } from "@news/mcp";
 // The single tool instance for this process. Holds the one registry; every
 // dashboard operation (create/draft/full/...) goes through these tools.
 const tools = createTools();
-void tools; // wired to IPC handlers in Task 1.2 / later waves
+void tools; // wired to IPC handlers in later waves
+
+// Register the typed IPC router skeleton. Handlers are stubbed for now (Task
+// 1.2); later waves attach the license/ai/projects/script/review/settings
+// controllers. Every allow-listed channel exists so the renderer's typed client
+// has a live endpoint; an unwired channel fails loud rather than silently.
+registerIpcRouter(ipcMain, {});
 
 const here = dirname(fileURLToPath(import.meta.url));
 

@@ -58,7 +58,7 @@ Language: TypeScript (existing monorepo). Tests run under Vitest with
       ONE `@news/compositions` instance (no second registry)
     - _Requirements: 12.10_
 
-  - [ ] 1.2 Define the typed IPC contract (`DashboardApi`) and preload bridge
+  - [x] 1.2 Define the typed IPC contract (`DashboardApi`) and preload bridge
     - Create `shared/ipc-contract.ts` with the `DashboardApi` interface
       (license, ai, projects, script, review, settings, events channels) and the
       channel name constants
@@ -68,7 +68,7 @@ Language: TypeScript (existing monorepo). Tests run under Vitest with
       and dispatches to (initially stubbed) handlers
     - _Requirements: 11.5, 11.6_
 
-  - [ ]* 1.3 Write unit tests for the IPC bridge allow-list and event wiring
+  - [x]* 1.3 Write unit tests for the IPC bridge allow-list and event wiring
     - Assert only allow-listed channels are exposed; assert
       `onProgress`/`onScene`/`onStatus`/`onFriendlyError` subscribe and
       unsubscribe cleanly with a fake `ipcRenderer`
