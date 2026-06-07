@@ -4,7 +4,6 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ProjectBrief, RenderProjectResult, ScaffoldVideoProjectResult } from "@news/pipeline";
 import { createTools, type ToolDeps } from "@news/mcp";
-import { ApproveController, type FullRenderBackend } from "./review/approve-controller.js";
 import { CreateController, type CreateBackend } from "./create/create-controller.js";
 import type { AgentWorker, AuthorOutcome } from "./agent/agent-worker.js";
 
@@ -14,6 +13,12 @@ import type { AgentWorker, AuthorOutcome } from "./agent/agent-worker.js";
  * through ONE `createTools` instance (one registry), so the draft-first gate,
  * the Vivibe voice guard, and the no-downgrade rule all hold at the boundary.
  * (Req 12.1, 12.5, 12.7, 12.8, 12.10)
+ *
+ * reconcile-main-controllers S1: these invariants are asserted DIRECTLY against
+ * the engine tools (`tools.render_full`), not via the removed ApproveController
+ * (which served the intentionally-deferred Review_Edit_Loop / full-render path).
+ * Validates R8.2 (draft-first), R8.3/R8.4 (voice guard, no-downgrade), R4.6/R8.1
+ * (single registry).
  */
 
 let home: string;
@@ -42,7 +47,7 @@ const stubWorker = (outcome: AuthorOutcome): AgentWorker => ({
 const noopHooks = { onProgress() {}, onSceneProduced() {}, onRepair() {} };
 
 describe("Task 12.1: preserved engine invariants at the dashboard boundary", () => {
-  it("full render is refused without a reviewed draft and never delegates (Req 12.5)", async () => {
+  it("full render is refused without a reviewed draft and never delegates (R8.2)", async () => {
     let delegated = false;
     const tools = createTools({
       draftExistsFor: () => false,
@@ -52,23 +57,14 @@ describe("Task 12.1: preserved engine invariants at the dashboard boundary", () 
         return renderOk();
       },
     });
-    const backend: FullRenderBackend = {
-      renderFull: async (projectId, onProgress) => {
-        const res = await tools.render_full({ projectId, forceFull: false }, onProgress);
-        return res.ok ? { ok: true, outputPath: res.data.mp4Path } : { ok: false, error: res.error };
-      },
-    };
-    const ctrl = new ApproveController(backend);
-
-    // Dashboard gate refuses first…
-    expect(await ctrl.approveDraft("p", false)).toEqual({ ok: false, reason: "draft-first" });
-    // …and the engine tool itself refuses too (defense in depth), never rendering.
+    // The engine tool itself refuses the full render (draft-first gate) and
+    // never delegates to renderProject.
     const direct = await tools.render_full({ projectId: "p", forceFull: false });
     expect(direct.ok).toBe(false);
     expect(delegated).toBe(false);
   });
 
-  it("create routes scaffold through ONE createTools instance — no second registry (Req 12.10)", async () => {
+  it("create routes scaffold through ONE createTools instance — no second registry (R4.6/R8.1)", async () => {
     let scaffolds = 0;
     const tools = createTools({
       scaffoldVideoProject: async (input) => {
@@ -88,7 +84,7 @@ describe("Task 12.1: preserved engine invariants at the dashboard boundary", () 
     expect(scaffolds).toBe(1);
   });
 
-  it("voice-config-incomplete surfaces the exact missing setting and never downgrades (Req 12.7/12.8)", async () => {
+  it("voice-config-incomplete surfaces the exact missing setting and never downgrades (R8.3/R8.4)", async () => {
     let delegated = false;
     const tools = createTools({
       draftExistsFor: () => true, // gate not the cause
@@ -98,7 +94,7 @@ describe("Task 12.1: preserved engine invariants at the dashboard boundary", () 
         return renderOk();
       },
     });
-    // Exact missing setting is named at the engine/tool level…
+    // The exact missing setting is named at the engine/tool level…
     const direct = await tools.render_full({ projectId: "p", forceFull: false });
     expect(direct.ok).toBe(false);
     if (!direct.ok) {
@@ -107,19 +103,5 @@ describe("Task 12.1: preserved engine invariants at the dashboard boundary", () 
     }
     // …and the render is never delegated, so the voice is never downgraded.
     expect(delegated).toBe(false);
-
-    // The dashboard surfaces a friendly (redacted) message via the controller.
-    const ctrl = new ApproveController({
-      renderFull: async (projectId) => {
-        const res = await tools.render_full({ projectId, forceFull: false });
-        return res.ok ? { ok: true, outputPath: res.data.mp4Path } : { ok: false, error: res.error };
-      },
-    });
-    const outcome = await ctrl.approveDraft("p", true);
-    expect(outcome.ok).toBe(false);
-    if (!outcome.ok && outcome.reason === "render-failed") {
-      expect(outcome.error.message.length).toBeGreaterThan(0);
-      expect(outcome.error.message).not.toMatch(/VOICE_ID/); // L0 detail redacted for the UI
-    }
   });
 });

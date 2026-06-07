@@ -20,12 +20,12 @@ và hành vi quan sát được của app KHÔNG đổi (R6). Khi cập nhật m
   - [x] 1.2 Chạy lưới verify (typecheck + test + bundle) để xác nhận baseline xanh trước khi đụng code.
   - _Requirements: R1.2_
 
-- [ ] 2. S1 — Gỡ chuỗi Review_Edit_Loop (REMOVE-set) + test mồ côi
-  - [ ] 2.1 Xoá `apps/desktop/src/main/review/approve-controller.ts`, `review/approve-gate.ts`, `review/batch-submit-controller.ts` (chứa `validateBatch`), `review/edit-router.ts` (chứa `routeEdits`), `review/progress-forwarder.ts` cùng các file test chỉ phục vụ chúng: `approve-gate.test.ts`, `approve-progress.test.ts` (test này cũng phủ `approve-controller.ts` + `progress-forwarder.ts` — hai file đó không có test riêng), `batch-submit-controller.test.ts`, `edit-router.test.ts`.
-  - [ ] 2.2 Trong `review/storyboard.ts` chỉ giữ `buildStoryboard` (phần sống); gỡ class `BatchSubmitController` và các import đã chết ở đầu file (`import { routeEdits } from "./edit-router.js"`, `import { validateBatch } from "./batch-submit-controller.js"`). Trong `storyboard.test.ts` gỡ block `describe("BatchSubmitController...")`, giữ `describe("buildStoryboard")`.
-  - [ ] 2.3 Cập nhật `preserved-invariants.test.ts`: bỏ phụ thuộc `ApproveController`; giữ kiểm chứng bất biến engine qua `tools.render_full`/`tools.scaffold_project` (chuẩn bị cho S7).
-  - [ ] 2.4 Xác nhận hai handler `review:submitEdits`/`review:approveDraft` vẫn là stub hằng số (`{ ok: true, revision: 1 }` / `{ ok: false, reason: "draft-first" }`) — KHÔNG wire gì vào.
-  - [ ] 2.5 Chạy lưới verify.
+- [x] 2. S1 — Gỡ chuỗi Review_Edit_Loop (REMOVE-set) + test mồ côi
+  - [x] 2.1 Xoá `apps/desktop/src/main/review/approve-controller.ts`, `review/approve-gate.ts`, `review/batch-submit-controller.ts` (chứa `validateBatch`), `review/edit-router.ts` (chứa `routeEdits`), `review/progress-forwarder.ts` cùng các file test chỉ phục vụ chúng: `approve-gate.test.ts`, `approve-progress.test.ts` (test này cũng phủ `approve-controller.ts` + `progress-forwarder.ts` — hai file đó không có test riêng), `batch-submit-controller.test.ts`, `edit-router.test.ts`.
+  - [x] 2.2 Trong `review/storyboard.ts` chỉ giữ `buildStoryboard` (phần sống); gỡ class `BatchSubmitController` và các import đã chết ở đầu file (`import { routeEdits } from "./edit-router.js"`, `import { validateBatch } from "./batch-submit-controller.js"`). Trong `storyboard.test.ts` gỡ block `describe("BatchSubmitController...")`, giữ `describe("buildStoryboard")`.
+  - [x] 2.3 Cập nhật `preserved-invariants.test.ts`: bỏ phụ thuộc `ApproveController`; giữ kiểm chứng bất biến engine qua `tools.render_full`/`tools.scaffold_project` (chuẩn bị cho S7).
+  - [x] 2.4 Xác nhận hai handler `review:submitEdits`/`review:approveDraft` vẫn là stub hằng số (`{ ok: true, revision: 1 }` / `{ ok: false, reason: "draft-first" }`) — KHÔNG wire gì vào.
+  - [x] 2.5 Chạy lưới verify.
   - _Requirements: R5.5, R5.6, R1.5, R1.6_
 
 - [ ] 3. S2 — `SettingsStore` (mới, có property test)
