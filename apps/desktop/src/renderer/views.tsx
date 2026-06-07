@@ -5,6 +5,8 @@ import type {
   GatewayState,
   ModelInfo,
   ProjectCardVM,
+  ProjectStage,
+  ScriptLine,
   SettingsModel,
   StoryboardModel,
 } from "../shared/types.js";
@@ -18,7 +20,7 @@ import { validateCreateInput } from "../main/create/create-controller.js";
  * design-language is ONLY for rendered video, never the app chrome.
  */
 
-export type Screen = "home" | "projects" | "settings" | "storyboard";
+export type Screen = "home" | "projects" | "settings" | "workspace";
 
 // --- icons (inline, currentColor) ------------------------------------------
 
@@ -368,26 +370,116 @@ export const SettingsView: React.FC<{
   );
 };
 
+// --- Project workspace: staged flow (write script → review → render → scenes) ---
+
+const Spinner: React.FC = () => (
+  <span style={{ display: "inline-block", width: 16, height: 16, border: "2px solid var(--muted)", borderTopColor: "var(--brand)", borderRadius: 999, animation: "ns-spin 0.8s linear infinite" }} />
+);
+
+const ScriptReview: React.FC<{
+  lines: ScriptLine[];
+  onApply: (edits: { sceneId: string; narration?: string; headline?: string }[]) => void;
+  onApprove: () => void;
+}> = ({ lines, onApply, onApprove }) => {
+  const [draft, setDraft] = useState<Record<string, { headline: string; narration: string }>>(
+    Object.fromEntries(lines.map((l) => [l.sceneId, { headline: l.headline, narration: l.narration }])),
+  );
+  const edits = lines.map((l) => ({ sceneId: l.sceneId, headline: draft[l.sceneId]?.headline, narration: draft[l.sceneId]?.narration }));
+  return (
+    <>
+      <div className="ns-card" style={{ padding: 16, marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+        <span style={{ color: "var(--muted-foreground)" }}>AI đã soạn kịch bản. Sửa lời đọc nếu cần, rồi duyệt để dựng video.</span>
+        <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+          <button className="ns-btn" onClick={() => onApply(edits)}>Lưu</button>
+          <button className="ns-btn ns-btn-primary" onClick={() => { onApply(edits); onApprove(); }}>Duyệt &amp; dựng video →</button>
+        </div>
+      </div>
+      <div style={{ display: "grid", gap: 12 }}>
+        {lines.map((l, i) => (
+          <div key={l.sceneId} className="ns-card" style={{ padding: 16 }}>
+            <div style={{ display: "flex", gap: 10, alignItems: "baseline", marginBottom: 8 }}>
+              <span style={{ color: "var(--brand)", fontWeight: 800 }}>{i + 1}</span>
+              <input className="ns-input" value={draft[l.sceneId]?.headline ?? ""} placeholder="Tiêu đề cảnh"
+                onChange={(e) => setDraft((d) => ({ ...d, [l.sceneId]: { ...d[l.sceneId]!, headline: e.target.value } }))}
+                style={{ flex: 1, padding: "8px 10px" }} />
+            </div>
+            <textarea className="ns-input" value={draft[l.sceneId]?.narration ?? ""} rows={2} placeholder="Lời đọc"
+              onChange={(e) => setDraft((d) => ({ ...d, [l.sceneId]: { ...d[l.sceneId]!, narration: e.target.value } }))}
+              style={{ width: "100%" }} />
+          </div>
+        ))}
+      </div>
+    </>
+  );
+};
+
+export const ProjectWorkspaceView: React.FC<{
+  stage: ProjectStage;
+  onBack: () => void;
+  onApplyScript: (edits: { sceneId: string; narration?: string; headline?: string }[]) => void;
+  onApproveScript: () => void;
+  onSubmitEdits: (perScene: { sceneId: string; text: string }[], globalNotes: string) => void;
+  onApproveDraft: () => void;
+}> = ({ stage, onBack, onApplyScript, onApproveScript, onSubmitEdits, onApproveDraft }) => {
+  const title: Record<ProjectStage["kind"], string> = {
+    writing: "Đang viết kịch bản",
+    script: "Duyệt kịch bản",
+    rendering: "Đang dựng video",
+    ready: "Duyệt cảnh",
+    error: "Gặp lỗi",
+  };
+  return (
+    <div className="ns-content">
+      <PageHeader title={title[stage.kind]} action={<button className="ns-btn" onClick={onBack}>← Quay lại</button>} />
+      {stage.kind === "writing" && (
+        <div className="ns-card" style={{ padding: 48, display: "grid", placeItems: "center", gap: 12 }}>
+          <Spinner />
+          <p style={{ color: "var(--muted-foreground)", margin: 0 }}>AI đang viết kịch bản từ nội dung của bạn…</p>
+        </div>
+      )}
+      {stage.kind === "script" && <ScriptReview lines={stage.lines} onApply={onApplyScript} onApprove={onApproveScript} />}
+      {stage.kind === "rendering" && (
+        <div className="ns-card" style={{ padding: 32 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+            <Spinner /> <span>Đang dựng giọng đọc + bản nháp… {stage.percent}%</span>
+          </div>
+          <div style={{ height: 8, background: "var(--muted)", borderRadius: 999 }}>
+            <div style={{ width: `${stage.percent}%`, height: "100%", background: "var(--brand)", borderRadius: 999, transition: "width 0.3s" }} />
+          </div>
+        </div>
+      )}
+      {stage.kind === "ready" && (
+        <StoryboardView inline model={{ projectId: "", scenes: stage.scenes, globalNotes: "" }} percent={null} canApprove
+          onBack={onBack} onSubmit={onSubmitEdits} onApprove={onApproveDraft} />
+      )}
+      {stage.kind === "error" && (
+        <EmptyState icon={Icon.film({ size: 34 })} title="Gặp lỗi khi dựng" hint={stage.message}
+          action={<button className="ns-btn ns-btn-primary" onClick={onBack}>Quay lại Trang chủ</button>} />
+      )}
+    </div>
+  );
+};
+
 // --- Storyboard -----------------------------------------------------------
 
 export const StoryboardView: React.FC<{
   model: StoryboardModel;
   percent: number | null;
   canApprove: boolean;
+  inline?: boolean;
   onBack: () => void;
   onSubmit: (perScene: { sceneId: string; text: string }[], globalNotes: string) => void;
   onApprove: () => void;
-}> = ({ model, percent, canApprove, onBack, onSubmit, onApprove }) => {
+}> = ({ model, percent, canApprove, inline, onBack, onSubmit, onApprove }) => {
   const [edits, setEdits] = useState<Record<string, string>>({});
   const [notes, setNotes] = useState("");
 
   return (
-    <div className="ns-content">
-      <PageHeader
-        title="Duyệt video"
-        subtitle="Xem từng cảnh, ghi điều muốn sửa, rồi duyệt để xuất bản."
-        action={<button className="ns-btn" onClick={onBack}>← Quay lại</button>}
-      />
+    <div className={inline ? "" : "ns-content"}>
+      {!inline && (
+        <PageHeader title="Duyệt video" subtitle="Xem từng cảnh, ghi điều muốn sửa, rồi duyệt để xuất bản."
+          action={<button className="ns-btn" onClick={onBack}>← Quay lại</button>} />
+      )}
       {percent !== null && (
         <div className="ns-card" style={{ padding: 12, marginBottom: 16 }}>
           <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, fontSize: 13 }}>
@@ -399,12 +491,15 @@ export const StoryboardView: React.FC<{
         </div>
       )}
       {model.scenes.length === 0 ? (
-        <EmptyState icon={Icon.film({ size: 34 })} title="Chưa có cảnh nào" hint="Bộ máy dựng cảnh sẽ điền storyboard ở đây sau khi tạo bản nháp." />
+        <EmptyState icon={Icon.film({ size: 34 })} title="Chưa có cảnh nào" hint="Bản nháp chưa tạo cảnh nào." />
       ) : (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(250px, 1fr))", gap: 16 }}>
           {model.scenes.map((s) => (
             <div key={s.sceneId} className="ns-card" style={{ padding: 12 }}>
-              <div style={{ height: 150, background: "#101216", borderRadius: 8, border: "1px solid var(--border)" }} />
+              <div style={{ height: 150, borderRadius: 8, border: "1px solid var(--border)", display: "grid", placeItems: "center", color: "#3a3f49",
+                background: s.stillPath ? `center/contain no-repeat #0c0e12 url(${s.stillPath})` : "#101216" }}>
+                {!s.stillPath && Icon.film({ size: 26 })}
+              </div>
               <textarea aria-label={`edit-${s.sceneId}`} className="ns-input" value={edits[s.sceneId] ?? ""} maxLength={2000}
                 onChange={(e) => setEdits((m) => ({ ...m, [s.sceneId]: e.target.value }))} placeholder="Muốn sửa gì ở cảnh này?" rows={2}
                 style={{ width: "100%", marginTop: 10 }} />

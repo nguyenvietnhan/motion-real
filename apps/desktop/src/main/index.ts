@@ -2,7 +2,7 @@ import { app, BrowserWindow, ipcMain, shell } from "electron";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { createTools } from "@news/mcp";
-import { loadManifest } from "@news/pipeline";
+import { loadManifest, writeJson } from "@news/pipeline";
 import { registerIpcRouter, type InvokeHandlers } from "./ipc-router.js";
 import { ModelGatewayManager } from "./gateway/model-gateway-manager.js";
 import { buildNineRouterGatewayDeps } from "./gateway/ninerouter-deps.js";
@@ -16,7 +16,8 @@ import { validateCreateInput } from "./create/create-controller.js";
 import { registerMediaScheme, handleMediaProtocol, mediaUrl } from "./media-protocol.js";
 import { events, setEventTarget } from "./event-bus.js";
 import { projectPaths } from "@news/pipeline";
-import type { LicenseState, ModelInfo, SceneCard, SettingsModel, StoryboardModel } from "../shared/types.js";
+import { existsSync } from "node:fs";
+import type { LicenseState, ModelInfo, ProjectStage, SceneCard, SettingsModel, StoryboardModel } from "../shared/types.js";
 
 // The `media://` scheme must be registered before the app is ready.
 registerMediaScheme();
@@ -50,30 +51,81 @@ const authoringBackend = new NineRouterAuthoringBackend({
 });
 const worker = new CustomLoopAgentWorker(authoringBackend);
 
-/** Run the silent authoring + generate-validate-repair loop for a project. */
-async function runAuthoring(projectId: string, input: AuthorInput): Promise<void> {
+/** Per-project live workspace stage (drives the staged UI). */
+const stages = new Map<string, ProjectStage>();
+
+function setStage(projectId: string, stage: ProjectStage): void {
+  stages.set(projectId, stage);
+  const status =
+    stage.kind === "ready" ? "draft-ready" : stage.kind === "error" ? "error" : "building";
+  events.status({ projectId, status });
+}
+
+async function scriptLinesOf(projectId: string): Promise<import("../shared/types.js").ScriptLine[]> {
+  const manifest = await loadManifest(projectId);
+  return manifest.scenes.map((s, i) => ({ sceneId: s.id, order: i, headline: s.headline ?? "", narration: s.narration ?? "" }));
+}
+
+async function storyboardScenesOf(projectId: string): Promise<SceneCard[]> {
+  const reviewDir = projectPaths(projectId).reviewDir;
+  const manifest = await loadManifest(projectId);
+  return manifest.scenes.map((s, i) => ({
+    sceneId: s.id,
+    order: i,
+    stillPath: mediaUrl(join(reviewDir, `${s.id}.png`)) ?? "",
+    editText: "",
+  }));
+}
+
+/** Stage 1: AI writes the script (manifest). Then wait for approval unless the gate is off. */
+async function runScript(projectId: string, input: AuthorInput): Promise<void> {
   activeProjectId = projectId;
+  setStage(projectId, { kind: "writing" });
+  const hooks: AgentHooks = { onProgress: () => {}, onSceneProduced: () => {}, onRepair: () => {} };
+  try {
+    const authored = await worker.author({ projectId, input, scriptGate: settings.scriptGateEnabled }, hooks);
+    if (authored.kind !== "authored") {
+      setStage(projectId, { kind: "error", message: authored.message });
+      events.friendlyError({ projectId, message: authored.message, retry: "create" });
+      return;
+    }
+    if (settings.scriptGateEnabled) {
+      setStage(projectId, { kind: "script", lines: await scriptLinesOf(projectId) });
+    } else {
+      await runRender(projectId);
+    }
+  } catch (e) {
+    const message = e instanceof Error ? e.message : "Có lỗi khi viết kịch bản.";
+    setStage(projectId, { kind: "error", message });
+    events.friendlyError({ projectId, message, retry: "create" });
+  }
+}
+
+/** Stage 2: render voice + draft with the generate-validate-repair loop. */
+async function runRender(projectId: string): Promise<void> {
+  activeProjectId = projectId;
+  setStage(projectId, { kind: "rendering", percent: 0 });
   const hooks: AgentHooks = {
-    onProgress: (ratio) => events.progress({ projectId, ratio, phase: "draft" }),
+    onProgress: (ratio) => {
+      setStage(projectId, { kind: "rendering", percent: Math.round(ratio * 100) });
+      events.progress({ projectId, ratio, phase: "draft" });
+    },
     onSceneProduced: (sceneId, stillPath) => events.scene({ projectId, sceneId, stillPath: mediaUrl(stillPath) ?? stillPath }),
     onRepair: () => {},
   };
-  events.status({ projectId, status: "building" });
   try {
-    const authored = await worker.author({ projectId, input, scriptGate: false }, hooks);
-    if (authored.kind !== "authored") {
-      events.friendlyError({ projectId, message: authored.message, retry: "create" });
-      events.status({ projectId, status: "error" });
-      return;
-    }
     const outcome = await worker.generateValidateRepair(projectId, { maxAttempts: settings.maxRepairAttempts }, hooks);
-    events.status({ projectId, status: outcome.kind === "passed" ? "draft-ready" : "error" });
-    if (outcome.kind !== "passed") {
-      events.friendlyError({ projectId, message: "Chưa hoàn tất được video. Hãy thử tạo lại.", retry: "create" });
+    if (outcome.kind === "passed") {
+      setStage(projectId, { kind: "ready", scenes: await storyboardScenesOf(projectId) });
+    } else {
+      const message = "Chưa hoàn tất được video sau nhiều lần thử. Hãy thử tạo lại.";
+      setStage(projectId, { kind: "error", message });
+      events.friendlyError({ projectId, message, retry: "draft" });
     }
   } catch (e) {
-    events.friendlyError({ projectId, message: e instanceof Error ? e.message : "Có lỗi khi dựng video.", retry: "create" });
-    events.status({ projectId, status: "error" });
+    const message = e instanceof Error ? e.message : "Có lỗi khi dựng video.";
+    setStage(projectId, { kind: "error", message });
+    events.friendlyError({ projectId, message, retry: "draft" });
   }
 }
 
@@ -117,29 +169,68 @@ const handlers: InvokeHandlers = {
     const projectId = res.data.projectId;
     const authorInput: AuthorInput =
       v.classified.kind === "url" ? { kind: "url", url: v.classified.url } : { kind: "topic", text: v.classified.text };
-    void runAuthoring(projectId, authorInput); // silent background authoring
+    setStage(projectId, { kind: "writing" });
+    void runScript(projectId, authorInput); // stage 1: write the script
     return { projectId };
+  },
+  "projects:stage": async (projectId): Promise<ProjectStage> => {
+    const id = String(projectId);
+    const known = stages.get(id);
+    if (known) return known;
+    // Recover a stage for an existing project opened after a restart.
+    try {
+      const reviewDir = projectPaths(id).reviewDir;
+      const manifest = await loadManifest(id);
+      if (manifest.scenes.length === 0) return { kind: "writing" };
+      const hasStills = manifest.scenes.some((s) => existsSync(join(reviewDir, `${s.id}.png`)));
+      if (hasStills) return { kind: "ready", scenes: await storyboardScenesOf(id) };
+      return { kind: "script", lines: await scriptLinesOf(id) };
+    } catch {
+      return { kind: "writing" };
+    }
   },
   "projects:open": async (projectId): Promise<StoryboardModel> => {
     const id = String(projectId);
-    const reviewDir = projectPaths(id).reviewDir;
     try {
-      const manifest = await loadManifest(id);
-      const scenes: SceneCard[] = manifest.scenes.map((s, i) => ({
-        sceneId: s.id,
-        order: i,
-        stillPath: mediaUrl(join(reviewDir, `${s.id}.png`)) ?? "",
-        editText: "",
-      }));
-      return { projectId: id, scenes, globalNotes: "" };
+      return { projectId: id, scenes: await storyboardScenesOf(id), globalNotes: "" };
     } catch {
       return { projectId: id, scenes: [], globalNotes: "" };
     }
   },
 
-  "script:get": (projectId) => ({ projectId: String(projectId), enabled: settings.scriptGateEnabled, scenes: [] }),
-  "script:applyEdits": () => ({ ok: true }),
-  "script:approve": () => undefined,
+  "script:get": async (projectId) => {
+    const id = String(projectId);
+    try {
+      const lines = await scriptLinesOf(id);
+      return { projectId: id, enabled: settings.scriptGateEnabled, scenes: lines.map((l) => ({ sceneId: l.sceneId, order: l.order, narration: l.narration, headline: l.headline })) };
+    } catch {
+      return { projectId: id, enabled: settings.scriptGateEnabled, scenes: [] };
+    }
+  },
+  "script:applyEdits": async (projectId, edits) => {
+    const id = String(projectId);
+    try {
+      const manifest = await loadManifest(id);
+      const byId = new Map((edits as { sceneId: string; narration?: string; headline?: string }[]).map((e) => [e.sceneId, e]));
+      for (const s of manifest.scenes) {
+        const e = byId.get(s.id);
+        if (!e) continue;
+        if (e.narration !== undefined && e.narration.trim().length === 0) return { ok: false, reason: "empty-narration", sceneId: s.id };
+        if (e.narration !== undefined) s.narration = e.narration;
+        if (e.headline !== undefined) s.headline = e.headline;
+      }
+      await writeJson(projectPaths(id).manifest, manifest);
+      if (stages.get(id)?.kind === "script") setStage(id, { kind: "script", lines: await scriptLinesOf(id) });
+      return { ok: true };
+    } catch {
+      return { ok: false, reason: "write-failed" };
+    }
+  },
+  "script:approve": (projectId) => {
+    const id = String(projectId);
+    void runRender(id); // stage 2: approved → render voice + draft
+    return undefined;
+  },
   "script:setEnabled": (enabled) => {
     settings = { ...settings, scriptGateEnabled: Boolean(enabled) };
     return undefined;

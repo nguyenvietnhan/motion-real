@@ -83,6 +83,17 @@ export type SceneCard = { sceneId: string; order: number; stillPath: string; edi
 
 export type StoryboardModel = { projectId: string; scenes: SceneCard[]; globalNotes: string };
 
+/** A reviewable script line (narration + headline) before rendering (Req 4). */
+export type ScriptLine = { sceneId: string; order: number; headline: string; narration: string };
+
+/** The live stage of a project's workspace, driving the staged UI. */
+export type ProjectStage =
+  | { kind: "writing" } // AI is drafting the script
+  | { kind: "script"; lines: ScriptLine[] } // awaiting user review/approval of the script
+  | { kind: "rendering"; percent: number } // building voice + draft
+  | { kind: "ready"; scenes: SceneCard[] } // draft ready, review scenes
+  | { kind: "error"; message: string };
+
 export type EditBatch = {
   perScene: { sceneId: string; text: string }[];
   globalNotes: string;

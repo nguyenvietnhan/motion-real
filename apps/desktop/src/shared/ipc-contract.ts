@@ -12,6 +12,7 @@ import type {
   ProgressEvent,
   ProjectCardVM,
   ProviderInfo,
+  ProjectStage,
   SceneEvent,
   ScriptEdit,
   ScriptGateModel,
@@ -47,6 +48,7 @@ export interface DashboardApi {
     create(input: CreateInput): Promise<{ projectId: string }>;
     list(): Promise<ProjectCardVM[]>;
     open(projectId: string): Promise<StoryboardModel>;
+    stage(projectId: string): Promise<ProjectStage>;
   };
   script: {
     get(projectId: string): Promise<ScriptGateModel>;

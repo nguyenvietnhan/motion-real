@@ -1,9 +1,9 @@
 import React, { useEffect, useReducer, useState } from "react";
-import { HomeView, LicenseView, ProjectsView, SettingsView, Sidebar, StoryboardView, type Screen } from "./views.js";
-import { reduceDesktop, progressPercent, type DesktopState } from "./state/desktop-state.js";
+import { HomeView, LicenseView, ProjectsView, ProjectWorkspaceView, SettingsView, Sidebar, type Screen } from "./views.js";
+import { reduceDesktop, type DesktopState } from "./state/desktop-state.js";
 import { aiReady } from "../main/gateway/model-gateway-manager.js";
 import { defaultSettings } from "./settings/settings-model.js";
-import type { LicenseState, ModelInfo } from "../shared/types.js";
+import type { LicenseState, ModelInfo, ProjectStage } from "../shared/types.js";
 
 /**
  * Renderer root (web-dashboard) — enterprise shell: a left Sidebar + a content
@@ -28,6 +28,8 @@ export const App: React.FC = () => {
   const [account, setAccount] = useState(initial.aiAccount);
   const [settings, setSettings] = useState(initial.settings);
   const [models, setModels] = useState<ModelInfo[]>([]);
+  const [openProjectId, setOpenProjectId] = useState<string | null>(null);
+  const [stage, setStage] = useState<ProjectStage>({ kind: "writing" });
 
   const dash = typeof window !== "undefined" ? window.dashboard : undefined;
   const ready = aiReady(gateway, account);
@@ -79,15 +81,38 @@ export const App: React.FC = () => {
     dispatch({ type: "gallery", load: cards.length === 0 ? "empty" : "populated", cards });
   };
 
-  const openProject = (projectId: string) =>
-    void dash?.projects.open(projectId).then((storyboard) => {
-      dispatch({ type: "openProject", project: { projectId, storyboard, draft: { hasReviewedDraft: false, revision: 0 } } });
-      setScreen("storyboard");
-    });
+  const openProject = (projectId: string) => {
+    setOpenProjectId(projectId);
+    setStage({ kind: "writing" });
+    setScreen("workspace");
+  };
+
+  // Poll the open project's stage while in the workspace (writing → script →
+  // rendering → ready / error), so the staged UI updates live.
+  useEffect(() => {
+    if (!dash || screen !== "workspace" || !openProjectId) return;
+    let alive = true;
+    const tick = async () => {
+      const st = await dash.projects.stage(openProjectId);
+      if (alive) setStage(st);
+    };
+    void tick();
+    const iv = setInterval(() => void tick(), 1500);
+    return () => {
+      alive = false;
+      clearInterval(iv);
+    };
+  }, [dash, screen, openProjectId]);
 
   if (license.kind !== "active") {
     return <LicenseView state={license} onActivate={(key) => void dash?.license.activate(key).then(setLicense)} />;
   }
+
+  const leaveWorkspace = () => {
+    setOpenProjectId(null);
+    setScreen("home");
+    void refreshGallery();
+  };
 
   return (
     <div className="ns-shell">
@@ -99,7 +124,7 @@ export const App: React.FC = () => {
             load={state.gallery.load}
             cards={state.gallery.cards}
             onConnectPrompt={() => setScreen("settings")}
-            onCreate={(raw) => void dash?.projects.create({ raw }).then(() => refreshGallery())}
+            onCreate={(raw) => void dash?.projects.create({ raw }).then((r) => openProject(r.projectId))}
             onOpen={openProject}
           />
         )}
@@ -125,14 +150,17 @@ export const App: React.FC = () => {
           />
         )}
 
-        {screen === "storyboard" && state.openProject && (
-          <StoryboardView
-            model={state.openProject.storyboard}
-            percent={progressPercent(state)}
-            canApprove={state.openProject.draft.hasReviewedDraft}
-            onBack={() => setScreen("home")}
-            onSubmit={(perScene, globalNotes) => void dash?.review.submitEdits(state.openProject!.projectId, { perScene, globalNotes })}
-            onApprove={() => void dash?.review.approveDraft(state.openProject!.projectId)}
+        {screen === "workspace" && openProjectId && (
+          <ProjectWorkspaceView
+            stage={stage}
+            onBack={leaveWorkspace}
+            onApplyScript={(edits) => void dash?.script.applyEdits(openProjectId, edits)}
+            onApproveScript={() => {
+              setStage({ kind: "rendering", percent: 0 });
+              void dash?.script.approve(openProjectId);
+            }}
+            onSubmitEdits={(perScene, globalNotes) => void dash?.review.submitEdits(openProjectId, { perScene, globalNotes })}
+            onApproveDraft={() => void dash?.review.approveDraft(openProjectId)}
           />
         )}
       </main>
