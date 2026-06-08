@@ -189,7 +189,10 @@ export const App: React.FC = () => {
               setStage({ kind: "rendering", percent: 0 });
               void dash?.script.approve(openProjectId);
             }}
-            onSubmitEdits={(perScene, globalNotes) => void dash?.review.submitEdits(openProjectId, { perScene, globalNotes })}
+            onSubmitEdits={(perScene, globalNotes) => {
+              setStage({ kind: "rendering", percent: 0 });
+              void dash?.review.submitEdits(openProjectId, { perScene, globalNotes });
+            }}
             onApproveDraft={() => {
               setStage({ kind: "rendering", percent: 0 });
               void dash?.review.approveDraft(openProjectId);
