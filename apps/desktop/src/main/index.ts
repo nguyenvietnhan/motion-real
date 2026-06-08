@@ -20,7 +20,7 @@ import { SettingsStore } from "./settings/settings-store.js";
 import { registerMediaScheme, handleMediaProtocol, mediaUrl } from "./media-protocol.js";
 import { events, setEventTarget } from "./event-bus.js";
 import { loadAuthoredTsx } from "./authoring/tsx-loader.js";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { rm } from "node:fs/promises";
 import type { ModelInfo, ScriptEdit, SettingsModel } from "../shared/types.js";
 
@@ -31,6 +31,37 @@ registerMediaScheme();
 // scenes are loaded for the admission handshake via esbuild — set process-wide
 // so BOTH the authoring step AND renderProject's admission use it.
 setAuthoredLoader(loadAuthoredTsx);
+
+// Electron is NOT launched with `--env-file=.env` (unlike the tsx build scripts),
+// so the repo `.env` is loaded here into process.env — the engine's
+// `vivibeApiKey()`/`defaultVivibeVoiceId()` read process.env. Existing env wins.
+function loadEnvFile(path: string): void {
+  if (!existsSync(path)) return;
+  try {
+    for (const line of readFileSync(path, "utf8").split(/\r?\n/)) {
+      const m = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*?)\s*$/.exec(line);
+      if (!m || line.trim().startsWith("#")) continue;
+      const key = m[1]!;
+      let val = m[2]!;
+      if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+        val = val.slice(1, -1);
+      }
+      if (process.env[key] === undefined) process.env[key] = val;
+    }
+  } catch (e) {
+    console.warn("[env] failed to load .env:", e);
+  }
+}
+const REPO_ROOT = dirname(process.env.VIDEO_TOOL_HOME ?? videoToolHome());
+loadEnvFile(join(REPO_ROOT, ".env"));
+
+/** Bridge user-entered voice settings into the env the engine reads. */
+function applyVoiceEnv(s: SettingsModel): void {
+  const key = s.voiceApiKey?.trim();
+  const voice = s.voiceId?.trim();
+  if (key) process.env.VIETNAMESE_API_KEY = key;
+  if (voice) process.env.VIETNAMESE_VOICEID = voice;
+}
 
 /**
  * Electron main = the ENGINE HOST (web-dashboard). Imports the MCP tools (and
@@ -51,6 +82,7 @@ const settingsStore = new SettingsStore({
   envApiKey: vivibeApiKey,
   envVoiceId: defaultVivibeVoiceId,
 });
+applyVoiceEnv(settingsStore.current());
 let selectedModel: ModelInfo | undefined;
 
 // TTS config: a user-entered voice key/id (Settings) overrides the .env fallback.
@@ -152,7 +184,11 @@ const handlers: InvokeHandlers = {
   "review:approveDraft": () => ({ ok: false, reason: "draft-first" }),
 
   "settings:get": () => settingsStore.current(),
-  "settings:update": (patch) => settingsStore.update(patch as Partial<SettingsModel>),
+  "settings:update": (patch) => {
+    const next = settingsStore.update(patch as Partial<SettingsModel>);
+    applyVoiceEnv(next);
+    return next;
+  },
 };
 
 registerIpcRouter(ipcMain, handlers);
