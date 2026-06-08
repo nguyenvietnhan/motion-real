@@ -134,7 +134,7 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
       console.log(`[authoring] AI replied (${reply.length} chars) for project ${job.projectId}.`);
     } catch (e) {
       console.error(`[authoring] AI call failed for project ${job.projectId}:`, e);
-      return { scenes: [], message: e instanceof Error ? e.message : "Gọi AI thất bại." };
+      return { scenes: [], message: "Không nhận được phản hồi từ AI (quá thời gian chờ hoặc mất kết nối). Hãy kiểm tra 9Router/model rồi thử lại." };
     }
 
     const parsed = parseAuthorReply(reply);

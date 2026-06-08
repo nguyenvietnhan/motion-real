@@ -19,6 +19,45 @@ const BASE = "http://localhost:20128";
 const CLI_TOKEN_HEADER = "x-9r-cli-token";
 const CLI_TOKEN_SALT = "9r-cli-auth";
 
+/** Quick management/poll calls (models, providers, reachability). */
+const QUICK_TIMEOUT_MS = 10_000;
+/** A chat completion can legitimately take a while (large authored output). */
+const CHAT_TIMEOUT_MS = 240_000;
+
+/**
+ * `fetch` with a hard timeout (and optional external abort). Without this a hung
+ * gateway/model would leave a request pending FOREVER — e.g. authoring stuck on
+ * "writing" with no way out. On timeout the promise rejects so callers can fail
+ * cleanly and surface a friendly error.
+ */
+async function fetchWithTimeout(
+  url: string,
+  init: RequestInit,
+  timeoutMs: number,
+  externalSignal?: AbortSignal,
+): Promise<Response> {
+  const ctrl = new AbortController();
+  const onAbort = () => ctrl.abort();
+  if (externalSignal) {
+    if (externalSignal.aborted) ctrl.abort();
+    else externalSignal.addEventListener("abort", onAbort, { once: true });
+  }
+  let timedOut = false;
+  const timer = setTimeout(() => {
+    timedOut = true;
+    ctrl.abort();
+  }, timeoutMs);
+  try {
+    return await fetch(url, { ...init, signal: ctrl.signal });
+  } catch (e) {
+    if (timedOut) throw new Error(`request to ${url} timed out after ${Math.round(timeoutMs / 1000)}s`);
+    throw e;
+  } finally {
+    clearTimeout(timer);
+    if (externalSignal) externalSignal.removeEventListener("abort", onAbort);
+  }
+}
+
 /** A text part or an inline image (data URL) — OpenAI multimodal content shape. */
 export type ContentPart = { type: "text"; text: string } | { type: "image_url"; image_url: { url: string } };
 
@@ -85,11 +124,15 @@ export class NineRouterClient {
   }
 
   private async api<T>(method: string, path: string, body?: unknown): Promise<T> {
-    const res = await fetch(`${this.base}${path}`, {
-      method,
-      headers: { "content-type": "application/json", [CLI_TOKEN_HEADER]: cliToken() },
-      ...(body ? { body: JSON.stringify(body) } : {}),
-    });
+    const res = await fetchWithTimeout(
+      `${this.base}${path}`,
+      {
+        method,
+        headers: { "content-type": "application/json", [CLI_TOKEN_HEADER]: cliToken() },
+        ...(body ? { body: JSON.stringify(body) } : {}),
+      },
+      QUICK_TIMEOUT_MS,
+    );
     if (!res.ok) throw new Error(`9router ${method} ${path} → HTTP ${res.status}`);
     return (await res.json()) as T;
   }
@@ -97,7 +140,7 @@ export class NineRouterClient {
   /** Reachable iff GET /v1/models responds 200. */
   async isReachable(): Promise<boolean> {
     try {
-      const res = await fetch(`${this.base}/v1/models`);
+      const res = await fetchWithTimeout(`${this.base}/v1/models`, {}, QUICK_TIMEOUT_MS);
       return res.ok;
     } catch {
       return false;
@@ -167,12 +210,16 @@ export class NineRouterClient {
   ): Promise<string> {
     const headers: Record<string, string> = { "content-type": "application/json" };
     if (opts.apiKey) headers.authorization = `Bearer ${opts.apiKey}`;
-    const res = await fetch(`${this.base}/v1/chat/completions`, {
-      method: "POST",
-      headers,
-      body: JSON.stringify({ model, messages, stream: false }),
-      ...(opts.signal ? { signal: opts.signal } : {}),
-    });
+    const res = await fetchWithTimeout(
+      `${this.base}/v1/chat/completions`,
+      {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ model, messages, stream: false }),
+      },
+      CHAT_TIMEOUT_MS,
+      opts.signal,
+    );
     if (!res.ok) throw new Error(`9router chat → HTTP ${res.status}`);
     const data = (await res.json()) as { choices?: { message?: { content?: string } }[] };
     return data.choices?.[0]?.message?.content ?? "";
