@@ -23,6 +23,21 @@ export type AuthoredRegistration =
   | { ok: true; componentId: string }
   | { ok: false; violations: SafetyIssue[] };
 
+/**
+ * A process-wide default loader for the registration handshake. Hosts whose
+ * runtime cannot `import()` a `.tsx` directly (e.g. the bundled Electron main,
+ * which is plain Node ESM with no `.tsx` loader) register one here at startup so
+ * EVERY admission call — including the one inside `renderProject` — uses it,
+ * without threading the loader through every layer. The `npx tsx` build-script
+ * path leaves this unset and falls back to a plain dynamic import.
+ */
+let defaultLoad: ((fileUrl: string) => Promise<unknown>) | undefined;
+
+/** Set (or clear) the process-wide default authored-module loader. */
+export function setAuthoredLoader(load: ((fileUrl: string) => Promise<unknown>) | undefined): void {
+  defaultLoad = load;
+}
+
 export type AdmitAndRegisterOptions = {
   policy?: AdmissionPolicy;
   /** Injectable importer (defaults to a real dynamic import); used by tests. */
@@ -44,7 +59,7 @@ export async function admitAndRegisterAuthored(
   }
 
   const componentId = admission.componentId;
-  const load = options.load ?? ((url: string) => import(url));
+  const load = options.load ?? defaultLoad ?? ((url: string) => import(url));
 
   let mod: Record<string, unknown>;
   try {

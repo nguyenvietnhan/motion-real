@@ -6,6 +6,7 @@ export {
 } from "./admission.js";
 export {
   admitAndRegisterAuthored,
+  setAuthoredLoader,
   type AuthoredRegistration,
   type AdmitAndRegisterOptions,
 } from "./register.js";

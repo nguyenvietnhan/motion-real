@@ -2,7 +2,7 @@ import { app, BrowserWindow, ipcMain, shell } from "electron";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { createTools } from "@news/mcp";
-import { loadManifest, writeJson, projectPaths, videoToolHome, vivibeApiKey, defaultVivibeVoiceId } from "@news/pipeline";
+import { loadManifest, writeJson, projectPaths, videoToolHome, vivibeApiKey, defaultVivibeVoiceId, setAuthoredLoader } from "@news/pipeline";
 import { registerIpcRouter, type InvokeHandlers } from "./ipc-router.js";
 import { ModelGatewayManager } from "./gateway/model-gateway-manager.js";
 import { buildNineRouterGatewayDeps } from "./gateway/ninerouter-deps.js";
@@ -19,12 +19,18 @@ import { defaultSettings } from "../renderer/settings/settings-model.js";
 import { SettingsStore } from "./settings/settings-store.js";
 import { registerMediaScheme, handleMediaProtocol, mediaUrl } from "./media-protocol.js";
 import { events, setEventTarget } from "./event-bus.js";
+import { loadAuthoredTsx } from "./authoring/tsx-loader.js";
 import { existsSync } from "node:fs";
 import { rm } from "node:fs/promises";
 import type { ModelInfo, ScriptEdit, SettingsModel } from "../shared/types.js";
 
 // The `media://` scheme must be registered before the app is ready.
 registerMediaScheme();
+
+// The bundled Electron main is plain Node ESM (no `.tsx` loader), so authored
+// scenes are loaded for the admission handshake via esbuild — set process-wide
+// so BOTH the authoring step AND renderProject's admission use it.
+setAuthoredLoader(loadAuthoredTsx);
 
 /**
  * Electron main = the ENGINE HOST (web-dashboard). Imports the MCP tools (and
