@@ -3,7 +3,7 @@ import { buildStoryboard } from "../review/storyboard.js";
 import { serializeError } from "@news/pipeline";
 import { classifyError } from "../agent/error-classifier.js";
 import { toFriendlyError } from "../redact/friendly.js";
-import type { AgentHooks, AgentWorker, AuthorInput } from "../agent/agent-worker.js";
+import type { AgentHooks, AgentWorker, AuthorInput, RepairOutcome } from "../agent/agent-worker.js";
 import type {
   ApplyResult,
   FriendlyStatus,
@@ -69,7 +69,7 @@ export interface WorkspaceDeps {
   worker: AgentWorker;
   events: WorkspaceEvents;
   /** Live settings reads (SettingsStore). */
-  settings: { readonly scriptGateEnabled: boolean; readonly maxRepairAttempts: number };
+  settings: { readonly scriptGateEnabled: boolean; readonly maxRepairAttempts: number; readonly visualQaEnabled: boolean };
   /** Gallery cards, already mediaUrl-wrapped + fallback-to-[] at the seam (R1.7). */
   listProjects: () => Promise<ProjectCardVM[]>;
   loadManifest: (projectId: string) => Promise<WsManifest>;
@@ -248,11 +248,7 @@ export class WorkspaceController {
     this.setStage(projectId, { kind: "rendering", percent: 0, phase: "edit" });
     // The reauthor step is an AI rewrite with no measurable progress → show it
     // as an indeterminate "edit" phase (no jumpy percent from emitScenes).
-    const editHooks: AgentHooks = {
-      onProgress: () => {},
-      onSceneProduced: (sceneId, stillPath) => this.deps.events.scene({ projectId, sceneId, stillPath: this.deps.toMedia(stillPath) }),
-      onRepair: () => {},
-    };
+    const editHooks = this.editHooks(projectId);
     const hooks = this.renderHooks(projectId, "draft");
     try {
       // Resolve which scenes to re-author: the explicitly-edited ones, or — when
@@ -283,7 +279,10 @@ export class WorkspaceController {
       }
       // …then re-render the draft (and auto-repair any new oracle errors).
       this.setStage(projectId, { kind: "rendering", percent: 0, phase: "draft" });
-      const outcome = await this.deps.worker.generateValidateRepair(projectId, { maxAttempts: this.deps.settings.maxRepairAttempts }, hooks);
+      let outcome = await this.deps.worker.generateValidateRepair(projectId, { maxAttempts: this.deps.settings.maxRepairAttempts }, hooks);
+      // AI visual-QA over ONLY the edited scenes — catch defects the user's
+      // instruction may have introduced, without re-checking untouched scenes.
+      outcome = await this.withVisualQa(projectId, outcome, hooks, sceneIds);
       if (outcome.kind === "passed") {
         this.bumpRenderVersion(projectId);
         // If the user explicitly edited some scenes but a SUBSET failed to apply,
@@ -310,6 +309,44 @@ export class WorkspaceController {
       this.setStage(projectId, { kind: "error", message, fixable });
       this.deps.events.friendlyError({ projectId, message, retry: "draft", fixable });
     }
+  }
+
+  /** Hooks for a reauthor step that has no measurable progress (indeterminate). */
+  private editHooks(projectId: string): AgentHooks {
+    return {
+      onProgress: () => {},
+      onSceneProduced: (sceneId, stillPath) => this.deps.events.scene({ projectId, sceneId, stillPath: this.deps.toMedia(stillPath) }),
+      onRepair: () => {},
+    };
+  }
+
+  /**
+   * One AI visual-QA round layered on top of a clean draft: ask the vision model
+   * to flag CLEAR layout defects on the stills (overlap/clipping/imbalance the
+   * deterministic grid can't catch), reauthor only the flagged scenes, and
+   * re-render. `scope` limits the QA to specific scenes (e.g. the ones a user
+   * just edited) so post-edit QA stays cheap. Bounded to ONE round (no recursion)
+   * to avoid false-positive churn; best-effort (a vision failure is a no-op).
+   * Returns the (possibly new) outcome so the caller decides ready vs error.
+   */
+  private async withVisualQa(
+    projectId: string,
+    outcome: RepairOutcome,
+    hooks: AgentHooks,
+    scope?: string[],
+  ): Promise<RepairOutcome> {
+    if (outcome.kind !== "passed" || !this.deps.settings.visualQaEnabled || !this.deps.worker.visualQa) return outcome;
+    const flagged = await this.deps.worker.visualQa(projectId, scope).catch(() => [] as { sceneId: string; issue: string }[]);
+    if (flagged.length === 0) return outcome;
+    this.setStage(projectId, { kind: "rendering", percent: 0, phase: "qa" });
+    const sceneIds = flagged.map((f) => f.sceneId);
+    const perSceneIntent = Object.fromEntries(flagged.map((f) => [f.sceneId, `Tự sửa lỗi bố cục phát hiện qua ảnh: ${f.issue}`]));
+    await this.deps.worker.reauthorScenes(
+      { projectId, sceneIds, preprompt: { contractRef: "SKILL.md+AGENTS.md", affectedSceneIds: sceneIds, perSceneIntent, globalNotes: "" } },
+      this.editHooks(projectId),
+    );
+    this.setStage(projectId, { kind: "rendering", percent: 0, phase: "draft" });
+    return this.deps.worker.generateValidateRepair(projectId, { maxAttempts: this.deps.settings.maxRepairAttempts }, hooks);
   }
 
   private renderHooks(projectId: string, phase: "draft" | "full" = "draft"): AgentHooks {
@@ -339,7 +376,9 @@ export class WorkspaceController {
     this.setStage(projectId, { kind: "rendering", percent: 0, phase: "draft" });
     const hooks = this.renderHooks(projectId, "draft");
     try {
-      const outcome = await this.deps.worker.generateValidateRepair(projectId, { maxAttempts: this.deps.settings.maxRepairAttempts }, hooks);
+      let outcome = await this.deps.worker.generateValidateRepair(projectId, { maxAttempts: this.deps.settings.maxRepairAttempts }, hooks);
+      // AI visual-QA over ALL scenes' stills before the user reviews (best-effort).
+      outcome = await this.withVisualQa(projectId, outcome, hooks);
       if (outcome.kind === "passed") {
         this.bumpRenderVersion(projectId);
         this.setStage(projectId, { kind: "ready", scenes: await this.storyboardScenesOf(projectId) });

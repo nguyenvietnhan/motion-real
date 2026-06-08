@@ -117,3 +117,36 @@ export function buildReauthorMessages(input: ReauthorPromptInput): VisionMessage
     { role: "user", content: text },
   ];
 }
+
+// --- AI visual-QA (vision critique over rendered stills) --------------------
+
+const VISUAL_QA_SYSTEM = `Bạn là QA BỐ CỤC cho video tin tức dọc 9:16 (nền kem sáng, chữ mực gần đen, viền vuông).
+Bạn được xem ảnh render (khung giữa) của từng cảnh và chỉ tìm LỖI BỐ CỤC RÕ RÀNG — KHÔNG nhận xét về "gu"/thẩm mỹ:
+- chữ/khối ĐÈ LÊN NHAU hoặc chồng chéo;
+- chữ bị CẮT/tràn ra ngoài khung hoặc ra mép;
+- nội dung tràn xuống đáy (vùng phụ đề) hoặc lố vùng an toàn;
+- phần tử lệch hẳn/mất cân đối nặng, hoặc khoảng trống lớn bất thường;
+- chữ quá nhỏ/khó đọc rõ rệt.
+KHÔNG báo lỗi nếu cảnh trông ổn. KHÔNG bịa. Bỏ qua khác biệt phong cách/màu sắc/sở thích.
+
+TRẢ VỀ DUY NHẤT một khối JSON, không kèm văn bản khác:
+\`\`\`json
+{ "issues": [ { "sceneId": "scene-03", "issue": "mô tả ngắn lỗi bố cục", "severity": "high" } ] }
+\`\`\`
+severity = "high" chỉ khi lỗi rõ ràng cần sửa; "low" cho nghi ngờ nhẹ. Cảnh không lỗi thì KHÔNG liệt kê.`;
+
+/** Build a multimodal visual-QA request: each scene's still + its id, one batched call. */
+export function buildVisualQaMessages(scenes: { sceneId: string; stillDataUrl: string }[]): VisionMessage[] {
+  const parts: ContentPart[] = [
+    { type: "text", text: `Soát ${scenes.length} cảnh dưới đây. Mỗi ảnh kèm id của cảnh ngay trước nó.` },
+  ];
+  for (const s of scenes) {
+    parts.push({ type: "text", text: `Cảnh "${s.sceneId}":` });
+    parts.push({ type: "image_url", image_url: { url: s.stillDataUrl } });
+  }
+  parts.push({ type: "text", text: "Trả về đúng một khối JSON theo định dạng đã nêu." });
+  return [
+    { role: "system", content: VISUAL_QA_SYSTEM },
+    { role: "user", content: parts },
+  ];
+}

@@ -21,5 +21,6 @@ export function defaultSettings(outputDir: string): SettingsModel {
     outputDir,
     maxRepairAttempts: DEFAULT_MAX_ATTEMPTS,
     scriptGateEnabled: true,
+    visualQaEnabled: true,
   };
 }

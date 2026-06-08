@@ -17,7 +17,7 @@ function baseDeps(over: Partial<WorkspaceDeps> = {}): WorkspaceDeps {
   return {
     worker: {} as AgentWorker,
     events: noopEvents(),
-    settings: { scriptGateEnabled: true, maxRepairAttempts: 3 },
+    settings: { scriptGateEnabled: true, maxRepairAttempts: 3, visualQaEnabled: false },
     listProjects: async () => [],
     loadManifest: async () => ({ scenes: [] }),
     writeManifest: async () => {},
@@ -190,6 +190,48 @@ function workerWith(outcome: RepairOutcome | (() => Promise<RepairOutcome>)): Ag
 }
 
 describe("fixWithAi + fixable flag", () => {
+  it("AI visual-QA round: a flagged scene is reauthored + re-rendered before ready (when enabled)", async () => {
+    const reauthorScenes = vi.fn(async () => ({ kind: "authored", sceneIds: ["scene-02"] }) as AuthorOutcome);
+    const visualQa = vi.fn(async () => [{ sceneId: "scene-02", issue: "chữ đè lên nhau" }]);
+    let renders = 0;
+    const worker: AgentWorker = {
+      author: async (): Promise<AuthorOutcome> => ({ kind: "authored", sceneIds: [] }),
+      reauthorScenes,
+      publish: async () => ({ ok: true, outputPath: "out.mp4" }),
+      generateValidateRepair: async (): Promise<RepairOutcome> => { renders++; return { kind: "passed", attempts: 1 }; },
+      visualQa,
+    };
+    const ctrl = new WorkspaceController(baseDeps({ worker, settings: { scriptGateEnabled: false, maxRepairAttempts: 3, visualQaEnabled: true } }));
+    ctrl.approve("p1");
+    await flush();
+    expect(visualQa).toHaveBeenCalledTimes(1);
+    expect(visualQa.mock.calls[0]).toEqual(["p1", undefined]); // initial draft → checks ALL scenes
+    expect(reauthorScenes).toHaveBeenCalledTimes(1); // flagged scene reauthored
+    expect(renders).toBe(2); // initial draft + one QA re-render
+    expect((await ctrl.stage("p1")).kind).toBe("ready");
+  });
+
+  it("post-edit QA is scoped to the edited scenes; disabled ⇒ never called", async () => {
+    const visualQa = vi.fn(async () => [] as { sceneId: string; issue: string }[]);
+    const worker: AgentWorker = {
+      author: async (): Promise<AuthorOutcome> => ({ kind: "authored", sceneIds: [] }),
+      reauthorScenes: async (): Promise<AuthorOutcome> => ({ kind: "authored", sceneIds: ["scene-01"] }),
+      publish: async () => ({ ok: true, outputPath: "out.mp4" }),
+      generateValidateRepair: async (): Promise<RepairOutcome> => ({ kind: "passed", attempts: 1 }),
+      visualQa,
+    };
+    const off = new WorkspaceController(baseDeps({ worker, settings: { scriptGateEnabled: false, maxRepairAttempts: 3, visualQaEnabled: false } }));
+    off.approve("p1");
+    await flush();
+    expect(visualQa).not.toHaveBeenCalled();
+
+    const on = new WorkspaceController(baseDeps({ worker, settings: { scriptGateEnabled: false, maxRepairAttempts: 3, visualQaEnabled: true } }));
+    on.setStage("p2", { kind: "ready", scenes: [] });
+    on.submitEdits("p2", [{ sceneId: "scene-01", text: "to chữ" }], "");
+    await flush();
+    expect(visualQa).toHaveBeenCalledWith("p2", ["scene-01"]);
+  });
+
   it("in-flight guard: a second action while a render is running is ignored (no double-run)", async () => {
     let resolveGen: (() => void) | undefined;
     const gen = vi.fn(() => new Promise<RepairOutcome>((r) => { resolveGen = () => r({ kind: "passed", attempts: 1 }); }));

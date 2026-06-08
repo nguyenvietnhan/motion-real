@@ -19,12 +19,13 @@ import {
 import type { createTools } from "@news/mcp";
 import type { AuthoringBackend, AuthoredScene, ReauthorTarget } from "../agent/custom-loop-worker.js";
 import type { SafetyReportView } from "../agent/repair-loop.js";
-import type { AuthorJob } from "../agent/agent-worker.js";
+import type { AuthorJob, VisualDefect } from "../agent/agent-worker.js";
 import type { NineRouterClient, ChatMessage } from "../gateway/ninerouter-client.js";
-import { buildAuthorMessages, buildReauthorMessages } from "./prompt.js";
+import { buildAuthorMessages, buildReauthorMessages, buildVisualQaMessages } from "./prompt.js";
 import { parseAuthorReply } from "./reply-parser.js";
 import { parseReauthorReply } from "./reply-parser.js";
 import type { AuthorManifest } from "./manifest-schema.js";
+import { extractJsonObject } from "./manifest-schema.js";
 import { sceneFileName, resolveSceneFile } from "./scene-files.js";
 import { normalizeAuthoredImports } from "./normalize-imports.js";
 import { loadAuthoredTsx } from "./tsx-loader.js";
@@ -352,4 +353,66 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
     }
     return { ok: hardErrors.length === 0, hardErrors, warnings: res.data.warnings };
   }
+
+  /**
+   * AI visual-QA: ask the (vision) model to flag CLEAR layout defects on the
+   * rendered scene stills — overlap, clipping, off-canvas, imbalance — that the
+   * deterministic grid can't catch. `sceneIds` scopes the check (e.g. only the
+   * scenes a user just edited); omit to check every scene. Best-effort and
+   * model-dependent: no model, no stills, a vision failure, or an unparseable
+   * reply all yield `[]` (skip QA, never block the pipeline).
+   */
+  async visualQa(projectId: string, sceneIds?: string[]): Promise<VisualDefect[]> {
+    const model = this.deps.model();
+    if (!model) return [];
+    const manifest = await loadManifest(projectId).catch(() => null);
+    if (!manifest) return [];
+    const reviewDir = projectPaths(projectId).reviewDir;
+    const wanted = sceneIds && sceneIds.length > 0 ? new Set(sceneIds) : null;
+    const known = new Set<string>();
+    const scenes: { sceneId: string; stillDataUrl: string }[] = [];
+    for (const s of manifest.scenes) {
+      if (wanted && !wanted.has(s.id)) continue;
+      known.add(s.id);
+      const url = readStillDataUrl(join(reviewDir, `${s.id}.png`));
+      if (url) scenes.push({ sceneId: s.id, stillDataUrl: url });
+    }
+    if (scenes.length === 0) return [];
+
+    let reply: string;
+    try {
+      reply = await this.deps.client.chat(model, buildVisualQaMessages(scenes), { apiKey: this.deps.apiKey() });
+    } catch (e) {
+      console.warn("[visual-qa] vision call failed; skipping QA:", e);
+      return [];
+    }
+    return parseVisualDefects(reply, known);
+  }
+}
+
+/** Parse the visual-QA JSON reply into high-severity, known-scene defects (tolerant). */
+function parseVisualDefects(reply: string, knownScenes: Set<string>): VisualDefect[] {
+  const json = extractJsonObject(reply);
+  if (!json) return [];
+  let raw: unknown;
+  try {
+    raw = JSON.parse(json);
+  } catch {
+    return [];
+  }
+  const issues = (raw as { issues?: unknown })?.issues;
+  if (!Array.isArray(issues)) return [];
+  const out: VisualDefect[] = [];
+  const seen = new Set<string>();
+  for (const it of issues) {
+    const o = it as { sceneId?: unknown; issue?: unknown; severity?: unknown };
+    const sceneId = typeof o.sceneId === "string" ? o.sceneId : "";
+    const issue = typeof o.issue === "string" ? o.issue.trim() : "";
+    const severity = typeof o.severity === "string" ? o.severity.toLowerCase() : "high";
+    // Only act on clearly-flagged, known scenes; ignore "low" hunches + hallucinated ids.
+    if (severity !== "high" || !knownScenes.has(sceneId) || issue === "" || seen.has(sceneId)) continue;
+    seen.add(sceneId);
+    out.push({ sceneId, issue });
+  }
+  return out;
 }

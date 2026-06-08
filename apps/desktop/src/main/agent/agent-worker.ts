@@ -64,6 +64,9 @@ export type RepairOutcome =
 /** Result of a full-quality publish render. */
 export type PublishResult = { ok: true; outputPath: string } | { ok: false; error?: SerializedPipelineError };
 
+/** A layout defect the AI visual-QA flagged on a rendered scene still. */
+export type VisualDefect = { sceneId: string; issue: string };
+
 /** A plain-language auto-fix description (NEVER an N-code / engine internal; Req 6.8). */
 export type { FriendlyFix } from "../../shared/types.js";
 import type { FriendlyFix } from "../../shared/types.js";
@@ -95,4 +98,12 @@ export interface AgentWorker {
     opts: RepairLoopOptions,
     hooks: AgentHooks,
   ): Promise<RepairOutcome>;
+  /**
+   * Optional AI visual-QA: judge the rendered scene stills (vision model) for
+   * clear LAYOUT defects (overlap, clipping, off-canvas, imbalance) the
+   * deterministic grid can't catch. `sceneIds` scopes the check (e.g. only the
+   * scenes a user just edited); omit to check every scene. Returns the flagged
+   * scenes + a short description. Model-dependent (needs vision) and best-effort.
+   */
+  visualQa?(projectId: string, sceneIds?: string[]): Promise<VisualDefect[]>;
 }

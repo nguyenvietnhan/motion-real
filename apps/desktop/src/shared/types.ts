@@ -90,7 +90,7 @@ export type ScriptLine = { sceneId: string; order: number; headline: string; nar
 export type ProjectStage =
   | { kind: "writing" } // AI is drafting the script
   | { kind: "script"; lines: ScriptLine[] } // awaiting user review/approval of the script
-  | { kind: "rendering"; percent: number; phase?: "edit" | "draft" | "full" } // building (edit reauthor | draft | full)
+  | { kind: "rendering"; percent: number; phase?: "edit" | "draft" | "full" | "qa" } // building (edit reauthor | draft | full | ai visual-qa)
   | { kind: "ready"; scenes: SceneCard[]; notice?: string } // draft ready, review scenes (notice = a transient message, e.g. an edit that couldn't be applied)
   | { kind: "published"; outputPath: string } // full MP4 rendered
   | { kind: "error"; message: string; fixable: boolean };
@@ -120,6 +120,8 @@ export type SettingsModel = {
   outputDir: string;
   maxRepairAttempts: number;
   scriptGateEnabled: boolean;
+  /** Run an AI vision pass over rendered stills to auto-fix layout defects before review. */
+  visualQaEnabled: boolean;
 };
 
 // --- streaming events (Req 5, 9, 10) ---------------------------------------

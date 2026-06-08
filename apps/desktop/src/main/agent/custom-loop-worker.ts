@@ -7,6 +7,7 @@ import type {
   RepairLoopOptions,
   RepairOutcome,
   PublishResult,
+  VisualDefect,
 } from "./agent-worker.js";
 import type { SafetyIssue } from "@news/pipeline";
 import { generateValidateRepair, type SafetyReportView, type RenderResult } from "./repair-loop.js";
@@ -39,6 +40,8 @@ export interface AuthoringBackend {
   renderFull(projectId: string): Promise<PublishResult>;
   /** Read the safety report for the just-rendered draft (MCP `get_safety_report`). */
   getSafetyReport(projectId: string): Promise<SafetyReportView>;
+  /** Optional AI visual-QA over rendered stills (vision model); flags layout defects. */
+  visualQa?(projectId: string, sceneIds?: string[]): Promise<VisualDefect[]>;
 }
 
 function emitScenes(scenes: AuthoredScene[], hooks: AgentHooks): void {
@@ -71,6 +74,10 @@ export class CustomLoopAgentWorker implements AgentWorker {
 
   publish(projectId: string): Promise<PublishResult> {
     return this.backend.renderFull(projectId);
+  }
+
+  visualQa(projectId: string, sceneIds?: string[]): Promise<VisualDefect[]> {
+    return this.backend.visualQa?.(projectId, sceneIds) ?? Promise.resolve([]);
   }
 
   async generateValidateRepair(

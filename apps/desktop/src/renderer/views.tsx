@@ -398,6 +398,13 @@ export const SettingsView: React.FC<{
           <input type="checkbox" checked={settings.scriptGateEnabled} onChange={(e) => onUpdate({ scriptGateEnabled: e.target.checked })} />
           Duyệt kịch bản trước khi dựng
         </label>
+        <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10 }}>
+          <input type="checkbox" checked={settings.visualQaEnabled} onChange={(e) => onUpdate({ visualQaEnabled: e.target.checked })} />
+          AI tự soát &amp; sửa lỗi hình ảnh trước khi duyệt
+        </label>
+        <p style={{ color: "var(--muted-foreground)", fontSize: 12, margin: "4px 0 0" }}>
+          AI xem ảnh từng cảnh để bắt lỗi bố cục (đè chữ, tràn, lệch) và tự sửa — cần model có khả năng nhìn ảnh; nếu không sẽ tự bỏ qua.
+        </p>
         <p style={{ color: "var(--muted-foreground)", fontSize: 12, marginBottom: 0 }}>Thư mục lưu: {settings.outputDir || "(mặc định)"}</p>
       </Section>
     </div>
@@ -492,9 +499,10 @@ export const ProjectWorkspaceView: React.FC<{
         const phase = stage.phase ?? "draft";
         const label =
           phase === "edit" ? "AI đang chỉnh sửa các cảnh theo yêu cầu…"
-            : phase === "full" ? "Đang dựng video bản đầy đủ (chất lượng cao)…"
-              : "Đang dựng giọng đọc + bản nháp…";
-        const indeterminate = phase === "edit" || stage.percent <= 0;
+            : phase === "qa" ? "AI đang tự kiểm tra & sửa lỗi hình ảnh…"
+              : phase === "full" ? "Đang dựng video bản đầy đủ (chất lượng cao)…"
+                : "Đang dựng giọng đọc + bản nháp…";
+        const indeterminate = phase === "edit" || phase === "qa" || stage.percent <= 0;
         return (
           <div className="ns-card" style={{ padding: 32 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
