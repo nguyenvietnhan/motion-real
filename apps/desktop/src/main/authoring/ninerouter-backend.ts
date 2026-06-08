@@ -15,6 +15,7 @@ import type { NineRouterClient } from "../gateway/ninerouter-client.js";
 import { buildAuthorMessages } from "./prompt.js";
 import { parseAuthorManifest, type AuthorManifest } from "./manifest-schema.js";
 import { SCENE_KIT } from "./starter-kit.js";
+import { loadAuthoredTsx } from "./tsx-loader.js";
 
 /**
  * Real authoring backend (web-dashboard A1). The AI does the journalism: it
@@ -111,7 +112,7 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
     const engineManifest = toEngineManifest(parsed.manifest);
     await writeJson(manifestPathOf(job.projectId), engineManifest);
 
-    const admitted = await admitProjectScenes(job.projectId);
+    const admitted = await admitProjectScenes(job.projectId, { load: loadAuthoredTsx });
     if (!admitted.ok) {
       console.error(
         "[authoring] admission failed:\n" +

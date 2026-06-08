@@ -124,7 +124,10 @@ export type AdmitProjectResult =
  * with a schema + example. Returns the registered ids on success, or the
  * blocking violations. A module that fails the gate is never imported/bundled.
  */
-export async function admitProjectScenes(projectId: string): Promise<AdmitProjectResult> {
+export async function admitProjectScenes(
+  projectId: string,
+  opts: { load?: (fileUrl: string) => Promise<unknown> } = {},
+): Promise<AdmitProjectResult> {
   const files = await listAuthoredScenes(projectId);
   if (files.length === 0) {
     return {
@@ -143,7 +146,7 @@ export async function admitProjectScenes(projectId: string): Promise<AdmitProjec
   const componentIds: string[] = [];
   const violations: SafetyIssue[] = [];
   for (const file of files) {
-    const result = await admitAndRegisterAuthored(file);
+    const result = await admitAndRegisterAuthored(file, opts.load ? { load: opts.load } : {});
     if (result.ok) componentIds.push(result.componentId);
     else violations.push(...result.violations);
   }
