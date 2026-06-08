@@ -184,7 +184,11 @@ const handlers: InvokeHandlers = {
     return undefined;
   },
 
-  "review:submitEdits": () => ({ ok: true, revision: 1 }),
+  "review:submitEdits": (projectId, batch) => {
+    const b = batch as { perScene: { sceneId: string; text: string }[]; globalNotes: string };
+    workspace.submitEdits(String(projectId), b.perScene ?? [], b.globalNotes ?? "");
+    return { ok: true, revision: 1 };
+  },
   "review:approveDraft": () => ({ ok: false, reason: "draft-first" }),
 
   "settings:get": () => settingsStore.current(),

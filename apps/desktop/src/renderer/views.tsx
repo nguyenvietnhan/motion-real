@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import type {
   AiAccountState,
   FriendlyStatus,
@@ -485,7 +485,7 @@ export const ProjectWorkspaceView: React.FC<{
         </div>
       )}
       {stage.kind === "ready" && (
-        <StoryboardView inline readOnly model={{ projectId: "", scenes: stage.scenes, globalNotes: "" }} percent={null} canApprove={false}
+        <StoryboardView inline model={{ projectId: "", scenes: stage.scenes, globalNotes: "" }} percent={null} canApprove={false}
           onBack={onBack} onSubmit={onSubmitEdits} onApprove={onApproveDraft} />
       )}
       {stage.kind === "error" && (
@@ -516,62 +516,96 @@ export const StoryboardView: React.FC<{
   onSubmit: (perScene: { sceneId: string; text: string }[], globalNotes: string) => void;
   onApprove: () => void;
 }> = ({ model, percent, canApprove, inline, readOnly, onBack, onSubmit, onApprove }) => {
-  const [edits, setEdits] = useState<Record<string, string>>({});
-  const [notes, setNotes] = useState("");
+  const [selected, setSelected] = useState(0);
+  const [edit, setEdit] = useState("");
+  // Cache-bust the preview when the scenes array is replaced (after a re-render),
+  // so the <img> reloads the new still from the same media:// path.
+  const [ver, setVer] = useState(0);
+  const prevScenes = useRef(model.scenes);
+  useEffect(() => {
+    if (prevScenes.current !== model.scenes) {
+      prevScenes.current = model.scenes;
+      setVer((v) => v + 1);
+      setEdit("");
+    }
+  }, [model.scenes]);
+
+  const rendering = percent !== null;
+  const scenes = model.scenes;
+  const idx = Math.min(selected, Math.max(0, scenes.length - 1));
+  const current = scenes[idx];
+  const bust = (path: string) => (path ? `${path}#v${ver}` : path);
+
+  if (scenes.length === 0) {
+    return (
+      <div className={inline ? "" : "ns-content"}>
+        {!inline && <PageHeader title="Duyệt video" action={<button className="ns-btn" onClick={onBack}>← Quay lại</button>} />}
+        <EmptyState icon={Icon.film({ size: 34 })} title="Chưa có cảnh nào" hint="Bản nháp chưa tạo cảnh nào." />
+      </div>
+    );
+  }
 
   return (
     <div className={inline ? "" : "ns-content"}>
       {!inline && (
-        <PageHeader title="Duyệt video" subtitle="Xem từng cảnh, ghi điều muốn sửa, rồi duyệt để xuất bản."
+        <PageHeader title="Duyệt &amp; chỉnh từng cảnh" subtitle="Chọn cảnh ở cột trái, xem ở khung lớn, gõ điều muốn đổi rồi để AI sửa."
           action={<button className="ns-btn" onClick={onBack}>← Quay lại</button>} />
       )}
-      {readOnly && (
-        <div className="ns-card" style={{ padding: 14, marginBottom: 16, borderColor: "var(--brand)" }}>
-          <strong style={{ display: "block", marginBottom: 4 }}>Bản nháp đã sẵn sàng</strong>
-          <span style={{ color: "var(--muted-foreground)", fontSize: 13 }}>
-            Xem trước từng cảnh bên dưới. Mở thư mục dự án để xem video nháp đầy đủ. (Sửa từng cảnh và xuất bản sẽ có ở bản cập nhật sau.)
-          </span>
-        </div>
-      )}
-      {percent !== null && (
-        <div className="ns-card" style={{ padding: 12, marginBottom: 16 }}>
+
+      {rendering && (
+        <div className="ns-card" style={{ padding: 12, marginBottom: 12 }}>
           <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, fontSize: 13 }}>
-            <span>Đang dựng…</span><span>{percent}%</span>
+            <span>Đang áp dụng chỉnh sửa &amp; dựng lại…</span><span>{percent}%</span>
           </div>
           <div style={{ height: 6, background: "var(--muted)", borderRadius: 999 }}>
-            <div style={{ width: `${percent}%`, height: "100%", background: "var(--brand)", borderRadius: 999 }} />
+            <div style={{ width: `${percent}%`, height: "100%", background: "var(--brand)", borderRadius: 999, transition: "width 0.3s" }} />
           </div>
         </div>
       )}
-      {model.scenes.length === 0 ? (
-        <EmptyState icon={Icon.film({ size: 34 })} title="Chưa có cảnh nào" hint="Bản nháp chưa tạo cảnh nào." />
-      ) : (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(250px, 1fr))", gap: 16 }}>
-          {model.scenes.map((s) => (
-            <div key={s.sceneId} className="ns-card" style={{ padding: 12 }}>
-              <div style={{ height: 150, borderRadius: 8, border: "1px solid var(--border)", display: "grid", placeItems: "center", color: "#3a3f49",
-                background: s.stillPath ? `center/contain no-repeat #0c0e12 url(${s.stillPath})` : "#101216" }}>
-                {!s.stillPath && Icon.film({ size: 26 })}
-              </div>
-              {!readOnly && (
-                <textarea aria-label={`edit-${s.sceneId}`} className="ns-input" value={edits[s.sceneId] ?? ""} maxLength={2000}
-                  onChange={(e) => setEdits((m) => ({ ...m, [s.sceneId]: e.target.value }))} placeholder="Muốn sửa gì ở cảnh này?" rows={2}
-                  style={{ width: "100%", marginTop: 10 }} />
-              )}
-            </div>
+
+      {/* Canva/PowerPoint layout: slide rail (left) + large stage (right). */}
+      <div style={{ display: "grid", gridTemplateColumns: "132px 1fr", gap: 16, alignItems: "start" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10, maxHeight: "72vh", overflowY: "auto", paddingRight: 4 }}>
+          {scenes.map((s, i) => (
+            <button key={s.sceneId} onClick={() => setSelected(i)} title={`Cảnh ${i + 1}`}
+              style={{
+                position: "relative", padding: 0, cursor: "pointer", borderRadius: 8, overflow: "hidden",
+                border: i === idx ? "2px solid var(--brand)" : "1px solid var(--border)",
+                background: s.stillPath ? `center/cover no-repeat #0c0e12 url(${bust(s.stillPath)})` : "#101216",
+                aspectRatio: "9 / 16", width: "100%",
+              }}>
+              <span style={{ position: "absolute", left: 6, top: 6, fontSize: 11, fontWeight: 800, color: "#fff",
+                background: "rgba(0,0,0,0.6)", borderRadius: 6, padding: "1px 6px" }}>{i + 1}</span>
+            </button>
           ))}
         </div>
-      )}
-      {!readOnly && (
-        <>
-          <textarea aria-label="global-notes" className="ns-input" value={notes} maxLength={4000}
-            onChange={(e) => setNotes(e.target.value)} placeholder="Ghi chú chung cho cả video…" rows={2} style={{ width: "100%", marginTop: 16 }} />
-          <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
-            <button className="ns-btn" onClick={() => onSubmit(Object.entries(edits).map(([sceneId, text]) => ({ sceneId, text })), notes)}>Gửi chỉnh sửa</button>
-            <button className="ns-btn ns-btn-primary" onClick={onApprove} disabled={!canApprove}>Duyệt &amp; xuất bản</button>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <div style={{ position: "relative", aspectRatio: "9 / 16", maxHeight: "60vh", margin: "0 auto", width: "auto",
+            borderRadius: 12, border: "1px solid var(--border)", overflow: "hidden",
+            background: current?.stillPath ? `center/contain no-repeat #0c0e12 url(${bust(current.stillPath)})` : "#101216",
+            display: "grid", placeItems: "center", color: "#3a3f49" }}>
+            {!current?.stillPath && Icon.film({ size: 30 })}
           </div>
-        </>
-      )}
+
+          {!readOnly && (
+            <div className="ns-card" style={{ padding: 12, display: "flex", flexDirection: "column", gap: 10 }}>
+              <strong style={{ fontSize: 13 }}>Sửa cảnh {idx + 1}</strong>
+              <textarea aria-label={`edit-${current?.sceneId}`} className="ns-input" value={edit} maxLength={2000} rows={3}
+                onChange={(e) => setEdit(e.target.value)} disabled={rendering}
+                placeholder="Nói tự nhiên điều muốn đổi: “to chữ tiêu đề lên”, “đổi nền sang xanh”, “bỏ bớt chữ, thêm biểu đồ cột”…"
+                style={{ width: "100%", resize: "vertical" }} />
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                <button className="ns-btn ns-btn-primary" disabled={rendering || edit.trim() === "" || !current}
+                  onClick={() => current && onSubmit([{ sceneId: current.sceneId, text: edit.trim() }], "")}>
+                  Sửa cảnh này bằng AI
+                </button>
+                <button className="ns-btn" disabled={!canApprove || rendering} onClick={onApprove}>Duyệt &amp; xuất bản</button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 };

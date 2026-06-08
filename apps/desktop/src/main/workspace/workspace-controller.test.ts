@@ -220,8 +220,50 @@ describe("fixWithAi + fixable flag", () => {
   });
 });
 
-// Feature: desktop-author-mode, Property 6: redaction holds for new paths
+// Per-scene free-form edit → reauthor + re-render (desktop-author-mode, Part B)
+describe("submitEdits (per-scene free-form edit)", () => {
+  it("from ready: re-authors the edited scene with its instruction, re-renders, returns to ready", async () => {
+    const reauthorScenes = vi.fn(async () => ({ kind: "authored", sceneIds: ["scene-01"] }) as AuthorOutcome);
+    const worker: AgentWorker = {
+      author: async (): Promise<AuthorOutcome> => ({ kind: "authored", sceneIds: [] }),
+      reauthorScenes,
+      generateValidateRepair: async (): Promise<RepairOutcome> => ({ kind: "passed", attempts: 1 }),
+    };
+    const ctrl = new WorkspaceController(baseDeps({ worker }));
+    ctrl.setStage("p1", { kind: "ready", scenes: [] });
+    ctrl.submitEdits("p1", [{ sceneId: "scene-01", text: "to chữ tiêu đề lên" }], "");
+    await flush();
+
+    expect(reauthorScenes).toHaveBeenCalledTimes(1);
+    const job = (reauthorScenes.mock.calls[0] as unknown[])[0] as { projectId: string; sceneIds: string[]; preprompt: { perSceneIntent: Record<string, string> } };
+    expect(job.projectId).toBe("p1");
+    expect(job.sceneIds).toEqual(["scene-01"]);
+    expect(job.preprompt.perSceneIntent).toEqual({ "scene-01": "to chữ tiêu đề lên" });
+    expect((await ctrl.stage("p1")).kind).toBe("ready");
+  });
+
+  it("is a no-op when not in the ready stage", async () => {
+    const reauthorScenes = vi.fn(async () => ({ kind: "authored", sceneIds: [] }) as AuthorOutcome);
+    const worker = { ...workerWith({ kind: "passed", attempts: 1 }), reauthorScenes };
+    const ctrl = new WorkspaceController(baseDeps({ worker }));
+    ctrl.setStage("p1", { kind: "writing" });
+    ctrl.submitEdits("p1", [{ sceneId: "scene-01", text: "x" }], "");
+    await flush();
+    expect(reauthorScenes).not.toHaveBeenCalled();
+  });
+
+  it("is a no-op when every edit is blank and there are no notes", async () => {
+    const reauthorScenes = vi.fn(async () => ({ kind: "authored", sceneIds: [] }) as AuthorOutcome);
+    const worker = { ...workerWith({ kind: "passed", attempts: 1 }), reauthorScenes };
+    const ctrl = new WorkspaceController(baseDeps({ worker }));
+    ctrl.setStage("p1", { kind: "ready", scenes: [] });
+    ctrl.submitEdits("p1", [{ sceneId: "scene-01", text: "   " }], "  ");
+    await flush();
+    expect(reauthorScenes).not.toHaveBeenCalled();
+  });
+});
 describe("Property 6: redaction holds for the new repair paths", () => {
+  // Feature: desktop-author-mode, Property 6: redaction holds for new paths
   it("a render throw carrying N-codes/.tsx surfaces a clean friendly message", async () => {
     const friendlyErrors: { message: string; fixable?: boolean }[] = [];
     const events = { ...noopEvents(), friendlyError: (e: { message: string; fixable?: boolean }) => friendlyErrors.push(e) };

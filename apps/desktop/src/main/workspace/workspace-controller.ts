@@ -149,6 +149,56 @@ export class WorkspaceController {
     void this.runRender(projectId);
   }
 
+  /**
+   * Per-scene free-form edit (Canva-style review): re-author the named scenes
+   * with the user's natural-language instruction, then re-render the draft. Only
+   * runs from the `ready` review stage; an empty instruction set is a no-op.
+   */
+  submitEdits(projectId: string, edits: { sceneId: string; text: string }[], globalNotes: string): void {
+    if (this.stages.get(projectId)?.kind !== "ready") return;
+    const named = edits.filter((e) => e.text.trim().length > 0);
+    const notes = globalNotes.trim();
+    if (named.length === 0 && notes === "") return; // nothing to do
+    const sceneIds = named.map((e) => e.sceneId);
+    const perSceneIntent = Object.fromEntries(named.map((e) => [e.sceneId, e.text.trim()]));
+    void this.runSceneEdits(projectId, sceneIds, perSceneIntent, notes);
+  }
+
+  private async runSceneEdits(
+    projectId: string,
+    sceneIds: string[],
+    perSceneIntent: Record<string, string>,
+    globalNotes: string,
+  ): Promise<void> {
+    this.setStage(projectId, { kind: "rendering", percent: 0 });
+    const hooks = this.renderHooks(projectId);
+    try {
+      // Apply the user's instruction by re-authoring the scene code…
+      await this.deps.worker.reauthorScenes(
+        { projectId, sceneIds, preprompt: { contractRef: "SKILL.md+AGENTS.md", affectedSceneIds: sceneIds, perSceneIntent, globalNotes } },
+        hooks,
+      );
+      // …then re-render the draft (and auto-repair any new oracle errors).
+      const outcome = await this.deps.worker.generateValidateRepair(projectId, { maxAttempts: this.deps.settings.maxRepairAttempts }, hooks);
+      if (outcome.kind === "passed") {
+        this.setStage(projectId, { kind: "ready", scenes: await this.storyboardScenesOf(projectId) });
+      } else if (outcome.kind === "infra") {
+        const message = "Gặp trục trặc hạ tầng khi dựng lại (kết nối hoặc cấu hình). Hãy kiểm tra và thử lại.";
+        this.setStage(projectId, { kind: "error", message, fixable: false });
+        this.deps.events.friendlyError({ projectId, message, retry: "draft", fixable: false });
+      } else {
+        const message = "Chưa áp dụng được chỉnh sửa sau nhiều lần thử. Bạn có thể thử lại hoặc để AI sửa.";
+        this.setStage(projectId, { kind: "error", message, fixable: true });
+        this.deps.events.friendlyError({ projectId, message, retry: "draft", fixable: true });
+      }
+    } catch (e) {
+      const fixable = classifyError(serializeError(e, "render")) === "content";
+      const message = this.deps.redact(e instanceof Error ? e.message : "Có lỗi khi áp dụng chỉnh sửa.");
+      this.setStage(projectId, { kind: "error", message, fixable });
+      this.deps.events.friendlyError({ projectId, message, retry: "draft", fixable });
+    }
+  }
+
   private renderHooks(projectId: string): AgentHooks {
     return {
       onProgress: (ratio) => {
