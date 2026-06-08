@@ -130,3 +130,24 @@ For productization (selectable looks, URL grounding, the MCP API, bulk
 production, ops) see `.kiro/specs/tool-productization/`, the buyer guide
 `docs/buyer-guide.md`, and the authoring skill
 `.kiro/skills/news-video-author/SKILL.md`.
+
+## Desktop app (`apps/desktop`) — pure-AUTHOR + self-repair
+
+The Electron desktop GUI drives the SAME engine in **pure AUTHOR mode**: for each
+project the selected AI model writes brand-new `.tsx` scene modules (it returns a
+manifest + one `.tsx` block per scene), which are admitted through the same gate
+and rendered. There is no scene-kit/template fallback.
+
+If the draft trips a content/layout oracle, the **generate-validate-repair** loop
+asks the model to rewrite only the flagged scene(s) — for layout/contrast defects
+(`N14`/`N18`) it attaches the scene's rendered still for vision-guided repair.
+Infrastructure failures (missing voice key, gateway/network, Chromium crash) are
+classified separately and shown to you to fix; only content defects get the
+**"Sửa bằng AI"** button on the error screen.
+
+**Cost/latency expectation:** every author/reauthor call carries the full
+authoring contract, so it is a large prompt. To bound cost, a repair sends only
+the flagged scene(s) — not the whole video — so one "Sửa bằng AI" pass still
+re-runs the model + a draft render and can take tens of seconds.
+
+See `.kiro/specs/desktop-author-mode/{requirements,design,tasks}.md`.

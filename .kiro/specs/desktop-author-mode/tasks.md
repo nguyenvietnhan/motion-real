@@ -90,11 +90,11 @@ cd apps/desktop && node build-electron.mjs && npm run build:renderer
   - [x] 9.3 Chạy lưới verify (`build:renderer`).
   - _Requirements: R5.1, R5.3, R5.4_
 
-- [ ] 10. T10 — Verify tổng + dọn dẹp
-  - [~] 10.1 Rà bỏ mọi tham chiếu chết tới Scene_Kit/`KIT_COMPONENT_IDS`; xác nhận không còn import mồ côi (R1.9).
-  - [~] 10.2 Chạy `npm test` toàn repo: xác nhận desktop xanh; 2 timeout `orchestrator.test.ts` là pre-existing (không tính regression).
-  - [~] 10.3 Cập nhật README/Settings tooltip ghi kỳ vọng chi phí/độ trễ pure-author + "Sửa bằng AI" (R7.5).
-  - [~] 10.4 Lưới verify cuối (typecheck + desktop test + build:main + build:renderer) xanh toàn bộ; bất biến reconcile P1–P10 + preserved-invariants vẫn pass (R8.4).
+- [x] 10. T10 — Verify tổng + dọn dẹp
+  - [x] 10.1 Rà bỏ mọi tham chiếu chết tới Scene_Kit/`KIT_COMPONENT_IDS`; xác nhận không còn import mồ côi (R1.9).
+  - [x] 10.2 Chạy `npm test` toàn repo: xác nhận desktop xanh; 2 timeout `orchestrator.test.ts` là pre-existing (không tính regression).
+  - [x] 10.3 Cập nhật README/Settings tooltip ghi kỳ vọng chi phí/độ trễ pure-author + "Sửa bằng AI" (R7.5).
+  - [x] 10.4 Lưới verify cuối (typecheck + desktop test + build:main + build:renderer) xanh toàn bộ; bất biến reconcile P1–P10 + preserved-invariants vẫn pass (R8.4).
   - _Requirements: R6.1, R6.2, R6.4, R7.5, R8.1, R8.3, R8.4_
 
 ## Task Dependency Graph
