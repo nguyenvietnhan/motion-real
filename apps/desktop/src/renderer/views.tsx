@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import type {
   AiAccountState,
   FriendlyStatus,
@@ -528,23 +528,13 @@ export const StoryboardView: React.FC<{
 }> = ({ model, percent, canApprove, inline, readOnly, onBack, onSubmit, onApprove }) => {
   const [selected, setSelected] = useState(0);
   const [edit, setEdit] = useState("");
-  // Cache-bust the preview when the scenes array is replaced (after a re-render),
-  // so the <img> reloads the new still from the same media:// path.
-  const [ver, setVer] = useState(0);
-  const prevScenes = useRef(model.scenes);
-  useEffect(() => {
-    if (prevScenes.current !== model.scenes) {
-      prevScenes.current = model.scenes;
-      setVer((v) => v + 1);
-      setEdit("");
-    }
-  }, [model.scenes]);
+  // Clear the edit box when switching slides.
+  useEffect(() => setEdit(""), [selected]);
 
   const rendering = percent !== null;
   const scenes = model.scenes;
   const idx = Math.min(selected, Math.max(0, scenes.length - 1));
   const current = scenes[idx];
-  const bust = (path: string) => (path ? `${path}#v${ver}` : path);
 
   if (scenes.length === 0) {
     return (
@@ -581,7 +571,7 @@ export const StoryboardView: React.FC<{
               style={{
                 position: "relative", padding: 0, cursor: "pointer", borderRadius: 8, overflow: "hidden",
                 border: i === idx ? "2px solid var(--brand)" : "1px solid var(--border)",
-                background: s.stillPath ? `center/cover no-repeat #0c0e12 url(${bust(s.stillPath)})` : "#101216",
+                background: s.stillPath ? `center/cover no-repeat #0c0e12 url(${s.stillPath})` : "#101216",
                 aspectRatio: "9 / 16", width: "100%",
               }}>
               <span style={{ position: "absolute", left: 6, top: 6, fontSize: 11, fontWeight: 800, color: "#fff",
@@ -591,9 +581,9 @@ export const StoryboardView: React.FC<{
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          <div style={{ position: "relative", aspectRatio: "9 / 16", maxHeight: "60vh", margin: "0 auto", width: "auto",
+          <div style={{ position: "relative", height: "min(62vh, 640px)", aspectRatio: "9 / 16", margin: "0 auto",
             borderRadius: 12, border: "1px solid var(--border)", overflow: "hidden",
-            background: current?.stillPath ? `center/contain no-repeat #0c0e12 url(${bust(current.stillPath)})` : "#101216",
+            background: current?.stillPath ? `center/contain no-repeat #0c0e12 url(${current.stillPath})` : "#101216",
             display: "grid", placeItems: "center", color: "#3a3f49" }}>
             {!current?.stillPath && Icon.film({ size: 30 })}
           </div>

@@ -81,6 +81,13 @@ export class WorkspaceController {
   private readonly stages = new Map<string, ProjectStage>();
   /** Remember each project's author input so the error screen can re-run it. */
   private readonly inputs = new Map<string, AuthorInput>();
+  /**
+   * Per-project render version. Bumped each time a fresh draft is produced so the
+   * review stills get a NEW url token (`#r<n>`) only when the pixels actually
+   * changed — the UI reloads thumbnails on a real re-render, but stable polling
+   * keeps the same url (no flicker).
+   */
+  private readonly renderVersions = new Map<string, number>();
 
   constructor(private readonly deps: WorkspaceDeps) {}
 
@@ -90,6 +97,11 @@ export class WorkspaceController {
     this.deps.events.status({ projectId, status: stageToFriendlyStatus(stage.kind) });
   }
 
+  /** Bump the render version so the next storyboard's stills reload exactly once. */
+  private bumpRenderVersion(projectId: string): void {
+    this.renderVersions.set(projectId, (this.renderVersions.get(projectId) ?? 0) + 1);
+  }
+
   private async scriptLinesOf(projectId: string): Promise<ScriptLine[]> {
     const manifest = await this.deps.loadManifest(projectId);
     return manifest.scenes.map((s, i) => ({ sceneId: s.id, order: i, headline: s.headline ?? "", narration: s.narration ?? "" }));
@@ -97,15 +109,17 @@ export class WorkspaceController {
 
   private async storyboardScenesOf(projectId: string): Promise<SceneCard[]> {
     const manifest = await this.deps.loadManifest(projectId);
+    const ver = this.renderVersions.get(projectId) ?? 0;
     // Reuse the tested buildStoryboard view-model builder (R5.6), mapping each
-    // still through the mediaUrl-wrapping seam.
+    // still through the mediaUrl-wrapping seam; append a render-version fragment
+    // (ignored by the media protocol) so the still reloads only on a real re-render.
     return buildStoryboard(
       projectId,
       "",
       manifest.scenes.map((s) => s.id),
       "",
       (_root, sceneId) => this.deps.reviewStill(projectId, sceneId),
-    ).scenes;
+    ).scenes.map((s) => ({ ...s, stillPath: s.stillPath ? `${s.stillPath}#r${ver}` : s.stillPath }));
   }
 
   /** Stage 1: AI writes the script; then wait for approval unless the gate is off (R2.1–R2.3, R2.7). */
@@ -212,6 +226,7 @@ export class WorkspaceController {
       // …then re-render the draft (and auto-repair any new oracle errors).
       const outcome = await this.deps.worker.generateValidateRepair(projectId, { maxAttempts: this.deps.settings.maxRepairAttempts }, hooks);
       if (outcome.kind === "passed") {
+        this.bumpRenderVersion(projectId);
         this.setStage(projectId, { kind: "ready", scenes: await this.storyboardScenesOf(projectId) });
       } else if (outcome.kind === "infra") {
         const message = "Gặp trục trặc hạ tầng khi dựng lại (kết nối hoặc cấu hình). Hãy kiểm tra và thử lại.";
@@ -247,6 +262,7 @@ export class WorkspaceController {
     try {
       const outcome = await this.deps.worker.generateValidateRepair(projectId, { maxAttempts: this.deps.settings.maxRepairAttempts }, hooks);
       if (outcome.kind === "passed") {
+        this.bumpRenderVersion(projectId);
         this.setStage(projectId, { kind: "ready", scenes: await this.storyboardScenesOf(projectId) });
       } else if (outcome.kind === "infra") {
         // Not agent-fixable: tell the user to retry / check setup, no "Sửa bằng AI".
