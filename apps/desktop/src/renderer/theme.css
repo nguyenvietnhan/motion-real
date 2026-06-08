@@ -235,6 +235,13 @@ select {
   outline: none;
   transition: border-color 0.12s, box-shadow 0.12s;
 }
+/* Textareas: allow only VERTICAL resize (no dragging the handle off-screen
+ * horizontally) and cap the height so it can't grow past the viewport. */
+textarea.ns-input {
+  resize: vertical;
+  max-width: 100%;
+  max-height: 40vh;
+}
 .ns-input:focus {
   border-color: var(--ring);
   box-shadow: 0 0 0 3px rgba(59, 111, 224, 0.25);
