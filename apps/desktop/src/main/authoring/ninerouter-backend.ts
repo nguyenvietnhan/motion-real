@@ -202,39 +202,59 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
         continue;
       }
 
-      const stillDataUrl = needsVision(t.issues) ? readStillDataUrl(join(reviewDir, `${t.sceneId}.png`)) : undefined;
-      const messages = buildReauthorMessages({
-        sceneId: t.sceneId,
-        componentId,
-        currentCode: originalCode,
-        ...(t.issues ? { issues: t.issues } : {}),
-        ...(t.intent ? { intent: t.intent } : {}),
-        ...(stillDataUrl ? { stillDataUrl } : {}),
-      });
+      // Up to 2 attempts: a first rewrite, then — if it fails the admission gate
+      // (e.g. a wrong import like `useTheme` from "@news/design") — ONE corrective
+      // retry that feeds the exact violations back so the model self-fixes the
+      // deterministic error. On final failure the original code is restored
+      // (atomic per scene), so the project always stays renderable.
+      const MAX_REAUTHOR_ATTEMPTS = 2;
+      let applied = false;
+      let feedback: string | undefined;
+      for (let attempt = 0; attempt < MAX_REAUTHOR_ATTEMPTS && !applied; attempt++) {
+        const stillDataUrl = needsVision(t.issues) ? readStillDataUrl(join(reviewDir, `${t.sceneId}.png`)) : undefined;
+        const intent = [t.intent, feedback].filter((s) => s && s.trim()).join("\n\n") || undefined;
+        const messages = buildReauthorMessages({
+          sceneId: t.sceneId,
+          componentId,
+          currentCode: originalCode,
+          ...(t.issues ? { issues: t.issues } : {}),
+          ...(intent ? { intent } : {}),
+          ...(stillDataUrl ? { stillDataUrl } : {}),
+        });
 
-      let reply: string;
-      try {
-        reply = await this.chatWithVisionFallback(model, messages);
-      } catch (e) {
-        console.error(`[reauthor] AI call failed for ${t.sceneId}:`, e);
-        continue;
+        let reply: string;
+        try {
+          reply = await this.chatWithVisionFallback(model, messages);
+        } catch (e) {
+          console.error(`[reauthor] AI call failed for ${t.sceneId}:`, e);
+          break; // give up this scene; original is restored below
+        }
+
+        const parsed = parseReauthorReply(reply, componentId);
+        if (!parsed.ok) {
+          console.error(`[reauthor] parse failed for ${t.sceneId} (${parsed.reason}: ${parsed.detail}).`);
+          continue; // retry if attempts remain
+        }
+
+        // Overwrite + re-admit; on admission failure, capture the violations as
+        // corrective feedback for the next attempt (or roll back if exhausted).
+        await writeFile(path, parsed.module.code, "utf8");
+        unregisterComponent(componentId);
+        const re = await admitOne(path);
+        if (re.ok) {
+          applied = true;
+          break;
+        }
+        const violationText = re.violations.map((v) => `  ${v.check} ${v.path}: ${v.message}`).join("\n");
+        const last = attempt + 1 >= MAX_REAUTHOR_ATTEMPTS;
+        console.error(`[reauthor] re-admit failed for ${t.sceneId} (attempt ${attempt + 1}); ${last ? "rolling back" : "retrying with feedback"}:\n${violationText}`);
+        feedback =
+          `Lần trước mã bị TỪ CHỐI khi nạp:\n${violationText}\n\n` +
+          `Sửa đúng import whitelist: useTheme/chromeBorder/frameRamp/useRamp nhập từ "@news/blocks" (KHÔNG nhập từ "@news/design"); ` +
+          `chỉ dùng API được phép; giữ nguyên id "${componentId}". Trả về lại đúng một khối tsx.`;
       }
 
-      const parsed = parseReauthorReply(reply, componentId);
-      if (!parsed.ok) {
-        console.error(`[reauthor] parse failed for ${t.sceneId} (${parsed.reason}: ${parsed.detail}).`);
-        continue;
-      }
-
-      // Overwrite + re-admit; on admission failure, roll back to the original.
-      await writeFile(path, parsed.module.code, "utf8");
-      unregisterComponent(componentId);
-      const re = await admitOne(path);
-      if (!re.ok) {
-        console.error(
-          `[reauthor] re-admit failed for ${t.sceneId}; rolling back:\n` +
-            re.violations.map((v) => `  ${v.check} ${v.path}: ${v.message}`).join("\n"),
-        );
+      if (!applied) {
         await writeFile(path, originalCode, "utf8");
         unregisterComponent(componentId);
         await admitOne(path).catch(() => {});

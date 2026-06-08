@@ -159,6 +159,21 @@ describe("reauthor (self-repair)", () => {
     expect(readFileSync(authoredPath, "utf8")).toBe(ORIGINAL);
   });
 
+  it("retries ONCE with the admission feedback when the first rewrite is rejected, succeeding on the second", async () => {
+    const projectId = "ra-retry";
+    const { authoredPath } = setupProject(projectId);
+    let calls = 0;
+    const admitOne: NineRouterBackendDeps["admitOne"] = async () => {
+      calls++;
+      return calls === 1
+        ? { ok: false, violations: [{ check: "N4", severity: "error", path: authoredPath, message: 'No matching export for import "useTheme"' }] }
+        : { ok: true, componentId: "alpha" };
+    };
+    const out = await backendForReauthor(newBlock(), admitOne).reauthor(projectId, [{ sceneId: "scene-01", intent: "đổi nền xanh" }]);
+    expect(out.scenes.map((s) => s.sceneId)).toEqual(["scene-01"]);
+    expect(calls).toBe(2); // first admit failed, retry admit succeeded
+  });
+
   it("needsVision: N14 attaches the still as an image part; other issues do not", async () => {
     const projectId = "ra-vision";
     setupProject(projectId);

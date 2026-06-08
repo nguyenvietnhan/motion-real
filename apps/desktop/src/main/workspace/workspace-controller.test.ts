@@ -267,6 +267,52 @@ describe("submitEdits (per-scene free-form edit)", () => {
     await flush();
     expect(reauthorScenes).not.toHaveBeenCalled();
   });
+
+  it("a global-note-only edit re-authors EVERY scene, carrying the note as each scene's intent", async () => {
+    const reauthorScenes = vi.fn(async (job: { sceneIds: string[]; preprompt: { perSceneIntent: Record<string, string> } }) => ({ kind: "authored", sceneIds: job.sceneIds }) as AuthorOutcome);
+    const worker = { ...workerWith({ kind: "passed", attempts: 1 }), reauthorScenes };
+    const ctrl = new WorkspaceController(baseDeps({ worker, loadManifest: async () => ({ scenes: [{ id: "scene-01" }, { id: "scene-02" }] }) }));
+    ctrl.setStage("p1", { kind: "ready", scenes: [] });
+    ctrl.submitEdits("p1", [], "giọng ấm hơn");
+    await flush();
+    expect(reauthorScenes).toHaveBeenCalledTimes(1);
+    const job = (reauthorScenes.mock.calls[0] as unknown[])[0] as { sceneIds: string[]; preprompt: { perSceneIntent: Record<string, string> } };
+    expect(job.sceneIds).toEqual(["scene-01", "scene-02"]);
+    expect(job.preprompt.perSceneIntent["scene-01"]).toContain("giọng ấm hơn");
+    expect(job.preprompt.perSceneIntent["scene-02"]).toContain("giọng ấm hơn");
+  });
+
+  it("folds a global note INTO each per-scene intent", async () => {
+    const reauthorScenes = vi.fn(async (job: { sceneIds: string[]; preprompt: { perSceneIntent: Record<string, string> } }) => ({ kind: "authored", sceneIds: job.sceneIds }) as AuthorOutcome);
+    const worker = { ...workerWith({ kind: "passed", attempts: 1 }), reauthorScenes };
+    const ctrl = new WorkspaceController(baseDeps({ worker }));
+    ctrl.setStage("p1", { kind: "ready", scenes: [] });
+    ctrl.submitEdits("p1", [{ sceneId: "scene-01", text: "to chữ tiêu đề" }], "tông màu ấm");
+    await flush();
+    const job = (reauthorScenes.mock.calls[0] as unknown[])[0] as { preprompt: { perSceneIntent: Record<string, string> } };
+    expect(job.preprompt.perSceneIntent["scene-01"]).toContain("to chữ tiêu đề");
+    expect(job.preprompt.perSceneIntent["scene-01"]).toContain("tông màu ấm");
+  });
+
+  it("when EVERY rewrite fails admission (none applied), returns to ready with a notice and does NOT re-render", async () => {
+    const reauthorScenes = vi.fn(async () => ({ kind: "authored", sceneIds: [] }) as AuthorOutcome); // zero applied
+    const generateValidateRepair = vi.fn(async () => ({ kind: "passed", attempts: 1 }) as RepairOutcome);
+    const worker: AgentWorker = {
+      author: async (): Promise<AuthorOutcome> => ({ kind: "authored", sceneIds: [] }),
+      reauthorScenes,
+      publish: async () => ({ ok: true, outputPath: "out.mp4" }),
+      generateValidateRepair,
+    };
+    const ctrl = new WorkspaceController(baseDeps({ worker, loadManifest: async () => ({ scenes: [{ id: "scene-01" }] }) }));
+    ctrl.setStage("p1", { kind: "ready", scenes: [] });
+    ctrl.submitEdits("p1", [{ sceneId: "scene-01", text: "đổi nền xanh" }], "");
+    await flush();
+    expect(reauthorScenes).toHaveBeenCalledTimes(1);
+    expect(generateValidateRepair).not.toHaveBeenCalled(); // no pointless re-render of unchanged code
+    const st = await ctrl.stage("p1");
+    expect(st.kind).toBe("ready");
+    if (st.kind === "ready") expect(st.notice && st.notice.length > 0).toBe(true);
+  });
 });
 describe("publish (full render)", () => {
   it("from ready: renders full and moves to published with the output path", async () => {

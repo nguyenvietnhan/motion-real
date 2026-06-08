@@ -470,6 +470,7 @@ export const ProjectWorkspaceView: React.FC<{
       <StoryboardView
         model={{ projectId: "", scenes: stage.scenes, globalNotes: "" }}
         canApprove
+        notice={stage.notice}
         onBack={onBack}
         onSubmit={onSubmitEdits}
         onApprove={onApproveDraft}
@@ -527,16 +528,18 @@ export const ProjectWorkspaceView: React.FC<{
 export const StoryboardView: React.FC<{
   model: StoryboardModel;
   canApprove: boolean;
+  notice?: string;
   onBack: () => void;
   onSubmit: (perScene: { sceneId: string; text: string }[], globalNotes: string) => void;
   onApprove: () => void;
-}> = ({ model, canApprove, onBack, onSubmit, onApprove }) => {
+}> = ({ model, canApprove, notice, onBack, onSubmit, onApprove }) => {
   const [selected, setSelected] = useState(0);
   // Per-scene edit drafts keyed by sceneId, so switching slides KEEPS what you
   // typed. You gather edits across many scenes and send them in ONE pass.
   const [edits, setEdits] = useState<Record<string, string>>({});
   const [notes, setNotes] = useState("");
   const [showEdit, setShowEdit] = useState(false);
+  const [dismissedNotice, setDismissedNotice] = useState("");
 
   const scenes = model.scenes;
   const idx = Math.min(selected, Math.max(0, scenes.length - 1));
@@ -593,6 +596,14 @@ export const StoryboardView: React.FC<{
   return (
     <div style={{ height: "100%", display: "flex", flexDirection: "column", overflow: "hidden" }}>
       {Header}
+
+      {notice && notice !== dismissedNotice && (
+        <div style={{ display: "flex", alignItems: "center", gap: 12, margin: "10px 14px 0", padding: "10px 14px",
+          borderRadius: 8, border: "1px solid var(--warn)", background: "color-mix(in srgb, transparent 86%, var(--warn))", flexShrink: 0 }}>
+          <span style={{ fontSize: 13, color: "var(--foreground)", marginRight: "auto" }}>{notice}</span>
+          <button className="ns-btn" style={{ padding: "4px 10px" }} onClick={() => setDismissedNotice(notice)}>Đã hiểu</button>
+        </div>
+      )}
 
       {/* Body fills the viewport; rail + edit panel scroll internally (no page scroll). */}
       <div style={{ flex: 1, minHeight: 0, display: "flex", gap: 14, padding: 14 }}>

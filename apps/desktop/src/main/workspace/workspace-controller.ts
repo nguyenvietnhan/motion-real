@@ -30,6 +30,18 @@ function stageToFriendlyStatus(kind: ProjectStage["kind"]): FriendlyStatus {
 }
 
 /**
+ * Combine a per-scene edit instruction with the video-wide note into ONE intent
+ * the AI receives for that scene. Either part may be empty; a scene targeted by
+ * a global-note-only edit carries just the note.
+ */
+function combineIntent(perScene: string, globalNotes: string): string {
+  const parts: string[] = [];
+  if (perScene.trim()) parts.push(perScene.trim());
+  if (globalNotes.trim()) parts.push(`Ghi chú chung cho cả video: ${globalNotes.trim()}`);
+  return parts.join("\n\n");
+}
+
+/**
  * WorkspaceController (reconcile-main-controllers S4) — the tested home for the
  * staged-workspace orchestration that was inline in `index.ts`
  * (`stages`/`setStage`/`runScript`/`runRender`/`scriptLinesOf`/
@@ -201,28 +213,46 @@ export class WorkspaceController {
    */
   submitEdits(projectId: string, edits: { sceneId: string; text: string }[], globalNotes: string): void {
     if (this.stages.get(projectId)?.kind !== "ready") return;
-    const named = edits.filter((e) => e.text.trim().length > 0);
+    const named = edits.map((e) => ({ sceneId: e.sceneId, text: e.text.trim() })).filter((e) => e.text.length > 0);
     const notes = globalNotes.trim();
     if (named.length === 0 && notes === "") return; // nothing to do
-    const sceneIds = named.map((e) => e.sceneId);
-    const perSceneIntent = Object.fromEntries(named.map((e) => [e.sceneId, e.text.trim()]));
-    void this.runSceneEdits(projectId, sceneIds, perSceneIntent, notes);
+    void this.runSceneEdits(projectId, named, notes);
   }
 
   private async runSceneEdits(
     projectId: string,
-    sceneIds: string[],
-    perSceneIntent: Record<string, string>,
+    named: { sceneId: string; text: string }[],
     globalNotes: string,
   ): Promise<void> {
     this.setStage(projectId, { kind: "rendering", percent: 0 });
     const hooks = this.renderHooks(projectId);
     try {
+      // Resolve which scenes to re-author: the explicitly-edited ones, or — when
+      // ONLY a video-wide note was given — every scene (the note applies to all).
+      let entries = named;
+      if (entries.length === 0) {
+        const manifest = await this.deps.loadManifest(projectId).catch(() => ({ scenes: [] as WsScene[] }));
+        entries = manifest.scenes.map((s) => ({ sceneId: s.id, text: "" }));
+      }
+      const sceneIds = entries.map((e) => e.sceneId);
+      const perSceneIntent = Object.fromEntries(entries.map((e) => [e.sceneId, combineIntent(e.text, globalNotes)]));
       // Apply the user's instruction by re-authoring the scene code…
-      await this.deps.worker.reauthorScenes(
+      const applied = await this.deps.worker.reauthorScenes(
         { projectId, sceneIds, preprompt: { contractRef: "SKILL.md+AGENTS.md", affectedSceneIds: sceneIds, perSceneIntent, globalNotes } },
         hooks,
       );
+      const appliedIds = applied.kind === "authored" ? applied.sceneIds : [];
+      // If we asked to edit ≥1 scene but EVERY rewrite failed admission (rolled
+      // back), the draft is unchanged — do NOT pretend success. Return to the
+      // review stage with a visible notice so the user can retry / rephrase.
+      if (sceneIds.length > 0 && appliedIds.length === 0) {
+        this.setStage(projectId, {
+          kind: "ready",
+          scenes: await this.storyboardScenesOf(projectId),
+          notice: "Chưa áp dụng được chỉnh sửa cho cảnh bạn chọn (AI tạo mã chưa hợp lệ). Hãy thử lại hoặc diễn đạt rõ hơn.",
+        });
+        return;
+      }
       // …then re-render the draft (and auto-repair any new oracle errors).
       const outcome = await this.deps.worker.generateValidateRepair(projectId, { maxAttempts: this.deps.settings.maxRepairAttempts }, hooks);
       if (outcome.kind === "passed") {
