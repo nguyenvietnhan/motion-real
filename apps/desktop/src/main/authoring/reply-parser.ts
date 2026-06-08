@@ -73,11 +73,27 @@ function resolveModuleId(code: string): { id: string } | { error: string } {
 function manifestJson(text: string, fences: Fence[]): string | null {
   const jsonFence = fences.find((f) => f.lang === "json");
   if (jsonFence) {
-    const obj = extractJsonObject(jsonFence.body) ?? jsonFence.body;
-    return obj;
+    // The fenced body can be truncated if a manifest STRING value itself
+    // contains ``` (which closes the fence early). Only trust the fence when its
+    // extracted object actually parses; otherwise fall through to the robust
+    // whole-text balanced-brace scan (which tracks string state, so ``` and {}
+    // inside string values are handled correctly).
+    const fromFence = extractJsonObject(jsonFence.body);
+    if (fromFence && parsesAsObject(fromFence)) return fromFence;
   }
-  // Fallback: a balanced object somewhere in the prose (not inside a tsx fence).
+  // Robust fallback: a balanced object anywhere in the reply (the manifest comes
+  // before the tsx blocks in the contract, so this lands on the manifest).
   return extractJsonObject(text);
+}
+
+/** True iff `s` parses as a JSON value (object/array/primitive). */
+function parsesAsObject(s: string): boolean {
+  try {
+    JSON.parse(s);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /** Parse a full author reply (manifest + per-scene .tsx) per AI_Output_Contract. */

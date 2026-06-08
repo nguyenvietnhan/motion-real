@@ -159,7 +159,7 @@ describe("reauthor (self-repair)", () => {
     expect(readFileSync(authoredPath, "utf8")).toBe(ORIGINAL);
   });
 
-  it("needsVision: N14/N18 attach the still as an image part; other issues do not", async () => {
+  it("needsVision: N14 attaches the still as an image part; other issues do not", async () => {
     const projectId = "ra-vision";
     setupProject(projectId);
     const okAdmit: NineRouterBackendDeps["admitOne"] = async () => ({ ok: true, componentId: "alpha" });

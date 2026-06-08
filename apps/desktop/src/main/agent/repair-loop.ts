@@ -1,8 +1,8 @@
-import type { SafetyIssue } from "@news/pipeline";
+import type { SafetyIssue, SerializedPipelineError } from "@news/pipeline";
 import type { AgentHooks, RepairLoopOptions, RepairOutcome } from "./agent-worker.js";
 import type { ReauthorTarget } from "./custom-loop-worker.js";
 import { toFriendlyFix } from "../redact/friendly.js";
-import { classifyIssue } from "./error-classifier.js";
+import { classifyIssue, classifyError } from "./error-classifier.js";
 
 /**
  * The generate-validate-repair loop (desktop-author-mode, Req 3/4/7). Pure
@@ -25,9 +25,12 @@ export function clampAttempts(n: number): number {
 /** The hard-error subset split the loop reads after each draft. */
 export type SafetyReportView = { ok: boolean; hardErrors: SafetyIssue[]; warnings: SafetyIssue[] };
 
+/** A draft render result; a failure carries the engine error so it can be classified. */
+export type RenderResult = { ok: true } | { ok: false; error?: SerializedPipelineError };
+
 export type RepairLoopDeps = {
-  /** Render one draft; `ok:false` is a failed render (still counts toward budget). */
-  renderDraft: () => Promise<{ ok: boolean }>;
+  /** Render one draft; on failure carries the engine error for infra/content routing. */
+  renderDraft: () => Promise<RenderResult>;
   /** Read the safety report for the just-rendered draft. */
   getSafetyReport: () => Promise<SafetyReportView>;
   /** Re-author the flagged content scenes (with their issues) before the next attempt. */
@@ -66,17 +69,24 @@ export async function generateValidateRepair(
     deps.hooks.onProgress(attempts / max);
 
     if (!render.ok) {
-      // A failed render consumes the attempt; retry while budget remains.
+      // A failed render: if the cause is infra (missing voice key, gateway,
+      // Chromium "target closed"), the agent can't fix it — stop as `infra`.
+      // A non-infra/unknown render failure just consumes the attempt.
+      if (render.error && classifyError(render.error) === "infra") {
+        return { kind: "infra", attempts };
+      }
       continue;
     }
 
     const report = await deps.getSafetyReport();
-    if (report.ok || report.hardErrors.length === 0) {
+    // `ok` is true only when the report was read AND has zero hard errors; a
+    // failed report read (ok:false, no errors) is NOT a pass.
+    if (report.ok) {
       return { kind: "passed", attempts };
     }
 
-    // An infra error is not agent-fixable — stop without spending a reauthor.
-    if (report.hardErrors.some((e) => classifyIssue(e) === "infra")) {
+    // An infra error in the report is not agent-fixable — stop without a reauthor.
+    if (report.hardErrors.length > 0 && report.hardErrors.some((e) => classifyIssue(e) === "infra")) {
       return { kind: "infra", attempts };
     }
 

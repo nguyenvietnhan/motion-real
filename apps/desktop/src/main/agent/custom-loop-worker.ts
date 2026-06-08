@@ -8,7 +8,7 @@ import type {
   RepairOutcome,
 } from "./agent-worker.js";
 import type { SafetyIssue } from "@news/pipeline";
-import { generateValidateRepair, type SafetyReportView } from "./repair-loop.js";
+import { generateValidateRepair, type SafetyReportView, type RenderResult } from "./repair-loop.js";
 
 /**
  * Path-X custom-loop Agent_Worker adapter. It drives the Model_Gateway + MCP
@@ -34,8 +34,8 @@ export interface AuthoringBackend {
   authorScenes(job: AuthorJob): Promise<{ scenes: AuthoredScene[]; message?: string }>;
   /** Re-author ONLY the named scenes (code-level self-repair / visual edit). */
   reauthor(projectId: string, targets: ReauthorTarget[]): Promise<{ scenes: AuthoredScene[] }>;
-  /** Render one draft (drives the MCP `render_draft` tool). */
-  renderDraft(projectId: string): Promise<{ ok: boolean }>;
+  /** Render one draft (drives the MCP `render_draft` tool); failure carries the engine error. */
+  renderDraft(projectId: string): Promise<RenderResult>;
   /** Read the safety report for the just-rendered draft (MCP `get_safety_report`). */
   getSafetyReport(projectId: string): Promise<SafetyReportView>;
 }

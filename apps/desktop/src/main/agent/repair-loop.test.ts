@@ -179,4 +179,41 @@ describe("Property 4: repair budget and routing", () => {
     expect(outcome.kind).toBe("exhausted");
     expect(reauthored).toBe(0);
   });
+
+  it("a FAILED render whose cause is infra ⇒ kind 'infra' (not exhausted), no reauthor", async () => {
+    let reauthored = 0;
+    const deps: RepairLoopDeps = {
+      renderDraft: async () => ({ ok: false, error: { message: "", stage: "tts", cause: "missing VIETNAMESE_API_KEY", severity: "error" } }),
+      getSafetyReport: async () => ({ ok: true, hardErrors: [], warnings: [] }),
+      reauthor: async () => {
+        reauthored++;
+      },
+      hooks: noopHooks,
+    };
+    const outcome = await generateValidateRepair(deps, { maxAttempts: 5 });
+    expect(outcome).toEqual({ kind: "infra", attempts: 1 });
+    expect(reauthored).toBe(0);
+  });
+
+  it("a FAILED render with no/unknown error ⇒ consumes the attempt (exhausted)", async () => {
+    const deps: RepairLoopDeps = {
+      renderDraft: async () => ({ ok: false }),
+      getSafetyReport: async () => ({ ok: true, hardErrors: [], warnings: [] }),
+      reauthor: async () => {},
+      hooks: noopHooks,
+    };
+    const outcome = await generateValidateRepair(deps, { maxAttempts: 2 });
+    expect(outcome).toEqual({ kind: "exhausted", attempts: 2, remainingHardErrors: 0 });
+  });
+
+  it("a report read failure (ok:false, no errors) is NOT a false pass", async () => {
+    const deps: RepairLoopDeps = {
+      renderDraft: async () => ({ ok: true }),
+      getSafetyReport: async () => ({ ok: false, hardErrors: [], warnings: [] }),
+      reauthor: async () => {},
+      hooks: noopHooks,
+    };
+    const outcome = await generateValidateRepair(deps, { maxAttempts: 2 });
+    expect(outcome.kind).not.toBe("passed");
+  });
 });

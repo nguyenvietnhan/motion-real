@@ -14,6 +14,7 @@ import {
   type AdmitProjectResult,
   type AuthoredRegistration,
   type SafetyIssue,
+  type SerializedPipelineError,
 } from "@news/pipeline";
 import type { createTools } from "@news/mcp";
 import type { AuthoringBackend, AuthoredScene, ReauthorTarget } from "../agent/custom-loop-worker.js";
@@ -59,9 +60,14 @@ function manifestPathOf(projectId: string): string {
   return projectPaths(projectId).manifest;
 }
 
-/** Vision-guided repair applies to pixel/layout oracles (N14 zone, N18 contrast). */
+/**
+ * Vision-guided repair applies to the layout pixel oracle (N14 content-zone /
+ * caption-clearance) — the only HARD pixel error that reaches the repair loop.
+ * Contrast (N18) is advisory (warning severity) and never arrives as a hard
+ * error here, so it does not drive vision repair.
+ */
 function needsVision(issues?: SafetyIssue[]): boolean {
-  return (issues ?? []).some((i) => i.check === "N14" || i.check === "N18");
+  return (issues ?? []).some((i) => i.check === "N14");
 }
 
 /** Read a rendered still into a PNG data URL, or undefined if missing/unreadable. */
@@ -258,7 +264,7 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
     }
   }
 
-  async renderDraft(projectId: string): Promise<{ ok: boolean }> {
+  async renderDraft(projectId: string): Promise<{ ok: true } | { ok: false; error?: SerializedPipelineError }> {
     const res = await this.deps.tools.render_draft(
       // Cap draft concurrency: forcing all CPU cores crashed Chromium in Electron
       // ("Page.bringToFront: Target closed"). 2 is a stable preview default.
@@ -267,10 +273,11 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
     );
     if (!res.ok) {
       console.error(`[render] render_draft failed for ${projectId} [${res.error.stage}]: ${res.error.cause}`);
-    } else {
-      console.log(`[render] render_draft OK for ${projectId} → ${(res.data as { mp4Path?: string }).mp4Path ?? "(draft)"}`);
+      // Carry the engine error so the repair loop can route infra vs content.
+      return { ok: false, error: res.error };
     }
-    return { ok: res.ok };
+    console.log(`[render] render_draft OK for ${projectId} → ${(res.data as { mp4Path?: string }).mp4Path ?? "(draft)"}`);
+    return { ok: true };
   }
 
   async getSafetyReport(projectId: string): Promise<SafetyReportView> {
