@@ -213,7 +213,7 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
       let applied = false;
       let feedback: string | undefined;
       for (let attempt = 0; attempt < MAX_REAUTHOR_ATTEMPTS && !applied; attempt++) {
-        const stillDataUrl = needsVision(t.issues) ? readStillDataUrl(join(reviewDir, `${t.sceneId}.png`)) : undefined;
+        const stillDataUrl = needsVision(t.issues) || t.visual ? readStillDataUrl(join(reviewDir, `${t.sceneId}.png`)) : undefined;
         const intent = [t.intent, feedback].filter((s) => s && s.trim()).join("\n\n") || undefined;
         const messages = buildReauthorMessages({
           sceneId: t.sceneId,

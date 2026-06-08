@@ -24,10 +24,11 @@ export type AuthoredScene = { sceneId: string; stillPath: string };
 
 /**
  * One scene to re-author. The auto-repair loop supplies the flagging `issues`
- * (drives vision + the repair prompt); the manual visual-edit path supplies an
- * `intent` string instead. (desktop-author-mode, Req 3.)
+ * (drives vision + the repair prompt); the manual visual-edit / visual-QA path
+ * supplies an `intent` string and sets `visual` so the rewrite is ALSO shown the
+ * current rendered still (a layout fix must see what it's fixing). (Req 3.)
  */
-export type ReauthorTarget = { sceneId: string; issues?: SafetyIssue[]; intent?: string };
+export type ReauthorTarget = { sceneId: string; issues?: SafetyIssue[]; intent?: string; visual?: boolean };
 
 /** The model+MCP-facing operations the custom loop drives. */
 export interface AuthoringBackend {
@@ -71,6 +72,9 @@ export class CustomLoopAgentWorker implements AgentWorker {
   async reauthorScenes(job: ReauthorJob, hooks: AgentHooks): Promise<AuthorOutcome> {    const targets = job.sceneIds.map((sceneId) => ({
       sceneId,
       intent: job.preprompt.perSceneIntent[sceneId] ?? job.preprompt.globalNotes,
+      // Visual intent (user Canva edit or AI visual-QA): the rewrite must SEE the
+      // current rendered still, not fix a layout it can't observe.
+      visual: true,
     }));
     const result = await this.backend.reauthor(job.projectId, targets);
     emitScenes(result.scenes, hooks);

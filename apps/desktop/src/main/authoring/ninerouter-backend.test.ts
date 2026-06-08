@@ -190,6 +190,18 @@ describe("reauthor (self-repair)", () => {
     expect(noImage).toBe(true);
   });
 
+  it("a visual intent (Canva edit / visual-QA) attaches the still even without issues", async () => {
+    const projectId = "ra-visual-intent";
+    setupProject(projectId);
+    const okAdmit: NineRouterBackendDeps["admitOne"] = async () => ({ ok: true, componentId: "alpha" });
+    const msgs: ChatMessage[] = [];
+    await backendForReauthor(newBlock(), okAdmit, msgs).reauthor(projectId, [
+      { sceneId: "scene-01", intent: "đổi nền sang xanh", visual: true },
+    ]);
+    const hasImage = msgs.some((m) => Array.isArray(m.content) && (m.content as ContentPart[]).some((p) => p.type === "image_url"));
+    expect(hasImage).toBe(true);
+  });
+
   it("unresolvable sceneId ⇒ skipped (no scene, no throw)", async () => {
     const projectId = "ra-missing";
     setupProject(projectId);
