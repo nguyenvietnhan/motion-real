@@ -47,6 +47,22 @@ export type Manifest = {
 /** Default per-scene hold when a manifest scene omits a pacing target. */
 const DEFAULT_SCENE_SECONDS = 8;
 
+/** VideoSpec theme limits: dominant must be 6-digit hex, mood ≤40 chars. */
+const HEX6 = /^#[0-9a-fA-F]{6}$/;
+function clampTheme(theme: { dominant: string; mood?: string; stylePackId?: string }): {
+  dominant: string;
+  mood?: string;
+  stylePackId?: string;
+} {
+  const dominant = HEX6.test((theme.dominant ?? "").trim()) ? theme.dominant.trim() : "#1E9CB0";
+  const mood = (theme.mood ?? "").trim().slice(0, 40);
+  return {
+    dominant,
+    ...(mood ? { mood } : {}),
+    ...(theme.stylePackId ? { stylePackId: theme.stylePackId } : {}),
+  };
+}
+
 /** An empty manifest skeleton written by `author scaffold`. */
 export function emptyManifest(title = "Untitled"): Manifest {
   return { title, theme: { dominant: "#5B8CFF", mood: "" }, scenes: [] };
@@ -56,17 +72,13 @@ export function emptyManifest(title = "Untitled"): Manifest {
 export function manifestToVideoSpec(manifest: Manifest): VideoSpec {
   return {
     version: 1,
-    title: manifest.title?.trim() || "Untitled",
+    title: (manifest.title?.trim() || "Untitled").slice(0, 140),
     styleId: "clean-luxury-tech",
     ratio: "9:16",
     language: "vi",
-    theme: manifest.theme?.dominant
-      ? {
-          dominant: manifest.theme.dominant,
-          mood: manifest.theme.mood,
-          ...(manifest.theme.stylePackId ? { stylePackId: manifest.theme.stylePackId } : {}),
-        }
-      : undefined,
+    // Clamp to the VideoSpec schema so a manifest authored with AI variance
+    // (or written by an older build) never trips validation at render time.
+    theme: manifest.theme?.dominant ? clampTheme(manifest.theme) : undefined,
     scenes: manifest.scenes.map((scene) => ({
       id: scene.id,
       component: scene.component,
