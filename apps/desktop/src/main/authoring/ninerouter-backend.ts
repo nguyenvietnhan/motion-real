@@ -146,7 +146,9 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
 
   async renderDraft(projectId: string): Promise<{ ok: boolean }> {
     const res = await this.deps.tools.render_draft(
-      { projectId },
+      // Cap draft concurrency: forcing all CPU cores crashed Chromium in Electron
+      // ("Page.bringToFront: Target closed"). 2 is a stable preview default.
+      { projectId, concurrency: 2 },
       this.deps.onRenderProgress ? (r) => this.deps.onRenderProgress!(r, projectId) : undefined,
     );
     if (!res.ok) {

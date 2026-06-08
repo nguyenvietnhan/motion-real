@@ -93,6 +93,8 @@ export const scaffoldProjectInput = z.object({
 
 export const renderDraftInput = z.object({
   projectId: z.string().min(1),
+  /** Optional render concurrency cap; lower values are more stable under Electron. */
+  concurrency: z.number().int().positive().optional(),
 });
 
 export const renderFullInput = z.object({
@@ -207,6 +209,7 @@ export function createTools(overrides: Partial<ToolDeps> = {}) {
       try {
         const res = await deps.renderProject(input.projectId, {
           quality: "draft",
+          ...(input.concurrency ? { concurrency: input.concurrency } : {}),
           ...(onProgress ? { onProgress } : {}),
         });
         await persistSafetyReport(input.projectId, res.report);
