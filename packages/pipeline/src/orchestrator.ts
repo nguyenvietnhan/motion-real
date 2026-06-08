@@ -114,7 +114,7 @@ export async function scaffoldVideoProject(opts: ScaffoldVideoProjectOptions): P
 // --- renderProject ---------------------------------------------------------
 
 /** Fast-draft render fps (fewer frames → faster preview; motion is fps-aware). */
-const DRAFT_FPS = 20;
+const DRAFT_FPS = 10;
 /** Final full-quality render fps. 30 is the deliverable default (60fps doubles
  *  the frame count for little gain on this editorial style). */
 const FULL_FPS = 30;
