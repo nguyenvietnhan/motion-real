@@ -42,6 +42,14 @@ function manifestPathOf(projectId: string): string {
   return projectPaths(projectId).manifest;
 }
 
+/** Engine ThemeSpec limits: dominant must be 6-digit hex, mood ≤40 chars. */
+const HEX6 = /^#[0-9a-fA-F]{6}$/;
+function sanitizeTheme(theme: { dominant: string; mood?: string }): { dominant: string; mood?: string } {
+  const dominant = HEX6.test(theme.dominant.trim()) ? theme.dominant.trim() : "#1E9CB0";
+  const mood = (theme.mood ?? "").trim().slice(0, 40);
+  return mood ? { dominant, mood } : { dominant };
+}
+
 /** AuthorManifest (kit-based) → engine Manifest with sequential scene ids. */
 function toEngineManifest(m: AuthorManifest): Manifest {
   const scenes: ManifestScene[] = m.scenes.map((s, i) => ({
@@ -54,7 +62,9 @@ function toEngineManifest(m: AuthorManifest): Manifest {
     ...(s.body ? { body: s.body } : {}),
     ...(s.transitionToNext ? { transitionToNext: s.transitionToNext } : {}),
   }));
-  return { title: m.title, theme: m.theme, scenes } as Manifest;
+  // Clamp to the engine VideoSpec limits so AI variance never trips schema
+  // validation: title ≤140, theme.dominant hex, theme.mood ≤40.
+  return { title: m.title.slice(0, 140), theme: sanitizeTheme(m.theme), scenes } as Manifest;
 }
 
 export class NineRouterAuthoringBackend implements AuthoringBackend {
