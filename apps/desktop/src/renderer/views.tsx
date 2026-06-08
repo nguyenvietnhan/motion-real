@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import type {
   AiAccountState,
   FriendlyStatus,
@@ -527,14 +527,30 @@ export const StoryboardView: React.FC<{
   onApprove: () => void;
 }> = ({ model, percent, canApprove, inline, readOnly, onBack, onSubmit, onApprove }) => {
   const [selected, setSelected] = useState(0);
-  const [edit, setEdit] = useState("");
-  // Clear the edit box when switching slides.
-  useEffect(() => setEdit(""), [selected]);
+  // Per-scene edit drafts keyed by sceneId, so switching slides KEEPS what you
+  // typed. You gather edits across many scenes and send them in ONE pass.
+  const [edits, setEdits] = useState<Record<string, string>>({});
+  const [notes, setNotes] = useState("");
 
   const rendering = percent !== null;
   const scenes = model.scenes;
   const idx = Math.min(selected, Math.max(0, scenes.length - 1));
   const current = scenes[idx];
+
+  const hasEdit = (sceneId: string): boolean => (edits[sceneId] ?? "").trim().length > 0;
+  const editedCount = scenes.filter((s) => hasEdit(s.sceneId)).length;
+  const batch = scenes.filter((s) => hasEdit(s.sceneId)).map((s) => ({ sceneId: s.sceneId, text: edits[s.sceneId]!.trim() }));
+  const canSend = !rendering && (editedCount > 0 || notes.trim() !== "");
+  const setCurrentEdit = (text: string): void => {
+    if (!current) return;
+    setEdits((m) => ({ ...m, [current.sceneId]: text }));
+  };
+  const sendAll = (): void => {
+    if (!canSend) return;
+    onSubmit(batch, notes.trim());
+    setEdits({}); // optimistic clear — the edits are being applied + re-rendered
+    setNotes("");
+  };
 
   if (scenes.length === 0) {
     return (
@@ -576,6 +592,11 @@ export const StoryboardView: React.FC<{
               }}>
               <span style={{ position: "absolute", left: 6, top: 6, fontSize: 11, fontWeight: 800, color: "#fff",
                 background: "rgba(0,0,0,0.6)", borderRadius: 6, padding: "1px 6px" }}>{i + 1}</span>
+              {hasEdit(s.sceneId) && (
+                <span title="Đã ghi yêu cầu chỉnh sửa" style={{ position: "absolute", right: 6, top: 6, width: 16, height: 16,
+                  display: "grid", placeItems: "center", fontSize: 10, fontWeight: 800, color: "#fff",
+                  background: "var(--brand)", borderRadius: 999 }}>✎</span>
+              )}
             </button>
           ))}
         </div>
@@ -590,18 +611,35 @@ export const StoryboardView: React.FC<{
 
           {!readOnly && (
             <div className="ns-card" style={{ padding: 12, display: "flex", flexDirection: "column", gap: 10 }}>
-              <strong style={{ fontSize: 13 }}>Sửa cảnh {idx + 1}</strong>
-              <textarea aria-label={`edit-${current?.sceneId}`} className="ns-input" value={edit} maxLength={2000} rows={3}
-                onChange={(e) => setEdit(e.target.value)} disabled={rendering}
-                placeholder="Nói tự nhiên điều muốn đổi: “to chữ tiêu đề lên”, “đổi nền sang xanh”, “bỏ bớt chữ, thêm biểu đồ cột”…"
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                <strong style={{ fontSize: 13 }}>Sửa cảnh {idx + 1}</strong>
+                {editedCount > 0 && (
+                  <span style={{ fontSize: 12, fontWeight: 700, color: "var(--brand)" }}>
+                    Đã ghi yêu cầu cho {editedCount} cảnh
+                  </span>
+                )}
+              </div>
+              <textarea aria-label={`edit-${current?.sceneId}`} className="ns-input" value={current ? (edits[current.sceneId] ?? "") : ""}
+                maxLength={2000} rows={3} onChange={(e) => setCurrentEdit(e.target.value)} disabled={rendering}
+                placeholder="Nói tự nhiên điều muốn đổi: “to chữ tiêu đề lên”, “đổi nền sang xanh”, “bỏ bớt chữ, thêm biểu đồ cột”… Gõ cho từng cảnh rồi gửi tất cả một lần."
+                style={{ width: "100%", resize: "vertical" }} />
+              <textarea aria-label="global-notes" className="ns-input" value={notes} maxLength={2000} rows={2}
+                onChange={(e) => setNotes(e.target.value)} disabled={rendering}
+                placeholder="Ghi chú chung cho cả video (tùy chọn): vd “giọng nhanh hơn”, “tông màu ấm hơn”…"
                 style={{ width: "100%", resize: "vertical" }} />
               <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                <button className="ns-btn ns-btn-primary" disabled={rendering || edit.trim() === "" || !current}
-                  onClick={() => current && onSubmit([{ sceneId: current.sceneId, text: edit.trim() }], "")}>
-                  Sửa cảnh này bằng AI
+                <button className="ns-btn ns-btn-primary" disabled={!canSend} onClick={sendAll}>
+                  {editedCount > 1 || (editedCount >= 1 && notes.trim() !== "")
+                    ? `Gửi tất cả chỉnh sửa (${editedCount} cảnh)`
+                    : "Gửi chỉnh sửa cho AI"}
                 </button>
                 <button className="ns-btn" disabled={!canApprove || rendering} onClick={onApprove}>Duyệt &amp; xuất bản</button>
               </div>
+              {editedCount > 0 && (
+                <p style={{ margin: 0, fontSize: 12, color: "var(--muted-foreground)" }}>
+                  Chuyển qua các cảnh khác để ghi thêm — yêu cầu được giữ lại cho tới khi bạn gửi.
+                </p>
+              )}
             </div>
           )}
         </div>
