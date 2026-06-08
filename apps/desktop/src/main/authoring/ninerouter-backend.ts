@@ -139,12 +139,26 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
       { projectId },
       this.deps.onRenderProgress ? (r) => this.deps.onRenderProgress!(r, projectId) : undefined,
     );
+    if (!res.ok) {
+      console.error(`[render] render_draft failed for ${projectId} [${res.error.stage}]: ${res.error.cause}`);
+    } else {
+      console.log(`[render] render_draft OK for ${projectId} → ${(res.data as { mp4Path?: string }).mp4Path ?? "(draft)"}`);
+    }
     return { ok: res.ok };
   }
 
   async getSafetyReport(projectId: string): Promise<SafetyReportView> {
     const res = await this.deps.tools.get_safety_report({ projectId });
-    if (!res.ok) return { ok: false, hardErrors: [], warnings: [] };
+    if (!res.ok) {
+      console.error(`[render] get_safety_report failed for ${projectId}: ${res.error.cause}`);
+      return { ok: false, hardErrors: [], warnings: [] };
+    }
+    if (res.data.hardErrors.length > 0) {
+      console.error(
+        "[render] safety grid HARD errors:\n" +
+          res.data.hardErrors.map((e) => `  ${e.check}${e.sceneId ? ` @${e.sceneId}` : ""}: ${e.message}`).join("\n"),
+      );
+    }
     return res.data;
   }
 }
