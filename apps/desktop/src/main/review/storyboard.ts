@@ -12,9 +12,6 @@ import type { SceneCard, StoryboardModel } from "../../shared/types.js";
  * `buildStoryboard` view-model builder remains.
  */
 
-export const MAX_SCENE_EDIT_CHARS = 2000;
-export const MAX_GLOBAL_NOTES_CHARS = 4000;
-
 /**
  * Build the Storyboard view-model from ordered scene ids. `stillPath` is
  * produced by the injected `toStill` mapper so the caller controls whether the

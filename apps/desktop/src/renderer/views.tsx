@@ -327,12 +327,40 @@ export const ProjectsView: React.FC<{
 
 // --- Settings -------------------------------------------------------------
 
-const Section: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
-  <section className="ns-card" style={{ padding: 20, marginBottom: 16 }}>
-    <h3 style={{ marginTop: 0, marginBottom: 14, fontSize: 15 }}>{title}</h3>
+/** A labelled settings field: bold label, control, optional helper text. */
+const Field: React.FC<{ label: string; hint?: string; children: React.ReactNode }> = ({ label, hint, children }) => (
+  <div style={{ marginBottom: 20 }}>
+    <label style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 7 }}>{label}</label>
+    {children}
+    {hint && <p style={{ margin: "7px 0 0", fontSize: 12, color: "var(--muted-foreground)", lineHeight: 1.5 }}>{hint}</p>}
+  </div>
+);
+
+/** Enterprise-style toggle row: title + description on the left, switch on the right. */
+const Toggle: React.FC<{ checked: boolean; onChange: (v: boolean) => void; title: string; desc?: string }> = ({ checked, onChange, title, desc }) => (
+  <label style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, padding: "14px 0", borderTop: "1px solid var(--border)", cursor: "pointer" }}>
+    <span style={{ minWidth: 0 }}>
+      <span style={{ display: "block", fontSize: 14, fontWeight: 600 }}>{title}</span>
+      {desc && <span style={{ display: "block", fontSize: 12, color: "var(--muted-foreground)", marginTop: 3, lineHeight: 1.5 }}>{desc}</span>}
+    </span>
+    <span className="ns-switch" style={{ flexShrink: 0 }}>
+      <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} />
+      <span className="ns-switch-track" />
+    </span>
+  </label>
+);
+
+const SettingsCard: React.FC<{ title: string; desc?: string; children: React.ReactNode }> = ({ title, desc, children }) => (
+  <section className="ns-card" style={{ padding: 24 }}>
+    <div style={{ marginBottom: 20 }}>
+      <h3 style={{ margin: 0, fontSize: 16 }}>{title}</h3>
+      {desc && <p style={{ margin: "4px 0 0", fontSize: 13, color: "var(--muted-foreground)" }}>{desc}</p>}
+    </div>
     {children}
   </section>
 );
+
+type SettingsTab = "ai" | "voice" | "build" | "about";
 
 export const SettingsView: React.FC<{
   gateway: GatewayState;
@@ -343,71 +371,114 @@ export const SettingsView: React.FC<{
   onSelectModel: (modelId: string) => void;
   onUpdate: (patch: Partial<SettingsModel>) => void;
 }> = ({ gateway, account, models, settings, onManageAccounts, onSelectModel, onUpdate }) => {
+  const [tab, setTab] = useState<SettingsTab>("ai");
   const connected = account.kind === "connected" ? account.accounts : [];
   const selectedModelId = account.kind === "connected" ? account.selectedModel?.id ?? "" : "";
 
+  const TABS: { id: SettingsTab; label: string; icon: React.ReactNode }[] = [
+    { id: "ai", label: "Tài khoản AI", icon: Icon.spark({ size: 16 }) },
+    { id: "voice", label: "Giọng đọc", icon: Icon.film({ size: 16 }) },
+    { id: "build", label: "Dựng video", icon: Icon.settings({ size: 16 }) },
+    { id: "about", label: "Giới thiệu", icon: Icon.home({ size: 16 }) },
+  ];
+
   return (
-    <div className="ns-content" style={{ maxWidth: 760 }}>
+    <div className="ns-content" style={{ maxWidth: 940 }}>
       <PageHeader title="Cài đặt" subtitle="Tài khoản AI, giọng đọc và tuỳ chọn dựng video." />
-
-      <Section title="Tài khoản AI & model">
-        {gateway.kind === "starting" && <p style={{ color: "var(--muted-foreground)", margin: 0 }}>Đang khởi động dịch vụ AI…</p>}
-        {gateway.kind === "unavailable" && (
-          <p style={{ color: "var(--danger)", margin: 0 }}>Không khởi động được 9Router. Hãy kiểm tra 9Router đã cài rồi mở lại app.</p>
-        )}
-        {gateway.kind === "ready" && (
-          <>
-            <p style={{ color: connected.length ? "var(--good)" : "var(--muted-foreground)", marginTop: 0 }}>
-              {connected.length ? `✓ Đã kết nối: ${connected.map((a) => a.label).join(", ")}` : "Chưa có tài khoản nào."}
-            </p>
-            <button className="ns-btn ns-btn-primary" onClick={onManageAccounts}>
-              {connected.length ? "Thêm / quản lý tài khoản (mở 9Router)" : "Đăng nhập tài khoản AI (mở 9Router)"}
+      <div className="ns-settings">
+        <nav className="ns-settings-nav">
+          {TABS.map((t) => (
+            <button key={t.id} className={`ns-settings-tab${tab === t.id ? " active" : ""}`} onClick={() => setTab(t.id)}>
+              {t.icon}
+              {t.label}
             </button>
-            {connected.length > 0 && (
-              <div style={{ marginTop: 16 }}>
-                <label style={{ display: "block", color: "var(--muted-foreground)", fontSize: 13, marginBottom: 6 }}>Model dùng để dựng</label>
-                <select className="ns-input" aria-label="model-select" value={selectedModelId} onChange={(e) => onSelectModel(e.target.value)} style={{ minWidth: 360 }}>
-                  <option value="" disabled>— chọn model —</option>
-                  {models.map((m) => (<option key={m.id} value={m.id}>{m.id}</option>))}
-                </select>
+          ))}
+        </nav>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 16, minWidth: 0 }}>
+          {tab === "ai" && (
+            <SettingsCard title="Tài khoản AI & model" desc="Kết nối tài khoản qua 9Router và chọn model dùng để dựng video.">
+              {gateway.kind === "starting" && <p style={{ color: "var(--muted-foreground)", margin: 0 }}>Đang khởi động dịch vụ AI…</p>}
+              {gateway.kind === "unavailable" && (
+                <p style={{ color: "var(--danger)", margin: 0 }}>Không khởi động được 9Router. Hãy kiểm tra 9Router đã cài rồi mở lại app.</p>
+              )}
+              {gateway.kind === "ready" && (
+                <>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
+                    <span style={{ width: 8, height: 8, borderRadius: 999, background: connected.length ? "var(--good)" : "var(--warn)", flexShrink: 0 }} />
+                    <span style={{ fontSize: 14, color: "var(--foreground)" }}>
+                      {connected.length ? `Đã kết nối: ${connected.map((a) => a.label).join(", ")}` : "Chưa có tài khoản nào."}
+                    </span>
+                  </div>
+                  <button className="ns-btn ns-btn-primary" onClick={onManageAccounts}>
+                    {Icon.spark({ size: 15 })} {connected.length ? "Thêm / quản lý tài khoản" : "Đăng nhập tài khoản AI"}
+                  </button>
+                  {connected.length > 0 && (
+                    <div style={{ marginTop: 20 }}>
+                      <Field label="Model dùng để dựng" hint="Model có khả năng nhìn ảnh sẽ tự soát & sửa lỗi bố cục tốt hơn.">
+                        <select className="ns-input" aria-label="model-select" value={selectedModelId} onChange={(e) => onSelectModel(e.target.value)} style={{ width: "100%", maxWidth: 420 }}>
+                          <option value="" disabled>— chọn model —</option>
+                          {models.map((m) => (<option key={m.id} value={m.id}>{m.id}</option>))}
+                        </select>
+                      </Field>
+                    </div>
+                  )}
+                </>
+              )}
+            </SettingsCard>
+          )}
+
+          {tab === "voice" && (
+            <SettingsCard title="Giọng đọc" desc="Cấu hình giọng đọc Vivibe. Bỏ trống sẽ dùng cấu hình trong file .env (nếu có).">
+              <Field label="Nhà cung cấp giọng">
+                <input className="ns-input" value={settings.voiceProvider} disabled style={{ width: "100%", maxWidth: 260, opacity: 0.7 }} />
+              </Field>
+              <Field label="API key giọng đọc (Vivibe)">
+                <input className="ns-input" type="password" placeholder="dán API key…" value={settings.voiceApiKey ?? ""}
+                  onChange={(e) => onUpdate({ voiceApiKey: e.target.value })} style={{ width: "100%", maxWidth: 480 }} />
+              </Field>
+              <Field label="Voice ID" hint="Mã giọng đọc cụ thể trên Vivibe.">
+                <input className="ns-input" placeholder="voice id…" value={settings.voiceId ?? ""}
+                  onChange={(e) => onUpdate({ voiceId: e.target.value })} style={{ width: "100%", maxWidth: 480 }} />
+              </Field>
+            </SettingsCard>
+          )}
+
+          {tab === "build" && (
+            <SettingsCard title="Dựng video" desc="Kiểm soát quy trình tự dựng và tự sửa lỗi.">
+              <Field label="Số lần tự sửa tối đa" hint="Số lần AI được thử dựng lại để khắc phục lỗi trước khi báo cần can thiệp (1–10).">
+                <input className="ns-input" type="number" min={1} max={10} value={settings.maxRepairAttempts}
+                  onChange={(e) => onUpdate({ maxRepairAttempts: Math.min(10, Math.max(1, Number(e.target.value) || 1)) })} style={{ width: 100 }} />
+              </Field>
+              <Toggle checked={settings.scriptGateEnabled} onChange={(v) => onUpdate({ scriptGateEnabled: v })}
+                title="Duyệt kịch bản trước khi dựng" desc="Tạm dừng để bạn xem & sửa lời đọc trước khi tốn công dựng video." />
+              <Toggle checked={settings.visualQaEnabled} onChange={(v) => onUpdate({ visualQaEnabled: v })}
+                title="AI tự soát & sửa lỗi hình ảnh trước khi duyệt"
+                desc="AI xem ảnh từng cảnh để bắt lỗi bố cục (đè chữ, tràn, lệch) và tự sửa — cần model nhìn được ảnh; nếu không sẽ tự bỏ qua." />
+              <div style={{ borderTop: "1px solid var(--border)", paddingTop: 14, marginTop: 4 }}>
+                <span style={{ fontSize: 12, color: "var(--muted-foreground)" }}>Thư mục lưu dự án</span>
+                <p style={{ margin: "4px 0 0", fontSize: 13, fontFamily: "var(--font-mono, monospace)", color: "var(--foreground)", wordBreak: "break-all" }}>{settings.outputDir || "(mặc định)"}</p>
               </div>
-            )}
-          </>
-        )}
-      </Section>
+            </SettingsCard>
+          )}
 
-      <Section title="Giọng đọc">
-        <label style={{ display: "block", color: "var(--muted-foreground)", fontSize: 13, marginBottom: 6 }}>Nhà cung cấp giọng</label>
-        <input className="ns-input" value={settings.voiceProvider} disabled style={{ minWidth: 220, marginBottom: 12, opacity: 0.7 }} />
-        <label style={{ display: "block", color: "var(--muted-foreground)", fontSize: 13, marginBottom: 6 }}>API key giọng đọc (Vivibe)</label>
-        <input className="ns-input" type="password" placeholder="dán API key…" value={settings.voiceApiKey ?? ""}
-          onChange={(e) => onUpdate({ voiceApiKey: e.target.value })} style={{ width: "100%", marginBottom: 12 }} />
-        <label style={{ display: "block", color: "var(--muted-foreground)", fontSize: 13, marginBottom: 6 }}>Voice ID</label>
-        <input className="ns-input" placeholder="voice id…" value={settings.voiceId ?? ""}
-          onChange={(e) => onUpdate({ voiceId: e.target.value })} style={{ width: "100%" }} />
-        <p style={{ color: "var(--muted-foreground)", fontSize: 12, marginBottom: 0 }}>Bỏ trống sẽ dùng cấu hình trong file .env (nếu có).</p>
-      </Section>
-
-      <Section title="Dựng video">
-        <label style={{ display: "block", marginBottom: 12 }}>
-          Số lần tự sửa tối đa{" "}
-          <input className="ns-input" type="number" min={1} max={10} value={settings.maxRepairAttempts}
-            onChange={(e) => onUpdate({ maxRepairAttempts: Math.min(10, Math.max(1, Number(e.target.value) || 1)) })} style={{ width: 80, marginLeft: 8, padding: "6px 10px" }} />
-        </label>
-        <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <input type="checkbox" checked={settings.scriptGateEnabled} onChange={(e) => onUpdate({ scriptGateEnabled: e.target.checked })} />
-          Duyệt kịch bản trước khi dựng
-        </label>
-        <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10 }}>
-          <input type="checkbox" checked={settings.visualQaEnabled} onChange={(e) => onUpdate({ visualQaEnabled: e.target.checked })} />
-          AI tự soát &amp; sửa lỗi hình ảnh trước khi duyệt
-        </label>
-        <p style={{ color: "var(--muted-foreground)", fontSize: 12, margin: "4px 0 0" }}>
-          AI xem ảnh từng cảnh để bắt lỗi bố cục (đè chữ, tràn, lệch) và tự sửa — cần model có khả năng nhìn ảnh; nếu không sẽ tự bỏ qua.
-        </p>
-        <p style={{ color: "var(--muted-foreground)", fontSize: 12, marginBottom: 0 }}>Thư mục lưu: {settings.outputDir || "(mặc định)"}</p>
-      </Section>
+          {tab === "about" && (
+            <SettingsCard title="Giới thiệu" desc="News Studio — xưởng dựng video tin tức ngắn 9:16 bằng AI.">
+              <Field label="Phiên bản">
+                <span style={{ fontSize: 14 }}>News Studio 0.1.0</span>
+              </Field>
+              <Field label="Dịch vụ AI" hint="Đăng nhập tài khoản nhà cung cấp được uỷ quyền cho 9Router; News Studio không lưu mật khẩu của bạn.">
+                <span style={{ fontSize: 14 }}>9Router · localhost:20128</span>
+              </Field>
+              <p style={{ margin: 0, fontSize: 12, color: "var(--muted-foreground)", lineHeight: 1.6 }}>
+                Bản dev dùng mã kích hoạt <strong style={{ color: "var(--foreground)" }}>123</strong>. Mọi dự án &amp; bản dựng lưu cục bộ trong thư mục dự án.
+              </p>
+            </SettingsCard>
+          )}
+        </div>
+      </div>
     </div>
+
   );
 };
 

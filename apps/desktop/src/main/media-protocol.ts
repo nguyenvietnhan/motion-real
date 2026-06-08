@@ -1,5 +1,6 @@
 import { net, protocol } from "electron";
 import { pathToFileURL } from "node:url";
+import { videoToolHome } from "@news/pipeline";
 
 /**
  * Local-file protocol (web-dashboard B7). The renderer runs on an http(s)/file
@@ -27,6 +28,13 @@ export function handleMediaProtocol(): void {
     try {
       const encoded = new URL(request.url).pathname.replace(/^\//, "");
       const abs = decodeURIComponent(encoded);
+      // Containment: only serve files under the .video-tool home — never an
+      // arbitrary absolute path (defense-in-depth against a crafted media:// URL).
+      const root = videoToolHome().replace(/\\/g, "/").toLowerCase();
+      const norm = abs.replace(/\\/g, "/").toLowerCase();
+      if (norm !== root && !norm.startsWith(root.endsWith("/") ? root : `${root}/`)) {
+        return new Response("Forbidden", { status: 403 });
+      }
       return net.fetch(pathToFileURL(abs).toString());
     } catch {
       return new Response("Not found", { status: 404 });
