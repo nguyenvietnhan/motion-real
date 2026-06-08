@@ -45,12 +45,10 @@ export const App: React.FC = () => {
       dispatch({ type: "gallery", load: cards.length === 0 ? "empty" : "populated", cards });
     })();
 
-    const unsubs = [
-      dash.events.onProgress((e) => dispatch({ type: "progress", event: e })),
-      dash.events.onScene((e) => dispatch({ type: "scene", event: e })),
-      dash.events.onStatus((e) => dispatch({ type: "status", event: e })),
-      dash.events.onFriendlyError((e) => dispatch({ type: "friendlyError", error: e })),
-    ];
+    // Only the gallery status badge is reduced here; the workspace flow is driven
+    // by stage polling (below). Progress/scene/friendly-error are surfaced through
+    // the polled stage, so we don't double-handle them via the event stream.
+    const unsubs = [dash.events.onStatus((e) => dispatch({ type: "status", event: e }))];
 
     // Poll only until AI is ready (gateway up + a connection + a model); auto-pick
     // a default model so the user isn't forced to choose; then stop (no churn).
