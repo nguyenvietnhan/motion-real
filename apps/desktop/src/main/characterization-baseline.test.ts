@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { computeScriptEdits, type ManifestScene } from "./script/script-gate-apply.js";
-import { defaultSettings } from "../renderer/settings/settings-model.js";
+import { defaultSettings } from "../shared/settings-model.js";
 import type { LicenseState, ProjectStage, SettingsModel } from "../shared/types.js";
 
 /**

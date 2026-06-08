@@ -7,7 +7,7 @@ import {
   type OpenProject,
 } from "./desktop-state.js";
 import { stripL0Tokens } from "../../main/redact/friendly.js";
-import { defaultSettings } from "../settings/settings-model.js";
+import { defaultSettings } from "../../shared/settings-model.js";
 
 /**
  * Feature: web-dashboard, Task 11.3/11.4 — streaming-event reducer + view-model

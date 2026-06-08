@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import fc from "fast-check";
 import { SettingsStore, type SettingsStoreDeps } from "./settings-store.js";
-import { defaultSettings } from "../../renderer/settings/settings-model.js";
+import { defaultSettings } from "../../shared/settings-model.js";
 import type { AiAccountState, SettingsModel } from "../../shared/types.js";
 
 /**

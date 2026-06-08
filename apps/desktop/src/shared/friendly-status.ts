@@ -1,4 +1,4 @@
-import type { FriendlyStatus, ProjectState } from "../../shared/types.js";
+import type { FriendlyStatus, ProjectState } from "./types.js";
 
 /**
  * Friendly-status mapping (web-dashboard Task 4.13, design §friendly-status,

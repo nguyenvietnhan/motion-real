@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import fc from "fast-check";
 import { FRIENDLY_STATUSES, toFriendlyStatus } from "./friendly-status.js";
-import type { ProjectState } from "../../shared/types.js";
+import type { ProjectState } from "./types.js";
 
 /**
  * Feature: web-dashboard, Property 10: Friendly-status mapping is total and

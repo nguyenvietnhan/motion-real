@@ -11,7 +11,7 @@ import type {
   StatusEvent,
   StoryboardModel,
 } from "../../shared/types.js";
-import type { GalleryLoad } from "../gallery/gallery-controller.js";
+import type { GalleryLoad } from "../../shared/gallery-controller.js";
 
 /**
  * Renderer state + streaming-event reducer (web-dashboard Task 11.3, design

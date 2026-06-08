@@ -1,5 +1,7 @@
-import type { SettingsModel } from "../../shared/types.js";
-import { DEFAULT_MAX_ATTEMPTS } from "../../main/agent/repair-loop.js";
+import type { SettingsModel } from "./types.js";
+
+/** Default repair budget (mirrors the engine clamp lower bound in repair-loop). */
+const DEFAULT_MAX_REPAIR_ATTEMPTS = 3;
 
 /**
  * Settings defaults (web-dashboard Task 10.1, design §Settings,
@@ -19,7 +21,7 @@ export function defaultSettings(outputDir: string): SettingsModel {
     aiAccount: { kind: "disconnected" },
     voiceProvider: "vivibe",
     outputDir,
-    maxRepairAttempts: DEFAULT_MAX_ATTEMPTS,
+    maxRepairAttempts: DEFAULT_MAX_REPAIR_ATTEMPTS,
     scriptGateEnabled: true,
     visualQaEnabled: true,
   };

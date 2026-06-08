@@ -10,7 +10,7 @@ import type {
   SettingsModel,
   StoryboardModel,
 } from "../shared/types.js";
-import { FRIENDLY_LABELS } from "./gallery/friendly-status.js";
+import { FRIENDLY_LABELS } from "../shared/friendly-status.js";
 import { validateCreateInput } from "../shared/create-validation.js";
 
 /**
