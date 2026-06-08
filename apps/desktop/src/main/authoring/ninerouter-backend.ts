@@ -19,7 +19,7 @@ import {
 import type { createTools } from "@news/mcp";
 import type { AuthoringBackend, AuthoredScene, ReauthorTarget } from "../agent/custom-loop-worker.js";
 import type { SafetyReportView } from "../agent/repair-loop.js";
-import type { AuthorJob, VisualDefect } from "../agent/agent-worker.js";
+import type { AuthorJob, VisualDefect, SceneSnapshot } from "../agent/agent-worker.js";
 import type { NineRouterClient, ChatMessage } from "../gateway/ninerouter-client.js";
 import { buildAuthorMessages, buildReauthorMessages, buildVisualQaMessages } from "./prompt.js";
 import { parseAuthorReply } from "./reply-parser.js";
@@ -387,6 +387,37 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
       return [];
     }
     return parseVisualDefects(reply, known);
+  }
+
+  /** Snapshot the current authored source of the named scenes (for QA rollback). */
+  async snapshotScenes(projectId: string, sceneIds: string[]): Promise<SceneSnapshot> {
+    const snap: SceneSnapshot = [];
+    for (const sceneId of sceneIds) {
+      const resolved = await resolveSceneFile(projectId, sceneId, (id) => loadManifest(id));
+      if (!resolved) continue;
+      try {
+        snap.push({ sceneId, code: await readFile(resolved.path, "utf8") });
+      } catch (e) {
+        console.warn(`[visual-qa] snapshot read failed for ${sceneId}:`, e);
+      }
+    }
+    return snap;
+  }
+
+  /** Restore authored source from a snapshot + re-admit so the next render uses it. */
+  async restoreScenes(projectId: string, snapshot: SceneSnapshot): Promise<void> {
+    const admitOne = this.deps.admitOne ?? ((p: string) => admitAndRegisterAuthored(p, { load: loadAuthoredTsx }));
+    for (const { sceneId, code } of snapshot) {
+      const resolved = await resolveSceneFile(projectId, sceneId, (id) => loadManifest(id));
+      if (!resolved) continue;
+      try {
+        await writeFile(resolved.path, code, "utf8");
+        unregisterComponent(resolved.componentId);
+        await admitOne(resolved.path).catch(() => {});
+      } catch (e) {
+        console.warn(`[visual-qa] restore failed for ${sceneId}:`, e);
+      }
+    }
   }
 }
 

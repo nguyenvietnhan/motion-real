@@ -67,6 +67,9 @@ export type PublishResult = { ok: true; outputPath: string } | { ok: false; erro
 /** A layout defect the AI visual-QA flagged on a rendered scene still. */
 export type VisualDefect = { sceneId: string; issue: string };
 
+/** A snapshot of authored scene source, used to roll back a regressive QA round. */
+export type SceneSnapshot = { sceneId: string; code: string }[];
+
 /** A plain-language auto-fix description (NEVER an N-code / engine internal; Req 6.8). */
 export type { FriendlyFix } from "../../shared/types.js";
 import type { FriendlyFix } from "../../shared/types.js";
@@ -106,4 +109,8 @@ export interface AgentWorker {
    * scenes + a short description. Model-dependent (needs vision) and best-effort.
    */
   visualQa?(projectId: string, sceneIds?: string[]): Promise<VisualDefect[]>;
+  /** Snapshot authored scene source so a regressive visual-QA round can be rolled back. */
+  snapshotScenes?(projectId: string, sceneIds: string[]): Promise<SceneSnapshot>;
+  /** Restore authored scene source from a snapshot (re-admits the components). */
+  restoreScenes?(projectId: string, snapshot: SceneSnapshot): Promise<void>;
 }

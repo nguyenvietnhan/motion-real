@@ -8,6 +8,7 @@ import type {
   RepairOutcome,
   PublishResult,
   VisualDefect,
+  SceneSnapshot,
 } from "./agent-worker.js";
 import type { SafetyIssue } from "@news/pipeline";
 import { generateValidateRepair, type SafetyReportView, type RenderResult } from "./repair-loop.js";
@@ -42,6 +43,10 @@ export interface AuthoringBackend {
   getSafetyReport(projectId: string): Promise<SafetyReportView>;
   /** Optional AI visual-QA over rendered stills (vision model); flags layout defects. */
   visualQa?(projectId: string, sceneIds?: string[]): Promise<VisualDefect[]>;
+  /** Optional: snapshot authored scene source (for a non-regressive visual-QA round). */
+  snapshotScenes?(projectId: string, sceneIds: string[]): Promise<SceneSnapshot>;
+  /** Optional: restore authored scene source from a snapshot (re-admits the components). */
+  restoreScenes?(projectId: string, snapshot: SceneSnapshot): Promise<void>;
 }
 
 function emitScenes(scenes: AuthoredScene[], hooks: AgentHooks): void {
@@ -78,6 +83,14 @@ export class CustomLoopAgentWorker implements AgentWorker {
 
   visualQa(projectId: string, sceneIds?: string[]): Promise<VisualDefect[]> {
     return this.backend.visualQa?.(projectId, sceneIds) ?? Promise.resolve([]);
+  }
+
+  snapshotScenes(projectId: string, sceneIds: string[]): Promise<SceneSnapshot> {
+    return this.backend.snapshotScenes?.(projectId, sceneIds) ?? Promise.resolve([]);
+  }
+
+  restoreScenes(projectId: string, snapshot: SceneSnapshot): Promise<void> {
+    return this.backend.restoreScenes?.(projectId, snapshot) ?? Promise.resolve();
   }
 
   async generateValidateRepair(

@@ -232,6 +232,33 @@ describe("fixWithAi + fixable flag", () => {
     expect(visualQa).toHaveBeenCalledWith("p2", ["scene-01"]);
   });
 
+  it("non-regressive: if the QA rewrite can't produce a clean draft, restore the pre-QA scenes (stays ready, not error)", async () => {
+    const visualQa = vi.fn(async () => [{ sceneId: "scene-02", issue: "đè chữ" }]);
+    const snapshotScenes = vi.fn(async () => [{ sceneId: "scene-02", code: "// OLD good code" }]);
+    const restoreScenes = vi.fn(async () => {});
+    let gen = 0;
+    const worker: AgentWorker = {
+      author: async (): Promise<AuthorOutcome> => ({ kind: "authored", sceneIds: [] }),
+      reauthorScenes: async (): Promise<AuthorOutcome> => ({ kind: "authored", sceneIds: ["scene-02"] }),
+      publish: async () => ({ ok: true, outputPath: "out.mp4" }),
+      generateValidateRepair: async (): Promise<RepairOutcome> => {
+        gen++;
+        // 1: initial draft passes; 2: post-QA rewrite fails; 3: post-restore passes.
+        return gen === 2 ? { kind: "exhausted", attempts: 3, remainingHardErrors: 1 } : { kind: "passed", attempts: 1 };
+      },
+      visualQa,
+      snapshotScenes,
+      restoreScenes,
+    };
+    const ctrl = new WorkspaceController(baseDeps({ worker, settings: { scriptGateEnabled: false, maxRepairAttempts: 3, visualQaEnabled: true } }));
+    ctrl.approve("p1");
+    await flush();
+    expect(snapshotScenes).toHaveBeenCalledWith("p1", ["scene-02"]);
+    expect(restoreScenes).toHaveBeenCalledWith("p1", [{ sceneId: "scene-02", code: "// OLD good code" }]);
+    expect(gen).toBe(3); // initial + QA re-render + restore re-render
+    expect((await ctrl.stage("p1")).kind).toBe("ready"); // QA never downgraded the passing draft
+  });
+
   it("in-flight guard: a second action while a render is running is ignored (no double-run)", async () => {
     let resolveGen: (() => void) | undefined;
     const gen = vi.fn(() => new Promise<RepairOutcome>((r) => { resolveGen = () => r({ kind: "passed", attempts: 1 }); }));

@@ -338,15 +338,29 @@ export class WorkspaceController {
     if (outcome.kind !== "passed" || !this.deps.settings.visualQaEnabled || !this.deps.worker.visualQa) return outcome;
     const flagged = await this.deps.worker.visualQa(projectId, scope).catch(() => [] as { sceneId: string; issue: string }[]);
     if (flagged.length === 0) return outcome;
-    this.setStage(projectId, { kind: "rendering", percent: 0, phase: "qa" });
     const sceneIds = flagged.map((f) => f.sceneId);
+    // Snapshot the known-good source so a regressive QA rewrite can be rolled back.
+    const snapshot = (await this.deps.worker.snapshotScenes?.(projectId, sceneIds).catch(() => [])) ?? [];
+    this.setStage(projectId, { kind: "rendering", percent: 0, phase: "qa" });
     const perSceneIntent = Object.fromEntries(flagged.map((f) => [f.sceneId, `Tự sửa lỗi bố cục phát hiện qua ảnh: ${f.issue}`]));
     await this.deps.worker.reauthorScenes(
       { projectId, sceneIds, preprompt: { contractRef: "SKILL.md+AGENTS.md", affectedSceneIds: sceneIds, perSceneIntent, globalNotes: "" } },
       this.editHooks(projectId),
     );
     this.setStage(projectId, { kind: "rendering", percent: 0, phase: "draft" });
-    return this.deps.worker.generateValidateRepair(projectId, { maxAttempts: this.deps.settings.maxRepairAttempts }, hooks);
+    const qaOutcome = await this.deps.worker.generateValidateRepair(projectId, { maxAttempts: this.deps.settings.maxRepairAttempts }, hooks);
+    if (qaOutcome.kind === "passed") return qaOutcome;
+    // QA could NOT produce a clean draft → never regress: restore the pre-QA
+    // source and re-render back to the draft that already passed.
+    if (snapshot.length > 0 && this.deps.worker.restoreScenes) {
+      this.setStage(projectId, { kind: "rendering", percent: 0, phase: "qa" });
+      await this.deps.worker.restoreScenes(projectId, snapshot);
+      this.setStage(projectId, { kind: "rendering", percent: 0, phase: "draft" });
+      await this.deps.worker.generateValidateRepair(projectId, { maxAttempts: this.deps.settings.maxRepairAttempts }, hooks);
+      return outcome; // the original passing outcome (known-good draft restored)
+    }
+    // Couldn't snapshot/restore → fall back to the QA outcome (rare).
+    return qaOutcome;
   }
 
   private renderHooks(projectId: string, phase: "draft" | "full" = "draft"): AgentHooks {
