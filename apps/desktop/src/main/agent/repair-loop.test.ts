@@ -121,3 +121,62 @@ describe("Property 5: repair-loop budget", () => {
     expect(renders).toBe(1);
   });
 });
+
+describe("Property 4: repair budget and routing", () => {
+  // Feature: desktop-author-mode, Property 4: repair budget and routing
+  const infraIssue = (sceneId?: string): SafetyIssue => ({ check: "N13", severity: "error", message: "infra", ...(sceneId ? { sceneId } : {}) });
+  const contentIssue = (sceneId: string): SafetyIssue => ({ check: "N14", severity: "error", sceneId, message: "content" });
+
+  it("an infra hard error stops with kind 'infra' and never calls reauthor", async () => {
+    let reauthored = 0;
+    const deps: RepairLoopDeps = {
+      renderDraft: async () => ({ ok: true }),
+      getSafetyReport: async () => ({ ok: false, hardErrors: [contentIssue("scene-01"), infraIssue()], warnings: [] }),
+      reauthor: async () => {
+        reauthored++;
+      },
+      hooks: noopHooks,
+    };
+    const outcome = await generateValidateRepair(deps, { maxAttempts: 5 });
+    expect(outcome).toEqual({ kind: "infra", attempts: 1 });
+    expect(reauthored).toBe(0);
+  });
+
+  it("only content scenes (with their issues) are passed to reauthor", async () => {
+    let renders = 0;
+    let received: { sceneId: string; issues?: SafetyIssue[] }[] | null = null;
+    const deps: RepairLoopDeps = {
+      renderDraft: async () => {
+        renders++;
+        return { ok: true };
+      },
+      getSafetyReport: async () =>
+        renders === 1
+          ? { ok: false, hardErrors: [contentIssue("scene-01"), contentIssue("scene-03")], warnings: [] }
+          : { ok: true, hardErrors: [], warnings: [] },
+      reauthor: async (targets) => {
+        received = targets;
+      },
+      hooks: noopHooks,
+    };
+    const outcome = await generateValidateRepair(deps, { maxAttempts: 3 });
+    expect(outcome).toEqual({ kind: "passed", attempts: 2 });
+    expect(received!.map((t) => t.sceneId).sort()).toEqual(["scene-01", "scene-03"]);
+    expect(received!.every((t) => (t.issues ?? []).length > 0)).toBe(true);
+  });
+
+  it("content errors with no scene to target ⇒ exhausted without looping forever", async () => {
+    let reauthored = 0;
+    const deps: RepairLoopDeps = {
+      renderDraft: async () => ({ ok: true }),
+      getSafetyReport: async () => ({ ok: false, hardErrors: [{ check: "N14", severity: "error", message: "no scene id" }], warnings: [] }),
+      reauthor: async () => {
+        reauthored++;
+      },
+      hooks: noopHooks,
+    };
+    const outcome = await generateValidateRepair(deps, { maxAttempts: 4 });
+    expect(outcome.kind).toBe("exhausted");
+    expect(reauthored).toBe(0);
+  });
+});

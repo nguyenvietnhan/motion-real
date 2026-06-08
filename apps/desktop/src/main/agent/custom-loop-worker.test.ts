@@ -93,6 +93,8 @@ describe("CustomLoopAgentWorker.generateValidateRepair", () => {
     const { hooks } = recordingHooks();
     const outcome = await worker.generateValidateRepair("p1", { maxAttempts: 3 }, hooks);
     expect(outcome).toEqual({ kind: "passed", attempts: 2 });
-    expect(reauthor).toHaveBeenCalledWith("p1", ["scene-02"], expect.objectContaining({ affectedSceneIds: ["scene-02"] }));
+    expect(reauthor).toHaveBeenCalledWith("p1", [
+      { sceneId: "scene-02", issues: [{ check: "N14", severity: "error", sceneId: "scene-02", message: "x" }] },
+    ]);
   });
 });

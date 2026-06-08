@@ -43,6 +43,10 @@ export function getComponent(id: string): SceneComponentDefinition | undefined {
   return registry.get(id);
 }
 
+export function unregisterComponent(id: string): void {
+  registry.delete(id);
+}
+
 export function listComponents(): SceneComponentDefinition[] {
   return [...registry.values()];
 }

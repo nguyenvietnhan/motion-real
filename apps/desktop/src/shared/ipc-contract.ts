@@ -53,6 +53,8 @@ export interface DashboardApi {
     reveal(projectId: string): Promise<void>;
     /** Re-run authoring for an existing project (the "Thử lại" action). */
     retry(projectId: string): Promise<void>;
+    /** Ask the agent to fix Content_Errors and re-render ("Sửa bằng AI"). */
+    fixWithAi(projectId: string): Promise<void>;
   };
   script: {
     get(projectId: string): Promise<ScriptGateModel>;

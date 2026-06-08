@@ -1,20 +1,23 @@
 import { z } from "zod";
 
 /**
- * The manifest the authoring model must emit (web-dashboard A1). The AI does the
- * JOURNALISM — Vietnamese script + structure + which scene-kit component each
- * beat uses + its props — and returns ONLY this JSON. The .tsx code comes from a
- * proven scene kit (starter-kit.ts), so output is reliably admissible. Parsing
- * is defensive: the model often wraps JSON in prose / code fences.
+ * The manifest the authoring model must emit (desktop-author-mode, pure AUTHOR).
+ * The AI does the JOURNALISM — Vietnamese script + structure — AND authors fresh
+ * `.tsx` per scene; this manifest only carries the per-scene metadata. `component`
+ * is an OPEN, AI-chosen id (no fixed kit enum); the actual `.tsx` code is parsed
+ * separately by `reply-parser.ts` and matched to these ids. Parsing is defensive:
+ * the model often wraps JSON in prose / code fences.
  */
 
-export const KIT_COMPONENT_IDS = ["ns-statement", "ns-stat", "ns-points", "ns-compare", "ns-cards", "ns-meter"] as const;
-export type KitComponentId = (typeof KIT_COMPONENT_IDS)[number];
+/** Open component id (AI-chosen): lowercase, digits, dashes; 2–41 chars. */
+export const componentId = z
+  .string()
+  .regex(/^[a-z][a-z0-9-]{1,40}$/, "component id phải là chữ thường/số/gạch-ngang, bắt đầu bằng chữ");
 
 const transition = z.enum(["slide", "fade", "wipe", "clockWipe", "zoom"]);
 
 export const authorSceneSchema = z.object({
-  component: z.enum(KIT_COMPONENT_IDS),
+  component: componentId,
   eyebrow: z.string().min(1).max(24),
   headline: z.string().min(1).max(120),
   narration: z.string().min(1).max(600),

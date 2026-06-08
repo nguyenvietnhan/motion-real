@@ -1,3 +1,6 @@
+// Re-export the registry seams authored scenes rely on so leaf packages (e.g.
+// the desktop backend) can drive the registry through the @news/pipeline barrel.
+export { unregisterComponent } from "@news/compositions";
 export {
   admitAuthoredComponent,
   DEFAULT_ADMISSION_POLICY,

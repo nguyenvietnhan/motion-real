@@ -92,7 +92,7 @@ export type ProjectStage =
   | { kind: "script"; lines: ScriptLine[] } // awaiting user review/approval of the script
   | { kind: "rendering"; percent: number } // building voice + draft
   | { kind: "ready"; scenes: SceneCard[] } // draft ready, review scenes
-  | { kind: "error"; message: string };
+  | { kind: "error"; message: string; fixable: boolean };
 
 export type EditBatch = {
   perScene: { sceneId: string; text: string }[];
@@ -130,6 +130,8 @@ export type FriendlyError = {
   projectId?: string;
   message: string;
   retry?: "draft" | "full" | "create" | "activate" | "connect";
+  /** When true, a Content_Error the agent can attempt to fix ("Sửa bằng AI"). */
+  fixable?: boolean;
 };
 
 /** A plain-language auto-fix description that may cross IPC (never an N-code). */

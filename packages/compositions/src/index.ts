@@ -14,6 +14,7 @@
 export {
   registerComponent,
   getComponent,
+  unregisterComponent,
   listComponents,
   knownComponentIds,
   validateProps,

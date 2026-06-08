@@ -174,3 +174,68 @@ describe("Property 9: render progress mapping", () => {
     );
   });
 });
+
+// fixWithAi + fixable flag (desktop-author-mode, Req 5/7)
+function workerWith(outcome: RepairOutcome | (() => Promise<RepairOutcome>)): AgentWorker {
+  return {
+    author: async (): Promise<AuthorOutcome> => ({ kind: "authored", sceneIds: [] }),
+    reauthorScenes: async (): Promise<AuthorOutcome> => ({ kind: "authored", sceneIds: [] }),
+    generateValidateRepair: typeof outcome === "function" ? (outcome as AgentWorker["generateValidateRepair"]) : async () => outcome,
+  };
+}
+
+describe("fixWithAi + fixable flag", () => {
+  it("from an error stage: passed ⇒ ready", async () => {
+    const ctrl = new WorkspaceController(baseDeps({ worker: workerWith({ kind: "passed", attempts: 2 }) }));
+    ctrl.setStage("p1", { kind: "error", message: "x", fixable: true });
+    ctrl.fixWithAi("p1");
+    await flush();
+    expect((await ctrl.stage("p1")).kind).toBe("ready");
+  });
+
+  it("exhausted ⇒ error with fixable:true; infra ⇒ error with fixable:false", async () => {
+    const exhausted = new WorkspaceController(baseDeps({ worker: workerWith({ kind: "exhausted", attempts: 3, remainingHardErrors: 2 }) }));
+    exhausted.setStage("p1", { kind: "error", message: "x", fixable: true });
+    exhausted.fixWithAi("p1");
+    await flush();
+    const e = await exhausted.stage("p1");
+    expect(e.kind === "error" && e.fixable).toBe(true);
+
+    const infra = new WorkspaceController(baseDeps({ worker: workerWith({ kind: "infra", attempts: 1 }) }));
+    infra.setStage("p2", { kind: "error", message: "x", fixable: true });
+    infra.fixWithAi("p2");
+    await flush();
+    const i = await infra.stage("p2");
+    expect(i.kind === "error" && i.fixable).toBe(false);
+  });
+
+  it("is a no-op when the stage is not error (no double-run)", async () => {
+    const gen = vi.fn(async () => ({ kind: "passed", attempts: 1 }) as RepairOutcome);
+    const worker = workerWith(gen);
+    const ctrl = new WorkspaceController(baseDeps({ worker }));
+    ctrl.setStage("p1", { kind: "ready", scenes: [] });
+    ctrl.fixWithAi("p1");
+    await flush();
+    expect(gen).not.toHaveBeenCalled();
+  });
+});
+
+// Feature: desktop-author-mode, Property 6: redaction holds for new paths
+describe("Property 6: redaction holds for the new repair paths", () => {
+  it("a render throw carrying N-codes/.tsx surfaces a clean friendly message", async () => {
+    const friendlyErrors: { message: string; fixable?: boolean }[] = [];
+    const events = { ...noopEvents(), friendlyError: (e: { message: string; fixable?: boolean }) => friendlyErrors.push(e) };
+    const worker = workerWith(async () => {
+      throw new Error("render-oracle N14 failed in /p/authored/scene-01.tsx { }");
+    });
+    const ctrl = new WorkspaceController(baseDeps({ worker, events, redact: stripL0Tokens }));
+    ctrl.setStage("p1", { kind: "error", message: "x", fixable: true });
+    ctrl.fixWithAi("p1");
+    await flush();
+    expect(friendlyErrors.length).toBeGreaterThan(0);
+    for (const fe of friendlyErrors) expect(fe.message).not.toMatch(/N14|\.tsx|[{}]/);
+    const st = await ctrl.stage("p1");
+    expect(st.kind).toBe("error");
+    if (st.kind === "error") expect(st.message).not.toMatch(/N14|\.tsx|[{}]/);
+  });
+});

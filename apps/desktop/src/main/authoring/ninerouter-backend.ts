@@ -1,28 +1,37 @@
 import { join } from "node:path";
+import { existsSync, readFileSync } from "node:fs";
+import { readFile, writeFile } from "node:fs/promises";
 import {
   admitProjectScenes,
+  admitAndRegisterAuthored,
+  loadManifest,
   projectPaths,
   writeAuthoredScene,
   writeJson,
+  unregisterComponent,
   type Manifest,
   type ManifestScene,
+  type AdmitProjectResult,
+  type AuthoredRegistration,
+  type SafetyIssue,
 } from "@news/pipeline";
 import type { createTools } from "@news/mcp";
-import type { AuthoringBackend, AuthoredScene } from "../agent/custom-loop-worker.js";
+import type { AuthoringBackend, AuthoredScene, ReauthorTarget } from "../agent/custom-loop-worker.js";
 import type { SafetyReportView } from "../agent/repair-loop.js";
 import type { AuthorJob } from "../agent/agent-worker.js";
-import type { NineRouterClient } from "../gateway/ninerouter-client.js";
-import { buildAuthorMessages } from "./prompt.js";
-import { parseAuthorManifest, type AuthorManifest } from "./manifest-schema.js";
-import { SCENE_KIT } from "./starter-kit.js";
+import type { NineRouterClient, ChatMessage } from "../gateway/ninerouter-client.js";
+import { buildAuthorMessages, buildReauthorMessages } from "./prompt.js";
+import { parseAuthorReply } from "./reply-parser.js";
+import { parseReauthorReply } from "./reply-parser.js";
+import type { AuthorManifest } from "./manifest-schema.js";
+import { sceneFileName, resolveSceneFile } from "./scene-files.js";
 import { loadAuthoredTsx } from "./tsx-loader.js";
 
 /**
- * Real authoring backend (web-dashboard A1). The AI does the journalism: it
- * returns a manifest selecting proven scene-kit components + Vietnamese content;
- * we write the kit `.tsx` + manifest, admit, and render. Output is reliably
- * admissible because the code is the known-good kit (bespoke per-topic visuals
- * are a later upgrade). Drives the SAME `@news/mcp` tools / single registry.
+ * Pure-AUTHOR authoring backend (desktop-author-mode). The AI writes FRESH `.tsx`
+ * scene modules per topic (no fixed kit): it returns a manifest + one `.tsx` code
+ * block per scene id; we write each module, admit them through the gate, and
+ * render. Drives the SAME `@news/mcp` tools / single registry.
  */
 
 type Tools = ReturnType<typeof createTools>;
@@ -36,10 +45,33 @@ export type NineRouterBackendDeps = {
   apiKey: () => string | undefined;
   /** Forward fine-grained render progress to the UI (per project). */
   onRenderProgress?: (ratio: number, projectId: string) => void;
+  /**
+   * Admit + register a project's authored scenes (injectable for tests). The
+   * default runs the real gate through the esbuild `.tsx` loader; tests stub it
+   * because the bundled loader's repo-root resolution doesn't hold under vitest.
+   */
+  admit?: (projectId: string) => Promise<AdmitProjectResult>;
+  /** Admit + register ONE authored module (injectable for tests; reauthor path). */
+  admitOne?: (tsxPath: string) => Promise<AuthoredRegistration>;
 };
 
 function manifestPathOf(projectId: string): string {
   return projectPaths(projectId).manifest;
+}
+
+/** Vision-guided repair applies to pixel/layout oracles (N14 zone, N18 contrast). */
+function needsVision(issues?: SafetyIssue[]): boolean {
+  return (issues ?? []).some((i) => i.check === "N14" || i.check === "N18");
+}
+
+/** Read a rendered still into a PNG data URL, or undefined if missing/unreadable. */
+function readStillDataUrl(path: string): string | undefined {
+  try {
+    if (!existsSync(path)) return undefined;
+    return `data:image/png;base64,${readFileSync(path).toString("base64")}`;
+  } catch {
+    return undefined;
+  }
 }
 
 /** Engine ThemeSpec limits: dominant must be 6-digit hex, mood ≤40 chars. */
@@ -50,7 +82,7 @@ function sanitizeTheme(theme: { dominant: string; mood?: string }): { dominant: 
   return mood ? { dominant, mood } : { dominant };
 }
 
-/** AuthorManifest (kit-based) → engine Manifest with sequential scene ids. */
+/** AuthorManifest (open-id, pure-author) → engine Manifest with sequential scene ids. */
 function toEngineManifest(m: AuthorManifest): Manifest {
   const scenes: ManifestScene[] = m.scenes.map((s, i) => ({
     id: `scene-${String(i + 1).padStart(2, "0")}`,
@@ -100,34 +132,30 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
       return { scenes: [], message: e instanceof Error ? e.message : "Gọi AI thất bại." };
     }
 
-    const parsed = parseAuthorManifest(reply);
+    const parsed = parseAuthorReply(reply);
     if (!parsed.ok) {
-      console.error(`[authoring] manifest parse failed (${parsed.reason}). Raw reply (first 2000 chars):\n${reply.slice(0, 2000)}`);
+      console.error(`[authoring] author-reply parse failed (${parsed.reason}: ${parsed.detail}). Raw reply (first 2000 chars):\n${reply.slice(0, 2000)}`);
       return { scenes: [], message: `AI trả về kịch bản chưa hợp lệ (${parsed.reason}).` };
     }
 
-    // Write only the kit components actually used, plus the manifest.
-    const used = new Set<string>(parsed.manifest.scenes.map((s) => s.component));
-    const known = new Set<string>(SCENE_KIT.map((e) => e.id));
-    const unknown = [...used].filter((id) => !known.has(id));
-    if (unknown.length > 0) {
-      console.error(
-        `[authoring] AI used component ids NOT in the kit: ${unknown.join(", ")}. ` +
-          `Allowed ids: ${[...known].join(", ")}. These scenes have no module and will fail admission.`,
-      );
-    }
-    for (const entry of SCENE_KIT) {
-      if (used.has(entry.id)) await writeAuthoredScene(job.projectId, entry.file, entry.code);
+    // Write each AI-authored module. Unregister first so a re-authored id (or a
+    // cross-project id collision in the process-wide registry) is refreshed with
+    // THIS project's code at admission time.
+    for (const mod of parsed.modules) {
+      unregisterComponent(mod.id);
+      await writeAuthoredScene(job.projectId, sceneFileName(mod.id), mod.code);
     }
     const engineManifest = toEngineManifest(parsed.manifest);
     await writeJson(manifestPathOf(job.projectId), engineManifest);
 
-    const admitted = await admitProjectScenes(job.projectId, { load: loadAuthoredTsx });
+    const admit = this.deps.admit ?? ((id: string) => admitProjectScenes(id, { load: loadAuthoredTsx }));
+    const admitted = await admit(job.projectId);
     if (!admitted.ok) {
       console.error(
         "[authoring] admission failed:\n" +
           admitted.violations.map((v) => `  ${v.check} ${v.path}: ${v.message}`).join("\n"),
       );
+      // NO kit fallback — pure-author surfaces the failure for retry / AI-fix.
       return { scenes: [], message: "Một số cảnh chưa hợp lệ. Hãy thử tạo lại." };
     }
 
@@ -139,9 +167,95 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
     return { scenes };
   }
 
-  /** v1: kit-based scenes rarely trip hard errors; re-author is a no-op re-render. */
-  async reauthor(): Promise<{ scenes: AuthoredScene[] }> {
-    return { scenes: [] };
+  /**
+   * Code-level self-repair: for each flagged scene, resolve its `.tsx`, ask the
+   * AI to rewrite it (with the issue + current code, and — for layout/contrast
+   * defects — the rendered still as an image), then overwrite + re-admit. If the
+   * rewrite fails admission, the original code is restored so the project stays
+   * renderable (atomic per scene). (desktop-author-mode, Req 3.)
+   */
+  async reauthor(projectId: string, targets: ReauthorTarget[]): Promise<{ scenes: AuthoredScene[] }> {
+    const model = this.deps.model();
+    if (!model) return { scenes: [] };
+    const reviewDir = projectPaths(projectId).reviewDir;
+    const admitOne = this.deps.admitOne ?? ((p: string) => admitAndRegisterAuthored(p, { load: loadAuthoredTsx }));
+    const done: AuthoredScene[] = [];
+
+    for (const t of targets) {
+      const resolved = await resolveSceneFile(projectId, t.sceneId, (id) => loadManifest(id));
+      if (!resolved) {
+        console.error(`[reauthor] cannot resolve authored file for ${t.sceneId}; skipping.`);
+        continue;
+      }
+      const { componentId, path } = resolved;
+
+      let originalCode: string;
+      try {
+        originalCode = await readFile(path, "utf8");
+      } catch (e) {
+        console.error(`[reauthor] cannot read ${t.sceneId} (${componentId}):`, e);
+        continue;
+      }
+
+      const stillDataUrl = needsVision(t.issues) ? readStillDataUrl(join(reviewDir, `${t.sceneId}.png`)) : undefined;
+      const messages = buildReauthorMessages({
+        sceneId: t.sceneId,
+        componentId,
+        currentCode: originalCode,
+        ...(t.issues ? { issues: t.issues } : {}),
+        ...(t.intent ? { intent: t.intent } : {}),
+        ...(stillDataUrl ? { stillDataUrl } : {}),
+      });
+
+      let reply: string;
+      try {
+        reply = await this.chatWithVisionFallback(model, messages);
+      } catch (e) {
+        console.error(`[reauthor] AI call failed for ${t.sceneId}:`, e);
+        continue;
+      }
+
+      const parsed = parseReauthorReply(reply, componentId);
+      if (!parsed.ok) {
+        console.error(`[reauthor] parse failed for ${t.sceneId} (${parsed.reason}: ${parsed.detail}).`);
+        continue;
+      }
+
+      // Overwrite + re-admit; on admission failure, roll back to the original.
+      await writeFile(path, parsed.module.code, "utf8");
+      unregisterComponent(componentId);
+      const re = await admitOne(path);
+      if (!re.ok) {
+        console.error(
+          `[reauthor] re-admit failed for ${t.sceneId}; rolling back:\n` +
+            re.violations.map((v) => `  ${v.check} ${v.path}: ${v.message}`).join("\n"),
+        );
+        await writeFile(path, originalCode, "utf8");
+        unregisterComponent(componentId);
+        await admitOne(path).catch(() => {});
+        continue;
+      }
+      done.push({ sceneId: t.sceneId, stillPath: join(reviewDir, `${t.sceneId}.png`) });
+    }
+    return { scenes: done };
+  }
+
+  /** Call the model; if a vision (image) call fails, retry text-only (Req 3.7). */
+  private async chatWithVisionFallback(model: string, messages: ChatMessage[]): Promise<string> {
+    try {
+      return await this.deps.client.chat(model, messages, { apiKey: this.deps.apiKey() });
+    } catch (e) {
+      const hasImage = messages.some((m) => Array.isArray(m.content) && m.content.some((p) => p.type === "image_url"));
+      if (!hasImage) throw e;
+      console.warn("[reauthor] vision chat failed; retrying text-only:", e);
+      const textOnly: ChatMessage[] = messages.map((m) => ({
+        role: m.role,
+        content: Array.isArray(m.content)
+          ? m.content.filter((p) => p.type === "text").map((p) => (p as { text: string }).text).join("\n")
+          : m.content,
+      }));
+      return await this.deps.client.chat(model, textOnly, { apiKey: this.deps.apiKey() });
+    }
   }
 
   async renderDraft(projectId: string): Promise<{ ok: boolean }> {

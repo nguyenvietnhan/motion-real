@@ -3,28 +3,28 @@ import type {
   AgentWorker,
   AuthorJob,
   AuthorOutcome,
-  PrepromptPayload,
   ReauthorJob,
   RepairLoopOptions,
   RepairOutcome,
 } from "./agent-worker.js";
+import type { SafetyIssue } from "@news/pipeline";
 import { generateValidateRepair, type SafetyReportView } from "./repair-loop.js";
 
 /**
- * Path-X custom-loop Agent_Worker adapter (web-dashboard Task 5.1; the POC_Spike
- * artifact recorded decision `X`). It assembles the Preprompt, drives the
- * Model_Gateway + MCP tools, and orchestrates author / re-author / repair.
- *
- * The model+MCP side is injected as an `AuthoringBackend` seam: the CONCRETE
- * backend (OpenAI-compatible client at the local gateway + the `@news/mcp`
- * tools) is wired in once the gateway lifecycle (task 6.3) and create wiring
- * (task 7.1) land. This adapter owns the ORCHESTRATION — ordering, scene/progress
- * hooks, ingest/no-source failure mapping, and the repair-loop delegation — and
- * is testable today without a live model.
+ * Path-X custom-loop Agent_Worker adapter. It drives the Model_Gateway + MCP
+ * tools and orchestrates author / re-author / repair via the `AuthoringBackend`
+ * seam, and is testable without a live model.
  */
 
 /** One authored/re-authored scene with its review keyframe. */
 export type AuthoredScene = { sceneId: string; stillPath: string };
+
+/**
+ * One scene to re-author. The auto-repair loop supplies the flagging `issues`
+ * (drives vision + the repair prompt); the manual visual-edit path supplies an
+ * `intent` string instead. (desktop-author-mode, Req 3.)
+ */
+export type ReauthorTarget = { sceneId: string; issues?: SafetyIssue[]; intent?: string };
 
 /** The model+MCP-facing operations the custom loop drives. */
 export interface AuthoringBackend {
@@ -32,8 +32,8 @@ export interface AuthoringBackend {
   ingest(input: { kind: "url"; url: string }): Promise<{ ok: boolean; message?: string }>;
   /** Author the scene .tsx + manifest + narration for a fresh project. */
   authorScenes(job: AuthorJob): Promise<{ scenes: AuthoredScene[]; message?: string }>;
-  /** Re-author ONLY the named scenes from a visual-edit Preprompt (Req 8.7). */
-  reauthor(projectId: string, sceneIds: string[], preprompt: PrepromptPayload): Promise<{ scenes: AuthoredScene[] }>;
+  /** Re-author ONLY the named scenes (code-level self-repair / visual edit). */
+  reauthor(projectId: string, targets: ReauthorTarget[]): Promise<{ scenes: AuthoredScene[] }>;
   /** Render one draft (drives the MCP `render_draft` tool). */
   renderDraft(projectId: string): Promise<{ ok: boolean }>;
   /** Read the safety report for the just-rendered draft (MCP `get_safety_report`). */
@@ -66,7 +66,11 @@ export class CustomLoopAgentWorker implements AgentWorker {
   }
 
   async reauthorScenes(job: ReauthorJob, hooks: AgentHooks): Promise<AuthorOutcome> {
-    const result = await this.backend.reauthor(job.projectId, job.sceneIds, job.preprompt);
+    const targets = job.sceneIds.map((sceneId) => ({
+      sceneId,
+      intent: job.preprompt.perSceneIntent[sceneId] ?? job.preprompt.globalNotes,
+    }));
+    const result = await this.backend.reauthor(job.projectId, targets);
     emitScenes(result.scenes, hooks);
     return { kind: "authored", sceneIds: result.scenes.map((s) => s.sceneId) };
   }
@@ -80,13 +84,8 @@ export class CustomLoopAgentWorker implements AgentWorker {
       {
         renderDraft: () => this.backend.renderDraft(projectId),
         getSafetyReport: () => this.backend.getSafetyReport(projectId),
-        reauthor: async (sceneIds) => {
-          await this.backend.reauthor(projectId, sceneIds, {
-            contractRef: "SKILL.md+AGENTS.md",
-            affectedSceneIds: sceneIds,
-            perSceneIntent: {},
-            globalNotes: "",
-          });
+        reauthor: async (targets) => {
+          await this.backend.reauthor(projectId, targets);
         },
         hooks,
       },

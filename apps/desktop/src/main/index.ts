@@ -168,6 +168,10 @@ const handlers: InvokeHandlers = {
     workspace.retry(String(projectId));
     return undefined;
   },
+  "projects:fixWithAi": (projectId) => {
+    workspace.fixWithAi(String(projectId));
+    return undefined;
+  },
 
   "script:get": (projectId) => workspace.scriptGate(String(projectId)),
   "script:applyEdits": (projectId, edits) => workspace.applyEdits(String(projectId), edits as ScriptEdit[]),

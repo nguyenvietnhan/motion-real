@@ -19,6 +19,12 @@ const BASE = "http://localhost:20128";
 const CLI_TOKEN_HEADER = "x-9r-cli-token";
 const CLI_TOKEN_SALT = "9r-cli-auth";
 
+/** A text part or an inline image (data URL) — OpenAI multimodal content shape. */
+export type ContentPart = { type: "text"; text: string } | { type: "image_url"; image_url: { url: string } };
+
+/** A chat message whose content may be plain text or multimodal parts (vision). */
+export type ChatMessage = { role: "system" | "user" | "assistant"; content: string | ContentPart[] };
+
 /** 9router data dir (Windows: %APPDATA%/9router; else ~/.9router). */
 function dataDir(): string {
   if (process.env.DATA_DIR) return process.env.DATA_DIR;
@@ -156,7 +162,7 @@ export class NineRouterClient {
   /** One OpenAI-compatible chat completion; returns the assistant message text. */
   async chat(
     model: string,
-    messages: { role: "system" | "user" | "assistant"; content: string }[],
+    messages: ChatMessage[],
     opts: { apiKey?: string; signal?: AbortSignal } = {},
   ): Promise<string> {
     const headers: Record<string, string> = { "content-type": "application/json" };

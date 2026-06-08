@@ -51,10 +51,11 @@ export type AuthorOutcome =
   | { kind: "ingest-failed"; message: string }
   | { kind: "no-source"; message: string };
 
-/** Outcome of the generate-validate-repair loop (Req 6.3/6.7). */
+/** Outcome of the generate-validate-repair loop (Req 6.3/6.7; + infra, Req 4). */
 export type RepairOutcome =
   | { kind: "passed"; attempts: number }
-  | { kind: "exhausted"; attempts: number; remainingHardErrors: number };
+  | { kind: "exhausted"; attempts: number; remainingHardErrors: number }
+  | { kind: "infra"; attempts: number };
 
 /** A plain-language auto-fix description (NEVER an N-code / engine internal; Req 6.8). */
 export type { FriendlyFix } from "../../shared/types.js";

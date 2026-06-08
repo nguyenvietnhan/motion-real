@@ -2,9 +2,10 @@ import { describe, expect, it } from "vitest";
 import { extractJsonObject, parseAuthorManifest } from "./manifest-schema.js";
 
 /**
- * Feature: web-dashboard A1 — author-manifest parsing. The model's reply is
- * parsed defensively (prose/code-fence wrapped) and validated against the kit
- * component contract.
+ * Feature: desktop-author-mode — author-manifest parsing. The model's reply is
+ * parsed defensively (prose/code-fence wrapped) and validated against the
+ * manifest schema. `component` is now an OPEN id (any valid format the AI
+ * chooses); the actual `.tsx` code is matched separately by `reply-parser`.
  */
 
 const valid = {
@@ -43,8 +44,14 @@ describe("parseAuthorManifest", () => {
       expect(r.manifest.scenes[0]!.component).toBe("ns-statement");
     }
   });
-  it("rejects an unknown component id", () => {
-    const bad = { ...valid, scenes: [{ ...valid.scenes[0], component: "ns-bogus" }, valid.scenes[1], valid.scenes[2]] };
+  it("accepts an arbitrary (AI-chosen) component id in valid format", () => {
+    const open = { ...valid, scenes: [{ ...valid.scenes[0], component: "bespoke-hook-eye" }, valid.scenes[1], valid.scenes[2]] };
+    const r = parseAuthorManifest(JSON.stringify(open));
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.manifest.scenes[0]!.component).toBe("bespoke-hook-eye");
+  });
+  it("rejects an invalid component id format (uppercase/spaces)", () => {
+    const bad = { ...valid, scenes: [{ ...valid.scenes[0], component: "NS Bogus!" }, valid.scenes[1], valid.scenes[2]] };
     const r = parseAuthorManifest(JSON.stringify(bad));
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.reason).toBe("invalid");

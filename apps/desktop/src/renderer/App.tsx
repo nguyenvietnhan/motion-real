@@ -180,6 +180,10 @@ export const App: React.FC = () => {
               setStage({ kind: "writing" });
               void dash?.projects.retry(openProjectId);
             }}
+            onFixWithAi={() => {
+              setStage({ kind: "rendering", percent: 0 });
+              void dash?.projects.fixWithAi(openProjectId);
+            }}
             onApplyScript={(edits) => void dash?.script.applyEdits(openProjectId, edits)}
             onApproveScript={() => {
               setStage({ kind: "rendering", percent: 0 });

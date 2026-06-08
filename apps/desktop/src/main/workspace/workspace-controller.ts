@@ -1,5 +1,7 @@
 import { computeScriptEdits, type ManifestScene } from "../script/script-gate-apply.js";
 import { buildStoryboard } from "../review/storyboard.js";
+import { serializeError } from "@news/pipeline";
+import { classifyError } from "../agent/error-classifier.js";
 import type { AgentHooks, AgentWorker, AuthorInput } from "../agent/agent-worker.js";
 import type {
   ApplyResult,
@@ -45,7 +47,7 @@ export interface WorkspaceEvents {
   progress(e: { projectId: string; ratio: number; phase: "draft" | "full" }): void;
   scene(e: { projectId: string; sceneId: string; stillPath: string }): void;
   status(e: { projectId: string; status: "building" | "draft-ready" | "done" | "error" }): void;
-  friendlyError(e: { projectId?: string; message: string; retry?: "draft" | "full" | "create" | "activate" | "connect" }): void;
+  friendlyError(e: { projectId?: string; message: string; retry?: "draft" | "full" | "create" | "activate" | "connect"; fixable?: boolean }): void;
 }
 
 export interface WorkspaceDeps {
@@ -120,8 +122,8 @@ export class WorkspaceController {
       const authored = await this.deps.worker.author({ projectId, input, scriptGate: this.deps.settings.scriptGateEnabled }, hooks);
       if (authored.kind !== "authored") {
         const message = this.deps.redact(authored.message ?? "Chưa tìm được nguồn nội dung phù hợp.");
-        this.setStage(projectId, { kind: "error", message });
-        this.deps.events.friendlyError({ projectId, message, retry: "create" });
+        this.setStage(projectId, { kind: "error", message, fixable: false });
+        this.deps.events.friendlyError({ projectId, message, retry: "create", fixable: false });
         return;
       }
       if (this.deps.settings.scriptGateEnabled) {
@@ -131,8 +133,8 @@ export class WorkspaceController {
       }
     } catch (e) {
       const message = this.deps.redact(e instanceof Error ? e.message : "Có lỗi khi viết kịch bản.");
-      this.setStage(projectId, { kind: "error", message });
-      this.deps.events.friendlyError({ projectId, message, retry: "create" });
+      this.setStage(projectId, { kind: "error", message, fixable: false });
+      this.deps.events.friendlyError({ projectId, message, retry: "create", fixable: false });
     }
   }
 
@@ -141,9 +143,14 @@ export class WorkspaceController {
     void this.runRender(projectId);
   }
 
-  private async runRender(projectId: string): Promise<void> {
-    this.setStage(projectId, { kind: "rendering", percent: 0 });
-    const hooks: AgentHooks = {
+  /** "Sửa bằng AI": re-run the repair loop on a Content_Error project (Req 5.2). */
+  fixWithAi(projectId: string): void {
+    if (this.stages.get(projectId)?.kind !== "error") return; // only from an error screen; no double-run
+    void this.runRender(projectId);
+  }
+
+  private renderHooks(projectId: string): AgentHooks {
+    return {
       onProgress: (ratio) => {
         this.setStage(projectId, { kind: "rendering", percent: Math.round(ratio * 100) });
         this.deps.events.progress({ projectId, ratio, phase: "draft" });
@@ -151,19 +158,31 @@ export class WorkspaceController {
       onSceneProduced: (sceneId, stillPath) => this.deps.events.scene({ projectId, sceneId, stillPath: this.deps.toMedia(stillPath) }),
       onRepair: () => {},
     };
+  }
+
+  private async runRender(projectId: string): Promise<void> {
+    this.setStage(projectId, { kind: "rendering", percent: 0 });
+    const hooks = this.renderHooks(projectId);
     try {
       const outcome = await this.deps.worker.generateValidateRepair(projectId, { maxAttempts: this.deps.settings.maxRepairAttempts }, hooks);
       if (outcome.kind === "passed") {
         this.setStage(projectId, { kind: "ready", scenes: await this.storyboardScenesOf(projectId) });
+      } else if (outcome.kind === "infra") {
+        // Not agent-fixable: tell the user to retry / check setup, no "Sửa bằng AI".
+        const message = "Gặp trục trặc hạ tầng khi dựng (kết nối hoặc cấu hình). Hãy kiểm tra lại và thử lại.";
+        this.setStage(projectId, { kind: "error", message, fixable: false });
+        this.deps.events.friendlyError({ projectId, message, retry: "draft", fixable: false });
       } else {
-        const message = "Chưa hoàn tất được video sau nhiều lần thử. Hãy thử tạo lại.";
-        this.setStage(projectId, { kind: "error", message });
-        this.deps.events.friendlyError({ projectId, message, retry: "draft" });
+        // exhausted: content defects remain → offer "Sửa bằng AI".
+        const message = "Chưa hoàn tất được video sau nhiều lần thử. Bạn có thể thử lại hoặc để AI sửa.";
+        this.setStage(projectId, { kind: "error", message, fixable: true });
+        this.deps.events.friendlyError({ projectId, message, retry: "draft", fixable: true });
       }
     } catch (e) {
+      const fixable = classifyError(serializeError(e, "render")) === "content";
       const message = this.deps.redact(e instanceof Error ? e.message : "Có lỗi khi dựng video.");
-      this.setStage(projectId, { kind: "error", message });
-      this.deps.events.friendlyError({ projectId, message, retry: "draft" });
+      this.setStage(projectId, { kind: "error", message, fixable });
+      this.deps.events.friendlyError({ projectId, message, retry: "draft", fixable });
     }
   }
 
