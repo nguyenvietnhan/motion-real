@@ -13,6 +13,7 @@ function backend(over: Partial<AuthoringBackend> = {}): AuthoringBackend {
     authorScenes: async () => ({ scenes: [] }),
     reauthor: async () => ({ scenes: [] }),
     renderDraft: async () => ({ ok: true }),
+    renderFull: async () => ({ ok: true, outputPath: "out.mp4" }),
     getSafetyReport: async () => ({ ok: true, hardErrors: [], warnings: [] }),
     ...over,
   };

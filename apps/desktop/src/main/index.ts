@@ -189,7 +189,10 @@ const handlers: InvokeHandlers = {
     workspace.submitEdits(String(projectId), b.perScene ?? [], b.globalNotes ?? "");
     return { ok: true, revision: 1 };
   },
-  "review:approveDraft": () => ({ ok: false, reason: "draft-first" }),
+  "review:approveDraft": (projectId) => {
+    workspace.publish(String(projectId));
+    return { ok: true, outputPath: "" };
+  },
 
   "settings:get": () => settingsStore.current(),
   "settings:update": (patch) => {

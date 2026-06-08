@@ -126,6 +126,7 @@ describe("error-stage messages are redacted", () => {
     const worker: AgentWorker = {
       author: async (): Promise<AuthorOutcome> => ({ kind: "no-source", message: "Lỗi N14 ở /p/scene-01.tsx" }),
       reauthorScenes: async (): Promise<AuthorOutcome> => ({ kind: "authored", sceneIds: [] }),
+      publish: async () => ({ ok: true, outputPath: "out.mp4" }),
       generateValidateRepair: async (): Promise<RepairOutcome> => ({ kind: "passed", attempts: 1 }),
     };
     const ctrl = new WorkspaceController(baseDeps({ worker, redact: stripL0Tokens }));
@@ -153,6 +154,7 @@ describe("Property 9: render progress mapping", () => {
           const worker: AgentWorker = {
             author: async (): Promise<AuthorOutcome> => ({ kind: "authored", sceneIds: [] }),
             reauthorScenes: async (): Promise<AuthorOutcome> => ({ kind: "authored", sceneIds: [] }),
+            publish: async () => ({ ok: true, outputPath: "out.mp4" }),
             generateValidateRepair: async (_id, _opts, hooks: AgentHooks): Promise<RepairOutcome> => {
               for (const r of ratios) {
                 hooks.onProgress(r);
@@ -180,6 +182,7 @@ function workerWith(outcome: RepairOutcome | (() => Promise<RepairOutcome>)): Ag
   return {
     author: async (): Promise<AuthorOutcome> => ({ kind: "authored", sceneIds: [] }),
     reauthorScenes: async (): Promise<AuthorOutcome> => ({ kind: "authored", sceneIds: [] }),
+    publish: async () => ({ ok: true, outputPath: "out.mp4" }),
     generateValidateRepair: typeof outcome === "function" ? (outcome as AgentWorker["generateValidateRepair"]) : async () => outcome,
   };
 }
@@ -227,6 +230,7 @@ describe("submitEdits (per-scene free-form edit)", () => {
     const worker: AgentWorker = {
       author: async (): Promise<AuthorOutcome> => ({ kind: "authored", sceneIds: [] }),
       reauthorScenes,
+      publish: async () => ({ ok: true, outputPath: "out.mp4" }),
       generateValidateRepair: async (): Promise<RepairOutcome> => ({ kind: "passed", attempts: 1 }),
     };
     const ctrl = new WorkspaceController(baseDeps({ worker }));
@@ -262,6 +266,43 @@ describe("submitEdits (per-scene free-form edit)", () => {
     expect(reauthorScenes).not.toHaveBeenCalled();
   });
 });
+describe("publish (full render)", () => {
+  it("from ready: renders full and moves to published with the output path", async () => {
+    const publish = vi.fn(async () => ({ ok: true as const, outputPath: "/out/p1.mp4" }));
+    const worker = { ...workerWith({ kind: "passed", attempts: 1 }), publish };
+    const ctrl = new WorkspaceController(baseDeps({ worker, toMedia: (p) => `media://${p}` }));
+    ctrl.setStage("p1", { kind: "ready", scenes: [] });
+    ctrl.publish("p1");
+    await flush();
+    expect(publish).toHaveBeenCalledWith("p1");
+    const st = await ctrl.stage("p1");
+    expect(st.kind).toBe("published");
+    if (st.kind === "published") expect(st.outputPath).toBe("media:///out/p1.mp4");
+  });
+
+  it("is a no-op outside the ready stage", async () => {
+    const publish = vi.fn(async () => ({ ok: true as const, outputPath: "x" }));
+    const worker = { ...workerWith({ kind: "passed", attempts: 1 }), publish };
+    const ctrl = new WorkspaceController(baseDeps({ worker }));
+    ctrl.setStage("p1", { kind: "writing" });
+    ctrl.publish("p1");
+    await flush();
+    expect(publish).not.toHaveBeenCalled();
+  });
+
+  it("a full-render failure surfaces a redacted error", async () => {
+    const publish = vi.fn(async () => ({ ok: false as const, error: { message: "", stage: "render" as const, cause: "boom N14 .tsx", severity: "error" as const } }));
+    const worker = { ...workerWith({ kind: "passed", attempts: 1 }), publish };
+    const ctrl = new WorkspaceController(baseDeps({ worker, redact: stripL0Tokens }));
+    ctrl.setStage("p1", { kind: "ready", scenes: [] });
+    ctrl.publish("p1");
+    await flush();
+    const st = await ctrl.stage("p1");
+    expect(st.kind).toBe("error");
+    if (st.kind === "error") expect(st.message).not.toMatch(/N14|\.tsx/);
+  });
+});
+
 describe("Property 6: redaction holds for the new repair paths", () => {
   // Feature: desktop-author-mode, Property 6: redaction holds for new paths
   it("a render throw carrying N-codes/.tsx surfaces a clean friendly message", async () => {

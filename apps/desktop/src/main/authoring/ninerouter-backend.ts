@@ -279,6 +279,20 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
     return { ok: true };
   }
 
+  async renderFull(projectId: string): Promise<{ ok: true; outputPath: string } | { ok: false; error?: SerializedPipelineError }> {
+    const res = await this.deps.tools.render_full(
+      { projectId },
+      this.deps.onRenderProgress ? (r) => this.deps.onRenderProgress!(r, projectId) : undefined,
+    );
+    if (!res.ok) {
+      console.error(`[render] render_full failed for ${projectId} [${res.error.stage}]: ${res.error.cause}`);
+      return { ok: false, error: res.error };
+    }
+    const outputPath = (res.data as { mp4Path?: string }).mp4Path ?? "";
+    console.log(`[render] render_full OK for ${projectId} → ${outputPath}`);
+    return { ok: true, outputPath };
+  }
+
   async getSafetyReport(projectId: string): Promise<SafetyReportView> {
     const res = await this.deps.tools.get_safety_report({ projectId });
     if (!res.ok) {

@@ -92,6 +92,7 @@ export type ProjectStage =
   | { kind: "script"; lines: ScriptLine[] } // awaiting user review/approval of the script
   | { kind: "rendering"; percent: number } // building voice + draft
   | { kind: "ready"; scenes: SceneCard[] } // draft ready, review scenes
+  | { kind: "published"; outputPath: string } // full MP4 rendered
   | { kind: "error"; message: string; fixable: boolean };
 
 export type EditBatch = {

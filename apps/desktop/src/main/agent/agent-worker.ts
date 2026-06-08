@@ -11,6 +11,8 @@
  * control plane sees.
  */
 
+import type { SerializedPipelineError } from "@news/pipeline";
+
 /**
  * Input for a fresh authoring job: a free-form user brief (chat-style) plus any
  * links found in it to fetch for grounding (best-effort, never a hard gate).
@@ -59,6 +61,9 @@ export type RepairOutcome =
   | { kind: "exhausted"; attempts: number; remainingHardErrors: number }
   | { kind: "infra"; attempts: number };
 
+/** Result of a full-quality publish render. */
+export type PublishResult = { ok: true; outputPath: string } | { ok: false; error?: SerializedPipelineError };
+
 /** A plain-language auto-fix description (NEVER an N-code / engine internal; Req 6.8). */
 export type { FriendlyFix } from "../../shared/types.js";
 import type { FriendlyFix } from "../../shared/types.js";
@@ -82,6 +87,8 @@ export interface AgentWorker {
   author(job: AuthorJob, hooks: AgentHooks): Promise<AuthorOutcome>;
   /** Re-author ONLY the named scenes from batched visual edits (Req 8.7). */
   reauthorScenes(job: ReauthorJob, hooks: AgentHooks): Promise<AuthorOutcome>;
+  /** Render the final full-quality MP4 (draft-first gate already satisfied). */
+  publish(projectId: string): Promise<PublishResult>;
   /** Run the generate-validate-repair loop to zero hard errors or budget (Req 6). */
   generateValidateRepair(
     projectId: string,

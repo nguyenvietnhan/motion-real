@@ -6,6 +6,7 @@ import type {
   ReauthorJob,
   RepairLoopOptions,
   RepairOutcome,
+  PublishResult,
 } from "./agent-worker.js";
 import type { SafetyIssue } from "@news/pipeline";
 import { generateValidateRepair, type SafetyReportView, type RenderResult } from "./repair-loop.js";
@@ -34,6 +35,8 @@ export interface AuthoringBackend {
   reauthor(projectId: string, targets: ReauthorTarget[]): Promise<{ scenes: AuthoredScene[] }>;
   /** Render one draft (drives the MCP `render_draft` tool); failure carries the engine error. */
   renderDraft(projectId: string): Promise<RenderResult>;
+  /** Render the final full-quality MP4 (drives MCP `render_full`); draft-first gate already satisfied. */
+  renderFull(projectId: string): Promise<PublishResult>;
   /** Read the safety report for the just-rendered draft (MCP `get_safety_report`). */
   getSafetyReport(projectId: string): Promise<SafetyReportView>;
 }
@@ -57,14 +60,17 @@ export class CustomLoopAgentWorker implements AgentWorker {
     return { kind: "authored", sceneIds: authored.scenes.map((s) => s.sceneId) };
   }
 
-  async reauthorScenes(job: ReauthorJob, hooks: AgentHooks): Promise<AuthorOutcome> {
-    const targets = job.sceneIds.map((sceneId) => ({
+  async reauthorScenes(job: ReauthorJob, hooks: AgentHooks): Promise<AuthorOutcome> {    const targets = job.sceneIds.map((sceneId) => ({
       sceneId,
       intent: job.preprompt.perSceneIntent[sceneId] ?? job.preprompt.globalNotes,
     }));
     const result = await this.backend.reauthor(job.projectId, targets);
     emitScenes(result.scenes, hooks);
     return { kind: "authored", sceneIds: result.scenes.map((s) => s.sceneId) };
+  }
+
+  publish(projectId: string): Promise<PublishResult> {
+    return this.backend.renderFull(projectId);
   }
 
   async generateValidateRepair(

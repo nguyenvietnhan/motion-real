@@ -20,6 +20,8 @@ function stageToFriendlyStatus(kind: ProjectStage["kind"]): FriendlyStatus {
   switch (kind) {
     case "ready":
       return "draft-ready";
+    case "published":
+      return "done";
     case "error":
       return "error";
     default:
@@ -81,8 +83,7 @@ export class WorkspaceController {
   /** Set + broadcast a stage (status mirrors the kind, as Current_Behavior). */
   setStage(projectId: string, stage: ProjectStage): void {
     this.stages.set(projectId, stage);
-    const status = stage.kind === "ready" ? "draft-ready" : stage.kind === "error" ? "error" : "building";
-    this.deps.events.status({ projectId, status });
+    this.deps.events.status({ projectId, status: stageToFriendlyStatus(stage.kind) });
   }
 
   private async scriptLinesOf(projectId: string): Promise<ScriptLine[]> {
@@ -147,6 +148,32 @@ export class WorkspaceController {
   fixWithAi(projectId: string): void {
     if (this.stages.get(projectId)?.kind !== "error") return; // only from an error screen; no double-run
     void this.runRender(projectId);
+  }
+
+  /** "Duyệt & xuất bản": render the final full-quality MP4 (only from the ready review stage). */
+  publish(projectId: string): void {
+    if (this.stages.get(projectId)?.kind !== "ready") return;
+    void this.runPublish(projectId);
+  }
+
+  private async runPublish(projectId: string): Promise<void> {
+    this.setStage(projectId, { kind: "rendering", percent: 0 });
+    try {
+      const res = await this.deps.worker.publish(projectId);
+      if (res.ok) {
+        this.setStage(projectId, { kind: "published", outputPath: this.deps.toMedia(res.outputPath) });
+      } else {
+        const fixable = res.error ? classifyError(res.error) === "content" : false;
+        const message = this.deps.redact(res.error?.cause ?? "Xuất bản thất bại. Hãy thử lại.");
+        this.setStage(projectId, { kind: "error", message, fixable });
+        this.deps.events.friendlyError({ projectId, message, retry: "full", fixable });
+      }
+    } catch (e) {
+      const fixable = classifyError(serializeError(e, "render")) === "content";
+      const message = this.deps.redact(e instanceof Error ? e.message : "Có lỗi khi xuất bản.");
+      this.setStage(projectId, { kind: "error", message, fixable });
+      this.deps.events.friendlyError({ projectId, message, retry: "full", fixable });
+    }
   }
 
   /**

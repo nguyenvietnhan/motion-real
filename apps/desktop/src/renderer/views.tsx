@@ -462,6 +462,7 @@ export const ProjectWorkspaceView: React.FC<{
     script: "Duyệt kịch bản",
     rendering: "Đang dựng video",
     ready: "Duyệt cảnh",
+    published: "Đã xuất bản",
     error: "Gặp lỗi",
   };
   return (
@@ -485,8 +486,17 @@ export const ProjectWorkspaceView: React.FC<{
         </div>
       )}
       {stage.kind === "ready" && (
-        <StoryboardView inline model={{ projectId: "", scenes: stage.scenes, globalNotes: "" }} percent={null} canApprove={false}
+        <StoryboardView inline model={{ projectId: "", scenes: stage.scenes, globalNotes: "" }} percent={null} canApprove={true}
           onBack={onBack} onSubmit={onSubmitEdits} onApprove={onApproveDraft} />
+      )}
+      {stage.kind === "published" && (
+        <EmptyState icon={Icon.film({ size: 34 })} title="Đã xuất bản video 🎬"
+          hint="Video bản đầy đủ đã được dựng xong. Mở thư mục dự án để lấy file MP4."
+          action={
+            <div style={{ display: "flex", gap: 10 }}>
+              <button className="ns-btn ns-btn-primary" onClick={onBack}>Quay lại Trang chủ</button>
+            </div>
+          } />
       )}
       {stage.kind === "error" && (
         <EmptyState icon={Icon.film({ size: 34 })} title="Gặp lỗi khi dựng" hint={stage.message}
