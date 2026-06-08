@@ -61,6 +61,7 @@ describe("createDashboardClient — invoke channel mapping", () => {
     await api.projects.stage("p1");
     await api.projects.delete("p1");
     await api.projects.reveal("p1");
+    await api.projects.retry("p1");
     await api.script.get("p1");
     await api.script.applyEdits("p1", [{ sceneId: "scene-01", narration: "x" }]);
     await api.script.approve("p1");

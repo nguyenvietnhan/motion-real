@@ -71,6 +71,8 @@ export interface WorkspaceDeps {
 
 export class WorkspaceController {
   private readonly stages = new Map<string, ProjectStage>();
+  /** Remember each project's author input so the error screen can re-run it. */
+  private readonly inputs = new Map<string, AuthorInput>();
 
   constructor(private readonly deps: WorkspaceDeps) {}
 
@@ -101,8 +103,15 @@ export class WorkspaceController {
 
   /** Stage 1: AI writes the script; then wait for approval unless the gate is off (R2.1–R2.3, R2.7). */
   beginScript(projectId: string, input: AuthorInput): void {
+    this.inputs.set(projectId, input);
     this.setStage(projectId, { kind: "writing" });
     void this.runScript(projectId, input);
+  }
+
+  /** Re-run authoring for a project from its remembered input (the "Thử lại" action). */
+  retry(projectId: string): void {
+    const input = this.inputs.get(projectId);
+    if (input) this.beginScript(projectId, input);
   }
 
   private async runScript(projectId: string, input: AuthorInput): Promise<void> {

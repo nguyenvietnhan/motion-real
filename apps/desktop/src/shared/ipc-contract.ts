@@ -51,6 +51,8 @@ export interface DashboardApi {
     stage(projectId: string): Promise<ProjectStage>;
     delete(projectId: string): Promise<void>;
     reveal(projectId: string): Promise<void>;
+    /** Re-run authoring for an existing project (the "Thử lại" action). */
+    retry(projectId: string): Promise<void>;
   };
   script: {
     get(projectId: string): Promise<ScriptGateModel>;

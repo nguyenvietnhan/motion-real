@@ -176,6 +176,10 @@ export const App: React.FC = () => {
           <ProjectWorkspaceView
             stage={stage}
             onBack={leaveWorkspace}
+            onRetry={() => {
+              setStage({ kind: "writing" });
+              void dash?.projects.retry(openProjectId);
+            }}
             onApplyScript={(edits) => void dash?.script.applyEdits(openProjectId, edits)}
             onApproveScript={() => {
               setStage({ kind: "rendering", percent: 0 });

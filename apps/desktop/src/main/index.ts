@@ -126,6 +126,10 @@ const handlers: InvokeHandlers = {
   "projects:open": (projectId) => workspace.open(String(projectId)),
   "projects:delete": (projectId) => workspace.delete(String(projectId)),
   "projects:reveal": (projectId) => workspace.reveal(String(projectId)),
+  "projects:retry": (projectId) => {
+    workspace.retry(String(projectId));
+    return undefined;
+  },
 
   "script:get": (projectId) => workspace.scriptGate(String(projectId)),
   "script:applyEdits": (projectId, edits) => workspace.applyEdits(String(projectId), edits as ScriptEdit[]),

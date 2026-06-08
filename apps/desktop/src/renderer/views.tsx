@@ -452,11 +452,12 @@ const ScriptReview: React.FC<{
 export const ProjectWorkspaceView: React.FC<{
   stage: ProjectStage;
   onBack: () => void;
+  onRetry: () => void;
   onApplyScript: (edits: { sceneId: string; narration?: string; headline?: string }[]) => void;
   onApproveScript: () => void;
   onSubmitEdits: (perScene: { sceneId: string; text: string }[], globalNotes: string) => void;
   onApproveDraft: () => void;
-}> = ({ stage, onBack, onApplyScript, onApproveScript, onSubmitEdits, onApproveDraft }) => {
+}> = ({ stage, onBack, onRetry, onApplyScript, onApproveScript, onSubmitEdits, onApproveDraft }) => {
   const title: Record<ProjectStage["kind"], string> = {
     writing: "Đang viết kịch bản",
     script: "Duyệt kịch bản",
@@ -490,7 +491,12 @@ export const ProjectWorkspaceView: React.FC<{
       )}
       {stage.kind === "error" && (
         <EmptyState icon={Icon.film({ size: 34 })} title="Gặp lỗi khi dựng" hint={stage.message}
-          action={<button className="ns-btn ns-btn-primary" onClick={onBack}>Quay lại Trang chủ</button>} />
+          action={
+            <div style={{ display: "flex", gap: 10 }}>
+              <button className="ns-btn ns-btn-primary" onClick={onRetry}>{Icon.plus({ size: 15 })} Thử lại</button>
+              <button className="ns-btn" onClick={onBack}>Quay lại Trang chủ</button>
+            </div>
+          } />
       )}
     </div>
   );
