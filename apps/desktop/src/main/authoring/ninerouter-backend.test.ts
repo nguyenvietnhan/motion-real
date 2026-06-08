@@ -90,7 +90,7 @@ describe("authorScenes (pure-author)", () => {
     const out = await backend.authorScenes(job);
 
     expect(out.scenes).toEqual([]);
-    expect(out.message).toMatch(/chưa hợp lệ/i);
+    expect(out.message).toMatch(/hợp lệ/i);
     expect(admit).not.toHaveBeenCalled();
     expect(existsSync(authoredDir(projectId))).toBe(false);
   });

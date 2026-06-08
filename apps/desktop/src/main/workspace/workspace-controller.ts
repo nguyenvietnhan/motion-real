@@ -67,6 +67,10 @@ export interface WorkspaceDeps {
   toMedia: (absPath: string) => string;
   /** Whether a scene's review still exists on disk. */
   hasStill: (projectId: string, sceneId: string) => boolean;
+  /** Whether the full-quality MP4 has been rendered for this project. */
+  hasOutput: (projectId: string) => boolean;
+  /** mediaUrl-wrapped path to the full-quality MP4. */
+  outputMedia: (projectId: string) => string;
   deleteProject: (projectId: string) => Promise<void>;
   revealProject: (projectId: string) => Promise<void>;
   /** Redact L0 engine tokens from any message before it reaches the UI (R8.5). */
@@ -285,6 +289,7 @@ export class WorkspaceController {
     try {
       const manifest = await this.deps.loadManifest(projectId);
       if (manifest.scenes.length === 0) return { kind: "writing" };
+      if (this.deps.hasOutput(projectId)) return { kind: "published", outputPath: this.deps.outputMedia(projectId) };
       const hasStills = manifest.scenes.some((s) => this.deps.hasStill(projectId, s.id));
       if (hasStills) return { kind: "ready", scenes: await this.storyboardScenesOf(projectId) };
       return { kind: "script", lines: await this.scriptLinesOf(projectId) };

@@ -24,6 +24,8 @@ function baseDeps(over: Partial<WorkspaceDeps> = {}): WorkspaceDeps {
     reviewStill: (_id, sceneId) => `media://still/${sceneId}`,
     toMedia: (p) => p,
     hasStill: () => false,
+    hasOutput: () => false,
+    outputMedia: () => "media://out.mp4",
     deleteProject: async () => {},
     revealProject: async () => {},
     redact: (m) => m,
@@ -288,6 +290,15 @@ describe("publish (full render)", () => {
     ctrl.publish("p1");
     await flush();
     expect(publish).not.toHaveBeenCalled();
+  });
+
+  it("recovers a published stage from disk when the full MP4 exists", async () => {
+    const ctrl = new WorkspaceController(
+      baseDeps({ loadManifest: async () => ({ scenes: [{ id: "scene-01" }] }), hasOutput: () => true, outputMedia: () => "media://done.mp4" }),
+    );
+    const st = await ctrl.stage("p-done");
+    expect(st.kind).toBe("published");
+    if (st.kind === "published") expect(st.outputPath).toBe("media://done.mp4");
   });
 
   it("a full-render failure surfaces a redacted error", async () => {

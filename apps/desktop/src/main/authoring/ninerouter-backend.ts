@@ -140,7 +140,7 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
     const parsed = parseAuthorReply(reply);
     if (!parsed.ok) {
       console.error(`[authoring] author-reply parse failed (${parsed.reason}: ${parsed.detail}). Raw reply (first 2000 chars):\n${reply.slice(0, 2000)}`);
-      return { scenes: [], message: `AI trả về kịch bản chưa hợp lệ (${parsed.reason}).` };
+      return { scenes: [], message: "AI chưa trả về kịch bản hợp lệ. Hãy thử lại hoặc mô tả rõ hơn." };
     }
 
     // Write each AI-authored module. Unregister first so a re-authored id (or a
@@ -245,6 +245,21 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
     return { scenes: done };
   }
 
+  /**
+   * Clear this project's authored component ids from the process-wide registry
+   * so the upcoming render re-registers them FRESH from THIS project's files.
+   * Guards against a cross-project id collision (the registry is shared across
+   * the long-lived Electron session) staling the Node-side prop validation.
+   */
+  private async refreshRegistry(projectId: string): Promise<void> {
+    try {
+      const m = await loadManifest(projectId);
+      for (const s of m.scenes) unregisterComponent(s.component);
+    } catch {
+      /* best-effort: a missing/unreadable manifest just means nothing to clear */
+    }
+  }
+
   /** Call the model; if a vision (image) call fails, retry text-only (Req 3.7). */
   private async chatWithVisionFallback(model: string, messages: ChatMessage[]): Promise<string> {
     try {
@@ -264,6 +279,7 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
   }
 
   async renderDraft(projectId: string): Promise<{ ok: true } | { ok: false; error?: SerializedPipelineError }> {
+    await this.refreshRegistry(projectId);
     const res = await this.deps.tools.render_draft(
       // Cap draft concurrency: forcing all CPU cores crashed Chromium in Electron
       // ("Page.bringToFront: Target closed"). 2 is a stable preview default.
@@ -280,6 +296,7 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
   }
 
   async renderFull(projectId: string): Promise<{ ok: true; outputPath: string } | { ok: false; error?: SerializedPipelineError }> {
+    await this.refreshRegistry(projectId);
     const res = await this.deps.tools.render_full(
       { projectId },
       this.deps.onRenderProgress ? (r) => this.deps.onRenderProgress!(r, projectId) : undefined,

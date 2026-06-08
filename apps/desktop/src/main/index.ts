@@ -121,6 +121,8 @@ const workspace = new WorkspaceController({
   reviewStill: (id, sceneId) => mediaUrl(join(projectPaths(id).reviewDir, `${sceneId}.png`)) ?? "",
   toMedia: (p) => mediaUrl(p) ?? p,
   hasStill: (id, sceneId) => existsSync(join(projectPaths(id).reviewDir, `${sceneId}.png`)),
+  hasOutput: (id) => existsSync(join(projectPaths(id).rendersDir, `${id}.mp4`)),
+  outputMedia: (id) => mediaUrl(join(projectPaths(id).rendersDir, `${id}.mp4`)) ?? "",
   deleteProject: (id) => rm(projectPaths(id).root, { recursive: true, force: true }),
   revealProject: async (id) => {
     await shell.openPath(projectPaths(id).root);
