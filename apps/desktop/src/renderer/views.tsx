@@ -1,7 +1,6 @@
 import React, { useState } from "react";
 import type {
   AiAccountState,
-  FriendlyStatus,
   GatewayState,
   ModelInfo,
   ProjectCardVM,
@@ -10,70 +9,29 @@ import type {
   SettingsModel,
   StoryboardModel,
 } from "../shared/types.js";
-import { FRIENDLY_LABELS } from "../shared/friendly-status.js";
 import { validateCreateInput } from "../shared/create-validation.js";
+import { Icon } from "./icons.js";
+import {
+  aiStatus,
+  EmptyState,
+  Field,
+  PageHeader,
+  ProjectGrid,
+  SettingsCard,
+  Spinner,
+  StatusPill,
+  Toggle,
+  type Screen,
+} from "./primitives.js";
 
 /**
- * React views (web-dashboard) — enterprise SaaS shell: a left Sidebar for
- * navigation, a Home with a create hero + recent-projects grid, Settings, and
- * Storyboard. Dark product theme via CSS tokens (theme.css); the cream/squared
- * design-language is ONLY for rendered video, never the app chrome.
+ * React screen components (web-dashboard): License, Sidebar, Home, Projects,
+ * Settings, ProjectWorkspace, Storyboard. Shared primitives + icons live in
+ * `./primitives` + `./icons`; the cream/squared design-language is ONLY for
+ * rendered video, never the app chrome.
  */
 
-export type Screen = "home" | "projects" | "settings" | "workspace";
-
-// --- icons (inline, currentColor) ------------------------------------------
-
-const Icon = {
-  home: (p: { size?: number }) => (
-    <svg width={p.size ?? 18} height={p.size ?? 18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M3 9.5 12 3l9 6.5V20a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1Z" />
-    </svg>
-  ),
-  film: (p: { size?: number }) => (
-    <svg width={p.size ?? 18} height={p.size ?? 18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="3" y="3" width="18" height="18" rx="2" /><path d="M7 3v18M17 3v18M3 8h4M3 16h4M17 8h4M17 16h4" />
-    </svg>
-  ),
-  settings: (p: { size?: number }) => (
-    <svg width={p.size ?? 18} height={p.size ?? 18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z" />
-    </svg>
-  ),
-  plus: (p: { size?: number }) => (
-    <svg width={p.size ?? 18} height={p.size ?? 18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
-  ),
-  spark: (p: { size?: number }) => (
-    <svg width={p.size ?? 18} height={p.size ?? 18} viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l1.9 5.6L19.5 9l-5.6 1.4L12 16l-1.9-5.6L4.5 9l5.6-1.4Z" /></svg>
-  ),
-  trash: (p: { size?: number }) => (
-    <svg width={p.size ?? 16} height={p.size ?? 16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2m2 0v14a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V6" /></svg>
-  ),
-  folder: (p: { size?: number }) => (
-    <svg width={p.size ?? 16} height={p.size ?? 16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 5h5l2 2h9a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Z" /></svg>
-  ),
-};
-
-// --- AI status ------------------------------------------------------------
-
-export function aiStatus(gateway: GatewayState, account: AiAccountState): { color: string; text: string; sub?: string } {
-  if (gateway.kind === "starting") return { color: "var(--muted-foreground)", text: "Đang khởi động AI…" };
-  if (gateway.kind === "unavailable") return { color: "var(--danger)", text: "AI chưa khởi động được" };
-  if (account.kind !== "connected" || account.accounts.length === 0)
-    return { color: "var(--warn)", text: "Chưa kết nối AI" };
-  return {
-    color: "var(--good)",
-    text: account.accounts[0]?.label ?? "Đã kết nối",
-    sub: account.selectedModel?.id,
-  };
-}
-
-const STATUS_COLOR: Record<FriendlyStatus, string> = {
-  building: "var(--warn)",
-  "draft-ready": "var(--brand)",
-  done: "var(--good)",
-  error: "var(--danger)",
-};
+export type { Screen };
 
 // --- License activation (first run) ---------------------------------------
 
@@ -157,71 +115,6 @@ export const Sidebar: React.FC<{
     </aside>
   );
 };
-
-// --- page header ----------------------------------------------------------
-
-const PageHeader: React.FC<{ title: string; subtitle?: string; action?: React.ReactNode }> = ({ title, subtitle, action }) => (
-  <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 24 }}>
-    <div>
-      <h1 style={{ margin: 0, fontSize: 24 }}>{title}</h1>
-      {subtitle && <p style={{ margin: "6px 0 0", color: "var(--muted-foreground)", fontSize: 14 }}>{subtitle}</p>}
-    </div>
-    {action}
-  </div>
-);
-
-const StatusPill: React.FC<{ status: FriendlyStatus }> = ({ status }) => (
-  <span className="ns-pill" style={{ alignSelf: "flex-start", background: "color-mix(in srgb, transparent 84%, " + STATUS_COLOR[status] + ")", color: STATUS_COLOR[status] }}>
-    <span style={{ width: 6, height: 6, borderRadius: 999, background: STATUS_COLOR[status], flexShrink: 0 }} />
-    {FRIENDLY_LABELS[status]}
-  </span>
-);
-
-const ProjectGrid: React.FC<{
-  cards: ProjectCardVM[];
-  onOpen: (id: string) => void;
-  onDelete?: (id: string) => void;
-  onReveal?: (id: string) => void;
-}> = ({ cards, onOpen, onDelete, onReveal }) => (
-  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 16 }}>
-    {cards.map((c) => (
-      <div key={c.projectId} className="ns-card ns-project" role="button" tabIndex={0} onClick={() => onOpen(c.projectId)}
-        onKeyDown={(e) => { if (e.key === "Enter") onOpen(c.projectId); }}>
-        <div style={{ height: 140, background: c.thumbnailPath ? `center/cover #14161b url(${c.thumbnailPath})` : "linear-gradient(135deg, #1a1d24, #14161b)", display: "grid", placeItems: "center", color: "#3a3f49" }}>
-          {!c.thumbnailPath && Icon.film({ size: 30 })}
-        </div>
-        <div style={{ padding: 14 }}>
-          <strong className="ns-project-title" title={c.title} style={{ marginBottom: 10, fontSize: 14 }}>{c.title}</strong>
-          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            <StatusPill status={c.status} />
-            <span style={{ color: "var(--muted-foreground)", fontSize: 12 }}>{c.createdAtLabel}</span>
-          </div>
-          {(onReveal || onDelete) && (
-            <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
-              {onReveal && (
-                <button className="ns-btn" title="Mở thư mục dự án" style={{ padding: "6px 10px" }}
-                  onClick={(e) => { e.stopPropagation(); onReveal(c.projectId); }}>{Icon.folder({ size: 15 })}</button>
-              )}
-              {onDelete && (
-                <button className="ns-btn" title="Xoá dự án" style={{ padding: "6px 10px", color: "var(--danger)" }}
-                  onClick={(e) => { e.stopPropagation(); onDelete(c.projectId); }}>{Icon.trash({ size: 15 })}</button>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
-    ))}
-  </div>
-);
-
-const EmptyState: React.FC<{ icon: React.ReactNode; title: string; hint: string; action?: React.ReactNode }> = ({ icon, title, hint, action }) => (
-  <div className="ns-card" style={{ padding: 48, textAlign: "center", display: "grid", placeItems: "center", gap: 8 }}>
-    <div style={{ color: "var(--muted-foreground)" }}>{icon}</div>
-    <h3 style={{ margin: 0 }}>{title}</h3>
-    <p style={{ margin: 0, color: "var(--muted-foreground)", maxWidth: 360 }}>{hint}</p>
-    {action && <div style={{ marginTop: 8 }}>{action}</div>}
-  </div>
-);
 
 // --- Home -----------------------------------------------------------------
 
@@ -326,39 +219,6 @@ export const ProjectsView: React.FC<{
 );
 
 // --- Settings -------------------------------------------------------------
-
-/** A labelled settings field: bold label, control, optional helper text. */
-const Field: React.FC<{ label: string; hint?: string; children: React.ReactNode }> = ({ label, hint, children }) => (
-  <div style={{ marginBottom: 20 }}>
-    <label style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 7 }}>{label}</label>
-    {children}
-    {hint && <p style={{ margin: "7px 0 0", fontSize: 12, color: "var(--muted-foreground)", lineHeight: 1.5 }}>{hint}</p>}
-  </div>
-);
-
-/** Enterprise-style toggle row: title + description on the left, switch on the right. */
-const Toggle: React.FC<{ checked: boolean; onChange: (v: boolean) => void; title: string; desc?: string }> = ({ checked, onChange, title, desc }) => (
-  <label style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, padding: "14px 0", borderTop: "1px solid var(--border)", cursor: "pointer" }}>
-    <span style={{ minWidth: 0 }}>
-      <span style={{ display: "block", fontSize: 14, fontWeight: 600 }}>{title}</span>
-      {desc && <span style={{ display: "block", fontSize: 12, color: "var(--muted-foreground)", marginTop: 3, lineHeight: 1.5 }}>{desc}</span>}
-    </span>
-    <span className="ns-switch" style={{ flexShrink: 0 }}>
-      <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} />
-      <span className="ns-switch-track" />
-    </span>
-  </label>
-);
-
-const SettingsCard: React.FC<{ title: string; desc?: string; children: React.ReactNode }> = ({ title, desc, children }) => (
-  <section className="ns-card" style={{ padding: 24 }}>
-    <div style={{ marginBottom: 20 }}>
-      <h3 style={{ margin: 0, fontSize: 16 }}>{title}</h3>
-      {desc && <p style={{ margin: "4px 0 0", fontSize: 13, color: "var(--muted-foreground)" }}>{desc}</p>}
-    </div>
-    {children}
-  </section>
-);
 
 type SettingsTab = "ai" | "voice" | "build" | "about";
 
@@ -483,10 +343,6 @@ export const SettingsView: React.FC<{
 };
 
 // --- Project workspace: staged flow (write script → review → render → scenes) ---
-
-const Spinner: React.FC = () => (
-  <span style={{ display: "inline-block", width: 16, height: 16, border: "2px solid var(--muted)", borderTopColor: "var(--brand)", borderRadius: 999, animation: "ns-spin 0.8s linear infinite" }} />
-);
 
 const ScriptReview: React.FC<{
   lines: ScriptLine[];
