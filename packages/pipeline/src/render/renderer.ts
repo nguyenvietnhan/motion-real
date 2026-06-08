@@ -62,6 +62,11 @@ type PreparedComposition = {
   inputProps: { spec: LockedVideoSpec };
 };
 
+/** Browser launch + per-frame resolve timeout. The FIRST render on a cold
+ * Windows box can spend >30s just launching chrome-headless-shell (antivirus
+ * scan / first-run extraction), so give the browser setup generous headroom. */
+const BROWSER_TIMEOUT_MS = 120_000;
+
 /** Node API path: ensure Chromium, bundle the Remotion app, select composition, render h264 MP4. */
 export async function renderVideo(opts: RenderVideoOptions): Promise<RenderVideoResult> {
   const outPath = resolve(opts.outPath);
@@ -80,6 +85,7 @@ export async function renderVideo(opts: RenderVideoOptions): Promise<RenderVideo
     inputProps: prepared.inputProps,
     concurrency: opts.concurrency ?? null,
     overwrite: true,
+    timeoutInMilliseconds: BROWSER_TIMEOUT_MS,
     logLevel: opts.logLevel ?? "warn",
     onProgress: ({ progress }) => opts.onProgress?.(progress),
     ...(draft
@@ -126,6 +132,7 @@ export async function renderSceneStills(
       inputProps: prepared.inputProps,
       imageFormat: "png",
       overwrite: true,
+      timeoutInMilliseconds: BROWSER_TIMEOUT_MS,
       logLevel: opts.logLevel ?? "warn",
     });
     outputs.push(output);
@@ -166,6 +173,7 @@ export async function renderFrameTwice(
       inputProps: prepared.inputProps,
       imageFormat: "png",
       overwrite: true,
+      timeoutInMilliseconds: BROWSER_TIMEOUT_MS,
       logLevel: opts.logLevel ?? "warn",
     });
     result.push(output);
@@ -205,6 +213,7 @@ async function prepareComposition(
     serveUrl,
     id: opts.compositionId ?? DEFAULT_COMPOSITION_ID,
     inputProps,
+    timeoutInMilliseconds: BROWSER_TIMEOUT_MS,
     logLevel: opts.logLevel ?? "warn",
   });
 
