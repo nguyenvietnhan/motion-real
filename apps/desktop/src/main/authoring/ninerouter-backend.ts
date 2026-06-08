@@ -163,12 +163,19 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
       console.error(`[render] get_safety_report failed for ${projectId}: ${res.error.cause}`);
       return { ok: false, hardErrors: [], warnings: [] };
     }
-    if (res.data.hardErrors.length > 0) {
+    // N24/N25 are the REVIEW tier (human/agent self-critique + contact sheet),
+    // confirmed before final publish — NOT auto-detectable draft defects. They
+    // are unconfirmed by default, so they must not block the draft repair loop
+    // (which only gates on the auto-run render oracles). The draft is "passed"
+    // once the real oracles are clean; the checklist belongs to the approve step.
+    const reviewTier = new Set(["N24", "N25"]);
+    const hardErrors = res.data.hardErrors.filter((e) => !reviewTier.has(e.check));
+    if (hardErrors.length > 0) {
       console.error(
         "[render] safety grid HARD errors:\n" +
-          res.data.hardErrors.map((e) => `  ${e.check}${e.sceneId ? ` @${e.sceneId}` : ""}: ${e.message}`).join("\n"),
+          hardErrors.map((e) => `  ${e.check}${e.sceneId ? ` @${e.sceneId}` : ""}: ${e.message}`).join("\n"),
       );
     }
-    return res.data;
+    return { ok: hardErrors.length === 0, hardErrors, warnings: res.data.warnings };
   }
 }
