@@ -302,6 +302,18 @@ export class WorkspaceController {
   async stage(projectId: string): Promise<ProjectStage> {
     const known = this.stages.get(projectId);
     if (known) return known;
+    const recovered = await this.recoverStage(projectId);
+    // Memoize the recovered stage so subsequent stage-guarded actions
+    // (submitEdits/publish, which require an in-memory `ready`) see it — a
+    // project whose render finished in a prior session is recovered from disk,
+    // and without this its `ready` stage would never reach the map, silently
+    // no-op'ing edits/publish. Set directly (no status event) to preserve the
+    // read-only observable behavior of a stage poll.
+    this.stages.set(projectId, recovered);
+    return recovered;
+  }
+
+  private async recoverStage(projectId: string): Promise<ProjectStage> {
     try {
       const manifest = await this.deps.loadManifest(projectId);
       if (manifest.scenes.length === 0) return { kind: "writing" };
