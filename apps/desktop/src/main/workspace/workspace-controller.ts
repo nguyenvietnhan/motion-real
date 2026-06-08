@@ -187,7 +187,7 @@ export class WorkspaceController {
   }
 
   private async runPublish(projectId: string): Promise<void> {
-    this.setStage(projectId, { kind: "rendering", percent: 0 });
+    this.setStage(projectId, { kind: "rendering", percent: 0, phase: "full" });
     try {
       const res = await this.deps.worker.publish(projectId);
       if (res.ok) {
@@ -224,8 +224,15 @@ export class WorkspaceController {
     named: { sceneId: string; text: string }[],
     globalNotes: string,
   ): Promise<void> {
-    this.setStage(projectId, { kind: "rendering", percent: 0 });
-    const hooks = this.renderHooks(projectId);
+    this.setStage(projectId, { kind: "rendering", percent: 0, phase: "edit" });
+    // The reauthor step is an AI rewrite with no measurable progress → show it
+    // as an indeterminate "edit" phase (no jumpy percent from emitScenes).
+    const editHooks: AgentHooks = {
+      onProgress: () => {},
+      onSceneProduced: (sceneId, stillPath) => this.deps.events.scene({ projectId, sceneId, stillPath: this.deps.toMedia(stillPath) }),
+      onRepair: () => {},
+    };
+    const hooks = this.renderHooks(projectId, "draft");
     try {
       // Resolve which scenes to re-author: the explicitly-edited ones, or — when
       // ONLY a video-wide note was given — every scene (the note applies to all).
@@ -239,7 +246,7 @@ export class WorkspaceController {
       // Apply the user's instruction by re-authoring the scene code…
       const applied = await this.deps.worker.reauthorScenes(
         { projectId, sceneIds, preprompt: { contractRef: "SKILL.md+AGENTS.md", affectedSceneIds: sceneIds, perSceneIntent, globalNotes } },
-        hooks,
+        editHooks,
       );
       const appliedIds = applied.kind === "authored" ? applied.sceneIds : [];
       // If we asked to edit ≥1 scene but EVERY rewrite failed admission (rolled
@@ -254,6 +261,7 @@ export class WorkspaceController {
         return;
       }
       // …then re-render the draft (and auto-repair any new oracle errors).
+      this.setStage(projectId, { kind: "rendering", percent: 0, phase: "draft" });
       const outcome = await this.deps.worker.generateValidateRepair(projectId, { maxAttempts: this.deps.settings.maxRepairAttempts }, hooks);
       if (outcome.kind === "passed") {
         this.bumpRenderVersion(projectId);
@@ -275,20 +283,32 @@ export class WorkspaceController {
     }
   }
 
-  private renderHooks(projectId: string): AgentHooks {
+  private renderHooks(projectId: string, phase: "draft" | "full" = "draft"): AgentHooks {
     return {
       onProgress: (ratio) => {
-        this.setStage(projectId, { kind: "rendering", percent: Math.round(ratio * 100) });
-        this.deps.events.progress({ projectId, ratio, phase: "draft" });
+        this.setStage(projectId, { kind: "rendering", percent: Math.round(ratio * 100), phase });
+        this.deps.events.progress({ projectId, ratio, phase });
       },
       onSceneProduced: (sceneId, stillPath) => this.deps.events.scene({ projectId, sceneId, stillPath: this.deps.toMedia(stillPath) }),
       onRepair: () => {},
     };
   }
 
+  /**
+   * Drive the rendering stage's percent from the renderer's REAL per-frame
+   * progress (forwarded from the render tool's onProgress via the Composition_
+   * Root). This is the smooth, accurate signal, preserving the active phase.
+   */
+  reportRenderProgress(projectId: string, ratio: number): void {
+    const s = this.stages.get(projectId);
+    if (s?.kind !== "rendering") return;
+    const clamped = Math.max(0, Math.min(1, ratio));
+    this.setStage(projectId, { kind: "rendering", percent: Math.round(clamped * 100), phase: s.phase });
+  }
+
   private async runRender(projectId: string): Promise<void> {
-    this.setStage(projectId, { kind: "rendering", percent: 0 });
-    const hooks = this.renderHooks(projectId);
+    this.setStage(projectId, { kind: "rendering", percent: 0, phase: "draft" });
+    const hooks = this.renderHooks(projectId, "draft");
     try {
       const outcome = await this.deps.worker.generateValidateRepair(projectId, { maxAttempts: this.deps.settings.maxRepairAttempts }, hooks);
       if (outcome.kind === "passed") {

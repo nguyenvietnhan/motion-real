@@ -256,6 +256,18 @@ select {
   to { transform: rotate(360deg); }
 }
 
+/* Indeterminate progress sweep (used while the AI is rewriting scenes, where
+ * there is no measurable percent to show). The track has overflow:hidden. */
+.ns-indeterminate {
+  width: 40%;
+  background: var(--brand);
+  animation: ns-indeterminate 1.1s ease-in-out infinite;
+}
+@keyframes ns-indeterminate {
+  0% { transform: translateX(-110%); }
+  100% { transform: translateX(360%); }
+}
+
 /* Project card title: clamp to 2 lines so a long prompt never floods the card. */
 .ns-project-title {
   display: -webkit-box;

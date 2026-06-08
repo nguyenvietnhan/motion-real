@@ -96,12 +96,18 @@ const gateway = new ModelGatewayManager(
 
 // The authoring brain: AI writes a kit-based manifest; we admit + render. Drives
 // the SAME tools / one registry; render progress is forwarded to the UI.
+// `reportProgress` is a forwarder set once the WorkspaceController exists (below),
+// so the renderer's real per-frame progress drives the staged rendering bar.
+let reportProgress: (projectId: string, ratio: number) => void = () => {};
 const authoringBackend = new NineRouterAuthoringBackend({
   client: nrClient,
   tools,
   model: () => selectedModel?.id,
   apiKey: () => undefined, // 9router /v1 is open on localhost
-  onRenderProgress: (ratio, projectId) => events.progress({ projectId, ratio, phase: "draft" }),
+  onRenderProgress: (ratio, projectId) => {
+    reportProgress(projectId, ratio);
+    events.progress({ projectId, ratio, phase: "draft" });
+  },
 });
 const worker = new CustomLoopAgentWorker(authoringBackend);
 
@@ -129,6 +135,10 @@ const workspace = new WorkspaceController({
   },
   redact: stripL0Tokens,
 });
+
+// Now that the workspace exists, point the render-progress forwarder at it so
+// the renderer's real per-frame progress drives the staged rendering bar.
+reportProgress = (projectId, ratio) => workspace.reportRenderProgress(projectId, ratio);
 
 // Create flow (validate → scaffold via the ONE registry → hand off to the
 // staged workspace) lives in the tested CreateController (reconcile S5).

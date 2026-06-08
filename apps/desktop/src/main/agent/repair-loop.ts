@@ -66,7 +66,9 @@ export async function generateValidateRepair(
   while (attempts < max) {
     attempts++;
     const render = await deps.renderDraft();
-    deps.hooks.onProgress(attempts / max);
+    // NOTE: smooth render progress is driven by the renderer's real per-frame
+    // callback (WorkspaceController.reportRenderProgress); we deliberately do NOT
+    // emit a coarse attempts/max ratio here — it would clobber the live percent.
 
     if (!render.ok) {
       // A failed render: if the cause is infra (missing voice key, gateway,

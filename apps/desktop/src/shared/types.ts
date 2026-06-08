@@ -90,7 +90,7 @@ export type ScriptLine = { sceneId: string; order: number; headline: string; nar
 export type ProjectStage =
   | { kind: "writing" } // AI is drafting the script
   | { kind: "script"; lines: ScriptLine[] } // awaiting user review/approval of the script
-  | { kind: "rendering"; percent: number } // building voice + draft
+  | { kind: "rendering"; percent: number; phase?: "edit" | "draft" | "full" } // building (edit reauthor | draft | full)
   | { kind: "ready"; scenes: SceneCard[]; notice?: string } // draft ready, review scenes (notice = a transient message, e.g. an edit that couldn't be applied)
   | { kind: "published"; outputPath: string } // full MP4 rendered
   | { kind: "error"; message: string; fixable: boolean };

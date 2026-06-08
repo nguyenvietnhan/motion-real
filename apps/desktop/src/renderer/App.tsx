@@ -181,20 +181,20 @@ export const App: React.FC = () => {
               void dash?.projects.retry(openProjectId);
             }}
             onFixWithAi={() => {
-              setStage({ kind: "rendering", percent: 0 });
+              setStage({ kind: "rendering", percent: 0, phase: "draft" });
               void dash?.projects.fixWithAi(openProjectId);
             }}
             onApplyScript={(edits) => void dash?.script.applyEdits(openProjectId, edits)}
             onApproveScript={() => {
-              setStage({ kind: "rendering", percent: 0 });
+              setStage({ kind: "rendering", percent: 0, phase: "draft" });
               void dash?.script.approve(openProjectId);
             }}
             onSubmitEdits={(perScene, globalNotes) => {
-              setStage({ kind: "rendering", percent: 0 });
+              setStage({ kind: "rendering", percent: 0, phase: "edit" });
               void dash?.review.submitEdits(openProjectId, { perScene, globalNotes });
             }}
             onApproveDraft={() => {
-              setStage({ kind: "rendering", percent: 0 });
+              setStage({ kind: "rendering", percent: 0, phase: "full" });
               void dash?.review.approveDraft(openProjectId);
             }}
           />

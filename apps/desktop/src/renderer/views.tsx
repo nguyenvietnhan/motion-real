@@ -488,16 +488,28 @@ export const ProjectWorkspaceView: React.FC<{
         </div>
       )}
       {stage.kind === "script" && <ScriptReview lines={stage.lines} onApply={onApplyScript} onApprove={onApproveScript} />}
-      {stage.kind === "rendering" && (
-        <div className="ns-card" style={{ padding: 32 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
-            <Spinner /> <span>Đang dựng giọng đọc + bản nháp… {stage.percent}%</span>
+      {stage.kind === "rendering" && (() => {
+        const phase = stage.phase ?? "draft";
+        const label =
+          phase === "edit" ? "AI đang chỉnh sửa các cảnh theo yêu cầu…"
+            : phase === "full" ? "Đang dựng video bản đầy đủ (chất lượng cao)…"
+              : "Đang dựng giọng đọc + bản nháp…";
+        const indeterminate = phase === "edit" || stage.percent <= 0;
+        return (
+          <div className="ns-card" style={{ padding: 32 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+              <Spinner /> <span>{label}{indeterminate ? "" : ` ${stage.percent}%`}</span>
+            </div>
+            <div style={{ height: 8, background: "var(--muted)", borderRadius: 999, overflow: "hidden" }}>
+              {indeterminate ? (
+                <div className="ns-indeterminate" style={{ height: "100%", borderRadius: 999 }} />
+              ) : (
+                <div style={{ width: `${stage.percent}%`, height: "100%", background: "var(--brand)", borderRadius: 999, transition: "width 0.3s" }} />
+              )}
+            </div>
           </div>
-          <div style={{ height: 8, background: "var(--muted)", borderRadius: 999 }}>
-            <div style={{ width: `${stage.percent}%`, height: "100%", background: "var(--brand)", borderRadius: 999, transition: "width 0.3s" }} />
-          </div>
-        </div>
-      )}
+        );
+      })()}
       {stage.kind === "published" && (
         <EmptyState icon={Icon.film({ size: 34 })} title="Đã xuất bản video 🎬"
           hint="Video bản đầy đủ đã được dựng xong. Mở thư mục dự án để lấy file MP4."
