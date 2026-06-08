@@ -96,7 +96,18 @@ export class ModelGatewayManager {
   }
 
   /** Start the gateway, retrying up to 3 attempts before surfacing `unavailable`. */
-  async start(): Promise<GatewayState> {
+  private startInFlight: Promise<GatewayState> | null = null;
+
+  /** Start the gateway; deduped so concurrent callers share ONE in-flight run. */
+  start(): Promise<GatewayState> {
+    if (this.startInFlight) return this.startInFlight;
+    this.startInFlight = this.runStart().finally(() => {
+      this.startInFlight = null;
+    });
+    return this.startInFlight;
+  }
+
+  private async runStart(): Promise<GatewayState> {
     const max = this.deps.maxStartAttempts ?? MAX_START_ATTEMPTS;
     for (let attempt = 1; attempt <= max; attempt++) {
       this.gw = { kind: "starting", attempt };
@@ -108,6 +119,19 @@ export class ModelGatewayManager {
       }
     }
     this.gw = { kind: "unavailable" };
+    return this.gw;
+  }
+
+  /**
+   * Self-healing state read for the UI poll: returns the CURRENT state right
+   * away and, when NOT ready (and no start already running), kicks a background
+   * (re)start. This lets a gateway that was down at app launch — or quit/
+   * restarted by the user mid-session — recover to `ready` on its own, without
+   * needing an app restart. (`launch()` no-ops when 9router is already up, so
+   * this never spawns a duplicate.)
+   */
+  ensureReady(): GatewayState {
+    if (this.gw.kind !== "ready" && !this.startInFlight) void this.start();
     return this.gw;
   }
 

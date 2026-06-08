@@ -1,6 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import fc from "fast-check";
-import { aiReady } from "./model-gateway-manager.js";
+import { aiReady, ModelGatewayManager, type GatewayDeps } from "./model-gateway-manager.js";
 import type { AiAccountState, AiProviderId, GatewayState, ModelInfo } from "../../shared/types.js";
 
 /**
@@ -45,5 +45,45 @@ describe("Property 3: AI generation gate", () => {
       }),
       { numRuns: 300 },
     );
+  });
+});
+
+describe("gateway self-heal (ensureReady)", () => {
+  const baseGwDeps = (launch: () => Promise<boolean>): GatewayDeps => ({
+    launch,
+    listProviders: async () => [],
+    beginConnect: async () => ({ loginSurface: "external-browser" }),
+    pollConnections: async () => [],
+    listModels: async () => [],
+    maxStartAttempts: 1,
+  });
+  const tick = () => new Promise((r) => setTimeout(r, 0));
+
+  it("recovers to ready on a later poll after an initial failed start (no app restart)", async () => {
+    let up = false;
+    const launch = vi.fn(async () => up);
+    const mgr = new ModelGatewayManager(baseGwDeps(launch));
+
+    expect(await mgr.start()).toEqual({ kind: "unavailable" }); // 9router down at launch
+    expect(mgr.ensureReady().kind).toBe("starting"); // kicks a background restart (transitions synchronously)
+    await tick();
+    expect(mgr.state().kind).toBe("unavailable"); // still down → stays recoverable
+
+    up = true; // 9router comes up later
+    expect(mgr.ensureReady().kind).toBe("starting"); // next poll kicks another start
+    await tick();
+    expect(mgr.state()).toEqual({ kind: "ready", baseUrl: "http://localhost:20128/v1" });
+  });
+
+  it("does not start concurrently while one start is already in flight", async () => {
+    let resolveLaunch: ((v: boolean) => void) | undefined;
+    const launch = vi.fn(() => new Promise<boolean>((r) => { resolveLaunch = r; }));
+    const mgr = new ModelGatewayManager(baseGwDeps(launch));
+    void mgr.start();
+    mgr.ensureReady();
+    mgr.ensureReady();
+    await tick();
+    expect(launch).toHaveBeenCalledTimes(1); // deduped
+    resolveLaunch?.(true);
   });
 });

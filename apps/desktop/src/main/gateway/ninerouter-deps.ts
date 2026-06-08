@@ -35,6 +35,10 @@ export function buildNineRouterGatewayDeps(opts: NineRouterDepsOptions): Gateway
         stdio: "ignore",
         shell: true, // resolve 9router.cmd on Windows
       });
+      // A missing/un-PATHed 9router emits 'error' asynchronously; swallow it so it
+      // never becomes an unhandled exception in the main process (launch() will
+      // just time out and the gateway reports unavailable, then self-heals).
+      child.on("error", (e) => console.warn(`[gateway] could not spawn 9router: ${e.message}`));
       child.unref();
     });
 

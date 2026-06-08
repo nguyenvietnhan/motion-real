@@ -159,7 +159,7 @@ const handlers: InvokeHandlers = {
   "license:get": () => licenseManager.current(),
   "license:activate": (key) => licenseManager.activate(String(key)),
 
-  "ai:gatewayState": () => gateway.state(),
+  "ai:gatewayState": () => gateway.ensureReady(),
   "ai:listProviders": () => gateway.listProviders(),
   "ai:connectedAccounts": () => gateway.refreshConnections(),
   "ai:beginConnect": (providerId) => gateway.beginConnect(String(providerId)),
