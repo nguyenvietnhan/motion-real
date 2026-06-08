@@ -15,15 +15,25 @@ const GENERIC = "Đã xảy ra sự cố. Vui lòng thử lại.";
 
 /** Defense-in-depth: strip any L0 internal token from a final message. */
 export function stripL0Tokens(text: string): string {
-  const cleaned = text
-    .replace(/\bN(?:[1-9]|[12]\d|30)\b/g, "") // N1..N30 grid codes
-    .replace(/[\w./\\-]+\.tsx\b/gi, "") // authored .tsx source files
-    .replace(/\bMCP\b/gi, "") // MCP references
-    .replace(/\bat\s+[^\n]+:\d+:\d+/g, "") // stack frames "at fn (file:line:col)"
-    .replace(/[{}[\]]/g, "") // manifest JSON braces
-    .replace(/\s{2,}/g, " ")
-    .trim();
-  return cleaned;
+  // One cleaning pass. Structural separators are removed FIRST (as spaces) so a
+  // later pass can never glue two fragments into a fresh token (e.g. "N{3" must
+  // not become "N3"). The whole chain is then applied to a fixpoint so any token
+  // exposed by a removal is caught on the next pass.
+  const strip = (s: string): string =>
+    s
+      .replace(/[{}[\]]/g, " ") // manifest JSON braces → space (no gluing)
+      .replace(/\bN(?:[1-9]|[12]\d|30)\b/g, " ") // N1..N30 grid codes
+      .replace(/[\w./\\-]*\.tsx\b/gi, " ") // authored .tsx source files (incl. a bare ".tsx")
+      .replace(/\bMCP\b/gi, " ") // MCP references
+      .replace(/\bat\s+[^\n]+:\d+:\d+/g, " "); // stack frames "at fn (file:line:col)"
+
+  let prev = text;
+  let next = strip(prev);
+  for (let i = 0; i < 4 && next !== prev; i++) {
+    prev = next;
+    next = strip(prev);
+  }
+  return next.replace(/\s{2,}/g, " ").trim();
 }
 
 const STAGE_MESSAGE: Record<PipelineStage, string> = {

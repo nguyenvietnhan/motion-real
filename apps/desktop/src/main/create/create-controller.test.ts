@@ -80,4 +80,27 @@ describe("Property 1: create input validation", () => {
       { numRuns: 200 },
     );
   });
+
+  it("a URL followed by an instruction ⇒ url is the first token, the rest is a note", () => {
+    const r = v("https://www.theguardian.com/tech/anti-ai Làm video 1p30s có voice");
+    expect(r.ok).toBe(true);
+    if (r.ok && r.classified.kind === "url") {
+      expect(r.classified.url).toBe("https://www.theguardian.com/tech/anti-ai");
+      expect(r.classified.note).toBe("Làm video 1p30s có voice");
+    }
+  });
+
+  it("a bare URL (no instruction) ⇒ url with no note", () => {
+    const r = v("https://example.com/a");
+    expect(r.ok).toBe(true);
+    if (r.ok && r.classified.kind === "url") {
+      expect(r.classified.url).toBe("https://example.com/a");
+      expect(r.classified.note).toBeUndefined();
+    }
+  });
+
+  it("www. URL + instruction ⇒ https-prefixed url + note", () => {
+    const r = v("www.example.com/a tóm tắt ngắn");
+    expect(r.ok && r.classified.kind === "url" ? r.classified.url : null).toBe("https://www.example.com/a");
+  });
 });

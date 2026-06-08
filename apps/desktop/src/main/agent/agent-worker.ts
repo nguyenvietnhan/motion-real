@@ -11,8 +11,8 @@
  * control plane sees.
  */
 
-/** Input source for a fresh authoring job: an ingest URL or a free topic. */
-export type AuthorInput = { kind: "url"; url: string } | { kind: "topic"; text: string };
+/** Input source for a fresh authoring job: an ingest URL (+ optional instruction) or a free topic. */
+export type AuthorInput = { kind: "url"; url: string; note?: string } | { kind: "topic"; text: string };
 
 /** Author scenes for a brand-new project: ingest → author → (script gate) → draft. */
 export type AuthorJob = {

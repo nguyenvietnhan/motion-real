@@ -17,7 +17,7 @@ import type { CreateInput } from "./types.js";
 export const MAX_TOPIC_LEN = 20000;
 export const MAX_URL_LEN = 2048;
 
-export type CreateClassified = { kind: "url"; url: string } | { kind: "topic"; text: string };
+export type CreateClassified = { kind: "url"; url: string; note?: string } | { kind: "topic"; text: string };
 
 export type CreateValidation =
   | { ok: true; classified: CreateClassified }
@@ -26,7 +26,7 @@ export type CreateValidation =
 /** Looks like the user intends a URL (a scheme:// prefix or a leading `www.`). */
 const URL_SHAPED = /^([a-z][a-z\d+.-]*:\/\/|www\.)/i;
 
-function classifyUrl(trimmed: string): CreateValidation {
+function classifyUrl(trimmed: string, note: string): CreateValidation {
   const candidate = /^www\./i.test(trimmed) ? `https://${trimmed}` : trimmed;
   let parsed: URL;
   try {
@@ -39,7 +39,7 @@ function classifyUrl(trimmed: string): CreateValidation {
   if (!isHttp || !parsed.hostname.includes(".")) {
     return { ok: false, reason: "malformed-url" };
   }
-  return { ok: true, classified: { kind: "url", url: candidate } };
+  return { ok: true, classified: { kind: "url", url: candidate, ...(note ? { note } : {}) } };
 }
 
 export function validateCreateInput(input: CreateInput): CreateValidation {
@@ -47,8 +47,16 @@ export function validateCreateInput(input: CreateInput): CreateValidation {
   if (trimmed === "") return { ok: false, reason: "empty" };
 
   if (URL_SHAPED.test(trimmed)) {
-    if (trimmed.length > MAX_URL_LEN) return { ok: false, reason: "too-long" };
-    return classifyUrl(trimmed);
+    // The user may paste a link FOLLOWED BY an instruction (e.g.
+    // "https://… Làm video 1p30s có voice"). URLs never contain whitespace, so
+    // split the first whitespace-delimited token as the URL and keep the rest as
+    // a note (instruction) for the author prompt — never fetch the whole string.
+    if (trimmed.length > MAX_TOPIC_LEN) return { ok: false, reason: "too-long" };
+    const wsIndex = trimmed.search(/\s/);
+    const urlPart = wsIndex < 0 ? trimmed : trimmed.slice(0, wsIndex);
+    const note = wsIndex < 0 ? "" : trimmed.slice(wsIndex).trim();
+    if (urlPart.length > MAX_URL_LEN) return { ok: false, reason: "too-long" };
+    return classifyUrl(urlPart, note);
   }
 
   if (trimmed.length > MAX_TOPIC_LEN) return { ok: false, reason: "too-long" };

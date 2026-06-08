@@ -54,7 +54,9 @@ export class CreateController {
     const res = await this.deps.scaffold(prompt);
     if (!res.ok) throw new Error(toFriendlyError(res.error).message); // redacted (R8.5)
     const input: AuthorInput =
-      v.classified.kind === "url" ? { kind: "url", url: v.classified.url } : { kind: "topic", text: v.classified.text };
+      v.classified.kind === "url"
+        ? { kind: "url", url: v.classified.url, ...(v.classified.note ? { note: v.classified.note } : {}) }
+        : { kind: "topic", text: v.classified.text };
     this.deps.beginScript(res.projectId, input); // stage 1 (R2.1)
     return { projectId: res.projectId };
   }

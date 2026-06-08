@@ -66,7 +66,7 @@ ${OUTPUT_FORMAT}`;
 export function buildAuthorMessages(input: AuthorInput, research?: string): ChatMessage[] {
   const source =
     input.kind === "url"
-      ? `Nguồn (đường dẫn): ${input.url}\n\nTư liệu đã trích xuất:\n${research ?? "(không có — dựa trên hiểu biết đáng tin về chủ đề của đường dẫn)"}`
+      ? `Nguồn (đường dẫn): ${input.url}${input.note ? `\n\nYêu cầu của người dùng: ${input.note}` : ""}\n\nTư liệu đã trích xuất:\n${research ?? "(không có — dựa trên hiểu biết đáng tin về chủ đề của đường dẫn)"}`
       : `Chủ đề: ${input.text}${research ? `\n\nTư liệu tham khảo:\n${research}` : ""}`;
   return [
     { role: "system", content: AUTHOR_SYSTEM },
