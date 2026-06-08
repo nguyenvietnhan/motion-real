@@ -17,7 +17,12 @@ const idArb = fc
   .tuple(fc.constantFrom(...HEAD), fc.array(fc.constantFrom(...TAIL), { minLength: 1, maxLength: 12 }))
   .map(([h, rest]) => h + rest.join(""));
 
-const nonEmpty = (max: number) => fc.string({ minLength: 1, maxLength: max }).map((s) => s.trim() || "x");
+// Manifest metadata is PROSE per the AI_Output_Contract — code (and thus the
+// ``` fence delimiter) only ever appears in the separate ```tsx blocks. So the
+// generator excludes backticks from manifest strings: a ``` embedded in metadata
+// would be a contract violation that corrupts fence boundaries for the WHOLE
+// reply. Everything else (quotes, braces, backslashes, unicode) stays adversarial.
+const nonEmpty = (max: number) => fc.string({ minLength: 1, maxLength: max }).map((s) => s.replace(/`/g, "").trim() || "x");
 
 /** A code block for one component id, with optional marker + override literal id. */
 function codeBlock(id: string, opts: { marker?: string; literal?: string } = {}): string {
@@ -98,6 +103,20 @@ describe("Property 1: author-reply parse roundtrip", () => {
       }),
       { numRuns: 200 },
     );
+  });
+
+  it("extracts the manifest when a prose string contains braces and a stray backtick (string-aware scan)", () => {
+    // Not a ``` fence — just metadata prose with `{`, `}` and one backtick — which
+    // the string-aware object scan must skip without derailing extraction.
+    const scenes = [
+      { component: "a-scene", eyebrow: "TIN", headline: "Giá `tăng` {2026}", narration: "Mức { tăng } khoảng 30% theo `báo cáo`." },
+      { component: "a-scene", eyebrow: "TIN", headline: "Hai", narration: "Bình thường" },
+      { component: "a-scene", eyebrow: "TIN", headline: "Ba", narration: "Bình thường" },
+    ];
+    const reply = manifestBlock(["a-scene"], scenes) + "\n\n" + codeBlock("a-scene");
+    const parsed = parseAuthorReply(reply);
+    expect(parsed.ok).toBe(true);
+    if (parsed.ok) expect(parsed.modules.map((m) => m.id)).toEqual(["a-scene"]);
   });
 
   it("a marker that disagrees with the registerComponent literal ⇒ id-mismatch", () => {

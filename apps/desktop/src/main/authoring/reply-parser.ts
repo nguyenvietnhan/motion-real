@@ -81,9 +81,45 @@ function manifestJson(text: string, fences: Fence[]): string | null {
     const fromFence = extractJsonObject(jsonFence.body);
     if (fromFence && parsesAsObject(fromFence)) return fromFence;
   }
-  // Robust fallback: a balanced object anywhere in the reply (the manifest comes
-  // before the tsx blocks in the contract, so this lands on the manifest).
-  return extractJsonObject(text);
+  // Robust fallback: the FIRST balanced, string-aware {…} in the RAW reply that
+  // parses as JSON. Scanning the raw text (not a fence-sliced body) means a
+  // manifest string value containing ``` no longer truncates extraction (the
+  // backticks sit inside a JSON string, which the scanner skips). The manifest
+  // precedes the tsx blocks in the contract, so this lands on the manifest.
+  return firstParseableObject(text);
+}
+
+/**
+ * Scan `text` for the first balanced `{…}` (tracking JSON string state) that
+ * JSON-parses. Tries each `{` in turn, so a stray brace in prose before the
+ * manifest is skipped rather than derailing extraction.
+ */
+function firstParseableObject(text: string): string | null {
+  for (let start = text.indexOf("{"); start >= 0; start = text.indexOf("{", start + 1)) {
+    let depth = 0;
+    let inStr = false;
+    let esc = false;
+    for (let i = start; i < text.length; i++) {
+      const c = text[i]!;
+      if (inStr) {
+        if (esc) esc = false;
+        else if (c === "\\") esc = true;
+        else if (c === '"') inStr = false;
+      } else if (c === '"') {
+        inStr = true;
+      } else if (c === "{") {
+        depth++;
+      } else if (c === "}") {
+        depth--;
+        if (depth === 0) {
+          const candidate = text.slice(start, i + 1);
+          if (parsesAsObject(candidate)) return candidate;
+          break; // balanced but not valid JSON → try the next `{`
+        }
+      }
+    }
+  }
+  return null;
 }
 
 /** True iff `s` parses as a JSON value (object/array/primitive). */
