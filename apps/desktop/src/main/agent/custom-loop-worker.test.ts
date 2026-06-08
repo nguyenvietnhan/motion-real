@@ -10,7 +10,6 @@ import type { AgentHooks } from "./agent-worker.js";
 
 function backend(over: Partial<AuthoringBackend> = {}): AuthoringBackend {
   return {
-    ingest: async () => ({ ok: true }),
     authorScenes: async () => ({ scenes: [] }),
     reauthor: async () => ({ scenes: [] }),
     renderDraft: async () => ({ ok: true }),
@@ -33,40 +32,24 @@ const twoScenes: AuthoredScene[] = [
 ];
 
 describe("CustomLoopAgentWorker.author", () => {
-  it("ingests a URL job before authoring and emits each produced scene", async () => {
-    const ingest = vi.fn(async () => ({ ok: true }));
-    const worker = new CustomLoopAgentWorker(backend({ ingest, authorScenes: async () => ({ scenes: twoScenes }) }));
+  it("authors and emits each produced scene", async () => {
+    const worker = new CustomLoopAgentWorker(backend({ authorScenes: async () => ({ scenes: twoScenes }) }));
     const { hooks, scenes } = recordingHooks();
 
     const outcome = await worker.author(
-      { projectId: "p1", input: { kind: "url", url: "https://e.com/a" }, scriptGate: true },
+      { projectId: "p1", input: { text: "Làm video từ https://e.com/a", urls: ["https://e.com/a"] }, scriptGate: true },
       hooks,
     );
 
-    expect(ingest).toHaveBeenCalledOnce();
     expect(outcome).toEqual({ kind: "authored", sceneIds: ["scene-01", "scene-02"] });
     expect(scenes).toEqual(["scene-01", "scene-02"]);
   });
 
-  it("maps an ingest failure to ingest-failed and never authors", async () => {
-    const authorScenes = vi.fn(async () => ({ scenes: twoScenes }));
-    const worker = new CustomLoopAgentWorker(
-      backend({ ingest: async () => ({ ok: false, message: "404" }), authorScenes }),
-    );
-    const { hooks } = recordingHooks();
-    const outcome = await worker.author(
-      { projectId: "p1", input: { kind: "url", url: "https://e.com/a" }, scriptGate: false },
-      hooks,
-    );
-    expect(outcome).toEqual({ kind: "ingest-failed", message: "404" });
-    expect(authorScenes).not.toHaveBeenCalled();
-  });
-
-  it("maps an empty authoring result for a topic to no-source", async () => {
+  it("maps an empty authoring result to no-source", async () => {
     const worker = new CustomLoopAgentWorker(backend({ authorScenes: async () => ({ scenes: [], message: "no source" }) }));
     const { hooks } = recordingHooks();
     const outcome = await worker.author(
-      { projectId: "p1", input: { kind: "topic", text: "abc" }, scriptGate: false },
+      { projectId: "p1", input: { text: "abc", urls: [] }, scriptGate: false },
       hooks,
     );
     expect(outcome).toEqual({ kind: "no-source", message: "no source" });

@@ -64,10 +64,13 @@ ${AUTHORING_CONTRACT}
 ${OUTPUT_FORMAT}`;
 
 export function buildAuthorMessages(input: AuthorInput, research?: string): ChatMessage[] {
-  const source =
-    input.kind === "url"
-      ? `Nguồn (đường dẫn): ${input.url}${input.note ? `\n\nYêu cầu của người dùng: ${input.note}` : ""}\n\nTư liệu đã trích xuất:\n${research ?? "(không có — dựa trên hiểu biết đáng tin về chủ đề của đường dẫn)"}`
-      : `Chủ đề: ${input.text}${research ? `\n\nTư liệu tham khảo:\n${research}` : ""}`;
+  const links = input.urls.length > 0 ? `\n\nLink trong yêu cầu: ${input.urls.join(", ")}` : "";
+  const grounding = research
+    ? `\n\nTư liệu đã đọc từ link (dùng làm căn cứ, không bịa thêm):\n${research}`
+    : input.urls.length > 0
+      ? "\n\n(Không đọc được nội dung link — hãy dựa trên hiểu biết đáng tin về chủ đề trong yêu cầu.)"
+      : "";
+  const source = `Yêu cầu của người dùng:\n${input.text}${links}${grounding}`;
   return [
     { role: "system", content: AUTHOR_SYSTEM },
     { role: "user", content: `${source}\n\nHãy soạn kịch bản + VIẾT MÃ .tsx cho từng cảnh, trả về đúng định dạng AI_Output_Contract.` },

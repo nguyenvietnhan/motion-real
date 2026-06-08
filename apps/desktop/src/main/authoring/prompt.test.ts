@@ -10,15 +10,15 @@ import { buildAuthorMessages, buildReauthorMessages, type ContentPart } from "./
 describe("buildAuthorMessages", () => {
   const required = ["@news/blocks", "Math.random", "// component:", "```json", "```tsx", "registerComponent"];
 
-  it("embeds the contract + output-format for a topic job", () => {
-    const [sys, user] = buildAuthorMessages({ kind: "topic", text: "Chủ đề thử" });
+  it("embeds the contract + output-format for a plain brief", () => {
+    const [sys, user] = buildAuthorMessages({ text: "Chủ đề thử", urls: [] });
     expect(sys!.role).toBe("system");
     for (const token of required) expect(sys!.content).toContain(token);
     expect(user!.content).toContain("Chủ đề thử");
   });
 
-  it("embeds research + url for a url job", () => {
-    const [sys, user] = buildAuthorMessages({ kind: "url", url: "https://example.com/x" }, "tư liệu ABC");
+  it("embeds research + links for a brief with a link", () => {
+    const [sys, user] = buildAuthorMessages({ text: "Tóm tắt bài này https://example.com/x", urls: ["https://example.com/x"] }, "tư liệu ABC");
     for (const token of required) expect(sys!.content).toContain(token);
     expect(user!.content).toContain("https://example.com/x");
     expect(user!.content).toContain("tư liệu ABC");

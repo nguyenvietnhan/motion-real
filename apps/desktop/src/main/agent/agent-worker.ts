@@ -11,8 +11,11 @@
  * control plane sees.
  */
 
-/** Input source for a fresh authoring job: an ingest URL (+ optional instruction) or a free topic. */
-export type AuthorInput = { kind: "url"; url: string; note?: string } | { kind: "topic"; text: string };
+/**
+ * Input for a fresh authoring job: a free-form user brief (chat-style) plus any
+ * links found in it to fetch for grounding (best-effort, never a hard gate).
+ */
+export type AuthorInput = { text: string; urls: string[] };
 
 /** Author scenes for a brand-new project: ingest → author → (script gate) → draft. */
 export type AuthorJob = {
@@ -48,7 +51,6 @@ export type RepairLoopOptions = { maxAttempts: number };
 /** Outcome of a fresh-author or re-author job. */
 export type AuthorOutcome =
   | { kind: "authored"; sceneIds: string[] }
-  | { kind: "ingest-failed"; message: string }
   | { kind: "no-source"; message: string };
 
 /** Outcome of the generate-validate-repair loop (Req 6.3/6.7; + infra, Req 4). */

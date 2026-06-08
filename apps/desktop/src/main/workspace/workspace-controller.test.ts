@@ -124,12 +124,12 @@ describe("Property 8: project stage recovery rules", () => {
 describe("error-stage messages are redacted", () => {
   it("strips L0 engine tokens (N-codes, .tsx) from the error message", async () => {
     const worker: AgentWorker = {
-      author: async (): Promise<AuthorOutcome> => ({ kind: "ingest-failed", message: "Lỗi N14 ở /p/scene-01.tsx" }),
+      author: async (): Promise<AuthorOutcome> => ({ kind: "no-source", message: "Lỗi N14 ở /p/scene-01.tsx" }),
       reauthorScenes: async (): Promise<AuthorOutcome> => ({ kind: "authored", sceneIds: [] }),
       generateValidateRepair: async (): Promise<RepairOutcome> => ({ kind: "passed", attempts: 1 }),
     };
     const ctrl = new WorkspaceController(baseDeps({ worker, redact: stripL0Tokens }));
-    ctrl.beginScript("p1", { kind: "topic", text: "x" });
+    ctrl.beginScript("p1", { text: "x", urls: [] });
     await flush();
     const st = await ctrl.stage("p1");
     expect(st.kind).toBe("error");

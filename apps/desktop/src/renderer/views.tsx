@@ -245,15 +245,13 @@ export const HomeView: React.FC<{
       ? ""
       : valid.ok
         ? ""
-        : !valid.ok && valid.reason === "too-long"
+        : valid.reason === "too-long"
           ? "Nội dung quá dài (tối đa 20.000 ký tự)."
-          : valid.reason === "malformed-url"
-            ? "Đường dẫn không hợp lệ."
-            : "Nội dung chưa hợp lệ.";
+          : "Nội dung chưa hợp lệ.";
 
   return (
     <div className="ns-content">
-      <PageHeader title="Trang chủ" subtitle="Biến một chủ đề hoặc đường dẫn bài báo thành video tin tức 9:16." />
+      <PageHeader title="Trang chủ" subtitle="Mô tả video bạn muốn — như đang nhắn tin. Dán kèm link nếu có, hệ thống tự đọc." />
 
       {!aiReady && (
         <div className="ns-card" style={{ padding: 16, marginBottom: 20, display: "flex", alignItems: "center", justifyContent: "space-between", borderColor: "var(--brand)" }}>
@@ -273,7 +271,7 @@ export const HomeView: React.FC<{
           className="ns-input"
           value={raw}
           onChange={(e) => setRaw(e.target.value)}
-          placeholder="Ví dụ: https://vnexpress.net/… hoặc “Giá vàng trong nước tăng mạnh phiên cuối tuần”"
+          placeholder="Ví dụ: “Làm video 1p30s, giọng nữ, từ link này https://vnexpress.net/… tập trung vào nguyên nhân” — hoặc chỉ một chủ đề."
           rows={3}
           style={{ width: "100%", resize: "vertical" }}
         />

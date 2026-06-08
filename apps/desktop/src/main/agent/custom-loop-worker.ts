@@ -28,9 +28,7 @@ export type ReauthorTarget = { sceneId: string; issues?: SafetyIssue[]; intent?:
 
 /** The model+MCP-facing operations the custom loop drives. */
 export interface AuthoringBackend {
-  /** Fetch + ground research for a URL job; `ok:false` ⇒ ingest failed (Req 3.9). */
-  ingest(input: { kind: "url"; url: string }): Promise<{ ok: boolean; message?: string }>;
-  /** Author the scene .tsx + manifest + narration for a fresh project. */
+  /** Author the scene .tsx + manifest + narration for a fresh project (ingests any brief links best-effort). */
   authorScenes(job: AuthorJob): Promise<{ scenes: AuthoredScene[]; message?: string }>;
   /** Re-author ONLY the named scenes (code-level self-repair / visual edit). */
   reauthor(projectId: string, targets: ReauthorTarget[]): Promise<{ scenes: AuthoredScene[] }>;
@@ -51,15 +49,9 @@ export class CustomLoopAgentWorker implements AgentWorker {
   constructor(private readonly backend: AuthoringBackend) {}
 
   async author(job: AuthorJob, hooks: AgentHooks): Promise<AuthorOutcome> {
-    if (job.input.kind === "url") {
-      const ingested = await this.backend.ingest(job.input);
-      if (!ingested.ok) {
-        return { kind: "ingest-failed", message: ingested.message ?? "Không lấy được nội dung từ nguồn này." };
-      }
-    }
     const authored = await this.backend.authorScenes(job);
     if (authored.scenes.length === 0) {
-      return { kind: "no-source", message: authored.message ?? "Chưa tìm được nguồn nội dung phù hợp." };
+      return { kind: "no-source", message: authored.message ?? "Chưa tạo được cảnh nào từ yêu cầu này." };
     }
     emitScenes(authored.scenes, hooks);
     return { kind: "authored", sceneIds: authored.scenes.map((s) => s.sceneId) };

@@ -67,7 +67,7 @@ describe("authorScenes (pure-author)", () => {
   it("valid reply ⇒ writes one .tsx per unique id + open-id manifest + admits + returns scenes", async () => {
     const projectId = "pa-valid";
     const { backend, admit } = makeBackend(validReply());
-    const job: AuthorJob = { projectId, input: { kind: "topic", text: "chủ đề" }, scriptGate: false };
+    const job: AuthorJob = { projectId, input: { text: "chủ đề", urls: [] }, scriptGate: false };
 
     const out = await backend.authorScenes(job);
 
@@ -85,7 +85,7 @@ describe("authorScenes (pure-author)", () => {
   it("invalid reply ⇒ {scenes:[]}, no admit call, no kit/.tsx written", async () => {
     const projectId = "pa-invalid";
     const { backend, admit } = makeBackend("xin lỗi, không có gì ở đây");
-    const job: AuthorJob = { projectId, input: { kind: "topic", text: "chủ đề" }, scriptGate: false };
+    const job: AuthorJob = { projectId, input: { text: "chủ đề", urls: [] }, scriptGate: false };
 
     const out = await backend.authorScenes(job);
 
@@ -98,7 +98,7 @@ describe("authorScenes (pure-author)", () => {
   it("no model ⇒ guarded with a message", async () => {
     const { backend } = makeBackend(validReply());
     (backend as unknown as { deps: NineRouterBackendDeps }).deps.model = () => undefined;
-    const out = await backend.authorScenes({ projectId: "pa-nomodel", input: { kind: "topic", text: "x" }, scriptGate: false });
+    const out = await backend.authorScenes({ projectId: "pa-nomodel", input: { text: "x", urls: [] }, scriptGate: false });
     expect(out.scenes).toEqual([]);
     expect(out.message).toMatch(/model/i);
   });

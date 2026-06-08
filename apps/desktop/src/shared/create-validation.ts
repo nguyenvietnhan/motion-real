@@ -1,64 +1,60 @@
 import type { CreateInput } from "./types.js";
 
 /**
- * Create-input validation (web-dashboard Task 4.3, design §Create flow,
- * Req 3.1/3.7/3.8). PURE and TOTAL over arbitrary strings (Property 1), and
- * shared by BOTH the renderer (live form validation) and the main-process
- * create controller — so it lives in `shared/` rather than `main/`, keeping the
- * renderer free of any import that reaches across the process boundary.
+ * Create-input validation (desktop-author-mode, free-form brief). The Create box
+ * behaves like a chat prompt: the user types a natural-language brief that MAY
+ * contain one or more links. We never force an either/or "URL vs topic" split —
+ * the whole text is the brief, and any links found in it are extracted so the
+ * authoring step can fetch them for grounding (best-effort). PURE + TOTAL over
+ * arbitrary strings (shared by the renderer's live validation and the main
+ * create controller, so it stays in `shared/`).
  *
- *   - empty / whitespace-only             ⇒ { ok:false, reason:"empty" }
- *   - URL-shaped but over 2048 chars      ⇒ { ok:false, reason:"too-long" }
- *   - topic/content over 20000 chars      ⇒ { ok:false, reason:"too-long" }
- *   - URL-shaped but malformed            ⇒ { ok:false, reason:"malformed-url" }
- *   - otherwise classified as url | topic ⇒ { ok:true, classified }
+ *   - empty / whitespace-only       ⇒ { ok:false, reason:"empty" }
+ *   - over 20000 chars              ⇒ { ok:false, reason:"too-long" }
+ *   - otherwise                     ⇒ { ok:true, brief:{ text, urls } }
  */
 
 export const MAX_TOPIC_LEN = 20000;
 export const MAX_URL_LEN = 2048;
 
-export type CreateClassified = { kind: "url"; url: string; note?: string } | { kind: "topic"; text: string };
+/** The free-form brief: the full user text + any http(s) links found in it. */
+export type CreateBrief = { text: string; urls: string[] };
 
-export type CreateValidation =
-  | { ok: true; classified: CreateClassified }
-  | { ok: false; reason: "empty" | "too-long" | "malformed-url" };
+export type CreateValidation = { ok: true; brief: CreateBrief } | { ok: false; reason: "empty" | "too-long" };
 
-/** Looks like the user intends a URL (a scheme:// prefix or a leading `www.`). */
-const URL_SHAPED = /^([a-z][a-z\d+.-]*:\/\/|www\.)/i;
+/** Matches a URL-ish token (scheme:// or a leading www.) up to the next space. */
+const URL_TOKEN = /(?:https?:\/\/|www\.)[^\s]+/gi;
 
-function classifyUrl(trimmed: string, note: string): CreateValidation {
-  const candidate = /^www\./i.test(trimmed) ? `https://${trimmed}` : trimmed;
-  let parsed: URL;
-  try {
-    parsed = new URL(candidate);
-  } catch {
-    return { ok: false, reason: "malformed-url" };
+/**
+ * Extract the valid http(s) URLs mentioned anywhere in the text (deduped, in
+ * order). Trailing prose punctuation is trimmed; `www.` is normalized to https.
+ * Anything that isn't a well-formed dotted-host http(s) URL is ignored — the
+ * brief is still authored, just without that link as grounding.
+ */
+export function extractUrls(text: string): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const m of text.matchAll(URL_TOKEN)) {
+    const raw = m[0].replace(/[.,;:!?)\]}'"»…]+$/u, ""); // drop trailing prose punctuation
+    const candidate = /^www\./i.test(raw) ? `https://${raw}` : raw;
+    if (candidate.length > MAX_URL_LEN) continue;
+    try {
+      const u = new URL(candidate);
+      const isHttp = u.protocol === "http:" || u.protocol === "https:";
+      if (isHttp && u.hostname.includes(".") && !seen.has(candidate)) {
+        seen.add(candidate);
+        out.push(candidate);
+      }
+    } catch {
+      /* not a usable URL — ignore */
+    }
   }
-  const isHttp = parsed.protocol === "http:" || parsed.protocol === "https:";
-  // A real article URL has a dotted public host; reject schemes/hosts we cannot ingest.
-  if (!isHttp || !parsed.hostname.includes(".")) {
-    return { ok: false, reason: "malformed-url" };
-  }
-  return { ok: true, classified: { kind: "url", url: candidate, ...(note ? { note } : {}) } };
+  return out;
 }
 
 export function validateCreateInput(input: CreateInput): CreateValidation {
   const trimmed = input.raw.trim();
   if (trimmed === "") return { ok: false, reason: "empty" };
-
-  if (URL_SHAPED.test(trimmed)) {
-    // The user may paste a link FOLLOWED BY an instruction (e.g.
-    // "https://… Làm video 1p30s có voice"). URLs never contain whitespace, so
-    // split the first whitespace-delimited token as the URL and keep the rest as
-    // a note (instruction) for the author prompt — never fetch the whole string.
-    if (trimmed.length > MAX_TOPIC_LEN) return { ok: false, reason: "too-long" };
-    const wsIndex = trimmed.search(/\s/);
-    const urlPart = wsIndex < 0 ? trimmed : trimmed.slice(0, wsIndex);
-    const note = wsIndex < 0 ? "" : trimmed.slice(wsIndex).trim();
-    if (urlPart.length > MAX_URL_LEN) return { ok: false, reason: "too-long" };
-    return classifyUrl(urlPart, note);
-  }
-
   if (trimmed.length > MAX_TOPIC_LEN) return { ok: false, reason: "too-long" };
-  return { ok: true, classified: { kind: "topic", text: trimmed } };
+  return { ok: true, brief: { text: trimmed, urls: extractUrls(trimmed) } };
 }

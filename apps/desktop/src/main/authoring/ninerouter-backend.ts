@@ -108,24 +108,23 @@ function toEngineManifest(m: AuthorManifest): Manifest {
 export class NineRouterAuthoringBackend implements AuthoringBackend {
   constructor(private readonly deps: NineRouterBackendDeps) {}
 
-  async ingest(input: { kind: "url"; url: string }): Promise<{ ok: boolean; message?: string }> {
-    const res = await this.deps.tools.ingest_url({ url: input.url });
-    return res.ok ? { ok: true } : { ok: false, message: res.error.cause };
-  }
-
   async authorScenes(job: AuthorJob): Promise<{ scenes: AuthoredScene[]; message?: string }> {
     const model = this.deps.model();
     if (!model) return { scenes: [], message: "Chưa chọn model AI." };
 
-    // Research: for a URL, reuse the just-ingested text; for a topic, none yet.
-    let research: string | undefined;
-    if (job.input.kind === "url") {
-      const ing = await this.deps.tools.ingest_url({ url: job.input.url }).catch(() => null);
-      if (ing && ing.ok) {
-        const text = (ing.data as { text?: unknown } | undefined)?.text;
-        if (typeof text === "string" && text.trim()) research = text;
+    // Best-effort grounding: fetch any links in the brief. A failed fetch is NOT
+    // fatal — authoring continues from the user's text + the model's knowledge.
+    const chunks: string[] = [];
+    for (const url of job.input.urls) {
+      const ing = await this.deps.tools.ingest_url({ url }).catch(() => null);
+      const text = ing && ing.ok ? (ing.data as { text?: unknown } | undefined)?.text : undefined;
+      if (typeof text === "string" && text.trim()) {
+        chunks.push(`# ${url}\n${text.trim()}`);
+      } else {
+        console.warn(`[authoring] could not read link ${url} (skipping; authoring continues).`);
       }
     }
+    const research = chunks.length > 0 ? chunks.join("\n\n---\n\n") : undefined;
 
     const messages = buildAuthorMessages(job.input, research);
     let reply: string;

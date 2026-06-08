@@ -34,14 +34,14 @@ describe("CreateController.create", () => {
     expect(result).toEqual({ projectId: "proj-7" });
     expect(scaffold).toHaveBeenCalledOnce();
     expect(scaffold).toHaveBeenCalledWith("tin công nghệ");
-    expect(began).toEqual([{ id: "proj-7", input: { kind: "topic", text: "tin công nghệ" } }]);
+    expect(began).toEqual([{ id: "proj-7", input: { text: "tin công nghệ", urls: [] } }]);
   });
 
-  it("classifies a URL input and passes a url AuthorInput", async () => {
+  it("passes a brief carrying the link found in the input", async () => {
     const { deps: d, began } = deps();
     const ctrl = new CreateController(d);
     await ctrl.create("https://news.example.com/a");
-    expect(began).toEqual([{ id: "p1", input: { kind: "url", url: "https://news.example.com/a" } }]);
+    expect(began).toEqual([{ id: "p1", input: { text: "https://news.example.com/a", urls: ["https://news.example.com/a"] } }]);
   });
 
   it("throws a REDACTED friendly message on scaffold failure and never starts the workspace (R8.5)", async () => {
@@ -66,13 +66,12 @@ describe("CreateController.create", () => {
   });
 });
 
-// Property 10: Create invalid input throws reason and never scaffolds
-describe("Property 10: create invalid input throws reason, no scaffold", () => {
-  it("for any input invalid per validateCreateInput, create throws its reason and scaffold is not called", async () => {
+// Create invalid input throws reason and never scaffolds
+describe("create invalid input throws reason, no scaffold", () => {
+  it("for any input invalid per validateCreateInput (empty / too-long), create throws and scaffold is not called", async () => {
     const invalidArb = fc.oneof(
       fc.constantFrom("", "   ", "\t\n"), // empty
-      fc.constantFrom("http://nodot", "https://localhost"), // malformed-url
-      fc.constant(`k${"x".repeat(20001)}`), // too-long topic
+      fc.constant(`k${"x".repeat(20001)}`), // too-long
     );
     await fc.assert(
       fc.asyncProperty(invalidArb, async (raw) => {
