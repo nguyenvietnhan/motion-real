@@ -2,6 +2,7 @@ import { computeScriptEdits, type ManifestScene } from "../script/script-gate-ap
 import { buildStoryboard } from "../review/storyboard.js";
 import { serializeError } from "@news/pipeline";
 import { classifyError } from "../agent/error-classifier.js";
+import { toFriendlyError } from "../redact/friendly.js";
 import type { AgentHooks, AgentWorker, AuthorInput } from "../agent/agent-worker.js";
 import type {
   ApplyResult,
@@ -101,7 +102,22 @@ export class WorkspaceController {
    */
   private readonly renderVersions = new Map<string, number>();
 
+  /**
+   * Per-project in-flight guard: a project can run only ONE author/render/edit/
+   * publish loop at a time. Prevents a double-clicked action (or a stale poll)
+   * from starting two concurrent loops that would race the manifest, the
+   * process-wide component registry, the TTS cache and the output file.
+   */
+  private readonly inFlight = new Set<string>();
+
   constructor(private readonly deps: WorkspaceDeps) {}
+
+  /** Run an exclusive per-project job; ignored if one is already in flight. */
+  private guarded(projectId: string, run: () => Promise<void>): void {
+    if (this.inFlight.has(projectId)) return;
+    this.inFlight.add(projectId);
+    void run().finally(() => this.inFlight.delete(projectId));
+  }
 
   /** Set + broadcast a stage (status mirrors the kind, as Current_Behavior). */
   setStage(projectId: string, stage: ProjectStage): void {
@@ -136,9 +152,10 @@ export class WorkspaceController {
 
   /** Stage 1: AI writes the script; then wait for approval unless the gate is off (R2.1–R2.3, R2.7). */
   beginScript(projectId: string, input: AuthorInput): void {
+    if (this.inFlight.has(projectId)) return; // a loop is already running for this project
     this.inputs.set(projectId, input);
     this.setStage(projectId, { kind: "writing" });
-    void this.runScript(projectId, input);
+    this.guarded(projectId, () => this.runScript(projectId, input));
   }
 
   /** Re-run authoring for a project from its remembered input (the "Thử lại" action). */
@@ -163,7 +180,8 @@ export class WorkspaceController {
         await this.runRender(projectId);
       }
     } catch (e) {
-      const message = this.deps.redact(e instanceof Error ? e.message : "Có lỗi khi viết kịch bản.");
+      console.error(`[workspace] authoring failed for ${projectId}:`, e);
+      const message = "Có lỗi khi viết kịch bản. Hãy thử lại.";
       this.setStage(projectId, { kind: "error", message, fixable: false });
       this.deps.events.friendlyError({ projectId, message, retry: "create", fixable: false });
     }
@@ -171,19 +189,19 @@ export class WorkspaceController {
 
   /** Stage 2: render voice + draft via generate-validate-repair (R2.4–R2.7, R2.9). */
   approve(projectId: string): void {
-    void this.runRender(projectId);
+    this.guarded(projectId, () => this.runRender(projectId));
   }
 
   /** "Sửa bằng AI": re-run the repair loop on a Content_Error project (Req 5.2). */
   fixWithAi(projectId: string): void {
     if (this.stages.get(projectId)?.kind !== "error") return; // only from an error screen; no double-run
-    void this.runRender(projectId);
+    this.guarded(projectId, () => this.runRender(projectId));
   }
 
   /** "Duyệt & xuất bản": render the final full-quality MP4 (only from the ready review stage). */
   publish(projectId: string): void {
     if (this.stages.get(projectId)?.kind !== "ready") return;
-    void this.runPublish(projectId);
+    this.guarded(projectId, () => this.runPublish(projectId));
   }
 
   private async runPublish(projectId: string): Promise<void> {
@@ -194,13 +212,16 @@ export class WorkspaceController {
         this.setStage(projectId, { kind: "published", outputPath: this.deps.toMedia(res.outputPath) });
       } else {
         const fixable = res.error ? classifyError(res.error) === "content" : false;
-        const message = this.deps.redact(res.error?.cause ?? "Xuất bản thất bại. Hãy thử lại.");
+        const message = res.error
+          ? toFriendlyError(res.error, { projectId, phase: "full" }).message
+          : "Xuất bản thất bại. Hãy thử lại.";
         this.setStage(projectId, { kind: "error", message, fixable });
         this.deps.events.friendlyError({ projectId, message, retry: "full", fixable });
       }
     } catch (e) {
       const fixable = classifyError(serializeError(e, "render")) === "content";
-      const message = this.deps.redact(e instanceof Error ? e.message : "Có lỗi khi xuất bản.");
+      console.error(`[workspace] publish failed for ${projectId}:`, e);
+      const message = "Có lỗi khi xuất bản video. Hãy thử lại.";
       this.setStage(projectId, { kind: "error", message, fixable });
       this.deps.events.friendlyError({ projectId, message, retry: "full", fixable });
     }
@@ -216,7 +237,7 @@ export class WorkspaceController {
     const named = edits.map((e) => ({ sceneId: e.sceneId, text: e.text.trim() })).filter((e) => e.text.length > 0);
     const notes = globalNotes.trim();
     if (named.length === 0 && notes === "") return; // nothing to do
-    void this.runSceneEdits(projectId, named, notes);
+    this.guarded(projectId, () => this.runSceneEdits(projectId, named, notes));
   }
 
   private async runSceneEdits(
@@ -265,7 +286,14 @@ export class WorkspaceController {
       const outcome = await this.deps.worker.generateValidateRepair(projectId, { maxAttempts: this.deps.settings.maxRepairAttempts }, hooks);
       if (outcome.kind === "passed") {
         this.bumpRenderVersion(projectId);
-        this.setStage(projectId, { kind: "ready", scenes: await this.storyboardScenesOf(projectId) });
+        // If the user explicitly edited some scenes but a SUBSET failed to apply,
+        // say so (the rest did render) so a half-applied batch isn't silent.
+        const failedNamed = named.filter((n) => !appliedIds.includes(n.sceneId));
+        const notice =
+          failedNamed.length > 0
+            ? `Đã áp dụng chỉnh sửa, nhưng chưa đổi được ${failedNamed.length} cảnh (AI tạo mã chưa hợp lệ) — bạn có thể thử lại các cảnh đó.`
+            : undefined;
+        this.setStage(projectId, { kind: "ready", scenes: await this.storyboardScenesOf(projectId), ...(notice ? { notice } : {}) });
       } else if (outcome.kind === "infra") {
         const message = "Gặp trục trặc hạ tầng khi dựng lại (kết nối hoặc cấu hình). Hãy kiểm tra và thử lại.";
         this.setStage(projectId, { kind: "error", message, fixable: false });
@@ -277,7 +305,8 @@ export class WorkspaceController {
       }
     } catch (e) {
       const fixable = classifyError(serializeError(e, "render")) === "content";
-      const message = this.deps.redact(e instanceof Error ? e.message : "Có lỗi khi áp dụng chỉnh sửa.");
+      console.error(`[workspace] scene edits failed for ${projectId}:`, e);
+      const message = "Có lỗi khi áp dụng chỉnh sửa. Hãy thử lại.";
       this.setStage(projectId, { kind: "error", message, fixable });
       this.deps.events.friendlyError({ projectId, message, retry: "draft", fixable });
     }
@@ -327,7 +356,8 @@ export class WorkspaceController {
       }
     } catch (e) {
       const fixable = classifyError(serializeError(e, "render")) === "content";
-      const message = this.deps.redact(e instanceof Error ? e.message : "Có lỗi khi dựng video.");
+      console.error(`[workspace] render failed for ${projectId}:`, e);
+      const message = "Có lỗi khi dựng video. Hãy thử lại.";
       this.setStage(projectId, { kind: "error", message, fixable });
       this.deps.events.friendlyError({ projectId, message, retry: "draft", fixable });
     }
@@ -386,7 +416,14 @@ export class WorkspaceController {
 
   async delete(projectId: string): Promise<void> {
     this.stages.delete(projectId);
-    await this.deps.deleteProject(projectId);
+    this.inFlight.delete(projectId);
+    try {
+      await this.deps.deleteProject(projectId);
+    } catch (e) {
+      // A locked MP4 (Windows EBUSY/EPERM) or fs error must not crash the
+      // renderer's invoke; the gallery refresh will simply still show it.
+      console.warn(`[workspace] delete failed for ${projectId}:`, e);
+    }
   }
 
   async reveal(projectId: string): Promise<void> {

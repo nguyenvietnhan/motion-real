@@ -622,7 +622,7 @@ export const StoryboardView: React.FC<{
         {/* Slide rail */}
         <div style={{ width: 88, flexShrink: 0, display: "flex", flexDirection: "column", gap: 8, overflowY: "auto", paddingRight: 4 }}>
           {scenes.map((s, i) => (
-            <button key={s.sceneId} onClick={() => setSelected(i)} title={`Cảnh ${i + 1}`}
+            <button key={s.sceneId} onClick={() => setSelected(i)} title={`Cảnh ${i + 1}`} className="ns-thumb"
               style={{
                 position: "relative", flexShrink: 0, padding: 0, cursor: "pointer", borderRadius: 8, overflow: "hidden",
                 border: i === idx ? "2px solid var(--brand)" : "1px solid var(--border)",
@@ -644,6 +644,7 @@ export const StoryboardView: React.FC<{
         <div style={{ flex: 1, minWidth: 0, display: "grid", placeItems: "center" }}>
           <div style={{ height: "100%", aspectRatio: "9 / 16", maxWidth: "100%",
             borderRadius: 12, border: "1px solid var(--border)", overflow: "hidden",
+            boxShadow: "0 12px 40px rgba(0,0,0,0.5)",
             background: current?.stillPath ? `center/contain no-repeat #0c0e12 url(${current.stillPath})` : "#101216",
             display: "grid", placeItems: "center", color: "#3a3f49" }}>
             {!current?.stillPath && Icon.film({ size: 30 })}

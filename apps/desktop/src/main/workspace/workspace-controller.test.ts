@@ -190,6 +190,18 @@ function workerWith(outcome: RepairOutcome | (() => Promise<RepairOutcome>)): Ag
 }
 
 describe("fixWithAi + fixable flag", () => {
+  it("in-flight guard: a second action while a render is running is ignored (no double-run)", async () => {
+    let resolveGen: (() => void) | undefined;
+    const gen = vi.fn(() => new Promise<RepairOutcome>((r) => { resolveGen = () => r({ kind: "passed", attempts: 1 }); }));
+    const ctrl = new WorkspaceController(baseDeps({ worker: workerWith(gen) }));
+    ctrl.approve("p1");
+    ctrl.approve("p1"); // second call while the first render is still in flight
+    await flush();
+    expect(gen).toHaveBeenCalledTimes(1);
+    resolveGen?.();
+    await flush();
+  });
+
   it("from an error stage: passed ⇒ ready", async () => {
     const ctrl = new WorkspaceController(baseDeps({ worker: workerWith({ kind: "passed", attempts: 2 }) }));
     ctrl.setStage("p1", { kind: "error", message: "x", fixable: true });

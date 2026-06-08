@@ -1,5 +1,5 @@
 import type { SettingsModel } from "../../shared/types.js";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync, renameSync } from "node:fs";
 
 /**
  * SettingsStore (reconcile-main-controllers S2) — the tested home for the
@@ -111,5 +111,9 @@ function defaultReadText(path: string): string {
   return readFileSync(path, "utf8");
 }
 function defaultWriteText(path: string, text: string): void {
-  writeFileSync(path, text, "utf8");
+  // Atomic write: a crash/power-loss mid-write must not truncate the real file
+  // (which would silently reset all settings to defaults on next load).
+  const tmp = `${path}.tmp`;
+  writeFileSync(tmp, text, "utf8");
+  renameSync(tmp, path);
 }
