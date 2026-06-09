@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import fc from "fast-check";
 import type { ProjectBrief, ProjectState, ProjectSummary } from "@news/pipeline";
-import { formatVietnameseDate, galleryLoadState, toCards } from "./gallery-controller.js";
+import { formatShortDate, galleryLoadState, toCards } from "./gallery-controller.js";
 import { FRIENDLY_STATUSES } from "./friendly-status.js";
 
 /**
@@ -68,7 +68,7 @@ describe("Property 11: gallery cards complete and ordered newest-first", () => {
         for (const card of cards) {
           expect(card.title.length).toBeGreaterThan(0);
           expect(FRIENDLY_STATUSES).toContain(card.status);
-          expect(card.createdAtLabel).toMatch(/^ngày \d+ tháng \d+ năm \d+$/);
+          expect(card.createdAtLabel).toMatch(/^\d{2}\/\d{2}\/\d{4}$/);
           // thumbnail is either a path or the null placeholder.
           expect(card.thumbnailPath === null || typeof card.thumbnailPath === "string").toBe(true);
         }
@@ -105,9 +105,9 @@ describe("galleryLoadState", () => {
     expect(galleryLoadState(true, 3)).toBe("populated");
   });
 
-  it("formatVietnameseDate is empty for missing/invalid input", () => {
-    expect(formatVietnameseDate(undefined)).toBe("");
-    expect(formatVietnameseDate("not-a-date")).toBe("");
-    expect(formatVietnameseDate("2026-06-05T00:00:00Z")).toBe("ngày 5 tháng 6 năm 2026");
+  it("formatShortDate is empty for missing/invalid input", () => {
+    expect(formatShortDate(undefined)).toBe("");
+    expect(formatShortDate("not-a-date")).toBe("");
+    expect(formatShortDate("2026-06-05T00:00:00Z")).toBe("05/06/2026");
   });
 });

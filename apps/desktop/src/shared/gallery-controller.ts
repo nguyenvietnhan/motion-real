@@ -6,18 +6,20 @@ import { toFriendlyStatus } from "./friendly-status.js";
  * Gallery view-model builder (web-dashboard Task 9.3, design §gallery, Req 10).
  * Pure: turns engine `ProjectSummary[]` into `ProjectCardVM[]` newest-first,
  * each with a title, a thumbnail path or placeholder (null), a friendly status,
- * and a `ngày D tháng M năm YYYY` creation date (Property 11). The empty-state
+ * and a compact `DD/MM/YYYY` creation date (Property 11). The empty-state
  * is only reported AFTER a load completes (Req 10.8).
  */
 
 export type GalleryLoad = "loading" | "empty" | "populated";
 
-/** Format an ISO timestamp as `ngày D tháng M năm YYYY` (UTC, no leading zeros). */
-export function formatVietnameseDate(iso: string | undefined): string {
+/** Format an ISO timestamp as a compact `DD/MM/YYYY` (UTC, zero-padded). */
+export function formatShortDate(iso: string | undefined): string {
   if (!iso) return "";
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "";
-  return `ngày ${d.getUTCDate()} tháng ${d.getUTCMonth() + 1} năm ${d.getUTCFullYear()}`;
+  const dd = String(d.getUTCDate()).padStart(2, "0");
+  const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
+  return `${dd}/${mm}/${d.getUTCFullYear()}`;
 }
 
 function titleOf(summary: ProjectSummary): string {
@@ -43,7 +45,7 @@ export function toCards(summaries: ProjectSummary[]): ProjectCardVM[] {
       title: titleOf(summary),
       thumbnailPath: thumbnailOf(summary),
       status: toFriendlyStatus(summary.brief?.state ?? "planning"),
-      createdAtLabel: formatVietnameseDate(summary.brief?.createdAt ?? summary.brief?.updatedAt),
+      createdAtLabel: formatShortDate(summary.brief?.createdAt ?? summary.brief?.updatedAt),
     }));
 }
 

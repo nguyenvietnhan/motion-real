@@ -27,7 +27,7 @@ export const SettingsView: React.FC<{
   ];
 
   return (
-    <div className="ns-content" style={{ maxWidth: 940 }}>
+    <div className="ns-content">
       <PageHeader title="Cài đặt" subtitle="Tài khoản AI, giọng đọc và tuỳ chọn dựng video." />
       <div className="ns-settings">
         <nav className="ns-settings-nav">
