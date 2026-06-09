@@ -237,4 +237,19 @@ describe("reauthor (self-repair)", () => {
     const out = await backend.reauthor(projectId, [{ sceneId: "scene-99", issues: [] }]);
     expect(out.scenes).toEqual([]);
   });
+
+  // A project whose manifest.json vanished mid-flow (deleted, or a partial
+  // write) must NOT crash snapshot/restore/reauthor: resolveSceneFile reads the
+  // manifest, so a bare loadManifest throw (ENOENT) would propagate and tear
+  // down the whole edit run. These paths now swallow a missing manifest and
+  // resolve nothing — the video stays renderable.
+  it("snapshot/restore/reauthor on a project with NO manifest ⇒ no throw, resolves nothing", async () => {
+    const projectId = "ra-no-manifest"; // never setupProject'd → no manifest.json on disk
+    const backend = backendForReauthor(newBlock(), async () => ({ ok: true, componentId: "alpha" }));
+
+    await expect(backend.snapshotScenes(projectId, ["scene-01"])).resolves.toEqual([]);
+    await expect(backend.restoreScenes(projectId, [{ sceneId: "scene-01", code: "// x" }])).resolves.toBeUndefined();
+    const out = await backend.reauthor(projectId, [{ sceneId: "scene-01", issues: [] }]);
+    expect(out.scenes).toEqual([]);
+  });
 });

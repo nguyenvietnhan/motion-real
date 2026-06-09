@@ -151,6 +151,24 @@ const MISSING_THEME_COLOR = /does not exist on type 'Theme(Colors)?'/;
 const EXCESS_COMPONENT_PROP = /does not exist on type 'IntrinsicAttributes/;
 
 /**
+ * An invalid STRING-LITERAL value passed where a narrow string union is expected
+ * — e.g. a model writing
+ *   `<Tag tone="regular">`   // Tone is "accent" | "signal" | "blue" | …
+ * surfaces as TS2322 whose SOURCE type is a quoted string literal (or a union of
+ * them), assigned into the target union:
+ *   `Type '"regular"' is not assignable to type 'Tone | undefined'.`
+ *   `Type '"accent" | "regular"' is not assignable to type 'Tone | undefined'.`
+ * The block components that take these unions (Tag/StatBlock/BarChart tones)
+ * resolve an unknown value through a `default:` switch arm to a safe on-brand
+ * color, so an out-of-union string renders fine — it's a pure type-level
+ * mismatch. Matched ONLY when the source type is a quoted string literal union,
+ * so a crash-class wrong-SHAPE prop is never softened: `{text}[]` vs `string[]`
+ * has an object/array source (`Type '{ text: string; }[]' is not assignable …`)
+ * which does NOT start with a quote, and a missing required prop is TS2741.
+ */
+const STRING_LITERAL_ENUM_MISMATCH = /Type '"[^"]*"(\s*\|\s*"[^"]*")*' is not assignable to type '/;
+
+/**
  * Decide an N10 diagnostic's severity. Most authored type errors are HARD
  * (severity "error"): a wrong-shape prop (e.g. `{text}[]` where a block wants
  * `string[]`) compiles under the transpile-only bundler and then crashes
@@ -163,11 +181,21 @@ const EXCESS_COMPONENT_PROP = /does not exist on type 'IntrinsicAttributes/;
  *     `undefined`), so the scene renders with a fallback color + a one-time hint.
  *  2. An EXCESS prop on a component (e.g. `<Frame style={…}>`) — React ignores
  *     undeclared props at runtime, so the scene renders unchanged.
- * Both are scoped by an EXACT type-name signature so nothing crash-class (a
- * missing required prop, a wrong-typed prop value, a null-deref) is ever
- * downgraded. Surfaced (and they route an advisory reauthor) but never a gate.
+ *  3. An invalid STRING-LITERAL value for a narrow union (e.g. `tone="regular"`)
+ *     — the block resolves an unknown union value through a `default:` arm to a
+ *     safe color, so the scene renders with a fallback tone.
+ * All three are scoped by an EXACT type-name/source-shape signature so nothing
+ * crash-class (a missing required prop, a wrong-SHAPE prop value, a null-deref)
+ * is ever downgraded. Surfaced (and they route an advisory reauthor) but never a
+ * gate.
  */
 function severityFor(message: string): SafetyIssue["severity"] {
-  if (MISSING_THEME_COLOR.test(message) || EXCESS_COMPONENT_PROP.test(message)) return "warning";
+  if (
+    MISSING_THEME_COLOR.test(message) ||
+    EXCESS_COMPONENT_PROP.test(message) ||
+    STRING_LITERAL_ENUM_MISMATCH.test(message)
+  ) {
+    return "warning";
+  }
   return "error";
 }

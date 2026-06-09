@@ -201,7 +201,7 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
     const done: AuthoredScene[] = [];
 
     for (const t of targets) {
-      const resolved = await resolveSceneFile(projectId, t.sceneId, (id) => loadManifest(id));
+      const resolved = await resolveSceneFile(projectId, t.sceneId, (id) => loadManifest(id).catch(() => ({ scenes: [] })));
       if (!resolved) {
         console.error(`[reauthor] cannot resolve authored file for ${t.sceneId}; skipping.`);
         continue;
@@ -405,7 +405,7 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
   async snapshotScenes(projectId: string, sceneIds: string[]): Promise<SceneSnapshot> {
     const snap: SceneSnapshot = [];
     for (const sceneId of sceneIds) {
-      const resolved = await resolveSceneFile(projectId, sceneId, (id) => loadManifest(id));
+      const resolved = await resolveSceneFile(projectId, sceneId, (id) => loadManifest(id).catch(() => ({ scenes: [] })));
       if (!resolved) continue;
       try {
         snap.push({ sceneId, code: await readFile(resolved.path, "utf8") });
@@ -420,7 +420,7 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
   async restoreScenes(projectId: string, snapshot: SceneSnapshot): Promise<void> {
     const admitOne = this.deps.admitOne ?? ((p: string) => admitAndRegisterAuthored(p, { load: loadAuthoredTsx }));
     for (const { sceneId, code } of snapshot) {
-      const resolved = await resolveSceneFile(projectId, sceneId, (id) => loadManifest(id));
+      const resolved = await resolveSceneFile(projectId, sceneId, (id) => loadManifest(id).catch(() => ({ scenes: [] })));
       if (!resolved) continue;
       try {
         await writeFile(resolved.path, code, "utf8");

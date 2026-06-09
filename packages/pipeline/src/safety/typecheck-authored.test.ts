@@ -81,6 +81,18 @@ describe("typecheckAuthoredScenes (N10)", () => {
     expect(issues.some((i) => /does not exist on type 'IntrinsicAttributes/.test(i.message))).toBe(true);
   }, TS_PROGRAM_TIMEOUT);
 
+  it("flags an out-of-union string-literal prop (<Tag tone=\"regular\">) as a WARNING, not a hard error", () => {
+    // The cx/gpt-5.5 habit: passing an invented tone value like "regular" where
+    // Tone is "accent" | "signal" | "blue" | …. The block resolves an unknown
+    // tone through a `default:` switch arm to a safe color, so the scene renders
+    // fine — N10 must warn, never block. The crash-class {text}[] case (whose
+    // source type is an object array, not a quoted string) stays a hard error.
+    const issues = typecheckAuthoredScenes([fixture("typecheck-tone-enum.tsx")], root);
+    expect(issues.length).toBeGreaterThan(0);
+    expect(issues.every((i) => i.severity === "warning")).toBe(true);
+    expect(issues.some((i) => /is not assignable to type 'Tone/.test(i.message))).toBe(true);
+  }, TS_PROGRAM_TIMEOUT);
+
   it("is a no-op for an empty file list", () => {
     expect(typecheckAuthoredScenes([], root)).toEqual([]);
   });
