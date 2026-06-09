@@ -121,6 +121,14 @@ URLs, auto-fetch), never for things you draw yourself.
 > `useTheme()` dominant color driving `accent`/`signal` + data-viz only. Keep
 > text high-contrast (N18).
 
+**Color tokens (`theme.colors.*`).** Use ONLY these keys: `bg`, `bgElevated`,
+`panel`, `fg`, `muted`, `accent`, `signal`, `line`, and the fixed print accents
+`red`/`blue`/`yellow`/`green`/`violet`. Common standard-name synonyms also
+resolve (`ink`→`fg`, `paper`→`bg`, `primary`→`accent`, `border`→`line`,
+`surface`/`card`→`panel`, …), but prefer the canonical names. An unknown token
+falls back to `fg` at render time (so it never crashes) — but that is a
+mis-color, not a feature: stick to the listed keys.
+
 **Font sizes (readability).** The canvas is 1080×1920 viewed on a phone, so text
 must be large. Primary content — headlines, body copy, list items, stat values —
 should be roughly `40px+` (headlines far larger); never set primary text below
