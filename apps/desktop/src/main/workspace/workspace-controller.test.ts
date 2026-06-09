@@ -394,6 +394,64 @@ describe("submitEdits (per-scene free-form edit)", () => {
     expect(st.kind).toBe("ready");
     if (st.kind === "ready") expect(st.notice && st.notice.length > 0).toBe(true);
   });
+
+  it("non-regressive: an edit that can't render cleanly restores the prior draft and stays ready (not error)", async () => {
+    // The edit applies (admission ok) but the re-render exhausts repairs → the
+    // edit broke the layout. The controller must restore the pre-edit source and
+    // re-render the draft the user already had, landing on ready (with a notice),
+    // never stranding them on an error screen with a broken scene.
+    const reauthorScenes = vi.fn(async () => ({ kind: "authored", sceneIds: ["scene-01"] }) as AuthorOutcome);
+    const snapshotScenes = vi.fn(async () => [{ sceneId: "scene-01", code: "// PRE-EDIT good code" }]);
+    const restoreScenes = vi.fn(async () => {});
+    // First repair (after the edit) exhausts; the post-restore re-render passes.
+    const generateValidateRepair = vi
+      .fn<() => Promise<RepairOutcome>>()
+      .mockResolvedValueOnce({ kind: "exhausted", attempts: 3, remainingHardErrors: 2 })
+      .mockResolvedValue({ kind: "passed", attempts: 1 });
+    const worker: AgentWorker = {
+      author: async (): Promise<AuthorOutcome> => ({ kind: "authored", sceneIds: [] }),
+      reauthorScenes,
+      publish: async () => ({ ok: true, outputPath: "out.mp4" }),
+      generateValidateRepair,
+      snapshotScenes,
+      restoreScenes,
+    };
+    const ctrl = new WorkspaceController(baseDeps({ worker }));
+    ctrl.setStage("p1", { kind: "ready", scenes: [] });
+    ctrl.submitEdits("p1", [{ sceneId: "scene-01", text: "to chữ thật lớn" }], "");
+    await flush();
+
+    expect(snapshotScenes).toHaveBeenCalledWith("p1", ["scene-01"]);
+    expect(restoreScenes).toHaveBeenCalledWith("p1", [{ sceneId: "scene-01", code: "// PRE-EDIT good code" }]);
+    const st = await ctrl.stage("p1");
+    expect(st.kind).toBe("ready");
+    if (st.kind === "ready") expect(st.notice && st.notice.length > 0).toBe(true);
+  });
+
+  it("with no restore seam, a regressive edit still surfaces a fixable error (unchanged fallback)", async () => {
+    // No snapshot/restore available → the non-regression guard can't run, so the
+    // prior behaviour stands: an exhausted edit lands on a fixable error screen.
+    const reauthorScenes = vi.fn(async () => ({ kind: "authored", sceneIds: ["scene-01"] }) as AuthorOutcome);
+    const generateValidateRepair = vi.fn(async () => ({ kind: "exhausted", attempts: 3, remainingHardErrors: 1 }) as RepairOutcome);
+    const friendlyError = vi.fn();
+    const events = { ...noopEvents(), friendlyError };
+    const worker: AgentWorker = {
+      author: async (): Promise<AuthorOutcome> => ({ kind: "authored", sceneIds: [] }),
+      reauthorScenes,
+      publish: async () => ({ ok: true, outputPath: "out.mp4" }),
+      generateValidateRepair,
+      // no snapshotScenes / restoreScenes
+    };
+    const ctrl = new WorkspaceController(baseDeps({ worker, events }));
+    ctrl.setStage("p1", { kind: "ready", scenes: [] });
+    ctrl.submitEdits("p1", [{ sceneId: "scene-01", text: "đổi nền xanh" }], "");
+    await flush();
+
+    const st = await ctrl.stage("p1");
+    expect(st.kind).toBe("error");
+    if (st.kind === "error") expect(st.fixable).toBe(true);
+    expect(friendlyError).toHaveBeenCalled();
+  });
 });
 describe("publish (full render)", () => {
   it("from ready: renders full and moves to published with the output path", async () => {

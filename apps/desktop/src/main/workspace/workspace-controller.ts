@@ -3,7 +3,7 @@ import { buildStoryboard } from "../review/storyboard.js";
 import { serializeError } from "@news/pipeline";
 import { classifyError } from "../agent/error-classifier.js";
 import { toFriendlyError } from "../redact/friendly.js";
-import type { AgentHooks, AgentWorker, AuthorInput, RepairOutcome } from "../agent/agent-worker.js";
+import type { AgentHooks, AgentWorker, AuthorInput, RepairOutcome, SceneSnapshot } from "../agent/agent-worker.js";
 import type {
   ApplyResult,
   FriendlyStatus,
@@ -260,6 +260,12 @@ export class WorkspaceController {
       }
       const sceneIds = entries.map((e) => e.sceneId);
       const perSceneIntent = Object.fromEntries(entries.map((e) => [e.sceneId, combineIntent(e.text, globalNotes)]));
+      // Snapshot the known-good source of the scenes we're about to edit, so a
+      // regressive edit (one the model can't render cleanly) can be rolled back
+      // to the draft the user already had — an edit may only IMPROVE or KEEP the
+      // draft, never downgrade a passing one to a broken/error state. Mirrors the
+      // visual-QA non-regression guard, now extended to user edits.
+      const snapshot = (await this.deps.worker.snapshotScenes?.(projectId, sceneIds).catch(() => [])) ?? [];
       // Apply the user's instruction by re-authoring the scene code…
       const applied = await this.deps.worker.reauthorScenes(
         { projectId, sceneIds, preprompt: { contractRef: "SKILL.md+AGENTS.md", affectedSceneIds: sceneIds, perSceneIntent, globalNotes } },
@@ -297,6 +303,16 @@ export class WorkspaceController {
         const message = "Gặp trục trặc hạ tầng khi dựng lại (kết nối hoặc cấu hình). Hãy kiểm tra và thử lại.";
         this.setStage(projectId, { kind: "error", message, fixable: false });
         this.deps.events.friendlyError({ projectId, message, retry: "draft", fixable: false });
+      } else if (await this.restoreToPriorDraft(projectId, snapshot, hooks)) {
+        // The edit produced a draft we couldn't clean up (content errors after
+        // every attempt). Rather than strand the user on an error screen with a
+        // broken scene, we restored the pre-edit source and re-rendered the draft
+        // they already had — the edit only ever improves or keeps the draft.
+        this.setStage(projectId, {
+          kind: "ready",
+          scenes: await this.storyboardScenesOf(projectId),
+          notice: "Chưa áp dụng được chỉnh sửa này (làm hỏng bố cục cảnh) — đã giữ lại bản nháp trước đó. Hãy thử diễn đạt khác hoặc chỉnh nhẹ hơn.",
+        });
       } else {
         const message = "Chưa áp dụng được chỉnh sửa sau nhiều lần thử. Bạn có thể thử lại hoặc để AI sửa.";
         this.setStage(projectId, { kind: "error", message, fixable: true });
@@ -361,6 +377,25 @@ export class WorkspaceController {
     }
     // Couldn't snapshot/restore → fall back to the QA outcome (rare).
     return qaOutcome;
+  }
+
+  /**
+   * Roll a regressive USER EDIT back to the draft the user already had: restore
+   * the pre-edit source from the snapshot and re-render that known-good draft.
+   * Returns true when the rollback path ran (so the caller reports "kept the
+   * previous draft" rather than stranding the user on an error screen). Returns
+   * false when there's nothing to restore (no snapshot / no restore seam), so the
+   * caller falls back to the normal error handling. The restored draft was clean
+   * before the edit, so its re-render is expected to pass; we don't re-gate it.
+   */
+  private async restoreToPriorDraft(projectId: string, snapshot: SceneSnapshot, hooks: AgentHooks): Promise<boolean> {
+    if (snapshot.length === 0 || !this.deps.worker.restoreScenes) return false;
+    this.setStage(projectId, { kind: "rendering", percent: 0, phase: "edit" });
+    await this.deps.worker.restoreScenes(projectId, snapshot);
+    this.setStage(projectId, { kind: "rendering", percent: 0, phase: "draft" });
+    await this.deps.worker.generateValidateRepair(projectId, { maxAttempts: this.deps.settings.maxRepairAttempts }, hooks);
+    this.bumpRenderVersion(projectId);
+    return true;
   }
 
   private renderHooks(projectId: string, phase: "draft" | "full" = "draft"): AgentHooks {
