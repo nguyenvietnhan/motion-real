@@ -158,13 +158,65 @@ select {
   color: var(--foreground);
   font-weight: 600;
 }
-.ns-statuscard {
+.ns-account {
   margin-top: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  text-align: left;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  padding: 12px;
+  padding: 10px;
   background: var(--card);
+  color: var(--foreground);
   cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+}
+.ns-account:hover {
+  background: var(--card-hover);
+  border-color: rgba(255, 255, 255, 0.18);
+}
+.ns-account-avatar {
+  position: relative;
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  background: linear-gradient(135deg, var(--brand), #7c5cff);
+}
+.ns-account-status {
+  position: absolute;
+  right: -1px;
+  bottom: -1px;
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  border: 2px solid var(--sidebar);
+}
+.ns-account-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 2px;
+}
+.ns-account-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--foreground);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ns-account-sub {
+  font-size: 11px;
+  color: var(--muted-foreground);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* Buttons */
@@ -308,12 +360,13 @@ textarea.ns-input {
 .ns-switch-track::after {
   content: "";
   position: absolute;
-  left: 3px;
-  top: 3px;
+  left: 2px;
+  top: 50%;
   width: 16px;
   height: 16px;
   border-radius: 999px;
   background: #fff;
+  transform: translateY(-50%);
   transition: transform 0.15s;
 }
 .ns-switch input:checked + .ns-switch-track {
@@ -321,7 +374,7 @@ textarea.ns-input {
   border-color: transparent;
 }
 .ns-switch input:checked + .ns-switch-track::after {
-  transform: translateX(18px);
+  transform: translateY(-50%) translateX(18px);
 }
 .ns-switch input:focus-visible + .ns-switch-track {
   outline: 2px solid var(--ring);
@@ -393,15 +446,16 @@ textarea.ns-input {
   color: #3a3f49;
   border-bottom: 1px solid var(--border);
 }
-.ns-project-badges {
+/* Compact status: a single colour-coded dot in the thumbnail's bottom-right
+ * corner (hover shows the label via title). Replaces the bulky status pill. */
+.ns-project-dot {
   position: absolute;
-  left: 10px;
-  top: 10px;
-}
-/* Keep the status pill legible over ANY thumbnail (cream stills included). */
-.ns-project-badges .ns-pill {
-  background: rgba(0, 0, 0, 0.62) !important;
-  backdrop-filter: blur(4px);
+  right: 10px;
+  bottom: 10px;
+  width: 11px;
+  height: 11px;
+  border-radius: 999px;
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.6), 0 1px 4px rgba(0, 0, 0, 0.55);
 }
 .ns-project-actions {
   position: absolute;
@@ -466,6 +520,11 @@ textarea.ns-input {
 .ns-info:focus-visible {
   color: var(--foreground);
   outline: none;
+}
+/* Render the glyph as a block so it has no inline-baseline descender gap that
+ * would push it visually off-centre inside the flex row. */
+.ns-info svg {
+  display: block;
 }
 .ns-info-tip {
   position: absolute;

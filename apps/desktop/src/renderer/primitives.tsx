@@ -61,7 +61,6 @@ export const ProjectGrid: React.FC<{
         onKeyDown={(e) => { if (e.key === "Enter") onOpen(c.projectId); }}>
         <div className="ns-project-thumb" style={c.thumbnailPath ? { backgroundImage: `url(${c.thumbnailPath})` } : undefined}>
           {!c.thumbnailPath && Icon.film({ size: 28 })}
-          <div className="ns-project-badges"><StatusPill status={c.status} /></div>
           {(onReveal || onDelete) && (
             <div className="ns-project-actions">
               {onReveal && (
@@ -74,6 +73,7 @@ export const ProjectGrid: React.FC<{
               )}
             </div>
           )}
+          <span className="ns-project-dot" style={{ background: STATUS_COLOR[c.status] }} title={FRIENDLY_LABELS[c.status]} aria-label={FRIENDLY_LABELS[c.status]} />
         </div>
         <div className="ns-project-body">
           <strong className="ns-project-title" title={c.title}>{c.title}</strong>

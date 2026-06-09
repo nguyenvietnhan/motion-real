@@ -31,12 +31,15 @@ export const Sidebar: React.FC<{
         {NavItem("projects", "Dự án", Icon.film({}))}
         {NavItem("settings", "Cài đặt", Icon.settings({}))}
       </nav>
-      <button className="ns-statuscard" onClick={() => onNavigate("settings")} title="Trạng thái dịch vụ AI">
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <span style={{ width: 8, height: 8, borderRadius: 999, background: s.color, flexShrink: 0 }} />
-          <span style={{ fontSize: 13, color: "var(--foreground)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.text}</span>
-        </div>
-        {s.sub && <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 4, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.sub}</div>}
+      <button className="ns-account" onClick={() => onNavigate("settings")} title="Trạng thái dịch vụ AI">
+        <span className="ns-account-avatar">
+          {Icon.spark({ size: 15 })}
+          <span className="ns-account-status" style={{ background: s.color }} />
+        </span>
+        <span className="ns-account-info">
+          <span className="ns-account-name">{s.text}</span>
+          {s.sub && <span className="ns-account-sub">{s.sub}</span>}
+        </span>
       </button>
     </aside>
   );
