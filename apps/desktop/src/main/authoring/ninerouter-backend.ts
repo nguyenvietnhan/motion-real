@@ -28,6 +28,7 @@ import type { AuthorManifest } from "./manifest-schema.js";
 import { extractJsonObject } from "./manifest-schema.js";
 import { sceneFileName, resolveSceneFile } from "./scene-files.js";
 import { normalizeAuthoredImports } from "./normalize-imports.js";
+import { normalizeAuthoredFontSizes } from "./normalize-fontsize.js";
 import { loadAuthoredTsx } from "./tsx-loader.js";
 
 /**
@@ -150,7 +151,7 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
     // THIS project's code at admission time.
     for (const mod of parsed.modules) {
       unregisterComponent(mod.id);
-      await writeAuthoredScene(job.projectId, sceneFileName(mod.id), normalizeAuthoredImports(mod.code));
+      await writeAuthoredScene(job.projectId, sceneFileName(mod.id), normalizeAuthoredFontSizes(normalizeAuthoredImports(mod.code)));
     }
     const engineManifest = toEngineManifest(parsed.manifest);
     await writeJson(manifestPathOf(job.projectId), engineManifest);
@@ -240,7 +241,7 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
 
         // Overwrite + re-admit; on admission failure, capture the violations as
         // corrective feedback for the next attempt (or roll back if exhausted).
-        await writeFile(path, normalizeAuthoredImports(parsed.module.code), "utf8");
+        await writeFile(path, normalizeAuthoredFontSizes(normalizeAuthoredImports(parsed.module.code)), "utf8");
         unregisterComponent(componentId);
         const re = await admitOne(path);
         if (re.ok) {

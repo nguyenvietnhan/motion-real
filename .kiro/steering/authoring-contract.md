@@ -121,6 +121,14 @@ URLs, auto-fetch), never for things you draw yourself.
 > `useTheme()` dominant color driving `accent`/`signal` + data-viz only. Keep
 > text high-contrast (N18).
 
+**Font sizes (readability).** The canvas is 1080×1920 viewed on a phone, so text
+must be large. Primary content — headlines, body copy, list items, stat values —
+should be roughly `40px+` (headlines far larger); never set primary text below
+`32px`. Only genuinely secondary marks (chart axis labels, units, fine captions
+inside a bespoke diagram) may go smaller, and never below `18px` — anything under
+that is unreadable and is raised to the floor deterministically before render, so
+don't rely on tiny text to fit content (condense the content instead).
+
 **Reading style-pack chrome tokens (tool-productization R1).** The chosen
 **style pack** (`bold-editorial` default, `clean-premium`, …) drives the decorative
 "chrome". Bespoke imagery you author should READ these from `useTheme()` rather

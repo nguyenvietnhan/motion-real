@@ -42,6 +42,8 @@ LAYOUT ZONES:
 
 DESIGN: nền CREAM sáng + mực gần đen, VUÔNG (bo góc 0), viền mực 4px (không tối, không hairline); màu nhấn theo useTheme() (accent/signal + data-viz). Chữ tương phản cao (N18).
 
+CỠ CHỮ (canvas 1080×1920, xem trên điện thoại — chữ nhỏ là lỗi hay gặp nhất): tiêu đề chính ≥ 64px; câu/đoạn nội dung chính ≥ 40px; nhãn/đơn vị/chú thích phụ ≥ 24px. TUYỆT ĐỐI không để text dưới 18px (không đọc nổi). Số liệu nổi bật nên RẤT lớn (80–160px). Khi nghi ngờ, để chữ TO hơn — ưu tiên ít chữ + lớn hơn nhiều chữ + nhỏ.
+
 CAPTIONS: phụ đề tiếng Việt một dòng sinh TRUNG TÂM từ narration + đốt vào video (karaoke). KHÔNG tự viết phụ đề trong props.
 
 DETERMINISM + MOTION: entrance ease-in rồi settle (useReveal/useRamp); KHÔNG dao động vĩnh viễn (đừng dùng Math.sin(frame), frame%n, interpolate không clamp). Tilt nền nhẹ ở MỘT wrapper cha. Zoom nhấn một lần rồi về scale 1.0 trước midpoint.
