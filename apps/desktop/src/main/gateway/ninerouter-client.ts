@@ -21,8 +21,8 @@ const CLI_TOKEN_SALT = "9r-cli-auth";
 
 /** Quick management/poll calls (models, providers, reachability). */
 const QUICK_TIMEOUT_MS = 10_000;
-/** A chat completion can legitimately take a while (large authored output). */
-const CHAT_TIMEOUT_MS = 240_000;
+/** A chat completion can legitimately take a while (large authored output + first-run gateway/model cold start). */
+const CHAT_TIMEOUT_MS = 300_000;
 
 /**
  * `fetch` with a hard timeout (and optional external abort). Without this a hung
@@ -114,7 +114,7 @@ const CATALOG: { id: string; name: string; loginType: ProviderInfo["loginType"] 
   { id: "gemini", name: "Gemini", loginType: "api-key" },
 ];
 
-type ApiConnection = { provider?: string; providerId?: string; name?: string; email?: string; displayName?: string };
+type ApiConnection = { provider?: string; providerId?: string; name?: string; email?: string; displayName?: string; isActive?: boolean };
 
 export class NineRouterClient {
   constructor(private readonly base: string = BASE) {}
@@ -179,6 +179,10 @@ export class NineRouterClient {
     return conns.map((c) => ({
       provider: c.provider ?? c.providerId ?? "unknown",
       label: c.name || c.email || c.displayName || (c.provider ?? c.providerId ?? "Đã kết nối"),
+      // 9router marks the connection it actually routes through as `isActive`; the
+      // UI uses it to show only the account in use (and hide the rest), so a stale
+      // prior login (e.g. a Gemini Gmail) no longer masquerades as the active one.
+      ...(typeof c.isActive === "boolean" ? { active: c.isActive } : {}),
     }));
   }
 

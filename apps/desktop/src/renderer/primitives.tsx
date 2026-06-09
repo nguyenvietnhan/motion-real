@@ -1,6 +1,7 @@
 import React from "react";
 import type { AiAccountState, FriendlyStatus, GatewayState, ProjectCardVM } from "../shared/types.js";
 import { FRIENDLY_LABELS } from "../shared/friendly-status.js";
+import { activeAccount } from "../shared/active-account.js";
 import { Icon } from "./icons.js";
 
 /**
@@ -20,7 +21,7 @@ export function aiStatus(gateway: GatewayState, account: AiAccountState): { colo
     return { color: "var(--warn)", text: "Chưa kết nối AI" };
   return {
     color: "var(--good)",
-    text: account.accounts[0]?.label ?? "Đã kết nối",
+    text: activeAccount(account)?.label ?? "Đã kết nối",
     sub: account.selectedModel?.id,
   };
 }

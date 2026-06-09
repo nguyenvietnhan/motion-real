@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import type { AiAccountState, GatewayState, ModelInfo, SettingsModel } from "../../shared/types.js";
+import { activeAccount } from "../../shared/active-account.js";
 import { Icon } from "../icons.js";
 import { Field, PageHeader, SettingsCard, Toggle } from "../primitives.js";
 
@@ -17,6 +18,7 @@ export const SettingsView: React.FC<{
 }> = ({ gateway, account, models, settings, onManageAccounts, onSelectModel, onUpdate }) => {
   const [tab, setTab] = useState<SettingsTab>("ai");
   const connected = account.kind === "connected" ? account.accounts : [];
+  const currentAccount = activeAccount(account);
   const selectedModelId = account.kind === "connected" ? account.selectedModel?.id ?? "" : "";
 
   const TABS: { id: SettingsTab; label: string; icon: React.ReactNode }[] = [
@@ -51,7 +53,7 @@ export const SettingsView: React.FC<{
                   <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
                     <span style={{ width: 8, height: 8, borderRadius: 999, background: connected.length ? "var(--good)" : "var(--warn)", flexShrink: 0 }} />
                     <span style={{ fontSize: 14, color: "var(--foreground)" }}>
-                      {connected.length ? `Đã kết nối: ${connected.map((a) => a.label).join(", ")}` : "Chưa có tài khoản nào."}
+                      {connected.length ? `Đang dùng: ${currentAccount?.label ?? "Đã kết nối"}` : "Chưa có tài khoản nào."}
                     </span>
                   </div>
                   <button className="ns-btn ns-btn-primary" onClick={onManageAccounts}>

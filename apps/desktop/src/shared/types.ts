@@ -37,8 +37,12 @@ export type ProviderInfo = {
 /** A model the gateway reports as available (Req 2.11), e.g. "kr/claude-sonnet-4.5". */
 export type ModelInfo = { id: string; label: string };
 
-/** One completed AI-account connection. */
-export type ConnectedAccount = { provider: AiProviderId; label: string };
+/**
+ * One completed AI-account connection. `active` mirrors 9router's own
+ * `isActive` flag (the connection it is currently routing through) — used to
+ * surface only the account in use rather than every connected one.
+ */
+export type ConnectedAccount = { provider: AiProviderId; label: string; active?: boolean };
 
 /** Many connections may be active at once (Req 2.10); a model may be unselected (Req 2.13). */
 export type AiAccountState =

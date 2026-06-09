@@ -114,6 +114,9 @@ export const ProjectWorkspaceView: React.FC<{
         <div className="ns-card" style={{ padding: 48, display: "grid", placeItems: "center", gap: 12 }}>
           <Spinner />
           <p style={{ color: "var(--muted-foreground)", margin: 0 }}>AI đang viết kịch bản từ nội dung của bạn…</p>
+          <p style={{ color: "var(--muted-foreground)", margin: 0, fontSize: 13, textAlign: "center", maxWidth: 520 }}>
+            Lần đầu gọi model qua 9Router/Codex có thể mất 1–3 phút để khởi động. App vẫn đang chờ phản hồi.
+          </p>
         </div>
       )}
       {stage.kind === "script" && <ScriptReview lines={stage.lines} linkWarning={stage.linkWarning} onApply={onApplyScript} onApprove={onApproveScript} />}

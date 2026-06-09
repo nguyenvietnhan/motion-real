@@ -1,4 +1,4 @@
-import React, { useEffect, useReducer, useState } from "react";
+import React, { useCallback, useEffect, useReducer, useState } from "react";
 import { HomeView, LicenseView, ProjectsView, ProjectWorkspaceView, SettingsView, Sidebar, type Screen } from "./views.js";
 import { reduceDesktop, type DesktopState } from "./state/desktop-state.js";
 import { aiReady } from "../shared/ai-ready.js";
@@ -35,6 +35,23 @@ export const App: React.FC = () => {
   const dash = typeof window !== "undefined" ? window.dashboard : undefined;
   const ready = aiReady(gateway, account);
 
+  const refreshAiState = useCallback(async (): Promise<boolean> => {
+    if (!dash) return false;
+    const gw = await dash.ai.gatewayState();
+    setGateway(gw);
+    if (gw.kind !== "ready") return false;
+
+    const ms = await dash.ai.listModels();
+    if (ms.length) setModels(ms);
+
+    let acc = await dash.ai.connectedAccounts();
+    if (acc.kind === "connected" && acc.accounts.length > 0 && !acc.selectedModel && ms.length) {
+      acc = await dash.ai.selectModel(ms[0]!.id);
+    }
+    setAccount(acc);
+    return aiReady(gw, acc);
+  }, [dash]);
+
   useEffect(() => {
     if (!dash) return;
     void (async () => {
@@ -59,26 +76,21 @@ export const App: React.FC = () => {
     // Poll only until AI is ready (gateway up + a connection + a model); auto-pick
     // a default model so the user isn't forced to choose; then stop (no churn).
     const poll = setInterval(() => {
-      void (async () => {
-        const gw = await dash.ai.gatewayState();
-        setGateway(gw);
-        if (gw.kind !== "ready") return;
-        const ms = await dash.ai.listModels();
-        if (ms.length) setModels(ms);
-        let acc = await dash.ai.connectedAccounts();
-        if (acc.kind === "connected" && acc.accounts.length > 0 && !acc.selectedModel && ms.length) {
-          acc = await dash.ai.selectModel(ms[0]!.id);
-        }
-        setAccount(acc);
-        if (aiReady(gw, acc)) clearInterval(poll);
-      })();
+      void refreshAiState().then((isReady) => {
+        if (isReady) clearInterval(poll);
+      });
     }, 1500);
 
     return () => {
       clearInterval(poll);
       unsubs.forEach((u) => u());
     };
-  }, [dash]);
+  }, [dash, refreshAiState]);
+
+  useEffect(() => {
+    if (screen !== "settings") return;
+    void refreshAiState();
+  }, [screen, refreshAiState]);
 
   const refreshGallery = async () => {
     if (!dash) return;
@@ -176,7 +188,10 @@ export const App: React.FC = () => {
             account={account}
             models={models}
             settings={settings}
-            onManageAccounts={() => void dash?.ai.beginConnect("")}
+            onManageAccounts={() => {
+              if (!dash) return;
+              void dash.ai.beginConnect("").then(() => void refreshAiState());
+            }}
             onSelectModel={(modelId) => void dash?.ai.selectModel(modelId).then(setAccount)}
             onUpdate={(patch) => void dash?.settings.update(patch).then(setSettings)}
           />
