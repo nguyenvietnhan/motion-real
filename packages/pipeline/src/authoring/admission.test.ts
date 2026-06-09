@@ -40,6 +40,21 @@ describe("admitAuthoredComponent (static AST gate)", () => {
     }
   });
 
+  it("rejects evasive reaches for dangerous globals (N5: aliasing, computed access, globalThis, constructor chain)", () => {
+    // The hardened gate must catch the indirections the old identifier-shaped
+    // matchers missed (audit P1-1): `globalThis`, aliasing a banned global,
+    // `x["process"]` computed access, and the `.constructor.constructor` chain.
+    const result = admitAuthoredComponent(fixture("banned-evasion.tsx"));
+    expect(result.admitted).toBe(false);
+    if (!result.admitted) {
+      const messages = result.violations.map((v) => v.message).join(" ");
+      expect(result.violations.every((v) => v.check === "N5" || v.check === "N4")).toBe(true);
+      expect(messages).toMatch(/globalThis/);
+      expect(messages).toMatch(/process/);
+      expect(messages).toMatch(/constructor/);
+    }
+  });
+
   it("rejects a module missing required exports (N4: schema/example)", () => {
     const result = admitAuthoredComponent(fixture("missing-export.tsx"));
     expect(result.admitted).toBe(false);

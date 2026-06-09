@@ -44,6 +44,9 @@ export const DEFAULT_ADMISSION_POLICY: AdmissionPolicy = {
     "fs",
     "child_process",
     "process",
+    "globalThis",
+    "crypto",
+    "performance",
     "window.location",
     "document.cookie",
     "dangerouslySetInnerHTML",
@@ -98,8 +101,13 @@ export function admitAuthoredComponent(
     });
   };
 
-  const importAllowed = (spec: string): boolean =>
-    allowed.some((a) => spec === a || spec.startsWith(`${a}/`));
+  const importAllowed = (spec: string): boolean => {
+    // A `..` segment escapes the whitelisted package root (e.g.
+    // "@news/blocks/../../node:fs" passes a naive startsWith), so reject any
+    // specifier containing a parent-dir traversal outright.
+    if (spec.split(/[\\/]/).includes("..")) return false;
+    return allowed.some((a) => spec === a || spec.startsWith(`${a}/`));
+  };
 
   const visit = (node: ts.Node): void => {
     // --- imports (N4 whitelist) ---
@@ -125,7 +133,49 @@ export function admitAuthoredComponent(
     if (ts.isPropertyAccessExpression(node) && ts.isIdentifier(node.expression)) {
       const dotted = `${node.expression.text}.${node.name.text}`;
       if (banned.has(dotted)) addN5(node, dotted);
-      if (node.expression.text === "process" && banned.has("process")) addN5(node, "process");
+    }
+
+    // --- prototype-chain escape: any `.constructor` access (e.g. [].constructor.
+    // constructor("…")()) is a classic Function-constructor RCE vector (N5). ---
+    if (ts.isPropertyAccessExpression(node) && node.name.text === "constructor") {
+      addN5(node, "constructor");
+    }
+
+    // --- computed member access with a static string key: `window["eval"]`,
+    // `x["constructor"]`, `globalThis["process"]` evade the dotted/identifier
+    // checks, so flag a string key that names a dangerous member (N5). ---
+    if (ts.isElementAccessExpression(node) && ts.isStringLiteral(node.argumentExpression)) {
+      const key = node.argumentExpression.text;
+      if (key === "constructor" || banned.has(key)) addN5(node, `["${key}"]`);
+    }
+
+    // --- dangerous global identifier referenced ANYWHERE (N5). Catches the bare
+    // reference, aliasing (`const p = process; p.exit()`), and indirection
+    // (`globalThis.process`, `process["env"]`) that the dotted/callee checks miss.
+    // Skipped in safe positions: a property NAME (`foo.process`), an object-literal
+    // key, a declaration/binding name, an import/export specifier, a type position,
+    // and the direct callee/new-target of a call (handled by the blocks below, so
+    // we don't double-report). ---
+    if (ts.isIdentifier(node) && banned.has(node.text)) {
+      const p = node.parent;
+      const safePosition =
+        (ts.isPropertyAccessExpression(p) && p.name === node) ||
+        (ts.isQualifiedName(p) && p.right === node) ||
+        (ts.isPropertyAssignment(p) && p.name === node) ||
+        (ts.isBindingElement(p) && p.propertyName === node) ||
+        ((ts.isVariableDeclaration(p) ||
+          ts.isParameter(p) ||
+          ts.isFunctionDeclaration(p) ||
+          ts.isPropertySignature(p) ||
+          ts.isPropertyDeclaration(p)) &&
+          (p as { name?: ts.Node }).name === node) ||
+        ts.isImportSpecifier(p) ||
+        ts.isExportSpecifier(p) ||
+        ts.isTypeReferenceNode(p) ||
+        ts.isTypeQueryNode(p) ||
+        (ts.isCallExpression(p) && p.expression === node) ||
+        (ts.isNewExpression(p) && p.expression === node);
+      if (!safePosition) addN5(node, node.text);
     }
 
     // --- new Date(...) / new XMLHttpRequest(...) (N5) ---
