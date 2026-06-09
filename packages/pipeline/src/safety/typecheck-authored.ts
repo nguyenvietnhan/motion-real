@@ -122,14 +122,18 @@ export function typecheckAuthoredScenes(
 }
 
 /**
- * A reach for a color token NOT declared on `ThemeColors` — e.g.
- *   `Property 'ink' does not exist on type 'ThemeColors'.`
+ * A reach for a color token NOT declared on the theme — e.g.
+ *   `Property 'ink' does not exist on type 'ThemeColors'.`       (theme.colors.ink)
  *   `Property 'signalRed' does not exist on type 'ThemeColors'. Did you mean 'signal'?`
- * Matched by the EXACT type name (not by TS error code), so the softening is
- * narrow: only missing-color-token reads are caught, never a missing prop on a
- * component or any other type.
+ *   `Property 'accent' does not exist on type 'Theme'.`          (theme.accent — flat)
+ *   `Property 'textSecondary' does not exist on type 'Theme'.`
+ * Models read color tokens BOTH through `theme.colors.*` (type `ThemeColors`) and
+ * flat off the theme `theme.*` (type `Theme`); the design layer's runtime Proxies
+ * resolve both to a safe color, so both are non-fatal. Matched by the EXACT type
+ * name (not by TS error code), so the softening stays narrow: a missing prop on a
+ * component or any other type is never downgraded.
  */
-const MISSING_THEME_COLOR = /does not exist on type 'ThemeColors'/;
+const MISSING_THEME_COLOR = /does not exist on type 'Theme(Colors)?'/;
 
 /**
  * Decide an N10 diagnostic's severity. Most authored type errors are HARD

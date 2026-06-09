@@ -215,6 +215,12 @@ export type ThemeColors = {
   card: string;
   /** → accent. */
   accentLight: string;
+  /** → muted (secondary/subdued text). */
+  textSecondary: string;
+  /** → muted. */
+  secondaryText: string;
+  /** → muted. */
+  subtle: string;
 
   // --- PRINT accent set as real keys (semantic multi-color) ---
   red: string;
@@ -224,7 +230,17 @@ export type ThemeColors = {
   violet: string;
 };
 
-export type Theme = {
+/**
+ * The theme object. Besides the structured fields below, EVERY color token from
+ * `ThemeColors` is ALSO readable directly off the theme (`theme.accent` as well
+ * as `theme.colors.accent`). Models routinely write the flat form regardless of
+ * which one the contract shows, so we accept both: the flat reads are declared
+ * here via the `ThemeColors` intersection (typecheck passes) and resolved at
+ * runtime by the same Proxy that backs `colors` (correct color, never
+ * `undefined`). `colors` remains the canonical home; the flat tokens are a
+ * cross-model convenience, not a second source of truth.
+ */
+export type Theme = ThemeColors & {
   id: string;
   name: string;
   /** The dominant hex this palette was derived from. */
@@ -265,13 +281,14 @@ export function makeTheme(dominant: string = DEFAULT_DOMINANT, stylePackId?: str
   const panel = "#FCF9F1"; // near-white card
   const fg = PRINT.ink; // near-black ink
   const line = PRINT.ink; // bold ink borders
+  const muted = "#6E6757"; // warm grey
 
   const colors: ThemeColors = {
     bg,
     bgElevated: "#EAE2CE", // a touch deeper cream
     panel,
     fg,
-    muted: "#6E6757", // warm grey
+    muted,
     accent,
     signal,
     line,
@@ -285,6 +302,9 @@ export function makeTheme(dominant: string = DEFAULT_DOMINANT, stylePackId?: str
     signalRed: signal,
     foreground: fg,
     text: fg,
+    textSecondary: muted,
+    secondaryText: muted,
+    subtle: muted,
     background: bg,
     border: line,
     surface: panel,
@@ -299,18 +319,20 @@ export function makeTheme(dominant: string = DEFAULT_DOMINANT, stylePackId?: str
     violet: PRINT.violet,
   };
 
-  return {
+  const wrappedColors = wrapColors(colors);
+  const base = {
     id: "editorial-light",
     name: "Editorial Light",
     dominant: hex,
     stylePackId: pack.id,
     chrome: pack.chrome,
-    colors: wrapColors(colors),
+    colors: wrappedColors,
     fonts: { ...pack.chrome.fontFamily },
     radius: RADIUS,
     space: (n: number) => n * 8,
     canvas: CANVAS,
   };
+  return wrapTheme(base, wrappedColors);
 }
 
 /**
@@ -357,6 +379,41 @@ function wrapColors(colors: ThemeColors): ThemeColors {
         );
       }
       return target.fg;
+    },
+  });
+}
+
+const loggedFlatColorReads = new Set<string>();
+
+/**
+ * Wrap the theme object so a FLAT color read (`theme.accent`, `theme.text`, …)
+ * resolves through the already-wrapped `colors` Proxy. Models frequently treat
+ * the theme itself as the color bag and skip `.colors`, regardless of which form
+ * the contract shows. Rather than let `theme.accent` be `undefined` (silent
+ * color loss) or hard-block the render, we forward any string key that is NOT a
+ * real structured field (id/name/colors/fonts/…) into `colors` — which supplies
+ * the canonical value, an alias, or the safe `fg` fallback. `colors` stays the
+ * single source of truth; this is a read-through convenience, not a second copy.
+ */
+function wrapTheme(base: Omit<Theme, keyof ThemeColors>, colors: ThemeColors): Theme {
+  return new Proxy(base as Theme, {
+    get(target, key, receiver) {
+      // A real structured field (or any non-string/probe key) wins outright.
+      if (typeof key !== "string" || key in target || COLOR_PROBE_KEYS.has(key)) {
+        return Reflect.get(target, key, receiver);
+      }
+      // Otherwise treat it as a flat color token and resolve via `colors`
+      // (which itself aliases + falls back). Log once so a common flat token can
+      // be promoted to a real alias later.
+      if (!loggedFlatColorReads.has(key)) {
+        loggedFlatColorReads.add(key);
+        // eslint-disable-next-line no-console
+        console.warn(
+          `[theme] authored scene read color token "theme.${key}" directly off the theme — ` +
+            `resolving via theme.colors.${key}. Prefer theme.colors.* in authored scenes.`,
+        );
+      }
+      return (colors as unknown as Record<string, string>)[key];
     },
   });
 }

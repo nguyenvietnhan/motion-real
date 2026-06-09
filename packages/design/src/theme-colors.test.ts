@@ -86,3 +86,48 @@ describe("ThemeColors — Layer 2 runtime fallback", () => {
     expect(c["toJSON"]).toBeUndefined();
   });
 });
+
+describe("Theme — flat color reads (theme.accent, theme.text, …)", () => {
+  // Models frequently treat the theme itself as the color bag and skip `.colors`
+  // (`theme.accent` instead of `theme.colors.accent`), regardless of which form
+  // the contract shows. The theme Proxy forwards those reads into `colors` so
+  // they resolve to the right color instead of `undefined` (silent color loss).
+  const t = makeTheme(DEFAULT_DOMINANT);
+  const flat = t as unknown as Record<string, string>;
+
+  it("a flat canonical token reads through to colors (theme.accent === colors.accent)", () => {
+    expect(flat["accent"]).toBe(t.colors.accent);
+    expect(flat["bg"]).toBe(t.colors.bg);
+    expect(flat["signal"]).toBe(t.colors.signal);
+  });
+
+  it("a flat alias token resolves the same as via colors (theme.text === colors.fg)", () => {
+    expect(flat["text"]).toBe(t.colors.fg);
+    expect(flat["textSecondary"]).toBe(t.colors.muted);
+  });
+
+  it("an unforeseen flat token falls back to fg, never undefined", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      expect(flat["highlightFlat"]).toBe(t.colors.fg);
+      expect(flat["highlightFlat"]).not.toBeUndefined();
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it("real structured fields are NOT shadowed by the color forwarder", () => {
+    // `colors`, `fonts`, `chrome`, `space` must keep their real values — the
+    // forwarder only handles keys that are NOT real fields.
+    expect(typeof t.space).toBe("function");
+    expect(t.colors).toBeTruthy();
+    expect(t.fonts.display).toBeTruthy();
+    expect(t.chrome).toBeTruthy();
+    expect(t.id).toBe("editorial-light");
+  });
+
+  it("the theme stays a well-behaved object (then/toJSON not colorized)", () => {
+    expect(flat["then"]).toBeUndefined();
+    expect(flat["toJSON"]).toBeUndefined();
+  });
+});
