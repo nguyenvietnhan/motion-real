@@ -32,7 +32,48 @@
 
   --radius: 12px;
   --radius-sm: 8px;
-  --font-sans: "Geist", Inter, -apple-system, "Segoe UI", system-ui, sans-serif;
+  --font-sans: "AppSans", "Segoe UI", Inter, system-ui, -apple-system, sans-serif;
+}
+
+/*
+ * Optical-centering fix (applies everywhere at once).
+ *
+ * The app ships no bundled UI font, so on Windows it renders with Segoe UI,
+ * whose ascent (reserved for Vietnamese stacked diacritics) is much taller than
+ * its descent — so text sits visually BELOW the box centre in every button,
+ * input, pill and label. Chromium 130 (Electron 33) predates `text-box-trim`,
+ * so we instead re-balance the font's line-box metrics via `ascent-override` /
+ * `descent-override` (supported since Chromium 87): with ascent−descent ≈ the
+ * cap-height, capitals land on the geometric centre. We map the real system
+ * faces per weight (no faux-bold); if none exist the family falls through to the
+ * next entry in `--font-sans` (graceful, just without the override).
+ */
+@font-face {
+  font-family: "AppSans";
+  font-weight: 400 500;
+  font-style: normal;
+  src: local("Segoe UI"), local("Inter"), local("Inter Regular");
+  ascent-override: 100%;
+  descent-override: 30%;
+  line-gap-override: 0%;
+}
+@font-face {
+  font-family: "AppSans";
+  font-weight: 600;
+  font-style: normal;
+  src: local("Segoe UI Semibold"), local("Inter SemiBold"), local("Inter");
+  ascent-override: 100%;
+  descent-override: 30%;
+  line-gap-override: 0%;
+}
+@font-face {
+  font-family: "AppSans";
+  font-weight: 700 900;
+  font-style: normal;
+  src: local("Segoe UI Bold"), local("Inter Bold"), local("Inter");
+  ascent-override: 100%;
+  descent-override: 30%;
+  line-gap-override: 0%;
 }
 
 * {
