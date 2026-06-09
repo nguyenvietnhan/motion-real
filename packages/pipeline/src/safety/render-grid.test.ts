@@ -149,6 +149,22 @@ describe("N15 block overlap", () => {
     ];
     expect(checkOverlap(blocks)).toEqual([]);
   });
+  it("emits the requested severity (warning when eased in)", () => {
+    const blocks: Rect[] = [
+      { x: 0, y: 0, width: 100, height: 100 },
+      { x: 50, y: 50, width: 100, height: 100 },
+    ];
+    expect(checkOverlap(blocks, "scene-01", "warning").every((i) => i.severity === "warning")).toBe(true);
+  });
+  it("ignores a negligible sub-pixel touch (below the area tolerance)", () => {
+    // Two big blocks sharing only a 1px-wide sliver — a rounding/border touch,
+    // not stacked content — stays under the 2% tolerance and must not fire.
+    const blocks: Rect[] = [
+      { x: 0, y: 0, width: 200, height: 200 },
+      { x: 199, y: 0, width: 200, height: 200 },
+    ];
+    expect(checkOverlap(blocks)).toEqual([]);
+  });
 });
 
 describe("N17 truncation", () => {

@@ -141,6 +141,75 @@ export async function renderSceneStills(
   return outputs;
 }
 
+/** A measured composed-block boundary in canvas pixels (matches the oracle Rect). */
+export type MeasuredBlock = { kind: string; x: number; y: number; width: number; height: number };
+
+/**
+ * Measure the real DOM layout of every COMPOSED `@news/blocks` unit, per scene,
+ * by rendering each scene's midpoint frame in the dedicated MEASURE mode
+ * (`measure: true` mounts the `LayoutProbe`, which emits the tagged blocks'
+ * `getBoundingClientRect()` as a `layout.json` artifact). This is the
+ * vision-independent input the N15 (overlap) / N17 (clipping) oracles need but
+ * a flat raster can't carry. Best-effort per scene: a scene whose probe emits
+ * nothing (or fails) yields an empty block list and is simply not flagged.
+ *
+ * It renders the SAME frames as `renderSceneStills` but discards the image
+ * (output: null) — only the artifact matters — so it never touches the real
+ * `NewsVideo` render path and production pixels stay byte-identical.
+ */
+export async function measureSceneLayouts(
+  spec: LockedVideoSpec,
+  opts: RenderSceneStillsOptions = {},
+): Promise<Record<string, MeasuredBlock[]>> {
+  const prepared = await prepareComposition(spec, { ...opts, artifactPath: resolve(opts.projectRoot ?? ".") });
+  const measureProps = { ...prepared.inputProps, measure: true };
+  // selectComposition resolves + freezes the props the render uses, so a measure
+  // still must RE-SELECT with measure:true — passing it only to renderStill's
+  // inputProps leaves the frozen (non-measure) resolved props in place and the
+  // probe never mounts. Re-select once here against the same bundle.
+  const measureComposition = await selectComposition({
+    serveUrl: prepared.serveUrl,
+    id: opts.compositionId ?? DEFAULT_COMPOSITION_ID,
+    inputProps: measureProps,
+    timeoutInMilliseconds: BROWSER_TIMEOUT_MS,
+    logLevel: opts.logLevel ?? "warn",
+  });
+  const byScene: Record<string, MeasuredBlock[]> = {};
+
+  for (const [index, scene] of spec.scenes.entries()) {
+    const midpoint = scene.startFrame + Math.floor(scene.durationInFrames / 2);
+    const frame = Math.min(Math.max(0, midpoint), Math.max(0, spec.durationInFrames - 1));
+    let blocks: MeasuredBlock[] = [];
+    try {
+      await renderStill({
+        composition: measureComposition,
+        serveUrl: prepared.serveUrl,
+        output: null,
+        frame,
+        inputProps: measureProps,
+        imageFormat: "png",
+        overwrite: true,
+        timeoutInMilliseconds: BROWSER_TIMEOUT_MS,
+        logLevel: opts.logLevel ?? "warn",
+        onArtifact: (artifact) => {
+          try {
+            const text = typeof artifact.content === "string" ? artifact.content : Buffer.from(artifact.content).toString("utf8");
+            const parsed = JSON.parse(text) as { blocks?: MeasuredBlock[] };
+            if (Array.isArray(parsed.blocks)) blocks = parsed.blocks;
+          } catch {
+            /* a malformed artifact yields no blocks for this scene */
+          }
+        },
+      });
+    } catch {
+      /* a scene that fails to measure simply contributes no blocks */
+    }
+    byScene[scene.id] = blocks;
+    opts.onProgress?.(index + 1, spec.scenes.length);
+  }
+  return byScene;
+}
+
 export type RenderFrameOptions = RenderBaseOptions;
 
 /**

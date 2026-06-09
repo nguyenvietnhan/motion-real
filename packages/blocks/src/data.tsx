@@ -14,7 +14,7 @@ export const KeyPoints: React.FC<{ items: string[]; title?: string }> = ({ items
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   return (
-    <div style={{ display: "grid", gap: 20 }}>
+    <div data-nrt-block="keypoints" style={{ display: "grid", gap: 20 }}>
       {title ? (
         <div style={{ fontFamily: theme.fonts.display, fontSize: 56, fontWeight: 900, color: theme.colors.fg }}>
           {title}
@@ -70,6 +70,7 @@ export const StatChip: React.FC<{ value: string; label: string }> = ({ value, la
   const r = frameRamp(frame, fps, 4, 18);
   return (
     <div
+      data-nrt-block="stat-chip"
       style={{
         border: `4px solid ${PRINT.ink}`,
         background: theme.colors.panel,

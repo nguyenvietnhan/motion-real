@@ -147,6 +147,7 @@ export const Panel: React.FC<{
   const r = useReveal(delay);
   return (
     <div
+      data-nrt-block="panel"
       style={{
         border: chromeBorder(theme),
         background: theme.colors.panel,
@@ -194,6 +195,7 @@ export const StatBlock: React.FC<{ value: string; unit?: string; label: string; 
   const valueFont = heroFontSize(value);
   return (
     <div
+      data-nrt-block="stat"
       style={{
         display: "flex",
         border: chromeBorder(theme),

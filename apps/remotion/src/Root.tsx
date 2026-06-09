@@ -9,7 +9,7 @@ import { sampleSpec } from "./fixtures/sample-spec.js";
 
 const { width, height } = theme.canvas;
 
-const propsSchema = z.object({ spec: LockedVideoSpecSchema });
+const propsSchema = z.object({ spec: LockedVideoSpecSchema, measure: z.boolean().optional() });
 
 /**
  * Registers the renderable composition. The whole video is driven by a single

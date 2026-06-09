@@ -8,12 +8,18 @@ import { clockWipe } from "@remotion/transitions/clock-wipe";
 import type { TransitionPresentation } from "@remotion/transitions";
 import { CANVAS, CONTENT_ZONE, rectWidth, transitionFrames, type LockedSceneSpec, type LockedVideoSpec } from "@news/schema";
 import { makeTheme, type Theme } from "@news/design";
-import { Captions, SceneTimingProvider, useIntroZoom } from "@news/blocks";
+import { Captions, LayoutProbe, SceneTimingProvider, useIntroZoom } from "@news/blocks";
 import { getComponent } from "./registry.js";
 import { ThemeProvider, useTheme } from "./theme-context.js";
 
 export type VideoCompositionProps = {
   spec: LockedVideoSpec;
+  /**
+   * When true, mount the layout probe that measures composed-block rects and
+   * emits them as a JSON artifact (N15/N17). OFF for real renders, so production
+   * pixels are byte-identical and the N16 determinism guard is unaffected.
+   */
+  measure?: boolean;
 };
 
 /**
@@ -74,7 +80,7 @@ function presentationFor(
  * ONE continuous top-level `<Audio>`, and the burned-in karaoke captions are a
  * top-level `<Captions>` overlay — both OUTSIDE the transition series.
  */
-export const VideoComposition: React.FC<VideoCompositionProps> = ({ spec }) => {
+export const VideoComposition: React.FC<VideoCompositionProps> = ({ spec, measure }) => {
   const theme = makeTheme(spec.theme?.dominant, spec.theme?.stylePackId);
   const scenes = spec.scenes;
   const T = transitionFrames(spec.fps);
@@ -106,6 +112,7 @@ export const VideoComposition: React.FC<VideoCompositionProps> = ({ spec }) => {
         {spec.audio.narrationSrc ? <Audio src={resolveAudio(spec.audio.narrationSrc)} /> : null}
         <CaptionDivider color={theme.colors.fg} />
         <Captions cues={spec.captions ?? []} />
+        {measure ? <LayoutProbe /> : null}
       </AbsoluteFill>
     </ThemeProvider>
   );

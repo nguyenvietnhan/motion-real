@@ -263,22 +263,46 @@ export function checkCaptionClearance(frame: Frame, sceneId?: string, options?: 
 
 // --- N15: block overlap (HARD) --------------------------------------------
 
-function rectsIntersect(a: Rect, b: Rect): boolean {
-  return a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
+/**
+ * Overlap area of two rects, 0 when disjoint. Used (not a boolean intersect) so
+ * a tiny shared edge from sub-pixel rounding doesn't count as a real overlap.
+ */
+function overlapArea(a: Rect, b: Rect): number {
+  const w = Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x);
+  const h = Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y);
+  return w > 0 && h > 0 ? w * h : 0;
 }
 
-export function checkOverlap(blocks: Rect[], sceneId?: string): SafetyIssue[] {
+/**
+ * N15 — sibling layout blocks must not overlap. `blocks` are the measured rects
+ * of the COMPOSED `@news/blocks` units (from the layout probe), which are
+ * siblings in the content column, so any real overlap between them is stacked,
+ * illegible content. A small `tolerance` fraction of the smaller block's area is
+ * ignored so a 1–2px touch from rounding/borders never false-fires. `severity`
+ * defaults to "error" (the historical hard-gate); callers easing it in pass
+ * "warning".
+ */
+export function checkOverlap(
+  blocks: Rect[],
+  sceneId?: string,
+  severity: SafetyIssue["severity"] = "error",
+  tolerance = 0.02,
+): SafetyIssue[] {
   const issues: SafetyIssue[] = [];
   for (let i = 0; i < blocks.length; i += 1) {
     for (let j = i + 1; j < blocks.length; j += 1) {
-      if (rectsIntersect(blocks[i]!, blocks[j]!)) {
-        issues.push({
-          check: "N15",
-          severity: "error",
-          sceneId,
-          message: `Two layout blocks overlap (block ${i} and block ${j}); illegible stacked content.`,
-        });
-      }
+      const a = blocks[i]!;
+      const b = blocks[j]!;
+      const area = overlapArea(a, b);
+      if (area <= 0) continue;
+      const minArea = Math.min(a.width * a.height, b.width * b.height);
+      if (minArea > 0 && area / minArea <= tolerance) continue; // negligible touch
+      issues.push({
+        check: "N15",
+        severity,
+        sceneId,
+        message: `Two layout blocks overlap (block ${i} and block ${j}); illegible stacked content.`,
+      });
     }
   }
   return issues;

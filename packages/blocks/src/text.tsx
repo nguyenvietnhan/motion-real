@@ -14,6 +14,7 @@ export const TitleBlock: React.FC<{ headline: string; kicker?: string; body?: st
   const headlineSize = headline.length > 42 ? 76 : headline.length > 24 ? 92 : 108;
   return (
     <div
+      data-nrt-block="title"
       style={{
         border: `4px solid ${PRINT.ink}`,
         background: theme.colors.panel,
@@ -54,6 +55,7 @@ export const IdeaPanel: React.FC<{ title?: string; children: React.ReactNode; em
   const c = emphasis ? theme.colors.signal : theme.colors.accent;
   return (
     <div
+      data-nrt-block="idea"
       style={{
         border: `4px solid ${PRINT.ink}`,
         background: theme.colors.panel,
@@ -98,6 +100,7 @@ export const Callout: React.FC<{
   const color = tone === "danger" ? PRINT.red : tone === "signal" ? theme.colors.signal : theme.colors.accent;
   return (
     <div
+      data-nrt-block="callout"
       style={{
         border: `4px solid ${PRINT.ink}`,
         borderLeft: `18px solid ${color}`,

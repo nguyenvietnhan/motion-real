@@ -62,3 +62,13 @@ export { chromeBorder, chromeBorderWidth, chromeShadow } from "./chrome.js";
 
 // Render-safe font loading + Vietnamese-coverage report (for the doctor check):
 export { LOADED_FONT_FAMILIES, fontCoverageReport, type FontCoverage } from "./fonts.js";
+
+// Deterministic layout measurement (N15/N17): the probe + its attr/artifact
+// contract, mounted only inside the dedicated measure composition.
+export {
+  LayoutProbe,
+  NRT_BLOCK_ATTR,
+  LAYOUT_ARTIFACT_NAME,
+  type MeasuredBlock,
+  type LayoutMeasurement,
+} from "./layout-probe.js";

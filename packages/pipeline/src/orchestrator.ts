@@ -27,7 +27,7 @@ import {
 } from "./types.js";
 import { runStaticGrid } from "./safety/static-grid.js";
 import { runBuildGridStatic } from "./safety/build-grid.js";
-import { runRenderGrid, type RenderGridOptions } from "./safety/render-grid.js";
+import { runRenderGrid, checkOverlap, type RenderGridOptions } from "./safety/render-grid.js";
 import { lintSceneSources, compositionsSrcDir, blocksSrcDir } from "./safety/forbidden-api.js";
 import { scaffoldProject, loadManifestAsSpec, admitProjectScenes } from "./authoring/manifest.js";
 import { generateAuthoredEntry } from "./authoring/authored-entry.js";
@@ -35,7 +35,7 @@ import { synthesizeNarration, type SynthesizeOptions } from "./audio/tts.js";
 import { lockSpec } from "./audio/lock.js";
 import { checkDeterminism, type DeterminismOptions } from "./render/determinism.js";
 import { renderCacheKey, getCachedRender, putCachedRender } from "./render/cache.js";
-import { renderVideo, remotionAppRoot, workspaceRoot, type RenderQuality, type RenderVideoOptions, type RenderVideoResult } from "./render/renderer.js";
+import { renderVideo, measureSceneLayouts, remotionAppRoot, workspaceRoot, type RenderQuality, type RenderVideoOptions, type RenderVideoResult } from "./render/renderer.js";
 import { buildReview, type BuildReviewOptions, type ComposeContactSheet, type ReviewArtifacts } from "./review.js";
 
 /**
@@ -329,8 +329,25 @@ export async function renderProject(projectId: string, opts: RenderProjectOption
     const renderGrid = await runRenderGrid(locked, { framesDir: paths.reviewDir, mp4Path }, renderGridOptions);
     await appendEvent(projectId, { type: "render.oracles", ok: renderGrid.ok, issues: renderGrid.issues.length });
 
+    // N15 (block overlap) over the measured composed-block rects. Best-effort and
+    // vision-independent: a dedicated measure-mode still emits each tagged
+    // @news/blocks unit's getBoundingClientRect, which a flat raster can't carry.
+    // Eased in as WARNINGS (not a hard gate) while we observe false-positive rate;
+    // a measurement failure must never fail the render, so it's fully guarded.
+    const overlapIssues: SafetyIssue[] = [];
+    try {
+      const layouts = await measureSceneLayouts(locked, { projectRoot: paths.root, logLevel: "error" });
+      for (const scene of locked.scenes) {
+        const blocks = layouts[scene.id];
+        if (blocks && blocks.length > 1) overlapIssues.push(...checkOverlap(blocks, scene.id, "warning"));
+      }
+      await appendEvent(projectId, { type: "render.overlap", scenes: Object.keys(layouts).length, issues: overlapIssues.length });
+    } catch (error) {
+      await appendEvent(projectId, { type: "render.overlap.skipped", cause: errMessage(error) });
+    }
+
     const report = makeReport(
-      [...buildGate.issues, ...detReport.issues, ...renderGrid.issues, ...reviewArtifacts.report.issues],
+      [...buildGate.issues, ...detReport.issues, ...renderGrid.issues, ...overlapIssues, ...reviewArtifacts.report.issues],
       ["build", "render", "review"],
     );
 
