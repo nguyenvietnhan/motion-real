@@ -12,11 +12,20 @@ import { admitAuthoredComponent, DEFAULT_ADMISSION_POLICY, type AdmissionPolicy 
  * never imported), and only on success does it import the module to complete the
  * runtime registration handshake.
  *
- * "Sandboxing" note: scene code only ever executes inside the Remotion
- * webpack/Chromium render context; this handshake performs the registration
- * verification (registry + zod) without granting scene code any Node authority,
- * and the AST gate has already proven no fs/process/network/eval reach the
- * loader. Full bundling reuses the renderer's webpack override.
+ * SECURITY note — accurate, not aspirational: the load step below
+ * (`import(fileUrl)`) DOES execute the authored module's top-level code in the
+ * HOST process (the Electron main / Node), not only inside Remotion/Chromium.
+ * The sole gate protecting that execution is the static AST admission gate
+ * (`admitAuthoredComponent`), which is hardened against the known evasions
+ * (aliasing, `globalThis`/computed indirection, the constructor chain, `..`
+ * import traversal — audit P1-1). That gate is a deny-list over a parse, not a
+ * sandbox.
+ *
+ * TODO(security, audit P1-1 phase 2): do NOT execute authored code in the host
+ * process. Either (a) statically extract the default export's id/schema/example
+ * from the AST (already parsed in admission) instead of importing, or (b) run
+ * the import inside a locked-down worker_threads/vm with no process/require/
+ * network. Until then, the hardened gate is the only boundary — keep it strict.
  */
 
 export type AuthoredRegistration =
