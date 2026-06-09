@@ -41,8 +41,14 @@ export const App: React.FC = () => {
       setLicense(await dash.license.get());
       setSettings(await dash.settings.get());
       dispatch({ type: "gallery", load: "loading", cards: [] });
-      const cards = await dash.projects.list();
-      dispatch({ type: "gallery", load: cards.length === 0 ? "empty" : "populated", cards });
+      try {
+        const cards = await dash.projects.list();
+        dispatch({ type: "gallery", load: cards.length === 0 ? "empty" : "populated", cards });
+      } catch {
+        // A transient IPC/disk failure must not pin the gallery on "loading"
+        // forever — surface a recoverable error state with a retry (audit P1-8).
+        dispatch({ type: "gallery", load: "error", cards: [] });
+      }
     })();
 
     // Only the gallery status badge is reduced here; the workspace flow is driven
@@ -76,8 +82,12 @@ export const App: React.FC = () => {
 
   const refreshGallery = async () => {
     if (!dash) return;
-    const cards = await dash.projects.list();
-    dispatch({ type: "gallery", load: cards.length === 0 ? "empty" : "populated", cards });
+    try {
+      const cards = await dash.projects.list();
+      dispatch({ type: "gallery", load: cards.length === 0 ? "empty" : "populated", cards });
+    } catch {
+      dispatch({ type: "gallery", load: "error", cards: [] });
+    }
   };
 
   const openProject = (projectId: string) => {
@@ -143,6 +153,7 @@ export const App: React.FC = () => {
             onOpen={openProject}
             onDelete={onDelete}
             onReveal={onReveal}
+            onRetry={() => void refreshGallery()}
             createError={createError}
           />
         )}
@@ -155,6 +166,7 @@ export const App: React.FC = () => {
             onNew={() => setScreen("home")}
             onDelete={onDelete}
             onReveal={onReveal}
+            onRetry={() => void refreshGallery()}
           />
         )}
 
@@ -187,9 +199,20 @@ export const App: React.FC = () => {
               setStage({ kind: "rendering", percent: 0, phase: "draft" });
               void dash?.script.approve(openProjectId);
             }}
-            onSubmitEdits={(perScene, globalNotes) => {
-              setStage({ kind: "rendering", percent: 0, phase: "edit" });
-              void dash?.review.submitEdits(openProjectId, { perScene, globalNotes });
+            onSubmitEdits={async (perScene, globalNotes) => {
+              if (!dash) return false;
+              // Don't optimistically leave the storyboard until the backend
+              // accepts the edits — on a rejected/failed submit the view stays
+              // mounted and KEEPS the user's typed drafts (audit P1-7). The stage
+              // poll drives the transition to rendering once the backend begins.
+              try {
+                const r = await dash.review.submitEdits(openProjectId, { perScene, globalNotes });
+                if (r && r.ok === false) return false;
+                setStage({ kind: "rendering", percent: 0, phase: "edit" });
+                return true;
+              } catch {
+                return false;
+              }
             }}
             onApproveDraft={() => {
               setStage({ kind: "rendering", percent: 0, phase: "full" });

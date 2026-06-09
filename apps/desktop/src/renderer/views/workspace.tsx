@@ -54,7 +54,7 @@ export const ProjectWorkspaceView: React.FC<{
   onFixWithAi: () => void;
   onApplyScript: (edits: { sceneId: string; narration?: string; headline?: string }[]) => void;
   onApproveScript: () => void;
-  onSubmitEdits: (perScene: { sceneId: string; text: string }[], globalNotes: string) => void;
+  onSubmitEdits: (perScene: { sceneId: string; text: string }[], globalNotes: string) => Promise<boolean>;
   onApproveDraft: () => void;
   onReveal: () => void;
 }> = ({ stage, onBack, onRetry, onFixWithAi, onApplyScript, onApproveScript, onSubmitEdits, onApproveDraft, onReveal }) => {

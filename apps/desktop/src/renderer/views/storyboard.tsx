@@ -14,7 +14,13 @@ export const StoryboardView: React.FC<{
   canApprove: boolean;
   notice?: string;
   onBack: () => void;
-  onSubmit: (perScene: { sceneId: string; text: string }[], globalNotes: string) => void;
+  /**
+   * Submit the gathered edits. Resolves `true` when the backend accepted them
+   * (the drafts are then safe to clear) and `false` when it did not — on `false`
+   * the typed drafts are KEPT so a transient failure never destroys the user's
+   * work across many scenes (audit P1-7).
+   */
+  onSubmit: (perScene: { sceneId: string; text: string }[], globalNotes: string) => Promise<boolean>;
   onApprove: () => void;
 }> = ({ model, canApprove, notice, onBack, onSubmit, onApprove }) => {
   const [selected, setSelected] = useState(0);
@@ -24,6 +30,8 @@ export const StoryboardView: React.FC<{
   const [notes, setNotes] = useState("");
   const [showEdit, setShowEdit] = useState(false);
   const [dismissedNotice, setDismissedNotice] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState("");
 
   const scenes = model.scenes;
   const idx = Math.min(selected, Math.max(0, scenes.length - 1));
@@ -37,11 +45,25 @@ export const StoryboardView: React.FC<{
     if (current) setEdits((m) => ({ ...m, [current.sceneId]: text }));
   };
   const sendAll = (): void => {
-    if (!canSend) return;
-    onSubmit(batch, notes.trim());
-    setEdits({}); // optimistic clear — the edits are being applied + re-rendered
-    setNotes("");
-    setShowEdit(false);
+    if (!canSend || submitting) return;
+    setSubmitting(true);
+    setSubmitError("");
+    // Capture drafts, but DON'T clear them until the backend confirms — on a
+    // failed/rejected submit the user keeps everything they typed (audit P1-7).
+    void onSubmit(batch, notes.trim())
+      .then((ok) => {
+        if (ok) {
+          setEdits({});
+          setNotes("");
+          setShowEdit(false);
+        } else {
+          setSubmitError("Không gửi được chỉnh sửa. Nội dung bạn nhập vẫn được giữ — hãy thử lại.");
+        }
+      })
+      .catch(() => {
+        setSubmitError("Không gửi được chỉnh sửa. Nội dung bạn nhập vẫn được giữ — hãy thử lại.");
+      })
+      .finally(() => setSubmitting(false));
   };
 
   // Full-height Canva-style shell: fixed header with actions, then a body that
@@ -57,9 +79,9 @@ export const StoryboardView: React.FC<{
       {scenes.length > 0 && (
         <>
           <button className={`ns-btn${showEdit ? " ns-btn-primary" : ""}`} onClick={() => setShowEdit((v) => !v)}>✎ Sửa cảnh</button>
-          <button className="ns-btn ns-btn-primary" disabled={!canSend} onClick={sendAll}
+          <button className="ns-btn ns-btn-primary" disabled={!canSend || submitting} onClick={sendAll}
             title={canSend ? undefined : "Chưa có chỉnh sửa nào — sửa một cảnh hoặc ghi chú chung trước khi gửi."}>
-            {editedCount > 0 ? `Gửi chỉnh sửa (${editedCount})` : "Gửi chỉnh sửa"}
+            {submitting ? "Đang gửi…" : editedCount > 0 ? `Gửi chỉnh sửa (${editedCount})` : "Gửi chỉnh sửa"}
           </button>
           <button className="ns-btn" disabled={!canApprove} onClick={onApprove}
             title={canApprove ? undefined : "Bản nháp chưa sẵn sàng để duyệt."}>Duyệt &amp; xuất bản</button>
@@ -88,6 +110,14 @@ export const StoryboardView: React.FC<{
           borderRadius: 8, border: "1px solid var(--warn)", background: "color-mix(in srgb, transparent 86%, var(--warn))", flexShrink: 0 }}>
           <span style={{ fontSize: 13, color: "var(--foreground)", marginRight: "auto" }}>{notice}</span>
           <button className="ns-btn" style={{ padding: "4px 10px" }} onClick={() => setDismissedNotice(notice)}>Đã hiểu</button>
+        </div>
+      )}
+
+      {submitError && (
+        <div role="alert" style={{ display: "flex", alignItems: "center", gap: 12, margin: "10px 14px 0", padding: "10px 14px",
+          borderRadius: 8, border: "1px solid var(--danger)", background: "color-mix(in srgb, transparent 86%, var(--danger))", flexShrink: 0 }}>
+          <span style={{ fontSize: 13, color: "var(--foreground)", marginRight: "auto" }}>{submitError}</span>
+          <button className="ns-btn" style={{ padding: "4px 10px" }} onClick={() => setSubmitError("")}>Đã hiểu</button>
         </div>
       )}
 

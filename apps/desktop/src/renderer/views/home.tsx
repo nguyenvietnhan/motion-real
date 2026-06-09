@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import type { ProjectCardVM } from "../../shared/types.js";
+import type { GalleryLoad } from "../../shared/gallery-controller.js";
 import { validateCreateInput } from "../../shared/create-validation.js";
 import { Icon } from "../icons.js";
 import { EmptyState, PageHeader, ProjectGrid } from "../primitives.js";
@@ -7,15 +8,16 @@ import { EmptyState, PageHeader, ProjectGrid } from "../primitives.js";
 /** Home: create hero (chat-style brief) + recent-projects grid. */
 export const HomeView: React.FC<{
   aiReady: boolean;
-  load: "loading" | "empty" | "populated";
+  load: GalleryLoad;
   cards: ProjectCardVM[];
   onCreate: (raw: string) => void;
   onOpen: (projectId: string) => void;
   onConnectPrompt: () => void;
   onDelete?: (id: string) => void;
   onReveal?: (id: string) => void;
+  onRetry?: () => void;
   createError?: string;
-}> = ({ aiReady, load, cards, onCreate, onOpen, onConnectPrompt, onDelete, onReveal, createError }) => {
+}> = ({ aiReady, load, cards, onCreate, onOpen, onConnectPrompt, onDelete, onReveal, onRetry, createError }) => {
   const [raw, setRaw] = useState("");
   const valid = validateCreateInput({ raw });
   const inputValid = valid.ok;
@@ -76,6 +78,14 @@ export const HomeView: React.FC<{
           icon={Icon.film({ size: 34 })}
           title="Chưa có video nào"
           hint="Tạo video đầu tiên bằng ô “Tạo video mới” ở trên — chỉ cần một chủ đề hoặc đường dẫn."
+        />
+      )}
+      {load === "error" && (
+        <EmptyState
+          icon={Icon.film({ size: 34 })}
+          title="Không tải được danh sách video"
+          hint="Đã xảy ra lỗi khi đọc dự án. Hãy thử lại."
+          action={onRetry && <button className="ns-btn ns-btn-primary" onClick={onRetry}>Thử lại</button>}
         />
       )}
       {load === "populated" && <ProjectGrid cards={recent} onOpen={onOpen} onDelete={onDelete} onReveal={onReveal} />}

@@ -36,4 +36,9 @@ describe("reduceDesktop", () => {
     const s = reduceDesktop(baseState(), { type: "gallery", load: "empty", cards: [] });
     expect(s.gallery).toEqual({ load: "empty", cards: [] });
   });
+
+  it("folds an error load so a failed list() surfaces a recoverable state (audit P1-8)", () => {
+    const s = reduceDesktop(baseState(), { type: "gallery", load: "error", cards: [] });
+    expect(s.gallery).toEqual({ load: "error", cards: [] });
+  });
 });

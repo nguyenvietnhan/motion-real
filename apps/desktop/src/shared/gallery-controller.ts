@@ -10,7 +10,7 @@ import { toFriendlyStatus } from "./friendly-status.js";
  * is only reported AFTER a load completes (Req 10.8).
  */
 
-export type GalleryLoad = "loading" | "empty" | "populated";
+export type GalleryLoad = "loading" | "empty" | "populated" | "error";
 
 /** Format an ISO timestamp as a compact `DD/MM/YYYY` (UTC, zero-padded). */
 export function formatShortDate(iso: string | undefined): string {
