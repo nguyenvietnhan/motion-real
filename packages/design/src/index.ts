@@ -168,6 +168,7 @@ export function pickDominant(seed: string): string {
 // --- Theme type + builder -------------------------------------------------
 
 export type ThemeColors = {
+  // --- Canonical tokens (the 8 the system is built on) ---
   bg: string;
   bgElevated: string;
   /** Card / panel surface (solid); use withAlpha() for translucent variants. */
@@ -180,6 +181,47 @@ export type ThemeColors = {
   signal: string;
   /** Hairline borders. */
   line: string;
+
+  // --- Cross-model alias tokens (Layer 1) ---
+  // AI-authored scenes reach for industry-standard token names (Tailwind /
+  // Material / common design systems) regardless of which 9router model wrote
+  // them — `ink`, `paper`, `primary`, `border`, … These are declared as REAL
+  // keys mapped to the right canonical color in makeTheme, so an authored scene
+  // using a standard name BOTH typechecks (N10 passes) AND renders the correct
+  // color, instead of resolving to `undefined` (silent color loss). This list is
+  // strict on purpose — a typo in OUR code is still caught — while any unforeseen
+  // key is caught at runtime by the Proxy fallback (Layer 2; see makeTheme).
+  /** → fg (near-black ink). */
+  ink: string;
+  /** → bg (cream paper). */
+  paper: string;
+  /** → accent. */
+  primary: string;
+  /** → signal. */
+  danger: string;
+  /** → signal. */
+  signalRed: string;
+  /** → fg. */
+  foreground: string;
+  /** → fg. */
+  text: string;
+  /** → bg. */
+  background: string;
+  /** → line. */
+  border: string;
+  /** → panel. */
+  surface: string;
+  /** → panel. */
+  card: string;
+  /** → accent. */
+  accentLight: string;
+
+  // --- PRINT accent set as real keys (semantic multi-color) ---
+  red: string;
+  blue: string;
+  yellow: string;
+  green: string;
+  violet: string;
 };
 
 export type Theme = {
@@ -218,27 +260,105 @@ export function makeTheme(dominant: string = DEFAULT_DOMINANT, stylePackId?: str
   // Companion: a strong split-complement so compares/segments are distinct.
   const signal = hslToHex((h + 150) % 360, clamp(Math.max(s, 60), 55, 92), 47);
 
+  // The 8 canonical tokens.
+  const bg = PRINT.paper; // warm cream
+  const panel = "#FCF9F1"; // near-white card
+  const fg = PRINT.ink; // near-black ink
+  const line = PRINT.ink; // bold ink borders
+
+  const colors: ThemeColors = {
+    bg,
+    bgElevated: "#EAE2CE", // a touch deeper cream
+    panel,
+    fg,
+    muted: "#6E6757", // warm grey
+    accent,
+    signal,
+    line,
+
+    // Layer 1 — cross-model alias tokens mapped to the right canonical color, so
+    // a scene using a standard name renders correctly (not `undefined`).
+    ink: fg,
+    paper: bg,
+    primary: accent,
+    danger: signal,
+    signalRed: signal,
+    foreground: fg,
+    text: fg,
+    background: bg,
+    border: line,
+    surface: panel,
+    card: panel,
+    accentLight: accent,
+
+    // PRINT semantic accents (fixed, deterministic).
+    red: PRINT.red,
+    blue: PRINT.blue,
+    yellow: PRINT.yellow,
+    green: PRINT.green,
+    violet: PRINT.violet,
+  };
+
   return {
     id: "editorial-light",
     name: "Editorial Light",
     dominant: hex,
     stylePackId: pack.id,
     chrome: pack.chrome,
-    colors: {
-      bg: PRINT.paper, // warm cream
-      bgElevated: "#EAE2CE", // a touch deeper cream
-      panel: "#FCF9F1", // near-white card
-      fg: PRINT.ink, // near-black ink
-      muted: "#6E6757", // warm grey
-      accent,
-      signal,
-      line: PRINT.ink, // bold ink borders
-    },
+    colors: wrapColors(colors),
     fonts: { ...pack.chrome.fontFamily },
     radius: RADIUS,
     space: (n: number) => n * 8,
     canvas: CANVAS,
   };
+}
+
+/**
+ * Layer 2 — runtime safety net for color tokens. Authored scenes are written by
+ * whichever 9router model the user picked, so they WILL occasionally reach for a
+ * token name we haven't aliased (`accentMuted`, `highlight`, …). Without this, a
+ * `theme.colors.<unknown>` read returns `undefined`, the style is silently
+ * dropped, and the scene renders mis-colored. The Proxy makes any unknown string
+ * key resolve to a safe, on-brand color (`fg`) instead — the render NEVER breaks
+ * on a color name — and logs the miss ONCE per key so we can add a precise alias
+ * to Layer 1 later (self-healing now, self-improving over time).
+ *
+ * Declared keys pass straight through. Symbols and a small denylist of
+ * JS/React/serialization probes (`then`, `toJSON`, …) return undefined so the
+ * object still behaves like a normal object across Promise/JSON/React-devtools
+ * boundaries — only genuine string color reads get the fallback.
+ */
+const COLOR_PROBE_KEYS = new Set<string>([
+  "then",
+  "toJSON",
+  "toString",
+  "valueOf",
+  "constructor",
+  "$$typeof",
+  "@@iterator",
+  "asymmetricMatch",
+  "nodeType",
+  "hasOwnProperty",
+]);
+const loggedUnknownColors = new Set<string>();
+
+function wrapColors(colors: ThemeColors): ThemeColors {
+  return new Proxy(colors, {
+    get(target, key, receiver) {
+      if (typeof key !== "string" || key in target || COLOR_PROBE_KEYS.has(key)) {
+        return Reflect.get(target, key, receiver);
+      }
+      if (!loggedUnknownColors.has(key)) {
+        loggedUnknownColors.add(key);
+        // eslint-disable-next-line no-console
+        console.warn(
+          `[theme] authored scene read unknown color token "colors.${key}" — falling back to colors.fg. ` +
+            `Add an alias in @news/design ThemeColors if this token is common.`,
+        );
+      }
+      return target.fg;
+    },
+  });
 }
 
 /**
