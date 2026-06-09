@@ -9,6 +9,7 @@ export * from "./types.js";
 export * from "./errors.js";
 export * from "./store/store.js";
 export * from "./ingest/url-ingest.js";
+export * from "./ingest/safe-fetch.js";
 export * from "./tracker/tracker.js";
 export * from "./bulk/bulk.js";
 // Re-export the Vivibe config probes so leaf packages (e.g. @news/mcp) can read

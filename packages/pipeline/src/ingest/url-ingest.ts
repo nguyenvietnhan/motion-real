@@ -4,6 +4,7 @@ import { Readability } from "@mozilla/readability";
 import { parseHTML } from "linkedom";
 import { PipelineError } from "../errors.js";
 import { planningDir } from "../store/store.js";
+import { makeSafeFetch } from "./safe-fetch.js";
 
 /**
  * URL ingest into grounded research files (tool-productization R2).
@@ -168,7 +169,10 @@ function countWords(text: string): number {
  * when no readable body is found — and writes NO partial/empty file in that case.
  */
 export async function ingestUrl(url: string, opts: IngestOptions = {}): Promise<IngestResult> {
-  const fetchImpl = opts.fetchImpl ?? ((u: string) => fetch(u));
+  // Default egress is SSRF-guarded (audit P1-2): rejects private/loopback/
+  // link-local hosts, re-validates each redirect hop, and caps the body. Tests
+  // inject `fetchImpl` and bypass the guard (they never touch the network).
+  const fetchImpl = opts.fetchImpl ?? makeSafeFetch();
   const fetchedAt = (opts.now ?? (() => new Date().toISOString()))();
 
   let html: string;
