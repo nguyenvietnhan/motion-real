@@ -10,7 +10,7 @@ import { useSceneDurationInFrames } from "./scene-timing.js";
  *
  * FPS-AWARE: timing args are expressed in "30fps-reference frames" (or seconds)
  * and scaled by the actual render fps, so an entrance that takes 0.6s at the
- * 30fps final takes the SAME 0.6s in the 20fps fast draft (the draft is a
+ * 30fps final takes the SAME 0.6s in the 10fps fast draft (the draft is a
  * faithful preview, just lower-res). Numeric helpers used here are only
  * abs/max/min/round — never the random generator.
  */

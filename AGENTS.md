@@ -201,7 +201,7 @@ Follow `docs/ai-content-guide.md` exactly. Highlights:
 - If TTS config is incomplete, STOP and report the exact missing key/endpoint/
   voice id. Do not substitute a lower-quality voice.
 - **Always draft before full (every time).** Never jump straight to a full
-  render. First render a fast low-res DRAFT (`quality: "draft"` — 20fps, half-res,
+  render. First render a fast low-res DRAFT (`quality: "draft"` — 10fps, half-res,
   to `<id>.draft.mp4`), report it to the user, and let them review/give feedback.
   Only render the full-quality MP4 after the user approves the draft (or explicitly
   asks to skip it). A cheap stills pass first is encouraged for layout checks.

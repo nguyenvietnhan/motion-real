@@ -92,7 +92,7 @@ npx tsx --env-file=.env packages/mcp/src/bin.ts
 ```
 
 Render quality is `full` (30 fps deliverable) by default; a `draft` quality
-renders a fast, lower-res, 20 fps preview. Background music: drop a `default.mp3`
+renders a fast, lower-res, 10 fps preview. Background music: drop a `default.mp3`
 at the repo root and it is mixed under the narration at ~20% automatically.
 
 For a worked, end-to-end example see `scripts/build-gemma.ts` (authors seven

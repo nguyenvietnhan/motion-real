@@ -237,7 +237,7 @@ not just while iterating:
 
 1. **Stills** (mock voice, free) — eyeball layout/alignment per scene.
 2. **Draft** (`renderProject(..., { quality: "draft" })`) — a fast preview at
-   **20 fps**, half-res, ultrafast x264, max concurrency, with identical timing
+   **10 fps**, half-res, ultrafast x264, max concurrency, with identical timing
    (motion is fps-aware). Use it (plus the render oracles + keyframe review) to
    catch MOTION/PACING bugs cheaply. Drafts write to `<id>.draft.mp4` and never
    touch the full-quality render cache.

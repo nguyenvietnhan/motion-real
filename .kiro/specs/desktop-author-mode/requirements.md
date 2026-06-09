@@ -38,7 +38,7 @@ determinism) và luồng Staged_Workspace đã có.
 
 ### Ràng buộc & giả định
 
-- Render contract cố định: 30fps full / 20fps draft, 1080×1920 (9:16), `vi`.
+- Render contract cố định: 30fps full / 10fps draft, 1080×1920 (9:16), `vi`.
 - Determinism bắt buộc: scene là hàm thuần của frame (admission gate N5 + lint).
 - TTS Vivibe qua `.env`/Settings; không hạ cấp giọng.
 - AI được dẫn qua 9router (`/v1` local, model người dùng chọn — kể cả model

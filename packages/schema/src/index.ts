@@ -23,7 +23,7 @@ export const FPS = 30 as const;
  * composition.
  *
  * Transition length is defined in SECONDS so it is identical at any render fps
- * (the 30fps final and the 20fps fast draft feel the same). `T_TRANSITION` is
+ * (the 30fps final and the 10fps fast draft feel the same). `T_TRANSITION` is
  * the 30fps frame count kept for back-compat; `transitionFrames(fps)` is the
  * fps-correct value the lock + composition actually use. The breath gap (silent
  * pause between scene narration clips) equals the transition seconds so each
@@ -178,7 +178,7 @@ export const CaptionCueSchema = z.object({
 export type CaptionCue = z.infer<typeof CaptionCueSchema>;
 
 export const LockedVideoSpecSchema = VideoSpecSchema.extend({
-  /** Render fps. 30 for the final; a fast draft may re-lock at a lower fps (e.g. 20). */
+  /** Render fps. 30 for the final; a fast draft may re-lock at a lower fps (e.g. 10). */
   fps: z.number().int().positive().default(FPS),
   durationInFrames: z.number().int().positive(),
   scenes: z.array(LockedSceneSpecSchema),

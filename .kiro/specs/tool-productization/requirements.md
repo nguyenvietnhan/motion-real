@@ -40,7 +40,7 @@ remain reference designs only and are not modified.
 
 ### Constraints and Assumptions
 
-- **Fixed render contract**: FPS = 30 (full) / 20 (draft), canvas 1080×1920
+- **Fixed render contract**: FPS = 30 (full) / 10 (draft), canvas 1080×1920
   (9:16), language `vi`. Unchanged by this spec.
 - **Determinism is mandatory**: scene/block visuals are pure functions of the
   frame; randomness only via Remotion `random(seed)`. Every new capability MUST
