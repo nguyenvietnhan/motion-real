@@ -121,12 +121,21 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
     const unreadableUrls: string[] = [];
     for (const url of job.input.urls) {
       const ing = await this.deps.tools.ingest_url({ url }).catch(() => null);
-      const text = ing && ing.ok ? (ing.data as { text?: unknown } | undefined)?.text : undefined;
-      if (typeof text === "string" && text.trim()) {
-        chunks.push(`# ${url}\n${text.trim()}`);
+      // ingest_url returns an IngestResult ({ researchPath, metadata, wordCount });
+      // the extracted article (text + provenance header) is written to that file —
+      // the body is NOT inlined in the result. Read the research file to ground the
+      // author prompt. (A prior version read `ing.data.text`, which never exists, so
+      // EVERY link was silently treated as unreadable even on a clean fetch.)
+      let body: string | undefined;
+      if (ing && ing.ok) {
+        body = await readFile(ing.data.researchPath, "utf8").catch(() => undefined);
+      }
+      if (body && body.trim()) {
+        chunks.push(`# ${url}\n${body.trim()}`);
       } else {
         unreadableUrls.push(url);
-        console.warn(`[authoring] could not read link ${url} (skipping; authoring continues).`);
+        const reason = ing && !ing.ok ? `${ing.error.stage}: ${ing.error.cause}` : "no readable article text";
+        console.warn(`[authoring] could not read link ${url} (${reason}); skipping; authoring continues.`);
       }
     }
     const research = chunks.length > 0 ? chunks.join("\n\n---\n\n") : undefined;

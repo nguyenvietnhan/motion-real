@@ -106,11 +106,16 @@ describe("authorScenes (pure-author)", () => {
   it("reports links it could NOT read in unreadableUrls (so the UI can warn the user)", async () => {
     const projectId = "pa-unreadable";
     const { backend } = makeBackend(validReply());
-    // One link extracts text, the other fails — only the failed one is reported.
+    // One link extracts text (ingest_url writes a research file and returns its
+    // path — the body is read from disk, NOT from the result), the other fails.
+    // Only the failed one is reported.
+    const goodResearch = join(home, ".video-tool", "planning", "pa-unreadable-good.md");
+    mkdirSync(join(home, ".video-tool", "planning"), { recursive: true });
+    writeFileSync(goodResearch, "# tiêu đề\n\nnội dung bài báo đọc được từ link.");
     const ingest_url = vi.fn(async ({ url }: { url: string }) =>
       url.includes("good")
-        ? { ok: true as const, data: { text: "nội dung đọc được" } }
-        : { ok: false as const },
+        ? { ok: true as const, data: { id: "g", researchPath: goodResearch, metadata: {}, wordCount: 7 } }
+        : { ok: false as const, error: { stage: "ingest", cause: "HTTP 403" } },
     );
     (backend as unknown as { deps: NineRouterBackendDeps }).deps.tools = { ingest_url } as never;
     const job: AuthorJob = {
