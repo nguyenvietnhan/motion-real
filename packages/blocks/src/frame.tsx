@@ -17,10 +17,16 @@ import "./fonts.js";
  * only — content stays inside its zone, so this never trips the N14 safe-area
  * oracle). The bold border + ticks stay fixed so the frame reads as stable.
  */
-export const Frame: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export const Frame: React.FC<{ children: React.ReactNode; style?: React.CSSProperties }> = ({ children, style }) => {
   const theme = useTheme();
   const grid = withAlpha(PRINT.ink, 0.05);
   const kb = useKenBurnsScale(1.07);
+  // `style` is an optional passthrough: models routinely write
+  // `<Frame style={{ backgroundColor: theme.colors.bg }}>` to set the scene
+  // background (the exact bg Frame already paints), so we ACCEPT it and merge it
+  // LAST — an authored override wins, and the common no-op case typechecks
+  // instead of hard-blocking the render over a runtime-harmless prop. See the
+  // N10 excess-prop softening (typecheck-authored.ts) for the general net.
   return (
     <AbsoluteFill
       style={{
@@ -28,6 +34,7 @@ export const Frame: React.FC<{ children: React.ReactNode }> = ({ children }) => 
         color: theme.colors.fg,
         fontFamily: theme.fonts.body,
         overflow: "hidden",
+        ...style,
       }}
     >
       {/* faint grid — slow ambient Ken Burns zoom (only when the pack uses it) */}

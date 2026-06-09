@@ -71,6 +71,16 @@ describe("typecheckAuthoredScenes (N10)", () => {
     expect(issues.every((i) => /does not exist on type 'Theme'/.test(i.message))).toBe(true);
   }, TS_PROGRAM_TIMEOUT);
 
+  it("flags an EXCESS component prop (<Frame style={…}>) as a WARNING, not a hard error", () => {
+    // The gemini-3-flash habit: passing `style`/other undeclared props to a block
+    // to set a background. React ignores undeclared props at runtime, so the scene
+    // renders fine — N10 must warn, never block.
+    const issues = typecheckAuthoredScenes([fixture("typecheck-excess-prop.tsx")], root);
+    expect(issues.length).toBeGreaterThan(0);
+    expect(issues.every((i) => i.severity === "warning")).toBe(true);
+    expect(issues.some((i) => /does not exist on type 'IntrinsicAttributes/.test(i.message))).toBe(true);
+  }, TS_PROGRAM_TIMEOUT);
+
   it("is a no-op for an empty file list", () => {
     expect(typecheckAuthoredScenes([], root)).toEqual([]);
   });

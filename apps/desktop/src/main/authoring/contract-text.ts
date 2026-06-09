@@ -40,7 +40,7 @@ LAYOUT ZONES:
 - Có đường kẻ ĐEN ở đáy content-zone; giữ nội dung PHÍA TRÊN nó — tràn xuống là lỗi N14 (chặn render).
 - Cân bằng vùng: cảnh chỉ một tiêu đề + một dòng đọc TRỐNG/đầu nặng; cho beat thưa một mỏ neo (số lớn/đồ hoạ nhỏ).
 
-DESIGN: nền CREAM sáng + mực gần đen, VUÔNG (bo góc 0), viền mực 4px (không tối, không hairline); màu nhấn theo useTheme() (accent/signal + data-viz). Chữ tương phản cao (N18).
+DESIGN: nền CREAM sáng + mực gần đen, VUÔNG (bo góc 0), viền mực 4px (không tối, không hairline); màu nhấn theo useTheme() (accent/signal + data-viz). Chữ tương phản cao (N18). Frame/Story/TitleBlock/Panel KHÔNG nhận style — Frame tự sơn nền; muốn nền/màu riêng thì đặt style trên <div> bên trong, đừng truyền style cho block.
 MÀU — đọc qua const theme = useTheme(); rồi theme.colors.X (KHÔNG đọc phẳng theme.X). Token CÓ THẬT: nền bg/bgElevated, thẻ panel, chữ fg, chữ mờ muted, nhấn chính accent, nhấn phụ/đối lập signal, viền line; bộ data-viz red/blue/yellow/green/violet. (Chữ/viền đen = fg/line, nền kem = bg — KHÔNG cần ink/paper/primary/text.)
 
 CỠ CHỮ (canvas 1080×1920, xem trên điện thoại — chữ nhỏ là lỗi hay gặp nhất): tiêu đề chính ≥ 64px; câu/đoạn nội dung chính ≥ 40px; nhãn/đơn vị/chú thích phụ ≥ 24px. TUYỆT ĐỐI không để text dưới 18px (không đọc nổi). Số liệu nổi bật nên RẤT lớn (80–160px). Khi nghi ngờ, để chữ TO hơn — ưu tiên ít chữ + lớn hơn nhiều chữ + nhỏ.

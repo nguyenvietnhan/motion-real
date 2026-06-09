@@ -136,20 +136,38 @@ export function typecheckAuthoredScenes(
 const MISSING_THEME_COLOR = /does not exist on type 'Theme(Colors)?'/;
 
 /**
+ * An EXCESS prop passed to a component — e.g. a model writing
+ *   `<Frame style={{ backgroundColor: theme.colors.bg }}>`   // Frame takes no `style`
+ * surfaces as TS2322 with a secondary line:
+ *   `Property 'style' does not exist on type 'IntrinsicAttributes & { children: ReactNode; }'.`
+ * React function components only read the props they destructure and SILENTLY
+ * ignore any extra prop at runtime, so an excess prop can neither crash nor
+ * mis-render — it's a pure type-level mismatch. Matched by the `IntrinsicAttributes`
+ * type name, which is specific to the JSX excess-attribute error: a MISSING
+ * required prop is TS2741 ("is missing in type … but required") and a WRONG-TYPE
+ * prop value ({text}[] vs string[]) is an assignability error on the value — neither
+ * phrases it as "does not exist on type 'IntrinsicAttributes", so neither is softened.
+ */
+const EXCESS_COMPONENT_PROP = /does not exist on type 'IntrinsicAttributes/;
+
+/**
  * Decide an N10 diagnostic's severity. Most authored type errors are HARD
  * (severity "error"): a wrong-shape prop (e.g. `{text}[]` where a block wants
  * `string[]`) compiles under the transpile-only bundler and then crashes
  * headless Chromium at runtime — that MUST block the render.
  *
- * The ONE exception is a read of an un-aliased color token off `theme.colors`.
- * The design layer wraps `colors` in a runtime Proxy that resolves any unknown
- * token to a safe on-brand color (never `undefined`), so such a scene renders
- * fine — just with a fallback color and a one-time console hint. Blocking the
- * render over a cosmetic, already-self-healed mismatch would be the false-
- * positive that makes N10 feel un-shippable, so these are WARNINGS: surfaced
- * (and route an advisory reauthor) but never a hard gate. Scoped by the exact
- * `ThemeColors` type name so nothing crash-class is ever downgraded.
+ * Two narrow, runtime-harmless classes are downgraded to WARNINGS so a render
+ * the runtime already tolerates is never hard-blocked:
+ *  1. An un-aliased color token off `theme.colors`/`theme` — the design layer's
+ *     runtime Proxy resolves any unknown token to a safe on-brand color (never
+ *     `undefined`), so the scene renders with a fallback color + a one-time hint.
+ *  2. An EXCESS prop on a component (e.g. `<Frame style={…}>`) — React ignores
+ *     undeclared props at runtime, so the scene renders unchanged.
+ * Both are scoped by an EXACT type-name signature so nothing crash-class (a
+ * missing required prop, a wrong-typed prop value, a null-deref) is ever
+ * downgraded. Surfaced (and they route an advisory reauthor) but never a gate.
  */
 function severityFor(message: string): SafetyIssue["severity"] {
-  return MISSING_THEME_COLOR.test(message) ? "warning" : "error";
+  if (MISSING_THEME_COLOR.test(message) || EXCESS_COMPONENT_PROP.test(message)) return "warning";
+  return "error";
 }
