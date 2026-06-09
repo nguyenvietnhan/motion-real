@@ -54,7 +54,7 @@
   font-style: normal;
   src: local("Segoe UI"), local("Inter"), local("Inter Regular");
   ascent-override: 100%;
-  descent-override: 30%;
+  descent-override: 42%;
   line-gap-override: 0%;
 }
 @font-face {
@@ -63,7 +63,7 @@
   font-style: normal;
   src: local("Segoe UI Semibold"), local("Inter SemiBold"), local("Inter");
   ascent-override: 100%;
-  descent-override: 30%;
+  descent-override: 42%;
   line-gap-override: 0%;
 }
 @font-face {
@@ -72,7 +72,7 @@
   font-style: normal;
   src: local("Segoe UI Bold"), local("Inter Bold"), local("Inter");
   ascent-override: 100%;
-  descent-override: 30%;
+  descent-override: 42%;
   line-gap-override: 0%;
 }
 
@@ -290,8 +290,11 @@ select {
   opacity: 0.45;
   cursor: not-allowed;
 }
+/* A disabled button keeps its RESTING background on hover (no affordance that
+ * it's clickable). The default variant is transparent; only the primary variant
+ * rests on brand, so scope the brand keep-state to it. */
 .ns-btn:disabled:hover {
-  background: var(--brand);
+  background: transparent;
 }
 .ns-btn-primary:disabled:hover {
   background: var(--brand);

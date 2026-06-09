@@ -195,6 +195,7 @@ export const App: React.FC = () => {
               setStage({ kind: "rendering", percent: 0, phase: "full" });
               void dash?.review.approveDraft(openProjectId);
             }}
+            onReveal={() => onReveal(openProjectId)}
           />
         )}
       </main>

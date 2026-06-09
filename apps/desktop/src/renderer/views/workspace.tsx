@@ -56,7 +56,8 @@ export const ProjectWorkspaceView: React.FC<{
   onApproveScript: () => void;
   onSubmitEdits: (perScene: { sceneId: string; text: string }[], globalNotes: string) => void;
   onApproveDraft: () => void;
-}> = ({ stage, onBack, onRetry, onFixWithAi, onApplyScript, onApproveScript, onSubmitEdits, onApproveDraft }) => {
+  onReveal: () => void;
+}> = ({ stage, onBack, onRetry, onFixWithAi, onApplyScript, onApproveScript, onSubmitEdits, onApproveDraft, onReveal }) => {
   const title: Record<ProjectStage["kind"], string> = {
     writing: "Đang viết kịch bản",
     script: "Duyệt kịch bản",
@@ -116,7 +117,8 @@ export const ProjectWorkspaceView: React.FC<{
           hint="Video bản đầy đủ đã được dựng xong. Mở thư mục dự án để lấy file MP4."
           action={
             <div style={{ display: "flex", gap: 10 }}>
-              <button className="ns-btn ns-btn-primary" onClick={onBack}>Quay lại Trang chủ</button>
+              <button className="ns-btn ns-btn-primary" onClick={onReveal}>{Icon.folder({ size: 15 })} Mở thư mục</button>
+              <button className="ns-btn" onClick={onBack}>Quay lại Trang chủ</button>
             </div>
           } />
       )}

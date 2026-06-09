@@ -57,10 +57,12 @@ export const StoryboardView: React.FC<{
       {scenes.length > 0 && (
         <>
           <button className={`ns-btn${showEdit ? " ns-btn-primary" : ""}`} onClick={() => setShowEdit((v) => !v)}>✎ Sửa cảnh</button>
-          <button className="ns-btn ns-btn-primary" disabled={!canSend} onClick={sendAll}>
+          <button className="ns-btn ns-btn-primary" disabled={!canSend} onClick={sendAll}
+            title={canSend ? undefined : "Chưa có chỉnh sửa nào — sửa một cảnh hoặc ghi chú chung trước khi gửi."}>
             {editedCount > 0 ? `Gửi chỉnh sửa (${editedCount})` : "Gửi chỉnh sửa"}
           </button>
-          <button className="ns-btn" disabled={!canApprove} onClick={onApprove}>Duyệt &amp; xuất bản</button>
+          <button className="ns-btn" disabled={!canApprove} onClick={onApprove}
+            title={canApprove ? undefined : "Bản nháp chưa sẵn sàng để duyệt."}>Duyệt &amp; xuất bản</button>
         </>
       )}
     </div>
@@ -130,12 +132,12 @@ export const StoryboardView: React.FC<{
               <strong style={{ fontSize: 14 }}>Sửa cảnh {idx + 1}</strong>
               <button className="ns-btn" style={{ padding: "4px 10px" }} onClick={() => setShowEdit(false)}>Đóng</button>
             </div>
-            <textarea aria-label={`edit-${current?.sceneId}`} className="ns-input" value={current ? (edits[current.sceneId] ?? "") : ""}
+            <textarea aria-label={`Yêu cầu chỉnh sửa cảnh ${idx + 1}`} className="ns-input" value={current ? (edits[current.sceneId] ?? "") : ""}
               maxLength={2000} rows={5} onChange={(e) => setCurrentEdit(e.target.value)}
               placeholder="Nói tự nhiên điều muốn đổi cho cảnh này: “to chữ tiêu đề”, “đổi nền sang xanh”, “bỏ bớt chữ, thêm biểu đồ cột”…"
               style={{ width: "100%", resize: "none" }} />
             <label style={{ fontSize: 12, color: "var(--muted-foreground)" }}>Ghi chú chung cho cả video (tùy chọn)</label>
-            <textarea aria-label="global-notes" className="ns-input" value={notes} maxLength={2000} rows={3}
+            <textarea aria-label="Ghi chú chung cho cả video" className="ns-input" value={notes} maxLength={2000} rows={3}
               onChange={(e) => setNotes(e.target.value)}
               placeholder="vd “giọng nhanh hơn”, “tông màu ấm hơn”…"
               style={{ width: "100%", resize: "none" }} />

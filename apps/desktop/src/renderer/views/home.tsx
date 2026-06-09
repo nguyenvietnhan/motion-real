@@ -47,7 +47,7 @@ export const HomeView: React.FC<{
           Dán đường dẫn bài báo hoặc mô tả chủ đề bằng tiếng Việt. AI sẽ tự dựng kịch bản, hình ảnh và lời đọc.
         </p>
         <textarea
-          aria-label="topic-input"
+          aria-label="Mô tả video hoặc đường dẫn bài báo"
           className="ns-input"
           value={raw}
           onChange={(e) => setRaw(e.target.value)}

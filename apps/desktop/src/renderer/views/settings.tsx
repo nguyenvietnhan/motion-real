@@ -60,7 +60,7 @@ export const SettingsView: React.FC<{
                   {connected.length > 0 && (
                     <div style={{ marginTop: 20 }}>
                       <Field label="Model dùng để dựng" hint="Model có khả năng nhìn ảnh sẽ tự soát & sửa lỗi bố cục tốt hơn.">
-                        <select className="ns-input" aria-label="model-select" value={selectedModelId} onChange={(e) => onSelectModel(e.target.value)} style={{ width: "100%", maxWidth: 420 }}>
+                        <select className="ns-input" aria-label="Chọn model dựng video" value={selectedModelId} onChange={(e) => onSelectModel(e.target.value)} style={{ width: "100%", maxWidth: 420 }}>
                           <option value="" disabled>— chọn model —</option>
                           {models.map((m) => (<option key={m.id} value={m.id}>{m.id}</option>))}
                         </select>

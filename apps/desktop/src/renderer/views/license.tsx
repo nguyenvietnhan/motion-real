@@ -25,7 +25,7 @@ export const LicenseView: React.FC<{
         </div>
         <p style={{ color: m.color, marginTop: 0 }}>{m.text}</p>
         <input
-          aria-label="license-key"
+          aria-label="Mã kích hoạt"
           className="ns-input"
           value={key}
           onChange={(e) => setKey(e.target.value)}
