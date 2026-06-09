@@ -105,8 +105,12 @@ const authoringBackend = new NineRouterAuthoringBackend({
   model: () => selectedModel?.id,
   apiKey: () => undefined, // 9router /v1 is open on localhost
   onRenderProgress: (ratio, projectId) => {
+    // Drive the staged rendering bar from the renderer's REAL per-frame ratio.
+    // The active phase (draft/qa/edit/full) is owned by the WorkspaceController
+    // stage, which the UI polls — so we do NOT emit a second progress event here
+    // (it was unconsumed by the renderer and hard-coded "draft", which mislabeled
+    // full renders; emitting it per frame was also dead IPC chatter).
     reportProgress(projectId, ratio);
-    events.progress({ projectId, ratio, phase: "draft" });
   },
 });
 const worker = new CustomLoopAgentWorker(authoringBackend);

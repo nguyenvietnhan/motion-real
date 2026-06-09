@@ -1,7 +1,7 @@
 import React, { useEffect, useReducer, useState } from "react";
 import { HomeView, LicenseView, ProjectsView, ProjectWorkspaceView, SettingsView, Sidebar, type Screen } from "./views.js";
 import { reduceDesktop, type DesktopState } from "./state/desktop-state.js";
-import { aiReady } from "../main/gateway/model-gateway-manager.js";
+import { aiReady } from "../shared/ai-ready.js";
 import { defaultSettings } from "../shared/settings-model.js";
 import type { LicenseState, ModelInfo, ProjectStage } from "../shared/types.js";
 

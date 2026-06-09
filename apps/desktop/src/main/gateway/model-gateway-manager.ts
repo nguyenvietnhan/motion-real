@@ -6,6 +6,11 @@ import type {
   ModelInfo,
   ProviderInfo,
 } from "../../shared/types.js";
+import { aiReady } from "../../shared/ai-ready.js";
+
+// Re-export the pure gate so existing importers of this module keep working,
+// while the source of truth lives in `shared/` (renderer-safe).
+export { aiReady } from "../../shared/ai-ready.js";
 
 /**
  * Model_Gateway (9router) manager module (web-dashboard design §Model_Gateway).
@@ -18,20 +23,6 @@ import type {
  */
 
 export const GATEWAY_BASE_URL = "http://localhost:20128/v1";
-
-/**
- * Pure gate (Property 3): silent draft generation may start IFF the local
- * gateway is `ready`, at least one account is `connected`, AND a model is
- * selected. Any other combination is false and blocks the Create action.
- */
-export function aiReady(gw: GatewayState, acc: AiAccountState): boolean {
-  return (
-    gw.kind === "ready" &&
-    acc.kind === "connected" &&
-    acc.accounts.length > 0 &&
-    acc.selectedModel !== undefined
-  );
-}
 
 export const MAX_START_ATTEMPTS = 3;
 
