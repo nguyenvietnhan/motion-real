@@ -102,6 +102,29 @@ describe("authorScenes (pure-author)", () => {
     expect(out.scenes).toEqual([]);
     expect(out.message).toMatch(/model/i);
   });
+
+  it("reports links it could NOT read in unreadableUrls (so the UI can warn the user)", async () => {
+    const projectId = "pa-unreadable";
+    const { backend } = makeBackend(validReply());
+    // One link extracts text, the other fails — only the failed one is reported.
+    const ingest_url = vi.fn(async ({ url }: { url: string }) =>
+      url.includes("good")
+        ? { ok: true as const, data: { text: "nội dung đọc được" } }
+        : { ok: false as const },
+    );
+    (backend as unknown as { deps: NineRouterBackendDeps }).deps.tools = { ingest_url } as never;
+    const job: AuthorJob = {
+      projectId,
+      input: { text: "hai link", urls: ["https://good.example.com/a", "https://bad.example.com/b"] },
+      scriptGate: false,
+    };
+
+    const out = await backend.authorScenes(job);
+
+    expect(out.scenes.length).toBeGreaterThan(0); // authoring still succeeds
+    expect(out.unreadableUrls).toEqual(["https://bad.example.com/b"]);
+    expect(ingest_url).toHaveBeenCalledTimes(2);
+  });
 });
 
 // --- reauthor (code-level self-repair) -----------------------------------

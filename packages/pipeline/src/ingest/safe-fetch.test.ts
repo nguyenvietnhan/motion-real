@@ -93,4 +93,26 @@ describe("makeSafeFetch", () => {
     });
     await expect(fetcher("https://example.com/start")).rejects.toSatisfy(isPipelineError);
   });
+
+  it("sends browser-like headers on the default fetch (so CDN-fronted articles aren't 403'd)", async () => {
+    // The default fetchImpl uses global fetch; capture its init to assert headers.
+    const realFetch = globalThis.fetch;
+    let captured: RequestInit | undefined;
+    globalThis.fetch = (async (_url: string, init?: RequestInit) => {
+      captured = init;
+      return res({ body: "<html>ok</html>" });
+    }) as typeof fetch;
+    try {
+      // Only override lookup (public) so the default fetchImpl path runs.
+      const fetcher = makeSafeFetch({ lookupImpl: async () => ["93.184.216.34"] });
+      await fetcher("https://example.com/a");
+    } finally {
+      globalThis.fetch = realFetch;
+    }
+    const headers = (captured?.headers ?? {}) as Record<string, string>;
+    expect(captured?.redirect).toBe("manual");
+    expect(headers["User-Agent"]).toMatch(/Mozilla\/5\.0.*Chrome/);
+    expect(headers["Accept"]).toContain("text/html");
+    expect(headers["Accept-Language"]).toContain("vi");
+  });
 });

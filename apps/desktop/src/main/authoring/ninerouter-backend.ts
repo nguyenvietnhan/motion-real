@@ -111,19 +111,21 @@ function toEngineManifest(m: AuthorManifest): Manifest {
 export class NineRouterAuthoringBackend implements AuthoringBackend {
   constructor(private readonly deps: NineRouterBackendDeps) {}
 
-  async authorScenes(job: AuthorJob): Promise<{ scenes: AuthoredScene[]; message?: string }> {
+  async authorScenes(job: AuthorJob): Promise<{ scenes: AuthoredScene[]; message?: string; unreadableUrls?: string[] }> {
     const model = this.deps.model();
     if (!model) return { scenes: [], message: "Chưa chọn model AI." };
 
     // Best-effort grounding: fetch any links in the brief. A failed fetch is NOT
     // fatal — authoring continues from the user's text + the model's knowledge.
     const chunks: string[] = [];
+    const unreadableUrls: string[] = [];
     for (const url of job.input.urls) {
       const ing = await this.deps.tools.ingest_url({ url }).catch(() => null);
       const text = ing && ing.ok ? (ing.data as { text?: unknown } | undefined)?.text : undefined;
       if (typeof text === "string" && text.trim()) {
         chunks.push(`# ${url}\n${text.trim()}`);
       } else {
+        unreadableUrls.push(url);
         console.warn(`[authoring] could not read link ${url} (skipping; authoring continues).`);
       }
     }
@@ -172,7 +174,7 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
       sceneId: s.id,
       stillPath: join(reviewDir, `${s.id}.png`),
     }));
-    return { scenes };
+    return { scenes, ...(unreadableUrls.length > 0 ? { unreadableUrls } : {}) };
   }
 
   /**

@@ -12,15 +12,43 @@ import { StoryboardView } from "./storyboard.js";
 
 const ScriptReview: React.FC<{
   lines: ScriptLine[];
+  linkWarning?: string;
   onApply: (edits: { sceneId: string; narration?: string; headline?: string }[]) => void;
   onApprove: () => void;
-}> = ({ lines, onApply, onApprove }) => {
+}> = ({ lines, linkWarning, onApply, onApprove }) => {
   const [draft, setDraft] = useState<Record<string, { headline: string; narration: string }>>(
     Object.fromEntries(lines.map((l) => [l.sceneId, { headline: l.headline, narration: l.narration }])),
   );
+  const [warningDismissed, setWarningDismissed] = useState(false);
   const edits = lines.map((l) => ({ sceneId: l.sceneId, headline: draft[l.sceneId]?.headline, narration: draft[l.sceneId]?.narration }));
   return (
     <>
+      {linkWarning && !warningDismissed && (
+        <div
+          className="ns-card"
+          role="status"
+          style={{
+            padding: "12px 14px",
+            marginBottom: 16,
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            borderColor: "#d97706",
+            background: "rgba(217, 119, 6, 0.08)",
+          }}
+        >
+          <span style={{ color: "#d97706", flexShrink: 0, display: "inline-flex" }}><Icon.info size={16} /></span>
+          <span style={{ color: "var(--foreground)", fontSize: 13, flex: 1 }}>{linkWarning}</span>
+          <button
+            className="ns-btn"
+            aria-label="Đóng cảnh báo"
+            onClick={() => setWarningDismissed(true)}
+            style={{ flexShrink: 0, padding: "4px 10px" }}
+          >
+            Đóng
+          </button>
+        </div>
+      )}
       <div className="ns-card" style={{ padding: 16, marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
         <span style={{ color: "var(--muted-foreground)" }}>AI đã soạn kịch bản. Sửa lời đọc nếu cần, rồi duyệt để dựng video.</span>
         <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
@@ -88,7 +116,7 @@ export const ProjectWorkspaceView: React.FC<{
           <p style={{ color: "var(--muted-foreground)", margin: 0 }}>AI đang viết kịch bản từ nội dung của bạn…</p>
         </div>
       )}
-      {stage.kind === "script" && <ScriptReview lines={stage.lines} onApply={onApplyScript} onApprove={onApproveScript} />}
+      {stage.kind === "script" && <ScriptReview lines={stage.lines} linkWarning={stage.linkWarning} onApply={onApplyScript} onApprove={onApproveScript} />}
       {stage.kind === "rendering" && (() => {
         const phase = stage.phase ?? "draft";
         const label =

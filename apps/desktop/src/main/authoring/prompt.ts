@@ -25,7 +25,8 @@ const CONTENT_RULES = `QUY TẮC NỘI DUNG (bắt buộc):
 - Viết SỐ bằng CHỮ SỐ ở cả headline lẫn narration (vd 92%, 2026, 110.000, 920 triệu). KHÔNG đánh vần số, KHÔNG ghép năm kiểu tiếng Anh.
 - KHÔNG bịa số liệu/nguồn/ngày/giá/phần trăm. Không chắc một con số thì đừng nêu.
 - scene-01 mở bằng HOOK trực diện (không chào hỏi/định nghĩa). Cảnh CUỐI là CTA/câu hỏi gắn chủ đề (không "like/share/subscribe" chung chung).
-- Mỗi cảnh MỘT ý; narration 1–3 câu cô đọng (khoảng 18–40 từ). Tự do nhịp: 8–12 cảnh, đa dạng form.`;
+- Mỗi cảnh MỘT ý; narration 1–3 câu cô đọng (khoảng 18–40 từ). Đa dạng form.
+- THỜI LƯỢNG: nếu yêu cầu nêu thời lượng (vd "90 giây", "1p30s", "1 phút rưỡi"), hãy ước TỔNG lời đọc toàn video ≈ thời_lượng_giây × 2.7 từ (tiếng Việt đọc ~2.7 từ/giây) và viết ĐỦ số cảnh để đạt tổng đó — thà hơi DƯ còn hơn hụt (vd 90 giây → khoảng 230–260 từ tổng, thường 9–13 cảnh). Không nêu thời lượng thì 8–12 cảnh.`;
 
 const OUTPUT_FORMAT = `ĐỊNH DẠNG TRẢ VỀ (AI_Output_Contract) — trả về TRONG MỘT REPLY:
 1) Đúng MỘT khối \`\`\`json là manifest (KHÔNG chứa code):
@@ -68,7 +69,7 @@ export function buildAuthorMessages(input: AuthorInput, research?: string): Chat
   const grounding = research
     ? `\n\nTư liệu đã đọc từ link (dùng làm căn cứ, không bịa thêm):\n${research}`
     : input.urls.length > 0
-      ? "\n\n(Không đọc được nội dung link — hãy dựa trên hiểu biết đáng tin về chủ đề trong yêu cầu.)"
+      ? "\n\n(Không đọc được nội dung link. Chỉ dùng thông tin trong yêu cầu + kiến thức chắc chắn về chủ đề. KHÔNG bịa số liệu, ngày tháng, giá, phần trăm hay tên sản phẩm/phiên bản mới — thiếu căn cứ thì đừng nêu.)"
       : "";
   const source = `Yêu cầu của người dùng:\n${input.text}${links}${grounding}`;
   return [

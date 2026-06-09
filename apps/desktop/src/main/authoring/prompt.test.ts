@@ -23,6 +23,25 @@ describe("buildAuthorMessages", () => {
     expect(user!.content).toContain("https://example.com/x");
     expect(user!.content).toContain("tư liệu ABC");
   });
+
+  it("carries a duration→word-budget instruction so a requested length isn't undershot", () => {
+    // The user's requested length lives in the free-text brief; the system prompt
+    // must tell the model how to turn seconds into a total word budget (the signal
+    // that was missing when a 90s request rendered as 54s).
+    const [sys] = buildAuthorMessages({ text: "Làm video 1p30s về chủ đề X", urls: [] });
+    expect(sys!.content).toContain("2.7");
+    expect(sys!.content).toMatch(/TỔNG lời đọc/i);
+  });
+
+  it("forbids fabrication (not 'use your own knowledge') when a link could not be read", () => {
+    // urls present but NO research → the unreadable-link branch. It must NOT invite
+    // the model to fill gaps from memory; it must forbid inventing figures/dates.
+    const [, user] = buildAuthorMessages({ text: "Tóm tắt https://example.com/x", urls: ["https://example.com/x"] });
+    const text = user!.content as string;
+    expect(text).toContain("Không đọc được");
+    expect(text).toMatch(/KHÔNG bịa/);
+    expect(text).not.toContain("hiểu biết đáng tin");
+  });
 });
 
 describe("buildReauthorMessages", () => {

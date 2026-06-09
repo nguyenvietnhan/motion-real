@@ -306,6 +306,63 @@ describe("fixWithAi + fixable flag", () => {
   });
 });
 
+// Unreadable-link warning: when a brief link can't be fetched, the content
+// leans on the model's own knowledge → surface a non-blocking warning so the
+// user verifies before approving (it must never block the flow).
+describe("runScript link warning (unreadable brief links)", () => {
+  function authorReturning(unreadableUrls?: string[]): AgentWorker {
+    return {
+      author: async (): Promise<AuthorOutcome> => ({
+        kind: "authored",
+        sceneIds: ["scene-01"],
+        ...(unreadableUrls ? { unreadableUrls } : {}),
+      }),
+      reauthorScenes: async (): Promise<AuthorOutcome> => ({ kind: "authored", sceneIds: [] }),
+      publish: async () => ({ ok: true, outputPath: "out.mp4" }),
+      generateValidateRepair: async (): Promise<RepairOutcome> => ({ kind: "passed", attempts: 1 }),
+    };
+  }
+
+  it("gate ON + an unreadable link ⇒ the script stage carries a linkWarning naming the count", async () => {
+    const ctrl = new WorkspaceController(
+      baseDeps({ worker: authorReturning(["https://a.example/x"]), settings: { scriptGateEnabled: true, maxRepairAttempts: 3, visualQaEnabled: false } }),
+    );
+    ctrl.beginScript("p1", { text: "tóm tắt https://a.example/x", urls: ["https://a.example/x"] });
+    await flush();
+    const st = await ctrl.stage("p1");
+    expect(st.kind).toBe("script");
+    if (st.kind === "script") {
+      expect(st.linkWarning).toBeDefined();
+      expect(st.linkWarning).toContain("1/1");
+    }
+  });
+
+  it("gate ON + every link read ⇒ NO linkWarning", async () => {
+    const ctrl = new WorkspaceController(
+      baseDeps({ worker: authorReturning(), settings: { scriptGateEnabled: true, maxRepairAttempts: 3, visualQaEnabled: false } }),
+    );
+    ctrl.beginScript("p1", { text: "tóm tắt https://a.example/x", urls: ["https://a.example/x"] });
+    await flush();
+    const st = await ctrl.stage("p1");
+    expect(st.kind).toBe("script");
+    if (st.kind === "script") expect(st.linkWarning).toBeUndefined();
+  });
+
+  it("gate OFF + an unreadable link ⇒ the warning rides through to the ready stage notice", async () => {
+    const ctrl = new WorkspaceController(
+      baseDeps({ worker: authorReturning(["https://a.example/x", "https://b.example/y"]), settings: { scriptGateEnabled: false, maxRepairAttempts: 3, visualQaEnabled: false } }),
+    );
+    ctrl.beginScript("p1", { text: "x", urls: ["https://a.example/x", "https://b.example/y"] });
+    await flush();
+    const st = await ctrl.stage("p1");
+    expect(st.kind).toBe("ready");
+    if (st.kind === "ready") {
+      expect(st.notice).toBeDefined();
+      expect(st.notice).toContain("2/2");
+    }
+  });
+});
+
 // Per-scene free-form edit → reauthor + re-render (desktop-author-mode, Part B)
 describe("submitEdits (per-scene free-form edit)", () => {
   it("from ready: re-authors the edited scene with its instruction, re-renders, returns to ready", async () => {

@@ -33,7 +33,7 @@ export type ReauthorTarget = { sceneId: string; issues?: SafetyIssue[]; intent?:
 /** The model+MCP-facing operations the custom loop drives. */
 export interface AuthoringBackend {
   /** Author the scene .tsx + manifest + narration for a fresh project (ingests any brief links best-effort). */
-  authorScenes(job: AuthorJob): Promise<{ scenes: AuthoredScene[]; message?: string }>;
+  authorScenes(job: AuthorJob): Promise<{ scenes: AuthoredScene[]; message?: string; unreadableUrls?: string[] }>;
   /** Re-author ONLY the named scenes (code-level self-repair / visual edit). */
   reauthor(projectId: string, targets: ReauthorTarget[]): Promise<{ scenes: AuthoredScene[] }>;
   /** Render one draft (drives the MCP `render_draft` tool); failure carries the engine error. */
@@ -66,7 +66,11 @@ export class CustomLoopAgentWorker implements AgentWorker {
       return { kind: "no-source", message: authored.message ?? "Chưa tạo được cảnh nào từ yêu cầu này." };
     }
     emitScenes(authored.scenes, hooks);
-    return { kind: "authored", sceneIds: authored.scenes.map((s) => s.sceneId) };
+    return {
+      kind: "authored",
+      sceneIds: authored.scenes.map((s) => s.sceneId),
+      ...(authored.unreadableUrls && authored.unreadableUrls.length > 0 ? { unreadableUrls: authored.unreadableUrls } : {}),
+    };
   }
 
   async reauthorScenes(job: ReauthorJob, hooks: AgentHooks): Promise<AuthorOutcome> {    const targets = job.sceneIds.map((sceneId) => ({

@@ -20,6 +20,21 @@ import { PipelineError } from "../errors.js";
 const MAX_REDIRECTS = 5;
 const MAX_BODY_BYTES = 5 * 1024 * 1024; // 5 MB — articles are text; this is generous.
 
+/**
+ * Browser-like request headers. Without a real User-Agent, news sites behind a
+ * CDN (Cloudflare etc.) routinely answer Node's default agent with 403/429 or a
+ * bot-challenge page, so the article never reaches Readability and authoring
+ * falls back to the model's own (often stale/wrong) knowledge. Sending a normal
+ * desktop-Chrome UA + Accept headers gets static article HTML through; JS-only
+ * pages still need a headless browser (out of scope) and fail gracefully.
+ */
+const BROWSER_HEADERS: Record<string, string> = {
+  "User-Agent":
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+  Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+  "Accept-Language": "vi,en-US;q=0.9,en;q=0.8",
+};
+
 /** The minimal result shape the ingest path consumes (matches `FetchLike`). */
 export type SafeFetchResult = { ok: boolean; status: number; text: () => Promise<string> };
 
@@ -154,7 +169,7 @@ async function readCapped(res: Response, max: number): Promise<string> {
  * caps the body. Returns a function compatible with the ingest `FetchLike`.
  */
 export function makeSafeFetch(opts: SafeFetchOptions = {}): (url: string) => Promise<SafeFetchResult> {
-  const fetchImpl = opts.fetchImpl ?? ((u: string) => fetch(u, { redirect: "manual" }));
+  const fetchImpl = opts.fetchImpl ?? ((u: string) => fetch(u, { redirect: "manual", headers: BROWSER_HEADERS }));
   const lookupImpl = opts.lookupImpl ?? defaultLookup;
   const maxRedirects = opts.maxRedirects ?? MAX_REDIRECTS;
   const maxBodyBytes = opts.maxBodyBytes ?? MAX_BODY_BYTES;

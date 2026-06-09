@@ -43,6 +43,17 @@ function combineIntent(perScene: string, globalNotes: string): string {
 }
 
 /**
+ * Build a non-blocking warning when one or more brief links couldn't be read.
+ * The content then leans on the model's own knowledge (potentially stale), so
+ * the user should verify before approving. Returns undefined when every link
+ * was read (or there were none).
+ */
+function linkWarningOf(totalUrls: number, unreadableUrls: string[]): string | undefined {
+  if (unreadableUrls.length === 0) return undefined;
+  return `Không đọc được ${unreadableUrls.length}/${totalUrls} đường dẫn. Nội dung liên quan dựa trên hiểu biết của AI.`;
+}
+
+/**
  * WorkspaceController (reconcile-main-controllers S4) — the tested home for the
  * staged-workspace orchestration that was inline in `index.ts`
  * (`stages`/`setStage`/`runScript`/`runRender`/`scriptLinesOf`/
@@ -174,10 +185,18 @@ export class WorkspaceController {
         this.deps.events.friendlyError({ projectId, message, retry: "create", fixable: false });
         return;
       }
+      // If any brief link couldn't be read, the content leans on the model's own
+      // knowledge — surface a non-blocking warning so the user verifies before
+      // approving (audit: unreadable-link silent fallback).
+      const linkWarning = linkWarningOf(input.urls.length, authored.unreadableUrls ?? []);
       if (this.deps.settings.scriptGateEnabled) {
-        this.setStage(projectId, { kind: "script", lines: await this.scriptLinesOf(projectId) });
+        this.setStage(projectId, {
+          kind: "script",
+          lines: await this.scriptLinesOf(projectId),
+          ...(linkWarning ? { linkWarning } : {}),
+        });
       } else {
-        await this.runRender(projectId);
+        await this.runRender(projectId, linkWarning);
       }
     } catch (e) {
       console.error(`[workspace] authoring failed for ${projectId}:`, e);
@@ -421,7 +440,7 @@ export class WorkspaceController {
     this.setStage(projectId, { kind: "rendering", percent: Math.round(clamped * 100), phase: s.phase });
   }
 
-  private async runRender(projectId: string): Promise<void> {
+  private async runRender(projectId: string, readyNotice?: string): Promise<void> {
     this.setStage(projectId, { kind: "rendering", percent: 0, phase: "draft" });
     const hooks = this.renderHooks(projectId, "draft");
     try {
@@ -430,7 +449,7 @@ export class WorkspaceController {
       outcome = await this.withVisualQa(projectId, outcome, hooks);
       if (outcome.kind === "passed") {
         this.bumpRenderVersion(projectId);
-        this.setStage(projectId, { kind: "ready", scenes: await this.storyboardScenesOf(projectId) });
+        this.setStage(projectId, { kind: "ready", scenes: await this.storyboardScenesOf(projectId), ...(readyNotice ? { notice: readyNotice } : {}) });
       } else if (outcome.kind === "infra") {
         // Not agent-fixable: tell the user to retry / check setup, no "Sửa bằng AI".
         const message = "Gặp trục trặc hạ tầng khi dựng (kết nối hoặc cấu hình). Hãy kiểm tra lại và thử lại.";

@@ -52,7 +52,7 @@ export type RepairLoopOptions = { maxAttempts: number };
 
 /** Outcome of a fresh-author or re-author job. */
 export type AuthorOutcome =
-  | { kind: "authored"; sceneIds: string[] }
+  | { kind: "authored"; sceneIds: string[]; unreadableUrls?: string[] }
   | { kind: "no-source"; message: string };
 
 /** Outcome of the generate-validate-repair loop (Req 6.3/6.7; + infra, Req 4). */
