@@ -115,6 +115,30 @@ export async function loadManifestAsSpec(projectId: string): Promise<VideoSpec> 
   return manifestToVideoSpec(await loadManifest(projectId));
 }
 
+/** A manifest scene resolved to the authored `.tsx` that defines its component. */
+export type ManifestSceneFile = { sceneId: string; componentId: string; file: string };
+
+/**
+ * Scope the admitted authored files to exactly those the manifest references, in
+ * manifest (render) order — pairing each manifest scene with the `.tsx` whose
+ * `registerComponent` id it names. `componentToFile` is the `componentId → file`
+ * map built from an admission pass (ids and files are 1:1). Files not referenced
+ * by any scene (e.g. an earlier authoring batch left stranded after a reauthor
+ * rewrote the manifest with new ids) are OMITTED, so they are neither bundled nor
+ * typechecked — a stale orphan can't crash or block a render it isn't part of.
+ */
+export function manifestSceneFiles(
+  manifest: Manifest,
+  componentToFile: ReadonlyMap<string, string>,
+): ManifestSceneFile[] {
+  const out: ManifestSceneFile[] = [];
+  for (const scene of manifest.scenes) {
+    const file = componentToFile.get(scene.component);
+    if (file) out.push({ sceneId: scene.id, componentId: scene.component, file });
+  }
+  return out;
+}
+
 /** List the authored scene `.tsx` files in a project (excluding the generated entry). */
 export async function listAuthoredScenes(projectId: string): Promise<string[]> {
   const dir = projectPaths(projectId).authoredDir;

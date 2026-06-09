@@ -216,4 +216,56 @@ describe("Property 4: repair budget and routing", () => {
     const outcome = await generateValidateRepair(deps, { maxAttempts: 2 });
     expect(outcome.kind).not.toBe("passed");
   });
+
+  it("a CONTENT-class FAILED render reauthors the scene its persisted report names, then passes", async () => {
+    // The N10 / runtime-crash case: the draft never finishes (render fails), but
+    // a pre-render content gate persisted a scene-targeted report. The loop must
+    // read it, reauthor that scene, and succeed on the next attempt — instead of
+    // re-rendering the identical broken code (the "retry does nothing" bug).
+    let renders = 0;
+    let reauthored: string[] | null = null;
+    const n10 = (sceneId: string): SafetyIssue => ({ check: "N10", severity: "error", sceneId, message: "wrong prop shape" });
+    const deps: RepairLoopDeps = {
+      renderDraft: async () => {
+        renders++;
+        // First attempt: a content-class crash (React #31). After the reauthor, it renders.
+        return renders === 1
+          ? { ok: false, error: { message: "", stage: "render", cause: "Minified React error #31", severity: "error" } }
+          : { ok: true };
+      },
+      getSafetyReport: async () =>
+        renders === 1
+          ? { ok: false, hardErrors: [n10("scene-05")], warnings: [] }
+          : { ok: true, hardErrors: [], warnings: [] },
+      reauthor: async (targets) => {
+        reauthored = targets.map((t) => t.sceneId);
+      },
+      hooks: noopHooks,
+    };
+    const outcome = await generateValidateRepair(deps, { maxAttempts: 3 });
+    expect(outcome).toEqual({ kind: "passed", attempts: 2 });
+    expect(reauthored).toEqual(["scene-05"]);
+  });
+
+  it("a CONTENT-class FAILED render with NO targetable scene just consumes attempts (no infinite loop)", async () => {
+    // A runtime crash that persisted no scene id (or no report) can't be routed —
+    // it must consume the attempt and retry, then exhaust, never spin forever.
+    let renders = 0;
+    let reauthored = 0;
+    const deps: RepairLoopDeps = {
+      renderDraft: async () => {
+        renders++;
+        return { ok: false, error: { message: "", stage: "render", cause: "Minified React error #31", severity: "error" } };
+      },
+      getSafetyReport: async () => ({ ok: false, hardErrors: [], warnings: [] }),
+      reauthor: async () => {
+        reauthored++;
+      },
+      hooks: noopHooks,
+    };
+    const outcome = await generateValidateRepair(deps, { maxAttempts: 3 });
+    expect(outcome.kind).toBe("exhausted");
+    expect(renders).toBe(3);
+    expect(reauthored).toBe(0);
+  });
 });

@@ -45,6 +45,19 @@ const INFRA_CAUSE = /target closed|ECONN|ENOTFOUND|ETIMEDOUT|socket hang up|gate
 /** Render-stage causes that indicate the AI code broke the bundle (content). */
 const BUNDLE_CONTENT_CAUSE = /transform failed|could not resolve|unexpected|syntaxerror|authored[\\/]/i;
 
+/**
+ * Render-stage causes that are a RUNTIME crash inside the authored scene's React
+ * code (content) — the bundle compiled, but the component threw while Chromium
+ * rendered a frame. The flagship is React's "Minified React error #31" (rendering
+ * an object as a child — the real Gemini `{text}[]`-vs-`string[]` mistake), but
+ * the same class covers null/undefined deref, a non-function call, and stack
+ * overflow from bad recursion. These must route to "content" so the repair loop
+ * re-authors the scene instead of giving up as if the environment were broken.
+ * Checked AFTER INFRA_CAUSE, so a genuine Chromium "target closed" still wins.
+ */
+const RUNTIME_CONTENT_CAUSE =
+  /minified react error|react\.dev\/errors|objects are not valid as a react child|cannot read propert|cannot read properties of (?:undefined|null)|is not a function|is not defined|maximum call stack/i;
+
 /** Classify a single safety issue by its grid check id. */
 export function classifyIssue(issue: SafetyIssue): ErrorClass {
   return CONTENT_CHECKS.has(issue.check) ? "content" : "infra";
@@ -59,6 +72,8 @@ export function classifyError(e: SerializedPipelineError): ErrorClass {
   if (e.check && CONTENT_CHECKS.has(e.check)) return "content";
   // 3) Render-stage bundle/compile failure from authored code → content.
   if (e.stage === "render" && BUNDLE_CONTENT_CAUSE.test(e.cause)) return "content";
+  // 3b) Render-stage RUNTIME crash inside the authored React component → content.
+  if (e.stage === "render" && RUNTIME_CONTENT_CAUSE.test(e.cause)) return "content";
   // 4) Content by stage.
   if (CONTENT_STAGES.has(e.stage)) return "content";
   // 5) Default: infra (never waste an agent attempt on the unfixable).

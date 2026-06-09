@@ -19,10 +19,12 @@ export {
   loadManifestAsSpec,
   manifestToVideoSpec,
   listAuthoredScenes,
+  manifestSceneFiles,
   admitProjectScenes,
   writeAuthoredScene,
   emptyManifest,
   type Manifest,
   type ManifestScene,
+  type ManifestSceneFile,
   type AdmitProjectResult,
 } from "./manifest.js";

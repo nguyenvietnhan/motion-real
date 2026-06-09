@@ -70,35 +70,47 @@ export async function generateValidateRepair(
     // callback (WorkspaceController.reportRenderProgress); we deliberately do NOT
     // emit a coarse attempts/max ratio here — it would clobber the live percent.
 
-    if (!render.ok) {
-      // A failed render: if the cause is infra (missing voice key, gateway,
-      // Chromium "target closed"), the agent can't fix it — stop as `infra`.
-      // A non-infra/unknown render failure just consumes the attempt.
-      if (render.error && classifyError(render.error) === "infra") {
-        return { kind: "infra", attempts };
-      }
-      continue;
+    // A failed render whose cause is infra (missing voice key, gateway, Chromium
+    // "target closed") is not agent-fixable — stop as `infra`.
+    if (!render.ok && render.error && classifyError(render.error) === "infra") {
+      return { kind: "infra", attempts };
     }
 
+    // Read the report in BOTH cases. On success it's this render's oracle report.
+    // On a CONTENT-class failure the draft never finished, but a PRE-render
+    // content gate (N10 authored-typecheck) persists its flagged scenes — each
+    // carrying a sceneId — before failing. Reading it here is what lets the loop
+    // reauthor the precise broken scene instead of re-rendering identical code
+    // that crashes the same way (the exact "retry does nothing" bug).
     const report = await deps.getSafetyReport();
-    // `ok` is true only when the report was read AND has zero hard errors; a
-    // failed report read (ok:false, no errors) is NOT a pass.
-    if (report.ok) {
+
+    // The ONLY pass is a successful render with a zero-hard-error report; a
+    // failed-report read (ok:false, no errors) and any failed render are not.
+    if (render.ok && report.ok) {
       return { kind: "passed", attempts };
     }
 
     // An infra error in the report is not agent-fixable — stop without a reauthor.
-    if (report.hardErrors.length > 0 && report.hardErrors.some((e) => classifyIssue(e) === "infra")) {
+    if (report.hardErrors.some((e) => classifyIssue(e) === "infra")) {
       return { kind: "infra", attempts };
     }
 
-    remainingHardErrors = report.hardErrors.length;
-    for (const issue of report.hardErrors) deps.hooks.onRepair(toFriendlyFix(issue));
+    if (report.hardErrors.length > 0) {
+      remainingHardErrors = report.hardErrors.length;
+      for (const issue of report.hardErrors) deps.hooks.onRepair(toFriendlyFix(issue));
+    }
 
     if (attempts < max) {
       const targets = contentTargets(report.hardErrors);
-      if (targets.length === 0) break; // content errors with no scene to target
-      await deps.reauthor(targets);
+      if (targets.length > 0) {
+        await deps.reauthor(targets);
+        continue; // re-render the repaired scene(s) on the next attempt
+      }
+      // No scene to target. A rendered-but-flagged report with no targetable
+      // scene can't be improved by another attempt — stop. A FAILED render with
+      // nothing targetable (e.g. a runtime crash that persisted no scene) just
+      // consumes the attempt and retries.
+      if (render.ok) break;
     }
   }
 

@@ -78,4 +78,30 @@ describe("Property 3: error classification total & stable", () => {
   it("self-test: render-stage bundle compile error → content", () => {
     expect(classifyError({ message: "", stage: "render", cause: "Transform failed in authored/hook.tsx", severity: "error" })).toBe("content");
   });
+
+  // --- runtime crashes inside authored React code → content (the {text}[] bug) ---
+  it("self-test: Minified React error #31 (object as child) → content, not infra", () => {
+    // The exact failure: a model passed {text}[] where a block wanted string[],
+    // so React tried to render an object as a child and threw at frame render.
+    const cause =
+      "Minified React error #31; visit https://react.dev/errors/31?args[]=object%20with%20keys%20%7Btext%7D for the full message";
+    expect(classifyError({ message: "", stage: "render", cause, severity: "error" })).toBe("content");
+  });
+  it("self-test: runtime null-deref in a scene → content", () => {
+    expect(
+      classifyError({ message: "", stage: "render", cause: "Cannot read properties of undefined (reading 'map')", severity: "error" }),
+    ).toBe("content");
+  });
+  it("self-test: a real Chromium target-closed still wins over the runtime matcher → infra", () => {
+    // INFRA_CAUSE is checked first, so an environment crash is never mis-read as
+    // a fixable content error even if other text is present.
+    expect(
+      classifyError({ message: "", stage: "render", cause: "Target closed while rendering; is not a function", severity: "error" }),
+    ).toBe("infra");
+  });
+  it("self-test: N10 typecheck failure tagged build-gate → content", () => {
+    expect(
+      classifyError({ message: "", stage: "build-gate", cause: "authored scene typecheck reported 1 error(s)", check: "N10", severity: "error" }),
+    ).toBe("content");
+  });
 });

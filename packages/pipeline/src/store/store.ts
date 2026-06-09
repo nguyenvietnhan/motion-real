@@ -57,6 +57,7 @@ export function projectPaths(projectId: string) {
     spec: join(root, "video-spec.json"),
     manifest: join(root, "manifest.json"),
     lock: join(root, "video-spec.lock.json"),
+    safetyReport: join(root, "safety-report.json"),
     ttsManifest: join(root, "tts-manifest.json"),
     events: join(root, "events.ndjson"),
     audioDir: join(root, "audio"),

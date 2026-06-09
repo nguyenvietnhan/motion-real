@@ -27,9 +27,11 @@ import {
 } from "./types.js";
 import { runStaticGrid } from "./safety/static-grid.js";
 import { runBuildGridStatic } from "./safety/build-grid.js";
+import { typecheckAuthoredScenes } from "./safety/typecheck-authored.js";
 import { runRenderGrid, checkOverlap, type RenderGridOptions } from "./safety/render-grid.js";
 import { lintSceneSources, compositionsSrcDir, blocksSrcDir } from "./safety/forbidden-api.js";
-import { scaffoldProject, loadManifestAsSpec, admitProjectScenes } from "./authoring/manifest.js";
+import { scaffoldProject, loadManifest, loadManifestAsSpec, admitProjectScenes, manifestSceneFiles } from "./authoring/manifest.js";
+import { PipelineError } from "./errors.js";
 import { generateAuthoredEntry } from "./authoring/authored-entry.js";
 import { synthesizeNarration, type SynthesizeOptions } from "./audio/tts.js";
 import { lockSpec } from "./audio/lock.js";
@@ -208,7 +210,19 @@ export async function renderProject(projectId: string, opts: RenderProjectOption
         await fail(projectId, `Authored admission blocked render: ${errorSummary(admitted.violations)}`);
         throw new Error(`renderProject: ${admitted.violations.length} authored scene(s) rejected by the admission gate.`);
       }
-      authoredFiles = admitted.files;
+      // Scope the bundle to exactly the files the manifest references. admitted
+      // returns componentIds ↔ files 1:1 in the same order; pair them so a stale
+      // orphan .tsx (an earlier authoring batch left behind after a reauthor
+      // rewrote the manifest with new ids) is neither bundled nor typechecked —
+      // it must not crash or block a render it is no longer part of.
+      const componentToFile = new Map<string, string>();
+      admitted.componentIds.forEach((id, i) => {
+        const file = admitted.files[i];
+        if (file) componentToFile.set(id, file);
+      });
+      const manifest = await loadManifest(projectId);
+      const sceneFiles = manifestSceneFiles(manifest, componentToFile);
+      authoredFiles = sceneFiles.map((s) => s.file);
       const spec = await loadManifestAsSpec(projectId);
       await writeJson(paths.spec, spec);
       await appendEvent(projectId, { type: "authored.admitted", components: admitted.componentIds.length });
@@ -218,6 +232,30 @@ export async function renderProject(projectId: string, opts: RenderProjectOption
       if (!staticReport.ok) {
         await fail(projectId, `Static safety grid blocked render: ${errorSummary(staticReport.issues)}`);
         throw new Error(`renderProject: static grid reported ${errorCount(staticReport.issues)} hard error(s).`);
+      }
+
+      // N10 — typecheck authored scenes against the real @news/blocks +
+      // @news/compositions prop contracts. The render bundler strips types
+      // without checking them, so a wrong-shape prop (e.g. {text}[] passed to a
+      // string[] block) compiles and then crashes headless Chromium at runtime.
+      // Checking here — before TTS spends money — turns that class of model
+      // mistake into a deterministic, scene-targeted content error the repair
+      // loop can self-fix. Each issue carries its sceneId for precise reauthor.
+      // Degrades to a no-op when the @news sources can't be resolved; it must
+      // never block a render it can't check correctly.
+      const sceneIdByFile = new Map(sceneFiles.map((s) => [resolve(s.file), s.sceneId]));
+      const typeIssues = typecheckAuthoredScenes(authoredFiles, workspaceRoot(), sceneIdByFile);
+      if (typeIssues.length > 0) {
+        await persistFailureReport(projectId, typeIssues);
+        await fail(projectId, `Authored typecheck (N10) blocked render: ${errorSummary(typeIssues)}`);
+        const first = typeIssues[0]!;
+        throw new PipelineError({
+          stage: "build-gate",
+          cause: `authored scene typecheck reported ${errorCount(typeIssues)} error(s): ${errorSummary(typeIssues)}`,
+          check: "N10",
+          ...(first.sceneId ? { sceneId: first.sceneId } : {}),
+          remediation: "An authored scene uses a block/component with the wrong prop types. Re-author the flagged scene to match the block's contract.",
+        });
       }
     }
 
@@ -420,6 +458,22 @@ async function fail(projectId: string, message: string): Promise<void> {
     await appendEvent(projectId, { type: "error", message });
   } catch {
     /* never mask the original error with a bookkeeping failure */
+  }
+}
+
+/**
+ * Persist a safety report for a PRE-render failure (e.g. N10 typecheck) to the
+ * same path the MCP `get_safety_report` tool reads. The render path's normal
+ * report is written by the MCP layer AFTER a render returns; an early throw
+ * never reaches that, so the repair loop would otherwise read a stale or missing
+ * report and fail to route the scene-targeted fix. Best-effort: a persistence
+ * failure must never mask the original error.
+ */
+async function persistFailureReport(projectId: string, issues: SafetyIssue[]): Promise<void> {
+  try {
+    await writeJson(projectPaths(projectId).safetyReport, makeReport(issues, ["build"]));
+  } catch {
+    /* best-effort */
   }
 }
 
