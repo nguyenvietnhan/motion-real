@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
-import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import type { ProjectBrief, ProjectEvent, ProjectState } from "../types.js";
 
@@ -95,9 +95,26 @@ export async function readJson<T>(path: string): Promise<T> {
   return JSON.parse(await readFile(path, "utf8")) as T;
 }
 
+/**
+ * Write JSON ATOMICALLY: serialize to a sibling temp file, then rename over the
+ * target. `rename` is atomic on the same filesystem (Win32 + POSIX), so a crash,
+ * power loss, or ENOSPC mid-write leaves the ORIGINAL file intact rather than a
+ * truncated half-written one. This matters most for `brief.json` (the project's
+ * identity record) and the manifest/lock specs — a torn write there could make a
+ * finished video unrecoverable. The temp lives in the same dir as the target so
+ * the rename never crosses a filesystem boundary (which would fall back to a
+ * non-atomic copy). On any failure the temp is best-effort removed.
+ */
 export async function writeJson(path: string, value: unknown): Promise<void> {
   await mkdir(dirname(path), { recursive: true });
-  await writeFile(path, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+  const tmp = `${path}.tmp-${randomUUID()}`;
+  try {
+    await writeFile(tmp, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+    await rename(tmp, path);
+  } catch (err) {
+    await rm(tmp, { force: true }).catch(() => {});
+    throw err;
+  }
 }
 
 export async function readBrief(projectId: string): Promise<ProjectBrief> {
@@ -161,4 +178,44 @@ export async function listProjects(): Promise<ProjectSummary[]> {
     });
   }
   return out.sort((a, b) => (b.brief?.updatedAt ?? "").localeCompare(a.brief?.updatedAt ?? ""));
+}
+
+/**
+ * States that are only valid WHILE a render/author job is actively running in
+ * the process that set them. If a brief is found in one of these at startup, the
+ * job that owned it died (crash, OOM, power loss, Chromium taking down the
+ * process) — no render can be in flight immediately after launch. Left as-is,
+ * the gallery shows a "building/rendering" badge forever (recoverStage infers
+ * the UI stage from artifacts and never reads brief.state). See audit P1-5.
+ */
+const NON_TERMINAL_STATES: ReadonlySet<ProjectState> = new Set<ProjectState>([
+  "tts",
+  "locking",
+  "rendering",
+  "reviewing",
+]);
+
+/**
+ * Reconcile stale non-terminal project states left by a crashed prior session.
+ * Rewrites any brief stuck mid-job to `failed` (with a friendly step) so the UI
+ * never shows a permanently-stuck "rendering" badge. Best-effort and total: a
+ * single unreadable/unwritable brief never aborts the sweep. Call once at main
+ * startup, before the window polls. Returns the ids it reset.
+ */
+export async function reconcileStaleStates(): Promise<string[]> {
+  const reset: string[] = [];
+  for (const summary of await listProjects()) {
+    const brief = summary.brief;
+    if (!brief || !NON_TERMINAL_STATES.has(brief.state)) continue;
+    try {
+      await setState(brief.projectId, {
+        state: "failed",
+        currentStep: "Phiên trước bị gián đoạn khi đang xử lý. Hãy thử lại.",
+      });
+      reset.push(brief.projectId);
+    } catch {
+      /* a single unwritable brief must not abort the sweep */
+    }
+  }
+  return reset;
 }

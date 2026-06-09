@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { manifestSceneFiles, type Manifest } from "./manifest.js";
+import { VideoSpecSchema } from "@news/schema";
+import { manifestSceneFiles, manifestToVideoSpec, type Manifest } from "./manifest.js";
 
 /**
  * `manifestSceneFiles` scoping self-tests. The render entry and the N10
@@ -46,5 +47,61 @@ describe("manifestSceneFiles (bundle/typecheck scoping)", () => {
     const map = new Map([["hook", "/p/authored/hook.tsx"]]);
     const out = manifestSceneFiles(manifest(["hook", "missing"]), map);
     expect(out.map((s) => s.componentId)).toEqual(["hook"]);
+  });
+});
+
+/**
+ * `manifestToVideoSpec` + `clampTheme` golden table (audit P1-9). This is the
+ * AI-output → render bridge: a manifest authored by whichever model the user
+ * picked is converted here into the VideoSpec the safety/lock/render path runs
+ * on. It is the most failure-prone seam in the system, so these pin the current
+ * behavior (theme clamping, default fill) AND assert the result actually passes
+ * the canonical `VideoSpecSchema` — so a future drift that produces an invalid
+ * spec breaks a cheap test here instead of throwing a late ZodError at lock time
+ * (after TTS has already been spent).
+ */
+describe("manifestToVideoSpec + clampTheme (AI-output → spec bridge)", () => {
+  const oneScene = (overrides: Partial<Manifest["scenes"][number]> = {}): Manifest => ({
+    title: "Tiêu đề",
+    theme: { dominant: "#1E9CB0", mood: "calm" },
+    scenes: [{ id: "scene-01", component: "hook", narration: "n", headline: "h", ...overrides }],
+  });
+
+  it("passes a valid dominant hex straight through", () => {
+    const spec = manifestToVideoSpec(oneScene());
+    expect(spec.theme?.dominant).toBe("#1E9CB0");
+    expect(spec.theme?.mood).toBe("calm");
+  });
+
+  it("falls back to the default teal for a malformed dominant hex", () => {
+    const spec = manifestToVideoSpec({ ...oneScene(), theme: { dominant: "not-a-hex" } });
+    expect(spec.theme?.dominant).toBe("#1E9CB0");
+  });
+
+  it("truncates an over-long mood to 40 chars", () => {
+    const spec = manifestToVideoSpec({ ...oneScene(), theme: { dominant: "#1E9CB0", mood: "x".repeat(80) } });
+    expect(spec.theme?.mood).toHaveLength(40);
+  });
+
+  it("emits no theme when the manifest omits a dominant", () => {
+    const spec = manifestToVideoSpec({ title: "t", scenes: oneScene().scenes });
+    expect(spec.theme).toBeUndefined();
+  });
+
+  it("fills sensible scene defaults (durationInSeconds, sfx, props)", () => {
+    const spec = manifestToVideoSpec(oneScene());
+    expect(spec.scenes[0]!.durationInSeconds).toBeGreaterThan(0);
+    expect(spec.scenes[0]!.sfx).toBe("none");
+    expect(spec.scenes[0]!.props).toEqual({});
+  });
+
+  it("produces a spec that passes the canonical VideoSpecSchema", () => {
+    const spec = manifestToVideoSpec(oneScene());
+    expect(VideoSpecSchema.safeParse(spec).success).toBe(true);
+  });
+
+  it("clamps an over-long title into a schema-valid spec", () => {
+    const spec = manifestToVideoSpec({ ...oneScene(), title: "T".repeat(400) });
+    expect(VideoSpecSchema.safeParse(spec).success).toBe(true);
   });
 });

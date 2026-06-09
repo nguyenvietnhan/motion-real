@@ -10,9 +10,11 @@ import {
   listProjects,
   projectPaths,
   projectsRoot,
+  reconcileStaleStates,
   setState,
   videoToolHome,
   writeBrief,
+  writeJson,
 } from "./store.js";
 import type { ProjectBrief } from "../types.js";
 
@@ -113,5 +115,53 @@ describe("project store", () => {
     const list = await listProjects();
     expect(list.map((s) => s.projectId)).toEqual([b, a]);
     expect(list.every((s) => s.hasRender === false)).toBe(true);
+  });
+
+  it("writes JSON atomically: no temp residue after a successful write", async () => {
+    const id = "atomic-00000001";
+    await ensureProject(id);
+    await writeBrief(sampleBrief(id));
+    // The brief is present and valid…
+    const written = JSON.parse(await readFile(projectPaths(id).brief, "utf8"));
+    expect(written.projectId).toBe(id);
+    // …and no `.tmp-*` sidecar is left behind in the project dir.
+    const { readdir } = await import("node:fs/promises");
+    const entries = await readdir(projectPaths(id).root);
+    expect(entries.some((e) => e.includes(".tmp-"))).toBe(false);
+  });
+
+  it("leaves the original file intact when the atomic rename fails mid-write", async () => {
+    const id = "atomic-00000002";
+    await ensureProject(id);
+    const original = sampleBrief(id);
+    await writeBrief(original);
+    // A second write whose serialization throws (circular ref) must NOT truncate
+    // the existing good file — the temp-then-rename design guarantees this.
+    const circular: Record<string, unknown> = {};
+    circular.self = circular;
+    await expect(writeJson(projectPaths(id).brief, circular)).rejects.toBeTruthy();
+    const still = JSON.parse(await readFile(projectPaths(id).brief, "utf8"));
+    expect(still.projectId).toBe(id);
+    const { readdir } = await import("node:fs/promises");
+    const entries = await readdir(projectPaths(id).root);
+    expect(entries.some((e) => e.includes(".tmp-"))).toBe(false);
+  });
+
+  it("reconciles stale non-terminal states from a crashed session to failed", async () => {
+    const stuck = "stuck-00000001";
+    const done = "done-00000002";
+    await ensureProject(stuck);
+    await writeBrief({ ...sampleBrief(stuck), state: "rendering", currentStep: "rendering" });
+    await ensureProject(done);
+    await writeBrief({ ...sampleBrief(done), state: "done", currentStep: "done" });
+
+    const reset = await reconcileStaleStates();
+    expect(reset).toEqual([stuck]);
+
+    const stuckBrief = JSON.parse(await readFile(projectPaths(stuck).brief, "utf8"));
+    expect(stuckBrief.state).toBe("failed");
+    // A terminal state is never touched.
+    const doneBrief = JSON.parse(await readFile(projectPaths(done).brief, "utf8"));
+    expect(doneBrief.state).toBe("done");
   });
 });

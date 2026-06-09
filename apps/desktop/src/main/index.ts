@@ -2,7 +2,7 @@ import { app, BrowserWindow, ipcMain, shell } from "electron";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { createTools } from "@news/mcp";
-import { loadManifest, writeJson, projectPaths, videoToolHome, vivibeApiKey, defaultVivibeVoiceId, setAuthoredLoader } from "@news/pipeline";
+import { loadManifest, writeJson, projectPaths, videoToolHome, vivibeApiKey, defaultVivibeVoiceId, setAuthoredLoader, reconcileStaleStates } from "@news/pipeline";
 import { registerIpcRouter, type InvokeHandlers } from "./ipc-router.js";
 import { ModelGatewayManager } from "./gateway/model-gateway-manager.js";
 import { buildNineRouterGatewayDeps } from "./gateway/ninerouter-deps.js";
@@ -257,6 +257,13 @@ app
   .whenReady()
   .then(() => {
     handleMediaProtocol();
+    // Reset any project left mid-job by a crashed prior session (audit P1-5), so
+    // the gallery never shows a permanently-stuck "rendering" badge. Best-effort:
+    // a sweep failure must never block startup.
+    void reconcileStaleStates().catch((error) => {
+      // eslint-disable-next-line no-console
+      console.error("[desktop] stale-state reconcile failed:", error);
+    });
     startGateway();
     return createWindow();
   })
