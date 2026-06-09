@@ -112,11 +112,40 @@ export function typecheckAuthoredScenes(
     const sceneId = sceneIdByFile?.get(abs);
     issues.push({
       check: "N10",
-      severity: "error",
+      severity: severityFor(message),
       path,
       ...(sceneId ? { sceneId } : {}),
       message: `TS${d.code}: ${message}`,
     });
   }
   return issues;
+}
+
+/**
+ * A reach for a color token NOT declared on `ThemeColors` — e.g.
+ *   `Property 'ink' does not exist on type 'ThemeColors'.`
+ *   `Property 'signalRed' does not exist on type 'ThemeColors'. Did you mean 'signal'?`
+ * Matched by the EXACT type name (not by TS error code), so the softening is
+ * narrow: only missing-color-token reads are caught, never a missing prop on a
+ * component or any other type.
+ */
+const MISSING_THEME_COLOR = /does not exist on type 'ThemeColors'/;
+
+/**
+ * Decide an N10 diagnostic's severity. Most authored type errors are HARD
+ * (severity "error"): a wrong-shape prop (e.g. `{text}[]` where a block wants
+ * `string[]`) compiles under the transpile-only bundler and then crashes
+ * headless Chromium at runtime — that MUST block the render.
+ *
+ * The ONE exception is a read of an un-aliased color token off `theme.colors`.
+ * The design layer wraps `colors` in a runtime Proxy that resolves any unknown
+ * token to a safe on-brand color (never `undefined`), so such a scene renders
+ * fine — just with a fallback color and a one-time console hint. Blocking the
+ * render over a cosmetic, already-self-healed mismatch would be the false-
+ * positive that makes N10 feel un-shippable, so these are WARNINGS: surfaced
+ * (and route an advisory reauthor) but never a hard gate. Scoped by the exact
+ * `ThemeColors` type name so nothing crash-class is ever downgraded.
+ */
+function severityFor(message: string): SafetyIssue["severity"] {
+  return MISSING_THEME_COLOR.test(message) ? "warning" : "error";
 }

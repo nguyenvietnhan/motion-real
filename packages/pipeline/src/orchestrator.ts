@@ -245,13 +245,22 @@ export async function renderProject(projectId: string, opts: RenderProjectOption
       // never block a render it can't check correctly.
       const sceneIdByFile = new Map(sceneFiles.map((s) => [resolve(s.file), s.sceneId]));
       const typeIssues = typecheckAuthoredScenes(authoredFiles, workspaceRoot(), sceneIdByFile);
+      // Only crash-class diagnostics (severity "error") gate the render — a
+      // wrong-shape prop that would crash Chromium at runtime. A missing color
+      // token is emitted as a WARNING (the design Proxy already resolves it to a
+      // safe color), so it never blocks; it rides along in the report for
+      // visibility and an advisory reauthor. Persist whenever there's anything to
+      // carry so the repair loop can read it back.
+      const typeErrors = typeIssues.filter((i) => i.severity === "error");
       if (typeIssues.length > 0) {
         await persistFailureReport(projectId, typeIssues);
-        await fail(projectId, `Authored typecheck (N10) blocked render: ${errorSummary(typeIssues)}`);
-        const first = typeIssues[0]!;
+      }
+      if (typeErrors.length > 0) {
+        await fail(projectId, `Authored typecheck (N10) blocked render: ${errorSummary(typeErrors)}`);
+        const first = typeErrors[0]!;
         throw new PipelineError({
           stage: "build-gate",
-          cause: `authored scene typecheck reported ${errorCount(typeIssues)} error(s): ${errorSummary(typeIssues)}`,
+          cause: `authored scene typecheck reported ${typeErrors.length} error(s): ${errorSummary(typeErrors)}`,
           check: "N10",
           ...(first.sceneId ? { sceneId: first.sceneId } : {}),
           remediation: "An authored scene uses a block/component with the wrong prop types. Re-author the flagged scene to match the block's contract.",

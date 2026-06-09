@@ -46,6 +46,21 @@ describe("typecheckAuthoredScenes (N10)", () => {
     expect(issues.every((i) => i.sceneId === "scene-05")).toBe(true);
   }, TS_PROGRAM_TIMEOUT);
 
+  it("flags an un-aliased color token as a WARNING (not a hard error), since the runtime Proxy makes it safe", () => {
+    const issues = typecheckAuthoredScenes([fixture("typecheck-missing-color.tsx")], root);
+    expect(issues.length).toBeGreaterThan(0);
+    // Every diagnostic here is a missing ThemeColors token → all warnings, no errors.
+    expect(issues.every((i) => i.check === "N10")).toBe(true);
+    expect(issues.every((i) => i.severity === "warning")).toBe(true);
+    expect(issues.some((i) => /does not exist on type 'ThemeColors'/.test(i.message))).toBe(true);
+  }, TS_PROGRAM_TIMEOUT);
+
+  it("a crash-class prop error stays a hard ERROR even alongside color-token warnings", () => {
+    // The wrong-prop fixture is the {text}[] crash case — it must never be softened.
+    const issues = typecheckAuthoredScenes([fixture("typecheck-wrong-prop.tsx")], root);
+    expect(issues.some((i) => i.severity === "error")).toBe(true);
+  }, TS_PROGRAM_TIMEOUT);
+
   it("is a no-op for an empty file list", () => {
     expect(typecheckAuthoredScenes([], root)).toEqual([]);
   });
