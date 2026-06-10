@@ -85,7 +85,9 @@ export const ProjectWorkspaceView: React.FC<{
   onSubmitEdits: (perScene: { sceneId: string; text: string }[], globalNotes: string) => Promise<boolean>;
   onApproveDraft: () => void;
   onReveal: () => void;
-}> = ({ stage, onBack, onRetry, onFixWithAi, onApplyScript, onApproveScript, onSubmitEdits, onApproveDraft, onReveal }) => {
+  /** Copy the finished MP4 to a user-chosen location (native Save dialog). */
+  onSave: () => void;
+}> = ({ stage, onBack, onRetry, onFixWithAi, onApplyScript, onApproveScript, onSubmitEdits, onApproveDraft, onReveal, onSave }) => {
   const title: Record<ProjectStage["kind"], string> = {
     writing: "Đang viết kịch bản",
     script: "Duyệt kịch bản",
@@ -100,6 +102,7 @@ export const ProjectWorkspaceView: React.FC<{
         model={{ projectId: "", scenes: stage.scenes, globalNotes: "" }}
         canApprove
         notice={stage.notice}
+        draftPath={stage.draftPath}
         onBack={onBack}
         onSubmit={onSubmitEdits}
         onApprove={onApproveDraft}
@@ -144,14 +147,16 @@ export const ProjectWorkspaceView: React.FC<{
         );
       })()}
       {stage.kind === "published" && (
-        <EmptyState icon={Icon.film({ size: 34 })} title="Đã xuất bản video 🎬"
-          hint="Video bản đầy đủ đã được dựng xong. Mở thư mục dự án để lấy file MP4."
-          action={
-            <div style={{ display: "flex", gap: 10 }}>
-              <button className="ns-btn ns-btn-primary" onClick={onReveal}>{Icon.folder({ size: 15 })} Mở thư mục</button>
-              <button className="ns-btn" onClick={onBack}>Quay lại Trang chủ</button>
-            </div>
-          } />
+        <div className="ns-card" style={{ padding: 20, display: "flex", flexDirection: "column", alignItems: "center", gap: 14 }}>
+          <strong style={{ fontSize: 16 }}>Đã xuất bản video 🎬</strong>
+          <video src={stage.outputPath} controls style={{ height: "60vh", maxHeight: 640, aspectRatio: "9 / 16", maxWidth: "100%",
+            borderRadius: 12, border: "1px solid var(--border)", boxShadow: "0 12px 40px rgba(0,0,0,0.5)", background: "#0c0e12", objectFit: "contain" }} />
+          <div style={{ display: "flex", gap: 10 }}>
+            <button className="ns-btn ns-btn-primary" onClick={onSave}>⬇ Tải về…</button>
+            <button className="ns-btn" onClick={onReveal}>{Icon.folder({ size: 15 })} Mở thư mục</button>
+            <button className="ns-btn" onClick={onBack}>Quay lại Trang chủ</button>
+          </div>
+        </div>
       )}
       {stage.kind === "error" && (
         <EmptyState icon={Icon.film({ size: 34 })} title="Gặp lỗi khi dựng" hint={stage.message}

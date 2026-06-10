@@ -95,6 +95,10 @@ export interface WorkspaceDeps {
   hasOutput: (projectId: string) => boolean;
   /** mediaUrl-wrapped path to the full-quality MP4. */
   outputMedia: (projectId: string) => string;
+  /** Whether the low-res draft MP4 (`<id>.draft.mp4`) has been rendered. */
+  hasDraft: (projectId: string) => boolean;
+  /** mediaUrl-wrapped path to the low-res draft MP4 (for in-app preview). */
+  draftMedia: (projectId: string) => string;
   deleteProject: (projectId: string) => Promise<void>;
   revealProject: (projectId: string) => Promise<void>;
   /** Redact L0 engine tokens from any message before it reaches the UI (R8.5). */
@@ -139,6 +143,18 @@ export class WorkspaceController {
   /** Bump the render version so the next storyboard's stills reload exactly once. */
   private bumpRenderVersion(projectId: string): void {
     this.renderVersions.set(projectId, (this.renderVersions.get(projectId) ?? 0) + 1);
+  }
+
+  /**
+   * Build a `ready` stage, attaching the in-app draft player source when a draft
+   * MP4 exists. The draft is the low-res preview (half res, 10fps) the user can
+   * play to check pacing/voice without digging through folders; the storyboard
+   * stills stay the per-scene edit surface. Every site that lands on `ready`
+   * routes through here so the draft player is never silently dropped.
+   */
+  private readyStage(projectId: string, scenes: SceneCard[], notice?: string): ProjectStage {
+    const draftPath = this.deps.hasDraft(projectId) ? this.deps.draftMedia(projectId) : undefined;
+    return { kind: "ready", scenes, ...(draftPath ? { draftPath } : {}), ...(notice ? { notice } : {}) };
   }
 
   private async scriptLinesOf(projectId: string): Promise<ScriptLine[]> {
@@ -302,11 +318,11 @@ export class WorkspaceController {
       // back), the draft is unchanged — do NOT pretend success. Return to the
       // review stage with a visible notice so the user can retry / rephrase.
       if (sceneIds.length > 0 && appliedIds.length === 0) {
-        this.setStage(projectId, {
-          kind: "ready",
-          scenes: await this.storyboardScenesOf(projectId),
-          notice: "Chưa áp dụng được chỉnh sửa cho cảnh bạn chọn (AI tạo mã chưa hợp lệ). Hãy thử lại hoặc diễn đạt rõ hơn.",
-        });
+        this.setStage(projectId, this.readyStage(
+          projectId,
+          await this.storyboardScenesOf(projectId),
+          "Chưa áp dụng được chỉnh sửa cho cảnh bạn chọn (AI tạo mã chưa hợp lệ). Hãy thử lại hoặc diễn đạt rõ hơn.",
+        ));
         return;
       }
       // …then re-render the draft (and auto-repair any new oracle errors).
@@ -324,7 +340,7 @@ export class WorkspaceController {
           failedNamed.length > 0
             ? `Đã áp dụng chỉnh sửa, nhưng chưa đổi được ${failedNamed.length} cảnh (AI tạo mã chưa hợp lệ) — bạn có thể thử lại các cảnh đó.`
             : undefined;
-        this.setStage(projectId, { kind: "ready", scenes: await this.storyboardScenesOf(projectId), ...(notice ? { notice } : {}) });
+        this.setStage(projectId, this.readyStage(projectId, await this.storyboardScenesOf(projectId), notice));
       } else if (outcome.kind === "infra") {
         const message = "Gặp trục trặc hạ tầng khi dựng lại (kết nối hoặc cấu hình). Hãy kiểm tra và thử lại.";
         this.setStage(projectId, { kind: "error", message, fixable: false, retry: "draft" });
@@ -334,11 +350,11 @@ export class WorkspaceController {
         // every attempt). Rather than strand the user on an error screen with a
         // broken scene, we restored the pre-edit source and re-rendered the draft
         // they already had — the edit only ever improves or keeps the draft.
-        this.setStage(projectId, {
-          kind: "ready",
-          scenes: await this.storyboardScenesOf(projectId),
-          notice: "Chưa áp dụng được chỉnh sửa này (làm hỏng bố cục cảnh) — đã giữ lại bản nháp trước đó. Hãy thử diễn đạt khác hoặc chỉnh nhẹ hơn.",
-        });
+        this.setStage(projectId, this.readyStage(
+          projectId,
+          await this.storyboardScenesOf(projectId),
+          "Chưa áp dụng được chỉnh sửa này (làm hỏng bố cục cảnh) — đã giữ lại bản nháp trước đó. Hãy thử diễn đạt khác hoặc chỉnh nhẹ hơn.",
+        ));
       } else {
         const message = "Chưa áp dụng được chỉnh sửa sau nhiều lần thử. Bạn có thể thử lại hoặc để AI sửa.";
         this.setStage(projectId, { kind: "error", message, fixable: true, retry: "draft" });
@@ -456,7 +472,7 @@ export class WorkspaceController {
       outcome = await this.withVisualQa(projectId, outcome, hooks);
       if (outcome.kind === "passed") {
         this.bumpRenderVersion(projectId);
-        this.setStage(projectId, { kind: "ready", scenes: await this.storyboardScenesOf(projectId), ...(readyNotice ? { notice: readyNotice } : {}) });
+        this.setStage(projectId, this.readyStage(projectId, await this.storyboardScenesOf(projectId), readyNotice));
       } else if (outcome.kind === "infra") {
         // Not agent-fixable: tell the user to retry / check setup, no "Sửa bằng AI".
         const message = "Gặp trục trặc hạ tầng khi dựng (kết nối hoặc cấu hình). Hãy kiểm tra lại và thử lại.";
@@ -513,7 +529,7 @@ export class WorkspaceController {
       if (manifest.scenes.length === 0) return { kind: "writing" };
       if (this.deps.hasOutput(projectId)) return { kind: "published", outputPath: this.deps.outputMedia(projectId) };
       const hasStills = manifest.scenes.some((s) => this.deps.hasStill(projectId, s.id));
-      if (hasStills) return { kind: "ready", scenes: await this.storyboardScenesOf(projectId) };
+      if (hasStills) return this.readyStage(projectId, await this.storyboardScenesOf(projectId));
       return { kind: "script", lines: await this.scriptLinesOf(projectId) };
     } catch {
       return { kind: "writing" };

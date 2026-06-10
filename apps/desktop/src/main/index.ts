@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, shell } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { createTools } from "@news/mcp";
@@ -21,7 +21,7 @@ import { registerMediaScheme, handleMediaProtocol, mediaUrl } from "./media-prot
 import { events, setEventTarget } from "./event-bus.js";
 import { loadAuthoredTsx } from "./authoring/tsx-loader.js";
 import { existsSync, readFileSync } from "node:fs";
-import { rm } from "node:fs/promises";
+import { copyFile, rm } from "node:fs/promises";
 import type { ModelInfo, ScriptEdit, SettingsModel } from "../shared/types.js";
 
 // The `media://` scheme must be registered before the app is ready.
@@ -133,6 +133,8 @@ const workspace = new WorkspaceController({
   hasStill: (id, sceneId) => existsSync(join(projectPaths(id).reviewDir, `${sceneId}.png`)),
   hasOutput: (id) => existsSync(join(projectPaths(id).rendersDir, `${id}.mp4`)),
   outputMedia: (id) => mediaUrl(join(projectPaths(id).rendersDir, `${id}.mp4`)) ?? "",
+  hasDraft: (id) => existsSync(join(projectPaths(id).rendersDir, `${id}.draft.mp4`)),
+  draftMedia: (id) => mediaUrl(join(projectPaths(id).rendersDir, `${id}.draft.mp4`)) ?? "",
   deleteProject: (id) => rm(projectPaths(id).root, { recursive: true, force: true }),
   revealProject: async (id) => {
     await shell.openPath(projectPaths(id).root);
@@ -180,6 +182,31 @@ const handlers: InvokeHandlers = {
   "projects:open": (projectId) => workspace.open(String(projectId)),
   "projects:delete": (projectId) => workspace.delete(String(projectId)),
   "projects:reveal": (projectId) => workspace.reveal(String(projectId)),
+  "projects:save": async (projectId) => {
+    // Export the finished full MP4 to a user-chosen location. Distinct from
+    // `reveal` (which only opens the store folder): a native Save dialog lets a
+    // non-tech user drop the video wherever they want. We COPY (never move) —
+    // the original must stay in the store so `hasOutput`/the `published` stage
+    // keep resolving. Writing OUTSIDE the `.video-tool` sandbox is intentional
+    // here: it's a user-initiated export gated by the dialog, the one allowed
+    // path out. No dialog ⇒ no write, ever.
+    const id = String(projectId);
+    const src = join(projectPaths(id).rendersDir, `${id}.mp4`);
+    if (!existsSync(src)) return { saved: false };
+    const cards = await tools.list_projects();
+    const title = cards.ok ? toCards(cards.data).find((c) => c.projectId === id)?.title : undefined;
+    const safeName = (title ?? id).replace(/[\\/:*?"<>|]/g, "_").trim() || id;
+    const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0];
+    const opts = {
+      title: "Lưu video",
+      defaultPath: join(settingsStore.current().outputDir || app.getPath("downloads"), `${safeName}.mp4`),
+      filters: [{ name: "Video MP4", extensions: ["mp4"] }],
+    };
+    const picked = win ? await dialog.showSaveDialog(win, opts) : await dialog.showSaveDialog(opts);
+    if (picked.canceled || !picked.filePath) return { saved: false };
+    await copyFile(src, picked.filePath);
+    return { saved: true };
+  },
   "projects:retry": (projectId) => {
     workspace.retry(String(projectId));
     return undefined;

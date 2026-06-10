@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import type { StoryboardModel } from "../../shared/types.js";
 import { Icon } from "../icons.js";
-import { EmptyState } from "../primitives.js";
+import { EmptyState, InfoHint } from "../primitives.js";
 
 /**
  * Storyboard ("Duyệt cảnh"): Canva-style full-height shell — fixed header with
@@ -13,6 +13,13 @@ export const StoryboardView: React.FC<{
   model: StoryboardModel;
   canApprove: boolean;
   notice?: string;
+  /**
+   * mediaUrl of the low-res draft MP4, when one has been rendered. Shown as the
+   * big preview so the user can play the draft (pacing + voice) in-app instead
+   * of digging through folders; absent → the big preview falls back to the
+   * selected scene's still image.
+   */
+  draftPath?: string;
   onBack: () => void;
   /**
    * Submit the gathered edits. Resolves `true` when the backend accepted them
@@ -22,13 +29,16 @@ export const StoryboardView: React.FC<{
    */
   onSubmit: (perScene: { sceneId: string; text: string }[], globalNotes: string) => Promise<boolean>;
   onApprove: () => void;
-}> = ({ model, canApprove, notice, onBack, onSubmit, onApprove }) => {
+}> = ({ model, canApprove, notice, draftPath, onBack, onSubmit, onApprove }) => {
   const [selected, setSelected] = useState(0);
   // Per-scene edit drafts keyed by sceneId, so switching slides KEEPS what you
   // typed. You gather edits across many scenes and send them in ONE pass.
   const [edits, setEdits] = useState<Record<string, string>>({});
   const [notes, setNotes] = useState("");
   const [showEdit, setShowEdit] = useState(false);
+  // When a draft video exists, the big preview defaults to playing it; this flips
+  // to the selected scene's still (what you point at to edit one scene).
+  const [showStill, setShowStill] = useState(false);
   const [dismissedNotice, setDismissedNotice] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
@@ -126,7 +136,7 @@ export const StoryboardView: React.FC<{
         {/* Slide rail */}
         <div style={{ width: 88, flexShrink: 0, display: "flex", flexDirection: "column", gap: 8, overflowY: "auto", paddingRight: 4 }}>
           {scenes.map((s, i) => (
-            <button key={s.sceneId} onClick={() => setSelected(i)} title={`Cảnh ${i + 1}`} className="ns-thumb"
+            <button key={s.sceneId} onClick={() => { setSelected(i); setShowStill(true); }} title={`Cảnh ${i + 1}`} className="ns-thumb"
               style={{
                 position: "relative", flexShrink: 0, padding: 0, cursor: "pointer", borderRadius: 8, overflow: "hidden",
                 border: i === idx ? "2px solid var(--brand)" : "1px solid var(--border)",
@@ -144,14 +154,51 @@ export const StoryboardView: React.FC<{
           ))}
         </div>
 
-        {/* Big preview (always visible; click a slide to enlarge it here) */}
-        <div style={{ flex: 1, minWidth: 0, display: "grid", placeItems: "center" }}>
-          <div style={{ height: "100%", aspectRatio: "9 / 16", maxWidth: "100%",
-            borderRadius: 12, border: "1px solid var(--border)", overflow: "hidden",
-            boxShadow: "0 12px 40px rgba(0,0,0,0.5)",
-            background: current?.stillPath ? `center/contain no-repeat #0c0e12 url(${current.stillPath})` : "#101216",
-            display: "grid", placeItems: "center", color: "#3a3f49" }}>
-            {!current?.stillPath && Icon.film({ size: 30 })}
+        {/* Big preview (always visible; click a slide to enlarge it here). When a
+            draft MP4 exists it is the default — the user plays it to check pacing
+            + voice in-app; a toggle switches to the selected scene's still (what
+            you point at to edit one scene). No draft → just the still. The video
+            shares the still's exact frame so it is never larger than a scene image. */}
+        <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 8, minHeight: 0 }}>
+          {draftPath && (
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+              {/* Minimal segmented toggle: one bordered track, the active segment
+                  filled. No icons/emoji — the labels alone carry the purpose. */}
+              <div style={{ display: "inline-flex", borderRadius: 8, border: "1px solid var(--border)", overflow: "hidden", background: "var(--muted)" }}>
+                {[{ still: false, label: "Video nháp" }, { still: true, label: `Ảnh cảnh ${idx + 1}` }].map((seg) => {
+                  const active = showStill === seg.still;
+                  return (
+                    <button key={seg.label} onClick={() => setShowStill(seg.still)}
+                      style={{ border: "none", padding: "5px 14px", fontSize: 13, cursor: "pointer", lineHeight: 1.4,
+                        background: active ? "var(--brand)" : "transparent",
+                        color: active ? "#fff" : "var(--muted-foreground)", fontWeight: active ? 700 : 500 }}>
+                      {seg.label}
+                    </button>
+                  );
+                })}
+              </div>
+              {/* Hover-only hint: the shared (i) primitive, so the tooltip style
+                  matches Settings instead of a raw native title bubble. */}
+              <InfoHint text="Bản nháp nhẹ để xem nhịp & nghe giọng — bản cuối sẽ nét hơn." />
+            </div>
+          )}
+          {/* Grid track is pinned to minmax(0,1fr) on both axes: an auto track would
+              grow to the video's intrinsic 1080×1920, so once metadata loads the player
+              would balloon past the still. Pinning bounds the cell to the container. */}
+          <div style={{ flex: 1, minHeight: 0, display: "grid", gridTemplateRows: "minmax(0, 1fr)", gridTemplateColumns: "minmax(0, 1fr)", placeItems: "center" }}>
+            {draftPath && !showStill ? (
+              <video src={draftPath} controls style={{ height: "100%", maxHeight: "100%", aspectRatio: "9 / 16", maxWidth: "100%",
+                borderRadius: 12, border: "1px solid var(--border)", boxShadow: "0 12px 40px rgba(0,0,0,0.5)",
+                background: "#0c0e12", objectFit: "contain" }} />
+            ) : (
+              <div style={{ height: "100%", aspectRatio: "9 / 16", maxWidth: "100%",
+                borderRadius: 12, border: "1px solid var(--border)", overflow: "hidden",
+                boxShadow: "0 12px 40px rgba(0,0,0,0.5)",
+                background: current?.stillPath ? `center/contain no-repeat #0c0e12 url(${current.stillPath})` : "#101216",
+                display: "grid", placeItems: "center", color: "#3a3f49" }}>
+                {!current?.stillPath && Icon.film({ size: 30 })}
+              </div>
+            )}
           </div>
         </div>
 

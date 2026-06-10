@@ -95,7 +95,7 @@ export type ProjectStage =
   | { kind: "writing" } // AI is drafting the script
   | { kind: "script"; lines: ScriptLine[]; linkWarning?: string } // awaiting user review/approval (linkWarning = brief links that couldn't be read)
   | { kind: "rendering"; percent: number; phase?: "edit" | "draft" | "full" | "qa" } // building (edit reauthor | draft | full | ai visual-qa)
-  | { kind: "ready"; scenes: SceneCard[]; notice?: string } // draft ready, review scenes (notice = a transient message, e.g. an edit that couldn't be applied)
+  | { kind: "ready"; scenes: SceneCard[]; notice?: string; draftPath?: string } // draft ready, review scenes (notice = a transient message; draftPath = mediaUrl of the low-res draft MP4 for in-app preview, when it exists)
   | { kind: "published"; outputPath: string } // full MP4 rendered
   | { kind: "error"; message: string; fixable: boolean; retry?: "create" | "draft" | "full" }; // retry = which loop "Thử lại" re-runs (re-author | re-render draft | re-publish), so it doesn't re-author on a render failure
 

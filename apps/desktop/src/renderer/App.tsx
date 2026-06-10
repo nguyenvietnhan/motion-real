@@ -247,6 +247,7 @@ export const App: React.FC = () => {
               void dash?.review.approveDraft(openProjectId);
             }}
             onReveal={() => onReveal(openProjectId)}
+            onSave={() => void dash?.projects.save(openProjectId)}
           />
         )}
       </main>
