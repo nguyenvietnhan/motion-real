@@ -125,13 +125,54 @@ export class WorkspaceController {
    */
   private readonly inFlight = new Set<string>();
 
+  /**
+   * Per-project AbortController for the in-flight job, so "Dừng render" can
+   * abort exactly the loop that's running. Created when a guarded job starts and
+   * cleared when it settles; `cancel()` fires it. The signal is threaded into the
+   * worker (render + AI calls), which abort the Remotion encode (cancelSignal)
+   * and the fetch chats, then report `cancelled` so we recover the prior stage.
+   */
+  private readonly aborters = new Map<string, AbortController>();
+
   constructor(private readonly deps: WorkspaceDeps) {}
 
   /** Run an exclusive per-project job; ignored if one is already in flight. */
   private guarded(projectId: string, run: () => Promise<void>): void {
     if (this.inFlight.has(projectId)) return;
     this.inFlight.add(projectId);
-    void run().finally(() => this.inFlight.delete(projectId));
+    this.aborters.set(projectId, new AbortController());
+    void run().finally(() => {
+      this.inFlight.delete(projectId);
+      this.aborters.delete(projectId);
+    });
+  }
+
+  /** The in-flight job's abort signal for this project, if one is running. */
+  private signalOf(projectId: string): AbortSignal | undefined {
+    return this.aborters.get(projectId)?.signal;
+  }
+
+  /**
+   * "Dừng render": abort the in-flight author/render/edit/publish job for this
+   * project. The worker's loops check the signal at each boundary and the live
+   * render aborts via Remotion's cancelSignal; the run methods then restore the
+   * prior reviewable stage (recover-on-cancel) instead of an error. No-op when
+   * nothing is running for the project.
+   */
+  cancel(projectId: string): void {
+    this.aborters.get(projectId)?.abort();
+  }
+
+  /**
+   * Recover the workspace after a user cancel: a cancel is NOT a failure, so drop
+   * the in-memory stage and re-derive the last reviewable stage from disk
+   * (ready / script / published / writing) — never an error screen. The engine
+   * leaves project state untouched on cancel, so the on-disk artifacts (stills,
+   * a prior draft) are authoritative for where to land.
+   */
+  private async recoverAfterCancel(projectId: string): Promise<void> {
+    this.stages.delete(projectId);
+    this.setStage(projectId, await this.recoverStage(projectId));
   }
 
   /** Set + broadcast a stage (status mirrors the kind, as Current_Behavior). */
@@ -248,9 +289,15 @@ export class WorkspaceController {
 
   private async runPublish(projectId: string): Promise<void> {
     this.setStage(projectId, { kind: "rendering", percent: 0, phase: "full" });
+    const signal = this.signalOf(projectId);
     try {
-      const res = await this.deps.worker.publish(projectId);
-      if (res.ok) {
+      const res = await this.deps.worker.publish(projectId, signal);
+      // A user cancel ("Dừng render") during the full render is NOT a failure:
+      // the engine threw a RenderCancelledError (no `state: "failed"`) and left
+      // the prior draft intact, so recover the reviewable stage, not an error.
+      if (signal?.aborted) {
+        await this.recoverAfterCancel(projectId);
+      } else if (res.ok) {
         this.setStage(projectId, { kind: "published", outputPath: this.deps.toMedia(res.outputPath) });
       } else {
         const fixable = res.error ? classifyError(res.error) === "content" : false;
@@ -292,6 +339,7 @@ export class WorkspaceController {
     // as an indeterminate "edit" phase (no jumpy percent from emitScenes).
     const editHooks = this.editHooks(projectId);
     const hooks = this.renderHooks(projectId, "draft");
+    const signal = this.signalOf(projectId);
     try {
       // Resolve which scenes to re-author: the explicitly-edited ones, or — when
       // ONLY a video-wide note was given — every scene (the note applies to all).
@@ -312,7 +360,14 @@ export class WorkspaceController {
       const applied = await this.deps.worker.reauthorScenes(
         { projectId, sceneIds, preprompt: { contractRef: "SKILL.md+AGENTS.md", affectedSceneIds: sceneIds, perSceneIntent, globalNotes } },
         editHooks,
+        signal,
       );
+      // A cancel during the reauthor AI calls: stop without pretending success;
+      // restore the prior reviewable stage (the engine left the project intact).
+      if (signal?.aborted) {
+        await this.recoverAfterCancel(projectId);
+        return;
+      }
       const appliedIds = applied.kind === "authored" ? applied.sceneIds : [];
       // If we asked to edit ≥1 scene but EVERY rewrite failed admission (rolled
       // back), the draft is unchanged — do NOT pretend success. Return to the
@@ -327,11 +382,13 @@ export class WorkspaceController {
       }
       // …then re-render the draft (and auto-repair any new oracle errors).
       this.setStage(projectId, { kind: "rendering", percent: 0, phase: "draft" });
-      let outcome = await this.deps.worker.generateValidateRepair(projectId, { maxAttempts: this.deps.settings.maxRepairAttempts }, hooks);
+      let outcome = await this.deps.worker.generateValidateRepair(projectId, { maxAttempts: this.deps.settings.maxRepairAttempts }, hooks, signal);
       // AI visual-QA over ONLY the edited scenes — catch defects the user's
       // instruction may have introduced, without re-checking untouched scenes.
       outcome = await this.withVisualQa(projectId, outcome, hooks, sceneIds);
-      if (outcome.kind === "passed") {
+      if (outcome.kind === "cancelled") {
+        await this.recoverAfterCancel(projectId);
+      } else if (outcome.kind === "passed") {
         this.bumpRenderVersion(projectId);
         // If the user explicitly edited some scenes but a SUBSET failed to apply,
         // say so (the rest did render) so a half-applied batch isn't silent.
@@ -394,8 +451,11 @@ export class WorkspaceController {
     scope?: string[],
   ): Promise<RepairOutcome> {
     if (outcome.kind !== "passed" || !this.deps.settings.visualQaEnabled || !this.deps.worker.visualQa) return outcome;
-    const flagged = await this.deps.worker.visualQa(projectId, scope).catch(() => [] as { sceneId: string; issue: string }[]);
-    if (flagged.length === 0) return outcome;
+    const signal = this.signalOf(projectId);
+    const flagged = await this.deps.worker.visualQa(projectId, scope, signal).catch(() => [] as { sceneId: string; issue: string }[]);
+    // A cancel during QA: don't churn — return the already-passing draft outcome
+    // (the caller's cancel check / recover handles the stage). QA is best-effort.
+    if (signal?.aborted || flagged.length === 0) return outcome;
     const sceneIds = flagged.map((f) => f.sceneId);
     // Snapshot the known-good source so a regressive QA rewrite can be rolled back.
     const snapshot = (await this.deps.worker.snapshotScenes?.(projectId, sceneIds).catch(() => [])) ?? [];
@@ -404,17 +464,18 @@ export class WorkspaceController {
     await this.deps.worker.reauthorScenes(
       { projectId, sceneIds, preprompt: { contractRef: "SKILL.md+AGENTS.md", affectedSceneIds: sceneIds, perSceneIntent, globalNotes: "" } },
       this.editHooks(projectId),
+      signal,
     );
     this.setStage(projectId, { kind: "rendering", percent: 0, phase: "draft" });
-    const qaOutcome = await this.deps.worker.generateValidateRepair(projectId, { maxAttempts: this.deps.settings.maxRepairAttempts }, hooks);
-    if (qaOutcome.kind === "passed") return qaOutcome;
+    const qaOutcome = await this.deps.worker.generateValidateRepair(projectId, { maxAttempts: this.deps.settings.maxRepairAttempts }, hooks, signal);
+    if (qaOutcome.kind === "passed" || qaOutcome.kind === "cancelled") return qaOutcome;
     // QA could NOT produce a clean draft → never regress: restore the pre-QA
     // source and re-render back to the draft that already passed.
     if (snapshot.length > 0 && this.deps.worker.restoreScenes) {
       this.setStage(projectId, { kind: "rendering", percent: 0, phase: "qa" });
       await this.deps.worker.restoreScenes(projectId, snapshot);
       this.setStage(projectId, { kind: "rendering", percent: 0, phase: "draft" });
-      await this.deps.worker.generateValidateRepair(projectId, { maxAttempts: this.deps.settings.maxRepairAttempts }, hooks);
+      await this.deps.worker.generateValidateRepair(projectId, { maxAttempts: this.deps.settings.maxRepairAttempts }, hooks, signal);
       return outcome; // the original passing outcome (known-good draft restored)
     }
     // Couldn't snapshot/restore → fall back to the QA outcome (rare).
@@ -466,11 +527,14 @@ export class WorkspaceController {
   private async runRender(projectId: string, readyNotice?: string): Promise<void> {
     this.setStage(projectId, { kind: "rendering", percent: 0, phase: "draft" });
     const hooks = this.renderHooks(projectId, "draft");
+    const signal = this.signalOf(projectId);
     try {
-      let outcome = await this.deps.worker.generateValidateRepair(projectId, { maxAttempts: this.deps.settings.maxRepairAttempts }, hooks);
+      let outcome = await this.deps.worker.generateValidateRepair(projectId, { maxAttempts: this.deps.settings.maxRepairAttempts }, hooks, signal);
       // AI visual-QA over ALL scenes' stills before the user reviews (best-effort).
       outcome = await this.withVisualQa(projectId, outcome, hooks);
-      if (outcome.kind === "passed") {
+      if (outcome.kind === "cancelled") {
+        await this.recoverAfterCancel(projectId);
+      } else if (outcome.kind === "passed") {
         this.bumpRenderVersion(projectId);
         this.setStage(projectId, this.readyStage(projectId, await this.storyboardScenesOf(projectId), readyNotice));
       } else if (outcome.kind === "infra") {

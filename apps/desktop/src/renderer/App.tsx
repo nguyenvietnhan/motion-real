@@ -248,6 +248,7 @@ export const App: React.FC = () => {
             }}
             onReveal={() => onReveal(openProjectId)}
             onSave={() => void dash?.projects.save(openProjectId)}
+            onCancel={() => void dash?.projects.cancel(openProjectId)}
           />
         )}
       </main>

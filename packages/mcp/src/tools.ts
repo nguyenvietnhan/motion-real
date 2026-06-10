@@ -203,6 +203,7 @@ export function createTools(overrides: Partial<ToolDeps> = {}) {
     async render_draft(
       input: z.infer<typeof renderDraftInput>,
       onProgress?: (ratio: number) => void,
+      signal?: AbortSignal,
     ): Promise<ToolResult<RenderProjectResult>> {
       const cfgError = assertVivibeConfig(deps);
       if (cfgError) return err(cfgError.toSerialized());
@@ -211,6 +212,7 @@ export function createTools(overrides: Partial<ToolDeps> = {}) {
           quality: "draft",
           ...(input.concurrency ? { concurrency: input.concurrency } : {}),
           ...(onProgress ? { onProgress } : {}),
+          ...(signal ? { signal } : {}),
         });
         await persistSafetyReport(input.projectId, res.report);
         return ok(res);
@@ -222,6 +224,7 @@ export function createTools(overrides: Partial<ToolDeps> = {}) {
     async render_full(
       input: z.infer<typeof renderFullInput>,
       onProgress?: (ratio: number) => void,
+      signal?: AbortSignal,
     ): Promise<ToolResult<RenderProjectResult>> {
       const forceFull = input.forceFull ?? false;
       // Draft-first gate at the surface (R3.4): refuse a full render with no
@@ -242,6 +245,7 @@ export function createTools(overrides: Partial<ToolDeps> = {}) {
           quality: "full",
           forceFull,
           ...(onProgress ? { onProgress } : {}),
+          ...(signal ? { signal } : {}),
         });
         await persistSafetyReport(input.projectId, res.report);
         return ok(res);

@@ -77,8 +77,10 @@ describe("CustomLoopAgentWorker.generateValidateRepair", () => {
     const { hooks } = recordingHooks();
     const outcome = await worker.generateValidateRepair("p1", { maxAttempts: 3 }, hooks);
     expect(outcome).toEqual({ kind: "passed", attempts: 2 });
-    expect(reauthor).toHaveBeenCalledWith("p1", [
-      { sceneId: "scene-02", issues: [{ check: "N14", severity: "error", sceneId: "scene-02", message: "x" }] },
-    ]);
+    expect(reauthor).toHaveBeenCalledWith(
+      "p1",
+      [{ sceneId: "scene-02", issues: [{ check: "N14", severity: "error", sceneId: "scene-02", message: "x" }] }],
+      undefined, // no cancel signal threaded in this direct-worker test
+    );
   });
 });

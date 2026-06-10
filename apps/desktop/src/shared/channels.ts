@@ -21,6 +21,7 @@ export const INVOKE_CHANNELS = [
   "projects:delete",
   "projects:reveal",
   "projects:save",
+  "projects:cancel",
   "projects:retry",
   "projects:fixWithAi",
   "script:get",

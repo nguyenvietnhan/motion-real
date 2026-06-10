@@ -48,18 +48,20 @@ export type PrepromptPayload = {
 };
 
 /** Budget for the generate-validate-repair loop; default 3, clamped to [1,10] (Req 6.4). */
-export type RepairLoopOptions = { maxAttempts: number };
+export type RepairLoopOptions = { maxAttempts: number; signal?: AbortSignal };
 
 /** Outcome of a fresh-author or re-author job. */
 export type AuthorOutcome =
   | { kind: "authored"; sceneIds: string[]; unreadableUrls?: string[] }
   | { kind: "no-source"; message: string };
 
-/** Outcome of the generate-validate-repair loop (Req 6.3/6.7; + infra, Req 4). */
+/** Outcome of the generate-validate-repair loop (Req 6.3/6.7; + infra, Req 4; + user cancel). */
 export type RepairOutcome =
   | { kind: "passed"; attempts: number }
   | { kind: "exhausted"; attempts: number; remainingHardErrors: number }
-  | { kind: "infra"; attempts: number };
+  | { kind: "infra"; attempts: number }
+  /** The user pressed "Dừng render" — the loop stopped on purpose, not a failure. */
+  | { kind: "cancelled"; attempts: number };
 
 /** Result of a full-quality publish render. */
 export type PublishResult = { ok: true; outputPath: string } | { ok: false; error?: SerializedPipelineError };
@@ -92,14 +94,15 @@ export interface AgentWorker {
   /** Author scenes for a fresh project. */
   author(job: AuthorJob, hooks: AgentHooks): Promise<AuthorOutcome>;
   /** Re-author ONLY the named scenes from batched visual edits (Req 8.7). */
-  reauthorScenes(job: ReauthorJob, hooks: AgentHooks): Promise<AuthorOutcome>;
+  reauthorScenes(job: ReauthorJob, hooks: AgentHooks, signal?: AbortSignal): Promise<AuthorOutcome>;
   /** Render the final full-quality MP4 (draft-first gate already satisfied). */
-  publish(projectId: string): Promise<PublishResult>;
+  publish(projectId: string, signal?: AbortSignal): Promise<PublishResult>;
   /** Run the generate-validate-repair loop to zero hard errors or budget (Req 6). */
   generateValidateRepair(
     projectId: string,
     opts: RepairLoopOptions,
     hooks: AgentHooks,
+    signal?: AbortSignal,
   ): Promise<RepairOutcome>;
   /**
    * Optional AI visual-QA: judge the rendered scene stills (vision model) for
@@ -108,7 +111,7 @@ export interface AgentWorker {
    * scenes a user just edited); omit to check every scene. Returns the flagged
    * scenes + a short description. Model-dependent (needs vision) and best-effort.
    */
-  visualQa?(projectId: string, sceneIds?: string[]): Promise<VisualDefect[]>;
+  visualQa?(projectId: string, sceneIds?: string[], signal?: AbortSignal): Promise<VisualDefect[]>;
   /** Snapshot authored scene source so a regressive visual-QA round can be rolled back. */
   snapshotScenes?(projectId: string, sceneIds: string[]): Promise<SceneSnapshot>;
   /** Restore authored scene source from a snapshot (re-admits the components). */

@@ -105,6 +105,25 @@ export function isPipelineError(value: unknown): value is PipelineError {
 }
 
 /**
+ * A render aborted on purpose by the user ("Dừng render"), NOT a failure. Thrown
+ * when the caller's AbortSignal fires mid-render so every layer can tell an
+ * intentional stop apart from a real error: the project state is left untouched
+ * (no `state: "failed"` bookkeeping) and the UI returns to its prior reviewable
+ * stage instead of an error screen.
+ */
+export class RenderCancelledError extends Error {
+  constructor(message = "render cancelled by user") {
+    super(message);
+    this.name = "RenderCancelledError";
+  }
+}
+
+/** Type guard: was this thrown because the user cancelled the render? */
+export function isRenderCancelledError(value: unknown): value is RenderCancelledError {
+  return value instanceof RenderCancelledError;
+}
+
+/**
  * Normalize any thrown value into a SerializedPipelineError so a surface always
  * has the structured shape. A raw (non-pipeline) error is wrapped as a generic
  * failure at the given fallback stage.

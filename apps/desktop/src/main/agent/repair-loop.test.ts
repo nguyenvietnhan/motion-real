@@ -120,6 +120,57 @@ describe("Property 5: repair-loop budget", () => {
     expect(outcome).toEqual({ kind: "passed", attempts: 1 });
     expect(renders).toBe(1);
   });
+
+  it("an already-aborted signal stops before the first render (cancelled, attempts:0)", async () => {
+    let renders = 0;
+    const deps: RepairLoopDeps = {
+      renderDraft: async () => {
+        renders++;
+        return { ok: true };
+      },
+      getSafetyReport: async () => ({ ok: true, hardErrors: [], warnings: [] }),
+      reauthor: async () => {},
+      hooks: noopHooks,
+    };
+    const outcome = await generateValidateRepair(deps, { maxAttempts: 5, signal: AbortSignal.abort() });
+    expect(outcome).toEqual({ kind: "cancelled", attempts: 0 });
+    expect(renders).toBe(0);
+  });
+
+  it("a signal aborted mid-loop stops before the next attempt (cancelled, no further render)", async () => {
+    const ctrl = new AbortController();
+    let renders = 0;
+    let reports = 0;
+    let reauthors = 0;
+    const deps: RepairLoopDeps = {
+      renderDraft: async () => {
+        renders++;
+        // A user "Dừng render" lands DURING the render: the engine throws a
+        // RenderCancelledError, serialized to a failed render. Simulate that by
+        // aborting then returning {ok:false}. The report below keeps a hard error
+        // so the loop WOULD otherwise read it and reauthor before the next attempt.
+        ctrl.abort();
+        return { ok: false };
+      },
+      getSafetyReport: async () => {
+        reports++;
+        return { ok: false, hardErrors: issues(1), warnings: [] };
+      },
+      reauthor: async () => {
+        reauthors++;
+      },
+      hooks: noopHooks,
+    };
+    const outcome = await generateValidateRepair(deps, { maxAttempts: 5, signal: ctrl.signal });
+    expect(outcome).toEqual({ kind: "cancelled", attempts: 1 });
+    expect(renders).toBe(1);
+    // The regression this guards: a mid-render cancel must stop the INSTANT the
+    // render returns — never reading the (now stale) safety report nor spending a
+    // reauthor AI call before the next iteration's top-of-loop check. Both were
+    // wasted on every cancel before the fix (the user saw a delayed/no-op stop).
+    expect(reports).toBe(0);
+    expect(reauthors).toBe(0);
+  });
 });
 
 describe("Property 4: repair budget and routing", () => {

@@ -207,6 +207,10 @@ const handlers: InvokeHandlers = {
     await copyFile(src, picked.filePath);
     return { saved: true };
   },
+  "projects:cancel": (projectId) => {
+    workspace.cancel(String(projectId));
+    return undefined;
+  },
   "projects:retry": (projectId) => {
     workspace.retry(String(projectId));
     return undefined;

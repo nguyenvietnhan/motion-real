@@ -75,6 +75,51 @@ const ScriptReview: React.FC<{
   );
 };
 
+/**
+ * The "đang dựng" status panel + its Stop button. Kept as its own component so
+ * it can hold local `stopping` state: the Electron main process is briefly
+ * blocked by the synchronous N10 typecheck, so the engine-side cancel + the
+ * 1.5s stage poll can lag a second or two behind the click. The renderer
+ * process is NOT blocked, so we flip to "Đang dừng…" and disable the button the
+ * instant it's pressed — the user gets immediate feedback and never feels the
+ * need to spam-click (which only queued more ignored IPC messages). The flag
+ * resets automatically when the stage leaves "rendering" (recover/ready/error).
+ */
+const RenderingPanel: React.FC<{ stage: Extract<ProjectStage, { kind: "rendering" }>; onCancel: () => void }> = ({ stage, onCancel }) => {
+  const [stopping, setStopping] = useState(false);
+  const phase = stage.phase ?? "draft";
+  const label =
+    phase === "edit" ? "AI đang chỉnh sửa các cảnh theo yêu cầu…"
+      : phase === "qa" ? "AI đang tự kiểm tra & sửa lỗi hình ảnh…"
+        : phase === "full" ? "Đang dựng video bản đầy đủ (chất lượng cao)…"
+          : "Đang dựng giọng đọc + bản nháp…";
+  const indeterminate = phase === "edit" || phase === "qa" || stage.percent <= 0;
+  return (
+    <div className="ns-card" style={{ padding: 32 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+        <Spinner /> <span>{stopping ? "Đang dừng…" : `${label}${indeterminate ? "" : ` ${stage.percent}%`}`}</span>
+      </div>
+      <div style={{ height: 8, background: "var(--muted)", borderRadius: 999, overflow: "hidden" }}>
+        {indeterminate || stopping ? (
+          <div className="ns-indeterminate" style={{ height: "100%", borderRadius: 999 }} />
+        ) : (
+          <div style={{ width: `${stage.percent}%`, height: "100%", background: "var(--brand)", borderRadius: 999, transition: "width 0.3s" }} />
+        )}
+      </div>
+      {/* Stop the in-flight render. A cancel is not a failure: the project
+          returns to its prior reviewable stage (the draft/scenes it had),
+          never an error screen. One press is enough — disable + show "Đang
+          dừng…" immediately so the brief engine-side lag never looks like a
+          dead button. */}
+      <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 16 }}>
+        <button className="ns-btn" onClick={() => { setStopping(true); onCancel(); }} disabled={stopping}>
+          {stopping ? "Đang dừng…" : "Dừng dựng"}
+        </button>
+      </div>
+    </div>
+  );
+};
+
 export const ProjectWorkspaceView: React.FC<{
   stage: ProjectStage;
   onBack: () => void;
@@ -87,7 +132,9 @@ export const ProjectWorkspaceView: React.FC<{
   onReveal: () => void;
   /** Copy the finished MP4 to a user-chosen location (native Save dialog). */
   onSave: () => void;
-}> = ({ stage, onBack, onRetry, onFixWithAi, onApplyScript, onApproveScript, onSubmitEdits, onApproveDraft, onReveal, onSave }) => {
+  /** Stop the in-flight render/author/edit job ("Dừng render"). */
+  onCancel: () => void;
+}> = ({ stage, onBack, onRetry, onFixWithAi, onApplyScript, onApproveScript, onSubmitEdits, onApproveDraft, onReveal, onSave, onCancel }) => {
   const title: Record<ProjectStage["kind"], string> = {
     writing: "Đang viết kịch bản",
     script: "Duyệt kịch bản",
@@ -123,29 +170,7 @@ export const ProjectWorkspaceView: React.FC<{
         </div>
       )}
       {stage.kind === "script" && <ScriptReview lines={stage.lines} linkWarning={stage.linkWarning} onApply={onApplyScript} onApprove={onApproveScript} />}
-      {stage.kind === "rendering" && (() => {
-        const phase = stage.phase ?? "draft";
-        const label =
-          phase === "edit" ? "AI đang chỉnh sửa các cảnh theo yêu cầu…"
-            : phase === "qa" ? "AI đang tự kiểm tra & sửa lỗi hình ảnh…"
-              : phase === "full" ? "Đang dựng video bản đầy đủ (chất lượng cao)…"
-                : "Đang dựng giọng đọc + bản nháp…";
-        const indeterminate = phase === "edit" || phase === "qa" || stage.percent <= 0;
-        return (
-          <div className="ns-card" style={{ padding: 32 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
-              <Spinner /> <span>{label}{indeterminate ? "" : ` ${stage.percent}%`}</span>
-            </div>
-            <div style={{ height: 8, background: "var(--muted)", borderRadius: 999, overflow: "hidden" }}>
-              {indeterminate ? (
-                <div className="ns-indeterminate" style={{ height: "100%", borderRadius: 999 }} />
-              ) : (
-                <div style={{ width: `${stage.percent}%`, height: "100%", background: "var(--brand)", borderRadius: 999, transition: "width 0.3s" }} />
-              )}
-            </div>
-          </div>
-        );
-      })()}
+      {stage.kind === "rendering" && <RenderingPanel stage={stage} onCancel={onCancel} />}
       {stage.kind === "published" && (
         <div className="ns-card" style={{ padding: 20, display: "flex", flexDirection: "column", alignItems: "center", gap: 14 }}>
           <strong style={{ fontSize: 16 }}>Đã xuất bản video 🎬</strong>

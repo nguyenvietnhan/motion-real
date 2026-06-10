@@ -31,7 +31,7 @@ import { typecheckAuthoredScenes } from "./safety/typecheck-authored.js";
 import { runRenderGrid, checkOverlap, type RenderGridOptions } from "./safety/render-grid.js";
 import { lintSceneSources, compositionsSrcDir, blocksSrcDir } from "./safety/forbidden-api.js";
 import { scaffoldProject, loadManifest, loadManifestAsSpec, admitProjectScenes, manifestSceneFiles } from "./authoring/manifest.js";
-import { PipelineError } from "./errors.js";
+import { PipelineError, RenderCancelledError, isRenderCancelledError } from "./errors.js";
 import { generateAuthoredEntry } from "./authoring/authored-entry.js";
 import { synthesizeNarration, type SynthesizeOptions } from "./audio/tts.js";
 import { lockSpec } from "./audio/lock.js";
@@ -159,6 +159,13 @@ export type RenderProjectOptions = {
    * and no authored scenes. Defaults to false (full AUTHOR path).
    */
   skipAuthoring?: boolean;
+  /**
+   * User-cancel signal ("Dừng render"). When it fires, the in-flight render is
+   * aborted and `renderProject` throws a `RenderCancelledError` — which is NOT
+   * recorded as a `state: "failed"` (a deliberate stop is not a failure). Checked
+   * at each stage boundary so a cancel between expensive steps stops promptly.
+   */
+  signal?: AbortSignal;
   deps?: RenderProjectDeps;
 };
 
@@ -182,7 +189,16 @@ export async function renderProject(projectId: string, opts: RenderProjectOption
   const deps = opts.deps ?? {};
   let generatedEntry: string | null = null;
 
+  // Throw a RenderCancelledError the moment the user's signal has fired. Called
+  // at each stage boundary so a "Dừng render" stops promptly between the
+  // expensive steps (TTS, determinism, render, oracles) instead of only at the
+  // Remotion encode the cancelSignal aborts directly.
+  const throwIfCancelled = (): void => {
+    if (opts.signal?.aborted) throw new RenderCancelledError();
+  };
+
   try {
+    throwIfCancelled();
     const brief = await readBrief(projectId);
     // Draft = fast low-res preview at a lower fps (fewer frames → faster). The
     // motion is fps-aware so the draft is a faithful (just lower-res) preview.
@@ -205,6 +221,7 @@ export async function renderProject(projectId: string, opts: RenderProjectOption
     // --- (0) Admit authored scenes + resolve the spec (manifest → VideoSpec). ---
     let authoredFiles: string[] = [];
     if (!opts.skipAuthoring) {
+      throwIfCancelled(); // before the admission/bundle work begins
       const admitted = await admitProjectScenes(projectId);
       if (!admitted.ok) {
         await fail(projectId, `Authored admission blocked render: ${errorSummary(admitted.violations)}`);
@@ -249,6 +266,13 @@ export async function renderProject(projectId: string, opts: RenderProjectOption
       // Degrades to a no-op when the @news sources can't be resolved; it must
       // never block a render it can't check correctly.
       const sceneIdByFile = new Map(sceneFiles.map((s) => [resolve(s.file), s.sceneId]));
+      // The N10 typecheck is SYNCHRONOUS and CPU-heavy (~5-8s) — it blocks the
+      // Electron main event loop for its whole duration, during which a queued
+      // "Dừng render" IPC message cannot be processed (so the abort can't fire).
+      // Check the signal RIGHT BEFORE it: a cancel that fired during the async
+      // admission/bundle above skips the typecheck entirely instead of forcing
+      // the user to wait out a block they already asked to stop.
+      throwIfCancelled();
       const typeIssues = typecheckAuthoredScenes(authoredFiles, workspaceRoot(), sceneIdByFile);
       // Only crash-class diagnostics (severity "error") gate the render — a
       // wrong-shape prop that would crash Chromium at runtime. A missing color
@@ -280,6 +304,7 @@ export async function renderProject(projectId: string, opts: RenderProjectOption
     const speed = opts.speed ?? brief.tts.speed;
 
     // --- (1) TTS. ---
+    throwIfCancelled(); // before TTS spends money / time
     await setState(projectId, { state: "tts", currentStep: "synthesizing narration", error: null });
     const synthesize = deps.synthesize ?? synthesizeNarration;
     const tts = await synthesize(spec, { projectId, provider, voiceId, speed, bgmPath: opts.bgmPath ?? defaultBgmPath() });
@@ -311,14 +336,26 @@ export async function renderProject(projectId: string, opts: RenderProjectOption
 
     // --- Generate the per-project Remotion entry that imports the authored
     //     scenes, so every render op below bundles THOSE scenes. ---
-    let renderEntry: { entryPoint?: string; remotionRoot?: string; projectRoot: string } = { projectRoot: paths.root };
+    // Thread the cancel signal into every render op below (determinism, review
+    // stills, overlap measure) so a "Dừng render" tears down their in-flight
+    // headless Chromium too — not just the main encode.
+    let renderEntry: { entryPoint?: string; remotionRoot?: string; projectRoot: string; signal?: AbortSignal } = {
+      projectRoot: paths.root,
+      ...(opts.signal ? { signal: opts.signal } : {}),
+    };
     if (!opts.skipAuthoring) {
       generatedEntry = join(paths.authoredDir, "_entry.tsx");
       await generateAuthoredEntry({ entryPath: generatedEntry, authoredFiles, lockJsonPath: paths.lock });
-      renderEntry = { entryPoint: generatedEntry, remotionRoot: remotionAppRoot(), projectRoot: paths.root };
+      renderEntry = {
+        entryPoint: generatedEntry,
+        remotionRoot: remotionAppRoot(),
+        projectRoot: paths.root,
+        ...(opts.signal ? { signal: opts.signal } : {}),
+      };
     }
 
     // --- (4) Determinism guard (N16). ---
+    throwIfCancelled(); // before the (double) determinism render
     const checkDet = deps.determinism ?? checkDeterminism;
     const detReport = await checkDet(locked, renderEntry);
     if (!detReport.ok) {
@@ -343,6 +380,7 @@ export async function renderProject(projectId: string, opts: RenderProjectOption
       cached = true;
       await appendEvent(projectId, { type: "render.cached", hash });
     } else {
+      throwIfCancelled(); // last cheap exit before the expensive encode
       await setState(projectId, { state: "rendering", currentStep: isDraft ? "rendering draft MP4" : "rendering MP4" });
       const render = deps.render ?? renderVideo;
       // Drafts push concurrency to all cores for speed (preview, not the master).
@@ -353,6 +391,7 @@ export async function renderProject(projectId: string, opts: RenderProjectOption
         concurrency,
         onProgress: opts.onProgress,
         quality: opts.quality,
+        ...(opts.signal ? { signal: opts.signal } : {}),
         ...renderEntry,
       });
       if (!isDraft) await putCachedRender(hash, result.outPath);
@@ -360,6 +399,7 @@ export async function renderProject(projectId: string, opts: RenderProjectOption
     }
 
     // --- (6) Review loop (N24/N25). ---
+    throwIfCancelled(); // a cancel during the post-encode oracles still stops promptly
     await setState(projectId, { state: "reviewing", currentStep: "building review" });
     const review = deps.review ?? buildReview;
     const reviewArtifacts = await review(locked, {
@@ -388,7 +428,7 @@ export async function renderProject(projectId: string, opts: RenderProjectOption
     // a measurement failure must never fail the render, so it's fully guarded.
     const overlapIssues: SafetyIssue[] = [];
     try {
-      const layouts = await measureSceneLayouts(locked, { projectRoot: paths.root, logLevel: "error" });
+      const layouts = await measureSceneLayouts(locked, { projectRoot: paths.root, logLevel: "error", ...(opts.signal ? { signal: opts.signal } : {}) });
       for (const scene of locked.scenes) {
         const blocks = layouts[scene.id];
         if (blocks && blocks.length > 1) overlapIssues.push(...checkOverlap(blocks, scene.id, "warning"));
@@ -416,6 +456,15 @@ export async function renderProject(projectId: string, opts: RenderProjectOption
 
     return { projectId, mp4Path: resolve(mp4Path), locked, report, cached };
   } catch (error) {
+    // A user cancel ("Dừng render") is NOT a failure: leave the project state
+    // untouched (no `state: "failed"`) so the gallery/workspace returns to the
+    // prior reviewable stage instead of an error screen. Remotion aborts its
+    // encode with its own cancel error when the signal fires, so normalize both
+    // that and our RenderCancelledError into one cancel throw.
+    if (isRenderCancelledError(error) || opts.signal?.aborted) {
+      await appendEvent(projectId, { type: "render.cancelled" });
+      throw isRenderCancelledError(error) ? error : new RenderCancelledError();
+    }
     await fail(projectId, errMessage(error));
     throw error;
   } finally {

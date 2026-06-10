@@ -36,6 +36,8 @@ export type RepairLoopDeps = {
   /** Re-author the flagged content scenes (with their issues) before the next attempt. */
   reauthor: (targets: ReauthorTarget[]) => Promise<void>;
   hooks: AgentHooks;
+  /** User-cancel signal: when aborted the loop stops between attempts and returns `cancelled`. */
+  signal?: AbortSignal;
 };
 
 /** Group content-class hard errors by scene into reauthor targets (carrying issues). */
@@ -64,11 +66,25 @@ export async function generateValidateRepair(
   let remainingHardErrors = 0;
 
   while (attempts < max) {
+    // A user "Dừng render" stops the loop between attempts; the in-flight render
+    // itself is aborted via the signal threaded into renderDraft (Remotion
+    // cancelSignal). Report `cancelled` so the controller restores the prior
+    // reviewable stage instead of treating the stop as a render failure.
+    if (opts.signal?.aborted) return { kind: "cancelled", attempts };
     attempts++;
     const render = await deps.renderDraft();
     // NOTE: smooth render progress is driven by the renderer's real per-frame
     // callback (WorkspaceController.reportRenderProgress); we deliberately do NOT
     // emit a coarse attempts/max ratio here — it would clobber the live percent.
+
+    // A user "Dừng render" DURING the render surfaces as a failed render (the
+    // engine threw a RenderCancelledError, serialized to {ok:false}). Re-check
+    // the signal the instant the render returns — BEFORE reading a (now stale)
+    // safety report and BEFORE spending a reauthor AI call — so a mid-render
+    // cancel stops promptly instead of wasting another full attempt. Without
+    // this, the loop would read the previous attempt's report and fire a
+    // pointless reauthor before the next iteration's top-of-loop check.
+    if (opts.signal?.aborted) return { kind: "cancelled", attempts };
 
     // A failed render whose cause is infra (missing voice key, gateway, Chromium
     // "target closed") is not agent-fixable — stop as `infra`.

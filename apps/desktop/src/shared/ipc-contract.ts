@@ -53,6 +53,8 @@ export interface DashboardApi {
     reveal(projectId: string): Promise<void>;
     /** Copy the full-quality MP4 to a user-chosen location via a native Save dialog. Resolves `false` when the user cancels. */
     save(projectId: string): Promise<{ saved: boolean }>;
+    /** Stop the in-flight render/author/edit job ("Dừng render"); the project returns to its prior reviewable stage. */
+    cancel(projectId: string): Promise<void>;
     /** Re-run authoring for an existing project (the "Thử lại" action). */
     retry(projectId: string): Promise<void>;
     /** Ask the agent to fix Content_Errors and re-render ("Sửa bằng AI"). */

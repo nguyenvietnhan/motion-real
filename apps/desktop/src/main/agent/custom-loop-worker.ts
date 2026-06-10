@@ -30,20 +30,22 @@ export type AuthoredScene = { sceneId: string; stillPath: string };
  */
 export type ReauthorTarget = { sceneId: string; issues?: SafetyIssue[]; intent?: string; visual?: boolean };
 
-/** The model+MCP-facing operations the custom loop drives. */
+/** The model+MCP-facing operations the custom loop drives. Render/chat ops take
+ * an optional `signal` so a user "Dừng render" aborts the in-flight Remotion
+ * encode (via Remotion's cancelSignal) and the AI calls (via fetch abort). */
 export interface AuthoringBackend {
   /** Author the scene .tsx + manifest + narration for a fresh project (ingests any brief links best-effort). */
   authorScenes(job: AuthorJob): Promise<{ scenes: AuthoredScene[]; message?: string; unreadableUrls?: string[] }>;
   /** Re-author ONLY the named scenes (code-level self-repair / visual edit). */
-  reauthor(projectId: string, targets: ReauthorTarget[]): Promise<{ scenes: AuthoredScene[] }>;
+  reauthor(projectId: string, targets: ReauthorTarget[], signal?: AbortSignal): Promise<{ scenes: AuthoredScene[] }>;
   /** Render one draft (drives the MCP `render_draft` tool); failure carries the engine error. */
-  renderDraft(projectId: string): Promise<RenderResult>;
+  renderDraft(projectId: string, signal?: AbortSignal): Promise<RenderResult>;
   /** Render the final full-quality MP4 (drives MCP `render_full`); draft-first gate already satisfied. */
-  renderFull(projectId: string): Promise<PublishResult>;
+  renderFull(projectId: string, signal?: AbortSignal): Promise<PublishResult>;
   /** Read the safety report for the just-rendered draft (MCP `get_safety_report`). */
   getSafetyReport(projectId: string): Promise<SafetyReportView>;
   /** Optional AI visual-QA over rendered stills (vision model); flags layout defects. */
-  visualQa?(projectId: string, sceneIds?: string[]): Promise<VisualDefect[]>;
+  visualQa?(projectId: string, sceneIds?: string[], signal?: AbortSignal): Promise<VisualDefect[]>;
   /** Optional: snapshot authored scene source (for a non-regressive visual-QA round). */
   snapshotScenes?(projectId: string, sceneIds: string[]): Promise<SceneSnapshot>;
   /** Optional: restore authored scene source from a snapshot (re-admits the components). */
@@ -73,24 +75,25 @@ export class CustomLoopAgentWorker implements AgentWorker {
     };
   }
 
-  async reauthorScenes(job: ReauthorJob, hooks: AgentHooks): Promise<AuthorOutcome> {    const targets = job.sceneIds.map((sceneId) => ({
+  async reauthorScenes(job: ReauthorJob, hooks: AgentHooks, signal?: AbortSignal): Promise<AuthorOutcome> {
+    const targets = job.sceneIds.map((sceneId) => ({
       sceneId,
       intent: job.preprompt.perSceneIntent[sceneId] ?? job.preprompt.globalNotes,
       // Visual intent (user Canva edit or AI visual-QA): the rewrite must SEE the
       // current rendered still, not fix a layout it can't observe.
       visual: true,
     }));
-    const result = await this.backend.reauthor(job.projectId, targets);
+    const result = await this.backend.reauthor(job.projectId, targets, signal);
     emitScenes(result.scenes, hooks);
     return { kind: "authored", sceneIds: result.scenes.map((s) => s.sceneId) };
   }
 
-  publish(projectId: string): Promise<PublishResult> {
-    return this.backend.renderFull(projectId);
+  publish(projectId: string, signal?: AbortSignal): Promise<PublishResult> {
+    return this.backend.renderFull(projectId, signal);
   }
 
-  visualQa(projectId: string, sceneIds?: string[]): Promise<VisualDefect[]> {
-    return this.backend.visualQa?.(projectId, sceneIds) ?? Promise.resolve([]);
+  visualQa(projectId: string, sceneIds?: string[], signal?: AbortSignal): Promise<VisualDefect[]> {
+    return this.backend.visualQa?.(projectId, sceneIds, signal) ?? Promise.resolve([]);
   }
 
   snapshotScenes(projectId: string, sceneIds: string[]): Promise<SceneSnapshot> {
@@ -105,17 +108,18 @@ export class CustomLoopAgentWorker implements AgentWorker {
     projectId: string,
     opts: RepairLoopOptions,
     hooks: AgentHooks,
+    signal?: AbortSignal,
   ): Promise<RepairOutcome> {
     return generateValidateRepair(
       {
-        renderDraft: () => this.backend.renderDraft(projectId),
+        renderDraft: () => this.backend.renderDraft(projectId, signal),
         getSafetyReport: () => this.backend.getSafetyReport(projectId),
         reauthor: async (targets) => {
-          await this.backend.reauthor(projectId, targets);
+          await this.backend.reauthor(projectId, targets, signal);
         },
         hooks,
       },
-      opts,
+      { ...opts, ...(signal ? { signal } : {}) },
     );
   }
 }

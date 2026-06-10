@@ -48,6 +48,7 @@ export function createDashboardClient(ipc: IpcLike): DashboardApi {
       delete: (projectId) => inv("projects:delete", projectId),
       reveal: (projectId) => inv("projects:reveal", projectId),
       save: (projectId) => inv("projects:save", projectId),
+      cancel: (projectId) => inv("projects:cancel", projectId),
       retry: (projectId) => inv("projects:retry", projectId),
       fixWithAi: (projectId) => inv("projects:fixWithAi", projectId),
     },

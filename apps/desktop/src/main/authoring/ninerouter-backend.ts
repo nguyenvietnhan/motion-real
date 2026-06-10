@@ -214,7 +214,7 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
    * rewrite fails admission, the original code is restored so the project stays
    * renderable (atomic per scene). (desktop-author-mode, Req 3.)
    */
-  async reauthor(projectId: string, targets: ReauthorTarget[]): Promise<{ scenes: AuthoredScene[] }> {
+  async reauthor(projectId: string, targets: ReauthorTarget[], signal?: AbortSignal): Promise<{ scenes: AuthoredScene[] }> {
     const model = this.deps.model();
     if (!model) return { scenes: [] };
     const reviewDir = projectPaths(projectId).reviewDir;
@@ -222,6 +222,10 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
     const done: AuthoredScene[] = [];
 
     for (const t of targets) {
+      // A user "Dừng render" mid-reauthor stops before the next scene's AI call
+      // (the in-flight chat is aborted via the signal). Already-rewritten scenes
+      // stay applied; the controller restores the prior reviewable stage.
+      if (signal?.aborted) break;
       const resolved = await resolveSceneFile(projectId, t.sceneId, (id) => loadManifest(id).catch(() => ({ scenes: [] })));
       if (!resolved) {
         console.error(`[reauthor] cannot resolve authored file for ${t.sceneId}; skipping.`);
@@ -259,7 +263,7 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
 
         let reply: string;
         try {
-          reply = await this.chatWithVisionFallback(model, messages);
+          reply = await this.chatWithVisionFallback(model, messages, signal);
         } catch (e) {
           console.error(`[reauthor] AI call failed for ${t.sceneId}:`, e);
           break; // give up this scene; original is restored below
@@ -316,9 +320,9 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
   }
 
   /** Call the model; if a vision (image) call fails, retry text-only (Req 3.7). */
-  private async chatWithVisionFallback(model: string, messages: ChatMessage[]): Promise<string> {
+  private async chatWithVisionFallback(model: string, messages: ChatMessage[], signal?: AbortSignal): Promise<string> {
     try {
-      return await this.deps.client.chat(model, messages, { apiKey: this.deps.apiKey() });
+      return await this.deps.client.chat(model, messages, { apiKey: this.deps.apiKey(), ...(signal ? { signal } : {}) });
     } catch (e) {
       const hasImage = messages.some((m) => Array.isArray(m.content) && m.content.some((p) => p.type === "image_url"));
       if (!hasImage) throw e;
@@ -329,17 +333,18 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
           ? m.content.filter((p) => p.type === "text").map((p) => (p as { text: string }).text).join("\n")
           : m.content,
       }));
-      return await this.deps.client.chat(model, textOnly, { apiKey: this.deps.apiKey() });
+      return await this.deps.client.chat(model, textOnly, { apiKey: this.deps.apiKey(), ...(signal ? { signal } : {}) });
     }
   }
 
-  async renderDraft(projectId: string): Promise<{ ok: true } | { ok: false; error?: SerializedPipelineError }> {
+  async renderDraft(projectId: string, signal?: AbortSignal): Promise<{ ok: true } | { ok: false; error?: SerializedPipelineError }> {
     await this.refreshRegistry(projectId);
     const res = await this.deps.tools.render_draft(
       // Cap draft concurrency: forcing all CPU cores crashed Chromium in Electron
       // ("Page.bringToFront: Target closed"). 2 is a stable preview default.
       { projectId, concurrency: 2 },
       this.deps.onRenderProgress ? (r) => this.deps.onRenderProgress!(r, projectId) : undefined,
+      signal,
     );
     if (!res.ok) {
       console.error(`[render] render_draft failed for ${projectId} [${res.error.stage}]: ${res.error.cause}`);
@@ -350,11 +355,12 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
     return { ok: true };
   }
 
-  async renderFull(projectId: string): Promise<{ ok: true; outputPath: string } | { ok: false; error?: SerializedPipelineError }> {
+  async renderFull(projectId: string, signal?: AbortSignal): Promise<{ ok: true; outputPath: string } | { ok: false; error?: SerializedPipelineError }> {
     await this.refreshRegistry(projectId);
     const res = await this.deps.tools.render_full(
       { projectId },
       this.deps.onRenderProgress ? (r) => this.deps.onRenderProgress!(r, projectId) : undefined,
+      signal,
     );
     if (!res.ok) {
       console.error(`[render] render_full failed for ${projectId} [${res.error.stage}]: ${res.error.cause}`);
@@ -395,7 +401,7 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
    * model-dependent: no model, no stills, a vision failure, or an unparseable
    * reply all yield `[]` (skip QA, never block the pipeline).
    */
-  async visualQa(projectId: string, sceneIds?: string[]): Promise<VisualDefect[]> {
+  async visualQa(projectId: string, sceneIds?: string[], signal?: AbortSignal): Promise<VisualDefect[]> {
     const model = this.deps.model();
     if (!model) return [];
     const manifest = await loadManifest(projectId).catch(() => null);
@@ -414,7 +420,7 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
 
     let reply: string;
     try {
-      reply = await this.deps.client.chat(model, buildVisualQaMessages(scenes), { apiKey: this.deps.apiKey() });
+      reply = await this.deps.client.chat(model, buildVisualQaMessages(scenes), { apiKey: this.deps.apiKey(), ...(signal ? { signal } : {}) });
     } catch (e) {
       console.warn("[visual-qa] vision call failed; skipping QA:", e);
       return [];

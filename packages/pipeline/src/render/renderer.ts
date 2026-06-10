@@ -2,8 +2,8 @@ import { mkdir } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { bundle, type WebpackOverrideFn } from "@remotion/bundler";
-import { ensureBrowser, renderMedia, renderStill, selectComposition } from "@remotion/renderer";
-import type { VideoImageFormat } from "@remotion/renderer";
+import { ensureBrowser, makeCancelSignal, renderMedia, renderStill, selectComposition } from "@remotion/renderer";
+import type { CancelSignal, VideoImageFormat } from "@remotion/renderer";
 import type { LockedVideoSpec } from "@news/schema";
 
 const DEFAULT_COMPOSITION_ID = "NewsVideo";
@@ -17,7 +17,23 @@ type RenderBaseOptions = {
   projectRoot?: string;
   publicDir?: string | null;
   logLevel?: LogLevel;
+  /** Abort the in-flight render(s) when this fires (user pressed "Dừng"). */
+  signal?: AbortSignal;
 };
+
+/**
+ * Bridge a caller's AbortSignal to a fresh Remotion cancel token so a "Dừng"
+ * press tears down headless Chromium mid-render instead of waiting it out.
+ * Returns undefined when there's no signal (so callers spread an empty
+ * cancelSignal). An already-aborted signal cancels immediately.
+ */
+function bridgeCancel(signal?: AbortSignal): CancelSignal | undefined {
+  if (!signal) return undefined;
+  const cancel = makeCancelSignal();
+  if (signal.aborted) cancel.cancel();
+  else signal.addEventListener("abort", () => cancel.cancel(), { once: true });
+  return cancel.cancelSignal;
+}
 
 /**
  * Render quality. `full` = the final high-quality h264 (slow-ish). `draft` =
@@ -77,6 +93,7 @@ export async function renderVideo(opts: RenderVideoOptions): Promise<RenderVideo
 
   await mkdir(dirname(outPath), { recursive: true });
   const draft = opts.quality === "draft";
+  const cancelSignal = bridgeCancel(opts.signal);
   await renderMedia({
     composition: prepared.composition,
     serveUrl: prepared.serveUrl,
@@ -88,6 +105,7 @@ export async function renderVideo(opts: RenderVideoOptions): Promise<RenderVideo
     timeoutInMilliseconds: BROWSER_TIMEOUT_MS,
     logLevel: opts.logLevel ?? "warn",
     onProgress: ({ progress }) => opts.onProgress?.(progress),
+    ...(cancelSignal ? { cancelSignal } : {}),
     ...(draft
       ? {
           scale: DRAFT_ENCODE.scale,
@@ -119,6 +137,7 @@ export async function renderSceneStills(
   });
   await mkdir(stillDir, { recursive: true });
 
+  const cancelSignal = bridgeCancel(opts.signal);
   const outputs: string[] = [];
   for (const [index, scene] of spec.scenes.entries()) {
     const output = join(stillDir, `${scene.id}.png`);
@@ -134,6 +153,7 @@ export async function renderSceneStills(
       overwrite: true,
       timeoutInMilliseconds: BROWSER_TIMEOUT_MS,
       logLevel: opts.logLevel ?? "warn",
+      ...(cancelSignal ? { cancelSignal } : {}),
     });
     outputs.push(output);
     opts.onProgress?.(index + 1, spec.scenes.length);
@@ -175,6 +195,7 @@ export async function measureSceneLayouts(
     logLevel: opts.logLevel ?? "warn",
   });
   const byScene: Record<string, MeasuredBlock[]> = {};
+  const cancelSignal = bridgeCancel(opts.signal);
 
   for (const [index, scene] of spec.scenes.entries()) {
     const midpoint = scene.startFrame + Math.floor(scene.durationInFrames / 2);
@@ -191,6 +212,7 @@ export async function measureSceneLayouts(
         overwrite: true,
         timeoutInMilliseconds: BROWSER_TIMEOUT_MS,
         logLevel: opts.logLevel ?? "warn",
+        ...(cancelSignal ? { cancelSignal } : {}),
         onArtifact: (artifact) => {
           try {
             const text = typeof artifact.content === "string" ? artifact.content : Buffer.from(artifact.content).toString("utf8");
@@ -230,6 +252,7 @@ export async function renderFrameTwice(
   const outB = resolve(outputs[1]);
   const prepared = await prepareComposition(spec, { ...opts, artifactPath: outA });
   const clamped = Math.min(Math.max(0, Math.floor(frame)), Math.max(0, spec.durationInFrames - 1));
+  const cancelSignal = bridgeCancel(opts.signal);
 
   const result: string[] = [];
   for (const output of [outA, outB]) {
@@ -244,6 +267,7 @@ export async function renderFrameTwice(
       overwrite: true,
       timeoutInMilliseconds: BROWSER_TIMEOUT_MS,
       logLevel: opts.logLevel ?? "warn",
+      ...(cancelSignal ? { cancelSignal } : {}),
     });
     result.push(output);
   }

@@ -207,7 +207,7 @@ describe("fixWithAi + fixable flag", () => {
     ctrl.approve("p1");
     await flush();
     expect(visualQa).toHaveBeenCalledTimes(1);
-    expect(visualQa.mock.calls[0]).toEqual(["p1", undefined]); // initial draft → checks ALL scenes
+    expect(visualQa.mock.calls[0]).toEqual(["p1", undefined, expect.any(AbortSignal)]); // initial draft → checks ALL scenes
     expect(reauthorScenes).toHaveBeenCalledTimes(1); // flagged scene reauthored
     expect(renders).toBe(2); // initial draft + one QA re-render
     expect((await ctrl.stage("p1")).kind).toBe("ready");
@@ -231,7 +231,7 @@ describe("fixWithAi + fixable flag", () => {
     on.setStage("p2", { kind: "ready", scenes: [] });
     on.submitEdits("p2", [{ sceneId: "scene-01", text: "to chữ" }], "");
     await flush();
-    expect(visualQa).toHaveBeenCalledWith("p2", ["scene-01"]);
+    expect(visualQa).toHaveBeenCalledWith("p2", ["scene-01"], expect.any(AbortSignal));
   });
 
   it("non-regressive: if the QA rewrite can't produce a clean draft, restore the pre-QA scenes (stays ready, not error)", async () => {
@@ -368,7 +368,7 @@ describe('publish re-runs from a retry:"full" error stage, not other errors', ()
     ctrl.setStage("p1", { kind: "error", message: "x", fixable: false, retry: "full" });
     ctrl.publish("p1"); // App.tsx routes a retry:"full" "Thử lại" to review.approveDraft → publish
     await flush();
-    expect(publish).toHaveBeenCalledWith("p1");
+    expect(publish).toHaveBeenCalledWith("p1", expect.any(AbortSignal));
     expect((await ctrl.stage("p1")).kind).toBe("published");
   });
 
@@ -595,7 +595,7 @@ describe("publish (full render)", () => {
     ctrl.setStage("p1", { kind: "ready", scenes: [] });
     ctrl.publish("p1");
     await flush();
-    expect(publish).toHaveBeenCalledWith("p1");
+    expect(publish).toHaveBeenCalledWith("p1", expect.any(AbortSignal));
     const st = await ctrl.stage("p1");
     expect(st.kind).toBe("published");
     if (st.kind === "published") expect(st.outputPath).toBe("media:///out/p1.mp4");
@@ -650,5 +650,56 @@ describe("Property 6: redaction holds for the new repair paths", () => {
     const st = await ctrl.stage("p1");
     expect(st.kind).toBe("error");
     if (st.kind === "error") expect(st.message).not.toMatch(/N14|\.tsx|[{}]/);
+  });
+});
+
+// "Dừng render" — cancelling an in-flight render is NOT a failure: the worker's
+// loop sees the aborted signal and reports `cancelled`, and the controller
+// recovers the prior reviewable stage from disk (never an error screen).
+describe("cancel (Dừng render) → recover prior stage", () => {
+  it("cancel during a render reports back to ready (a draft existed), not error", async () => {
+    let seenSignal: AbortSignal | undefined;
+    let release: (() => void) | undefined;
+    const worker: AgentWorker = {
+      author: async (): Promise<AuthorOutcome> => ({ kind: "authored", sceneIds: [] }),
+      reauthorScenes: async (): Promise<AuthorOutcome> => ({ kind: "authored", sceneIds: [] }),
+      publish: async () => ({ ok: true, outputPath: "out.mp4" }),
+      // Hold the render open until cancel() fires, then report `cancelled` exactly
+      // as the real loop does once it observes the aborted signal.
+      generateValidateRepair: async (_id, _opts, _hooks, signal): Promise<RepairOutcome> => {
+        seenSignal = signal;
+        await new Promise<void>((r) => { release = r; });
+        return { kind: "cancelled", attempts: 1 };
+      },
+    };
+    // The project has stills + a draft on disk, so the recovered stage is `ready`.
+    const ctrl = new WorkspaceController(
+      baseDeps({
+        worker,
+        settings: { scriptGateEnabled: false, maxRepairAttempts: 3, visualQaEnabled: false },
+        loadManifest: async () => ({ scenes: [{ id: "scene-01" }] }),
+        hasStill: () => true,
+        hasDraft: () => true,
+        draftMedia: () => "media://p1.draft.mp4",
+      }),
+    );
+    ctrl.approve("p1");
+    await flush();
+    expect((await ctrl.stage("p1")).kind).toBe("rendering");
+    expect(seenSignal).toBeDefined();
+
+    ctrl.cancel("p1");
+    expect(seenSignal!.aborted).toBe(true);
+    release?.();
+    await flush();
+
+    const st = await ctrl.stage("p1");
+    expect(st.kind).toBe("ready");
+    if (st.kind === "ready") expect(st.draftPath).toBe("media://p1.draft.mp4");
+  });
+
+  it("cancel() is a no-op when nothing is running for the project", () => {
+    const ctrl = new WorkspaceController(baseDeps());
+    expect(() => ctrl.cancel("nope")).not.toThrow();
   });
 });
