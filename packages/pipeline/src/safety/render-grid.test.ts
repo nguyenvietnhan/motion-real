@@ -7,6 +7,7 @@ import {
   checkAudioSync,
   checkCaptions,
   checkCaptionClearance,
+  checkDividerClearanceAbove,
   checkDensity,
   checkContentZone,
   checkContrast,
@@ -117,6 +118,26 @@ describe("N14 caption clearance", () => {
     const f = makeFrame(1080, 1920);
     paint(f, { x: 120, y: 400, width: 500, height: 300 }, WHITE); // up in the content zone
     expect(checkCaptionClearance(f)).toEqual([]);
+  });
+});
+
+describe("N14 above-divider clearance", () => {
+  // The divider is drawn at CONTENT_ZONE.bottom (1190); the oracle scans the thin
+  // band just above it (1174..1188).
+  it("fires when content sits flush on the divider from above", () => {
+    const f = makeFrame(1080, 1920);
+    paint(f, { x: 120, y: 1178, width: 500, height: 12 }, WHITE); // flush above the divider
+    expect(checkDividerClearanceAbove(f).some((i) => i.check === "N14")).toBe(true);
+  });
+  it("passes when content keeps a clear gap above the divider", () => {
+    const f = makeFrame(1080, 1920);
+    paint(f, { x: 120, y: 400, width: 500, height: 300 }, WHITE); // up in the content zone
+    expect(checkDividerClearanceAbove(f)).toEqual([]);
+  });
+  it("is a no-op when divider-clearance enforcement is turned off (future layout)", () => {
+    const f = makeFrame(1080, 1920);
+    paint(f, { x: 120, y: 1178, width: 500, height: 12 }, WHITE); // would otherwise fire
+    expect(checkDividerClearanceAbove(f, undefined, { dividerClearanceAbove: false })).toEqual([]);
   });
 });
 

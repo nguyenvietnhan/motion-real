@@ -82,6 +82,16 @@ export type RenderGridOptions = {
   staticDiffFraction?: number;
   /** Max fraction of the caption-clearance gap that may be content before N14 fires (HARD). */
   captionClearanceTolerance?: number;
+  /**
+   * Whether to enforce a clearance gap ABOVE the divider (content must not sit
+   * flush on the divider from above). Default on. A future layout grammar that
+   * doesn't draw a divider at CONTENT_ZONE.bottom can turn this off — the oracle
+   * reads the same zone the composition draws from, so it never asserts a rule
+   * the layout itself doesn't hold.
+   */
+  dividerClearanceAbove?: boolean;
+  /** Max fraction of the above-divider clearance band that may be content before N14 fires (HARD). */
+  dividerClearanceAboveTolerance?: number;
   /** Above this content-zone fill fraction, a scene reads as overcrowded (N30, advisory). */
   densityFraction?: number;
 };
@@ -100,6 +110,8 @@ const DEFAULTS: Required<RenderGridOptions> = {
   richnessMinSeconds: 4,
   staticDiffFraction: 0.005,
   captionClearanceTolerance: 0.01,
+  dividerClearanceAbove: true,
+  dividerClearanceAboveTolerance: 0.01,
   densityFraction: 0.6,
 };
 
@@ -255,6 +267,68 @@ export function checkCaptionClearance(frame: Frame, sceneId?: string, options?: 
         severity: "error",
         sceneId,
         message: `Content reaches into the caption clearance gap (${(fraction * 100).toFixed(2)}% of the gap band); keep authored content above the divider, clear of the caption band.`,
+      },
+    ];
+  }
+  return [];
+}
+
+// --- N14 (above-divider clearance): content must keep a gap ABOVE the divider (HARD) ---
+
+/**
+ * Symmetric partner to `checkCaptionClearance`: that one scans BELOW the divider
+ * (content drifting down into the caption gap); this scans a thin band JUST ABOVE
+ * the divider, so content that sits flush ON the divider from above is caught
+ * too. Unlike the `Story`-layout fix (which only constrains scenes built with
+ * `<Story>`), this oracle works on the rendered pixels and so guards EVERY scene
+ * — including ones authored directly with `<Frame>` that bypass `Story`.
+ *
+ * It reads the SAME `CONTENT_ZONE.bottom` the composition's `CaptionDivider` is
+ * drawn from, so it asserts exactly "don't touch the divider that is actually
+ * drawn" — never a hard-coded y. A future layout grammar that draws no divider
+ * there sets `dividerClearanceAbove: false` and this becomes a no-op, so the
+ * oracle never outlives the rule it enforces.
+ *
+ * The scanned band (`ABOVE_DIVIDER_BAND` px, in canvas space) is deliberately
+ * thinner than `Story`'s 24px clearance, so content that correctly clears the
+ * divider never lands in it — only genuinely-flush content fires.
+ */
+const ABOVE_DIVIDER_BAND = 16;
+
+export function checkDividerClearanceAbove(frame: Frame, sceneId?: string, options?: RenderGridOptions): SafetyIssue[] {
+  const o = opt(options);
+  if (!o.dividerClearanceAbove) return [];
+  const { width, height, data } = frame;
+  const bg = backgroundColor(frame);
+  const sx = width / CANVAS.width;
+  const sy = height / CANVAS.height;
+  // The thin band immediately ABOVE the divider line. The divider is drawn AT
+  // CONTENT_ZONE.bottom (downward), so we stop a couple px short of it to avoid
+  // counting the divider itself as content.
+  const bottom = Math.floor((CONTENT_ZONE.bottom - 2) * sy);
+  const top = Math.floor((CONTENT_ZONE.bottom - ABOVE_DIVIDER_BAND) * sy);
+  const left = Math.floor(CONTENT_ZONE.left * sx);
+  const right = Math.ceil(CONTENT_ZONE.right * sx);
+  // On a tiny still the band collapses and would false-positive; skip (real
+  // stills are full/half res, same guard as the below-divider scan).
+  if (bottom - top < 6) return [];
+  let band = 0;
+  let content = 0;
+  for (let y = top; y < bottom; y += 1) {
+    for (let x = left; x < right; x += 1) {
+      band += 1;
+      const i = (y * width + x) * 4;
+      if (colorDistance(bg, data[i]!, data[i + 1]!, data[i + 2]!) > o.contentThreshold) content += 1;
+    }
+  }
+  const fraction = band > 0 ? content / band : 0;
+  if (fraction > o.dividerClearanceAboveTolerance) {
+    return [
+      {
+        check: "N14",
+        severity: "error",
+        sceneId,
+        message: `Content sits flush on the divider from above (${(fraction * 100).toFixed(2)}% of the band just above the divider); keep a clear gap above the line.`,
       },
     ];
   }
@@ -717,6 +791,7 @@ export async function runRenderGrid(
     if (!frame) return;
     issues.push(...checkContentZone(frame, scene.id, options));
     issues.push(...checkCaptionClearance(frame, scene.id, options));
+    issues.push(...checkDividerClearanceAbove(frame, scene.id, options));
     issues.push(...checkDensity(frame, scene.id, options));
     issues.push(...checkDeadAir(frame, scene.id, options));
     issues.push(...checkContrast(frame, scene.id, options));
