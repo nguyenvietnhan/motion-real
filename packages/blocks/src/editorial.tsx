@@ -324,6 +324,15 @@ export const Footer: React.FC<{ left: string; right?: string }> = ({ left, right
 };
 
 /**
+ * Vertical clearance kept between a `Story`'s content and the global
+ * CaptionDivider (drawn at CONTENT_ZONE.bottom). Authored content must stay this
+ * many px above the divider, so it reads as a deliberate beat above the line and
+ * never sits flush on it (the gap the render N14 caption-clearance oracle and the
+ * user both expect to see).
+ */
+const STORY_DIVIDER_CLEARANCE = 24;
+
+/**
  * `Story` — full-frame editorial layout inside the content zone: a `HeaderBar`
  * pinned at the top, the main content centred in the middle, and an optional
  * `Footer` at the bottom of the content zone.
@@ -349,6 +358,12 @@ export const Story: React.FC<{
         left: CONTENT_ZONE.left,
         width: rectWidth(CONTENT_ZONE),
         height: rectHeight(CONTENT_ZONE),
+        // The global CaptionDivider is drawn at CONTENT_ZONE.bottom — exactly this
+        // container's bottom edge. Reserve a clearance gap (border-box, so the
+        // padding eats INTO the fixed height) so authored content can never sit
+        // flush on the divider; it must stay a visible beat above it.
+        boxSizing: "border-box",
+        paddingBottom: STORY_DIVIDER_CLEARANCE,
         display: "flex",
         flexDirection: "column",
         gap,
@@ -358,9 +373,19 @@ export const Story: React.FC<{
       <div
         style={{
           flex: 1,
+          // `minHeight: 0` lets this flex child actually shrink below its content
+          // size, and `overflow: hidden` clips an over-tall column instead of
+          // letting it bleed past the zone (top into the header, bottom across the
+          // divider — the symmetric overflow that clipped text at BOTH ends).
+          minHeight: 0,
+          overflow: "hidden",
           display: "flex",
           flexDirection: "column",
-          justifyContent: "center",
+          // `safe center` centres a column that fits, but when the content is
+          // taller than the band it anchors to the TOP (start) instead of
+          // overflowing equally past both edges — so nothing is clipped off the
+          // top, and the clip (if any) is a clean bottom cut, never mid-title.
+          justifyContent: "safe center",
           gap,
           transform: `perspective(1600px) rotateY(${tilt.toFixed(3)}deg)`,
           transformOrigin: "center center",

@@ -122,4 +122,16 @@ describe("@news/blocks — render-free", () => {
     expect(story).toContain("TIN");
     expect(story).toContain("nguồn");
   });
+
+  it("Story reserves a divider clearance gap and clips an over-tall column instead of bleeding past it", () => {
+    const story = html(React.createElement(Story, { eyebrow: "TIN", children: "X" }));
+    // Border-box + paddingBottom keeps content a visible beat above the global
+    // CaptionDivider (drawn at CONTENT_ZONE.bottom) — never flush on the line.
+    expect(story).toContain("box-sizing:border-box");
+    expect(story).toMatch(/padding-bottom:[1-9]/);
+    // An over-tall content column is clipped (overflow hidden) and anchored so it
+    // can't bleed symmetrically past the top header and the bottom divider.
+    expect(story).toContain("overflow:hidden");
+    expect(story).toContain("justify-content:safe center");
+  });
 });
