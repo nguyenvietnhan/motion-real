@@ -24,16 +24,62 @@ const QUICK_TIMEOUT_MS = 10_000;
 /** A chat completion can legitimately take a while (large authored output + first-run gateway/model cold start). */
 const CHAT_TIMEOUT_MS = 300_000;
 
+/** Chat is retried on TRANSIENT failures (gateway/upstream hiccups): total tries. */
+const MAX_CHAT_ATTEMPTS = 3;
+/** Linear backoff base between chat retries: waits 1s, then 2s. */
+const CHAT_RETRY_BASE_MS = 1_000;
+
+/** A 9router/upstream status worth retrying: rate-limit or any 5xx (502/503/504…). */
+function isTransientStatus(status: number): boolean {
+  return status === 429 || (status >= 500 && status <= 599);
+}
+
+/** Backoff before the next chat attempt (attempt is 1-indexed; 1→1s, 2→2s). */
+function chatBackoffMs(attempt: number): number {
+  return CHAT_RETRY_BASE_MS * attempt;
+}
+
+/**
+ * A typed chat failure so the UI can phrase the RIGHT message instead of one
+ * generic "timeout or lost connection" line:
+ *  - "timeout"   — the request ran past CHAT_TIMEOUT_MS (model too slow/overloaded);
+ *                  NOT retried (retrying a full timeout would just multiply the wait).
+ *  - "transient" — a gateway/upstream hiccup (HTTP 429/5xx, or a network drop) that
+ *                  is usually self-healing; chat() retries these with backoff before
+ *                  giving up, and only throws this after exhausting attempts.
+ *  - "http"      — a non-retryable HTTP error (e.g. 4xx: model rejected / not found /
+ *                  unauthorized) — retrying won't help; surfaced as-is.
+ */
+export type GatewayChatErrorKind = "timeout" | "transient" | "http";
+
+export class GatewayChatError extends Error {
+  readonly kind: GatewayChatErrorKind;
+  readonly status?: number;
+  readonly attempts: number;
+  constructor(kind: GatewayChatErrorKind, message: string, opts: { status?: number; attempts?: number } = {}) {
+    super(message);
+    this.name = "GatewayChatError";
+    this.kind = kind;
+    if (typeof opts.status === "number") this.status = opts.status;
+    this.attempts = opts.attempts ?? 1;
+  }
+}
+
+/** The minimal fetch surface the client needs (global fetch satisfies it). Test seam. */
+export type FetchImpl = (url: string, init: RequestInit) => Promise<Response>;
+
 /**
  * `fetch` with a hard timeout (and optional external abort). Without this a hung
  * gateway/model would leave a request pending FOREVER — e.g. authoring stuck on
- * "writing" with no way out. On timeout the promise rejects so callers can fail
- * cleanly and surface a friendly error.
+ * "writing" with no way out. On timeout it throws a `GatewayChatError("timeout")`
+ * so callers can distinguish a slow model from a transient drop; a network-level
+ * failure is rethrown as-is for the caller to classify.
  */
 async function fetchWithTimeout(
   url: string,
   init: RequestInit,
   timeoutMs: number,
+  fetchImpl: FetchImpl,
   externalSignal?: AbortSignal,
 ): Promise<Response> {
   const ctrl = new AbortController();
@@ -48,9 +94,11 @@ async function fetchWithTimeout(
     ctrl.abort();
   }, timeoutMs);
   try {
-    return await fetch(url, { ...init, signal: ctrl.signal });
+    return await fetchImpl(url, { ...init, signal: ctrl.signal });
   } catch (e) {
-    if (timedOut) throw new Error(`request to ${url} timed out after ${Math.round(timeoutMs / 1000)}s`);
+    if (timedOut) {
+      throw new GatewayChatError("timeout", `request to ${url} timed out after ${Math.round(timeoutMs / 1000)}s`);
+    }
     throw e;
   } finally {
     clearTimeout(timer);
@@ -117,7 +165,23 @@ const CATALOG: { id: string; name: string; loginType: ProviderInfo["loginType"] 
 type ApiConnection = { provider?: string; providerId?: string; name?: string; email?: string; displayName?: string; isActive?: boolean };
 
 export class NineRouterClient {
-  constructor(private readonly base: string = BASE) {}
+  /**
+   * `fetchImpl`/`sleep` are injectable test seams so the retry/backoff logic is
+   * unit-testable with no live network and no real wall-clock delay. Production
+   * uses global `fetch` and a real timer.
+   */
+  constructor(
+    private readonly base: string = BASE,
+    private readonly seams: { fetchImpl?: FetchImpl; sleep?: (ms: number) => Promise<void> } = {},
+  ) {}
+
+  private get fetchImpl(): FetchImpl {
+    return this.seams.fetchImpl ?? ((url, init) => fetch(url, init));
+  }
+
+  private sleep(ms: number): Promise<void> {
+    return this.seams.sleep ? this.seams.sleep(ms) : new Promise((r) => setTimeout(r, ms));
+  }
 
   get rootUrl(): string {
     return this.base;
@@ -132,6 +196,7 @@ export class NineRouterClient {
         ...(body ? { body: JSON.stringify(body) } : {}),
       },
       QUICK_TIMEOUT_MS,
+      this.fetchImpl,
     );
     if (!res.ok) throw new Error(`9router ${method} ${path} → HTTP ${res.status}`);
     return (await res.json()) as T;
@@ -140,7 +205,7 @@ export class NineRouterClient {
   /** Reachable iff GET /v1/models responds 200. */
   async isReachable(): Promise<boolean> {
     try {
-      const res = await fetchWithTimeout(`${this.base}/v1/models`, {}, QUICK_TIMEOUT_MS);
+      const res = await fetchWithTimeout(`${this.base}/v1/models`, {}, QUICK_TIMEOUT_MS, this.fetchImpl);
       return res.ok;
     } catch {
       return false;
@@ -206,11 +271,47 @@ export class NineRouterClient {
     }
   }
 
-  /** One OpenAI-compatible chat completion; returns the assistant message text. */
+  /**
+   * One OpenAI-compatible chat completion, retried on TRANSIENT failures.
+   *
+   * 9router talks to an upstream provider (Codex/Gemini/Kiro/…); during a cold
+   * start or a provider hiccup it can answer 502/503/504 (or 429), or the socket
+   * can drop — all usually self-healing within a second or two. Rather than throw
+   * that straight at the user (who then has to hand-retry, and may hit the gateway
+   * mid-recovery and wait out the full timeout), we retry up to MAX_CHAT_ATTEMPTS
+   * with a short linear backoff. A non-retryable HTTP error (4xx) is thrown at
+   * once; a hard timeout is NOT retried (the model is simply too slow — retrying
+   * would just multiply the already-long wait). All failures surface as a typed
+   * `GatewayChatError` so the UI phrases the right message.
+   */
   async chat(
     model: string,
     messages: ChatMessage[],
     opts: { apiKey?: string; signal?: AbortSignal } = {},
+  ): Promise<string> {
+    let last: GatewayChatError | undefined;
+    for (let attempt = 1; attempt <= MAX_CHAT_ATTEMPTS; attempt++) {
+      try {
+        return await this.chatOnce(model, messages, opts);
+      } catch (e) {
+        const err = this.toChatError(e, attempt);
+        last = err;
+        // Only transient gateway/upstream failures are worth another try; a
+        // timeout or a non-retryable HTTP status fails fast.
+        const canRetry = err.kind === "transient" && attempt < MAX_CHAT_ATTEMPTS && !opts.signal?.aborted;
+        if (!canRetry) throw err;
+        await this.sleep(chatBackoffMs(attempt));
+      }
+    }
+    // Unreachable (the loop either returns or throws), but keeps the type total.
+    throw last ?? new GatewayChatError("transient", "9router chat failed");
+  }
+
+  /** A single chat attempt: throws a typed `GatewayChatError` on any failure. */
+  private async chatOnce(
+    model: string,
+    messages: ChatMessage[],
+    opts: { apiKey?: string; signal?: AbortSignal },
   ): Promise<string> {
     const headers: Record<string, string> = { "content-type": "application/json" };
     if (opts.apiKey) headers.authorization = `Bearer ${opts.apiKey}`;
@@ -222,10 +323,26 @@ export class NineRouterClient {
         body: JSON.stringify({ model, messages, stream: false }),
       },
       CHAT_TIMEOUT_MS,
+      this.fetchImpl,
       opts.signal,
     );
-    if (!res.ok) throw new Error(`9router chat → HTTP ${res.status}`);
+    if (!res.ok) {
+      const kind = isTransientStatus(res.status) ? "transient" : "http";
+      throw new GatewayChatError(kind, `9router chat → HTTP ${res.status}`, { status: res.status });
+    }
     const data = (await res.json()) as { choices?: { message?: { content?: string } }[] };
     return data.choices?.[0]?.message?.content ?? "";
+  }
+
+  /** Normalize any thrown value from one chat attempt into a typed GatewayChatError. */
+  private toChatError(e: unknown, attempt: number): GatewayChatError {
+    if (e instanceof GatewayChatError) {
+      // Carry the attempt count through (fetchWithTimeout builds it with attempts:1).
+      return new GatewayChatError(e.kind, e.message, { ...(e.status ? { status: e.status } : {}), attempts: attempt });
+    }
+    // A network-level failure (socket drop, DNS, gateway not up) — treat as
+    // transient so a brief blip self-heals on the next attempt.
+    const reason = e instanceof Error ? e.message : String(e);
+    return new GatewayChatError("transient", `9router chat failed: ${reason}`, { attempts: attempt });
   }
 }

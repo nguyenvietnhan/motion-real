@@ -20,7 +20,7 @@ import type { createTools } from "@news/mcp";
 import type { AuthoringBackend, AuthoredScene, ReauthorTarget } from "../agent/custom-loop-worker.js";
 import type { SafetyReportView } from "../agent/repair-loop.js";
 import type { AuthorJob, VisualDefect, SceneSnapshot } from "../agent/agent-worker.js";
-import type { NineRouterClient, ChatMessage } from "../gateway/ninerouter-client.js";
+import { GatewayChatError, type NineRouterClient, type ChatMessage } from "../gateway/ninerouter-client.js";
 import { buildAuthorMessages, buildReauthorMessages, buildVisualQaMessages } from "./prompt.js";
 import { parseAuthorReply } from "./reply-parser.js";
 import { parseReauthorReply } from "./reply-parser.js";
@@ -39,6 +39,27 @@ import { loadAuthoredTsx } from "./tsx-loader.js";
  */
 
 type Tools = ReturnType<typeof createTools>;
+
+/**
+ * Phrase an AI-call failure in plain Vietnamese, by KIND, so the user knows which
+ * layer hiccuped and whether retrying helps — instead of one generic "timeout or
+ * lost connection" line for every failure. Mirrors the gateway's `chat()` retry:
+ * a "transient" error is only thrown AFTER auto-retries are exhausted, so its
+ * message says "still failing after several tries".
+ */
+export function authorCallErrorMessage(e: unknown): string {
+  if (e instanceof GatewayChatError) {
+    if (e.kind === "timeout") {
+      return "Model phản hồi quá lâu (hết thời gian chờ). Model có thể đang quá tải — hãy thử lại hoặc chọn model khác.";
+    }
+    if (e.kind === "transient") {
+      return "9Router/model tạm thời không phản hồi (thường do model đang khởi động). Đã thử lại vài lần nhưng chưa được — hãy chờ chút rồi thử lại, hoặc đổi model.";
+    }
+    // Non-retryable HTTP (e.g. 4xx): model rejected / not found / unauthorized.
+    return "Model từ chối yêu cầu hoặc chưa sẵn sàng. Hãy kiểm tra lại model đã chọn trong Cài đặt rồi thử lại.";
+  }
+  return "Không nhận được phản hồi từ AI (quá thời gian chờ hoặc mất kết nối). Hãy kiểm tra 9Router/model rồi thử lại.";
+}
 
 export type NineRouterBackendDeps = {
   client: NineRouterClient;
@@ -148,7 +169,7 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
       console.log(`[authoring] AI replied (${reply.length} chars) for project ${job.projectId}.`);
     } catch (e) {
       console.error(`[authoring] AI call failed for project ${job.projectId}:`, e);
-      return { scenes: [], message: "Không nhận được phản hồi từ AI (quá thời gian chờ hoặc mất kết nối). Hãy kiểm tra 9Router/model rồi thử lại." };
+      return { scenes: [], message: authorCallErrorMessage(e) };
     }
 
     const parsed = parseAuthorReply(reply);

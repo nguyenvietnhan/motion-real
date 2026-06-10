@@ -2,8 +2,8 @@ import { describe, expect, it, vi, beforeAll, afterAll } from "vitest";
 import { mkdtempSync, rmSync, existsSync, readFileSync, mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { NineRouterAuthoringBackend, type NineRouterBackendDeps } from "./ninerouter-backend.js";
-import type { NineRouterClient, ChatMessage, ContentPart } from "../gateway/ninerouter-client.js";
+import { NineRouterAuthoringBackend, authorCallErrorMessage, type NineRouterBackendDeps } from "./ninerouter-backend.js";
+import { GatewayChatError, type NineRouterClient, type ChatMessage, type ContentPart } from "../gateway/ninerouter-client.js";
 import type { AuthorJob } from "../agent/agent-worker.js";
 
 /**
@@ -251,5 +251,29 @@ describe("reauthor (self-repair)", () => {
     await expect(backend.restoreScenes(projectId, [{ sceneId: "scene-01", code: "// x" }])).resolves.toBeUndefined();
     const out = await backend.reauthor(projectId, [{ sceneId: "scene-01", issues: [] }]);
     expect(out.scenes).toEqual([]);
+  });
+});
+
+describe("authorCallErrorMessage (typed gateway failures → Vietnamese)", () => {
+  it("a timeout says the model is too slow (and to try another model)", () => {
+    const msg = authorCallErrorMessage(new GatewayChatError("timeout", "timed out after 300s"));
+    expect(msg).toMatch(/quá lâu|hết thời gian/i);
+    expect(msg).toMatch(/model/i);
+  });
+
+  it("a transient failure says it auto-retried and to wait/retry", () => {
+    const msg = authorCallErrorMessage(new GatewayChatError("transient", "HTTP 502", { status: 502, attempts: 3 }));
+    expect(msg).toMatch(/tạm thời|khởi động/i);
+    expect(msg).toMatch(/thử lại/i);
+  });
+
+  it("a non-retryable http error points at the model selection", () => {
+    const msg = authorCallErrorMessage(new GatewayChatError("http", "HTTP 404", { status: 404 }));
+    expect(msg).toMatch(/từ chối|chưa sẵn sàng|Cài đặt/i);
+  });
+
+  it("a non-GatewayChatError falls back to the generic connection message", () => {
+    const msg = authorCallErrorMessage(new Error("boom"));
+    expect(msg).toMatch(/Không nhận được phản hồi/i);
   });
 });
