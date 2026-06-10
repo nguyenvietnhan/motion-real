@@ -27,9 +27,16 @@ export function runStaticGrid(spec: VideoSpec): SafetyReport {
   for (const message of structural.errors) {
     // Unknown-component messages are tagged N2; everything else is N1.
     const isUnknownComponent = /unknown component/i.test(message);
+    // Runtime-harmless structural rules are warnings (the video still renders);
+    // only crash-class structure hard-blocks. `words; minimum`/`too short` is the
+    // narration floor; `words; keep` is the headline word-count — both cosmetic
+    // (a slightly long headline that truly overflows is caught by render-oracle
+    // N14 caption-clearance, which is content-fixable). Everything else is a hard
+    // error (unknown component, duplicate/out-of-order id, multiline narration).
+    const isSoftStructural = /words; minimum|too short|words; keep/i.test(message);
     issues.push({
       check: isUnknownComponent ? "N2" : "N1",
-      severity: isUnknownComponent || !/words; minimum|too short/i.test(message) ? "error" : "warning",
+      severity: isUnknownComponent || !isSoftStructural ? "error" : "warning",
       sceneId: message.match(/\bscene-[0-9]{2}\b/)?.[0],
       message,
     });

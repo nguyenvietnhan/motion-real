@@ -230,6 +230,11 @@ export async function renderProject(projectId: string, opts: RenderProjectOption
       // Tier-1 static grid gate (structure + per-component props + content rules).
       const staticReport = runStaticGrid(spec);
       if (!staticReport.ok) {
+        // Persist the report BEFORE throwing (mirror the N10 gate below) so the
+        // repair loop can read the flagged scenes back and reauthor the precise
+        // broken scene — otherwise "Sửa bằng AI" re-renders identical code that
+        // fails the same deterministic grid, looping forever with no target.
+        await persistFailureReport(projectId, staticReport.issues);
         await fail(projectId, `Static safety grid blocked render: ${errorSummary(staticReport.issues)}`);
         throw new Error(`renderProject: static grid reported ${errorCount(staticReport.issues)} hard error(s).`);
       }

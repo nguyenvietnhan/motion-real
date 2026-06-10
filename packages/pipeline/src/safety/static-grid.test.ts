@@ -116,6 +116,16 @@ describe("static grid — N1 structural", () => {
     const errors = runStaticGrid(spec).issues.filter((i) => i.severity === "error");
     expect(errors).toEqual([]);
   });
+
+  it("treats an over-long headline as a warning, not a render-blocking error", () => {
+    const spec = validSpec();
+    spec.scenes[0]!.headline = "Một tiêu đề dài hơn mười từ để chắc chắn vượt ngưỡng quá rõ ràng";
+    const report = runStaticGrid(spec);
+    const headline = report.issues.find((i) => /words; keep/.test(i.message));
+    expect(headline?.severity).toBe("warning");
+    // A cosmetic headline-length warning must NOT hard-block the render.
+    expect(report.issues.filter((i) => i.severity === "error")).toEqual([]);
+  });
 });
 
 describe("static grid — N2 unknown component", () => {
