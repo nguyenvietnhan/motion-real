@@ -202,8 +202,21 @@ export const App: React.FC = () => {
             stage={stage}
             onBack={leaveWorkspace}
             onRetry={() => {
-              setStage({ kind: "writing" });
-              void dash?.projects.retry(openProjectId);
+              // "Thử lại" re-runs the SAME loop that failed, routed by where the
+              // error happened (the stage carries a `retry` hint), so a render
+              // failure re-renders instead of re-authoring a whole new script
+              // (which wasted tokens — the script was fine, the render wasn't).
+              const retry = stage.kind === "error" ? stage.retry : undefined;
+              if (retry === "full") {
+                setStage({ kind: "rendering", percent: 0, phase: "full" });
+                void dash?.review.approveDraft(openProjectId);
+              } else if (retry === "draft") {
+                setStage({ kind: "rendering", percent: 0, phase: "draft" });
+                void dash?.projects.fixWithAi(openProjectId);
+              } else {
+                setStage({ kind: "writing" });
+                void dash?.projects.retry(openProjectId);
+              }
             }}
             onFixWithAi={() => {
               setStage({ kind: "rendering", percent: 0, phase: "draft" });

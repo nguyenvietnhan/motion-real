@@ -97,7 +97,7 @@ export type ProjectStage =
   | { kind: "rendering"; percent: number; phase?: "edit" | "draft" | "full" | "qa" } // building (edit reauthor | draft | full | ai visual-qa)
   | { kind: "ready"; scenes: SceneCard[]; notice?: string } // draft ready, review scenes (notice = a transient message, e.g. an edit that couldn't be applied)
   | { kind: "published"; outputPath: string } // full MP4 rendered
-  | { kind: "error"; message: string; fixable: boolean };
+  | { kind: "error"; message: string; fixable: boolean; retry?: "create" | "draft" | "full" }; // retry = which loop "Thử lại" re-runs (re-author | re-render draft | re-publish), so it doesn't re-author on a render failure
 
 export type EditBatch = {
   perScene: { sceneId: string; text: string }[];

@@ -181,7 +181,7 @@ export class WorkspaceController {
       const authored = await this.deps.worker.author({ projectId, input, scriptGate: this.deps.settings.scriptGateEnabled }, hooks);
       if (authored.kind !== "authored") {
         const message = this.deps.redact(authored.message ?? "Chưa tìm được nguồn nội dung phù hợp.");
-        this.setStage(projectId, { kind: "error", message, fixable: false });
+        this.setStage(projectId, { kind: "error", message, fixable: false, retry: "create" });
         this.deps.events.friendlyError({ projectId, message, retry: "create", fixable: false });
         return;
       }
@@ -201,7 +201,7 @@ export class WorkspaceController {
     } catch (e) {
       console.error(`[workspace] authoring failed for ${projectId}:`, e);
       const message = "Có lỗi khi viết kịch bản. Hãy thử lại.";
-      this.setStage(projectId, { kind: "error", message, fixable: false });
+      this.setStage(projectId, { kind: "error", message, fixable: false, retry: "create" });
       this.deps.events.friendlyError({ projectId, message, retry: "create", fixable: false });
     }
   }
@@ -217,9 +217,16 @@ export class WorkspaceController {
     this.guarded(projectId, () => this.runRender(projectId));
   }
 
-  /** "Duyệt & xuất bản": render the final full-quality MP4 (only from the ready review stage). */
+  /**
+   * "Duyệt & xuất bản": render the final full-quality MP4. Runs from the `ready`
+   * review stage, OR as a "Thử lại" on a publish (full-render) error — that error
+   * carries `retry: "full"`, so re-running the SAME publish is the right recovery
+   * (an infra blip), not a re-author. Any other stage is a no-op.
+   */
   publish(projectId: string): void {
-    if (this.stages.get(projectId)?.kind !== "ready") return;
+    const s = this.stages.get(projectId);
+    const canPublish = s?.kind === "ready" || (s?.kind === "error" && s.retry === "full");
+    if (!canPublish) return;
     this.guarded(projectId, () => this.runPublish(projectId));
   }
 
@@ -234,14 +241,14 @@ export class WorkspaceController {
         const message = res.error
           ? toFriendlyError(res.error, { projectId, phase: "full" }).message
           : "Xuất bản thất bại. Hãy thử lại.";
-        this.setStage(projectId, { kind: "error", message, fixable });
+        this.setStage(projectId, { kind: "error", message, fixable, retry: "full" });
         this.deps.events.friendlyError({ projectId, message, retry: "full", fixable });
       }
     } catch (e) {
       const fixable = classifyError(serializeError(e, "render")) === "content";
       console.error(`[workspace] publish failed for ${projectId}:`, e);
       const message = "Có lỗi khi xuất bản video. Hãy thử lại.";
-      this.setStage(projectId, { kind: "error", message, fixable });
+      this.setStage(projectId, { kind: "error", message, fixable, retry: "full" });
       this.deps.events.friendlyError({ projectId, message, retry: "full", fixable });
     }
   }
@@ -320,7 +327,7 @@ export class WorkspaceController {
         this.setStage(projectId, { kind: "ready", scenes: await this.storyboardScenesOf(projectId), ...(notice ? { notice } : {}) });
       } else if (outcome.kind === "infra") {
         const message = "Gặp trục trặc hạ tầng khi dựng lại (kết nối hoặc cấu hình). Hãy kiểm tra và thử lại.";
-        this.setStage(projectId, { kind: "error", message, fixable: false });
+        this.setStage(projectId, { kind: "error", message, fixable: false, retry: "draft" });
         this.deps.events.friendlyError({ projectId, message, retry: "draft", fixable: false });
       } else if (await this.restoreToPriorDraft(projectId, snapshot, hooks)) {
         // The edit produced a draft we couldn't clean up (content errors after
@@ -334,14 +341,14 @@ export class WorkspaceController {
         });
       } else {
         const message = "Chưa áp dụng được chỉnh sửa sau nhiều lần thử. Bạn có thể thử lại hoặc để AI sửa.";
-        this.setStage(projectId, { kind: "error", message, fixable: true });
+        this.setStage(projectId, { kind: "error", message, fixable: true, retry: "draft" });
         this.deps.events.friendlyError({ projectId, message, retry: "draft", fixable: true });
       }
     } catch (e) {
       const fixable = classifyError(serializeError(e, "render")) === "content";
       console.error(`[workspace] scene edits failed for ${projectId}:`, e);
       const message = "Có lỗi khi áp dụng chỉnh sửa. Hãy thử lại.";
-      this.setStage(projectId, { kind: "error", message, fixable });
+      this.setStage(projectId, { kind: "error", message, fixable, retry: "draft" });
       this.deps.events.friendlyError({ projectId, message, retry: "draft", fixable });
     }
   }
@@ -453,19 +460,19 @@ export class WorkspaceController {
       } else if (outcome.kind === "infra") {
         // Not agent-fixable: tell the user to retry / check setup, no "Sửa bằng AI".
         const message = "Gặp trục trặc hạ tầng khi dựng (kết nối hoặc cấu hình). Hãy kiểm tra lại và thử lại.";
-        this.setStage(projectId, { kind: "error", message, fixable: false });
+        this.setStage(projectId, { kind: "error", message, fixable: false, retry: "draft" });
         this.deps.events.friendlyError({ projectId, message, retry: "draft", fixable: false });
       } else {
         // exhausted: content defects remain → offer "Sửa bằng AI".
         const message = "Chưa hoàn tất được video sau nhiều lần thử. Bạn có thể thử lại hoặc để AI sửa.";
-        this.setStage(projectId, { kind: "error", message, fixable: true });
+        this.setStage(projectId, { kind: "error", message, fixable: true, retry: "draft" });
         this.deps.events.friendlyError({ projectId, message, retry: "draft", fixable: true });
       }
     } catch (e) {
       const fixable = classifyError(serializeError(e, "render")) === "content";
       console.error(`[workspace] render failed for ${projectId}:`, e);
       const message = "Có lỗi khi dựng video. Hãy thử lại.";
-      this.setStage(projectId, { kind: "error", message, fixable });
+      this.setStage(projectId, { kind: "error", message, fixable, retry: "draft" });
       this.deps.events.friendlyError({ projectId, message, retry: "draft", fixable });
     }
   }

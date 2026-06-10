@@ -157,10 +157,16 @@ export const ProjectWorkspaceView: React.FC<{
         <EmptyState icon={Icon.film({ size: 34 })} title="Gặp lỗi khi dựng" hint={stage.message}
           action={
             <div style={{ display: "flex", gap: 10 }}>
-              {stage.fixable && (
+              {stage.fixable ? (
+                // A content render defect: the grid is deterministic, so re-rendering
+                // the SAME code would fail identically — only an AI rewrite can help.
+                // Show just "Sửa bằng AI" (a redundant "Thử lại" would mislead).
                 <button className="ns-btn ns-btn-primary" onClick={onFixWithAi}>Sửa bằng AI</button>
+              ) : (
+                // An author or infra error: re-running the failed loop is meaningful
+                // (infra blips self-heal; a fresh author attempt may succeed).
+                <button className="ns-btn ns-btn-primary" onClick={onRetry}>{Icon.plus({ size: 15 })} Thử lại</button>
               )}
-              <button className={stage.fixable ? "ns-btn" : "ns-btn ns-btn-primary"} onClick={onRetry}>{Icon.plus({ size: 15 })} Thử lại</button>
               <button className="ns-btn" onClick={onBack}>Quay lại Trang chủ</button>
             </div>
           } />

@@ -306,6 +306,81 @@ describe("fixWithAi + fixable flag", () => {
   });
 });
 
+// Retry-routing: an error stage carries a `retry` hint of WHICH loop failed so
+// "Thử lại" re-runs that loop (re-render a render error) instead of always
+// re-authoring a fresh script (which wasted tokens — the script was fine, the
+// render wasn't). The hint is set at each error site; the publish guard reads it.
+describe("error stage carries the right retry hint", () => {
+  it('an author failure (no source / runScript) tags retry:"create"', async () => {
+    const worker: AgentWorker = {
+      author: async (): Promise<AuthorOutcome> => ({ kind: "no-source", message: "không tìm được nguồn" }),
+      reauthorScenes: async (): Promise<AuthorOutcome> => ({ kind: "authored", sceneIds: [] }),
+      publish: async () => ({ ok: true, outputPath: "out.mp4" }),
+      generateValidateRepair: async (): Promise<RepairOutcome> => ({ kind: "passed", attempts: 1 }),
+    };
+    const ctrl = new WorkspaceController(baseDeps({ worker }));
+    ctrl.beginScript("p1", { text: "x", urls: [] });
+    await flush();
+    const st = await ctrl.stage("p1");
+    expect(st.kind === "error" && st.retry).toBe("create");
+    expect(st.kind === "error" && st.fixable).toBe(false);
+  });
+
+  it('a render content-exhaust failure tags retry:"draft" + fixable:true', async () => {
+    const ctrl = new WorkspaceController(
+      baseDeps({ worker: workerWith({ kind: "exhausted", attempts: 3, remainingHardErrors: 2 }) }),
+    );
+    ctrl.approve("p1"); // runRender via approve (no script gate path needed)
+    await flush();
+    const st = await ctrl.stage("p1");
+    expect(st.kind === "error" && st.retry).toBe("draft");
+    expect(st.kind === "error" && st.fixable).toBe(true);
+  });
+
+  it('a render infra failure tags retry:"draft" + fixable:false', async () => {
+    const ctrl = new WorkspaceController(baseDeps({ worker: workerWith({ kind: "infra", attempts: 1 }) }));
+    ctrl.approve("p1");
+    await flush();
+    const st = await ctrl.stage("p1");
+    expect(st.kind === "error" && st.retry).toBe("draft");
+    expect(st.kind === "error" && st.fixable).toBe(false);
+  });
+
+  it('a publish (full-render) failure tags retry:"full"', async () => {
+    const publish = vi.fn(async () => ({ ok: false as const, error: { message: "", stage: "render" as const, cause: "boom", severity: "error" as const } }));
+    const worker = { ...workerWith({ kind: "passed", attempts: 1 }), publish };
+    const ctrl = new WorkspaceController(baseDeps({ worker }));
+    ctrl.setStage("p1", { kind: "ready", scenes: [] });
+    ctrl.publish("p1");
+    await flush();
+    const st = await ctrl.stage("p1");
+    expect(st.kind === "error" && st.retry).toBe("full");
+  });
+});
+
+describe('publish re-runs from a retry:"full" error stage, not other errors', () => {
+  it('a "Thử lại" on a publish error re-runs publish (not a re-author)', async () => {
+    const publish = vi.fn(async () => ({ ok: true as const, outputPath: "/out/p1.mp4" }));
+    const worker = { ...workerWith({ kind: "passed", attempts: 1 }), publish };
+    const ctrl = new WorkspaceController(baseDeps({ worker, toMedia: (p) => `media://${p}` }));
+    ctrl.setStage("p1", { kind: "error", message: "x", fixable: false, retry: "full" });
+    ctrl.publish("p1"); // App.tsx routes a retry:"full" "Thử lại" to review.approveDraft → publish
+    await flush();
+    expect(publish).toHaveBeenCalledWith("p1");
+    expect((await ctrl.stage("p1")).kind).toBe("published");
+  });
+
+  it('publish stays a no-op on a render (retry:"draft") error — that recovers via fixWithAi instead', async () => {
+    const publish = vi.fn(async () => ({ ok: true as const, outputPath: "x" }));
+    const worker = { ...workerWith({ kind: "passed", attempts: 1 }), publish };
+    const ctrl = new WorkspaceController(baseDeps({ worker }));
+    ctrl.setStage("p1", { kind: "error", message: "x", fixable: true, retry: "draft" });
+    ctrl.publish("p1");
+    await flush();
+    expect(publish).not.toHaveBeenCalled();
+  });
+});
+
 // Unreadable-link warning: when a brief link can't be fetched, the content
 // leans on the model's own knowledge → surface a non-blocking warning so the
 // user verifies before approving (it must never block the flow).
