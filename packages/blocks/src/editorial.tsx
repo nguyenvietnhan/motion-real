@@ -218,22 +218,29 @@ export const Panel: React.FC<{
  * length (so it doesn't jitter while a `CountUp` animates).
  */
 function heroFontSize(text: string, base = 190, comfortable = 4, min = 84): number {
-  const len = text.length;
+  const len = (text ?? "").length;
   if (len <= comfortable) return base;
   return Math.max(min, Math.round((base * comfortable) / len));
 }
 
-/** Big number reveal: huge value + accent unit + label, framed with a sidebar. */
-export const StatBlock: React.FC<{ value: string; unit?: string; label: string; tone?: Tone }> = ({
-  value,
-  unit,
-  label,
-  tone = "accent",
-}) => {
+/**
+ * Big number reveal: huge value + accent unit + label, framed with a sidebar.
+ * `value` is the canonical prop; `number` is accepted as an alias because the
+ * authoring model sometimes emits `number=` instead. Both are coerced to a
+ * string so a numeric value never crashes the font sizer.
+ */
+export const StatBlock: React.FC<{
+  value?: string | number;
+  number?: string | number;
+  unit?: string;
+  label?: string;
+  tone?: Tone;
+}> = ({ value, number, unit, label, tone = "accent" }) => {
   const theme = useTheme();
   const c = toneColor(theme, tone);
   const r = useReveal(4);
-  const valueFont = heroFontSize(value);
+  const shownValue = String(value ?? number ?? "");
+  const valueFont = heroFontSize(shownValue);
   const radius = surfaceRadius(theme, "md");
   return (
     <div
@@ -267,7 +274,7 @@ export const StatBlock: React.FC<{ value: string; unit?: string; label: string; 
               letterSpacing: "-0.03em",
             }}
           >
-            {value}
+            {shownValue}
           </span>
           {unit ? (
             <span style={{ fontFamily: theme.fonts.mono, fontWeight: 800, fontSize: 46, color: c }}>{unit}</span>

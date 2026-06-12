@@ -151,6 +151,24 @@ describe("@news/blocks — render-free", () => {
     expect(story).toContain("nguồn");
   });
 
+  it("StatBlock accepts `number=` as an alias for `value=` and never crashes on the font sizer", () => {
+    // Regression: the authoring model sometimes emits <StatBlock number={…}/>
+    // instead of value={…}. Before, `value` was undefined → heroFontSize(undefined)
+    // → undefined.length → the whole render crashed with
+    // "Cannot read properties of undefined (reading 'length')". Now `number` is an
+    // accepted alias, coerced to a string, and rendered.
+    const aliased = html(React.createElement(StatBlock, { number: "73", unit: "%", label: "Thị phần" }));
+    expect(aliased).toContain("73");
+    expect(aliased).toContain("Thị phần");
+
+    // A numeric value (not a string) must not crash the font sizer either.
+    const numeric = html(React.createElement(StatBlock, { value: 950 as unknown as string, label: "Triệu USD" }));
+    expect(numeric).toContain("950");
+
+    // The worst case — neither prop supplied — degrades to an empty value, no throw.
+    expect(() => html(React.createElement(StatBlock, { label: "Trống" }))).not.toThrow();
+  });
+
   it("HeaderBar hugs the eyebrow chip when there's no label/meta, but spans full width when there is", () => {
     // Eyebrow-only (the common case): the bar fits its content (inline-flex,
     // fit-content, left-aligned) so it doesn't leave an empty bordered cell — the
