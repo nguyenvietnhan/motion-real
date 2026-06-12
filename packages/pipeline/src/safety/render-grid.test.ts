@@ -8,6 +8,7 @@ import {
   checkCaptions,
   checkCaptionClearance,
   checkDividerClearanceAbove,
+  checkLateSafeArea,
   checkDensity,
   checkContentZone,
   checkContrast,
@@ -157,6 +158,33 @@ describe("N14 above-divider clearance", () => {
       paint(f, { x: sx, y: sy, width: 2 + Math.floor(rnd() * 2), height: 2 }, WHITE);
     }
     expect(checkDividerClearanceAbove(f)).toEqual([]);
+  });
+});
+
+describe("N14 late-sample (post-midpoint drift)", () => {
+  // Re-runs the three N14 pixel oracles on a late still, downgrading every issue
+  // to a WARNING tagged "[late sample]". Non-vacuous: a known-bad late frame
+  // fires (as a warning), a clean one passes.
+  it("fires as a WARNING (not error) when late content drifts into the caption gap", () => {
+    const f = makeFrame(1080, 1920);
+    paint(f, { x: 120, y: 1360, width: 500, height: 8 }, WHITE); // in the gap band 1358..1370
+    const issues = checkLateSafeArea(f, "scene-03");
+    expect(issues.length).toBeGreaterThan(0);
+    expect(issues.every((i) => i.check === "N14")).toBe(true);
+    expect(issues.every((i) => i.severity === "warning")).toBe(true);
+    expect(issues.every((i) => i.message.startsWith("[late sample]"))).toBe(true);
+    expect(issues.every((i) => i.sceneId === "scene-03")).toBe(true);
+  });
+  it("fires as a WARNING when late content sits flush on the divider from above", () => {
+    const f = makeFrame(1080, 1920);
+    paint(f, { x: 120, y: 1338, width: 500, height: 10 }, WHITE); // flush above the divider
+    const issues = checkLateSafeArea(f);
+    expect(issues.some((i) => i.check === "N14" && i.severity === "warning")).toBe(true);
+  });
+  it("passes (no issues) on a clean late still", () => {
+    const f = makeFrame(1080, 1920);
+    paint(f, { x: 200, y: 400, width: 500, height: 300 }, WHITE); // up in the content zone
+    expect(checkLateSafeArea(f, "scene-03")).toEqual([]);
   });
 });
 
@@ -512,6 +540,7 @@ describe("oracle registry (drift guard)", () => {
       "contrast",
       "transition",
       "safe-area",
+      "late-safe-area",
       "overlap",
       "truncation",
       "richness",

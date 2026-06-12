@@ -5,6 +5,7 @@ import { bundle, type WebpackOverrideFn } from "@remotion/bundler";
 import { ensureBrowser, makeCancelSignal, renderMedia, renderStill, selectComposition } from "@remotion/renderer";
 import type { CancelSignal, VideoImageFormat } from "@remotion/renderer";
 import type { LockedVideoSpec } from "@news/schema";
+import { transitionFrames } from "@news/schema";
 
 const DEFAULT_COMPOSITION_ID = "NewsVideo";
 
@@ -70,6 +71,16 @@ export type RenderVideoResult = {
 
 export type RenderSceneStillsOptions = RenderBaseOptions & {
   onProgress?: (done: number, total: number) => void;
+  /**
+   * Extra per-scene still samples, as fractions (0..1) through the scene's CLEAN
+   * SPEECH window (between the head/tail transition overlaps), in ADDITION to the
+   * midpoint keyframe. Used by the late-sample N14 pass to catch content that
+   * drifts out of the safe zone AFTER the midpoint (entrances settle by midpoint,
+   * so the midpoint still alone never sees late drift). Each extra still is named
+   * `<scene.id>.f<pct>.png` (e.g. `scene-03.f82.png`). The returned path list is
+   * unchanged (midpoints only), so the review contact sheet is unaffected.
+   */
+  extraFractions?: number[];
 };
 
 type PreparedComposition = {
@@ -124,6 +135,35 @@ export async function renderVideo(opts: RenderVideoOptions): Promise<RenderVideo
   };
 }
 
+/**
+ * The CLEAN SPEECH window of scene `i` in COMPOSITION-timeline frames: the span
+ * between this scene's head/tail transition overlaps. Mirrors the lock math
+ * ([authoring/lock.ts]): a scene's `durationInFrames = speech + headT + tailT`,
+ * where `headT`/`tailT` are `T_TRANSITION` (0 at the first/last scene, and 0 for
+ * a single-scene video). Sampling inside this window keeps a late still clear of
+ * the cross-fade with the neighbouring scene (which would blend two scenes into
+ * one frame and false-fire the safe-area oracle).
+ */
+function speechWindow(spec: LockedVideoSpec, index: number): { start: number; frames: number } {
+  const n = spec.scenes.length;
+  const T = n > 1 ? transitionFrames(spec.fps) : 0;
+  const scene = spec.scenes[index]!;
+  const headT = index === 0 ? 0 : T;
+  const tailT = index === n - 1 ? 0 : T;
+  const frames = Math.max(1, scene.durationInFrames - headT - tailT);
+  return { start: scene.startFrame + headT, frames };
+}
+
+/** Clamp a composition frame into the valid [0, total) range. */
+function clampFrame(frame: number, spec: LockedVideoSpec): number {
+  return Math.min(Math.max(0, Math.floor(frame)), Math.max(0, spec.durationInFrames - 1));
+}
+
+/** `f82` for 0.82 — the on-disk suffix for an extra-fraction still. */
+function fractionTag(fraction: number): string {
+  return `f${Math.round(fraction * 100)}`;
+}
+
 /** Render one PNG per scene at the scene midpoint for the later review loop. */
 export async function renderSceneStills(
   spec: LockedVideoSpec,
@@ -156,6 +196,27 @@ export async function renderSceneStills(
       ...(cancelSignal ? { cancelSignal } : {}),
     });
     outputs.push(output);
+
+    // Extra late samples (N14 late-drift pass): one still per requested fraction
+    // through the CLEAN speech window. Named `<id>.f<pct>.png`; NOT added to the
+    // returned list, so the review contact sheet stays one-still-per-scene.
+    for (const fraction of opts.extraFractions ?? []) {
+      const win = speechWindow(spec, index);
+      const lateFrame = clampFrame(win.start + Math.round(fraction * win.frames), spec);
+      await renderStill({
+        composition: prepared.composition,
+        serveUrl: prepared.serveUrl,
+        output: join(stillDir, `${scene.id}.${fractionTag(fraction)}.png`),
+        frame: lateFrame,
+        inputProps: prepared.inputProps,
+        imageFormat: "png",
+        overwrite: true,
+        timeoutInMilliseconds: BROWSER_TIMEOUT_MS,
+        logLevel: opts.logLevel ?? "warn",
+        ...(cancelSignal ? { cancelSignal } : {}),
+      });
+    }
+
     opts.onProgress?.(index + 1, spec.scenes.length);
   }
   return outputs;

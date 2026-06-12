@@ -28,7 +28,8 @@ import {
 import { runStaticGrid } from "./safety/static-grid.js";
 import { runBuildGridStatic } from "./safety/build-grid.js";
 import { typecheckAuthoredScenes } from "./safety/typecheck-authored.js";
-import { runRenderGrid, checkOverlap, runTruncationForScene, type RenderGridOptions } from "./safety/render-grid.js";
+import { runRenderGrid, checkOverlap, runTruncationForScene, checkLateSafeArea, type RenderGridOptions } from "./safety/render-grid.js";
+import { decodePng } from "./safety/png.js";
 import { lintSceneSources, compositionsSrcDir, blocksSrcDir } from "./safety/forbidden-api.js";
 import { scaffoldProject, loadManifest, loadManifestAsSpec, admitProjectScenes, manifestSceneFiles } from "./authoring/manifest.js";
 import { PipelineError, RenderCancelledError, isRenderCancelledError } from "./errors.js";
@@ -40,6 +41,15 @@ import { checkDeterminism, type DeterminismOptions } from "./render/determinism.
 import { renderCacheKey, getCachedRender, putCachedRender } from "./render/cache.js";
 import { renderVideo, measureSceneLayouts, remotionAppRoot, workspaceRoot, type RenderQuality, type RenderVideoOptions, type RenderVideoResult } from "./render/renderer.js";
 import { buildReview, type BuildReviewOptions, type ComposeContactSheet, type ReviewArtifacts } from "./review.js";
+
+/**
+ * Extra per-scene still samples for the late-drift N14 pass, as fractions through
+ * each scene's CLEAN speech window. 0.82 sits after entrances settle (so it never
+ * false-fires on a still-animating entrance) and before the tail cross-fade (so
+ * it never blends two scenes). One point keeps the added render cost to +1
+ * still/scene; the list can grow once we trust the false-positive rate.
+ */
+const LATE_SAFE_AREA_FRACTIONS = [0.82];
 
 /**
  * Orchestrator — the one front door for pure AUTHOR mode (author-mode-v2). Two
@@ -408,7 +418,11 @@ export async function renderProject(projectId: string, opts: RenderProjectOption
       mp4Path,
       checklist: opts.checklist,
       composeContactSheet: opts.composeContactSheet,
-      renderOptions: renderEntry,
+      // Render the extra late-sample stills alongside the per-scene midpoint
+      // keyframes (same bundle, no extra browser/bundle) so the N14 late pass
+      // below has post-midpoint frames to scan. The returned keyframe list is
+      // unchanged, so the contact sheet stays one-still-per-scene.
+      renderOptions: { ...renderEntry, extraFractions: LATE_SAFE_AREA_FRACTIONS },
     });
 
     // --- (7) Tier-3 render oracles over the review keyframes. ---
@@ -447,8 +461,29 @@ export async function renderProject(projectId: string, opts: RenderProjectOption
       await appendEvent(projectId, { type: "render.overlap.skipped", cause: errMessage(error) });
     }
 
+    // N14 (late-sample) over the post-midpoint stills written by the review pass.
+    // The midpoint still never sees content that drifts out of the safe zone after
+    // entrances settle (tilt near its extreme, a counter/bar still growing, a block
+    // creeping toward the caption band). This re-runs the SAME N14 pixel oracles on
+    // a late still per scene. Eased in as WARNINGS (chosen posture) — they land in
+    // the aggregate report (visible in desktop/MCP) but never flip the "done" gate.
+    // Best-effort: a missing/undecodable late still is silently skipped.
+    const lateIssues: SafetyIssue[] = [];
+    for (const scene of locked.scenes) {
+      for (const fraction of LATE_SAFE_AREA_FRACTIONS) {
+        const latePath = join(paths.reviewDir, `${scene.id}.f${Math.round(fraction * 100)}.png`);
+        try {
+          const frame = decodePng(await readFile(latePath));
+          lateIssues.push(...checkLateSafeArea(frame, scene.id, renderGridOptions));
+        } catch {
+          /* no late still for this scene/fraction → nothing to scan */
+        }
+      }
+    }
+    await appendEvent(projectId, { type: "render.latesafearea", issues: lateIssues.length });
+
     const report = makeReport(
-      [...buildGate.issues, ...detReport.issues, ...renderGrid.issues, ...overlapIssues, ...reviewArtifacts.report.issues],
+      [...buildGate.issues, ...detReport.issues, ...renderGrid.issues, ...overlapIssues, ...lateIssues, ...reviewArtifacts.report.issues],
       ["build", "render", "review"],
     );
 

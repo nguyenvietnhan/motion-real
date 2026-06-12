@@ -336,6 +336,34 @@ export function checkDividerClearanceAbove(frame: Frame, sceneId?: string, optio
   return [];
 }
 
+// --- N14 (late-sample): re-run the safe-area oracles on a post-midpoint still ---
+
+/**
+ * The three pure N14 pixel oracles, re-applied to a LATE still (sampled after the
+ * scene midpoint, inside the clean speech window). The midpoint still alone never
+ * sees content that drifts out of the safe zone AFTER entrances settle — tilt is
+ * near its extreme late in the scene, a counter/bar can still be growing, a block
+ * can creep toward the caption band. This pass catches that drift.
+ *
+ * It writes NO new pixel logic: it calls the SAME `checkContentZone`,
+ * `checkCaptionClearance`, `checkDividerClearanceAbove` the midpoint pass uses,
+ * then downgrades every issue to a WARNING and tags it `[late sample]` so the
+ * source is unambiguous. Eased in as warnings (not a hard gate) while we observe
+ * the false-positive rate before graduating to a hard error.
+ */
+export function checkLateSafeArea(frame: Frame, sceneId?: string, options?: RenderGridOptions): SafetyIssue[] {
+  const issues = [
+    ...checkContentZone(frame, sceneId, options),
+    ...checkCaptionClearance(frame, sceneId, options),
+    ...checkDividerClearanceAbove(frame, sceneId, options),
+  ];
+  return issues.map((issue) => ({
+    ...issue,
+    severity: "warning" as const,
+    message: `[late sample] ${issue.message}`,
+  }));
+}
+
 // --- N15: block overlap (HARD) --------------------------------------------
 
 /**
@@ -842,6 +870,7 @@ export const RENDER_ORACLES: readonly RenderOracle[] = [
   { id: "transition", check: "N21", phase: "transition", run: checkTransition },
   // Exported + self-tested, not auto-run (need inputs a flat still lacks).
   { id: "safe-area", check: "N14", phase: "manual" },
+  { id: "late-safe-area", check: "N14", phase: "manual" },
   { id: "overlap", check: "N15", phase: "manual" },
   { id: "truncation", check: "N17", phase: "manual" },
   { id: "richness", check: "N23", phase: "manual" },

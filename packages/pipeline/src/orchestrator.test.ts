@@ -34,6 +34,7 @@ vi.mock("@remotion/renderer", () => ({
 import { scaffoldVideoProject, renderProject, type RenderProjectDeps } from "./orchestrator.js";
 import { projectPaths, renderCacheDir, writeJson } from "./store/store.js";
 import { specHash } from "./render/cache.js";
+import { encodePngRGBA } from "./safety/png.js";
 import type { ComposeContactSheet } from "./review.js";
 import type { ReviewChecklist, TtsManifest } from "./types.js";
 
@@ -278,4 +279,73 @@ describe("renderProject — render pipeline (skipAuthoring)", () => {
     expect(result.report.ok).toBe(false);
     expect(await readBriefState(projectId)).toBe("reviewing");
   });
+
+  it("surfaces late-sample N14 drift as a non-gating WARNING (lands in the report, project still 'done')", async () => {
+    // A late still (`<id>.f82.png`) whose content drifts into the caption
+    // clearance gap must produce an N14 issue — but as a WARNING, so it appears
+    // in the aggregate report without flipping the "done" gate. We make ONLY the
+    // late stills decodable (a 1080×1920 PNG with content painted in the gap);
+    // the midpoint stills keep the default non-PNG bytes (runRenderGrid just
+    // warns "could not load" for those, which also never flips the gate).
+    mocks.renderStill.mockImplementation(async ({ output }) => {
+      if (typeof output === "string" && output.endsWith(".f82.png")) {
+        await writeFile(output, dirtyLateStillPng());
+      } else if (typeof output === "string") {
+        await writeFile(output, Buffer.from(stillBytes));
+      }
+      return { buffer: null, contentType: "image/png" };
+    });
+
+    const projectId = await readyProject();
+    const result = await renderProject(projectId, {
+      skipAuthoring: true,
+      ttsProvider: "mock",
+      checklist: FULL_CHECKLIST,
+      composeContactSheet: fakeCompositor(),
+      deps: { synthesize: fakeSynthesize() },
+    });
+
+    // The drift is reported as a late-sample N14 warning…
+    const late = result.report.issues.filter(
+      (i) => i.check === "N14" && i.severity === "warning" && i.message.includes("[late sample]"),
+    );
+    expect(late.length).toBeGreaterThan(0);
+    // …but it does NOT flip the gate: no error issues, project reaches "done".
+    expect(result.report.issues.some((i) => i.severity === "error")).toBe(false);
+    expect(result.report.ok).toBe(true);
+    expect(await readBriefState(projectId)).toBe("done");
+
+    const events = (await readFile(projectPaths(projectId).events, "utf8"))
+      .trim()
+      .split("\n")
+      .map((l) => JSON.parse(l));
+    expect(events.map((e) => e.type)).toContain("render.latesafearea");
+  });
 });
+
+/**
+ * A 1080×1920 PNG whose only content is a white bar painted INTO the caption
+ * clearance gap (y≈1360) — exactly the synthetic input `checkCaptionClearance`
+ * fires on. Used to prove the late-sample pass turns real drift into a warning.
+ */
+function dirtyLateStillPng(): Buffer {
+  const width = 1080;
+  const height = 1920;
+  const rgba = new Uint8Array(width * height * 4);
+  for (let p = 0; p < width * height; p += 1) {
+    rgba[p * 4] = 10;
+    rgba[p * 4 + 1] = 12;
+    rgba[p * 4 + 2] = 18;
+    rgba[p * 4 + 3] = 255;
+  }
+  for (let y = 1358; y < 1368; y += 1) {
+    for (let x = 120; x < 620; x += 1) {
+      const i = (y * width + x) * 4;
+      rgba[i] = 255;
+      rgba[i + 1] = 255;
+      rgba[i + 2] = 255;
+      rgba[i + 3] = 255;
+    }
+  }
+  return encodePngRGBA(width, height, rgba);
+}
