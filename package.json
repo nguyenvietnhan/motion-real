@@ -8,6 +8,10 @@
     "packages/*",
     "apps/*"
   ],
+  "engines": {
+    "node": ">=24.0.0",
+    "npm": ">=11.0.0"
+  },
   "scripts": {
     "studio": "npm --workspace @news/remotion run studio",
     "render": "npm --workspace @news/remotion run render",
