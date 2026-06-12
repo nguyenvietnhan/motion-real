@@ -54,6 +54,16 @@ export interface CreateDeps {
    * support (the create call behaves exactly as before).
    */
   promoteImages?: (projectId: string, images: StagedImageRef[]) => Promise<AuthorImageRef[]>;
+  /**
+   * Preflight readiness check, run AFTER input validation but BEFORE scaffold.
+   * Returns a non-empty Vietnamese message to BLOCK create (a config gap that
+   * would otherwise let the whole AI authoring pass run and then fail at TTS,
+   * e.g. a missing Vivibe voice key), or `undefined`/empty to proceed. Optional:
+   * absent ⇒ no preflight (create behaves exactly as before). It deliberately
+   * does NOT gate on gateway/model state — that stays a "guide, don't gate" chip
+   * in the UI — only on a guaranteed-fatal local config gap.
+   */
+  preflight?: () => string | undefined;
 }
 
 export class CreateController {
@@ -62,6 +72,11 @@ export class CreateController {
   async create(raw: string, images: StagedImageRef[] = [], stylePackId?: string): Promise<{ projectId: string }> {
     const v = validateCreateInput({ raw });
     if (!v.ok) throw new Error(VALIDATION_MESSAGE[v.reason]); // invalid ⇒ no scaffold (R1.3)
+    // Block on a guaranteed-fatal config gap BEFORE scaffolding/authoring, so the
+    // user isn't told "ready" only to have the whole AI pass burn and then fail at
+    // TTS. A clean (no-message) preflight — or no preflight dep — proceeds.
+    const block = this.deps.preflight?.();
+    if (block) throw new Error(block);
     const res = await this.deps.scaffold(v.brief.text);
     if (!res.ok) throw new Error(toFriendlyError(res.error).message); // redacted (R8.5)
     // Promote staged images into the project before authoring so the first draft

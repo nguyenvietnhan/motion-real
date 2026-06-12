@@ -85,6 +85,26 @@ describe("CreateController.create", () => {
     expect(began[0]!.input.stylePackId).toBeUndefined();
   });
 
+  it("a failing preflight blocks create BEFORE scaffold (its message is thrown, workspace never starts)", async () => {
+    const { deps: d, scaffold, began } = deps({
+      preflight: () => "Chưa cấu hình API key giọng đọc. Mở Cài đặt để thêm rồi thử lại.",
+    });
+    const ctrl = new CreateController(d);
+    await expect(ctrl.create("chủ đề")).rejects.toThrow(/giọng đọc/);
+    expect(scaffold).not.toHaveBeenCalled();
+    expect(began).toEqual([]);
+  });
+
+  it("a clean (no-message) preflight proceeds exactly as before", async () => {
+    const preflight = vi.fn(() => undefined);
+    const { deps: d, began } = deps({ preflight });
+    const ctrl = new CreateController(d);
+    const result = await ctrl.create("chủ đề");
+    expect(preflight).toHaveBeenCalledOnce();
+    expect(result).toEqual({ projectId: "p1" });
+    expect(began).toHaveLength(1);
+  });
+
   it("throws a REDACTED friendly message on scaffold failure and never starts the workspace (R8.5)", async () => {
     const leaky: SerializedPipelineError = {
       message: "[render] N14 leaked from /proj/scene-01.tsx",

@@ -158,6 +158,19 @@ const create = new CreateController({
     return res.ok ? { ok: true, projectId: res.data.projectId } : { ok: false, error: res.error };
   },
   beginCreate: (id, input) => workspace.beginCreate(id, input),
+  // Preflight: block create on a guaranteed-fatal LOCAL config gap (a missing
+  // Vivibe voice key/id read from SETTINGS — env is only the fallback), so the
+  // whole AI authoring pass doesn't burn and then fail at TTS. Read from the
+  // settings store, not env, so a key configured in the Settings UI counts. We
+  // do NOT gate on gateway/model here — that stays a "guide, don't gate" chip.
+  preflight: () => {
+    const { apiKey, voiceId } = settingsStore.voiceConfig();
+    const missing: string[] = [];
+    if (!apiKey) missing.push("API key giọng đọc");
+    if (!voiceId) missing.push("giọng đọc (voice id)");
+    if (missing.length === 0) return undefined;
+    return `Chưa cấu hình ${missing.join(" và ")} cho giọng đọc tiếng Việt. Mở Cài đặt để thêm rồi thử lại.`;
+  },
   // Move each staged create-time image into the project's assetsDir by RE-importing
   // its bytes (content-addressed, so the <sha>.<ext> filename — and thus the ref —
   // is identical to staging). A staged file we can't read/import just drops out.
