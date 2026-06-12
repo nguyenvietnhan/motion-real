@@ -394,65 +394,99 @@ textarea.ns-input {
   background: var(--card-hover);
 }
 
-/* Style picker: a star icon-button next to "+" opening a popover of CSS-sketch
-   chips. The wrapper anchors the absolutely-positioned popover below the button. */
-.ns-style-pop-wrap {
-  position: relative;
-  display: inline-flex;
-}
-/* Transparent click-away layer so clicking outside closes the popover. */
-.ns-style-pop-backdrop {
+/* Style picker: a star icon-button next to "+" opens a CENTERED modal (Canva /
+   YouTube template-chooser style) — a dimmed full-screen overlay behind a card
+   of large preview tiles. Click the dimmed area or the X to dismiss. */
+.ns-modal-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 20;
-}
-.ns-style-pop {
-  position: absolute;
-  top: calc(100% + 8px);
-  left: 0;
-  z-index: 21;
-  padding: 12px;
-  border-radius: 10px;
-  border: 1px solid var(--border);
-  background: var(--card);
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
-}
-.ns-style-pop-title {
-  font-size: 12px;
-  color: var(--muted-foreground);
-  margin: 0 0 8px;
-}
-.ns-style-pop-row {
+  z-index: 40;
   display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+  background: rgba(0, 0, 0, 0.62);
+  backdrop-filter: blur(2px);
+  animation: ns-modal-fade 0.14s ease-out;
 }
-.ns-style-card {
+.ns-modal {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
+  max-height: 88vh;
+  overflow: hidden;
+  animation: ns-modal-rise 0.16s ease-out;
+}
+.ns-style-modal {
+  width: min(880px, 100%);
+}
+@keyframes ns-modal-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes ns-modal-rise {
+  from { opacity: 0; transform: translateY(8px) scale(0.99); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.ns-modal-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 20px 22px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.ns-modal-title {
+  margin: 0;
+  font-size: 17px;
+}
+.ns-modal-sub {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--muted-foreground);
+  line-height: 1.5;
+}
+/* Scrollable grid of large preview tiles, like a video template gallery. */
+.ns-style-modal-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 16px;
+  padding: 20px 22px 24px;
+  overflow-y: auto;
+}
+.ns-style-tile {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
-  padding: 6px;
-  border-radius: 8px;
+  gap: 10px;
+  padding: 16px 14px 14px;
+  border-radius: 10px;
   border: 2px solid transparent;
-  background: transparent;
-  color: var(--muted-foreground);
-  cursor: pointer;
-  transition: border-color 0.12s, background 0.12s, color 0.12s;
-}
-.ns-style-card:hover {
   background: var(--card-hover);
-}
-.ns-style-card.is-active {
-  border-color: var(--brand);
-  background: rgba(255, 255, 255, 0.04);
   color: var(--foreground);
-}
-.ns-style-card-name {
-  font-size: 12px;
-  max-width: 76px;
+  cursor: pointer;
   text-align: center;
-  line-height: 1.2;
+  transition: border-color 0.12s, transform 0.12s;
+}
+.ns-style-tile:hover {
+  transform: translateY(-2px);
+  border-color: var(--border);
+}
+.ns-style-tile.is-active {
+  border-color: var(--brand);
+}
+.ns-style-tile-name {
+  font-size: 14px;
+  font-weight: 600;
+}
+.ns-style-tile-desc {
+  font-size: 12px;
+  color: var(--muted-foreground);
+  line-height: 1.5;
 }
 
 /* Settings: left-rail tabs + enterprise toggle switch */
