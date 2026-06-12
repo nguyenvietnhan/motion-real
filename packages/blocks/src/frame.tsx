@@ -5,6 +5,7 @@ import { CONTENT_ZONE, rectHeight, rectWidth } from "@news/schema";
 import { useTheme } from "./theme-context.js";
 import { useKenBurnsScale } from "./motion.js";
 import { surfaceBorder, surfaceRadius } from "./chrome.js";
+import { useInZone, ZoneProvider } from "./zone-context.js";
 // Side-effect: render-safe load of all style-pack fonts (Vietnamese subset).
 import "./fonts.js";
 
@@ -164,21 +165,46 @@ export const Content: React.FC<{
   // where content sits). The CaptionDivider + N14 oracles read the SAME constant,
   // so content, the divider line, and validation all agree on where content lives.
   const zone = CONTENT_ZONE;
+  // Defensive nesting guard: a model routinely writes `<Story><Content>…` even
+  // though Story ALSO positions the full zone. Two absolute full-zone wrappers
+  // would double the (left,top) offset and shove content toward the bottom-right,
+  // out of the zone (and into the N14 divider band). When an outer zone wrapper is
+  // already present, render IN-FLOW (fill the parent) instead of positioning a
+  // second time — so the inner Content is a no-op layout-wise and content stays put.
+  const inZone = useInZone();
+  if (inZone) {
+    return (
+      <div
+        style={{
+          width: "100%",
+          height: "100%",
+          display: "flex",
+          flexDirection: "column",
+          justifyContent: align === "center" ? "center" : "flex-start",
+          gap,
+        }}
+      >
+        {children}
+      </div>
+    );
+  }
   return (
-    <div
-      style={{
-        position: "absolute",
-        top: zone.top,
-        left: zone.left,
-        width: rectWidth(zone),
-        height: rectHeight(zone),
-        display: "flex",
-        flexDirection: "column",
-        justifyContent: align === "center" ? "center" : "flex-start",
-        gap,
-      }}
-    >
-      {children}
-    </div>
+    <ZoneProvider>
+      <div
+        style={{
+          position: "absolute",
+          top: zone.top,
+          left: zone.left,
+          width: rectWidth(zone),
+          height: rectHeight(zone),
+          display: "flex",
+          flexDirection: "column",
+          justifyContent: align === "center" ? "center" : "flex-start",
+          gap,
+        }}
+      >
+        {children}
+      </div>
+    </ZoneProvider>
   );
 };

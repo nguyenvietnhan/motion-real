@@ -3,6 +3,7 @@ import { useCurrentFrame, useVideoConfig } from "remotion";
 import { onColor, type Theme } from "@news/design";
 import { CONTENT_ZONE, rectHeight, rectWidth } from "@news/schema";
 import { useTheme } from "./theme-context.js";
+import { useInZone, ZoneProvider } from "./zone-context.js";
 import { useReveal, useRamp, usePop, useTilt, frameRamp } from "./motion.js";
 import {
   blockSurface,
@@ -371,15 +372,22 @@ export const Story: React.FC<{
   children: React.ReactNode;
 }> = ({ eyebrow, label, meta, footer, gap = 28, children }) => {
   const tilt = useTilt();
+  const insideZone = useInZone();
   const zone = CONTENT_ZONE;
-  return (
+  // Defensive nesting guard (same as Content): when a model wraps a Story inside
+  // another full-zone wrapper (e.g. <Content><Story/></Content> or a doubled
+  // Story), the inner one must NOT re-apply the absolute zone offset — that
+  // double-counts (left+left, top+top) and shoves content toward the
+  // bottom-right, out of the zone. Inside an existing zone we render IN-FLOW
+  // (fill the parent) so the layout stays put; only the OUTERMOST zone wrapper
+  // positions absolutely against the canvas.
+  const positioning: React.CSSProperties = insideZone
+    ? { width: "100%", height: "100%" }
+    : { position: "absolute", top: zone.top, left: zone.left, width: rectWidth(zone), height: rectHeight(zone) };
+  const body = (
     <div
       style={{
-        position: "absolute",
-        top: zone.top,
-        left: zone.left,
-        width: rectWidth(zone),
-        height: rectHeight(zone),
+        ...positioning,
         boxSizing: "border-box",
         paddingBottom: STORY_DIVIDER_CLEARANCE,
         display: "flex",
@@ -407,4 +415,7 @@ export const Story: React.FC<{
       {footer ? <Footer left={footer.left} right={footer.right} /> : null}
     </div>
   );
+  // The outermost zone wrapper marks the zone as occupied so any nested
+  // Content/Story renders in-flow instead of re-offsetting.
+  return insideZone ? body : <ZoneProvider>{body}</ZoneProvider>;
 };

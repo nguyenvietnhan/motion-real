@@ -141,6 +141,23 @@ describe("N14 above-divider clearance", () => {
     paint(f, { x: 120, y: 1338, width: 500, height: 10 }, WHITE); // would otherwise fire
     expect(checkDividerClearanceAbove(f, undefined, { dividerClearanceAbove: false })).toEqual([]);
   });
+  it("does NOT fire on a sparse galaxy starfield in the band (decorative speckle, not overflow)", () => {
+    // The bug this guards: a galaxy backdrop paints isolated 1–4px stars (+ a
+    // faint nebula glow) in the thin band above the divider. A raw per-pixel
+    // count read them as "content flush on the divider" on EVERY galaxy scene,
+    // hard-blocking the render. Scattered specks never form a solid run, so the
+    // run-based count must drop them — while real overflow (above) still fires.
+    const f = makeFrame(1080, 1920);
+    // ~40 tiny stars (2–3px) sprinkled across the band 1334..1348, each isolated.
+    let seed = 1;
+    const rnd = () => (seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
+    for (let n = 0; n < 40; n += 1) {
+      const sx = 100 + Math.floor(rnd() * 800);
+      const sy = 1335 + Math.floor(rnd() * 12);
+      paint(f, { x: sx, y: sy, width: 2 + Math.floor(rnd() * 2), height: 2 }, WHITE);
+    }
+    expect(checkDividerClearanceAbove(f)).toEqual([]);
+  });
 });
 
 describe("N30 content density", () => {

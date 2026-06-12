@@ -52,6 +52,26 @@ describe("@news/blocks — render-free", () => {
     expect(markup).toContain("body");
   });
 
+  it("nested Content inside Story does NOT re-offset the zone (defensive nesting guard)", () => {
+    // The common authoring mistake: wrapping a full-zone Content inside a
+    // full-zone Story. Both position the zone absolutely; naive nesting would
+    // double the (left,top) offset and shove content toward the bottom-right.
+    // The zone-occupancy guard makes the inner Content render IN-FLOW, so the
+    // absolute zone offset (left:80px) appears exactly ONCE (from the outer Story).
+    const markup = html(
+      React.createElement(Story, { eyebrow: "E", children: React.createElement(Content, { children: "nội dung lồng" }) }),
+    );
+    expect(markup).toContain("nội dung lồng");
+    const zoneLeftCount = markup.split(`left:${CONTENT_ZONE.left}px`).length - 1;
+    expect(zoneLeftCount).toBe(1); // only the outermost wrapper claims the zone
+  });
+
+  it("a standalone Content still positions the zone absolutely (outermost wrapper)", () => {
+    const markup = html(React.createElement(Content, { children: "đơn lẻ" }));
+    expect(markup.split(`left:${CONTENT_ZONE.left}px`).length - 1).toBe(1);
+    expect(markup).toContain("position:absolute");
+  });
+
   it("TitleBlock renders a framed headline (+ optional body), no top-left eyebrow", () => {
     const plain = html(React.createElement(TitleBlock, { headline: "Một tiêu đề rõ ràng" }));
     expect(plain).toContain("Một tiêu đề rõ ràng");

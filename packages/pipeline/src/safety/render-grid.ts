@@ -13,6 +13,7 @@ import { decodePng } from "./png.js";
 import {
   analyzeFrame,
   backgroundColor,
+  bandSolidContent,
   colorDistance,
   contrastRatio,
   relativeLuminance,
@@ -238,8 +239,7 @@ export function checkContentZone(frame: Frame, sceneId?: string, options?: Rende
  */
 export function checkCaptionClearance(frame: Frame, sceneId?: string, options?: RenderGridOptions): SafetyIssue[] {
   const o = opt(options);
-  const { width, height, data } = frame;
-  const bg = backgroundColor(frame);
+  const { width, height } = frame;
   const sx = width / CANVAS.width;
   const sy = height / CANVAS.height;
   // The gap between the content zone and the caption band. Start a few px below
@@ -255,15 +255,11 @@ export function checkCaptionClearance(frame: Frame, sceneId?: string, options?: 
   // Need enough vertical resolution to resolve the ~32px gap; on tiny frames the
   // band collapses and would false-positive, so skip (real stills are full/half res).
   if (bottom - top < 6) return [];
-  let band = 0;
-  let content = 0;
-  for (let y = top; y < bottom; y += 1) {
-    for (let x = left; x < right; x += 1) {
-      band += 1;
-      const i = (y * width + x) * 4;
-      if (colorDistance(bg, data[i]!, data[i + 1]!, data[i + 2]!) > o.contentThreshold) content += 1;
-    }
-  }
+  // Solid-run count (not raw per-pixel): a galaxy starfield speckles this gap with
+  // isolated stars that a raw count misreads as authored overflow; only adjacent
+  // runs (real text/box edges drifting down) count. Same fix as the above-divider scan.
+  const minRun = Math.max(4, Math.round(8 * sx));
+  const { band, content } = bandSolidContent(frame, { top, bottom, left, right }, o.contentThreshold, minRun);
   const fraction = band > 0 ? content / band : 0;
   if (fraction > o.captionClearanceTolerance) {
     return [
@@ -303,8 +299,7 @@ const ABOVE_DIVIDER_BAND = 16;
 export function checkDividerClearanceAbove(frame: Frame, sceneId?: string, options?: RenderGridOptions): SafetyIssue[] {
   const o = opt(options);
   if (!o.dividerClearanceAbove) return [];
-  const { width, height, data } = frame;
-  const bg = backgroundColor(frame);
+  const { width, height } = frame;
   const sx = width / CANVAS.width;
   const sy = height / CANVAS.height;
   // The thin band immediately ABOVE the divider line. The divider is drawn AT
@@ -320,15 +315,13 @@ export function checkDividerClearanceAbove(frame: Frame, sceneId?: string, optio
   // On a tiny still the band collapses and would false-positive; skip (real
   // stills are full/half res, same guard as the below-divider scan).
   if (bottom - top < 6) return [];
-  let band = 0;
-  let content = 0;
-  for (let y = top; y < bottom; y += 1) {
-    for (let x = left; x < right; x += 1) {
-      band += 1;
-      const i = (y * width + x) * 4;
-      if (colorDistance(bg, data[i]!, data[i + 1]!, data[i + 2]!) > o.contentThreshold) content += 1;
-    }
-  }
+  // Count only SOLID horizontal runs (real text/box edges), not sparse speckle:
+  // a galaxy starfield paints isolated 1–4px stars in this band that a raw
+  // per-pixel count reads as "content flush on the divider" on EVERY scene. A
+  // run threshold scaled to the still resolution drops stars while still
+  // catching genuine overflow (which fills many adjacent columns).
+  const minRun = Math.max(4, Math.round(8 * sx));
+  const { band, content } = bandSolidContent(frame, { top, bottom, left, right }, o.contentThreshold, minRun);
   const fraction = band > 0 ? content / band : 0;
   if (fraction > o.dividerClearanceAboveTolerance) {
     return [
