@@ -1,0 +1,45 @@
+name: CI
+
+# Run the project's Required Checks (AGENTS.md) on every push + PR to main:
+# typecheck → test → build. All three are offline and need no browser — the
+# render tests mock @remotion/renderer, and `npm run build` is a webpack-only
+# bundle (no Chromium download), so a plain ubuntu runner suffices.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# A newer push to the same branch/PR cancels the older in-flight run.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+
+      # Deterministic install from the committed lockfile.
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
+
+      # Webpack bundle of the whole Remotion app graph — fails non-zero if any
+      # @news/* source or scene component fails to type-resolve/compile. No
+      # browser is launched or downloaded here.
+      - name: Build
+        run: npm run build
