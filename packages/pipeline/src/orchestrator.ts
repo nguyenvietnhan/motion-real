@@ -33,6 +33,7 @@ import { lintSceneSources, compositionsSrcDir, blocksSrcDir } from "./safety/for
 import { scaffoldProject, loadManifest, loadManifestAsSpec, admitProjectScenes, manifestSceneFiles } from "./authoring/manifest.js";
 import { PipelineError, RenderCancelledError, isRenderCancelledError } from "./errors.js";
 import { generateAuthoredEntry } from "./authoring/authored-entry.js";
+import { parseDurationFromPrompt } from "./authoring/parse-duration.js";
 import { synthesizeNarration, type SynthesizeOptions } from "./audio/tts.js";
 import { lockSpec } from "./audio/lock.js";
 import { checkDeterminism, type DeterminismOptions } from "./render/determinism.js";
@@ -90,7 +91,7 @@ export async function scaffoldVideoProject(opts: ScaffoldVideoProjectOptions): P
   const brief: ProjectBrief = {
     projectId,
     prompt: opts.prompt,
-    duration: opts.duration ?? 60,
+    duration: opts.duration ?? parseDurationFromPrompt(opts.prompt) ?? 60,
     styleId: "clean-luxury-tech",
     ratio: "9:16",
     language: "vi",

@@ -28,3 +28,4 @@ export {
   type ManifestSceneFile,
   type AdmitProjectResult,
 } from "./manifest.js";
+export { parseDurationFromPrompt } from "./parse-duration.js";
