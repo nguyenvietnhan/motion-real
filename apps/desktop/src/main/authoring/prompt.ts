@@ -40,7 +40,7 @@ const CONTENT_RULES = `QUY TẮC NỘI DUNG (bắt buộc):
 - KHÔNG bịa số liệu/nguồn/ngày/giá/phần trăm. Không chắc một con số thì đừng nêu.
 - scene-01 mở bằng HOOK trực diện (không chào hỏi/định nghĩa). Cảnh CUỐI là CTA/câu hỏi gắn chủ đề (không "like/share/subscribe" chung chung).
 - Mỗi cảnh MỘT ý; narration 1–3 câu cô đọng (khoảng 18–40 từ). Đa dạng form.
-- THỜI LƯỢNG: nếu yêu cầu nêu thời lượng (vd "90 giây", "1p30s", "1 phút rưỡi"), hãy ước TỔNG lời đọc toàn video ≈ thời_lượng_giây × 2.7 từ (tiếng Việt đọc ~2.7 từ/giây) và viết ĐỦ số cảnh để đạt tổng đó — thà hơi DƯ còn hơn hụt (vd 90 giây → khoảng 230–260 từ tổng, thường 9–13 cảnh). Không nêu thời lượng thì 8–12 cảnh.`;
+- THỜI LƯỢNG: nếu yêu cầu nêu thời lượng (vd "90 giây", "1p30s", "1 phút rưỡi"), hãy ước TỔNG lời đọc toàn video ≈ thời_lượng_giây × 4.7 từ (giọng đọc tiếng Việt thực tế ~4.7 từ/giây — đo từ audio thật, KHÔNG phải 2.7) và viết ĐỦ số cảnh để đạt tổng đó — thà hơi DƯ còn hơn hụt (vd 90 giây → khoảng 420–460 từ tổng, thường 12–16 cảnh; 60 giây → khoảng 280–300 từ, thường 9–11 cảnh). Không nêu thời lượng thì 8–12 cảnh.`;
 
 const OUTPUT_FORMAT = `ĐỊNH DẠNG TRẢ VỀ (AI_Output_Contract) — trả về TRONG MỘT REPLY:
 1) Đúng MỘT khối \`\`\`json là manifest (KHÔNG chứa code):
@@ -152,6 +152,14 @@ export type ReauthorPromptInput = {
   stillDataUrl?: string;
   /** The project's design language, so the repair stays on-language (not the default look). */
   stylePackId?: string;
+  /**
+   * This scene carries an image (its manifest `image.ref` is set). The reauthor
+   * is a free rewrite, so without this the model "creatively" drops the image on
+   * a vague edit like "make it more creative" — the manifest still references it
+   * but the .tsx no longer renders it. When set, the prompt hard-requires keeping
+   * the `<SceneImage imageRef={image.ref} />` block.
+   */
+  hasImage?: boolean;
 };
 
 /**
@@ -175,7 +183,14 @@ export function buildReauthorMessages(input: ReauthorPromptInput): VisionMessage
     .map((i) => `- ${i.check}${i.sceneId ? ` @${i.sceneId}` : ""}: ${i.message}`)
     .join("\n");
   const problem = issueLines || input.intent || "Cảnh cần chỉnh lại bố cục/hình ảnh.";
-  const text = `Cảnh "${input.sceneId}" (component id "${input.componentId}") đang lỗi:\n${problem}\n\nMÃ HIỆN TẠI:\n\`\`\`tsx\n${input.currentCode}\n\`\`\`\n\nVIẾT LẠI cảnh này (giữ id "${input.componentId}") để sửa lỗi trên, trả về đúng một khối \`\`\`tsx.`;
+  // A scene that carries an image MUST keep rendering it: the reauthor is a free
+  // rewrite, so a vague edit ("sáng tạo hơn") otherwise makes the model drop the
+  // <SceneImage> while the manifest still references the image — the picture
+  // silently vanishes from the draft. Hard-require keeping the block + its ref.
+  const keepImage = input.hasImage
+    ? `\n\nBẮT BUỘC GIỮ ẢNH: cảnh này CÓ ảnh — phải giữ nguyên block <SceneImage imageRef={image.ref} alt={image.alt} /> (image đến từ SceneComponentProps), KHÔNG được bỏ ảnh đi dù yêu cầu là "sáng tạo hơn"/"đẹp hơn". Đặt nó trong <Content>/<Story> như cũ; chỉ đổi cách trình bày xung quanh, đừng xoá ảnh.`
+    : "";
+  const text = `Cảnh "${input.sceneId}" (component id "${input.componentId}") đang lỗi:\n${problem}\n\nMÃ HIỆN TẠI:\n\`\`\`tsx\n${input.currentCode}\n\`\`\`${keepImage}\n\nVIẾT LẠI cảnh này (giữ id "${input.componentId}") để sửa lỗi trên, trả về đúng một khối \`\`\`tsx.`;
   const system = reauthorSystem(input.stylePackId);
 
   if (input.stillDataUrl) {

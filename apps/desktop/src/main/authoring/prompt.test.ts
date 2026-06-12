@@ -24,12 +24,14 @@ describe("buildAuthorMessages", () => {
     expect(user!.content).toContain("tư liệu ABC");
   });
 
-  it("carries a duration→word-budget instruction so a requested length isn't undershot", () => {
+  it("carries a duration→word-budget instruction using the MEASURED speech rate", () => {
     // The user's requested length lives in the free-text brief; the system prompt
-    // must tell the model how to turn seconds into a total word budget (the signal
-    // that was missing when a 90s request rendered as 54s).
+    // must tell the model how to turn seconds into a total word budget. The rate
+    // was 2.7 w/s but real Vivibe audio measured ~4.7 w/s — at 2.7 a "90s" request
+    // rendered as ~60s. The budget must use the measured rate, not the old guess.
     const [sys] = buildAuthorMessages({ text: "Làm video 1p30s về chủ đề X", urls: [] });
-    expect(sys!.content).toContain("2.7");
+    expect(sys!.content).toContain("4.7");
+    expect(sys!.content).not.toMatch(/× 2\.7 từ/);
     expect(sys!.content).toMatch(/TỔNG lời đọc/i);
   });
 
@@ -106,6 +108,20 @@ describe("buildReauthorMessages", () => {
     expect(Array.isArray(parts)).toBe(true);
     expect(parts.some((p) => p.type === "image_url" && p.image_url.url === "data:image/png;base64,AAA")).toBe(true);
     expect(parts.some((p) => p.type === "text")).toBe(true);
+  });
+
+  it("hard-requires keeping <SceneImage> when the scene carries an image (so a free rewrite can't drop it)", () => {
+    // The bug: a vague edit ("sáng tạo hơn") made the model drop the image while
+    // the manifest still referenced it → the picture vanished. With hasImage the
+    // reauthor prompt must explicitly forbid removing the <SceneImage> block.
+    const withImage = buildReauthorMessages({ ...base, intent: "sáng tạo hơn", hasImage: true });
+    const text = withImage[1]!.content as string;
+    expect(text).toContain("SceneImage");
+    expect(text).toMatch(/GIỮ ẢNH|giữ.*ảnh/i);
+
+    // Without an image the instruction is absent (no spurious image talk).
+    const noImage = buildReauthorMessages({ ...base, intent: "sáng tạo hơn" });
+    expect(noImage[1]!.content as string).not.toContain("SceneImage");
   });
 });
 

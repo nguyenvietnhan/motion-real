@@ -167,17 +167,17 @@ describe("@news/blocks — render-free", () => {
     expect(withLabel).not.toContain("width:fit-content");
   });
 
-  it("SceneImage self-fits at the image's intrinsic aspect ratio (block owns size, not the author)", () => {
+  it("SceneImage fills the content column width with height following the image aspect (no side gaps)", () => {
     const markup = html(React.createElement(SceneImage, { imageRef: "assets/photo.png", alt: "biểu đồ" }));
     // The local ref flows through staticFile into the <img src> (mocked to static/<ref>).
     expect(markup).toContain('src="static/assets/photo.png"');
     expect(markup).toContain('alt="biểu đồ"');
-    // Intrinsic sizing: capped to the column width + a vertical limit, auto on both
-    // axes so the image lays out at its TRUE aspect ratio (no letterbox, no crop).
-    expect(markup).toContain("max-width:100%");
-    expect(markup).toMatch(/max-height:[1-9]/);
-    expect(markup).toContain("width:auto");
+    // FILL the column width (no empty side gaps); height auto-follows the image's
+    // true aspect ratio, with a maxHeight + object-fit cap for tall portraits.
+    expect(markup).toContain("width:100%");
     expect(markup).toContain("height:auto");
+    expect(markup).toMatch(/max-height:[1-9]/);
+    expect(markup).toContain("object-fit:contain");
     // The frame (border) is drawn ON the image so the chrome hugs the picture.
     expect(markup).toContain("border:");
     // Tagged so the N15 layout probe can measure it.

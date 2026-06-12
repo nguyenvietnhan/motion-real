@@ -286,10 +286,17 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
     // The project's chosen design language drives the repair prompt too, so a
     // galaxy scene is rewritten with galaxy rules (not the cream/squared default).
     // Read it once from the stored manifest; an unreadable/absent id ⇒ undefined
-    // (the prompt builder falls back to the default language).
-    const stylePackId = await loadManifest(projectId)
-      .then((m) => m.theme?.stylePackId)
-      .catch(() => undefined);
+    // (the prompt builder falls back to the default language). Same read also
+    // yields the set of scenes that carry an image, so the reauthor prompt can
+    // hard-require keeping <SceneImage> (a free rewrite otherwise drops it on a
+    // vague "make it nicer" edit while the manifest still references the image).
+    const manifestForReauthor = await loadManifest(projectId).catch(() => undefined);
+    const stylePackId = manifestForReauthor?.theme?.stylePackId;
+    const imageSceneIds = new Set(
+      (manifestForReauthor?.scenes ?? [])
+        .filter((s: { image?: { ref?: string } }) => !!s.image?.ref)
+        .map((s: { id: string }) => s.id),
+    );
 
     for (const t of targets) {
       // A user "Dừng render" mid-reauthor stops before the next scene's AI call
@@ -330,6 +337,8 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
           ...(t.issues ? { issues: t.issues } : {}),
           ...(intent ? { intent } : {}),
           ...(stillDataUrl ? { stillDataUrl } : {}),
+          ...(imageSceneIds.has(t.sceneId) ? { hasImage: true } : {}),
+          ...(imageSceneIds.has(t.sceneId) ? { hasImage: true } : {}),
         });
 
         let reply: string;

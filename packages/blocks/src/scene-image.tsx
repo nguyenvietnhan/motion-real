@@ -14,12 +14,16 @@ import { surfaceBorder, surfaceRadius } from "./chrome.js";
  * `staticFile()` against the project root (exactly like narration audio) — never
  * a remote URL — so re-renders stay offline and byte-stable (N16).
  *
- * SELF-FITTING (the block owns the image's size, not the author): the `<img>` is
- * laid out at its INTRINSIC aspect ratio, capped to the content column width
- * (`maxWidth:100%`) and a vertical cap (`maxHeight`), with `width/height:auto`.
- * The frame (border + radius) is drawn ON the image element itself, so it HUGS
- * the picture exactly — no letterbox gap around a portrait, no crop of a wide
- * chart. This is why authored scenes must NOT wrap it in a fixed-height /
+ * SELF-FITTING (the block owns the image's size, not the author): the `<img>`
+ * FILLS the content column width (`width:100%`) and lets its height follow the
+ * image's TRUE aspect ratio (`height:auto`). The frame (border + radius) is drawn
+ * ON the image element itself, so it HUGS the picture with NO empty side gaps —
+ * the bug a `width:auto` intrinsic layout caused (a 800px image floating in a
+ * 1000px column left a gap each side). Crawled article images are almost always
+ * landscape/square so the height stays modest; `maxHeight` + an `object-fit`
+ * fallback guard only the rare very-tall portrait (it letterboxes within the cap
+ * instead of pushing past the content zone). This is why authored scenes must
+ * NOT wrap it in a fixed-height /
  * overflow:hidden box: the model can't know an asset's aspect ratio, so any box
  * it guesses either letterboxes (contain) or crops (cover). Here the image
  * decides its own shape and the chrome follows. Pure CSS intrinsic sizing — no
@@ -63,12 +67,16 @@ export const SceneImage: React.FC<{
         alt={alt}
         style={{
           display: "block",
-          // Intrinsic sizing capped to the column width + a vertical limit, so
-          // the image lays out at its TRUE aspect ratio and the frame hugs it.
-          maxWidth: "100%",
-          maxHeight,
-          width: "auto",
+          // FILL the content column width; height follows the image's true aspect
+          // ratio. This is the fix for the empty side gaps a `width:auto` intrinsic
+          // layout caused (an 800px image floated in a ~1000px column, hairline-
+          // framed, leaving a gap each side). `maxHeight` + `objectFit:contain`
+          // only kick in for a rare very-tall portrait, letterboxing it WITHIN the
+          // cap instead of pushing past the content zone.
+          width: "100%",
           height: "auto",
+          maxHeight,
+          objectFit: "contain",
           border: surfaceBorder(theme),
           borderRadius: surfaceRadius(theme, "md"),
           // A neutral plate behind a transparent PNG so it sits on the language's
