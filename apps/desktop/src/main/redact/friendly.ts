@@ -36,15 +36,22 @@ export function stripL0Tokens(text: string): string {
   return next.replace(/\s{2,}/g, " ").trim();
 }
 
+// Each message follows ONE rule: state what happened, then what the user does
+// next. It never implies the system is still working on its own (the run has
+// STOPPED and is waiting for the user), and it never names a specific button —
+// the actual button ("Sửa bằng AI" vs "Thử lại") is chosen separately from the
+// `fixable` flag, so the copy says the button-neutral "dùng nút bên dưới" to
+// avoid a copy↔button mismatch. Stages with no button (tts/config) point to the
+// exact place to fix instead.
 const STAGE_MESSAGE: Record<PipelineStage, string> = {
   ingest: "Không lấy được nội dung từ nguồn bạn cung cấp. Hãy kiểm tra lại đường dẫn hoặc thử nguồn khác.",
-  admission: "Một cảnh chưa hợp lệ nên hệ thống đang dựng lại.",
-  "static-grid": "Một vài cảnh cần chỉnh lại bố cục trước khi dựng.",
-  "build-gate": "Video chưa sẵn sàng để dựng, hệ thống đang điều chỉnh lại.",
-  determinism: "Đang ổn định lại hình ảnh cho video.",
-  render: "Quá trình dựng video gặp trục trặc. Hãy thử lại.",
-  "render-oracle": "Một vài cảnh cần chỉnh lại sau khi dựng.",
-  review: "Bản nháp cần được xem lại trước khi hoàn tất.",
+  admission: "Một cảnh chưa hợp lệ nên chưa dựng được. Hãy dùng nút bên dưới để tiếp tục.",
+  "static-grid": "Một vài cảnh cần chỉnh lại bố cục trước khi dựng. Hãy dùng nút bên dưới để tiếp tục.",
+  "build-gate": "Video chưa qua được bước kiểm tra trước khi dựng. Hãy dùng nút bên dưới để tiếp tục.",
+  determinism: "Hình ảnh video chưa ổn định giữa các lần dựng. Hãy dùng nút bên dưới để tiếp tục.",
+  render: "Quá trình dựng video gặp trục trặc. Hãy dùng nút bên dưới để thử lại.",
+  "render-oracle": "Một vài cảnh cần chỉnh lại sau khi dựng. Hãy dùng nút bên dưới để tiếp tục.",
+  review: "Bản nháp cần được xem lại trước khi hoàn tất. Hãy dùng nút bên dưới để tiếp tục.",
   tts: "Cấu hình giọng đọc chưa đầy đủ. Hãy kiểm tra lại phần Giọng đọc trong Cài đặt.",
   config: "Có một thiết lập chưa hoàn chỉnh. Hãy kiểm tra lại Cài đặt.",
 };
