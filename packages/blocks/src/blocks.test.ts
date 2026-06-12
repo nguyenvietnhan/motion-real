@@ -151,6 +151,22 @@ describe("@news/blocks — render-free", () => {
     expect(story).toContain("nguồn");
   });
 
+  it("HeaderBar hugs the eyebrow chip when there's no label/meta, but spans full width when there is", () => {
+    // Eyebrow-only (the common case): the bar fits its content (inline-flex,
+    // fit-content, left-aligned) so it doesn't leave an empty bordered cell — the
+    // lopsided-header bug. The eyebrow's right border (inner divider) is dropped.
+    const solo = html(React.createElement(HeaderBar, { eyebrow: "TIN NÓNG" }));
+    expect(solo).toContain("TIN NÓNG");
+    expect(solo).toContain("display:inline-flex");
+    expect(solo).toContain("width:fit-content");
+
+    // With a label, it stretches full width (flex) so the label fills the rest.
+    const withLabel = html(React.createElement(HeaderBar, { eyebrow: "TIN NÓNG", label: "CÔNG NGHỆ" }));
+    expect(withLabel).toContain("CÔNG NGHỆ");
+    expect(withLabel).toContain("display:flex");
+    expect(withLabel).not.toContain("width:fit-content");
+  });
+
   it("SceneImage self-fits at the image's intrinsic aspect ratio (block owns size, not the author)", () => {
     const markup = html(React.createElement(SceneImage, { imageRef: "assets/photo.png", alt: "biểu đồ" }));
     // The local ref flows through staticFile into the <img src> (mocked to static/<ref>).

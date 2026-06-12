@@ -67,6 +67,7 @@ function deriveEditorial(dominant: string): DerivedLanguage {
       registrationTicks: true, // corner ticks
       starfield: false,
       frameBorder: true, // bold outer border
+      divider: true, // editorial draws the ink baseline under content
     },
     // No caption scrim — the classic look draws the caption on the cream base.
   };

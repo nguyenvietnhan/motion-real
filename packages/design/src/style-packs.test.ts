@@ -146,6 +146,13 @@ describe("design-language registry", () => {
     expect(bold.backdrop.registrationTicks).toBe(true);
     expect(galaxy.backdrop.starfield).toBe(true);
     expect(galaxy.backdrop.grid).toBe(false);
+    // The visible divider line is a per-language CHROME choice: editorial draws
+    // its editorial baseline, galaxy hides it (the night look reads cleaner
+    // without a hard bar). The N14 clearance constraints are independent of this
+    // flag (they scan CONTENT_ZONE regardless), so hiding the line never relaxes
+    // the layout rules — it only removes the painted bar.
+    expect(bold.backdrop.divider).toBe(true);
+    expect(galaxy.backdrop.divider).toBe(false);
 
     // Fonts actually differ (different typographic identity, not just color).
     expect(bold.fonts.display).not.toBe(galaxy.fonts.display);

@@ -80,6 +80,7 @@ function deriveGalaxy(dominant: string): DerivedLanguage {
       registrationTicks: false,
       starfield: true, // the signature backdrop
       frameBorder: true, // a soft rounded hairline frame
+      divider: false, // galaxy hides the visible baseline (clearance rules still hold)
     },
     captionScrim: { opacity: 0.36, blur: 8, radius: 18, tone: "dark" },
   };

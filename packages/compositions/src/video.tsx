@@ -119,13 +119,22 @@ export const VideoComposition: React.FC<VideoCompositionProps> = ({ spec, measur
 };
 
 /**
- * Always-present horizontal divider at the content-zone bottom — the editorial
- * baseline that separates authored content from the burned-in caption band.
- * Rendered globally by the composition (not per scene), so it appears on EVERY
- * video regardless of what the authored scenes draw, and marks the line authored
- * content must stay above (enforced by the N14 caption-clearance oracle).
+ * Horizontal divider at the content-zone bottom — the editorial baseline that
+ * separates authored content from the burned-in caption band. Rendered globally
+ * by the composition (not per scene), so when a language draws it, it appears on
+ * EVERY video regardless of what the authored scenes draw.
+ *
+ * Whether the LINE is painted is a per-language CHROME choice (`backdrop.divider`):
+ * the editorial print look draws a solid rule; the galaxy look keeps the same
+ * clearance but no visible bar (its content already floats over the night). The
+ * N14 above/below-divider oracles scan `CONTENT_ZONE.bottom` UNCONDITIONALLY —
+ * they enforce the clearance gap whether or not the line is drawn — so hiding the
+ * bar changes only the pixels, never the layout rule authored content must obey.
  */
 const CaptionDivider: React.FC<{ color: string }> = ({ color }) => {
+  const theme = useTheme();
+  // Chrome-only: a language may keep the clearance but not paint the bar.
+  if (!theme.backdrop.divider) return null;
   // Drawn at the ONE shared content-zone bottom — the SAME constant the N14
   // above/below-divider oracles scan, so the divider is drawn exactly where the
   // oracles expect, never a drifting hard-coded y.

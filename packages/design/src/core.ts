@@ -263,6 +263,15 @@ export type BackdropTokens = {
   starfield: boolean;
   /** Does the frame draw an outer border? */
   frameBorder: boolean;
+  /**
+   * Does the language draw the VISIBLE horizontal divider line at the
+   * content-zone bottom? This is purely the chrome (the painted bar). The N14
+   * above/below-divider clearance oracles + the Story divider-clearance padding
+   * read CONTENT_ZONE.bottom REGARDLESS of this flag, so turning it off only
+   * removes the drawn line — every layout constraint (content must stay above
+   * the boundary, clear of the caption band) is unchanged.
+   */
+  divider: boolean;
 };
 
 /**

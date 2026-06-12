@@ -93,10 +93,22 @@ export const HeaderBar: React.FC<{ eyebrow: string; label?: string; meta?: strin
   const theme = useTheme();
   const r = useReveal(0, 16);
   const radius = surfaceRadius(theme, "md");
+  // The common case is eyebrow-ONLY (most scenes pass no label/meta). A full-width
+  // bar then leaves a big empty bordered cell to the right of the eyebrow — barely
+  // visible on galaxy's hairline border but glaring on editorial's 4px ink border,
+  // which reads as a lopsided header. So when there's nothing but the eyebrow, the
+  // bar HUGS the chip (fit-content, left-aligned) instead of stretching; it only
+  // spans full width when a label or meta actually fills the rest.
+  const hasLabel = !!label;
+  const hasMeta = !!meta;
+  const full = hasLabel || hasMeta;
   return (
     <div
       style={{
-        display: "flex",
+        display: full ? "flex" : "inline-flex",
+        alignSelf: full ? "stretch" : "flex-start",
+        width: full ? undefined : "fit-content",
+        maxWidth: "100%",
         alignItems: "stretch",
         border: surfaceBorder(theme),
         borderRadius: radius,
@@ -117,29 +129,34 @@ export const HeaderBar: React.FC<{ eyebrow: string; label?: string; meta?: strin
           padding: "16px 24px",
           display: "flex",
           alignItems: "center",
-          borderRight: innerDivider(theme),
+          borderRight: full ? innerDivider(theme) : undefined,
         }}
       >
         {eyebrow}
       </span>
-      <span
-        style={{
-          fontFamily: theme.fonts.mono,
-          fontSize: 26,
-          ...labelStyle(theme),
-          color: theme.colors.muted,
-          padding: "16px 22px",
-          display: "flex",
-          alignItems: "center",
-          flex: 1,
-          minWidth: 0,
-          overflow: "hidden",
-          whiteSpace: "nowrap",
-          textOverflow: "ellipsis",
-        }}
-      >
-        {label ?? ""}
-      </span>
+      {hasLabel ? (
+        <span
+          style={{
+            fontFamily: theme.fonts.mono,
+            fontSize: 26,
+            ...labelStyle(theme),
+            color: theme.colors.muted,
+            padding: "16px 22px",
+            display: "flex",
+            alignItems: "center",
+            flex: 1,
+            minWidth: 0,
+            overflow: "hidden",
+            whiteSpace: "nowrap",
+            textOverflow: "ellipsis",
+          }}
+        >
+          {label}
+        </span>
+      ) : hasMeta ? (
+        // No label but meta present: a flex spacer keeps meta pushed to the right.
+        <span style={{ flex: 1, minWidth: 0 }} />
+      ) : null}
       {meta ? (
         <span
           style={{
