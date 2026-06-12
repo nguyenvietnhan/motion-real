@@ -104,6 +104,7 @@ const IMAGE_RULE = `
 - thêm "image": { "ref": "<ref đã cho>" } vào ĐÚNG MỘT cảnh phù hợp trong manifest (tối đa 1 ảnh/cảnh; cảnh khác không có ảnh thì bỏ field này);
 - trong .tsx của cảnh đó, render ảnh qua block <SceneImage imageRef={image.ref} alt={image.alt} /> (image đến từ SceneComponentProps), đặt trong <Content>/<Story> để ảnh nằm trong vùng an toàn;
 - import { SceneImage } from "@news/blocks".
+QUAN TRỌNG VỀ KÍCH THƯỚC: <SceneImage> TỰ canh theo đúng tỉ lệ thật của ảnh (khung ôm khít ảnh). TUYỆT ĐỐI KHÔNG bọc nó trong khung có chiều cao/rộng cố định, không dùng overflow:"hidden", height:"...px", aspectRatio hay objectFit ép quanh nó — làm vậy sẽ CẮT hoặc BÓP MÉO ảnh. Cứ đặt <SceneImage> trực tiếp trong cột nội dung; muốn giới hạn chiều cao thì truyền prop maxHeight (số px), đừng tự dựng khung.
 CHỈ dùng ref đã được cung cấp, TUYỆT ĐỐI KHÔNG bịa đường dẫn/URL ảnh. Viết nội dung sao cho ảnh khớp tổng thể. Ảnh không phù hợp thì cứ bỏ qua — không bắt buộc dùng hết.`;
 
 export function buildAuthorMessages(input: AuthorInput, research?: string, images?: AuthorImageInput[]): VisionMessage[] {

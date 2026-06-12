@@ -151,14 +151,19 @@ describe("@news/blocks — render-free", () => {
     expect(story).toContain("nguồn");
   });
 
-  it("SceneImage renders a fitted, squared <img> from its local ref (the only sanctioned image path)", () => {
+  it("SceneImage self-fits at the image's intrinsic aspect ratio (block owns size, not the author)", () => {
     const markup = html(React.createElement(SceneImage, { imageRef: "assets/photo.png", alt: "biểu đồ" }));
     // The local ref flows through staticFile into the <img src> (mocked to static/<ref>).
     expect(markup).toContain('src="static/assets/photo.png"');
     expect(markup).toContain('alt="biểu đồ"');
-    // Fitted (never cropped) and squared like every other block.
-    expect(markup).toContain("object-fit:contain");
-    expect(hasRoundedCorners(markup)).toBe(false);
+    // Intrinsic sizing: capped to the column width + a vertical limit, auto on both
+    // axes so the image lays out at its TRUE aspect ratio (no letterbox, no crop).
+    expect(markup).toContain("max-width:100%");
+    expect(markup).toMatch(/max-height:[1-9]/);
+    expect(markup).toContain("width:auto");
+    expect(markup).toContain("height:auto");
+    // The frame (border) is drawn ON the image so the chrome hugs the picture.
+    expect(markup).toContain("border:");
     // Tagged so the N15 layout probe can measure it.
     expect(markup).toContain('data-nrt-block="scene-image"');
   });

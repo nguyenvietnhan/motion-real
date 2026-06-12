@@ -12,13 +12,20 @@ import { surfaceBorder, surfaceRadius } from "./chrome.js";
  *
  * `imageRef` is a project-relative path to a LOCAL asset, resolved via Remotion
  * `staticFile()` against the project root (exactly like narration audio) — never
- * a remote URL — so re-renders stay offline and byte-stable (N16). The image is
- * fitted with `object-fit: contain` inside a bounded, bordered box so it never
- * crops the subject and stays inside the content zone (the N14 pixel oracle
- * still guards real overflow). Frame-pure: no time/random, so it's deterministic.
+ * a remote URL — so re-renders stay offline and byte-stable (N16).
  *
- * Compose it inside `<Content>` (or a `Story`/`Panel`) like any other block. The
- * `data-nrt-block` tag lets the N15 layout probe measure it.
+ * SELF-FITTING (the block owns the image's size, not the author): the `<img>` is
+ * laid out at its INTRINSIC aspect ratio, capped to the content column width
+ * (`maxWidth:100%`) and a vertical cap (`maxHeight`), with `width/height:auto`.
+ * The frame (border + radius) is drawn ON the image element itself, so it HUGS
+ * the picture exactly — no letterbox gap around a portrait, no crop of a wide
+ * chart. This is why authored scenes must NOT wrap it in a fixed-height /
+ * overflow:hidden box: the model can't know an asset's aspect ratio, so any box
+ * it guesses either letterboxes (contain) or crops (cover). Here the image
+ * decides its own shape and the chrome follows. Pure CSS intrinsic sizing — no
+ * runtime measurement, so it stays deterministic (N16) and SSR-safe.
+ *
+ * `data-nrt-block` tags the wrapper so the N15 layout probe can measure it.
  */
 export const SceneImage: React.FC<{
   /**
@@ -29,8 +36,14 @@ export const SceneImage: React.FC<{
   imageRef: string;
   /** Accessibility/review alt text (not rendered as an on-screen caption). */
   alt?: string;
-  /** Max height of the image box in canvas px (kept inside the content zone). */
+  /** Vertical cap for the image in canvas px (keeps it inside the content zone). */
   maxHeight?: number;
+  /**
+   * Optional style for the OUTER centering wrapper (margins, alignment). The
+   * image's own size + chrome are owned by the block and are NOT overridable —
+   * passing `width/height:100%` here only affects the wrapper, never the image,
+   * so an authored fixed box can't re-introduce letterboxing.
+   */
   style?: React.CSSProperties;
 }> = ({ imageRef, alt, maxHeight = 720, style }) => {
   const theme = useTheme();
@@ -39,13 +52,9 @@ export const SceneImage: React.FC<{
       data-nrt-block="scene-image"
       style={{
         width: "100%",
-        maxHeight,
-        border: surfaceBorder(theme),
-        borderRadius: surfaceRadius(theme, "md"),
-        background: theme.colors.panel,
-        overflow: "hidden",
-        display: "grid",
-        placeItems: "center",
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "center",
         ...style,
       }}
     >
@@ -53,12 +62,17 @@ export const SceneImage: React.FC<{
         src={staticFile(imageRef)}
         alt={alt}
         style={{
-          width: "100%",
-          height: "100%",
+          display: "block",
+          // Intrinsic sizing capped to the column width + a vertical limit, so
+          // the image lays out at its TRUE aspect ratio and the frame hugs it.
+          maxWidth: "100%",
           maxHeight,
-          objectFit: "contain",
-          // A neutral plate behind the fitted image so a transparent/letterboxed
-          // image sits on the language's panel surface, not a hard color.
+          width: "auto",
+          height: "auto",
+          border: surfaceBorder(theme),
+          borderRadius: surfaceRadius(theme, "md"),
+          // A neutral plate behind a transparent PNG so it sits on the language's
+          // panel surface rather than showing the backdrop through it.
           backgroundColor: theme.colors.panel,
         }}
       />
