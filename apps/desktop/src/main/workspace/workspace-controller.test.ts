@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import fc from "fast-check";
 import { WorkspaceController, type WorkspaceDeps, type WsManifest } from "./workspace-controller.js";
 import { stripL0Tokens } from "../redact/friendly.js";
-import type { AgentHooks, AgentWorker, AuthorOutcome, RepairOutcome } from "../agent/agent-worker.js";
+import type { AgentHooks, AgentWorker, AuthorImageRef, AuthorOutcome, RepairOutcome } from "../agent/agent-worker.js";
 import type { ProjectStage, ScriptEdit } from "../../shared/types.js";
 
 /**
@@ -728,5 +728,181 @@ describe("cancel (Dừng render) → recover prior stage", () => {
   it("cancel() is a no-op when nothing is running for the project", () => {
     const ctrl = new WorkspaceController(baseDeps());
     expect(() => ctrl.cancel("nope")).not.toThrow();
+  });
+});
+
+// Phase 2 Block B — beginCreate crawls article images, optionally AI-pre-selects,
+// optionally parks a blocking image-review, then authors with the approved set
+// folded into AuthorInput.images. These exercise the toggle matrix + the review
+// resolve path that the rest of the suite (all toggles off) never reaches.
+describe("Block B: crawl → (AI-filter) → (review) → author", () => {
+  type Captured = { images?: AuthorImageRef[] };
+  /**
+   * A worker that records the `images` of the LAST author() call (so a test can
+   * assert which crawled refs reached authoring) plus configurable crawl/filter
+   * doubles. scriptGate is forced ON by the controller's default settings, so a
+   * successful author parks at `script` — a stable point to inspect `captured`.
+   */
+  function crawlWorker(
+    captured: Captured,
+    over: {
+      crawl?: AgentWorker["crawlImages"];
+      filter?: AgentWorker["filterCrawledImages"];
+    } = {},
+  ): AgentWorker {
+    return {
+      author: async ({ input }): Promise<AuthorOutcome> => {
+        captured.images = input.images;
+        return { kind: "authored", sceneIds: ["scene-01"] };
+      },
+      reauthorScenes: async (): Promise<AuthorOutcome> => ({ kind: "authored", sceneIds: [] }),
+      publish: async () => ({ ok: true, outputPath: "out.mp4" }),
+      generateValidateRepair: async (): Promise<RepairOutcome> => ({ kind: "passed", attempts: 1 }),
+      ...(over.crawl ? { crawlImages: over.crawl } : {}),
+      ...(over.filter ? { filterCrawledImages: over.filter } : {}),
+    };
+  }
+
+  const img = (ref: string): { ref: string; width: number; height: number; sourceUrl: string } => ({
+    ref,
+    width: 800,
+    height: 600,
+    sourceUrl: `https://src.example/${ref}`,
+  });
+  const settings = (over: Partial<WorkspaceDeps["settings"]>): WorkspaceDeps["settings"] => ({
+    scriptGateEnabled: true,
+    maxRepairAttempts: 3,
+    visualQaEnabled: false,
+    imageCrawlAiFilter: false,
+    imageCrawlHumanReview: false,
+    ...over,
+  });
+
+  it("no link → authors immediately, never crawls", async () => {
+    const captured: Captured = {};
+    const crawlImages = vi.fn(async () => [img("a.png")]);
+    const ctrl = new WorkspaceController(baseDeps({ worker: crawlWorker(captured, { crawl: crawlImages }) }));
+    ctrl.beginCreate("p1", { text: "tin", urls: [] });
+    await flush();
+    expect(crawlImages).not.toHaveBeenCalled();
+    expect((await ctrl.stage("p1")).kind).toBe("script");
+    expect(captured.images).toBeUndefined();
+  });
+
+  it("link but zero crawled images → authors text-only (no review screen)", async () => {
+    const captured: Captured = {};
+    const ctrl = new WorkspaceController(
+      baseDeps({
+        worker: crawlWorker(captured, { crawl: async () => [] }),
+        settings: settings({ imageCrawlHumanReview: true, imageCrawlAiFilter: true }),
+      }),
+    );
+    ctrl.beginCreate("p1", { text: "tin", urls: ["https://a.example/post"] });
+    await flush();
+    expect((await ctrl.stage("p1")).kind).toBe("script"); // never parked review
+    expect(captured.images).toBeUndefined();
+  });
+
+  it("a crawl that throws never blocks authoring (best-effort) → text-only", async () => {
+    const captured: Captured = {};
+    const ctrl = new WorkspaceController(
+      baseDeps({
+        worker: crawlWorker(captured, { crawl: async () => { throw new Error("network"); } }),
+        settings: settings({ imageCrawlHumanReview: true }),
+      }),
+    );
+    ctrl.beginCreate("p1", { text: "tin", urls: ["https://a.example/post"] });
+    await flush();
+    expect((await ctrl.stage("p1")).kind).toBe("script");
+    expect(captured.images).toBeUndefined();
+  });
+
+  it("AI-filter ON + review OFF → authors with exactly the AI-suggested subset", async () => {
+    const captured: Captured = {};
+    const filter = vi.fn(async () => ["a.png"]); // keep a, drop b
+    const ctrl = new WorkspaceController(
+      baseDeps({
+        worker: crawlWorker(captured, { crawl: async () => [img("a.png"), img("b.png")], filter }),
+        settings: settings({ imageCrawlAiFilter: true, imageCrawlHumanReview: false }),
+      }),
+    );
+    ctrl.beginCreate("p1", { text: "bài báo", urls: ["https://a.example/post"] });
+    await flush();
+    expect(filter).toHaveBeenCalledTimes(1);
+    expect((await ctrl.stage("p1")).kind).toBe("script");
+    expect(captured.images).toEqual([{ ref: "a.png", width: 800, height: 600 }]);
+  });
+
+  it("both OFF → authors with the WHOLE crawled pool (authoring AI is the final filter)", async () => {
+    const captured: Captured = {};
+    const filter = vi.fn(async () => ["a.png"]);
+    const ctrl = new WorkspaceController(
+      baseDeps({
+        worker: crawlWorker(captured, { crawl: async () => [img("a.png"), img("b.png")], filter }),
+        settings: settings({ imageCrawlAiFilter: false, imageCrawlHumanReview: false }),
+      }),
+    );
+    ctrl.beginCreate("p1", { text: "tin", urls: ["https://a.example/post"] });
+    await flush();
+    expect(filter).not.toHaveBeenCalled(); // AI-filter off ⇒ no filter call
+    expect(captured.images).toEqual([
+      { ref: "a.png", width: 800, height: 600 },
+      { ref: "b.png", width: 800, height: 600 },
+    ]);
+  });
+
+  it("review ON → parks image-review with AI-suggested pre-ticked; submit authors the user's selection", async () => {
+    const captured: Captured = {};
+    const filter = vi.fn(async () => ["a.png"]); // AI suggests a
+    const ctrl = new WorkspaceController(
+      baseDeps({
+        worker: crawlWorker(captured, { crawl: async () => [img("a.png"), img("b.png")], filter }),
+        settings: settings({ imageCrawlAiFilter: true, imageCrawlHumanReview: true }),
+        assetMedia: (_id, ref) => `media://asset/${ref}`,
+      }),
+    );
+    ctrl.beginCreate("p1", { text: "bài báo", urls: ["https://a.example/post"] });
+    await flush();
+
+    const stage = await ctrl.stage("p1");
+    expect(stage.kind).toBe("image-review");
+    if (stage.kind === "image-review") {
+      expect(stage.images.map((i) => i.ref)).toEqual(["a.png", "b.png"]);
+      expect(stage.images.find((i) => i.ref === "a.png")?.suggested).toBe(true);
+      expect(stage.images.find((i) => i.ref === "b.png")?.suggested).toBe(false);
+      expect(stage.images[0]!.previewUrl).toBe("media://asset/a.png");
+    }
+    expect(captured.images).toBeUndefined(); // not authored yet (blocking)
+
+    // User overrides the suggestion: keeps b, drops a.
+    ctrl.submitImageReview("p1", ["b.png"]);
+    await flush();
+    expect((await ctrl.stage("p1")).kind).toBe("script");
+    expect(captured.images).toEqual([{ ref: "b.png", width: 800, height: 600 }]);
+  });
+
+  it("review ON, submit NONE → authors text-only", async () => {
+    const captured: Captured = {};
+    const ctrl = new WorkspaceController(
+      baseDeps({
+        worker: crawlWorker(captured, { crawl: async () => [img("a.png")] }),
+        settings: settings({ imageCrawlHumanReview: true }),
+      }),
+    );
+    ctrl.beginCreate("p1", { text: "tin", urls: ["https://a.example/post"] });
+    await flush();
+    expect((await ctrl.stage("p1")).kind).toBe("image-review");
+    ctrl.submitImageReview("p1", []);
+    await flush();
+    expect((await ctrl.stage("p1")).kind).toBe("script");
+    expect(captured.images).toBeUndefined();
+  });
+
+  it("submitImageReview is a no-op when no review is parked (stale/double submit)", async () => {
+    const captured: Captured = {};
+    const ctrl = new WorkspaceController(baseDeps({ worker: crawlWorker(captured) }));
+    expect(() => ctrl.submitImageReview("nope", ["a.png"])).not.toThrow();
+    await flush();
+    expect(captured.images).toBeUndefined();
   });
 });
