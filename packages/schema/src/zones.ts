@@ -1,15 +1,23 @@
 /**
  * Layout zones for the 9:16 (1080×1920) canvas — the single source of truth for
  * WHERE content, captions, and platform UI live. Blocks (`@news/blocks`), the
- * master composition, and the N14 safe-area oracle all read these so the rules
- * never drift between authoring and validation (author-mode-v2 R15).
+ * master composition, and the N14 oracles all read these so the rules never
+ * drift between authoring and validation (author-mode-v2 R15).
+ *
+ * ONE shared layout for every style. Styles differ only in CHROME (the "outfit":
+ * square vs rounded corners, framed vs frameless, fonts/colors) — NOT in where
+ * content/captions sit. So these zones are plain global constants; the oracles
+ * and every block read the same rectangles regardless of style pack.
  *
  * Rationale (short-platform friendly):
  *  - Primary content lives in an UPPER band (the content zone) so TikTok/Reels/
  *    Shorts UI and our own captions at the bottom never cover the message.
- *  - Captions get their own band below the content zone.
- *  - The bottom + right "platform-UI reserve" is kept clear of both, because the
- *    host app overlays its caption/username (bottom) and action rail (right).
+ *  - Captions get their own band below the content zone, sitting low (close to
+ *    where viewers expect subtitles) while staying mostly above the host
+ *    platform's own bottom UI.
+ *  - The bottom + right "platform-UI reserve" is kept clear, because the host app
+ *    overlays its caption/username (bottom) and action rail (right). It is a
+ *    VALIDATION threshold only — nothing renders from it.
  *
  * Pure constants only (no IO / no design import): `@news/schema` is the lowest
  * layer, so it cannot depend on `@news/design`.
@@ -22,23 +30,37 @@ export const CANVAS = { width: 1080, height: 1920 } as const;
 export type Rect = { top: number; bottom: number; left: number; right: number };
 
 /**
- * Where a scene's PRIMARY content must live: a top-margin → ~62% height band,
+ * Where a scene's PRIMARY content must live: a top-margin → ~68% height band,
  * biased upper/middle (never pinned to the very top, never into the caption
- * band). `Content` lays out inside this; N14 flags content outside it.
+ * band). `Content`/`Story` lay out inside this; the caption divider is drawn at
+ * its bottom; N14 flags content outside it.
+ *
+ * Lowered from the historical bottom of 1190 to 1350 so every scene gets more
+ * vertical room for images/visualizations, and so the divider sits close to the
+ * caption (only a ~20px gap) rather than floating well above it. ONE shared zone
+ * for all styles (styles differ only in chrome, not in where content sits).
  */
-export const CONTENT_ZONE: Rect = { top: 96, bottom: 1190, left: 80, right: 1000 };
+export const CONTENT_ZONE: Rect = { top: 96, bottom: 1350, left: 80, right: 1000 };
 
 /**
- * Where the burned-in single-line caption renders: ~64% → ~84% height, with
- * horizontal margins that clear the right-side action rail.
+ * Where the burned-in single-line caption renders: a band beneath the content
+ * zone, sitting low (near where viewers expect subtitles). Its bottom lands on
+ * the platform-UI reserve floor (1650), so the caption sits as low as we allow
+ * before it would collide with the host app's own bottom UI.
  */
-export const CAPTION_BAND: Rect = { top: 1230, bottom: 1610, left: 96, right: 984 };
+export const CAPTION_BAND: Rect = { top: 1370, bottom: 1650, left: 96, right: 984 };
 
 /**
  * Kept clear of content AND captions: the host platform paints its own UI here
- * (bottom caption/username band + right action rail).
+ * (bottom caption/username band + right action rail). VALIDATION threshold only
+ * — nothing renders from this. `right` uses the real-world safe-area value (150)
+ * confirmed from current platform layouts; `bottom` (270) is a deliberate product
+ * choice — a touch lower than the most conservative estimate — so the caption can
+ * sit low (it may lightly overlap the very top of the platform UI band, which is
+ * acceptable for a single-line burned caption), while still leaving the reserve
+ * for the host app's controls.
  */
-export const UI_RESERVE = { bottom: 300, right: 140 } as const;
+export const UI_RESERVE = { bottom: 270, right: 150 } as const;
 
 /** Inclusive width/height helpers for layout + oracle math. */
 export function rectWidth(r: Rect): number {

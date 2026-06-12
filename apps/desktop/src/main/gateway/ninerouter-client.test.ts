@@ -12,9 +12,11 @@ import { GatewayChatError, NineRouterClient, type FetchImpl } from "./ninerouter
 
 const MSG = [{ role: "user" as const, content: "hi" }];
 
-/** A JSON chat-completion Response with the given assistant text. */
-function okReply(text: string): Response {
-  return new Response(JSON.stringify({ choices: [{ message: { content: text } }] }), {
+/** A JSON chat-completion Response with the given assistant text + optional finish_reason. */
+function okReply(text: string, finishReason?: string): Response {
+  const choice: Record<string, unknown> = { message: { content: text } };
+  if (finishReason) choice.finish_reason = finishReason;
+  return new Response(JSON.stringify({ choices: [choice] }), {
     status: 200,
     headers: { "content-type": "application/json" },
   });
@@ -32,7 +34,10 @@ function clientWith(results: Array<Response | Error>): { client: NineRouterClien
     const r = results[Math.min(i, results.length - 1)] ?? statusReply(500);
     i++;
     if (r instanceof Error) throw r;
-    return r;
+    // A Response body can be read only once; the continuation loop may pull the
+    // SAME queued reply across several passes (e.g. the bounded-passes test reuses
+    // one "length" reply), so hand back a fresh clone each call.
+    return r.clone();
   };
   const sleep = vi.fn(async () => {});
   const client = new NineRouterClient("http://test", { fetchImpl, sleep });
@@ -91,5 +96,47 @@ describe("NineRouterClient.chat retry/backoff", () => {
     ctrl.abort();
     await expect(client.chat("m", MSG, { signal: ctrl.signal })).rejects.toBeInstanceOf(GatewayChatError);
     expect(calls()).toBe(1); // first attempt failed transient, but aborted → no retry
+  });
+});
+
+describe("NineRouterClient.chat continuation (finish_reason: length)", () => {
+  it("stitches a continuation pass when the first reply hit the token cap", async () => {
+    // First reply stopped on "length" (truncated); the second finishes ("stop").
+    // The two pieces concatenate into one full reply.
+    const { client, calls } = clientWith([okReply("phần đầu ", "length"), okReply("phần cuối", "stop")]);
+    expect(await client.chat("m", MSG)).toBe("phần đầu phần cuối");
+    expect(calls()).toBe(2);
+  });
+
+  it("returns immediately when the first reply finished (no continuation)", async () => {
+    const { client, calls } = clientWith([okReply("xong", "stop")]);
+    expect(await client.chat("m", MSG)).toBe("xong");
+    expect(calls()).toBe(1);
+  });
+
+  it("a reply with no finish_reason is treated as complete (back-compat)", async () => {
+    const { client, calls } = clientWith([okReply("không có finish_reason")]);
+    expect(await client.chat("m", MSG)).toBe("không có finish_reason");
+    expect(calls()).toBe(1);
+  });
+
+  it("bounds continuation to MAX_CONTINUATION_PASSES even if every pass stays truncated", async () => {
+    // Every reply says "length"; the loop must stop after the bounded passes
+    // (1 initial + 3 continuations = 4 calls) rather than looping forever.
+    const { client, calls } = clientWith([okReply("x", "length")]);
+    const out = await client.chat("m", MSG);
+    expect(out).toBe("xxxx"); // initial + 3 continuation passes
+    expect(calls()).toBe(4);
+  });
+
+  it("does not continue when the signal is already aborted (no extra passes)", async () => {
+    // A pre-aborted signal: the first turn still runs (the caller owns that), but
+    // the truncation-continuation loop must NOT fire additional passes.
+    const ctrl = new AbortController();
+    ctrl.abort();
+    const { client, calls } = clientWith([okReply("một phần", "length")]);
+    const out = await client.chat("m", MSG, { signal: ctrl.signal });
+    expect(out).toBe("một phần"); // only the first piece; no continuation
+    expect(calls()).toBe(1);
   });
 });

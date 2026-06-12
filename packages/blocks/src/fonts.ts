@@ -32,7 +32,7 @@ import { VENDORED_FONTS } from "./vendor-fonts.generated.js";
  * data: URL is a plain string and `FontFace` is guarded on `typeof`, so this
  * module is inert in Node and real in the browser.
  *
- * Family map: Inter (bold-editorial display/body), Be Vietnam Pro (clean-premium
+ * Family map: Inter (bold-editorial display/body), Be Vietnam Pro (galaxy
  * display/body), Cascadia Mono (both packs' mono labels) — all Vietnamese-complete.
  */
 

@@ -343,6 +343,118 @@ textarea.ns-input {
   box-shadow: 0 0 0 3px rgba(59, 111, 224, 0.25);
 }
 
+/* Chat-style composer: a bordered box holding the textarea + an action bar with
+ * an inline "+" attach button (Gemini/ChatGPT style). The box gets the focus ring
+ * (not the textarea) so the whole composer reads as one input. */
+.ns-composer {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--input);
+  transition: border-color 0.12s, box-shadow 0.12s;
+}
+.ns-composer:focus-within {
+  border-color: var(--ring);
+  box-shadow: 0 0 0 3px rgba(59, 111, 224, 0.25);
+}
+.ns-composer-input {
+  display: block;
+  width: 100%;
+  border: none;
+  background: transparent;
+  color: var(--foreground);
+  padding: 12px 14px;
+  font-size: 14px;
+  font-family: inherit;
+  outline: none;
+  resize: vertical;
+  max-height: 40vh;
+  box-sizing: border-box;
+}
+.ns-composer-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+}
+/* Round icon-only button (the inline "+" attach affordance). */
+.ns-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--foreground);
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+}
+.ns-icon-btn:hover {
+  background: var(--card-hover);
+}
+
+/* Style picker: a star icon-button next to "+" opening a popover of CSS-sketch
+   chips. The wrapper anchors the absolutely-positioned popover below the button. */
+.ns-style-pop-wrap {
+  position: relative;
+  display: inline-flex;
+}
+/* Transparent click-away layer so clicking outside closes the popover. */
+.ns-style-pop-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+}
+.ns-style-pop {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 21;
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+}
+.ns-style-pop-title {
+  font-size: 12px;
+  color: var(--muted-foreground);
+  margin: 0 0 8px;
+}
+.ns-style-pop-row {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.ns-style-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 6px;
+  border-radius: 8px;
+  border: 2px solid transparent;
+  background: transparent;
+  color: var(--muted-foreground);
+  cursor: pointer;
+  transition: border-color 0.12s, background 0.12s, color 0.12s;
+}
+.ns-style-card:hover {
+  background: var(--card-hover);
+}
+.ns-style-card.is-active {
+  border-color: var(--brand);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--foreground);
+}
+.ns-style-card-name {
+  font-size: 12px;
+  max-width: 76px;
+  text-align: center;
+  line-height: 1.2;
+}
+
 /* Settings: left-rail tabs + enterprise toggle switch */
 .ns-settings {
   display: grid;

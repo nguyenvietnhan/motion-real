@@ -9,6 +9,9 @@ import {
   writeAuthoredScene,
   writeJson,
   unregisterComponent,
+  makeSafeFetch,
+  crawlArticleImages,
+  type CrawledImage,
   type Manifest,
   type ManifestScene,
   type AdmitProjectResult,
@@ -19,9 +22,9 @@ import {
 import type { createTools } from "@news/mcp";
 import type { AuthoringBackend, AuthoredScene, ReauthorTarget } from "../agent/custom-loop-worker.js";
 import type { SafetyReportView } from "../agent/repair-loop.js";
-import type { AuthorJob, VisualDefect, SceneSnapshot } from "../agent/agent-worker.js";
+import type { AuthorJob, VisualDefect, SceneSnapshot, AuthorImageRef } from "../agent/agent-worker.js";
 import { GatewayChatError, type NineRouterClient, type ChatMessage } from "../gateway/ninerouter-client.js";
-import { buildAuthorMessages, buildReauthorMessages, buildVisualQaMessages } from "./prompt.js";
+import { buildAuthorMessages, buildReauthorMessages, buildVisualQaMessages, buildImageFilterMessages, type AuthorImageInput } from "./prompt.js";
 import { parseAuthorReply } from "./reply-parser.js";
 import { parseReauthorReply } from "./reply-parser.js";
 import type { AuthorManifest } from "./manifest-schema.js";
@@ -30,6 +33,7 @@ import { sceneFileName, resolveSceneFile } from "./scene-files.js";
 import { normalizeAuthoredImports } from "./normalize-imports.js";
 import { normalizeAuthoredFontSizes } from "./normalize-fontsize.js";
 import { loadAuthoredTsx } from "./tsx-loader.js";
+import { listStylePackIds } from "@news/design";
 
 /**
  * Pure-AUTHOR authoring backend (desktop-author-mode). The AI writes FRESH `.tsx`
@@ -106,31 +110,82 @@ function readStillDataUrl(path: string): string | undefined {
 
 /** Engine ThemeSpec limits: dominant must be 6-digit hex, mood ≤40 chars. */
 const HEX6 = /^#[0-9a-fA-F]{6}$/;
-function sanitizeTheme(theme: { dominant: string; mood?: string }): { dominant: string; mood?: string } {
+function sanitizeTheme(
+  theme: { dominant: string; mood?: string },
+  stylePackId?: string,
+): { dominant: string; mood?: string; stylePackId?: string } {
   const dominant = HEX6.test(theme.dominant.trim()) ? theme.dominant.trim() : "#1E9CB0";
   const mood = (theme.mood ?? "").trim().slice(0, 40);
-  return mood ? { dominant, mood } : { dominant };
+  // Only honor a stylePackId that is actually registered — an unknown id (stale
+  // renderer, hand-edited request) falls through to the engine default rather
+  // than reaching the manifest and tripping the N1 unknown-pack hard error.
+  const pack = stylePackId && listStylePackIds().includes(stylePackId) ? stylePackId : undefined;
+  return {
+    dominant,
+    ...(mood ? { mood } : {}),
+    ...(pack ? { stylePackId: pack } : {}),
+  };
 }
 
-/** AuthorManifest (open-id, pure-author) → engine Manifest with sequential scene ids. */
-function toEngineManifest(m: AuthorManifest): Manifest {
-  const scenes: ManifestScene[] = m.scenes.map((s, i) => ({
-    id: `scene-${String(i + 1).padStart(2, "0")}`,
-    component: s.component,
-    eyebrow: s.eyebrow,
-    headline: s.headline,
-    narration: s.narration,
-    props: s.props ?? {},
-    ...(s.body ? { body: s.body } : {}),
-    ...(s.transitionToNext ? { transitionToNext: s.transitionToNext } : {}),
-  }));
+/**
+ * AuthorManifest (open-id, pure-author) → engine Manifest with sequential scene
+ * ids. `allowedRefs` is the set of image refs we actually provided to the model;
+ * any scene `image.ref` NOT in that set is a hallucinated path and is DROPPED
+ * (defense-in-depth so an invented ref never reaches the manifest/render — the
+ * N9 build existence check is the backstop). Empty set ⇒ no images were offered,
+ * so every `image` is dropped.
+ *
+ * `stylePackId` is the look the USER picked at the create screen (the AI never
+ * authors it — it only writes `theme.dominant`/`mood`). We inject it into the
+ * engine theme here so the chosen pack drives chrome + layout at render; an
+ * unregistered id is dropped (engine default) by `sanitizeTheme`.
+ */
+function toEngineManifest(
+  m: AuthorManifest,
+  allowedRefs: ReadonlySet<string> = new Set(),
+  stylePackId?: string,
+): Manifest {
+  const scenes: ManifestScene[] = m.scenes.map((s, i) => {
+    const keepImage = s.image && allowedRefs.has(s.image.ref);
+    if (s.image && !keepImage) {
+      console.warn(`[authoring] dropping scene-${String(i + 1).padStart(2, "0")} image with non-provided ref "${s.image.ref}".`);
+    }
+    return {
+      id: `scene-${String(i + 1).padStart(2, "0")}`,
+      component: s.component,
+      eyebrow: s.eyebrow,
+      headline: s.headline,
+      narration: s.narration,
+      props: s.props ?? {},
+      ...(s.body ? { body: s.body } : {}),
+      ...(keepImage ? { image: { ref: s.image!.ref, ...(s.image!.alt ? { alt: s.image!.alt } : {}) } } : {}),
+      ...(s.transitionToNext ? { transitionToNext: s.transitionToNext } : {}),
+    };
+  });
   // Clamp to the engine VideoSpec limits so AI variance never trips schema
   // validation: title ≤140, theme.dominant hex, theme.mood ≤40.
-  return { title: m.title.slice(0, 140), theme: sanitizeTheme(m.theme), scenes } as Manifest;
+  return { title: m.title.slice(0, 140), theme: sanitizeTheme(m.theme, stylePackId), scenes } as Manifest;
 }
 
 export class NineRouterAuthoringBackend implements AuthoringBackend {
   constructor(private readonly deps: NineRouterBackendDeps) {}
+
+  /**
+   * Model ids that rejected an INLINE image this session (Phase 2 Block B
+   * hardening). Some providers behind 9router (e.g. `kr/auto` routing to Kiro)
+   * answer an `image_url` data-URL part with HTTP 400 "Improperly formed
+   * request" — and a 400 trips 9router's ~2-minute circuit breaker, which then
+   * fails EVERY following call (even text-only authoring) until it resets. Once
+   * we see that, we remember the model can't take images and send text-only
+   * DIRECTLY from then on — so we never trip the breaker a second time. Per
+   * process (capabilities don't change mid-session); cleared on restart.
+   */
+  private readonly imageUnsupportedModels = new Set<string>();
+
+  /** A 400 that means "this provider can't take the inline image", not a transient blip. */
+  private isImageRejection(e: unknown): boolean {
+    return e instanceof GatewayChatError && e.kind === "http" && e.status === 400;
+  }
 
   async authorScenes(job: AuthorJob): Promise<{ scenes: AuthoredScene[]; message?: string; unreadableUrls?: string[] }> {
     const model = this.deps.model();
@@ -161,11 +216,18 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
     }
     const research = chunks.length > 0 ? chunks.join("\n\n---\n\n") : undefined;
 
-    const messages = buildAuthorMessages(job.input, research);
+    // Provided images (Phase 2 Block A): read each already-imported asset into a
+    // data URL so the model can SEE it and decide placement. A ref we can't read
+    // is skipped (never blocks authoring). `allowedRefs` is the set the model was
+    // actually shown, used below to strip any hallucinated ref from the manifest.
+    const images = this.buildAuthorImages(job.projectId, job.input.images ?? []);
+    const allowedRefs = new Set(images.map((i) => i.ref));
+
+    const messages = buildAuthorMessages(job.input, research, images.length > 0 ? images : undefined);
     let reply: string;
     try {
       console.log(`[authoring] calling AI model "${model}" for project ${job.projectId}…`);
-      reply = await this.deps.client.chat(model, messages, { apiKey: this.deps.apiKey() });
+      reply = await this.chatWithVisionFallback(model, messages);
       console.log(`[authoring] AI replied (${reply.length} chars) for project ${job.projectId}.`);
     } catch (e) {
       console.error(`[authoring] AI call failed for project ${job.projectId}:`, e);
@@ -185,7 +247,7 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
       unregisterComponent(mod.id);
       await writeAuthoredScene(job.projectId, sceneFileName(mod.id), normalizeAuthoredFontSizes(normalizeAuthoredImports(mod.code)));
     }
-    const engineManifest = toEngineManifest(parsed.manifest);
+    const engineManifest = toEngineManifest(parsed.manifest, allowedRefs, job.input.stylePackId);
     await writeJson(manifestPathOf(job.projectId), engineManifest);
 
     const admit = this.deps.admit ?? ((id: string) => admitProjectScenes(id, { load: loadAuthoredTsx }));
@@ -220,6 +282,14 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
     const reviewDir = projectPaths(projectId).reviewDir;
     const admitOne = this.deps.admitOne ?? ((p: string) => admitAndRegisterAuthored(p, { load: loadAuthoredTsx }));
     const done: AuthoredScene[] = [];
+
+    // The project's chosen design language drives the repair prompt too, so a
+    // galaxy scene is rewritten with galaxy rules (not the cream/squared default).
+    // Read it once from the stored manifest; an unreadable/absent id ⇒ undefined
+    // (the prompt builder falls back to the default language).
+    const stylePackId = await loadManifest(projectId)
+      .then((m) => m.theme?.stylePackId)
+      .catch(() => undefined);
 
     for (const t of targets) {
       // A user "Dừng render" mid-reauthor stops before the next scene's AI call
@@ -256,6 +326,7 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
           sceneId: t.sceneId,
           componentId,
           currentCode: originalCode,
+          ...(stylePackId ? { stylePackId } : {}),
           ...(t.issues ? { issues: t.issues } : {}),
           ...(intent ? { intent } : {}),
           ...(stillDataUrl ? { stillDataUrl } : {}),
@@ -289,7 +360,7 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
         console.error(`[reauthor] re-admit failed for ${t.sceneId} (attempt ${attempt + 1}); ${last ? "rolling back" : "retrying with feedback"}:\n${violationText}`);
         feedback =
           `Lần trước mã bị TỪ CHỐI khi nạp:\n${violationText}\n\n` +
-          `Sửa đúng import whitelist: useTheme/chromeBorder/frameRamp/useRamp nhập từ "@news/blocks" (KHÔNG nhập từ "@news/design"); ` +
+          `Sửa đúng import whitelist: useTheme/surfaceBorder/frameRamp/useRamp nhập từ "@news/blocks" (KHÔNG nhập từ "@news/design"); ` +
           `chỉ dùng API được phép; giữ nguyên id "${componentId}". Trả về lại đúng một khối tsx.`;
       }
 
@@ -319,21 +390,72 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
     }
   }
 
-  /** Call the model; if a vision (image) call fails, retry text-only (Req 3.7). */
+  /**
+   * Read each provided image (already imported into the project `assetsDir` as
+   * `assets/<sha>.<ext>`) into a data URL so the model can SEE it and decide
+   * placement (Phase 2 Block A). A ref we can't read on disk is skipped (never
+   * blocks authoring) and is thereby also excluded from the allowed-ref set, so a
+   * scene the model pins to a missing image gets stripped downstream.
+   */
+  private buildAuthorImages(projectId: string, refs: AuthorImageRef[]): AuthorImageInput[] {
+    const root = projectPaths(projectId).root;
+    const out: AuthorImageInput[] = [];
+    for (const r of refs) {
+      const abs = join(root, r.ref);
+      try {
+        if (!existsSync(abs)) continue;
+        const ext = r.ref.split(".").pop()?.toLowerCase() ?? "png";
+        const mime = ext === "jpg" ? "jpeg" : ext;
+        const dataUrl = `data:image/${mime};base64,${readFileSync(abs).toString("base64")}`;
+        out.push({ ref: r.ref, width: r.width, height: r.height, dataUrl });
+      } catch {
+        /* unreadable asset → skip; authoring continues without this image */
+      }
+    }
+    return out;
+  }
+
+  /** Flatten any multimodal (vision) message to text-only (drop image parts). */
+  private toTextOnly(messages: ChatMessage[]): ChatMessage[] {
+    return messages.map((m) => ({
+      role: m.role,
+      content: Array.isArray(m.content)
+        ? m.content.filter((p) => p.type === "text").map((p) => (p as { text: string }).text).join("\n")
+        : m.content,
+    }));
+  }
+
+  /**
+   * Call the model with vision parts, degrading to text-only safely (Req 3.7 +
+   * Phase 2 Block B hardening). Key behaviors:
+   *  - if the chosen model already rejected an inline image THIS session, skip
+   *    vision and send text-only DIRECTLY — never re-trip 9router's ~2-minute
+   *    circuit breaker (a 400 there fails every following call, even authoring);
+   *  - on a 400 "improperly formed" from a call that carried an image, remember
+   *    the model can't take images, then retry text-only;
+   *  - a non-image failure (or a text-only message) is rethrown unchanged.
+   */
   private async chatWithVisionFallback(model: string, messages: ChatMessage[], signal?: AbortSignal): Promise<string> {
+    const apiKey = this.deps.apiKey();
+    const hasImage = messages.some((m) => Array.isArray(m.content) && m.content.some((p) => p.type === "image_url"));
+
+    // Known image-incapable model → don't even attempt vision (avoid the breaker).
+    if (hasImage && this.imageUnsupportedModels.has(model)) {
+      return this.deps.client.chat(model, this.toTextOnly(messages), { apiKey, ...(signal ? { signal } : {}) });
+    }
     try {
-      return await this.deps.client.chat(model, messages, { apiKey: this.deps.apiKey(), ...(signal ? { signal } : {}) });
+      return await this.deps.client.chat(model, messages, { apiKey, ...(signal ? { signal } : {}) });
     } catch (e) {
-      const hasImage = messages.some((m) => Array.isArray(m.content) && m.content.some((p) => p.type === "image_url"));
       if (!hasImage) throw e;
-      console.warn("[reauthor] vision chat failed; retrying text-only:", e);
-      const textOnly: ChatMessage[] = messages.map((m) => ({
-        role: m.role,
-        content: Array.isArray(m.content)
-          ? m.content.filter((p) => p.type === "text").map((p) => (p as { text: string }).text).join("\n")
-          : m.content,
-      }));
-      return await this.deps.client.chat(model, textOnly, { apiKey: this.deps.apiKey(), ...(signal ? { signal } : {}) });
+      // The image part is what the provider choked on → remember it so future
+      // calls skip vision, then retry this one text-only.
+      if (this.isImageRejection(e)) {
+        this.imageUnsupportedModels.add(model);
+        console.warn(`[authoring] model "${model}" rejected an inline image (HTTP 400); using text-only for it this session.`);
+      } else {
+        console.warn("[authoring] vision chat failed; retrying text-only:", e);
+      }
+      return this.deps.client.chat(model, this.toTextOnly(messages), { apiKey, ...(signal ? { signal } : {}) });
     }
   }
 
@@ -391,6 +513,79 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
       );
     }
     return { ok: hardErrors.length === 0, hardErrors, warnings: res.data.warnings };
+  }
+
+  /**
+   * AI image-filter (Phase 2 Block B): ask the (vision) model which CRAWLED
+   * article images actually illustrate the content, so the review screen can
+   * pre-tick them (or, with human-review off, author uses exactly this set).
+   * Reuses `buildAuthorImages` to read each ref → data URL, then intersects the
+   * model's `keep` list with the provided refs (defense-in-depth, same spirit as
+   * the manifest `allowedRefs` strip). Best-effort + model-dependent: no model,
+   * no readable images, a vision failure, or an unparseable reply all yield `[]`
+   * (no pre-selection — the review screen still works, author falls back to all).
+   */
+  async filterCrawledImages(
+    projectId: string,
+    articleText: string,
+    refs: AuthorImageRef[],
+    signal?: AbortSignal,
+  ): Promise<string[]> {
+    const model = this.deps.model();
+    if (!model || refs.length === 0) return [];
+    // This call is image-ONLY (no meaningful text-only form), so if the model is
+    // already known to reject inline images, don't even try — calling would just
+    // 400 and trip 9router's circuit breaker, which would then fail the authoring
+    // call that follows. No pre-selection; the review screen still works.
+    if (this.imageUnsupportedModels.has(model)) return [];
+    const images = this.buildAuthorImages(projectId, refs);
+    if (images.length === 0) return [];
+    const allowed = new Set(images.map((i) => i.ref));
+    let reply: string;
+    try {
+      reply = await this.chatWithVisionFallback(model, buildImageFilterMessages(articleText, images), signal);
+    } catch (e) {
+      console.warn("[image-filter] vision call failed; no pre-selection:", e);
+      return [];
+    }
+    const json = extractJsonObject(reply);
+    if (!json) return [];
+    try {
+      const keep = (JSON.parse(json) as { keep?: unknown }).keep;
+      if (!Array.isArray(keep)) return [];
+      // Intersect with the provided refs so a hallucinated path can't slip in.
+      return keep.filter((r): r is string => typeof r === "string" && allowed.has(r));
+    } catch {
+      return [];
+    }
+  }
+
+  /**
+   * Crawl an article URL's images into the project `assetsDir` (Phase 2 Block B).
+   * Fetches the page HTML through the SSRF-guarded TEXT fetcher, then hands it to
+   * `crawlArticleImages` which downloads each candidate (binary SSRF fetcher),
+   * imports content-addressed (caps + magic-byte sniff), and coarse-filters by
+   * dimension. Best-effort: a page-fetch failure yields `[]` (crawl never blocks
+   * authoring). Returns the local `assets/<sha>.<ext>` ref pool.
+   */
+  async crawlImages(projectId: string, url: string, signal?: AbortSignal): Promise<CrawledImage[]> {
+    const destDir = projectPaths(projectId).assetsDir;
+    let html: string;
+    try {
+      const res = await makeSafeFetch()(url);
+      if (!res.ok) return [];
+      html = await res.text();
+    } catch (e) {
+      console.warn(`[crawl] page fetch failed for ${url}; no images crawled:`, e);
+      return [];
+    }
+    if (signal?.aborted) return [];
+    try {
+      return await crawlArticleImages(html, url, destDir);
+    } catch (e) {
+      console.warn(`[crawl] image crawl failed for ${url}:`, e);
+      return [];
+    }
   }
 
   /**

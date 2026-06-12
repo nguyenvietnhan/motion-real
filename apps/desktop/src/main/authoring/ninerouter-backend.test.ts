@@ -103,6 +103,65 @@ describe("authorScenes (pure-author)", () => {
     expect(out.message).toMatch(/model/i);
   });
 
+  it("injects the user-chosen stylePackId into the manifest theme (the AI never authors it)", async () => {
+    const projectId = "pa-style";
+    const { backend } = makeBackend(validReply());
+    // galaxy is a registered pack; the AI's manifest carries only
+    // theme.dominant/mood, so the chosen pack must be injected by the backend.
+    const job: AuthorJob = { projectId, input: { text: "chủ đề", urls: [], stylePackId: "galaxy" }, scriptGate: false };
+
+    await backend.authorScenes(job);
+
+    const manifest = JSON.parse(readFileSync(join(home, ".video-tool", "projects", projectId, "manifest.json"), "utf8"));
+    expect(manifest.theme.stylePackId).toBe("galaxy");
+  });
+
+  it("drops an UNREGISTERED stylePackId (falls back to the engine default, never trips N1)", async () => {
+    const projectId = "pa-style-bad";
+    const { backend } = makeBackend(validReply());
+    const job: AuthorJob = { projectId, input: { text: "chủ đề", urls: [], stylePackId: "does-not-exist" }, scriptGate: false };
+
+    await backend.authorScenes(job);
+
+    const manifest = JSON.parse(readFileSync(join(home, ".video-tool", "projects", projectId, "manifest.json"), "utf8"));
+    expect(manifest.theme.stylePackId).toBeUndefined();
+  });
+
+  it("keeps a provided image.ref on a scene and STRIPS an invented one (Phase 2 Block A)", async () => {
+    const projectId = "pa-image";
+    // The provided image must exist on disk so buildAuthorImages can read it into
+    // the vision part (and thus add its ref to the allowed set). Use a tiny PNG.
+    const assetsDir = join(home, ".video-tool", "projects", projectId, "assets");
+    mkdirSync(assetsDir, { recursive: true });
+    const providedRef = "assets/abc123.png";
+    writeFileSync(join(home, ".video-tool", "projects", projectId, providedRef), Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
+
+    // The AI reply pins the provided ref on scene-01 and an INVENTED ref on scene-02.
+    const manifest = {
+      title: "Có ảnh",
+      theme: { dominant: "#1E9CB0", mood: "thử" },
+      scenes: [
+        { component: "alpha", eyebrow: "A", headline: "Một", narration: "Câu một.", image: { ref: "assets/abc123.png" } },
+        { component: "beta", eyebrow: "B", headline: "Hai", narration: "Câu hai.", image: { ref: "https://evil.example/x.png" } },
+        { component: "alpha", eyebrow: "C", headline: "Ba", narration: "Câu ba." },
+      ],
+    };
+    const reply = "```json\n" + JSON.stringify(manifest) + "\n```\n\n" + block("alpha") + "\n\n" + block("beta");
+    const { backend } = makeBackend(reply);
+    const job: AuthorJob = {
+      projectId,
+      input: { text: "chủ đề", urls: [], images: [{ ref: providedRef, width: 800, height: 600 }] },
+      scriptGate: false,
+    };
+
+    await backend.authorScenes(job);
+
+    const written = JSON.parse(readFileSync(join(home, ".video-tool", "projects", projectId, "manifest.json"), "utf8"));
+    expect(written.scenes[0].image).toEqual({ ref: "assets/abc123.png" }); // provided ref survives
+    expect(written.scenes[1].image).toBeUndefined(); // invented remote ref stripped
+    expect(written.scenes[2].image).toBeUndefined();
+  });
+
   it("reports links it could NOT read in unreadableUrls (so the UI can warn the user)", async () => {
     const projectId = "pa-unreadable";
     const { backend } = makeBackend(validReply());
@@ -275,5 +334,75 @@ describe("authorCallErrorMessage (typed gateway failures → Vietnamese)", () =>
   it("a non-GatewayChatError falls back to the generic connection message", () => {
     const msg = authorCallErrorMessage(new Error("boom"));
     expect(msg).toMatch(/Không nhận được phản hồi/i);
+  });
+});
+
+// --- vision-incapable model hardening (Phase 2 Block B) ------------------
+
+/** True when a chat message list carries at least one inline image part. */
+function listHasImage(messages: ChatMessage[]): boolean {
+  return messages.some((m) => Array.isArray(m.content) && m.content.some((p) => (p as ContentPart).type === "image_url"));
+}
+
+/** Write a tiny readable PNG asset so buildAuthorImages can build a vision part. */
+function writeAsset(projectId: string, ref: string): void {
+  const abs = join(home, ".video-tool", "projects", projectId, ref);
+  mkdirSync(join(abs, ".."), { recursive: true });
+  writeFileSync(abs, Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
+}
+
+describe("vision-incapable model hardening", () => {
+  it("authorScenes: a 400 on the image call falls back to text-only and still authors", async () => {
+    const projectId = "hard-fallback";
+    writeAsset(projectId, "assets/img.png");
+    const chat = vi.fn(async (_model: string, messages: ChatMessage[]) => {
+      if (listHasImage(messages)) throw new GatewayChatError("http", "HTTP 400 improperly formed", { status: 400 });
+      return validReply();
+    });
+    const deps: NineRouterBackendDeps = {
+      client: { chat } as unknown as NineRouterClient,
+      tools: {} as never,
+      model: () => "kr/auto",
+      apiKey: () => undefined,
+      admit: vi.fn(async () => ({ ok: true as const, componentIds: ["alpha", "beta"], files: [] })),
+    };
+    const backend = new NineRouterAuthoringBackend(deps);
+    const out = await backend.authorScenes({
+      projectId,
+      input: { text: "chủ đề", urls: [], images: [{ ref: "assets/img.png", width: 800, height: 600 }] },
+      scriptGate: false,
+    });
+    expect(out.scenes.length).toBeGreaterThan(0); // authored via the text-only retry
+    expect(chat).toHaveBeenCalledTimes(2); // image attempt (400) + text-only retry
+    expect(listHasImage(chat.mock.calls[0]![1] as ChatMessage[])).toBe(true);
+    expect(listHasImage(chat.mock.calls[1]![1] as ChatMessage[])).toBe(false);
+  });
+
+  it("once a model rejects an image, filterCrawledImages short-circuits to [] (no call, no breaker)", async () => {
+    const projectId = "hard-filter";
+    writeAsset(projectId, "assets/a.png");
+    const chat = vi.fn(async (_model: string, messages: ChatMessage[]) => {
+      if (listHasImage(messages)) throw new GatewayChatError("http", "HTTP 400 improperly formed", { status: 400 });
+      return validReply();
+    });
+    const deps: NineRouterBackendDeps = {
+      client: { chat } as unknown as NineRouterClient,
+      tools: {} as never,
+      model: () => "kr/auto",
+      apiKey: () => undefined,
+      admit: vi.fn(async () => ({ ok: true as const, componentIds: ["alpha", "beta"], files: [] })),
+    };
+    const backend = new NineRouterAuthoringBackend(deps);
+    // First, an authoring call that hits the 400 marks the model image-unsupported.
+    await backend.authorScenes({
+      projectId,
+      input: { text: "x", urls: [], images: [{ ref: "assets/a.png", width: 800, height: 600 }] },
+      scriptGate: false,
+    });
+    chat.mockClear();
+    // Now the filter must NOT call the model at all (it would only 400 + trip the breaker).
+    const keep = await backend.filterCrawledImages(projectId, "bài báo", [{ ref: "assets/a.png", width: 800, height: 600 }]);
+    expect(keep).toEqual([]);
+    expect(chat).not.toHaveBeenCalled();
   });
 });

@@ -5,6 +5,7 @@ export { typecheckAuthoredScenes } from "./typecheck-authored.js";
 export { lintSceneSources, compositionsSrcDir } from "./forbidden-api.js";
 export {
   runRenderGrid,
+  RENDER_ORACLES,
   checkSafeArea,
   checkContentZone,
   checkOverlap,
@@ -20,6 +21,7 @@ export {
   frameDiffFraction,
   type Frame,
   type Rect,
+  type RenderOracle,
   type RenderGridOptions,
   type RenderGridArtifacts,
 } from "./render-grid.js";

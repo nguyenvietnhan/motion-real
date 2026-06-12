@@ -22,15 +22,15 @@ describe("style-pack fonts — Property 19: Vietnamese coverage + render-safe", 
   it("every style pack's font families are render-safe loaded families", () => {
     const loaded = new Set<string>([interFamily, bvpFamily, cascadiaFamily]); // Inter, Be Vietnam Pro, Cascadia Mono
     for (const id of listStylePackIds()) {
-      const f = getStylePack(id)!.chrome.fontFamily;
+      const f = getStylePack(id)!.fonts;
       for (const stack of [f.display, f.body, f.mono]) {
         expect(loaded.has(leading(stack))).toBe(true);
       }
     }
   });
 
-  it("clean-premium leads with Be Vietnam Pro (the Vietnamese-complete premium face)", () => {
-    expect(leading(getStylePack("clean-premium")!.chrome.fontFamily.display)).toBe("Be Vietnam Pro");
+  it("galaxy leads with Be Vietnam Pro (the Vietnamese-complete premium face)", () => {
+    expect(leading(getStylePack("galaxy")!.fonts.display)).toBe("Be Vietnam Pro");
   });
 });
 

@@ -184,13 +184,25 @@ describe("static grid — N8 number rules (warning)", () => {
   });
 });
 
-describe("static grid — N9 media ban (hard)", () => {
-  it("fires when props contain a forbidden media key", () => {
+describe("static grid — N9 remote-media ban (hard)", () => {
+  it("fires when a scene image.ref is a remote URL", () => {
     const spec = validSpec();
-    (spec.scenes[6]!.props as Record<string, unknown>).assetRef = "https://x/y.png";
+    spec.scenes[6]!.image = { ref: "https://x/y.png" };
     const set = checks(spec);
     expect(set.has("N9")).toBe(true);
     expect(runStaticGrid(spec).ok).toBe(false);
+  });
+
+  it("passes a scene with a LOCAL image.ref", () => {
+    const spec = validSpec();
+    spec.scenes[6]!.image = { ref: "assets/photo.png" };
+    expect(runStaticGrid(spec).issues.some((i) => i.check === "N9")).toBe(false);
+  });
+
+  it("fires when a remote image URL is hidden in free-form props", () => {
+    const spec = validSpec();
+    (spec.scenes[6]!.props as Record<string, unknown>).bg = "https://cdn.example.com/banner.jpg";
+    expect(runStaticGrid(spec).issues.some((i) => i.check === "N9")).toBe(true);
   });
 
   it("does NOT ban a caption-related prop key (captions are now a feature)", () => {
@@ -223,7 +235,7 @@ describe("static grid — N1 unknown style pack (hard)", () => {
 
   it("accepts a registered style pack and the default (no id)", () => {
     const withPack = validSpec();
-    withPack.theme = { dominant: "#2F5FF0", stylePackId: "clean-premium" };
+    withPack.theme = { dominant: "#2F5FF0", stylePackId: "galaxy" };
     expect(runStaticGrid(withPack).issues.some((i) => /stylePackId/i.test(i.message))).toBe(false);
 
     const noPack = validSpec();

@@ -53,7 +53,7 @@ describe("doctor — per-check defaults (R6.1, R6.2)", () => {
     expect(check.name).toBe("style packs");
     expect(check.ok).toBe(true);
     expect(check.detail).toMatch(/bold-editorial/);
-    expect(check.detail).toMatch(/clean-premium/);
+    expect(check.detail).toMatch(/galaxy/);
   });
 
   it("font check passes: every style-pack font covers the vietnamese subset", () => {

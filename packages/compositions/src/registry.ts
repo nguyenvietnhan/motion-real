@@ -1,5 +1,6 @@
 import type React from "react";
 import { z } from "zod";
+import type { SceneImage } from "@news/schema";
 
 /**
  * Open, extensible component registry. Each scene component declares its own
@@ -14,6 +15,12 @@ export type SceneComponentProps<P = Record<string, unknown>> = {
   body?: string;
   eyebrow?: string;
   props: P;
+  /**
+   * The scene's single optional LOCAL image (≤1 per scene; see
+   * `SceneImageSchema`). Render it via the sanctioned `<SceneImage>` block —
+   * authored `.tsx` cannot import `Img`/`staticFile` directly (admission N5).
+   */
+  image?: SceneImage;
 };
 
 export type SceneComponentDefinition<P = any> = {

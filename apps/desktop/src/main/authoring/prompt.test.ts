@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildAuthorMessages, buildReauthorMessages, type ContentPart } from "./prompt.js";
+import { buildAuthorMessages, buildImageFilterMessages, buildReauthorMessages, type ContentPart } from "./prompt.js";
 
 /**
  * Feature: desktop-author-mode — prompt builders carry the full Authoring_Contract
@@ -42,6 +42,34 @@ describe("buildAuthorMessages", () => {
     expect(text).toMatch(/KHÔNG bịa/);
     expect(text).not.toContain("hiểu biết đáng tin");
   });
+
+  it("is byte-identical with no images vs an empty image list (no regression)", () => {
+    const a = buildAuthorMessages({ text: "Chủ đề X", urls: [] });
+    const b = buildAuthorMessages({ text: "Chủ đề X", urls: [] }, undefined, []);
+    expect(JSON.stringify(a)).toBe(JSON.stringify(b));
+    // user content stays a plain string (the text-only shape), not parts.
+    expect(typeof a[1]!.content).toBe("string");
+  });
+
+  it("attaches one image_url part per provided image + names its ref/dimensions", () => {
+    const images = [
+      { ref: "assets/aaa.png", width: 800, height: 600, dataUrl: "data:image/png;base64,AAA" },
+      { ref: "assets/bbb.jpg", width: 1024, height: 768, dataUrl: "data:image/jpeg;base64,BBB" },
+    ];
+    const msgs = buildAuthorMessages({ text: "Chủ đề có ảnh", urls: [] }, undefined, images);
+    const sys = msgs[0]!;
+    const parts = msgs[1]!.content as ContentPart[];
+    // The system prompt gains the image rule (use only provided refs via <SceneImage>).
+    expect(sys.content).toContain("SceneImage");
+    expect(sys.content).toMatch(/KHÔNG bịa đường dẫn/);
+    // One image_url per image, each preceded by a text line naming its ref + size.
+    const imageParts = parts.filter((p) => p.type === "image_url");
+    expect(imageParts).toHaveLength(2);
+    expect(imageParts.some((p) => p.type === "image_url" && p.image_url.url === "data:image/png;base64,AAA")).toBe(true);
+    const text = parts.filter((p): p is { type: "text"; text: string } => p.type === "text").map((p) => p.text).join(" ");
+    expect(text).toContain("assets/aaa.png");
+    expect(text).toContain("800×600");
+  });
 });
 
 describe("buildReauthorMessages", () => {
@@ -63,5 +91,28 @@ describe("buildReauthorMessages", () => {
     expect(Array.isArray(parts)).toBe(true);
     expect(parts.some((p) => p.type === "image_url" && p.image_url.url === "data:image/png;base64,AAA")).toBe(true);
     expect(parts.some((p) => p.type === "text")).toBe(true);
+  });
+});
+
+describe("buildImageFilterMessages", () => {
+  const images = [
+    { ref: "assets/aaa.png", width: 800, height: 600, dataUrl: "data:image/png;base64,AAA" },
+    { ref: "assets/bbb.jpg", width: 1024, height: 768, dataUrl: "data:image/jpeg;base64,BBB" },
+  ];
+
+  it("carries the article summary + one image_url per candidate, each labeled by its ref", () => {
+    const msgs = buildImageFilterMessages("Bài nói về sự kiện X", images);
+    const sys = msgs[0]!;
+    const parts = msgs[1]!.content as ContentPart[];
+    // System prompt instructs keep-fitting / drop logo+ads, and the JSON shape.
+    expect(sys.content).toMatch(/logo/i);
+    expect(sys.content).toContain("keep");
+    // One image_url per candidate; each ref appears in a text part.
+    const imageParts = parts.filter((p) => p.type === "image_url");
+    expect(imageParts).toHaveLength(2);
+    const text = parts.filter((p): p is { type: "text"; text: string } => p.type === "text").map((p) => p.text).join(" ");
+    expect(text).toContain("Bài nói về sự kiện X");
+    expect(text).toContain("assets/aaa.png");
+    expect(text).toContain("assets/bbb.jpg");
   });
 });

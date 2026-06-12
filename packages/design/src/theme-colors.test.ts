@@ -117,13 +117,13 @@ describe("Theme — flat color reads (theme.accent, theme.text, …)", () => {
   });
 
   it("real structured fields are NOT shadowed by the color forwarder", () => {
-    // `colors`, `fonts`, `chrome`, `space` must keep their real values — the
+    // `colors`, `fonts`, `surface`, `space` must keep their real values — the
     // forwarder only handles keys that are NOT real fields.
     expect(typeof t.space).toBe("function");
     expect(t.colors).toBeTruthy();
     expect(t.fonts.display).toBeTruthy();
-    expect(t.chrome).toBeTruthy();
-    expect(t.id).toBe("editorial-light");
+    expect(t.surface).toBeTruthy();
+    expect(t.id).toBe("bold-editorial");
   });
 
   it("the theme stays a well-behaved object (then/toJSON not colorized)", () => {

@@ -120,6 +120,38 @@ describe("build grid — N13 missing audio", () => {
   });
 });
 
+describe("build grid — N9 image presence", () => {
+  it("fires when a scene declares a local image.ref that is missing on disk", async () => {
+    const id = "image-missing1";
+    await ensureProject(id);
+    const locked = lockedNoAudio();
+    locked.scenes[0]!.image = { ref: "assets/missing.png" };
+    const report = runBuildGridStatic(locked, id);
+    expect(report.issues.some((i) => i.check === "N9" && i.sceneId === "scene-01")).toBe(true);
+    expect(report.ok).toBe(false);
+  });
+
+  it("passes when the declared image file exists and is non-empty", async () => {
+    const id = "image-present1";
+    await ensureProject(id);
+    const p = projectPaths(id);
+    await mkdir(join(p.root, "assets"), { recursive: true });
+    await writeFile(join(p.root, "assets", "a.png"), Buffer.from("\x89PNGdummy"));
+    const locked = lockedNoAudio();
+    locked.scenes[0]!.image = { ref: "assets/a.png" };
+    const report = runBuildGridStatic(locked, id);
+    expect(report.issues.filter((i) => i.check === "N9")).toEqual([]);
+    expect(report.ok).toBe(true);
+  });
+
+  it("does not require an asset when no scene declares an image", async () => {
+    const id = "image-none1234";
+    await ensureProject(id);
+    const report = runBuildGridStatic(lockedNoAudio(), id);
+    expect(report.issues.filter((i) => i.check === "N9")).toEqual([]);
+  });
+});
+
 describe("build grid — N10/N11 wrappers", () => {
   it("N10 produces an error only on failure", () => {
     expect(typecheckIssues(true, "")).toEqual([]);

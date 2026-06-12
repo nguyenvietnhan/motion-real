@@ -55,6 +55,17 @@ describe("admitAuthoredComponent (static AST gate)", () => {
     }
   });
 
+  it("rejects raw media primitives (N5: Img/staticFile) — images must go through <SceneImage>", () => {
+    const result = admitAuthoredComponent(fixture("banned-media.tsx"));
+    expect(result.admitted).toBe(false);
+    if (!result.admitted) {
+      const messages = result.violations.map((v) => v.message).join(" ");
+      expect(result.violations.every((v) => v.check === "N5")).toBe(true);
+      expect(messages).toMatch(/Img/);
+      expect(messages).toMatch(/staticFile/);
+    }
+  });
+
   it("rejects a module missing required exports (N4: schema/example)", () => {
     const result = admitAuthoredComponent(fixture("missing-export.tsx"));
     expect(result.admitted).toBe(false);

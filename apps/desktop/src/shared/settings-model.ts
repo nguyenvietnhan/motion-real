@@ -24,5 +24,7 @@ export function defaultSettings(outputDir: string): SettingsModel {
     maxRepairAttempts: DEFAULT_MAX_REPAIR_ATTEMPTS,
     scriptGateEnabled: true,
     visualQaEnabled: true,
+    imageCrawlAiFilter: true,
+    imageCrawlHumanReview: true,
   };
 }

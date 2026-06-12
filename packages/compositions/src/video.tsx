@@ -125,25 +125,30 @@ export const VideoComposition: React.FC<VideoCompositionProps> = ({ spec, measur
  * video regardless of what the authored scenes draw, and marks the line authored
  * content must stay above (enforced by the N14 caption-clearance oracle).
  */
-const CaptionDivider: React.FC<{ color: string }> = ({ color }) => (
-  <AbsoluteFill>
-    <div
-      style={{
-        position: "absolute",
-        top: CONTENT_ZONE.bottom,
-        left: CONTENT_ZONE.left,
-        width: rectWidth(CONTENT_ZONE),
-        height: 4,
-        background: color,
-      }}
-    />
-  </AbsoluteFill>
-);
+const CaptionDivider: React.FC<{ color: string }> = ({ color }) => {
+  // Drawn at the ONE shared content-zone bottom — the SAME constant the N14
+  // above/below-divider oracles scan, so the divider is drawn exactly where the
+  // oracles expect, never a drifting hard-coded y.
+  return (
+    <AbsoluteFill>
+      <div
+        style={{
+          position: "absolute",
+          top: CONTENT_ZONE.bottom,
+          left: CONTENT_ZONE.left,
+          width: rectWidth(CONTENT_ZONE),
+          height: 4,
+          background: color,
+        }}
+      />
+    </AbsoluteFill>
+  );
+};
 
 export const SceneContent: React.FC<{ scene: LockedSceneSpec }> = ({ scene }) => {
   const def = getComponent(scene.component);
   const content = def ? (
-    <def.Component headline={scene.headline} body={scene.body} eyebrow={scene.eyebrow} props={scene.props} />
+    <def.Component headline={scene.headline} body={scene.body} eyebrow={scene.eyebrow} props={scene.props} image={scene.image} />
   ) : (
     <MissingComponent component={scene.component} sceneId={scene.id} />
   );

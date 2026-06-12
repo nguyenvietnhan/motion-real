@@ -20,10 +20,18 @@ vi.mock("remotion", async (importOriginal) => {
       ({ fps: 30, durationInFrames: 300, width: 1080, height: 1920 } as unknown as ReturnType<
         typeof actual.useVideoConfig
       >),
+    // `staticFile` reads Remotion's bundler context (absent under SSR), so map it
+    // to a stable local URL — the SceneImage test only asserts the ref flows into
+    // the <img src> and is fitted, not how Remotion resolves a real bundle path.
+    staticFile: (path: string) => `static/${path}`,
+    // Remotion's <Img> needs a real composition/video config at render time;
+    // under SSR it throws. Stub it to a plain <img> so the SceneImage test can
+    // assert the src/alt/fit it produces (the wrapper styling is the block's own).
+    Img: (props: Record<string, unknown>) => React.createElement("img", props),
   };
 });
 
-import { Frame, Content, TitleBlock, IdeaPanel, Callout, KeyPoints, StatChip, Captions, HeaderBar, Panel, StatBlock, Story } from "./index.js";
+import { Frame, Content, TitleBlock, IdeaPanel, Callout, KeyPoints, StatChip, Captions, HeaderBar, Panel, StatBlock, Story, SceneImage } from "./index.js";
 import { CONTENT_ZONE, rectWidth, type CaptionCue } from "@news/schema";
 
 const html = (el: React.ReactElement): string => renderToStaticMarkup(el);
@@ -121,6 +129,18 @@ describe("@news/blocks — render-free", () => {
     expect(story).toContain(`top:${CONTENT_ZONE.top}px`);
     expect(story).toContain("TIN");
     expect(story).toContain("nguồn");
+  });
+
+  it("SceneImage renders a fitted, squared <img> from its local ref (the only sanctioned image path)", () => {
+    const markup = html(React.createElement(SceneImage, { imageRef: "assets/photo.png", alt: "biểu đồ" }));
+    // The local ref flows through staticFile into the <img src> (mocked to static/<ref>).
+    expect(markup).toContain('src="static/assets/photo.png"');
+    expect(markup).toContain('alt="biểu đồ"');
+    // Fitted (never cropped) and squared like every other block.
+    expect(markup).toContain("object-fit:contain");
+    expect(hasRoundedCorners(markup)).toBe(false);
+    // Tagged so the N15 layout probe can measure it.
+    expect(markup).toContain('data-nrt-block="scene-image"');
   });
 
   it("Story reserves a divider clearance gap and clips an over-tall column instead of bleeding past it", () => {

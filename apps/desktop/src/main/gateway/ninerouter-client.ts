@@ -29,6 +29,22 @@ const MAX_CHAT_ATTEMPTS = 3;
 /** Linear backoff base between chat retries: waits 1s, then 2s. */
 const CHAT_RETRY_BASE_MS = 1_000;
 
+/**
+ * Extra continuation passes when a reply stops because it hit the provider's
+ * output-token cap (`finish_reason: "length"`), not because it finished. A full
+ * AUTHOR reply (manifest + one .tsx module per scene, often 10+ scenes) is large
+ * and routinely exceeds a provider's default cap, so the reply truncates mid-
+ * output — the manifest lists every scene but the trailing scenes' code is cut,
+ * and the author parse fails with "missing-code". Rather than send an explicit
+ * `max_tokens` (some gateways/providers — e.g. Kiro `kr/claude-*` — reject an
+ * out-of-range value with HTTP 400, failing the WHOLE call), we let the provider
+ * use its own default ceiling and STITCH continuation passes: each pass feeds the
+ * partial text back as an assistant turn and asks the model to continue verbatim;
+ * the pieces are concatenated. Bounded so a pathologically long/looping reply
+ * can't run forever. 3 extra passes → up to ~4 provider windows of output.
+ */
+const MAX_CONTINUATION_PASSES = 3;
+
 /** A 9router/upstream status worth retrying: rate-limit or any 5xx (502/503/504…). */
 function isTransientStatus(status: number): boolean {
   return status === 429 || (status >= 500 && status <= 599);
@@ -289,6 +305,44 @@ export class NineRouterClient {
     messages: ChatMessage[],
     opts: { apiKey?: string; signal?: AbortSignal } = {},
   ): Promise<string> {
+    // First turn (with transient-retry), then stitch continuation passes when the
+    // model stopped on the token cap rather than finishing (see below).
+    const first = await this.chatWithRetry(model, messages, opts);
+    if (first.finishReason !== "length") return first.content;
+
+    // The reply hit max_tokens mid-output (e.g. a long author reply: full manifest
+    // but the trailing scenes' .tsx is cut). Feed the partial text back as an
+    // assistant turn and ask the model to continue EXACTLY where it stopped, then
+    // concatenate. Bounded by MAX_CONTINUATION_PASSES so a looping reply can't run
+    // forever; we stop as soon as a pass finishes for a reason other than "length".
+    let full = first.content;
+    for (let pass = 0; pass < MAX_CONTINUATION_PASSES; pass++) {
+      if (opts.signal?.aborted) break;
+      const cont = await this.chatWithRetry(
+        model,
+        [
+          ...messages,
+          { role: "assistant", content: full },
+          {
+            role: "user",
+            content:
+              "Phản hồi trước bị cắt vì đạt giới hạn độ dài. Hãy VIẾT TIẾP CHÍNH XÁC từ chỗ dừng, KHÔNG lặp lại nội dung đã có, KHÔNG mở đầu lại. Tiếp tục liền mạch ký tự kế tiếp.",
+          },
+        ],
+        opts,
+      );
+      full += cont.content;
+      if (cont.finishReason !== "length") break;
+    }
+    return full;
+  }
+
+  /** A chat turn with transient-retry/backoff; returns the text + finish reason. */
+  private async chatWithRetry(
+    model: string,
+    messages: ChatMessage[],
+    opts: { apiKey?: string; signal?: AbortSignal },
+  ): Promise<{ content: string; finishReason: string | null }> {
     let last: GatewayChatError | undefined;
     for (let attempt = 1; attempt <= MAX_CHAT_ATTEMPTS; attempt++) {
       try {
@@ -312,7 +366,7 @@ export class NineRouterClient {
     model: string,
     messages: ChatMessage[],
     opts: { apiKey?: string; signal?: AbortSignal },
-  ): Promise<string> {
+  ): Promise<{ content: string; finishReason: string | null }> {
     const headers: Record<string, string> = { "content-type": "application/json" };
     if (opts.apiKey) headers.authorization = `Bearer ${opts.apiKey}`;
     const res = await fetchWithTimeout(
@@ -320,6 +374,9 @@ export class NineRouterClient {
       {
         method: "POST",
         headers,
+        // No `max_tokens`: some providers (e.g. kr/* via Kiro) reject it with a
+        // 400. A reply truncated at the provider's default cap is recovered by the
+        // finish_reason:"length" continuation loop in `chat()` instead.
         body: JSON.stringify({ model, messages, stream: false }),
       },
       CHAT_TIMEOUT_MS,
@@ -328,10 +385,20 @@ export class NineRouterClient {
     );
     if (!res.ok) {
       const kind = isTransientStatus(res.status) ? "transient" : "http";
-      throw new GatewayChatError(kind, `9router chat → HTTP ${res.status}`, { status: res.status });
+      // Read the gateway/upstream error body — it names the actual reason (e.g. an
+      // unsupported param, an image part the provider rejects, a bad model id) so
+      // a 400 isn't an opaque dead end. Best-effort: a body read failure is fine.
+      const detail = await res.text().catch(() => "");
+      const suffix = detail ? `: ${detail.slice(0, 500)}` : "";
+      throw new GatewayChatError(kind, `9router chat → HTTP ${res.status}${suffix}`, { status: res.status });
     }
-    const data = (await res.json()) as { choices?: { message?: { content?: string } }[] };
-    return data.choices?.[0]?.message?.content ?? "";
+    const data = (await res.json()) as {
+      choices?: { message?: { content?: string }; finish_reason?: string }[];
+    };
+    return {
+      content: data.choices?.[0]?.message?.content ?? "",
+      finishReason: data.choices?.[0]?.finish_reason ?? null,
+    };
   }
 
   /** Normalize any thrown value from one chat attempt into a typed GatewayChatError. */

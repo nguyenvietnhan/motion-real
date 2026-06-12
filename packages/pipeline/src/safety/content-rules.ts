@@ -183,21 +183,35 @@ export function runContentRules(spec: VideoSpec): SafetyIssue[] {
       }
     }
 
-    // N9: media bans (hard). Captions are now a first-class FEATURE (rendered
-    // centrally from narration), so "caption"/"subtitle" are NO LONGER banned
-    // here (author-mode-v2 R16.5). Media payloads, full transcripts, and karaoke
-    // remain banned in scene props.
-    const propText = JSON.stringify(scene.props ?? {}).toLowerCase();
-    for (const banned of ["assetref", "transcript", "karaoke", "imageurl", "logourl"]) {
-      if (propText.includes(banned)) {
-        issues.push({
-          check: "N9",
-          severity: "error",
-          sceneId: scene.id,
-          path: "props",
-          message: `${scene.id} props contain forbidden key matching "${banned}"; this tool is no-media (captions are generated centrally from narration, not via props).`,
-        });
-      }
+    // N9: remote-media ban (hard). The tool now allows ≤1 LOCAL image per scene
+    // via the first-class `image` field, but NEVER a remote image at render time
+    // — a network-fetched `<Img>` would break the offline + determinism (N16)
+    // invariant and can't be contained. So N9 bans remote refs, not all media.
+    //  (a) the structured `image.ref` must be a local path (the schema refinement
+    //      already enforces this; re-checked here as defense-in-depth so a spec
+    //      built bypassing schema parse can't smuggle a remote ref past the grid);
+    //  (b) any remote image URL hidden in free-form `props` (e.g. an authored
+    //      component reading `props.bg` and rendering it) is banned too.
+    const imageRef = scene.image?.ref;
+    if (imageRef && /^[a-z][a-z0-9+.-]*:/i.test(imageRef)) {
+      issues.push({
+        check: "N9",
+        severity: "error",
+        sceneId: scene.id,
+        path: "image.ref",
+        message: `${scene.id} image.ref "${imageRef}" is a URL/remote scheme; remote media is banned at render time. Use a LOCAL project-relative asset path (e.g. "assets/<name>.png").`,
+      });
+    }
+    const propText = JSON.stringify(scene.props ?? {});
+    const remoteInProps = propText.match(/https?:\/\/[^"'\s]+\.(?:png|jpe?g|webp|gif)/i)?.[0];
+    if (remoteInProps) {
+      issues.push({
+        check: "N9",
+        severity: "error",
+        sceneId: scene.id,
+        path: "props",
+        message: `${scene.id} props reference a remote image URL ("${remoteInProps}"); remote media is banned at render time. Download it to a local asset and use the scene's image field instead.`,
+      });
     }
   }
 

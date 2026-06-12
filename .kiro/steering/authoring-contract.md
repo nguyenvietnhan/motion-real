@@ -115,11 +115,18 @@ URLs, auto-fetch), never for things you draw yourself.
 ## Design language (R17)
 
 > The LOOK is owned by `docs/design-language.md` — **READ IT before authoring a
-> bespoke visual.** In code terms, the only invariants you must not break:
-> squared geometry (corner radius `0`), the fixed light **cream/ink** base with
-> bold `4px` ink borders (never dark, never hairline), and the per-project
-> `useTheme()` dominant color driving `accent`/`signal` + data-viz only. Keep
-> text high-contrast (N18).
+> bespoke visual.** The system is MULTI-LANGUAGE: a project picks one design
+> language (e.g. `bold-editorial` — light print, squared, bold ink borders;
+> `galaxy` — dark, rounded, neon glow). Each language sets its OWN base polarity,
+> corner geometry, fonts, border/shadow treatment, and accent expression; the
+> per-project dominant hue drives `accent`/`signal` + data-viz on top.
+>
+> The invariants you must NOT break (shared by EVERY language): keep content in
+> the layout zones, stay above the caption divider, frame-pure determinism, the
+> minimum type sizes, and high text contrast (N18). Everything visual else comes
+> from the resolved theme — **never hard-code a base color, a corner radius, a
+> border, or a shadow.** Read them from `useTheme()` so your bespoke imagery
+> follows the chosen language instead of forcing one frozen look.
 
 **Color tokens (`theme.colors.*`).** Use ONLY these keys: `bg`, `bgElevated`,
 `panel`, `fg`, `muted`, `accent`, `signal`, `line`, and the fixed print accents

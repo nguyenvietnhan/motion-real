@@ -1,8 +1,9 @@
 import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
 import { fileURLToPath } from "node:url";
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { createTools } from "@news/mcp";
-import { loadManifest, writeJson, projectPaths, videoToolHome, vivibeApiKey, defaultVivibeVoiceId, setAuthoredLoader, reconcileStaleStates } from "@news/pipeline";
+import { loadManifest, writeJson, projectPaths, videoToolHome, stagingDir, ensureProject, importImageBytes, vivibeApiKey, defaultVivibeVoiceId, setAuthoredLoader, reconcileStaleStates, pruneRenderCache, pruneTtsCache } from "@news/pipeline";
+import { listStylePackIds, getStylePack, DEFAULT_STYLE_PACK_ID } from "@news/design";
 import { registerIpcRouter, type InvokeHandlers } from "./ipc-router.js";
 import { ModelGatewayManager } from "./gateway/model-gateway-manager.js";
 import { buildNineRouterGatewayDeps } from "./gateway/ninerouter-deps.js";
@@ -21,8 +22,8 @@ import { registerMediaScheme, handleMediaProtocol, mediaUrl } from "./media-prot
 import { events, setEventTarget } from "./event-bus.js";
 import { loadAuthoredTsx } from "./authoring/tsx-loader.js";
 import { existsSync, readFileSync } from "node:fs";
-import { copyFile, rm } from "node:fs/promises";
-import type { ModelInfo, ScriptEdit, SettingsModel } from "../shared/types.js";
+import { copyFile, readFile, readdir, rm, stat } from "node:fs/promises";
+import type { DroppedImage, ModelInfo, PickImagesResult, ScriptEdit, SettingsModel, StylePackVM } from "../shared/types.js";
 
 // The `media://` scheme must be registered before the app is ready.
 registerMediaScheme();
@@ -135,6 +136,9 @@ const workspace = new WorkspaceController({
   outputMedia: (id) => mediaUrl(join(projectPaths(id).rendersDir, `${id}.mp4`)) ?? "",
   hasDraft: (id) => existsSync(join(projectPaths(id).rendersDir, `${id}.draft.mp4`)),
   draftMedia: (id) => mediaUrl(join(projectPaths(id).rendersDir, `${id}.draft.mp4`)) ?? "",
+  // A crawled image's project-relative ref ("assets/<sha>.<ext>") → a media:// URL
+  // for the review screen preview. Resolved under videoToolHome() like every asset.
+  assetMedia: (id, ref) => mediaUrl(join(projectPaths(id).root, ref)) ?? "",
   deleteProject: (id) => rm(projectPaths(id).root, { recursive: true, force: true }),
   revealProject: async (id) => {
     await shell.openPath(projectPaths(id).root);
@@ -153,8 +157,177 @@ const create = new CreateController({
     const res = await tools.scaffold_project({ prompt });
     return res.ok ? { ok: true, projectId: res.data.projectId } : { ok: false, error: res.error };
   },
-  beginScript: (id, input) => workspace.beginScript(id, input),
+  beginCreate: (id, input) => workspace.beginCreate(id, input),
+  // Move each staged create-time image into the project's assetsDir by RE-importing
+  // its bytes (content-addressed, so the <sha>.<ext> filename — and thus the ref —
+  // is identical to staging). A staged file we can't read/import just drops out.
+  promoteImages: async (projectId, images) => {
+    await ensureProject(projectId);
+    const assetsDir = projectPaths(projectId).assetsDir;
+    const out: { ref: string; width: number; height: number }[] = [];
+    for (const img of images) {
+      try {
+        const stagedAbs = join(videoToolHome(), img.ref); // ref is "staging/<sha>.<ext>"
+        const bytes = await readFile(stagedAbs);
+        const res = await importImageBytes(bytes, assetsDir, { refPrefix: "assets" });
+        if (res.ok) out.push({ ref: res.ref, width: res.width, height: res.height });
+      } catch {
+        /* unreadable staged file → skip; create proceeds without this image */
+      }
+    }
+    return out;
+  },
 });
+
+/**
+ * Native image picker for the create screen (Phase 2 Block A). Opens a
+ * multi-select file dialog, imports each pick into the home-level STAGING dir
+ * (content-addressed, magic-byte sniffed, capped) so it can preview through the
+ * `media://` protocol before a project exists, and returns the staged images +
+ * per-file rejections. The bytes are promoted into the project's `assetsDir` on
+ * create (`promoteImages`). Cancelling the dialog yields an empty result.
+ */
+async function pickImages(): Promise<PickImagesResult> {
+  const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0];
+  const opts = {
+    title: "Chọn ảnh",
+    properties: ["openFile", "multiSelections"] as Array<"openFile" | "multiSelections">,
+    filters: [{ name: "Ảnh", extensions: ["png", "jpg", "jpeg", "webp", "gif"] }],
+  };
+  const picked = win ? await dialog.showOpenDialog(win, opts) : await dialog.showOpenDialog(opts);
+  if (picked.canceled || picked.filePaths.length === 0) return { staged: [], rejected: [] };
+
+  const result: PickImagesResult = { staged: [], rejected: [] };
+  for (const path of picked.filePaths) {
+    const name = path.split(/[\\/]/).pop() ?? path;
+    try {
+      await stageImported(name, await readFile(path), result);
+    } catch {
+      result.rejected.push({ name, reason: "decode-failed" });
+    }
+  }
+  return result;
+}
+
+/**
+ * Import raw image bytes the renderer captured from a paste (Ctrl+V) or
+ * drag-drop (Phase 2 Block A). These have no filesystem path, so the bytes cross
+ * IPC directly; staging + content-addressing + the result shape are identical to
+ * the native picker (both funnel through `stageImported`). A bad item is dropped
+ * with its reason; the rest still stage.
+ */
+async function importDroppedImages(files: DroppedImage[]): Promise<PickImagesResult> {
+  const result: PickImagesResult = { staged: [], rejected: [] };
+  for (const file of files) {
+    try {
+      // The bytes arrive base64-encoded over IPC; decode to a Buffer to import.
+      await stageImported(file.name, Buffer.from(file.dataBase64, "base64"), result);
+    } catch {
+      result.rejected.push({ name: file.name, reason: "decode-failed" });
+    }
+  }
+  return result;
+}
+
+/**
+ * Import one image's bytes into the home staging dir (content-addressed) and
+ * push either a staged preview or a per-file rejection onto `result`. Shared by
+ * the native picker and the paste/drag-drop path so both stage identically.
+ */
+async function stageImported(name: string, bytes: Uint8Array, result: PickImagesResult): Promise<void> {
+  const dir = stagingDir();
+  const res = await importImageBytes(bytes, dir, { refPrefix: "staging" });
+  if (res.ok) {
+    result.staged.push({
+      ref: res.ref,
+      previewUrl: mediaUrl(join(dir, `${res.sha}.${res.ext}`)) ?? "",
+      width: res.width,
+      height: res.height,
+      bytes: res.bytes,
+      name,
+    });
+  } else {
+    result.rejected.push({ name, reason: res.reason });
+  }
+}
+
+/**
+ * Delete one staged image the user removed at the create screen (the ✕ on a
+ * thumbnail). Without this, a picked-then-removed image lingers in the staging
+ * dir until the 24h startup sweep — bytes accumulate within a session. The 24h
+ * sweep stays as the safety net for picked-but-never-removed images.
+ *
+ * Path-safe: the ref must be exactly `staging/<filename>` (the shape
+ * `importImageBytes` returns). We strip to the basename and rebuild the path
+ * under `stagingDir()`, so a crafted ref with `..` or an absolute path can never
+ * escape the staging dir. A missing file is a no-op (idempotent).
+ */
+async function unstageImage(ref: string): Promise<void> {
+  if (!ref.startsWith("staging/")) return; // only staging refs are ours to delete
+  const name = basename(ref); // collapse any traversal to a bare filename
+  if (!name || name === "." || name === "..") return;
+  await rm(join(stagingDir(), name), { force: true });
+}
+
+/**
+ * Best-effort sweep of staged create-time images older than ~24h (Phase 2 Block
+ * A). A user who picks images but never creates the project leaves bytes in the
+ * staging dir; this clears stale ones so they don't accumulate. Never blocks
+ * startup — a sweep failure (missing dir, locked file) is swallowed.
+ */
+async function sweepStagingDir(maxAgeMs = 24 * 60 * 60 * 1000): Promise<void> {
+  const dir = stagingDir();
+  let entries: string[];
+  try {
+    entries = await readdir(dir);
+  } catch {
+    return; // no staging dir yet → nothing to sweep
+  }
+  const now = Date.now();
+  for (const name of entries) {
+    const abs = join(dir, name);
+    try {
+      const st = await stat(abs);
+      if (now - st.mtimeMs > maxAgeMs) await rm(abs, { force: true });
+    } catch {
+      /* a single unstattable/locked entry must not abort the sweep */
+    }
+  }
+}
+
+/**
+ * Build the style-pack view-models the create-screen picker renders. The list
+ * is derived from the ONE registry in `@news/design` (never hard-coded in the
+ * renderer), so adding a pack there makes a new chip appear with no UI change.
+ * `preview` carries just the chrome hints the renderer needs to draw a small
+ * CSS thumbnail (border weight, grid, ticks, density) — not a rendered image.
+ */
+function listStylePackVMs(): StylePackVM[] {
+  return listStylePackIds().map((id) => {
+    const pack = getStylePack(id)!;
+    const p = pack.preview;
+    // The renderer's sketch wants a border TREATMENT word; derive it from the
+    // language's border weight (0 ⇒ frameless, 1 ⇒ hairline, thicker ⇒ solid).
+    const borderStyle: "solid" | "hairline" | "none" =
+      p.borderWidth <= 0 ? "none" : p.borderWidth <= 1 ? "hairline" : "solid";
+    return {
+      id: pack.id,
+      name: pack.name,
+      description: pack.description,
+      isDefault: pack.id === DEFAULT_STYLE_PACK_ID,
+      preview: {
+        borderWidth: p.borderWidth,
+        borderStyle,
+        grid: p.grid,
+        registrationTicks: p.registrationTicks,
+        density: p.density,
+        dark: p.dark,
+        rounded: p.rounded,
+        starfield: p.starfield,
+      },
+    };
+  });
+}
 
 // Dev license: starts unactivated so the activation screen shows. The dev code
 // "123" activates it via the tested LicenseManager over a DevLicenseService
@@ -177,7 +350,14 @@ const handlers: InvokeHandlers = {
   "ai:selectedModel": () => gateway.selectedModel(),
 
   "projects:list": () => workspace.list(),
-  "projects:create": (input) => create.create((input as { raw: string }).raw),
+  "projects:create": (input) => {
+    const i = input as { raw: string; stylePackId?: string; images?: { ref: string; width: number; height: number }[] };
+    return create.create(i.raw, i.images ?? [], i.stylePackId);
+  },
+  "projects:listStylePacks": () => listStylePackVMs(),
+  "projects:pickImages": () => pickImages(),
+  "projects:importImageBytes": (files) => importDroppedImages(files as DroppedImage[]),
+  "projects:removeStagedImage": (ref) => unstageImage(String(ref)),
   "projects:stage": (projectId) => workspace.stage(String(projectId)),
   "projects:open": (projectId) => workspace.open(String(projectId)),
   "projects:delete": (projectId) => workspace.delete(String(projectId)),
@@ -217,6 +397,10 @@ const handlers: InvokeHandlers = {
   },
   "projects:fixWithAi": (projectId) => {
     workspace.fixWithAi(String(projectId));
+    return undefined;
+  },
+  "projects:submitImageReview": (projectId, selectedRefs) => {
+    workspace.submitImageReview(String(projectId), Array.isArray(selectedRefs) ? (selectedRefs as unknown[]).map(String) : []);
     return undefined;
   },
 
@@ -294,6 +478,23 @@ app
     void reconcileStaleStates().catch((error) => {
       // eslint-disable-next-line no-console
       console.error("[desktop] stale-state reconcile failed:", error);
+    });
+    // Clear stale staged create-time images (picked but never used). Best-effort.
+    void sweepStagingDir().catch((error) => {
+      // eslint-disable-next-line no-console
+      console.error("[desktop] staging sweep failed:", error);
+    });
+    // Cap the shared render + TTS caches so they don't grow without bound. These
+    // caches live OUTSIDE project folders (so a re-render of the same spec is
+    // free) and are NOT cleared on project delete; pruning by size here is what
+    // keeps them bounded. Best-effort — a prune failure must never block startup.
+    void pruneRenderCache().catch((error) => {
+      // eslint-disable-next-line no-console
+      console.error("[desktop] render-cache prune failed:", error);
+    });
+    void pruneTtsCache().catch((error) => {
+      // eslint-disable-next-line no-console
+      console.error("[desktop] tts-cache prune failed:", error);
     });
     startGateway();
     return createWindow();

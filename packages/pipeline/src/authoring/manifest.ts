@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import { mkdir, readdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import type { VideoSpec } from "@news/schema";
+import type { SceneImage, VideoSpec } from "@news/schema";
 import type { SafetyIssue } from "../types.js";
 import { ensureProject, projectPaths, readJson, writeJson } from "../store/store.js";
 import { admitAndRegisterAuthored } from "./register.js";
@@ -21,6 +21,8 @@ export type ManifestScene = {
   component: string;
   /** Free-form props validated by the authored component's own Zod schema. */
   props?: Record<string, unknown>;
+  /** At most ONE local image for this scene (project-relative ref); see SceneImageSchema. */
+  image?: SceneImage;
   /** Spoken narration (drives timing + captions). */
   narration: string;
   /** On-screen short headline. */
@@ -88,6 +90,7 @@ export function manifestToVideoSpec(manifest: Manifest): VideoSpec {
       eyebrow: scene.eyebrow,
       narration: scene.narration,
       props: scene.props ?? {},
+      ...(scene.image ? { image: scene.image } : {}),
       sfx: scene.sfx ?? "none",
       transitionToNext: scene.transitionToNext,
       emphasis: scene.emphasis,

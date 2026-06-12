@@ -4,6 +4,7 @@ import {
   CAPTION_BAND,
   CONTENT_ZONE,
   FPS,
+  SceneImageSchema,
   SceneSpecSchema,
   T_TRANSITION,
   UI_RESERVE,
@@ -27,16 +28,16 @@ describe("layout zones", () => {
     expect(CAPTION_BAND.top - CONTENT_ZONE.bottom).toBeGreaterThan(0);
   });
 
-  it("caption band stays above the bottom platform-UI reserve", () => {
-    expect(CAPTION_BAND.bottom).toBeLessThanOrEqual(uiReserveTop());
-    expect(uiReserveTop()).toBe(CANVAS.height - UI_RESERVE.bottom);
-  });
-
   it("rect helpers compute width/height and containment", () => {
     expect(rectWidth(CONTENT_ZONE)).toBe(CONTENT_ZONE.right - CONTENT_ZONE.left);
     expect(rectHeight(CONTENT_ZONE)).toBe(CONTENT_ZONE.bottom - CONTENT_ZONE.top);
     expect(rectContains(CONTENT_ZONE, { top: 200, bottom: 400, left: 200, right: 400 })).toBe(true);
     expect(rectContains(CONTENT_ZONE, { top: 0, bottom: 400, left: 200, right: 400 })).toBe(false);
+  });
+
+  it("caption band stays within the bottom platform-UI reserve", () => {
+    expect(CAPTION_BAND.bottom).toBeLessThanOrEqual(uiReserveTop());
+    expect(uiReserveTop()).toBe(CANVAS.height - UI_RESERVE.bottom);
   });
 });
 
@@ -70,5 +71,41 @@ describe("SceneSpecSchema id", () => {
   it("rejects malformed ids", () => {
     expect(SceneSpecSchema.safeParse({ id: "scene-1", ...base }).success).toBe(false);
     expect(SceneSpecSchema.safeParse({ id: "intro", ...base }).success).toBe(false);
+  });
+  it("accepts an optional local image and rejects a remote one", () => {
+    expect(SceneSpecSchema.safeParse({ id: "scene-01", ...base, image: { ref: "assets/a.png" } }).success).toBe(true);
+    expect(SceneSpecSchema.safeParse({ id: "scene-01", ...base, image: { ref: "https://x/y.png" } }).success).toBe(false);
+  });
+});
+
+describe("SceneImageSchema ref refinement (local-only, raster-only)", () => {
+  const ok = (ref: string) => SceneImageSchema.safeParse({ ref }).success;
+  it("accepts project-relative raster paths", () => {
+    expect(ok("assets/photo.png")).toBe(true);
+    expect(ok("assets/x.jpg")).toBe(true);
+    expect(ok("assets/x.jpeg")).toBe(true);
+    expect(ok("assets/x.webp")).toBe(true);
+    expect(ok("assets/x.gif")).toBe(true);
+  });
+  it("rejects URL / data / blob schemes (remote media banned at render time)", () => {
+    expect(ok("http://x/y.png")).toBe(false);
+    expect(ok("https://x/y.png")).toBe(false);
+    expect(ok("data:image/png;base64,AAAA")).toBe(false);
+    expect(ok("blob:abcd")).toBe(false);
+  });
+  it("rejects absolute paths and '..' traversal", () => {
+    expect(ok("/etc/passwd.png")).toBe(false);
+    expect(ok("C:\\secret.png")).toBe(false);
+    expect(ok("../../outside.png")).toBe(false);
+    expect(ok("assets/../../escape.png")).toBe(false);
+  });
+  it("rejects non-raster / scriptable formats (SVG)", () => {
+    expect(ok("assets/x.svg")).toBe(false);
+    expect(ok("assets/x.mp4")).toBe(false);
+    expect(ok("assets/noext")).toBe(false);
+  });
+  it("accepts an optional alt and caps its length", () => {
+    expect(SceneImageSchema.safeParse({ ref: "assets/x.png", alt: "a chart" }).success).toBe(true);
+    expect(SceneImageSchema.safeParse({ ref: "assets/x.png", alt: "x".repeat(161) }).success).toBe(false);
   });
 });

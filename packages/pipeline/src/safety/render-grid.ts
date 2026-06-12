@@ -1,9 +1,9 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
+  CANVAS,
   CAPTION_BAND,
   CONTENT_ZONE,
-  CANVAS,
   T_TRANSITION_SECONDS,
   type LockedVideoSpec,
 } from "@news/schema";
@@ -180,11 +180,13 @@ export function checkContentZone(frame: Frame, sceneId?: string, options?: Rende
   // in the top margin, the side margins, and the bottom platform-UI reserve
   // (below the caption band) — without nitpicking the small gap between the
   // content zone and the caption band.
+  const contentZone = CONTENT_ZONE;
+  const captionBand = CAPTION_BAND;
   const allowed = {
-    top: CONTENT_ZONE.top * sy,
-    bottom: CAPTION_BAND.bottom * sy,
-    left: Math.min(CONTENT_ZONE.left, CAPTION_BAND.left) * sx,
-    right: Math.max(CONTENT_ZONE.right, CAPTION_BAND.right) * sx,
+    top: contentZone.top * sy,
+    bottom: captionBand.bottom * sy,
+    left: Math.min(contentZone.left, captionBand.left) * sx,
+    right: Math.max(contentZone.right, captionBand.right) * sx,
   };
   const inside = (x: number, y: number) =>
     x >= allowed.left && x <= allowed.right && y >= allowed.top && y <= allowed.bottom;
@@ -241,12 +243,15 @@ export function checkCaptionClearance(frame: Frame, sceneId?: string, options?: 
   const sx = width / CANVAS.width;
   const sy = height / CANVAS.height;
   // The gap between the content zone and the caption band. Start a few px below
-  // the content-zone bottom so the global divider line (drawn at that boundary)
-  // is not counted as overflow.
-  const top = Math.floor((CONTENT_ZONE.bottom + 8) * sy);
-  const bottom = Math.floor(CAPTION_BAND.top * sy);
-  const left = Math.floor(CONTENT_ZONE.left * sx);
-  const right = Math.ceil(CONTENT_ZONE.right * sx);
+  // the content-zone bottom so the divider line (drawn at that boundary) is not
+  // counted as overflow. Reads the resolved profile (§6.7) so a style whose band
+  // sits lower is scanned in the right place — same zones the composition draws.
+  const cz = CONTENT_ZONE;
+  const cb = CAPTION_BAND;
+  const top = Math.floor((cz.bottom + 8) * sy);
+  const bottom = Math.floor(cb.top * sy);
+  const left = Math.floor(cz.left * sx);
+  const right = Math.ceil(cz.right * sx);
   // Need enough vertical resolution to resolve the ~32px gap; on tiny frames the
   // band collapses and would false-positive, so skip (real stills are full/half res).
   if (bottom - top < 6) return [];
@@ -304,11 +309,14 @@ export function checkDividerClearanceAbove(frame: Frame, sceneId?: string, optio
   const sy = height / CANVAS.height;
   // The thin band immediately ABOVE the divider line. The divider is drawn AT
   // CONTENT_ZONE.bottom (downward), so we stop a couple px short of it to avoid
-  // counting the divider itself as content.
-  const bottom = Math.floor((CONTENT_ZONE.bottom - 2) * sy);
-  const top = Math.floor((CONTENT_ZONE.bottom - ABOVE_DIVIDER_BAND) * sy);
-  const left = Math.floor(CONTENT_ZONE.left * sx);
-  const right = Math.ceil(CONTENT_ZONE.right * sx);
+  // counting the divider itself as content. Reads the SAME shared zone the
+  // composition's CaptionDivider draws from, so it never asserts a y the layout
+  // doesn't actually use.
+  const zone = CONTENT_ZONE;
+  const bottom = Math.floor((zone.bottom - 2) * sy);
+  const top = Math.floor((zone.bottom - ABOVE_DIVIDER_BAND) * sy);
+  const left = Math.floor(zone.left * sx);
+  const right = Math.ceil(zone.right * sx);
   // On a tiny still the band collapses and would false-positive; skip (real
   // stills are full/half res, same guard as the below-divider scan).
   if (bottom - top < 6) return [];
@@ -424,6 +432,50 @@ export function checkTruncation(
     ];
   }
   return [];
+}
+
+/**
+ * Scene-level N17 wiring: decode a scene's rendered still ONCE and run the
+ * per-block truncation probe over each measured block rect. This is the seam
+ * that finally makes N17 run on real renders — `checkTruncation` needs a content
+ * box, which a flat raster can't carry, so it stayed `phase: "manual"` (defined
+ * + self-tested but never wired). The orchestrator already measures each tagged
+ * `@news/blocks` unit's rect for N15 overlap; we reuse those rects here.
+ *
+ * Posture matches N15 overlap: eased in as WARNINGS (not a hard gate) while we
+ * observe the false-positive rate on real content, and fully guarded — a decode
+ * failure or a degenerate rect contributes nothing rather than failing a render.
+ * Each rect is clamped to the canvas and tiny rects (< 24px on a side) are
+ * skipped, since the edge-scan is meaningless for a sliver.
+ */
+export async function runTruncationForScene(
+  framePath: string,
+  blocks: ReadonlyArray<Rect & { kind?: string }>,
+  sceneId: string,
+  options?: RenderGridOptions,
+  severity: "error" | "warning" = "warning",
+): Promise<SafetyIssue[]> {
+  let frame: Frame;
+  try {
+    frame = decodePng(await readFile(framePath));
+  } catch {
+    return []; // unreadable still ⇒ skip (never fail a render on a missing probe)
+  }
+  const issues: SafetyIssue[] = [];
+  for (const b of blocks) {
+    // Clamp the measured rect into the decoded frame; drop degenerate/tiny rects.
+    const x = Math.max(0, Math.min(Math.round(b.x), frame.width - 1));
+    const y = Math.max(0, Math.min(Math.round(b.y), frame.height - 1));
+    const right = Math.max(0, Math.min(Math.round(b.x + b.width), frame.width));
+    const bottom = Math.max(0, Math.min(Math.round(b.y + b.height), frame.height));
+    const w = right - x;
+    const h = bottom - y;
+    if (w < 24 || h < 24) continue;
+    for (const issue of checkTruncation(frame, { x, y, width: w, height: h }, sceneId, options)) {
+      issues.push({ ...issue, severity });
+    }
+  }
+  return issues;
 }
 
 // --- N18: contrast / font availability (WARNING) --------------------------
@@ -708,10 +760,13 @@ export function checkDensity(frame: Frame, sceneId?: string, options?: RenderGri
   const bg = backgroundColor(frame);
   const sx = width / CANVAS.width;
   const sy = height / CANVAS.height;
-  const top = Math.floor(CONTENT_ZONE.top * sy);
-  const bottom = Math.floor(CONTENT_ZONE.bottom * sy);
-  const left = Math.floor(CONTENT_ZONE.left * sx);
-  const right = Math.floor(CONTENT_ZONE.right * sx);
+  // Measured over the shared content zone (one layout for every style): density
+  // is judged against the room content actually has.
+  const cz = CONTENT_ZONE;
+  const top = Math.floor(cz.top * sy);
+  const bottom = Math.floor(cz.bottom * sy);
+  const left = Math.floor(cz.left * sx);
+  const right = Math.floor(cz.right * sx);
   if (bottom - top < 40 || right - left < 40) return [];
   let zone = 0;
   let content = 0;
@@ -735,6 +790,69 @@ export function checkDensity(frame: Frame, sceneId?: string, options?: RenderGri
   }
   return [];
 }
+
+// --- oracle registry -------------------------------------------------------
+
+type BaseOracle = {
+  /** Stable registry key (kebab-case), distinct from the N-number. */
+  id: string;
+  /** The N-number this oracle reports issues under (several share one). */
+  check: string;
+};
+
+/** Spec-level oracle: needs only the locked spec, no pixels. */
+type SpecOracle = BaseOracle & {
+  phase: "spec";
+  run: (locked: LockedVideoSpec, options?: RenderGridOptions) => SafetyIssue[];
+};
+/** Single-frame oracle: runs once per decoded scene still. */
+type FrameOracle = BaseOracle & {
+  phase: "frame";
+  run: (frame: Frame, sceneId?: string, options?: RenderGridOptions) => SafetyIssue[];
+};
+/** Pairwise oracle: runs between consecutive scene stills. */
+type TransitionOracle = BaseOracle & {
+  phase: "transition";
+  run: (a: Frame, b: Frame, sceneId?: string, options?: RenderGridOptions) => SafetyIssue[];
+};
+/**
+ * Exported + self-tested but NOT auto-run by `runRenderGrid`: a flat midpoint
+ * still lacks the inputs these need (layout rects for overlap/truncation;
+ * tilt-free multi-frame samples for richness; safe-area is subsumed by the
+ * content-zone scan). Kept in the registry so the suite still lists them.
+ */
+type ManualOracle = BaseOracle & { phase: "manual" };
+
+export type RenderOracle = SpecOracle | FrameOracle | TransitionOracle | ManualOracle;
+
+/**
+ * The single source of truth for WHICH oracles run, in WHAT order. `runRenderGrid`
+ * iterates this list (it does not hold its own parallel call sequence), so the
+ * registry can never drift from what actually executes — the order here IS the
+ * emission order, preserved byte-for-byte from the prior hand-rolled aggregator.
+ */
+export const RENDER_ORACLES: readonly RenderOracle[] = [
+  // Spec-level (run first, in this order).
+  { id: "pacing", check: "N20", phase: "spec", run: checkPacing },
+  { id: "audio-sync", check: "N22", phase: "spec", run: checkAudioSync },
+  { id: "duration", check: "N28", phase: "spec", run: checkDuration },
+  // checkCaptions takes (locked, maxLineChars); auto-run uses its default.
+  { id: "captions", check: "N29", phase: "spec", run: (locked) => checkCaptions(locked) },
+  // Single-frame, per scene (in this order).
+  { id: "content-zone", check: "N14", phase: "frame", run: checkContentZone },
+  { id: "caption-clearance", check: "N14", phase: "frame", run: checkCaptionClearance },
+  { id: "divider-clearance-above", check: "N14", phase: "frame", run: checkDividerClearanceAbove },
+  { id: "density", check: "N30", phase: "frame", run: checkDensity },
+  { id: "dead-air", check: "N19", phase: "frame", run: checkDeadAir },
+  { id: "contrast", check: "N18", phase: "frame", run: checkContrast },
+  // Pairwise (between consecutive stills).
+  { id: "transition", check: "N21", phase: "transition", run: checkTransition },
+  // Exported + self-tested, not auto-run (need inputs a flat still lacks).
+  { id: "safe-area", check: "N14", phase: "manual" },
+  { id: "overlap", check: "N15", phase: "manual" },
+  { id: "truncation", check: "N17", phase: "manual" },
+  { id: "richness", check: "N23", phase: "manual" },
+];
 
 // --- aggregator -----------------------------------------------------------
 
@@ -762,11 +880,17 @@ export async function runRenderGrid(
 ): Promise<SafetyReport> {
   const issues: SafetyIssue[] = [];
 
+  // The registry is the single source of truth for which oracles run and in what
+  // order; we select by `phase` but never re-order within a phase, so emission is
+  // byte-identical to the prior hand-rolled sequence.
+  const specOracles = RENDER_ORACLES.filter((o): o is SpecOracle => o.phase === "spec");
+  const frameOracles = RENDER_ORACLES.filter((o): o is FrameOracle => o.phase === "frame");
+  const transitionOracles = RENDER_ORACLES.filter((o): o is TransitionOracle => o.phase === "transition");
+
   // Spec-level oracles (no pixels needed).
-  issues.push(...checkPacing(locked, options));
-  issues.push(...checkAudioSync(locked, options));
-  issues.push(...checkDuration(locked, options));
-  issues.push(...checkCaptions(locked));
+  for (const oracle of specOracles) {
+    issues.push(...oracle.run(locked, options));
+  }
 
   // Decode one still per scene.
   const frames: Array<Frame | null> = [];
@@ -785,23 +909,24 @@ export async function runRenderGrid(
     }
   }
 
-  // Single-frame oracles.
+  // Single-frame oracles: each scene runs through every frame oracle in registry
+  // order (same nesting as before — outer loop scenes, inner loop oracles).
   locked.scenes.forEach((scene, i) => {
     const frame = frames[i];
     if (!frame) return;
-    issues.push(...checkContentZone(frame, scene.id, options));
-    issues.push(...checkCaptionClearance(frame, scene.id, options));
-    issues.push(...checkDividerClearanceAbove(frame, scene.id, options));
-    issues.push(...checkDensity(frame, scene.id, options));
-    issues.push(...checkDeadAir(frame, scene.id, options));
-    issues.push(...checkContrast(frame, scene.id, options));
+    for (const oracle of frameOracles) {
+      issues.push(...oracle.run(frame, scene.id, options));
+    }
   });
 
   // Coarse transition check between adjacent scene stills (midpoint proxy).
   for (let i = 0; i < frames.length - 1; i += 1) {
     const a = frames[i];
     const b = frames[i + 1];
-    if (a && b) issues.push(...checkTransition(a, b, locked.scenes[i + 1]!.id, options));
+    if (!a || !b) continue;
+    for (const oracle of transitionOracles) {
+      issues.push(...oracle.run(a, b, locked.scenes[i + 1]!.id, options));
+    }
   }
 
   return makeReport(issues, ["render"]);

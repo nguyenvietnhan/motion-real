@@ -34,6 +34,10 @@ export {
 // Frame + content column (content-zone constrained):
 export { Frame, Content } from "./frame.js";
 
+// Single sanctioned image block (the ONLY way an authored scene shows an image;
+// authored code is banned from raw Img/staticFile — see admission N5):
+export { SceneImage } from "./scene-image.js";
+
 // Text blocks:
 export { TitleBlock, IdeaPanel, Callout } from "./text.js";
 
@@ -57,8 +61,19 @@ export {
 // Caption track (used by the master composition, not authored scenes):
 export { Captions, CAPTION_RENDER_BAND, CAPTION_CANVAS } from "./captions.js";
 
-// Pack-driven chrome helpers (style packs read border/shadow from the theme):
-export { chromeBorder, chromeBorderWidth, chromeShadow } from "./chrome.js";
+// Surface-kit: language-driven chrome helpers (blocks + authored scenes read
+// border/radius/fill/shadow/chip from the resolved theme tokens):
+export {
+  surfaceBorder,
+  surfaceBorderWidth,
+  innerDivider,
+  surfaceRadius,
+  surfaceShadow,
+  blockSurface,
+  topRuleStyle,
+  chipStyle,
+  labelStyle,
+} from "./chrome.js";
 
 // Render-safe font loading + Vietnamese-coverage report (for the doctor check):
 export { LOADED_FONT_FAMILIES, fontCoverageReport, type FontCoverage } from "./fonts.js";

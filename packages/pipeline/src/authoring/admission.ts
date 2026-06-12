@@ -50,6 +50,16 @@ export const DEFAULT_ADMISSION_POLICY: AdmissionPolicy = {
     "window.location",
     "document.cookie",
     "dangerouslySetInnerHTML",
+    // Media must reach the screen ONLY through the sanctioned `<SceneImage>`
+    // block (fed by the scene's local-only `image` field). Banning Remotion's
+    // raw media primitives in authored code closes the remote-URL smuggle hole
+    // (e.g. `<Img src="https://…">`) — an authored scene cannot fetch or embed
+    // its own media, so the local-only / offline-determinism (N16) invariant
+    // holds without trusting AI output.
+    "Img",
+    "staticFile",
+    "Video",
+    "OffthreadVideo",
   ],
   requiredExports: ["default", "schema", "example"],
 };

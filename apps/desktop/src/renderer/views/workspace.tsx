@@ -3,6 +3,7 @@ import type { ProjectStage, ScriptLine } from "../../shared/types.js";
 import { Icon } from "../icons.js";
 import { EmptyState, PageHeader, Spinner } from "../primitives.js";
 import { StoryboardView } from "./storyboard.js";
+import { ImageReviewView } from "./image-review.js";
 
 /**
  * Project workspace: staged flow (write script → review → render → scenes).
@@ -58,16 +59,31 @@ const ScriptReview: React.FC<{
       </div>
       <div style={{ display: "grid", gap: 12 }}>
         {lines.map((l, i) => (
-          <div key={l.sceneId} className="ns-card" style={{ padding: 16 }}>
-            <div style={{ display: "flex", gap: 10, alignItems: "baseline", marginBottom: 8 }}>
-              <span style={{ color: "var(--brand)", fontWeight: 800 }}>{i + 1}</span>
-              <input className="ns-input" value={draft[l.sceneId]?.headline ?? ""} placeholder="Tiêu đề cảnh"
-                onChange={(e) => setDraft((d) => ({ ...d, [l.sceneId]: { ...d[l.sceneId]!, headline: e.target.value } }))}
-                style={{ flex: 1, padding: "8px 10px" }} />
+          <div key={l.sceneId} className="ns-card" style={{ padding: 16, display: "flex", gap: 14 }}>
+            {/* Thumbnail of the image the AI chose to place on THIS scene (Phase 2
+                Block B) — so the user sees, at script-review time, which photo each
+                scene will carry. Absent when the AI gave the scene no image. */}
+            {l.imagePath && (
+              <div
+                title="Ảnh AI gắn cho cảnh này"
+                style={{
+                  flexShrink: 0, width: 72, aspectRatio: "9 / 16", borderRadius: 8, overflow: "hidden",
+                  border: "1px solid var(--border)",
+                  background: `center/contain no-repeat #0c0e12 url(${l.imagePath})`,
+                }}
+              />
+            )}
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ display: "flex", gap: 10, alignItems: "baseline", marginBottom: 8 }}>
+                <span style={{ color: "var(--brand)", fontWeight: 800 }}>{i + 1}</span>
+                <input className="ns-input" value={draft[l.sceneId]?.headline ?? ""} placeholder="Tiêu đề cảnh"
+                  onChange={(e) => setDraft((d) => ({ ...d, [l.sceneId]: { ...d[l.sceneId]!, headline: e.target.value } }))}
+                  style={{ flex: 1, padding: "8px 10px" }} />
+              </div>
+              <textarea className="ns-input" value={draft[l.sceneId]?.narration ?? ""} rows={2} placeholder="Lời đọc"
+                onChange={(e) => setDraft((d) => ({ ...d, [l.sceneId]: { ...d[l.sceneId]!, narration: e.target.value } }))}
+                style={{ width: "100%" }} />
             </div>
-            <textarea className="ns-input" value={draft[l.sceneId]?.narration ?? ""} rows={2} placeholder="Lời đọc"
-              onChange={(e) => setDraft((d) => ({ ...d, [l.sceneId]: { ...d[l.sceneId]!, narration: e.target.value } }))}
-              style={{ width: "100%" }} />
           </div>
         ))}
       </div>
@@ -134,10 +150,13 @@ export const ProjectWorkspaceView: React.FC<{
   onSave: () => void;
   /** Stop the in-flight render/author/edit job ("Dừng render"). */
   onCancel: () => void;
-}> = ({ stage, onBack, onRetry, onFixWithAi, onApplyScript, onApproveScript, onSubmitEdits, onApproveDraft, onReveal, onSave, onCancel }) => {
+  /** Confirm the crawled-image selection (Phase 2 Block B); empty ⇒ author text-only. */
+  onSubmitImageReview: (selectedRefs: string[]) => void;
+}> = ({ stage, onBack, onRetry, onFixWithAi, onApplyScript, onApproveScript, onSubmitEdits, onApproveDraft, onReveal, onSave, onCancel, onSubmitImageReview }) => {
   const title: Record<ProjectStage["kind"], string> = {
     writing: "Đang viết kịch bản",
     script: "Duyệt kịch bản",
+    "image-review": "Duyệt ảnh",
     rendering: "Đang dựng video",
     ready: "Duyệt cảnh",
     published: "Đã xuất bản",
@@ -170,6 +189,7 @@ export const ProjectWorkspaceView: React.FC<{
         </div>
       )}
       {stage.kind === "script" && <ScriptReview lines={stage.lines} linkWarning={stage.linkWarning} onApply={onApplyScript} onApprove={onApproveScript} />}
+      {stage.kind === "image-review" && <ImageReviewView images={stage.images} onBack={onBack} onSubmit={onSubmitImageReview} />}
       {stage.kind === "rendering" && <RenderingPanel stage={stage} onCancel={onCancel} />}
       {stage.kind === "published" && (
         <div className="ns-card" style={{ padding: 20, display: "flex", flexDirection: "column", alignItems: "center", gap: 14 }}>

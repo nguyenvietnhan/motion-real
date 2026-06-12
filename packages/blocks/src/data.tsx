@@ -1,14 +1,18 @@
 import React from "react";
 import { useCurrentFrame, useVideoConfig } from "remotion";
-import { onColor, PRINT } from "@news/design";
+import { onColor, type Theme } from "@news/design";
 import { useTheme } from "./theme-context.js";
 import { frameRamp } from "./motion.js";
+import { blockSurface, innerDivider, surfaceRadius } from "./chrome.js";
 
 /**
- * `KeyPoints` — a numbered list / recap. The BLOCK owns the numbering (never
- * number items yourself). Solid accent number tiles with bold ink borders;
- * items stagger in. Light editorial look.
+ * Data blocks — `KeyPoints` (numbered recap) + `StatChip` (single framed figure).
+ * Surface grammar (border/radius/fill/shadow + the number-tile chip) reads from
+ * the resolved language tokens via the surface-kit, so one block renders every
+ * language. The BLOCK owns the numbering — authored scenes never number items.
  */
+
+/** `KeyPoints` — a numbered list / recap. Number tiles + rows are language-styled. */
 export const KeyPoints: React.FC<{ items: string[]; title?: string }> = ({ items, title }) => {
   const theme = useTheme();
   const frame = useCurrentFrame();
@@ -16,7 +20,7 @@ export const KeyPoints: React.FC<{ items: string[]; title?: string }> = ({ items
   return (
     <div data-nrt-block="keypoints" style={{ display: "grid", gap: 20 }}>
       {title ? (
-        <div style={{ fontFamily: theme.fonts.display, fontSize: 56, fontWeight: 900, color: theme.colors.fg }}>
+        <div style={{ fontFamily: theme.fonts.display, fontSize: 56, fontWeight: 900, color: theme.colors.fg, overflowWrap: "anywhere" }}>
           {title}
         </div>
       ) : null}
@@ -30,10 +34,10 @@ export const KeyPoints: React.FC<{ items: string[]; title?: string }> = ({ items
               display: "flex",
               alignItems: "stretch",
               gap: 22,
-              border: `4px solid ${PRINT.ink}`,
-              background: theme.colors.panel,
+              ...blockSurface(theme, { accent: c, size: "md", shadow: false }),
               opacity: r,
               transform: `translateX(${(1 - r) * 26}px)`,
+              overflow: "hidden",
             }}
           >
             <div
@@ -42,17 +46,19 @@ export const KeyPoints: React.FC<{ items: string[]; title?: string }> = ({ items
                 width: 84,
                 background: c,
                 color: onColor(c),
-                borderRight: `4px solid ${PRINT.ink}`,
+                borderRight: innerDivider(theme),
                 fontFamily: theme.fonts.display,
                 fontWeight: 900,
                 fontSize: 48,
                 display: "grid",
                 placeItems: "center",
+                borderTopLeftRadius: surfaceRadius(theme, "md"),
+                borderBottomLeftRadius: surfaceRadius(theme, "md"),
               }}
             >
               {i + 1}
             </div>
-            <div style={{ fontSize: 42, lineHeight: 1.26, color: theme.colors.fg, padding: "22px 26px 22px 4px" }}>
+            <div style={{ fontSize: 42, lineHeight: 1.26, color: theme.colors.fg, padding: "22px 26px 22px 4px", overflowWrap: "anywhere", minWidth: 0 }}>
               {item}
             </div>
           </div>
@@ -72,8 +78,7 @@ export const StatChip: React.FC<{ value: string; label: string }> = ({ value, la
     <div
       data-nrt-block="stat-chip"
       style={{
-        border: `4px solid ${PRINT.ink}`,
-        background: theme.colors.panel,
+        ...blockSurface(theme, { accent: theme.colors.accent, size: "md" }),
         padding: "26px 32px",
         display: "grid",
         gap: 6,
@@ -84,9 +89,10 @@ export const StatChip: React.FC<{ value: string; label: string }> = ({ value, la
       <div style={{ fontFamily: theme.fonts.display, fontWeight: 900, fontSize: 84, lineHeight: 1, color: theme.colors.accent }}>
         {value}
       </div>
-      <div style={{ fontSize: 30, color: theme.colors.muted, fontFamily: theme.fonts.mono, letterSpacing: "0.04em" }}>
+      <div style={{ fontSize: 30, color: theme.colors.muted, fontFamily: theme.fonts.mono, letterSpacing: theme.surface.labelTracking }}>
         {label}
       </div>
     </div>
   );
 };
+

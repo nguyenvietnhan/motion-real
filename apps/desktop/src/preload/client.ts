@@ -41,6 +41,10 @@ export function createDashboardClient(ipc: IpcLike): DashboardApi {
       selectedModel: () => inv("ai:selectedModel"),
     },
     projects: {
+      pickImages: () => inv("projects:pickImages"),
+      importImageBytes: (files) => inv("projects:importImageBytes", files),
+      removeStagedImage: (ref) => inv("projects:removeStagedImage", ref),
+      listStylePacks: () => inv("projects:listStylePacks"),
       create: (input) => inv("projects:create", input),
       list: () => inv("projects:list"),
       open: (projectId) => inv("projects:open", projectId),
@@ -51,6 +55,7 @@ export function createDashboardClient(ipc: IpcLike): DashboardApi {
       cancel: (projectId) => inv("projects:cancel", projectId),
       retry: (projectId) => inv("projects:retry", projectId),
       fixWithAi: (projectId) => inv("projects:fixWithAi", projectId),
+      submitImageReview: (projectId, selectedRefs) => inv("projects:submitImageReview", projectId, selectedRefs),
     },
     script: {
       get: (projectId) => inv("script:get", projectId),

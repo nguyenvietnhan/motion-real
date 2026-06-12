@@ -51,6 +51,42 @@ export const DEFAULT_HOLD_SECONDS = 4;
 
 export const DEFAULT_TTS_SPEED = 1.0;
 
+/**
+ * A scene's single optional image (no-media → ≤1 LOCAL image per scene). The
+ * field is FIRST-CLASS and SINGULAR — so "at most one image" is structurally
+ * impossible to violate — and lives OUTSIDE the free-form `props` so it never
+ * collides with a component's own Zod schema.
+ *
+ * `ref` is a project-relative path to a LOCAL asset (resolved by the renderer
+ * via Remotion `staticFile()` against the project root, exactly like narration
+ * audio). The refinement rejects everything that would breach the offline /
+ * determinism invariant (N16) or smuggle remote media past the new N9:
+ *   - any URL scheme (`http(s)://`, `data:`, `blob:`) — remote media is banned
+ *     at render time; only local assets are allowed;
+ *   - absolute paths and `..` traversal — the ref must stay inside the project;
+ *   - any non-raster / scriptable extension — only png/jpg/jpeg/webp/gif (SVG
+ *     is rejected: it can carry script in a Chromium render context).
+ * Later phases populate `ref` via crawl/upload writing content-addressed files
+ * (`assets/<sha>.<ext>`); this schema only defines + guards the shape.
+ */
+const IMAGE_REF_EXT = /\.(png|jpe?g|webp|gif)$/i;
+const HAS_SCHEME = /^[a-z][a-z0-9+.-]*:/i;
+export const SceneImageSchema = z.object({
+  /** Project-relative path to a LOCAL image asset (e.g. "assets/<sha>.png"). */
+  ref: z
+    .string()
+    .min(1)
+    .max(512)
+    .refine((r) => !HAS_SCHEME.test(r), "image.ref must be a local path, not a URL or data/blob scheme (remote media is banned at render time)")
+    .refine((r) => !/^([/\\]|[A-Za-z]:)/.test(r), "image.ref must be project-relative, not an absolute path")
+    .refine((r) => !r.split(/[/\\]/).includes(".."), "image.ref must not contain a \"..\" path traversal")
+    .refine((r) => IMAGE_REF_EXT.test(r), "image.ref must end in .png/.jpg/.jpeg/.webp/.gif (SVG and other formats are not allowed)"),
+  /** Optional alt/caption text for accessibility + review (not rendered as a caption). */
+  alt: z.string().max(160).optional(),
+});
+
+export type SceneImage = z.infer<typeof SceneImageSchema>;
+
 export const SceneSpecSchema = z.object({
   /** Sequential id: scene-01, scene-02, ... */
   id: z.string().regex(/^scene-[0-9]{2}$/),
@@ -67,6 +103,13 @@ export const SceneSpecSchema = z.object({
   narration: z.string().min(1).max(1200),
   /** Free-form visual data for the component to render. */
   props: z.record(z.string(), z.unknown()).default({}),
+  /**
+   * At most ONE local image for this scene (optional). Singular by design so
+   * "≤1 image per scene" cannot be violated; rendered only via the sanctioned
+   * `<SceneImage>` block. See `SceneImageSchema` for the local-only / no-remote
+   * refinement that protects the N16 offline invariant.
+   */
+  image: SceneImageSchema.optional(),
   /** Optional sound-effect cue. */
   sfx: z.enum(["none", "transition", "alert", "emphasis", "success"]).default("none").optional(),
   /**
@@ -100,7 +143,7 @@ export const ThemeSpecSchema = z.object({
   mood: z.string().max(40).optional(),
   /**
    * Optional selectable design style pack id (tool-productization R1), e.g.
-   * "bold-editorial" (default) or "clean-premium". Validated against the
+   * "bold-editorial" (default) or "galaxy". Validated against the
    * registered packs at spec-build time; absent ⇒ the default pack.
    */
   stylePackId: z.string().optional(),

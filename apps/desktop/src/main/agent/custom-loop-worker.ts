@@ -10,7 +10,8 @@ import type {
   VisualDefect,
   SceneSnapshot,
 } from "./agent-worker.js";
-import type { SafetyIssue } from "@news/pipeline";
+import type { SafetyIssue, CrawledImage } from "@news/pipeline";
+import type { AuthorImageRef } from "./agent-worker.js";
 import { generateValidateRepair, type SafetyReportView, type RenderResult } from "./repair-loop.js";
 
 /**
@@ -50,6 +51,10 @@ export interface AuthoringBackend {
   snapshotScenes?(projectId: string, sceneIds: string[]): Promise<SceneSnapshot>;
   /** Optional: restore authored scene source from a snapshot (re-admits the components). */
   restoreScenes?(projectId: string, snapshot: SceneSnapshot): Promise<void>;
+  /** Optional (Phase 2 Block B): crawl an article URL's images into the project assetsDir. */
+  crawlImages?(projectId: string, url: string, signal?: AbortSignal): Promise<CrawledImage[]>;
+  /** Optional (Phase 2 Block B): AI pre-select which crawled refs fit the article. */
+  filterCrawledImages?(projectId: string, articleText: string, refs: AuthorImageRef[], signal?: AbortSignal): Promise<string[]>;
 }
 
 function emitScenes(scenes: AuthoredScene[], hooks: AgentHooks): void {
@@ -102,6 +107,14 @@ export class CustomLoopAgentWorker implements AgentWorker {
 
   restoreScenes(projectId: string, snapshot: SceneSnapshot): Promise<void> {
     return this.backend.restoreScenes?.(projectId, snapshot) ?? Promise.resolve();
+  }
+
+  crawlImages(projectId: string, url: string, signal?: AbortSignal): Promise<CrawledImage[]> {
+    return this.backend.crawlImages?.(projectId, url, signal) ?? Promise.resolve([]);
+  }
+
+  filterCrawledImages(projectId: string, articleText: string, refs: AuthorImageRef[], signal?: AbortSignal): Promise<string[]> {
+    return this.backend.filterCrawledImages?.(projectId, articleText, refs, signal) ?? Promise.resolve([]);
   }
 
   async generateValidateRepair(

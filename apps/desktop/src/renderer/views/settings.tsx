@@ -101,6 +101,12 @@ export const SettingsView: React.FC<{
               <Toggle checked={settings.visualQaEnabled} onChange={(v) => onUpdate({ visualQaEnabled: v })}
                 title="AI tự soát & sửa lỗi hình ảnh trước khi duyệt"
                 desc="AI xem ảnh từng cảnh để bắt lỗi bố cục (đè chữ, tràn, lệch) và tự sửa — cần model nhìn được ảnh; nếu không sẽ tự bỏ qua." />
+              <Toggle checked={settings.imageCrawlAiFilter} onChange={(v) => onUpdate({ imageCrawlAiFilter: v })}
+                title="AI tự chọn ảnh từ bài báo"
+                desc="Khi yêu cầu có đường dẫn, AI xem các ảnh cào được từ bài và chọn sẵn ảnh phù hợp nội dung — cần model nhìn được ảnh." />
+              <Toggle checked={settings.imageCrawlHumanReview} onChange={(v) => onUpdate({ imageCrawlHumanReview: v })}
+                title="Cho tôi duyệt ảnh trước khi dựng"
+                desc="Hiện màn chọn ảnh cào từ bài báo để bạn xác nhận trước khi AI viết kịch bản. Tắt thì dùng luôn lựa chọn của AI." />
               <div style={{ borderTop: "1px solid var(--border)", paddingTop: 14, marginTop: 4 }}>
                 <span style={{ fontSize: 12, color: "var(--muted-foreground)" }}>Thư mục lưu dự án</span>
                 <p style={{ margin: "4px 0 0", fontSize: 13, fontFamily: "var(--font-mono, monospace)", color: "var(--foreground)", wordBreak: "break-all" }}>{settings.outputDir || "(mặc định)"}</p>

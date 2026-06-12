@@ -16,6 +16,17 @@ export const componentId = z
 
 const transition = z.enum(["slide", "fade", "wipe", "clockWipe", "zoom"]);
 
+/**
+ * Optional per-scene image the AI may place (Phase 2 Block A). `ref` is a fixed,
+ * provided project-relative local path (`assets/<sha>.<ext>`); the AI never
+ * invents it (the backend strips any ref not in the provided pool). Singular by
+ * schema ⇒ ≤1 image per scene. `alt` is optional accessibility/review text.
+ */
+const authorImageSchema = z.object({
+  ref: z.string().min(1).max(512),
+  alt: z.string().max(160).optional(),
+});
+
 export const authorSceneSchema = z.object({
   component: componentId,
   eyebrow: z.string().min(1).max(24),
@@ -23,6 +34,7 @@ export const authorSceneSchema = z.object({
   narration: z.string().min(1).max(600),
   body: z.string().max(200).optional(),
   props: z.record(z.string(), z.unknown()).default({}),
+  image: authorImageSchema.optional(),
   transitionToNext: transition.optional(),
 });
 export type AuthorScene = z.infer<typeof authorSceneSchema>;

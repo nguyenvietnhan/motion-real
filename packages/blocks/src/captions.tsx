@@ -1,6 +1,6 @@
 import React from "react";
 import { interpolateColors, useCurrentFrame, useVideoConfig } from "remotion";
-import { PRINT } from "@news/design";
+import { withAlpha } from "@news/design";
 import { type CaptionCue, CANVAS, CAPTION_BAND, rectWidth } from "@news/schema";
 import { useTheme } from "./theme-context.js";
 import { easeOut } from "./motion.js";
@@ -8,10 +8,16 @@ import { easeOut } from "./motion.js";
 /**
  * `Captions` — burned-in single-line KARAOKE caption track (R16), rendered
  * top-level by the composition (outside the transition series). Text only — NO
- * background box; bold INK text with a paper-colored halo so it stays legible on
- * the cream base. Each cue is a short "page" of words; the word currently being
- * spoken is highlighted in the accent color (already-spoken words stay ink,
- * upcoming words are dimmed). Pure function of the frame (deterministic, N16).
+ * background box by default; bold ink text with a base-colored halo so it stays
+ * legible on EITHER polarity (cream on editorial, deep night on galaxy). Each cue
+ * is a short "page" of words; the word currently being spoken is highlighted in
+ * the accent color (already-spoken words stay fg, upcoming words are dimmed).
+ * Pure function of the frame (N16).
+ *
+ * ONE shared caption band for every language (`CAPTION_BAND`) — the N29 oracle
+ * reads the SAME constant, so the caption is drawn and measured in the same
+ * place. A language may set `theme.captionScrim`, a faint plate behind the text
+ * (chrome, the "outfit") for looks whose caption sits low over busy video.
  */
 export const Captions: React.FC<{ cues: CaptionCue[] }> = ({ cues }) => {
   const theme = useTheme();
@@ -21,10 +27,15 @@ export const Captions: React.FC<{ cues: CaptionCue[] }> = ({ cues }) => {
   const active = cues.find((c) => frame >= c.startFrame && frame < c.endFrame);
   if (!active) return null;
 
-  const halo = PRINT.paper;
+  const band = CAPTION_BAND;
+  const scrim = theme.captionScrim;
+  // Halo follows base polarity: the page background color (cream on editorial,
+  // deep night on galaxy) so the ink/light caption text is wrapped in a glow that
+  // matches its base and pops on busy video underneath.
+  const halo = theme.colors.bg;
   // Deterministic shrink-to-fit: the band is fixed-width and captions are single
   // line (no wrap), so size the font from the page length to guarantee no clip.
-  const usableWidth = rectWidth(CAPTION_BAND) - 24;
+  const usableWidth = rectWidth(band) - 24;
   const len = Math.max(1, active.text.length);
   const fontSize = Math.max(32, Math.min(56, Math.floor(usableWidth / (len * 0.66))));
 
@@ -37,15 +48,30 @@ export const Captions: React.FC<{ cues: CaptionCue[] }> = ({ cues }) => {
     <div
       style={{
         position: "absolute",
-        left: CAPTION_BAND.left,
-        top: CAPTION_BAND.top,
-        width: rectWidth(CAPTION_BAND),
-        height: CAPTION_BAND.bottom - CAPTION_BAND.top,
+        left: band.left,
+        top: band.top,
+        width: rectWidth(band),
+        height: band.bottom - band.top,
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
         overflow: "hidden",
         pointerEvents: "none",
+        // Optional faint plate (chrome): a translucent scrim behind the caption
+        // for looks whose band sits low over busy video. Its base matches the
+        // language polarity — a dark ink plate on galaxy, a light paper plate on
+        // a light language. Omitted ⇒ no box (the classic look draws directly on
+        // the base).
+        ...(scrim
+          ? {
+              // The plate base is the language's own background (dark night on
+              // galaxy, cream on a light language), so the scrim always matches
+              // the polarity it sits over.
+              background: withAlpha(theme.colors.bg, scrim.opacity),
+              backdropFilter: scrim.blur > 0 ? `blur(${scrim.blur}px)` : undefined,
+              borderRadius: scrim.radius,
+            }
+          : null),
       }}
     >
       <div

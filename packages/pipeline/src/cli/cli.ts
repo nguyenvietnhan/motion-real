@@ -435,7 +435,7 @@ function defaultCheckRegistry(): DoctorCheck {
 
 /** R6.1: the style-pack registry resolves and ships the required packs. */
 export function defaultCheckStylePacks(): DoctorCheck {
-  const required = ["bold-editorial", "clean-premium"];
+  const required = ["bold-editorial", "galaxy"];
   const ids = listStylePackIds();
   const missing = required.filter((id) => !getStylePack(id));
   return {
@@ -456,7 +456,7 @@ export function defaultCheckFonts(): DoctorCheck {
   for (const id of listStylePackIds()) {
     const pack = getStylePack(id);
     if (!pack) continue;
-    const families = pack.chrome.fontFamily;
+    const families = pack.fonts;
     for (const [role, stack] of Object.entries(families)) {
       const family = leading(stack);
       if (coverage.get(family) !== true) {

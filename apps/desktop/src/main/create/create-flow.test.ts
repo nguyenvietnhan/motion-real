@@ -18,7 +18,7 @@ function deps(over: Partial<CreateDeps> = {}): { deps: CreateDeps; scaffold: Cre
     over.scaffold ?? vi.fn(async (_prompt: string) => ({ ok: true as const, projectId: "p1" }));
   const d: CreateDeps = {
     scaffold,
-    beginScript: (id, input) => began.push({ id, input }),
+    beginCreate: (id, input) => began.push({ id, input }),
     ...over,
   };
   return { deps: d, scaffold, began };
@@ -42,6 +42,47 @@ describe("CreateController.create", () => {
     const ctrl = new CreateController(d);
     await ctrl.create("https://news.example.com/a");
     expect(began).toEqual([{ id: "p1", input: { text: "https://news.example.com/a", urls: ["https://news.example.com/a"] } }]);
+  });
+
+  it("promotes staged images and threads the resulting refs into the author input (Phase 2 Block A)", async () => {
+    const promoteImages = vi.fn(async () => [{ ref: "assets/aa.png", width: 800, height: 600 }]);
+    const { deps: d, began } = deps({ promoteImages });
+    const ctrl = new CreateController(d);
+    await ctrl.create("chủ đề", [{ ref: "staging/aa.png", width: 800, height: 600 }]);
+    expect(promoteImages).toHaveBeenCalledWith("p1", [{ ref: "staging/aa.png", width: 800, height: 600 }]);
+    expect(began[0]!.input.images).toEqual([{ ref: "assets/aa.png", width: 800, height: 600 }]);
+  });
+
+  it("with no images, the author input omits the images field entirely (no regression)", async () => {
+    const { deps: d, began } = deps();
+    const ctrl = new CreateController(d);
+    await ctrl.create("chủ đề");
+    expect(began[0]!.input.images).toBeUndefined();
+  });
+
+  it("a promote failure never blocks create — the brief still authors text-only", async () => {
+    const promoteImages = vi.fn(async () => {
+      throw new Error("disk full");
+    });
+    const { deps: d, began } = deps({ promoteImages });
+    const ctrl = new CreateController(d);
+    const result = await ctrl.create("chủ đề", [{ ref: "staging/aa.png", width: 10, height: 10 }]);
+    expect(result).toEqual({ projectId: "p1" });
+    expect(began[0]!.input.images).toBeUndefined();
+  });
+
+  it("threads the chosen stylePackId into the author input (create-screen picker)", async () => {
+    const { deps: d, began } = deps();
+    const ctrl = new CreateController(d);
+    await ctrl.create("chủ đề", [], "galaxy");
+    expect(began[0]!.input.stylePackId).toBe("galaxy");
+  });
+
+  it("with no stylePackId chosen, the author input omits it (falls back to the engine default)", async () => {
+    const { deps: d, began } = deps();
+    const ctrl = new CreateController(d);
+    await ctrl.create("chủ đề");
+    expect(began[0]!.input.stylePackId).toBeUndefined();
   });
 
   it("throws a REDACTED friendly message on scaffold failure and never starts the workspace (R8.5)", async () => {

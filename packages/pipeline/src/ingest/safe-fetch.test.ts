@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { assertPublicUrl, isPrivateAddress, makeSafeFetch } from "./safe-fetch.js";
+import { assertPublicUrl, isPrivateAddress, makeSafeFetch, makeSafeFetchBytes } from "./safe-fetch.js";
 import { isPipelineError } from "../errors.js";
 
 /**
@@ -114,5 +114,52 @@ describe("makeSafeFetch", () => {
     expect(headers["User-Agent"]).toMatch(/Mozilla\/5\.0.*Chrome/);
     expect(headers["Accept"]).toContain("text/html");
     expect(headers["Accept-Language"]).toContain("vi");
+  });
+});
+
+describe("makeSafeFetchBytes", () => {
+  /** A Response carrying binary bytes (so a utf8 decode would corrupt them). */
+  const binRes = (bytes: Uint8Array, opts: { status?: number; location?: string } = {}): Response => {
+    const { status = 200, location } = opts;
+    const headers = new Headers();
+    if (location) headers.set("location", location);
+    return new Response(status >= 300 && status < 400 ? null : (bytes as unknown as BodyInit), { status, headers });
+  };
+
+  it("returns the raw bytes intact (no utf8 corruption)", async () => {
+    const bytes = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x00, 0xff, 0x10, 0x80]);
+    const fetcher = makeSafeFetchBytes({
+      fetchImpl: async () => binRes(bytes),
+      lookupImpl: async () => ["93.184.216.34"],
+    });
+    const out = await fetcher("https://example.com/x.png");
+    expect(out.ok).toBe(true);
+    expect(Array.from(out.bytes)).toEqual(Array.from(bytes));
+  });
+
+  it("still blocks a private host on the bytes path", async () => {
+    const fetcher = makeSafeFetchBytes({
+      fetchImpl: async () => binRes(new Uint8Array([1, 2, 3])),
+      lookupImpl: async () => ["10.1.2.3"],
+    });
+    await expect(fetcher("https://evil.example.com/x.png")).rejects.toSatisfy(isPipelineError);
+  });
+
+  it("re-validates a redirect hop into a private target", async () => {
+    const fetcher = makeSafeFetchBytes({
+      fetchImpl: async (u) =>
+        u.includes("start") ? binRes(new Uint8Array(), { status: 302, location: "http://127.0.0.1/secret.png" }) : binRes(new Uint8Array([9])),
+      lookupImpl: async () => ["93.184.216.34"],
+    });
+    await expect(fetcher("https://start.example.com/")).rejects.toSatisfy(isPipelineError);
+  });
+
+  it("aborts when the image body exceeds the cap", async () => {
+    const fetcher = makeSafeFetchBytes({
+      fetchImpl: async () => binRes(new Uint8Array(1024)),
+      lookupImpl: async () => ["93.184.216.34"],
+      maxBodyBytes: 100,
+    });
+    await expect(fetcher("https://example.com/big.png")).rejects.toSatisfy(isPipelineError);
   });
 });

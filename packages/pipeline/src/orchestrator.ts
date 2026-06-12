@@ -28,7 +28,7 @@ import {
 import { runStaticGrid } from "./safety/static-grid.js";
 import { runBuildGridStatic } from "./safety/build-grid.js";
 import { typecheckAuthoredScenes } from "./safety/typecheck-authored.js";
-import { runRenderGrid, checkOverlap, type RenderGridOptions } from "./safety/render-grid.js";
+import { runRenderGrid, checkOverlap, runTruncationForScene, type RenderGridOptions } from "./safety/render-grid.js";
 import { lintSceneSources, compositionsSrcDir, blocksSrcDir } from "./safety/forbidden-api.js";
 import { scaffoldProject, loadManifest, loadManifestAsSpec, admitProjectScenes, manifestSceneFiles } from "./authoring/manifest.js";
 import { PipelineError, RenderCancelledError, isRenderCancelledError } from "./errors.js";
@@ -432,6 +432,14 @@ export async function renderProject(projectId: string, opts: RenderProjectOption
       for (const scene of locked.scenes) {
         const blocks = layouts[scene.id];
         if (blocks && blocks.length > 1) overlapIssues.push(...checkOverlap(blocks, scene.id, "warning"));
+        // N17 (text truncation/clipping): run the per-block probe over each
+        // measured rect against this scene's rendered still. Same measure pass +
+        // same warning posture as overlap; finally wires N17 onto real renders
+        // (it needs a content box a flat raster can't carry, so it was never run).
+        if (blocks && blocks.length > 0) {
+          const stillPath = join(paths.reviewDir, `${scene.id}.png`);
+          overlapIssues.push(...(await runTruncationForScene(stillPath, blocks, scene.id, renderGridOptions)));
+        }
       }
       await appendEvent(projectId, { type: "render.overlap", scenes: Object.keys(layouts).length, issues: overlapIssues.length });
     } catch (error) {

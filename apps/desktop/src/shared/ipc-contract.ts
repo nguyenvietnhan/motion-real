@@ -4,11 +4,13 @@ import type {
   ApplyResult,
   ApproveResult,
   CreateInput,
+  DroppedImage,
   EditBatch,
   FriendlyError,
   GatewayState,
   LicenseState,
   ModelInfo,
+  PickImagesResult,
   ProgressEvent,
   ProjectCardVM,
   ProviderInfo,
@@ -19,6 +21,7 @@ import type {
   SettingsModel,
   StatusEvent,
   StoryboardModel,
+  StylePackVM,
   SubmitResult,
 } from "./types.js";
 
@@ -45,6 +48,14 @@ export interface DashboardApi {
     selectedModel(): Promise<ModelInfo | undefined>;
   };
   projects: {
+    /** Open a native file picker, import the picked images (content-addressed) into staging, and return previews + per-file rejections (Phase 2 Block A). */
+    pickImages(): Promise<PickImagesResult>;
+    /** Import raw image bytes the renderer captured from a paste (Ctrl+V) or drag-drop — no file path — into staging (Phase 2 Block A). */
+    importImageBytes(files: DroppedImage[]): Promise<PickImagesResult>;
+    /** Delete one staged create-time image by its `staging/<sha>.<ext>` ref when the user removes it from the attach strip, so unused bytes don't linger until the 24h sweep. Best-effort: an unknown/already-gone ref resolves cleanly. */
+    removeStagedImage(ref: string): Promise<void>;
+    /** The registered design style packs (id + name + chrome preview hints) so the create screen can render a style picker. Single source of truth = the `@news/design` registry. */
+    listStylePacks(): Promise<StylePackVM[]>;
     create(input: CreateInput): Promise<{ projectId: string }>;
     list(): Promise<ProjectCardVM[]>;
     open(projectId: string): Promise<StoryboardModel>;
@@ -59,6 +70,8 @@ export interface DashboardApi {
     retry(projectId: string): Promise<void>;
     /** Ask the agent to fix Content_Errors and re-render ("Sửa bằng AI"). */
     fixWithAi(projectId: string): Promise<void>;
+    /** Confirm the crawled-image selection (Phase 2 Block B); authoring begins with these refs. Empty ⇒ author text-only. */
+    submitImageReview(projectId: string, selectedRefs: string[]): Promise<void>;
   };
   script: {
     get(projectId: string): Promise<ScriptGateModel>;

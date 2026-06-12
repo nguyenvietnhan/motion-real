@@ -84,6 +84,14 @@ export class SettingsStore {
     return this.settings.visualQaEnabled;
   }
 
+  get imageCrawlAiFilter(): boolean {
+    return this.settings.imageCrawlAiFilter;
+  }
+
+  get imageCrawlHumanReview(): boolean {
+    return this.settings.imageCrawlHumanReview;
+  }
+
   /** Merge patch (patch wins), force voiceProvider, persist, return (R3.8). */
   update(patch: Partial<SettingsModel>): SettingsModel {
     this.settings = { ...this.settings, ...patch, voiceProvider: "vivibe" };

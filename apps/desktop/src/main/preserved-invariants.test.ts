@@ -69,7 +69,7 @@ describe("Task 12.1: preserved engine invariants at the dashboard boundary", () 
         const res = await tools.scaffold_project({ prompt });
         return res.ok ? { ok: true, projectId: res.data.projectId } : { ok: false, error: res.error };
       },
-      beginScript: () => {},
+      beginCreate: () => {},
     });
     const result = await ctrl.create("tin công nghệ");
     expect(result).toEqual({ projectId: "p1" });

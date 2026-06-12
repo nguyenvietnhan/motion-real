@@ -20,9 +20,11 @@ import {
   checkTransition,
   checkTruncation,
   runRenderGrid,
+  RENDER_ORACLES,
   type Frame,
   type Rect,
 } from "./render-grid.js";
+import * as renderGridModule from "./render-grid.js";
 import { encodePngRGBA } from "./png.js";
 
 /**
@@ -111,7 +113,7 @@ describe("N14 safe-area / overflow", () => {
 describe("N14 caption clearance", () => {
   it("fires when content reaches into the caption clearance gap", () => {
     const f = makeFrame(1080, 1920);
-    paint(f, { x: 120, y: 1205, width: 500, height: 20 }, WHITE); // inside the gap band
+    paint(f, { x: 120, y: 1360, width: 500, height: 8 }, WHITE); // inside the gap band (1358..1370)
     expect(checkCaptionClearance(f).some((i) => i.check === "N14")).toBe(true);
   });
   it("passes when content stays above the divider, clear of the gap", () => {
@@ -122,11 +124,11 @@ describe("N14 caption clearance", () => {
 });
 
 describe("N14 above-divider clearance", () => {
-  // The divider is drawn at CONTENT_ZONE.bottom (1190); the oracle scans the thin
-  // band just above it (1174..1188).
+  // The divider is drawn at CONTENT_ZONE.bottom (1350); the oracle scans the thin
+  // band just above it (1334..1348).
   it("fires when content sits flush on the divider from above", () => {
     const f = makeFrame(1080, 1920);
-    paint(f, { x: 120, y: 1178, width: 500, height: 12 }, WHITE); // flush above the divider
+    paint(f, { x: 120, y: 1338, width: 500, height: 10 }, WHITE); // flush above the divider
     expect(checkDividerClearanceAbove(f).some((i) => i.check === "N14")).toBe(true);
   });
   it("passes when content keeps a clear gap above the divider", () => {
@@ -136,7 +138,7 @@ describe("N14 above-divider clearance", () => {
   });
   it("is a no-op when divider-clearance enforcement is turned off (future layout)", () => {
     const f = makeFrame(1080, 1920);
-    paint(f, { x: 120, y: 1178, width: 500, height: 12 }, WHITE); // would otherwise fire
+    paint(f, { x: 120, y: 1338, width: 500, height: 10 }, WHITE); // would otherwise fire
     expect(checkDividerClearanceAbove(f, undefined, { dividerClearanceAbove: false })).toEqual([]);
   });
 });
@@ -236,7 +238,7 @@ describe("N14 zone-aware (content zone / caption band)", () => {
   it("passes when content stays in the content zone and a caption sits in the band", () => {
     const f = makeFrame(1080, 1920);
     paint(f, { x: 200, y: 300, width: 600, height: 600 }, WHITE); // inside CONTENT_ZONE
-    paint(f, { x: 220, y: 1330, width: 600, height: 120 }, WHITE); // inside CAPTION_BAND
+    paint(f, { x: 220, y: 1400, width: 600, height: 120 }, WHITE); // inside CAPTION_BAND (1370..1650)
     expect(checkContentZone(f, "scene-01")).toEqual([]);
   });
   it("tolerates a thin decorative frame border + corner ticks at the very edge", () => {
@@ -434,5 +436,73 @@ describe("runRenderGrid aggregator", () => {
 
     const report = await runRenderGrid(locked, { framesDir: dir });
     expect(report.issues.some((i) => i.sceneId === "scene-02" && /could not load still/i.test(i.message))).toBe(true);
+  });
+
+});
+
+describe("oracle registry (drift guard)", () => {
+  it("has at least one registered oracle", () => {
+    expect(RENDER_ORACLES.length).toBeGreaterThan(0);
+  });
+
+  it("every oracle id is unique", () => {
+    const ids = RENDER_ORACLES.map((o) => o.id);
+    expect(new Set(ids).size, `duplicate oracle id in registry: ${ids.join(", ")}`).toBe(ids.length);
+  });
+
+  it("every auto-run oracle declares a runnable phase with a run fn", () => {
+    for (const oracle of RENDER_ORACLES) {
+      if (oracle.phase === "manual") {
+        expect("run" in oracle, `${oracle.id} is manual and must not carry a run fn`).toBe(false);
+      } else {
+        expect(typeof (oracle as { run: unknown }).run, `${oracle.id} (${oracle.phase}) needs a run fn`).toBe(
+          "function",
+        );
+      }
+    }
+  });
+
+  // The drift guard the §6.3 decision is really about: a new `check*` oracle
+  // added to render-grid.ts but NOT entered in RENDER_ORACLES would silently be
+  // un-classified (and, if auto-run-worthy, un-run). We introspect the module's
+  // own exports — counting every exported `check*` function — and assert the
+  // registry has exactly one entry per such function. Adding `checkFoo` without
+  // a registry entry makes the counts diverge → red test, not a silent gap.
+  it("registry has exactly one entry per exported check* oracle (adding one without registering fails)", () => {
+    const checkFns = Object.keys(renderGridModule)
+      .filter((k) => /^check[A-Z]/.test(k))
+      .filter((k) => typeof (renderGridModule as Record<string, unknown>)[k] === "function")
+      .sort();
+    // Every exported oracle function must be classified in the registry.
+    expect(
+      RENDER_ORACLES.length,
+      `exported check* fns (${checkFns.length}: ${checkFns.join(", ")}) ` +
+        `!= registry entries (${RENDER_ORACLES.length}). Add the new oracle to RENDER_ORACLES.`,
+    ).toBe(checkFns.length);
+
+    // And the registry ids are the stable contract the rest of the plan refers
+    // to — pin them so a rename is also a conscious edit.
+    const KNOWN = [
+      "pacing",
+      "audio-sync",
+      "duration",
+      "captions",
+      "content-zone",
+      "caption-clearance",
+      "divider-clearance-above",
+      "density",
+      "dead-air",
+      "contrast",
+      "transition",
+      "safe-area",
+      "overlap",
+      "truncation",
+      "richness",
+    ];
+    const registered = new Set(RENDER_ORACLES.map((o) => o.id));
+    for (const id of KNOWN) {
+      expect(registered.has(id), `oracle "${id}" missing from RENDER_ORACLES`).toBe(true);
+    }
+    expect(registered.size, "RENDER_ORACLES has an id not in the KNOWN list — add it").toBe(KNOWN.length);
   });
 });

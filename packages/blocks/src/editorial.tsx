@@ -1,34 +1,52 @@
 import React from "react";
 import { useCurrentFrame, useVideoConfig } from "remotion";
-import { onColor, PRINT } from "@news/design";
+import { onColor, type Theme } from "@news/design";
 import { CONTENT_ZONE, rectHeight, rectWidth } from "@news/schema";
 import { useTheme } from "./theme-context.js";
 import { useReveal, useRamp, usePop, useTilt, frameRamp } from "./motion.js";
-import { chromeBorder, chromeBorderWidth, chromeShadow } from "./chrome.js";
+import {
+  blockSurface,
+  surfaceBorder,
+  surfaceBorderWidth,
+  innerDivider,
+  surfaceRadius,
+  topRuleStyle,
+  chipStyle,
+  labelStyle,
+} from "./chrome.js";
 
 /**
- * Editorial "boxed" blocks for the LIGHT print look: ink-on-cream, bold borders,
- * vivid accent fills, mono labels, decorative rules — plus animated entrances
- * and two authored-visualization primitives (`CountUp`, `BarChart`). Compose
- * these for structured, visualized scenes. All deterministic (frame-derived).
+ * Editorial "boxed" blocks + authored-viz primitives. Despite the file name,
+ * these are NOT editorial-only: every visual decision (border, radius, fill,
+ * shadow, top-rule, chip, label case) reads from the resolved language tokens via
+ * the surface-kit, so the SAME blocks render the editorial print look, the galaxy
+ * dark look, or any future language. Layout + type scale + motion stay here
+ * (invariant); only the surface grammar comes from the theme. All deterministic
+ * (frame-derived).
  */
 
 export type Tone = "accent" | "signal" | "blue" | "red" | "yellow" | "green" | "violet" | "neutral";
 
-function toneColor(theme: ReturnType<typeof useTheme>, tone: Tone): string {
+/**
+ * Resolve a tone to a concrete color FROM THE THEME — never a fixed PRINT.* hex,
+ * so the semantic series is the language's own (editorial = print hues, galaxy =
+ * neon). `accent`/`signal` follow the project dominant; the named hues map to the
+ * language's tuned series; `neutral` is muted.
+ */
+function toneColor(theme: Theme, tone: Tone): string {
   switch (tone) {
     case "signal":
       return theme.colors.signal;
     case "blue":
-      return PRINT.blue;
+      return theme.colors.blue;
     case "red":
-      return PRINT.red;
+      return theme.colors.red;
     case "yellow":
-      return PRINT.yellow;
+      return theme.colors.yellow;
     case "green":
-      return PRINT.green;
+      return theme.colors.green;
     case "violet":
-      return PRINT.violet;
+      return theme.colors.violet;
     case "neutral":
       return theme.colors.muted;
     default:
@@ -36,7 +54,7 @@ function toneColor(theme: ReturnType<typeof useTheme>, tone: Tone): string {
   }
 }
 
-/** A small mono uppercase chip on a solid accent fill. */
+/** A small mono label chip — solid (editorial) or outline (galaxy), per the language. */
 export const Tag: React.FC<{ children: React.ReactNode; tone?: Tone; solid?: boolean }> = ({
   children,
   tone = "accent",
@@ -44,6 +62,9 @@ export const Tag: React.FC<{ children: React.ReactNode; tone?: Tone; solid?: boo
 }) => {
   const theme = useTheme();
   const c = toneColor(theme, tone);
+  // `solid={false}` forces the outline treatment regardless of language; otherwise
+  // the language's own chip style decides.
+  const chip = solid ? chipStyle(theme, c, onColor) : { background: "transparent", color: theme.colors.fg, border: surfaceBorder(theme), borderRadius: surfaceRadius(theme, "sm") };
   return (
     <span
       style={{
@@ -51,13 +72,10 @@ export const Tag: React.FC<{ children: React.ReactNode; tone?: Tone; solid?: boo
         fontFamily: theme.fonts.mono,
         fontWeight: 800,
         fontSize: 24,
-        letterSpacing: "0.14em",
-        textTransform: "uppercase",
+        ...labelStyle(theme),
         padding: "8px 16px",
-        background: solid ? c : "transparent",
-        color: solid ? onColor(c) : theme.colors.fg,
-        border: chromeBorder(theme),
         whiteSpace: "nowrap",
+        ...chip,
       }}
     >
       {children}
@@ -65,7 +83,7 @@ export const Tag: React.FC<{ children: React.ReactNode; tone?: Tone; solid?: boo
   );
 };
 
-/** Top label bar: solid accent eyebrow chip + section label + right meta. Wipes in. */
+/** Top label bar: accent eyebrow chip + section label + right meta. Wipes in. */
 export const HeaderBar: React.FC<{ eyebrow: string; label?: string; meta?: string }> = ({
   eyebrow,
   label,
@@ -73,13 +91,16 @@ export const HeaderBar: React.FC<{ eyebrow: string; label?: string; meta?: strin
 }) => {
   const theme = useTheme();
   const r = useReveal(0, 16);
+  const radius = surfaceRadius(theme, "md");
   return (
     <div
       style={{
         display: "flex",
         alignItems: "stretch",
-        border: chromeBorder(theme),
-        background: theme.colors.panel,
+        border: surfaceBorder(theme),
+        borderRadius: radius,
+        background: theme.surface.panelFill,
+        overflow: "hidden",
         clipPath: `inset(0 ${(1 - r) * 100}% 0 0)`,
       }}
     >
@@ -88,14 +109,14 @@ export const HeaderBar: React.FC<{ eyebrow: string; label?: string; meta?: strin
           fontFamily: theme.fonts.mono,
           fontWeight: 800,
           fontSize: 28,
+          ...labelStyle(theme),
           letterSpacing: "0.16em",
-          textTransform: "uppercase",
           background: theme.colors.accent,
           color: onColor(theme.colors.accent),
           padding: "16px 24px",
           display: "flex",
           alignItems: "center",
-          borderRight: `${chromeBorderWidth(theme)}px solid ${PRINT.ink}`,
+          borderRight: innerDivider(theme),
         }}
       >
         {eyebrow}
@@ -104,13 +125,16 @@ export const HeaderBar: React.FC<{ eyebrow: string; label?: string; meta?: strin
         style={{
           fontFamily: theme.fonts.mono,
           fontSize: 26,
-          letterSpacing: "0.14em",
-          textTransform: "uppercase",
+          ...labelStyle(theme),
           color: theme.colors.muted,
           padding: "16px 22px",
           display: "flex",
           alignItems: "center",
           flex: 1,
+          minWidth: 0,
+          overflow: "hidden",
+          whiteSpace: "nowrap",
+          textOverflow: "ellipsis",
         }}
       >
         {label ?? ""}
@@ -120,12 +144,13 @@ export const HeaderBar: React.FC<{ eyebrow: string; label?: string; meta?: strin
           style={{
             fontFamily: theme.fonts.mono,
             fontSize: 26,
+            ...labelStyle(theme),
             letterSpacing: "0.1em",
-            textTransform: "uppercase",
             color: theme.colors.fg,
             padding: "16px 24px",
             display: "flex",
             alignItems: "center",
+            whiteSpace: "nowrap",
           }}
         >
           {meta}
@@ -135,7 +160,7 @@ export const HeaderBar: React.FC<{ eyebrow: string; label?: string; meta?: strin
   );
 };
 
-/** A framed, bordered content panel with a top accent rule + optional title tag. */
+/** A framed content panel with an optional accent top-rule + optional title tag. */
 export const Panel: React.FC<{
   children: React.ReactNode;
   title?: string;
@@ -145,25 +170,25 @@ export const Panel: React.FC<{
   const theme = useTheme();
   const c = toneColor(theme, tone);
   const r = useReveal(delay);
+  const rule = topRuleStyle(theme, c);
   return (
     <div
       data-nrt-block="panel"
       style={{
-        border: chromeBorder(theme),
-        background: theme.colors.panel,
+        ...blockSurface(theme, { accent: c, size: "md" }),
         opacity: r,
         transform: `translateY(${(1 - r) * 22}px)`,
-        boxShadow: chromeShadow(theme, c),
+        overflow: "hidden",
       }}
     >
-      <div style={{ height: 12, background: c, borderBottom: `${chromeBorderWidth(theme)}px solid ${PRINT.ink}` }} />
+      {rule ? <div style={rule} /> : null}
       <div style={{ padding: "30px 34px", display: "grid", gap: 18 }}>
         {title ? (
           <div style={{ display: "flex" }}>
             <Tag tone={tone}>{title}</Tag>
           </div>
         ) : null}
-        <div style={{ fontSize: 42, lineHeight: 1.3, color: theme.colors.fg }}>{children}</div>
+        <div style={{ fontSize: 42, lineHeight: 1.3, color: theme.colors.fg, overflowWrap: "anywhere" }}>{children}</div>
       </div>
     </div>
   );
@@ -171,10 +196,8 @@ export const Panel: React.FC<{
 
 /**
  * Deterministically shrink a hero number's font when its string is long, so a
- * big value (e.g. "110000", "180-190 B$") never balloons past its container and
- * collides with a sibling label. Pure function of the final string length, so
- * it does not jitter while a `CountUp` animates (the size is computed from the
- * final value). Comfortable up to `comfortable` chars; shrinks ~1/length after.
+ * big value never balloons past its container. Pure function of the final string
+ * length (so it doesn't jitter while a `CountUp` animates).
  */
 function heroFontSize(text: string, base = 190, comfortable = 4, min = 84): number {
   const len = text.length;
@@ -182,7 +205,7 @@ function heroFontSize(text: string, base = 190, comfortable = 4, min = 84): numb
   return Math.max(min, Math.round((base * comfortable) / len));
 }
 
-/** Big number reveal: huge ink value + accent unit + label, framed with a sidebar. */
+/** Big number reveal: huge value + accent unit + label, framed with a sidebar. */
 export const StatBlock: React.FC<{ value: string; unit?: string; label: string; tone?: Tone }> = ({
   value,
   unit,
@@ -193,19 +216,27 @@ export const StatBlock: React.FC<{ value: string; unit?: string; label: string; 
   const c = toneColor(theme, tone);
   const r = useReveal(4);
   const valueFont = heroFontSize(value);
+  const radius = surfaceRadius(theme, "md");
   return (
     <div
       data-nrt-block="stat"
       style={{
         display: "flex",
-        border: chromeBorder(theme),
-        background: theme.colors.panel,
+        ...blockSurface(theme, { accent: c, size: "md" }),
         opacity: r,
         transform: `translateY(${(1 - r) * 24}px)`,
-        boxShadow: chromeShadow(theme, c),
+        overflow: "hidden",
       }}
     >
-      <div style={{ width: 20, background: c, borderRight: `${chromeBorderWidth(theme)}px solid ${PRINT.ink}` }} />
+      <div
+        style={{
+          width: 20,
+          background: c,
+          borderRight: innerDivider(theme),
+          borderTopLeftRadius: radius,
+          borderBottomLeftRadius: radius,
+        }}
+      />
       <div style={{ padding: "36px 40px", display: "grid", gap: 8, minWidth: 0 }}>
         <div style={{ display: "flex", alignItems: "baseline", gap: 16, flexWrap: "wrap" }}>
           <span
@@ -224,7 +255,7 @@ export const StatBlock: React.FC<{ value: string; unit?: string; label: string; 
             <span style={{ fontFamily: theme.fonts.mono, fontWeight: 800, fontSize: 46, color: c }}>{unit}</span>
           ) : null}
         </div>
-        <div style={{ fontFamily: theme.fonts.mono, fontSize: 32, letterSpacing: "0.06em", color: theme.colors.muted }}>
+        <div style={{ fontFamily: theme.fonts.mono, fontSize: 32, ...labelStyle(theme), letterSpacing: "0.06em", color: theme.colors.muted }}>
           {label}
         </div>
       </div>
@@ -233,10 +264,9 @@ export const StatBlock: React.FC<{ value: string; unit?: string; label: string; 
 };
 
 /**
- * `CountUp` — an authored-viz primitive: a number that counts up to `to` over
- * the entrance, with optional `prefix`/`suffix`. Deterministic (frame ramp).
- * The font auto-shrinks for long values (computed from the FINAL string) so a
- * large count never overruns a sibling label.
+ * `CountUp` — a number that counts up to `to` over the entrance, with optional
+ * `prefix`/`suffix`. Deterministic (frame ramp). Font auto-shrinks for long
+ * values (computed from the FINAL string).
  */
 export const CountUp: React.FC<{
   to: number;
@@ -248,12 +278,8 @@ export const CountUp: React.FC<{
   const theme = useTheme();
   const c = toneColor(theme, tone);
   const t = useRamp(4, 30);
-  // One-time "zoom in then back out" emphasis right as the count finishes — made
-  // clearly visible (a strong, slightly slow pop) so the stat reads as a beat.
   const pop = usePop(1.0, 1.26, 0.26, 0.5);
   const shown = (to * t).toFixed(decimals);
-  // Size from the FINAL string (prefix + full value) so the font is stable
-  // while counting and never overflows for a long number.
   const valueFont = heroFontSize(`${prefix}${to.toFixed(decimals)}`);
   return (
     <span style={{ display: "inline-flex", alignItems: "baseline", gap: 12, maxWidth: "100%", transform: `scale(${pop.toFixed(4)})`, transformOrigin: "left center" }}>
@@ -267,13 +293,14 @@ export const CountUp: React.FC<{
 };
 
 /**
- * `BarChart` — an authored-viz primitive: horizontal bars that grow in on
- * entrance. `items` are `{ label, value 0..1, tone? }`. Deterministic.
+ * `BarChart` — horizontal bars that grow in on entrance. `items` are
+ * `{ label, value 0..1, tone? }`. Deterministic. Track + bar are language-styled.
  */
 export const BarChart: React.FC<{ items: Array<{ label: string; value: number; tone?: Tone }> }> = ({ items }) => {
   const theme = useTheme();
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
+  const trackRadius = surfaceRadius(theme, "sm");
   return (
     <div style={{ display: "grid", gap: 22 }}>
       {items.map((it, i) => {
@@ -286,8 +313,8 @@ export const BarChart: React.FC<{ items: Array<{ label: string; value: number; t
               <span>{it.label}</span>
               <span style={{ color: c, fontWeight: 800 }}>{Math.round(pct * 100)}%</span>
             </div>
-            <div style={{ height: 40, border: chromeBorder(theme), background: theme.colors.bg }}>
-              <div style={{ height: "100%", width: `${pct * 100}%`, background: c }} />
+            <div style={{ height: 40, border: surfaceBorder(theme), borderRadius: trackRadius, background: theme.colors.bgElevated, overflow: "hidden" }}>
+              <div style={{ height: "100%", width: `${pct * 100}%`, background: c, borderRadius: trackRadius }} />
             </div>
           </div>
         );
@@ -297,9 +324,7 @@ export const BarChart: React.FC<{ items: Array<{ label: string; value: number; t
 };
 
 /** Bottom strip: small mono left + right meta. The horizontal separator is the
- *  global divider drawn by the composition (so it's present on EVERY video, even
- *  when a scene doesn't use a Footer) — the Footer itself no longer draws one,
- *  to avoid a double line. */
+ *  global divider drawn by the composition (so it's present on EVERY video). */
 export const Footer: React.FC<{ left: string; right?: string }> = ({ left, right }) => {
   const theme = useTheme();
   return (
@@ -311,11 +336,11 @@ export const Footer: React.FC<{ left: string; right?: string }> = ({ left, right
         paddingTop: 16,
       }}
     >
-      <span style={{ fontFamily: theme.fonts.mono, fontSize: 24, letterSpacing: "0.12em", textTransform: "uppercase", color: theme.colors.muted }}>
+      <span style={{ fontFamily: theme.fonts.mono, fontSize: 24, ...labelStyle(theme), letterSpacing: "0.12em", color: theme.colors.muted }}>
         {left}
       </span>
       {right ? (
-        <span style={{ fontFamily: theme.fonts.mono, fontSize: 24, letterSpacing: "0.1em", textTransform: "uppercase", color: theme.colors.muted }}>
+        <span style={{ fontFamily: theme.fonts.mono, fontSize: 24, ...labelStyle(theme), letterSpacing: "0.1em", color: theme.colors.muted }}>
           {right}
         </span>
       ) : null}
@@ -326,16 +351,16 @@ export const Footer: React.FC<{ left: string; right?: string }> = ({ left, right
 /**
  * Vertical clearance kept between a `Story`'s content and the global
  * CaptionDivider (drawn at CONTENT_ZONE.bottom). Authored content must stay this
- * many px above the divider, so it reads as a deliberate beat above the line and
- * never sits flush on it (the gap the render N14 caption-clearance oracle and the
- * user both expect to see).
+ * many px above the divider, so it reads as a deliberate beat above the line.
  */
 const STORY_DIVIDER_CLEARANCE = 24;
 
 /**
  * `Story` — full-frame editorial layout inside the content zone: a `HeaderBar`
  * pinned at the top, the main content centred in the middle, and an optional
- * `Footer` at the bottom of the content zone.
+ * `Footer` at the bottom of the content zone. The content zone is INVARIANT
+ * across languages (same constant the divider + N14 oracles read), so only the
+ * blocks Story holds change look — never where content sits.
  */
 export const Story: React.FC<{
   eyebrow: string;
@@ -345,23 +370,16 @@ export const Story: React.FC<{
   gap?: number;
   children: React.ReactNode;
 }> = ({ eyebrow, label, meta, footer, gap = 28, children }) => {
-  // Ambient "living card": the scene's floating blocks (in ONE parent wrapper)
-  // slowly tilt in 3D from one lean to the other across the scene. This is the
-  // always-on subtle life. EMPHASIS (a whole-scene zoom) is NOT here — it is an
-  // AI-chosen, per-scene decision applied by the composition (scene.emphasis).
   const tilt = useTilt();
+  const zone = CONTENT_ZONE;
   return (
     <div
       style={{
         position: "absolute",
-        top: CONTENT_ZONE.top,
-        left: CONTENT_ZONE.left,
-        width: rectWidth(CONTENT_ZONE),
-        height: rectHeight(CONTENT_ZONE),
-        // The global CaptionDivider is drawn at CONTENT_ZONE.bottom — exactly this
-        // container's bottom edge. Reserve a clearance gap (border-box, so the
-        // padding eats INTO the fixed height) so authored content can never sit
-        // flush on the divider; it must stay a visible beat above it.
+        top: zone.top,
+        left: zone.left,
+        width: rectWidth(zone),
+        height: rectHeight(zone),
         boxSizing: "border-box",
         paddingBottom: STORY_DIVIDER_CLEARANCE,
         display: "flex",
@@ -373,18 +391,10 @@ export const Story: React.FC<{
       <div
         style={{
           flex: 1,
-          // `minHeight: 0` lets this flex child actually shrink below its content
-          // size, and `overflow: hidden` clips an over-tall column instead of
-          // letting it bleed past the zone (top into the header, bottom across the
-          // divider — the symmetric overflow that clipped text at BOTH ends).
           minHeight: 0,
           overflow: "hidden",
           display: "flex",
           flexDirection: "column",
-          // `safe center` centres a column that fits, but when the content is
-          // taller than the band it anchors to the TOP (start) instead of
-          // overflowing equally past both edges — so nothing is clipped off the
-          // top, and the clip (if any) is a clean bottom cut, never mid-title.
           justifyContent: "safe center",
           gap,
           transform: `perspective(1600px) rotateY(${tilt.toFixed(3)}deg)`,

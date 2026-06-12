@@ -17,7 +17,7 @@ function baseDeps(over: Partial<WorkspaceDeps> = {}): WorkspaceDeps {
   return {
     worker: {} as AgentWorker,
     events: noopEvents(),
-    settings: { scriptGateEnabled: true, maxRepairAttempts: 3, visualQaEnabled: false },
+    settings: { scriptGateEnabled: true, maxRepairAttempts: 3, visualQaEnabled: false, imageCrawlAiFilter: false, imageCrawlHumanReview: false },
     listProjects: async () => [],
     loadManifest: async () => ({ scenes: [] }),
     writeManifest: async () => {},
@@ -28,6 +28,7 @@ function baseDeps(over: Partial<WorkspaceDeps> = {}): WorkspaceDeps {
     outputMedia: () => "media://out.mp4",
     hasDraft: () => false,
     draftMedia: () => "media://out.draft.mp4",
+    assetMedia: (_id, ref) => `media://asset/${ref}`,
     deleteProject: async () => {},
     revealProject: async () => {},
     redact: (m) => m,
@@ -203,7 +204,7 @@ describe("fixWithAi + fixable flag", () => {
       generateValidateRepair: async (): Promise<RepairOutcome> => { renders++; return { kind: "passed", attempts: 1 }; },
       visualQa,
     };
-    const ctrl = new WorkspaceController(baseDeps({ worker, settings: { scriptGateEnabled: false, maxRepairAttempts: 3, visualQaEnabled: true } }));
+    const ctrl = new WorkspaceController(baseDeps({ worker, settings: { scriptGateEnabled: false, maxRepairAttempts: 3, visualQaEnabled: true, imageCrawlAiFilter: false, imageCrawlHumanReview: false } }));
     ctrl.approve("p1");
     await flush();
     expect(visualQa).toHaveBeenCalledTimes(1);
@@ -222,12 +223,12 @@ describe("fixWithAi + fixable flag", () => {
       generateValidateRepair: async (): Promise<RepairOutcome> => ({ kind: "passed", attempts: 1 }),
       visualQa,
     };
-    const off = new WorkspaceController(baseDeps({ worker, settings: { scriptGateEnabled: false, maxRepairAttempts: 3, visualQaEnabled: false } }));
+    const off = new WorkspaceController(baseDeps({ worker, settings: { scriptGateEnabled: false, maxRepairAttempts: 3, visualQaEnabled: false, imageCrawlAiFilter: false, imageCrawlHumanReview: false } }));
     off.approve("p1");
     await flush();
     expect(visualQa).not.toHaveBeenCalled();
 
-    const on = new WorkspaceController(baseDeps({ worker, settings: { scriptGateEnabled: false, maxRepairAttempts: 3, visualQaEnabled: true } }));
+    const on = new WorkspaceController(baseDeps({ worker, settings: { scriptGateEnabled: false, maxRepairAttempts: 3, visualQaEnabled: true, imageCrawlAiFilter: false, imageCrawlHumanReview: false } }));
     on.setStage("p2", { kind: "ready", scenes: [] });
     on.submitEdits("p2", [{ sceneId: "scene-01", text: "to chữ" }], "");
     await flush();
@@ -252,7 +253,7 @@ describe("fixWithAi + fixable flag", () => {
       snapshotScenes,
       restoreScenes,
     };
-    const ctrl = new WorkspaceController(baseDeps({ worker, settings: { scriptGateEnabled: false, maxRepairAttempts: 3, visualQaEnabled: true } }));
+    const ctrl = new WorkspaceController(baseDeps({ worker, settings: { scriptGateEnabled: false, maxRepairAttempts: 3, visualQaEnabled: true, imageCrawlAiFilter: false, imageCrawlHumanReview: false } }));
     ctrl.approve("p1");
     await flush();
     expect(snapshotScenes).toHaveBeenCalledWith("p1", ["scene-02"]);
@@ -402,7 +403,7 @@ describe("runScript link warning (unreadable brief links)", () => {
 
   it("gate ON + an unreadable link ⇒ the script stage carries a linkWarning naming the count", async () => {
     const ctrl = new WorkspaceController(
-      baseDeps({ worker: authorReturning(["https://a.example/x"]), settings: { scriptGateEnabled: true, maxRepairAttempts: 3, visualQaEnabled: false } }),
+      baseDeps({ worker: authorReturning(["https://a.example/x"]), settings: { scriptGateEnabled: true, maxRepairAttempts: 3, visualQaEnabled: false, imageCrawlAiFilter: false, imageCrawlHumanReview: false } }),
     );
     ctrl.beginScript("p1", { text: "tóm tắt https://a.example/x", urls: ["https://a.example/x"] });
     await flush();
@@ -416,7 +417,7 @@ describe("runScript link warning (unreadable brief links)", () => {
 
   it("gate ON + every link read ⇒ NO linkWarning", async () => {
     const ctrl = new WorkspaceController(
-      baseDeps({ worker: authorReturning(), settings: { scriptGateEnabled: true, maxRepairAttempts: 3, visualQaEnabled: false } }),
+      baseDeps({ worker: authorReturning(), settings: { scriptGateEnabled: true, maxRepairAttempts: 3, visualQaEnabled: false, imageCrawlAiFilter: false, imageCrawlHumanReview: false } }),
     );
     ctrl.beginScript("p1", { text: "tóm tắt https://a.example/x", urls: ["https://a.example/x"] });
     await flush();
@@ -425,9 +426,35 @@ describe("runScript link warning (unreadable brief links)", () => {
     if (st.kind === "script") expect(st.linkWarning).toBeUndefined();
   });
 
+  it("script lines carry the AI-placed image as a previewable imagePath (Phase 2 Block B)", async () => {
+    // After authoring, the manifest holds the AI's per-scene image placement; the
+    // script-review stage must surface it (mapped through the assetMedia seam) so
+    // the user sees which image landed on which scene before approving.
+    const ctrl = new WorkspaceController(
+      baseDeps({
+        worker: authorReturning(),
+        loadManifest: async () => ({
+          scenes: [
+            { id: "scene-01", headline: "H1", narration: "n1", image: { ref: "assets/aa.png" } },
+            { id: "scene-02", headline: "H2", narration: "n2" },
+          ],
+        }),
+        settings: { scriptGateEnabled: true, maxRepairAttempts: 3, visualQaEnabled: false, imageCrawlAiFilter: false, imageCrawlHumanReview: false },
+      }),
+    );
+    ctrl.beginScript("p1", { text: "x", urls: [] });
+    await flush();
+    const st = await ctrl.stage("p1");
+    expect(st.kind).toBe("script");
+    if (st.kind === "script") {
+      expect(st.lines[0]!.imagePath).toBe("media://asset/assets/aa.png");
+      expect(st.lines[1]!.imagePath).toBeUndefined();
+    }
+  });
+
   it("gate OFF + an unreadable link ⇒ the warning rides through to the ready stage notice", async () => {
     const ctrl = new WorkspaceController(
-      baseDeps({ worker: authorReturning(["https://a.example/x", "https://b.example/y"]), settings: { scriptGateEnabled: false, maxRepairAttempts: 3, visualQaEnabled: false } }),
+      baseDeps({ worker: authorReturning(["https://a.example/x", "https://b.example/y"]), settings: { scriptGateEnabled: false, maxRepairAttempts: 3, visualQaEnabled: false, imageCrawlAiFilter: false, imageCrawlHumanReview: false } }),
     );
     ctrl.beginScript("p1", { text: "x", urls: ["https://a.example/x", "https://b.example/y"] });
     await flush();
@@ -676,7 +703,7 @@ describe("cancel (Dừng render) → recover prior stage", () => {
     const ctrl = new WorkspaceController(
       baseDeps({
         worker,
-        settings: { scriptGateEnabled: false, maxRepairAttempts: 3, visualQaEnabled: false },
+        settings: { scriptGateEnabled: false, maxRepairAttempts: 3, visualQaEnabled: false, imageCrawlAiFilter: false, imageCrawlHumanReview: false },
         loadManifest: async () => ({ scenes: [{ id: "scene-01" }] }),
         hasStill: () => true,
         hasDraft: () => true,

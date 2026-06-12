@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
-import { mkdir, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import type { ProjectBrief, ProjectEvent, ProjectState } from "../types.js";
 
@@ -48,6 +48,17 @@ export function trackerPath(): string {
   return join(videoToolHome(), "tracker.json");
 }
 
+/**
+ * Staging dir for images the user picks at the CREATE screen, BEFORE a project
+ * exists (Phase 2 Block A). Lives under VIDEO_TOOL_HOME so the `media://`
+ * protocol can preview the picks within its containment check, then the bytes
+ * are moved into the new project's `assetsDir` on create. Swept of stale entries
+ * on startup so picked-but-never-created images don't accumulate.
+ */
+export function stagingDir(): string {
+  return join(videoToolHome(), "staging");
+}
+
 /** Standard sub-paths inside a project folder. */
 export function projectPaths(projectId: string) {
   const root = projectPath(projectId);
@@ -65,6 +76,8 @@ export function projectPaths(projectId: string) {
     reviewDir: join(root, "review"),
     logsDir: join(root, "logs"),
     authoredDir: join(root, "authored"),
+    /** Local image assets the AI may place in scenes; content-addressed `<sha>.<ext>`. */
+    assetsDir: join(root, "assets"),
   };
 }
 
@@ -83,7 +96,7 @@ export function createProjectId(prompt: string): string {
 /** Create the project folder tree and shared caches. Idempotent. */
 export async function ensureProject(projectId: string): Promise<string> {
   const p = projectPaths(projectId);
-  for (const dir of [p.root, p.audioDir, p.rendersDir, p.reviewDir, p.logsDir]) {
+  for (const dir of [p.root, p.audioDir, p.rendersDir, p.reviewDir, p.logsDir, p.assetsDir]) {
     await mkdir(dir, { recursive: true });
   }
   await mkdir(ttsCacheDir(), { recursive: true });
@@ -218,4 +231,85 @@ export async function reconcileStaleStates(): Promise<string[]> {
     }
   }
   return reset;
+}
+
+// --- cache pruning (bounded size, LRU by mtime) ----------------------------
+
+/**
+ * Default size caps for the shared caches. Both caches live OUTSIDE any project
+ * folder (so deleting a project never evicts them — a different project may reuse
+ * the same hash), which means nothing else ever reclaims them. Without a cap they
+ * grow forever: every full render copies its MP4 into `cache/renders`, every
+ * synthesized clip lands in `cache/tts`. These ceilings bound that growth.
+ *
+ * Renders are large (tens of MB each) so the cap is generous; TTS clips are small
+ * but many. Tune via the `maxBytes` arg if needed.
+ */
+export const DEFAULT_RENDER_CACHE_MAX_BYTES = 3 * 1024 * 1024 * 1024; // 3 GB
+export const DEFAULT_TTS_CACHE_MAX_BYTES = 512 * 1024 * 1024; // 512 MB
+
+type CacheEntry = { name: string; abs: string; size: number; mtimeMs: number };
+
+/**
+ * Prune a flat cache directory down to `maxBytes`, evicting the LEAST-recently-
+ * modified files first (mtime as a recency proxy — a cache hit copies the file
+ * out but doesn't touch the cached file's mtime, so this is age-based LRU, good
+ * enough for a disk-space ceiling). When a file is evicted, an adjacent sidecar
+ * (`<file>.srt` for TTS) is removed with it so no orphan is left behind.
+ *
+ * Best-effort + total: a missing dir is a no-op; a single unstattable/locked file
+ * is skipped, never aborting the sweep. Returns the bytes reclaimed (0 if under
+ * cap or the dir is absent).
+ */
+export async function pruneCacheDir(dir: string, maxBytes: number): Promise<number> {
+  let names: string[];
+  try {
+    names = await readdir(dir);
+  } catch {
+    return 0; // no cache dir yet → nothing to prune
+  }
+
+  // Sidecars (.srt) are evicted WITH their parent, never counted/ranked on their
+  // own, so a kept audio clip never loses its captions and an evicted one never
+  // strands them.
+  const entries: CacheEntry[] = [];
+  let total = 0;
+  for (const name of names) {
+    if (name.endsWith(".srt")) continue;
+    const abs = join(dir, name);
+    try {
+      const st = await stat(abs);
+      if (!st.isFile()) continue;
+      entries.push({ name, abs, size: st.size, mtimeMs: st.mtimeMs });
+      total += st.size;
+    } catch {
+      /* a single unstattable/locked entry must not abort the prune */
+    }
+  }
+  if (total <= maxBytes) return 0;
+
+  // Oldest first; evict until back under the cap.
+  entries.sort((a, b) => a.mtimeMs - b.mtimeMs);
+  let reclaimed = 0;
+  for (const entry of entries) {
+    if (total - reclaimed <= maxBytes) break;
+    try {
+      await rm(entry.abs, { force: true });
+      await rm(`${entry.abs}.srt`, { force: true }).catch(() => {}); // sidecar, if any
+      reclaimed += entry.size;
+    } catch {
+      /* skip a file we can't remove; keep pruning the rest */
+    }
+  }
+  return reclaimed;
+}
+
+/** Prune the shared render cache (MP4s) to its size cap. Best-effort. */
+export async function pruneRenderCache(maxBytes = DEFAULT_RENDER_CACHE_MAX_BYTES): Promise<number> {
+  return pruneCacheDir(renderCacheDir(), maxBytes);
+}
+
+/** Prune the shared TTS cache (audio + .srt sidecars) to its size cap. Best-effort. */
+export async function pruneTtsCache(maxBytes = DEFAULT_TTS_CACHE_MAX_BYTES): Promise<number> {
+  return pruneCacheDir(ttsCacheDir(), maxBytes);
 }

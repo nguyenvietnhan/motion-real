@@ -34,14 +34,15 @@ function contrast(a: string, b: string): number {
 }
 
 // Feature: tool-productization, Property 1: Default style pack
-describe("makeTheme — Property 1: default style pack", () => {
-  it("no stylePackId ⇒ bold-editorial chrome (existing projects unchanged)", () => {
+describe("makeTheme — Property 1: default design language", () => {
+  it("no stylePackId ⇒ the default language (bold-editorial); existing projects unchanged", () => {
     fc.assert(
       fc.property(arbHex, (hex) => {
         const t = makeTheme(hex);
         expect(t.stylePackId).toBe(DEFAULT_STYLE_PACK_ID);
         expect(t.stylePackId).toBe("bold-editorial");
-        expect(t.chrome).toEqual(getStylePack("bold-editorial")!.chrome);
+        // The default language's surface grammar carries through to the theme.
+        expect(t.surface).toEqual(getStylePack("bold-editorial")!.derive(hex).surface);
       }),
       { numRuns: 100 },
     );
@@ -60,15 +61,22 @@ describe("makeTheme — Property 3: determinism", () => {
   });
 });
 
-// Feature: tool-productization, Property 4: Base wash stays light and legible
-describe("makeTheme — Property 4: base wash stays light and legible", () => {
-  it("any dominant × any pack ⇒ light cream base + high text contrast (N18)", () => {
+// Feature: tool-productization, Property 4: Base stays on-polarity and legible
+// A language's base polarity is its own; the dominant never flips it. EITHER
+// way fg/bg must clear the N18 contrast floor.
+describe("makeTheme — Property 4: base stays on-polarity and legible", () => {
+  it("any dominant × any pack ⇒ correct polarity base + high text contrast (N18)", () => {
     fc.assert(
       fc.property(arbHex, fc.constantFrom(...PACK_IDS), (hex, pid) => {
         const t = makeTheme(hex, pid);
-        // Base stays light (never tinted toward dark by the dominant).
-        expect(lum(t.colors.bg)).toBeGreaterThan(0.6);
-        // Foreground text contrast clears the N18 minimum (3:1).
+        if (t.dark) {
+          // Dark language: a deep base, never lightened toward a light wash.
+          expect(lum(t.colors.bg)).toBeLessThan(0.2);
+        } else {
+          // Light language: the cream wash, never tinted toward dark.
+          expect(lum(t.colors.bg)).toBeGreaterThan(0.6);
+        }
+        // Foreground text contrast clears the N18 minimum (3:1) on either base.
         expect(contrast(t.colors.fg, t.colors.bg)).toBeGreaterThanOrEqual(3);
       }),
       { numRuns: 100 },
@@ -91,28 +99,72 @@ describe("makeTheme — Property 2: unknown style pack throws", () => {
   });
 });
 
-describe("style-pack registry", () => {
-  it("ships bold-editorial + clean-premium and is extensible", () => {
+describe("design-language registry", () => {
+  it("ships bold-editorial + galaxy and is extensible", () => {
     expect(PACK_IDS).toContain("bold-editorial");
-    expect(PACK_IDS).toContain("clean-premium");
+    expect(PACK_IDS).toContain("galaxy");
 
     registerStylePack({
+      ...getStylePack("galaxy")!,
       id: "test-pack-xyz",
       name: "Test",
       description: "t",
-      chrome: getStylePack("clean-premium")!.chrome,
     });
     expect(listStylePackIds()).toContain("test-pack-xyz");
     expect(() => makeTheme("#2F5FF0", "test-pack-xyz")).not.toThrow();
   });
 
-  it("clean-premium is restrained vs bold-editorial (the look actually differs)", () => {
-    const bold = getStylePack("bold-editorial")!.chrome;
-    const clean = getStylePack("clean-premium")!.chrome;
-    expect(bold.grid).toBe(true);
-    expect(clean.grid).toBe(false);
-    expect(clean.registrationTicks).toBe(false);
-    expect(clean.border.width).toBeLessThan(bold.border.width);
-    expect(clean.accentCount).toBeLessThan(bold.accentCount);
+  it("galaxy is a distinct dark/rounded language vs bold-editorial (the look actually differs)", () => {
+    const bold = makeTheme("#2F5FF0", "bold-editorial");
+    const galaxy = makeTheme("#2F5FF0", "galaxy");
+
+    // Polarity: editorial is light, galaxy is dark.
+    expect(bold.dark).toBe(false);
+    expect(galaxy.dark).toBe(true);
+
+    // Geometry: editorial is squared (radius 0), galaxy is rounded (radius > 0).
+    expect(bold.radius.md).toBe(0);
+    expect(galaxy.radius.md).toBeGreaterThan(0);
+    expect(galaxy.radius.sm).toBeGreaterThan(0);
+    expect(galaxy.radius.lg).toBeGreaterThan(0);
+
+    // Surface grammar: editorial = thick border + hard-offset + solid top-rule +
+    // solid chips + shouty uppercase. Galaxy = hairline + glow + no top-rule +
+    // outline chips + natural case.
+    expect(bold.surface.borderWidth).toBeGreaterThan(galaxy.surface.borderWidth);
+    expect(bold.surface.shadowStyle).toBe("hard-offset");
+    expect(galaxy.surface.shadowStyle).toBe("glow");
+    expect(bold.surface.topRule).toBe(true);
+    expect(galaxy.surface.topRule).toBe(false);
+    expect(bold.surface.chipStyle).toBe("solid");
+    expect(galaxy.surface.chipStyle).toBe("outline");
+    expect(bold.surface.labelUppercase).toBe(true);
+    expect(galaxy.surface.labelUppercase).toBe(false);
+
+    // Backdrop: editorial = grid + registration ticks; galaxy = starfield.
+    expect(bold.backdrop.grid).toBe(true);
+    expect(bold.backdrop.registrationTicks).toBe(true);
+    expect(galaxy.backdrop.starfield).toBe(true);
+    expect(galaxy.backdrop.grid).toBe(false);
+
+    // Fonts actually differ (different typographic identity, not just color).
+    expect(bold.fonts.display).not.toBe(galaxy.fonts.display);
+  });
+});
+
+// The caption scrim is a CHROME token (the "outfit"): a language may draw a faint
+// plate behind the caption. It is part of the language, not the layout — every
+// language shares one caption band (zones live in @news/schema).
+describe("makeTheme — caption scrim folds into the theme", () => {
+  it("bold-editorial ⇒ NO caption scrim (classic look draws on the cream base)", () => {
+    const t = makeTheme("#2F5FF0", "bold-editorial");
+    expect(t.captionScrim).toBeUndefined();
+  });
+
+  it("galaxy ⇒ a faint dark caption scrim", () => {
+    const t = makeTheme("#2F5FF0", "galaxy");
+    expect(t.captionScrim).toBeDefined();
+    expect(t.captionScrim!.opacity).toBeGreaterThan(0);
+    expect(t.captionScrim!.tone).toBe("dark");
   });
 });

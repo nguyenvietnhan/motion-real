@@ -52,7 +52,68 @@ export type AiAccountState =
 
 // --- create (Req 3) --------------------------------------------------------
 
-export type CreateInput = { raw: string; stylePackId?: string; accentColor?: string };
+/**
+ * A local image the user picked at the create screen and that has been imported
+ * (content-addressed) into the staging dir (Phase 2 Block A). `ref` is the
+ * project-relative path it will live at once the project exists
+ * (`assets/<sha>.<ext>`); `previewUrl` is a `media://` URL to the staged copy.
+ */
+export type StagedImage = { ref: string; previewUrl: string; width: number; height: number; bytes: number; name: string };
+
+/**
+ * A pasted (Ctrl+V) or drag-dropped image: the bytes the renderer read from a
+ * `File`/clipboard item, BASE64-encoded, with the source filename for the
+ * rejection notice. Unlike the native picker (which has a filesystem path),
+ * these have no path, so they cross IPC directly. We carry base64 (not a raw
+ * `Uint8Array`) because a string serializes cleanly across the contextBridge +
+ * IPC boundary, whereas a typed array can arrive mangled.
+ */
+export type DroppedImage = { name: string; dataBase64: string };
+
+/** The minimal image descriptor carried into `CreateInput` (no preview/bytes). */
+export type StagedImageRef = { ref: string; width: number; height: number };
+
+/** Result of the native image picker: imported images + per-file rejections. */
+export type PickImagesResult = {
+  staged: StagedImage[];
+  rejected: { name: string; reason: string }[];
+};
+
+export type CreateInput = { raw: string; stylePackId?: string; accentColor?: string; images?: StagedImageRef[] };
+
+/**
+ * A selectable design style pack, surfaced to the create-screen picker. Read
+ * from the `@news/design` registry (the single source of truth) so a newly
+ * registered pack appears as a chip without touching the renderer. `preview`
+ * carries the few CHROME hints the renderer needs to draw a CSS thumbnail of the
+ * look (no rendered image — a coarse, always-correct sketch driven by the same
+ * tokens the real render reads).
+ */
+export type StylePackVM = {
+  id: string;
+  name: string;
+  description: string;
+  /** True for the pack `makeTheme` falls back to — the picker pre-selects it. */
+  isDefault: boolean;
+  preview: {
+    /** Block border weight in px. */
+    borderWidth: number;
+    /** Border treatment: "none" ⇒ frameless (sketch draws no block outline). */
+    borderStyle: "solid" | "hairline" | "none";
+    /** Faint full-frame grid behind content. */
+    grid: boolean;
+    /** Corner registration ticks (editorial print detail). */
+    registrationTicks: boolean;
+    /** Whitespace/density bias — drives how "busy" the sketch reads. */
+    density: "compact" | "editorial" | "airy";
+    /** Dark base (vs the default light cream) — the sketch paints a dark canvas. */
+    dark: boolean;
+    /** Rounded corners (vs the squared editorial grammar) — sketch rounds blocks. */
+    rounded: boolean;
+    /** Decorative starfield backdrop (galaxy look) — sketch sprinkles faint stars. */
+    starfield: boolean;
+  };
+};
 
 // --- projects / gallery (Req 10) -------------------------------------------
 
@@ -88,11 +149,19 @@ export type SceneCard = { sceneId: string; order: number; stillPath: string; edi
 export type StoryboardModel = { projectId: string; scenes: SceneCard[]; globalNotes: string };
 
 /** A reviewable script line (narration + headline) before rendering (Req 4). */
-export type ScriptLine = { sceneId: string; order: number; headline: string; narration: string };
+export type ScriptLine = { sceneId: string; order: number; headline: string; narration: string; imagePath?: string };
+
+/**
+ * One crawled article image offered on the review screen (Phase 2 Block B).
+ * `previewUrl` is a `media://` URL to the already-imported local asset;
+ * `suggested` = the AI-filter pre-tick (true ⇒ checkbox starts checked).
+ */
+export type CrawledImageVM = { ref: string; previewUrl: string; width: number; height: number; sourceUrl: string; suggested: boolean };
 
 /** The live stage of a project's workspace, driving the staged UI. */
 export type ProjectStage =
   | { kind: "writing" } // AI is drafting the script
+  | { kind: "image-review"; images: CrawledImageVM[] } // blocking: confirm which crawled article images to use before authoring (Phase 2 Block B)
   | { kind: "script"; lines: ScriptLine[]; linkWarning?: string } // awaiting user review/approval (linkWarning = brief links that couldn't be read)
   | { kind: "rendering"; percent: number; phase?: "edit" | "draft" | "full" | "qa" } // building (edit reauthor | draft | full | ai visual-qa)
   | { kind: "ready"; scenes: SceneCard[]; notice?: string; draftPath?: string } // draft ready, review scenes (notice = a transient message; draftPath = mediaUrl of the low-res draft MP4 for in-app preview, when it exists)
@@ -126,6 +195,10 @@ export type SettingsModel = {
   scriptGateEnabled: boolean;
   /** Run an AI vision pass over rendered stills to auto-fix layout defects before review. */
   visualQaEnabled: boolean;
+  /** When a brief carries a link, let the AI pre-select which crawled article images fit (Phase 2 Block B). */
+  imageCrawlAiFilter: boolean;
+  /** Show a blocking review screen so the user confirms crawled images before authoring (Phase 2 Block B). */
+  imageCrawlHumanReview: boolean;
 };
 
 // --- streaming events (Req 5, 9, 10) ---------------------------------------

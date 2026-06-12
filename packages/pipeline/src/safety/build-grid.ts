@@ -69,6 +69,27 @@ export function runBuildGridStatic(locked: LockedVideoSpec, projectId: string): 
     }
   }
 
+  // N9 (presence): a scene that declares a local `image.ref` must have a real,
+  // non-empty file on disk under the project root — exactly like the N13 audio
+  // check. The schema/static-grid N9 already guarantees the ref is local & not a
+  // URL; here we confirm the bytes actually exist before render, so a manifest
+  // that names a missing/empty asset fails fast with a clear, user-fixable error
+  // (provide/upload the asset) instead of a cryptic Remotion staticFile 404.
+  for (const scene of locked.scenes) {
+    const ref = scene.image?.ref;
+    if (!ref) continue;
+    const abs = resolveProjectFile(p.root, ref);
+    if (!existsSync(abs) || safeSize(abs) === 0) {
+      issues.push({
+        check: "N9",
+        severity: "error",
+        sceneId: scene.id,
+        path: ref,
+        message: `${scene.id} image missing or empty at "${ref}". Add the local asset under the project before render.`,
+      });
+    }
+  }
+
   return makeReport(issues, ["build"]);
 }
 

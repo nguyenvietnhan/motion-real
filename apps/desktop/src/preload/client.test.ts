@@ -55,8 +55,12 @@ describe("createDashboardClient — invoke channel mapping", () => {
     await api.ai.listModels();
     await api.ai.selectModel("kr/claude-sonnet-4.5");
     await api.ai.selectedModel();
+    await api.projects.pickImages();
+    await api.projects.importImageBytes([{ name: "x.png", dataBase64: "AQ==" }]);
+    await api.projects.removeStagedImage("staging/aa.png");
     await api.projects.create({ raw: "topic" });
     await api.projects.list();
+    await api.projects.listStylePacks();
     await api.projects.open("p1");
     await api.projects.stage("p1");
     await api.projects.delete("p1");
@@ -65,6 +69,7 @@ describe("createDashboardClient — invoke channel mapping", () => {
     await api.projects.cancel("p1");
     await api.projects.retry("p1");
     await api.projects.fixWithAi("p1");
+    await api.projects.submitImageReview("p1", ["assets/aa.png"]);
     await api.script.get("p1");
     await api.script.applyEdits("p1", [{ sceneId: "scene-01", narration: "x" }]);
     await api.script.approve("p1");

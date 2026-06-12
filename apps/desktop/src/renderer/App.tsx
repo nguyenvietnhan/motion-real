@@ -3,7 +3,7 @@ import { HomeView, LicenseView, ProjectsView, ProjectWorkspaceView, SettingsView
 import { reduceDesktop, type DesktopState } from "./state/desktop-state.js";
 import { aiReady } from "../shared/ai-ready.js";
 import { defaultSettings } from "../shared/settings-model.js";
-import type { LicenseState, ModelInfo, ProjectStage } from "../shared/types.js";
+import type { LicenseState, ModelInfo, ProjectStage, StylePackVM } from "../shared/types.js";
 
 /**
  * Renderer root (web-dashboard) — enterprise shell: a left Sidebar + a content
@@ -31,6 +31,7 @@ export const App: React.FC = () => {
   const [openProjectId, setOpenProjectId] = useState<string | null>(null);
   const [stage, setStage] = useState<ProjectStage>({ kind: "writing" });
   const [createError, setCreateError] = useState<string>("");
+  const [stylePacks, setStylePacks] = useState<StylePackVM[]>([]);
 
   const dash = typeof window !== "undefined" ? window.dashboard : undefined;
   const ready = aiReady(gateway, account);
@@ -57,6 +58,12 @@ export const App: React.FC = () => {
     void (async () => {
       setLicense(await dash.license.get());
       setSettings(await dash.settings.get());
+      // Load the selectable style packs for the create-screen picker. Best-effort:
+      // a stale preload (method added this session) or a transient failure just
+      // leaves the picker empty — create still works with the engine default.
+      if (typeof dash.projects.listStylePacks === "function") {
+        void dash.projects.listStylePacks().then(setStylePacks).catch(() => {});
+      }
       dispatch({ type: "gallery", load: "loading", cards: [] });
       try {
         const cards = await dash.projects.list();
@@ -91,6 +98,23 @@ export const App: React.FC = () => {
     if (screen !== "settings") return;
     void refreshAiState();
   }, [screen, refreshAiState]);
+
+  // A file dropped ANYWHERE outside an explicit drop zone makes Electron
+  // navigate the window to that file:// URL — the whole app vanishes. Swallow
+  // drag/drop at the document level so a near-miss on the composer can't blow
+  // the renderer away; the composer's own handlers still call preventDefault
+  // and run before this (capture phase off) for a real drop.
+  useEffect(() => {
+    const swallow = (e: DragEvent): void => {
+      e.preventDefault();
+    };
+    window.addEventListener("dragover", swallow);
+    window.addEventListener("drop", swallow);
+    return () => {
+      window.removeEventListener("dragover", swallow);
+      window.removeEventListener("drop", swallow);
+    };
+  }, []);
 
   const refreshGallery = async () => {
     if (!dash) return;
@@ -154,13 +178,34 @@ export const App: React.FC = () => {
             aiReady={ready}
             load={state.gallery.load}
             cards={state.gallery.cards}
+            stylePacks={stylePacks}
             onConnectPrompt={() => setScreen("settings")}
-            onCreate={(raw) => {
+            onPickImages={() => dash?.projects.pickImages() ?? Promise.resolve({ staged: [], rejected: [] })}
+            onImportImageBytes={(files) =>
+              // The method is absent on a stale preload bundle (added this session;
+              // the launcher bundles main+preload once at startup, so a hot-reloaded
+              // renderer can outrun it). Surface a clear "restart" instead of a raw
+              // "is not a function" throw, and never crash the paste/drop handler.
+              typeof dash?.projects.importImageBytes === "function"
+                ? dash.projects.importImageBytes(files)
+                : Promise.reject(new Error("Cần khởi động lại ứng dụng để bật dán/kéo-thả ảnh (bản nền chưa cập nhật)."))
+            }
+            onCreate={(raw, images, stylePackId) => {
               setCreateError("");
               void dash?.projects
-                .create({ raw })
+                .create({
+                  raw,
+                  ...(images.length > 0 ? { images: images.map((s) => ({ ref: s.ref, width: s.width, height: s.height })) } : {}),
+                  ...(stylePackId ? { stylePackId } : {}),
+                })
                 .then((r) => openProject(r.projectId))
                 .catch((err: unknown) => setCreateError(err instanceof Error ? err.message : "Không tạo được dự án. Hãy thử lại."));
+            }}
+            onUnstageImage={(ref) => {
+              // Best-effort: free the staged bytes when the user removes a pick
+              // (the 24h sweep is the backstop). A stale preload lacks the method;
+              // ignore — the file just waits for the sweep.
+              if (typeof dash?.projects.removeStagedImage === "function") void dash.projects.removeStagedImage(ref).catch(() => {});
             }}
             onOpen={openProject}
             onDelete={onDelete}
@@ -249,6 +294,12 @@ export const App: React.FC = () => {
             onReveal={() => onReveal(openProjectId)}
             onSave={() => void dash?.projects.save(openProjectId)}
             onCancel={() => void dash?.projects.cancel(openProjectId)}
+            onSubmitImageReview={(refs) => {
+              // Confirm the crawled-image selection; the stage poll drives the
+              // transition to "writing" once the backend begins authoring.
+              setStage({ kind: "writing" });
+              void dash?.projects.submitImageReview(openProjectId, refs);
+            }}
           />
         )}
       </main>

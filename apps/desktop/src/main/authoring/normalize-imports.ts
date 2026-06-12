@@ -25,9 +25,10 @@ const BLOCKS_SYMBOLS = new Set<string>([
   "Frame", "Content", "TitleBlock", "IdeaPanel", "Callout", "KeyPoints", "StatChip",
   // editorial blocks + viz primitives
   "HeaderBar", "Panel", "Tag", "Footer", "StatBlock", "CountUp", "BarChart", "Story", "Tone",
-  // captions + chrome + fonts
+  // captions + surface-kit + fonts
   "Captions", "CAPTION_RENDER_BAND", "CAPTION_CANVAS",
-  "chromeBorder", "chromeBorderWidth", "chromeShadow",
+  "surfaceBorder", "surfaceBorderWidth", "innerDivider", "surfaceRadius",
+  "surfaceShadow", "blockSurface", "topRuleStyle", "chipStyle", "labelStyle",
   "LOADED_FONT_FAMILIES", "fontCoverageReport", "FontCoverage",
 ]);
 

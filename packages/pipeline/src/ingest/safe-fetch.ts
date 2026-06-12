@@ -164,6 +164,31 @@ async function readCapped(res: Response, max: number): Promise<string> {
   return Buffer.concat(chunks).toString("utf8");
 }
 
+/** Read a response body into a byte-capped Buffer (binary-safe; for images). */
+async function readCappedBytes(res: Response, max: number): Promise<Uint8Array> {
+  const reader = res.body?.getReader();
+  if (!reader) return new Uint8Array(await res.arrayBuffer());
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    if (value) {
+      total += value.byteLength;
+      if (total > max) {
+        await reader.cancel().catch(() => {});
+        throw new PipelineError({
+          stage: "ingest",
+          cause: `response body exceeded ${max} bytes`,
+          remediation: "The image is unexpectedly large; skip it.",
+        });
+      }
+      chunks.push(value);
+    }
+  }
+  return Buffer.concat(chunks);
+}
+
 /**
  * Build an SSRF-guarded fetcher: validates the host (and every redirect hop) and
  * caps the body. Returns a function compatible with the ingest `FetchLike`.
@@ -191,6 +216,54 @@ export function makeSafeFetch(opts: SafeFetchOptions = {}): (url: string) => Pro
       stage: "ingest",
       cause: `too many redirects (>${maxRedirects}) starting at ${url}`,
       remediation: "The URL redirects too many times; try the final article URL directly.",
+    });
+  };
+}
+
+/** Per-image download cap (10 MB) — matches the importer's MAX_IMAGE_BYTES. */
+const MAX_IMAGE_FETCH_BYTES = 10 * 1024 * 1024;
+
+/** The byte result shape for image downloads (binary-safe, unlike SafeFetchResult). */
+export type SafeFetchBytesResult = { ok: boolean; status: number; bytes: Uint8Array };
+
+export type SafeFetchBytesOptions = {
+  /** Underlying fetch (defaults to global fetch with manual redirects). Test seam. */
+  fetchImpl?: (url: string) => Promise<Response>;
+  /** DNS resolver returning candidate addresses for a hostname. Test seam. */
+  lookupImpl?: (host: string) => Promise<string[]>;
+  maxRedirects?: number;
+  maxBodyBytes?: number;
+};
+
+/**
+ * Build an SSRF-guarded BINARY fetcher for image downloads (Phase 2 Block B).
+ * Same host/redirect-hop validation as `makeSafeFetch`, but reads the body into
+ * a byte-capped Buffer instead of utf8 text — so an image's bytes are never
+ * corrupted by a string decode. The body cap defaults to the importer's 10 MB.
+ */
+export function makeSafeFetchBytes(opts: SafeFetchBytesOptions = {}): (url: string) => Promise<SafeFetchBytesResult> {
+  const fetchImpl = opts.fetchImpl ?? ((u: string) => fetch(u, { redirect: "manual", headers: BROWSER_HEADERS }));
+  const lookupImpl = opts.lookupImpl ?? defaultLookup;
+  const maxRedirects = opts.maxRedirects ?? MAX_REDIRECTS;
+  const maxBodyBytes = opts.maxBodyBytes ?? MAX_IMAGE_FETCH_BYTES;
+
+  return async (url: string): Promise<SafeFetchBytesResult> => {
+    let current = url;
+    for (let hop = 0; hop <= maxRedirects; hop++) {
+      await assertPublicUrl(current, lookupImpl);
+      const res = await fetchImpl(current);
+      const location = res.status >= 300 && res.status < 400 ? res.headers.get("location") : null;
+      if (location) {
+        current = new URL(location, current).toString();
+        continue;
+      }
+      const bytes = await readCappedBytes(res, maxBodyBytes);
+      return { ok: res.ok, status: res.status, bytes };
+    }
+    throw new PipelineError({
+      stage: "ingest",
+      cause: `too many redirects (>${maxRedirects}) starting at ${url}`,
+      remediation: "The image URL redirects too many times; skip it.",
     });
   };
 }

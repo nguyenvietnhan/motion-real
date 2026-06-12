@@ -1,11 +1,12 @@
 import { computeScriptEdits, type ManifestScene } from "../script/script-gate-apply.js";
 import { buildStoryboard } from "../review/storyboard.js";
-import { serializeError } from "@news/pipeline";
+import { serializeError, type CrawledImage } from "@news/pipeline";
 import { classifyError } from "../agent/error-classifier.js";
 import { toFriendlyError } from "../redact/friendly.js";
-import type { AgentHooks, AgentWorker, AuthorInput, RepairOutcome, SceneSnapshot } from "../agent/agent-worker.js";
+import type { AgentHooks, AgentWorker, AuthorInput, AuthorImageRef, RepairOutcome, SceneSnapshot } from "../agent/agent-worker.js";
 import type {
   ApplyResult,
+  CrawledImageVM,
   FriendlyStatus,
   ProjectCardVM,
   ProjectStage,
@@ -66,7 +67,7 @@ function linkWarningOf(totalUrls: number, unreadableUrls: string[]): string | un
  */
 
 /** A manifest scene as the dashboard needs it (other fields preserved opaquely). */
-export type WsScene = { id: string; narration?: string; headline?: string };
+export type WsScene = { id: string; narration?: string; headline?: string; image?: { ref: string } };
 export type WsManifest = { scenes: WsScene[] };
 
 export interface WorkspaceEvents {
@@ -80,13 +81,21 @@ export interface WorkspaceDeps {
   worker: AgentWorker;
   events: WorkspaceEvents;
   /** Live settings reads (SettingsStore). */
-  settings: { readonly scriptGateEnabled: boolean; readonly maxRepairAttempts: number; readonly visualQaEnabled: boolean };
+  settings: {
+    readonly scriptGateEnabled: boolean;
+    readonly maxRepairAttempts: number;
+    readonly visualQaEnabled: boolean;
+    readonly imageCrawlAiFilter: boolean;
+    readonly imageCrawlHumanReview: boolean;
+  };
   /** Gallery cards, already mediaUrl-wrapped + fallback-to-[] at the seam (R1.7). */
   listProjects: () => Promise<ProjectCardVM[]>;
   loadManifest: (projectId: string) => Promise<WsManifest>;
   writeManifest: (projectId: string, manifest: WsManifest) => Promise<void>;
   /** mediaUrl-wrapped path to a scene's review still (`review/<sceneId>.png`). */
   reviewStill: (projectId: string, sceneId: string) => string;
+  /** mediaUrl-wrapped path to a project asset (`assets/<sha>.<ext>`) for the crawl-review preview. */
+  assetMedia: (projectId: string, ref: string) => string;
   /** Wrap an absolute still path for the renderer (mediaUrl, falling back to the path). */
   toMedia: (absPath: string) => string;
   /** Whether a scene's review still exists on disk. */
@@ -109,6 +118,14 @@ export class WorkspaceController {
   private readonly stages = new Map<string, ProjectStage>();
   /** Remember each project's author input so the error screen can re-run it. */
   private readonly inputs = new Map<string, AuthorInput>();
+  /**
+   * Crawled-image pool awaiting the user's review (Phase 2 Block B). Set when a
+   * brief-link crawl yields images and human-review is ON; the `image-review`
+   * stage shows it, and `submitImageReview` consumes it (folding the chosen refs
+   * into `AuthorInput.images`) then deletes the entry. Holds the base `AuthorInput`
+   * too so authoring can begin with the user's selection.
+   */
+  private readonly pendingReview = new Map<string, { input: AuthorInput; pool: CrawledImage[] }>();
   /**
    * Per-project render version. Bumped each time a fresh draft is produced so the
    * review stills get a NEW url token (`#r<n>`) only when the pixels actually
@@ -200,7 +217,16 @@ export class WorkspaceController {
 
   private async scriptLinesOf(projectId: string): Promise<ScriptLine[]> {
     const manifest = await this.deps.loadManifest(projectId);
-    return manifest.scenes.map((s, i) => ({ sceneId: s.id, order: i, headline: s.headline ?? "", narration: s.narration ?? "" }));
+    return manifest.scenes.map((s, i) => ({
+      sceneId: s.id,
+      order: i,
+      headline: s.headline ?? "",
+      narration: s.narration ?? "",
+      // Surface the image the AI decided to place on this scene (Phase 2 Block B)
+      // so the script-review screen shows it inline — the user sees WHICH image
+      // landed WHERE before approving, not just the text.
+      ...(s.image?.ref ? { imagePath: this.deps.assetMedia(projectId, s.image.ref) } : {}),
+    }));
   }
 
   private async storyboardScenesOf(projectId: string): Promise<SceneCard[]> {
@@ -216,6 +242,118 @@ export class WorkspaceController {
       "",
       (_root, sceneId) => this.deps.reviewStill(projectId, sceneId),
     ).scenes.map((s) => ({ ...s, stillPath: s.stillPath ? `${s.stillPath}#r${ver}` : s.stillPath }));
+  }
+
+  /**
+   * Create entry (Phase 2 Block B). When the brief carries a link, crawl the
+   * article's images first, optionally let the AI pre-select the fitting ones,
+   * and — when human-review is on — park a blocking `image-review` stage so the
+   * user confirms the set BEFORE a word is authored (so the AI fits content to
+   * the approved images). No link, no crawled image, or human-review off all
+   * collapse to the existing `beginScript` path (identical to today).
+   */
+  beginCreate(projectId: string, input: AuthorInput): void {
+    if (this.inFlight.has(projectId)) return;
+    this.inputs.set(projectId, input);
+    // No link → nothing to crawl; behave exactly as before.
+    if (input.urls.length === 0) {
+      this.beginScript(projectId, input);
+      return;
+    }
+    this.setStage(projectId, { kind: "writing" });
+    this.guarded(projectId, () => this.runCrawlThenAuthor(projectId, input));
+  }
+
+  private async runCrawlThenAuthor(projectId: string, input: AuthorInput): Promise<void> {
+    const signal = this.signalOf(projectId);
+    let pool: CrawledImage[] = [];
+    try {
+      // Crawl every brief link's images into the project assets (best-effort:
+      // a crawl failure yields [] and authoring proceeds text-only).
+      for (const url of input.urls) {
+        if (signal?.aborted) break;
+        const got = await (this.deps.worker.crawlImages?.(projectId, url, signal) ?? Promise.resolve([] as CrawledImage[])).catch(() => [] as CrawledImage[]);
+        pool.push(...got);
+        if (pool.length >= 24) break; // hard ceiling across links (review stays scannable)
+      }
+    } catch (e) {
+      console.warn(`[workspace] image crawl failed for ${projectId}:`, e);
+      pool = [];
+    }
+    if (signal?.aborted) {
+      await this.recoverAfterCancel(projectId);
+      return;
+    }
+
+    // Zero crawled images → straight to authoring (no empty review screen).
+    if (pool.length === 0) {
+      await this.runScript(projectId, input);
+      return;
+    }
+
+    // AI pre-selection (when enabled): the refs the model judges fit the article.
+    let suggested = new Set<string>();
+    if (this.deps.settings.imageCrawlAiFilter) {
+      const refs: AuthorImageRef[] = pool.map((c) => ({ ref: c.ref, width: c.width, height: c.height }));
+      // The brief text is the article context the filter judges relevance against
+      // (the crawl already fetched the page; we don't re-ingest just to filter).
+      const keep = await (this.deps.worker.filterCrawledImages?.(projectId, input.text, refs, signal) ?? Promise.resolve([] as string[]))
+        .catch(() => [] as string[]);
+      suggested = new Set(keep);
+    }
+    if (signal?.aborted) {
+      await this.recoverAfterCancel(projectId);
+      return;
+    }
+
+    // Human review OFF → author directly with the chosen set (AI-suggested when
+    // the filter ran, else the whole crawled pool — the authoring AI is still the
+    // final placement filter and uses only what fits, ≤1/scene).
+    if (!this.deps.settings.imageCrawlHumanReview) {
+      const chosen = suggested.size > 0 ? pool.filter((c) => suggested.has(c.ref)) : pool;
+      await this.runScript(projectId, this.withImages(input, chosen));
+      return;
+    }
+
+    // Human review ON → park the pool + open the blocking review stage. The
+    // guarded crawl job ends here; `submitImageReview` resumes with the selection.
+    this.pendingReview.set(projectId, { input, pool });
+    this.setStage(projectId, { kind: "image-review", images: this.reviewVmOf(projectId, pool, suggested) });
+  }
+
+  /**
+   * Resolve a blocking image-review (Phase 2 Block B): author with the user's
+   * selected crawled refs folded into the author input. An empty selection is
+   * valid → author text-only. No-op when nothing is parked (stale/double submit).
+   */
+  submitImageReview(projectId: string, selectedRefs: string[]): void {
+    const parked = this.pendingReview.get(projectId);
+    if (!parked) return;
+    if (this.stages.get(projectId)?.kind !== "image-review") return;
+    this.pendingReview.delete(projectId);
+    const allowed = new Set(selectedRefs);
+    const chosen = parked.pool.filter((c) => allowed.has(c.ref));
+    this.beginScript(projectId, this.withImages(parked.input, chosen));
+  }
+
+  /** Fold crawled images into an AuthorInput's image pool (content-addressed refs). */
+  private withImages(input: AuthorInput, images: CrawledImage[]): AuthorInput {
+    const refs: AuthorImageRef[] = images.map((c) => ({ ref: c.ref, width: c.width, height: c.height }));
+    const existing = input.images ?? [];
+    const merged = [...existing, ...refs];
+    return { ...input, ...(merged.length > 0 ? { images: merged } : {}) };
+  }
+
+  /** Build the review view-model: previewable, AI-suggested-flagged crawled images. */
+  private reviewVmOf(projectId: string, pool: CrawledImage[], suggested: Set<string>): CrawledImageVM[] {
+    return pool.map((c) => ({
+      ref: c.ref,
+      previewUrl: this.deps.assetMedia(projectId, c.ref),
+      width: c.width,
+      height: c.height,
+      sourceUrl: c.sourceUrl,
+      suggested: suggested.has(c.ref),
+    }));
   }
 
   /** Stage 1: AI writes the script; then wait for approval unless the gate is off (R2.1–R2.3, R2.7). */

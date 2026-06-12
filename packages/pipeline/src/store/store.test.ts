@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { existsSync } from "node:fs";
-import { mkdtemp, rm, readFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, readFile, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -10,8 +10,11 @@ import {
   listProjects,
   projectPaths,
   projectsRoot,
+  pruneCacheDir,
   reconcileStaleStates,
+  renderCacheDir,
   setState,
+  ttsCacheDir,
   videoToolHome,
   writeBrief,
   writeJson,
@@ -65,9 +68,11 @@ describe("project store", () => {
     const id = "demo-12345678";
     await ensureProject(id);
     const p = projectPaths(id);
-    for (const dir of [p.root, p.audioDir, p.rendersDir, p.reviewDir, p.logsDir]) {
+    for (const dir of [p.root, p.audioDir, p.rendersDir, p.reviewDir, p.logsDir, p.assetsDir]) {
       expect(existsSync(dir)).toBe(true);
     }
+    // assetsDir is the project-relative image store (Phase 2 Block A).
+    expect(p.assetsDir).toBe(join(p.root, "assets"));
     // The project lives under projects/, which lives under the .video-tool home.
     expect(p.root.startsWith(projectsRoot())).toBe(true);
     expect(projectsRoot().startsWith(videoToolHome())).toBe(true);
@@ -163,5 +168,56 @@ describe("project store", () => {
     // A terminal state is never touched.
     const doneBrief = JSON.parse(await readFile(projectPaths(done).brief, "utf8"));
     expect(doneBrief.state).toBe("done");
+  });
+});
+
+describe("cache pruning (bounded size, LRU by mtime)", () => {
+  /** Write a file of `size` bytes with a fixed mtime so age order is deterministic. */
+  async function writeAged(dir: string, name: string, size: number, mtimeSec: number): Promise<string> {
+    await mkdir(dir, { recursive: true });
+    const abs = join(dir, name);
+    await writeFile(abs, Buffer.alloc(size, 0));
+    await utimes(abs, mtimeSec, mtimeSec);
+    return abs;
+  }
+
+  it("is a no-op when the dir is absent or already under cap", async () => {
+    // Absent dir → 0 reclaimed, no throw.
+    expect(await pruneCacheDir(join(videoToolHome(), "cache", "nope"), 1000)).toBe(0);
+    // Under cap → nothing evicted.
+    const dir = renderCacheDir();
+    await writeAged(dir, "a.mp4", 100, 1000);
+    await writeAged(dir, "b.mp4", 100, 2000);
+    expect(await pruneCacheDir(dir, 1000)).toBe(0);
+    expect(existsSync(join(dir, "a.mp4"))).toBe(true);
+    expect(existsSync(join(dir, "b.mp4"))).toBe(true);
+  });
+
+  it("evicts oldest-first until back under the cap", async () => {
+    const dir = renderCacheDir();
+    await writeAged(dir, "old.mp4", 500, 1000); // oldest
+    await writeAged(dir, "mid.mp4", 500, 2000);
+    await writeAged(dir, "new.mp4", 500, 3000); // newest
+    // 1500 total, cap 1000 → must drop the single oldest (500) to land at 1000.
+    const reclaimed = await pruneCacheDir(dir, 1000);
+    expect(reclaimed).toBe(500);
+    expect(existsSync(join(dir, "old.mp4"))).toBe(false); // evicted
+    expect(existsSync(join(dir, "mid.mp4"))).toBe(true);
+    expect(existsSync(join(dir, "new.mp4"))).toBe(true);
+  });
+
+  it("evicts a TTS clip's .srt sidecar together with the clip (no orphan)", async () => {
+    const dir = ttsCacheDir();
+    const oldClip = await writeAged(dir, "old.mp3", 500, 1000);
+    await writeAged(dir, "old.mp3.srt", 50, 1000); // sidecar of the evicted clip
+    await writeAged(dir, "new.mp3", 500, 3000);
+    await writeAged(dir, "new.mp3.srt", 50, 3000); // sidecar of the kept clip
+    // Sidecars are not counted/ranked; only the two clips (1000) exceed a 600 cap
+    // → evict the oldest clip + its sidecar.
+    await pruneCacheDir(dir, 600);
+    expect(existsSync(oldClip)).toBe(false);
+    expect(existsSync(join(dir, "old.mp3.srt"))).toBe(false); // sidecar gone with it
+    expect(existsSync(join(dir, "new.mp3"))).toBe(true);
+    expect(existsSync(join(dir, "new.mp3.srt"))).toBe(true); // kept clip keeps captions
   });
 });
