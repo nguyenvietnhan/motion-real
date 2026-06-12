@@ -45,18 +45,20 @@ Topic -> AI authors scenes .tsx + manifest.json
 -> Vivibe TTS (+ breath gaps + SRT) -> lockSpec (transition-aware, caption cues)
 -> build grid (N10-N13) -> determinism guard (N16)
 -> Remotion render (TransitionSeries + caption track) -> MP4
--> render oracles (N14, N18-N22, N28-N30; N15/N17/N23 exported, not auto-run) -> review loop (N24-N25) -> done
+-> render oracles (N14, N18-N22, N28-N30; N15/N17 over measured layouts; N23 exported, not auto-run) -> review loop (N24-N25) -> done
 ```
 
 | Package | Role |
 | --- | --- |
 | `@news/schema` | Renderer-agnostic `VideoSpec`/`LockedVideoSpec`, timing consts, layout zones, `CaptionCue`, free-pacing validation |
-| `@news/design` | Theme tokens (squared, light cream base) + color/motion |
-| `@news/blocks` | Slot-based layout blocks (Frame, Content, **Story** (framed HeaderBar+Footer skeleton), TitleBlock, Panel, IdeaPanel, KeyPoints, Callout, StatChip/StatBlock/CountUp/BarChart, Captions) + theme context + motion |
+| `@news/design` | Multi-language design system: `core.ts` (color math + token model) ← `languages/*.ts` (self-contained looks: editorial, galaxy) ← `style-packs.ts` (registry + `makeTheme`). Each language derives its OWN palette/surface/backdrop/fonts + AI contract from a dominant hue |
+| `@news/blocks` | Slot-based layout blocks (Frame, Content, **Story** (framed HeaderBar+Footer skeleton), TitleBlock, Panel, IdeaPanel, KeyPoints, Callout, StatChip/StatBlock/CountUp/BarChart, SceneImage, Captions) + the surface-kit that reads chrome from the theme + theme context + motion |
 | `@news/compositions` | Registry + master `VideoComposition` (TransitionSeries + caption overlay); NO built-in templates |
 | `@news/tts` | Vivibe/LucyLab client, audio measure/concat-with-gaps/mix, SRT capture |
-| `@news/pipeline` | authoring/admission + manifest, tts, captions, lock, sfx, store, cache, determinism, renderer, review, orchestrator, cli, safety grid |
+| `@news/pipeline` | authoring/admission + manifest, ingest (URL + image crawl), tts, captions, lock, sfx, store, cache, determinism, renderer, review, orchestrator, cli, safety grid |
+| `@news/mcp` | MCP server exposing the pipeline as tools |
 | `apps/remotion` | Remotion root, sample fixture, studio/render entry |
+| `apps/desktop` | Electron desktop app (create/workspace/settings UI, 9router gateway, license manager) wrapping the pipeline |
 
 ## The Safety Grid (N1–N30)
 
@@ -74,12 +76,14 @@ new defect class is found by eye, graduate it into a new oracle + self-test.
   (hard), N16 determinism (hard, in `determinism.ts`), N18 contrast/font, N19
   dead-air, N20 pacing, N21 transition/flicker, N22 audio-sync, N28 duration
   target, **N29 captions**, N30 content density (advisory: overcrowding).
-  **Exported + self-tested but NOT auto-run** (a flat midpoint still lacks the
-  inputs they need, so they're available to callers that supply those inputs):
-  N15 overlap and N17 truncation (need per-block layout rects / a content box),
-  N23 richness (needs multi-frame-per-scene motion, which the always-on ambient
-  tilt would mask — so it can't separate a rich scene from a lazy static one).
-  Visual richness is instead nudged by N30 + N19 + the playbook guidance.
+  **Also auto-run over a dedicated measure pass** (a measure-mode still emits each
+  tagged `@news/blocks` unit's `getBoundingClientRect`, which a flat raster can't
+  carry): N15 overlap and N17 truncation, over the measured per-block rects — both
+  eased in as WARNINGS while the false-positive rate on real content is observed.
+  **Exported + self-tested but NOT auto-run**: N23 richness (needs
+  multi-frame-per-scene motion, which the always-on ambient tilt would mask — so
+  it can't separate a rich scene from a lazy static one). Visual richness is
+  instead nudged by N30 + N19 + the playbook guidance.
 - Tier 4 review loop (before "done"): N24 keyframes/contact sheet, N25 self-critique
   checklist.
 
@@ -110,8 +114,9 @@ npx tsx --env-file=.env scripts/build-<id>.ts full  vivibe # final, only after a
 
 This runs the whole pipeline in ONE process that imports `@news/pipeline` from
 source — a single `@news/compositions` registry instance, the exact path the
-test suite exercises. Worked examples: `scripts/build-d4rt.ts`, `build-gemma.ts`
-(copy the STRUCTURE; author fresh visuals, never copy their scenes).
+test suite exercises. `scripts/new-video.ts` scaffolds a build script from a
+known-good template (`scripts/_video-template.txt`); copy its STRUCTURE and
+author fresh visuals for your topic (never copy another project's scenes).
 
 Do NOT: manually create the `projects/<id>/` dir, run authored scenes via
 `tsx -e` inline (top-level-await + resolution traps), or hand-roll
@@ -124,10 +129,12 @@ instance defensively, but the build-script path above is the supported one.
 
 Follow `docs/ai-content-guide.md` exactly. Highlights:
 
-- Output a valid `VideoSpec`/manifest: `version:1`, `styleId:"clean-luxury-tech"`,
-  `ratio:"9:16"`, `language:"vi"`; sequential `scene-NN` ids. **Free pacing**:
-  scene count and total duration are NOT fixed presets; `duration` is an optional
-  target only.
+- Output a valid `VideoSpec`/manifest: `version:1`, `styleId:"clean-luxury-tech"`
+  (a FIXED format discriminator — not the look), `ratio:"9:16"`, `language:"vi"`;
+  sequential `scene-NN` ids. The selectable LOOK is `theme.stylePackId`
+  (`"bold-editorial"` default, `"galaxy"`, …); absent ⇒ the default language.
+  **Free pacing**: scene count and total duration are NOT fixed presets;
+  `duration` is an optional target only.
 - A longer `renderDuration` after natural Vietnamese TTS is NOT a rerender reason
   if the voice is complete, uncut, and unrushed.
 - Open scene-01 with a direct hook (no greeting/definition); end with a
@@ -156,10 +163,16 @@ Follow `docs/ai-content-guide.md` exactly. Highlights:
   content-zone bottom (the caption boundary) on every video — keep authored
   content ABOVE it: content creeping into the caption clearance gap is a hard
   N14 error that blocks the render.
-- **Design language**: squared (no rounded corners), clearly delineated blocks
-  (bold ink borders), on a **light warm cream** base (near-black ink) that reads
-  in dark/bright/glare — NOT a dark base. The per-project dominant color drives
-  accents/data-viz, not the base wash. See `docs/design-language.md`.
+- **Design language**: the look is owned by the chosen design LANGUAGE
+  (`theme.stylePackId`), not hard-coded. Read EVERY visual decision from
+  `useTheme()` — colors (`theme.colors.*`), corners (`theme.radius.*`), surface
+  grammar (`theme.surface.*`), backdrop (`theme.backdrop.*`) — and NEVER hard-code
+  a color, corner, border, or shadow. The same scene then renders correctly in
+  every language: `bold-editorial` (default — light cream base, squared, bold ink
+  borders) or `galaxy` (dark night base, rounded, hairline glowing borders,
+  starfield), or any future language. Invariant across all languages: layout
+  zones, the caption band, the content/caption divider, determinism, and minimum
+  type sizes. See `docs/design-language.md`.
 - **Visualize diversely; blocks are a guardrail, not the default.** Run EVERY
   scene through `docs/visualization-playbook.md`: name the idea + its content
   shape, and **decompose the narration/headline for an embedded number,

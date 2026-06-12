@@ -103,8 +103,8 @@ bespoke scenes + a manifest for a real topic, then renders).
 | Package | Role |
 | --- | --- |
 | `packages/schema` | Renderer-agnostic `VideoSpec`/`LockedVideoSpec`, timing consts, layout zones, `CaptionCue`, free-pacing validation |
-| `packages/design` | Theme tokens (light cream editorial base) + color/motion language |
-| `packages/blocks` | Slot-based layout blocks (Frame, Content, TitleBlock, IdeaPanel, KeyPoints, Callout, StatChip, Captions) + theme context + motion |
+| `packages/design` | Multi-language design system: each style is a self-contained `StyleLanguage` (editorial, galaxy) deriving its full palette/surface/backdrop/fonts/contract from one dominant hue + color/motion |
+| `packages/blocks` | Slot-based layout blocks (Frame, Content, Story, TitleBlock, IdeaPanel, KeyPoints, Callout, StatChip, Panel, StatBlock, CountUp, BarChart, HeaderBar, Footer, Tag, SceneImage, Captions) reading every chrome decision from the theme via the surface-kit + theme context + motion |
 | `packages/compositions` | Registry + master `VideoComposition` (TransitionSeries + caption overlay); NO built-in templates |
 | `packages/tts` | Vivibe/LucyLab client, audio measure/concat-with-gaps/mix, SRT capture |
 | `packages/pipeline` | authoring/admission, manifest, tts, captions, lock, store, cache, determinism, renderer, review, orchestrator, cli, safety grid |
