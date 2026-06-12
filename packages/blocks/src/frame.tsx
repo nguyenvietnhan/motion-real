@@ -105,10 +105,22 @@ const STARS: ReadonlyArray<readonly [number, number, number, number]> = [
   [16, 64, 1.5, 0.6], [26, 50, 1.5, 0.5], [52, 64, 1.5, 0.55], [74, 66, 1.5, 0.6], [4, 82, 1.5, 0.55],
   [38, 84, 1.5, 0.5], [62, 82, 1.5, 0.6], [78, 86, 1.5, 0.55], [20, 96, 1.5, 0.5], [50, 80, 1.5, 0.6],
 ];
+// Fade the whole ambient field to nothing before the divider line. The galaxy's
+// soft nebula glows are WIDE gradients (not sparse stars), so the run-length
+// speckle filter can't drop them — geometrically they bleed across the N14
+// above-divider band [CONTENT_ZONE.bottom-16 .. -2] and trip the oracle on EVERY
+// scene. Masking the decoration out below ~66% of canvas height keeps it clear of
+// that band at ALL Ken Burns scales (origin 50% 40%, up to ~1.07): a stop at
+// local 66% maps to post-scale y ≈ 1297–1334 at max zoom, still above the band.
+// Below the divider is the caption band anyway, so losing decoration there also
+// reads cleaner. Deterministic (static gradient), so N16 is unaffected.
+const FADE_MASK = "linear-gradient(to bottom, #000 0%, #000 58%, transparent 66%)";
+
 const Starfield: React.FC<{ scale: number }> = ({ scale }) => {
   const theme = useTheme();
   return (
-    <div style={{ position: "absolute", inset: 0, pointerEvents: "none", overflow: "hidden", transform: `scale(${scale.toFixed(4)})`, transformOrigin: "50% 40%" }}>
+    <div style={{ position: "absolute", inset: 0, pointerEvents: "none", overflow: "hidden", transform: `scale(${scale.toFixed(4)})`, transformOrigin: "50% 40%",
+      maskImage: FADE_MASK, WebkitMaskImage: FADE_MASK }}>
       {/* soft nebula glows from the accent/signal, for depth behind the stars */}
       <div style={{ position: "absolute", left: "16%", top: "18%", width: 520, height: 520, borderRadius: 999,
         background: `radial-gradient(circle, ${withAlpha(theme.colors.accent, 0.26)} 0%, transparent 70%)` }} />
