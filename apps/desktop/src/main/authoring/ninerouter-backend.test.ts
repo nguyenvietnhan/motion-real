@@ -331,6 +331,23 @@ describe("authorCallErrorMessage (typed gateway failures → Vietnamese)", () =>
     expect(msg).toMatch(/từ chối|chưa sẵn sàng|Cài đặt/i);
   });
 
+  it("a 401 with a 'reset after' window says quota-limited, echoes the wait, offers switching model", () => {
+    const msg = authorCallErrorMessage(
+      new GatewayChatError("http", '9router chat → HTTP 401: {"error":{"message":"[antigravity/gemini-3-flash-agent] [401]: HTTP 401 (reset after 2m)"}}', { status: 401 }),
+    );
+    expect(msg).toMatch(/giới hạn|hết hạn mức|quá tải/i);
+    expect(msg).toMatch(/2m/); // the reset window is echoed back
+    expect(msg).toMatch(/đổi.*model|model.*khác/i);
+    // It must NOT mislead the user into thinking the model id is wrong.
+    expect(msg).not.toMatch(/từ chối yêu cầu hoặc chưa sẵn sàng/);
+  });
+
+  it("a 429 (overload) without a reset window still reads as a temporary quota limit", () => {
+    const msg = authorCallErrorMessage(new GatewayChatError("http", "HTTP 429", { status: 429 }));
+    expect(msg).toMatch(/giới hạn|hết hạn mức|quá tải/i);
+    expect(msg).toMatch(/tự mở lại|chờ/i);
+  });
+
   it("a non-GatewayChatError falls back to the generic connection message", () => {
     const msg = authorCallErrorMessage(new Error("boom"));
     expect(msg).toMatch(/Không nhận được phản hồi/i);

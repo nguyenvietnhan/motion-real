@@ -59,7 +59,15 @@ export function authorCallErrorMessage(e: unknown): string {
     if (e.kind === "transient") {
       return "9Router/model tạm thời không phản hồi (thường do model đang khởi động). Đã thử lại vài lần nhưng chưa được — hãy chờ chút rồi thử lại, hoặc đổi model.";
     }
-    // Non-retryable HTTP (e.g. 4xx): model rejected / not found / unauthorized.
+    // Non-retryable HTTP (e.g. 4xx). 401/403 with a "reset after" window is the
+    // upstream provider account being rate-limited / quota-locked (NOT a wrong
+    // model id) — surface the wait window + the "switch model" escape so the user
+    // doesn't hunt through Settings for a config error that isn't there.
+    if (e.status === 401 || e.status === 403 || e.status === 429) {
+      const reset = /reset after ([^)"]+)/i.exec(e.message)?.[1]?.trim();
+      const when = reset ? `Hạn mức sẽ mở lại sau ~${reset}.` : "Hạn mức sẽ tự mở lại sau một lúc.";
+      return `Tài khoản của model đang bị giới hạn tạm thời (hết hạn mức / quá tải từ nhà cung cấp). ${when} Hãy chờ rồi thử lại, hoặc đổi sang model/tài khoản khác trong Cài đặt.`;
+    }
     return "Model từ chối yêu cầu hoặc chưa sẵn sàng. Hãy kiểm tra lại model đã chọn trong Cài đặt rồi thử lại.";
   }
   return "Không nhận được phản hồi từ AI (quá thời gian chờ hoặc mất kết nối). Hãy kiểm tra 9Router/model rồi thử lại.";
