@@ -33,6 +33,21 @@ describe("buildAuthorMessages", () => {
     expect(sys!.content).toMatch(/TỔNG lời đọc/i);
   });
 
+  it("carries concrete layout-variety recipes + a countable anti-repetition rule", () => {
+    // The earlier abstract "đa dạng form" advice wasn't enough for a weaker model —
+    // every scene came out as TitleBlock+Panel. The contract must now map content
+    // KINDS to layouts and cap consecutive same-layout scenes with a countable rule.
+    const [sys] = buildAuthorMessages({ text: "Chủ đề bất kỳ", urls: [] });
+    const text = sys!.content;
+    // Content→layout recipes (numbers→stat, comparison→two columns, list→KeyPoints).
+    expect(text).toMatch(/HAI CỘT/);
+    expect(text).toMatch(/StatBlock|CountUp/);
+    // A countable anti-repetition rule (not just "be diverse"): no >2 consecutive
+    // scenes of the same layout, ≥3 distinct layouts across the video.
+    expect(text).toMatch(/2 cảnh LIÊN TIẾP/);
+    expect(text).toMatch(/ÍT NHẤT 3 dạng/);
+  });
+
   it("forbids fabrication (not 'use your own knowledge') when a link could not be read", () => {
     // urls present but NO research → the unreadable-link branch. It must NOT invite
     // the model to fill gaps from memory; it must forbid inventing figures/dates.

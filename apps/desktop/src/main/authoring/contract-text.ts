@@ -50,4 +50,15 @@ CAPTIONS: phụ đề tiếng Việt một dòng sinh TRUNG TÂM từ narration 
 
 DETERMINISM + MOTION: entrance ease-in rồi settle (useReveal/useRamp); KHÔNG dao động vĩnh viễn (đừng dùng Math.sin(frame), frame%n, interpolate không clamp). Tilt nền nhẹ ở MỘT wrapper cha. Zoom nhấn một lần rồi về scale 1.0 trước midpoint.
 
-ĐA DẠNG HÌNH THỨC: mỗi cảnh CHỌN form theo nội dung (số→biểu đồ/CountUp; so sánh→hai cột; quá trình→sơ đồ luồng; liệt kê→cards/KeyPoints; ý/định nghĩa→text). KHÔNG lặp một block cho cả video; viết đồ hoạ bespoke cho beat chữ ký. Text/list thuần là lựa chọn CÓ CHỦ ĐÍCH cho nội dung chữ, không phải mặc định lười.`;
+ĐA DẠNG HÌNH THỨC (QUAN TRỌNG — lỗi hay gặp nhất là MỌI cảnh trông GIỐNG NHAU: một tiêu đề + một panel chữ ở giữa). Mỗi cảnh phải CHỌN bố cục theo KIỂU nội dung của nó, KHÔNG dùng một khuôn cho cả video. Bản đồ nội dung → bố cục (theo đúng đây):
+- Con số/chỉ số THẬT (%, tiền, lượng) → StatBlock hoặc CountUp số RẤT lớn (80–160px), KHÔNG nhét số vào câu chữ thường.
+- So sánh A với B / trước-sau / hai phe → HAI CỘT cạnh nhau (hai Panel/StatBlock song song trong một flex row), mỗi bên một nhãn.
+- Quá trình/các bước/dòng thời gian → chuỗi bước DỌC có số thứ tự hoặc mũi tên giữa các bước (KeyPoints hoặc các Callout xếp chuỗi).
+- Liệt kê 3–5 điểm → KeyPoints (tự đánh số) hoặc lưới cards, KHÔNG viết thành một đoạn văn.
+- Một định nghĩa/ý/tuyên bố → TitleBlock lớn hoặc một Callout nhấn; cho phép cảnh chữ thưa nhưng phải có một mỏ neo thị giác (số, icon bespoke, hình khối).
+- Beat chữ ký (mở đầu/điểm nhấn lớn) → đồ hoạ SVG/CSS bespoke riêng cho chủ đề (KHÔNG chỉ là card chữ).
+LUẬT CHỐNG LẶP (đếm được, tự kiểm trước khi trả về):
+1) KHÔNG để hơn 2 cảnh LIÊN TIẾP dùng cùng một khuôn bố cục (vd 3 cảnh liền đều "TitleBlock + Panel" là SAI — đổi ít nhất một sang hai-cột/stat/list/bespoke).
+2) Trong toàn video, một video 9–12 cảnh nên dùng ÍT NHẤT 3 dạng bố cục khác nhau (vd: vài cảnh title, ≥1 cảnh stat lớn, ≥1 cảnh hai-cột hoặc list, ≥1 beat bespoke).
+3) StatBlock/CountUp chỉ cho số THẬT có trong tư liệu — không có số thật thì đừng bịa ra để "có dạng stat".
+Text/list thuần là lựa chọn CÓ CHỦ ĐÍCH cho nội dung chữ, KHÔNG phải khuôn mặc định cho mọi cảnh.`;
