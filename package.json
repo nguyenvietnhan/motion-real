@@ -18,6 +18,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "build": "tsx scripts/build.ts",
     "test": "tsx scripts/test.ts",
+    "smoke": "tsx scripts/smoke.ts",
     "vendor-fonts": "tsx scripts/vendor-fonts.ts"
   },
   "devDependencies": {
