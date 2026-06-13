@@ -38,6 +38,7 @@ LAYOUT ZONES:
 - Nội dung chính ở content-zone phía TRÊN (~tới 62% chiều cao); Content/Story tự căn.
 - Chừa caption band (~64–84%) + UI reserve (đáy ~16%) TRỐNG.
 - Có đường kẻ ĐEN ở đáy content-zone; giữ nội dung PHÍA TRÊN nó — tràn xuống là lỗi N14 (chặn render).
+- ĐƯỜNG KẺ NGANG ở đáy content-zone do HỆ THỐNG tự vẽ — TUYỆT ĐỐI KHÔNG tự thêm đường kẻ ngang trải hết bề rộng (div/hr full-width, position:absolute left:0 right:0) làm "vạch phân cách"/"đường trang trí" ở giữa hay bất kỳ đâu trong cảnh; nó cắt đôi khung hình và đè lên divider thật. Muốn ngăn cách thị giác thì dùng KHOẢNG TRẮNG, viền của block (Panel/Story), hoặc đổi nền — đừng kẻ ngang ngang màn.
 - Cân bằng vùng: cảnh chỉ một tiêu đề + một dòng đọc TRỐNG/đầu nặng; cho beat thưa một mỏ neo (số lớn/đồ hoạ nhỏ).
 
 DESIGN (BẤT BIẾN, áp cho MỌI ngôn ngữ thiết kế): KHÔNG hardcode màu/viền/bo góc/nền. Đọc MỌI quyết định hình ảnh từ theme: theme.colors.* (màu), theme.radius.* (bo góc — VUÔNG hay BO TRÒN tuỳ ngôn ngữ), theme.surface (cách vẽ viền/fill/bóng/chip), theme.fonts.* (phông — CHỈ có 3 key: theme.fonts.display cho tiêu đề, theme.fonts.body cho đoạn văn, theme.fonts.mono cho nhãn/số/đơn vị; KHÔNG có heading/title/sans/serif — dùng key khác là lỗi N10 chặn render). Frame tự sơn nền + backdrop đúng ngôn ngữ (đừng tự vẽ nền). Chữ tương phản cao (N18). Khối nội dung COMPOSE từ @news/blocks — chúng tự đọc theme nên hợp mọi ngôn ngữ; muốn đồ hoạ bespoke thì cũng đọc theme (đừng đặt màu/bo góc cứng).
