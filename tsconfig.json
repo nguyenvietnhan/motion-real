@@ -13,18 +13,17 @@
     "verbatimModuleSyntax": false,
     "noUncheckedIndexedAccess": true,
     "types": ["node"],
-    "baseUrl": ".",
     "paths": {
-      "@news/schema": ["packages/schema/src/index.ts"],
-      "@news/design": ["packages/design/src/index.ts"],
-      "@news/blocks": ["packages/blocks/src/index.ts"],
-      "@news/tts": ["packages/tts/src/index.ts"],
-      "@news/compositions": ["packages/compositions/src/index.ts"],
-      "@news/compositions/*": ["packages/compositions/src/*"],
-      "@news/pipeline": ["packages/pipeline/src/index.ts"],
-      "@news/pipeline/*": ["packages/pipeline/src/*"],
-      "@news/mcp": ["packages/mcp/src/index.ts"],
-      "@news/mcp/*": ["packages/mcp/src/*"]
+      "@news/schema": ["./packages/schema/src/index.ts"],
+      "@news/design": ["./packages/design/src/index.ts"],
+      "@news/blocks": ["./packages/blocks/src/index.ts"],
+      "@news/tts": ["./packages/tts/src/index.ts"],
+      "@news/compositions": ["./packages/compositions/src/index.ts"],
+      "@news/compositions/*": ["./packages/compositions/src/*"],
+      "@news/pipeline": ["./packages/pipeline/src/index.ts"],
+      "@news/pipeline/*": ["./packages/pipeline/src/*"],
+      "@news/mcp": ["./packages/mcp/src/index.ts"],
+      "@news/mcp/*": ["./packages/mcp/src/*"]
     }
   },
   "include": ["apps/**/*", "packages/**/*", "tests/**/*", "scripts/**/*"],
