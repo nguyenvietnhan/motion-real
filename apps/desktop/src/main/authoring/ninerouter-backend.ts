@@ -354,7 +354,6 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
           ...(intent ? { intent } : {}),
           ...(stillDataUrl ? { stillDataUrl } : {}),
           ...(imageSceneIds.has(t.sceneId) ? { hasImage: true } : {}),
-          ...(imageSceneIds.has(t.sceneId) ? { hasImage: true } : {}),
         });
 
         let reply: string;
