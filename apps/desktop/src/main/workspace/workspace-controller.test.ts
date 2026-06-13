@@ -86,7 +86,7 @@ describe("Property 7: empty-narration guard (manifest order, no write on reject)
 
 // Property 8: Project stage recovery rules
 describe("Property 8: project stage recovery rules", () => {
-  it("no scenes→writing; has still→ready; else→script; read throws→writing", async () => {
+  it("no scenes→error(retry:create); has still→ready; else→script; read throws→error", async () => {
     await fc.assert(
       fc.asyncProperty(
         fc.integer({ min: 0, max: 5 }),
@@ -104,12 +104,17 @@ describe("Property 8: project stage recovery rules", () => {
           const ctrl = new WorkspaceController(deps);
           const stage = await ctrl.stage("p1");
 
+          // A stranded scaffold (0 scenes) or an unreadable manifest is NOT a live
+          // job here (a running job holds an in-memory "writing" stage that stage()
+          // returns first), so it must land on a recoverable error — never a
+          // permanent "writing" spinner with no affordance.
           let expected: ProjectStage["kind"];
-          if (threw) expected = "writing";
-          else if (sceneCount === 0) expected = "writing";
+          if (threw) expected = "error";
+          else if (sceneCount === 0) expected = "error";
           else if (hasStill) expected = "ready";
           else expected = "script";
           expect(stage.kind).toBe(expected);
+          if (expected === "error" && stage.kind === "error") expect(stage.retry).toBe("create");
         },
       ),
       { numRuns: 100 },

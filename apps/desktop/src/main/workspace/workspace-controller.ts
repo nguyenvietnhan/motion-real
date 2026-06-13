@@ -728,13 +728,34 @@ export class WorkspaceController {
   private async recoverStage(projectId: string): Promise<ProjectStage> {
     try {
       const manifest = await this.deps.loadManifest(projectId);
-      if (manifest.scenes.length === 0) return { kind: "writing" };
+      // 0 scenes here means NO live job: recoverStage is only reached when the
+      // project has no in-memory stage (a running author/crawl job always holds a
+      // {kind:"writing"} stage in the map, which `stage()` returns first). So a
+      // scaffolded-but-unauthored project at this point was stranded — a cancel
+      // mid-crawl, or an app restart while authoring/at image-review (the pending
+      // review lives in memory and is gone). Landing on "writing" spins forever
+      // with no affordance; surface a recoverable error so the user can re-create.
+      if (manifest.scenes.length === 0) {
+        return {
+          kind: "error",
+          message: "Dự án chưa kịp tạo kịch bản (có thể bạn đã dừng giữa chừng hoặc đóng app). Hãy tạo lại.",
+          fixable: false,
+          retry: "create",
+        };
+      }
       if (this.deps.hasOutput(projectId)) return { kind: "published", outputPath: this.deps.outputMedia(projectId) };
       const hasStills = manifest.scenes.some((s) => this.deps.hasStill(projectId, s.id));
       if (hasStills) return this.readyStage(projectId, await this.storyboardScenesOf(projectId));
       return { kind: "script", lines: await this.scriptLinesOf(projectId) };
     } catch {
-      return { kind: "writing" };
+      // An unreadable/absent manifest is the same stranded case (scaffold without
+      // a manifest yet) — a recoverable error beats a permanent spinner.
+      return {
+        kind: "error",
+        message: "Không đọc được dữ liệu dự án. Hãy tạo lại.",
+        fixable: false,
+        retry: "create",
+      };
     }
   }
 
@@ -747,8 +768,17 @@ export class WorkspaceController {
   }
 
   async delete(projectId: string): Promise<void> {
+    // Drop EVERY per-project in-memory entry, not just stage + inFlight: a long
+    // session that creates/deletes many projects would otherwise leak the input,
+    // parked review, aborter, and render-version maps unboundedly. Abort any
+    // in-flight job first so its controller isn't stranded after the entry is gone.
+    this.aborters.get(projectId)?.abort();
     this.stages.delete(projectId);
     this.inFlight.delete(projectId);
+    this.inputs.delete(projectId);
+    this.pendingReview.delete(projectId);
+    this.aborters.delete(projectId);
+    this.renderVersions.delete(projectId);
     try {
       await this.deps.deleteProject(projectId);
     } catch (e) {
