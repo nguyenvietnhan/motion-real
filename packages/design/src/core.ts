@@ -411,7 +411,13 @@ export type ThemeColors = CoreColors & {
  * (`theme.accent` as well as `theme.colors.accent`) via a Proxy — models write
  * both forms. `colors` stays the canonical home.
  */
-export type Theme = ThemeColors & {
+// `surface` is omitted from the spread because ThemeColors carries a `surface:
+// string` color alias (→ panel) that would otherwise intersect with the
+// structured `surface: SurfaceTokens` below into `string & SurfaceTokens`.
+// Runtime already sets `theme.surface` to the SurfaceTokens object (style-packs),
+// so the structured shape is the truth; the top-level color alias stays reachable
+// via `theme.colors.surface`.
+export type Theme = Omit<ThemeColors, "surface"> & {
   id: string;
   name: string;
   /** Dominant hex this palette was derived from. */
