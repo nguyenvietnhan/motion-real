@@ -397,8 +397,17 @@ const handlers: InvokeHandlers = {
     };
     const picked = win ? await dialog.showSaveDialog(win, opts) : await dialog.showSaveDialog(opts);
     if (picked.canceled || !picked.filePath) return { saved: false };
-    await copyFile(src, picked.filePath);
-    return { saved: true };
+    try {
+      await copyFile(src, picked.filePath);
+      return { saved: true };
+    } catch (e) {
+      // A raw fs error here (a locked destination, EPERM/EACCES on a protected
+      // folder, a removed drive) would otherwise propagate the absolute path +
+      // OS error code straight to the renderer's rejected invoke — every other
+      // handler redacts. Swallow to a clean flag + a generic Vietnamese reason.
+      console.warn(`[desktop] save/export failed for ${id}:`, e);
+      return { saved: false, error: "Không lưu được video ra vị trí đã chọn. Hãy thử lại hoặc chọn thư mục khác." };
+    }
   },
   "projects:cancel": (projectId) => {
     workspace.cancel(String(projectId));

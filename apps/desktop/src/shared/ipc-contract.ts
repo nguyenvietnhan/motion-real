@@ -62,8 +62,8 @@ export interface DashboardApi {
     stage(projectId: string): Promise<ProjectStage>;
     delete(projectId: string): Promise<void>;
     reveal(projectId: string): Promise<void>;
-    /** Copy the full-quality MP4 to a user-chosen location via a native Save dialog. Resolves `false` when the user cancels. */
-    save(projectId: string): Promise<{ saved: boolean }>;
+    /** Copy the full-quality MP4 to a user-chosen location via a native Save dialog. Resolves `{saved:false}` when the user cancels, and `{saved:false, error}` (redacted reason) when the copy fails. */
+    save(projectId: string): Promise<{ saved: boolean; error?: string }>;
     /** Stop the in-flight render/author/edit job ("Dừng render"); the project returns to its prior reviewable stage. */
     cancel(projectId: string): Promise<void>;
     /** Re-run authoring for an existing project (the "Thử lại" action). */
