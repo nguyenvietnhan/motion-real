@@ -54,7 +54,7 @@ export function normalizeAuthoredImports(code: string): string {
       return designLine ? `${blocksLine}\n${designLine}` : blocksLine;
     },
   );
-  return normalizeRemotionImports(moved);
+  return normalizeColorInterpolation(normalizeRemotionImports(moved));
 }
 
 /**
@@ -103,4 +103,127 @@ function normalizeRemotionImports(code: string): string {
       return kept.length > 0 ? `import { ${kept.join(", ")} } from "remotion";` : "";
     },
   );
+}
+
+/**
+ * Find the index of the bracket that closes the one at `openIdx`, skipping
+ * string/template literals (whose contents may contain unbalanced brackets).
+ * Tracks all three bracket kinds so a `)` inside `[...]`/`{...}` doesn't close a
+ * `(` early. Returns -1 if unbalanced (caller then leaves the code untouched).
+ */
+function matchBracket(code: string, openIdx: number): number {
+  const open = code[openIdx]!;
+  const close = open === "(" ? ")" : open === "[" ? "]" : "}";
+  let depth = 0;
+  let quote = ""; // "", '"', "'", or "`"
+  for (let i = openIdx; i < code.length; i++) {
+    const c = code[i]!;
+    if (quote) {
+      if (c === "\\") { i++; continue; } // skip escaped char
+      if (c === quote) quote = "";
+      continue;
+    }
+    if (c === '"' || c === "'" || c === "`") { quote = c; continue; }
+    if (c === open) depth++;
+    else if (c === close) { depth--; if (depth === 0) return i; }
+  }
+  return -1;
+}
+
+/** Split a call's argument string on TOP-LEVEL commas (ignoring nested brackets/strings). */
+function splitTopLevelArgs(s: string): string[] {
+  const args: string[] = [];
+  let depth = 0;
+  let quote = "";
+  let start = 0;
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i]!;
+    if (quote) {
+      if (c === "\\") { i++; continue; }
+      if (c === quote) quote = "";
+      continue;
+    }
+    if (c === '"' || c === "'" || c === "`") { quote = c; continue; }
+    if (c === "(" || c === "[" || c === "{") depth++;
+    else if (c === ")" || c === "]" || c === "}") depth--;
+    else if (c === "," && depth === 0) { args.push(s.slice(start, i)); start = i + 1; }
+  }
+  args.push(s.slice(start));
+  return args;
+}
+
+/**
+ * Does an `interpolate` output-range argument carry COLORS (not numbers)? True
+ * only for an array literal whose contents show a clear color signal — a hex
+ * literal (`#1E9CB0`) or a theme color read (`theme.colors.accent`, `.colors.x`).
+ * Deliberately conservative: anything ambiguous returns false so a numeric
+ * interpolate is NEVER rewritten (which would itself break — interpolateColors
+ * can't take numbers).
+ */
+function isColorOutputRange(arg: string): boolean {
+  const s = arg.trim();
+  if (!s.startsWith("[")) return false; // must be an inline array literal
+  return /#[0-9a-fA-F]{3,8}\b/.test(s) || /\.colors\./.test(s);
+}
+
+/**
+ * Rewrite `interpolate(t, range, [colorA, colorB], …)` → `interpolateColors(…)`.
+ *
+ * Remotion's `interpolate` has a `string[]` output overload, so passing colors
+ * type-checks CLEAN (N10 can't catch it) but throws at RENDER time:
+ * `Cannot interpolate "#6177e5" because … is not a supported scale/translate/
+ * rotate value`. The model recurrently reaches for `interpolate` to cross-fade a
+ * color; the correct API is `interpolateColors` (identical `(number, number[],
+ * string[])` signature). Since a typecheck can't see it and the render crash is
+ * NOT agent-fixable by re-prompting reliably, fix the deterministic mistake in
+ * code: swap the callee for color-valued calls and ensure the import exists.
+ *
+ * Conservative by construction: only a STANDALONE `interpolate(` call whose 3rd
+ * arg is an array literal containing a hex/`.colors.` signal is rewritten. A
+ * numeric interpolate, a `foo.interpolate`, or an ambiguous range is left as-is.
+ */
+function normalizeColorInterpolation(code: string): string {
+  const CALLEE = "interpolate";
+  let out = "";
+  let i = 0;
+  let rewrote = false;
+  while (i < code.length) {
+    const idx = code.indexOf(`${CALLEE}(`, i);
+    if (idx === -1) { out += code.slice(i); break; }
+    // STANDALONE only: the char before must not continue an identifier or be a
+    // `.` (so `interpolateColors(` and `obj.interpolate(` are both skipped).
+    const prev = idx > 0 ? code[idx - 1]! : "";
+    if (/[\w$.]/.test(prev)) {
+      out += code.slice(i, idx + CALLEE.length + 1);
+      i = idx + CALLEE.length + 1;
+      continue;
+    }
+    const open = idx + CALLEE.length; // index of "("
+    const close = matchBracket(code, open);
+    if (close === -1) { out += code.slice(i); break; } // unbalanced ⇒ leave rest as-is
+    const args = splitTopLevelArgs(code.slice(open + 1, close));
+    if (args.length >= 3 && isColorOutputRange(args[2]!)) {
+      out += `${code.slice(i, idx)}interpolateColors${code.slice(open, close + 1)}`;
+      rewrote = true;
+    } else {
+      out += code.slice(i, close + 1);
+    }
+    i = close + 1;
+  }
+  return rewrote ? ensureInterpolateColorsImport(out) : out;
+}
+
+/** Ensure `interpolateColors` is imported from "remotion" (add to an existing import, else a new line). */
+function ensureInterpolateColorsImport(code: string): string {
+  if (/\binterpolateColors\b[^;]*from\s*["']remotion["']/.test(code)) return code; // already imported
+  const importRe = /import\s*\{([^}]*)\}\s*from\s*["']remotion["'];?/;
+  const m = importRe.exec(code);
+  if (m) {
+    const clauses = m[1]!.split(",").map((s) => s.trim()).filter(Boolean);
+    if (clauses.some((c) => baseName(c) === "interpolateColors")) return code;
+    clauses.push("interpolateColors");
+    return code.replace(importRe, `import { ${clauses.join(", ")} } from "remotion";`);
+  }
+  // No remotion import at all — prepend one (kept minimal; admission allows it).
+  return `import { interpolateColors } from "remotion";\n${code}`;
 }

@@ -63,3 +63,56 @@ describe("normalizeAuthoredImports", () => {
     expect(normalizeAuthoredImports(code)).toBe(code);
   });
 });
+
+describe("normalizeAuthoredImports — color interpolation", () => {
+  // The bug this guards: the model reaches for `interpolate` to cross-fade a
+  // COLOR. Remotion's interpolate has a string[] output overload, so it
+  // type-checks clean (N10 can't catch it) but throws at RENDER time:
+  // `Cannot interpolate "#6177e5" because … is not a supported … value`. The
+  // correct API is interpolateColors (identical signature). We swap the callee
+  // for color-valued calls and ensure the import exists.
+  it("rewrites a hex-literal interpolate to interpolateColors + adds the import", () => {
+    const code = [
+      `import { interpolate } from "remotion";`,
+      `const c = interpolate(t, [0, 1], ["#fff", "#000"]);`,
+    ].join("\n");
+    const out = normalizeAuthoredImports(code);
+    expect(out).toContain(`const c = interpolateColors(t, [0, 1], ["#fff", "#000"]);`);
+    expect(out).toContain(`import { interpolate, interpolateColors } from "remotion";`);
+  });
+
+  it("rewrites a theme.colors output range (the real crash) and keeps options arg", () => {
+    const code = `const f = interpolate(progress, [0.4, 0.8], [theme.colors.accent, theme.colors.signal], { extrapolateRight: "clamp" });`;
+    const out = normalizeAuthoredImports(code);
+    expect(out).toContain(`interpolateColors(progress, [0.4, 0.8], [theme.colors.accent, theme.colors.signal], { extrapolateRight: "clamp" })`);
+    expect(out).not.toMatch(/\binterpolate\(progress/); // the bare interpolate( call is gone
+    expect(out).toContain(`import { interpolateColors } from "remotion";`); // prepended (no prior import)
+  });
+
+  it("leaves a NUMERIC interpolate untouched (must never become interpolateColors)", () => {
+    const code = `const y = interpolate(frame, [0, 15], [40, 0], { extrapolateRight: "clamp" });`;
+    expect(normalizeAuthoredImports(code)).toBe(code);
+  });
+
+  it("does not double-import interpolateColors when already present", () => {
+    const code = [
+      `import { interpolate, interpolateColors } from "remotion";`,
+      `const c = interpolate(t, [0, 1], ["#fff", "#000"]);`,
+    ].join("\n");
+    const out = normalizeAuthoredImports(code);
+    expect(out).toContain(`interpolateColors(t, [0, 1], ["#fff", "#000"])`);
+    // exactly one interpolateColors in the import clause (no duplicate appended)
+    expect(out.match(/import \{ interpolate, interpolateColors \} from "remotion";/g)).toHaveLength(1);
+  });
+
+  it("does NOT touch obj.interpolate(... colors) — only the standalone remotion call", () => {
+    const code = `const c = anim.interpolate(t, [0, 1], ["#fff", "#000"]);`;
+    expect(normalizeAuthoredImports(code)).toBe(code);
+  });
+
+  it("handles a nested call inside the output range without mis-slicing", () => {
+    const code = `const c = interpolate(t, [0, 1], [withAlpha(theme.colors.accent, 0.5), "#000"]);`;
+    const out = normalizeAuthoredImports(code);
+    expect(out).toContain(`interpolateColors(t, [0, 1], [withAlpha(theme.colors.accent, 0.5), "#000"])`);
+  });
+});
