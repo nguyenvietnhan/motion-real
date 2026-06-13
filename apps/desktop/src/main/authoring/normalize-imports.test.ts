@@ -28,4 +28,30 @@ describe("normalizeAuthoredImports", () => {
     expect(out).toContain(`import { type Tone } from "@news/blocks";`);
     expect(out).toContain(`import { withAlpha } from "@news/design";`);
   });
+
+  // The model trained on an old Remotion API keeps importing `Extrapolate` (an
+  // enum that no longer exists) and using `Extrapolate.CLAMP`; current Remotion
+  // takes the bare string "clamp". Without a fix the scene fails N4 admission
+  // ("No matching export in remotion for import Extrapolate") and rolls back.
+  it("rewrites Extrapolate.CLAMP to \"clamp\" and drops the dead remotion import", () => {
+    const code = [
+      `import { interpolate, Extrapolate } from "remotion";`,
+      `const x = interpolate(f, [0, 1], [0, 1], { extrapolateRight: Extrapolate.CLAMP });`,
+    ].join("\n");
+    const out = normalizeAuthoredImports(code);
+    expect(out).toContain(`import { interpolate } from "remotion";`);
+    expect(out).not.toContain("Extrapolate");
+    expect(out).toContain(`extrapolateRight: "clamp"`);
+  });
+
+  it("drops the remotion import line entirely when only Extrapolate was imported", () => {
+    const out = normalizeAuthoredImports(`import { Extrapolate } from "remotion";\nconst a = Extrapolate.EXTEND;`);
+    expect(out).not.toContain(`from "remotion"`);
+    expect(out).toContain(`const a = "extend";`);
+  });
+
+  it("leaves a correct remotion import untouched", () => {
+    const code = `import { interpolate, useCurrentFrame } from "remotion";`;
+    expect(normalizeAuthoredImports(code)).toBe(code);
+  });
 });

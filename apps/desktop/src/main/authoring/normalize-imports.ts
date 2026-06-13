@@ -42,7 +42,7 @@ function baseName(clause: string): string {
  * `@news/blocks` import. Returns the code unchanged when nothing is misplaced.
  */
 export function normalizeAuthoredImports(code: string): string {
-  return code.replace(
+  const moved = code.replace(
     /import\s*\{([^}]*)\}\s*from\s*["']@news\/design["'];?/g,
     (full, inner: string) => {
       const clauses = inner.split(",").map((s) => s.trim()).filter(Boolean);
@@ -52,6 +52,50 @@ export function normalizeAuthoredImports(code: string): string {
       const blocksLine = `import { ${misplaced.join(", ")} } from "@news/blocks";`;
       const designLine = remaining.length > 0 ? `import { ${remaining.join(", ")} } from "@news/design";` : "";
       return designLine ? `${blocksLine}\n${designLine}` : blocksLine;
+    },
+  );
+  return normalizeRemotionImports(moved);
+}
+
+/**
+ * Symbols a model imports from "remotion" that NO LONGER EXIST in the installed
+ * version, mapped to a deterministic fix. The recurrent one is `Extrapolate`: old
+ * Remotion exposed an `Extrapolate` enum (`Extrapolate.CLAMP`) for interpolate's
+ * extrapolate options; current Remotion takes the bare string `"clamp"` instead,
+ * so an `import { Extrapolate } from "remotion"` fails admission (N4: "No matching
+ * export in remotion for import Extrapolate") and the whole scene rolls back. The
+ * model trained on the old API keeps writing it, so fix it in code: rewrite the
+ * `Extrapolate.X` member usages to their string literal, then drop the dead import.
+ */
+const REMOTION_MEMBER_REWRITES: Record<string, Record<string, string>> = {
+  Extrapolate: { CLAMP: '"clamp"', EXTEND: '"extend"', IDENTITY: '"identity"' },
+};
+
+/**
+ * Rewrite removed-symbol member accesses (e.g. `Extrapolate.CLAMP` → `"clamp"`)
+ * and strip those symbols from any `remotion` named import, so authored code using
+ * a stale Remotion API admits + renders instead of rolling back. Other remotion
+ * imports are left untouched. Pure string transform.
+ */
+function normalizeRemotionImports(code: string): string {
+  let out = code;
+  // 1) Rewrite member accesses of removed symbols to their replacement literal.
+  for (const [sym, members] of Object.entries(REMOTION_MEMBER_REWRITES)) {
+    out = out.replace(new RegExp(`\\b${sym}\\.([A-Za-z_$][\\w$]*)`, "g"), (full, member: string) => {
+      const repl = members[member];
+      return repl ?? full; // an unknown member is left as-is (don't silently mangle)
+    });
+  }
+  // 2) Drop the now-dead removed symbols from any remotion named import.
+  const removable = new Set(Object.keys(REMOTION_MEMBER_REWRITES));
+  return out.replace(
+    /import\s*\{([^}]*)\}\s*from\s*["']remotion["'];?/g,
+    (full, inner: string) => {
+      const clauses = inner.split(",").map((s) => s.trim()).filter(Boolean);
+      const kept = clauses.filter((c) => !removable.has(baseName(c)));
+      if (kept.length === clauses.length) return full; // nothing removed
+      // Drop the import entirely when only removed symbols were imported.
+      return kept.length > 0 ? `import { ${kept.join(", ")} } from "remotion";` : "";
     },
   );
 }
