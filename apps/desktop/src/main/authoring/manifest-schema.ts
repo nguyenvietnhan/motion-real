@@ -33,7 +33,25 @@ const clampStr = (max: number) => (v: unknown) => (typeof v === "string" && v.le
  * provided project-relative local path (`assets/<sha>.<ext>`); the AI never
  * invents it (the backend strips any ref not in the provided pool). Singular by
  * schema ⇒ ≤1 image per scene. `alt` is optional accessibility/review text.
+ *
+ * Coerce a bare-string `image` into `{ ref }` BEFORE validating. The model very
+ * often writes `"image": "assets/<hash>.png"` (the natural shape) instead of the
+ * `{ "ref": "..." }` object the schema wants; without this, Zod's "expected
+ * object, received string" fails the whole `safeParse` and the ENTIRE reply —
+ * manifest + every authored .tsx — is discarded, forcing a full re-author. Also
+ * accept the common `{ url }`/`{ src }` aliases for the path key. Same wholesale-
+ * discard family as the clampStr/`.catch()` coercions above.
  */
+const coerceImage = (v: unknown): unknown => {
+  if (typeof v === "string") return { ref: v };
+  if (v && typeof v === "object" && !("ref" in v)) {
+    const o = v as Record<string, unknown>;
+    const alt = typeof o.alt === "string" ? o.alt : undefined;
+    const path = o.url ?? o.src ?? o.path;
+    if (typeof path === "string") return { ref: path, ...(alt !== undefined ? { alt } : {}) };
+  }
+  return v;
+};
 const authorImageSchema = z.object({
   ref: z.string().min(1).max(512),
   alt: z.string().max(160).optional(),
@@ -46,7 +64,9 @@ export const authorSceneSchema = z.object({
   narration: z.preprocess(clampStr(600), z.string().min(1).max(600)),
   body: z.preprocess(clampStr(200), z.string().max(200).optional()),
   props: z.record(z.string(), z.unknown()).default({}),
-  image: authorImageSchema.optional(),
+  // Coerce a bare-string `image` to `{ ref }` first (see coerceImage), then let a
+  // still-malformed image degrade to undefined rather than nuke the whole reply.
+  image: z.preprocess(coerceImage, authorImageSchema.optional().catch(undefined)),
   // An out-of-enum value (the model occasionally invents a transition name)
   // degrades to undefined (the composition's default) instead of failing the
   // whole reply — see clampStr above for why one bad field must not nuke 14 scenes.

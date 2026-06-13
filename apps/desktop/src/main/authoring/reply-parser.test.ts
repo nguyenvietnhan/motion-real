@@ -190,6 +190,42 @@ describe("robust manifest coercion (one bad field no longer nukes the whole repl
     expect(parsed.ok).toBe(false);
     if (!parsed.ok) expect(parsed.reason).toBe("manifest-invalid");
   });
+
+  it("coerces a bare-string image into { ref }, not rejected (the model's natural shape)", () => {
+    // The bug this guards: the model writes "image": "assets/x.png" instead of
+    // { "ref": "..." }; the strict object schema failed safeParse and discarded
+    // the whole reply (24k chars, 14 scenes) — twice, on a real run.
+    const scenes = [
+      { component: "a-scene", eyebrow: "TIN", headline: "Một", narration: "Câu một.", image: "assets/aa.png" },
+      { component: "a-scene", eyebrow: "TIN", headline: "Hai", narration: "Câu hai." },
+      { component: "a-scene", eyebrow: "TIN", headline: "Ba", narration: "Câu ba." },
+    ];
+    const parsed = parseAuthorReply(rawReply(scenes));
+    expect(parsed.ok).toBe(true);
+    if (parsed.ok) expect(parsed.manifest.scenes[0]!.image).toEqual({ ref: "assets/aa.png" });
+  });
+
+  it("coerces an image object using a url/src alias key into { ref }", () => {
+    const scenes = [
+      { component: "a-scene", eyebrow: "TIN", headline: "Một", narration: "Câu một.", image: { url: "assets/bb.webp", alt: "mô tả" } },
+      { component: "a-scene", eyebrow: "TIN", headline: "Hai", narration: "Câu hai." },
+      { component: "a-scene", eyebrow: "TIN", headline: "Ba", narration: "Câu ba." },
+    ];
+    const parsed = parseAuthorReply(rawReply(scenes));
+    expect(parsed.ok).toBe(true);
+    if (parsed.ok) expect(parsed.manifest.scenes[0]!.image).toEqual({ ref: "assets/bb.webp", alt: "mô tả" });
+  });
+
+  it("a still-malformed image degrades to undefined (drops the field, keeps the reply)", () => {
+    const scenes = [
+      { component: "a-scene", eyebrow: "TIN", headline: "Một", narration: "Câu một.", image: { caption: "no path key here" } },
+      { component: "a-scene", eyebrow: "TIN", headline: "Hai", narration: "Câu hai." },
+      { component: "a-scene", eyebrow: "TIN", headline: "Ba", narration: "Câu ba." },
+    ];
+    const parsed = parseAuthorReply(rawReply(scenes));
+    expect(parsed.ok).toBe(true);
+    if (parsed.ok) expect(parsed.manifest.scenes[0]!.image).toBeUndefined();
+  });
 });
 
 describe("Property 2: reauthor single-module", () => {
