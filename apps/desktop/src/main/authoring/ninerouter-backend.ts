@@ -226,10 +226,18 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
 
     // Provided images (Phase 2 Block A): read each already-imported asset into a
     // data URL so the model can SEE it and decide placement. A ref we can't read
-    // is skipped (never blocks authoring). `allowedRefs` is the set the model was
-    // actually shown, used below to strip any hallucinated ref from the manifest.
+    // is skipped from the VISION parts (never blocks authoring) — but it stays
+    // authorized (see allowedRefs below).
     const images = this.buildAuthorImages(job.projectId, job.input.images ?? []);
-    const allowedRefs = new Set(images.map((i) => i.ref));
+    // The authorized ref set is what the USER provided/approved (job.input.images),
+    // NOT the subset buildAuthorImages could read into a vision data URL. A
+    // transient FS error reading an approved asset for the model's vision part
+    // would otherwise drop that ref from allowedRefs and silently STRIP the
+    // user-picked image from the manifest (toEngineManifest keeps only allowed
+    // refs). Authority comes from the user's pick; readability only governs what
+    // the model gets to SEE. The strip below still removes refs the model invented
+    // (never provided), which is its real purpose.
+    const allowedRefs = new Set((job.input.images ?? []).map((i) => i.ref));
 
     const messages = buildAuthorMessages(job.input, research, images.length > 0 ? images : undefined);
     let reply: string;

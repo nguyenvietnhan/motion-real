@@ -162,6 +162,38 @@ describe("authorScenes (pure-author)", () => {
     expect(written.scenes[2].image).toBeUndefined();
   });
 
+  it("keeps a USER-APPROVED image even when its file can't be read for the vision part (FS race)", async () => {
+    // The bug this guards: authority for an image comes from the user's PICK
+    // (job.input.images), not from whether buildAuthorImages could read the bytes
+    // into a vision data URL. A transient FS error (lock, race) on the approved
+    // asset must NOT silently strip the user's image from the manifest. Here the
+    // approved ref is NEVER written to disk, so buildAuthorImages skips it (the
+    // model sees no vision part for it) — yet the ref must still survive the strip.
+    const projectId = "pa-image-unreadable";
+    const approvedRef = "assets/approved-but-missing.png"; // intentionally not on disk
+    const manifest = {
+      title: "Ảnh đã duyệt nhưng đọc lỗi",
+      theme: { dominant: "#1E9CB0", mood: "thử" },
+      scenes: [
+        { component: "alpha", eyebrow: "A", headline: "Một", narration: "Câu một.", image: { ref: approvedRef } },
+        { component: "beta", eyebrow: "B", headline: "Hai", narration: "Câu hai." },
+        { component: "alpha", eyebrow: "C", headline: "Ba", narration: "Câu ba." },
+      ],
+    };
+    const reply = "```json\n" + JSON.stringify(manifest) + "\n```\n\n" + block("alpha") + "\n\n" + block("beta");
+    const { backend } = makeBackend(reply);
+    const job: AuthorJob = {
+      projectId,
+      input: { text: "chủ đề", urls: [], images: [{ ref: approvedRef, width: 800, height: 600 }] },
+      scriptGate: false,
+    };
+
+    await backend.authorScenes(job);
+
+    const written = JSON.parse(readFileSync(join(home, ".video-tool", "projects", projectId, "manifest.json"), "utf8"));
+    expect(written.scenes[0].image).toEqual({ ref: approvedRef }); // approved ref survives despite unreadable bytes
+  });
+
   it("reports links it could NOT read in unreadableUrls (so the UI can warn the user)", async () => {
     const projectId = "pa-unreadable";
     const { backend } = makeBackend(validReply());
