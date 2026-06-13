@@ -106,6 +106,13 @@ URLs, auto-fetch), never for things you draw yourself.
   boundary) on every video — you don't author it. Keep authored content ABOVE it:
   content drifting into the caption-clearance gap is a HARD N14 error (blocks the
   render), so leave a clear gap above the captions.
+- **Never author your own full-width horizontal rule** (a `<div>`/`<hr>` spanning
+  the frame, e.g. `position:absolute; left:0; right:0`) as a "separator" or
+  "decorative line" anywhere in the scene. The system already draws the one
+  divider at the content-zone bottom; a second full-width rule cuts the frame in
+  half and collides with it. To separate content visually use whitespace, a
+  block's own border (`Panel`/`Story`), or a background change — not a rule
+  across the screen.
 - **Balance the zone.** `Content`/`Story` centre vertically; a scene with only a
   short title + one line reads top-heavy / half-empty. Give a sparse beat a
   confident anchor (a bold stat, a small bespoke diagram) or let one element own
