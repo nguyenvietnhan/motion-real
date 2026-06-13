@@ -137,6 +137,61 @@ describe("Property 1: author-reply parse roundtrip", () => {
   });
 });
 
+describe("robust manifest coercion (one bad field no longer nukes the whole reply)", () => {
+  // The bug this guards: a single over-cap or out-of-enum field in ONE scene made
+  // the strict schema fail safeParse, discarding the manifest + every authored
+  // .tsx (up to 14 scenes) and forcing a full re-author. Clamp/coerce keeps them.
+  function rawReply(scenes: unknown[]): string {
+    const manifest = { title: "Tiêu đề kiểm thử", theme: { dominant: "#1E9CB0", mood: "tông" }, scenes };
+    return (
+      "```json\n" + JSON.stringify(manifest) + "\n```\n\n" + codeBlock("a-scene")
+    );
+  }
+
+  it("an out-of-enum transitionToNext is coerced to undefined, not rejected", () => {
+    const scenes = [
+      { component: "a-scene", eyebrow: "TIN", headline: "Một", narration: "Câu một.", transitionToNext: "dissolve" },
+      { component: "a-scene", eyebrow: "TIN", headline: "Hai", narration: "Câu hai." },
+      { component: "a-scene", eyebrow: "TIN", headline: "Ba", narration: "Câu ba." },
+    ];
+    const parsed = parseAuthorReply(rawReply(scenes));
+    expect(parsed.ok).toBe(true);
+    if (parsed.ok) expect(parsed.manifest.scenes[0]!.transitionToNext).toBeUndefined();
+  });
+
+  it("an over-cap narration/eyebrow/headline is clamped to its limit, not rejected", () => {
+    const scenes = [
+      {
+        component: "a-scene",
+        eyebrow: "X".repeat(40), // cap 24
+        headline: "H".repeat(200), // cap 120
+        narration: "N".repeat(900), // cap 600
+      },
+      { component: "a-scene", eyebrow: "TIN", headline: "Hai", narration: "Câu hai." },
+      { component: "a-scene", eyebrow: "TIN", headline: "Ba", narration: "Câu ba." },
+    ];
+    const parsed = parseAuthorReply(rawReply(scenes));
+    expect(parsed.ok).toBe(true);
+    if (parsed.ok) {
+      const s0 = parsed.manifest.scenes[0]!;
+      expect(s0.eyebrow.length).toBe(24);
+      expect(s0.headline.length).toBe(120);
+      expect(s0.narration.length).toBe(600);
+    }
+  });
+
+  it("still rejects a genuinely empty required field (missing content, not overshoot)", () => {
+    const scenes = [
+      { component: "a-scene", eyebrow: "", headline: "Một", narration: "Câu một." },
+      { component: "a-scene", eyebrow: "TIN", headline: "Hai", narration: "Câu hai." },
+      { component: "a-scene", eyebrow: "TIN", headline: "Ba", narration: "Câu ba." },
+    ];
+    const parsed = parseAuthorReply(rawReply(scenes));
+    expect(parsed.ok).toBe(false);
+    if (!parsed.ok) expect(parsed.reason).toBe("manifest-invalid");
+  });
+});
+
 describe("Property 2: reauthor single-module", () => {
   // Feature: desktop-author-mode, Property 2: reauthor single-module
   it("exactly one block whose literal === expectId ⇒ ok; else ⇒ !ok", () => {
