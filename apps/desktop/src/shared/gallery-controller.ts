@@ -12,14 +12,20 @@ import { toFriendlyStatus } from "./friendly-status.js";
 
 export type GalleryLoad = "loading" | "empty" | "populated" | "error";
 
-/** Format an ISO timestamp as a compact `DD/MM/YYYY` (UTC, zero-padded). */
+/**
+ * Format an ISO timestamp as a compact `DD/MM/YYYY` in the viewer's LOCAL time.
+ * The createdAt is stored as UTC; a project authored at 03:33 on the 13th in
+ * UTC+7 is 20:33 on the 12th in UTC, so a UTC format would show the WRONG
+ * calendar day to the user. The date the user cares about is their own wall-clock
+ * day, so format in local time.
+ */
 export function formatShortDate(iso: string | undefined): string {
   if (!iso) return "";
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "";
-  const dd = String(d.getUTCDate()).padStart(2, "0");
-  const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
-  return `${dd}/${mm}/${d.getUTCFullYear()}`;
+  const dd = String(d.getDate()).padStart(2, "0");
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  return `${dd}/${mm}/${d.getFullYear()}`;
 }
 
 function titleOf(summary: ProjectSummary): string {

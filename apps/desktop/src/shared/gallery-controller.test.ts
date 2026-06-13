@@ -108,6 +108,17 @@ describe("galleryLoadState", () => {
   it("formatShortDate is empty for missing/invalid input", () => {
     expect(formatShortDate(undefined)).toBe("");
     expect(formatShortDate("not-a-date")).toBe("");
-    expect(formatShortDate("2026-06-05T00:00:00Z")).toBe("05/06/2026");
+  });
+
+  it("formatShortDate renders the viewer's LOCAL calendar day, not UTC", () => {
+    // Build an ISO instant, then assert it formats to that instant's LOCAL
+    // wall-clock day — so the test is timezone-independent (it derives the
+    // expected day from the same Date the formatter sees). The bug this guards:
+    // a project authored at 03:33 on the 13th in UTC+7 is the 12th in UTC, and a
+    // UTC format showed the user the wrong day.
+    const d = new Date("2026-06-12T20:33:00Z"); // 13th, 03:33 in UTC+7
+    const dd = String(d.getDate()).padStart(2, "0");
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    expect(formatShortDate("2026-06-12T20:33:00Z")).toBe(`${dd}/${mm}/${d.getFullYear()}`);
   });
 });
