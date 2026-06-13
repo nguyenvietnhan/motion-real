@@ -105,7 +105,8 @@ const IMAGE_RULE = `
 - trong .tsx của cảnh đó, render ảnh qua block <SceneImage imageRef={image.ref} alt={image.alt} /> (image đến từ SceneComponentProps), đặt trong <Content>/<Story> để ảnh nằm trong vùng an toàn;
 - import { SceneImage } from "@news/blocks".
 QUAN TRỌNG VỀ KÍCH THƯỚC: <SceneImage> TỰ canh theo đúng tỉ lệ thật của ảnh (khung ôm khít ảnh). TUYỆT ĐỐI KHÔNG bọc nó trong khung có chiều cao/rộng cố định, không dùng overflow:"hidden", height:"...px", aspectRatio hay objectFit ép quanh nó — làm vậy sẽ CẮT hoặc BÓP MÉO ảnh. Cứ đặt <SceneImage> trực tiếp trong cột nội dung; muốn giới hạn chiều cao thì truyền prop maxHeight (số px), đừng tự dựng khung.
-CHỈ dùng ref đã được cung cấp, TUYỆT ĐỐI KHÔNG bịa đường dẫn/URL ảnh. Viết nội dung sao cho ảnh khớp tổng thể. Ảnh không phù hợp thì cứ bỏ qua — không bắt buộc dùng hết.`;
+CHỈ dùng ref đã được cung cấp, TUYỆT ĐỐI KHÔNG bịa đường dẫn/URL ảnh. Viết nội dung sao cho ảnh khớp tổng thể.
+BẮT BUỘC DÙNG ẢNH: những ảnh này do NGƯỜI DÙNG chủ động chọn/đính kèm, nên PHẢI được đưa vào video — KHÔNG được bỏ hết. Hãy đặt MỖI ảnh đã cho vào một cảnh phù hợp (mỗi cảnh tối đa 1 ảnh, nên trải ảnh ra nhiều cảnh); nếu có nhiều ảnh hơn số cảnh hợp, hãy ưu tiên những ảnh khớp nội dung nhất, nhưng TỐI THIỂU phải dùng một ảnh. Soạn nội dung/kịch bản bám theo ảnh để chúng khớp tự nhiên.`;
 
 export function buildAuthorMessages(input: AuthorInput, research?: string, images?: AuthorImageInput[]): VisionMessage[] {
   const links = input.urls.length > 0 ? `\n\nLink trong yêu cầu: ${input.urls.join(", ")}` : "";

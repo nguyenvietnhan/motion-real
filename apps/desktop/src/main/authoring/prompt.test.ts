@@ -79,6 +79,11 @@ describe("buildAuthorMessages", () => {
     // The system prompt gains the image rule (use only provided refs via <SceneImage>).
     expect(sys.content).toContain("SceneImage");
     expect(sys.content).toMatch(/KHÔNG bịa đường dẫn/);
+    // User-attached/approved images MUST be used (not "optional, skip freely"):
+    // they came through a deliberate pick/review, so a re-roll can't silently
+    // drop them all. The rule mandates using them (at least one).
+    expect(sys.content).toMatch(/BẮT BUỘC DÙNG ẢNH/);
+    expect(sys.content).not.toMatch(/không bắt buộc dùng hết/);
     // One image_url per image, each preceded by a text line naming its ref + size.
     const imageParts = parts.filter((p) => p.type === "image_url");
     expect(imageParts).toHaveLength(2);
