@@ -4,6 +4,19 @@ import ts from "typescript";
 import type { SafetyIssue } from "../types.js";
 
 /**
+ * Warn ONCE that N10 has degraded to a no-op (sources missing / setup failed), so
+ * a packaged build that silently lost the typecheck says so in the logs instead
+ * of letting wrong-shape props crash render with no trace. Deduped on the reason
+ * so a per-render call doesn't spam, but a different cause still surfaces.
+ */
+const warnedN10Reasons = new Set<string>();
+function warnN10Degraded(reason: string): void {
+  if (warnedN10Reasons.has(reason)) return;
+  warnedN10Reasons.add(reason);
+  console.warn(`[N10] authored typecheck degraded to a no-op: ${reason}. Authored prop-shape errors will NOT be caught before render.`);
+}
+
+/**
  * N10 — TypeScript typecheck of AI-authored scene modules against the REAL
  * @news/blocks + @news/compositions prop contracts. This is the type-level
  * analogue of the AST admission gate (admission.ts): admission proves a module
@@ -88,13 +101,26 @@ export function typecheckAuthoredScenes(
   // Degrade to a no-op if the @news sources aren't where we expect: better to
   // fall back to the prior (no-typecheck) behavior than to block every render
   // with bogus "cannot find module '@news/blocks'" errors on every authored file.
-  if (!existsSync(resolve(workspaceRoot, "packages", "blocks", "src", "index.ts"))) return [];
+  // BUT this degrade is a SILENT SAFETY HOLE in a packaged app: a shipped build
+  // ships no TS source tree, so N10 would return [] for EVERY project and a
+  // wrong-shape prop ({text}[] vs string[]) — the exact crash-class N10 catches —
+  // would sail through to render and crash headless Chromium. So warn loudly
+  // (once) when it degrades: in dev the sources are present and this never fires,
+  // but a packaged build that lost N10 will say so in the logs instead of going
+  // quiet. (Warn-once: this runs per render, not per frame, but no need to spam.)
+  if (!existsSync(resolve(workspaceRoot, "packages", "blocks", "src", "index.ts"))) {
+    warnN10Degraded(`@news sources not found under ${workspaceRoot} — N10 typecheck SKIPPED`);
+    return [];
+  }
 
   let program: ts.Program;
   try {
     program = ts.createProgram(files, authoredCompilerOptions(workspaceRoot));
-  } catch {
-    return []; // a typecheck SETUP failure must never block a render
+  } catch (e) {
+    // A typecheck SETUP failure must never block a render — but, like the missing
+    // sources above, a silent skip hides that N10 isn't actually guarding anything.
+    warnN10Degraded(`typecheck setup failed (${e instanceof Error ? e.message : String(e)}) — N10 typecheck SKIPPED`);
+    return [];
   }
 
   const authored = new Set(files.map((f) => resolve(f)));
