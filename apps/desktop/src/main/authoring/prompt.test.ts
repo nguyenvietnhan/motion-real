@@ -50,6 +50,26 @@ describe("buildAuthorMessages", () => {
     expect(text).toMatch(/ÍT NHẤT 3 dạng/);
   });
 
+  it("demands a bold FIRST draft (not 'play safe then wait for the user to ask')", () => {
+    // The observed behavior: the first draft came out timid (every scene a plain
+    // title card); only a manual "be more creative" reauthor produced something
+    // engaging. The contract must require boldness on the FIRST pass — concrete
+    // must-haves (a big stat, an unusual layout, a bespoke signature beat).
+    const [sys] = buildAuthorMessages({ text: "Chủ đề bất kỳ", urls: [] });
+    const text = sys!.content;
+    expect(text).toMatch(/TÁO BẠO NGAY TỪ BẢN ĐẦU/);
+    expect(text).toMatch(/beat chữ ký|bespoke/i);
+  });
+
+  it("labels the .tsx example as STRUCTURE-only, not an aesthetic template to copy", () => {
+    // The minimal Frame>Story>TitleBlock example was being cloned into every scene
+    // (the model copies the concrete example over the abstract variety rule). The
+    // output-format must flag the example as format-only so it isn't the template.
+    const [sys] = buildAuthorMessages({ text: "Chủ đề bất kỳ", urls: [] });
+    const text = sys!.content;
+    expect(text).toMatch(/chỉ minh hoạ CẤU TRÚC|KHÔNG phải mẫu thẩm mỹ/);
+  });
+
   it("forbids fabrication (not 'use your own knowledge') when a link could not be read", () => {
     // urls present but NO research → the unreadable-link branch. It must NOT invite
     // the model to fill gaps from memory; it must forbid inventing figures/dates.

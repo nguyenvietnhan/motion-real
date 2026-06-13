@@ -40,6 +40,7 @@ const CONTENT_RULES = `QUY TẮC NỘI DUNG (bắt buộc):
 - KHÔNG bịa số liệu/nguồn/ngày/giá/phần trăm. Không chắc một con số thì đừng nêu.
 - scene-01 mở bằng HOOK trực diện (không chào hỏi/định nghĩa). Cảnh CUỐI là CTA/câu hỏi gắn chủ đề (không "like/share/subscribe" chung chung).
 - Mỗi cảnh MỘT ý; narration 1–3 câu cô đọng (khoảng 18–40 từ). Đa dạng form.
+- TÁO BẠO NGAY TỪ BẢN ĐẦU (đừng "chơi an toàn" rồi đợi sửa): bản nháp ĐẦU TIÊN đã phải hấp dẫn, KHÔNG được để mọi cảnh chỉ là "một tiêu đề + một panel chữ ở giữa". Mỗi video PHẢI có: ≥1 cảnh số liệu RẤT lớn (StatBlock/CountUp 80–160px) nếu có số thật; ≥1 cảnh bố cục khác thường (HAI CỘT so sánh, danh sách KeyPoints, hoặc BarChart); ≥1 "beat chữ ký" có đồ hoạ SVG/CSS bespoke tự vẽ (không chỉ card chữ). Hình dung cụ thể cho cảnh mở đầu + cảnh điểm nhấn TRƯỚC khi viết — coi như bản cuối, không phải bản tạm.
 - THỜI LƯỢNG: nếu yêu cầu nêu thời lượng (vd "90 giây", "1p30s", "1 phút rưỡi"), hãy ước TỔNG lời đọc toàn video ≈ thời_lượng_giây × 4.7 từ (giọng đọc tiếng Việt thực tế ~4.7 từ/giây — đo từ audio thật, KHÔNG phải 2.7) và viết ĐỦ số cảnh để đạt tổng đó — thà hơi DƯ còn hơn hụt (vd 90 giây → khoảng 420–460 từ tổng, thường 12–16 cảnh; 60 giây → khoảng 280–300 từ, thường 9–11 cảnh). Không nêu thời lượng thì 8–12 cảnh.`;
 
 const OUTPUT_FORMAT = `ĐỊNH DẠNG TRẢ VỀ (AI_Output_Contract) — trả về TRONG MỘT REPLY:
@@ -53,7 +54,8 @@ const OUTPUT_FORMAT = `ĐỊNH DẠNG TRẢ VỀ (AI_Output_Contract) — trả 
   ]
 }
 \`\`\`
-2) Với MỖI component id duy nhất, MỘT khối \`\`\`tsx, DÒNG ĐẦU là marker "// component: <id>", thân là module .tsx đầy đủ theo hợp đồng:
+2) Với MỖI component id duy nhất, MỘT khối \`\`\`tsx, DÒNG ĐẦU là marker "// component: <id>", thân là module .tsx đầy đủ theo hợp đồng.
+   ⚠ Khối mẫu DƯỚI ĐÂY chỉ minh hoạ CẤU TRÚC export bắt buộc — KHÔNG phải mẫu thẩm mỹ để chép cho mọi cảnh. ĐỪNG để các cảnh đều là "Frame > Story > TitleBlock" như mẫu; mỗi cảnh tự chọn blocks + bố cục giàu hình theo nội dung (xem QUY TẮC NỘI DUNG về sự táo bạo):
 \`\`\`tsx
 // component: id-canh
 import React from "react";
