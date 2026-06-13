@@ -366,6 +366,41 @@ describe("error stage carries the right retry hint", () => {
   });
 });
 
+// A project stranded across an app restart (cancel mid-crawl / quit while
+// authoring) recovers to an error stage whose "Thử lại" calls retry(). After a
+// restart the in-memory input map is empty, so retry() must rehydrate the
+// AuthorInput from the persisted brief via recallInput — otherwise the button is
+// a silent no-op and the poll re-derives the same error (error↔writing flicker).
+describe("retry() rehydrates the author input from disk when not in memory", () => {
+  it("with no in-memory input, retry pulls the input from recallInput and re-authors", async () => {
+    const author = vi.fn<AgentWorker["author"]>(async () => ({ kind: "authored", sceneIds: [] }));
+    const worker: AgentWorker = {
+      author,
+      reauthorScenes: async (): Promise<AuthorOutcome> => ({ kind: "authored", sceneIds: [] }),
+      publish: async () => ({ ok: true, outputPath: "out.mp4" }),
+      generateValidateRepair: async (): Promise<RepairOutcome> => ({ kind: "passed", attempts: 1 }),
+    };
+    const recallInput = vi.fn(async () => ({ text: "chủ đề đã lưu", urls: ["https://a.example/x"] }));
+    // Fresh controller (nothing in the in-memory inputs map) ⇒ simulates a restart.
+    const ctrl = new WorkspaceController(baseDeps({ worker, recallInput, settings: { scriptGateEnabled: false, maxRepairAttempts: 3, visualQaEnabled: false, imageCrawlAiFilter: false, imageCrawlHumanReview: false } }));
+    await ctrl.retry("p-restart");
+    await flush();
+    expect(recallInput).toHaveBeenCalledWith("p-restart");
+    expect(author).toHaveBeenCalledTimes(1);
+    expect(author.mock.calls[0]![0]).toMatchObject({ projectId: "p-restart", input: { text: "chủ đề đã lưu", urls: ["https://a.example/x"] } });
+  });
+
+  it("is a no-op (no throw) when the input can't be recalled either", async () => {
+    const author = vi.fn(async (): Promise<AuthorOutcome> => ({ kind: "authored", sceneIds: [] }));
+    const worker = { ...workerWith({ kind: "passed", attempts: 1 }), author };
+    const recallInput = vi.fn(async () => null);
+    const ctrl = new WorkspaceController(baseDeps({ worker, recallInput }));
+    await ctrl.retry("p-gone");
+    await flush();
+    expect(author).not.toHaveBeenCalled();
+  });
+});
+
 describe('publish re-runs from a retry:"full" error stage, not other errors', () => {
   it('a "Thử lại" on a publish error re-runs publish (not a re-author)', async () => {
     const publish = vi.fn(async () => ({ ok: true as const, outputPath: "/out/p1.mp4" }));

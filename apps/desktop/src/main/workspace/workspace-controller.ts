@@ -110,6 +110,13 @@ export interface WorkspaceDeps {
   draftMedia: (projectId: string) => string;
   deleteProject: (projectId: string) => Promise<void>;
   revealProject: (projectId: string) => Promise<void>;
+  /**
+   * Rehydrate a project's AuthorInput from its persisted brief when the
+   * in-memory copy is gone (after an app restart), so "Thử lại" on a stranded
+   * project actually re-authors instead of no-op'ing. Returns null when the
+   * brief can't be read. Optional: absent ⇒ retry only works in-session.
+   */
+  recallInput?: (projectId: string) => Promise<AuthorInput | null>;
   /** Redact L0 engine tokens from any message before it reaches the UI (R8.5). */
   redact: (message: string) => string;
 }
@@ -364,9 +371,19 @@ export class WorkspaceController {
     this.guarded(projectId, () => this.runScript(projectId, input));
   }
 
-  /** Re-run authoring for a project from its remembered input (the "Thử lại" action). */
-  retry(projectId: string): void {
-    const input = this.inputs.get(projectId);
+  /**
+   * Re-run authoring for a project from its remembered input (the "Thử lại"
+   * action). The in-memory input is gone after an app restart, so fall back to
+   * rehydrating it from the persisted brief (prompt → text + extracted urls).
+   * Without this, a project stranded across a restart shows an error screen
+   * whose "Thử lại" calls retry() → empty inputs → silent no-op → the poll
+   * re-derives the same error (an error↔writing flicker). The stylePackId and
+   * create-time images aren't persisted, so a rehydrated retry re-authors from
+   * text + links only — a degraded but functional recovery, not a dead button.
+   */
+  async retry(projectId: string): Promise<void> {
+    let input = this.inputs.get(projectId);
+    if (!input) input = (await this.deps.recallInput?.(projectId)) ?? undefined;
     if (input) this.beginScript(projectId, input);
   }
 

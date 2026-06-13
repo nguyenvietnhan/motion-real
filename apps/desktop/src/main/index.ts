@@ -2,7 +2,7 @@ import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
 import { fileURLToPath } from "node:url";
 import { basename, dirname, join } from "node:path";
 import { createTools } from "@news/mcp";
-import { loadManifest, writeJson, projectPaths, videoToolHome, stagingDir, ensureProject, importImageBytes, vivibeApiKey, defaultVivibeVoiceId, setAuthoredLoader, reconcileStaleStates, pruneRenderCache, pruneTtsCache } from "@news/pipeline";
+import { loadManifest, writeJson, projectPaths, videoToolHome, stagingDir, ensureProject, importImageBytes, vivibeApiKey, defaultVivibeVoiceId, setAuthoredLoader, reconcileStaleStates, pruneRenderCache, pruneTtsCache, readBrief } from "@news/pipeline";
 import { listStylePackIds, getStylePack, DEFAULT_STYLE_PACK_ID } from "@news/design";
 import { registerIpcRouter, type InvokeHandlers } from "./ipc-router.js";
 import { ModelGatewayManager } from "./gateway/model-gateway-manager.js";
@@ -24,6 +24,7 @@ import { loadAuthoredTsx } from "./authoring/tsx-loader.js";
 import { existsSync, readFileSync } from "node:fs";
 import { copyFile, readFile, readdir, rm, stat } from "node:fs/promises";
 import type { DroppedImage, ModelInfo, PickImagesResult, ScriptEdit, SettingsModel, StylePackVM } from "../shared/types.js";
+import { extractUrls } from "../shared/create-validation.js";
 
 // The `media://` scheme must be registered before the app is ready.
 registerMediaScheme();
@@ -142,6 +143,22 @@ const workspace = new WorkspaceController({
   deleteProject: (id) => rm(projectPaths(id).root, { recursive: true, force: true }),
   revealProject: async (id) => {
     await shell.openPath(projectPaths(id).root);
+  },
+  // Rehydrate a project's AuthorInput from the persisted brief when the in-memory
+  // input is gone (after an app restart), so the error screen's "Thử lại" can
+  // recover a project stranded across a restart instead of no-op'ing. The brief
+  // stores only the prompt; urls are re-extracted from it. stylePackId/images
+  // chosen at create time aren't persisted → a rehydrated retry re-authors from
+  // text + links only (a degraded but functional recovery).
+  recallInput: async (id) => {
+    try {
+      const brief = await readBrief(id);
+      const text = brief.prompt?.trim();
+      if (!text) return null;
+      return { text, urls: extractUrls(text) };
+    } catch {
+      return null; // no readable brief → in-session retry only
+    }
   },
   redact: stripL0Tokens,
 });
