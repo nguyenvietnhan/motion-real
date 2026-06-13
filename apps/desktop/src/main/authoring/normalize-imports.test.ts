@@ -54,4 +54,12 @@ describe("normalizeAuthoredImports", () => {
     const code = `import { interpolate, useCurrentFrame } from "remotion";`;
     expect(normalizeAuthoredImports(code)).toBe(code);
   });
+
+  it("does NOT mangle a same-named member of another object (foo.Extrapolate.CLAMP)", () => {
+    // The standalone-identifier guard: a member access whose `Extrapolate` is
+    // itself a property of something else must be left alone — only a top-level
+    // `Extrapolate.X` (the removed remotion enum) is rewritten.
+    const code = `const a = cfg.Extrapolate.CLAMP;`;
+    expect(normalizeAuthoredImports(code)).toBe(code);
+  });
 });

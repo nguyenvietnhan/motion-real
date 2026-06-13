@@ -80,8 +80,13 @@ const REMOTION_MEMBER_REWRITES: Record<string, Record<string, string>> = {
 function normalizeRemotionImports(code: string): string {
   let out = code;
   // 1) Rewrite member accesses of removed symbols to their replacement literal.
+  // The `(?<![\w$.])` guard requires the symbol to be a STANDALONE identifier, not
+  // a member of something else: without it, `\b` matches after a dot too, so a
+  // `foo.Extrapolate.CLAMP` would mangle to `foo."clamp"`. (A string literal that
+  // merely contains "Extrapolate.CLAMP" is still matched — fully avoiding that
+  // needs a real parser; it's vanishingly unlikely in authored Remotion code.)
   for (const [sym, members] of Object.entries(REMOTION_MEMBER_REWRITES)) {
-    out = out.replace(new RegExp(`\\b${sym}\\.([A-Za-z_$][\\w$]*)`, "g"), (full, member: string) => {
+    out = out.replace(new RegExp(`(?<![\\w$.])${sym}\\.([A-Za-z_$][\\w$]*)`, "g"), (full, member: string) => {
       const repl = members[member];
       return repl ?? full; // an unknown member is left as-is (don't silently mangle)
     });
