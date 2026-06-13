@@ -97,13 +97,14 @@ export type AuthorImageInput = { ref: string; width: number; height: number; dat
  * Extra system rule appended ONLY when images are provided, so a no-image
  * authoring call stays byte-identical to today. Tells the model the images each
  * have a FIXED `ref`, that it may place at most one per scene (via the scene's
- * `image` prop rendered through `<SceneImage>`), and that it must use only the
- * provided refs (never invent a path) — unfit images may simply go unused.
+ * `image` prop rendered through `<SceneImage>`), that it must use only the
+ * provided refs (never invent a path), and that — since the user deliberately
+ * picked these — it must place them (at least one), not skip them all.
  */
 const IMAGE_RULE = `
 
-ẢNH (tuỳ chọn): Người dùng đính kèm một số ẢNH, mỗi ảnh có một "ref" CỐ ĐỊNH (vd "assets/<hash>.png") kèm kích thước. Bạn ĐƯỢC XEM các ảnh này. Nếu một ảnh phù hợp nội dung, hãy:
-- thêm "image": { "ref": "<ref đã cho>" } vào ĐÚNG MỘT cảnh phù hợp trong manifest (tối đa 1 ảnh/cảnh; cảnh khác không có ảnh thì bỏ field này);
+ẢNH (NGƯỜI DÙNG ĐÍNH KÈM — PHẢI DÙNG): Người dùng đính kèm một số ẢNH, mỗi ảnh có một "ref" CỐ ĐỊNH (vd "assets/<hash>.png") kèm kích thước. Bạn ĐƯỢC XEM các ảnh này. Cách đặt ảnh:
+- thêm "image": { "ref": "<ref đã cho>" } vào MỘT cảnh phù hợp trong manifest (tối đa 1 ảnh/cảnh; cảnh KHÔNG mang ảnh thì bỏ field này — nhưng tổng thể KHÔNG được bỏ hết ảnh, xem luật bắt buộc bên dưới);
 - trong .tsx của cảnh đó, render ảnh qua block <SceneImage imageRef={image.ref} alt={image.alt} /> (image đến từ SceneComponentProps), đặt trong <Content>/<Story> để ảnh nằm trong vùng an toàn;
 - import { SceneImage } from "@news/blocks".
 QUAN TRỌNG VỀ KÍCH THƯỚC: <SceneImage> TỰ canh theo đúng tỉ lệ thật của ảnh (khung ôm khít ảnh). TUYỆT ĐỐI KHÔNG bọc nó trong khung có chiều cao/rộng cố định, không dùng overflow:"hidden", height:"...px", aspectRatio hay objectFit ép quanh nó — làm vậy sẽ CẮT hoặc BÓP MÉO ảnh. Cứ đặt <SceneImage> trực tiếp trong cột nội dung; muốn giới hạn chiều cao thì truyền prop maxHeight (số px), đừng tự dựng khung.
