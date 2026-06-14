@@ -2,7 +2,7 @@
 
 A menu of ways to **show** content, so an authoring AI never defaults to "count-up
 number + numbered list" for everything. Read this together with
-`docs/design-language.md` (the LOOK) and `.kiro/steering/authoring-contract.md`
+`docs/design-language.md` (the LOOK) and `docs/authoring-contract.md`
 (the rules). This doc answers one question: *given THIS idea, what is the most
 fitting visual form — and how do I make it different from the last scene?*
 

@@ -335,7 +335,7 @@ function runMcpVerb(emit: Emit, lines: string[]): CliResult {
   const bin = join(root, "packages", "mcp", "src", "bin.ts");
   emit("MCP server (news) — exposes the pipeline as typed tools over stdio.");
   emit(`  entry: ${bin}`);
-  emit("  registered in .kiro/settings/mcp.json (server 'news'); MCP clients auto-launch it.");
+  emit("  registered in .mcp.json (server 'news'); MCP clients auto-launch it.");
   emit("  run manually: npx tsx --env-file=.env packages/mcp/src/bin.ts");
   return { exitCode: 0, lines };
 }
@@ -474,11 +474,11 @@ export function defaultCheckFonts(): DoctorCheck {
   };
 }
 
-/** Find the workspace root by walking up from cwd for a `.kiro` directory. */
+/** Find the workspace root by walking up from cwd for the root `.mcp.json`. */
 function findWorkspaceRoot(start: string = process.cwd()): string | undefined {
   let dir = start;
   for (let i = 0; i < 10; i++) {
-    if (existsSync(join(dir, ".kiro"))) return dir;
+    if (existsSync(join(dir, ".mcp.json"))) return dir;
     const parent = dirname(dir);
     if (parent === dir) break;
     dir = parent;
@@ -486,16 +486,16 @@ function findWorkspaceRoot(start: string = process.cwd()): string | undefined {
   return undefined;
 }
 
-/** R6.1: the MCP server package resolves and is registered in `.kiro/settings/mcp.json`. */
+/** R6.1: the MCP server package resolves and is registered in the root `.mcp.json`. */
 export function defaultCheckMcp(): DoctorCheck {
   const root = findWorkspaceRoot();
   const remediation =
-    "create the @news/mcp package and add its stdio server entry to .kiro/settings/mcp.json";
+    "create the @news/mcp package and add its stdio server entry to .mcp.json";
   if (!root) {
     return { name: "MCP wiring", ok: false, detail: `workspace root not found; ${remediation}` };
   }
   const hasPackage = existsSync(join(root, "packages", "mcp", "package.json"));
-  const mcpJson = join(root, ".kiro", "settings", "mcp.json");
+  const mcpJson = join(root, ".mcp.json");
   let listed = false;
   if (existsSync(mcpJson)) {
     try {
@@ -510,7 +510,7 @@ export function defaultCheckMcp(): DoctorCheck {
   }
   const missing: string[] = [];
   if (!hasPackage) missing.push("packages/mcp not found");
-  if (!listed) missing.push(".kiro/settings/mcp.json has no news MCP server entry");
+  if (!listed) missing.push(".mcp.json has no news MCP server entry");
   return {
     name: "MCP wiring",
     ok: hasPackage && listed,

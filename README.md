@@ -86,7 +86,7 @@ npx tsx packages/pipeline/src/cli/cli.ts tracker add <url> --id n1 --title "..."
 npx tsx packages/pipeline/src/cli/cli.ts tracker list
 npx tsx --env-file=.env packages/pipeline/src/cli/cli.ts bulk --tracker tracker.json --limit 20
 
-# MCP server (typed tools over stdio; also registered in .kiro/settings/mcp.json):
+# MCP server (typed tools over stdio; also registered in .mcp.json):
 npx tsx packages/pipeline/src/cli/cli.ts mcp
 npx tsx --env-file=.env packages/mcp/src/bin.ts
 ```
@@ -122,14 +122,13 @@ each check with a non-vacuous self-test.
 
 Checks: `npm run typecheck`, `npm test`, `npm run build`.
 
-See `.kiro/specs/author-mode-v2/{requirements,design,tasks}.md` for the current
-spec, `AGENTS.md` for the agent contract, `docs/ai-content-guide.md` for the
-content contract, and `docs/design-language.md` for the design system.
+See `CLAUDE.md` for the agent contract, `docs/architecture.md` for the current
+architecture, `docs/ai-content-guide.md` for the content contract, and
+`docs/design-language.md` for the design system.
 
 For productization (selectable looks, URL grounding, the MCP API, bulk
-production, ops) see `.kiro/specs/tool-productization/`, the buyer guide
-`docs/buyer-guide.md`, and the authoring skill
-`.kiro/skills/news-video-author/SKILL.md`.
+production, ops) see the buyer guide `docs/buyer-guide.md`, and the authoring
+skill `.claude/commands/news-video.md`.
 
 ## Desktop app (`apps/desktop`) — pure-AUTHOR + self-repair
 
@@ -150,4 +149,4 @@ authoring contract, so it is a large prompt. To bound cost, a repair sends only
 the flagged scene(s) — not the whole video — so one "Sửa bằng AI" pass still
 re-runs the model + a draft render and can take tens of seconds.
 
-See `.kiro/specs/desktop-author-mode/{requirements,design,tasks}.md`.
+See `docs/architecture.md` for the desktop app's authoring + self-repair flow.

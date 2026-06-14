@@ -3,9 +3,9 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { createMcpServer } from "./server.js";
 
 /**
- * Entry point for the @news/mcp stdio server. Registered in
- * `.kiro/settings/mcp.json` so MCP-capable agents discover the tools. Imports
- * the orchestrator from source (single registry instance, R3.3).
+ * Entry point for the @news/mcp stdio server. Registered in `.mcp.json` (root)
+ * so MCP-capable agents discover the tools. Imports the orchestrator from
+ * source (single registry instance, R3.3).
  */
 async function main(): Promise<void> {
   const server = createMcpServer();

@@ -1,13 +1,9 @@
----
-inclusion: manual
----
-
 # Authoring Contract — AUTHOR-mode scenes
 
 How to write Remotion scene `.tsx` modules that pass admission and look on-brand.
 This is the contract enforced by the admission gate (N4/N5), the static grid
 (N1–N9), and the render oracles (N14/N18–N22/N28–N30; N15/N17/N23 are exported
-but not auto-run — see AGENTS.md "The Safety Grid").
+but not auto-run — see CLAUDE.md "The Safety Grid").
 
 ## Where authored scenes live
 
@@ -202,7 +198,7 @@ smooth eased ramp (word-paged karaoke) — also produced centrally, never author
   hard "variety" oracle); layout-correctness (overflow / caption-clearance) is
   the hard gate.
 
-
+## Motion
 
 Every scene needs deliberate, tasteful motion — content must neither just "pop" in
 fully formed nor sit frozen. The rules:

@@ -5,7 +5,7 @@ AI agent authors brand-new Remotion (React) scenes for every video; an
 enumerated safety grid (N1–N30) keeps quality stable. This guide covers install,
 configuration, the CLI and MCP workflows, style-pack selection, bulk production,
 and the quality guarantees. It defers to the canonical contracts
-(`AGENTS.md`, `.kiro/steering/authoring-contract.md`,
+(`CLAUDE.md`, `docs/authoring-contract.md`,
 `docs/visualization-playbook.md`, `docs/design-language.md`,
 `docs/ai-content-guide.md`) rather than restating them.
 
@@ -83,7 +83,7 @@ machine.
 
 ## 4. Programmatic surface (MCP)
 
-The MCP server (server `news` in `.kiro/settings/mcp.json`) exposes the pipeline
+The MCP server (server `news` in `.mcp.json`) exposes the pipeline
 as typed tools over stdio, driving the **same** orchestrator as the CLI:
 
 `ingest_url`, `scaffold_project`, `render_draft`, `render_full`, `doctor`,
