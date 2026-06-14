@@ -2,6 +2,7 @@ import { join } from "node:path";
 import { existsSync, readFileSync } from "node:fs";
 import { readFile, writeFile } from "node:fs/promises";
 import {
+  createLogger,
   admitProjectScenes,
   admitAndRegisterAuthored,
   loadManifest,
@@ -43,6 +44,9 @@ import { listStylePackIds } from "@news/design";
  */
 
 type Tools = ReturnType<typeof createTools>;
+
+/** Scope-tagged structured logger for the authoring backend (library-adoption pilot). */
+const log = createLogger("authoring");
 
 /**
  * Phrase an AI-call failure in plain Vietnamese, by KIND, so the user knows which
@@ -111,7 +115,8 @@ function readStillDataUrl(path: string): string | undefined {
   try {
     if (!existsSync(path)) return undefined;
     return `data:image/png;base64,${readFileSync(path).toString("base64")}`;
-  } catch {
+  } catch (e) {
+    log.debug({ err: e, path }, "still read failed; treating as missing");
     return undefined;
   }
 }
@@ -156,7 +161,7 @@ function toEngineManifest(
   const scenes: ManifestScene[] = m.scenes.map((s, i) => {
     const keepImage = s.image && allowedRefs.has(s.image.ref);
     if (s.image && !keepImage) {
-      console.warn(`[authoring] dropping scene-${String(i + 1).padStart(2, "0")} image with non-provided ref "${s.image.ref}".`);
+      log.warn({ sceneIndex: i + 1, ref: s.image.ref }, "dropping scene image with non-provided ref");
     }
     return {
       id: `scene-${String(i + 1).padStart(2, "0")}`,
@@ -219,7 +224,7 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
       } else {
         unreadableUrls.push(url);
         const reason = ing && !ing.ok ? `${ing.error.stage}: ${ing.error.cause}` : "no readable article text";
-        console.warn(`[authoring] could not read link ${url} (${reason}); skipping; authoring continues.`);
+        log.warn({ url, reason }, "could not read link; skipping; authoring continues");
       }
     }
     const research = chunks.length > 0 ? chunks.join("\n\n---\n\n") : undefined;
@@ -242,17 +247,20 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
     const messages = buildAuthorMessages(job.input, research, images.length > 0 ? images : undefined);
     let reply: string;
     try {
-      console.log(`[authoring] calling AI model "${model}" for project ${job.projectId}…`);
+      log.info({ model, projectId: job.projectId }, "calling AI model for authoring");
       reply = await this.chatWithVisionFallback(model, messages);
-      console.log(`[authoring] AI replied (${reply.length} chars) for project ${job.projectId}.`);
+      log.info({ projectId: job.projectId, replyChars: reply.length }, "AI replied");
     } catch (e) {
-      console.error(`[authoring] AI call failed for project ${job.projectId}:`, e);
+      log.error({ err: e, projectId: job.projectId }, "AI call failed");
       return { scenes: [], message: authorCallErrorMessage(e) };
     }
 
     const parsed = parseAuthorReply(reply);
     if (!parsed.ok) {
-      console.error(`[authoring] author-reply parse failed (${parsed.reason}: ${parsed.detail}). Raw reply (first 2000 chars):\n${reply.slice(0, 2000)}`);
+      log.error(
+        { projectId: job.projectId, reason: parsed.reason, detail: parsed.detail, rawReply: reply.slice(0, 2000) },
+        "author-reply parse failed",
+      );
       return { scenes: [], message: "AI chưa trả về kịch bản hợp lệ. Hãy thử lại hoặc mô tả rõ hơn." };
     }
 
@@ -269,9 +277,9 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
     const admit = this.deps.admit ?? ((id: string) => admitProjectScenes(id, { load: loadAuthoredTsx }));
     const admitted = await admit(job.projectId);
     if (!admitted.ok) {
-      console.error(
-        "[authoring] admission failed:\n" +
-          admitted.violations.map((v) => `  ${v.check} ${v.path}: ${v.message}`).join("\n"),
+      log.error(
+        { projectId: job.projectId, violations: admitted.violations.map((v) => `${v.check} ${v.path}: ${v.message}`) },
+        "admission failed",
       );
       // NO kit fallback — pure-author surfaces the failure for retry / AI-fix.
       return { scenes: [], message: "Một số cảnh chưa hợp lệ. Hãy thử tạo lại." };
@@ -321,7 +329,7 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
       if (signal?.aborted) break;
       const resolved = await resolveSceneFile(projectId, t.sceneId, (id) => loadManifest(id).catch(() => ({ scenes: [] })));
       if (!resolved) {
-        console.error(`[reauthor] cannot resolve authored file for ${t.sceneId}; skipping.`);
+        log.error({ sceneId: t.sceneId }, "[reauthor] cannot resolve authored file; skipping");
         continue;
       }
       const { componentId, path } = resolved;
@@ -330,7 +338,7 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
       try {
         originalCode = await readFile(path, "utf8");
       } catch (e) {
-        console.error(`[reauthor] cannot read ${t.sceneId} (${componentId}):`, e);
+        log.error({ err: e, sceneId: t.sceneId, componentId }, "[reauthor] cannot read scene file");
         continue;
       }
 
@@ -360,13 +368,13 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
         try {
           reply = await this.chatWithVisionFallback(model, messages, signal);
         } catch (e) {
-          console.error(`[reauthor] AI call failed for ${t.sceneId}:`, e);
+          log.error({ err: e, sceneId: t.sceneId }, "[reauthor] AI call failed");
           break; // give up this scene; original is restored below
         }
 
         const parsed = parseReauthorReply(reply, componentId);
         if (!parsed.ok) {
-          console.error(`[reauthor] parse failed for ${t.sceneId} (${parsed.reason}: ${parsed.detail}).`);
+          log.error({ sceneId: t.sceneId, reason: parsed.reason, detail: parsed.detail }, "[reauthor] parse failed");
           continue; // retry if attempts remain
         }
 
@@ -381,7 +389,10 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
         }
         const violationText = re.violations.map((v) => `  ${v.check} ${v.path}: ${v.message}`).join("\n");
         const last = attempt + 1 >= MAX_REAUTHOR_ATTEMPTS;
-        console.error(`[reauthor] re-admit failed for ${t.sceneId} (attempt ${attempt + 1}); ${last ? "rolling back" : "retrying with feedback"}:\n${violationText}`);
+        log.error(
+          { sceneId: t.sceneId, attempt: attempt + 1, action: last ? "rolling-back" : "retrying-with-feedback", violations: violationText },
+          "[reauthor] re-admit failed",
+        );
         feedback =
           `Lần trước mã bị TỪ CHỐI khi nạp:\n${violationText}\n\n` +
           `Sửa đúng import whitelist: useTheme/surfaceBorder/frameRamp/useRamp nhập từ "@news/blocks" (KHÔNG nhập từ "@news/design"); ` +
@@ -391,7 +402,7 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
       if (!applied) {
         await writeFile(path, originalCode, "utf8");
         unregisterComponent(componentId);
-        await admitOne(path).catch(() => {});
+        await admitOne(path).catch((e) => log.debug({ err: e, sceneId: t.sceneId, componentId }, "[reauthor] re-admit of restored original failed (registry may be stale)"));
         continue;
       }
       done.push({ sceneId: t.sceneId, stillPath: join(reviewDir, `${t.sceneId}.png`) });
@@ -409,8 +420,9 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
     try {
       const m = await loadManifest(projectId);
       for (const s of m.scenes) unregisterComponent(s.component);
-    } catch {
-      /* best-effort: a missing/unreadable manifest just means nothing to clear */
+    } catch (e) {
+      // best-effort: a missing/unreadable manifest just means nothing to clear
+      log.debug({ err: e, projectId }, "refreshRegistry: no manifest to clear");
     }
   }
 
@@ -432,8 +444,9 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
         const mime = ext === "jpg" ? "jpeg" : ext;
         const dataUrl = `data:image/${mime};base64,${readFileSync(abs).toString("base64")}`;
         out.push({ ref: r.ref, width: r.width, height: r.height, dataUrl });
-      } catch {
-        /* unreadable asset → skip; authoring continues without this image */
+      } catch (e) {
+        // unreadable asset → skip; authoring continues without this image
+        log.warn({ err: e, ref: r.ref }, "provided image unreadable; skipping from vision parts");
       }
     }
     return out;
@@ -475,9 +488,9 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
       // calls skip vision, then retry this one text-only.
       if (this.isImageRejection(e)) {
         this.imageUnsupportedModels.add(model);
-        console.warn(`[authoring] model "${model}" rejected an inline image (HTTP 400); using text-only for it this session.`);
+        log.warn({ model }, "model rejected an inline image (HTTP 400); using text-only for it this session");
       } else {
-        console.warn("[authoring] vision chat failed; retrying text-only:", e);
+        log.warn({ err: e }, "vision chat failed; retrying text-only");
       }
       return this.deps.client.chat(model, this.toTextOnly(messages), { apiKey, ...(signal ? { signal } : {}) });
     }
@@ -493,11 +506,11 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
       signal,
     );
     if (!res.ok) {
-      console.error(`[render] render_draft failed for ${projectId} [${res.error.stage}]: ${res.error.cause}`);
+      log.error({ projectId, stage: res.error.stage, cause: res.error.cause }, "render_draft failed");
       // Carry the engine error so the repair loop can route infra vs content.
       return { ok: false, error: res.error };
     }
-    console.log(`[render] render_draft OK for ${projectId} → ${(res.data as { mp4Path?: string }).mp4Path ?? "(draft)"}`);
+    log.info({ projectId, mp4Path: (res.data as { mp4Path?: string }).mp4Path ?? "(draft)" }, "render_draft OK");
     return { ok: true };
   }
 
@@ -509,18 +522,18 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
       signal,
     );
     if (!res.ok) {
-      console.error(`[render] render_full failed for ${projectId} [${res.error.stage}]: ${res.error.cause}`);
+      log.error({ projectId, stage: res.error.stage, cause: res.error.cause }, "render_full failed");
       return { ok: false, error: res.error };
     }
     const outputPath = (res.data as { mp4Path?: string }).mp4Path ?? "";
-    console.log(`[render] render_full OK for ${projectId} → ${outputPath}`);
+    log.info({ projectId, outputPath }, "render_full OK");
     return { ok: true, outputPath };
   }
 
   async getSafetyReport(projectId: string): Promise<SafetyReportView> {
     const res = await this.deps.tools.get_safety_report({ projectId });
     if (!res.ok) {
-      console.error(`[render] get_safety_report failed for ${projectId}: ${res.error.cause}`);
+      log.error({ projectId, cause: res.error.cause }, "get_safety_report failed");
       return { ok: false, hardErrors: [], warnings: [] };
     }
     // N24/N25 are the REVIEW tier (human/agent self-critique + contact sheet),
@@ -531,9 +544,9 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
     const reviewTier = new Set(["N24", "N25"]);
     const hardErrors = res.data.hardErrors.filter((e) => !reviewTier.has(e.check));
     if (hardErrors.length > 0) {
-      console.error(
-        "[render] safety grid HARD errors:\n" +
-          hardErrors.map((e) => `  ${e.check}${e.sceneId ? ` @${e.sceneId}` : ""}: ${e.message}`).join("\n"),
+      log.error(
+        { projectId, hardErrors: hardErrors.map((e) => `${e.check}${e.sceneId ? ` @${e.sceneId}` : ""}: ${e.message}`) },
+        "safety grid HARD errors",
       );
     }
     return { ok: hardErrors.length === 0, hardErrors, warnings: res.data.warnings };
@@ -569,7 +582,7 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
     try {
       reply = await this.chatWithVisionFallback(model, buildImageFilterMessages(articleText, images), signal);
     } catch (e) {
-      console.warn("[image-filter] vision call failed; no pre-selection:", e);
+      log.warn({ err: e, projectId }, "[image-filter] vision call failed; no pre-selection");
       return [];
     }
     const json = extractJsonObject(reply);
@@ -600,14 +613,14 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
       if (!res.ok) return [];
       html = await res.text();
     } catch (e) {
-      console.warn(`[crawl] page fetch failed for ${url}; no images crawled:`, e);
+      log.warn({ err: e, url }, "[crawl] page fetch failed; no images crawled");
       return [];
     }
     if (signal?.aborted) return [];
     try {
       return await crawlArticleImages(html, url, destDir);
     } catch (e) {
-      console.warn(`[crawl] image crawl failed for ${url}:`, e);
+      log.warn({ err: e, url }, "[crawl] image crawl failed");
       return [];
     }
   }
@@ -641,7 +654,7 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
     try {
       reply = await this.deps.client.chat(model, buildVisualQaMessages(scenes), { apiKey: this.deps.apiKey(), ...(signal ? { signal } : {}) });
     } catch (e) {
-      console.warn("[visual-qa] vision call failed; skipping QA:", e);
+      log.warn({ err: e, projectId }, "[visual-qa] vision call failed; skipping QA");
       return [];
     }
     return parseVisualDefects(reply, known);
@@ -656,7 +669,7 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
       try {
         snap.push({ sceneId, code: await readFile(resolved.path, "utf8") });
       } catch (e) {
-        console.warn(`[visual-qa] snapshot read failed for ${sceneId}:`, e);
+        log.warn({ err: e, projectId, sceneId }, "[visual-qa] snapshot read failed");
       }
     }
     return snap;
@@ -671,9 +684,9 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
       try {
         await writeFile(resolved.path, code, "utf8");
         unregisterComponent(resolved.componentId);
-        await admitOne(resolved.path).catch(() => {});
+        await admitOne(resolved.path).catch((e) => log.debug({ err: e, projectId, sceneId }, "[visual-qa] re-admit after restore failed (registry refresh on next render)"));
       } catch (e) {
-        console.warn(`[visual-qa] restore failed for ${sceneId}:`, e);
+        log.warn({ err: e, projectId, sceneId }, "[visual-qa] restore failed");
       }
     }
   }
