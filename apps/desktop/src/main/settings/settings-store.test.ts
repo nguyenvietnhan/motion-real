@@ -158,6 +158,14 @@ describe("freeform-engine F2: refinePasses clamp + legacy migration", () => {
   it("defaults refinePasses to 2 when neither key is saved", () => {
     expect(memStore(JSON.stringify({ scriptGateEnabled: true })).store.refinePasses).toBe(2);
   });
+
+  it("clamps refinePasses on update before persisting", () => {
+    const { store, readFile } = memStore(JSON.stringify({ refinePasses: 2 }));
+    expect(store.update({ refinePasses: 99 }).refinePasses).toBe(5);
+    expect(JSON.parse(readFile()!).refinePasses).toBe(5);
+    expect(store.update({ refinePasses: -10 }).refinePasses).toBe(0);
+    expect(JSON.parse(readFile()!).refinePasses).toBe(0);
+  });
 });
 
 // freeform-engine K1/R5.4/D13: per-voice calibrated narration rate

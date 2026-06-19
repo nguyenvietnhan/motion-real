@@ -57,45 +57,78 @@ export const ProjectGrid: React.FC<{
   onReveal?: (id: string) => void;
   /** Rename a project's display title (H2/R9.4). Absent ⇒ no rename affordance. */
   onRename?: (id: string, newTitle: string) => void;
-}> = ({ cards, onOpen, onDelete, onReveal, onRename }) => (
-  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(232px, 1fr))", gap: 16 }}>
-    {cards.map((c) => (
-      <div key={c.projectId} className="ns-card ns-project" role="button" tabIndex={0} onClick={() => onOpen(c.projectId)}
-        onKeyDown={(e) => { if (e.key === "Enter") onOpen(c.projectId); }}>
-        <div className="ns-project-thumb" style={c.thumbnailPath ? { backgroundImage: `url(${c.thumbnailPath})` } : undefined}>
-          {!c.thumbnailPath && Icon.film({ size: 28 })}
-          {(onReveal || onDelete || onRename) && (
-            <div className="ns-project-actions">
-              {onRename && (
-                <button className="ns-project-action" title="Đổi tên dự án"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    // UI tạm (D-UI): a native prompt is enough to retitle; the
-                    // gallery re-reads the manifest on its next list poll.
-                    const next = window.prompt("Đổi tên dự án", c.title)?.trim();
-                    if (next && next.length > 0 && next !== c.title) onRename(c.projectId, next);
-                  }}>{Icon.pencil({ size: 15 })}</button>
+}> = ({ cards, onOpen, onDelete, onReveal, onRename }) => {
+  const [editingId, setEditingId] = React.useState<string | null>(null);
+  const [renameDraft, setRenameDraft] = React.useState("");
+
+  const beginRename = (card: ProjectCardVM): void => {
+    setEditingId(card.projectId);
+    setRenameDraft(card.title);
+  };
+  const cancelRename = (): void => {
+    setEditingId(null);
+    setRenameDraft("");
+  };
+  const commitRename = (card: ProjectCardVM): void => {
+    const next = renameDraft.trim();
+    cancelRename();
+    if (next && next !== card.title) onRename?.(card.projectId, next);
+  };
+
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(232px, 1fr))", gap: 16 }}>
+      {cards.map((c) => {
+        const editing = editingId === c.projectId;
+        return (
+          <div key={c.projectId} className="ns-card ns-project" role="button" tabIndex={0} onClick={() => onOpen(c.projectId)}
+            onKeyDown={(e) => { if (e.key === "Enter" && !editing) onOpen(c.projectId); }}>
+            <div className="ns-project-thumb" style={c.thumbnailPath ? { backgroundImage: `url(${c.thumbnailPath})` } : undefined}>
+              {!c.thumbnailPath && Icon.film({ size: 28 })}
+              {(onReveal || onDelete || onRename) && (
+                <div className="ns-project-actions">
+                  {onRename && (
+                    <button className="ns-project-action" title="Đổi tên dự án" aria-label="Đổi tên dự án"
+                      onClick={(e) => { e.stopPropagation(); beginRename(c); }}>{Icon.pencil({ size: 15 })}</button>
+                  )}
+                  {onReveal && (
+                    <button className="ns-project-action" title="Mở thư mục dự án"
+                      onClick={(e) => { e.stopPropagation(); onReveal(c.projectId); }}>{Icon.folder({ size: 15 })}</button>
+                  )}
+                  {onDelete && (
+                    <button className="ns-project-action danger" title="Xoá dự án"
+                      onClick={(e) => { e.stopPropagation(); onDelete(c.projectId); }}>{Icon.trash({ size: 15 })}</button>
+                  )}
+                </div>
               )}
-              {onReveal && (
-                <button className="ns-project-action" title="Mở thư mục dự án"
-                  onClick={(e) => { e.stopPropagation(); onReveal(c.projectId); }}>{Icon.folder({ size: 15 })}</button>
-              )}
-              {onDelete && (
-                <button className="ns-project-action danger" title="Xoá dự án"
-                  onClick={(e) => { e.stopPropagation(); onDelete(c.projectId); }}>{Icon.trash({ size: 15 })}</button>
-              )}
+              <span className="ns-project-dot" style={{ background: STATUS_COLOR[c.status] }} title={FRIENDLY_LABELS[c.status]} aria-label={FRIENDLY_LABELS[c.status]} />
             </div>
-          )}
-          <span className="ns-project-dot" style={{ background: STATUS_COLOR[c.status] }} title={FRIENDLY_LABELS[c.status]} aria-label={FRIENDLY_LABELS[c.status]} />
-        </div>
-        <div className="ns-project-body">
-          <strong className="ns-project-title" title={c.title}>{c.title}</strong>
-          {c.createdAtLabel && <span className="ns-project-date">{c.createdAtLabel}</span>}
-        </div>
-      </div>
-    ))}
-  </div>
-);
+            <div className="ns-project-body">
+              {editing ? (
+                <input
+                  className="ns-input ns-project-title-input"
+                  value={renameDraft}
+                  autoFocus
+                  aria-label="Tên dự án"
+                  onClick={(e) => e.stopPropagation()}
+                  onChange={(e) => setRenameDraft(e.target.value)}
+                  onBlur={() => commitRename(c)}
+                  onKeyDown={(e) => {
+                    e.stopPropagation();
+                    if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                    if (e.key === "Escape") cancelRename();
+                  }}
+                />
+              ) : (
+                <strong className="ns-project-title" title={c.title}>{c.title}</strong>
+              )}
+              {c.createdAtLabel && <span className="ns-project-date">{c.createdAtLabel}</span>}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+};
 
 export const EmptyState: React.FC<{ icon: React.ReactNode; title: string; hint: string; action?: React.ReactNode }> = ({ icon, title, hint, action }) => (
   <div className="ns-card" style={{ padding: 48, textAlign: "center", display: "grid", placeItems: "center", gap: 8 }}>
@@ -157,8 +190,8 @@ export const NumberRow: React.FC<{ value: number; onChange: (v: number) => void;
   const [draft, setDraft] = React.useState<string | null>(null);
   const commit = () => {
     if (draft === null) return;
-    const n = Number(draft);
-    onChange(Number.isFinite(n) ? Math.min(max, Math.max(min, Math.round(n))) : value);
+    const n = Number(draft.trim());
+    onChange(Number.isFinite(n) ? Math.min(max, Math.max(min, Math.round(n))) : min);
     setDraft(null);
   };
   return (
@@ -167,10 +200,16 @@ export const NumberRow: React.FC<{ value: number; onChange: (v: number) => void;
         <span style={{ fontSize: 14, fontWeight: indent ? 500 : 600, color: indent ? "var(--muted-foreground)" : "var(--foreground)" }}>{title}</span>
         {desc && <InfoHint text={desc} />}
       </span>
-      <input className="ns-input ns-num" type="number" min={min} max={max} value={draft ?? value} aria-label={title}
-        onChange={(e) => setDraft(e.target.value)}
+      <input className="ns-input ns-num" type="text" inputMode="numeric" pattern="[0-9]*" value={draft ?? String(value)} aria-label={title}
+        onChange={(e) => {
+          const next = e.target.value;
+          if (/^-?\d*$/.test(next)) setDraft(next);
+        }}
         onBlur={commit}
-        onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+          if (e.key === "Escape") setDraft(null);
+        }}
         style={{ flexShrink: 0, width: 56, padding: "8px 0", textAlign: "center" }} />
     </div>
   );

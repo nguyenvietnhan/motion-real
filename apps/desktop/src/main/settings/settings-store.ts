@@ -109,6 +109,7 @@ export class SettingsStore {
   /** Merge patch (patch wins), force voiceProvider, persist, return (R3.8). */
   update(patch: Partial<SettingsModel>): SettingsModel {
     this.settings = { ...this.settings, ...patch, voiceProvider: "vivibe" };
+    this.settings.refinePasses = clampRefinePasses(this.settings.refinePasses);
     this.save();
     return this.settings;
   }

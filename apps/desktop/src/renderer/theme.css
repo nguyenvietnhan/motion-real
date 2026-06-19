@@ -856,6 +856,12 @@ textarea.ns-input {
   line-height: 1.4;
   max-height: 2.8em;
 }
+.ns-project-title-input {
+  width: 100%;
+  padding: 5px 8px;
+  font-size: 14px;
+  font-weight: 600;
+}
 
 /* --- Project card (thumbnail + overlay status/actions + body) ----------- */
 .ns-project-thumb {
