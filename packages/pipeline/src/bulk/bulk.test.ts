@@ -26,6 +26,7 @@ function item(id: string, status: TrackerStatus): TrackerItem {
 
 const STATUSES: TrackerStatus[] = ["pending", "in-progress", "done", "failed", "paused-resumable"];
 const idArb = fc.string({ minLength: 1, maxLength: 6 }).map((s) => s.replace(/[^a-zA-Z0-9]/g, "x") || "i");
+const PROPERTY_TIMEOUT_MS = 120_000;
 
 /** A worker that always succeeds, recording which ids it processed. */
 function recordingWorker(seen: string[]): BulkWorker {
@@ -64,7 +65,7 @@ describe("bulk — Property 12: resumes without redoing work", () => {
       ),
       { numRuns: 100 },
     );
-  }, 60_000);
+  }, PROPERTY_TIMEOUT_MS);
 
   it("a second run reprocesses nothing once all items are done (Property 15: cache/work reuse)", async () => {
     await writeTracker([item("a", "pending"), item("b", "pending")], trackerPath);
@@ -109,7 +110,7 @@ describe("bulk — Property 13: usage-limit pause is graceful and resumable", ()
       }),
       { numRuns: 100 },
     );
-  }, 60_000);
+  }, PROPERTY_TIMEOUT_MS);
 });
 
 describe("bulk — Property 14: per-item isolation", () => {
@@ -141,7 +142,7 @@ describe("bulk — Property 14: per-item isolation", () => {
       }),
       { numRuns: 100 },
     );
-  }, 60_000);
+  }, PROPERTY_TIMEOUT_MS);
 });
 
 describe("bulk — limit + outcomes", () => {

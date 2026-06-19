@@ -3,6 +3,7 @@ import type {
   AiProviderId,
   ApplyResult,
   ApproveResult,
+  BgmTrackVM,
   CreateInput,
   DroppedImage,
   EditBatch,
@@ -21,7 +22,6 @@ import type {
   SettingsModel,
   StatusEvent,
   StoryboardModel,
-  StylePackVM,
   SubmitResult,
 } from "./types.js";
 
@@ -54,12 +54,12 @@ export interface DashboardApi {
     importImageBytes(files: DroppedImage[]): Promise<PickImagesResult>;
     /** Delete one staged create-time image by its `staging/<sha>.<ext>` ref when the user removes it from the attach strip, so unused bytes don't linger until the 24h sweep. Best-effort: an unknown/already-gone ref resolves cleanly. */
     removeStagedImage(ref: string): Promise<void>;
-    /** The registered design style packs (id + name + chrome preview hints) so the create screen can render a style picker. Single source of truth = the `@news/design` registry. */
-    listStylePacks(): Promise<StylePackVM[]>;
     create(input: CreateInput): Promise<{ projectId: string }>;
     list(): Promise<ProjectCardVM[]>;
     open(projectId: string): Promise<StoryboardModel>;
     stage(projectId: string): Promise<ProjectStage>;
+    /** Rename a project's display title (persisted to its manifest); the gallery card + published panel reflect it. Resolves the saved (clamped/trimmed) title, or null when the project has no manifest to rename. */
+    rename(projectId: string, newTitle: string): Promise<string | null>;
     delete(projectId: string): Promise<void>;
     reveal(projectId: string): Promise<void>;
     /** Copy the full-quality MP4 to a user-chosen location via a native Save dialog. Resolves `{saved:false}` when the user cancels, and `{saved:false, error}` (redacted reason) when the copy fails. */
@@ -72,6 +72,27 @@ export interface DashboardApi {
     fixWithAi(projectId: string): Promise<void>;
     /** Confirm the crawled-image selection (Phase 2 Block B); authoring begins with these refs. Empty ⇒ author text-only. */
     submitImageReview(projectId: string, selectedRefs: string[]): Promise<void>;
+  };
+  bgm: {
+    /** List the per-machine BGM library tracks (shared across projects). */
+    list(): Promise<BgmTrackVM[]>;
+    /** Open a native picker and copy the chosen audio file(s) into the library; resolves the updated list. */
+    add(): Promise<BgmTrackVM[]>;
+    /** Delete one library track by name; resolves the updated list. */
+    remove(name: string): Promise<BgmTrackVM[]>;
+    /** Read a project's currently-selected BGM track name (null = none). */
+    getForProject(projectId: string): Promise<string | null>;
+    /** Set (or clear, with null) a project's BGM track; persisted to its manifest. */
+    setForProject(projectId: string, name: string | null): Promise<void>;
+  };
+  thumbnail: {
+    /**
+     * Generate the project's thumbnail/cover PNG (R12, I3): a clean BRAND CARD
+     * (theme wash + publish title centered) for both formats — no scene frame
+     * behind it. Resolves the `media://` URL of the written PNG, or null when
+     * generation failed or a render is in flight.
+     */
+    generate(projectId: string): Promise<{ thumbnailUrl: string } | null>;
   };
   script: {
     get(projectId: string): Promise<ScriptGateModel>;

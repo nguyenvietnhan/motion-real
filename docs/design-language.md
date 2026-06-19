@@ -1,154 +1,124 @@
 # Design Language — news_remotion_tool
 
-The single source of truth for the LOOK. Any AI authoring a scene (especially
-when writing bespoke visualization code) must follow this so every video reads as
-one coherent, premium product — the way a web design system keeps a site
-consistent. Tokens live in `@news/design`; layout zones in `@news/schema/zones`;
-reusable pieces in `@news/blocks`. This doc is the philosophy behind them.
+> **Post-freeform-pivot (R1/D2).** This used to be a binding LOOK contract that
+> forced every scene to read all visuals from a multi-language design system
+> (`@news/design`, now DELETED). That leash is gone. The AI authoring a scene now
+> decides **all** of its own visuals in code — colors, background, layout, corners,
+> bespoke SVG/CSS. This doc is no longer a set of look-rules to obey; it is a map
+> of the few real invariants + the OPTIONAL toolkit, and a note on where styling
+> is headed.
 
 ## The system in one line
 
-**Multiple self-contained DESIGN LANGUAGES over one invariant layout law.** A
-"style" is not a color swap on one frozen look — it is a complete visual language
-(`StyleLanguage` in `@news/design/core.ts`) that owns its OWN polarity, corner
-geometry, surface grammar, fonts, color series, and backdrop, and derives all of
-it from one per-project dominant hue. Every language obeys the SAME layout law
-(zones, caption band, divider, determinism, minimum type sizes). One set of
-blocks renders every language by reading the resolved theme; adding a language is
-one new file under `languages/` + one registry line.
+**The AI is free; the system keeps only a thin "survival" layer.** A scene is
+on-brand because the model designs it well, not because the engine clamps it into
+one frozen look. There is ONE neutral theme today (`@news/theme`) — a dark base,
+near-white ink, one accent, medium corners — but it is NOT authored-facing: it
+exists only so the render runtime + `SceneImage` resolve `useTheme()` internally.
+An authored scene cannot import it (off the N4 whitelist) and hard-codes whatever
+it wants.
 
-Two ship today:
+## What is actually invariant (viewer rules, mostly advisory)
 
-- **`bold-editorial`** (default) — light editorial print: a warm cream paper base,
-  near-black ink, bold SQUARED borders, a solid accent top-rule + hard-offset drop
-  shadow, vivid print accents, uppercase mono labels, a faint grid + corner
-  registration ticks. Like a high-end print magazine / data-brief.
-- **`galaxy`** — premium dark space: a deep radial night base with light ink,
-  FULLY ROUNDED corners, hairline borders that glow faintly, a soft NEON GLOW
-  instead of a hard drop, outline (not solid) chips, natural-case labels, a
-  deterministic starfield backdrop, neon-tuned semantic colors, Be Vietnam Pro.
+These exist for the **viewer**, not for a look. Most of them are advisory
+warnings surfaced to the hidden refine loop. The actual hard blockers are
+admission/security and render-integrity: N4/N5, N2, N9, N11, N12/N13, N16,
+duplicate scene id, and empty spec.
 
-## What is INVARIANT vs what VARIES
+- **Content stays readable in the intended frame** (`@news/schema/zones` /
+  `geometry(format)`). TikTok primary content lives in the upper/middle band; the
+  caption band + bottom/right platform-UI reserve stay clear. Layout oracles are
+  warnings, not gates.
+- **High text contrast** (N18): whatever background the scene chooses, its text
+  should read clearly on it. The most common real defect on a phone screen.
+- **Minimum type sizes**: primary text large (≈40px+ on the 1080×1920 canvas),
+  nothing below the 18px floor — readability on a phone matters even when the
+  oracle is advisory.
+- **Determinism**: scenes are pure functions of the frame (no `Math.random`/
+  `Date`/IO; see the banned-API list in the authoring contract). Enforced by N5 +
+  the admission gate.
+- **Captions**: TikTok has one shared single-line karaoke band, generated
+  centrally from narration — never authored in scene props. YouTube-format output
+  omits this burned-in layer.
 
-This split is the whole architecture. Get it right and the system scales to many
-languages without touching blocks.
+That is the whole binding set. There is no "read every color from the theme"
+rule, no required polarity, no required corner geometry, no forbidden hard-coded
+hex. The AI **may** hard-code colors and design freely.
 
-**INVARIANT (the "physics" — no language may move these):**
+## What VARIES — i.e. everything else (the AI decides)
 
-- **Layout zones** (`@news/schema/zones`): the content zone, the caption band, the
-  bottom/right platform-UI reserve, and the content/caption divider line. Every
-  language shares the exact same zones; the N14 oracles measure against them.
-- **Determinism**: scenes are pure functions of the frame (no `Math.random`/`Date`/
-  IO; see the banned-API list in the authoring contract).
-- **Minimum type sizes**: primary text large (≈40px+), nothing below the 18px
-  floor — readability on a phone is not negotiable.
-- **High contrast** (N18): text must read clearly on its base, whatever the base.
-- **Captions**: one shared single-line karaoke band, generated centrally.
+- The whole palette, background, gradient, mood — chosen in scene code.
+- Corner geometry, borders, shadows, surface grammar — the scene's call.
+- Layout and visual form — adapt to the content's count + shape; vary it across
+  scenes (the menu of forms lives in `docs/visualization-playbook.md`).
+- Bespoke imagery (SVG/CSS) for the signature beats — the whole point of AUTHOR
+  mode.
 
-**VARIES per language (the "look" — each language decides freely):**
+The only steady "diversity" expectation is editorial, not enforced: a video that
+is 10× the same title-over-list reads as lazy. Vary the form. (There is no hard
+"variety" oracle; layout/contrast checks are warnings that help refine.)
 
-- Base **polarity** (light cream vs deep night) and the whole palette derivation.
-- **Corner geometry** (squared radius 0 vs rounded radius scale).
-- **Surface grammar**: border weight/color, panel fill (solid vs glassy), shadow
-  model (hard-offset / glow / soft / none), whether blocks lead with a solid
-  accent top-rule, chip style (solid vs outline), label tracking + case.
-- **Fonts** (display/body/mono stacks).
-- **Semantic color series** (print hues vs neon).
-- **Frame backdrop** (flat + grid + ticks vs radial + starfield).
-- **Caption scrim** (none vs a faint polarity-matched plate).
+## No toolkit — hard-code everything (raw JSX/SVG)
 
-## How a block stays language-agnostic
+There is no layout-block library and no authored-facing theme. A scene writes
+**100% raw JSX/SVG/CSS by hand** and hard-codes every color, radius, font, and
+spacing as a literal — there are no `@news/blocks`/`@news/theme` imports to reach
+for (both are off the N4 whitelist; importing either blocks the render). The
+layout blocks were deleted on purpose: reusing them made every video look the
+same.
 
-Blocks NEVER hard-code a color, a corner, or a border. They read tokens from the
-resolved `Theme` via the surface-kit (`@news/blocks/chrome`):
+Practical building blocks you write yourself:
 
-- `surfaceBorder(theme)` / `surfaceBorderWidth(theme)` / `innerDivider(theme)` —
-  border per the language (4px ink, hairline glow, or none).
-- `surfaceRadius(theme, "sm"|"md"|"lg")` — corner radius per the language (0 for
-  editorial, the rounded scale for galaxy).
-- `surfaceShadow(theme, accent)` — the language's shadow (hard-offset / glow /
-  soft / none).
-- `blockSurface(theme, { accent, size, fill, shadow })` — the composite
-  border+radius+fill+shadow for a floating block; spread it and add layout.
-- `topRuleStyle(theme, color)` — the accent top-rule bar, or `null` for languages
-  that express accent another way (galaxy returns null).
-- `chipStyle(theme, color, onColor)` / `labelStyle(theme)` — eyebrow/label chip +
-  mono label treatment (solid vs outline, uppercase vs natural case).
+- **Background**: a full-bleed `<div style={{ position: "absolute", inset: 0 }}>`
+  with your own color/gradient.
+- **Cards / panels**: a `<div>` with inline `padding`/`border`/`borderRadius`/
+  `background`.
+- **Big numbers, lists, comparisons, diagrams**: hand-built `<div>`/`<svg>`,
+  animated by `useCurrentFrame()` + `interpolate`/`spring`.
 
-Color reads go through `useTheme()` → `theme.colors.*`. The canonical keys are
-`bg`, `bgElevated`, `panel`, `fg`, `muted`, `accent`, `signal`, `line`, and the
-semantic series `red`/`blue`/`yellow`/`green`/`violet`. Standard-name synonyms
-also resolve (`ink`→`fg`, `paper`→`bg`, `primary`→`accent`, `border`→`line`,
-`surface`/`card`→`panel`, …); an unknown token falls back to `fg` at render time
-(never crashes, but it is a mis-color — stick to the listed keys).
+The ONE authored-facing import beyond react/remotion/zod is
+`{ SceneImage } from "@news/compositions"` — the image feature (see Imagery rules).
 
-## Layout & zones (`@news/schema/zones`)
+## Motion (still disciplined — a viewer rule, not a look rule)
 
-- Primary content lives in the **content zone** (upper/middle band) — compose
-  `Story`/`Content`. The **caption band** + bottom/right **platform-UI reserve**
-  stay clear of authored content. A global divider line marks the content/caption
-  boundary (drawn on every video, in the language's `fg`/line color); content must
-  stay above it — drifting into the caption-clearance gap is a hard N14 error.
-- No top-left big-headline + small-subtitle convention. The title is a FRAMED
-  card (`TitleBlock`).
-- **Compose the layout to fit the content** (count + shape): adapt the
-  arrangement to the real item count and the content's shape, and vary the form
-  across scenes — never one rigid mould. The menu of forms lives in
-  `docs/visualization-playbook.md`; don't reproduce it here.
+Motion discipline survives the pivot because janky motion hurts the viewer:
 
-## Motion (invariant across languages)
-
-- Disciplined and deterministic (pure functions of the frame).
-- **Entrances settle** (springs / clamped ramps, fps-aware).
-- **Ambient:** the scene's block wrapper tilts subtly in 3D (≈5°, left→right
-  across the scene) — alive, never jittery. No perpetual oscillation
-  (`Math.sin(frame)` etc. are banned).
-- **Emphasis (AI-chosen, per scene):** a whole-scene punch-in zoom on key beats
-  (`emphasis:"zoom"` in the manifest — hook, big reveal), plus a one-time pop on
-  an important figure. Reserve it; do not zoom every scene.
-- **Captions:** burned-in single-line karaoke — the spoken word eases up in scale
-  + color (smooth, not a hard snap). The halo + optional scrim match the
-  language's polarity.
-- **Transitions:** `springTiming` with varied DOM presentations (slide/wipe/
+- **Entrances settle** (springs / clamped ramps, fps-aware) — `useCurrentFrame()`
+  + `interpolate(..., { extrapolateRight: "clamp" })` or `spring()`.
+- **Ambient "living card" tilt** on the ONE parent wrapper (a small frame-derived
+  rotation), never per-child — alive, not jittery.
+- **No perpetual oscillation / unbounded motion** — never animate off
+  `Math.sin(frame)`, `frame % n`, or a non-clamped `interpolate`. Monotonic motion
+  that resolves by scene end is fine; a forever-bouncing shape reads as a bug.
+- **One-time emphasis zoom** that settles to scale 1.0 before the midpoint.
+- **Transitions**: `springTiming` with varied DOM presentations (slide/wipe/
   clock-wipe/zoom), ~0.5s. No WebGL transitions (non-deterministic in render).
 
-## Imagery rules (invariant across languages)
+## Imagery rules (a viewer/legal rule, not a look rule)
 
 - Bespoke imagery = deterministic **SVG/CSS only** (charts, meters, diagrams,
-  metaphors, figure/avatar silhouettes, icons, glyphs). The ban is on real/external
-  media only — **photos, screenshots, logos, uploads, image/video URLs** — never on
-  shapes you draw yourself, which are encouraged where they aid clarity or polish.
-  (The one sanctioned real image is a user-attached asset via `<SceneImage>`.)
-- Bespoke imagery must READ its colors/border/radius from `useTheme()` + the
-  surface-kit, so the same drawn chart is squared-on-cream in editorial and
-  rounded-with-glow in galaxy — never hard-code a hex or a `0` radius.
-- Author imagery for the signature beats; it must carry meaning and fit the
-  content. Decorative filler is a fail.
-- Evidence gate: only visualize numbers/sources actually supplied — never invent
-  data to fill a chart.
+  metaphors, silhouettes, icons, glyphs) — **encouraged**, the heart of AUTHOR
+  mode. The ban is ONLY real/external media — **photos, screenshots, logos,
+  uploads, image/video URLs, auto-fetch** (N9, breaks offline + determinism). The
+  one sanctioned real image is a user-attached asset via `<SceneImage>`.
+- **Evidence gate**: only visualize numbers/sources actually supplied — never
+  invent data to fill a chart.
 
-## Adding a new design language
+## Where styling is headed (FUTURE — not built yet)
 
-1. Create `packages/design/src/languages/<id>.ts` exporting a `StyleLanguage`:
-   its `fonts` (leading family MUST be a render-safe vendored face — today Inter,
-   Be Vietnam Pro, Cascadia Mono), a pure `derive(dominant)` returning the full
-   `{ colors, surface, radius, backdrop, captionScrim? }`, a `preview` for the
-   picker thumbnail, and a `contract` (the Vietnamese authoring slice for THAT
-   look, appended to the BASE contract when the AI writes scenes).
-2. Add it to `BUNDLED` in `style-packs.ts`.
-3. That's it — no edits to blocks, the base contract, or other languages. A new
-   coherent look exists end-to-end (palette, surfaces, backdrop, picker chip, AI
-   authoring rules). A new vendored font needs a `scripts/vendor-fonts.ts` run.
+> This is the **project owner's intended direction**, recorded so the docs point
+> forward instead of back at the deleted system. It is **not implemented** today
+> (spec open item O1 deferred it), and it is **guidance, not a constraint** — the
+> opposite of the old `@news/design` leash.
 
-## Quick "don't" list
+The plan: ship a few **named styles**, each owning (a) its own swapped-in
+**background** and (b) its own **design/prompt guidance file**. When the user
+picks a style, that style's guidance is fed to the AI as a *suggestion of
+direction* and its background is swapped in — the AI still decides the actual
+scene visuals freely. A style nudges the look; it never clamps it back into a
+fixed template. Until that lands, there is one neutral theme and full AI freedom.
 
-- ❌ hard-code a color hex, a `border`, a `0`/`Npx` radius, or a shadow in a block
-  or bespoke SVG — read tokens from `useTheme()` + the surface-kit
-- ❌ assume the editorial look (cream/squared/ink border) — the language may be
-  galaxy (dark/rounded/glow); both are first-class
-- ❌ top-left eyebrow+headline header, authored caption text, word-by-word karaoke
-  that snaps
-- ❌ perpetual/looping motion, zoom on every scene, CSS `transform-origin` on SVG
-  nodes
-- ❌ photos/logos (except a user asset via `<SceneImage>`), invented numbers, the
-  same layout every scene
+> **Rule for anyone touching this:** any change that would make a style (or the
+> theme, or an oracle) *force* the AI's scene visuals — rather than merely guide
+> them — is the old mistake returning. STOP and confirm with the project owner
+> first.

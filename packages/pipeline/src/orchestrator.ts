@@ -2,6 +2,7 @@ import { copyFile, rm, readFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { cpus } from "node:os";
 import { join, resolve } from "node:path";
+import { performance } from "node:perf_hooks";
 import { DEFAULT_TTS_SPEED, type DurationPreset, type LockedVideoSpec, type VideoSpec } from "@news/schema";
 import {
   appendEvent,
@@ -31,7 +32,14 @@ import { typecheckAuthoredScenes } from "./safety/typecheck-authored.js";
 import { runRenderGrid, checkOverlap, runTruncationForScene, checkLateSafeArea, type RenderGridOptions } from "./safety/render-grid.js";
 import { decodePng } from "./safety/png.js";
 import { lintSceneSources, compositionsSrcDir, blocksSrcDir } from "./safety/forbidden-api.js";
-import { scaffoldProject, loadManifest, loadManifestAsSpec, admitProjectScenes, manifestSceneFiles } from "./authoring/manifest.js";
+import {
+  scaffoldProject,
+  loadManifest,
+  loadManifestAsSpec,
+  admitProjectScenes,
+  manifestSceneFiles,
+  type ManifestSceneFile,
+} from "./authoring/manifest.js";
 import { PipelineError, RenderCancelledError, isRenderCancelledError } from "./errors.js";
 import { generateAuthoredEntry } from "./authoring/authored-entry.js";
 import { parseDurationFromPrompt } from "./authoring/parse-duration.js";
@@ -39,7 +47,18 @@ import { synthesizeNarration, type SynthesizeOptions } from "./audio/tts.js";
 import { lockSpec } from "./audio/lock.js";
 import { checkDeterminism, type DeterminismOptions } from "./render/determinism.js";
 import { renderCacheKey, getCachedRender, putCachedRender } from "./render/cache.js";
-import { renderVideo, measureSceneLayouts, remotionAppRoot, workspaceRoot, type RenderQuality, type RenderVideoOptions, type RenderVideoResult } from "./render/renderer.js";
+import {
+  renderVideo,
+  measureSceneLayouts,
+  remotionAppRoot,
+  workspaceRoot,
+  type RenderQuality,
+  type RenderChromeMode,
+  type RenderOpenGlRenderer,
+  type RenderTiming,
+  type RenderVideoOptions,
+  type RenderVideoResult,
+} from "./render/renderer.js";
 import { buildReview, type BuildReviewOptions, type ComposeContactSheet, type ReviewArtifacts } from "./review.js";
 
 /**
@@ -131,6 +150,8 @@ const DRAFT_FPS = 10;
 /** Final full-quality render fps. 30 is the deliverable default (60fps doubles
  *  the frame count for little gain on this editorial style). */
 const FULL_FPS = 30;
+const VALID_OPEN_GL_RENDERERS = new Set<RenderOpenGlRenderer>(["angle", "egl", "swiftshader", "swangle", "vulkan", "angle-egl"]);
+const VALID_CHROME_MODES = new Set<RenderChromeMode>(["headless-shell", "chrome-for-testing"]);
 
 export type RenderProjectDeps = {
   synthesize?: (spec: VideoSpec, opts: SynthesizeOptions) => Promise<TtsManifest | null>;
@@ -145,6 +166,10 @@ export type RenderProjectOptions = {
   speed?: number;
   bgmPath?: string;
   concurrency?: number;
+  /** Chromium `--gl` renderer. Use env `NEWS_RENDER_GL=angle` to configure globally per machine. */
+  chromiumOpenGlRenderer?: RenderOpenGlRenderer | null;
+  /** Remotion Chrome mode. Use env `NEWS_RENDER_CHROME_MODE=chrome-for-testing` when needed. */
+  chromeMode?: RenderChromeMode;
   onProgress?: (ratio: number) => void;
   checklist?: ReviewChecklist;
   /** Lint the @news/blocks + @news/compositions sources for forbidden APIs (N5) in the build gate. Default on; pass `false` to skip. */
@@ -199,6 +224,61 @@ export async function renderProject(projectId: string, opts: RenderProjectOption
   const paths = projectPaths(projectId);
   const deps = opts.deps ?? {};
   let generatedEntry: string | null = null;
+  const renderTimings: RenderTiming[] = [];
+  const chromiumRuntime = renderChromiumRuntimeOptions(opts);
+
+  const recordRenderTiming = (timing: RenderTiming): void => {
+    renderTimings.push(timing);
+  };
+
+  const appendTimingEvent = async (name: string, ms: number, meta?: Record<string, unknown>): Promise<void> => {
+    try {
+      const event: { type: string; name: string; ms: number; meta?: Record<string, unknown> } = {
+        type: "render.timing",
+        name,
+        ms,
+      };
+      if (meta && Object.keys(meta).length > 0) event.meta = meta;
+      await appendEvent(projectId, event);
+    } catch {
+      /* timing instrumentation must never affect render behavior */
+    }
+  };
+
+  const appendStageStartEvent = async (name: string, meta?: Record<string, unknown>): Promise<void> => {
+    try {
+      const event: { type: string; name: string; meta?: Record<string, unknown> } = {
+        type: "render.stage_start",
+        name,
+      };
+      if (meta && Object.keys(meta).length > 0) event.meta = meta;
+      await appendEvent(projectId, event);
+    } catch {
+      /* diagnostic breadcrumbs must never affect render behavior */
+    }
+  };
+
+  const flushRenderTimings = async (): Promise<void> => {
+    const pending = renderTimings.splice(0);
+    for (const timing of pending) {
+      await appendTimingEvent(timing.name, timing.ms, timing.meta);
+    }
+  };
+
+  const timedPipelineStage = async <T>(
+    name: string,
+    fn: () => T | Promise<T>,
+    meta?: Record<string, unknown>,
+  ): Promise<T> => {
+    const startedAt = performance.now();
+    await appendStageStartEvent(name, meta);
+    try {
+      return await fn();
+    } finally {
+      await flushRenderTimings();
+      await appendTimingEvent(name, roundMs(performance.now() - startedAt), meta);
+    }
+  };
 
   // Throw a RenderCancelledError the moment the user's signal has fired. Called
   // at each stage boundary so a "Dừng render" stops promptly between the
@@ -215,6 +295,11 @@ export async function renderProject(projectId: string, opts: RenderProjectOption
     // motion is fps-aware so the draft is a faithful (just lower-res) preview.
     const isDraft = opts.quality === "draft";
     const renderFps = isDraft ? DRAFT_FPS : FULL_FPS;
+    await setState(projectId, {
+      state: "rendering",
+      currentStep: isDraft ? "preparing draft render" : "preparing full render",
+      error: null,
+    });
 
     // Draft-first hard gate: a FULL render requires a prior draft for this
     // project so the user always reviews a cheap low-res preview first. Drafts
@@ -231,9 +316,10 @@ export async function renderProject(projectId: string, opts: RenderProjectOption
 
     // --- (0) Admit authored scenes + resolve the spec (manifest → VideoSpec). ---
     let authoredFiles: string[] = [];
+    let authoredSceneFiles: ManifestSceneFile[] = [];
     if (!opts.skipAuthoring) {
       throwIfCancelled(); // before the admission/bundle work begins
-      const admitted = await admitProjectScenes(projectId);
+      const admitted = await timedPipelineStage("stage.authoring.admission", () => admitProjectScenes(projectId));
       if (!admitted.ok) {
         await fail(projectId, `Authored admission blocked render: ${errorSummary(admitted.violations)}`);
         throw new Error(`renderProject: ${admitted.violations.length} authored scene(s) rejected by the admission gate.`);
@@ -248,15 +334,17 @@ export async function renderProject(projectId: string, opts: RenderProjectOption
         const file = admitted.files[i];
         if (file) componentToFile.set(id, file);
       });
-      const manifest = await loadManifest(projectId);
-      const sceneFiles = manifestSceneFiles(manifest, componentToFile);
-      authoredFiles = sceneFiles.map((s) => s.file);
-      const spec = await loadManifestAsSpec(projectId);
-      await writeJson(paths.spec, spec);
+      const manifest = await timedPipelineStage("stage.authoring.load_manifest", () => loadManifest(projectId));
+      authoredSceneFiles = manifestSceneFiles(manifest, componentToFile);
+      authoredFiles = authoredSceneFiles.map((s) => s.file);
+      const spec = await timedPipelineStage("stage.authoring.resolve_spec", () => loadManifestAsSpec(projectId), {
+        scenes: manifest.scenes.length,
+      });
+      await timedPipelineStage("stage.authoring.write_spec", () => writeJson(paths.spec, spec));
       await appendEvent(projectId, { type: "authored.admitted", components: admitted.componentIds.length });
 
       // Tier-1 static grid gate (structure + per-component props + content rules).
-      const staticReport = runStaticGrid(spec);
+      const staticReport = await timedPipelineStage("stage.static_grid", () => runStaticGrid(spec), { scenes: spec.scenes.length });
       if (!staticReport.ok) {
         // Persist the report BEFORE throwing (mirror the N10 gate below) so the
         // repair loop can read the flagged scenes back and reauthor the precise
@@ -276,7 +364,7 @@ export async function renderProject(projectId: string, opts: RenderProjectOption
       // loop can self-fix. Each issue carries its sceneId for precise reauthor.
       // Degrades to a no-op when the @news sources can't be resolved; it must
       // never block a render it can't check correctly.
-      const sceneIdByFile = new Map(sceneFiles.map((s) => [resolve(s.file), s.sceneId]));
+      const sceneIdByFile = new Map(authoredSceneFiles.map((s) => [resolve(s.file), s.sceneId]));
       // The N10 typecheck is SYNCHRONOUS and CPU-heavy (~5-8s) — it blocks the
       // Electron main event loop for its whole duration, during which a queued
       // "Dừng render" IPC message cannot be processed (so the abort can't fire).
@@ -284,7 +372,11 @@ export async function renderProject(projectId: string, opts: RenderProjectOption
       // admission/bundle above skips the typecheck entirely instead of forcing
       // the user to wait out a block they already asked to stop.
       throwIfCancelled();
-      const typeIssues = typecheckAuthoredScenes(authoredFiles, workspaceRoot(), sceneIdByFile);
+      const typeIssues = await timedPipelineStage(
+        "stage.authored_typecheck",
+        () => typecheckAuthoredScenes(authoredFiles, workspaceRoot(), sceneIdByFile),
+        { files: authoredFiles.length },
+      );
       // Only crash-class diagnostics (severity "error") gate the render — a
       // wrong-shape prop that would crash Chromium at runtime. A missing color
       // token is emitted as a WARNING (the design Proxy already resolves it to a
@@ -318,27 +410,44 @@ export async function renderProject(projectId: string, opts: RenderProjectOption
     throwIfCancelled(); // before TTS spends money / time
     await setState(projectId, { state: "tts", currentStep: "synthesizing narration", error: null });
     const synthesize = deps.synthesize ?? synthesizeNarration;
-    const tts = await synthesize(spec, { projectId, provider, voiceId, speed, bgmPath: opts.bgmPath ?? defaultBgmPath() });
+    const tts = await timedPipelineStage(
+      "stage.tts",
+      () => synthesize(spec, { projectId, provider, voiceId, speed, bgmPath: opts.bgmPath ?? defaultBgmPath() }),
+      { provider, scenes: spec.scenes.length },
+    );
     await appendEvent(projectId, { type: "tts.done", provider, scenes: tts ? Object.keys(tts.byScene).length : 0 });
 
     // --- (2) Transition-aware lock. ---
     await setState(projectId, { state: "locking", currentStep: "locking timeline" });
-    const locked = lockSpec(spec, tts, { fps: renderFps, mixedNarrationSrc: tts?.mixedSrc });
-    await writeJson(paths.lock, locked);
-    if (tts) await writeJson(paths.ttsManifest, tts);
+    const locked = await timedPipelineStage(
+      "stage.lock",
+      async () => {
+        const lockedSpec = lockSpec(spec, tts, { fps: renderFps, mixedNarrationSrc: tts?.mixedSrc });
+        await writeJson(paths.lock, lockedSpec);
+        if (tts) await writeJson(paths.ttsManifest, tts);
+        return lockedSpec;
+      },
+      { fps: renderFps, scenes: spec.scenes.length },
+    );
     await appendEvent(projectId, { type: "lock.written", durationInFrames: locked.durationInFrames });
 
     // --- (3) Tier-2 build gate (N12/N13 + N5 source lint). ---
-    const buildReport = runBuildGridStatic(locked, projectId);
-    // N5: lint the shippable @news/blocks + @news/compositions runtime sources
-    // for forbidden (nondeterministic/unsafe) APIs on every render. Authored
-    // scene modules are gated separately by the AST admission gate. Opt out only
-    // by explicitly passing `lintSources: false`.
-    const buildReports =
-      opts.lintSources === false
-        ? [buildReport]
-        : [buildReport, lintSceneSources(compositionsSrcDir()), lintSceneSources(blocksSrcDir())];
-    const buildGate = gate(buildReports);
+    const buildGate = await timedPipelineStage(
+      "stage.build_gate",
+      () => {
+        const buildReport = runBuildGridStatic(locked, projectId);
+        // N5: lint the shippable @news/blocks + @news/compositions runtime sources
+        // for forbidden (nondeterministic/unsafe) APIs on every render. Authored
+        // scene modules are gated separately by the AST admission gate. Opt out only
+        // by explicitly passing `lintSources: false`.
+        const buildReports =
+          opts.lintSources === false
+            ? [buildReport]
+            : [buildReport, lintSceneSources(compositionsSrcDir()), lintSceneSources(blocksSrcDir())];
+        return gate(buildReports);
+      },
+      { lintSources: opts.lintSources !== false },
+    );
     if (!buildGate.ok) {
       await fail(projectId, `Build gate blocked render: ${errorSummary(buildGate.issues)}`);
       throw new Error(`renderProject: build gate reported ${errorCount(buildGate.issues)} hard error(s).`);
@@ -350,17 +459,34 @@ export async function renderProject(projectId: string, opts: RenderProjectOption
     // Thread the cancel signal into every render op below (determinism, review
     // stills, overlap measure) so a "Dừng render" tears down their in-flight
     // headless Chromium too — not just the main encode.
-    let renderEntry: { entryPoint?: string; remotionRoot?: string; projectRoot: string; signal?: AbortSignal } = {
+    let renderEntry: {
+      entryPoint?: string;
+      remotionRoot?: string;
+      projectRoot: string;
+      signal?: AbortSignal;
+      onTiming?: (timing: RenderTiming) => void;
+      timingScope?: string;
+      chromiumOptions?: RenderVideoOptions["chromiumOptions"];
+      chromeMode?: RenderVideoOptions["chromeMode"];
+    } = {
       projectRoot: paths.root,
+      onTiming: recordRenderTiming,
+      ...chromiumRuntime,
       ...(opts.signal ? { signal: opts.signal } : {}),
     };
     if (!opts.skipAuthoring) {
       generatedEntry = join(paths.authoredDir, "_entry.tsx");
-      await generateAuthoredEntry({ entryPath: generatedEntry, authoredFiles, lockJsonPath: paths.lock });
+      await timedPipelineStage(
+        "stage.authored_entry",
+        () => generateAuthoredEntry({ entryPath: generatedEntry!, authoredFiles, lockJsonPath: paths.lock }),
+        { files: authoredFiles.length },
+      );
       renderEntry = {
         entryPoint: generatedEntry,
         remotionRoot: remotionAppRoot(),
         projectRoot: paths.root,
+        onTiming: recordRenderTiming,
+        ...chromiumRuntime,
         ...(opts.signal ? { signal: opts.signal } : {}),
       };
     }
@@ -368,7 +494,9 @@ export async function renderProject(projectId: string, opts: RenderProjectOption
     // --- (4) Determinism guard (N16). ---
     throwIfCancelled(); // before the (double) determinism render
     const checkDet = deps.determinism ?? checkDeterminism;
-    const detReport = await checkDet(locked, renderEntry);
+    const detReport = await timedPipelineStage("stage.determinism", () =>
+      checkDet(locked, { ...renderEntry, timingScope: "determinism" }),
+    );
     if (!detReport.ok) {
       await fail(projectId, `Determinism guard failed: ${errorSummary(detReport.issues)}`);
       throw new Error(`renderProject: determinism guard reported ${errorCount(detReport.issues)} hard error(s).`);
@@ -379,33 +507,51 @@ export async function renderProject(projectId: string, opts: RenderProjectOption
     // The cache key includes the authored scene SOURCE (not just the locked
     // spec), so a visual-only edit to a `.tsx` (same id/props/narration) is a
     // cache miss and actually re-renders instead of serving a stale MP4.
-    const authoredSources = await readAuthoredSources(authoredFiles);
-    const hash = renderCacheKey(locked, authoredSources);
+    const authoredSources = await timedPipelineStage("stage.read_authored_sources", () => readAuthoredSources(authoredFiles), {
+      files: authoredFiles.length,
+    });
+    const hash = await timedPipelineStage("stage.render_cache_key", () => renderCacheKey(locked, authoredSources), {
+      files: authoredSources.length,
+    });
     const mp4Path = join(paths.rendersDir, isDraft ? `${projectId}.draft.mp4` : `${projectId}.mp4`);
     // Drafts never read/write the full-quality cache (different pixels).
     const cachedPath = opts.noCache || isDraft ? null : getCachedRender(hash);
     let cached = false;
 
     if (cachedPath) {
-      await copyFile(cachedPath, mp4Path);
+      await timedPipelineStage("stage.render.cache_copy", () => copyFile(cachedPath, mp4Path), { hash });
       cached = true;
       await appendEvent(projectId, { type: "render.cached", hash });
     } else {
       throwIfCancelled(); // last cheap exit before the expensive encode
       await setState(projectId, { state: "rendering", currentStep: isDraft ? "rendering draft MP4" : "rendering MP4" });
       const render = deps.render ?? renderVideo;
-      // Drafts push concurrency to all cores for speed (preview, not the master).
-      const concurrency = opts.concurrency ?? (isDraft ? Math.max(1, cpus().length) : undefined);
-      const result = await render({
-        spec: locked,
-        outPath: mp4Path,
-        concurrency,
-        onProgress: opts.onProgress,
-        quality: opts.quality,
-        ...(opts.signal ? { signal: opts.signal } : {}),
-        ...renderEntry,
-      });
-      if (!isDraft) await putCachedRender(hash, result.outPath);
+      // Keep drafts capped for responsive previews, but let full renders use the
+      // renderer/Remotion default unless the caller explicitly overrides it.
+      // Long real projects showed a fixed cap of 4 can be slower for full encode.
+      const concurrency = opts.concurrency ?? (isDraft ? defaultDraftRenderConcurrency() : undefined);
+      const result = await timedPipelineStage(
+        "stage.render",
+        () =>
+          render({
+            spec: locked,
+            outPath: mp4Path,
+            concurrency,
+            onProgress: opts.onProgress,
+            quality: opts.quality,
+            ...renderEntry,
+            timingScope: "video",
+            ...(opts.signal ? { signal: opts.signal } : {}),
+          }),
+        {
+          draft: isDraft,
+          quality: opts.quality ?? "full",
+          concurrency: concurrency ?? "default",
+          gl: chromiumRuntime.chromiumOptions?.gl ?? "default",
+          chromeMode: chromiumRuntime.chromeMode ?? "default",
+        },
+      );
+      if (!isDraft) await timedPipelineStage("stage.render.cache_put", () => putCachedRender(hash, result.outPath), { hash });
       await appendEvent(projectId, { type: "render.done", hash, outPath: result.outPath, draft: isDraft });
     }
 
@@ -413,17 +559,22 @@ export async function renderProject(projectId: string, opts: RenderProjectOption
     throwIfCancelled(); // a cancel during the post-encode oracles still stops promptly
     await setState(projectId, { state: "reviewing", currentStep: "building review" });
     const review = deps.review ?? buildReview;
-    const reviewArtifacts = await review(locked, {
-      projectId,
-      mp4Path,
-      checklist: opts.checklist,
-      composeContactSheet: opts.composeContactSheet,
-      // Render the extra late-sample stills alongside the per-scene midpoint
-      // keyframes (same bundle, no extra browser/bundle) so the N14 late pass
-      // below has post-midpoint frames to scan. The returned keyframe list is
-      // unchanged, so the contact sheet stays one-still-per-scene.
-      renderOptions: { ...renderEntry, extraFractions: LATE_SAFE_AREA_FRACTIONS },
-    });
+    const reviewArtifacts = await timedPipelineStage(
+      "stage.review",
+      () =>
+        review(locked, {
+          projectId,
+          mp4Path,
+          checklist: opts.checklist,
+          composeContactSheet: opts.composeContactSheet,
+          // Render the extra late-sample stills alongside the per-scene midpoint
+          // keyframes (same bundle, no extra browser/bundle) so the N14 late pass
+          // below has post-midpoint frames to scan. The returned keyframe list is
+          // unchanged, so the contact sheet stays one-still-per-scene.
+          renderOptions: { ...renderEntry, timingScope: "review-stills", extraFractions: LATE_SAFE_AREA_FRACTIONS },
+        }),
+      { extraFractions: LATE_SAFE_AREA_FRACTIONS.length },
+    );
 
     // --- (7) Tier-3 render oracles over the review keyframes. ---
     const renderGridOptions: RenderGridOptions = {
@@ -433,7 +584,11 @@ export async function renderProject(projectId: string, opts: RenderProjectOption
       // Soft duration target (±tolerance) from the brief, when set.
       ...(brief.duration ? { targetDurationSeconds: brief.duration } : {}),
     };
-    const renderGrid = await runRenderGrid(locked, { framesDir: paths.reviewDir, mp4Path }, renderGridOptions);
+    const renderGrid = await timedPipelineStage(
+      "stage.render_oracles",
+      () => runRenderGrid(locked, { framesDir: paths.reviewDir, mp4Path }, renderGridOptions),
+      { keyframes: reviewArtifacts.keyframes.length },
+    );
     await appendEvent(projectId, { type: "render.oracles", ok: renderGrid.ok, issues: renderGrid.issues.length });
 
     // N15 (block overlap) over the measured composed-block rects. Best-effort and
@@ -442,23 +597,47 @@ export async function renderProject(projectId: string, opts: RenderProjectOption
     // Eased in as WARNINGS (not a hard gate) while we observe false-positive rate;
     // a measurement failure must never fail the render, so it's fully guarded.
     const overlapIssues: SafetyIssue[] = [];
-    try {
-      const layouts = await measureSceneLayouts(locked, { projectRoot: paths.root, logLevel: "error", ...(opts.signal ? { signal: opts.signal } : {}) });
-      for (const scene of locked.scenes) {
-        const blocks = layouts[scene.id];
-        if (blocks && blocks.length > 1) overlapIssues.push(...checkOverlap(blocks, scene.id, "warning"));
-        // N17 (text truncation/clipping): run the per-block probe over each
-        // measured rect against this scene's rendered still. Same measure pass +
-        // same warning posture as overlap; finally wires N17 onto real renders
-        // (it needs a content box a flat raster can't carry, so it was never run).
-        if (blocks && blocks.length > 0) {
-          const stillPath = join(paths.reviewDir, `${scene.id}.png`);
-          overlapIssues.push(...(await runTruncationForScene(stillPath, blocks, scene.id, renderGridOptions)));
-        }
+    const layoutSceneIds = layoutMeasureSceneIds(locked, authoredSources, authoredSceneFiles);
+    if (layoutSceneIds.length === 0) {
+      await appendEvent(projectId, { type: "render.overlap.skipped", cause: "no tagged layout blocks" });
+      await appendTimingEvent("stage.layout_measure.skipped", 0, { cause: "no tagged layout blocks" });
+    } else {
+      try {
+        const layouts = await timedPipelineStage(
+          "stage.layout_measure",
+          () =>
+            measureSceneLayouts(locked, {
+              projectRoot: paths.root,
+              logLevel: "error",
+              onTiming: recordRenderTiming,
+              timingScope: "layout-measure",
+              sceneIds: layoutSceneIds,
+              ...(opts.signal ? { signal: opts.signal } : {}),
+            }),
+          { scenes: layoutSceneIds.length },
+        );
+        await timedPipelineStage(
+          "stage.layout_oracles",
+          async () => {
+            for (const scene of locked.scenes) {
+              const blocks = layouts[scene.id];
+              if (blocks && blocks.length > 1) overlapIssues.push(...checkOverlap(blocks, scene.id, "warning"));
+              // N17 (text truncation/clipping): run the per-block probe over each
+              // measured rect against this scene's rendered still. Same measure pass +
+              // same warning posture as overlap; finally wires N17 onto real renders
+              // (it needs a content box a flat raster can't carry, so it was never run).
+              if (blocks && blocks.length > 0) {
+                const stillPath = join(paths.reviewDir, `${scene.id}.png`);
+                overlapIssues.push(...(await runTruncationForScene(stillPath, blocks, scene.id, renderGridOptions)));
+              }
+            }
+          },
+          { scenes: Object.keys(layouts).length },
+        );
+        await appendEvent(projectId, { type: "render.overlap", scenes: Object.keys(layouts).length, issues: overlapIssues.length });
+      } catch (error) {
+        await appendEvent(projectId, { type: "render.overlap.skipped", cause: errMessage(error) });
       }
-      await appendEvent(projectId, { type: "render.overlap", scenes: Object.keys(layouts).length, issues: overlapIssues.length });
-    } catch (error) {
-      await appendEvent(projectId, { type: "render.overlap.skipped", cause: errMessage(error) });
     }
 
     // N14 (late-sample) over the post-midpoint stills written by the review pass.
@@ -468,18 +647,25 @@ export async function renderProject(projectId: string, opts: RenderProjectOption
     // a late still per scene. Eased in as WARNINGS (chosen posture) — they land in
     // the aggregate report (visible in desktop/MCP) but never flip the "done" gate.
     // Best-effort: a missing/undecodable late still is silently skipped.
-    const lateIssues: SafetyIssue[] = [];
-    for (const scene of locked.scenes) {
-      for (const fraction of LATE_SAFE_AREA_FRACTIONS) {
-        const latePath = join(paths.reviewDir, `${scene.id}.f${Math.round(fraction * 100)}.png`);
-        try {
-          const frame = decodePng(await readFile(latePath));
-          lateIssues.push(...checkLateSafeArea(frame, scene.id, renderGridOptions));
-        } catch {
-          /* no late still for this scene/fraction → nothing to scan */
+    const lateIssues = await timedPipelineStage(
+      "stage.late_safe_area",
+      async () => {
+        const issues: SafetyIssue[] = [];
+        for (const scene of locked.scenes) {
+          for (const fraction of LATE_SAFE_AREA_FRACTIONS) {
+            const latePath = join(paths.reviewDir, `${scene.id}.f${Math.round(fraction * 100)}.png`);
+            try {
+              const frame = decodePng(await readFile(latePath));
+              issues.push(...checkLateSafeArea(frame, scene.id, renderGridOptions));
+            } catch {
+              /* no late still for this scene/fraction → nothing to scan */
+            }
+          }
         }
-      }
-    }
+        return issues;
+      },
+      { fractions: LATE_SAFE_AREA_FRACTIONS.length },
+    );
     await appendEvent(projectId, { type: "render.latesafearea", issues: lateIssues.length });
 
     const report = makeReport(
@@ -512,6 +698,7 @@ export async function renderProject(projectId: string, opts: RenderProjectOption
     await fail(projectId, errMessage(error));
     throw error;
   } finally {
+    await flushRenderTimings();
     // Clean process scratch (R8.3): the generated entry is regenerated each run.
     if (generatedEntry) {
       try {
@@ -521,6 +708,72 @@ export async function renderProject(projectId: string, opts: RenderProjectOption
       }
     }
   }
+}
+
+function layoutMeasureSceneIds(
+  locked: LockedVideoSpec,
+  authoredSources: readonly string[],
+  authoredSceneFiles: readonly ManifestSceneFile[],
+): string[] {
+  const ids = new Set<string>();
+  for (const scene of locked.scenes) {
+    if (scene.image) ids.add(scene.id);
+  }
+
+  for (const [index, source] of authoredSources.entries()) {
+    if (!source.includes("data-nrt-block")) continue;
+    const sceneId = authoredSceneFiles[index]?.sceneId;
+    if (sceneId) ids.add(sceneId);
+    else {
+      for (const scene of locked.scenes) ids.add(scene.id);
+    }
+  }
+
+  return [...ids];
+}
+
+function renderChromiumRuntimeOptions(
+  opts: Pick<RenderProjectOptions, "chromiumOpenGlRenderer" | "chromeMode">,
+): Pick<RenderVideoOptions, "chromiumOptions" | "chromeMode"> {
+  const gl = opts.chromiumOpenGlRenderer !== undefined ? opts.chromiumOpenGlRenderer : envOpenGlRenderer();
+  const chromeMode = opts.chromeMode ?? envChromeMode();
+  return {
+    ...(gl !== undefined ? { chromiumOptions: { gl } } : {}),
+    ...(chromeMode ? { chromeMode } : {}),
+  };
+}
+
+function envOpenGlRenderer(): RenderOpenGlRenderer | null | undefined {
+  const raw = process.env.NEWS_RENDER_GL?.trim();
+  if (!raw) return undefined;
+  const normalized = raw.toLowerCase();
+  if (normalized === "default" || normalized === "null" || normalized === "none") return null;
+  return VALID_OPEN_GL_RENDERERS.has(normalized as RenderOpenGlRenderer) ? (normalized as RenderOpenGlRenderer) : undefined;
+}
+
+function envChromeMode(): RenderChromeMode | undefined {
+  const raw = process.env.NEWS_RENDER_CHROME_MODE?.trim();
+  if (!raw) return undefined;
+  const normalized = raw.toLowerCase();
+  return VALID_CHROME_MODES.has(normalized as RenderChromeMode) ? (normalized as RenderChromeMode) : undefined;
+}
+
+function defaultDraftRenderConcurrency(): number {
+  const configured = envDraftRenderConcurrency();
+  if (configured) return configured;
+  const logicalCpus = Math.max(1, cpus().length);
+  return Math.max(1, logicalCpus - 1);
+}
+
+function envDraftRenderConcurrency(): number | undefined {
+  const raw = process.env.NEWS_DRAFT_RENDER_CONCURRENCY?.trim() || process.env.NEWS_RENDER_CONCURRENCY?.trim();
+  if (!raw) return undefined;
+  const parsed = Number.parseInt(raw, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
+}
+
+function roundMs(ms: number): number {
+  return Math.round(ms * 100) / 100;
 }
 
 // --- renderSampleDraft (no-voice visual draft) -----------------------------

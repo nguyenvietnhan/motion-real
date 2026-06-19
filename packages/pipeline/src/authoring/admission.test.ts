@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { getComponent, listComponents } from "@news/compositions";
+import { getComponent, listComponents, registerComponent, unregisterComponent } from "@news/compositions";
 import { admitAuthoredComponent, admitAndRegisterAuthored } from "./index.js";
 
 /**
@@ -53,6 +53,31 @@ describe("admitAuthoredComponent (static AST gate)", () => {
       expect(messages).toMatch(/process/);
       expect(messages).toMatch(/constructor/);
     }
+  });
+
+  it("rejects host-RCE bypass: global root + runtime-built computed key + import.meta (N5)", () => {
+    // The exact bypass the audit found: `global.process.getBuiltinModule(...)`
+    // (old gate skipped `process` in a property-name slot AND had no `global` ban),
+    // plus `self["ev"+"al"]` (runtime-built key dodged the by-name check), plus
+    // `import.meta.url` (MetaProperty was unguarded).
+    const result = admitAuthoredComponent(fixture("banned-host-rce.tsx"));
+    expect(result.admitted).toBe(false);
+    if (!result.admitted) {
+      const messages = result.violations.map((v) => v.message).join(" ");
+      expect(messages).toMatch(/global/);
+      expect(messages).toMatch(/self/);
+      expect(messages).toMatch(/runtime-built/);
+      expect(messages).toMatch(/import\.meta/);
+    }
+  });
+
+  it("admits ordinary numeric/static-key indexing (regression: a too-broad ban would roll back valid scenes)", () => {
+    // `colors[i]`, `springs[i + 1]`, and a single-literal `obj["alpha"]` are all
+    // patterns dataviz scenes use constantly — they must still admit. Only
+    // NAME-BUILDING keys (concat/template/call) are rejected.
+    const result = admitAuthoredComponent(fixture("indexing-ok.tsx"));
+    expect(result.admitted).toBe(true);
+    if (result.admitted) expect(result.componentId).toBe("authored-indexing-ok");
   });
 
   it("rejects raw media primitives (N5: Img/staticFile) — images must go through <SceneImage>", () => {
@@ -123,5 +148,44 @@ describe("admitAndRegisterAuthored (handshake)", () => {
     expect(result.ok).toBe(true);
     // The handshake mirrored the un-registered definition into this registry.
     expect(getComponent(id)).toBeDefined();
+  });
+
+  it("removes a partially registered component when handshake validation fails", async () => {
+    const id = "authored-demo-card";
+    unregisterComponent(id);
+    const def = {
+      id,
+      displayName: "Invalid Demo",
+      promptGuide: "invalid",
+      schema: z.object({ label: z.string().min(5) }),
+      Component: () => null,
+      example: { label: "valid" },
+    };
+
+    const result = await admitAndRegisterAuthored(fixture("clean-card.tsx"), {
+      load: async () => ({ default: def, schema: def.schema, example: { label: "no" } }),
+    });
+
+    expect(result.ok).toBe(false);
+    expect(getComponent(id)).toBeUndefined();
+  });
+
+  it("replaces a stale existing registry entry for the same id during a new handshake", async () => {
+    const id = "authored-demo-card";
+    unregisterComponent(id);
+    registerComponent({
+      id,
+      displayName: "Stale Demo",
+      promptGuide: "stale",
+      schema: z.object({ label: z.string() }),
+      Component: () => null,
+      example: { label: "stale" },
+    });
+
+    const result = await admitAndRegisterAuthored(fixture("clean-card.tsx"));
+    expect(result.ok).toBe(true);
+    expect(getComponent(id)?.displayName).toBe("Authored Demo Card");
+
+    unregisterComponent(id);
   });
 });

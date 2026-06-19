@@ -1,5 +1,6 @@
-import { existsSync } from "node:fs";
-import { resolve } from "node:path";
+import { createHash } from "node:crypto";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { extname, resolve } from "node:path";
 import ts from "typescript";
 import type { SafetyIssue } from "../types.js";
 
@@ -15,6 +16,10 @@ function warnN10Degraded(reason: string): void {
   warnedN10Reasons.add(reason);
   console.warn(`[N10] authored typecheck degraded to a no-op: ${reason}. Authored prop-shape errors will NOT be caught before render.`);
 }
+
+const TYPECHECK_CACHE_CAP = 12;
+const typecheckCache = new Map<string, SafetyIssue[]>();
+const typecheckCacheStats = { hits: 0, misses: 0 };
 
 /**
  * N10 — TypeScript typecheck of AI-authored scene modules against the REAL
@@ -50,7 +55,7 @@ function authoredPaths(workspaceRoot: string): Record<string, string[]> {
   const src = (name: string) => [resolve(workspaceRoot, "packages", name, "src", "index.ts")];
   return {
     "@news/schema": src("schema"),
-    "@news/design": src("design"),
+    "@news/theme": src("theme"),
     "@news/blocks": src("blocks"),
     "@news/tts": src("tts"),
     "@news/compositions": src("compositions"),
@@ -113,6 +118,16 @@ export function typecheckAuthoredScenes(
     return [];
   }
 
+  const cacheKey = typecheckCacheKey(files, workspaceRoot, sceneIdByFile);
+  const cached = typecheckCache.get(cacheKey);
+  if (cached) {
+    typecheckCacheStats.hits += 1;
+    typecheckCache.delete(cacheKey);
+    typecheckCache.set(cacheKey, cached);
+    return cached.map((issue) => ({ ...issue }));
+  }
+  typecheckCacheStats.misses += 1;
+
   let program: ts.Program;
   try {
     program = ts.createProgram(files, authoredCompilerOptions(workspaceRoot));
@@ -138,90 +153,111 @@ export function typecheckAuthoredScenes(
     const sceneId = sceneIdByFile?.get(abs);
     issues.push({
       check: "N10",
-      severity: severityFor(message),
+      severity: severityFor(d.code, message),
       path,
       ...(sceneId ? { sceneId } : {}),
       message: `TS${d.code}: ${message}`,
     });
   }
+  while (typecheckCache.size >= TYPECHECK_CACHE_CAP) {
+    const oldest = typecheckCache.keys().next().value;
+    if (oldest === undefined) break;
+    typecheckCache.delete(oldest);
+  }
+  typecheckCache.set(cacheKey, issues.map((issue) => ({ ...issue })));
   return issues;
 }
 
-/**
- * A reach for a color token NOT declared on the theme — e.g.
- *   `Property 'ink' does not exist on type 'ThemeColors'.`       (theme.colors.ink)
- *   `Property 'signalRed' does not exist on type 'ThemeColors'. Did you mean 'signal'?`
- *   `Property 'accent' does not exist on type 'Theme'.`          (theme.accent — flat)
- *   `Property 'textSecondary' does not exist on type 'Theme'.`
- * Models read color tokens BOTH through `theme.colors.*` (type `ThemeColors`) and
- * flat off the theme `theme.*` (type `Theme`); the design layer's runtime Proxies
- * resolve both to a safe color, so both are non-fatal. Matched by the EXACT type
- * name (not by TS error code), so the softening stays narrow: a missing prop on a
- * component or any other type is never downgraded.
- */
-const MISSING_THEME_COLOR = /does not exist on type 'Theme(Colors)?'/;
+export function __resetTypecheckAuthoredCache(): void {
+  typecheckCache.clear();
+  typecheckCacheStats.hits = 0;
+  typecheckCacheStats.misses = 0;
+}
 
-/**
- * An EXCESS prop passed to a component — e.g. a model writing
- *   `<Frame style={{ backgroundColor: theme.colors.bg }}>`   // Frame takes no `style`
- * surfaces as TS2322 with a secondary line:
- *   `Property 'style' does not exist on type 'IntrinsicAttributes & { children: ReactNode; }'.`
- * React function components only read the props they destructure and SILENTLY
- * ignore any extra prop at runtime, so an excess prop can neither crash nor
- * mis-render — it's a pure type-level mismatch. Matched by the `IntrinsicAttributes`
- * type name, which is specific to the JSX excess-attribute error: a MISSING
- * required prop is TS2741 ("is missing in type … but required") and a WRONG-TYPE
- * prop value ({text}[] vs string[]) is an assignability error on the value — neither
- * phrases it as "does not exist on type 'IntrinsicAttributes", so neither is softened.
- */
-const EXCESS_COMPONENT_PROP = /does not exist on type 'IntrinsicAttributes/;
+export function __typecheckAuthoredCacheStats(): { hits: number; misses: number; entries: number } {
+  return { ...typecheckCacheStats, entries: typecheckCache.size };
+}
 
-/**
- * An invalid STRING-LITERAL value passed where a narrow string union is expected
- * — e.g. a model writing
- *   `<Tag tone="regular">`   // Tone is "accent" | "signal" | "blue" | …
- * surfaces as TS2322 whose SOURCE type is a quoted string literal (or a union of
- * them), assigned into the target union:
- *   `Type '"regular"' is not assignable to type 'Tone | undefined'.`
- *   `Type '"accent" | "regular"' is not assignable to type 'Tone | undefined'.`
- * The block components that take these unions (Tag/StatBlock/BarChart tones)
- * resolve an unknown value through a `default:` switch arm to a safe on-brand
- * color, so an out-of-union string renders fine — it's a pure type-level
- * mismatch. Matched ONLY when the source type is a quoted string literal union,
- * so a crash-class wrong-SHAPE prop is never softened: `{text}[]` vs `string[]`
- * has an object/array source (`Type '{ text: string; }[]' is not assignable …`)
- * which does NOT start with a quote, and a missing required prop is TS2741.
- */
-const STRING_LITERAL_ENUM_MISMATCH = /Type '"[^"]*"(\s*\|\s*"[^"]*")*' is not assignable to type '/;
-
-/**
- * Decide an N10 diagnostic's severity. Most authored type errors are HARD
- * (severity "error"): a wrong-shape prop (e.g. `{text}[]` where a block wants
- * `string[]`) compiles under the transpile-only bundler and then crashes
- * headless Chromium at runtime — that MUST block the render.
- *
- * Two narrow, runtime-harmless classes are downgraded to WARNINGS so a render
- * the runtime already tolerates is never hard-blocked:
- *  1. An un-aliased color token off `theme.colors`/`theme` — the design layer's
- *     runtime Proxy resolves any unknown token to a safe on-brand color (never
- *     `undefined`), so the scene renders with a fallback color + a one-time hint.
- *  2. An EXCESS prop on a component (e.g. `<Frame style={…}>`) — React ignores
- *     undeclared props at runtime, so the scene renders unchanged.
- *  3. An invalid STRING-LITERAL value for a narrow union (e.g. `tone="regular"`)
- *     — the block resolves an unknown union value through a `default:` arm to a
- *     safe color, so the scene renders with a fallback tone.
- * All three are scoped by an EXACT type-name/source-shape signature so nothing
- * crash-class (a missing required prop, a wrong-SHAPE prop value, a null-deref)
- * is ever downgraded. Surfaced (and they route an advisory reauthor) but never a
- * gate.
- */
-function severityFor(message: string): SafetyIssue["severity"] {
-  if (
-    MISSING_THEME_COLOR.test(message) ||
-    EXCESS_COMPONENT_PROP.test(message) ||
-    STRING_LITERAL_ENUM_MISMATCH.test(message)
-  ) {
-    return "warning";
+function typecheckCacheKey(
+  files: readonly string[],
+  workspaceRoot: string,
+  sceneIdByFile?: ReadonlyMap<string, string>,
+): string {
+  const h = createHash("sha256");
+  const root = resolve(workspaceRoot);
+  h.update(root);
+  h.update("\0");
+  for (const file of files.map((f) => resolve(f)).sort()) {
+    h.update(file);
+    h.update("\0");
+    h.update(fileFingerprint(file));
+    h.update("\0");
+    h.update(sceneIdByFile?.get(file) ?? "");
+    h.update("\0");
   }
+  for (const pkg of ["schema", "theme", "blocks", "compositions"]) {
+    h.update(pkg);
+    h.update("\0");
+    h.update(directoryFingerprint(resolve(root, "packages", pkg, "src")));
+    h.update("\0");
+  }
+  return h.digest("hex");
+}
+
+function fileFingerprint(path: string): string {
+  try {
+    return createHash("sha256").update(readFileSync(path)).digest("hex");
+  } catch {
+    return "missing";
+  }
+}
+
+function directoryFingerprint(dir: string): string {
+  const h = createHash("sha256");
+  try {
+    for (const entry of readdirSync(dir, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
+      const path = resolve(dir, entry.name);
+      if (entry.isDirectory()) {
+        if (entry.name === "node_modules" || entry.name === "dist") continue;
+        h.update(entry.name);
+        h.update(directoryFingerprint(path));
+        continue;
+      }
+      if (!entry.isFile() || ![".ts", ".tsx"].includes(extname(entry.name)) || /\.test\.tsx?$/.test(entry.name)) continue;
+      const st = statSync(path);
+      h.update(path);
+      h.update(`${st.mtimeMs}:${st.size}`);
+    }
+  } catch {
+    h.update("missing");
+  }
+  return h.digest("hex");
+}
+
+/**
+ * Decide an N10 diagnostic's severity.
+ *
+ * The per-scene render error boundary keeps a broken authored scene from crashing
+ * the whole MP4, but its fallback is intentionally plain (headline-only). That is
+ * a last-resort containment net, not an acceptable "clean" draft. Diagnostics
+ * that are likely to produce a runtime throw/fallback are hard errors so the
+ * repair loop reauthors the scene before the user sees it. Diagnostics known to
+ * be runtime-safe stay advisory warnings.
+ */
+function severityFor(code: number, message: string): SafetyIssue["severity"] {
+  // Safe runtime fallbacks:
+  // - Theme/ThemeColors unknown tokens resolve through the theme Proxy.
+  // - Extra props on surviving render helpers are ignored by React/the component.
+  // - Unknown Tone literals hit a safe default arm in the runtime helper.
+  if (/does not exist on type 'Theme(?:Colors)?'/.test(message)) return "warning";
+  if (/does not exist on type 'IntrinsicAttributes/.test(message)) return "warning";
+  if (/is not assignable to type 'Tone/.test(message)) return "warning";
+
+  // Definitely fallback-prone: an unbound value is erased by transpile-only
+  // bundling and throws `ReferenceError` at render time, producing SceneFallback.
+  if (code === 2304 || /Cannot find name/.test(message)) return "error";
+
+  // Default to hard: most remaining authored type errors are more likely to throw
+  // or corrupt props than to render safely. The repair loop can target sceneId.
   return "error";
 }

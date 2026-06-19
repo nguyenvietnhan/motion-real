@@ -2,8 +2,7 @@ import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
 import { fileURLToPath } from "node:url";
 import { basename, dirname, join } from "node:path";
 import { createTools } from "@news/mcp";
-import { loadManifest, writeJson, projectPaths, videoToolHome, stagingDir, ensureProject, importImageBytes, vivibeApiKey, defaultVivibeVoiceId, setAuthoredLoader, reconcileStaleStates, pruneRenderCache, pruneTtsCache, readBrief } from "@news/pipeline";
-import { listStylePackIds, getStylePack, DEFAULT_STYLE_PACK_ID } from "@news/design";
+import { loadManifest, writeJson, projectPaths, videoToolHome, stagingDir, ensureProject, importImageBytes, vivibeApiKey, defaultVivibeVoiceId, setAuthoredLoader, reconcileStaleStates, pruneRenderCache, pruneTtsCache, readBrief, listBgmTracks, addBgmTrack, removeBgmTrack, renderThumbnail, type BgmTrack } from "@news/pipeline";
 import { registerIpcRouter, type InvokeHandlers } from "./ipc-router.js";
 import { ModelGatewayManager } from "./gateway/model-gateway-manager.js";
 import { buildNineRouterGatewayDeps } from "./gateway/ninerouter-deps.js";
@@ -23,7 +22,7 @@ import { events, setEventTarget } from "./event-bus.js";
 import { loadAuthoredTsx } from "./authoring/tsx-loader.js";
 import { existsSync, readFileSync } from "node:fs";
 import { copyFile, readFile, readdir, rm, stat } from "node:fs/promises";
-import type { DroppedImage, ModelInfo, PickImagesResult, ScriptEdit, SettingsModel, StylePackVM } from "../shared/types.js";
+import type { DroppedImage, ModelInfo, PickImagesResult, ScriptEdit, SettingsModel } from "../shared/types.js";
 import { extractUrls } from "../shared/create-validation.js";
 
 // The `media://` scheme must be registered before the app is ready.
@@ -56,6 +55,13 @@ function loadEnvFile(path: string): void {
 }
 const REPO_ROOT = dirname(process.env.VIDEO_TOOL_HOME ?? videoToolHome());
 loadEnvFile(join(REPO_ROOT, ".env"));
+
+/** Map a library BGM track to its renderer VM (a compact human size label). */
+function toBgmVM(t: BgmTrack): { name: string; sizeLabel: string } {
+  const mb = t.sizeBytes / (1024 * 1024);
+  const sizeLabel = mb >= 1 ? `${mb.toFixed(1)} MB` : `${Math.max(1, Math.round(t.sizeBytes / 1024))} KB`;
+  return { name: t.name, sizeLabel };
+}
 
 /** Bridge user-entered voice settings into the env the engine reads. */
 function applyVoiceEnv(s: SettingsModel): void {
@@ -106,6 +112,9 @@ const authoringBackend = new NineRouterAuthoringBackend({
   tools,
   model: () => selectedModel?.id,
   apiKey: () => undefined, // 9router /v1 is open on localhost
+  // Per-voice CALIBRATED narration rate for the author word-budget (K1/R5.4/D13);
+  // undefined when uncalibrated/stale ⇒ the prompt uses its baked default (~4.7).
+  wordsPerSecond: () => settingsStore.calibratedWordsPerSecond(),
   onRenderProgress: (ratio, projectId) => {
     // Drive the staged rendering bar from the renderer's REAL per-frame ratio.
     // The active phase (draft/qa/edit/full) is owned by the WorkspaceController
@@ -137,6 +146,14 @@ const workspace = new WorkspaceController({
   outputMedia: (id) => mediaUrl(join(projectPaths(id).rendersDir, `${id}.mp4`)) ?? "",
   hasDraft: (id) => existsSync(join(projectPaths(id).rendersDir, `${id}.draft.mp4`)),
   draftMedia: (id) => mediaUrl(join(projectPaths(id).rendersDir, `${id}.draft.mp4`)) ?? "",
+  // Thumbnail/cover (R12/I3): render through the dedicated `Thumbnail` composition
+  // (never the video path), then surface review/thumbnail.png on the published screen.
+  renderThumbnail: async (id) => {
+    const { path } = await renderThumbnail(id);
+    return { path };
+  },
+  hasThumbnail: (id) => existsSync(join(projectPaths(id).reviewDir, "thumbnail.png")),
+  thumbnailMedia: (id) => mediaUrl(join(projectPaths(id).reviewDir, "thumbnail.png")) ?? "",
   // A crawled image's project-relative ref ("assets/<sha>.<ext>") → a media:// URL
   // for the review screen preview. Resolved under videoToolHome() like every asset.
   assetMedia: (id, ref) => mediaUrl(join(projectPaths(id).root, ref)) ?? "",
@@ -325,40 +342,6 @@ async function sweepStagingDir(maxAgeMs = 24 * 60 * 60 * 1000): Promise<void> {
   }
 }
 
-/**
- * Build the style-pack view-models the create-screen picker renders. The list
- * is derived from the ONE registry in `@news/design` (never hard-coded in the
- * renderer), so adding a pack there makes a new chip appear with no UI change.
- * `preview` carries just the chrome hints the renderer needs to draw a small
- * CSS thumbnail (border weight, grid, ticks, density) — not a rendered image.
- */
-function listStylePackVMs(): StylePackVM[] {
-  return listStylePackIds().map((id) => {
-    const pack = getStylePack(id)!;
-    const p = pack.preview;
-    // The renderer's sketch wants a border TREATMENT word; derive it from the
-    // language's border weight (0 ⇒ frameless, 1 ⇒ hairline, thicker ⇒ solid).
-    const borderStyle: "solid" | "hairline" | "none" =
-      p.borderWidth <= 0 ? "none" : p.borderWidth <= 1 ? "hairline" : "solid";
-    return {
-      id: pack.id,
-      name: pack.name,
-      description: pack.description,
-      isDefault: pack.id === DEFAULT_STYLE_PACK_ID,
-      preview: {
-        borderWidth: p.borderWidth,
-        borderStyle,
-        grid: p.grid,
-        registrationTicks: p.registrationTicks,
-        density: p.density,
-        dark: p.dark,
-        rounded: p.rounded,
-        starfield: p.starfield,
-      },
-    };
-  });
-}
-
 // Dev license: starts unactivated so the activation screen shows. The dev code
 // "123" activates it via the tested LicenseManager over a DevLicenseService
 // (the LicenseService seam; HttpLicenseService is the future online adapter).
@@ -381,14 +364,24 @@ const handlers: InvokeHandlers = {
 
   "projects:list": () => workspace.list(),
   "projects:create": (input) => {
-    const i = input as { raw: string; stylePackId?: string; images?: { ref: string; width: number; height: number }[] };
-    return create.create(i.raw, i.images ?? [], i.stylePackId);
+    const i = input as {
+      raw: string;
+      format?: "tiktok" | "youtube";
+      durationTier?: 1 | 2 | 3;
+      titleLanguage?: "vi" | "en" | "mix";
+      images?: { ref: string; width: number; height: number }[];
+    };
+    return create.create(i.raw, i.images ?? [], {
+      ...(i.format ? { format: i.format } : {}),
+      ...(i.durationTier ? { durationTier: i.durationTier } : {}),
+      ...(i.titleLanguage ? { titleLanguage: i.titleLanguage } : {}),
+    });
   },
-  "projects:listStylePacks": () => listStylePackVMs(),
   "projects:pickImages": () => pickImages(),
   "projects:importImageBytes": (files) => importDroppedImages(files as DroppedImage[]),
   "projects:removeStagedImage": (ref) => unstageImage(String(ref)),
   "projects:stage": (projectId) => workspace.stage(String(projectId)),
+  "projects:rename": (projectId, newTitle) => workspace.rename(String(projectId), String(newTitle)),
   "projects:open": (projectId) => workspace.open(String(projectId)),
   "projects:delete": (projectId) => workspace.delete(String(projectId)),
   "projects:reveal": (projectId) => workspace.reveal(String(projectId)),
@@ -442,6 +435,60 @@ const handlers: InvokeHandlers = {
     workspace.submitImageReview(String(projectId), Array.isArray(selectedRefs) ? (selectedRefs as unknown[]).map(String) : []);
     return undefined;
   },
+
+  "bgm:list": async () => (await listBgmTracks()).map(toBgmVM),
+  "bgm:add": async () => {
+    // Open a native multi-select picker and copy each chosen audio file into the
+    // per-machine library (collision-safe). A single bad/locked file is skipped
+    // (logged) rather than aborting the rest; the updated list is returned.
+    const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0];
+    const opts = {
+      title: "Thêm nhạc nền",
+      properties: ["openFile", "multiSelections"] as Array<"openFile" | "multiSelections">,
+      filters: [{ name: "Âm thanh", extensions: ["mp3", "m4a", "wav"] }],
+    };
+    const picked = win ? await dialog.showOpenDialog(win, opts) : await dialog.showOpenDialog(opts);
+    if (!picked.canceled) {
+      for (const path of picked.filePaths) {
+        try {
+          await addBgmTrack(path);
+        } catch (e) {
+          console.warn(`[desktop] bgm:add skipped "${path}":`, e);
+        }
+      }
+    }
+    return (await listBgmTracks()).map(toBgmVM);
+  },
+  "bgm:remove": async (name) => {
+    await removeBgmTrack(String(name));
+    return (await listBgmTracks()).map(toBgmVM);
+  },
+  "bgm:getForProject": async (projectId) => {
+    try {
+      const manifest = await loadManifest(String(projectId));
+      const bgm = (manifest as { bgm?: unknown }).bgm;
+      return typeof bgm === "string" && bgm.length > 0 ? bgm : null;
+    } catch (e) {
+      console.warn(`[desktop] bgm:getForProject failed for ${String(projectId)}:`, e);
+      return null;
+    }
+  },
+  "bgm:setForProject": async (projectId, name) => {
+    // Persist the project's BGM choice on its manifest (load full → patch → write,
+    // same as rename so theme/format/scenes survive). null/empty clears it.
+    const id = String(projectId);
+    try {
+      const manifest = await loadManifest(id);
+      const chosen = typeof name === "string" && name.length > 0 ? name : undefined;
+      const next = { ...manifest, ...(chosen ? { bgm: chosen } : { bgm: undefined }) };
+      await writeJson(projectPaths(id).manifest, next);
+    } catch (e) {
+      console.warn(`[desktop] bgm:setForProject failed for ${id}:`, e);
+    }
+    return undefined;
+  },
+
+  "thumbnail:generate": (projectId) => workspace.generateThumbnail(String(projectId)),
 
   "script:get": (projectId) => workspace.scriptGate(String(projectId)),
   "script:applyEdits": (projectId, edits) => workspace.applyEdits(String(projectId), edits as ScriptEdit[]),

@@ -1,7 +1,6 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { z } from "zod";
 import { getComponent, registerComponent } from "@news/compositions";
-import { listStylePackIds } from "@news/design";
 import type { VideoSpec } from "@news/schema";
 import { runStaticGrid } from "./static-grid.js";
 
@@ -74,6 +73,7 @@ function validSpec(): VideoSpec {
     version: 1,
     title: "Spec hợp lệ để kiểm thử",
     styleId: "clean-luxury-tech",
+    format: "tiktok",
     duration: 60,
     ratio: "9:16",
     language: "vi",
@@ -95,18 +95,26 @@ describe("static grid — clean baseline", () => {
 });
 
 describe("static grid — N1 structural", () => {
-  it("fires when a scene id is out of sequence", () => {
+  // Freeform pivot: a non-sequential `scene-NN` id is a cosmetic convention (the
+  // renderer keys by whatever id is given), so it surfaces as a WARNING and no
+  // longer hard-blocks a video that renders fine. Only the crash/no-video class
+  // (unknown component, empty spec, duplicate id) stays hard.
+  it("warns (does not hard-block) when a scene id is out of sequence", () => {
     const spec = validSpec();
     spec.scenes[1]!.id = "scene-99";
-    expect(checks(spec).has("N1")).toBe(true);
-    expect(runStaticGrid(spec).ok).toBe(false);
+    const report = runStaticGrid(spec);
+    const n1 = report.issues.find((i) => i.check === "N1" && /scene-99|index 1/.test(i.message));
+    expect(n1?.severity).toBe("warning");
+    expect(report.ok).toBe(true);
   });
 
-  it("fires when narration is multiline (not one paragraph)", () => {
+  it("warns (does not hard-block) when narration is multiline (not one paragraph)", () => {
     const spec = validSpec();
     spec.scenes[2]!.narration = "Dòng một của cảnh này.\nDòng hai của cảnh này.";
-    expect(checks(spec).has("N1")).toBe(true);
-    expect(runStaticGrid(spec).ok).toBe(false);
+    const report = runStaticGrid(spec);
+    const n1 = report.issues.find((i) => i.check === "N1" && /one paragraph|multiline/.test(i.message));
+    expect(n1?.severity).toBe("warning");
+    expect(report.ok).toBe(true);
   });
 
   it("does NOT fire on free scene count / duration (free pacing)", () => {
@@ -146,15 +154,71 @@ describe("static grid — N3 prop validation", () => {
     expect(issues.length).toBeGreaterThan(0);
     expect(issues[0]!.sceneId).toBe("scene-03");
   });
+
+  // Regression (Working Agreement #1): models recurrently declare the FRAMEWORK
+  // top-level fields (`headline`/`eyebrow`/`body`/`image`) INSIDE the authored
+  // `schema` (`schema: z.object({ headline: z.string(), … })`). Those fields are
+  // passed to the scene top-level (`SceneComponentProps`, beside `props`), NOT in
+  // `props` — so validating `scene.props` alone reported a phantom "headline:
+  // expected string, received undefined" and hard-blocked 12 scenes of a video
+  // that renders fine. N3 now validates the MERGED view, so a schema that slips
+  // these in is satisfied by the real top-level values. The fixture is the exact
+  // shape `gemini-3-flash` produced (schema requires `headline`, `props` is {}).
+  it("does NOT fire when a schema mistakenly declares the top-level `headline` (props is {})", () => {
+    const HEADLINE_IN_SCHEMA = "headline-in-schema-scene";
+    if (!getComponent(HEADLINE_IN_SCHEMA)) {
+      registerComponent({
+        id: HEADLINE_IN_SCHEMA,
+        displayName: "Headline-in-schema Scene",
+        promptGuide: "regression fixture only",
+        // The AI mistake: headline/eyebrow belong to the framework, not props.
+        schema: z.object({ headline: z.string(), eyebrow: z.string().optional() }),
+        Component: () => null,
+        example: { headline: "x" } as never,
+      });
+    }
+    const spec = validSpec();
+    spec.scenes[2]!.component = HEADLINE_IN_SCHEMA;
+    spec.scenes[2]!.props = {}; // headline arrives top-level, not in props
+    const issues = runStaticGrid(spec).issues.filter((i) => i.check === "N3");
+    expect(issues).toEqual([]);
+  });
+
+  // A real prop error must STILL fire even when the schema also declares a
+  // framework field — the tolerance only forgives the top-level slip, it does
+  // not turn N3 into a no-op for genuinely bad props.
+  it("still fires for a genuinely invalid bespoke prop alongside a slipped-in headline", () => {
+    const MIXED = "headline-plus-bad-prop-scene";
+    if (!getComponent(MIXED)) {
+      registerComponent({
+        id: MIXED,
+        displayName: "Mixed Scene",
+        promptGuide: "regression fixture only",
+        schema: z.object({ headline: z.string(), count: z.number() }),
+        Component: () => null,
+        example: { headline: "x", count: 1 } as never,
+      });
+    }
+    const spec = validSpec();
+    spec.scenes[3]!.component = MIXED;
+    spec.scenes[3]!.props = { count: "not-a-number" } as never; // real type error
+    const issues = runStaticGrid(spec).issues.filter((i) => i.check === "N3");
+    expect(issues.length).toBeGreaterThan(0);
+    expect(issues.some((i) => i.path === "count")).toBe(true);
+  });
 });
 
 describe("static grid — N6 phonetic / N7 spaced abbreviations", () => {
-  it("fires on phonetic spelling in a display field", () => {
+  // Freeform pivot: these are Vietnamese-TTS heuristics that always misfire on
+  // Korean/German/English content, so they are advisory WARNINGS now — they still
+  // fire (so a Vietnamese author sees the nudge) but never hard-block a render.
+  it("warns (does not hard-block) on phonetic spelling in a display field", () => {
     const spec = validSpec();
     spec.scenes[3]!.headline = "Sức mạnh của Ô pân A I";
-    const set = checks(spec);
-    expect(set.has("N6") || set.has("N7")).toBe(true);
-    expect(runStaticGrid(spec).ok).toBe(false);
+    const report = runStaticGrid(spec);
+    const hit = report.issues.find((i) => i.check === "N6" || i.check === "N7");
+    expect(hit?.severity).toBe("warning");
+    expect(report.ok).toBe(true);
   });
 
   it("fires on a spaced abbreviation in narration", () => {
@@ -223,32 +287,22 @@ describe("static grid — N26 weak hook (warning)", () => {
   });
 });
 
-describe("static grid — N1 unknown style pack (hard)", () => {
-  it("fires a hard error when theme.stylePackId is not registered", () => {
+describe("static grid — legacy stylePackId", () => {
+  it("ignores unknown theme.stylePackId because style packs are retired", () => {
     const spec = validSpec();
     spec.theme = { dominant: "#2F5FF0", stylePackId: "totally-made-up-pack" };
     const issues = runStaticGrid(spec).issues.filter((i) => /stylePackId/i.test(i.message));
-    expect(issues.length).toBe(1);
-    expect(issues[0]!.severity).toBe("error");
-    expect(runStaticGrid(spec).ok).toBe(false);
+    expect(issues).toEqual([]);
+    expect(runStaticGrid(spec).ok).toBe(true);
   });
 
-  it("accepts a registered style pack and the default (no id)", () => {
+  it("accepts the neutral back-compat id and the default (no id)", () => {
     const withPack = validSpec();
-    withPack.theme = { dominant: "#2F5FF0", stylePackId: "galaxy" };
+    withPack.theme = { dominant: "#2F5FF0", stylePackId: "neutral" };
     expect(runStaticGrid(withPack).issues.some((i) => /stylePackId/i.test(i.message))).toBe(false);
 
     const noPack = validSpec();
     expect(runStaticGrid(noPack).issues.some((i) => /stylePackId/i.test(i.message))).toBe(false);
-  });
-
-  it("every registered style pack passes the static grid with no hard error (2.14)", () => {
-    for (const id of listStylePackIds()) {
-      const spec = validSpec();
-      spec.theme = { dominant: "#2F5FF0", stylePackId: id };
-      const errors = runStaticGrid(spec).issues.filter((i) => i.severity === "error");
-      expect(errors, `pack ${id} should pass the static grid`).toEqual([]);
-    }
   });
 });
 

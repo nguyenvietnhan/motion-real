@@ -24,6 +24,7 @@ function lockedNoAudio(): LockedVideoSpec {
     version: 1,
     title: "t",
     styleId: "clean-luxury-tech",
+    format: "tiktok",
     duration: 60,
     ratio: "9:16",
     language: "vi",

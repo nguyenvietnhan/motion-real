@@ -1,8 +1,9 @@
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
+import { makeTheme } from "@news/theme";
 import type { LockedSceneSpec } from "@news/schema";
-import { SceneContent } from "./video.js";
+import { CompositionBackdrop, SceneContent } from "./video.js";
 
 describe("VideoComposition missing-component fallback", () => {
   it("renders a visible error panel for unknown component ids", () => {
@@ -22,5 +23,30 @@ describe("VideoComposition missing-component fallback", () => {
     expect(html).toContain("scene-01");
     expect(html).toContain("unknown component");
     expect(html).toContain("not-registered");
+  });
+});
+
+describe("CompositionBackdrop default background wash (freeform-engine L2)", () => {
+  // The composition's top-level backdrop must paint a gradient WASH, never the
+  // flat near-black `colors.bg` (which looked dead on both formats). The backdrop
+  // is format-agnostic — the same wash backs TikTok and YouTube — so one theme
+  // exercises both. Tested directly (not through VideoComposition) because the
+  // master composition mounts TransitionSeries, which needs a Remotion
+  // video-config context; the backdrop is just a styled AbsoluteFill.
+  it("paints a radial-gradient wash, not the flat bg", () => {
+    const theme = makeTheme("#5B8CFF");
+    const html = renderToStaticMarkup(
+      React.createElement(CompositionBackdrop, { theme, children: "x" }),
+    );
+    expect(html).toContain("radial-gradient");
+  });
+
+  // N16 determinism: the wash is a pure function of the theme, so two renders
+  // yield byte-identical markup.
+  it("is deterministic across two renders", () => {
+    const theme = makeTheme("#5B8CFF");
+    const a = renderToStaticMarkup(React.createElement(CompositionBackdrop, { theme, children: "x" }));
+    const b = renderToStaticMarkup(React.createElement(CompositionBackdrop, { theme, children: "x" }));
+    expect(a).toBe(b);
   });
 });

@@ -2,12 +2,13 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { LockedVideoSpec } from "@news/schema";
+import { geometry, type LockedVideoSpec } from "@news/schema";
 import {
   checkAudioSync,
   checkCaptions,
   checkCaptionClearance,
   checkDividerClearanceAbove,
+  checkInFrame,
   checkLateSafeArea,
   checkDensity,
   checkContentZone,
@@ -67,6 +68,7 @@ function lockedFixture(overrides: Partial<LockedVideoSpec> & { scenes: LockedVid
     version: 1,
     title: "Render grid test",
     styleId: "clean-luxury-tech",
+    format: "tiktok",
     duration: 60,
     ratio: "9:16",
     language: "vi",
@@ -108,6 +110,33 @@ describe("N14 safe-area / overflow", () => {
     const f = makeFrame(200, 200);
     paint(f, { x: 80, y: 80, width: 40, height: 40 }, WHITE);
     expect(checkSafeArea(f)).toEqual([]);
+  });
+});
+
+describe("N14 checkInFrame (format-aware edge ring)", () => {
+  // The ONE format-aware layout oracle (D7/O5): content bleeding into the outer
+  // safe-margin ring fires; clean center passes — for BOTH formats.
+  it("tiktok (9:16): fires when content bleeds into the edge ring", () => {
+    const g = geometry("tiktok");
+    const f = makeFrame(g.canvas.width, g.canvas.height);
+    paint(f, { x: 0, y: 0, width: 8, height: g.canvas.height }, WHITE); // flush on the left edge
+    const issues = checkInFrame(f, g, "scene-01");
+    expect(issues.some((i) => i.check === "N14")).toBe(true);
+    expect(issues.every((i) => i.severity === "warning")).toBe(true);
+  });
+  it("youtube (16:9): fires when content bleeds into the edge ring", () => {
+    const g = geometry("youtube");
+    const f = makeFrame(g.canvas.width, g.canvas.height);
+    paint(f, { x: g.canvas.width - 8, y: 0, width: 8, height: g.canvas.height }, WHITE); // flush on the right edge
+    expect(checkInFrame(f, g, "scene-01").some((i) => i.check === "N14")).toBe(true);
+  });
+  it("passes for both formats when content stays in the center", () => {
+    for (const fmt of ["tiktok", "youtube"] as const) {
+      const g = geometry(fmt);
+      const f = makeFrame(g.canvas.width, g.canvas.height);
+      paint(f, { x: Math.floor(g.canvas.width / 2) - 100, y: Math.floor(g.canvas.height / 2) - 100, width: 200, height: 200 }, WHITE);
+      expect(checkInFrame(f, g)).toEqual([]);
+    }
   });
 });
 
@@ -540,6 +569,7 @@ describe("oracle registry (drift guard)", () => {
       "contrast",
       "transition",
       "safe-area",
+      "in-frame",
       "late-safe-area",
       "overlap",
       "truncation",

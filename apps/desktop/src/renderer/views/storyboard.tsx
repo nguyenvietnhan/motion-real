@@ -1,7 +1,49 @@
 import React, { useState } from "react";
-import type { StoryboardModel } from "../../shared/types.js";
+import type { BgmTrackVM, StoryboardModel } from "../../shared/types.js";
 import { Icon } from "../icons.js";
 import { EmptyState, InfoHint } from "../primitives.js";
+
+/**
+ * Background-music picker (I2): a compact dropdown of the per-machine BGM
+ * library + add/remove, shown in the storyboard header so the user sets the
+ * track BEFORE approving the full render (the choice is persisted to the
+ * manifest; the MCP render tool resolves it to a real path and mixes it in).
+ * "Không nhạc" clears the selection. UI tạm (D-UI): a plain <select>, no custom
+ * menu. Renders nothing unless the "ready" stage wired the BGM props.
+ */
+const BgmPicker: React.FC<{
+  bgm: BgmTrackVM[];
+  selected: string | null;
+  onAdd: () => void;
+  onRemove: (name: string) => void;
+  onSelect: (name: string | null) => void;
+}> = ({ bgm, selected, onAdd, onRemove, onSelect }) => {
+  // The selected track may have been removed from disk since it was chosen, so
+  // the value can name a track that's no longer in the list — keep showing it as
+  // a synthetic option (marked) rather than silently snapping to "Không nhạc".
+  const missing = selected !== null && !bgm.some((t) => t.name === selected);
+  return (
+    <div style={{ display: "inline-flex", alignItems: "center", gap: 6 }} title="Nhạc nền trộn vào bản đầy đủ">
+      <span style={{ display: "inline-flex", color: "var(--muted-foreground)" }}>{Icon.music({ size: 15 })}</span>
+      <select
+        className="ns-input"
+        value={selected ?? ""}
+        onChange={(e) => onSelect(e.target.value === "" ? null : e.target.value)}
+        style={{ padding: "5px 8px", maxWidth: 180, fontSize: 13 }}
+      >
+        <option value="">Không nhạc</option>
+        {missing && <option value={selected!}>{selected} (đã xoá)</option>}
+        {bgm.map((t) => (
+          <option key={t.name} value={t.name}>{t.name} · {t.sizeLabel}</option>
+        ))}
+      </select>
+      <button className="ns-btn" style={{ padding: "5px 10px" }} onClick={onAdd} title="Thêm nhạc nền từ máy">Thêm</button>
+      {selected !== null && !missing && (
+        <button className="ns-btn" style={{ padding: "5px 10px" }} onClick={() => onRemove(selected)} title="Xoá khỏi thư viện">Xoá</button>
+      )}
+    </div>
+  );
+};
 
 /**
  * Storyboard ("Duyệt cảnh"): Canva-style full-height shell — fixed header with
@@ -29,7 +71,17 @@ export const StoryboardView: React.FC<{
    */
   onSubmit: (perScene: { sceneId: string; text: string }[], globalNotes: string) => Promise<boolean>;
   onApprove: () => void;
-}> = ({ model, canApprove, notice, draftPath, onBack, onSubmit, onApprove }) => {
+  /** Per-machine BGM library (shared across projects). Optional: only the "ready" stage passes it. */
+  bgm?: BgmTrackVM[];
+  /** The open project's currently-selected BGM track name (null = none). */
+  bgmSelected?: string | null;
+  /** Open the native picker to add audio file(s) to the library. */
+  onBgmAdd?: () => void;
+  /** Delete one library track by name. */
+  onBgmRemove?: (name: string) => void;
+  /** Set (or clear, with null) the open project's BGM track; persisted to its manifest before the full render. */
+  onBgmSelect?: (name: string | null) => void;
+}> = ({ model, canApprove, notice, draftPath, onBack, onSubmit, onApprove, bgm, bgmSelected, onBgmAdd, onBgmRemove, onBgmSelect }) => {
   const [selected, setSelected] = useState(0);
   // Per-scene edit drafts keyed by sceneId, so switching slides KEEPS what you
   // typed. You gather edits across many scenes and send them in ONE pass.
@@ -88,6 +140,9 @@ export const StoryboardView: React.FC<{
       </div>
       {scenes.length > 0 && (
         <>
+          {bgm && onBgmAdd && onBgmRemove && onBgmSelect && (
+            <BgmPicker bgm={bgm} selected={bgmSelected ?? null} onAdd={onBgmAdd} onRemove={onBgmRemove} onSelect={onBgmSelect} />
+          )}
           <button className={`ns-btn${showEdit ? " ns-btn-primary" : ""}`} onClick={() => setShowEdit((v) => !v)}>✎ Sửa cảnh</button>
           <button className="ns-btn ns-btn-primary" disabled={!canSend || submitting} onClick={sendAll}
             title={canSend ? undefined : "Chưa có chỉnh sửa nào — sửa một cảnh hoặc ghi chú chung trước khi gửi."}>

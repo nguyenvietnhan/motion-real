@@ -229,7 +229,6 @@ describe("robust manifest coercion (one bad field no longer nukes the whole repl
 });
 
 describe("Property 2: reauthor single-module", () => {
-  // Feature: desktop-author-mode, Property 2: reauthor single-module
   it("exactly one block whose literal === expectId ⇒ ok; else ⇒ !ok", () => {
     fc.assert(
       fc.property(idArb, idArb, (a, b) => {
@@ -258,5 +257,114 @@ describe("Property 2: reauthor single-module", () => {
       }),
       { numRuns: 200 },
     );
+  });
+});
+
+describe("truncated reply recovery (unclosed final fence) — freeform-engine R3.3", () => {
+  // Regression: a reauthor reply cut mid-code-block (provider token cap, gateway
+  // stitching couldn't close it) had an opening ```tsx with NO closing ```. The
+  // closed-fence regex saw zero blocks → "no-code" → the reauthor SILENTLY kept
+  // the old scene (the `scene-03` symptom in the wild). The recovery treats the
+  // remainder-to-EOF after the last complete fence as a final (truncated) block.
+
+  /** A code block deliberately MISSING its closing ``` (truncated mid-output). */
+  function unclosedBlock(id: string, opts: { afterRegister?: string } = {}): string {
+    return [
+      "```tsx",
+      `// component: ${id}`,
+      'import React from "react";',
+      'import { registerComponent } from "@news/compositions";',
+      "export const schema = {};",
+      "export const example = {};",
+      `export default registerComponent({ id: "${id}" });`,
+      // a long trailing SVG fn the model was mid-writing when cut — no closing fence
+      opts.afterRegister ?? "function Glyph(){ return <svg><path d=\"M0 0 L10",
+    ].join("\n");
+  }
+
+  it("recovers a reauthor module whose registerComponent survived the cut", () => {
+    const parsed = parseReauthorReply(unclosedBlock("scene-03-vis"), "scene-03-vis");
+    expect(parsed.ok).toBe(true);
+    if (parsed.ok) expect(parsed.module.id).toBe("scene-03-vis");
+  });
+
+  it("recovers the trailing truncated scene in a full author reply", () => {
+    const scenes = [
+      { component: "a-scene", eyebrow: "TIN", headline: "Một", narration: "Câu một đủ dài." },
+      { component: "b-scene", eyebrow: "TIN", headline: "Hai", narration: "Câu hai đủ dài." },
+      { component: "b-scene", eyebrow: "TIN", headline: "Ba", narration: "Câu ba đủ dài." },
+    ];
+    // a-scene closed normally; b-scene is the final block, truncated mid-output.
+    const reply =
+      manifestBlock(["a-scene", "b-scene"], scenes) + "\n\n" + codeBlock("a-scene") + "\n\n" + unclosedBlock("b-scene");
+    const parsed = parseAuthorReply(reply);
+    expect(parsed.ok).toBe(true);
+    if (parsed.ok) expect(new Set(parsed.modules.map((m) => m.id))).toEqual(new Set(["a-scene", "b-scene"]));
+  });
+
+  it("still fails (keeps the prior scene) when the cut lands BEFORE registerComponent", () => {
+    // Truncated so early there is no registerComponent literal to recover — the
+    // caller's filter drops it; reauthor correctly reports no-code (never accepts
+    // half a module, never silently regresses past the prior good scene).
+    const early = ["```tsx", "// component: scene-03-vis", 'import React from "react";', "export const sch"].join("\n");
+    const parsed = parseReauthorReply(early, "scene-03-vis");
+    expect(parsed.ok).toBe(false);
+    if (!parsed.ok) expect(parsed.reason).toBe("no-code");
+  });
+});
+
+describe("bare (un-fenced) module recovery — the scene-13 symptom", () => {
+  // Regression: a reauthor reply emitted the raw authored code straight, starting
+  // `// component: <id>` with NO ```tsx fence at all. extractFences saw zero blocks
+  // (the unclosed-fence recovery only fires when an OPENING ``` exists), so the
+  // reply parsed as "no-code" and the scene silently kept its old code. The bare-
+  // module fallback recovers a module that carries its registerComponent literal,
+  // while still rejecting a fragment cut before that literal.
+
+  /** A full authored module WITHOUT any code fence (raw, marker-led). */
+  function bareModule(id: string, opts: { afterRegister?: string } = {}): string {
+    return [
+      `// component: ${id}`,
+      'import React from "react";',
+      'import { registerComponent } from "@news/compositions";',
+      "export const schema = {};",
+      "export const example = {};",
+      `export default registerComponent({ id: "${id}" });`,
+      opts.afterRegister ?? "",
+    ].join("\n");
+  }
+
+  it("recovers a reauthor module returned with no fence at all", () => {
+    const parsed = parseReauthorReply(bareModule("scene-13-loss"), "scene-13-loss");
+    expect(parsed.ok).toBe(true);
+    if (parsed.ok) expect(parsed.module.id).toBe("scene-13-loss");
+  });
+
+  it("recovers an un-fenced trailing scene in a full author reply", () => {
+    const scenes = [
+      { component: "a-scene", eyebrow: "TIN", headline: "Một", narration: "Câu một đủ dài." },
+      { component: "b-scene", eyebrow: "TIN", headline: "Hai", narration: "Câu hai đủ dài." },
+      { component: "b-scene", eyebrow: "TIN", headline: "Ba", narration: "Câu ba đủ dài." },
+    ];
+    // The model emitted both modules WITHOUT fences, straight after the manifest.
+    const reply = manifestBlock(["a-scene", "b-scene"], scenes) + "\n\n" + bareModule("a-scene") + "\n" + bareModule("b-scene");
+    const parsed = parseAuthorReply(reply);
+    expect(parsed.ok).toBe(true);
+    if (parsed.ok) expect(new Set(parsed.modules.map((m) => m.id))).toEqual(new Set(["a-scene", "b-scene"]));
+  });
+
+  it("still rejects a bare fragment cut BEFORE registerComponent (never accepts half a module)", () => {
+    const early = ["// component: scene-13-loss", 'import React from "react";', "export const sch"].join("\n");
+    const parsed = parseReauthorReply(early, "scene-13-loss");
+    expect(parsed.ok).toBe(false);
+    if (!parsed.ok) expect(parsed.reason).toBe("no-code");
+  });
+
+  it("does NOT use the bare path when a proper fence is present (fence wins)", () => {
+    // A normal fenced reply must be unaffected: even with a stray `// component:`
+    // line elsewhere, the fenced block is what's parsed.
+    const parsed = parseReauthorReply(codeBlock("scene-13-loss"), "scene-13-loss");
+    expect(parsed.ok).toBe(true);
+    if (parsed.ok) expect(parsed.module.id).toBe("scene-13-loss");
   });
 });

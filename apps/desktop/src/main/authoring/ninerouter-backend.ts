@@ -1,6 +1,6 @@
 import { join } from "node:path";
 import { existsSync, readFileSync } from "node:fs";
-import { readFile, writeFile } from "node:fs/promises";
+import { readdir, readFile, rm, writeFile } from "node:fs/promises";
 import {
   createLogger,
   admitProjectScenes,
@@ -34,7 +34,7 @@ import { sceneFileName, resolveSceneFile } from "./scene-files.js";
 import { normalizeAuthoredImports } from "./normalize-imports.js";
 import { normalizeAuthoredFontSizes } from "./normalize-fontsize.js";
 import { loadAuthoredTsx } from "./tsx-loader.js";
-import { listStylePackIds } from "@news/design";
+import type { VideoFormat, DurationTier, TitleLanguage } from "@news/schema";
 
 /**
  * Pure-AUTHOR authoring backend (desktop-author-mode). The AI writes FRESH `.tsx`
@@ -87,6 +87,13 @@ export type NineRouterBackendDeps = {
   /** Forward fine-grained render progress to the UI (per project). */
   onRenderProgress?: (ratio: number, projectId: string) => void;
   /**
+   * The Vietnamese narration rate (words/second) the author prompt's word-budget
+   * math uses (freeform-engine K1/R5.4/D13). Read live from settings so a voice
+   * recalibration takes effect on the next author call; absent ⇒ the prompt's
+   * baked default (~4.7). The backend only passes it through to `buildAuthorMessages`.
+   */
+  wordsPerSecond?: () => number | undefined;
+  /**
    * Admit + register a project's authored scenes (injectable for tests). The
    * default runs the real gate through the esbuild `.tsx` loader; tests stub it
    * because the bundled loader's repo-root resolution doesn't hold under vitest.
@@ -123,20 +130,12 @@ function readStillDataUrl(path: string): string | undefined {
 
 /** Engine ThemeSpec limits: dominant must be 6-digit hex, mood ≤40 chars. */
 const HEX6 = /^#[0-9a-fA-F]{6}$/;
-function sanitizeTheme(
-  theme: { dominant: string; mood?: string },
-  stylePackId?: string,
-): { dominant: string; mood?: string; stylePackId?: string } {
+function sanitizeTheme(theme: { dominant: string; mood?: string }): { dominant: string; mood?: string } {
   const dominant = HEX6.test(theme.dominant.trim()) ? theme.dominant.trim() : "#1E9CB0";
   const mood = (theme.mood ?? "").trim().slice(0, 40);
-  // Only honor a stylePackId that is actually registered — an unknown id (stale
-  // renderer, hand-edited request) falls through to the engine default rather
-  // than reaching the manifest and tripping the N1 unknown-pack hard error.
-  const pack = stylePackId && listStylePackIds().includes(stylePackId) ? stylePackId : undefined;
   return {
     dominant,
     ...(mood ? { mood } : {}),
-    ...(pack ? { stylePackId: pack } : {}),
   };
 }
 
@@ -148,15 +147,16 @@ function sanitizeTheme(
  * N9 build existence check is the backstop). Empty set ⇒ no images were offered,
  * so every `image` is dropped.
  *
- * `stylePackId` is the look the USER picked at the create screen (the AI never
- * authors it — it only writes `theme.dominant`/`mood`). We inject it into the
- * engine theme here so the chosen pack drives chrome + layout at render; an
- * unregistered id is dropped (engine default) by `sanitizeTheme`.
+ * `delivery` carries the three create-screen knobs the USER picked (the AI never
+ * authors them — it only writes `theme.dominant`/`mood` + the scenes). We inject
+ * `format` / `durationTier` / `titleLanguage` into the engine manifest here so the
+ * canvas + caption presence + word-budget + title language are driven by the
+ * user's choice, defaulting to tiktok / undefined / vi.
  */
 function toEngineManifest(
   m: AuthorManifest,
   allowedRefs: ReadonlySet<string> = new Set(),
-  stylePackId?: string,
+  delivery: { format?: VideoFormat; durationTier?: DurationTier; titleLanguage?: TitleLanguage } = {},
 ): Manifest {
   const scenes: ManifestScene[] = m.scenes.map((s, i) => {
     const keepImage = s.image && allowedRefs.has(s.image.ref);
@@ -176,8 +176,17 @@ function toEngineManifest(
     };
   });
   // Clamp to the engine VideoSpec limits so AI variance never trips schema
-  // validation: title ≤140, theme.dominant hex, theme.mood ≤40.
-  return { title: m.title.slice(0, 140), theme: sanitizeTheme(m.theme, stylePackId), scenes } as Manifest;
+  // validation: title ≤140, theme.dominant hex, theme.mood ≤40. The delivery
+  // knobs are injected from the user's UI choice, never authored by the model.
+  return {
+    title: m.title.slice(0, 140),
+    ...(m.hashtags && m.hashtags.length > 0 ? { hashtags: m.hashtags } : {}),
+    theme: sanitizeTheme(m.theme),
+    ...(delivery.format ? { format: delivery.format } : {}),
+    ...(delivery.durationTier ? { durationTier: delivery.durationTier } : {}),
+    ...(delivery.titleLanguage ? { titleLanguage: delivery.titleLanguage } : {}),
+    scenes,
+  } as Manifest;
 }
 
 export class NineRouterAuthoringBackend implements AuthoringBackend {
@@ -244,7 +253,7 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
     // (never provided), which is its real purpose.
     const allowedRefs = new Set((job.input.images ?? []).map((i) => i.ref));
 
-    const messages = buildAuthorMessages(job.input, research, images.length > 0 ? images : undefined);
+    const messages = buildAuthorMessages(job.input, research, images.length > 0 ? images : undefined, this.deps.wordsPerSecond?.());
     let reply: string;
     try {
       log.info({ model, projectId: job.projectId }, "calling AI model for authoring");
@@ -267,11 +276,16 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
     // Write each AI-authored module. Unregister first so a re-authored id (or a
     // cross-project id collision in the process-wide registry) is refreshed with
     // THIS project's code at admission time.
+    await this.clearAuthoredSceneFiles(job.projectId);
     for (const mod of parsed.modules) {
       unregisterComponent(mod.id);
       await writeAuthoredScene(job.projectId, sceneFileName(mod.id), normalizeAuthoredFontSizes(normalizeAuthoredImports(mod.code)));
     }
-    const engineManifest = toEngineManifest(parsed.manifest, allowedRefs, job.input.stylePackId);
+    const engineManifest = toEngineManifest(parsed.manifest, allowedRefs, {
+      ...(job.input.format ? { format: job.input.format } : {}),
+      ...(job.input.durationTier ? { durationTier: job.input.durationTier } : {}),
+      ...(job.input.titleLanguage ? { titleLanguage: job.input.titleLanguage } : {}),
+    });
     await writeJson(manifestPathOf(job.projectId), engineManifest);
 
     const admit = this.deps.admit ?? ((id: string) => admitProjectScenes(id, { load: loadAuthoredTsx }));
@@ -293,6 +307,17 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
     return { scenes, ...(unreadableUrls.length > 0 ? { unreadableUrls } : {}) };
   }
 
+  private async clearAuthoredSceneFiles(projectId: string): Promise<void> {
+    const dir = projectPaths(projectId).authoredDir;
+    if (!existsSync(dir)) return;
+    const files = await readdir(dir);
+    await Promise.all(
+      files
+        .filter((file) => /\.tsx$/.test(file) && !file.startsWith("_"))
+        .map((file) => rm(join(dir, file), { force: true })),
+    );
+  }
+
   /**
    * Code-level self-repair: for each flagged scene, resolve its `.tsx`, ask the
    * AI to rewrite it (with the issue + current code, and — for layout/contrast
@@ -307,15 +332,12 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
     const admitOne = this.deps.admitOne ?? ((p: string) => admitAndRegisterAuthored(p, { load: loadAuthoredTsx }));
     const done: AuthoredScene[] = [];
 
-    // The project's chosen design language drives the repair prompt too, so a
-    // galaxy scene is rewritten with galaxy rules (not the cream/squared default).
-    // Read it once from the stored manifest; an unreadable/absent id ⇒ undefined
-    // (the prompt builder falls back to the default language). Same read also
-    // yields the set of scenes that carry an image, so the reauthor prompt can
-    // hard-require keeping <SceneImage> (a free rewrite otherwise drops it on a
-    // vague "make it nicer" edit while the manifest still references the image).
+    // Read the manifest once to find which scenes carry an image, so the reauthor
+    // prompt can hard-require keeping <SceneImage> (a free rewrite otherwise drops
+    // it on a vague "make it nicer" edit while the manifest still references the
+    // image). The multi-style concept is gone (one neutral theme — D1), so there is
+    // no per-project style to thread into the repair prompt anymore.
     const manifestForReauthor = await loadManifest(projectId).catch(() => undefined);
-    const stylePackId = manifestForReauthor?.theme?.stylePackId;
     const imageSceneIds = new Set(
       (manifestForReauthor?.scenes ?? [])
         .filter((s: { image?: { ref?: string } }) => !!s.image?.ref)
@@ -343,8 +365,8 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
       }
 
       // Up to 2 attempts: a first rewrite, then — if it fails the admission gate
-      // (e.g. a wrong import like `useTheme` from "@news/design") — ONE corrective
-      // retry that feeds the exact violations back so the model self-fixes the
+      // (for example with a wrong import or invalid syntax) — ONE corrective retry
+      // that feeds the exact violations back so the model self-fixes the
       // deterministic error. On final failure the original code is restored
       // (atomic per scene), so the project always stays renderable.
       const MAX_REAUTHOR_ATTEMPTS = 2;
@@ -357,7 +379,6 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
           sceneId: t.sceneId,
           componentId,
           currentCode: originalCode,
-          ...(stylePackId ? { stylePackId } : {}),
           ...(t.issues ? { issues: t.issues } : {}),
           ...(intent ? { intent } : {}),
           ...(stillDataUrl ? { stillDataUrl } : {}),
@@ -374,7 +395,13 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
 
         const parsed = parseReauthorReply(reply, componentId);
         if (!parsed.ok) {
-          log.error({ sceneId: t.sceneId, reason: parsed.reason, detail: parsed.detail }, "[reauthor] parse failed");
+          // Log the raw reply (capped) like the author path does — a `no-code`
+          // reauthor failure is otherwise undiagnosable (we can't tell prose from
+          // a code block that just lacks the fence / `registerComponent`).
+          log.error(
+            { sceneId: t.sceneId, reason: parsed.reason, detail: parsed.detail, rawReply: reply.slice(0, 2000) },
+            "[reauthor] parse failed",
+          );
           continue; // retry if attempts remain
         }
 
@@ -395,8 +422,8 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
         );
         feedback =
           `Lần trước mã bị TỪ CHỐI khi nạp:\n${violationText}\n\n` +
-          `Sửa đúng import whitelist: useTheme/surfaceBorder/frameRamp/useRamp nhập từ "@news/blocks" (KHÔNG nhập từ "@news/design"); ` +
-          `chỉ dùng API được phép; giữ nguyên id "${componentId}". Trả về lại đúng một khối tsx.`;
+          `Sửa theo AUTHOR mode hiện tại: chỉ import react, remotion, zod, @news/compositions; KHÔNG import @news/blocks, @news/theme, @news/design; ` +
+          `mã phải là TSX parse được, giữ nguyên id "${componentId}", chỉ dùng API được phép. Trả về lại đúng một khối tsx.`;
       }
 
       if (!applied) {
@@ -499,9 +526,7 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
   async renderDraft(projectId: string, signal?: AbortSignal): Promise<{ ok: true } | { ok: false; error?: SerializedPipelineError }> {
     await this.refreshRegistry(projectId);
     const res = await this.deps.tools.render_draft(
-      // Cap draft concurrency: forcing all CPU cores crashed Chromium in Electron
-      // ("Page.bringToFront: Target closed"). 2 is a stable preview default.
-      { projectId, concurrency: 2 },
+      { projectId },
       this.deps.onRenderProgress ? (r) => this.deps.onRenderProgress!(r, projectId) : undefined,
       signal,
     );
@@ -512,6 +537,26 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
     }
     log.info({ projectId, mp4Path: (res.data as { mp4Path?: string }).mp4Path ?? "(draft)" }, "render_draft OK");
     return { ok: true };
+  }
+
+  /**
+   * Fast per-scene stills (no TTS/MP4) — the cheap loop the silent refine pass
+   * iterates on. Refreshes the registry first (same as a real render) so the
+   * stills bundle THIS project's freshly-authored scenes. `sceneIds` scopes the
+   * render to the scenes a refine pass just rewrote.
+   */
+  async renderStills(projectId: string, sceneIds?: string[], signal?: AbortSignal): Promise<{ stills: string[] }> {
+    await this.refreshRegistry(projectId);
+    const res = await this.deps.tools.render_stills(
+      { projectId, ...(sceneIds && sceneIds.length > 0 ? { sceneIds } : {}) },
+      undefined,
+      signal,
+    );
+    if (!res.ok) {
+      log.error({ projectId, stage: res.error.stage, cause: res.error.cause }, "render_stills failed");
+      return { stills: [] };
+    }
+    return { stills: res.data.stills };
   }
 
   async renderFull(projectId: string, signal?: AbortSignal): Promise<{ ok: true; outputPath: string } | { ok: false; error?: SerializedPipelineError }> {

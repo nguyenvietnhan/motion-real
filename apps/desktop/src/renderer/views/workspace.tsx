@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import type { ProjectStage, ScriptLine } from "../../shared/types.js";
+import type { BgmTrackVM, ProjectStage, ScriptLine, VideoFormatChoice } from "../../shared/types.js";
 import { Icon } from "../icons.js";
 import { EmptyState, PageHeader, Spinner } from "../primitives.js";
 import { StoryboardView } from "./storyboard.js";
@@ -10,6 +10,56 @@ import { ImageReviewView } from "./image-review.js";
  * The "ready" stage hands off to StoryboardView (Canva editor); other stages
  * render their own status panels.
  */
+
+/**
+ * Final-screen Copy panel (R9.5/H3): shows the AI-generated publish title and
+ * hashtags with one-click copy each, so the user can paste them straight into
+ * TikTok/YouTube. Title doubles as the project name (clean, no inline hashtags);
+ * hashtags are the separate publish tags. Renders nothing when neither exists
+ * (an older video authored before the title/hashtags split, or a YouTube video
+ * with no hashtags). UI tạm (D-UI): a plain "Đã copy" flash, no toast system.
+ */
+const PublishCopyPanel: React.FC<{ title?: string; hashtags?: string[] }> = ({ title, hashtags }) => {
+  const [copied, setCopied] = useState<"title" | "tags" | null>(null);
+  if (!title && !(hashtags && hashtags.length > 0)) return null;
+  const tagLine = hashtags?.join(" ") ?? "";
+  const copy = (text: string, which: "title" | "tags"): void => {
+    // navigator.clipboard is the renderer's standard path; a failure (no focus,
+    // denied permission) just skips the "Đã copy" flash rather than throwing.
+    void navigator.clipboard?.writeText(text).then(
+      () => {
+        setCopied(which);
+        setTimeout(() => setCopied(null), 1500);
+      },
+      () => {},
+    );
+  };
+  // Quiet icon-copy: a check flashes in place for 1.5s on success. The button is
+  // a subordinate affordance on the value row, not a peer action button.
+  const copyBtn = (text: string, which: "title" | "tags") => (
+    <button className={`ns-copy-btn${copied === which ? " is-copied" : ""}`} onClick={() => copy(text, which)}
+      title={copied === which ? "Đã copy" : "Copy"} aria-label={copied === which ? "Đã copy" : "Copy"}>
+      {copied === which ? Icon.check({ size: 16 }) : Icon.copy({ size: 15 })}
+    </button>
+  );
+  return (
+    <div className="ns-publish-section">
+      <span className="ns-publish-eyebrow">Đăng tải</span>
+      {title && (
+        <div className="ns-meta-field">
+          <span className="ns-meta-value">{title}</span>
+          {copyBtn(title, "title")}
+        </div>
+      )}
+      {hashtags && hashtags.length > 0 && (
+        <div className="ns-meta-field">
+          <span className="ns-meta-value tags">{tagLine}</span>
+          {copyBtn(tagLine, "tags")}
+        </div>
+      )}
+    </div>
+  );
+};
 
 const ScriptReview: React.FC<{
   lines: ScriptLine[];
@@ -104,12 +154,19 @@ const ScriptReview: React.FC<{
 const RenderingPanel: React.FC<{ stage: Extract<ProjectStage, { kind: "rendering" }>; onCancel: () => void }> = ({ stage, onCancel }) => {
   const [stopping, setStopping] = useState(false);
   const phase = stage.phase ?? "draft";
+  // The QA phase carries the current vision pass (qaPass/qaTotal) so the user
+  // sees progress through the refine loop instead of an opaque, seemingly-stuck
+  // spinner — "(lần 2/5)" tells them how many rounds remain.
+  const qaSuffix = phase === "qa" && stage.qaPass && stage.qaTotal ? ` (lần ${stage.qaPass}/${stage.qaTotal})` : "";
   const label =
     phase === "edit" ? "AI đang chỉnh sửa các cảnh theo yêu cầu…"
-      : phase === "qa" ? "AI đang tự kiểm tra & sửa lỗi hình ảnh…"
-        : phase === "full" ? "Đang dựng video bản đầy đủ (chất lượng cao)…"
-          : "Đang dựng giọng đọc + bản nháp…";
-  const indeterminate = phase === "edit" || phase === "qa" || stage.percent <= 0;
+      : phase === "qa" ? `AI đang soát lỗi hình ảnh${qaSuffix}…`
+        : phase === "prepare" ? "Đang dựng bản nháp…"
+          : phase === "full" ? "Đang dựng video bản đầy đủ (chất lượng cao)…"
+            : "Đang dựng giọng đọc + bản nháp…";
+  // "prepare" (the two hidden pre-draft renders) shows a neutral indeterminate
+  // bar — no raw percent — so the user never sees the bland/bootstrap takes.
+  const indeterminate = phase === "edit" || phase === "qa" || phase === "prepare" || stage.percent <= 0;
   return (
     <div className="ns-card" style={{ padding: 32 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
@@ -136,6 +193,60 @@ const RenderingPanel: React.FC<{ stage: Extract<ProjectStage, { kind: "rendering
   );
 };
 
+/**
+ * Thumbnail/cover panel on the published screen (I3/R12). The cover is a clean
+ * BRAND CARD — theme wash + the publish title — for BOTH formats; there is no
+ * scene-frame picker (an authored scene is itself a text card, so compositing
+ * the title over one stacked two colliding text blocks). "Tạo" / "Tạo lại"
+ * calls back into the engine; the rendered PNG is cache-busted with a nonce so
+ * the freshly-generated image replaces the old one in the <img>. UI tạm (D-UI):
+ * a plain card, no toast. A null result (busy/failed) just clears the generating
+ * flag — the user can retry.
+ */
+const ThumbnailPanel: React.FC<{
+  thumbnailPath?: string;
+  format: VideoFormatChoice;
+  onGenerate: () => Promise<{ thumbnailUrl: string } | null>;
+}> = ({ thumbnailPath, format, onGenerate }) => {
+  const isTikTok = format !== "youtube";
+  const [generating, setGenerating] = useState(false);
+  // The latest generated URL (overrides the stage's thumbnailPath after a
+  // regenerate) + a nonce so the browser refetches the same path when it changes.
+  const [freshUrl, setFreshUrl] = useState<string | null>(null);
+  const [nonce, setNonce] = useState(0);
+  const baseUrl = freshUrl ?? thumbnailPath ?? null;
+  const shownUrl = baseUrl ? `${baseUrl}${baseUrl.includes("?") ? "&" : "?"}t=${nonce}` : null;
+  const aspect = isTikTok ? "9 / 16" : "16 / 9";
+
+  const generate = (): void => {
+    if (generating) return;
+    setGenerating(true);
+    void onGenerate()
+      .then((r) => {
+        if (r) {
+          setFreshUrl(r.thumbnailUrl);
+          setNonce((n) => n + 1);
+        }
+      })
+      .finally(() => setGenerating(false));
+  };
+
+  return (
+    <div className="ns-publish-section">
+      <span className="ns-publish-eyebrow">{isTikTok ? "Ảnh bìa" : "Thumbnail YouTube"}</span>
+      {shownUrl && (
+        <img src={shownUrl} alt="Thumbnail" style={{ width: "100%", aspectRatio: aspect, objectFit: "contain",
+          borderRadius: 10, border: "1px solid var(--border)", background: "#0c0e12" }} />
+      )}
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+        <button className="ns-btn" onClick={generate} disabled={generating} style={{ marginLeft: "auto" }}>
+          {generating ? "Đang tạo…" : baseUrl ? "Tạo lại" : "Tạo ảnh bìa"}
+        </button>
+      </div>
+    </div>
+  );
+};
+
 export const ProjectWorkspaceView: React.FC<{
   stage: ProjectStage;
   onBack: () => void;
@@ -152,7 +263,19 @@ export const ProjectWorkspaceView: React.FC<{
   onCancel: () => void;
   /** Confirm the crawled-image selection (Phase 2 Block B); empty ⇒ author text-only. */
   onSubmitImageReview: (selectedRefs: string[]) => void;
-}> = ({ stage, onBack, onRetry, onFixWithAi, onApplyScript, onApproveScript, onSubmitEdits, onApproveDraft, onReveal, onSave, onCancel, onSubmitImageReview }) => {
+  /** Per-machine BGM library (shared across projects); the picker in the storyboard lists these. */
+  bgm: BgmTrackVM[];
+  /** The open project's currently-selected BGM track name (null = none). */
+  bgmSelected: string | null;
+  /** Open the native picker to add audio file(s) to the library. */
+  onBgmAdd: () => void;
+  /** Delete one library track by name. */
+  onBgmRemove: (name: string) => void;
+  /** Set (or clear, with null) the open project's BGM track; persisted to its manifest. */
+  onBgmSelect: (name: string | null) => void;
+  /** Generate the cover/thumbnail PNG (R12/I3): a clean brand card (theme wash + publish title) for both formats. Resolves the new media URL, or null when busy/failed. */
+  onGenerateThumbnail: () => Promise<{ thumbnailUrl: string } | null>;
+}> = ({ stage, onBack, onRetry, onFixWithAi, onApplyScript, onApproveScript, onSubmitEdits, onApproveDraft, onReveal, onSave, onCancel, onSubmitImageReview, bgm, bgmSelected, onBgmAdd, onBgmRemove, onBgmSelect, onGenerateThumbnail }) => {
   const title: Record<ProjectStage["kind"], string> = {
     writing: "Đang viết kịch bản",
     script: "Duyệt kịch bản",
@@ -172,9 +295,32 @@ export const ProjectWorkspaceView: React.FC<{
         onBack={onBack}
         onSubmit={onSubmitEdits}
         onApprove={onApproveDraft}
+        bgm={bgm}
+        bgmSelected={bgmSelected}
+        onBgmAdd={onBgmAdd}
+        onBgmRemove={onBgmRemove}
+        onBgmSelect={onBgmSelect}
       />
     );
   }
+
+  const writingCopy =
+    stage.kind === "writing"
+      ? stage.phase === "crawl"
+        ? {
+            title: "Đang đọc link và cào ảnh từ bài báo…",
+            detail: "Nếu trang chặn đọc nội dung hoặc ảnh, app sẽ bỏ qua phần đó và tiếp tục dựng từ phần đọc được.",
+          }
+        : stage.phase === "image-filter"
+          ? {
+              title: "AI đang chọn ảnh phù hợp từ bài báo…",
+              detail: "Ảnh quảng cáo, logo hoặc ảnh không liên quan sẽ bị lọc trước khi bạn duyệt.",
+            }
+          : {
+              title: "AI đang viết kịch bản từ nội dung của bạn…",
+              detail: "Lần đầu gọi model qua 9Router/Codex có thể mất 1-3 phút để khởi động. App vẫn đang chờ phản hồi.",
+            }
+      : null;
 
   return (
     <div className="ns-content">
@@ -182,24 +328,43 @@ export const ProjectWorkspaceView: React.FC<{
       {stage.kind === "writing" && (
         <div className="ns-card" style={{ padding: 48, display: "grid", placeItems: "center", gap: 12 }}>
           <Spinner />
-          <p style={{ color: "var(--muted-foreground)", margin: 0 }}>AI đang viết kịch bản từ nội dung của bạn…</p>
+          <p style={{ color: "var(--muted-foreground)", margin: 0 }}>{writingCopy?.title}</p>
           <p style={{ color: "var(--muted-foreground)", margin: 0, fontSize: 13, textAlign: "center", maxWidth: 520 }}>
-            Lần đầu gọi model qua 9Router/Codex có thể mất 1–3 phút để khởi động. App vẫn đang chờ phản hồi.
+            {writingCopy?.detail}
           </p>
         </div>
       )}
       {stage.kind === "script" && <ScriptReview lines={stage.lines} linkWarning={stage.linkWarning} onApply={onApplyScript} onApprove={onApproveScript} />}
-      {stage.kind === "image-review" && <ImageReviewView images={stage.images} onBack={onBack} onSubmit={onSubmitImageReview} />}
+      {stage.kind === "image-review" && <ImageReviewView images={stage.images} onSubmit={onSubmitImageReview} />}
       {stage.kind === "rendering" && <RenderingPanel stage={stage} onCancel={onCancel} />}
       {stage.kind === "published" && (
-        <div className="ns-card" style={{ padding: 20, display: "flex", flexDirection: "column", alignItems: "center", gap: 14 }}>
-          <strong style={{ fontSize: 16 }}>Đã xuất bản video 🎬</strong>
-          <video src={stage.outputPath} controls style={{ height: "60vh", maxHeight: 640, aspectRatio: "9 / 16", maxWidth: "100%",
-            borderRadius: 12, border: "1px solid var(--border)", boxShadow: "0 12px 40px rgba(0,0,0,0.5)", background: "#0c0e12", objectFit: "contain" }} />
-          <div style={{ display: "flex", gap: 10 }}>
-            <button className="ns-btn ns-btn-primary" onClick={onSave}>⬇ Tải về…</button>
-            <button className="ns-btn" onClick={onReveal}>{Icon.folder({ size: 15 })} Mở thư mục</button>
-            <button className="ns-btn" onClick={onBack}>Quay lại Trang chủ</button>
+        // Two-column export screen (the pattern CapCut / Opus Clip / Descript use
+        // when a render finishes): the video preview is fixed on the LEFT, and a
+        // right rail carries the metadata + actions in a clear hierarchy — a "done"
+        // badge, the primary download CTA, then the publish copy, then the cover as
+        // a subordinate section. The preview no longer pushes everything down a
+        // single narrow centred column.
+        <div className="ns-publish">
+          <div className="ns-publish-preview">
+            <video src={stage.outputPath} controls style={{ width: "100%", aspectRatio: stage.format === "youtube" ? "16 / 9" : "9 / 16",
+              borderRadius: 12, border: "1px solid var(--border)", boxShadow: "0 12px 40px rgba(0,0,0,0.5)", background: "#0c0e12", objectFit: "contain" }} />
+          </div>
+          <div className="ns-publish-rail">
+            <div className="ns-publish-head">
+              <span className="ns-publish-done"><span className="ns-publish-done-icon">{Icon.check({ size: 16 })}</span>Đã xuất bản</span>
+              <h2 className="ns-publish-title">{stage.title || "Video đã sẵn sàng"}</h2>
+            </div>
+            <div className="ns-publish-cta">
+              <button className="ns-btn ns-btn-primary" onClick={onSave}>{Icon.download({ size: 16 })} Tải về…</button>
+              <button className="ns-btn" onClick={onReveal}>{Icon.folder({ size: 15 })} Mở thư mục</button>
+            </div>
+            <PublishCopyPanel title={stage.title} hashtags={stage.hashtags} />
+            <ThumbnailPanel
+              thumbnailPath={stage.thumbnailPath}
+              format={stage.format ?? "tiktok"}
+              onGenerate={onGenerateThumbnail}
+            />
+            <button className="ns-btn ns-publish-back" onClick={onBack}>Quay lại Trang chủ</button>
           </div>
         </div>
       )}

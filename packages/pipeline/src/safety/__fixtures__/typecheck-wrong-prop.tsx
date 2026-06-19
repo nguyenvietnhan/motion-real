@@ -1,35 +1,35 @@
 // component: typecheck-wrong-prop
-// A scene that reproduces the real Gemini bug: KeyPoints expects items: string[],
-// but this wraps each string into a {text} OBJECT. esbuild/webpack strip the type
-// and the object then crashes headless Chromium (React error #31). N10 must catch
-// this at typecheck time, before any render.
+// Reproduces the crash-class wrong-shape prop: a value whose SOURCE type is an
+// object/array shape passed where a scalar is required — the analogue of the old
+// {text}[] vs string[] Gemini bug. Here `maxHeight` is typed `number` on
+// SceneImage, but this passes a `string[]` (an array). esbuild/webpack strip the
+// type and the bad value reaches render. N10 must catch this at typecheck time.
 import React from "react";
 import { z } from "zod";
-import { registerComponent, type SceneComponentProps } from "@news/compositions";
-import { Frame, Story, KeyPoints } from "@news/blocks";
+import { registerComponent, type SceneComponentProps, SceneImage } from "@news/compositions";
 
 export const schema = z.object({
-  capabilities: z.array(z.string()),
+  caps: z.array(z.string()),
 });
 
 type Props = z.infer<typeof schema>;
 
-const Scene: React.FC<SceneComponentProps<Props>> = ({ props }) => {
+const Scene: React.FC<SceneComponentProps<Props>> = ({ props, image }) => {
   return (
-    <Frame>
-      <Story>
-        <KeyPoints items={props.capabilities.map((text) => ({ text }))} />
-      </Story>
-    </Frame>
+    <div style={{ position: "absolute", inset: 0, background: "#101010" }}>
+      {/* maxHeight is typed `number`; passing an array is a TS2322 whose source
+          type is an array shape (not a quoted string literal) → N10 catches it. */}
+      <SceneImage imageRef={image?.ref ?? "assets/x.png"} maxHeight={props.caps} />
+    </div>
   );
 };
 
-export const example: Props = { capabilities: ["a", "b", "c"] };
+export const example: Props = { caps: ["a", "b", "c"] };
 
 export default registerComponent<Props>({
   id: "typecheck-wrong-prop",
   displayName: "Typecheck Wrong Prop",
-  promptGuide: "Fixture: wrong KeyPoints item shape; must trip N10.",
+  promptGuide: "Fixture: array passed to a numeric prop; must trip N10.",
   schema,
   Component: Scene,
   example,

@@ -8,7 +8,10 @@ import { buildAuthorMessages, buildImageFilterMessages, buildReauthorMessages, t
  */
 
 describe("buildAuthorMessages", () => {
-  const required = ["@news/blocks", "Math.random", "// component:", "```json", "```tsx", "registerComponent"];
+  // Post-block-removal: the prompt no longer tells the model to import @news/blocks
+  // for layout; it authors raw JSX/SVG. The output contract still carries the
+  // marker/json/tsx shape + registerComponent.
+  const required = ["// component:", "```json", "```tsx", "registerComponent"];
 
   it("embeds the contract + output-format for a plain brief", () => {
     const [sys, user] = buildAuthorMessages({ text: "Chủ đề thử", urls: [] });
@@ -35,15 +38,28 @@ describe("buildAuthorMessages", () => {
     expect(sys!.content).toMatch(/TỔNG lời đọc/i);
   });
 
+  it("uses the CALIBRATED rate when one is injected (overrides the baked default)", () => {
+    // freeform-engine K1/R5.4/D13: the backend reads a per-voice measured rate from
+    // settings and passes it in; the word budget + the prompt copy must reflect THAT
+    // rate, not the baked ~4.7 (a slower/faster voice needs a different budget). The
+    // tier-1 TikTok target is 45s, so a 6.0 w/s rate ⇒ ~270 words (45×6).
+    const [sys] = buildAuthorMessages({ text: "Chủ đề X", urls: [] }, undefined, undefined, 6.0);
+    expect(sys!.content).toContain("6 từ/giây");
+    expect(sys!.content).toContain("270");
+    expect(sys!.content).not.toContain("4.7");
+  });
+
   it("carries concrete layout-variety recipes + a countable anti-repetition rule", () => {
     // The earlier abstract "đa dạng form" advice wasn't enough for a weaker model —
-    // every scene came out as TitleBlock+Panel. The contract must now map content
-    // KINDS to layouts and cap consecutive same-layout scenes with a countable rule.
+    // every scene came out the same. The contract must map content KINDS to layouts
+    // and cap consecutive same-layout scenes with a countable rule. Post-block-
+    // removal the recipes are raw-JSX shapes (two columns, a big self-drawn number),
+    // not block names.
     const [sys] = buildAuthorMessages({ text: "Chủ đề bất kỳ", urls: [] });
     const text = sys!.content;
-    // Content→layout recipes (numbers→stat, comparison→two columns, list→KeyPoints).
+    // Content→form recipes (comparison→two columns, numbers→a big self-drawn figure).
     expect(text).toMatch(/HAI CỘT/);
-    expect(text).toMatch(/StatBlock|CountUp/);
+    expect(text).toMatch(/TỰ VẼ|tự dựng|tự vẽ/);
     // A countable anti-repetition rule (not just "be diverse"): no >2 consecutive
     // scenes of the same layout, ≥3 distinct layouts across the video.
     expect(text).toMatch(/2 cảnh LIÊN TIẾP/);
@@ -61,6 +77,23 @@ describe("buildAuthorMessages", () => {
     expect(text).toMatch(/beat chữ ký|bespoke/i);
   });
 
+  it("demands SHARP narration voice with a hook + a banned-cliché list (not flat encyclopedic prose)", () => {
+    // The observed defect: the prompt poured all its creative pressure into the
+    // VISUAL ("TÁO BẠO" — big stats, two columns, SVG beats) but said nothing about
+    // the NARRATION voice beyond a mechanical "1–3 câu, 18–40 từ" — so the model
+    // wrote safe, neutral, encyclopedic lines ("nhạt như nước ốc"). The content
+    // rules must steer the WRITING: a concrete hook on the first sentence, an
+    // explicit list of banned filler openers, and concrete-over-generic guidance.
+    const [sys] = buildAuthorMessages({ text: "Chủ đề bất kỳ", urls: [] });
+    const text = sys!.content;
+    expect(text).toMatch(/GIỌNG VĂN LỜI ĐỌC/);
+    // Names at least one of the banned clichéd openers verbatim, so the model has a
+    // concrete blacklist rather than vague "write better".
+    expect(text).toMatch(/Trong thời đại ngày nay|Như chúng ta đã biết|Hãy cùng tìm hiểu/);
+    // A worked nhạt→sắc example pair (the model copies concrete examples).
+    expect(text).toMatch(/NHẠT:.*SẮC:|NHẠT.*→.*SẮC/s);
+  });
+
   it("labels the .tsx example as STRUCTURE-only, not an aesthetic template to copy", () => {
     // The minimal Frame>Story>TitleBlock example was being cloned into every scene
     // (the model copies the concrete example over the abstract variety rule). The
@@ -68,6 +101,20 @@ describe("buildAuthorMessages", () => {
     const [sys] = buildAuthorMessages({ text: "Chủ đề bất kỳ", urls: [] });
     const text = sys!.content;
     expect(text).toMatch(/chỉ minh hoạ CẤU TRÚC|KHÔNG phải mẫu thẩm mỹ/);
+  });
+
+  it("carries a general parseable-TSX rule, including object-literal style syntax", () => {
+    // A real model reply produced `justify("flex-start")` inside a style object.
+    // The fix is a general syntax contract: parseable TSX + valid object-literal
+    // properties, not a one-off blacklist for that token.
+    const [sys] = buildAuthorMessages({ text: "Chủ đề bất kỳ", urls: [] });
+    const text = sys!.content;
+    expect(text).toMatch(/CÚ PHÁP TSX BẮT BUỘC/);
+    expect(text).toMatch(/TypeScript\/TSX parse được/);
+    expect(text).toMatch(/object literal/);
+    expect(text).toMatch(/key: value/);
+    expect(text).toMatch(/foo\("bar"\)/);
+    expect(text).toMatch(/justifyContent: "flex-start"/);
   });
 
   it("forbids fabrication (not 'use your own knowledge') when a link could not be read", () => {
@@ -112,6 +159,86 @@ describe("buildAuthorMessages", () => {
     expect(text).toContain("assets/aaa.png");
     expect(text).toContain("800×600");
   });
+
+  // --- freeform-engine G2: format / tier / title-language are prompt-driven ---
+
+  it("is de-styled: no leftover design-language / style-pack wording in the prompt", () => {
+    // The multi-style design system was deleted (D1). The prompt must no longer
+    // tell the model to author "on a design language" / "style pack" — there is
+    // only the delivery format's geometry now.
+    const [sys] = buildAuthorMessages({ text: "Chủ đề bất kỳ", urls: [] });
+    const text = sys!.content;
+    expect(text).not.toMatch(/style.?pack|design language|galaxy|editorial|ngôn ngữ thiết kế/i);
+  });
+
+  it("TikTok (default): vertical 9:16 framing + reserve the burned caption band", () => {
+    const [sys] = buildAuthorMessages({ text: "Chủ đề", urls: [] });
+    const text = sys!.content;
+    expect(text).toMatch(/9:16/);
+    expect(text).toMatch(/phụ đề/i); // caption band the author must keep clear of
+  });
+
+  it("YouTube: horizontal 16:9 framing + explicitly NO burned caption band", () => {
+    const [sys] = buildAuthorMessages({ text: "Chủ đề", urls: [], format: "youtube" });
+    const text = sys!.content;
+    expect(text).toMatch(/16:9/);
+    expect(text).toMatch(/KHÔNG.*phụ đề|không.*băng phụ đề/i);
+  });
+
+  it("word budget scales with the chosen duration tier (per-format seconds × measured rate)", () => {
+    // Tier maps to per-format seconds (TikTok 45/90/150); the budget is seconds ×
+    // 4.7 w/s. A higher tier ⇒ a visibly larger word target in the prompt.
+    const [t1] = buildAuthorMessages({ text: "X", urls: [], format: "tiktok", durationTier: 1 });
+    const [t3] = buildAuthorMessages({ text: "X", urls: [], format: "tiktok", durationTier: 3 });
+    expect(t1!.content).toMatch(/45 giây/);
+    expect(t3!.content).toMatch(/150 giây/);
+    // 45s × 4.7 ≈ 212 words; 150s × 4.7 ≈ 705 words — the targets must differ.
+    expect(t1!.content).toMatch(/212 từ/);
+    expect(t3!.content).toMatch(/705 từ/);
+  });
+
+  it("title-language rule steers ONLY the publish title; caps length per format", () => {
+    // vi (default) on TikTok: under 100 chars + a SEPARATE hashtags field (kept
+    // out of the title so the title doubles as a clean project name, D9/H3).
+    const [vi] = buildAuthorMessages({ text: "X", urls: [], format: "tiktok", titleLanguage: "vi" });
+    expect(vi!.content).toMatch(/100 ký tự/);
+    expect(vi!.content).toMatch(/hashtag/i);
+    // The hashtags must NOT be baked into the title (separate "hashtags" field).
+    expect(vi!.content).toMatch(/KHÔNG nhồi hashtag vào trong "title"|field RIÊNG "hashtags"/);
+    expect(vi!.content).toMatch(/lời đọc.*TIẾNG VIỆT|vẫn luôn TIẾNG VIỆT/i); // script stays vi
+
+    // en on YouTube: under 200 chars, no hashtag requirement.
+    const [en] = buildAuthorMessages({ text: "X", urls: [], format: "youtube", titleLanguage: "en" });
+    expect(en!.content).toMatch(/200 ký tự/);
+    expect(en!.content).toMatch(/TIẾNG ANH/);
+  });
+
+  it("demands a HOOKED publish title (a hook + banned empty-clickbait, not a flat description)", () => {
+    // Same defect class as the narration voice: titleBlock only had MECHANICAL
+    // rules (language, char cap, no inline hashtags) but nothing about pull — so
+    // the model wrote flat "Tìm hiểu về X" titles. The rule must demand a hook,
+    // forbid empty-clickbait (a title the video doesn't deliver), and keep tag
+    // discipline (no generic "#fyp #viral" stuffing).
+    const [sys] = buildAuthorMessages({ text: "Chủ đề bất kỳ", urls: [], format: "tiktok" });
+    const text = sys!.content;
+    expect(text).toMatch(/SỨC HÚT TIÊU ĐỀ/);
+    // Names a flat-description anti-pattern verbatim so the model has a concrete
+    // "don't do this", not just "make it catchy".
+    expect(text).toMatch(/Tìm hiểu về|là gì|cần biết về/);
+    // Forbids empty clickbait (title must match the video; no invented numbers).
+    expect(text).toMatch(/clickbait/i);
+    // Tag discipline: no generic #fyp/#viral stuffing.
+    expect(text).toMatch(/#fyp|#viral|#xuhuong/);
+  });
+
+  it("the output-format JSON skeleton declares a separate hashtags array (not inlined in title)", () => {
+    // H3/D9: the project display name = title, so the title must stay clean and
+    // hashtags live in their own field. The skeleton must show both.
+    const [sys] = buildAuthorMessages({ text: "X", urls: [], format: "tiktok" });
+    const text = sys!.content;
+    expect(text).toMatch(/"hashtags":\s*\[/);
+    expect(text).toMatch(/"title":\s*"[^"]*KHÔNG chứa hashtag/);
+  });
 });
 
 describe("buildReauthorMessages", () => {
@@ -119,6 +246,10 @@ describe("buildReauthorMessages", () => {
 
   it("text-only when no still is provided; carries issue + current code + same id", () => {
     const msgs = buildReauthorMessages({ ...base, issues: [{ check: "N17", severity: "error", message: "bị cắt chữ" }] });
+    expect(msgs[0]!.content as string).toMatch(/CÚ PHÁP TSX BẮT BUỘC/);
+    expect(msgs[0]!.content as string).toMatch(/sửa cục bộ/);
+    expect(msgs[0]!.content as string).toMatch(/KHÔNG được thay cảnh bằng title-card/);
+    expect(msgs[0]!.content as string).toMatch(/biến\/hàm thiếu gây fallback/);
     const user = msgs[1]!;
     expect(typeof user.content).toBe("string");
     const text = user.content as string;
@@ -143,6 +274,7 @@ describe("buildReauthorMessages", () => {
     const text = withImage[1]!.content as string;
     expect(text).toContain("SceneImage");
     expect(text).toMatch(/GIỮ ẢNH|giữ.*ảnh/i);
+    expect(text).not.toContain("<Content>/<Story>");
 
     // Without an image the instruction is absent (no spurious image talk).
     const noImage = buildReauthorMessages({ ...base, intent: "sáng tạo hơn" });

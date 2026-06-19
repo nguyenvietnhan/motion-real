@@ -1,5 +1,11 @@
 import { pathToFileURL } from "node:url";
-import { getComponent, registerComponent, validateProps, type SceneComponentDefinition } from "@news/compositions";
+import {
+  getComponent,
+  registerComponent,
+  unregisterComponent,
+  validateProps,
+  type SceneComponentDefinition,
+} from "@news/compositions";
 import type { SafetyIssue } from "../types.js";
 import { admitAuthoredComponent, DEFAULT_ADMISSION_POLICY, type AdmissionPolicy } from "./admission.js";
 
@@ -70,6 +76,15 @@ export async function admitAndRegisterAuthored(
   const componentId = admission.componentId;
   const load = options.load ?? defaultLoad ?? ((url: string) => import(url));
 
+  // RenderProject can load many authored projects in one Node process. If the
+  // same component id was registered by a prior render, clear it so the fresh
+  // authored module can register its own definition instead of tripping the
+  // duplicate-id guard. Duplicate ids within the same project are still caught
+  // by the caller at the manifest layer.
+  if (getComponent(componentId)) {
+    unregisterComponent(componentId);
+  }
+
   let mod: Record<string, unknown>;
   try {
     mod = (await load(pathToFileURL(tsxPath).href)) as Record<string, unknown>;
@@ -138,7 +153,12 @@ export async function admitAndRegisterAuthored(
     violations.push({ check: "N4", severity: "error", path: tsxPath, message: 'Authored module is missing the `schema` export.' });
   }
 
-  if (violations.length > 0) return { ok: false, violations };
+  if (violations.length > 0) {
+    // A failed handshake must not leave a partially admitted authored component
+    // in the process-wide registry for the next render/admission attempt.
+    unregisterComponent(componentId);
+    return { ok: false, violations };
+  }
   return { ok: true, componentId };
 }
 

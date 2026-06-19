@@ -1,8 +1,9 @@
 import React, { useState } from "react";
 import type { AiAccountState, GatewayState, ModelInfo, SettingsModel } from "../../shared/types.js";
+import { DEFAULT_REFINE_PASSES } from "../../shared/settings-model.js";
 import { activeAccount } from "../../shared/active-account.js";
 import { Icon } from "../icons.js";
-import { Field, PageHeader, SettingsCard, Toggle } from "../primitives.js";
+import { ExpandableToggle, Field, InfoRow, NumberRow, PageHeader, SettingsCard, Toggle } from "../primitives.js";
 
 type SettingsTab = "ai" | "voice" | "build" | "about";
 
@@ -17,9 +18,15 @@ export const SettingsView: React.FC<{
   onUpdate: (patch: Partial<SettingsModel>) => void;
 }> = ({ gateway, account, models, settings, onManageAccounts, onSelectModel, onUpdate }) => {
   const [tab, setTab] = useState<SettingsTab>("ai");
+  const [refineExpanded, setRefineExpanded] = useState(settings.refinePasses > 0);
   const connected = account.kind === "connected" ? account.accounts : [];
   const currentAccount = activeAccount(account);
   const selectedModelId = account.kind === "connected" ? account.selectedModel?.id ?? "" : "";
+  const accountInitial = (currentAccount?.label ?? "?").trim().charAt(0).toUpperCase() || "?";
+  // The avatar's presence dot mirrors the sidebar's AI-status dot: while the
+  // gateway is ready and an account is connected, 9router is routing → green.
+  // (Same signal `aiStatus` uses for the sidebar, so the two never disagree.)
+  const accountLive = gateway.kind === "ready" && connected.length > 0;
 
   const TABS: { id: SettingsTab; label: string; icon: React.ReactNode }[] = [
     { id: "ai", label: "Tài khoản AI", icon: Icon.spark({ size: 16 }) },
@@ -30,7 +37,7 @@ export const SettingsView: React.FC<{
 
   return (
     <div className="ns-content">
-      <PageHeader title="Cài đặt" subtitle="Tài khoản AI, giọng đọc và tuỳ chọn dựng video." />
+      <PageHeader title="Cài đặt" />
       <div className="ns-settings">
         <nav className="ns-settings-nav">
           {TABS.map((t) => (
@@ -48,27 +55,37 @@ export const SettingsView: React.FC<{
               {gateway.kind === "unavailable" && (
                 <p style={{ color: "var(--danger)", margin: 0 }}>Không khởi động được 9Router. Hãy kiểm tra 9Router đã cài rồi mở lại app.</p>
               )}
-              {gateway.kind === "ready" && (
+              {gateway.kind === "ready" && connected.length === 0 && (
                 <>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
-                    <span style={{ width: 8, height: 8, borderRadius: 999, background: connected.length ? "var(--good)" : "var(--warn)", flexShrink: 0 }} />
-                    <span style={{ fontSize: 14, color: "var(--foreground)" }}>
-                      {connected.length ? `Đang dùng: ${currentAccount?.label ?? "Đã kết nối"}` : "Chưa có tài khoản nào."}
-                    </span>
-                  </div>
+                  <p style={{ margin: "0 0 16px", fontSize: 14, color: "var(--muted-foreground)" }}>
+                    Chưa có tài khoản nào. Đăng nhập để 9Router định tuyến yêu cầu tới nhà cung cấp AI.
+                  </p>
                   <button className="ns-btn ns-btn-primary" onClick={onManageAccounts}>
-                    {Icon.spark({ size: 15 })} {connected.length ? "Thêm / quản lý tài khoản" : "Đăng nhập tài khoản AI"}
+                    {Icon.spark({ size: 15 })} Đăng nhập tài khoản AI
                   </button>
-                  {connected.length > 0 && (
-                    <div style={{ marginTop: 20 }}>
-                      <Field label="Model dùng để dựng" hint="Model có khả năng nhìn ảnh sẽ tự soát & sửa lỗi bố cục tốt hơn.">
-                        <select className="ns-input" aria-label="Chọn model dựng video" value={selectedModelId} onChange={(e) => onSelectModel(e.target.value)} style={{ width: "100%", maxWidth: 420 }}>
-                          <option value="" disabled>— chọn model —</option>
-                          {models.map((m) => (<option key={m.id} value={m.id}>{m.id}</option>))}
-                        </select>
-                      </Field>
-                    </div>
-                  )}
+                </>
+              )}
+              {gateway.kind === "ready" && connected.length > 0 && (
+                <>
+                  <div className="ns-acct">
+                    <span className="ns-acct-avatar">
+                      <span className="ns-avatar-initial">{accountInitial}</span>
+                      <span className={`ns-acct-status${accountLive ? " is-live" : ""}`} title={accountLive ? "Đang hoạt động" : "Không hoạt động"} />
+                    </span>
+                    <span className="ns-acct-main">
+                      <span className="ns-acct-label" title={currentAccount?.label}>{currentAccount?.label ?? "Đã kết nối"}</span>
+                      {selectedModelId && <span className="ns-acct-model">{selectedModelId}</span>}
+                    </span>
+                    <button className="ns-btn ns-acct-manage" onClick={onManageAccounts}>Quản lý</button>
+                  </div>
+                  <div style={{ marginTop: 20 }}>
+                    <Field label="Model dùng để dựng" hint="Model nhìn được ảnh sẽ tự soát và sửa lỗi bố cục tốt hơn.">
+                      <select className="ns-input" aria-label="Chọn model dựng video" value={selectedModelId} onChange={(e) => onSelectModel(e.target.value)} style={{ width: "100%", maxWidth: 460 }}>
+                        <option value="" disabled>— chọn model —</option>
+                        {models.map((m) => (<option key={m.id} value={m.id}>{m.id}</option>))}
+                      </select>
+                    </Field>
+                  </div>
                 </>
               )}
             </SettingsCard>
@@ -91,40 +108,45 @@ export const SettingsView: React.FC<{
           )}
 
           {tab === "build" && (
-            <SettingsCard title="Dựng video" desc="Kiểm soát quy trình tự dựng và tự sửa lỗi.">
-              <Field label="Số lần tự sửa tối đa" hint="Số lần AI được thử dựng lại để khắc phục lỗi trước khi báo cần can thiệp (1–10).">
-                <input className="ns-input" type="number" min={1} max={10} value={settings.maxRepairAttempts}
-                  onChange={(e) => onUpdate({ maxRepairAttempts: Math.min(10, Math.max(1, Number(e.target.value) || 1)) })} style={{ width: 100 }} />
-              </Field>
+            <SettingsCard title="Dựng video" desc="Tuỳ chọn quy trình tự dựng và chọn ảnh.">
               <Toggle checked={settings.scriptGateEnabled} onChange={(v) => onUpdate({ scriptGateEnabled: v })}
-                title="Duyệt kịch bản trước khi dựng" desc="Tạm dừng để bạn xem & sửa lời đọc trước khi tốn công dựng video." />
-              <Toggle checked={settings.visualQaEnabled} onChange={(v) => onUpdate({ visualQaEnabled: v })}
-                title="AI tự soát & sửa lỗi hình ảnh trước khi duyệt"
-                desc="AI xem ảnh từng cảnh để bắt lỗi bố cục (đè chữ, tràn, lệch) và tự sửa — cần model nhìn được ảnh; nếu không sẽ tự bỏ qua." />
+                title="Duyệt kịch bản trước khi dựng"
+                desc="Tạm dừng để bạn xem và sửa lời đọc trước khi AI dựng video." />
+              <ExpandableToggle
+                checked={settings.refinePasses > 0}
+                onChange={(v) => { onUpdate({ refinePasses: v ? DEFAULT_REFINE_PASSES : 0 }); if (v) setRefineExpanded(true); }}
+                expanded={refineExpanded}
+                onToggleExpanded={() => setRefineExpanded((e) => !e)}
+                title="Tự tinh chỉnh hình ảnh bằng AI"
+                desc="Trước bản nháp đầu, AI xem ảnh từng cảnh và tự sửa lỗi bố cục. Cần model nhìn được ảnh.">
+                {settings.refinePasses > 0 && (
+                  <>
+                    <NumberRow value={settings.refinePasses} min={1} max={5} indent
+                      onChange={(v) => onUpdate({ refinePasses: v })}
+                      title="Số lần tinh chỉnh"
+                      desc="Số lượt AI nhìn ảnh và sửa lại tối đa." />
+                    <Toggle checked={settings.refineEarlyStop} onChange={(v) => onUpdate({ refineEarlyStop: v })} indent
+                      title="Dừng sớm khi đã ổn định"
+                      desc="Dừng khi hai lượt liên tiếp không còn lỗi, thay vì luôn chạy đủ số lần." />
+                  </>
+                )}
+              </ExpandableToggle>
               <Toggle checked={settings.imageCrawlAiFilter} onChange={(v) => onUpdate({ imageCrawlAiFilter: v })}
                 title="AI tự chọn ảnh từ bài báo"
-                desc="Khi yêu cầu có đường dẫn, AI xem các ảnh cào được từ bài và chọn sẵn ảnh phù hợp nội dung — cần model nhìn được ảnh." />
+                desc="Khi yêu cầu có đường dẫn bài báo, AI chọn sẵn ảnh phù hợp nội dung. Cần model nhìn được ảnh." />
               <Toggle checked={settings.imageCrawlHumanReview} onChange={(v) => onUpdate({ imageCrawlHumanReview: v })}
                 title="Cho tôi duyệt ảnh trước khi dựng"
-                desc="Hiện màn chọn ảnh cào từ bài báo để bạn xác nhận trước khi AI viết kịch bản. Tắt thì dùng luôn lựa chọn của AI." />
-              <div style={{ borderTop: "1px solid var(--border)", paddingTop: 14, marginTop: 4 }}>
-                <span style={{ fontSize: 12, color: "var(--muted-foreground)" }}>Thư mục lưu dự án</span>
-                <p style={{ margin: "4px 0 0", fontSize: 13, fontFamily: "var(--font-mono, monospace)", color: "var(--foreground)", wordBreak: "break-all" }}>{settings.outputDir || "(mặc định)"}</p>
-              </div>
+                desc="Hiện màn chọn ảnh cào từ bài báo để bạn xác nhận trước khi AI viết kịch bản." />
             </SettingsCard>
           )}
 
           {tab === "about" && (
-            <SettingsCard title="Giới thiệu" desc="News Studio — xưởng dựng video tin tức ngắn 9:16 bằng AI.">
-              <Field label="Phiên bản">
-                <span style={{ fontSize: 14 }}>News Studio 0.1.0</span>
-              </Field>
-              <Field label="Dịch vụ AI" hint="Đăng nhập tài khoản nhà cung cấp được uỷ quyền cho 9Router; News Studio không lưu mật khẩu của bạn.">
-                <span style={{ fontSize: 14 }}>9Router · localhost:20128</span>
-              </Field>
-              <p style={{ margin: 0, fontSize: 12, color: "var(--muted-foreground)", lineHeight: 1.6 }}>
-                Bản dev dùng mã kích hoạt <strong style={{ color: "var(--foreground)" }}>123</strong>. Mọi dự án &amp; bản dựng lưu cục bộ trong thư mục dự án.
-              </p>
+            <SettingsCard title="Giới thiệu" desc="News Studio dựng video tin tức ngắn 9:16 bằng AI.">
+              <InfoRow label="Phiên bản" value="News Studio 0.1.0" />
+              <InfoRow label="Dịch vụ AI" value="9Router · localhost:20128"
+                hint="Đăng nhập tài khoản nhà cung cấp được uỷ quyền cho 9Router. News Studio không lưu mật khẩu của bạn." />
+              <InfoRow label="Mã kích hoạt (bản dev)" value="123" />
+              <InfoRow label="Thư mục lưu dự án" value={settings.outputDir || "(mặc định)"} mono />
             </SettingsCard>
           )}
         </div>

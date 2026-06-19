@@ -2,6 +2,13 @@
 
 - **Status**: Accepted (2026-06-14). Khoá quyết định D2.
 - **Supersedes**: PICK-mode / template-kit (di sản `render-pipeline`, đã gỡ).
+- **Amended (2026-06-17, hiện hành)**: AUTHOR mode vẫn giữ, nhưng **thư viện
+  layout-block đã bị XOÁ khỏi authored-facing surface** (owner phê duyệt) vì tái
+  dùng block khiến mọi video trông một khuôn. Whitelist authored hiện là
+  `react`/`remotion`/`@news/compositions`/`zod` — KHÔNG còn `@news/blocks`/
+  `@news/theme`. Mỗi scene là JSX/SVG trần viết tay; ngoại lệ duy nhất là
+  `SceneImage` (qua `@news/compositions`) cho tính năng ảnh. `@news/blocks` vẫn
+  tồn tại như runtime internals cho composition/captions/probe/fonts.
 
 ## Context
 
@@ -20,18 +27,20 @@ ad-hoc + scraping yếu + silent catch, không phải ở paradigm (xem [ADR-005
 
 ## Decision
 
-Mỗi video, AI viết brand-new `.tsx` scene module dưới `projects/<id>/authored/`.
-Không có catalog template, không có PICK mode. Một scene chỉ vào được render sau
-khi qua **admission gate** (`admitAuthoredComponent`, AST tĩnh — N4/N5):
+Mỗi video, AI viết brand-new `.tsx` scene module dưới
+`VIDEO_TOOL_HOME/.video-tool/projects/<id>/authored/`. Không có catalog template,
+không có PICK mode. Một scene chỉ vào được render sau khi qua **admission gate**
+(`admitAuthoredComponent`, AST tĩnh — N4/N5):
 
-- import whitelist (`react`, `remotion`, `@news/design`, `@news/blocks`,
-  `@news/compositions`, `zod`),
+- import whitelist (`react`, `remotion`, `@news/compositions`, `zod`),
 - banned-API blacklist (`Math.random`, `Date`, `fetch`, `eval`, `fs`, …),
 - required exports (`default` = `registerComponent(...)`, `schema`, `example`),
 - `registerComponent({ id })` với id là **literal string**.
 
-Scene compose `@news/blocks` cho text/structure và viết bespoke SVG/CSS cho hình
-ảnh. Một scene text/list thuần là lựa chọn hợp lệ hạng nhất.
+Scene tự dựng text/structure/visual bằng raw JSX/SVG/CSS. Một scene text/list
+thuần là lựa chọn hợp lệ hạng nhất. Nếu scene có ảnh local do user/crawler cung
+cấp, nó dùng `SceneImage` import từ `@news/compositions`; không dùng `<img>`,
+`Img`, `staticFile`, URL, hay import `@news/blocks`.
 
 ## Consequences
 

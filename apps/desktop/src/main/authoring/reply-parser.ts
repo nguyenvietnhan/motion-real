@@ -36,13 +36,71 @@ export function extractFences(text: string): Fence[] {
   const re = /```([a-zA-Z0-9_-]*)[ \t]*\r?\n([\s\S]*?)```/g;
   const out: Fence[] = [];
   let m: RegExpExecArray | null;
+  let lastIndex = 0;
   while ((m = re.exec(text)) !== null) {
     out.push({ lang: (m[1] ?? "").toLowerCase(), body: m[2] ?? "" });
+    lastIndex = re.lastIndex;
+  }
+  // Recover a final UNCLOSED fence (freeform-engine R3.3). A reply truncated
+  // mid-code-block — the model hit the provider's output-token cap and the
+  // gateway's finish_reason:"length" stitching couldn't fully close it (passes
+  // exhausted, or the provider never reported "length") — leaves an opening ```
+  // with no closing ```. The closed-fence regex above sees ZERO blocks, so the
+  // whole reply parses as "no-code" and a reauthor silently keeps the old scene
+  // (the `scene-03` symptom in the wild). Since the loop consumed every COMPLETE
+  // fence, any opener after `lastIndex` provably has no closing delimiter, so the
+  // remainder to EOF is the (truncated) block body. A module whose
+  // `registerComponent` survived the cut is thereby recovered instead of dropped;
+  // one cut before `registerComponent` still fails the caller's filter → no-code
+  // (correctly keeping the prior scene, never accepting half a module).
+  const opener = /```([a-zA-Z0-9_-]*)[ \t]*\r?\n/g;
+  opener.lastIndex = lastIndex;
+  const o = opener.exec(text);
+  if (o) {
+    out.push({ lang: (o[1] ?? "").toLowerCase(), body: text.slice(opener.lastIndex) });
   }
   return out;
 }
 
 const TSX_LANGS = new Set(["tsx", "ts", "jsx", "typescript", "javascript", ""]);
+
+/** A fenced code block carrying an authored module (right lang + a registerComponent call). */
+function isCodeFence(f: Fence): boolean {
+  return TSX_LANGS.has(f.lang) && /registerComponent\s*[<(]/.test(f.body);
+}
+
+/**
+ * Recover authored modules a model returned WITHOUT any ```tsx fence (it emitted
+ * the raw code straight, e.g. a reauthor reply that began `// component: …` with
+ * no code fence at all — the `scene-13` symptom in the wild). The unclosed-fence
+ * recovery in `extractFences` only fires when an OPENING ``` exists; with no fence
+ * at all it sees zero blocks → "no-code" → the scene silently keeps its old code.
+ *
+ * Each `// component: <id>` marker (on its own line) starts a bare module that
+ * runs to the next marker (or EOF). The manifest (which carries no marker) sits
+ * before the first marker and is excluded. Returned blocks still pass through
+ * `isCodeFence` + `resolveModuleId`, so a fragment cut before its
+ * `registerComponent` literal is still rejected — we never accept half a module.
+ */
+function extractBareModules(text: string): Fence[] {
+  const markerRe = /^[ \t]*\/\/[ \t]*component:[ \t]*[a-z][a-z0-9-]*[ \t]*$/gim;
+  const starts: number[] = [];
+  let m: RegExpExecArray | null;
+  while ((m = markerRe.exec(text)) !== null) starts.push(m.index);
+  if (starts.length === 0) return [];
+  return starts.map((start, i) => ({ lang: "tsx", body: text.slice(start, starts[i + 1] ?? text.length) }));
+}
+
+/**
+ * Code blocks carrying an authored module: fenced first, and — only when the
+ * model emitted NO fenced code at all — bare `// component:`-marked modules as a
+ * fallback. Keeping the fence path first means a normal reply is unaffected.
+ */
+function codeBlocks(text: string, fences: Fence[]): Fence[] {
+  const fenced = fences.filter(isCodeFence);
+  if (fenced.length > 0) return fenced;
+  return extractBareModules(text).filter(isCodeFence);
+}
 
 /** First `// component: <id>` marker line in a code block, if present. */
 function markerId(code: string): string | null {
@@ -156,7 +214,7 @@ export function parseAuthorReply(text: string): ParsedAuthorReply {
   const manifest = parsed.data;
 
   // --- (2) code blocks ---
-  const codeFences = fences.filter((f) => TSX_LANGS.has(f.lang) && /registerComponent\s*[<(]/.test(f.body));
+  const codeFences = codeBlocks(text, fences);
   if (codeFences.length === 0) return { ok: false, reason: "no-code", detail: "không có khối .tsx nào trong reply" };
 
   const byId = new Map<string, string>();
@@ -180,9 +238,7 @@ export function parseAuthorReply(text: string): ParsedAuthorReply {
 
 /** Parse a reauthor reply: exactly one .tsx block whose id literal === expectId. */
 export function parseReauthorReply(text: string, expectId: string): ParsedReauthorReply {
-  const codeFences = extractFences(text).filter(
-    (f) => TSX_LANGS.has(f.lang) && /registerComponent\s*[<(]/.test(f.body),
-  );
+  const codeFences = codeBlocks(text, extractFences(text));
   if (codeFences.length === 0) return { ok: false, reason: "no-code", detail: "reply không có khối .tsx" };
   if (codeFences.length > 1) {
     return { ok: false, reason: "id-mismatch", detail: `reply có ${codeFences.length} khối code, cần đúng 1` };

@@ -1,6 +1,7 @@
 import React from "react";
 import type { AiAccountState, GatewayState } from "../../shared/types.js";
 import { Icon } from "../icons.js";
+import { activeAccount } from "../../shared/active-account.js";
 import { aiStatus, type Screen } from "../primitives.js";
 
 /** Left navigation rail + AI status card. */
@@ -11,6 +12,11 @@ export const Sidebar: React.FC<{
   onNavigate: (s: Screen) => void;
 }> = ({ active, gateway, account, onNavigate }) => {
   const s = aiStatus(gateway, account);
+  // Mirror the settings account card: show the email's initial once connected
+  // (the spark glyph only stands in while there's no account yet), so the two
+  // avatars read as the same identity.
+  const acct = activeAccount(account);
+  const initial = acct?.label.trim().charAt(0).toUpperCase() || "";
   const NavItem = (id: Screen, label: string, icon: React.ReactNode) => (
     <button className={`ns-nav${active === id ? " active" : ""}`} onClick={() => onNavigate(id)}>
       {icon}
@@ -33,7 +39,7 @@ export const Sidebar: React.FC<{
       </nav>
       <button className="ns-account" onClick={() => onNavigate("settings")} title="Trạng thái dịch vụ AI">
         <span className="ns-account-avatar">
-          {Icon.spark({ size: 15 })}
+          {initial ? <span className="ns-avatar-initial">{initial}</span> : Icon.spark({ size: 15 })}
           <span className="ns-account-status" style={{ background: s.color }} />
         </span>
         <span className="ns-account-info">

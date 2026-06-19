@@ -1,11 +1,20 @@
 # CLAUDE.md — news_remotion_tool
 
-This project turns a Vietnamese-language prompt into a finished 9:16 short-form
-news MP4. The AI **authors brand-new Remotion (React) scene components for every
-video** (pure AUTHOR mode), composing a small library of reusable, slot-based
-**layout blocks** (`@news/blocks`) for on-brand consistency. Visual diversity is
-unbounded code; quality stays stable through an enumerated **safety grid
-(N1–N30)**.
+This project turns a Vietnamese prompt or URL into a publishable Remotion MP4.
+The production-hardened path is TikTok/Reels/Shorts-style 9:16; the freeform
+engine has format plumbing for YouTube-style 16:9 (schema geometry, prompt
+budgeting, caption-off composition behavior, and format-aware thumbnails), but
+the full YouTube author-by-segment / true long-form render path is still the
+pending Group J work in `docs/specs/freeform-engine/tasks.md`.
+
+The AI **authors brand-new Remotion (React) scene components for every video**
+(pure AUTHOR mode), writing every scene as raw JSX/SVG — there is NO layout-block
+toolkit to compose (the slot-based blocks were deleted; the AI grew monotonous
+reusing them). The ONE authored-facing import beyond react/remotion/zod is
+`<SceneImage>` (via `@news/compositions`), which keeps the user-attached +
+crawled-image feature alive. Visual diversity is unbounded code; quality stays
+stable through an enumerated **safety grid (N1–N30)** plus the hidden
+stills/vision refine loop in the desktop flow.
 
 > This file is the always-on, self-sufficient contract for any agent working in
 > this repo — its rules are binding on their own.
@@ -20,67 +29,81 @@ unbounded code; quality stays stable through an enumerated **safety grid
 - `docs/architecture.md` — current-state architecture, package map, data flow,
   god-file map → `docs/refactor-backlog.md`.
 - `docs/authoring-contract.md` — the authoring contract (required exports, import
-  whitelist, banned APIs, blocks, layout zones, design rules).
+  whitelist, banned APIs, the SceneImage exception, layout zones, design rules).
 - `docs/visualization-playbook.md` — the menu of visual FORMS per content shape.
 - `docs/ai-content-guide.md` — the content contract the authoring AI must follow.
 - `docs/design-language.md` — the LOOK every authored scene must follow.
 - `docs/adr/` — architecture decision records (the why behind the structure).
-- `packages/blocks/src/index.ts` — the slot-based blocks authored scenes compose.
-- `packages/compositions/src/registry.ts` — the registry contract.
+- `packages/compositions/src/index.ts` — the registry + the one authored-facing
+  import (`SceneImage`); `registry.ts` is the registration contract.
 
 ## 2. Architecture (one orchestration package: `@news/pipeline`)
 
 ```
-Topic -> AI authors scenes .tsx + manifest.json
+Topic/URL -> AI authors scenes .tsx + manifest.json
+-> desktop hidden stills loop (optional refinePasses: blind stills -> creative
+   bootstrap -> vision QA over stills) -> user sees only the refined draft path
 -> admission gate (N4/N5) -> manifest->VideoSpec -> static grid (N1-N9)
 -> Vivibe TTS (+ breath gaps + SRT) -> lockSpec (transition-aware, caption cues)
 -> build grid (N10-N13) -> determinism guard (N16)
--> Remotion render (TransitionSeries + caption track) -> MP4
+-> Remotion render (TransitionSeries + TikTok caption track) -> MP4
 -> render oracles (N14, N18-N22, N28-N30; N15/N17 over measured layouts; N23 exported, not auto-run) -> review loop (N24-N25) -> done
 ```
 
 | Package | Role |
 | --- | --- |
-| `@news/schema` | Renderer-agnostic `VideoSpec`/`LockedVideoSpec`, timing consts, layout zones, `CaptionCue`, free-pacing validation |
-| `@news/design` | Multi-language design system: `core.ts` (color math + token model) ← `languages/*.ts` (self-contained looks) ← `style-packs.ts` (registry + `makeTheme`) |
-| `@news/blocks` | Slot-based layout blocks (Frame, Content, Story, TitleBlock, Panel, IdeaPanel, KeyPoints, Callout, StatChip/StatBlock/CountUp/BarChart, SceneImage, Captions) + surface-kit + theme context + motion |
-| `@news/compositions` | Registry + master `VideoComposition` (TransitionSeries + caption overlay); NO built-in templates |
+| `@news/schema` | Renderer-agnostic `VideoSpec`/`LockedVideoSpec`, timing consts, format geometry (`tiktok` 1080×1920 + `youtube` 1920×1080), layout zones, `CaptionCue`, duration tiers, free-pacing validation |
+| `@news/theme` | One NEUTRAL theme (post-freeform-pivot; replaced the deleted multi-language `@news/design`): `theme.ts` holds the `Theme` shape + a 2-layer cross-model defense (typed aliases + Proxy fallback) so the render runtime + `SceneImage` resolve `useTheme()`; OFF the authored import whitelist (authored scenes hard-code all visuals) |
+| `@news/blocks` | Render RUNTIME internals consumed by `@news/compositions` (NOT authored-facing): Captions, layout-probe, scene-timing, motion, theme-context, chrome surface-kit, fonts — plus the single authored-facing survivor `SceneImage`, re-exported through `@news/compositions`. The slot-based layout blocks (Frame/TitleBlock/KeyPoints/Panel/Story/…) were DELETED; do not re-add them |
+| `@news/compositions` | Registry + master `VideoComposition` (TransitionSeries + TikTok caption overlay; caption/divider omitted for `format:"youtube"`); `ThumbnailComposition`; NO built-in templates |
 | `@news/tts` | Vivibe/LucyLab client, audio measure/concat-with-gaps/mix, SRT capture |
-| `@news/pipeline` | authoring/admission + manifest, ingest, tts, captions, lock, sfx, store, cache, determinism, renderer, review, orchestrator, cli, safety grid |
+| `@news/pipeline` | authoring/admission + manifest, ingest, tts, captions, lock, BGM resolution/mix handoff, thumbnails, no-TTS still renders, sfx, store, cache, determinism, renderer, review, orchestrator, cli, safety grid |
 | `@news/mcp` | MCP server exposing the pipeline as tools |
 | `apps/remotion` | Remotion root, sample fixture, studio/render entry |
-| `apps/desktop` | Electron desktop app (create/workspace/settings UI, 9router gateway, license manager) wrapping the pipeline |
+| `apps/desktop` | Electron desktop app (create/workspace/settings UI, format/tier/title-language picker, hidden stills/vision refine loop, BGM + thumbnail UI, 9router gateway, license manager) wrapping the pipeline |
 
 ## 3. The Safety Grid (N1–N30)
 
-Hard errors block lock/render/done; warnings are advisory. Every check ships
-with a **non-vacuous self-test** (a known-bad fixture proving it fires) — when a
-new defect class is found by eye, graduate it into a new oracle + self-test.
+Hard errors block lock/render/done only for admission/security and
+render-integrity classes; warnings are advisory and feed the refine loop. Every
+check ships with a **non-vacuous self-test** (a known-bad fixture proving it
+fires) — when a new defect class is found by eye, graduate it into a new oracle +
+self-test.
 
 - Tier 1 static lint (pre-TTS): N1 structure (free pacing), N2 unknown component,
   N3 per-component Zod props, N4 authored-import whitelist, N5 forbidden API,
   N6/N7 phonetics/spaced abbreviations, N8 number rules, N9 evidence-gate/media
-  bans, N26 hook quality, N27 CTA quality.
-- Tier 2 build/type (pre-render): N10 typecheck, N11 bundle, N12 locked timing, N13 scene audio.
-- Tier 3 render oracles (post-render). Auto-run on every render: N14 content-zone/caption-clearance
-  (hard), N16 determinism (hard), N18 contrast/font, N19 dead-air, N20 pacing,
-  N21 transition/flicker, N22 audio-sync, N28 duration target, N29 captions, N30
-  content density (advisory). Also auto-run over a measure pass: N15 overlap and
-  N17 truncation (WARNINGS). Exported + self-tested but NOT auto-run: N23 richness.
+  bans, N26 hook quality, N27 CTA quality. In the current freeform pivot, N3,
+  N6/N7, N8, N26, and N27 are advisory warnings; N4/N5, N2, N9, duplicate
+  scene-id, and empty spec remain blocking.
+- Tier 2 build/type (pre-render): N10 authored typecheck (hard for crash /
+  SceneFallback-prone diagnostics; warning only for known runtime-safe slips),
+  N11 bundle, N12 locked timing, N13 scene audio.
+- Tier 3 render oracles (post-render). Auto-run on every render: N14 layout
+  (content-zone/caption-clearance/safe-area + format-aware `checkInFrame`), N16
+  determinism, N18 contrast/font, N19 dead-air, N20 pacing, N21 transition/flicker,
+  N22 audio-sync, N28 duration target, N29 captions, N30 content density. Also
+  auto-run over a measure pass: N15 overlap and N17 truncation. Exported +
+  self-tested but NOT auto-run: N23 richness. **Post-freeform-pivot (R2): the hard
+  gates are admission/security (N4/N5) plus render-integrity (N2/N9/N10
+  crash-class/N11/N12/N13/N16, dup scene-id, empty spec). N14 and every other
+  layout/aesthetic oracle is now an advisory WARNING the refine loop reads —
+  they no longer block render/done.**
 - Tier 4 review loop (before "done"): N24 keyframes/contact sheet, N25 self-critique checklist.
 
 ## 4. AI Authority Model
 
 - **Pure AUTHOR mode:** for every video the AI writes new `.tsx` scene modules
   under `projects/<id>/authored/`. Each is admitted only through
-  `admitAuthoredComponent` (AST gate: import whitelist incl. `@news/blocks` +
-  banned-API blacklist + required `default`/`schema`/`example` exports, N4/N5),
-  then self-registers via a registration handshake. A manifest may reference an
-  authored id only after admission. Authored scene code runs only inside the
-  Remotion render context.
-- There is NO PICK mode and no fixed template catalog. Scenes compose
-  `@news/blocks` for text/structure and author bespoke code only for imagery; a
-  plain text/list scene is a valid first-class choice.
+  `admitAuthoredComponent` (AST gate: import whitelist `react`/`remotion`/
+  `@news/compositions`/`zod` + banned-API blacklist + required `default`/`schema`/
+  `example` exports, N4/N5), then self-registers via a registration handshake. A
+  manifest may reference an authored id only after admission. Authored scene code
+  runs only inside the Remotion render context.
+- There is NO PICK mode, no fixed template catalog, and NO layout-block toolkit.
+  Every scene is bespoke JSX/SVG the AI writes by hand; a plain text/list scene is
+  a valid first-class choice. The only non-react/remotion import a scene may use is
+  `import { SceneImage } from "@news/compositions"` (the image feature).
 
 ## 5. Authoring & render — the reliable path
 
@@ -103,37 +126,45 @@ can resolve a SECOND registry instance ("not found" errors).
 
 Follow `docs/ai-content-guide.md` exactly. Highlights:
 
-- Output a valid manifest: `version:1`, `styleId:"clean-luxury-tech"` (a FIXED
-  format discriminator — not the look), `ratio:"9:16"`, `language:"vi"`;
-  sequential `scene-NN` ids. The selectable LOOK is `theme.stylePackId`
-  (`"bold-editorial"` default, `"galaxy"`, …). **Free pacing**: scene count and
-  total duration are NOT fixed presets.
+- Output a valid AUTHOR manifest: `title`, optional `hashtags`, `theme.dominant`,
+  and ordered scenes with sequential `scene-NN` ids. The desktop backend injects
+  `format`, `durationTier`, and `titleLanguage` from the user's UI choice; the
+  pipeline converts the manifest to `VideoSpec` with `version:1`,
+  `styleId:"clean-luxury-tech"` (legacy discriminator, not a look), `ratio`
+  derived from format, and `language:"vi"`. Post-freeform-pivot there is NO
+  selectable style/look (the multi-language `@news/design` was deleted); a single
+  neutral `@news/theme` exists only so render runtime + `SceneImage` resolve.
+  **Free pacing**: scene count and total duration are NOT fixed presets.
 - Open scene-01 with a direct hook (no greeting/definition); end with a
   topic-specific CTA (no generic subscribe/like/follow).
 - Never **fabricate** specifics — sources, dates, prices, percentages,
   benchmarks, quotes (evidence gate, N9). When unsure of a number, show the idea
   without inventing a figure.
-- **Captions are REQUIRED** and generated centrally from each scene's `narration`
-  (timed from the TTS SRT), burned in as word-paged karaoke. Do NOT put caption
-  text in scene props.
+- **Captions are generated centrally** from each scene's `narration` (timed from
+  the TTS SRT). TikTok renders burned-in word-paged karaoke captions; the
+  YouTube-format composition omits the burned caption layer because the platform
+  path is intended to use native captions. Do NOT put caption text in scene props.
 - No media payloads: the ban is ONLY real/external assets (photos, screenshots,
   logos, uploads, image/video URLs, auto-fetch). Anything you DRAW in SVG/CSS is
   allowed and ENCOURAGED.
-- **Layout**: primary content in the upper **content zone** (compose `Content`);
-  bottom **caption band** + **platform-UI reserve** stay clear. A global black
-  divider is drawn at the content-zone bottom; content creeping below it is a hard
-  N14 error.
-- **Design language**: read EVERY visual decision from `useTheme()` — colors,
-  corners, surface grammar, backdrop — and NEVER hard-code a color, corner,
-  border, or shadow. See `docs/design-language.md`.
+- **Layout**: keep primary content in the upper **content zone**; leave the
+  bottom **caption band** + **platform-UI reserve** clear so the burned captions
+  read. This is advisory now (N14 is a WARNING, not a hard gate) — refine uses it
+  to spot a scene that flew off-frame; it never blocks the render. There is no
+  visible divider line drawn.
+- **Design freedom**: the AI decides ALL visuals in scene code — own colors,
+  background, layout, corners, bespoke SVG/CSS — and MUST hard-code every value.
+  There is no layout-block toolkit and no theme/token to read; build each scene
+  from raw `<div>`/`<svg>`. See `docs/design-language.md`.
 - **Visualize diversely**: run EVERY scene through `docs/visualization-playbook.md`.
-  A video that is mostly the same `TitleBlock`+`KeyPoints`/`CountUp` is a FAIL.
+  A video where every scene is the same centered title + text panel is a FAIL —
+  turn ideas into self-drawn shapes (a big number, two columns, a metaphor).
 - **One idea per scene; don't overcrowd, don't leave sparse.** Condense narration
   to the essential sentence.
 - Vietnamese display + narration; brand/model names in English; no phonetic
   spellings or spaced abbreviations. **Write numbers as DIGITS** in BOTH display
   and narration. Dates as `ngày 5 tháng 6 năm 2026`; scale words in Vietnamese.
-- Do not manually number list/`KeyPoints` items; blocks add numbering.
+- Lists are hand-built; number items yourself in JSX if the list needs numbering.
 
 ## 7. Runtime Rules
 
@@ -218,3 +249,20 @@ These are enforceable, learned from the project's `fix(authoring)` churn:
 5. **Run `npm run typecheck` + `npx tsx scripts/test.ts` before every commit that
    touches `packages/pipeline/`, `packages/blocks/`, `packages/compositions/`, or
    `apps/desktop/src/main/authoring/`.**
+6. **STOP and ask the project owner before ANY change that constrains how the AI
+   authors scenes/videos.** The freeform pivot (R1/D2) deliberately UNCHAINED the
+   authoring AI: it decides ALL visuals in code and hard-codes every value. The
+   layout-block toolkit was DELETED (owner-approved 2026-06-17) because reusing it
+   made every video look the same — every scene is now bespoke JSX/SVG, with
+   `SceneImage` (via `@news/compositions`) the one authored-facing import. Do NOT
+   re-introduce a "read everything from the theme / never hard-code" leash, a
+   fixed look, a style catalog, a layout-block library, or a hard layout/aesthetic
+   gate, in the runtime contract (`apps/desktop/src/main/authoring/contract-text.ts`),
+   the prompt builder, the admission gate, an oracle's severity, or the docs. The
+   ONLY hard gates are admission/security (N4/N5) plus render-integrity
+   (N2/N9/N11/N12/N13/N16 + dup-id/empty-spec, per the freeform spec R2.1);
+   everything aesthetic is advisory. Tightening any of these is a product decision the owner has
+   explicitly reserved — explain the change and get sign-off first. (The owner's
+   per-style idea — separate backgrounds + design/prompt files chosen at
+   create-time — is GUIDANCE sent to the AI, not a constraint; it is future work,
+   not yet built.)

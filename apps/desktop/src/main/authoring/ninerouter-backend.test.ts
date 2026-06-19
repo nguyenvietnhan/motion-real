@@ -82,6 +82,24 @@ describe("authorScenes (pure-author)", () => {
     expect(manifest.scenes.map((s: { component: string }) => s.component)).toEqual(["alpha", "beta", "alpha"]);
   });
 
+  it("clears stale authored .tsx files before writing a fresh authoring batch", async () => {
+    const projectId = "pa-clears-stale";
+    const dir = authoredDir(projectId);
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, "orphan.tsx"), "this is not valid tsx");
+    writeFileSync(join(dir, "_entry.tsx"), "// generated entry must survive");
+    const { backend, admit } = makeBackend(validReply());
+    const job: AuthorJob = { projectId, input: { text: "chủ đề", urls: [] }, scriptGate: false };
+
+    await backend.authorScenes(job);
+
+    expect(admit).toHaveBeenCalledTimes(1);
+    expect(existsSync(join(dir, "orphan.tsx"))).toBe(false);
+    expect(existsSync(join(dir, "_entry.tsx"))).toBe(true);
+    expect(existsSync(join(dir, "alpha.tsx"))).toBe(true);
+    expect(existsSync(join(dir, "beta.tsx"))).toBe(true);
+  });
+
   it("invalid reply ⇒ {scenes:[]}, no admit call, no kit/.tsx written", async () => {
     const projectId = "pa-invalid";
     const { backend, admit } = makeBackend("xin lỗi, không có gì ở đây");
@@ -103,28 +121,37 @@ describe("authorScenes (pure-author)", () => {
     expect(out.message).toMatch(/model/i);
   });
 
-  it("injects the user-chosen stylePackId into the manifest theme (the AI never authors it)", async () => {
-    const projectId = "pa-style";
+  it("injects the user-chosen delivery knobs (format/tier/titleLanguage) into the manifest — the AI never authors them", async () => {
+    const projectId = "pa-delivery";
     const { backend } = makeBackend(validReply());
-    // galaxy is a registered pack; the AI's manifest carries only
-    // theme.dominant/mood, so the chosen pack must be injected by the backend.
-    const job: AuthorJob = { projectId, input: { text: "chủ đề", urls: [], stylePackId: "galaxy" }, scriptGate: false };
+    // The model's manifest carries only theme + scenes; the create-screen knobs
+    // (format/durationTier/titleLanguage) are injected by the backend so the
+    // canvas + word-budget + title language are the user's choice, not the AI's.
+    const job: AuthorJob = {
+      projectId,
+      input: { text: "chủ đề", urls: [], format: "youtube", durationTier: 2, titleLanguage: "en" },
+      scriptGate: false,
+    };
 
     await backend.authorScenes(job);
 
     const manifest = JSON.parse(readFileSync(join(home, ".video-tool", "projects", projectId, "manifest.json"), "utf8"));
-    expect(manifest.theme.stylePackId).toBe("galaxy");
+    expect(manifest.format).toBe("youtube");
+    expect(manifest.durationTier).toBe(2);
+    expect(manifest.titleLanguage).toBe("en");
   });
 
-  it("drops an UNREGISTERED stylePackId (falls back to the engine default, never trips N1)", async () => {
-    const projectId = "pa-style-bad";
+  it("omits the delivery knobs when none are chosen (manifest falls back to the engine defaults)", async () => {
+    const projectId = "pa-delivery-default";
     const { backend } = makeBackend(validReply());
-    const job: AuthorJob = { projectId, input: { text: "chủ đề", urls: [], stylePackId: "does-not-exist" }, scriptGate: false };
+    const job: AuthorJob = { projectId, input: { text: "chủ đề", urls: [] }, scriptGate: false };
 
     await backend.authorScenes(job);
 
     const manifest = JSON.parse(readFileSync(join(home, ".video-tool", "projects", projectId, "manifest.json"), "utf8"));
-    expect(manifest.theme.stylePackId).toBeUndefined();
+    expect(manifest.format).toBeUndefined();
+    expect(manifest.durationTier).toBeUndefined();
+    expect(manifest.titleLanguage).toBeUndefined();
   });
 
   it("keeps a provided image.ref on a scene and STRIPS an invented one (Phase 2 Block A)", async () => {
@@ -288,9 +315,15 @@ describe("reauthor (self-repair)", () => {
         ? { ok: false, violations: [{ check: "N4", severity: "error", path: authoredPath, message: 'No matching export for import "useTheme"' }] }
         : { ok: true, componentId: "alpha" };
     };
-    const out = await backendForReauthor(newBlock(), admitOne).reauthor(projectId, [{ sceneId: "scene-01", intent: "đổi nền xanh" }]);
+    const messages: ChatMessage[] = [];
+    const out = await backendForReauthor(newBlock(), admitOne, messages).reauthor(projectId, [{ sceneId: "scene-01", intent: "đổi nền xanh" }]);
     expect(out.scenes.map((s) => s.sceneId)).toEqual(["scene-01"]);
     expect(calls).toBe(2); // first admit failed, retry admit succeeded
+    const retryUserText = messages.filter((m) => m.role === "user").at(-1)!.content as string;
+    expect(retryUserText).toContain("chỉ import react, remotion, zod, @news/compositions");
+    expect(retryUserText).toContain("TSX parse được");
+    expect(retryUserText).not.toContain("useTheme/surfaceBorder");
+    expect(retryUserText).not.toContain('nhập từ "@news/blocks"');
   });
 
   it("needsVision: N14 attaches the still as an image part; other issues do not", async () => {

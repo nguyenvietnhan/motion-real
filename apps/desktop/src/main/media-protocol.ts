@@ -1,7 +1,7 @@
 import { protocol } from "electron";
 import { createReadStream } from "node:fs";
 import { stat } from "node:fs/promises";
-import { extname } from "node:path";
+import { extname, isAbsolute, relative, resolve } from "node:path";
 import { Readable } from "node:stream";
 import { videoToolHome } from "@news/pipeline";
 
@@ -60,12 +60,20 @@ export function handleMediaProtocol(): void {
   protocol.handle(SCHEME, async (request) => {
     try {
       const encoded = new URL(request.url).pathname.replace(/^\//, "");
-      const abs = decodeURIComponent(encoded);
+      const requested = decodeURIComponent(encoded);
       // Containment: only serve files under the .video-tool home — never an
       // arbitrary absolute path (defense-in-depth against a crafted media:// URL).
-      const root = videoToolHome().replace(/\\/g, "/").toLowerCase();
-      const norm = abs.replace(/\\/g, "/").toLowerCase();
-      if (norm !== root && !norm.startsWith(root.endsWith("/") ? root : `${root}/`)) {
+      // A raw `startsWith` on the un-normalized string is bypassable: a URL like
+      // `media://file/<home>/../../Windows/win.ini` literally starts with `<home>`
+      // yet `createReadStream` resolves the `..` at the fs layer and reads outside
+      // the sandbox. So resolve BOTH paths and compare via `path.relative` — if the
+      // target sits outside root, the relative path starts with `..` (or is an
+      // absolute path on another drive), and we refuse.
+      const abs = resolve(requested);
+      const root = resolve(videoToolHome());
+      const rel = relative(root, abs);
+      const contained = rel === "" || (!rel.startsWith("..") && !isAbsolute(rel));
+      if (!contained) {
         return new Response("Forbidden", { status: 403 });
       }
 

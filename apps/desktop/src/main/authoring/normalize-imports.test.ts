@@ -1,32 +1,42 @@
 import { describe, expect, it } from "vitest";
 import { normalizeAuthoredImports } from "./normalize-imports.js";
 
-describe("normalizeAuthoredImports", () => {
-  it("moves a misplaced useTheme from @news/design to @news/blocks", () => {
-    const out = normalizeAuthoredImports(`import { useTheme } from "@news/design";`);
-    expect(out).toBe(`import { useTheme } from "@news/blocks";`);
+describe("normalizeAuthoredImports — SceneImage re-home", () => {
+  // Post-block-removal: @news/blocks + @news/theme are off the authored whitelist.
+  // The ONE authored-facing survivor, SceneImage, lives behind @news/compositions.
+  // The model trained on the old contract still writes it from @news/blocks, so
+  // re-home ONLY SceneImage; every other (now-deleted) block symbol is left to
+  // fail N4, which is correct — the model must rewrite it as raw JSX.
+  it("re-homes a bare SceneImage import from @news/blocks to @news/compositions", () => {
+    const out = normalizeAuthoredImports(`import { SceneImage } from "@news/blocks";`);
+    expect(out).toBe(`import { SceneImage } from "@news/compositions";`);
   });
 
-  it("splits a mixed import, keeping real @news/design symbols there", () => {
-    const out = normalizeAuthoredImports(`import { useTheme, PRINT, onColor, frameRamp } from "@news/design";`);
-    expect(out).toContain(`import { useTheme, frameRamp } from "@news/blocks";`);
-    expect(out).toContain(`import { PRINT, onColor } from "@news/design";`);
+  it("re-homes SceneImage from @news/theme too", () => {
+    const out = normalizeAuthoredImports(`import { SceneImage } from "@news/theme";`);
+    expect(out).toBe(`import { SceneImage } from "@news/compositions";`);
   });
 
-  it("leaves a correct @news/design import untouched", () => {
-    const code = `import { PRINT, withAlpha } from "@news/design";`;
-    expect(normalizeAuthoredImports(code)).toBe(code);
+  it("pulls SceneImage onto @news/compositions but leaves the dead block symbols to fail N4", () => {
+    // A mixed import: SceneImage is rescued; Frame/TitleBlock are NOT (those blocks
+    // were deleted) — they stay on the now-dead @news/blocks line so N4 still flags
+    // them and the model is forced to drop them, rather than silently vanishing.
+    const out = normalizeAuthoredImports(`import { Frame, SceneImage, TitleBlock } from "@news/blocks";`);
+    expect(out).toContain(`import { SceneImage } from "@news/compositions";`);
+    expect(out).toContain(`Frame`);
+    expect(out).toContain(`TitleBlock`);
+    expect(out).toContain(`"@news/blocks"`); // the leftover (to-fail-N4) line is kept
   });
 
-  it("leaves a correct @news/blocks import untouched", () => {
+  it("leaves an import with no SceneImage untouched (nothing to rescue)", () => {
     const code = `import { Frame, Story, useTheme } from "@news/blocks";`;
     expect(normalizeAuthoredImports(code)).toBe(code);
   });
 
-  it("handles `type` clauses and aliases", () => {
-    const out = normalizeAuthoredImports(`import { type Tone, withAlpha } from "@news/design";`);
-    expect(out).toContain(`import { type Tone } from "@news/blocks";`);
-    expect(out).toContain(`import { withAlpha } from "@news/design";`);
+  it("handles a `type`/alias clause when rescuing SceneImage", () => {
+    const out = normalizeAuthoredImports(`import { SceneImage, type Foo } from "@news/blocks";`);
+    expect(out).toContain(`import { SceneImage } from "@news/compositions";`);
+    expect(out).toContain(`type Foo`);
   });
 
   // The model trained on an old Remotion API keeps importing `Extrapolate` (an

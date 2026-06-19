@@ -5,7 +5,7 @@ import { parseArgs } from "node:util";
 import { pathToFileURL } from "node:url";
 
 import { listComponents } from "@news/compositions";
-import { getStylePack, listStylePackIds } from "@news/design";
+import { getStylePack, listStylePackIds } from "@news/theme";
 import { fontCoverageReport } from "@news/blocks";
 import { defaultVivibeVoiceId, vivibeApiKey } from "@news/tts";
 import type { TtsProvider } from "../types.js";
@@ -433,18 +433,16 @@ function defaultCheckRegistry(): DoctorCheck {
   };
 }
 
-/** R6.1: the style-pack registry resolves and ships the required packs. */
+/** R6.1: the neutral theme resolves (the multi-language registry was retired). */
 export function defaultCheckStylePacks(): DoctorCheck {
-  const required = ["bold-editorial", "galaxy"];
   const ids = listStylePackIds();
-  const missing = required.filter((id) => !getStylePack(id));
+  const ok = ids.length > 0 && !!getStylePack(ids[0]);
   return {
     name: "style packs",
-    ok: missing.length === 0,
-    detail:
-      missing.length === 0
-        ? `${ids.length} pack(s): ${ids.join(", ")}`
-        : `missing required style pack(s): ${missing.join(", ")} (registered: ${ids.join(", ") || "none"})`,
+    ok,
+    detail: ok
+      ? `${ids.length} theme(s): ${ids.join(", ")}`
+      : "no theme registered (the neutral theme failed to resolve)",
   };
 }
 

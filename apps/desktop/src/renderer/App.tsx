@@ -3,7 +3,7 @@ import { HomeView, LicenseView, ProjectsView, ProjectWorkspaceView, SettingsView
 import { reduceDesktop, type DesktopState } from "./state/desktop-state.js";
 import { aiReady } from "../shared/ai-ready.js";
 import { defaultSettings } from "../shared/settings-model.js";
-import type { LicenseState, ModelInfo, ProjectStage, StylePackVM } from "../shared/types.js";
+import type { BgmTrackVM, LicenseState, ModelInfo, ProjectStage } from "../shared/types.js";
 
 /**
  * Renderer root (web-dashboard) — enterprise shell: a left Sidebar + a content
@@ -31,7 +31,10 @@ export const App: React.FC = () => {
   const [openProjectId, setOpenProjectId] = useState<string | null>(null);
   const [stage, setStage] = useState<ProjectStage>({ kind: "writing" });
   const [createError, setCreateError] = useState<string>("");
-  const [stylePacks, setStylePacks] = useState<StylePackVM[]>([]);
+  // BGM library (per-machine, shared) + the open project's current selection.
+  // Loaded when a workspace opens; the picker mutates the library then refreshes.
+  const [bgm, setBgm] = useState<BgmTrackVM[]>([]);
+  const [bgmSelected, setBgmSelected] = useState<string | null>(null);
 
   const dash = typeof window !== "undefined" ? window.dashboard : undefined;
   const ready = aiReady(gateway, account);
@@ -58,12 +61,6 @@ export const App: React.FC = () => {
     void (async () => {
       setLicense(await dash.license.get());
       setSettings(await dash.settings.get());
-      // Load the selectable style packs for the create-screen picker. Best-effort:
-      // a stale preload (method added this session) or a transient failure just
-      // leaves the picker empty — create still works with the engine default.
-      if (typeof dash.projects.listStylePacks === "function") {
-        void dash.projects.listStylePacks().then(setStylePacks).catch(() => {});
-      }
       dispatch({ type: "gallery", load: "loading", cards: [] });
       try {
         const cards = await dash.projects.list();
@@ -116,7 +113,7 @@ export const App: React.FC = () => {
     };
   }, []);
 
-  const refreshGallery = async () => {
+  const refreshGallery = useCallback(async () => {
     if (!dash) return;
     try {
       const cards = await dash.projects.list();
@@ -124,13 +121,31 @@ export const App: React.FC = () => {
     } catch {
       dispatch({ type: "gallery", load: "error", cards: [] });
     }
-  };
+  }, [dash]);
 
   const openProject = (projectId: string) => {
     setOpenProjectId(projectId);
     setStage({ kind: "writing" });
     setScreen("workspace");
   };
+
+  // Load the BGM library + this project's current selection when a workspace
+  // opens (and refresh the library on demand after add/remove). A failure leaves
+  // an empty library rather than crashing the workspace.
+  const refreshBgm = useCallback(async () => {
+    if (!dash) return;
+    try {
+      setBgm(await dash.bgm.list());
+    } catch {
+      setBgm([]);
+    }
+  }, [dash]);
+
+  useEffect(() => {
+    if (!dash || screen !== "workspace" || !openProjectId) return;
+    void refreshBgm();
+    void dash.bgm.getForProject(openProjectId).then(setBgmSelected).catch(() => setBgmSelected(null));
+  }, [dash, screen, openProjectId, refreshBgm]);
 
   // Poll the open project's stage while in the workspace (writing → script →
   // rendering → ready / error), so the staged UI updates live.
@@ -148,6 +163,17 @@ export const App: React.FC = () => {
       clearInterval(iv);
     };
   }, [dash, screen, openProjectId]);
+
+  // Poll the gallery while on the home/projects screens (freeform-engine L5), so a
+  // project's card appears + its status badge updates live without the user leaving
+  // and re-entering. Without this, a just-created project (or one whose render
+  // finished in the background) only showed up on the next mount/leaveWorkspace —
+  // a "where did my project go?" gap. Reuses the single `refreshGallery` source.
+  useEffect(() => {
+    if (!dash || (screen !== "home" && screen !== "projects")) return;
+    const iv = setInterval(() => void refreshGallery(), 1500);
+    return () => clearInterval(iv);
+  }, [dash, screen, refreshGallery]);
 
   if (license.kind !== "active") {
     return <LicenseView state={license} onActivate={(key) => void dash?.license.activate(key).then(setLicense)} />;
@@ -168,6 +194,10 @@ export const App: React.FC = () => {
     void dash.projects.delete(projectId).then(refreshGallery);
   };
   const onReveal = (projectId: string) => void dash?.projects.reveal(projectId);
+  const onRename = (projectId: string, newTitle: string) => {
+    if (!dash) return;
+    void dash.projects.rename(projectId, newTitle).then(refreshGallery);
+  };
 
   return (
     <div className="ns-shell">
@@ -178,7 +208,6 @@ export const App: React.FC = () => {
             aiReady={ready}
             load={state.gallery.load}
             cards={state.gallery.cards}
-            stylePacks={stylePacks}
             onConnectPrompt={() => setScreen("settings")}
             onPickImages={() => dash?.projects.pickImages() ?? Promise.resolve({ staged: [], rejected: [] })}
             onImportImageBytes={(files) =>
@@ -190,15 +219,25 @@ export const App: React.FC = () => {
                 ? dash.projects.importImageBytes(files)
                 : Promise.reject(new Error("Cần khởi động lại ứng dụng để bật dán/kéo-thả ảnh (bản nền chưa cập nhật)."))
             }
-            onCreate={(raw, images, stylePackId) => {
+            onCreate={(raw, images, choices) => {
               setCreateError("");
-              void dash?.projects
+              if (!dash) return Promise.resolve();
+              return dash.projects
                 .create({
                   raw,
                   ...(images.length > 0 ? { images: images.map((s) => ({ ref: s.ref, width: s.width, height: s.height })) } : {}),
-                  ...(stylePackId ? { stylePackId } : {}),
+                  ...(choices.format ? { format: choices.format } : {}),
+                  ...(choices.durationTier ? { durationTier: choices.durationTier } : {}),
+                  ...(choices.titleLanguage ? { titleLanguage: choices.titleLanguage } : {}),
                 })
-                .then((r) => openProject(r.projectId))
+                .then((r) => {
+                  // Refresh the gallery the moment the project exists on disk
+                  // (brief.json is written by scaffold) so the card is already
+                  // there when the user returns home — not only after the next
+                  // poll tick. Then open the workspace.
+                  void refreshGallery();
+                  openProject(r.projectId);
+                })
                 .catch((err: unknown) => setCreateError(err instanceof Error ? err.message : "Không tạo được dự án. Hãy thử lại."));
             }}
             onUnstageImage={(ref) => {
@@ -210,6 +249,7 @@ export const App: React.FC = () => {
             onOpen={openProject}
             onDelete={onDelete}
             onReveal={onReveal}
+            onRename={onRename}
             onRetry={() => void refreshGallery()}
             createError={createError}
           />
@@ -223,6 +263,7 @@ export const App: React.FC = () => {
             onNew={() => setScreen("home")}
             onDelete={onDelete}
             onReveal={onReveal}
+            onRename={onRename}
             onRetry={() => void refreshGallery()}
           />
         )}
@@ -259,7 +300,7 @@ export const App: React.FC = () => {
                 setStage({ kind: "rendering", percent: 0, phase: "draft" });
                 void dash?.projects.fixWithAi(openProjectId);
               } else {
-                setStage({ kind: "writing" });
+                setStage({ kind: "writing", phase: "author" });
                 void dash?.projects.retry(openProjectId);
               }
             }}
@@ -297,9 +338,20 @@ export const App: React.FC = () => {
             onSubmitImageReview={(refs) => {
               // Confirm the crawled-image selection; the stage poll drives the
               // transition to "writing" once the backend begins authoring.
-              setStage({ kind: "writing" });
+              setStage({ kind: "writing", phase: "author" });
               void dash?.projects.submitImageReview(openProjectId, refs);
             }}
+            bgm={bgm}
+            bgmSelected={bgmSelected}
+            onBgmAdd={() => void dash?.bgm.add().then(setBgm)}
+            onBgmRemove={(name) => void dash?.bgm.remove(name).then(setBgm)}
+            onBgmSelect={(name) => {
+              setBgmSelected(name);
+              void dash?.bgm.setForProject(openProjectId, name);
+            }}
+            onGenerateThumbnail={() =>
+              dash?.thumbnail.generate(openProjectId) ?? Promise.resolve(null)
+            }
           />
         )}
       </main>

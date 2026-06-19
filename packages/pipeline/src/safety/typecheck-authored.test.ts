@@ -1,7 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { typecheckAuthoredScenes } from "./typecheck-authored.js";
+import { __resetTypecheckAuthoredCache, __typecheckAuthoredCacheStats, typecheckAuthoredScenes } from "./typecheck-authored.js";
 
 /**
  * N10 authored-typecheck self-tests. Non-vacuous: a scene that composes
@@ -20,6 +20,10 @@ const fixture = (name: string): string => join(here, "__fixtures__", name);
 const root = resolve(here, "..", "..", "..", "..");
 
 describe("typecheckAuthoredScenes (N10)", () => {
+  beforeEach(() => {
+    __resetTypecheckAuthoredCache();
+  });
+
   // Each of these spins up a real TypeScript program over the @news sources
   // (~3-5s); the default 5s vitest timeout is too tight under parallel load, so
   // give the program-creating cases explicit headroom.
@@ -30,7 +34,11 @@ describe("typecheckAuthoredScenes (N10)", () => {
     expect(issues).toEqual([]);
   }, TS_PROGRAM_TIMEOUT);
 
-  it("catches a wrong-shape prop ({text}[] vs string[]) as an N10 error", () => {
+  // A render fallback is not an acceptable clean draft: SceneErrorBoundary keeps
+  // the MP4 alive, but it replaces the authored design with a bland headline-only
+  // frame. Crash/fallback-prone type errors must therefore be hard N10 errors so
+  // the repair loop reauthors the scene before the user sees it.
+  it("catches a wrong-shape prop ({text}[] vs string[]) and surfaces it as a hard N10 error", () => {
     const issues = typecheckAuthoredScenes([fixture("typecheck-wrong-prop.tsx")], root);
     expect(issues.length).toBeGreaterThan(0);
     expect(issues.every((i) => i.check === "N10" && i.severity === "error")).toBe(true);
@@ -55,10 +63,16 @@ describe("typecheckAuthoredScenes (N10)", () => {
     expect(issues.some((i) => /does not exist on type 'ThemeColors'/.test(i.message))).toBe(true);
   }, TS_PROGRAM_TIMEOUT);
 
-  it("a crash-class prop error stays a hard ERROR even alongside color-token warnings", () => {
-    // The wrong-prop fixture is the {text}[] crash case — it must never be softened.
-    const issues = typecheckAuthoredScenes([fixture("typecheck-wrong-prop.tsx")], root);
-    expect(issues.some((i) => i.severity === "error")).toBe(true);
+  it("hard-fails an undefined identifier because it would render SceneFallback", () => {
+    const issues = typecheckAuthoredScenes([fixture("typecheck-missing-identifier.tsx")], root);
+    expect(issues.length).toBeGreaterThan(0);
+    expect(issues).toContainEqual(
+      expect.objectContaining({
+        check: "N10",
+        severity: "error",
+        message: expect.stringContaining("Cannot find name 'imageOpacity'"),
+      }),
+    );
   }, TS_PROGRAM_TIMEOUT);
 
   it("flags a FLAT theme.* color read (type 'Theme') as a WARNING too, not a hard error", () => {
@@ -101,4 +115,14 @@ describe("typecheckAuthoredScenes (N10)", () => {
     const issues = typecheckAuthoredScenes([fixture("typecheck-wrong-prop.tsx")], resolve(here, "no-such-workspace"));
     expect(issues).toEqual([]);
   });
+
+  it("reuses the cached diagnostics when the authored files and contracts are unchanged", () => {
+    const file = fixture("typecheck-wrong-prop.tsx");
+    const sceneIdByFile = new Map([[resolve(file), "scene-05"]]);
+    const first = typecheckAuthoredScenes([file], root, sceneIdByFile);
+    const second = typecheckAuthoredScenes([file], root, sceneIdByFile);
+
+    expect(second).toEqual(first);
+    expect(__typecheckAuthoredCacheStats()).toEqual({ hits: 1, misses: 1, entries: 1 });
+  }, TS_PROGRAM_TIMEOUT);
 });

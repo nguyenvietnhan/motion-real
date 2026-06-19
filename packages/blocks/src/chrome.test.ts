@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { makeTheme, registerStylePack, getStylePack, onColor } from "@news/design";
+import { makeTheme, onColor } from "@news/theme";
 import {
   surfaceBorder,
   surfaceBorderWidth,
@@ -12,89 +12,55 @@ import {
 } from "./chrome.js";
 
 /**
- * The block SURFACE-KIT maps a resolved language's `surface`/`radius`/`colors`
- * tokens to concrete CSS, so ONE set of blocks renders EVERY design language.
- * These test the pure mapping (no React render needed): editorial (bold squared
- * print) and galaxy (rounded glowing dark) must produce genuinely different
- * surfaces from the same call, proving the look is token-driven, not hardcoded.
+ * The block SURFACE-KIT maps the resolved (neutral) theme's `surface`/`radius`/
+ * `colors` tokens to concrete CSS, so ONE set of blocks renders against the one
+ * neutral grammar the freeform engine ships. These test the pure mapping (no
+ * React render): the neutral theme is a dark, hairline-bordered, softly-rounded,
+ * soft-shadow, outline-chip look — and the kit must read every value from tokens,
+ * never hard-code, so a future theme change flows through automatically.
  */
-describe("surface-kit — language-driven border/radius/shadow", () => {
+describe("surface-kit — neutral theme token mapping", () => {
   const accent = "#2F5FF0";
+  const t = makeTheme(accent);
 
-  it("bold-editorial ⇒ bold 4px ink border, squared, hard-offset shadow", () => {
-    const t = makeTheme(accent, "bold-editorial");
-    // Border color follows the language (its own borderColor token), not a fixed hex.
-    expect(surfaceBorder(t)).toBe(`4px solid ${t.surface.borderColor}`);
-    expect(surfaceBorderWidth(t)).toBe(4);
-    expect(surfaceRadius(t, "md")).toBe(0); // squared
-    expect(surfaceShadow(t, accent)).toContain("10px 10px 0"); // print drop
+  it("hairline 1px border in the theme's border color (not a fixed hex)", () => {
+    expect(surfaceBorder(t)).toBe(`1px solid ${t.surface.borderColor}`);
+    expect(surfaceBorderWidth(t)).toBe(1);
   });
 
-  it("galaxy ⇒ hairline border, rounded, neon glow shadow", () => {
-    const t = makeTheme(accent, "galaxy");
-    expect(surfaceBorderWidth(t)).toBe(1);
-    expect(surfaceRadius(t, "md")).toBeGreaterThan(0); // rounded
+  it("softly rounded — sm/md/lg are all positive, increasing", () => {
     expect(surfaceRadius(t, "sm")).toBeGreaterThan(0);
+    expect(surfaceRadius(t, "md")).toBeGreaterThan(surfaceRadius(t, "sm"));
+    expect(surfaceRadius(t, "lg")).toBeGreaterThan(surfaceRadius(t, "md"));
+  });
+
+  it("soft shadow — a diffuse depth shadow, not the editorial hard-offset print drop", () => {
     const shadow = surfaceShadow(t, accent);
-    expect(shadow).not.toContain("10px 10px 0"); // not the hard-offset print drop
-    expect(shadow).toContain("24px"); // a soft neon glow + depth
+    expect(shadow).not.toBe("none");
+    expect(shadow).not.toContain("10px 10px 0"); // not a hard-offset print drop
   });
 
   it("blockSurface composes border + radius + fill + shadow from tokens", () => {
-    const bold = makeTheme(accent, "bold-editorial");
-    const galaxy = makeTheme(accent, "galaxy");
-    const boldS = blockSurface(bold, { accent });
-    const galaxyS = blockSurface(galaxy, { accent });
-    // Editorial is squared; galaxy is rounded — the same call yields different geometry.
-    expect(boldS.borderRadius).toBe(0);
-    expect(galaxyS.borderRadius as number).toBeGreaterThan(0);
-    // shadow:false suppresses the shadow regardless of language.
-    expect(blockSurface(galaxy, { accent, shadow: false }).boxShadow).toBe("none");
+    const s = blockSurface(t, { accent });
+    expect(s.border).toBe(`1px solid ${t.surface.borderColor}`);
+    expect(s.borderRadius as number).toBeGreaterThan(0); // rounded
+    expect(s.background).toBe(t.surface.panelFill);
+    // shadow:false suppresses the shadow.
+    expect(blockSurface(t, { accent, shadow: false }).boxShadow).toBe("none");
   });
 
-  it("topRuleStyle is present on editorial (solid bar) and absent on galaxy (glow expresses accent)", () => {
-    const bold = makeTheme(accent, "bold-editorial");
-    const galaxy = makeTheme(accent, "galaxy");
-    expect(topRuleStyle(bold, accent)).not.toBeNull();
-    expect(topRuleStyle(galaxy, accent)).toBeNull();
+  it("neutral has no top-rule bar (accent is expressed by fill/border, not a print strip)", () => {
+    expect(topRuleStyle(t, accent)).toBeNull();
   });
 
-  it("chipStyle is a solid fill on editorial, an outline pill on galaxy", () => {
-    const bold = makeTheme(accent, "bold-editorial");
-    const galaxy = makeTheme(accent, "galaxy");
-    const boldChip = chipStyle(bold, accent, onColor);
-    const galaxyChip = chipStyle(galaxy, accent, onColor);
-    // Editorial: solid accent fill, readable text on it.
-    expect(boldChip.background).toBe(accent);
-    expect(boldChip.color).toBe(onColor(accent));
-    // Galaxy: translucent tint + accent border + accent text (outline).
-    expect(galaxyChip.color).toBe(accent);
-    expect(String(galaxyChip.border)).toContain("1px solid");
-    expect(galaxyChip.borderRadius as number).toBeGreaterThan(0);
+  it("chipStyle is an outline pill (translucent tint + accent border + accent text)", () => {
+    const chip = chipStyle(t, accent, onColor);
+    expect(chip.color).toBe(accent);
+    expect(String(chip.border)).toContain("1px solid");
+    expect(chip.borderRadius as number).toBeGreaterThan(0);
   });
 
-  it("labelStyle shouts uppercase on editorial, keeps natural case on galaxy", () => {
-    expect(labelStyle(makeTheme(accent, "bold-editorial")).textTransform).toBe("uppercase");
-    expect(labelStyle(makeTheme(accent, "galaxy")).textTransform).toBe("none");
-  });
-
-  it("a borderless language ⇒ no border, and blockSurface still composes", () => {
-    // Register a derived language whose surface has no border + no shadow, to
-    // prove the kit degrades cleanly (the Open/Closed extensibility seam).
-    const base = getStylePack("galaxy")!;
-    registerStylePack({
-      ...base,
-      id: "test-flat-lang",
-      name: "Flat",
-      description: "borderless test language",
-      derive: (dominant: string) => {
-        const d = base.derive(dominant);
-        return { ...d, surface: { ...d.surface, borderWidth: 0, shadowStyle: "none" } };
-      },
-    });
-    const t = makeTheme(accent, "test-flat-lang");
-    expect(surfaceBorder(t)).toBe("none");
-    expect(surfaceBorderWidth(t)).toBe(0);
-    expect(surfaceShadow(t, accent)).toBe("none");
+  it("labelStyle keeps natural case (the neutral look does not shout uppercase)", () => {
+    expect(labelStyle(t).textTransform).toBe("none");
   });
 });

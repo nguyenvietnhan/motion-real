@@ -11,40 +11,38 @@ một mục được giải quyết hoặc một god-file mới xuất hiện.
 
 ## God-files
 
-| File | LoC | Fix churn 90d | Priority | Hướng |
+| File | LoC (2026-06-16) | Fix churn 90d | Priority | Hướng |
 | --- | --- | --- | --- | --- |
-| `apps/desktop/.../authoring/ninerouter-backend.ts` | 707 | ~12 | **P0** | Pilot: library adoption slice (xem dưới) |
-| `safety/render-grid.ts` | 959 | thấp | P1 | Tách theo oracle group; chưa có ADR |
-| `apps/desktop/.../workspace-controller.ts` | 847 | ~5 | P1 | XState (state machine) — cần ADR riêng |
+| `apps/desktop/.../workspace-controller.ts` | 1159 | ~5 | P1 | XState (state machine) — cần ADR riêng |
+| `safety/render-grid.ts` | 1035 | thấp | P1 | Tách theo oracle group; chưa có ADR |
+| `apps/desktop/.../authoring/ninerouter-backend.ts` | 755 | ~12 | **P0** | Vùng churn cao nhất; slice end-to-end (xem dưới) |
 | `orchestrator.ts` | 627 | thấp | — | **Off-limits** per user (pipeline architecture đang ổn) |
-| `cli/cli.ts` | 608 | thấp | P2 | Tách verb handlers; thấp ưu tiên |
+| `cli/cli.ts` | 606 | thấp | P2 | Tách verb handlers; thấp ưu tiên |
 
-## Library candidates (đã verify context7)
+## Library candidates (đã verify context7) — phán quyết cuối 2026-06-16
 
-| Thư viện | Score | Replace | Verdict |
+Kế hoạch ban đầu định adopt 4 (Vercel AI SDK, Firecrawl, Pino, neverthrow). Sau
+khi làm thật, **chỉ Pino có lợi thật và được giữ**; ba cái kia loại vì lợi bất cập
+hại (chi tiết: [adr/005](adr/005-library-adoption-strategy.md) §Kết quả thực tế).
+
+| Thư viện | Score | Replace | Phán quyết cuối |
 | --- | --- | --- | --- |
-| Vercel AI SDK (`/vercel/ai`) | 82.6 | `parseAuthorReply` + `extractJsonObject` + manifest validate/retry | **ADOPT** (pilot) |
-| Firecrawl (`/firecrawl/firecrawl-docs`) | 84.7 | `ingest_url` + `crawlArticleImages` | **ADOPT** (pilot) |
-| `@mozilla/readability` (`/mozilla/readability`) | 97.2 | Firecrawl fallback (no-network/self-host down) | **ADOPT** (pilot, fallback) |
-| Pino (`/pinojs/pino`) | 92.8 | `console.*` rời rạc + bare `catch {}` | **ADOPT** (pilot) |
-| neverthrow (`/supermacro/neverthrow`) | 89.5 | `{ ok } \| { ok: false }` ad-hoc | **ADOPT** (pilot) |
+| Pino (`/pinojs/pino`) | 92.8 | `console.*` rời rạc + bare `catch {}` | **ADOPTED** — `createLogger(scope)`, commit `b3b0eca`. Lợi thật. |
+| `@mozilla/readability` (`/mozilla/readability`) | 97.2 | ingest text bài báo (+ `linkedom`) | **ĐANG DÙNG** — nhẹ, local, không cần mạng ngoài. |
+| Vercel AI SDK (`/vercel/ai`) | 82.6 | `parseAuthorReply` + manifest validate/retry | **KHÔNG adopt** — Zod thẳng đã validate shape; SDK thêm lớp provider song song 9router. |
+| Firecrawl (`/firecrawl/firecrawl-docs`) | 84.7 | `ingest_url` + `crawlArticleImages` | **KHÔNG adopt** — dịch vụ ngoài/SDK nặng; readability+linkedom đã đủ. |
+| neverthrow (`/supermacro/neverthrow`) | 89.5 | `{ ok } \| { ok: false }` ad-hoc | **KHÔNG adopt** — pattern tay đã tường minh, không đáng thêm dependency. |
 | XState (`/statelyai/xstate`) | 75.7 | `workspace-controller.ts` state machine ngầm | **DEFER** P1 — refactor lớn, cần ADR |
 | ts-morph (`/dsherret/ts-morph`) | 77.9 | `admission.ts` AST raw | **SKIP** — gate đã solid (9 fixture + 11 test), không đập vào bug |
 | electron-trpc (`/jsonnull/electron-trpc`) | 82 | `ipc-router.ts` hand-rolled | **SKIP** — IPC không phải nguồn bug |
 
-## Pilot scope (phiên hiện tại)
+**Bài học:** "context7 score cao" chỉ nói thư viện *tốt*, không nói nó *đáng adopt
+cho dự án này*. Một thư viện chỉ đáng nếu nó xoá một class lỗi/khối code tay đáng kể
+mà KHÔNG thêm một lớp trừu tượng song song với cái đã có. Chỉ Pino qua được bài đó.
 
-Library adoption slice trên luồng `authorScenes` end-to-end. Wrapper giữ 9router
-gateway. Xem [adr/005-library-adoption-strategy.md](adr/005-library-adoption-strategy.md)
-và plan file. Đập vào ba class lỗi của 12 fix(authoring) commit: manifest sai shape,
-ingest yếu, silent catch.
-
-## Follow-up (sau pilot, named)
+## Follow-up (named)
 
 - `reauthor` trong ninerouter-backend (slice riêng).
-- `visualQa`, `crawlImages` filter, `snapshotScenes`/`restoreScenes`.
 - 15 silent catches còn lại ở `index.ts`, `gateway/ninerouter-client.ts`,
-  `workspace-controller.ts` (migrate khi adopt Pino + neverthrow rộng hơn).
+  `workspace-controller.ts` (migrate khi mở rộng Pino).
 - XState cho workspace-controller (P1, cần ADR).
-- Tool use / function calling cho runtime AI (defer — `generateObject` đã giải
-  quyết structured output; tool-calling khả dụng không đồng đều qua 9router).

@@ -7,7 +7,7 @@ import {
 } from "../../shared/create-validation.js";
 import type { SerializedPipelineError } from "@news/pipeline";
 import type { AuthorInput, AuthorImageRef } from "../agent/agent-worker.js";
-import type { StagedImageRef } from "../../shared/types.js";
+import type { StagedImageRef, VideoFormatChoice, DurationTierChoice, TitleLanguageChoice } from "../../shared/types.js";
 import { toFriendlyError } from "../redact/friendly.js";
 
 /**
@@ -69,7 +69,11 @@ export interface CreateDeps {
 export class CreateController {
   constructor(private readonly deps: CreateDeps) {}
 
-  async create(raw: string, images: StagedImageRef[] = [], stylePackId?: string): Promise<{ projectId: string }> {
+  async create(
+    raw: string,
+    images: StagedImageRef[] = [],
+    choices: { format?: VideoFormatChoice; durationTier?: DurationTierChoice; titleLanguage?: TitleLanguageChoice } = {},
+  ): Promise<{ projectId: string }> {
     const v = validateCreateInput({ raw });
     if (!v.ok) throw new Error(VALIDATION_MESSAGE[v.reason]); // invalid ⇒ no scaffold (R1.3)
     // Block on a guaranteed-fatal config gap BEFORE scaffolding/authoring, so the
@@ -89,10 +93,13 @@ export class CreateController {
       text: v.brief.text,
       urls: v.brief.urls,
       ...(promoted.length > 0 ? { images: promoted } : {}),
-      // The user's chosen style pack (the create-screen picker). Folded into the
-      // AuthorInput so it survives an in-session "retry" (which re-runs from the
-      // remembered input), and injected into the manifest theme by the backend.
-      ...(stylePackId ? { stylePackId } : {}),
+      // The three delivery knobs the user picked at the create screen (R7/R9/D10):
+      // format + duration tier + title language. Folded into the AuthorInput so they
+      // survive an in-session "retry" (which re-runs from the remembered input); the
+      // backend threads them into the prompt + spec (the model never chooses them).
+      ...(choices.format ? { format: choices.format } : {}),
+      ...(choices.durationTier ? { durationTier: choices.durationTier } : {}),
+      ...(choices.titleLanguage ? { titleLanguage: choices.titleLanguage } : {}),
     }); // stage 1 (R2.1)
     return { projectId: res.projectId };
   }

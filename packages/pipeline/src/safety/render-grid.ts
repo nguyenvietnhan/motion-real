@@ -5,6 +5,8 @@ import {
   CAPTION_BAND,
   CONTENT_ZONE,
   T_TRANSITION_SECONDS,
+  geometry,
+  type FormatGeometry,
   type LockedVideoSpec,
 } from "@news/schema";
 import { makeReport, type SafetyIssue, type SafetyReport } from "../types.js";
@@ -150,9 +152,75 @@ export function checkSafeArea(frame: Frame, sceneId?: string, options?: RenderGr
     return [
       {
         check: "N14",
-        severity: "error",
+        // Freeform pivot: the safe-area / content-zone / divider family is the
+        // news-format LAYOUT constraint ("ép khuôn"). It is now ADVISORY — a
+        // full-bleed or edge-to-edge creative layout must not be hard-blocked.
+        // Captions remain a top-level overlay with their own scrim, so legibility
+        // survives even when authored content paints under them.
+        severity: "warning",
         sceneId,
         message: `Content paints into the 9:16 safe-area margin (${(fraction * 100).toFixed(2)}% of the edge band); keep content inside the safe rect.`,
+      },
+    ];
+  }
+  return [];
+}
+
+// --- N14 (format-aware "don't fly off the frame", D7/O5) -------------------
+
+/**
+ * The ONE format-aware layout oracle the freeform engine keeps (D7): authored
+ * content must not bleed into the outer `safeMargin` ring at the very edge of the
+ * frame — content flush on the canvas edge reads as "flew off the frame". Unlike
+ * the four vertical-only N14 variants above (which encode the 9:16 news layout —
+ * content zone, caption band, divider clearance), this one is GEOMETRY-DRIVEN: it
+ * takes a `FormatGeometry` (`geometry("tiktok")` or `geometry("youtube")`) and
+ * scans the ring of `geometry.safeMargin` px around the frame, so it is correct
+ * for BOTH the 9:16 vertical and the 16:9 horizontal canvas. The 16:9 ring is
+ * thin (YouTube uses nearly the whole frame); the 9:16 ring matches the vertical
+ * safe margin.
+ *
+ * Severity = WARNING (advisory): the refine loop uses it to know which scene to
+ * fix, but it never hard-blocks — that is the whole point of the overhaul (don't
+ * re-impose the old hard-gate cage). The ratio of edge-ring content that trips it
+ * reuses `safeAreaTolerance`.
+ */
+export function checkInFrame(
+  frame: Frame,
+  geom: FormatGeometry,
+  sceneId?: string,
+  options?: RenderGridOptions,
+): SafetyIssue[] {
+  const o = opt(options);
+  const { width, height, data } = frame;
+  const bg = backgroundColor(frame);
+  // The geometry is defined in its own canvas space; scale the px ring to the
+  // actual still size so a half-res draft still measures the right band.
+  const sx = width / geom.canvas.width;
+  const sy = height / geom.canvas.height;
+  const mx = Math.max(1, Math.floor(geom.safeMargin * sx));
+  const my = Math.max(1, Math.floor(geom.safeMargin * sy));
+
+  let bandPixels = 0;
+  let bandContent = 0;
+  for (let y = 0; y < height; y += 1) {
+    const inVBand = y < my || y >= height - my;
+    for (let x = 0; x < width; x += 1) {
+      const inBand = inVBand || x < mx || x >= width - mx;
+      if (!inBand) continue;
+      bandPixels += 1;
+      const i = (y * width + x) * 4;
+      if (colorDistance(bg, data[i]!, data[i + 1]!, data[i + 2]!) > o.contentThreshold) bandContent += 1;
+    }
+  }
+  const fraction = bandPixels > 0 ? bandContent / bandPixels : 0;
+  if (fraction > o.safeAreaTolerance) {
+    return [
+      {
+        check: "N14",
+        severity: "warning",
+        sceneId,
+        message: `Content bleeds into the ${geom.format} frame edge ring (${(fraction * 100).toFixed(2)}% of the ${geom.safeMargin}px safe margin); keep content off the very edge.`,
       },
     ];
   }
@@ -217,7 +285,8 @@ export function checkContentZone(frame: Frame, sceneId?: string, options?: Rende
     return [
       {
         check: "N14",
-        severity: "error",
+        // Freeform pivot: advisory, not a hard gate (see checkSafeArea).
+        severity: "warning",
         sceneId,
         message: `Content paints outside the content zone / caption band (${(fraction * 100).toFixed(2)}% of sampled pixels), e.g. into the platform-UI reserve; keep content inside the content zone.`,
       },
@@ -265,7 +334,8 @@ export function checkCaptionClearance(frame: Frame, sceneId?: string, options?: 
     return [
       {
         check: "N14",
-        severity: "error",
+        // Freeform pivot: advisory, not a hard gate (see checkSafeArea).
+        severity: "warning",
         sceneId,
         message: `Content reaches into the caption clearance gap (${(fraction * 100).toFixed(2)}% of the gap band); keep authored content above the divider, clear of the caption band.`,
       },
@@ -327,7 +397,8 @@ export function checkDividerClearanceAbove(frame: Frame, sceneId?: string, optio
     return [
       {
         check: "N14",
-        severity: "error",
+        // Freeform pivot: advisory, not a hard gate (see checkSafeArea).
+        severity: "warning",
         sceneId,
         message: `Content sits flush on the divider from above (${(fraction * 100).toFixed(2)}% of the band just above the divider); keep a clear gap above the line.`,
       },
@@ -870,6 +941,11 @@ export const RENDER_ORACLES: readonly RenderOracle[] = [
   { id: "transition", check: "N21", phase: "transition", run: checkTransition },
   // Exported + self-tested, not auto-run (need inputs a flat still lacks).
   { id: "safe-area", check: "N14", phase: "manual" },
+  // Format-aware "don't fly off the frame" (D7/O5): needs a FormatGeometry, not
+  // the (frame, sceneId, options) shape — so it's manual, wired by the YouTube
+  // path (group J) which knows the spec format. The four variants above stay the
+  // 9:16 layout law; this is the one that also covers 16:9.
+  { id: "in-frame", check: "N14", phase: "manual" },
   { id: "late-safe-area", check: "N14", phase: "manual" },
   { id: "overlap", check: "N15", phase: "manual" },
   { id: "truncation", check: "N17", phase: "manual" },

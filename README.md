@@ -1,23 +1,33 @@
 # News Remotion Tool
 
-AI-driven Vietnamese short-form news video generator built on
+AI-driven Vietnamese short-form editorial video generator built on
 [Remotion](https://remotion.dev) (React). This is the successor experiment to
 the HyperFrames-based `news_video_tool`: instead of filling ~40 locked templates
 with JSON, the AI **authors brand-new React scene components for every video**
-(pure AUTHOR mode), composing a small library of reusable, slot-based **layout
-blocks** (`@news/blocks`) for on-brand consistency. Visual diversity is unbounded
-code; quality stays stable through an enumerated **safety grid (N1–N30)**.
+(pure AUTHOR mode), writing every scene as raw JSX/SVG by hand — there is no
+layout-block toolkit (it was deleted; reusing it made every video look the same).
+The one authored-facing import beyond react/remotion/zod is `<SceneImage>` (via
+`@news/compositions`) for the user-attached + crawled-image feature. Visual
+diversity is unbounded code; quality stays stable through an enumerated **safety
+grid (N1–N30)**.
+
+The hardened delivery path today is TikTok/Reels/Shorts-style 9:16. The
+freeform-engine work has added format-aware schema geometry, prompt budgeting,
+caption-off behavior, and clean brand-card thumbnails for YouTube-style 16:9,
+but long-form YouTube author-by-segment / true 16:9 main-video production remains
+the pending Group J work in `docs/specs/freeform-engine/tasks.md`.
 
 It mirrors the stability/diversity tradeoff that `math_video_tool` made with
 Manim — but on the web stack the news pipeline already uses (React, Vite, Node,
 headless Chromium, ffmpeg).
 
 ```text
-Topic -> AI authors scene .tsx + manifest.json
+Topic/URL -> AI authors scene .tsx + manifest.json
+-> optional hidden no-TTS stills/vision refine loop in the desktop app
 -> admission gate (N4/N5) -> manifest -> VideoSpec -> static grid (N1-N9)
 -> Vivibe TTS (+ breath gaps + SRT) -> lockSpec (transition-aware, caption cues)
 -> build grid (N10-N13) -> determinism guard (N16)
--> Remotion render (TransitionSeries + caption track) -> MP4
+-> Remotion render (TransitionSeries + TikTok caption track) -> MP4
 -> render oracles (N14, N18-N22, N28-N30; N15/N17/N23 exported, not auto-run) -> review loop (N24-N25) -> done
 ```
 
@@ -27,8 +37,9 @@ Topic -> AI authors scene .tsx + manifest.json
   so renders are reproducible and hashable — the same property the old build
   cache relied on.
 - Diversity is unbounded code (CSS / SVG / Canvas / WebGL), not a closed enum.
-- Stability comes from a per-component Zod schema plus the shared design system
-  and the N1–N30 safety grid, not from forbidding the AI to touch visuals.
+- Stability comes from admission/security gates, per-component Zod schemas,
+  render-integrity checks, and the N1–N30 safety grid. There is no authored-facing
+  design system; scenes hard-code their own visuals.
 - `@remotion/player` gives instant scrubbing preview, replacing HyperFrames Studio.
 
 ## License note
@@ -71,7 +82,7 @@ npx tsx --env-file=.env packages/pipeline/src/cli/cli.ts render <projectId>
 # No-voice visual draft of the bundled sample (no Vivibe needed):
 npx tsx packages/pipeline/src/cli/cli.ts render --sample
 
-# Environment readiness (Vivibe .env, ffmpeg, browser, registry, style packs, fonts, MCP):
+# Environment readiness (Vivibe .env, ffmpeg, browser, registry, neutral theme/fonts, MCP):
 npx tsx packages/pipeline/src/cli/cli.ts doctor
 ```
 
@@ -92,33 +103,42 @@ npx tsx --env-file=.env packages/mcp/src/bin.ts
 ```
 
 Render quality is `full` (30 fps deliverable) by default; a `draft` quality
-renders a fast, lower-res, 10 fps preview. Background music: drop a `default.mp3`
-at the repo root and it is mixed under the narration at ~20% automatically.
+renders a fast, lower-res, 10 fps preview. Background music is managed through
+the per-machine BGM library under `VIDEO_TOOL_HOME/.video-tool/bgm/`; a project
+stores the chosen library filename in `manifest.json` and the MCP render tools
+resolve it at render time. No selected BGM means no music.
 
-For a worked, end-to-end example see `scripts/build-gemma.ts` (authors seven
-bespoke scenes + a manifest for a real topic, then renders).
+For the supported local authoring path, prefer the scaffolded build scripts:
+`npx tsx scripts/new-video.ts <project-id> "Video title"`, then run the generated
+`scripts/build-<project-id>.ts` through `stills`, `draft`, and finally `full`
+after review.
 
 ## Workspace layout
 
 | Package | Role |
 | --- | --- |
-| `packages/schema` | Renderer-agnostic `VideoSpec`/`LockedVideoSpec`, timing consts, layout zones, `CaptionCue`, free-pacing validation |
-| `packages/design` | Multi-language design system: each style is a self-contained `StyleLanguage` (editorial, galaxy) deriving its full palette/surface/backdrop/fonts/contract from one dominant hue + color/motion |
-| `packages/blocks` | Slot-based layout blocks (Frame, Content, Story, TitleBlock, IdeaPanel, KeyPoints, Callout, StatChip, Panel, StatBlock, CountUp, BarChart, HeaderBar, Footer, Tag, SceneImage, Captions) reading every chrome decision from the theme via the surface-kit + theme context + motion |
-| `packages/compositions` | Registry + master `VideoComposition` (TransitionSeries + caption overlay); NO built-in templates |
+| `packages/schema` | Renderer-agnostic `VideoSpec`/`LockedVideoSpec`, timing consts, format geometry, layout zones, duration tiers, `CaptionCue`, free-pacing validation |
+| `packages/theme` | One NEUTRAL theme (post-freeform-pivot; replaced the deleted multi-language `packages/design`): holds the `Theme` shape + a 2-layer cross-model defense (typed aliases + Proxy fallback) so the render runtime + `SceneImage` resolve `useTheme()`. OFF the authored import whitelist — authored scenes hard-code all their own visuals |
+| `packages/blocks` | Render RUNTIME internals consumed by `packages/compositions` (NOT authored-facing): Captions, layout-probe, scene-timing, motion, theme-context, chrome surface-kit, fonts — plus the single authored-facing survivor `SceneImage`, re-exported through `@news/compositions`. The slot-based layout blocks were DELETED (they made every video look the same) |
+| `packages/compositions` | Registry + master `VideoComposition` (TransitionSeries + TikTok caption overlay), `ThumbnailComposition`; NO built-in templates |
 | `packages/tts` | Vivibe/LucyLab client, audio measure/concat-with-gaps/mix, SRT capture |
-| `packages/pipeline` | authoring/admission, manifest, tts, captions, lock, store, cache, determinism, renderer, review, orchestrator, cli, safety grid |
-| `apps/remotion` | Remotion root, sample fixture, studio/render entry |
+| `packages/pipeline` | authoring/admission, manifest, ingest, tts, captions, lock, BGM handoff, no-TTS stills, thumbnail render, store, cache, determinism, renderer, review, orchestrator, cli, safety grid |
+| `packages/mcp` | Typed MCP tools over the single-process pipeline (`scaffold_project`, `render_stills`, `render_draft`, `render_full`, reports, tracker, doctor) |
+| `apps/remotion` | Remotion root, sample fixture, `NewsVideo` and `Thumbnail` composition entries |
+| `apps/desktop` | Electron GUI, 9router gateway, create/workspace/settings flow, hidden stills/vision refine, BGM and thumbnail UI |
 
 ## Status
 
-The pipeline runs end-to-end in pure AUTHOR mode — author scenes → admission gate
-→ static grid → TTS → lock → build grid → determinism guard → Remotion render →
-render oracles → review loop — and is exercised by real test renders. There are
+The 9:16 pipeline runs end-to-end in pure AUTHOR mode — author scenes → optional
+hidden stills/vision refine → admission gate → static grid → TTS → lock → build
+grid → determinism guard → Remotion render → render oracles → review loop — and
+is exercised by real test renders. There are
 **no** built-in scene templates: every video's scenes are authored fresh and
 admitted through the AST gate (import whitelist + banned-API blacklist + required
 `default`/`schema`/`example` exports). The full safety grid `N1`–`N30` ships,
-each check with a non-vacuous self-test.
+each check with a non-vacuous self-test. Current hard blockers are
+admission/security and render-integrity classes; layout/aesthetic checks are
+warnings that feed refine rather than block render.
 
 Checks: `npm run typecheck`, `npm test`, `npm run build`.
 
@@ -126,9 +146,7 @@ See `CLAUDE.md` for the agent contract, `docs/architecture.md` for the current
 architecture, `docs/ai-content-guide.md` for the content contract, and
 `docs/design-language.md` for the design system.
 
-For productization (selectable looks, URL grounding, the MCP API, bulk
-production, ops) see the buyer guide `docs/buyer-guide.md`, and the authoring
-skill `.claude/commands/news-video.md`.
+For the authoring skill see `.claude/commands/news-video.md`.
 
 ## Desktop app (`apps/desktop`) — pure-AUTHOR + self-repair
 
@@ -137,9 +155,11 @@ project the selected AI model writes brand-new `.tsx` scene modules (it returns 
 manifest + one `.tsx` block per scene), which are admitted through the same gate
 and rendered. There is no scene-kit/template fallback.
 
-If the draft trips a content/layout oracle, the **generate-validate-repair** loop
-asks the model to rewrite only the flagged scene(s) — for layout/contrast defects
-(`N14`/`N18`) it attaches the scene's rendered still for vision-guided repair.
+Before the first draft is exposed, the desktop app can run the hidden
+stills-first refine path: render no-TTS PNG stills, do one creative bootstrap
+rewrite, then run up to `refinePasses` vision QA rounds (early-stopping after two
+clean passes when enabled), and only then render the actual draft MP4.
+Post-draft edits use the same stills/vision path scoped to the edited scene(s).
 Infrastructure failures (missing voice key, gateway/network, Chromium crash) are
 classified separately and shown to you to fix; only content defects get the
 **"Sửa bằng AI"** button on the error screen.

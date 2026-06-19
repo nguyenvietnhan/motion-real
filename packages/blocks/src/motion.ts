@@ -1,5 +1,5 @@
 import { interpolate, spring, useCurrentFrame, useVideoConfig } from "remotion";
-import { easing } from "@news/design";
+import { easing } from "@news/theme";
 import { FPS } from "@news/schema";
 import { useSceneDurationInFrames } from "./scene-timing.js";
 

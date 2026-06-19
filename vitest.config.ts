@@ -1,4 +1,5 @@
 import { defineConfig } from "vitest/config";
+import { availableParallelism } from "node:os";
 import { resolve } from "node:path";
 
 /**
@@ -19,12 +20,13 @@ const toUpperDrive = (p: string): string =>
 
 const rootDir = toUpperDrive(__dirname);
 const pkg = (name: string) => resolve(rootDir, "packages", name, "src", "index.ts");
+const testWorkers = Math.max(1, Math.min(4, availableParallelism() - 1));
 
 export default defineConfig({
   resolve: {
     alias: {
       "@news/schema": pkg("schema"),
-      "@news/design": pkg("design"),
+      "@news/theme": pkg("theme"),
       "@news/blocks": pkg("blocks"),
       "@news/tts": pkg("tts"),
       "@news/compositions": pkg("compositions"),
@@ -37,5 +39,11 @@ export default defineConfig({
     environment: "node",
     include: ["packages/**/*.test.ts", "tests/**/*.test.ts", "apps/**/*.test.ts"],
     exclude: ["**/node_modules/**", "**/dist/**"],
+    // The suite has several CPU/FS-heavy orchestration and property tests. On
+    // Windows, running them at unrestricted parallelism creates false timeouts;
+    // keep enough parallelism for speed while leaving headroom for the OS.
+    maxWorkers: testWorkers,
+    testTimeout: 30_000,
+    hookTimeout: 30_000,
   },
 });

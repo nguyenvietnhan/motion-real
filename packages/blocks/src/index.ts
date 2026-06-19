@@ -1,11 +1,17 @@
 /**
- * @news/blocks — reusable, slot-based, theme-aware layout blocks.
+ * @news/blocks — render RUNTIME internals + the single sanctioned image block.
  *
- * Blocks are EMPTY themed containers the authoring AI fills — never content
- * templates. They are squared (no rounded corners), each renders as a clearly
- * delineated unit, keep content inside the content zone, and contain no banned
- * APIs (pure functions of the frame). Authored scenes compose these for text /
- * structure and author bespoke code only for imagery (R2, R17, R18).
+ * Post-freeform-pivot the layout blocks (Frame/Content/TitleBlock/KeyPoints/
+ * Panel/StatBlock/Story/…) were DELETED: the AI bốc them into every scene, which
+ * made every video look the same. Authored scenes now write 100% bespoke JSX/SVG
+ * and `@news/blocks` is NO LONGER on the authored-import whitelist (admission N4).
+ *
+ * What survives is the render runtime that `@news/compositions` (the render layer,
+ * not authored scenes) consumes — theme context, scene-timing, motion hooks, the
+ * caption track, fonts, the N15/N17 layout probe — PLUS `SceneImage`, the one
+ * authored-facing export (the only sanctioned way a scene shows a user/crawled
+ * image). Authored code reaches `SceneImage` via `@news/compositions` (which
+ * re-exports it), since `@news/blocks` itself is no longer importable by a scene.
  */
 
 // Theme context (the single shared instance; re-exported by @news/compositions):
@@ -31,32 +37,10 @@ export {
   usePop,
 } from "./motion.js";
 
-// Frame + content column (content-zone constrained):
-export { Frame, Content } from "./frame.js";
-
 // Single sanctioned image block (the ONLY way an authored scene shows an image;
-// authored code is banned from raw Img/staticFile — see admission N5):
+// authored code is banned from raw Img/staticFile — see admission N5). Authored
+// scenes import it from @news/compositions, which re-exports it.
 export { SceneImage } from "./scene-image.js";
-
-// Text blocks:
-export { TitleBlock, IdeaPanel, Callout } from "./text.js";
-
-// Data blocks:
-export { KeyPoints, StatChip } from "./data.js";
-
-// Editorial "boxed" blocks + authored-viz primitives (header bar, framed panels,
-// tags, footer, big stat, count-up number, bar chart, full-frame Story):
-export {
-  HeaderBar,
-  Panel,
-  Tag,
-  Footer,
-  StatBlock,
-  CountUp,
-  BarChart,
-  Story,
-  type Tone,
-} from "./editorial.js";
 
 // Caption track (used by the master composition, not authored scenes):
 export { Captions, CAPTION_RENDER_BAND, CAPTION_CANVAS } from "./captions.js";

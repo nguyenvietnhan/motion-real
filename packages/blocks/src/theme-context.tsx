@@ -1,5 +1,5 @@
 import React, { createContext, useContext } from "react";
-import { theme as defaultTheme, type Theme } from "@news/design";
+import { theme as defaultTheme, type Theme } from "@news/theme";
 
 /**
  * Per-project theme propagation. This context lives in `@news/blocks` — the

@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   appendEvent,
+  assertSafeProjectId,
   createProjectId,
   ensureProject,
   listProjects,
@@ -122,6 +123,31 @@ describe("project store", () => {
     expect(list.every((s) => s.hasRender === false)).toBe(true);
   });
 
+  it("surfaces the manifest title on the summary, and omits it when there's no (valid) manifest", async () => {
+    // The gallery prefers the AI-authored display title over the raw prompt. The
+    // store reads it from manifest.json at list time (manifest is the single
+    // source of truth — no denormalized copy in the brief to drift). An authored
+    // project carries its title; a scaffolded-but-unauthored one (no manifest, or
+    // a manifest with a blank/missing title) omits it so the VM falls back to the
+    // prompt.
+    const authored = "authored-00000001";
+    const blank = "blank-00000002";
+    const scaffolded = "scaffold-00000003";
+    await ensureProject(authored);
+    await writeBrief(sampleBrief(authored));
+    await writeJson(projectPaths(authored).manifest, { title: "  Gemma 3 chạy trên máy nhà  ", scenes: [] });
+    await ensureProject(blank);
+    await writeBrief(sampleBrief(blank));
+    await writeJson(projectPaths(blank).manifest, { title: "   ", scenes: [] });
+    await ensureProject(scaffolded);
+    await writeBrief(sampleBrief(scaffolded));
+
+    const byId = new Map((await listProjects()).map((s) => [s.projectId, s]));
+    expect(byId.get(authored)?.title).toBe("Gemma 3 chạy trên máy nhà"); // trimmed
+    expect(byId.get(blank)?.title).toBeUndefined(); // blank ⇒ omitted
+    expect(byId.get(scaffolded)?.title).toBeUndefined(); // no manifest ⇒ omitted
+  });
+
   it("writes JSON atomically: no temp residue after a successful write", async () => {
     const id = "atomic-00000001";
     await ensureProject(id);
@@ -150,6 +176,35 @@ describe("project store", () => {
     const { readdir } = await import("node:fs/promises");
     const entries = await readdir(projectPaths(id).root);
     expect(entries.some((e) => e.includes(".tmp-"))).toBe(false);
+  });
+
+  it("rejects a traversal projectId at the path-building boundary (assertSafeProjectId)", () => {
+    // Without this guard a crafted IPC payload like `..\\..\\Users\\me\\Documents`
+    // survives the bare `String(projectId)` at handlers, `join` resolves the
+    // `..`, and the traversed path flows into `rm(recursive,force)` (delete),
+    // `shell.openPath` (reveal), and artifact reads (save) — i.e. arbitrary
+    // recursive delete / read outside the sandbox. The chokepoint must throw
+    // before any path is built.
+    for (const evil of ["..", "../escape", "..\\escape", "C:\\Windows", "a/b", "a\\b", "with space", "with.dot", ""]) {
+      expect(() => assertSafeProjectId(evil)).toThrow(/Invalid project id/);
+    }
+    // The known-safe shape (createProjectId output) must still pass.
+    const safe = createProjectId("ok");
+    expect(assertSafeProjectId(safe)).toBe(safe);
+  });
+
+  it("listProjects skips an unsafe folder name instead of throwing (a stray dotfile must not break the gallery)", async () => {
+    const root = projectsRoot();
+    await mkdir(root, { recursive: true });
+    // A real project + a stray dotfile-style dir (e.g. `.DS_Store`, `Thumbs.db`)
+    // — readdir will return the latter, but it isn't a valid id and must be
+    // skipped, not abort the whole listing.
+    const ok = "good-12345678";
+    await ensureProject(ok);
+    await writeBrief(sampleBrief(ok));
+    await mkdir(join(root, ".DS_Store"), { recursive: true });
+    const list = await listProjects();
+    expect(list.map((s) => s.projectId)).toEqual([ok]);
   });
 
   it("reconciles stale non-terminal states from a crashed session to failed", async () => {

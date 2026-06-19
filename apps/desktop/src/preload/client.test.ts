@@ -60,9 +60,9 @@ describe("createDashboardClient — invoke channel mapping", () => {
     await api.projects.removeStagedImage("staging/aa.png");
     await api.projects.create({ raw: "topic" });
     await api.projects.list();
-    await api.projects.listStylePacks();
     await api.projects.open("p1");
     await api.projects.stage("p1");
+    await api.projects.rename("p1", "Tên mới");
     await api.projects.delete("p1");
     await api.projects.reveal("p1");
     await api.projects.save("p1");
@@ -70,6 +70,12 @@ describe("createDashboardClient — invoke channel mapping", () => {
     await api.projects.retry("p1");
     await api.projects.fixWithAi("p1");
     await api.projects.submitImageReview("p1", ["assets/aa.png"]);
+    await api.bgm.list();
+    await api.bgm.add();
+    await api.bgm.remove("track.mp3");
+    await api.bgm.getForProject("p1");
+    await api.bgm.setForProject("p1", "track.mp3");
+    await api.thumbnail.generate("p1");
     await api.script.get("p1");
     await api.script.applyEdits("p1", [{ sceneId: "scene-01", narration: "x" }]);
     await api.script.approve("p1");

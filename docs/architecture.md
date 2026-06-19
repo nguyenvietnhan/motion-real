@@ -9,21 +9,28 @@ Không dùng pnpm/turbo. Hai vùng: `packages/` (logic) + `apps/` (entry points)
 
 | Package | Vai trò |
 | --- | --- |
-| `@news/schema` | `VideoSpec`/`LockedVideoSpec` renderer-agnostic, timing consts, layout zones, `CaptionCue`, free-pacing validation |
-| `@news/design` | Multi-language design system: `core.ts` (color math + token model) ← `languages/*.ts` (editorial, galaxy) ← `style-packs.ts` (registry + `makeTheme`). Mỗi ngôn ngữ derive palette/surface/backdrop/fonts + AI contract từ một dominant hue |
-| `@news/blocks` | Slot-based layout blocks (Frame, Content, Story, TitleBlock, Panel, KeyPoints, Callout, StatBlock/CountUp/BarChart, SceneImage, Captions) + surface-kit đọc chrome từ theme + theme context + motion |
-| `@news/compositions` | Registry + master `VideoComposition` (TransitionSeries + caption overlay); KHÔNG có template built-in |
+| `@news/schema` | `VideoSpec`/`LockedVideoSpec` renderer-agnostic, timing consts, `geometry(format)` (`tiktok` 1080×1920, `youtube` 1920×1080), layout zones, duration tiers, `CaptionCue`, free-pacing validation |
+| `@news/theme` | Một theme TRUNG TÍNH duy nhất (sau pivot freeform, thay `@news/design` đa-ngôn-ngữ đã xoá): `theme.ts` giữ shape `Theme` + phòng thủ 2 lớp cross-model (typed aliases + Proxy fallback) để runtime render + `SceneImage` resolve `useTheme()` nội bộ; KHÔNG nằm trong whitelist authored — cảnh authored hardcode mọi visual trong code |
+| `@news/blocks` | Runtime nội bộ của lớp render do `@news/compositions` tiêu thụ (KHÔNG phải authored-facing): Captions, layout-probe, scene-timing, motion, theme-context, chrome surface-kit, fonts — cộng `SceneImage` là authored-facing survivor duy nhất, re-export qua `@news/compositions`. Các layout block slot-based (Frame/TitleBlock/KeyPoints/Panel/Story/…) đã bị XOÁ |
+| `@news/compositions` | Registry + master `VideoComposition` (TransitionSeries + TikTok caption overlay; caption/divider omitted for `format:"youtube"`), `ThumbnailComposition`; KHÔNG có template built-in |
 | `@news/tts` | Vivibe/LucyLab client, audio measure/concat-with-gaps/mix, SRT capture |
-| `@news/pipeline` | authoring/admission, manifest, ingest, tts, captions, lock, sfx, store, cache, determinism, renderer, review, orchestrator, cli, safety grid |
+| `@news/pipeline` | authoring/admission, manifest, ingest, tts, captions, lock, BGM handoff, no-TTS stills, thumbnail render, sfx, store, cache, determinism, renderer, review, orchestrator, cli, safety grid |
 | `@news/mcp` | MCP server phơi pipeline thành typed tools |
 | `apps/remotion` | Remotion root (`Root.tsx`), một composition `NewsVideo`, studio/render entry |
-| `apps/desktop` | Electron app (create/workspace/settings UI, 9router gateway, license, self-repair loop) wrap pipeline |
+| `apps/desktop` | Electron app (create/workspace/settings UI, format/tier/title-language picker, hidden stills/vision refine loop, BGM + thumbnail UI, 9router gateway, license, self-repair loop) wrap pipeline |
+
+**Format status:** TikTok 9:16 is the stable end-to-end production path. The repo
+already carries YouTube-format primitives (schema geometry, prompt budgeting,
+caption-off composition behavior, thumbnail canvas), but long-form
+author-by-segment and the true 16:9 main-video render path are still Group J
+work in `docs/specs/freeform-engine/tasks.md`.
 
 ## 2. Data flow (topic → MP4)
 
 ```
 Topic/URL
   -> AI authors scenes .tsx + manifest.json (desktop: qua 9router gateway)
+  -> desktop hidden stills refine (optional): renderStills no-TTS -> creative bootstrap -> vision QA pass(es)
   -> admission gate (N4/N5 AST)          [authoring/admission.ts]
   -> manifest -> VideoSpec               [loadManifestAsSpec]
   -> static grid (N1-N9)                 [safety/*, runStaticGrid]
@@ -44,7 +51,7 @@ instance duy nhất). Xem [adr/004-single-process-orchestration.md](adr/004-sing
 
 Hai loại "AI" KHÔNG nhầm lẫn:
 
-- **Runtime AI** (sinh cảnh): desktop gửi prompt qua **9router** (HTTP gateway
+- **Runtime AI** (sinh cảnh/refine): desktop gửi prompt qua **9router** (HTTP gateway
   OpenAI-compatible trên `localhost:20128`) tới model user chọn (Claude/Gemini/
   Codex/...). Model chỉ nhận `messages[]`, trả **một string**. Nó KHÔNG thấy MCP,
   KHÔNG thấy CLAUDE.md/AGENTS.md. Prompt thực tế là hằng `AUTHORING_CONTRACT`
@@ -64,14 +71,18 @@ Không có một file "oracle" tập trung. Mỗi check sống ở tier của n�
 - **Tier 1 static lint (pre-TTS)**: N1 structure, N2 unknown component, N3 Zod
   props, N4 import whitelist, N5 forbidden API, N6/N7 phonetics, N8 number rules,
   N9 evidence-gate/media bans, N26 hook, N27 CTA. → `authoring/admission.ts`,
-  `safety/forbidden-api.ts`, `safety/*`.
-- **Tier 2 build/type (pre-render)**: N10 typecheck, N11 bundle, N12 locked timing,
-  N13 scene audio. → `safety/build-grid.ts`, `safety/typecheck-authored.ts`.
+  `safety/forbidden-api.ts`, `safety/*`. Current hard blockers: N4/N5, N2, N9,
+  duplicate scene id, empty spec. N3, N6/N7, N8, N26, N27 are warnings.
+- **Tier 2 build/type (pre-render)**: N10 typecheck (hard for crash /
+  SceneFallback-prone diagnostics; warning only for known runtime-safe slips),
+  N11 bundle, N12 locked timing, N13 scene audio. → `safety/build-grid.ts`,
+  `safety/typecheck-authored.ts`.
 - **Tier 3 render oracles (post-render, auto-run)**: N14 content-zone/caption
-  clearance (hard), N16 determinism (hard), N18 contrast, N19 dead-air, N20 pacing,
-  N21 transition/flicker, N22 audio-sync, N28 duration, N29 captions, N30 density.
-  Trên measure pass: N15 overlap, N17 truncation (warnings). → `safety/render-grid.ts`,
-  `safety/frame-stats.ts`, `render/determinism.ts`.
+  clearance / in-frame family (warning), N16 determinism (hard), N18 contrast,
+  N19 dead-air, N20 pacing, N21 transition/flicker, N22 audio-sync, N28 duration,
+  N29 captions, N30 density. Trên measure pass: N15 overlap, N17 truncation
+  (warnings). → `safety/render-grid.ts`, `safety/frame-stats.ts`,
+  `render/determinism.ts`.
 - **Tier 4 review (pre-done)**: N24 keyframes/contact sheet, N25 self-critique.
 
 Mỗi check có **non-vacuous self-test** (fixture known-bad chứng minh nó fire).
@@ -86,13 +97,13 @@ Mỗi check có **non-vacuous self-test** (fixture known-bad chứng minh nó fi
 
 ## 6. God-file map (nợ kỹ thuật)
 
-| File | LoC | Trạng thái |
+| File | LoC (2026-06-16) | Trạng thái |
 | --- | --- | --- |
-| `safety/render-grid.ts` | 959 | Tier-3 oracles, fragile với layout/resolution |
-| `apps/desktop/.../workspace-controller.ts` | 847 | State machine ngầm |
-| `apps/desktop/.../authoring/ninerouter-backend.ts` | 707 | Vùng commit-churn cao nhất (pilot target) |
+| `apps/desktop/.../workspace-controller.ts` | 1159 | State machine ngầm |
+| `safety/render-grid.ts` | 1035 | Tier-3 oracles, fragile với layout/resolution |
+| `apps/desktop/.../authoring/ninerouter-backend.ts` | 755 | Vùng commit-churn cao nhất (pilot target) |
 | `orchestrator.ts` | 627 | God-function, off-limits per user |
-| `cli/cli.ts` | 608 | CLI verbs |
+| `cli/cli.ts` | 606 | CLI verbs |
 
 Chi tiết + library candidate: [refactor-backlog.md](refactor-backlog.md).
 

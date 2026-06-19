@@ -12,13 +12,13 @@
   "dependencies": {
     "@news/blocks": "0.1.0",
     "@news/compositions": "0.1.0",
-    "@news/design": "0.1.0",
     "@news/schema": "0.1.0",
-    "@remotion/cli": "4.0.472",
-    "@remotion/transitions": "4.0.472",
+    "@news/theme": "0.1.0",
+    "@remotion/cli": "4.0.481",
+    "@remotion/transitions": "4.0.481",
     "react": "^19.2.1",
     "react-dom": "^19.2.1",
-    "remotion": "4.0.472",
+    "remotion": "4.0.481",
     "zod": "^4.1.13"
   }
 }

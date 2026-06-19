@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import fc from "fast-check";
 import type { ProjectBrief, ProjectState, ProjectSummary } from "@news/pipeline";
-import { formatShortDate, galleryLoadState, toCards } from "./gallery-controller.js";
+import { formatShortDate, galleryLoadState, paginate, PROJECTS_PER_PAGE, toCards } from "./gallery-controller.js";
 import { FRIENDLY_STATUSES } from "./friendly-status.js";
 
 /**
@@ -85,6 +85,33 @@ describe("Property 11: gallery cards complete and ordered newest-first", () => {
     );
   });
 
+  it("prefers the AI-authored manifest title over the raw prompt, falling back to prompt then id", () => {
+    // Authored project: the manifest title wins so the card reads the nice title,
+    // not the long link/prompt the user typed.
+    const [authored] = toCards([
+      {
+        projectId: "a",
+        root: "/p/a",
+        brief: brief("2026-01-02T00:00:00Z", "https://example.com/some/very/long/link", "done"),
+        title: "Gemma 3 chạy trên máy nhà",
+        hasRender: true,
+      },
+    ]);
+    expect(authored!.title).toBe("Gemma 3 chạy trên máy nhà");
+
+    // Scaffolded-but-unauthored: no manifest title yet ⇒ fall back to the prompt.
+    const [unauthored] = toCards([
+      { projectId: "b", root: "/p/b", brief: brief("2026-01-02T00:00:00Z", "tin kinh tế", "planning"), hasRender: false },
+    ]);
+    expect(unauthored!.title).toBe("tin kinh tế");
+
+    // Neither title nor prompt ⇒ the id, so a card is never blank.
+    const [blank] = toCards([
+      { projectId: "c-00000003", root: "/p/c", brief: brief("2026-01-02T00:00:00Z", "", "planning"), hasRender: false },
+    ]);
+    expect(blank!.title).toBe("c-00000003");
+  });
+
   it("hasRender drives the thumbnail vs placeholder", () => {
     const [withRender] = toCards([
       { projectId: "a", root: "/p/a", brief: brief("2026-01-02T00:00:00Z", "t", "done"), hasRender: true },
@@ -120,5 +147,56 @@ describe("galleryLoadState", () => {
     const dd = String(d.getDate()).padStart(2, "0");
     const mm = String(d.getMonth() + 1).padStart(2, "0");
     expect(formatShortDate("2026-06-12T20:33:00Z")).toBe(`${dd}/${mm}/${d.getFullYear()}`);
+  });
+});
+
+describe("paginate (projects gallery, I1/O3)", () => {
+  const nums = (n: number) => Array.from({ length: n }, (_, i) => i);
+
+  it("defaults to 12 per page (a 3×4 grid)", () => {
+    expect(PROJECTS_PER_PAGE).toBe(12);
+  });
+
+  it("13 items split into 2 pages: 12 then 1", () => {
+    const all = nums(13);
+    const p1 = paginate(all, 1);
+    expect(p1.items).toHaveLength(12);
+    expect(p1.items[0]).toBe(0);
+    expect(p1.totalPages).toBe(2);
+    expect(p1.total).toBe(13);
+    const p2 = paginate(all, 2);
+    expect(p2.items).toEqual([12]);
+    expect(p2.page).toBe(2);
+  });
+
+  it("clamps an out-of-range page into [1, totalPages] (a delete that empties the last page)", () => {
+    const all = nums(13);
+    // Asking for page 5 of a 2-page list shows the last page, not blank.
+    const over = paginate(all, 5);
+    expect(over.page).toBe(2);
+    expect(over.items).toEqual([12]);
+    // Page 0 / negative / NaN all fall back to page 1.
+    expect(paginate(all, 0).page).toBe(1);
+    expect(paginate(all, -3).page).toBe(1);
+    expect(paginate(all, Number.NaN).page).toBe(1);
+  });
+
+  it("an empty list is one page that reads 1/1 (footer never shows 1/0)", () => {
+    const p = paginate([], 1);
+    expect(p.items).toEqual([]);
+    expect(p.page).toBe(1);
+    expect(p.totalPages).toBe(1);
+    expect(p.total).toBe(0);
+  });
+
+  it("an exact multiple of the page size doesn't add a trailing empty page", () => {
+    expect(paginate(nums(24), 1).totalPages).toBe(2);
+    expect(paginate(nums(24), 2).items).toHaveLength(12);
+  });
+
+  it("a custom page size slices accordingly", () => {
+    const p = paginate(nums(10), 2, 4);
+    expect(p.items).toEqual([4, 5, 6, 7]);
+    expect(p.totalPages).toBe(3);
   });
 });

@@ -7,6 +7,7 @@ import {
   scaffoldProjectInput,
   renderDraftInput,
   renderFullInput,
+  renderStillsInput,
   doctorInput,
   listProjectsInput,
   trackerListInput,
@@ -85,6 +86,17 @@ export function createMcpServer(overrides: Partial<ToolDeps> = {}): McpServer {
       inputSchema: renderFullInput.shape,
     },
     async (args, extra) => toCallResult(await tools.render_full(args, makeProgress(extra))),
+  );
+
+  server.registerTool(
+    "render_stills",
+    {
+      title: "Render per-scene stills (fast, no TTS)",
+      description:
+        "Render one PNG per scene (or a subset via sceneIds) WITHOUT TTS, MP4, or the heavy oracle suite — the cheap inner loop the silent refine pass iterates on.",
+      inputSchema: renderStillsInput.shape,
+    },
+    async (args) => toCallResult(await tools.render_stills(args)),
   );
 
   server.registerTool(

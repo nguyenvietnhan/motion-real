@@ -129,7 +129,7 @@ function specWithScenes(n: number): VideoSpec {
     narration: "Một câu tường thuật đủ dài để có vài dòng phụ đề ngắn cho cảnh này một cách tự nhiên.",
     props: {},
   }));
-  return { version: 1, title: "Caption lock test", styleId: "clean-luxury-tech", ratio: "9:16", language: "vi", scenes };
+  return { version: 1, title: "Caption lock test", styleId: "clean-luxury-tech", format: "tiktok", ratio: "9:16", language: "vi", scenes };
 }
 
 function manifestFor(spec: VideoSpec, durations: number[]): TtsManifest {

@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { existsSync } from "node:fs";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { cpus, tmpdir } from "node:os";
 import { join } from "node:path";
 import type { LockedVideoSpec, VideoSpec } from "@news/schema";
 
@@ -40,11 +40,23 @@ import type { ReviewChecklist, TtsManifest } from "./types.js";
 
 let tempRoot: string;
 let prevHome: string | undefined;
+let prevRenderConcurrency: string | undefined;
+let prevDraftRenderConcurrency: string | undefined;
+let prevRenderGl: string | undefined;
+let prevRenderChromeMode: string | undefined;
 
 beforeEach(async () => {
   tempRoot = await mkdtemp(join(tmpdir(), "news-orchestrator-"));
   prevHome = process.env.VIDEO_TOOL_HOME;
+  prevRenderConcurrency = process.env.NEWS_RENDER_CONCURRENCY;
+  prevDraftRenderConcurrency = process.env.NEWS_DRAFT_RENDER_CONCURRENCY;
+  prevRenderGl = process.env.NEWS_RENDER_GL;
+  prevRenderChromeMode = process.env.NEWS_RENDER_CHROME_MODE;
   process.env.VIDEO_TOOL_HOME = tempRoot;
+  delete process.env.NEWS_RENDER_CONCURRENCY;
+  delete process.env.NEWS_DRAFT_RENDER_CONCURRENCY;
+  delete process.env.NEWS_RENDER_GL;
+  delete process.env.NEWS_RENDER_CHROME_MODE;
   stillBytes = "identical-frame-bytes";
 
   mocks.bundle.mockResolvedValue("http://localhost:3000/bundle");
@@ -73,6 +85,14 @@ afterEach(async () => {
   vi.clearAllMocks();
   if (prevHome === undefined) delete process.env.VIDEO_TOOL_HOME;
   else process.env.VIDEO_TOOL_HOME = prevHome;
+  if (prevRenderConcurrency === undefined) delete process.env.NEWS_RENDER_CONCURRENCY;
+  else process.env.NEWS_RENDER_CONCURRENCY = prevRenderConcurrency;
+  if (prevDraftRenderConcurrency === undefined) delete process.env.NEWS_DRAFT_RENDER_CONCURRENCY;
+  else process.env.NEWS_DRAFT_RENDER_CONCURRENCY = prevDraftRenderConcurrency;
+  if (prevRenderGl === undefined) delete process.env.NEWS_RENDER_GL;
+  else process.env.NEWS_RENDER_GL = prevRenderGl;
+  if (prevRenderChromeMode === undefined) delete process.env.NEWS_RENDER_CHROME_MODE;
+  else process.env.NEWS_RENDER_CHROME_MODE = prevRenderChromeMode;
   await rm(tempRoot, { recursive: true, force: true });
 });
 
@@ -126,6 +146,7 @@ const SAMPLE_SPEC: VideoSpec = {
   version: 1,
   title: "Orchestrator test",
   styleId: "clean-luxury-tech",
+  format: "tiktok",
   ratio: "9:16",
   language: "vi",
   theme: { dominant: "#4CE0A7" },
@@ -208,6 +229,85 @@ describe("renderProject — render pipeline (skipAuthoring)", () => {
     expect(types).toEqual(
       expect.arrayContaining(["tts.done", "lock.written", "build.ok", "determinism.ok", "render.done", "project.done"]),
     );
+    const timingEvents = events.filter((e) => e.type === "render.timing");
+    const stageStarts = events.filter((e) => e.type === "render.stage_start");
+    expect(stageStarts.map((e) => e.name)).toEqual(
+      expect.arrayContaining([
+        "stage.tts",
+        "stage.lock",
+        "stage.build_gate",
+        "stage.determinism",
+        "stage.render",
+        "stage.review",
+        "stage.render_oracles",
+      ]),
+    );
+    expect(events.findIndex((e) => e.type === "render.stage_start" && e.name === "stage.tts")).toBeLessThan(
+      events.findIndex((e) => e.type === "render.timing" && e.name === "stage.tts"),
+    );
+    expect(timingEvents.map((e) => e.name)).toEqual(
+      expect.arrayContaining([
+        "stage.tts",
+        "stage.lock",
+        "stage.build_gate",
+        "stage.determinism",
+        "stage.render",
+        "stage.review",
+        "stage.render_oracles",
+        "stage.layout_measure.skipped",
+        "stage.late_safe_area",
+        "stage.render_cache_key",
+        "stage.read_authored_sources",
+        "video.ensureBrowser",
+        "video.renderMedia",
+        "review-stills.renderStillFallback",
+      ]),
+    );
+    expect(timingEvents.every((e) => typeof e.ms === "number")).toBe(true);
+  });
+
+  it("adapts default draft concurrency but leaves full render on the renderer default", async () => {
+    const draftProject = await readyProject();
+
+    await renderProject(draftProject, {
+      skipAuthoring: true,
+      quality: "draft",
+      ttsProvider: "none",
+      checklist: FULL_CHECKLIST,
+      composeContactSheet: fakeCompositor(),
+    });
+
+    const logicalCpus = Math.max(1, cpus().length);
+    const expected = Math.max(1, logicalCpus - 1);
+    const draftRenderCall = mocks.renderMedia.mock.calls.at(-1)?.[0];
+    expect(draftRenderCall?.concurrency).toBe(expected);
+
+    const fullProject = await readyProject();
+    await renderProject(fullProject, {
+      skipAuthoring: true,
+      ttsProvider: "none",
+      checklist: FULL_CHECKLIST,
+      composeContactSheet: fakeCompositor(),
+    });
+
+    const fullRenderCall = mocks.renderMedia.mock.calls.at(-1)?.[0];
+    expect(fullRenderCall?.concurrency).toBeNull();
+  });
+
+  it("passes machine-level Chromium GL config through to Remotion", async () => {
+    process.env.NEWS_RENDER_GL = "angle";
+    const projectId = await readyProject();
+
+    await renderProject(projectId, {
+      skipAuthoring: true,
+      quality: "draft",
+      ttsProvider: "none",
+      checklist: FULL_CHECKLIST,
+      composeContactSheet: fakeCompositor(),
+    });
+
+    expect(mocks.selectComposition).toHaveBeenCalledWith(expect.objectContaining({ chromiumOptions: { gl: "angle" } }));
+    expect(mocks.renderMedia).toHaveBeenCalledWith(expect.objectContaining({ chromiumOptions: { gl: "angle" } }));
   });
 
   it("serves the MP4 from cache on a second identical render", async () => {

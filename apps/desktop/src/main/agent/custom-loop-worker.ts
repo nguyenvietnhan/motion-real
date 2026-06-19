@@ -41,6 +41,8 @@ export interface AuthoringBackend {
   reauthor(projectId: string, targets: ReauthorTarget[], signal?: AbortSignal): Promise<{ scenes: AuthoredScene[] }>;
   /** Render one draft (drives the MCP `render_draft` tool); failure carries the engine error. */
   renderDraft(projectId: string, signal?: AbortSignal): Promise<RenderResult>;
+  /** Optional fast per-scene STILLS render (no TTS/MP4) — the cheap loop the silent refine pass iterates on. */
+  renderStills?(projectId: string, sceneIds?: string[], signal?: AbortSignal): Promise<{ stills: string[] }>;
   /** Render the final full-quality MP4 (drives MCP `render_full`); draft-first gate already satisfied. */
   renderFull(projectId: string, signal?: AbortSignal): Promise<PublishResult>;
   /** Read the safety report for the just-rendered draft (MCP `get_safety_report`). */
@@ -95,6 +97,10 @@ export class CustomLoopAgentWorker implements AgentWorker {
 
   publish(projectId: string, signal?: AbortSignal): Promise<PublishResult> {
     return this.backend.renderFull(projectId, signal);
+  }
+
+  renderStills(projectId: string, sceneIds?: string[], signal?: AbortSignal): Promise<{ stills: string[] }> {
+    return this.backend.renderStills?.(projectId, sceneIds, signal) ?? Promise.resolve({ stills: [] });
   }
 
   visualQa(projectId: string, sceneIds?: string[], signal?: AbortSignal): Promise<VisualDefect[]> {

@@ -7,7 +7,7 @@ import { wipe } from "@remotion/transitions/wipe";
 import { clockWipe } from "@remotion/transitions/clock-wipe";
 import type { TransitionPresentation } from "@remotion/transitions";
 import { CANVAS, CONTENT_ZONE, rectWidth, transitionFrames, type LockedSceneSpec, type LockedVideoSpec } from "@news/schema";
-import { makeTheme, type Theme } from "@news/design";
+import { makeTheme, sceneBackground, type Theme } from "@news/theme";
 import { Captions, LayoutProbe, SceneTimingProvider, useIntroZoom } from "@news/blocks";
 import { getComponent } from "./registry.js";
 import { ThemeProvider, useTheme } from "./theme-context.js";
@@ -87,7 +87,7 @@ export const VideoComposition: React.FC<VideoCompositionProps> = ({ spec, measur
   const timing = springTiming({ config: { damping: 200, mass: 0.8, stiffness: 100 }, durationInFrames: T });
   return (
     <ThemeProvider theme={theme}>
-      <AbsoluteFill style={{ backgroundColor: theme.colors.bg }}>
+      <CompositionBackdrop theme={theme}>
         <TransitionSeries>
           {scenes.map((scene, i) => {
             const isLast = i === scenes.length - 1;
@@ -110,12 +110,35 @@ export const VideoComposition: React.FC<VideoCompositionProps> = ({ spec, measur
         </TransitionSeries>
 
         {spec.audio.narrationSrc ? <Audio src={resolveAudio(spec.audio.narrationSrc)} /> : null}
-        <CaptionDivider color={theme.colors.fg} />
-        <Captions cues={spec.captions ?? []} />
+        {/* Caption band + divider are a TikTok (9:16) concern only (freeform-engine
+            D8): YouTube ships its own native captions, so a 16:9 video mounts
+            neither the burned karaoke track nor the content/caption divider — it
+            uses the full frame. `format` defaults to "tiktok" for any spec authored
+            before the field existed, so vertical videos are unchanged. */}
+        {spec.format !== "youtube" ? (
+          <>
+            <CaptionDivider color={theme.colors.fg} />
+            <Captions cues={spec.captions ?? []} />
+          </>
+        ) : null}
         {measure ? <LayoutProbe /> : null}
-      </AbsoluteFill>
+      </CompositionBackdrop>
     </ThemeProvider>
   );
+};
+
+/**
+ * The top-level background WASH (freeform-engine L2). The composition used to
+ * paint a flat near-black `colors.bg`, which looked dead on both formats; this
+ * paints the theme's radial-gradient wash instead. Extracted as its own pure
+ * component (single responsibility) so it can be tested without a Remotion
+ * video-config context — the master composition mounts `TransitionSeries`, which
+ * needs that context, but the backdrop itself is just a styled `AbsoluteFill`.
+ * An authored scene that draws its own full-bleed background still paints over
+ * this, so the wash only shows through transparent/letterboxed areas.
+ */
+export const CompositionBackdrop: React.FC<{ theme: Theme; children: React.ReactNode }> = ({ theme, children }) => {
+  return <AbsoluteFill style={{ background: sceneBackground(theme) }}>{children}</AbsoluteFill>;
 };
 
 /**
@@ -163,7 +186,75 @@ export const SceneContent: React.FC<{ scene: LockedSceneSpec }> = ({ scene }) =>
   );
   // AI-chosen, per-scene emphasis: a whole-scene punch-in zoom that settles to
   // 1.0 before the midpoint (so it's a deliberate spotlight, not an N14 risk).
-  return scene.emphasis === "zoom" ? <SceneZoom>{content}</SceneZoom> : content;
+  const inner = scene.emphasis === "zoom" ? <SceneZoom>{content}</SceneZoom> : content;
+  // Freeform pivot: a single authored scene that THROWS at render time (e.g. a
+  // `.map` over an undefined prop) used to crash headless Chromium and take the
+  // WHOLE video down with an opaque error. With the hard prop/typecheck gates
+  // relaxed to warnings, that risk moves to render time — so each scene renders
+  // inside its OWN boundary: a throwing scene shows a graceful fallback (its
+  // headline on a safe layout) while every other scene still renders. The video
+  // ALWAYS ships. The boundary is a pure function of its subtree (no state read
+  // from outside render), so determinism (N16) is unaffected.
+  return (
+    <SceneErrorBoundary fallback={<SceneFallback headline={scene.headline} eyebrow={scene.eyebrow} />}>
+      {inner}
+    </SceneErrorBoundary>
+  );
+};
+
+/**
+ * Per-scene render boundary (freeform pivot). Catches a runtime throw from ONE
+ * authored scene so it can't crash the whole render; renders `fallback` instead.
+ * Deterministic: `getDerivedStateFromError` is a pure transform of the caught
+ * error into `{ failed: true }`, so the same broken scene always yields the same
+ * fallback pixels (no time/random/network), keeping the N16 guard valid.
+ */
+class SceneErrorBoundary extends React.Component<
+  { fallback: React.ReactNode; children: React.ReactNode },
+  { failed: boolean }
+> {
+  constructor(props: { fallback: React.ReactNode; children: React.ReactNode }) {
+    super(props);
+    this.state = { failed: false };
+  }
+  static getDerivedStateFromError(): { failed: boolean } {
+    return { failed: true };
+  }
+  render(): React.ReactNode {
+    return this.state.failed ? this.props.fallback : this.props.children;
+  }
+}
+
+/**
+ * Graceful fallback for a scene that threw: the headline + eyebrow centered on
+ * the language's base surface, inside the safe content zone. The video keeps a
+ * readable beat for that scene instead of a blank frame or a dead render.
+ */
+const SceneFallback: React.FC<{ headline: string; eyebrow?: string }> = ({ headline, eyebrow }) => {
+  const theme: Theme = useTheme();
+  return (
+    <AbsoluteFill
+      style={{
+        backgroundColor: theme.colors.bg,
+        color: theme.colors.fg,
+        display: "flex",
+        flexDirection: "column",
+        gap: 24,
+        justifyContent: "center",
+        alignItems: "center",
+        textAlign: "center",
+        padding: 96,
+        paddingBottom: CANVAS.height - CONTENT_ZONE.bottom + 48,
+      }}
+    >
+      {eyebrow ? (
+        <div style={{ fontFamily: theme.fonts.mono, fontSize: 28, color: theme.colors.muted, letterSpacing: "0.12em" }}>
+          {eyebrow}
+        </div>
+      ) : null}
+      <div style={{ fontFamily: theme.fonts.display, fontSize: 72, fontWeight: 800, lineHeight: 1.1 }}>{headline}</div>
+    </AbsoluteFill>
+  );
 };
 
 /** Whole-scene punch-in zoom (settles), used for scenes the AI flags emphasis:"zoom". */

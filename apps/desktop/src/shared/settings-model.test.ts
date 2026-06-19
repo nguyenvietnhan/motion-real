@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { defaultSettings } from "./settings-model.js";
+import {
+  defaultSettings,
+  clampWordsPerSecond,
+  computeWordsPerSecond,
+  DEFAULT_WORDS_PER_SECOND,
+  MIN_WORDS_PER_SECOND,
+  MAX_WORDS_PER_SECOND,
+} from "./settings-model.js";
 
 /**
  * Feature: web-dashboard, Task 10.2 — settings defaults (Req 11.7, 11.8). Every
@@ -18,5 +25,63 @@ describe("defaultSettings", () => {
     expect(s.maxRepairAttempts).toBe(3);
     expect(s.scriptGateEnabled).toBe(true);
     expect(s.aiAccount).toEqual({ kind: "disconnected" });
+  });
+});
+
+/**
+ * freeform-engine K1/R5.4/D13 — Vivibe read-rate calibration math. The author
+ * prompt turns a duration target into a word budget at this rate; a bad rate
+ * makes a "90s" request render short. These cover the PURE helpers the
+ * calibration script + the settings store rely on (the live Vivibe measurement
+ * is a manual script, not a unit test).
+ */
+describe("clampWordsPerSecond", () => {
+  it("keeps an in-band rate unchanged", () => {
+    expect(clampWordsPerSecond(4.7)).toBe(4.7);
+    expect(clampWordsPerSecond(3.2)).toBe(3.2);
+  });
+
+  it("clamps an out-of-band rate to the sane [min,max] (a bad measurement can't poison the budget)", () => {
+    expect(clampWordsPerSecond(0.1)).toBe(MIN_WORDS_PER_SECOND);
+    expect(clampWordsPerSecond(99)).toBe(MAX_WORDS_PER_SECOND);
+  });
+
+  it("falls back to the measured default for a non-finite value", () => {
+    expect(clampWordsPerSecond(NaN)).toBe(DEFAULT_WORDS_PER_SECOND);
+    expect(clampWordsPerSecond(Infinity)).toBe(DEFAULT_WORDS_PER_SECOND);
+  });
+});
+
+describe("computeWordsPerSecond", () => {
+  it("uses a TOTAL-weighted average (Σ words / Σ seconds), not a mean of ratios", () => {
+    // 10 words / 5s = 2 w/s and 90 words / 15s = 6 w/s. A mean-of-ratios would be
+    // 4.0; the total-weighted average is 100/20 = 5.0 (the long sample counts more).
+    const ten = Array.from({ length: 10 }, (_, i) => `t${i}`).join(" ");
+    const ninety = Array.from({ length: 90 }, (_, i) => `w${i}`).join(" ");
+    expect(computeWordsPerSecond([{ text: ten, seconds: 5 }, { text: ninety, seconds: 15 }])).toBe(5);
+  });
+
+  it("skips samples with a non-positive/non-finite duration or zero words", () => {
+    const five = Array.from({ length: 5 }, (_, i) => `w${i}`).join(" ");
+    // Only the valid sample (5 words / 2s = 2.5) counts; the rest are skipped.
+    const rate = computeWordsPerSecond([
+      { text: five, seconds: 2 },
+      { text: "bỏ qua", seconds: 0 },
+      { text: "bỏ qua", seconds: -3 },
+      { text: "bỏ qua", seconds: NaN },
+      { text: "   ", seconds: 4 },
+    ]);
+    expect(rate).toBe(2.5);
+  });
+
+  it("returns undefined when no sample is usable (caller keeps the existing/default rate)", () => {
+    expect(computeWordsPerSecond([])).toBeUndefined();
+    expect(computeWordsPerSecond([{ text: "x", seconds: 0 }])).toBeUndefined();
+  });
+
+  it("clamps the computed rate into the sane band", () => {
+    // 100 words in 1s ⇒ 100 w/s raw, clamped down to the max.
+    const hundred = Array.from({ length: 100 }, (_, i) => `w${i}`).join(" ");
+    expect(computeWordsPerSecond([{ text: hundred, seconds: 1 }])).toBe(MAX_WORDS_PER_SECOND);
   });
 });

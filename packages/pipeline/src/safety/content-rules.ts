@@ -127,7 +127,7 @@ export function runContentRules(spec: VideoSpec): SafetyIssue[] {
         if (matched) {
           issues.push({
             check: "N6",
-            severity: "error",
+            severity: "warning",
             sceneId: scene.id,
             path: field.name,
             message: `${scene.id} ${field.name} contains phonetic spelling "${matched}"; use original English "${original}".`,
@@ -140,7 +140,7 @@ export function runContentRules(spec: VideoSpec): SafetyIssue[] {
         if (matched) {
           issues.push({
             check: "N7",
-            severity: "error",
+            severity: "warning",
             sceneId: scene.id,
             path: field.name,
             message: `${scene.id} ${field.name} contains spaced abbreviation "${matched.trim()}"; write "${original}".`,

@@ -29,6 +29,12 @@ export function formatShortDate(iso: string | undefined): string {
 }
 
 function titleOf(summary: ProjectSummary): string {
+  // Prefer the AI-authored display title (from manifest.json) so a card reads
+  // "Gemma 3 chạy trên máy nhà" rather than the long link/prompt the user typed.
+  // Falls back to the raw prompt for a scaffolded-but-unauthored project, then to
+  // the id as a last resort so a card is never blank.
+  const title = summary.title?.trim();
+  if (title && title.length > 0) return title;
   const prompt = summary.brief?.prompt?.trim();
   return prompt && prompt.length > 0 ? prompt : summary.projectId;
 }
@@ -59,4 +65,34 @@ export function toCards(summaries: ProjectSummary[]): ProjectCardVM[] {
 export function galleryLoadState(loaded: boolean, cardCount: number): GalleryLoad {
   if (!loaded) return "loading";
   return cardCount === 0 ? "empty" : "populated";
+}
+
+/** Default page size for the projects gallery (I1/O3): a 3×4 grid. */
+export const PROJECTS_PER_PAGE = 12;
+
+export type Paged<T> = {
+  /** The items on the clamped page. */
+  items: T[];
+  /** The 1-based page actually shown (clamped into [1, totalPages]). */
+  page: number;
+  /** Total number of pages (≥1 even when empty, so the footer always reads "1/1"). */
+  totalPages: number;
+  /** Total item count across all pages. */
+  total: number;
+};
+
+/**
+ * Slice a list into a clamped 1-based page (I1/O3). Pagination is done in the
+ * renderer over the already-loaded cards — the store must read every brief to
+ * sort newest-first anyway, so a backend `(page,pageSize)` query would add no
+ * perf benefit while forcing page/total state through the 1.5s gallery poll
+ * (causing flicker). `page` is clamped into range so a delete that empties the
+ * last page falls back to the new last page instead of showing nothing.
+ */
+export function paginate<T>(all: readonly T[], page: number, pageSize = PROJECTS_PER_PAGE): Paged<T> {
+  const total = all.length;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const clamped = Math.min(Math.max(1, Math.floor(page) || 1), totalPages);
+  const start = (clamped - 1) * pageSize;
+  return { items: all.slice(start, start + pageSize), page: clamped, totalPages, total };
 }

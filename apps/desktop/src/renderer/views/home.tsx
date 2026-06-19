@@ -1,5 +1,5 @@
-import React, { useRef, useState } from "react";
-import type { ProjectCardVM, StagedImage, PickImagesResult, DroppedImage, StylePackVM } from "../../shared/types.js";
+import React, { useEffect, useRef, useState } from "react";
+import type { ProjectCardVM, StagedImage, PickImagesResult, DroppedImage, VideoFormatChoice, DurationTierChoice, TitleLanguageChoice } from "../../shared/types.js";
 import type { GalleryLoad } from "../../shared/gallery-controller.js";
 import { validateCreateInput, extractUrls } from "../../shared/create-validation.js";
 import { Icon } from "../icons.js";
@@ -24,89 +24,99 @@ const REJECT_REASON: Record<string, string> = {
 };
 
 /**
- * A small 9:16 CSS sketch of one style pack — NOT a rendered frame, a coarse
- * always-correct hint driven by the SAME chrome tokens the real render reads
- * (border weight/style, grid, ticks, density). When a pack changes its chrome,
- * this sketch follows with no extra work; when a new pack is registered, it gets
- * a thumbnail for free. Deliberately schematic: two title bars + a divider +
- * a caption bar, echoing the real layout's content-zone-over-caption split.
+ * A compact delivery-knob button (freeform-engine G3): a short pill showing an
+ * icon + the current value, sitting inline next to the "+" attach button. Click
+ * it to open a small popover of mutually-exclusive options; the choice closes the
+ * popover. Generic over the option value so format / tier / title-language stay
+ * type-safe. `open`/`onToggle` are lifted to the parent so only ONE knob popover
+ * is open at a time. Keeping each knob a separate button (rather than one big
+ * "Tùy chỉnh" panel) means a non-technical user only ever sees three tidy chips.
  */
-const StyleThumbnail: React.FC<{ preview: StylePackVM["preview"]; large?: boolean }> = ({ preview, large = false }) => {
-  const framed = preview.borderStyle !== "none";
-  const scale = large ? 2.4 : 1;
-  const borderW = (framed ? Math.max(1, Math.min(4, preview.borderWidth)) : 0) * (large ? 1.6 : 1);
-  // Density drives how much "content" the sketch shows: airy = sparse, compact =
-  // busy. Editorial sits in the middle.
-  const bars = preview.density === "airy" ? 2 : preview.density === "compact" ? 4 : 3;
-  // A dark-base pack flips the palette: light ink on a deep base, optionally with
-  // a starfield backdrop. A light pack keeps the cream/ink editorial look.
-  const dark = preview.dark;
-  const base = dark ? "#0B1020" : "#F2ECDC";
-  const ink = dark ? "#EAF0FF" : "#17150F";
-  const subtle = dark ? "rgba(234,240,255,0.45)" : "rgba(23,21,15,0.45)";
-  const radius = (preview.rounded ? 12 : 4) * (large ? 1.4 : 1);
-  const px = (n: number) => n * scale;
-  // Deterministic faux-stars (no Math.random — stable across renders).
-  const stars = [
-    [18, 14], [52, 22], [30, 40], [70, 34], [12, 58], [60, 64], [40, 78], [80, 52], [24, 90], [66, 96],
-  ];
+function KnobButton<T extends string | number>(props: {
+  icon: React.ReactNode;
+  title: string;
+  value: T;
+  open: boolean;
+  onToggle: () => void;
+  onClose: () => void;
+  onChange: (next: T) => void;
+  options: { value: T; label: string; warn?: string }[];
+}): React.ReactElement {
+  const current = props.options.find((o) => o.value === props.value);
+  const ref = useRef<HTMLDivElement>(null);
+  // Close on an outside click / Escape so a popover never lingers over the page.
+  useEffect(() => {
+    if (!props.open) return;
+    const onDown = (e: MouseEvent): void => {
+      if (ref.current && !ref.current.contains(e.target as Node)) props.onClose();
+    };
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key === "Escape") props.onClose();
+    };
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [props]);
   return (
-    <div
-      aria-hidden
-      style={{
-        position: "relative",
-        width: px(64),
-        height: px(114), // 9:16
-        borderRadius: radius,
-        background: dark
-          ? "radial-gradient(circle at 50% 30%, #1A2444 0%, #0B1020 70%)"
-          : base,
-        border: framed ? `${borderW}px solid ${ink}` : `1px solid ${dark ? "rgba(234,240,255,0.18)" : "var(--border)"}`,
-        overflow: "hidden",
-        flex: "0 0 auto",
-      }}
-    >
-      {/* starfield backdrop (dark packs only) */}
-      {preview.starfield && stars.map(([x, y], i) => (
-        <span key={i} style={{ position: "absolute", left: `${x}%`, top: `${y}%`,
-          width: i % 3 === 0 ? px(2) : px(1), height: i % 3 === 0 ? px(2) : px(1),
-          borderRadius: 999, background: "#fff", opacity: i % 2 === 0 ? 0.9 : 0.5 }} />
-      ))}
-      {/* faint grid (only when the pack uses it) */}
-      {preview.grid && (
-        <div style={{ position: "absolute", inset: 0, opacity: 0.5,
-          backgroundImage: "linear-gradient(90deg, rgba(23,21,15,0.08) 1px, transparent 1px), linear-gradient(0deg, rgba(23,21,15,0.08) 1px, transparent 1px)",
-          backgroundSize: `${px(10)}px ${px(10)}px` }} />
+    <div ref={ref} style={{ position: "relative" }}>
+      <button
+        type="button"
+        className={`ns-knob-chip${props.open ? " is-open" : ""}`}
+        aria-haspopup="true"
+        aria-expanded={props.open}
+        title={props.title}
+        onClick={props.onToggle}
+      >
+        {props.icon}
+        <span>{current?.label ?? String(props.value)}</span>
+      </button>
+      {props.open && (
+        <div className="ns-knob-pop" role="menu" aria-label={props.title}>
+          <span className="ns-knob-pop-label">{props.title}</span>
+          {props.options.map((o) => {
+            const active = o.value === props.value;
+            return (
+              <button
+                key={String(o.value)}
+                type="button"
+                role="menuitemradio"
+                aria-checked={active}
+                className={`ns-knob-opt${active ? " is-active" : ""}`}
+                onClick={() => {
+                  props.onChange(o.value);
+                  props.onClose();
+                }}
+              >
+                <span className="ns-knob-opt-tick">{active ? Icon.check({ size: 14 }) : null}</span>
+                <span style={{ flex: 1 }}>{o.label}</span>
+                {o.warn && (
+                  <span className="ns-warn-hint" tabIndex={0} role="note" aria-label={o.warn}>
+                    {Icon.warn({ size: 15 })}
+                    <span className="ns-warn-tip">{o.warn}</span>
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
       )}
-      {/* corner registration ticks (only when the pack uses them) */}
-      {preview.registrationTicks && [
-        { top: px(3), left: px(3) }, { top: px(3), right: px(3) }, { bottom: px(3), left: px(3) }, { bottom: px(3), right: px(3) },
-      ].map((pos, i) => (
-        <span key={i} style={{ position: "absolute", width: px(5), height: px(5), borderTop: `1px solid ${ink}`, borderLeft: `1px solid ${ink}`, ...pos }} />
-      ))}
-      {/* content title bars (upper content zone) */}
-      <div style={{ position: "absolute", left: px(8), right: px(8), top: px(16), display: "flex", flexDirection: "column", gap: px(5) }}>
-        {Array.from({ length: bars }).map((_, i) => (
-          <div key={i} style={{ height: px(i === 0 ? 7 : 4), width: i === 0 ? "85%" : `${70 - i * 12}%`,
-            background: i === 0 ? ink : subtle, borderRadius: preview.rounded ? px(3) : 1 }} />
-        ))}
-      </div>
-      {/* the divider line (drawn near the content-zone bottom, as in the real layout) */}
-      <div style={{ position: "absolute", left: px(8), right: px(8), bottom: px(26), height: px(2), background: ink, opacity: 0.8, borderRadius: preview.rounded ? px(2) : 0 }} />
-      {/* a caption bar below the divider */}
-      <div style={{ position: "absolute", left: px(12), right: px(12), bottom: px(14), height: px(5), background: dark ? "rgba(234,240,255,0.6)" : "rgba(23,21,15,0.6)", borderRadius: preview.rounded ? px(3) : 1 }} />
     </div>
   );
-};
+}
 
 /** Home: create hero (chat-style brief) + recent-projects grid. */
 export const HomeView: React.FC<{
   aiReady: boolean;
   load: GalleryLoad;
   cards: ProjectCardVM[];
-  /** Selectable design style packs (the create-screen picker); empty ⇒ picker hidden. */
-  stylePacks?: StylePackVM[];
-  onCreate: (raw: string, images: StagedImage[], stylePackId?: string) => void;
+  onCreate: (
+    raw: string,
+    images: StagedImage[],
+    choices: { format: VideoFormatChoice; durationTier: DurationTierChoice; titleLanguage: TitleLanguageChoice },
+  ) => void | Promise<void>;
   onOpen: (projectId: string) => void;
   onConnectPrompt: () => void;
   /** Open the native image picker (Phase 2 Block A); resolves staged images + rejections. */
@@ -117,21 +127,26 @@ export const HomeView: React.FC<{
   onUnstageImage?: (ref: string) => void;
   onDelete?: (id: string) => void;
   onReveal?: (id: string) => void;
+  /** Rename a project's display title (H2/R9.4). Absent ⇒ no rename affordance. */
+  onRename?: (id: string, newTitle: string) => void;
   onRetry?: () => void;
   createError?: string;
-}> = ({ aiReady, load, cards, stylePacks = [], onCreate, onOpen, onConnectPrompt, onPickImages, onImportImageBytes, onUnstageImage, onDelete, onReveal, onRetry, createError }) => {
+}> = ({ aiReady, load, cards, onCreate, onOpen, onConnectPrompt, onPickImages, onImportImageBytes, onUnstageImage, onDelete, onReveal, onRename, onRetry, createError }) => {
   const [raw, setRaw] = useState("");
   const [images, setImages] = useState<StagedImage[]>([]);
   const [rejectNote, setRejectNote] = useState("");
   const [dragOver, setDragOver] = useState(false);
-  // The chosen style pack (the create-screen picker). `undefined` until the list
-  // loads OR the user picks; on submit we fall back to the registry default, so
-  // a user who never touches the picker gets exactly today's look.
-  const [stylePackId, setStylePackId] = useState<string | undefined>(undefined);
-  const [stylePickerOpen, setStylePickerOpen] = useState(false);
-  const defaultPackId = stylePacks.find((p) => p.isDefault)?.id ?? stylePacks[0]?.id;
-  const selectedPackId = stylePackId ?? defaultPackId;
-  const selectedPack = stylePacks.find((p) => p.id === selectedPackId);
+  // The three delivery knobs the user picks at create time (freeform-engine
+  // R7/R9). The backend threads these into the prompt + spec — the model never
+  // chooses them. Defaults: TikTok / tier 1 / Vietnamese title. (Crude temporary
+  // UI per D-UI; not styled.)
+  const [format, setFormat] = useState<VideoFormatChoice>("tiktok");
+  const [durationTier, setDurationTier] = useState<DurationTierChoice>(1);
+  const [titleLanguage, setTitleLanguage] = useState<TitleLanguageChoice>("vi");
+  const [creating, setCreating] = useState(false);
+  // Which delivery-knob popover is open (only one at a time); null = all closed.
+  // Each knob is its own inline chip next to "+", revealing its options on click.
+  const [openKnob, setOpenKnob] = useState<null | "format" | "duration" | "title">(null);
   // Drag enter/leave fire for EVERY child the cursor crosses, so a naive
   // boolean toggles on each border → flicker. Count enters minus leaves and
   // only clear the highlight when the count returns to 0 (cursor truly left).
@@ -139,12 +154,11 @@ export const HomeView: React.FC<{
   const valid = validateCreateInput({ raw });
   const inputValid = valid.ok;
   const recent = cards.slice(0, 8);
-  // Images attach to the project's image pool only when the brief carries NO
-  // link (links carry their own future crawl path). Gate on extractUrls over the
-  // raw text directly, so an empty/too-long brief still shows the attach UI
-  // (you can drop an image before typing) — only a present link hides it.
-  const hasLink = extractUrls(raw).length > 0;
-  const canAttach = Boolean(onPickImages || onImportImageBytes) && !hasLink;
+  // A brief may mix links + user-provided images: links trigger the article crawl,
+  // while attached images are still forwarded as an explicit user-approved pool.
+  const linkCount = extractUrls(raw).length;
+  const hasLink = linkCount > 0;
+  const canAttach = Boolean(onPickImages || onImportImageBytes);
 
   /** Merge freshly-staged images into state (dedup by ref) + surface rejections. */
   const mergeResult = (res: PickImagesResult): void => {
@@ -247,10 +261,24 @@ export const HomeView: React.FC<{
         : valid.reason === "too-long"
           ? "Nội dung quá dài (tối đa 20.000 ký tự)."
           : "Nội dung chưa hợp lệ.";
+  const submitCreate = (): void => {
+    if (!inputValid || creating) return;
+    if (!aiReady) {
+      onConnectPrompt();
+      return;
+    }
+    setCreating(true);
+    try {
+      void Promise.resolve(onCreate(raw, images, { format, durationTier, titleLanguage })).finally(() => setCreating(false));
+    } catch (error) {
+      setCreating(false);
+      throw error;
+    }
+  };
 
   return (
     <div className="ns-content">
-      <PageHeader title="Trang chủ" subtitle="Mô tả video bạn muốn — như đang nhắn tin. Dán kèm link nếu có, hệ thống tự đọc." />
+      <PageHeader title="Trang chủ" />
 
       {!aiReady && (
         <div className="ns-card" style={{ padding: 16, marginBottom: 20, display: "flex", alignItems: "center", justifyContent: "space-between", borderColor: "var(--brand)" }}>
@@ -308,84 +336,84 @@ export const HomeView: React.FC<{
                 {Icon.plus({ size: 18 })}
               </button>
             )}
-            {/* Style picker trigger: a small star icon-button next to "+". Opens
-                a centered Canva-style modal of large preview cards (list from the
-                @news/design registry via IPC, so a new pack shows up with no UI
-                change). Hidden until the list loads. */}
-            {stylePacks.length > 0 && (
-              <button
-                type="button"
-                className={`ns-icon-btn${stylePickerOpen ? " is-active" : ""}`}
-                aria-label="Chọn phong cách"
-                aria-haspopup="dialog"
-                aria-expanded={stylePickerOpen}
-                title={`Phong cách: ${selectedPack?.name ?? "mặc định"}`}
-                onClick={() => setStylePickerOpen(true)}
-              >
-                {Icon.spark({ size: 17 })}
-              </button>
-            )}
+            {/* Three delivery-knob chips inline with "+": format / duration /
+                title-language (freeform-engine G3). Each is a compact pill showing
+                its current value; clicking opens a small popover of options. Only
+                one popover is open at a time. The backend threads these into the
+                prompt + spec; the model never picks them. */}
+            <div className="ns-knob-row">
+              <KnobButton
+                icon={Icon.ratio({ size: 15 })}
+                title="Định dạng"
+                value={format}
+                open={openKnob === "format"}
+                onToggle={() => setOpenKnob((k) => (k === "format" ? null : "format"))}
+                onClose={() => setOpenKnob(null)}
+                onChange={setFormat}
+                options={[
+                  { value: "tiktok", label: "TikTok 9:16" },
+                  { value: "youtube", label: "YouTube 16:9", warn: "Video ngang dài hơn nên thời gian dựng và lượng quota tiêu thụ sẽ cao hơn TikTok." },
+                ]}
+              />
+              <KnobButton
+                icon={Icon.clock({ size: 15 })}
+                title="Thời lượng"
+                value={durationTier}
+                open={openKnob === "duration"}
+                onToggle={() => setOpenKnob((k) => (k === "duration" ? null : "duration"))}
+                onClose={() => setOpenKnob(null)}
+                onChange={setDurationTier}
+                options={
+                  format === "youtube"
+                    ? [
+                        { value: 1, label: "5:00" },
+                        { value: 2, label: "7:30" },
+                        { value: 3, label: "10:00" },
+                      ]
+                    : [
+                        { value: 1, label: "0:45" },
+                        { value: 2, label: "1:30" },
+                        { value: 3, label: "2:30" },
+                      ]
+                }
+              />
+              <KnobButton
+                icon={Icon.globe({ size: 15 })}
+                title="Ngôn ngữ tiêu đề"
+                value={titleLanguage}
+                open={openKnob === "title"}
+                onToggle={() => setOpenKnob((k) => (k === "title" ? null : "title"))}
+                onClose={() => setOpenKnob(null)}
+                onChange={setTitleLanguage}
+                options={[
+                  { value: "vi", label: "Việt" },
+                  { value: "en", label: "Anh" },
+                  { value: "mix", label: "Trộn" },
+                ]}
+              />
+            </div>
             <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 10 }}>
               {aiReady && reason && <span style={{ color: "var(--warn)", fontSize: 13 }}>{reason}</span>}
-              <button className="ns-btn ns-btn-primary" onClick={() => (aiReady ? onCreate(raw, images, selectedPackId) : onConnectPrompt())} disabled={!inputValid}>
-                {Icon.plus({ size: 16 })} Tạo bản nháp
+              <button
+                className="ns-btn ns-btn-primary"
+                onClick={submitCreate}
+                disabled={!inputValid || creating}
+              >
+                {Icon.plus({ size: 16 })} {creating ? "Đang tạo…" : "Tạo bản nháp"}
               </button>
             </div>
           </div>
+          {/* Crawled-image / staged-image rejections + AI-readiness hints below. */}
         </div>
         {rejectNote && <p style={{ color: "var(--warn)", fontSize: 12, margin: "10px 0 0" }}>{rejectNote}</p>}
+        {hasLink && (
+          <p style={{ color: "var(--muted-foreground)", fontSize: 12, margin: "10px 0 0" }}>
+            Phát hiện {linkCount} link: app sẽ đọc nội dung và cào ảnh từ bài báo; ảnh bạn tự đính kèm vẫn được đưa cho AI.
+          </p>
+        )}
         {!aiReady && <p style={{ color: "var(--muted-foreground)", fontSize: 13, margin: "10px 0 0" }}>Chưa sẵn sàng AI — bấm “Tạo bản nháp” để mở Cài đặt.</p>}
         {createError && <p style={{ color: "var(--danger)", fontSize: 13, margin: "10px 0 0" }}>{createError}</p>}
       </div>
-
-      {/* Style picker modal (Canva-template style): a centered dialog with large
-          preview cards, opened by the star button. The pack list comes from the
-          @news/design registry via IPC, so a new pack appears here with no UI
-          change. Each preview is a coarse CSS sketch driven by the same chrome
-          tokens the real render reads — not a rendered image. */}
-      {stylePickerOpen && (
-        <div className="ns-modal-backdrop" onClick={() => setStylePickerOpen(false)}>
-          <div
-            className="ns-modal ns-style-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-label="Chọn phong cách"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="ns-modal-head">
-              <div>
-                <h2 className="ns-modal-title">Chọn phong cách</h2>
-                <p className="ns-modal-sub">Bộ khung hình ảnh cho video — màu, khung, nền. Nội dung do AI viết theo chủ đề của bạn.</p>
-              </div>
-              <button className="ns-icon-btn" aria-label="Đóng" onClick={() => setStylePickerOpen(false)}>
-                {Icon.close({ size: 16 })}
-              </button>
-            </div>
-            <div className="ns-style-modal-grid" role="radiogroup" aria-label="Phong cách">
-              {stylePacks.map((pack) => {
-                const active = pack.id === selectedPackId;
-                return (
-                  <button
-                    key={pack.id}
-                    type="button"
-                    role="radio"
-                    aria-checked={active}
-                    className={`ns-style-tile${active ? " is-active" : ""}`}
-                    onClick={() => {
-                      setStylePackId(pack.id);
-                      setStylePickerOpen(false);
-                    }}
-                  >
-                    <StyleThumbnail preview={pack.preview} large />
-                    <span className="ns-style-tile-name">{pack.name}</span>
-                    <span className="ns-style-tile-desc">{pack.description}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-      )}
 
       <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 14 }}>
         <h2 style={{ margin: 0, fontSize: 16 }}>Video gần đây</h2>
@@ -408,7 +436,7 @@ export const HomeView: React.FC<{
           action={onRetry && <button className="ns-btn ns-btn-primary" onClick={onRetry}>Thử lại</button>}
         />
       )}
-      {load === "populated" && <ProjectGrid cards={recent} onOpen={onOpen} onDelete={onDelete} onReveal={onReveal} />}
+      {load === "populated" && <ProjectGrid cards={recent} onOpen={onOpen} onDelete={onDelete} onReveal={onReveal} onRename={onRename} />}
     </div>
   );
 };

@@ -84,3 +84,74 @@ export function rectContains(outer: Rect, inner: Rect, slack = 0): boolean {
 export function uiReserveTop(): number {
   return CANVAS.height - UI_RESERVE.bottom;
 }
+
+// --- Format-parameterized geometry (freeform-engine R7/D3) ------------------
+//
+// The constants above are the TikTok (9:16) layout — historically the ONLY
+// format, so they are plain globals. The engine now also targets YouTube
+// (16:9), so WHERE content/captions live becomes a function of `format`.
+// `geometry(format)` is the single source of truth every consumer (blocks,
+// composition, the in-frame oracle) reads instead of the bare globals, so the
+// two formats never drift. The TikTok branch returns the exact globals above —
+// zero regression for vertical.
+
+/** The two supported delivery formats. Canvas + zones are a function of this. */
+export type VideoFormat = "tiktok" | "youtube";
+
+/**
+ * Everything WHERE-related, resolved for one format: the canvas, the content
+ * zone, the (optional) caption band, the platform-UI reserve, and a thin
+ * `safeMargin` ring used by the single "don't fly off the frame" oracle.
+ */
+export type FormatGeometry = {
+  format: VideoFormat;
+  canvas: { width: number; height: number };
+  contentZone: Rect;
+  /** null ⇒ this format has NO burned caption band (YouTube has native captions). */
+  captionBand: Rect | null;
+  uiReserve: { bottom: number; right: number };
+  /** Outer ring (px) beyond the canvas edge before content is "off-frame". */
+  safeMargin: number;
+};
+
+/** YouTube 16:9 canvas. */
+const YOUTUBE_CANVAS = { width: 1920, height: 1080 } as const;
+
+/**
+ * YouTube content zone = nearly the whole 16:9 frame minus a thin safe margin.
+ * 16:9 has no host platform overlay on the video itself, so there is no
+ * caption band and no UI reserve — content uses essentially the full frame.
+ */
+const YOUTUBE_CONTENT_MARGIN = 64;
+const YOUTUBE_CONTENT_ZONE: Rect = {
+  top: YOUTUBE_CONTENT_MARGIN,
+  bottom: YOUTUBE_CANVAS.height - YOUTUBE_CONTENT_MARGIN,
+  left: YOUTUBE_CONTENT_MARGIN,
+  right: YOUTUBE_CANVAS.width - YOUTUBE_CONTENT_MARGIN,
+};
+
+/**
+ * Resolve the layout geometry for a format. TikTok returns the exact vertical
+ * globals (no regression); YouTube returns the 16:9 full-frame layout with no
+ * caption band and no UI reserve.
+ */
+export function geometry(format: VideoFormat): FormatGeometry {
+  if (format === "youtube") {
+    return {
+      format,
+      canvas: { width: YOUTUBE_CANVAS.width, height: YOUTUBE_CANVAS.height },
+      contentZone: YOUTUBE_CONTENT_ZONE,
+      captionBand: null,
+      uiReserve: { bottom: 0, right: 0 },
+      safeMargin: 24,
+    };
+  }
+  return {
+    format: "tiktok",
+    canvas: { width: CANVAS.width, height: CANVAS.height },
+    contentZone: CONTENT_ZONE,
+    captionBand: CAPTION_BAND,
+    uiReserve: { bottom: UI_RESERVE.bottom, right: UI_RESERVE.right },
+    safeMargin: 24,
+  };
+}

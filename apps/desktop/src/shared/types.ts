@@ -79,7 +79,23 @@ export type PickImagesResult = {
   rejected: { name: string; reason: string }[];
 };
 
-export type CreateInput = { raw: string; stylePackId?: string; accentColor?: string; images?: StagedImageRef[] };
+/** Delivery format the user picks at the create screen (drives canvas + zones + caption presence). */
+export type VideoFormatChoice = "tiktok" | "youtube";
+/** Duration tier (1/2/3) the user picks; maps to per-format second targets (R7.3). */
+export type DurationTierChoice = 1 | 2 | 3;
+/** Publish-title language the user picks (R9.2); never changes the script language. */
+export type TitleLanguageChoice = "vi" | "en" | "mix";
+
+export type CreateInput = {
+  raw: string;
+  /** Delivery format (default tiktok). */
+  format?: VideoFormatChoice;
+  /** Duration tier the word-budget aims at (default 1). */
+  durationTier?: DurationTierChoice;
+  /** Publish-title language (default vi). */
+  titleLanguage?: TitleLanguageChoice;
+  images?: StagedImageRef[];
+};
 
 /**
  * A selectable design style pack, surfaced to the create-screen picker. Read
@@ -127,6 +143,16 @@ export type ProjectCardVM = {
   createdAtLabel: string;
 };
 
+// --- background music library (Req 11 / I2) --------------------------------
+
+/** One track in the per-machine BGM library (shared across projects). */
+export type BgmTrackVM = {
+  /** Library filename — what a project stores as its chosen BGM ref. */
+  name: string;
+  /** Compact size hint for the UI (e.g. "3.2 MB"). */
+  sizeLabel: string;
+};
+
 // --- script gate (Req 4) ---------------------------------------------------
 
 export type ScriptEdit = { sceneId: string; narration?: string; headline?: string };
@@ -160,12 +186,12 @@ export type CrawledImageVM = { ref: string; previewUrl: string; width: number; h
 
 /** The live stage of a project's workspace, driving the staged UI. */
 export type ProjectStage =
-  | { kind: "writing" } // AI is drafting the script
+  | { kind: "writing"; phase?: "author" | "crawl" | "image-filter" } // AI is reading sources / drafting the script
   | { kind: "image-review"; images: CrawledImageVM[] } // blocking: confirm which crawled article images to use before authoring (Phase 2 Block B)
   | { kind: "script"; lines: ScriptLine[]; linkWarning?: string } // awaiting user review/approval (linkWarning = brief links that couldn't be read)
-  | { kind: "rendering"; percent: number; phase?: "edit" | "draft" | "full" | "qa" } // building (edit reauthor | draft | full | ai visual-qa)
+  | { kind: "rendering"; percent: number; phase?: "edit" | "draft" | "full" | "qa" | "prepare"; qaPass?: number; qaTotal?: number } // building (edit reauthor | draft | full | ai visual-qa | hidden prep). "prepare" is the NEUTRAL phase for the two hidden pre-draft renders (blind stills + creative bootstrap, freeform-engine L1/L3): the user sees a generic "Đang dựng bản nháp…" and never the raw bland take. qaPass/qaTotal annotate a "qa" phase with which vision round is running (e.g. 2/5) so the UI can say "Đang soát lỗi hình ảnh (lần 2/5)…"
   | { kind: "ready"; scenes: SceneCard[]; notice?: string; draftPath?: string } // draft ready, review scenes (notice = a transient message; draftPath = mediaUrl of the low-res draft MP4 for in-app preview, when it exists)
-  | { kind: "published"; outputPath: string } // full MP4 rendered
+  | { kind: "published"; outputPath: string; title?: string; hashtags?: string[]; thumbnailPath?: string; format?: VideoFormatChoice } // full MP4 rendered (title+hashtags for the Copy panel R9.5; thumbnailPath = generated cover when present; format drives the preview/thumbnail aspect — the cover is a clean brand card, no scene picker, I3/R12)
   | { kind: "error"; message: string; fixable: boolean; retry?: "create" | "draft" | "full" }; // retry = which loop "Thử lại" re-runs (re-author | re-render draft | re-publish), so it doesn't re-author on a render failure
 
 export type EditBatch = {
@@ -193,12 +219,45 @@ export type SettingsModel = {
   outputDir: string;
   maxRepairAttempts: number;
   scriptGateEnabled: boolean;
-  /** Run an AI vision pass over rendered stills to auto-fix layout defects before review. */
-  visualQaEnabled: boolean;
+  /**
+   * How many SILENT refine passes run over the rendered stills before the user
+   * sees the first draft (freeform-engine D6/R4.4): an AI vision pass flags
+   * layout defects, the flagged scenes are re-authored, and the stills re-render
+   * — repeated up to this many times (stopping early when a pass finds nothing).
+   * 0 disables refine entirely. Clamped to [0,5]; default 2. (Replaces the old
+   * boolean `visualQaEnabled`: that ON ⇒ a positive pass count, OFF ⇒ 0.)
+   */
+  refinePasses: number;
+  /**
+   * Stop the silent refine loop early when TWO CONSECUTIVE vision passes find no
+   * defect (freeform-engine L4), instead of after a single clean pass. ON (default)
+   * trades a little quota for fewer missed defects — a lone clean pass can be a
+   * vision miss, so we confirm with a second. OFF runs the full `refinePasses`
+   * budget regardless (most thorough, most quota). When ON and a pass DOES flag a
+   * defect, the consecutive-clean counter resets.
+   */
+  refineEarlyStop: boolean;
   /** When a brief carries a link, let the AI pre-select which crawled article images fit (Phase 2 Block B). */
   imageCrawlAiFilter: boolean;
   /** Show a blocking review screen so the user confirms crawled images before authoring (Phase 2 Block B). */
   imageCrawlHumanReview: boolean;
+  /**
+   * MEASURED Vietnamese narration rate (words/second) for the configured voice
+   * (freeform-engine K1/R5.4/D13). The author prompt turns a duration target into
+   * a total word budget at this rate; a wrong rate makes a "90s" request render as
+   * ~60s. Populated by `scripts/calibrate-voice.ts` (sends fixed-length passages
+   * through Vivibe, measures real seconds → avg w/s). Absent ⇒ the prompt falls
+   * back to the baked default (~4.7). Clamped to a sane band before use.
+   */
+  voiceWordsPerSecond?: number;
+  /**
+   * The voiceId the `voiceWordsPerSecond` rate was measured for. The rate is
+   * voice-specific (a faster/slower voice reads at a different w/s), so when the
+   * configured `voiceId` differs from this, the measured rate is STALE and the
+   * prompt ignores it (falls back to the default) until re-calibrated. Absent ⇒
+   * never calibrated.
+   */
+  voiceWpsCalibratedFor?: string;
 };
 
 // --- streaming events (Req 5, 9, 10) ---------------------------------------

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { getInfo as interInfo, fontFamily as interFamily } from "@remotion/google-fonts/Inter";
 import { getInfo as bvpInfo, fontFamily as bvpFamily } from "@remotion/google-fonts/BeVietnamPro";
 import { getInfo as cascadiaInfo, fontFamily as cascadiaFamily } from "@remotion/google-fonts/CascadiaMono";
-import { listStylePackIds, getStylePack } from "@news/design";
+import { listStylePackIds, getStylePack } from "@news/theme";
 import { VENDORED_FONTS } from "./vendor-fonts.generated.js";
 import { fontCoverageReport } from "./fonts.js";
 
@@ -29,8 +29,10 @@ describe("style-pack fonts — Property 19: Vietnamese coverage + render-safe", 
     }
   });
 
-  it("galaxy leads with Be Vietnam Pro (the Vietnamese-complete premium face)", () => {
-    expect(leading(getStylePack("galaxy")!.fonts.display)).toBe("Be Vietnam Pro");
+  it("the neutral theme leads with a render-safe Vietnamese-complete face", () => {
+    const loaded = new Set<string>([interFamily, bvpFamily, cascadiaFamily]);
+    const f = getStylePack().fonts;
+    expect(loaded.has(leading(f.display))).toBe(true);
   });
 });
 

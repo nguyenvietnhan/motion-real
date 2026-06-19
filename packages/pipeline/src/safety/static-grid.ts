@@ -3,7 +3,6 @@ import {
   type VideoSpec,
 } from "@news/schema";
 import { knownComponentIds, validateProps } from "@news/compositions";
-import { listStylePackIds } from "@news/design";
 import { makeReport, type SafetyIssue, type SafetyReport } from "../types.js";
 import { runContentRules } from "./content-rules.js";
 
@@ -25,49 +24,68 @@ export function runStaticGrid(spec: VideoSpec): SafetyReport {
   // N1: structural (uses the registry's known ids for unknown-component detection too)
   const structural = validateVideoSpecStructure(spec, known);
   for (const message of structural.errors) {
-    // Unknown-component messages are tagged N2; everything else is N1.
+    // Freeform pivot: only the CRASH / no-video class hard-blocks; everything
+    // else is advisory (the video renders fine, so it must not be gated). Hard:
+    //  - unknown component (N2) — nothing to render for that scene;
+    //  - empty spec — there is no video at all;
+    //  - duplicate scene id — the per-scene still is written to `<id>.png` and the
+    //    scene's React key is its id, so a duplicate collides both (broken frame
+    //    extraction + caption routing); never a legitimate authored choice.
+    // Advisory (warnings): a non-sequential `scene-NN` id (a cosmetic convention —
+    // the renderer keys by whatever id is given), a multiline narration (TTS +
+    // captions tolerate it), and the headline/narration word-count floors (a long
+    // headline that truly overflows is still caught by render-oracle N14).
     const isUnknownComponent = /unknown component/i.test(message);
-    // Runtime-harmless structural rules are warnings (the video still renders);
-    // only crash-class structure hard-blocks. `words; minimum`/`too short` is the
-    // narration floor; `words; keep` is the headline word-count — both cosmetic
-    // (a slightly long headline that truly overflows is caught by render-oracle
-    // N14 caption-clearance, which is content-fixable). Everything else is a hard
-    // error (unknown component, duplicate/out-of-order id, multiline narration).
-    const isSoftStructural = /words; minimum|too short|words; keep/i.test(message);
+    const isEmptySpec = /at least one scene|must contain scenes/i.test(message);
+    const isDuplicateId = /duplicate scene id/i.test(message);
+    const isHard = isUnknownComponent || isEmptySpec || isDuplicateId;
     issues.push({
       check: isUnknownComponent ? "N2" : "N1",
-      severity: isUnknownComponent || !isSoftStructural ? "error" : "warning",
+      severity: isHard ? "error" : "warning",
       sceneId: message.match(/\bscene-[0-9]{2}\b/)?.[0],
       message,
     });
   }
 
   // N3: per-component prop validation against each component's Zod schema.
+  // The framework passes `headline`/`eyebrow`/`body`/`image` to a scene as
+  // TOP-LEVEL props (`SceneComponentProps`, beside `props`), NOT inside `props`.
+  // But models recurrently declare them INSIDE the authored `schema` (`schema:
+  // z.object({ headline: z.string(), … })`) — then `validateProps(component,
+  // scene.props)` sees `props={}` and reports a phantom "headline: expected
+  // string, received undefined", a wall of hard errors that blocks a video which
+  // would otherwise render fine (at render time `headline` arrives top-level). So
+  // validate against the MERGED view: a correct schema (props-only) strips the
+  // extra top-level keys by Zod's default, and a schema that mistakenly declares
+  // them is satisfied by the real top-level values. Mirrors the `theme.colors`
+  // tolerance philosophy — an AI contract-boundary slip must not hard-block a
+  // renderable video.
   for (const scene of spec.scenes) {
     if (!known.has(scene.component)) continue; // N2 already flagged it
-    const result = validateProps(scene.component, scene.props ?? {});
+    const mergedProps = {
+      ...(scene.props ?? {}),
+      headline: scene.headline,
+      ...(scene.eyebrow !== undefined ? { eyebrow: scene.eyebrow } : {}),
+      ...(scene.body !== undefined ? { body: scene.body } : {}),
+      ...(scene.image !== undefined ? { image: scene.image } : {}),
+    };
+    const result = validateProps(scene.component, mergedProps);
     if (!result.ok) {
       for (const err of result.errors) {
         issues.push({
           check: "N3",
-          severity: "error",
+          // Freeform pivot: a prop-shape mismatch is now ADVISORY, not a hard
+          // block. Authored scenes carry their own defaults and a render-time
+          // error boundary catches a genuinely broken scene, so a Zod mismatch
+          // must not stop a video that otherwise renders. It rides along as a
+          // warning for visibility + an optional reauthor.
+          severity: "warning",
           sceneId: scene.id,
           path: err.path || undefined,
           message: `${scene.id} ${scene.component} props invalid at "${err.path || "(root)"}": ${err.message}`,
         });
       }
     }
-  }
-
-  // N1 (structure): a specified style pack must be registered (R1.6). Unknown
-  // id is a hard error before TTS, naming the id + the registered packs.
-  const stylePackId = spec.theme?.stylePackId;
-  if (stylePackId !== undefined && !listStylePackIds().includes(stylePackId)) {
-    issues.push({
-      check: "N1",
-      severity: "error",
-      message: `Unknown stylePackId "${stylePackId}"; registered style packs: ${listStylePackIds().join(", ")}.`,
-    });
   }
 
   // N6–N9 / N26 / N27: content rules

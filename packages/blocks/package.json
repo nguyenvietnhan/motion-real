@@ -11,9 +11,9 @@
     "build": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "@news/design": "0.1.0",
     "@news/schema": "0.1.0",
-    "@remotion/google-fonts": "4.0.472"
+    "@news/theme": "0.1.0",
+    "@remotion/google-fonts": "4.0.481"
   },
   "peerDependencies": {
     "react": ">=19",

@@ -1,4 +1,5 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, relative } from "node:path";
 
 /**
@@ -26,6 +27,8 @@ export type AuthoredEntryOptions = {
   authoredFiles: readonly string[];
   /** Absolute path to the project's `video-spec.lock.json`. */
   lockJsonPath: string;
+  /** Optional content fingerprint used to make the generated entry idempotent. */
+  cacheToken?: string;
 };
 
 /** Build the entry source text (pure; exported for unit testing). */
@@ -37,12 +40,13 @@ export function buildAuthoredEntrySource(opts: AuthoredEntryOptions): string {
   const lockRel = toRelImport(dir, opts.lockJsonPath);
 
   return `// GENERATED — per-project Remotion entry for AUTHOR-mode render. Safe to delete; regenerated each render.
+// SOURCE-FINGERPRINT: ${opts.cacheToken ?? "none"}
 import React from "react";
 import { Composition, registerRoot } from "remotion";
 import { z } from "zod";
 import { FPS, LockedVideoSpecSchema } from "@news/schema";
 import { VideoComposition } from "@news/compositions";
-import { theme } from "@news/design";
+import { theme } from "@news/theme";
 ${importLines}
 import lockedSpec from ${JSON.stringify(lockRel)};
 
@@ -74,7 +78,12 @@ registerRoot(Root);
 /** Write the generated entry to disk and return its path. */
 export async function generateAuthoredEntry(opts: AuthoredEntryOptions): Promise<string> {
   await mkdir(dirname(opts.entryPath), { recursive: true });
-  await writeFile(opts.entryPath, buildAuthoredEntrySource(opts), "utf8");
+  const cacheToken = opts.cacheToken ?? (await authoredEntryFingerprint(opts.authoredFiles, opts.lockJsonPath));
+  const source = buildAuthoredEntrySource({ ...opts, cacheToken });
+  const existing = await readFile(opts.entryPath, "utf8").catch(() => undefined);
+  if (existing !== source) {
+    await writeFile(opts.entryPath, source, "utf8");
+  }
   return opts.entryPath;
 }
 
@@ -88,4 +97,26 @@ function toRelImport(fromDir: string, target: string): string {
   let rel = relative(fromDir, target).split("\\").join("/");
   if (!rel.startsWith(".")) rel = `./${rel}`;
   return rel;
+}
+
+async function authoredEntryFingerprint(authoredFiles: readonly string[], lockJsonPath: string): Promise<string> {
+  const h = createHash("sha256");
+  for (const file of authoredFiles) {
+    h.update(relative(dirname(lockJsonPath), file).split("\\").join("/"));
+    h.update("\0");
+    try {
+      h.update(await readFile(file));
+    } catch {
+      h.update("missing");
+    }
+    h.update("\0");
+  }
+  h.update(relative(dirname(lockJsonPath), lockJsonPath).split("\\").join("/"));
+  h.update("\0");
+  try {
+    h.update(await readFile(lockJsonPath));
+  } catch {
+    h.update("missing");
+  }
+  return h.digest("hex");
 }

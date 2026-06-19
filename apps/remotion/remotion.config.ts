@@ -48,7 +48,7 @@ Config.overrideWebpackConfig((config) => {
       alias: {
         ...(config.resolve?.alias ?? {}),
         "@news/schema": pkg("schema"),
-        "@news/design": pkg("design"),
+        "@news/theme": pkg("theme"),
         "@news/blocks": pkg("blocks"),
         "@news/compositions": pkg("compositions"),
       },

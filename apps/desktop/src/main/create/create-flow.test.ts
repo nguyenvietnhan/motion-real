@@ -71,18 +71,22 @@ describe("CreateController.create", () => {
     expect(began[0]!.input.images).toBeUndefined();
   });
 
-  it("threads the chosen stylePackId into the author input (create-screen picker)", async () => {
+  it("threads the chosen delivery knobs (format/tier/titleLanguage) into the author input (create-screen picker)", async () => {
     const { deps: d, began } = deps();
     const ctrl = new CreateController(d);
-    await ctrl.create("chủ đề", [], "galaxy");
-    expect(began[0]!.input.stylePackId).toBe("galaxy");
+    await ctrl.create("chủ đề", [], { format: "youtube", durationTier: 2, titleLanguage: "en" });
+    expect(began[0]!.input.format).toBe("youtube");
+    expect(began[0]!.input.durationTier).toBe(2);
+    expect(began[0]!.input.titleLanguage).toBe("en");
   });
 
-  it("with no stylePackId chosen, the author input omits it (falls back to the engine default)", async () => {
+  it("with no delivery knobs chosen, the author input omits them (backend falls back to tiktok/tier 1/vi)", async () => {
     const { deps: d, began } = deps();
     const ctrl = new CreateController(d);
     await ctrl.create("chủ đề");
-    expect(began[0]!.input.stylePackId).toBeUndefined();
+    expect(began[0]!.input.format).toBeUndefined();
+    expect(began[0]!.input.durationTier).toBeUndefined();
+    expect(began[0]!.input.titleLanguage).toBeUndefined();
   });
 
   it("a failing preflight blocks create BEFORE scaffold (its message is thrown, workspace never starts)", async () => {

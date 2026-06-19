@@ -1,7 +1,6 @@
 import React from "react";
 import { useCurrentFrame } from "remotion";
 import { z } from "zod";
-import { theme } from "@news/design";
 import { registerComponent, type SceneComponentProps } from "@news/compositions";
 
 export const schema = z.object({ label: z.string().min(1).max(40) });
@@ -10,7 +9,7 @@ type Props = z.infer<typeof schema>;
 const AuthoredCard: React.FC<SceneComponentProps<Props>> = ({ headline, props }) => {
   const frame = useCurrentFrame();
   return (
-    <div style={{ color: theme.colors.fg, opacity: Math.min(1, frame / 30) }}>
+    <div style={{ color: "#F2F5F8", opacity: Math.min(1, frame / 30) }}>
       {headline}: {props.label}
     </div>
   );

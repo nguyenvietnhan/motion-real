@@ -3,7 +3,7 @@ import { buildStoryboard } from "../review/storyboard.js";
 import { serializeError, type CrawledImage } from "@news/pipeline";
 import { classifyError } from "../agent/error-classifier.js";
 import { toFriendlyError } from "../redact/friendly.js";
-import type { AgentHooks, AgentWorker, AuthorInput, AuthorImageRef, RepairOutcome, SceneSnapshot } from "../agent/agent-worker.js";
+import type { AgentHooks, AgentWorker, AuthorInput, AuthorImageRef, SceneSnapshot } from "../agent/agent-worker.js";
 import type {
   ApplyResult,
   CrawledImageVM,
@@ -68,7 +68,23 @@ function linkWarningOf(totalUrls: number, unreadableUrls: string[]): string | un
 
 /** A manifest scene as the dashboard needs it (other fields preserved opaquely). */
 export type WsScene = { id: string; narration?: string; headline?: string; image?: { ref: string } };
-export type WsManifest = { scenes: WsScene[] };
+/**
+ * The manifest projection the dashboard reads. `title`/`hashtags` are the publish
+ * metadata (the project display name + TikTok hashtags); rename patches `title`
+ * and the published stage surfaces both for the Copy panel (R9.5). Other manifest
+ * fields (theme/format/scenes detail) are preserved opaquely across a write —
+ * `loadManifest` returns the FULL on-disk object, so spreading it on write keeps
+ * them intact.
+ */
+export type WsManifest = { title?: string; hashtags?: string[]; format?: "tiktok" | "youtube"; scenes: WsScene[] };
+
+/**
+ * Title length cap on rename, matching the authoring manifest schema's own
+ * `clampStr(160)` (apps/desktop/src/main/authoring/manifest-schema.ts) so a
+ * user-typed title can never exceed what the AI-authored one can. A longer paste
+ * is trimmed, not rejected.
+ */
+const TITLE_MAX_CHARS = 160;
 
 export interface WorkspaceEvents {
   progress(e: { projectId: string; ratio: number; phase: "draft" | "full" }): void;
@@ -84,7 +100,9 @@ export interface WorkspaceDeps {
   settings: {
     readonly scriptGateEnabled: boolean;
     readonly maxRepairAttempts: number;
-    readonly visualQaEnabled: boolean;
+    readonly refinePasses: number;
+    /** Require TWO consecutive clean vision passes (not one) before stopping early (L4). */
+    readonly refineEarlyStop: boolean;
     readonly imageCrawlAiFilter: boolean;
     readonly imageCrawlHumanReview: boolean;
   };
@@ -108,6 +126,18 @@ export interface WorkspaceDeps {
   hasDraft: (projectId: string) => boolean;
   /** mediaUrl-wrapped path to the low-res draft MP4 (for in-app preview). */
   draftMedia: (projectId: string) => string;
+  /**
+   * Render the project's thumbnail/cover PNG (R12/I3): a clean brand card (theme
+   * wash + publish title) through the dedicated `Thumbnail` composition (never the
+   * video path), the SAME for both formats — no scene frame behind it. Resolves
+   * the absolute PNG path. Optional: absent ⇒ the thumbnail feature is unavailable
+   * (older wiring).
+   */
+  renderThumbnail?: (projectId: string) => Promise<{ path: string }>;
+  /** Whether the thumbnail PNG (`review/thumbnail.png`) exists on disk. */
+  hasThumbnail: (projectId: string) => boolean;
+  /** mediaUrl-wrapped path to the thumbnail PNG. */
+  thumbnailMedia: (projectId: string) => string;
   deleteProject: (projectId: string) => Promise<void>;
   revealProject: (projectId: string) => Promise<void>;
   /**
@@ -222,6 +252,43 @@ export class WorkspaceController {
     return { kind: "ready", scenes, ...(draftPath ? { draftPath } : {}), ...(notice ? { notice } : {}) };
   }
 
+  /**
+   * Build the `published` stage, attaching the publish metadata (title +
+   * hashtags) the final-screen Copy panel shows (R9.5). The title/hashtags live
+   * in the manifest (the single source of truth); a failed/absent read degrades
+   * to just the video — the panel simply omits the copy affordances rather than
+   * blocking the finished video from showing. Every site that lands on
+   * `published` routes through here so the Copy panel is wired consistently.
+   */
+  private async publishedStage(projectId: string, outputPath: string): Promise<ProjectStage> {
+    let title: string | undefined;
+    let hashtags: string[] | undefined;
+    // Format drives the thumbnail UI's aspect (9:16 vs 16:9). Default to tiktok
+    // (the historical vertical default) when the manifest is unreadable.
+    let format: "tiktok" | "youtube" = "tiktok";
+    try {
+      const manifest = await this.deps.loadManifest(projectId);
+      const t = manifest.title?.trim();
+      if (t) title = t;
+      if (Array.isArray(manifest.hashtags) && manifest.hashtags.length > 0) hashtags = manifest.hashtags;
+      if (manifest.format === "youtube") format = "youtube";
+    } catch (e) {
+      console.warn(`[workspace] publishedStage: cannot read manifest for ${projectId}:`, e);
+    }
+    // Surface an already-rendered thumbnail (review/thumbnail.png) if present.
+    // Never generated here — the user triggers it from the published screen; this
+    // only reflects what exists on disk so a re-entry/recover shows it too.
+    const thumbnailPath = this.deps.hasThumbnail(projectId) ? this.deps.thumbnailMedia(projectId) : undefined;
+    return {
+      kind: "published",
+      outputPath,
+      format,
+      ...(title ? { title } : {}),
+      ...(hashtags ? { hashtags } : {}),
+      ...(thumbnailPath ? { thumbnailPath } : {}),
+    };
+  }
+
   private async scriptLinesOf(projectId: string): Promise<ScriptLine[]> {
     const manifest = await this.deps.loadManifest(projectId);
     return manifest.scenes.map((s, i) => ({
@@ -267,7 +334,7 @@ export class WorkspaceController {
       this.beginScript(projectId, input);
       return;
     }
-    this.setStage(projectId, { kind: "writing" });
+    this.setStage(projectId, { kind: "writing", phase: "crawl" });
     this.guarded(projectId, () => this.runCrawlThenAuthor(projectId, input));
   }
 
@@ -301,6 +368,7 @@ export class WorkspaceController {
     // AI pre-selection (when enabled): the refs the model judges fit the article.
     let suggested = new Set<string>();
     if (this.deps.settings.imageCrawlAiFilter) {
+      this.setStage(projectId, { kind: "writing", phase: "image-filter" });
       const refs: AuthorImageRef[] = pool.map((c) => ({ ref: c.ref, width: c.width, height: c.height }));
       // The brief text is the article context the filter judges relevance against
       // (the crawl already fetched the page; we don't re-ingest just to filter).
@@ -367,7 +435,7 @@ export class WorkspaceController {
   beginScript(projectId: string, input: AuthorInput): void {
     if (this.inFlight.has(projectId)) return; // a loop is already running for this project
     this.inputs.set(projectId, input);
-    this.setStage(projectId, { kind: "writing" });
+    this.setStage(projectId, { kind: "writing", phase: "author" });
     this.guarded(projectId, () => this.runScript(projectId, input));
   }
 
@@ -453,7 +521,7 @@ export class WorkspaceController {
       if (signal?.aborted) {
         await this.recoverAfterCancel(projectId);
       } else if (res.ok) {
-        this.setStage(projectId, { kind: "published", outputPath: this.deps.toMedia(res.outputPath) });
+        this.setStage(projectId, await this.publishedStage(projectId, this.deps.toMedia(res.outputPath)));
       } else {
         const fixable = res.error ? classifyError(res.error) === "content" : false;
         const message = res.error
@@ -535,12 +603,37 @@ export class WorkspaceController {
         ));
         return;
       }
-      // …then re-render the draft (and auto-repair any new oracle errors).
+      // Stills-first refine (mirror the first-author refineBeforeDraft): render
+      // cheap stills for the edited scenes → vision-QA loop → fix on the stills
+      // path — all BEFORE any draft MP4. So we no longer dress a full draft (with
+      // TTS) just to give vision frames and then re-render. The single draft MP4
+      // is rendered ONCE, AFTER vision is clean. A refine that breaks the render
+      // (empty stills) returns false → restore the pre-edit draft the user had.
+      const stillsOk = await this.refineEditedScenes(projectId, sceneIds, signal);
+      if (signal?.aborted) {
+        await this.recoverAfterCancel(projectId);
+        return;
+      }
+      if (!stillsOk) {
+        // The edit broke admission/render on the cheap stills path. Restore the
+        // known-good pre-edit source and re-render the draft the user already had
+        // (an edit may only improve or keep the draft, never strand it broken).
+        if (await this.restoreToPriorDraft(projectId, snapshot, hooks)) {
+          this.setStage(projectId, this.readyStage(
+            projectId,
+            await this.storyboardScenesOf(projectId),
+            "Chưa áp dụng được chỉnh sửa này (làm hỏng bố cục cảnh) — đã giữ lại bản nháp trước đó. Hãy thử diễn đạt khác hoặc chỉnh nhẹ hơn.",
+          ));
+        } else {
+          const message = "Chưa áp dụng được chỉnh sửa sau nhiều lần thử. Bạn có thể thử lại hoặc để AI sửa.";
+          this.setStage(projectId, { kind: "error", message, fixable: true, retry: "draft" });
+          this.deps.events.friendlyError({ projectId, message, retry: "draft", fixable: true });
+        }
+        return;
+      }
+      // …then render the draft ONCE (and auto-repair any new oracle errors).
       this.setStage(projectId, { kind: "rendering", percent: 0, phase: "draft" });
-      let outcome = await this.deps.worker.generateValidateRepair(projectId, { maxAttempts: this.deps.settings.maxRepairAttempts }, hooks, signal);
-      // AI visual-QA over ONLY the edited scenes — catch defects the user's
-      // instruction may have introduced, without re-checking untouched scenes.
-      outcome = await this.withVisualQa(projectId, outcome, hooks, sceneIds);
+      const outcome = await this.deps.worker.generateValidateRepair(projectId, { maxAttempts: this.deps.settings.maxRepairAttempts }, hooks, signal);
       if (outcome.kind === "cancelled") {
         await this.recoverAfterCancel(projectId);
       } else if (outcome.kind === "passed") {
@@ -590,51 +683,210 @@ export class WorkspaceController {
     };
   }
 
+  /** Refine intent for the one-shot creative bootstrap (first author only). */
+  private static readonly BOOTSTRAP_INTENT =
+    "Làm cảnh này TÁO BẠO và ĐẸP hơn hẳn — bố cục lệch chuẩn có chủ đích, điểm nhấn mạnh, " +
+    "đồ hoạ SVG/CSS tự vẽ phong phú. Coi như bản CUỐI, đừng chơi an toàn. " +
+    "ANIMATION PHẢI CÓ NHỊP ĐIỆU SUỐT CẢNH, không chỉ vài frame đầu rồi đứng im: lấy useCurrentFrame() " +
+    "làm động cơ cho NHIỀU PHA chuyển động nối tiếp — lớp vào, số/thanh chạy dần, nét vẽ hiện dần, " +
+    "thị sai dịch chuyển có điểm dừng, rồi nhấn và settle. Dùng interpolate có clamp hoặc spring nối tiếp; " +
+    "KHÔNG dùng Math.sin(frame), frame % n, interpolate không clamp hay bất kỳ dao động/lặp vĩnh viễn nào. " +
+    "Chuyển động phải mượt, có chủ đích và luôn tiến tới trạng thái hoàn tất. Giữ nguyên nội dung/ý + lời đọc của cảnh.";
+
   /**
-   * One AI visual-QA round layered on top of a clean draft: ask the vision model
-   * to flag CLEAR layout defects on the stills (overlap/clipping/imbalance the
-   * deterministic grid can't catch), reauthor only the flagged scenes, and
-   * re-render. `scope` limits the QA to specific scenes (e.g. the ones a user
-   * just edited) so post-edit QA stays cheap. Bounded to ONE round (no recursion)
-   * to avoid false-positive churn; best-effort (a vision failure is a no-op).
-   * Returns the (possibly new) outcome so the caller decides ready vs error.
+   * Snapshot the authored source of any scenes not yet snapshotted in this refine
+   * run, appending to the cumulative `preRefine` so a later restore returns the
+   * PRE-refine (blind) source — never an intermediate refined version. Guarded by
+   * the `snapshotted` set so a scene touched twice keeps its earliest snapshot.
    */
-  private async withVisualQa(
-    projectId: string,
-    outcome: RepairOutcome,
-    hooks: AgentHooks,
-    scope?: string[],
-  ): Promise<RepairOutcome> {
-    if (outcome.kind !== "passed" || !this.deps.settings.visualQaEnabled || !this.deps.worker.visualQa) return outcome;
-    const signal = this.signalOf(projectId);
-    const flagged = await this.deps.worker.visualQa(projectId, scope, signal).catch(() => [] as { sceneId: string; issue: string }[]);
-    // A cancel during QA: don't churn — return the already-passing draft outcome
-    // (the caller's cancel check / recover handles the stage). QA is best-effort.
-    if (signal?.aborted || flagged.length === 0) return outcome;
-    const sceneIds = flagged.map((f) => f.sceneId);
-    // Snapshot the known-good source so a regressive QA rewrite can be rolled back.
-    const snapshot = (await this.deps.worker.snapshotScenes?.(projectId, sceneIds).catch(() => [])) ?? [];
-    this.setStage(projectId, { kind: "rendering", percent: 0, phase: "qa" });
-    const perSceneIntent = Object.fromEntries(flagged.map((f) => [f.sceneId, `Tự sửa lỗi bố cục phát hiện qua ảnh: ${f.issue}`]));
+  private async snapshotFresh(projectId: string, sceneIds: string[], preRefine: SceneSnapshot, snapshotted: Set<string>): Promise<void> {
+    const fresh = sceneIds.filter((id) => !snapshotted.has(id));
+    if (fresh.length === 0 || !this.deps.worker.snapshotScenes) return;
+    const snap = await this.deps.worker.snapshotScenes(projectId, fresh).catch(() => [] as SceneSnapshot);
+    for (const s of snap) {
+      preRefine.push(s);
+      snapshotted.add(s.sceneId);
+    }
+  }
+
+  /**
+   * One-shot CREATIVE bootstrap (freeform-engine L1, FIRST author only): reauthor
+   * EVERY scene with a "be bolder" intent — WITHOUT waiting for a vision model to
+   * flag a defect — so the first draft the user eventually sees is already
+   * ambitious, not a safe "title + one panel" take. This is the explicit "render
+   * lại cho sáng tạo hơn" pass the project owner asked for, distinct from the
+   * defect-fixing vision loop. Accept-gate (R4.7): if the bold rewrite makes the
+   * project un-renderable (admission/render fails → no stills), restore the
+   * pre-bootstrap source so the flow never ships a broken scene.
+   */
+  private async creativeBootstrapPass(projectId: string, signal: AbortSignal | undefined, preRefine: SceneSnapshot, snapshotted: Set<string>): Promise<void> {
+    if (signal?.aborted) return;
+    const manifest = await this.deps.loadManifest(projectId).catch(() => ({ scenes: [] as WsScene[] }));
+    const sceneIds = manifest.scenes.map((s) => s.id);
+    if (sceneIds.length === 0) return;
+
+    await this.snapshotFresh(projectId, sceneIds, preRefine, snapshotted);
+    // "prepare" (not "qa"): this is one of the two HIDDEN pre-draft renders (L3) —
+    // the user sees a neutral "Đang dựng bản nháp…", never the bland/bootstrap take.
+    this.setStage(projectId, { kind: "rendering", percent: 0, phase: "prepare" });
+    const perSceneIntent = Object.fromEntries(sceneIds.map((id) => [id, WorkspaceController.BOOTSTRAP_INTENT]));
     await this.deps.worker.reauthorScenes(
       { projectId, sceneIds, preprompt: { contractRef: "SKILL.md+AGENTS.md", affectedSceneIds: sceneIds, perSceneIntent, globalNotes: "" } },
       this.editHooks(projectId),
       signal,
     );
-    this.setStage(projectId, { kind: "rendering", percent: 0, phase: "draft" });
-    const qaOutcome = await this.deps.worker.generateValidateRepair(projectId, { maxAttempts: this.deps.settings.maxRepairAttempts }, hooks, signal);
-    if (qaOutcome.kind === "passed" || qaOutcome.kind === "cancelled") return qaOutcome;
-    // QA could NOT produce a clean draft → never regress: restore the pre-QA
-    // source and re-render back to the draft that already passed.
-    if (snapshot.length > 0 && this.deps.worker.restoreScenes) {
-      this.setStage(projectId, { kind: "rendering", percent: 0, phase: "qa" });
-      await this.deps.worker.restoreScenes(projectId, snapshot);
-      this.setStage(projectId, { kind: "rendering", percent: 0, phase: "draft" });
-      await this.deps.worker.generateValidateRepair(projectId, { maxAttempts: this.deps.settings.maxRepairAttempts }, hooks, signal);
-      return outcome; // the original passing outcome (known-good draft restored)
+    // Re-render ALL scenes; an empty result means the bold rewrite broke admission
+    // for the project — roll back to the pre-bootstrap source (accept-gate, R4.7).
+    const rendered = (await this.deps.worker.renderStills?.(projectId, sceneIds, signal)) ?? { stills: [] };
+    if (rendered.stills.length === 0 && preRefine.length > 0 && this.deps.worker.restoreScenes) {
+      await this.deps.worker.restoreScenes(projectId, preRefine);
     }
-    // Couldn't snapshot/restore → fall back to the QA outcome (rare).
-    return qaOutcome;
+  }
+
+  /**
+   * The DEFECT-fixing vision loop (freeform-engine R4.4/R4.5): up to
+   * `settings.refinePasses` rounds where a vision model flags CLEAR layout defects
+   * on the rendered stills, the flagged scenes are re-authored, and ONLY those
+   * scenes re-render through the cheap no-TTS/no-MP4 stills path so the next pass
+   * judges the updated frames. `scope` limits the loop to specific scenes (the
+   * ones a user just edited). Stops EARLY the first time a pass finds no defect
+   * (R4.5). Snapshots each scene the first time it's touched (into the shared
+   * `preRefine`) and rolls the whole refine back if a rewrite stops rendering
+   * (accept-gate, R4.7). Returns whether any scene was accepted (so the caller
+   * knows to refresh the draft). Pure vision QA — the creative "be bolder" pass is
+   * a separate concern (`creativeBootstrapPass`).
+   */
+  private async runVisionPasses(projectId: string, scope: string[] | undefined, signal: AbortSignal | undefined, preRefine: SceneSnapshot, snapshotted: Set<string>): Promise<boolean> {
+    const passes = this.deps.settings.refinePasses;
+    if (passes <= 0 || !this.deps.worker.visualQa) return false;
+    const earlyStop = this.deps.settings.refineEarlyStop;
+    let changedAny = false;
+    // Count CONSECUTIVE clean passes (L4): with early-stop ON, TWO in a row mean
+    // the draft is settled — the extra look guards against the vision model's
+    // non-determinism flagging nothing on a single glance then catching a defect
+    // on the next. A flagged pass resets the streak. With early-stop OFF, the
+    // streak never triggers a break, so the loop burns the full `refinePasses`.
+    let cleanStreak = 0;
+
+    for (let pass = 1; pass <= passes; pass += 1) {
+      if (signal?.aborted) break;
+      // Annotate the QA phase with the current pass so the UI can show
+      // "(lần N/M)" — the vision call + reauthor are indeterminate, so without
+      // this the user just sees an opaque spinner with no sense of progress.
+      this.setStage(projectId, { kind: "rendering", percent: 0, phase: "qa", qaPass: pass, qaTotal: passes });
+      const flagged = await this.deps.worker
+        .visualQa(projectId, scope, signal)
+        .catch(() => [] as { sceneId: string; issue: string }[]);
+      if (signal?.aborted) break;
+      // A clean pass has nothing to re-author. Count it toward the early-stop
+      // streak and move on; never break on the FIRST clean pass alone (L4).
+      if (flagged.length === 0) {
+        cleanStreak += 1;
+        if (earlyStop && cleanStreak >= 2) break;
+        continue;
+      }
+      cleanStreak = 0;
+
+      const sceneIds = flagged.map((f) => f.sceneId);
+      await this.snapshotFresh(projectId, sceneIds, preRefine, snapshotted);
+      this.setStage(projectId, { kind: "rendering", percent: 0, phase: "qa", qaPass: pass, qaTotal: passes });
+      const perSceneIntent = Object.fromEntries(
+        flagged.map((f) => [
+          f.sceneId,
+          `Nhìn ảnh đã dựng và SỬA đúng lỗi bố cục: ${f.issue}\n` +
+            "Sửa tối thiểu trên scene hiện tại: giữ lại/khôi phục nền, SVG/CSS, ảnh, list/số liệu, motion và visual anchor. " +
+            "KHÔNG được biến cảnh thành title-card đơn giản chỉ có eyebrow/headline/text.",
+        ]),
+      );
+      await this.deps.worker.reauthorScenes(
+        { projectId, sceneIds, preprompt: { contractRef: "SKILL.md+AGENTS.md", affectedSceneIds: sceneIds, perSceneIntent, globalNotes: "" } },
+        this.editHooks(projectId),
+        signal,
+      );
+      changedAny = true;
+
+      // Re-render ONLY the touched scenes via the cheap stills path so the next
+      // pass's visualQa judges the updated frames (R4.2/R4.3).
+      const rendered = (await this.deps.worker.renderStills?.(projectId, sceneIds, signal)) ?? { stills: [] };
+      // Accept-gate (R4.7): a rewrite that no longer renders rolls the whole refine
+      // back and stops. An aborted run lands here (empty stills) and restores too.
+      if (rendered.stills.length === 0) {
+        if (preRefine.length > 0 && this.deps.worker.restoreScenes) {
+          await this.deps.worker.restoreScenes(projectId, preRefine);
+          changedAny = false;
+        }
+        break;
+      }
+    }
+    return changedAny;
+  }
+
+  /**
+   * SILENT refine BEFORE the first real draft (freeform-engine R4.1/R6.1, L1):
+   * render cheap stills (bản-1) so there are frames to judge → ONE creative
+   * bootstrap over every scene ("be bolder") → the defect-fixing vision loop — all
+   * on the no-TTS/no-MP4 stills path, ENTIRELY HIDDEN from the user. The MP4 draft
+   * is rendered AFTER this returns, so the user never sees the bland or the
+   * intermediate takes. Returns the cumulative pre-refine snapshot so the caller
+   * can fall back to the blind source if the post-refine draft can't be repaired
+   * (never ship worse than un-refined). A disabled/unsupported refine is a no-op
+   * returning an empty snapshot, so the draft renders exactly as before.
+   */
+  private async refineBeforeDraft(projectId: string, signal: AbortSignal | undefined): Promise<SceneSnapshot> {
+    const preRefine: SceneSnapshot = [];
+    const passes = this.deps.settings.refinePasses;
+    // Refine needs the cheap stills path AND a vision model; without either, skip
+    // entirely (no hidden bootstrap either) and let the normal draft render.
+    if (passes <= 0 || !this.deps.worker.renderStills || !this.deps.worker.visualQa) return preRefine;
+
+    // Bản-1 + the creative bootstrap are the two HIDDEN pre-draft renders (L3):
+    // show a neutral "prepare" phase, never the raw bland/bootstrap frames, so the
+    // user only ever sees the refined take. The vision loop below flips to "qa".
+    this.setStage(projectId, { kind: "rendering", percent: 0, phase: "prepare" });
+    // Bản-1: render every scene once so the bootstrap + vision passes have frames.
+    const first = await this.deps.worker.renderStills(projectId, undefined, signal);
+    if (signal?.aborted || first.stills.length === 0) return preRefine;
+
+    const snapshotted = new Set<string>();
+    await this.creativeBootstrapPass(projectId, signal, preRefine, snapshotted);
+    if (signal?.aborted) return preRefine;
+    await this.runVisionPasses(projectId, undefined, signal, preRefine, snapshotted);
+    return preRefine;
+  }
+
+  /**
+   * Edit-path refine (freeform-engine L1): mirrors {@link refineBeforeDraft} for a
+   * USER EDIT — render cheap stills for the edited scenes → the DEFECT-fixing
+   * vision loop, all on the no-TTS/no-MP4 path, BEFORE any draft MP4. Unlike the
+   * first-author path there is NO creative bootstrap (the user gave an explicit
+   * instruction — we don't second-guess it with a "be bolder" rewrite), only vision
+   * QA scoped to the edited scenes. Returns false when the edit broke the render
+   * (empty stills) so the caller restores the pre-edit draft; true otherwise (incl.
+   * a disabled/unsupported refine, which is a no-op letting the draft render as
+   * before). The single draft MP4 is rendered by the caller AFTER this returns.
+   */
+  private async refineEditedScenes(projectId: string, sceneIds: string[], signal: AbortSignal | undefined): Promise<boolean> {
+    const passes = this.deps.settings.refinePasses;
+    // Refine off / unsupported, or nothing to scope → skip and let the draft render.
+    if (passes <= 0 || !this.deps.worker.renderStills || !this.deps.worker.visualQa) return true;
+    if (sceneIds.length === 0) return true;
+
+    // Hidden pre-draft stills render (L3): a neutral "prepare" phase, never a raw
+    // "draft"/"qa" percent, so the user only sees the refined take.
+    this.setStage(projectId, { kind: "rendering", percent: 0, phase: "prepare" });
+    const first = await this.deps.worker.renderStills(projectId, sceneIds, signal).catch(() => ({ stills: [] }));
+    if (signal?.aborted) return false;
+    // Empty stills ⇒ the edit broke admission/render — caller restores the prior draft.
+    if (first.stills.length === 0) return false;
+
+    // A FRESH pre-refine snapshot (NOT seeded with the pre-edit source): a mid-loop
+    // vision rewrite that stops rendering rolls back to the EDITED code, not the
+    // pre-edit code — the user's instruction is preserved; the coarse pre-edit
+    // snapshot guards only the final draft (caller's restoreToPriorDraft).
+    const preRefine: SceneSnapshot = [];
+    const snapshotted = new Set<string>();
+    await this.runVisionPasses(projectId, sceneIds, signal, preRefine, snapshotted);
+    return true;
   }
 
   /**
@@ -680,13 +932,33 @@ export class WorkspaceController {
   }
 
   private async runRender(projectId: string, readyNotice?: string): Promise<void> {
-    this.setStage(projectId, { kind: "rendering", percent: 0, phase: "draft" });
     const hooks = this.renderHooks(projectId, "draft");
     const signal = this.signalOf(projectId);
     try {
+      // SILENT refine FIRST (freeform-engine L1/R4.1/R6.1): render cheap stills,
+      // do the one-shot creative bootstrap + the defect-fixing vision loop — all on
+      // the no-TTS/no-MP4 path, hidden from the user — BEFORE the first real MP4
+      // draft. So the draft the user eventually sees is already the refined take,
+      // and the vision work no longer runs AFTER a 100%-complete MP4 (the old
+      // "stuck at 100%" symptom). `preRefine` is the blind pre-refine source we
+      // fall back to if the refined draft can't be repaired (never ship worse).
+      const preRefine = await this.refineBeforeDraft(projectId, signal);
+      if (signal?.aborted) {
+        await this.recoverAfterCancel(projectId);
+        return;
+      }
+
+      this.setStage(projectId, { kind: "rendering", percent: 0, phase: "draft" });
       let outcome = await this.deps.worker.generateValidateRepair(projectId, { maxAttempts: this.deps.settings.maxRepairAttempts }, hooks, signal);
-      // AI visual-QA over ALL scenes' stills before the user reviews (best-effort).
-      outcome = await this.withVisualQa(projectId, outcome, hooks);
+      // If the refined draft regresses (the bold/QA rewrites can't be repaired) but
+      // the blind source was clean, restore it and re-render — refine must never
+      // ship a draft worse than the un-refined one (R3.2/R4.7).
+      if (outcome.kind === "exhausted" && preRefine.length > 0 && this.deps.worker.restoreScenes) {
+        this.setStage(projectId, { kind: "rendering", percent: 0, phase: "prepare" });
+        await this.deps.worker.restoreScenes(projectId, preRefine);
+        this.setStage(projectId, { kind: "rendering", percent: 0, phase: "draft" });
+        outcome = await this.deps.worker.generateValidateRepair(projectId, { maxAttempts: this.deps.settings.maxRepairAttempts }, hooks, signal);
+      }
       if (outcome.kind === "cancelled") {
         await this.recoverAfterCancel(projectId);
       } else if (outcome.kind === "passed") {
@@ -727,6 +999,42 @@ export class WorkspaceController {
     );
   }
 
+  /**
+   * Rename a project's display title (H2/R9.4). The manifest is the single source
+   * of truth for the title (no denormalized copy in the brief to drift), so we
+   * load the FULL on-disk manifest, patch `title`, and write it back — spreading
+   * keeps theme/format/scenes intact. The folder id is NEVER touched (renaming a
+   * dir would break every artifact path); only the human-facing title changes.
+   * If the project is currently on the in-memory `published` stage, we re-emit it
+   * with the new title so the open workspace's Copy panel updates live. Returns
+   * the saved (trimmed/clamped) title, or null when there's no manifest to rename.
+   */
+  async rename(projectId: string, newTitle: string): Promise<string | null> {
+    const title = newTitle.trim().slice(0, TITLE_MAX_CHARS);
+    if (title.length === 0) return null; // an empty title would blank the card
+    let manifest: WsManifest;
+    try {
+      manifest = await this.deps.loadManifest(projectId);
+    } catch (e) {
+      console.warn(`[workspace] rename: cannot load manifest for ${projectId}:`, e);
+      return null;
+    }
+    try {
+      await this.deps.writeManifest(projectId, { ...manifest, title });
+    } catch (e) {
+      console.warn(`[workspace] rename: cannot write manifest for ${projectId}:`, e);
+      return null;
+    }
+    // Refresh the live published stage so an open workspace's Copy panel reflects
+    // the new title without a reload (the gallery re-reads the manifest on its
+    // next list poll, so no in-memory card patch is needed).
+    const stage = this.stages.get(projectId);
+    if (stage?.kind === "published") {
+      this.setStage(projectId, { ...stage, title });
+    }
+    return title;
+  }
+
   /** Recover a stage for a project no longer in memory (R2.8). */
   async stage(projectId: string): Promise<ProjectStage> {
     const known = this.stages.get(projectId);
@@ -760,7 +1068,7 @@ export class WorkspaceController {
           retry: "create",
         };
       }
-      if (this.deps.hasOutput(projectId)) return { kind: "published", outputPath: this.deps.outputMedia(projectId) };
+      if (this.deps.hasOutput(projectId)) return await this.publishedStage(projectId, this.deps.outputMedia(projectId));
       const hasStills = manifest.scenes.some((s) => this.deps.hasStill(projectId, s.id));
       if (hasStills) return this.readyStage(projectId, await this.storyboardScenesOf(projectId));
       return { kind: "script", lines: await this.scriptLinesOf(projectId) };
@@ -807,6 +1115,38 @@ export class WorkspaceController {
 
   async reveal(projectId: string): Promise<void> {
     await this.deps.revealProject(projectId);
+  }
+
+  /**
+   * Generate the project's thumbnail/cover PNG (R12, I3) and return its media URL.
+   * Unlike publish (fire-and-forget, result via stage poll), this RETURNS the url
+   * the UI shows, so it awaits directly instead of going through `guarded()` (which
+   * is void + no-ops when busy). It still respects mutual exclusion: a thumbnail
+   * render must not race a draft/full render over the same project's bundle/cache,
+   * so we refuse (return null) when the project is in flight — the caller leaves the
+   * existing thumbnail (if any) and the user can retry once the render settles.
+   * A missing seam (older wiring) or a render throw also degrades to null rather
+   * than crashing the published screen.
+   */
+  async generateThumbnail(projectId: string): Promise<{ thumbnailUrl: string } | null> {
+    if (this.inFlight.has(projectId)) return null;
+    if (!this.deps.renderThumbnail) return null;
+    this.inFlight.add(projectId);
+    try {
+      const { path } = await this.deps.renderThumbnail(projectId);
+      // Re-emit the published stage so the freshly-rendered thumbnail surfaces in
+      // the UI on the next poll (the stage carries thumbnailPath via publishedStage).
+      const stage = this.stages.get(projectId);
+      if (stage?.kind === "published" && this.deps.hasOutput(projectId)) {
+        this.setStage(projectId, await this.publishedStage(projectId, this.deps.outputMedia(projectId)));
+      }
+      return { thumbnailUrl: this.deps.toMedia(path) };
+    } catch (e) {
+      console.warn(`[workspace] generateThumbnail failed for ${projectId}:`, e);
+      return null;
+    } finally {
+      this.inFlight.delete(projectId);
+    }
   }
 
   async scriptGate(projectId: string): Promise<ScriptGateModel> {

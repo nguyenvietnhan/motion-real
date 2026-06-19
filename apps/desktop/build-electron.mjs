@@ -12,23 +12,41 @@ const here = dirname(fileURLToPath(import.meta.url));
 const repo = resolve(here, "../..");
 const pkg = (name) => resolve(repo, "packages", name, "src", "index.ts");
 
+// A production build minifies and ships NO sourcemap, so the distributed
+// `app.asar` doesn't carry readable gateway/orchestrator/admission logic an
+// attacker can lift verbatim. A dev build keeps sourcemaps + readable output for
+// debugging. Gate on either `--prod` or NODE_ENV=production.
+const isProd = process.argv.includes("--prod") || process.env.NODE_ENV === "production";
+
 const alias = {
   "@news/schema": pkg("schema"),
-  "@news/design": pkg("design"),
+  "@news/theme": pkg("theme"),
   "@news/blocks": pkg("blocks"),
   "@news/tts": pkg("tts"),
   "@news/compositions": pkg("compositions"),
   "@news/pipeline": pkg("pipeline"),
-  "@news/mcp": pkg("mcp"),
+  // Desktop main only needs `createTools` (in tools.ts). Aliasing to the barrel
+  // `index.ts` would also pull in `server.ts` → `@modelcontextprotocol/sdk`,
+  // whose ESM/CJS shape Electron's Node-20 ESM loader fails to link as an
+  // external (cjsPreparseModuleExports crash). The MCP stdio server is a
+  // SEPARATE process (bin.ts), so the desktop bundle has no business carrying
+  // the SDK — point straight at tools.ts and the SDK leaves the graph.
+  "@news/mcp": resolve(repo, "packages", "mcp", "src", "tools.ts"),
 };
 
 const common = {
   bundle: true,
   platform: "node",
-  target: "node18",
+  // Electron 33 ships Node 20; node22 is the closest supported esbuild target
+  // that lets esbuild keep modern syntax instead of down-leveling unnecessarily.
+  target: "node22",
   packages: "external", // keep node_modules deps external
   alias,
-  sourcemap: true,
+  // Prod: minify + NO sourcemap (smaller bundle, no readable source in app.asar).
+  // Dev: keep sourcemaps + readable output so a stack trace points at real lines.
+  minify: isProd,
+  sourcemap: !isProd,
+  legalComments: "none",
   logLevel: "info",
 };
 

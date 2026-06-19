@@ -1,36 +1,21 @@
 /**
  * Deterministic authored-import normalizer (desktop-author-mode hardening).
  *
- * The authoring/reauthor model recurrently writes `import { useTheme } from
- * "@news/design"` (and other layout/motion symbols) when those symbols actually
- * live in `@news/blocks`. That trips the N4 admission gate ("No matching export
- * in @news/design for import useTheme"), the scene rolls back, and a fixable
- * defect (e.g. an N14 layout overflow) can never be repaired — the repair loop
- * then burns every attempt re-rendering unchanged code.
+ * Post-freeform-pivot the layout blocks were deleted and `@news/blocks` /
+ * `@news/theme` were dropped from the authored-import whitelist (admission N4):
+ * an authored scene writes 100% bespoke JSX/SVG and imports only `react`,
+ * `remotion`, `@news/compositions`, `zod`. The ONE authored-facing symbol that
+ * survives is `SceneImage` (the sanctioned image block), now re-exported from
+ * `@news/compositions`.
  *
- * Rather than hope the model self-corrects, we fix the deterministic mistake in
- * code: any `@news/blocks`-owned symbol imported from `@news/design` is moved to
- * a `@news/blocks` import. Pure string transform; leaves everything else as-is.
+ * Models trained on the old contract still write `import { SceneImage } from
+ * "@news/blocks"` — which now fails N4 and kills an image scene. So the only
+ * useful re-home left is: route `SceneImage` from `@news/blocks`/`@news/theme`
+ * onto `@news/compositions`. Every OTHER symbol from those modules (Frame,
+ * TitleBlock, useTheme, …) is intentionally NOT rescued — those blocks are gone,
+ * and a scene that reaches for them SHOULD fail N4 so the model rewrites it as
+ * raw JSX. Pure string transform; leaves everything else as-is.
  */
-
-/** Every value/type exported by `@news/blocks` (kept in sync with its index.ts). */
-const BLOCKS_SYMBOLS = new Set<string>([
-  // theme + timing context
-  "ThemeProvider", "useTheme", "SceneTimingProvider", "useSceneDurationInFrames",
-  // motion helpers
-  "bezier", "easeOut", "frameRamp", "useReveal", "useRamp", "useFrameScale",
-  "useSceneProgress", "useApproxSceneProgress", "useExactSceneProgress", "useTilt",
-  "useKenBurnsScale", "useIntroZoom", "usePop",
-  // frame + text + data blocks
-  "Frame", "Content", "TitleBlock", "IdeaPanel", "Callout", "KeyPoints", "StatChip",
-  // editorial blocks + viz primitives
-  "HeaderBar", "Panel", "Tag", "Footer", "StatBlock", "CountUp", "BarChart", "Story", "Tone",
-  // captions + surface-kit + fonts
-  "Captions", "CAPTION_RENDER_BAND", "CAPTION_CANVAS",
-  "surfaceBorder", "surfaceBorderWidth", "innerDivider", "surfaceRadius",
-  "surfaceShadow", "blockSurface", "topRuleStyle", "chipStyle", "labelStyle",
-  "LOADED_FONT_FAMILIES", "fontCoverageReport", "FontCoverage",
-]);
 
 /** The base identifier of a named-import clause: strips `type ` and `as alias`. */
 function baseName(clause: string): string {
@@ -38,20 +23,27 @@ function baseName(clause: string): string {
 }
 
 /**
- * Move any `@news/blocks` symbol that was imported from `@news/design` into a
- * `@news/blocks` import. Returns the code unchanged when nothing is misplaced.
+ * Re-home a stray `SceneImage` import. The model may still write
+ * `import { SceneImage } from "@news/blocks"` (or `@news/theme`), but those
+ * modules are no longer whitelisted — `SceneImage` lives behind
+ * `@news/compositions` now. Pull `SceneImage` out of any such import onto a
+ * `@news/compositions` line; leave the rest of that import untouched (it will
+ * fail N4 on its own, which is correct — those blocks no longer exist for
+ * authored code). Returns the code unchanged when there's nothing to re-home.
  */
 export function normalizeAuthoredImports(code: string): string {
   const moved = code.replace(
-    /import\s*\{([^}]*)\}\s*from\s*["']@news\/design["'];?/g,
+    /import\s*\{([^}]*)\}\s*from\s*["']@news\/(?:blocks|theme)["'];?/g,
     (full, inner: string) => {
       const clauses = inner.split(",").map((s) => s.trim()).filter(Boolean);
-      const misplaced = clauses.filter((c) => BLOCKS_SYMBOLS.has(baseName(c)));
-      if (misplaced.length === 0) return full; // nothing to relocate
-      const remaining = clauses.filter((c) => !BLOCKS_SYMBOLS.has(baseName(c)));
-      const blocksLine = `import { ${misplaced.join(", ")} } from "@news/blocks";`;
-      const designLine = remaining.length > 0 ? `import { ${remaining.join(", ")} } from "@news/design";` : "";
-      return designLine ? `${blocksLine}\n${designLine}` : blocksLine;
+      const hasSceneImage = clauses.some((c) => baseName(c) === "SceneImage");
+      if (!hasSceneImage) return full; // nothing we can rescue — leave it to fail N4
+      const rest = clauses.filter((c) => baseName(c) !== "SceneImage");
+      const lines = [`import { SceneImage } from "@news/compositions";`];
+      // Preserve any other symbols on their original (now-dead) import so the N4
+      // violation still surfaces them, rather than silently dropping the line.
+      if (rest.length > 0) lines.push(full.replace(inner, ` ${rest.join(", ")} `));
+      return lines.join("\n");
     },
   );
   return normalizeColorInterpolation(normalizeRemotionImports(moved));

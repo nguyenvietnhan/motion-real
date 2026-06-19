@@ -1,6 +1,6 @@
 import React from "react";
 import { interpolateColors, useCurrentFrame, useVideoConfig } from "remotion";
-import { withAlpha } from "@news/design";
+import { withAlpha } from "@news/theme";
 import { type CaptionCue, CANVAS, CAPTION_BAND, rectWidth } from "@news/schema";
 import { useTheme } from "./theme-context.js";
 import { easeOut } from "./motion.js";

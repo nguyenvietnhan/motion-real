@@ -24,11 +24,12 @@ vi.mock("@remotion/renderer", () => ({
   renderStill: mocks.renderStill,
 }));
 
-import { renderSceneStills, renderVideo } from "./renderer.js";
+import { __resetBundleCache, measureSceneLayouts, renderSceneStills, renderVideo } from "./renderer.js";
 
 let tempRoot: string;
 
 beforeEach(async () => {
+  __resetBundleCache();
   tempRoot = await mkdtemp(join(tmpdir(), "news-renderer-"));
   mocks.bundle.mockResolvedValue("http://localhost:3000/bundle");
   mocks.ensureBrowser.mockResolvedValue({ type: "local-puppeteer-browser", path: "chrome" });
@@ -66,6 +67,7 @@ function lockedSpec(): LockedVideoSpec {
     version: 1,
     title: "Renderer test",
     styleId: "clean-luxury-tech",
+    format: "tiktok",
     duration: 60,
     ratio: "9:16",
     language: "vi",
@@ -104,8 +106,9 @@ describe("renderVideo", () => {
     const projectRoot = join(tempRoot, "projects", "demo-12345678");
     const outPath = join(projectRoot, "renders", "demo-12345678.mp4");
     const onProgress = vi.fn();
+    const timings: Array<{ name: string; ms: number }> = [];
 
-    const result = await renderVideo({ spec, outPath, concurrency: 2, onProgress });
+    const result = await renderVideo({ spec, outPath, concurrency: 2, onProgress, onTiming: (timing) => timings.push(timing) });
 
     expect(result).toEqual({ outPath: resolve(outPath), durationInFrames: 120, fps: 30 });
     expect(existsSync(dirname(outPath))).toBe(true);
@@ -135,6 +138,10 @@ describe("renderVideo", () => {
       }),
     );
     expect(onProgress).toHaveBeenCalledWith(0.42);
+    expect(timings.map((timing) => timing.name)).toEqual(
+      expect.arrayContaining(["video.ensureBrowser", "video.bundle", "video.selectComposition", "video.renderMedia"]),
+    );
+    expect(timings.every((timing) => typeof timing.ms === "number")).toBe(true);
   });
 
   it("requires a public/project root when local narration audio is present", async () => {
@@ -148,13 +155,32 @@ describe("renderSceneStills", () => {
   it("renders one PNG at each scene midpoint", async () => {
     const spec = lockedSpec();
     const outDir = join(tempRoot, "projects", "demo-12345678", "review");
+    const timings: Array<{ name: string; meta?: Record<string, unknown> }> = [];
 
-    const outputs = await renderSceneStills(spec, outDir);
+    const outputs = await renderSceneStills(spec, outDir, { onTiming: (timing) => timings.push(timing) });
 
     expect(outputs).toEqual([join(resolve(outDir), "scene-01.png"), join(resolve(outDir), "scene-02.png")]);
     expect(mocks.renderStill).toHaveBeenCalledTimes(2);
     expect(mocks.renderStill.mock.calls.map(([options]) => options.frame)).toEqual([45, 105]);
     expect(mocks.renderStill.mock.calls.map(([options]) => options.imageFormat)).toEqual(["png", "png"]);
+    expect(timings.filter((timing) => timing.name === "stills.renderStill").map((timing) => timing.meta?.sceneId)).toEqual([
+      "scene-01",
+      "scene-02",
+    ]);
+  });
+
+  it("renders only the requested sceneIds (subset), keeping the full-timeline frame math", async () => {
+    // sceneIds scopes the PNG writes to a subset (the scenes a refine pass touched);
+    // the composition still lays out the whole video, so the midpoint frame is
+    // unchanged (scene-02 midpoint is still 105, not recomputed as if it were alone).
+    const spec = lockedSpec();
+    const outDir = join(tempRoot, "projects", "demo-12345678", "review");
+
+    const outputs = await renderSceneStills(spec, outDir, { sceneIds: ["scene-02"] });
+
+    expect(outputs).toEqual([join(resolve(outDir), "scene-02.png")]);
+    expect(mocks.renderStill).toHaveBeenCalledTimes(1);
+    expect(mocks.renderStill.mock.calls[0]![0].frame).toBe(105);
   });
 
   it("renders an extra late still per scene inside the clean speech window (N14 late pass)", async () => {
@@ -177,5 +203,57 @@ describe("renderSceneStills", () => {
     expect(calls.map((c) => c.frame)).toEqual([45, 61, 105, 117]);
     expect(calls[1]!.output).toBe(join(resolve(outDir), "scene-01.f82.png"));
     expect(calls[3]!.output).toBe(join(resolve(outDir), "scene-02.f82.png"));
+  });
+});
+
+describe("measureSceneLayouts", () => {
+  it("measures only the requested sceneIds, keeping full-timeline frame math", async () => {
+    const spec = lockedSpec();
+    const projectRoot = join(tempRoot, "projects", "demo-12345678");
+    const onProgress = vi.fn();
+
+    const layouts = await measureSceneLayouts(spec, { projectRoot, sceneIds: ["scene-02"], onProgress });
+
+    expect(layouts).toEqual({ "scene-02": [] });
+    expect(mocks.renderStill).toHaveBeenCalledTimes(1);
+    expect(mocks.renderStill.mock.calls[0]![0]).toEqual(
+      expect.objectContaining({
+        frame: 105,
+        output: null,
+        imageFormat: "png",
+      }),
+    );
+    expect(onProgress).toHaveBeenCalledWith(1, 1);
+  });
+});
+
+describe("bundle cache (Phase A)", () => {
+  // A serveUrl is spec-independent, so two render ops over the SAME entry +
+  // publicDir reuse one bundle (the win: 4 bundles/render → fewer). Keyed by
+  // publicDir PATH, so a different project root is a miss (no cross-project hit).
+  it("reuses one bundle across two ops with the same entry + publicDir", async () => {
+    const spec = lockedSpec();
+    const projectRoot = join(tempRoot, "projects", "demo-12345678");
+
+    const timings: Array<{ name: string }> = [];
+    await renderVideo({ spec, outPath: join(projectRoot, "renders", "demo-12345678.mp4"), projectRoot });
+    await renderSceneStills(spec, join(projectRoot, "review"), { projectRoot, onTiming: (timing) => timings.push(timing) });
+
+    // Both ops default to the same Remotion entry + same publicDir ⇒ one bundle,
+    // one selectComposition, then a composition cache hit for the stills pass.
+    expect(mocks.bundle).toHaveBeenCalledTimes(1);
+    expect(mocks.selectComposition).toHaveBeenCalledTimes(1);
+    expect(timings.map((timing) => timing.name)).toContain("stills.selectComposition.cache_hit");
+  });
+
+  it("does NOT reuse across different publicDirs (keyed by project root)", async () => {
+    const spec = lockedSpec();
+    const rootA = join(tempRoot, "projects", "demo-aaaaaaaa");
+    const rootB = join(tempRoot, "projects", "demo-bbbbbbbb");
+
+    await renderVideo({ spec, outPath: join(rootA, "renders", "a.mp4"), projectRoot: rootA });
+    await renderVideo({ spec, outPath: join(rootB, "renders", "b.mp4"), projectRoot: rootB });
+
+    expect(mocks.bundle).toHaveBeenCalledTimes(2);
   });
 });

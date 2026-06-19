@@ -57,6 +57,29 @@ const authorImageSchema = z.object({
   alt: z.string().max(160).optional(),
 });
 
+/**
+ * Coerce the publish `hashtags` field into a clean `string[]` (D9/design §7.3).
+ * The model emits this in many shapes: a real array `["#ai","#tech"]`, a bare
+ * array without leading `#`, or a single string `"#ai #tech, #news"`. Normalize
+ * ALL of them to `["#ai", "#tech", ...]` so the Copy panel always has ready-to-
+ * paste tags. Each tag is stripped of leading `#`s + inner whitespace and gets
+ * exactly one `#`; empties drop; capped at 6 (design §261: 3–6). Returns
+ * undefined for an unusable value so `.optional().catch(undefined)` keeps the
+ * reply alive (a bad hashtags field must NOT discard the manifest + every .tsx —
+ * same wholesale-discard family as the clampStr/image coercions above).
+ */
+const coerceHashtags = (v: unknown): unknown => {
+  const raw = typeof v === "string" ? v.split(/[\s,]+/) : Array.isArray(v) ? v : undefined;
+  if (!raw) return undefined;
+  const tags = raw
+    .map((t) => (typeof t === "string" ? t : String(t)))
+    .map((t) => t.trim().replace(/^#+/, "").replace(/\s+/g, ""))
+    .filter((t) => t.length > 0)
+    .map((t) => `#${t}`)
+    .slice(0, 6);
+  return tags.length > 0 ? tags : undefined;
+};
+
 export const authorSceneSchema = z.object({
   component: componentId,
   eyebrow: z.preprocess(clampStr(24), z.string().min(1).max(24)),
@@ -76,13 +99,23 @@ export type AuthorScene = z.infer<typeof authorSceneSchema>;
 
 export const authorManifestSchema = z.object({
   title: z.preprocess(clampStr(160), z.string().min(1).max(160)),
+  // Publish hashtags (TikTok), separate from the title so the project display
+  // name stays clean (D9). Coerced from string/array shapes; a bad value degrades
+  // to undefined rather than discarding the reply (see coerceHashtags).
+  hashtags: z.preprocess(coerceHashtags, z.array(z.string()).optional().catch(undefined)),
   // mood is advisory (clamped to 40 downstream); an empty/over-long mood must not
   // discard the whole reply, so default empty and clamp rather than reject.
   theme: z.object({
     dominant: z.string().min(1),
     mood: z.preprocess((v) => (typeof v === "string" ? v.slice(0, 200) : v), z.string().catch("")),
   }),
-  scenes: z.array(authorSceneSchema).min(3).max(14),
+  // No upper cap on scene count: the right number of scenes depends on narration
+  // length, not a fixed ceiling (12 scenes with long voice-over vs 16 short ones
+  // are both valid). A hard cap rejected otherwise-good replies and forced a full
+  // re-author, making content worse. The AI decides the count; we only keep a
+  // floor of 3 so a degenerate 1–2 scene reply (usually a truncated/failed
+  // generation) is still caught.
+  scenes: z.array(authorSceneSchema).min(3),
 });
 export type AuthorManifest = z.infer<typeof authorManifestSchema>;
 

@@ -77,6 +77,7 @@ export const sampleSpec: LockedVideoSpec = {
   version: 1,
   title: "Remotion pipeline demo",
   styleId: "clean-luxury-tech",
+  format: "tiktok",
   duration: 60,
   ratio: "9:16",
   language: "vi",

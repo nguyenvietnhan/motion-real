@@ -12,6 +12,7 @@
  */
 
 import type { SerializedPipelineError, CrawledImage } from "@news/pipeline";
+import type { VideoFormat, DurationTier, TitleLanguage } from "@news/schema";
 
 /**
  * A local image the user attached at create time (Phase 2 Block A). Carries only
@@ -24,10 +25,24 @@ export type AuthorImageRef = { ref: string; width: number; height: number };
 /**
  * Input for a fresh authoring job: a free-form user brief (chat-style) plus any
  * links found in it to fetch for grounding (best-effort, never a hard gate), and
- * any local images the user attached for the AI to place (Phase 2 Block A), and
- * the style pack the user picked at the create screen (tool-productization R1).
+ * any local images the user attached for the AI to place (Phase 2 Block A).
+ *
+ * The freeform-engine create screen (R7/R9/D10) picks three delivery knobs the
+ * backend threads into the prompt + spec (it never lets the model choose them):
+ * `format` (TikTok 9:16 / YouTube 16:9 → canvas + caption presence), `durationTier`
+ * (the word-budget bucket, see `tierSeconds`), and `titleLanguage` (vi/en/mix for
+ * the generated publish title only — NOT the script). All optional: absent ⇒ the
+ * backend's defaults (tiktok / tier 1 / vi). The old `stylePackId` is gone (the
+ * multi-style design system was removed — D1).
  */
-export type AuthorInput = { text: string; urls: string[]; images?: AuthorImageRef[]; stylePackId?: string };
+export type AuthorInput = {
+  text: string;
+  urls: string[];
+  images?: AuthorImageRef[];
+  format?: VideoFormat;
+  durationTier?: DurationTier;
+  titleLanguage?: TitleLanguage;
+};
 
 /** Author scenes for a brand-new project: ingest → author → (script gate) → draft. */
 export type AuthorJob = {
@@ -105,6 +120,14 @@ export interface AgentWorker {
   author(job: AuthorJob, hooks: AgentHooks): Promise<AuthorOutcome>;
   /** Re-author ONLY the named scenes from batched visual edits (Req 8.7). */
   reauthorScenes(job: ReauthorJob, hooks: AgentHooks, signal?: AbortSignal): Promise<AuthorOutcome>;
+  /**
+   * Optional fast per-scene STILLS render (no TTS/MP4/heavy-oracle) — the cheap
+   * inner loop the SILENT refine pass iterates on (freeform-engine R4.2/R4.3).
+   * `sceneIds` scopes the render to the scenes a pass just rewrote; omit ⇒ all.
+   * Returns the rendered still paths (empty on a render failure — refine is
+   * best-effort and must never crash the author flow).
+   */
+  renderStills?(projectId: string, sceneIds?: string[], signal?: AbortSignal): Promise<{ stills: string[] }>;
   /** Render the final full-quality MP4 (draft-first gate already satisfied). */
   publish(projectId: string, signal?: AbortSignal): Promise<PublishResult>;
   /** Run the generate-validate-repair loop to zero hard errors or budget (Req 6). */

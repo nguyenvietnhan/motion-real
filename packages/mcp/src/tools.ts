@@ -5,6 +5,7 @@ import {
   ingestUrl,
   scaffoldVideoProject,
   renderProject,
+  renderProjectStills,
   runDoctor,
   listProjects,
   readTracker,
@@ -13,6 +14,7 @@ import {
   projectPaths,
   writeJson,
   readJson,
+  resolveBgmTrack,
   PipelineError,
   serializeError,
   vivibeApiKey,
@@ -20,6 +22,7 @@ import {
   type IngestResult,
   type ScaffoldVideoProjectResult,
   type RenderProjectResult,
+  type RenderProjectStillsResult,
   type DoctorReport,
   type ProjectSummary,
   type TrackerItem,
@@ -44,6 +47,7 @@ export type ToolDeps = {
   ingestUrl: typeof ingestUrl;
   scaffoldVideoProject: typeof scaffoldVideoProject;
   renderProject: typeof renderProject;
+  renderProjectStills: typeof renderProjectStills;
   runDoctor: typeof runDoctor;
   listProjects: typeof listProjects;
   readTracker: typeof readTracker;
@@ -68,6 +72,7 @@ const DEFAULT_DEPS: ToolDeps = {
   ingestUrl,
   scaffoldVideoProject,
   renderProject,
+  renderProjectStills,
   runDoctor,
   listProjects,
   readTracker,
@@ -104,6 +109,12 @@ export const renderFullInput = z.object({
 
 export const getSafetyReportInput = z.object({
   projectId: z.string().min(1),
+});
+
+export const renderStillsInput = z.object({
+  projectId: z.string().min(1),
+  /** Render only these scene ids (the scenes a refine pass touched); absent ⇒ all. */
+  sceneIds: z.array(z.string().min(1)).optional(),
 });
 
 export const doctorInput = z.object({});
@@ -143,6 +154,24 @@ async function persistSafetyReport(projectId: string, report: SafetyReport): Pro
     await writeJson(safetyReportPath(projectId), report);
   } catch {
     // best-effort: a persistence failure must never fail the render itself.
+  }
+}
+
+/**
+ * Resolve the project's chosen BGM (freeform-engine I2/O4) to an absolute path
+ * for the mixer. The selection lives on the manifest's `bgm` field (a library
+ * filename); we read it and resolve it through the library (which returns
+ * undefined for an empty/stale/deleted ref). Passing this as the render's
+ * `bgmPath` opt overrides the orchestrator's `default.mp3` fallback per project,
+ * WITHOUT touching the off-limits orchestrator. A missing/unreadable manifest
+ * resolves to undefined ⇒ the render falls back to its own default (no throw).
+ */
+async function resolveProjectBgm(projectId: string): Promise<string | undefined> {
+  try {
+    const manifest = await readJson<{ bgm?: unknown }>(projectPaths(projectId).manifest);
+    return resolveBgmTrack(typeof manifest.bgm === "string" ? manifest.bgm : undefined);
+  } catch {
+    return undefined;
   }
 }
 
@@ -208,8 +237,13 @@ export function createTools(overrides: Partial<ToolDeps> = {}) {
       const cfgError = assertVivibeConfig(deps);
       if (cfgError) return err(cfgError.toSerialized());
       try {
+        // Resolve the project's chosen BGM (manifest `bgm` ref) to an absolute
+        // path and pass it via the `bgmPath` opt the orchestrator already mixes
+        // under the narration. Absent/stale ref ⇒ undefined ⇒ no BGM (R11.3).
+        const bgmPath = await resolveProjectBgm(input.projectId);
         const res = await deps.renderProject(input.projectId, {
           quality: "draft",
+          ...(bgmPath ? { bgmPath } : {}),
           ...(input.concurrency ? { concurrency: input.concurrency } : {}),
           ...(onProgress ? { onProgress } : {}),
           ...(signal ? { signal } : {}),
@@ -241,13 +275,35 @@ export function createTools(overrides: Partial<ToolDeps> = {}) {
       const cfgError = assertVivibeConfig(deps);
       if (cfgError) return err(cfgError.toSerialized());
       try {
+        const bgmPath = await resolveProjectBgm(input.projectId);
         const res = await deps.renderProject(input.projectId, {
           quality: "full",
           forceFull,
+          ...(bgmPath ? { bgmPath } : {}),
           ...(onProgress ? { onProgress } : {}),
           ...(signal ? { signal } : {}),
         });
         await persistSafetyReport(input.projectId, res.report);
+        return ok(res);
+      } catch (e) {
+        return err(serializeError(e, "render"));
+      }
+    },
+
+    async render_stills(
+      input: z.infer<typeof renderStillsInput>,
+      onProgress?: (done: number, total: number) => void,
+      signal?: AbortSignal,
+    ): Promise<ToolResult<RenderProjectStillsResult>> {
+      // Stills need NO Vivibe config (no TTS) — this is the cheap visual-only
+      // loop the silent refine pass iterates on, so it deliberately skips the
+      // assertVivibeConfig guard the MP4 render tools enforce.
+      try {
+        const res = await deps.renderProjectStills(input.projectId, {
+          ...(input.sceneIds ? { sceneIds: input.sceneIds } : {}),
+          ...(onProgress ? { onProgress } : {}),
+          ...(signal ? { signal } : {}),
+        });
         return ok(res);
       } catch (e) {
         return err(serializeError(e, "render"));

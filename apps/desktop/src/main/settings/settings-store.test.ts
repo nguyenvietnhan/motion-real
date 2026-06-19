@@ -133,6 +133,72 @@ describe("Property 5: Voice config resolution", () => {
   });
 });
 
+// freeform-engine F2: refinePasses clamp + legacy visualQaEnabled migration
+describe("freeform-engine F2: refinePasses clamp + legacy migration", () => {
+  it("clamps a saved refinePasses into [0,5] on load", () => {
+    for (const [saved, want] of [[-3, 0], [0, 0], [2, 2], [5, 5], [9, 5]] as const) {
+      const { store } = memStore(JSON.stringify({ refinePasses: saved }));
+      expect(store.refinePasses).toBe(want);
+    }
+  });
+
+  it("a non-finite saved refinePasses falls back to the default", () => {
+    const { store } = memStore(JSON.stringify({ refinePasses: "lots" }));
+    expect(store.refinePasses).toBe(defaults().refinePasses); // 2
+  });
+
+  it("migrates a legacy visualQaEnabled boolean to a pass count (only when refinePasses absent)", () => {
+    // ON ⇒ the default count; OFF ⇒ 0.
+    expect(memStore(JSON.stringify({ visualQaEnabled: true })).store.refinePasses).toBe(defaults().refinePasses);
+    expect(memStore(JSON.stringify({ visualQaEnabled: false })).store.refinePasses).toBe(0);
+    // An explicit refinePasses wins over the legacy boolean.
+    expect(memStore(JSON.stringify({ visualQaEnabled: false, refinePasses: 3 })).store.refinePasses).toBe(3);
+  });
+
+  it("defaults refinePasses to 2 when neither key is saved", () => {
+    expect(memStore(JSON.stringify({ scriptGateEnabled: true })).store.refinePasses).toBe(2);
+  });
+});
+
+// freeform-engine K1/R5.4/D13: per-voice calibrated narration rate
+describe("freeform-engine K1: calibratedWordsPerSecond (per-voice, clamped)", () => {
+  it("returns the saved rate when it was measured for the CURRENTLY configured voice", () => {
+    const { store } = memStore(
+      JSON.stringify({ voiceId: "v-abc", voiceWordsPerSecond: 5.1, voiceWpsCalibratedFor: "v-abc" }),
+    );
+    expect(store.calibratedWordsPerSecond()).toBe(5.1);
+  });
+
+  it("ignores a rate measured for a DIFFERENT voice (stale → undefined → prompt falls back to default)", () => {
+    const { store } = memStore(
+      JSON.stringify({ voiceId: "v-new", voiceWordsPerSecond: 5.1, voiceWpsCalibratedFor: "v-old" }),
+    );
+    expect(store.calibratedWordsPerSecond()).toBeUndefined();
+  });
+
+  it("resolves the configured voice via env fallback (a rate calibrated for the env voice still counts)", () => {
+    const { store } = memStore(
+      JSON.stringify({ voiceWordsPerSecond: 4.2, voiceWpsCalibratedFor: "v-env" }),
+      { voiceId: "v-env" },
+    );
+    expect(store.calibratedWordsPerSecond()).toBe(4.2);
+  });
+
+  it("returns undefined when never calibrated (no rate or no recorded voice)", () => {
+    expect(memStore(JSON.stringify({ voiceId: "v-abc" })).store.calibratedWordsPerSecond()).toBeUndefined();
+    expect(
+      memStore(JSON.stringify({ voiceId: "v-abc", voiceWordsPerSecond: 5.0 })).store.calibratedWordsPerSecond(),
+    ).toBeUndefined();
+  });
+
+  it("clamps a hand-edited out-of-band rate before use (a bad file can't poison the budget)", () => {
+    const { store } = memStore(
+      JSON.stringify({ voiceId: "v-abc", voiceWordsPerSecond: 99, voiceWpsCalibratedFor: "v-abc" }),
+    );
+    expect(store.calibratedWordsPerSecond()).toBe(8.0); // MAX_WORDS_PER_SECOND
+  });
+});
+
 // Property 6: setScriptGateEnabled is Boolean coercion + persisted
 describe("Property 6: setScriptGateEnabled Boolean coercion", () => {
   it("scriptGateEnabled === Boolean(enabled) and is persisted", () => {

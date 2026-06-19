@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import { mkdir, readdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import type { SceneImage, VideoSpec } from "@news/schema";
+import type { DurationTier, SceneImage, TitleLanguage, VideoFormat, VideoSpec } from "@news/schema";
 import type { SafetyIssue } from "../types.js";
 import { ensureProject, projectPaths, readJson, writeJson } from "../store/store.js";
 import { admitAndRegisterAuthored } from "./register.js";
@@ -42,7 +42,37 @@ export type ManifestScene = {
 
 export type Manifest = {
   title?: string;
-  theme?: { dominant: string; mood?: string; stylePackId?: string };
+  /**
+   * Publish hashtags (TikTok), kept SEPARATE from the title so the project
+   * display name (D9) stays clean ("Gemma 3 chạy trên máy nhà", not "… #ai #llm").
+   * The published screen surfaces them next to the title with a Copy button
+   * (R9.5). Each entry already carries its leading `#` (normalized at parse).
+   * Absent for YouTube (no hashtag requirement) or an older manifest.
+   */
+  hashtags?: string[];
+  /**
+   * Delivery format (freeform-engine R7). The backend injects this from the
+   * user's UI choice — the model does NOT pick it. Absent ⇒ "tiktok" (the
+   * historical vertical default), so a manifest authored before format existed
+   * still resolves to a valid spec.
+   */
+  format?: VideoFormat;
+  /** User-chosen duration bucket (1|2|3); maps to seconds via `tierSeconds`. */
+  durationTier?: DurationTier;
+  /**
+   * User-chosen background-music track (freeform-engine I2/O4): the library
+   * filename under `VIDEO_TOOL_HOME/.video-tool/bgm/`. Resolved to an absolute
+   * path at the render boundary and mixed under the narration; an empty/absent
+   * value (or a stale ref to a deleted track) ⇒ no music. The AI never sets it.
+   */
+  bgm?: string;
+  /**
+   * Publish-title language (R9.2/D10): vi/en/mix. The backend injects it from the
+   * user's UI choice (it only steers the generated title/hashtags, NOT the script
+   * — narration is always Vietnamese). Absent ⇒ "vi".
+   */
+  titleLanguage?: TitleLanguage;
+  theme?: { dominant: string; mood?: string };
   scenes: ManifestScene[];
 };
 
@@ -51,17 +81,15 @@ const DEFAULT_SCENE_SECONDS = 8;
 
 /** VideoSpec theme limits: dominant must be 6-digit hex, mood ≤40 chars. */
 const HEX6 = /^#[0-9a-fA-F]{6}$/;
-function clampTheme(theme: { dominant: string; mood?: string; stylePackId?: string }): {
+function clampTheme(theme: { dominant: string; mood?: string }): {
   dominant: string;
   mood?: string;
-  stylePackId?: string;
 } {
   const dominant = HEX6.test((theme.dominant ?? "").trim()) ? theme.dominant.trim() : "#1E9CB0";
   const mood = (theme.mood ?? "").trim().slice(0, 40);
   return {
     dominant,
     ...(mood ? { mood } : {}),
-    ...(theme.stylePackId ? { stylePackId: theme.stylePackId } : {}),
   };
 }
 
@@ -72,11 +100,18 @@ export function emptyManifest(title = "Untitled"): Manifest {
 
 /** Convert a manifest into a renderer-agnostic VideoSpec (fills sensible defaults). */
 export function manifestToVideoSpec(manifest: Manifest): VideoSpec {
+  // Format drives canvas/zones/caption presence. The backend injects it from the
+  // user's UI choice; absent ⇒ the historical vertical default so an older
+  // manifest still resolves. `ratio` is derived from format for readability.
+  const format: VideoFormat = manifest.format ?? "tiktok";
   return {
     version: 1,
     title: (manifest.title?.trim() || "Untitled").slice(0, 140),
     styleId: "clean-luxury-tech",
-    ratio: "9:16",
+    format,
+    ...(manifest.durationTier ? { durationTier: manifest.durationTier } : {}),
+    ...(manifest.titleLanguage ? { titleLanguage: manifest.titleLanguage } : {}),
+    ratio: format === "youtube" ? "16:9" : "9:16",
     language: "vi",
     // Clamp to the VideoSpec schema so a manifest authored with AI variance
     // (or written by an older build) never trips validation at render time.
@@ -184,10 +219,24 @@ export async function admitProjectScenes(
 
   const componentIds: string[] = [];
   const violations: SafetyIssue[] = [];
+  const seenComponentIds = new Set<string>();
   for (const file of files) {
     const result = await admitAndRegisterAuthored(file, opts.load ? { load: opts.load } : {});
-    if (result.ok) componentIds.push(result.componentId);
-    else violations.push(...result.violations);
+    if (result.ok) {
+      if (seenComponentIds.has(result.componentId)) {
+        violations.push({
+          check: "N4",
+          severity: "error",
+          path: file,
+          message: `Authored project registers duplicate component id "${result.componentId}". Each authored scene must use a unique id.`,
+        });
+      } else {
+        seenComponentIds.add(result.componentId);
+        componentIds.push(result.componentId);
+      }
+    } else {
+      violations.push(...result.violations);
+    }
   }
   if (violations.length > 0) return { ok: false, violations };
   return { ok: true, componentIds, files };

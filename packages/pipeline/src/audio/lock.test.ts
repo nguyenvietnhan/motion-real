@@ -26,6 +26,7 @@ function specWithSceneSeconds(seconds: number[]): VideoSpec {
     version: 1,
     title: "Lock test",
     styleId: "clean-luxury-tech",
+    format: "tiktok",
     duration: duration as VideoSpec["duration"],
     ratio: "9:16",
     language: "vi",

@@ -203,12 +203,12 @@ select {
   margin-top: auto;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 11px;
   width: 100%;
   text-align: left;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  padding: 10px;
+  padding: 10px 12px;
   background: var(--card);
   color: var(--foreground);
   cursor: pointer;
@@ -221,22 +221,25 @@ select {
 .ns-account-avatar {
   position: relative;
   flex-shrink: 0;
-  width: 30px;
-  height: 30px;
+  width: 34px;
+  height: 34px;
   border-radius: 999px;
   display: grid;
   place-items: center;
+  font-size: 14px;
+  font-weight: 600;
   color: #fff;
   background: linear-gradient(135deg, var(--brand), #7c5cff);
+  box-shadow: 0 1px 5px rgba(59, 111, 224, 0.3);
 }
 .ns-account-status {
   position: absolute;
   right: -1px;
   bottom: -1px;
-  width: 10px;
-  height: 10px;
+  width: 11px;
+  height: 11px;
   border-radius: 999px;
-  border: 2px solid var(--sidebar);
+  border: 2.5px solid var(--sidebar);
 }
 .ns-account-info {
   display: flex;
@@ -342,6 +345,17 @@ textarea.ns-input {
   border-color: var(--ring);
   box-shadow: 0 0 0 3px rgba(59, 111, 224, 0.25);
 }
+/* Compact numeric stepper (NumberRow): hide the native spin buttons so the
+ * value sits truly centred in the small box instead of being pushed left by
+ * the browser's up/down arrows. */
+.ns-num {
+  -moz-appearance: textfield;
+}
+.ns-num::-webkit-outer-spin-button,
+.ns-num::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
 
 /* Chat-style composer: a bordered box holding the textarea + an action bar with
  * an inline "+" attach button (Gemini/ChatGPT style). The box gets the focus ring
@@ -392,6 +406,133 @@ textarea.ns-input {
 }
 .ns-icon-btn:hover {
   background: var(--card-hover);
+}
+
+/* Delivery-knob chips on the create composer (format / duration / title-language),
+   inline with the "+" attach button. Each is a compact pill showing its current
+   value; clicking opens a small popover (progressive disclosure) so a non-tech
+   user only sees three tidy chips, not a wall of radio buttons. */
+.ns-knob-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.ns-knob-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 12px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--foreground);
+  font-size: 13px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.12s, border-color 0.12s;
+}
+.ns-knob-chip:hover {
+  background: var(--card-hover);
+}
+.ns-knob-chip.is-open {
+  border-color: var(--brand);
+  background: var(--card-hover);
+}
+.ns-knob-pop {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 168px;
+  padding: 6px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+}
+.ns-knob-pop-label {
+  padding: 4px 8px 6px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted-foreground);
+}
+.ns-knob-opt {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--foreground);
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.ns-knob-opt:hover {
+  background: var(--card-hover);
+}
+.ns-knob-opt.is-active {
+  color: var(--brand);
+  font-weight: 600;
+}
+.ns-knob-opt-tick {
+  display: inline-flex;
+  width: 14px;
+  justify-content: center;
+  color: var(--brand);
+}
+/* Inline warning glyph inside a knob option (e.g. YouTube format): a yellow icon
+   that reveals a styled tooltip to its RIGHT on hover/focus — same mechanism as
+   InfoHint (.ns-info) so it matches the rest of the app, but warn-coloured. */
+.ns-warn-hint {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--warn);
+  cursor: help;
+  flex: none;
+}
+.ns-warn-hint svg {
+  display: block;
+}
+.ns-warn-tip {
+  position: absolute;
+  top: 50%;
+  left: calc(100% + 8px);
+  width: max-content;
+  max-width: 240px;
+  background: var(--popover);
+  color: var(--foreground);
+  border: 1px solid var(--warn);
+  border-radius: var(--radius-sm);
+  padding: 8px 11px;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.5;
+  text-align: left;
+  white-space: normal;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-50%) translateX(-4px);
+  transition: opacity 0.12s, transform 0.12s;
+  z-index: 40;
+}
+.ns-warn-hint:hover .ns-warn-tip,
+.ns-warn-hint:focus-visible .ns-warn-tip {
+  opacity: 1;
+  transform: translateY(-50%) translateX(0);
+}
+.ns-warn-hint:focus-visible {
+  outline: none;
 }
 
 /* Style picker: a star icon-button next to "+" opens a CENTERED modal (Canva /
@@ -539,6 +680,10 @@ textarea.ns-input {
   height: 0;
 }
 .ns-switch-track {
+  /* Render as a block so the track has no inline-baseline descender gap that
+   * would nudge the whole switch (and its knob) a couple of px below the row
+   * centre inside a flex label. */
+  display: block;
   position: relative;
   width: 40px;
   height: 22px;
@@ -569,6 +714,94 @@ textarea.ns-input {
 .ns-switch input:focus-visible + .ns-switch-track {
   outline: 2px solid var(--ring);
   outline-offset: 2px;
+}
+
+/* Settings → AI tab: account card + 9router route badge. The account reads as a
+ * single object (avatar + email + live status), and each model's route prefix
+ * (ag/kr/cx…) is surfaced as a small badge so the picker's shape mirrors how
+ * 9router actually routes. */
+.ns-acct {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--input);
+}
+.ns-acct-avatar {
+  position: relative;
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  font-size: 17px;
+  font-weight: 600;
+  color: #fff;
+  background: linear-gradient(135deg, var(--brand), #7c5cff);
+  box-shadow: 0 2px 8px rgba(59, 111, 224, 0.32);
+}
+/* Facebook-style presence dot anchored to the avatar's bottom-right: red by
+ * default (inactive), green when 9router is routing through this account. The
+ * ring matches the card background so the dot reads as cut into the avatar. */
+.ns-acct-status {
+  position: absolute;
+  right: -1px;
+  bottom: -1px;
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  background: var(--danger);
+  border: 2.5px solid var(--input);
+}
+.ns-acct-status.is-live {
+  background: var(--good);
+}
+/* The AppSans ascent-override reserves Vietnamese diacritic headroom, so a bare
+ * capital sits ~1px high of the avatar's optical centre. Nudge the glyph down to
+ * re-centre it (used by BOTH avatars — settings card + sidebar — so they match). */
+.ns-avatar-initial {
+  display: block;
+  line-height: 1;
+  transform: translateY(1px);
+}
+.ns-acct-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.ns-acct-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--foreground);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* The model id reads as a route badge: the `route/` part is implicit context,
+ * shown monospaced + tinted so it's distinct from the email above it. */
+.ns-acct-model {
+  align-self: flex-start;
+  max-width: 100%;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--brand);
+  background: color-mix(in srgb, transparent 86%, var(--brand));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ns-acct-manage {
+  flex-shrink: 0;
+  padding: 7px 14px;
+  font-size: 13px;
 }
 
 /* Status pill */
@@ -752,4 +985,138 @@ textarea.ns-input {
   transform: translateX(-50%);
   border: 5px solid transparent;
   border-top-color: var(--popover);
+}
+
+/* --- Published screen: two-column export layout (CapCut/Opus-style) -------
+ * The finished video reads as a deliverable: a fixed-size preview on the LEFT,
+ * and a right rail with a clear hierarchy — completion header + primary CTA,
+ * then the publish metadata (title/hashtags with inline icon-copy), then the
+ * cover as a SUBORDINATE block. The old single narrow centred column made the
+ * video tower over mismatched cards; this gives each part its own lane. */
+.ns-publish {
+  display: grid;
+  grid-template-columns: minmax(280px, 360px) 1fr;
+  gap: 28px;
+  align-items: start;
+}
+/* On a narrow window the two columns stack (preview on top). */
+@media (max-width: 880px) {
+  .ns-publish {
+    grid-template-columns: 1fr;
+  }
+}
+.ns-publish-preview {
+  width: 100%;
+  aspect-ratio: 9 / 16;
+  max-height: 70vh;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+  background: #0c0e12;
+  object-fit: contain;
+}
+.ns-publish-rail {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+}
+/* Completion header: a small green "done" chip on top, then the video title as
+ * the headline — reads top-down like a deliverable's summary. */
+.ns-publish-head {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.ns-publish-done {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 11px 4px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--good);
+  background: color-mix(in srgb, transparent 84%, var(--good));
+}
+.ns-publish-done-icon {
+  display: inline-flex;
+}
+.ns-publish-title {
+  margin: 0;
+  font-size: 19px;
+  font-weight: 700;
+  line-height: 1.3;
+  word-break: break-word;
+}
+/* Primary action row: a prominent download CTA + a quiet "open folder". */
+.ns-publish-cta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+/* "Back home" is the lowest-priority action — pushed to the bottom of the rail,
+ * quiet, left-aligned, so it never competes with the download CTA. */
+.ns-publish-back {
+  align-self: flex-start;
+  margin-top: 4px;
+}
+/* A labelled section in the rail (title/hashtags, cover): small uppercase
+ * eyebrow + the content block under it. */
+.ns-publish-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.ns-publish-eyebrow {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+}
+/* One metadata field: the value fills the row, an icon-copy button sits at the
+ * end (the value is the focus, copy is a quiet affordance — not a peer button). */
+.ns-meta-field {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 13px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--input);
+}
+.ns-meta-value {
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+  line-height: 1.45;
+  word-break: break-word;
+}
+.ns-meta-value.tags {
+  color: var(--brand);
+}
+/* Quiet icon-copy: a 32px square that brightens on hover; flips to a green
+ * check on a successful copy. */
+.ns-copy-btn {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted-foreground);
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+.ns-copy-btn:hover {
+  background: var(--card-hover);
+  color: var(--foreground);
+}
+.ns-copy-btn.is-copied {
+  color: var(--good);
+  border-color: var(--good);
 }

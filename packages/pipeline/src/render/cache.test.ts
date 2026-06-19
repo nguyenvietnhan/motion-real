@@ -99,6 +99,7 @@ function buildLocked(scenes: SceneParams[], opts: { title?: string } = {}): Lock
     version: 1,
     title: opts.title ?? "Hash test",
     styleId: "clean-luxury-tech",
+    format: "tiktok",
     duration: 60,
     ratio: "9:16",
     language: "vi",

@@ -14,6 +14,9 @@ import { z } from "zod";
 // Layout zones (content zone / caption band / platform-UI reserve) live in their
 // own module but are part of the shared contract, so re-export them here.
 export * from "./zones.js";
+// `VideoFormat` is also used by name in this module (tierSeconds), so import it
+// explicitly — a wildcard re-export does not bind the name in this file's scope.
+import type { VideoFormat } from "./zones.js";
 
 export const FPS = 30 as const;
 
@@ -142,25 +145,72 @@ export const ThemeSpecSchema = z.object({
   /** Optional short mood label for human readability (e.g. "calm tech blue"). */
   mood: z.string().max(40).optional(),
   /**
-   * Optional selectable design style pack id (tool-productization R1), e.g.
-   * "bold-editorial" (default) or "galaxy". Validated against the
-   * registered packs at spec-build time; absent ⇒ the default pack.
+   * Legacy style-pack id kept only so old specs parse. The style-pack registry
+   * was retired; render resolves one neutral theme and ignores this value.
    */
   stylePackId: z.string().optional(),
 });
 
 export type ThemeSpec = z.infer<typeof ThemeSpecSchema>;
 
+/**
+ * Delivery format (freeform-engine R7/D3). The canvas, layout zones, and whether
+ * a burned caption band exists are all a function of this — see `geometry()` in
+ * `./zones.ts`. REQUIRED on a spec (greenfield D0): a spec must declare what it
+ * is, so the renderer/oracle can never silently treat a YouTube spec as vertical.
+ */
+export const VideoFormatSchema = z.enum(["tiktok", "youtube"]);
+
+/**
+ * Locked duration tier (freeform-engine R7.3/D4). Per format the three tiers map
+ * to different second targets — TikTok 45s/90s/150s, YouTube 300s/450s/600s — via
+ * `tierSeconds(format, tier)`. Optional on the spec because the resolved pacing
+ * already lives in `duration` (seconds); the tier is the user-chosen bucket the
+ * word-budget aims at.
+ */
+export const DurationTierSchema = z.union([z.literal(1), z.literal(2), z.literal(3)]);
+export type DurationTier = z.infer<typeof DurationTierSchema>;
+
+/** Target seconds for a (format, tier) pair (R7.3). The pacing AIM, not a hard cut. */
+export function tierSeconds(format: VideoFormat, tier: DurationTier): number {
+  const table: Record<VideoFormat, Record<DurationTier, number>> = {
+    tiktok: { 1: 45, 2: 90, 3: 150 },
+    youtube: { 1: 300, 2: 450, 3: 600 },
+  };
+  return table[format][tier];
+}
+
+/**
+ * Language of the GENERATED publish title + hashtags (freeform-engine R9.2/D10):
+ * full Vietnamese, full English, or a mix. This NEVER changes the script/narration
+ * language (always `vi`) — it only steers the title/hashtag the model writes. The
+ * user picks it at the create screen; the backend threads it into the prompt.
+ */
+export const TitleLanguageSchema = z.enum(["vi", "en", "mix"]);
+export type TitleLanguage = z.infer<typeof TitleLanguageSchema>;
+
+/** Max publish-title length per format (R9.1): TikTok is tweet-short + hashtag, YouTube longer. */
+export function titleMaxChars(format: VideoFormat): number {
+  return format === "tiktok" ? 100 : 200;
+}
+
 export const VideoSpecSchema = z.object({
   version: z.literal(1),
   title: z.string().min(1).max(140),
   styleId: z.literal("clean-luxury-tech"),
+  /** Delivery format (REQUIRED): drives canvas + zones + caption presence. */
+  format: VideoFormatSchema,
+  /** User-chosen duration bucket (optional): the word-budget target, see `tierSeconds`. */
+  durationTier: DurationTierSchema.optional(),
+  /** Language of the generated publish title/hashtags (optional → vi). NEVER changes the script. */
+  titleLanguage: TitleLanguageSchema.optional(),
   /**
    * Optional pacing TARGET in seconds (free pacing, R6): not a hard constraint.
    * Scene count and total duration are free; a longer measured render is fine.
    */
   duration: z.number().positive().optional(),
-  ratio: z.literal("9:16"),
+  /** Aspect ratio. Derivable from `format`; kept for back-compat + readability. */
+  ratio: z.enum(["9:16", "16:9"]).optional(),
   language: z.literal("vi"),
   /** Per-project dominant color the AI chose (optional → default palette). */
   theme: ThemeSpecSchema.optional(),
@@ -276,6 +326,10 @@ export function validateVideoSpecStructure(
   knownComponents?: ReadonlySet<string>,
 ): ValidationResult {
   const errors: string[] = [];
+
+  if (spec.format !== "tiktok" && spec.format !== "youtube") {
+    errors.push(`Spec must declare a format ("tiktok" or "youtube"); received ${JSON.stringify(spec.format)}.`);
+  }
 
   if (spec.scenes.length === 0) {
     errors.push("Spec must contain at least one scene.");

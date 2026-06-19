@@ -116,3 +116,53 @@ describe("manifest coercion — one bad field degrades, never discards (per-fiel
     if (r.ok) expect(r.manifest.scenes).toHaveLength(3);
   });
 });
+
+describe("manifest coercion — publish hashtags normalize to a clean #-prefixed array (H3/D9)", () => {
+  // Hashtags are a SEPARATE publish field (the title stays clean — it doubles as
+  // the project display name). The model emits them in many shapes; all must
+  // normalize to ["#ai", "#tech", ...] so the Copy panel always has ready tags,
+  // and a bad value must NEVER discard the manifest + every authored .tsx.
+  const withHashtags = (h: unknown) => {
+    const m = base() as unknown as { hashtags?: unknown };
+    m.hashtags = h;
+    return parse(m);
+  };
+
+  it("keeps a clean array as-is", () => {
+    const r = withHashtags(["#ai", "#congnghe"]);
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.manifest.hashtags).toEqual(["#ai", "#congnghe"]);
+  });
+
+  it("adds the leading # to bare tags", () => {
+    const r = withHashtags(["ai", "tech"]);
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.manifest.hashtags).toEqual(["#ai", "#tech"]);
+  });
+
+  it("splits a single space/comma-separated string into tags", () => {
+    const r = withHashtags("#ai #tech, news");
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.manifest.hashtags).toEqual(["#ai", "#tech", "#news"]);
+  });
+
+  it("collapses doubled #s and drops empties, capping at 6", () => {
+    const r = withHashtags(["##ai", "", "  ", "#b", "#c", "#d", "#e", "#f", "#g"]);
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.manifest.hashtags).toEqual(["#ai", "#b", "#c", "#d", "#e", "#f"]); // 6 max
+    }
+  });
+
+  it("degrades an unusable value to undefined without discarding the reply", () => {
+    const r = withHashtags(12345); // neither string nor array
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.manifest.hashtags).toBeUndefined();
+  });
+
+  it("omits hashtags entirely when the field is absent", () => {
+    const r = parse(base());
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.manifest.hashtags).toBeUndefined();
+  });
+});

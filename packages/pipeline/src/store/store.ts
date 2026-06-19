@@ -26,8 +26,27 @@ export function projectsRoot(): string {
   return join(videoToolHome(), "projects");
 }
 
+/**
+ * A project id is ALWAYS a `createProjectId` output: a slug of `[a-z0-9-]` plus a
+ * hex uuid8 suffix. Validate against that shape before it is ever joined into a
+ * path. Without this, an id like `..\..\Users\me\Documents` survives the bare
+ * `String(projectId)` at the IPC boundary, `join` resolves the `..`, and the
+ * traversed path flows into `rm(recursive,force)` (delete), `shell.openPath`
+ * (reveal), and artifact reads (save) — i.e. arbitrary recursive delete / read
+ * outside the sandbox. Reject anything that isn't the known-safe shape: no path
+ * separators, no `..`, no drive letters, no NUL.
+ */
+const PROJECT_ID_RE = /^[A-Za-z0-9_-]+$/;
+
+export function assertSafeProjectId(projectId: string): string {
+  if (typeof projectId !== "string" || !PROJECT_ID_RE.test(projectId)) {
+    throw new Error(`Invalid project id: ${JSON.stringify(projectId)}`);
+  }
+  return projectId;
+}
+
 export function projectPath(projectId: string): string {
-  return join(projectsRoot(), projectId);
+  return join(projectsRoot(), assertSafeProjectId(projectId));
 }
 
 export function ttsCacheDir(): string {
@@ -166,8 +185,30 @@ export type ProjectSummary = {
   projectId: string;
   root: string;
   brief?: ProjectBrief;
+  /**
+   * The AI-authored display title (from `manifest.json`), when the project has
+   * been authored. The gallery prefers this over the raw prompt so a card shows
+   * "Gemma 3 chạy trên máy nhà" instead of the long link/prompt the user typed.
+   * Absent for a scaffolded-but-unauthored project (no manifest title yet).
+   */
+  title?: string;
   hasRender: boolean;
 };
+
+/**
+ * Read just the `title` out of a project's manifest.json, without parsing the
+ * whole manifest or failing the listing if it's absent/torn. A scaffolded
+ * project has no manifest yet (returns undefined); a half-written one degrades
+ * to undefined rather than aborting the gallery scan.
+ */
+async function readManifestTitle(projectId: string): Promise<string | undefined> {
+  try {
+    const { title } = await readJson<{ title?: unknown }>(projectPaths(projectId).manifest);
+    return typeof title === "string" && title.trim().length > 0 ? title.trim() : undefined;
+  } catch {
+    return undefined; // no manifest yet, or unreadable — fall back to the prompt
+  }
+}
 
 /** List all known projects (newest first by updatedAt when available). */
 export async function listProjects(): Promise<ProjectSummary[]> {
@@ -175,6 +216,10 @@ export async function listProjects(): Promise<ProjectSummary[]> {
   if (!existsSync(root)) return [];
   const out: ProjectSummary[] = [];
   for (const id of await readdir(root)) {
+    // A real project dir is always a `createProjectId` slug; skip anything else
+    // (dotfiles like `.DS_Store`/`Thumbs.db`, stray folders) rather than letting
+    // `projectPaths` → `assertSafeProjectId` throw and abort the whole listing.
+    if (!PROJECT_ID_RE.test(id)) continue;
     const p = projectPaths(id);
     if (!existsSync(p.brief)) continue;
     let brief: ProjectBrief | undefined;
@@ -183,10 +228,12 @@ export async function listProjects(): Promise<ProjectSummary[]> {
     } catch {
       brief = undefined;
     }
+    const title = await readManifestTitle(id);
     out.push({
       projectId: id,
       root: p.root,
       brief,
+      ...(title ? { title } : {}),
       hasRender: existsSync(join(p.rendersDir, `${id}.mp4`)),
     });
   }

@@ -23,7 +23,7 @@ const pkg = (name: string): string => resolve(repo, "packages", name, "src", "in
 
 const alias: Record<string, string> = {
   "@news/schema": pkg("schema"),
-  "@news/design": pkg("design"),
+  "@news/theme": pkg("theme"),
   "@news/blocks": pkg("blocks"),
   "@news/tts": pkg("tts"),
   "@news/compositions": pkg("compositions"),

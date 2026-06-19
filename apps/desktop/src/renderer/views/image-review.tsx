@@ -1,7 +1,6 @@
 import React, { useState } from "react";
 import type { CrawledImageVM } from "../../shared/types.js";
 import { Icon } from "../icons.js";
-import { PageHeader } from "../primitives.js";
 
 /**
  * Image review (Phase 2 Block B): a blocking screen shown BEFORE authoring when a
@@ -14,10 +13,9 @@ import { PageHeader } from "../primitives.js";
  */
 export const ImageReviewView: React.FC<{
   images: CrawledImageVM[];
-  onBack: () => void;
   /** Confirm the selected refs; empty array ⇒ author with no images. */
   onSubmit: (selectedRefs: string[]) => void;
-}> = ({ images, onBack, onSubmit }) => {
+}> = ({ images, onSubmit }) => {
   // Pre-tick the AI-suggested images (when the AI-filter ran); otherwise nothing
   // is checked and the user opts images in.
   const [checked, setChecked] = useState<Record<string, boolean>>(
@@ -42,17 +40,20 @@ export const ImageReviewView: React.FC<{
   };
 
   return (
-    <div className="ns-content">
-      <PageHeader title="Duyệt ảnh từ bài báo" action={<button className="ns-btn" onClick={onBack}>← Quay lại</button>} />
-
+    <>
       <div className="ns-card" style={{ padding: 16, marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
         <span style={{ color: "var(--muted-foreground)", fontSize: 14 }}>
           Chọn các ảnh phù hợp để AI đưa vào video. AI sẽ tự quyết đặt ảnh ở cảnh nào. Ảnh được đề xuất đã tick sẵn.
         </span>
         <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
           <button className="ns-btn" onClick={() => submit([])} disabled={submitting}>Bỏ qua ảnh</button>
-          <button className="ns-btn ns-btn-primary" onClick={() => submit(selectedRefs)} disabled={submitting}>
-            {submitting ? "Đang xử lý…" : `Dùng ảnh đã chọn${count > 0 ? ` (${count})` : ""} →`}
+          <button
+            className="ns-btn ns-btn-primary"
+            onClick={() => submit(selectedRefs)}
+            disabled={submitting || count === 0}
+            title={count === 0 ? "Chưa chọn ảnh nào. Bấm vào ảnh để chọn, hoặc dùng nút Bỏ qua ảnh." : undefined}
+          >
+            {submitting ? "Đang xử lý…" : `Dùng ảnh đã chọn (${count}) →`}
           </button>
         </div>
       </div>
@@ -110,6 +111,6 @@ export const ImageReviewView: React.FC<{
           {Icon.info({ size: 16 })} Không tìm thấy ảnh phù hợp trong bài. Video sẽ dựng bằng chữ.
         </p>
       )}
-    </div>
+    </>
   );
 };

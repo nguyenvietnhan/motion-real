@@ -1,4 +1,6 @@
 import { spawn } from "node:child_process";
+import { dirname, join } from "node:path";
+import { createRequire } from "node:module";
 
 /**
  * Test launcher with a Windows ESM drive-letter casing guard.
@@ -18,11 +20,13 @@ import { spawn } from "node:child_process";
  */
 const args = process.argv.slice(2);
 const cwd = process.cwd().replace(/^([a-z]):/, (_m, d: string) => `${d.toUpperCase()}:`);
+const require = createRequire(import.meta.url);
+const vitestBin = join(dirname(require.resolve("vitest/package.json")), "vitest.mjs");
 
-const child = spawn("npx", ["vitest", "run", ...args], {
+const child = spawn(process.execPath, [vitestBin, "run", ...args], {
   cwd,
   stdio: "inherit",
-  shell: true,
+  shell: false,
 });
 
 child.on("exit", (code, signal) => {

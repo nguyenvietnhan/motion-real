@@ -1,4 +1,5 @@
 import type { SettingsModel } from "../../shared/types.js";
+import { DEFAULT_REFINE_PASSES, clampRefinePasses, clampWordsPerSecond } from "../../shared/settings-model.js";
 import { existsSync, readFileSync, writeFileSync, renameSync } from "node:fs";
 
 /**
@@ -48,8 +49,17 @@ export class SettingsStore {
       const exists = this.deps.exists ?? defaultExists;
       if (exists(this.deps.filePath)) {
         const read = this.deps.readText ?? defaultReadText;
-        const saved = JSON.parse(read(this.deps.filePath)) as Partial<SettingsModel>;
-        return { ...base, ...saved, voiceProvider: "vivibe", aiAccount: base.aiAccount };
+        const saved = JSON.parse(read(this.deps.filePath)) as Partial<SettingsModel> & { visualQaEnabled?: boolean };
+        const merged = { ...base, ...saved, voiceProvider: "vivibe" as const, aiAccount: base.aiAccount };
+        // Migrate the legacy boolean `visualQaEnabled` to the `refinePasses` count
+        // (freeform-engine D6/F2): an older settings file carries the boolean but
+        // not the count, so honor it — ON ⇒ the default pass count, OFF ⇒ 0 — only
+        // when `refinePasses` wasn't explicitly saved. Then clamp to [0,5].
+        if (saved.refinePasses === undefined && saved.visualQaEnabled !== undefined) {
+          merged.refinePasses = saved.visualQaEnabled ? DEFAULT_REFINE_PASSES : 0;
+        }
+        merged.refinePasses = clampRefinePasses(merged.refinePasses);
+        return merged;
       }
     } catch (e) {
       console.warn("[settings] failed to read settings file, using defaults:", e);
@@ -80,8 +90,12 @@ export class SettingsStore {
     return this.settings.maxRepairAttempts;
   }
 
-  get visualQaEnabled(): boolean {
-    return this.settings.visualQaEnabled;
+  get refinePasses(): number {
+    return this.settings.refinePasses;
+  }
+
+  get refineEarlyStop(): boolean {
+    return this.settings.refineEarlyStop;
   }
 
   get imageCrawlAiFilter(): boolean {
@@ -111,6 +125,26 @@ export class SettingsStore {
       apiKey: this.settings.voiceApiKey?.trim() || this.deps.envApiKey() || "",
       voiceId: this.settings.voiceId?.trim() || this.deps.envVoiceId() || "",
     };
+  }
+
+  /**
+   * The CALIBRATED Vietnamese narration rate (words/second) for the CURRENTLY
+   * configured voice (freeform-engine K1/R5.4/D13), or undefined when there is no
+   * usable calibration — so the author prompt falls back to its baked default.
+   * The rate is voice-specific, so a persisted rate measured for a DIFFERENT voice
+   * (`voiceWpsCalibratedFor` ≠ the resolved voiceId) is STALE and ignored. The
+   * value is clamped to the sane band before use, so a hand-edited settings file
+   * (or a bad measurement) can never poison the word budget.
+   */
+  calibratedWordsPerSecond(): number | undefined {
+    const rate = this.settings.voiceWordsPerSecond;
+    if (typeof rate !== "number" || !Number.isFinite(rate)) return undefined;
+    const calibratedFor = this.settings.voiceWpsCalibratedFor?.trim();
+    const currentVoice = this.voiceConfig().voiceId;
+    // A rate with no recorded voice, or one recorded for a different voice than is
+    // configured now, is not trustworthy for this voice — fall back to the default.
+    if (!calibratedFor || calibratedFor !== currentVoice) return undefined;
+    return clampWordsPerSecond(rate);
   }
 }
 

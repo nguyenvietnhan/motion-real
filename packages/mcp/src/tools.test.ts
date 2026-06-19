@@ -246,3 +246,49 @@ describe("get_safety_report — 7.x (web-dashboard Task 2.1)", () => {
     }
   });
 });
+
+describe("render_stills — fast per-scene stills (freeform R4/R5)", () => {
+  it("returns the rendered stills and needs NO Vivibe config (no TTS)", async () => {
+    let calledProjectId: string | undefined;
+    const tools = createTools({
+      // No ttsConfig override → an absent key would block the MP4 tools; stills
+      // must run anyway (they skip the Vivibe guard).
+      ttsConfig: () => ({ apiKey: "", voiceId: undefined }),
+      renderProjectStills: async (projectId) => {
+        calledProjectId = projectId;
+        return { projectId, stills: ["/p/review/scene-01.png", "/p/review/scene-02.png"] };
+      },
+    });
+    const res = await tools.render_stills({ projectId: "st-1" });
+    expect(res.ok).toBe(true);
+    if (res.ok) expect(res.data.stills).toHaveLength(2);
+    expect(calledProjectId).toBe("st-1");
+  });
+
+  it("passes sceneIds through to the pipeline (subset render)", async () => {
+    let seenSceneIds: string[] | undefined;
+    const tools = createTools({
+      renderProjectStills: async (projectId, opts) => {
+        seenSceneIds = opts?.sceneIds;
+        return { projectId, stills: ["/p/review/scene-02.png"] };
+      },
+    });
+    const res = await tools.render_stills({ projectId: "st-2", sceneIds: ["scene-02"] });
+    expect(res.ok).toBe(true);
+    expect(seenSceneIds).toEqual(["scene-02"]);
+  });
+
+  it("surfaces a pipeline failure as a structured error (never throws)", async () => {
+    const tools = createTools({
+      renderProjectStills: async () => {
+        throw new PipelineError({ stage: "build-gate", cause: "admission rejected scene-01" });
+      },
+    });
+    const res = await tools.render_stills({ projectId: "st-3" });
+    expect(res.ok).toBe(false);
+    if (!res.ok) {
+      expect(res.error.stage).toBe("build-gate");
+      expect(res.error.cause).toMatch(/admission/i);
+    }
+  });
+});

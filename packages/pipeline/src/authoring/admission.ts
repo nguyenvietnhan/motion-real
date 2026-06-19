@@ -30,7 +30,16 @@ export type AdmissionPolicy = {
 };
 
 export const DEFAULT_ADMISSION_POLICY: AdmissionPolicy = {
-  allowedImports: ["react", "remotion", "@news/design", "@news/blocks", "@news/compositions", "zod"],
+  // Post-freeform-pivot the layout blocks were deleted: the AI bốc pre-made
+  // @news/blocks (TitleBlock/KeyPoints/Panel/Story/…) into every scene, which made
+  // every video look the same. Cutting @news/blocks (and @news/theme) from the
+  // whitelist is the STRUCTURAL lever — not a prompt nudge — that forces the AI to
+  // author every scene as 100% bespoke JSX/SVG. The image feature survives because
+  // the one sanctioned authored-facing export, SceneImage, is re-exported from
+  // @news/compositions (which IS whitelisted and authored scenes must import anyway
+  // for registerComponent). @news/blocks still exists as the render runtime the
+  // composition layer imports — but a scene can no longer reach it.
+  allowedImports: ["react", "remotion", "@news/compositions", "zod"],
   bannedApis: [
     "Math.random",
     "Date.now",
@@ -44,11 +53,28 @@ export const DEFAULT_ADMISSION_POLICY: AdmissionPolicy = {
     "fs",
     "child_process",
     "process",
+    // Global ROOTS. A deny-list over an AST cannot enumerate every path to the
+    // host, but every escape needs SOME global object to start from. Banning the
+    // roots themselves (not just `globalThis.process`) closes the whole class:
+    // `global.process.getBuiltinModule("child_process").execSync(...)` is a
+    // working host-RCE bypass when only `process` is banned, because `process`
+    // sits in a property-NAME position the identifier visitor skips — but `global`
+    // (the base) is then flagged. The same ban catches `self["ev"+"al"]` /
+    // `window["x"]` since the root identifier is flagged regardless of access form.
     "globalThis",
+    "global",
+    "self",
+    "window",
+    "document",
+    // Metaprogramming escapes (Reflect.get / a Proxy trap can reach a constructor).
+    "Reflect",
+    "Proxy",
     "crypto",
     "performance",
-    "window.location",
-    "document.cookie",
+    // Base64/char codecs are the usual way to BUILD an obfuscated member name
+    // (e.g. `x[atob("Y29uc3RydWN0b3I=")]`); deterministic scenes never need them.
+    "atob",
+    "btoa",
     "dangerouslySetInnerHTML",
     // Media must reach the screen ONLY through the sanctioned `<SceneImage>`
     // block (fed by the scene's local-only `image` field). Banning Remotion's
@@ -151,12 +177,29 @@ export function admitAuthoredComponent(
       addN5(node, "constructor");
     }
 
-    // --- computed member access with a static string key: `window["eval"]`,
-    // `x["constructor"]`, `globalThis["process"]` evade the dotted/identifier
-    // checks, so flag a string key that names a dangerous member (N5). ---
-    if (ts.isElementAccessExpression(node) && ts.isStringLiteral(node.argumentExpression)) {
-      const key = node.argumentExpression.text;
-      if (key === "constructor" || banned.has(key)) addN5(node, `["${key}"]`);
+    // --- computed member access (N5). A static string key that names a dangerous
+    // member (`window["eval"]`, `x["constructor"]`) is flagged by name. The remaining
+    // bypass is a key that BUILDS the dangerous name at runtime so the by-name guard
+    // can't see it — `x["con"+"structor"]`, `x[`construct${""}or`]`, `x[atob(...)]`.
+    // Reject those name-BUILDING keys (string concat / template / call) while ALLOWING
+    // ordinary data indexing (`arr[i]`, `colors[index]`, `arr[i+1]`), which scene
+    // dataviz uses constantly — a blanket non-literal ban would roll back valid scenes.
+    // (The `atob`/`btoa` codecs and the global roots are already banned as identifiers,
+    // so `x[atob(...)]` is doubly caught; this covers the pure string-concat form.) ---
+    if (ts.isElementAccessExpression(node)) {
+      const keyExpr = node.argumentExpression;
+      if (ts.isStringLiteral(keyExpr)) {
+        const key = keyExpr.text;
+        if (key === "constructor" || banned.has(key)) addN5(node, `["${key}"]`);
+      } else if (isNameBuildingKey(keyExpr)) {
+        addN5(node, "computed member access with a runtime-built string key");
+      }
+    }
+
+    // --- import.meta (MetaProperty) leaks the host path / `import.meta.resolve`
+    // exists on recent Node; the dynamic-import() check above only sees a call. ---
+    if (node.kind === ts.SyntaxKind.MetaProperty) {
+      addN5(node, "import.meta");
     }
 
     // --- dangerous global identifier referenced ANYWHERE (N5). Catches the bare
@@ -274,6 +317,35 @@ export function admitAuthoredComponent(
     return { admitted: false, violations };
   }
   return { admitted: true, componentId };
+}
+
+/**
+ * Does a computed-member key BUILD a string name at runtime (the obfuscation
+ * vector `x["con"+"structor"]` / `` x[`construct${""}or`] `` / `x[atob(...)]`)?
+ * Distinguished from ordinary data indexing (`arr[i]`, `arr[i+1]`, `m[k]`), which
+ * scene dataviz uses heavily and must stay admitted:
+ *  - a string literal anywhere in a `+` chain ⇒ name-building (numeric `i+1` is not);
+ *  - a template expression with substitutions, or any string-ish template ⇒ name-building;
+ *  - a call expression ⇒ name-building (e.g. a decoder); a bare identifier/index is not.
+ */
+function isNameBuildingKey(expr: ts.Expression): boolean {
+  if (ts.isParenthesizedExpression(expr)) return isNameBuildingKey(expr.expression);
+  if (ts.isCallExpression(expr)) return true;
+  if (ts.isTemplateExpression(expr)) return true; // `...${x}...` (a NoSubstitution template is a plain literal name, handled by the literal branch)
+  if (ts.isBinaryExpression(expr) && expr.operatorToken.kind === ts.SyntaxKind.PlusToken) {
+    return containsStringLiteral(expr);
+  }
+  return false;
+}
+
+/** True if a `+` expression tree contains any string/template literal operand (⇒ string concat, not arithmetic). */
+function containsStringLiteral(expr: ts.Expression): boolean {
+  if (ts.isStringLiteralLike(expr) || ts.isTemplateExpression(expr)) return true;
+  if (ts.isParenthesizedExpression(expr)) return containsStringLiteral(expr.expression);
+  if (ts.isBinaryExpression(expr) && expr.operatorToken.kind === ts.SyntaxKind.PlusToken) {
+    return containsStringLiteral(expr.left) || containsStringLiteral(expr.right);
+  }
+  return false;
 }
 
 function hasExportModifier(node: ts.HasModifiers): boolean {
