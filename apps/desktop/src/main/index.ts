@@ -2,7 +2,7 @@ import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
 import { fileURLToPath } from "node:url";
 import { basename, dirname, join } from "node:path";
 import { createTools } from "@news/mcp";
-import { loadManifest, writeJson, projectPaths, videoToolHome, stagingDir, ensureProject, importImageBytes, vivibeApiKey, defaultVivibeVoiceId, setAuthoredLoader, reconcileStaleStates, pruneRenderCache, pruneTtsCache, readBrief, listBgmTracks, addBgmTrack, removeBgmTrack, renderThumbnail, type BgmTrack } from "@news/pipeline";
+import { loadManifest, writeJson, projectPaths, videoToolHome, stagingDir, ensureProject, importImageBytes, setAuthoredLoader, reconcileStaleStates, pruneRenderCache, pruneTtsCache, readBrief, listBgmTracks, addBgmTrack, removeBgmTrack, renderThumbnail, type BgmTrack } from "@news/pipeline";
 import { registerIpcRouter, type InvokeHandlers } from "./ipc-router.js";
 import { ModelGatewayManager } from "./gateway/model-gateway-manager.js";
 import { buildNineRouterGatewayDeps } from "./gateway/ninerouter-deps.js";
@@ -24,6 +24,12 @@ import { existsSync, readFileSync } from "node:fs";
 import { copyFile, readFile, readdir, rm, stat } from "node:fs/promises";
 import type { DroppedImage, ModelInfo, PickImagesResult, ScriptEdit, SettingsModel } from "../shared/types.js";
 import { extractUrls } from "../shared/create-validation.js";
+import {
+  applyNonSensitiveEnvironment,
+  detectProcessPrivilege,
+  privilegeStartupError,
+  scrubSensitiveEnvironment,
+} from "./security/runtime-security.js";
 
 // The `media://` scheme must be registered before the app is ready.
 registerMediaScheme();
@@ -33,11 +39,13 @@ registerMediaScheme();
 // so BOTH the authoring step AND renderProject's admission use it.
 setAuthoredLoader(loadAuthoredTsx);
 
-// Electron is NOT launched with `--env-file=.env` (unlike the tsx build scripts),
-// so the repo `.env` is loaded here into process.env — the engine's
-// `vivibeApiKey()`/`defaultVivibeVoiceId()` read process.env. Existing env wins.
-function loadEnvFile(path: string): void {
-  if (!existsSync(path)) return;
+// Electron reads `.env` once, captures only the Vivibe values it needs in a
+// closure, then removes credential-looking variables from process.env before any
+// authored module can be loaded. Non-secret runtime configuration still follows
+// normal env precedence.
+function readEnvFile(path: string): Record<string, string> {
+  if (!existsSync(path)) return {};
+  const values: Record<string, string> = {};
   try {
     for (const line of readFileSync(path, "utf8").split(/\r?\n/)) {
       const m = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*?)\s*$/.exec(line);
@@ -47,28 +55,37 @@ function loadEnvFile(path: string): void {
       if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
         val = val.slice(1, -1);
       }
-      if (process.env[key] === undefined) process.env[key] = val;
+      values[key] = val;
     }
   } catch (e) {
     console.warn("[env] failed to load .env:", e);
   }
+  return values;
 }
 const REPO_ROOT = dirname(process.env.VIDEO_TOOL_HOME ?? videoToolHome());
-loadEnvFile(join(REPO_ROOT, ".env"));
+const fileEnv = readEnvFile(join(REPO_ROOT, ".env"));
+const bootVoiceEnv = Object.freeze({
+  apiKey:
+    process.env.VIVIBE_API_KEY?.trim() ||
+    process.env.VIETNAMESE_API_KEY?.trim() ||
+    fileEnv.VIVIBE_API_KEY?.trim() ||
+    fileEnv.VIETNAMESE_API_KEY?.trim() ||
+    "",
+  voiceId:
+    process.env.VIVIBE_VOICE_ID?.trim() ||
+    process.env.VIETNAMESE_VOICEID?.trim() ||
+    fileEnv.VIVIBE_VOICE_ID?.trim() ||
+    fileEnv.VIETNAMESE_VOICEID?.trim(),
+});
+applyNonSensitiveEnvironment(fileEnv);
+scrubSensitiveEnvironment(fileEnv);
+scrubSensitiveEnvironment(process.env);
 
 /** Map a library BGM track to its renderer VM (a compact human size label). */
 function toBgmVM(t: BgmTrack): { name: string; sizeLabel: string } {
   const mb = t.sizeBytes / (1024 * 1024);
   const sizeLabel = mb >= 1 ? `${mb.toFixed(1)} MB` : `${Math.max(1, Math.round(t.sizeBytes / 1024))} KB`;
   return { name: t.name, sizeLabel };
-}
-
-/** Bridge user-entered voice settings into the env the engine reads. */
-function applyVoiceEnv(s: SettingsModel): void {
-  const key = s.voiceApiKey?.trim();
-  const voice = s.voiceId?.trim();
-  if (key) process.env.VIETNAMESE_API_KEY = key;
-  if (voice) process.env.VIETNAMESE_VOICEID = voice;
 }
 
 /**
@@ -87,10 +104,9 @@ const SETTINGS_FILE = join(videoToolHome(), "news-studio-settings.json");
 const settingsStore = new SettingsStore({
   filePath: SETTINGS_FILE,
   defaults: () => defaultSettings(videoToolHome()),
-  envApiKey: vivibeApiKey,
-  envVoiceId: defaultVivibeVoiceId,
+  envApiKey: () => bootVoiceEnv.apiKey,
+  envVoiceId: () => bootVoiceEnv.voiceId,
 });
-applyVoiceEnv(settingsStore.current());
 let selectedModel: ModelInfo | undefined;
 
 // TTS config: a user-entered voice key/id (Settings) overrides the .env fallback.
@@ -513,9 +529,7 @@ const handlers: InvokeHandlers = {
 
   "settings:get": () => settingsStore.current(),
   "settings:update": (patch) => {
-    const next = settingsStore.update(patch as Partial<SettingsModel>);
-    applyVoiceEnv(next);
-    return next;
+    return settingsStore.update(patch as Partial<SettingsModel>);
   },
 };
 
@@ -557,6 +571,12 @@ async function createWindow(): Promise<void> {
 app
   .whenReady()
   .then(() => {
+    const privilegeError = privilegeStartupError(detectProcessPrivilege());
+    if (privilegeError) {
+      dialog.showErrorBox("Không thể khởi động an toàn", privilegeError);
+      app.exit(1);
+      return;
+    }
     handleMediaProtocol();
     // Reset any project left mid-job by a crashed prior session (audit P1-5), so
     // the gallery never shows a permanently-stuck "rendering" badge. Best-effort:

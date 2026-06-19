@@ -33,6 +33,8 @@ import { normalizeVietnameseNumbers } from "./vi-number.js";
 export type SynthesizeOptions = {
   projectId: string;
   provider: TtsProvider;
+  /** Explicit in-memory credential. Desktop passes this after scrubbing process.env. */
+  apiKey?: string;
   voiceId?: string;
   speed?: number;
   /** absolute path to a BGM file to mix under the narration, if any */
@@ -40,6 +42,19 @@ export type SynthesizeOptions = {
   /** BGM gain relative to the voice (0–1); defaults to DEFAULT_BGM_VOLUME (~20%). */
   bgmVolume?: number;
 };
+
+export type VivibeCredentials = { apiKey: string; voiceId: string | undefined };
+
+/** Resolve explicit credentials first; environment remains a CLI-only fallback. */
+export function resolveVivibeCredentials(
+  opts: Pick<SynthesizeOptions, "apiKey" | "voiceId">,
+  fallback: VivibeCredentials = { apiKey: vivibeApiKey(), voiceId: defaultVivibeVoiceId() },
+): VivibeCredentials {
+  return {
+    apiKey: opts.apiKey?.trim() || fallback.apiKey,
+    voiceId: opts.voiceId?.trim() || fallback.voiceId,
+  };
+}
 
 /** Default background-music gain under the narration (~20% of the voice). */
 export const DEFAULT_BGM_VOLUME = 0.2;
@@ -103,9 +118,10 @@ export async function synthesizeNarration(
   await mkdir(cacheRoot, { recursive: true });
 
   // Resolve voice + validate config up front (stop-and-report).
-  let voiceId = opts.voiceId ?? defaultVivibeVoiceId();
+  const credentials = resolveVivibeCredentials(opts);
+  const voiceId = credentials.voiceId;
   if (opts.provider === "vivibe") {
-    if (!vivibeApiKey()) {
+    if (!credentials.apiKey) {
       throw new Error(
         "Vivibe TTS selected but VIVIBE_API_KEY / VIETNAMESE_API_KEY is missing. Set it in .env before rendering.",
       );
@@ -116,7 +132,7 @@ export async function synthesizeNarration(
   }
   const effectiveVoiceId = voiceId ?? "mock";
 
-  const client = opts.provider === "vivibe" ? new VivibeClient() : null;
+  const client = opts.provider === "vivibe" ? new VivibeClient({ apiKey: credentials.apiKey }) : null;
   const byScene: Record<string, TtsManifestScene> = {};
   const orderedClips: string[] = [];
 

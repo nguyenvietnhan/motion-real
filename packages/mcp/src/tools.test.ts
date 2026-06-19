@@ -99,6 +99,21 @@ describe("TTS provider preservation — Property 10", () => {
       { numRuns: 100 },
     );
   });
+
+  it("passes credentials explicitly to the orchestrator instead of relying on process.env", async () => {
+    let seen: Parameters<ToolDeps["renderProject"]>[1];
+    const tools = createTools({
+      ttsConfig: () => ({ apiKey: "closure-key", voiceId: "closure-voice" }),
+      renderProject: async (_projectId, opts) => {
+        seen = opts;
+        return renderOk();
+      },
+    });
+
+    const result = await tools.render_draft({ projectId: "p" });
+    expect(result.ok).toBe(true);
+    expect(seen).toMatchObject({ ttsApiKey: "closure-key", voiceId: "closure-voice" });
+  });
 });
 
 describe("full grid in force — Property 9", () => {

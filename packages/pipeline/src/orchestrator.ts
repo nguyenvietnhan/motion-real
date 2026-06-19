@@ -162,6 +162,8 @@ export type RenderProjectDeps = {
 
 export type RenderProjectOptions = {
   ttsProvider?: TtsProvider;
+  /** Explicit Vivibe credential; avoids retaining it in Electron's process.env. */
+  ttsApiKey?: string;
   voiceId?: string;
   speed?: number;
   bgmPath?: string;
@@ -412,7 +414,14 @@ export async function renderProject(projectId: string, opts: RenderProjectOption
     const synthesize = deps.synthesize ?? synthesizeNarration;
     const tts = await timedPipelineStage(
       "stage.tts",
-      () => synthesize(spec, { projectId, provider, voiceId, speed, bgmPath: opts.bgmPath ?? defaultBgmPath() }),
+      () => synthesize(spec, {
+        projectId,
+        provider,
+        ...(opts.ttsApiKey ? { apiKey: opts.ttsApiKey } : {}),
+        voiceId,
+        speed,
+        bgmPath: opts.bgmPath ?? defaultBgmPath(),
+      }),
       { provider, scenes: spec.scenes.length },
     );
     await appendEvent(projectId, { type: "tts.done", provider, scenes: tts ? Object.keys(tts.byScene).length : 0 });

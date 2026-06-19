@@ -58,6 +58,8 @@ export type ToolDeps = {
   ttsConfig: () => { apiKey: string; voiceId: string | undefined };
 };
 
+type TtsConfig = ReturnType<ToolDeps["ttsConfig"]>;
+
 /** Default draft-first input: the orchestrator writes `<id>.draft.mp4` here. */
 export function draftExistsFor(projectId: string): boolean {
   return existsSync(join(projectPaths(projectId).rendersDir, `${projectId}.draft.mp4`));
@@ -184,8 +186,7 @@ export type SafetyReportView = { ok: boolean; hardErrors: SafetyIssue[]; warning
  * Refuse a render when the Vivibe config is incomplete, naming the EXACT missing
  * field — and never substituting `mock`/`none`. The provider stays Vivibe.
  */
-function assertVivibeConfig(deps: ToolDeps): PipelineError | undefined {
-  const { apiKey, voiceId } = deps.ttsConfig();
+function assertVivibeConfig({ apiKey, voiceId }: TtsConfig): PipelineError | undefined {
   const missing: string[] = [];
   if (!apiKey) missing.push("VIVIBE_API_KEY/VIETNAMESE_API_KEY");
   if (!voiceId) missing.push("VIVIBE_VOICE_ID/VIETNAMESE_VOICEID");
@@ -234,7 +235,8 @@ export function createTools(overrides: Partial<ToolDeps> = {}) {
       onProgress?: (ratio: number) => void,
       signal?: AbortSignal,
     ): Promise<ToolResult<RenderProjectResult>> {
-      const cfgError = assertVivibeConfig(deps);
+      const ttsConfig = deps.ttsConfig();
+      const cfgError = assertVivibeConfig(ttsConfig);
       if (cfgError) return err(cfgError.toSerialized());
       try {
         // Resolve the project's chosen BGM (manifest `bgm` ref) to an absolute
@@ -243,6 +245,8 @@ export function createTools(overrides: Partial<ToolDeps> = {}) {
         const bgmPath = await resolveProjectBgm(input.projectId);
         const res = await deps.renderProject(input.projectId, {
           quality: "draft",
+          ttsApiKey: ttsConfig.apiKey,
+          voiceId: ttsConfig.voiceId,
           ...(bgmPath ? { bgmPath } : {}),
           ...(input.concurrency ? { concurrency: input.concurrency } : {}),
           ...(onProgress ? { onProgress } : {}),
@@ -272,13 +276,16 @@ export function createTools(overrides: Partial<ToolDeps> = {}) {
           }).toSerialized(),
         );
       }
-      const cfgError = assertVivibeConfig(deps);
+      const ttsConfig = deps.ttsConfig();
+      const cfgError = assertVivibeConfig(ttsConfig);
       if (cfgError) return err(cfgError.toSerialized());
       try {
         const bgmPath = await resolveProjectBgm(input.projectId);
         const res = await deps.renderProject(input.projectId, {
           quality: "full",
           forceFull,
+          ttsApiKey: ttsConfig.apiKey,
+          voiceId: ttsConfig.voiceId,
           ...(bgmPath ? { bgmPath } : {}),
           ...(onProgress ? { onProgress } : {}),
           ...(signal ? { signal } : {}),

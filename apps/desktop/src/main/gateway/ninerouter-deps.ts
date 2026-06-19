@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import type { GatewayDeps } from "./model-gateway-manager.js";
 import { NineRouterClient } from "./ninerouter-client.js";
+import { sanitizedChildEnvironment } from "../security/runtime-security.js";
 
 /**
  * Build the REAL `GatewayDeps` backed by a live 9router (web-dashboard concrete
@@ -34,6 +35,7 @@ export function buildNineRouterGatewayDeps(opts: NineRouterDepsOptions): Gateway
         detached: true,
         stdio: "ignore",
         shell: true, // resolve 9router.cmd on Windows
+        env: sanitizedChildEnvironment(),
       });
       // A missing/un-PATHed 9router emits 'error' asynchronously; swallow it so it
       // never becomes an unhandled exception in the main process (launch() will
