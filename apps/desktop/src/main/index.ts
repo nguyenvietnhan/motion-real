@@ -162,8 +162,8 @@ const workspace = new WorkspaceController({
   outputMedia: (id) => mediaUrl(join(projectPaths(id).rendersDir, `${id}.mp4`)) ?? "",
   hasDraft: (id) => existsSync(join(projectPaths(id).rendersDir, `${id}.draft.mp4`)),
   draftMedia: (id) => mediaUrl(join(projectPaths(id).rendersDir, `${id}.draft.mp4`)) ?? "",
-  // Thumbnail/cover (R12/I3): render through the dedicated `Thumbnail` composition
-  // (never the video path), then surface review/thumbnail.png on the published screen.
+  // Render the first authored scene without TTS/captions, then expose the stable
+  // review/thumbnail.png artifact on the published screen.
   renderThumbnail: async (id) => {
     const { path } = await renderThumbnail(id);
     return { path };
@@ -505,6 +505,29 @@ const handlers: InvokeHandlers = {
   },
 
   "thumbnail:generate": (projectId) => workspace.generateThumbnail(String(projectId)),
+  "thumbnail:save": async (projectId) => {
+    const id = String(projectId);
+    const src = join(projectPaths(id).reviewDir, "thumbnail.png");
+    if (!existsSync(src)) return { saved: false };
+    const cards = await tools.list_projects();
+    const title = cards.ok ? toCards(cards.data).find((card) => card.projectId === id)?.title : undefined;
+    const safeName = (title ?? id).replace(/[\\/:*?"<>|]/g, "_").trim() || id;
+    const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0];
+    const opts = {
+      title: "Lưu ảnh bìa",
+      defaultPath: join(settingsStore.current().outputDir || app.getPath("downloads"), `${safeName}-cover.png`),
+      filters: [{ name: "Ảnh PNG", extensions: ["png"] }],
+    };
+    const picked = win ? await dialog.showSaveDialog(win, opts) : await dialog.showSaveDialog(opts);
+    if (picked.canceled || !picked.filePath) return { saved: false };
+    try {
+      await copyFile(src, picked.filePath);
+      return { saved: true };
+    } catch (error) {
+      console.warn(`[desktop] thumbnail export failed for ${id}:`, error);
+      return { saved: false, error: "Không lưu được ảnh bìa. Hãy thử lại hoặc chọn thư mục khác." };
+    }
+  },
 
   "script:get": (projectId) => workspace.scriptGate(String(projectId)),
   "script:applyEdits": (projectId, edits) => workspace.applyEdits(String(projectId), edits as ScriptEdit[]),

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import type { BgmTrackVM, ProjectStage, ScriptLine, VideoFormatChoice } from "../../shared/types.js";
 import { Icon } from "../icons.js";
 import { EmptyState, PageHeader, Spinner } from "../primitives.js";
@@ -193,30 +193,32 @@ const RenderingPanel: React.FC<{ stage: Extract<ProjectStage, { kind: "rendering
   );
 };
 
-/**
- * Thumbnail/cover panel on the published screen (I3/R12). The cover is a clean
- * BRAND CARD — theme wash + the publish title — for BOTH formats; there is no
- * scene-frame picker (an authored scene is itself a text card, so compositing
- * the title over one stacked two colliding text blocks). "Tạo" / "Tạo lại"
- * calls back into the engine; the rendered PNG is cache-busted with a nonce so
- * the freshly-generated image replaces the old one in the <img>. UI tạm (D-UI):
- * a plain card, no toast. A null result (busy/failed) just clears the generating
- * flag — the user can retry.
- */
+/** Cover panel for the caption-free still of the first authored scene. */
 const ThumbnailPanel: React.FC<{
   thumbnailPath?: string;
   format: VideoFormatChoice;
   onGenerate: () => Promise<{ thumbnailUrl: string } | null>;
-}> = ({ thumbnailPath, format, onGenerate }) => {
+  onSave: () => Promise<{ saved: boolean; error?: string }>;
+}> = ({ thumbnailPath, format, onGenerate, onSave }) => {
   const isTikTok = format !== "youtube";
   const [generating, setGenerating] = useState(false);
-  // The latest generated URL (overrides the stage's thumbnailPath after a
-  // regenerate) + a nonce so the browser refetches the same path when it changes.
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState("");
+  const [previewOpen, setPreviewOpen] = useState(false);
   const [freshUrl, setFreshUrl] = useState<string | null>(null);
   const [nonce, setNonce] = useState(0);
   const baseUrl = freshUrl ?? thumbnailPath ?? null;
   const shownUrl = baseUrl ? `${baseUrl}${baseUrl.includes("?") ? "&" : "?"}t=${nonce}` : null;
-  const aspect = isTikTok ? "9 / 16" : "16 / 9";
+
+  useEffect(() => {
+    if (!previewOpen) return;
+    const closeOnEscape = (event: KeyboardEvent): void => {
+      if (event.key === "Escape") setPreviewOpen(false);
+    };
+    document.addEventListener("keydown", closeOnEscape);
+    return () => document.removeEventListener("keydown", closeOnEscape);
+  }, [previewOpen]);
 
   const generate = (): void => {
     if (generating) return;
@@ -231,18 +233,68 @@ const ThumbnailPanel: React.FC<{
       .finally(() => setGenerating(false));
   };
 
+  const save = (): void => {
+    if (saving || !baseUrl) return;
+    setSaving(true);
+    setSaved(false);
+    setSaveError("");
+    void onSave()
+      .then((result) => {
+        if (result.saved) {
+          setSaved(true);
+          setTimeout(() => setSaved(false), 1800);
+        } else if (result.error) {
+          setSaveError(result.error);
+        }
+      })
+      .catch(() => setSaveError("Không mở được hộp thoại lưu ảnh. Hãy thử lại."))
+      .finally(() => setSaving(false));
+  };
+
   return (
-    <div className="ns-publish-section">
+    <div className="ns-publish-section ns-cover-section">
       <span className="ns-publish-eyebrow">{isTikTok ? "Ảnh bìa" : "Thumbnail YouTube"}</span>
-      {shownUrl && (
-        <img src={shownUrl} alt="Thumbnail" style={{ width: "100%", aspectRatio: aspect, objectFit: "contain",
-          borderRadius: 10, border: "1px solid var(--border)", background: "#0c0e12" }} />
+      {!shownUrl && (
+        <div className="ns-cover-actions">
+          <button className="ns-btn" onClick={generate} disabled={generating}>
+            {generating ? "Đang tạo…" : "Tạo ảnh bìa"}
+          </button>
+        </div>
       )}
-      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-        <button className="ns-btn" onClick={generate} disabled={generating} style={{ marginLeft: "auto" }}>
-          {generating ? "Đang tạo…" : baseUrl ? "Tạo lại" : "Tạo ảnh bìa"}
-        </button>
-      </div>
+      {saveError && <span className="ns-cover-error" role="status">{saveError}</span>}
+      {shownUrl && (
+        <div className={`ns-cover-media${isTikTok ? "" : " is-landscape"}`}>
+          <button
+            type="button"
+            className="ns-cover-preview"
+            onClick={() => setPreviewOpen(true)}
+            aria-label="Xem ảnh bìa kích thước lớn"
+          >
+            <img src={shownUrl} alt="Ảnh bìa lấy từ cảnh đầu tiên" />
+            <span className="ns-cover-preview-hint">Xem lớn</span>
+          </button>
+          <button
+            type="button"
+            className={`ns-copy-btn ns-cover-download${saved ? " is-copied" : ""}`}
+            onClick={save}
+            disabled={saving}
+            title={saved ? "Đã lưu" : "Tải ảnh PNG"}
+            aria-label={saved ? "Đã lưu ảnh bìa" : "Tải ảnh bìa PNG"}
+          >
+            {saved ? Icon.check({ size: 16 }) : Icon.download({ size: 16 })}
+          </button>
+        </div>
+      )}
+      {previewOpen && shownUrl && (
+        <div className="ns-modal-backdrop ns-cover-lightbox" role="presentation" onMouseDown={() => setPreviewOpen(false)}>
+          <div className="ns-cover-lightbox-card" role="dialog" aria-modal="true" aria-label="Xem ảnh bìa kích thước lớn" onMouseDown={(event) => event.stopPropagation()}>
+            <button className="ns-cover-lightbox-close" onClick={() => setPreviewOpen(false)} aria-label="Đóng ảnh bìa">
+              {Icon.close({ size: 20 })}
+            </button>
+            <img src={shownUrl} alt="Ảnh bìa kích thước lớn" />
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -273,9 +325,11 @@ export const ProjectWorkspaceView: React.FC<{
   onBgmRemove: (name: string) => void;
   /** Set (or clear, with null) the open project's BGM track; persisted to its manifest. */
   onBgmSelect: (name: string | null) => void;
-  /** Generate the cover/thumbnail PNG (R12/I3): a clean brand card (theme wash + publish title) for both formats. Resolves the new media URL, or null when busy/failed. */
+  /** Generate a caption-free cover from the first authored scene. */
   onGenerateThumbnail: () => Promise<{ thumbnailUrl: string } | null>;
-}> = ({ stage, onBack, onRetry, onFixWithAi, onApplyScript, onApproveScript, onSubmitEdits, onApproveDraft, onReveal, onSave, onCancel, onSubmitImageReview, bgm, bgmSelected, onBgmAdd, onBgmRemove, onBgmSelect, onGenerateThumbnail }) => {
+  /** Copy the generated cover PNG through a native Save dialog. */
+  onSaveThumbnail: () => Promise<{ saved: boolean; error?: string }>;
+}> = ({ stage, onBack, onRetry, onFixWithAi, onApplyScript, onApproveScript, onSubmitEdits, onApproveDraft, onReveal, onSave, onCancel, onSubmitImageReview, bgm, bgmSelected, onBgmAdd, onBgmRemove, onBgmSelect, onGenerateThumbnail, onSaveThumbnail }) => {
   const title: Record<ProjectStage["kind"], string> = {
     writing: "Đang viết kịch bản",
     script: "Duyệt kịch bản",
@@ -345,7 +399,7 @@ export const ProjectWorkspaceView: React.FC<{
         // a subordinate section. The preview no longer pushes everything down a
         // single narrow centred column.
         <div className="ns-publish">
-          <div className="ns-publish-preview">
+          <div className={`ns-publish-preview${stage.format === "youtube" ? " is-landscape" : ""}`}>
             <video src={stage.outputPath} controls style={{ width: "100%", aspectRatio: stage.format === "youtube" ? "16 / 9" : "9 / 16",
               borderRadius: 12, border: "1px solid var(--border)", boxShadow: "0 12px 40px rgba(0,0,0,0.5)", background: "#0c0e12", objectFit: "contain" }} />
           </div>
@@ -363,8 +417,8 @@ export const ProjectWorkspaceView: React.FC<{
               thumbnailPath={stage.thumbnailPath}
               format={stage.format ?? "tiktok"}
               onGenerate={onGenerateThumbnail}
+              onSave={onSaveThumbnail}
             />
-            <button className="ns-btn ns-publish-back" onClick={onBack}>Quay lại Trang chủ</button>
           </div>
         </div>
       )}

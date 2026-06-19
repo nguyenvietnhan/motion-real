@@ -635,7 +635,7 @@ textarea.ns-input {
   display: grid;
   grid-template-columns: 220px 1fr;
   gap: 24px;
-  align-items: start;
+  align-items: stretch;
 }
 .ns-settings-nav {
   display: flex;
@@ -997,7 +997,7 @@ textarea.ns-input {
   display: grid;
   grid-template-columns: minmax(280px, 360px) 1fr;
   gap: 28px;
-  align-items: start;
+  align-items: stretch;
 }
 /* On a narrow window the two columns stack (preview on top). */
 @media (max-width: 880px) {
@@ -1008,7 +1008,6 @@ textarea.ns-input {
 .ns-publish-preview {
   width: 100%;
   aspect-ratio: 9 / 16;
-  max-height: 70vh;
   border-radius: var(--radius);
   border: 1px solid var(--border);
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
@@ -1056,12 +1055,6 @@ textarea.ns-input {
   flex-wrap: wrap;
   gap: 10px;
 }
-/* "Back home" is the lowest-priority action — pushed to the bottom of the rail,
- * quiet, left-aligned, so it never competes with the download CTA. */
-.ns-publish-back {
-  align-self: flex-start;
-  margin-top: 4px;
-}
 /* A labelled section in the rail (title/hashtags, cover): small uppercase
  * eyebrow + the content block under it. */
 .ns-publish-section {
@@ -1075,6 +1068,134 @@ textarea.ns-input {
   letter-spacing: 0.05em;
   text-transform: uppercase;
   color: var(--muted-foreground);
+}
+.ns-cover-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.ns-cover-section {
+  flex: 1 1 0;
+  min-height: 0;
+}
+.ns-cover-media {
+  position: relative;
+  flex: 1 1 0;
+  min-height: 150px;
+  align-self: flex-start;
+  aspect-ratio: 9 / 16;
+  max-width: 100%;
+}
+.ns-cover-media.is-landscape {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+}
+.ns-cover-preview {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--border) 72%, white);
+  border-radius: 8px;
+  background: #0c0e12;
+  color: white;
+  cursor: zoom-in;
+}
+.ns-cover-preview img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.ns-publish-preview.is-landscape {
+  aspect-ratio: 16 / 9;
+}
+.ns-publish-preview > video {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.ns-cover-preview-hint {
+  position: absolute;
+  right: 7px;
+  bottom: 7px;
+  padding: 4px 7px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  background: rgba(0, 0, 0, 0.72);
+  opacity: 0;
+  transform: translateY(3px);
+  transition: opacity 0.14s ease, transform 0.14s ease;
+}
+.ns-cover-preview:hover .ns-cover-preview-hint,
+.ns-cover-preview:focus-visible .ns-cover-preview-hint {
+  opacity: 1;
+  transform: translateY(0);
+}
+.ns-cover-download {
+  position: absolute;
+  z-index: 1;
+  top: 8px;
+  right: 8px;
+  border-color: rgba(255, 255, 255, 0.2);
+  background: rgba(0, 0, 0, 0.7);
+  color: white;
+  backdrop-filter: blur(4px);
+}
+.ns-cover-error {
+  color: var(--bad);
+  font-size: 12px;
+}
+.ns-cover-lightbox {
+  z-index: 60;
+}
+.ns-cover-lightbox-card {
+  position: relative;
+  display: grid;
+  place-items: center;
+  max-width: min(92vw, 1280px);
+  max-height: 90vh;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: #090b0f;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.72);
+}
+.ns-cover-lightbox-card img {
+  display: block;
+  max-width: 100%;
+  max-height: calc(90vh - 24px);
+  object-fit: contain;
+  border-radius: 8px;
+}
+.ns-cover-lightbox-close {
+  position: absolute;
+  z-index: 1;
+  top: 20px;
+  right: 20px;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.72);
+  color: white;
+  cursor: pointer;
+}
+@media (max-width: 560px) {
+  .ns-cover-section {
+    flex: none;
+  }
+  .ns-cover-media {
+    flex: none;
+    height: min(52vh, 420px);
+  }
 }
 /* One metadata field: the value fills the row, an icon-copy button sits at the
  * end (the value is the focus, copy is a quiet affordance — not a peer button). */

@@ -87,12 +87,12 @@ export interface DashboardApi {
   };
   thumbnail: {
     /**
-     * Generate the project's thumbnail/cover PNG (R12, I3): a clean BRAND CARD
-     * (theme wash + publish title centered) for both formats — no scene frame
-     * behind it. Resolves the `media://` URL of the written PNG, or null when
-     * generation failed or a render is in flight.
+     * Render the first authored scene without captions and expose its stable
+     * cover artifact. Resolves null when generation failed or work is in flight.
      */
     generate(projectId: string): Promise<{ thumbnailUrl: string } | null>;
+    /** Copy the generated cover PNG to a user-chosen location. */
+    save(projectId: string): Promise<{ saved: boolean; error?: string }>;
   };
   script: {
     get(projectId: string): Promise<ScriptGateModel>;

@@ -1,42 +1,23 @@
-import { mkdir } from "node:fs/promises";
-import { join } from "node:path";
-import { bundle } from "@remotion/bundler";
-import { ensureBrowser, renderStill, selectComposition } from "@remotion/renderer";
+import { copyFile, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { basename, join } from "node:path";
 import type { VideoFormat } from "@news/schema";
 import { projectPaths, ensureProject } from "../store/store.js";
 import { loadManifest } from "../authoring/manifest.js";
-import {
-  makeWorkspaceWebpackOverride,
-  remotionAppRoot,
-  remotionEntry,
-  workspaceRoot,
-} from "./renderer.js";
+import { renderProjectStills } from "./render-stills.js";
 
 /**
- * Thumbnail / cover render (freeform-engine R12, I3) — ONE clean BRAND CARD for
- * both delivery formats, rendered through the dedicated `Thumbnail` composition
- * (NOT `NewsVideo`), so it never touches `renderProject`/the orchestrator
- * (ADR-002) or the video render path.
+ * Cover render (R12/I3): render the first authored scene through the existing
+ * no-TTS stills path, then copy that caption-free PNG to the stable public
+ * artifact `review/thumbnail.png`.
  *
- * The cover is the theme wash + the publish title centered — NO scene frame
- * behind it. An authored scene is itself a text card (its own headline/eyebrow/
- * stat), so compositing the publish title OVER a scene frame stacked two big
- * text blocks that collided. A purpose-built card avoids that entirely and reads
- * clean on both 9:16 and 16:9.
- *
- * The `Thumbnail` composition sizes its own canvas off `geometry(format)` at the
- * Remotion `calculateMetadata` layer, so this just selects it with the right
- * `inputProps` and takes the still at the last frame (title reveal settled).
- *
- * Output: `review/thumbnail.png` — a distinct name from the per-scene
- * `<sceneId>.png` stills, so "which file is the thumbnail" is unambiguous (L6).
+ * `renderProjectStills` writes a temporary no-audio lock to the project's normal
+ * lock path. A published project must retain its full-render lock, so this
+ * wrapper snapshots and restores the lock in `finally`, including failed cover
+ * renders. The workspace controller serializes project work, so no other render
+ * can observe the temporary lock while this runs.
  */
 
-const THUMBNAIL_COMPOSITION_ID = "Thumbnail";
 const THUMBNAIL_FILENAME = "thumbnail.png";
-
-/** Browser launch + per-frame resolve timeout (cold Windows box can be slow). */
-const BROWSER_TIMEOUT_MS = 120_000;
 
 export type RenderThumbnailResult = {
   projectId: string;
@@ -45,49 +26,35 @@ export type RenderThumbnailResult = {
   format: VideoFormat;
 };
 
-/**
- * Render a project's thumbnail/cover PNG: a clean brand card (theme wash +
- * publish title) for both formats. Reads format/title/dominant from the manifest.
- */
 export async function renderThumbnail(projectId: string): Promise<RenderThumbnailResult> {
   await ensureProject(projectId);
   const paths = projectPaths(projectId);
   const manifest = await loadManifest(projectId);
+  const firstScene = manifest.scenes[0];
+  if (!firstScene) throw new Error(`Project ${projectId} has no scene to use as its cover.`);
 
   const format: VideoFormat = manifest.format ?? "tiktok";
-  const dominant = manifest.theme?.dominant ?? "#5B8CFF";
-  const title = (manifest.title?.trim() || "Untitled").slice(0, 200);
+  let previousLock: Buffer | null = null;
+  let hadPreviousLock = false;
 
-  const inputProps = { format, dominant, title };
+  try {
+    previousLock = await readFile(paths.lock);
+    hadPreviousLock = true;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+  }
 
-  await ensureBrowser({ logLevel: "warn" });
-  const serveUrl = await bundle({
-    entryPoint: remotionEntry(),
-    rootDir: remotionAppRoot(),
-    webpackOverride: makeWorkspaceWebpackOverride(workspaceRoot()),
-  });
-  const composition = await selectComposition({
-    serveUrl,
-    id: THUMBNAIL_COMPOSITION_ID,
-    inputProps,
-    timeoutInMilliseconds: BROWSER_TIMEOUT_MS,
-    logLevel: "warn",
-  });
+  try {
+    const { stills } = await renderProjectStills(projectId, { sceneIds: [firstScene.id] });
+    const firstSceneStill = stills.find((path) => basename(path) === `${firstScene.id}.png`);
+    if (!firstSceneStill) throw new Error(`Cover still was not rendered for first scene ${firstScene.id}.`);
 
-  await mkdir(paths.reviewDir, { recursive: true });
-  const output = join(paths.reviewDir, THUMBNAIL_FILENAME);
-  await renderStill({
-    composition,
-    serveUrl,
-    output,
-    // Last frame: TitleBlock's entrance reveal (useReveal) has fully settled.
-    frame: Math.max(0, composition.durationInFrames - 1),
-    inputProps,
-    imageFormat: "png",
-    overwrite: true,
-    timeoutInMilliseconds: BROWSER_TIMEOUT_MS,
-    logLevel: "warn",
-  });
-
-  return { projectId, path: output, format };
+    await mkdir(paths.reviewDir, { recursive: true });
+    const output = join(paths.reviewDir, THUMBNAIL_FILENAME);
+    await copyFile(firstSceneStill, output);
+    return { projectId, path: output, format };
+  } finally {
+    if (hadPreviousLock && previousLock) await writeFile(paths.lock, previousLock);
+    else await rm(paths.lock, { force: true });
+  }
 }

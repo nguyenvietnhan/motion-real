@@ -126,13 +126,7 @@ export interface WorkspaceDeps {
   hasDraft: (projectId: string) => boolean;
   /** mediaUrl-wrapped path to the low-res draft MP4 (for in-app preview). */
   draftMedia: (projectId: string) => string;
-  /**
-   * Render the project's thumbnail/cover PNG (R12/I3): a clean brand card (theme
-   * wash + publish title) through the dedicated `Thumbnail` composition (never the
-   * video path), the SAME for both formats — no scene frame behind it. Resolves
-   * the absolute PNG path. Optional: absent ⇒ the thumbnail feature is unavailable
-   * (older wiring).
-   */
+  /** Render a caption-free still of the first authored scene as the cover PNG. */
   renderThumbnail?: (projectId: string) => Promise<{ path: string }>;
   /** Whether the thumbnail PNG (`review/thumbnail.png`) exists on disk. */
   hasThumbnail: (projectId: string) => boolean;
@@ -1122,7 +1116,7 @@ export class WorkspaceController {
    * Unlike publish (fire-and-forget, result via stage poll), this RETURNS the url
    * the UI shows, so it awaits directly instead of going through `guarded()` (which
    * is void + no-ops when busy). It still respects mutual exclusion: a thumbnail
-   * render must not race a draft/full render over the same project's bundle/cache,
+   * render must not race a draft/full render over the same project's lock/bundle,
    * so we refuse (return null) when the project is in flight — the caller leaves the
    * existing thumbnail (if any) and the user can retry once the render settles.
    * A missing seam (older wiring) or a render throw also degrades to null rather

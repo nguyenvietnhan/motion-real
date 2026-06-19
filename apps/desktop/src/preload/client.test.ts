@@ -76,6 +76,7 @@ describe("createDashboardClient — invoke channel mapping", () => {
     await api.bgm.getForProject("p1");
     await api.bgm.setForProject("p1", "track.mp3");
     await api.thumbnail.generate("p1");
+    await api.thumbnail.save("p1");
     await api.script.get("p1");
     await api.script.applyEdits("p1", [{ sceneId: "scene-01", narration: "x" }]);
     await api.script.approve("p1");

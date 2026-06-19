@@ -352,6 +352,9 @@ export const App: React.FC = () => {
             onGenerateThumbnail={() =>
               dash?.thumbnail.generate(openProjectId) ?? Promise.resolve(null)
             }
+            onSaveThumbnail={() =>
+              dash?.thumbnail.save(openProjectId) ?? Promise.resolve({ saved: false })
+            }
           />
         )}
       </main>

@@ -1,33 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { mkdtemp, rm } from "node:fs/promises";
+import { access, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-/**
- * `renderThumbnail` self-tests (freeform-engine R12, I3). Remotion would
- * download/launch Chromium and the manifest read hits disk, so we mock the heavy
- * renderer calls (`bundle`/`selectComposition`/`renderStill`/`ensureBrowser`) +
- * the manifest read. What we assert is the WIRING: the `Thumbnail` composition is
- * selected with format/title/dominant inputProps (NO scene-frame background —
- * the cover is a clean brand card for both formats), the still is taken at the
- * LAST frame, and the PNG lands at `review/thumbnail.png`.
- */
-
 const mocks = vi.hoisted(() => ({
-  bundle: vi.fn(),
-  ensureBrowser: vi.fn(),
-  selectComposition: vi.fn(),
-  renderStill: vi.fn(),
   loadManifest: vi.fn(),
+  renderProjectStills: vi.fn(),
 }));
 
-vi.mock("@remotion/bundler", () => ({ bundle: mocks.bundle }));
-vi.mock("@remotion/renderer", () => ({
-  ensureBrowser: mocks.ensureBrowser,
-  selectComposition: mocks.selectComposition,
-  renderStill: mocks.renderStill,
-}));
 vi.mock("../authoring/manifest.js", () => ({ loadManifest: mocks.loadManifest }));
+vi.mock("./render-stills.js", () => ({ renderProjectStills: mocks.renderProjectStills }));
 
 import { renderThumbnail } from "./render-thumbnail.js";
 import { projectPaths } from "../store/store.js";
@@ -35,26 +17,26 @@ import { projectPaths } from "../store/store.js";
 let tempRoot: string;
 let prevHome: string | undefined;
 
-const TIKTOK_MANIFEST = {
-  title: "Gemma 3 chạy trên máy nhà",
-  format: "tiktok" as const,
-  theme: { dominant: "#2F5FF0" },
-  scenes: [
-    { id: "scene-01", component: "a-scene" },
-    { id: "scene-02", component: "b-scene" },
-  ],
-};
-
 beforeEach(async () => {
   tempRoot = await mkdtemp(join(tmpdir(), "news-thumb-"));
   prevHome = process.env.VIDEO_TOOL_HOME;
   process.env.VIDEO_TOOL_HOME = tempRoot;
-
-  mocks.bundle.mockResolvedValue("serve://url");
-  mocks.ensureBrowser.mockResolvedValue(undefined);
-  mocks.selectComposition.mockResolvedValue({ id: "Thumbnail", durationInFrames: 60, fps: 30, width: 1080, height: 1920 });
-  mocks.renderStill.mockResolvedValue(undefined);
-  mocks.loadManifest.mockResolvedValue(TIKTOK_MANIFEST);
+  mocks.loadManifest.mockResolvedValue({
+    format: "tiktok",
+    scenes: [
+      { id: "scene-01", component: "a-scene" },
+      { id: "scene-02", component: "b-scene" },
+    ],
+  });
+  mocks.renderProjectStills.mockImplementation(async (projectId: string, opts: { sceneIds?: string[] }) => {
+    const paths = projectPaths(projectId);
+    const sceneId = opts.sceneIds?.[0] ?? "scene-01";
+    const still = join(paths.reviewDir, `${sceneId}.png`);
+    await mkdir(paths.reviewDir, { recursive: true });
+    await writeFile(still, Buffer.from("caption-free-first-scene"));
+    await writeFile(paths.lock, Buffer.from("temporary-no-tts-lock"));
+    return { projectId, stills: [still] };
+  });
 });
 
 afterEach(async () => {
@@ -65,54 +47,57 @@ afterEach(async () => {
 });
 
 describe("renderThumbnail", () => {
-  it("renders the Thumbnail composition (not NewsVideo) at the LAST frame into review/thumbnail.png", async () => {
-    const res = await renderThumbnail("p1");
+  it("copies the caption-free still of the first scene to review/thumbnail.png", async () => {
+    const paths = projectPaths("p1");
+    await mkdir(paths.root, { recursive: true });
+    await writeFile(paths.lock, Buffer.from("published-full-render-lock"));
 
-    expect(mocks.selectComposition).toHaveBeenCalledTimes(1);
-    expect(mocks.selectComposition.mock.calls[0]![0].id).toBe("Thumbnail");
+    const result = await renderThumbnail("p1");
 
-    const stillArg = mocks.renderStill.mock.calls[0]![0];
-    expect(stillArg.frame).toBe(59); // durationInFrames - 1
-    expect(stillArg.imageFormat).toBe("png");
-
-    expect(res.path).toBe(join(projectPaths("p1").reviewDir, "thumbnail.png"));
-    expect(res.format).toBe("tiktok");
+    expect(mocks.renderProjectStills).toHaveBeenCalledWith("p1", { sceneIds: ["scene-01"] });
+    expect(result.path).toBe(join(paths.reviewDir, "thumbnail.png"));
+    expect(result.format).toBe("tiktok");
+    expect(await readFile(result.path, "utf8")).toBe("caption-free-first-scene");
   });
 
-  it("TikTok: a clean brand card — theme wash + title, NO scene-frame background", async () => {
-    await renderThumbnail("p1");
-
-    const props = mocks.selectComposition.mock.calls[0]![0].inputProps;
-    expect(props.format).toBe("tiktok");
-    expect(props.title).toBe("Gemma 3 chạy trên máy nhà");
-    expect(props.dominant).toBe("#2F5FF0");
-    // An authored scene is itself a text card; compositing the title over a
-    // scene frame stacked two big text blocks that collided. The cover must
-    // carry NO scene-frame background — it's a purpose-built card.
-    expect(props.bgImageSrc).toBeUndefined();
-  });
-
-  it("YouTube: the same clean brand card (theme wash + title, no scene frame)", async () => {
+  it("uses the manifest's actual first scene and delivery format", async () => {
     mocks.loadManifest.mockResolvedValueOnce({
-      title: "Tại sao mô hình nhỏ đang thắng",
       format: "youtube",
-      theme: { dominant: "#2F5FF0" },
-      scenes: [{ id: "scene-01", component: "a-scene" }],
+      scenes: [{ id: "intro", component: "intro-scene" }],
     });
-    const res = await renderThumbnail("p1");
 
-    const props = mocks.selectComposition.mock.calls[0]![0].inputProps;
-    expect(props.format).toBe("youtube");
-    expect(props.bgImageSrc).toBeUndefined();
-    expect(res.format).toBe("youtube");
+    const result = await renderThumbnail("p1");
+
+    expect(mocks.renderProjectStills).toHaveBeenCalledWith("p1", { sceneIds: ["intro"] });
+    expect(result.format).toBe("youtube");
   });
 
-  it("falls back to 'Untitled' + a default dominant when the manifest lacks them", async () => {
-    mocks.loadManifest.mockResolvedValueOnce({ format: "tiktok", scenes: [{ id: "scene-01", component: "a-scene" }] });
+  it("restores the published full-render lock after a successful cover render", async () => {
+    const paths = projectPaths("p1");
+    await mkdir(paths.root, { recursive: true });
+    await writeFile(paths.lock, Buffer.from("published-full-render-lock"));
+
     await renderThumbnail("p1");
-    const props = mocks.selectComposition.mock.calls[0]![0].inputProps;
-    expect(props.title).toBe("Untitled");
-    expect(typeof props.dominant).toBe("string");
-    expect(props.dominant.length).toBeGreaterThan(0);
+
+    expect(await readFile(paths.lock, "utf8")).toBe("published-full-render-lock");
+  });
+
+  it("restores the published lock when the still render fails", async () => {
+    const paths = projectPaths("p1");
+    await mkdir(paths.root, { recursive: true });
+    await writeFile(paths.lock, Buffer.from("published-full-render-lock"));
+    mocks.renderProjectStills.mockImplementationOnce(async () => {
+      await writeFile(paths.lock, Buffer.from("temporary-no-tts-lock"));
+      throw new Error("render failed");
+    });
+
+    await expect(renderThumbnail("p1")).rejects.toThrow("render failed");
+    expect(await readFile(paths.lock, "utf8")).toBe("published-full-render-lock");
+  });
+
+  it("removes the temporary lock when the project had no lock before generation", async () => {
+    const paths = projectPaths("p1");
+    await renderThumbnail("p1");
+    await expect(access(paths.lock)).rejects.toMatchObject({ code: "ENOENT" });
   });
 });

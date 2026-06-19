@@ -35,6 +35,7 @@ export const INVOKE_CHANNELS = [
   "bgm:getForProject",
   "bgm:setForProject",
   "thumbnail:generate",
+  "thumbnail:save",
   "script:get",
   "script:applyEdits",
   "script:approve",

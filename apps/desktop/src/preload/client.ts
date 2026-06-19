@@ -66,6 +66,7 @@ export function createDashboardClient(ipc: IpcLike): DashboardApi {
     },
     thumbnail: {
       generate: (projectId) => inv("thumbnail:generate", projectId),
+      save: (projectId) => inv("thumbnail:save", projectId),
     },
     script: {
       get: (projectId) => inv("script:get", projectId),
