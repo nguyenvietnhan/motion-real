@@ -988,7 +988,14 @@ export class WorkspaceController {
         // authoring failures, which otherwise showed "building" while the
         // workspace showed "error").
         const stage = this.stages.get(c.projectId);
-        return stage ? { ...c, status: stageToFriendlyStatus(stage.kind) } : c;
+        if (stage) return { ...c, status: stageToFriendlyStatus(stage.kind) };
+        // Recover from disk too. A completed full MP4 (or an existing draft) is
+        // more authoritative than a stale brief.state after an app restart or a
+        // missed renderer status event; otherwise cards can stay red until the
+        // user opens the project, which calls stage() and memoizes the recovery.
+        if (this.deps.hasOutput(c.projectId)) return { ...c, status: "done" };
+        if (this.deps.hasDraft(c.projectId)) return { ...c, status: "draft-ready" };
+        return c;
       }),
     );
   }

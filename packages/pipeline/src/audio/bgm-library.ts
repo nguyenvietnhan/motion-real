@@ -104,6 +104,23 @@ export async function addBgmTrack(srcPath: string): Promise<BgmTrack> {
   return { name, path: dest, sizeBytes: st.size };
 }
 
+/**
+ * Seed one known track under a stable library name without overwriting it.
+ * Used by the desktop app to expose its bundled `default.mp3` in the same
+ * picker as user-added tracks, so it can be previewed and selected explicitly.
+ */
+export async function ensureBgmTrack(srcPath: string, name = basename(srcPath)): Promise<BgmTrack> {
+  const ext = extname(srcPath).toLowerCase();
+  if (!BGM_EXTENSIONS.has(ext) || extname(name).toLowerCase() !== ext) {
+    throw new Error(`Unsupported BGM format: ${ext || "(none)"}. Use .mp3/.m4a/.wav.`);
+  }
+  const dest = safeBgmPath(name);
+  await mkdir(bgmLibraryDir(), { recursive: true });
+  if (!existsSync(dest)) await copyFile(srcPath, dest);
+  const st = await stat(dest);
+  return { name, path: dest, sizeBytes: st.size };
+}
+
 /** Delete one library track by name. Best-effort: an absent file resolves cleanly. */
 export async function removeBgmTrack(name: string): Promise<void> {
   const path = safeBgmPath(name);

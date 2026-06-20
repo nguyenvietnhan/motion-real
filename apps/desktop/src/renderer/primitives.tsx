@@ -79,28 +79,16 @@ export const ProjectGrid: React.FC<{
     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(232px, 1fr))", gap: 16 }}>
       {cards.map((c) => {
         const editing = editingId === c.projectId;
+        const statusLabel = FRIENDLY_LABELS[c.status];
         return (
-          <div key={c.projectId} className="ns-card ns-project" role="button" tabIndex={0} onClick={() => onOpen(c.projectId)}
-            onKeyDown={(e) => { if (e.key === "Enter" && !editing) onOpen(c.projectId); }}>
-            <div className="ns-project-thumb" style={c.thumbnailPath ? { backgroundImage: `url(${c.thumbnailPath})` } : undefined}>
-              {!c.thumbnailPath && Icon.film({ size: 28 })}
-              {(onReveal || onDelete || onRename) && (
-                <div className="ns-project-actions">
-                  {onRename && (
-                    <button className="ns-project-action" title="Đổi tên dự án" aria-label="Đổi tên dự án"
-                      onClick={(e) => { e.stopPropagation(); beginRename(c); }}>{Icon.pencil({ size: 15 })}</button>
-                  )}
-                  {onReveal && (
-                    <button className="ns-project-action" title="Mở thư mục dự án"
-                      onClick={(e) => { e.stopPropagation(); onReveal(c.projectId); }}>{Icon.folder({ size: 15 })}</button>
-                  )}
-                  {onDelete && (
-                    <button className="ns-project-action danger" title="Xoá dự án"
-                      onClick={(e) => { e.stopPropagation(); onDelete(c.projectId); }}>{Icon.trash({ size: 15 })}</button>
-                  )}
-                </div>
+          <article key={c.projectId} className="ns-card ns-project">
+            <div className={`ns-project-thumb is-${c.format}`}>
+              {c.thumbnailPath ? (
+                <img className="ns-project-media" src={c.thumbnailPath} alt="" />
+              ) : (
+                <span className="ns-project-placeholder" aria-hidden="true">{Icon.film({ size: 28 })}</span>
               )}
-              <span className="ns-project-dot" style={{ background: STATUS_COLOR[c.status] }} title={FRIENDLY_LABELS[c.status]} aria-label={FRIENDLY_LABELS[c.status]} />
+              <span className="ns-project-dot" style={{ background: STATUS_COLOR[c.status] }} title={statusLabel} aria-hidden="true" />
             </div>
             <div className="ns-project-body">
               {editing ? (
@@ -123,7 +111,30 @@ export const ProjectGrid: React.FC<{
               )}
               {c.createdAtLabel && <span className="ns-project-date">{c.createdAtLabel}</span>}
             </div>
-          </div>
+            <button
+              type="button"
+              className="ns-project-open"
+              onClick={() => { if (!editing) onOpen(c.projectId); }}
+              aria-label={`Mở dự án ${c.title}. ${statusLabel}${c.createdAtLabel ? `. ${c.createdAtLabel}` : ""}`}
+              disabled={editing}
+            />
+            {(onReveal || onDelete || onRename) && (
+              <div className="ns-project-actions">
+                {onRename && (
+                  <button className="ns-project-action" title="Đổi tên dự án" aria-label={`Đổi tên dự án ${c.title}`}
+                    onClick={() => beginRename(c)}>{Icon.pencil({ size: 15 })}</button>
+                )}
+                {onReveal && (
+                  <button className="ns-project-action" title="Mở thư mục dự án" aria-label={`Mở thư mục dự án ${c.title}`}
+                    onClick={() => onReveal(c.projectId)}>{Icon.folder({ size: 15 })}</button>
+                )}
+                {onDelete && (
+                  <button className="ns-project-action danger" title="Xoá dự án" aria-label={`Xoá dự án ${c.title}`}
+                    onClick={() => onDelete(c.projectId)}>{Icon.trash({ size: 15 })}</button>
+                )}
+              </div>
+            )}
+          </article>
         );
       })}
     </div>

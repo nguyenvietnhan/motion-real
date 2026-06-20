@@ -311,13 +311,15 @@ select {
   transition: transform 0.12s, border-color 0.12s, background 0.12s;
 }
 .ns-project {
+  position: relative;
   text-align: left;
   cursor: pointer;
   padding: 0;
   overflow: hidden;
   color: var(--foreground);
 }
-.ns-project:hover {
+.ns-project:hover,
+.ns-project:focus-within {
   transform: translateY(-2px);
   border-color: rgba(255, 255, 255, 0.22);
   background: var(--card-hover);
@@ -357,18 +359,49 @@ textarea.ns-input {
   margin: 0;
 }
 
-/* Chat-style composer: a bordered box holding the textarea + an action bar with
- * an inline "+" attach button (Gemini/ChatGPT style). The box gets the focus ring
- * (not the textarea) so the whole composer reads as one input. */
+/* AI-first create hero: the existing dark product language, with a quieter
+ * Claude/Gemini-style prompt hierarchy and one unified composer surface. */
+.ns-create-card {
+  position: relative;
+  overflow: visible;
+  margin-bottom: 32px;
+  padding: 28px;
+  background:
+    radial-gradient(circle at 8% 0%, color-mix(in srgb, var(--brand) 14%, transparent), transparent 32%),
+    linear-gradient(180deg, #181a21, var(--card));
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
+}
+.ns-create-card:focus-within {
+  border-color: color-mix(in srgb, var(--brand) 45%, var(--border));
+  box-shadow: 0 18px 55px rgba(0, 0, 0, 0.22);
+}
+.ns-create-card.is-dragging {
+  outline: 2px dashed var(--brand);
+  outline-offset: -7px;
+  border-color: var(--brand);
+}
+.ns-create-heading {
+  margin-bottom: 18px;
+}
+.ns-create-heading h2 {
+  margin: 0;
+  font-size: 19px;
+  line-height: 1.35;
+}
+
+/* Unified composer: textarea and controls share one surface; focus belongs to
+ * the full surface rather than to a small input rectangle. */
 .ns-composer {
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--input);
-  transition: border-color 0.12s, box-shadow 0.12s;
+  border: 1px solid color-mix(in srgb, var(--border) 86%, white);
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--input) 92%, transparent);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.025), 0 10px 30px rgba(0, 0, 0, 0.12);
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
 }
 .ns-composer:focus-within {
   border-color: var(--ring);
-  box-shadow: 0 0 0 3px rgba(59, 111, 224, 0.25);
+  background: color-mix(in srgb, var(--input) 97%, var(--brand));
+  box-shadow: 0 0 0 3px rgba(59, 111, 224, 0.16), 0 16px 38px rgba(0, 0, 0, 0.2);
 }
 .ns-composer-input {
   display: block;
@@ -376,8 +409,10 @@ textarea.ns-input {
   border: none;
   background: transparent;
   color: var(--foreground);
-  padding: 12px 14px;
-  font-size: 14px;
+  min-height: 112px;
+  padding: 17px 18px 10px;
+  font-size: 15px;
+  line-height: 1.6;
   font-family: inherit;
   outline: none;
   resize: vertical;
@@ -388,23 +423,24 @@ textarea.ns-input {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 8px 10px;
+  padding: 9px 12px 12px;
 }
 /* Round icon-only button (the inline "+" attach affordance). */
 .ns-icon-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 34px;
-  height: 34px;
+  width: 36px;
+  height: 36px;
   border-radius: 999px;
   border: 1px solid var(--border);
-  background: transparent;
+  background: color-mix(in srgb, var(--card-hover) 48%, transparent);
   color: var(--foreground);
   cursor: pointer;
   transition: background 0.12s, border-color 0.12s;
 }
 .ns-icon-btn:hover {
+  border-color: color-mix(in srgb, var(--brand) 45%, var(--border));
   background: var(--card-hover);
 }
 
@@ -421,9 +457,9 @@ textarea.ns-input {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  height: 34px;
+  height: 36px;
   padding: 0 12px;
-  background: transparent;
+  background: color-mix(in srgb, var(--card-hover) 35%, transparent);
   border: 1px solid var(--border);
   border-radius: 999px;
   color: var(--foreground);
@@ -433,6 +469,7 @@ textarea.ns-input {
   transition: background 0.12s, border-color 0.12s;
 }
 .ns-knob-chip:hover {
+  border-color: color-mix(in srgb, var(--brand) 30%, var(--border));
   background: var(--card-hover);
 }
 .ns-knob-chip.is-open {
@@ -668,6 +705,39 @@ textarea.ns-input {
   color: var(--foreground);
   font-weight: 600;
 }
+.ns-settings-save {
+  align-self: center;
+  color: var(--muted-foreground);
+  font-size: 12px;
+}
+.ns-settings-save.is-error {
+  color: var(--danger);
+}
+.ns-secret-field {
+  position: relative;
+  width: 100%;
+  max-width: 480px;
+}
+.ns-secret-field .ns-input {
+  width: 100%;
+  padding-right: 58px;
+}
+.ns-secret-toggle {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  border: 0;
+  background: transparent;
+  color: var(--muted-foreground);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.ns-secret-toggle:hover,
+.ns-secret-toggle:focus-visible {
+  color: var(--foreground);
+}
 .ns-switch {
   position: relative;
   display: inline-flex;
@@ -856,7 +926,41 @@ textarea.ns-input {
   line-height: 1.4;
   max-height: 2.8em;
 }
+.ns-create-submit-area {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
+}
+.ns-create-submit {
+  min-height: 40px;
+  padding: 0 18px;
+  border-radius: 12px;
+  box-shadow: 0 7px 20px color-mix(in srgb, var(--brand) 22%, transparent);
+}
+.ns-create-submit:disabled {
+  box-shadow: none;
+}
+@media (max-width: 760px) {
+  .ns-create-card {
+    padding: 20px;
+  }
+  .ns-composer-bar {
+    flex-wrap: wrap;
+  }
+  .ns-knob-row {
+    flex-wrap: wrap;
+  }
+  .ns-create-submit-area {
+    width: 100%;
+    margin-left: 0;
+    justify-content: flex-end;
+  }
+}
 .ns-project-title-input {
+  position: relative;
+  z-index: 3;
+  pointer-events: auto;
   width: 100%;
   padding: 5px 8px;
   font-size: 14px;
@@ -866,14 +970,32 @@ textarea.ns-input {
 /* --- Project card (thumbnail + overlay status/actions + body) ----------- */
 .ns-project-thumb {
   position: relative;
+  pointer-events: none;
   aspect-ratio: 16 / 10;
-  background-color: #14161b;
-  background-size: cover;
-  background-position: center;
+  background: #101216;
   display: grid;
   place-items: center;
   color: #3a3f49;
   border-bottom: 1px solid var(--border);
+  overflow: hidden;
+}
+.ns-project-media {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.ns-project-thumb.is-tiktok .ns-project-media {
+  width: auto;
+  max-width: 48%;
+}
+.ns-project-thumb.is-youtube .ns-project-media {
+  width: 100%;
+  max-width: 100%;
+}
+.ns-project-placeholder {
+  display: grid;
+  place-items: center;
 }
 /* Compact status: a single colour-coded dot in the thumbnail's bottom-right
  * corner (hover shows the label via title). Replaces the bulky status pill. */
@@ -890,6 +1012,7 @@ textarea.ns-input {
   position: absolute;
   right: 8px;
   top: 8px;
+  z-index: 4;
   display: flex;
   gap: 6px;
   opacity: 0;
@@ -921,14 +1044,379 @@ textarea.ns-input {
   color: var(--danger);
 }
 .ns-project-body {
+  position: relative;
+  z-index: 3;
+  pointer-events: none;
   padding: 12px 14px 14px;
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
+.ns-project-open {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: inherit;
+  background: transparent;
+  cursor: pointer;
+}
+.ns-project-open:disabled {
+  cursor: default;
+}
+.ns-project-open:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
 .ns-project-date {
   color: var(--muted-foreground);
   font-size: 12px;
+}
+
+/* Storyboard toolbar: keep the current minimal controls, but prevent the header
+ * from degrading into wrapped button labels when the desktop window is narrow. */
+.ns-story-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.ns-story-header .ns-btn,
+.ns-story-header select {
+  white-space: nowrap;
+}
+.ns-story-title {
+  margin-right: auto;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+}
+.ns-story-edit-toggle.is-active {
+  border-color: color-mix(in srgb, var(--brand) 58%, var(--border));
+  background: color-mix(in srgb, var(--brand) 14%, transparent);
+  color: color-mix(in srgb, var(--brand) 78%, white);
+}
+
+/* Background music is one compact compound control: selection opens downward;
+ * the attached + is the only library action that stays in the toolbar. */
+.ns-bgm-picker {
+  position: relative;
+  flex-shrink: 0;
+}
+.ns-bgm-picker audio {
+  display: none;
+}
+.ns-bgm-control {
+  display: inline-flex;
+  height: 36px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+}
+.ns-bgm-trigger,
+.ns-bgm-add {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  background: transparent;
+  color: var(--foreground);
+  cursor: pointer;
+  font: inherit;
+}
+.ns-bgm-trigger {
+  min-width: 0;
+  gap: 8px;
+  padding: 0 10px;
+  font-size: 13px;
+}
+.ns-bgm-add {
+  width: 35px;
+  flex-shrink: 0;
+  border-left: 1px solid var(--border);
+  color: var(--muted-foreground);
+}
+.ns-bgm-trigger:hover,
+.ns-bgm-add:hover,
+.ns-bgm-trigger[aria-expanded="true"] {
+  background: var(--card-hover);
+  color: var(--foreground);
+}
+.ns-bgm-trigger:disabled,
+.ns-bgm-add:disabled,
+.ns-bgm-preview:disabled,
+.ns-bgm-choice:disabled,
+.ns-bgm-remove:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+.ns-bgm-trigger:focus-visible,
+.ns-bgm-add:focus-visible,
+.ns-bgm-preview:focus-visible,
+.ns-bgm-choice:focus-visible,
+.ns-bgm-remove:focus-visible {
+  position: relative;
+  z-index: 1;
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+.ns-bgm-leading,
+.ns-bgm-chevron {
+  display: inline-flex;
+  flex-shrink: 0;
+  color: var(--muted-foreground);
+}
+.ns-bgm-current {
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ns-bgm-menu {
+  position: absolute;
+  z-index: 40;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 268px;
+  max-height: min(360px, calc(100vh - 96px));
+  overflow-y: auto;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--popover);
+  box-shadow: 0 16px 42px rgba(0, 0, 0, 0.46);
+}
+.ns-bgm-row {
+  display: flex;
+  align-items: center;
+  min-height: 36px;
+  border-radius: 6px;
+}
+.ns-bgm-row:hover,
+.ns-bgm-row:focus-within {
+  background: var(--card-hover);
+}
+.ns-bgm-preview,
+.ns-bgm-remove,
+.ns-bgm-choice {
+  border: 0;
+  background: transparent;
+  color: var(--foreground);
+  cursor: pointer;
+  font: inherit;
+}
+.ns-bgm-preview,
+.ns-bgm-preview-spacer {
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+}
+.ns-bgm-preview {
+  display: grid;
+  place-items: center;
+  margin-left: 1px;
+  border-radius: 999px;
+  color: var(--muted-foreground);
+}
+.ns-bgm-preview:hover {
+  color: var(--foreground);
+}
+.ns-bgm-choice {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+  align-self: stretch;
+  padding: 4px 6px;
+  text-align: left;
+}
+.ns-bgm-track-copy {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  gap: 1px;
+}
+.ns-bgm-name {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--foreground);
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ns-bgm-size,
+.ns-bgm-missing,
+.ns-bgm-empty {
+  color: var(--muted-foreground);
+  font-size: 11px;
+}
+.ns-bgm-check {
+  display: inline-flex;
+  flex-shrink: 0;
+  color: var(--brand);
+}
+.ns-bgm-remove {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  margin-right: 1px;
+  place-items: center;
+  flex-shrink: 0;
+  border-radius: 6px;
+  color: var(--muted-foreground);
+  opacity: 0;
+}
+.ns-bgm-row:hover .ns-bgm-remove,
+.ns-bgm-row:focus-within .ns-bgm-remove {
+  opacity: 1;
+}
+.ns-bgm-remove:hover {
+  color: var(--danger);
+}
+.ns-bgm-missing,
+.ns-bgm-empty {
+  padding: 6px 8px;
+  line-height: 1.4;
+}
+
+/* Edit requests are grouped by scope instead of explained in prose. The
+ * accent card follows the selected scene; the neutral card applies globally. */
+.ns-story-edit-panel {
+  width: 344px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+  overflow-y: auto;
+}
+.ns-story-edit-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 2px 2px 4px;
+}
+.ns-story-edit-heading > div {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.ns-story-edit-heading strong {
+  font-size: 15px;
+}
+.ns-story-edit-heading span {
+  color: var(--muted-foreground);
+  font-size: 11px;
+}
+.ns-story-edit-close {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted-foreground);
+  cursor: pointer;
+}
+.ns-story-edit-close:hover,
+.ns-story-edit-close:focus-visible {
+  border-color: color-mix(in srgb, var(--brand) 42%, var(--border));
+  background: var(--card-hover);
+  color: var(--foreground);
+}
+.ns-story-edit-close:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+.ns-edit-scope {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--input) 72%, transparent);
+}
+.ns-edit-scope.is-scene {
+  border-color: color-mix(in srgb, var(--brand) 38%, var(--border));
+  background: var(--input);
+}
+.ns-edit-scope-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.ns-edit-scope-heading strong {
+  font-size: 13px;
+}
+.ns-edit-scope-icon {
+  display: grid;
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+  place-items: center;
+  border-radius: 7px;
+  background: var(--card-hover);
+  color: var(--muted-foreground);
+}
+.ns-edit-scope.is-scene .ns-edit-scope-icon {
+  background: color-mix(in srgb, var(--brand) 20%, transparent);
+  color: color-mix(in srgb, var(--brand) 72%, white);
+}
+.ns-edit-scope-badge {
+  margin-left: auto;
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: var(--card-hover);
+  color: var(--muted-foreground);
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.ns-edit-scope.is-scene .ns-edit-scope-badge {
+  background: color-mix(in srgb, var(--brand) 17%, transparent);
+  color: color-mix(in srgb, var(--brand) 72%, white);
+}
+.ns-edit-textarea {
+  width: 100%;
+  resize: none;
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--input) 88%, black);
+  line-height: 1.5;
+}
+.ns-edit-scope.is-scene .ns-edit-textarea {
+  min-height: 132px;
+}
+.ns-edit-scope.is-global .ns-edit-textarea {
+  min-height: 88px;
+}
+@media (max-width: 1120px) {
+  .ns-story-header {
+    gap: 8px;
+    padding: 10px 12px;
+  }
+  .ns-story-header .ns-btn {
+    padding: 8px 10px;
+    font-size: 13px;
+  }
+  .ns-story-title {
+    gap: 7px;
+  }
+  .ns-bgm-current {
+    max-width: 105px;
+  }
 }
 
 /* --- (i) info hint: a glyph with a hover/focus tooltip ------------------ */

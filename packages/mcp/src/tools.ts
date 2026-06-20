@@ -163,17 +163,16 @@ async function persistSafetyReport(projectId: string, report: SafetyReport): Pro
  * Resolve the project's chosen BGM (freeform-engine I2/O4) to an absolute path
  * for the mixer. The selection lives on the manifest's `bgm` field (a library
  * filename); we read it and resolve it through the library (which returns
- * undefined for an empty/stale/deleted ref). Passing this as the render's
- * `bgmPath` opt overrides the orchestrator's `default.mp3` fallback per project,
- * WITHOUT touching the off-limits orchestrator. A missing/unreadable manifest
- * resolves to undefined ⇒ the render falls back to its own default (no throw).
+ * undefined for an empty/stale/deleted ref). This boundary converts that result
+ * to null so a project that says "Không nhạc" explicitly disables the legacy
+ * orchestrator `default.mp3` fallback.
  */
-async function resolveProjectBgm(projectId: string): Promise<string | undefined> {
+async function resolveProjectBgm(projectId: string): Promise<string | null> {
   try {
     const manifest = await readJson<{ bgm?: unknown }>(projectPaths(projectId).manifest);
-    return resolveBgmTrack(typeof manifest.bgm === "string" ? manifest.bgm : undefined);
+    return resolveBgmTrack(typeof manifest.bgm === "string" ? manifest.bgm : undefined) ?? null;
   } catch {
-    return undefined;
+    return null;
   }
 }
 
@@ -241,13 +240,13 @@ export function createTools(overrides: Partial<ToolDeps> = {}) {
       try {
         // Resolve the project's chosen BGM (manifest `bgm` ref) to an absolute
         // path and pass it via the `bgmPath` opt the orchestrator already mixes
-        // under the narration. Absent/stale ref ⇒ undefined ⇒ no BGM (R11.3).
+        // under the narration. Absent/stale ref ⇒ null ⇒ explicitly no BGM.
         const bgmPath = await resolveProjectBgm(input.projectId);
         const res = await deps.renderProject(input.projectId, {
           quality: "draft",
           ttsApiKey: ttsConfig.apiKey,
           voiceId: ttsConfig.voiceId,
-          ...(bgmPath ? { bgmPath } : {}),
+          bgmPath,
           ...(input.concurrency ? { concurrency: input.concurrency } : {}),
           ...(onProgress ? { onProgress } : {}),
           ...(signal ? { signal } : {}),
@@ -286,7 +285,7 @@ export function createTools(overrides: Partial<ToolDeps> = {}) {
           forceFull,
           ttsApiKey: ttsConfig.apiKey,
           voiceId: ttsConfig.voiceId,
-          ...(bgmPath ? { bgmPath } : {}),
+          bgmPath,
           ...(onProgress ? { onProgress } : {}),
           ...(signal ? { signal } : {}),
         });

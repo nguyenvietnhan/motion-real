@@ -32,6 +32,7 @@ const MIME: Record<string, string> = {
   ".gif": "image/gif",
   ".webp": "image/webp",
   ".mp3": "audio/mpeg",
+  ".m4a": "audio/mp4",
   ".wav": "audio/wav",
 };
 

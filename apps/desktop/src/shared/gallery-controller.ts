@@ -5,8 +5,8 @@ import { toFriendlyStatus } from "./friendly-status.js";
 /**
  * Gallery view-model builder (web-dashboard Task 9.3, design §gallery, Req 10).
  * Pure: turns engine `ProjectSummary[]` into `ProjectCardVM[]` newest-first,
- * each with a title, a thumbnail path or placeholder (null), a friendly status,
- * and a compact `DD/MM/YYYY` creation date (Property 11). The empty-state
+ * each with a title, an aspect-aware thumbnail path or placeholder (null), a
+ * friendly status, and a compact `DD/MM/YYYY` creation date (Property 11). The empty-state
  * is only reported AFTER a load completes (Req 10.8).
  */
 
@@ -45,6 +45,15 @@ function thumbnailOf(summary: ProjectSummary): string | null {
   return summary.hasRender ? `${summary.root}/review/scene-01.png` : null;
 }
 
+function formatOf(summary: ProjectSummary): ProjectCardVM["format"] {
+  // `ProjectBrief.ratio` is still typed as TikTok-only in the current pipeline,
+  // but older/future project folders can already carry a landscape ratio. Read it
+  // defensively so the gallery card is ready for YouTube renders without adding a
+  // visible format badge or changing the rest of the card contract.
+  const ratio = (summary.brief as { ratio?: unknown } | undefined)?.ratio;
+  return ratio === "16:9" ? "youtube" : "tiktok";
+}
+
 export function toCards(summaries: ProjectSummary[]): ProjectCardVM[] {
   return summaries
     .map((summary) => ({
@@ -56,6 +65,7 @@ export function toCards(summaries: ProjectSummary[]): ProjectCardVM[] {
       projectId: summary.projectId,
       title: titleOf(summary),
       thumbnailPath: thumbnailOf(summary),
+      format: formatOf(summary),
       status: toFriendlyStatus(summary.brief?.state ?? "planning"),
       createdAtLabel: formatShortDate(summary.brief?.createdAt ?? summary.brief?.updatedAt),
     }));

@@ -279,7 +279,10 @@ export const App: React.FC = () => {
               void dash.ai.beginConnect("").then(() => void refreshAiState());
             }}
             onSelectModel={(modelId) => void dash?.ai.selectModel(modelId).then(setAccount)}
-            onUpdate={(patch) => void dash?.settings.update(patch).then(setSettings)}
+            onUpdate={(patch) => {
+              if (!dash) return Promise.reject(new Error("Dashboard API is unavailable"));
+              return dash.settings.update(patch).then((next) => { setSettings(next); });
+            }}
           />
         )}
 
@@ -344,10 +347,18 @@ export const App: React.FC = () => {
             bgm={bgm}
             bgmSelected={bgmSelected}
             onBgmAdd={() => void dash?.bgm.add().then(setBgm)}
-            onBgmRemove={(name) => void dash?.bgm.remove(name).then(setBgm)}
-            onBgmSelect={(name) => {
+            onBgmRemove={async (name) => {
+              if (!dash) return;
+              const tracks = await dash.bgm.remove(name);
+              setBgm(tracks);
+              if (bgmSelected === name) {
+                setBgmSelected(null);
+                await dash.bgm.setForProject(openProjectId, null);
+              }
+            }}
+            onBgmSelect={async (name) => {
               setBgmSelected(name);
-              void dash?.bgm.setForProject(openProjectId, name);
+              await dash?.bgm.setForProject(openProjectId, name);
             }}
             onGenerateThumbnail={() =>
               dash?.thumbnail.generate(openProjectId) ?? Promise.resolve(null)

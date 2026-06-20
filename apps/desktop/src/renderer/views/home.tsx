@@ -3,7 +3,7 @@ import type { ProjectCardVM, StagedImage, PickImagesResult, DroppedImage, VideoF
 import type { GalleryLoad } from "../../shared/gallery-controller.js";
 import { validateCreateInput, extractUrls } from "../../shared/create-validation.js";
 import { Icon } from "../icons.js";
-import { EmptyState, InfoHint, PageHeader, ProjectGrid } from "../primitives.js";
+import { EmptyState, PageHeader, ProjectGrid } from "../primitives.js";
 
 /** Read a File's bytes and base64-encode them (stable across the IPC boundary). */
 async function fileToBase64(file: File): Promise<string> {
@@ -289,17 +289,14 @@ export const HomeView: React.FC<{
 
       {/* Create hero — drag-drop an image anywhere onto this card (Phase 2 Block A). */}
       <div
-        className="ns-card"
+        className={`ns-card ns-create-card${dragOver ? " is-dragging" : ""}`}
         onDragEnter={onDragEnter}
         onDragOver={onDragOver}
         onDragLeave={onDragLeave}
         onDrop={onDrop}
-        style={{ padding: 24, marginBottom: 32, background: "linear-gradient(180deg, #17191f, var(--card))",
-          outline: dragOver ? "2px dashed var(--brand)" : "none", outlineOffset: -6 }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: 6, margin: "0 0 14px" }}>
-          <h2 style={{ margin: 0, fontSize: 18 }}>Tạo video mới</h2>
-          <InfoHint text="Dán đường dẫn bài báo hoặc mô tả chủ đề bằng tiếng Việt. AI sẽ tự dựng kịch bản, hình ảnh và lời đọc. Bạn có thể đính ảnh để AI tự chọn cảnh phù hợp." />
+        <div className="ns-create-heading">
+          <h2>Tạo video mới</h2>
         </div>
         {/* Chat-style composer: the textarea sits in a bordered box with a small
             inline "+" attach button (Gemini/ChatGPT style). Pick a file, paste
@@ -327,7 +324,7 @@ export const HomeView: React.FC<{
             value={raw}
             onChange={(e) => setRaw(e.target.value)}
             onPaste={onPaste}
-            placeholder="Ví dụ: “Làm video 1p30s, giọng nữ, từ link này https://vnexpress.net/… tập trung vào nguyên nhân” — hoặc chỉ một chủ đề."
+            placeholder="Mô tả ý tưởng, dán đường link bài báo hoặc thêm ảnh…"
             rows={3}
           />
           <div className="ns-composer-bar">
@@ -392,14 +389,14 @@ export const HomeView: React.FC<{
                 ]}
               />
             </div>
-            <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 10 }}>
+            <div className="ns-create-submit-area">
               {aiReady && reason && <span style={{ color: "var(--warn)", fontSize: 13 }}>{reason}</span>}
               <button
-                className="ns-btn ns-btn-primary"
+                className="ns-btn ns-btn-primary ns-create-submit"
                 onClick={submitCreate}
                 disabled={!inputValid || creating}
               >
-                {Icon.plus({ size: 16 })} {creating ? "Đang tạo…" : "Tạo bản nháp"}
+                {Icon.spark({ size: 16 })} {creating ? "Đang tạo…" : "Tạo bản nháp"}
               </button>
             </div>
           </div>

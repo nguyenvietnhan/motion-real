@@ -68,6 +68,7 @@ describe("Property 11: gallery cards complete and ordered newest-first", () => {
         for (const card of cards) {
           expect(card.title.length).toBeGreaterThan(0);
           expect(FRIENDLY_STATUSES).toContain(card.status);
+          expect(["tiktok", "youtube"]).toContain(card.format);
           expect(card.createdAtLabel).toMatch(/^\d{2}\/\d{2}\/\d{4}$/);
           // thumbnail is either a path or the null placeholder.
           expect(card.thumbnailPath === null || typeof card.thumbnailPath === "string").toBe(true);
@@ -121,6 +122,17 @@ describe("Property 11: gallery cards complete and ordered newest-first", () => {
       { projectId: "b", root: "/p/b", brief: brief("2026-01-02T00:00:00Z", "t", "scaffolded"), hasRender: false },
     ]);
     expect(noRender!.thumbnailPath).toBeNull();
+  });
+
+  it("derives the gallery media ratio from the project brief", () => {
+    const vertical = brief("2026-01-02T00:00:00Z", "dọc", "done");
+    const landscape = { ...brief("2026-01-03T00:00:00Z", "ngang", "done"), ratio: "16:9" } as unknown as ProjectBrief;
+    const cards = toCards([
+      { projectId: "vertical", root: "/p/vertical", brief: vertical, hasRender: true },
+      { projectId: "landscape", root: "/p/landscape", brief: landscape, hasRender: true },
+    ]);
+    expect(cards.find((card) => card.projectId === "vertical")?.format).toBe("tiktok");
+    expect(cards.find((card) => card.projectId === "landscape")?.format).toBe("youtube");
   });
 });
 

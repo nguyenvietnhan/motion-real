@@ -16,7 +16,7 @@ function baseState(): DesktopState {
     settings: defaultSettings("/out"),
     gallery: {
       load: "populated",
-      cards: [{ projectId: "p1", title: "T", thumbnailPath: null, status: "building", createdAtLabel: "ngày 1 tháng 1 năm 2026" }],
+      cards: [{ projectId: "p1", title: "T", thumbnailPath: null, format: "tiktok", status: "building", createdAtLabel: "ngày 1 tháng 1 năm 2026" }],
     },
   };
 }

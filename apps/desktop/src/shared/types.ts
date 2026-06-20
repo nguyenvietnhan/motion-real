@@ -139,6 +139,8 @@ export type ProjectCardVM = {
   projectId: string;
   title: string;
   thumbnailPath: string | null;
+  /** Drives aspect-correct gallery media without adding a visible format badge. */
+  format: VideoFormatChoice;
   status: FriendlyStatus;
   createdAtLabel: string;
 };
@@ -149,8 +151,14 @@ export type ProjectCardVM = {
 export type BgmTrackVM = {
   /** Library filename — what a project stores as its chosen BGM ref. */
   name: string;
+  /** Human label shown in the picker; may differ for a bundled track. */
+  label: string;
   /** Compact size hint for the UI (e.g. "3.2 MB"). */
   sizeLabel: string;
+  /** Streamable local URL used only for in-picker audio preview. */
+  previewUrl: string;
+  /** Bundled tracks remain available and cannot be removed from the picker. */
+  builtIn: boolean;
 };
 
 // --- script gate (Req 4) ---------------------------------------------------

@@ -6,6 +6,7 @@ import { join } from "node:path";
 import {
   addBgmTrack,
   bgmLibraryDir,
+  ensureBgmTrack,
   listBgmTracks,
   removeBgmTrack,
   resolveBgmTrack,
@@ -66,6 +67,17 @@ describe("BGM library", () => {
     await addBgmTrack(await fakeAudio("song.mp3", 20));
     const names = (await listBgmTracks()).map((t) => t.name).sort();
     expect(names).toEqual(["song-1.mp3", "song.mp3"]);
+  });
+
+  it("seeds a bundled track under a stable name without duplicating it", async () => {
+    const src = await fakeAudio("default.mp3", 24);
+    const first = await ensureBgmTrack(src, "nhac-nen-mac-dinh.mp3");
+    await writeFile(src, Buffer.alloc(48, 2));
+    const second = await ensureBgmTrack(src, "nhac-nen-mac-dinh.mp3");
+
+    expect(first.name).toBe("nhac-nen-mac-dinh.mp3");
+    expect(second.sizeBytes).toBe(24);
+    expect((await listBgmTracks()).map((track) => track.name)).toEqual(["nhac-nen-mac-dinh.mp3"]);
   });
 
   it("removes a track by name", async () => {

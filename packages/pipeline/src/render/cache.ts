@@ -20,9 +20,9 @@ import { renderCacheDir } from "../store/store.js";
  * changes `specHash`, which misses the render cache and forces a re-render
  * (Requirement 7.5). The cache.test.ts P4 / 7.5 tests prove this.
  *
- * The locked spec does NOT embed the authored scene SOURCE, so the full
- * render-cache key (`renderCacheKey`) folds in a content hash of the authored
- * `.tsx` too — a visual-only edit invalidates the cache (see `renderCacheKey`).
+ * The locked spec does NOT embed authored scene SOURCE or the bytes of an
+ * externally mixed BGM track. The full key can fold both in so visual-only and
+ * music-only edits invalidate the cache (see `renderCacheKey`).
  *
  * The pipeline logic here is deterministic: no Date.now / Math.random.
  */
@@ -58,22 +58,27 @@ export function specHash(locked: LockedVideoSpec): string {
 }
 
 /**
- * Full render-cache key = spec hash + a content hash of the authored scene
- * SOURCE. The locked spec captures every frame-affecting INPUT (timings,
- * component ids, props, audio paths) but NOT the authored `.tsx` implementation,
- * so a visual-only edit (same id/props/narration, different drawing code) would
- * otherwise reuse a stale cached MP4. Folding the sorted authored sources into
- * the key makes such edits a cache MISS, so a re-render actually re-renders.
- * Order-invariant (sources are sorted) so file ordering never shifts the key;
- * with no authored sources it reduces to `specHash` for back-compat.
+ * Full render-cache key = spec hash + authored scene SOURCE + an optional
+ * runtime discriminator. The discriminator covers inputs whose bytes are not
+ * embedded in the locked spec, notably BGM selected by the desktop project.
+ * With neither authored sources nor a discriminator this reduces to `specHash`
+ * for back-compat with non-desktop callers.
  */
-export function renderCacheKey(locked: LockedVideoSpec, authoredSources: readonly string[] = []): string {
-  if (authoredSources.length === 0) return specHash(locked);
+export function renderCacheKey(
+  locked: LockedVideoSpec,
+  authoredSources: readonly string[] = [],
+  runtimeDiscriminator = "",
+): string {
+  if (authoredSources.length === 0 && runtimeDiscriminator === "") return specHash(locked);
   const h = createHash("sha256");
   h.update(stableStringify(locked), "utf8");
   for (const src of [...authoredSources].sort()) {
     h.update("\u0000source\u0000", "utf8");
     h.update(src, "utf8");
+  }
+  if (runtimeDiscriminator !== "") {
+    h.update("\u0000runtime\u0000", "utf8");
+    h.update(runtimeDiscriminator, "utf8");
   }
   return h.digest("hex");
 }

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import type { BgmTrackVM, StoryboardModel } from "../../shared/types.js";
 import { Icon } from "../icons.js";
 import { EmptyState, InfoHint } from "../primitives.js";
@@ -8,38 +8,133 @@ import { EmptyState, InfoHint } from "../primitives.js";
  * library + add/remove, shown in the storyboard header so the user sets the
  * track BEFORE approving the full render (the choice is persisted to the
  * manifest; the MCP render tool resolves it to a real path and mixes it in).
- * "Không nhạc" clears the selection. UI tạm (D-UI): a plain <select>, no custom
- * menu. Renders nothing unless the "ready" stage wired the BGM props.
+ * "Không nhạc" clears the selection. The custom menu keeps select, preview,
+ * add, and remove in one compact control instead of scattering peer buttons
+ * across the storyboard toolbar.
  */
 const BgmPicker: React.FC<{
   bgm: BgmTrackVM[];
   selected: string | null;
+  busy: boolean;
   onAdd: () => void;
-  onRemove: (name: string) => void;
-  onSelect: (name: string | null) => void;
-}> = ({ bgm, selected, onAdd, onRemove, onSelect }) => {
-  // The selected track may have been removed from disk since it was chosen, so
-  // the value can name a track that's no longer in the list — keep showing it as
-  // a synthetic option (marked) rather than silently snapping to "Không nhạc".
+  onRemove: (name: string) => Promise<void>;
+  onSelect: (name: string | null) => Promise<void>;
+}> = ({ bgm, selected, busy, onAdd, onRemove, onSelect }) => {
+  const rootRef = useRef<HTMLDivElement>(null);
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const [open, setOpen] = useState(false);
+  const [previewing, setPreviewing] = useState<string | null>(null);
   const missing = selected !== null && !bgm.some((t) => t.name === selected);
+  const selectedTrack = bgm.find((t) => t.name === selected);
+
+  useEffect(() => {
+    if (!open) return;
+    const closeOutside = (event: MouseEvent): void => {
+      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent): void => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("mousedown", closeOutside);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("mousedown", closeOutside);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [open]);
+
+  useEffect(() => () => audioRef.current?.pause(), []);
+
+  const stopPreview = (): void => {
+    audioRef.current?.pause();
+    setPreviewing(null);
+  };
+  const choose = (name: string | null): void => {
+    stopPreview();
+    void onSelect(name);
+    setOpen(false);
+  };
+  const togglePreview = (track: BgmTrackVM): void => {
+    const audio = audioRef.current;
+    if (!audio || !track.previewUrl) return;
+    if (previewing === track.name && !audio.paused) {
+      stopPreview();
+      return;
+    }
+    audio.pause();
+    audio.src = track.previewUrl;
+    audio.currentTime = 0;
+    void audio.play()
+      .then(() => setPreviewing(track.name))
+      .catch(() => setPreviewing(null));
+  };
+
   return (
-    <div style={{ display: "inline-flex", alignItems: "center", gap: 6 }} title="Nhạc nền trộn vào bản đầy đủ">
-      <span style={{ display: "inline-flex", color: "var(--muted-foreground)" }}>{Icon.music({ size: 15 })}</span>
-      <select
-        className="ns-input"
-        value={selected ?? ""}
-        onChange={(e) => onSelect(e.target.value === "" ? null : e.target.value)}
-        style={{ padding: "5px 8px", maxWidth: 180, fontSize: 13 }}
-      >
-        <option value="">Không nhạc</option>
-        {missing && <option value={selected!}>{selected} (đã xoá)</option>}
-        {bgm.map((t) => (
-          <option key={t.name} value={t.name}>{t.name} · {t.sizeLabel}</option>
-        ))}
-      </select>
-      <button className="ns-btn" style={{ padding: "5px 10px" }} onClick={onAdd} title="Thêm nhạc nền từ máy">Thêm</button>
-      {selected !== null && !missing && (
-        <button className="ns-btn" style={{ padding: "5px 10px" }} onClick={() => onRemove(selected)} title="Xoá khỏi thư viện">Xoá</button>
+    <div className="ns-bgm-picker" ref={rootRef}>
+      <audio ref={audioRef} onEnded={() => setPreviewing(null)} />
+      <div className="ns-bgm-control">
+        <button
+          className="ns-bgm-trigger"
+          type="button"
+          aria-haspopup="menu"
+          aria-expanded={open}
+          aria-busy={busy}
+          disabled={busy}
+          title="Chọn nhạc nền cho video"
+          onClick={() => setOpen((value) => !value)}
+        >
+          <span className="ns-bgm-leading">{Icon.music({ size: 15 })}</span>
+          <span className="ns-bgm-current">{selectedTrack?.label ?? (missing ? selected : "Không nhạc")}</span>
+          <span className="ns-bgm-chevron">{Icon.chevronDown({ size: 14 })}</span>
+        </button>
+        <button className="ns-bgm-add" type="button" aria-label="Thêm nhạc nền" title="Thêm nhạc nền từ máy" disabled={busy} onClick={onAdd}>
+          {Icon.plus({ size: 15 })}
+        </button>
+      </div>
+
+      {open && (
+        <div className="ns-bgm-menu" role="menu" aria-label="Nhạc nền">
+          <div className="ns-bgm-row">
+            <span className="ns-bgm-preview-spacer" />
+            <button className="ns-bgm-choice" type="button" role="menuitemradio" aria-checked={selected === null} disabled={busy} onClick={() => choose(null)}>
+              <span className="ns-bgm-name">Không nhạc</span>
+              {selected === null && <span className="ns-bgm-check">{Icon.check({ size: 14 })}</span>}
+            </button>
+          </div>
+
+          {missing && (
+            <div className="ns-bgm-missing">Không tìm thấy “{selected}”. Hãy chọn bài khác.</div>
+          )}
+
+          {bgm.map((track) => (
+            <div className="ns-bgm-row" key={track.name}>
+              <button
+                className="ns-bgm-preview"
+                type="button"
+                aria-label={`${previewing === track.name ? "Dừng" : "Nghe thử"} ${track.label}`}
+                title={previewing === track.name ? "Dừng nghe thử" : "Nghe thử"}
+                disabled={busy}
+                onClick={() => togglePreview(track)}
+              >
+                {previewing === track.name ? Icon.pause({ size: 13 }) : Icon.play({ size: 13 })}
+              </button>
+              <button className="ns-bgm-choice" type="button" role="menuitemradio" aria-checked={selected === track.name} disabled={busy} onClick={() => choose(track.name)}>
+                <span className="ns-bgm-track-copy">
+                  <span className="ns-bgm-name">{track.label}</span>
+                  <span className="ns-bgm-size">{track.sizeLabel}</span>
+                </span>
+                {selected === track.name && <span className="ns-bgm-check">{Icon.check({ size: 14 })}</span>}
+              </button>
+              {!track.builtIn && (
+                <button className="ns-bgm-remove" type="button" aria-label={`Xoá ${track.label}`} title="Xoá khỏi thư viện" disabled={busy} onClick={() => void onRemove(track.name)}>
+                  {Icon.trash({ size: 13 })}
+                </button>
+              )}
+            </div>
+          ))}
+
+          {bgm.length === 0 && <div className="ns-bgm-empty">Chưa có nhạc nền. Bấm + để thêm.</div>}
+        </div>
       )}
     </div>
   );
@@ -78,9 +173,9 @@ export const StoryboardView: React.FC<{
   /** Open the native picker to add audio file(s) to the library. */
   onBgmAdd?: () => void;
   /** Delete one library track by name. */
-  onBgmRemove?: (name: string) => void;
+  onBgmRemove?: (name: string) => Promise<void>;
   /** Set (or clear, with null) the open project's BGM track; persisted to its manifest before the full render. */
-  onBgmSelect?: (name: string | null) => void;
+  onBgmSelect?: (name: string | null) => Promise<void>;
 }> = ({ model, canApprove, notice, draftPath, onBack, onSubmit, onApprove, bgm, bgmSelected, onBgmAdd, onBgmRemove, onBgmSelect }) => {
   const [selected, setSelected] = useState(0);
   // Per-scene edit drafts keyed by sceneId, so switching slides KEEPS what you
@@ -94,6 +189,7 @@ export const StoryboardView: React.FC<{
   const [dismissedNotice, setDismissedNotice] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
+  const [bgmSaving, setBgmSaving] = useState(false);
 
   const scenes = model.scenes;
   const idx = Math.min(selected, Math.max(0, scenes.length - 1));
@@ -127,13 +223,31 @@ export const StoryboardView: React.FC<{
       })
       .finally(() => setSubmitting(false));
   };
+  const selectBgm = async (name: string | null): Promise<void> => {
+    if (!onBgmSelect || bgmSaving) return;
+    setBgmSaving(true);
+    try {
+      await onBgmSelect(name);
+    } finally {
+      setBgmSaving(false);
+    }
+  };
+  const removeBgm = async (name: string): Promise<void> => {
+    if (!onBgmRemove || bgmSaving) return;
+    setBgmSaving(true);
+    try {
+      await onBgmRemove(name);
+    } finally {
+      setBgmSaving(false);
+    }
+  };
 
   // Full-height Canva-style shell: fixed header with actions, then a body that
   // fills the rest WITHOUT page scroll (rail + edit panel scroll internally).
   const Header = (
-    <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 18px", borderBottom: "1px solid var(--border)", flexShrink: 0 }}>
+    <div className="ns-story-header">
       <button className="ns-btn" onClick={onBack}>← Quay lại</button>
-      <div style={{ marginRight: "auto", display: "flex", alignItems: "baseline", gap: 10 }}>
+      <div className="ns-story-title">
         <strong style={{ fontSize: 16 }}>Duyệt cảnh</strong>
         {scenes.length > 0 && <span style={{ color: "var(--muted-foreground)", fontSize: 13 }}>Cảnh {idx + 1}/{scenes.length}</span>}
         {editedCount > 0 && <span style={{ color: "var(--brand)", fontSize: 13, fontWeight: 700 }}>· đã ghi {editedCount} cảnh</span>}
@@ -141,15 +255,20 @@ export const StoryboardView: React.FC<{
       {scenes.length > 0 && (
         <>
           {bgm && onBgmAdd && onBgmRemove && onBgmSelect && (
-            <BgmPicker bgm={bgm} selected={bgmSelected ?? null} onAdd={onBgmAdd} onRemove={onBgmRemove} onSelect={onBgmSelect} />
+            <BgmPicker bgm={bgm} selected={bgmSelected ?? null} busy={bgmSaving} onAdd={onBgmAdd} onRemove={removeBgm} onSelect={selectBgm} />
           )}
-          <button className={`ns-btn${showEdit ? " ns-btn-primary" : ""}`} onClick={() => setShowEdit((v) => !v)}>✎ Sửa cảnh</button>
-          <button className="ns-btn ns-btn-primary" disabled={!canSend || submitting} onClick={sendAll}
-            title={canSend ? undefined : "Chưa có chỉnh sửa nào — sửa một cảnh hoặc ghi chú chung trước khi gửi."}>
-            {submitting ? "Đang gửi…" : editedCount > 0 ? `Gửi chỉnh sửa (${editedCount})` : "Gửi chỉnh sửa"}
+          <button className={`ns-btn ns-story-edit-toggle${showEdit ? " is-active" : ""}`} onClick={() => setShowEdit((v) => !v)}>
+            {Icon.pencil({ size: 15 })}
+            {showEdit ? `Sửa cảnh ${idx + 1}` : "Sửa cảnh"}
           </button>
-          <button className="ns-btn" disabled={!canApprove} onClick={onApprove}
-            title={canApprove ? undefined : "Bản nháp chưa sẵn sàng để duyệt."}>Duyệt &amp; xuất bản</button>
+          {showEdit && (
+            <button className="ns-btn ns-btn-primary" disabled={!canSend || submitting} onClick={sendAll}
+              title={canSend ? undefined : "Nhập yêu cầu cho một cảnh hoặc ghi chú chung trước khi gửi."}>
+              {submitting ? "Đang gửi…" : editedCount > 0 ? `Gửi chỉnh sửa (${editedCount})` : "Gửi chỉnh sửa"}
+            </button>
+          )}
+          <button className="ns-btn" disabled={!canApprove || bgmSaving} onClick={onApprove}
+            title={bgmSaving ? "Đang lưu lựa chọn nhạc nền." : canApprove ? undefined : "Bản nháp chưa sẵn sàng để duyệt."}>Duyệt &amp; xuất bản</button>
         </>
       )}
     </div>
@@ -259,24 +378,39 @@ export const StoryboardView: React.FC<{
 
         {/* Edit panel — shown only on demand (toggle in header) */}
         {showEdit && (
-          <div className="ns-card" style={{ width: 320, flexShrink: 0, display: "flex", flexDirection: "column", gap: 10, padding: 14, overflowY: "auto" }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <strong style={{ fontSize: 14 }}>Sửa cảnh {idx + 1}</strong>
-              <button className="ns-btn" style={{ padding: "4px 10px" }} onClick={() => setShowEdit(false)}>Đóng</button>
+          <aside className="ns-card ns-story-edit-panel" aria-label="Yêu cầu chỉnh sửa">
+            <div className="ns-story-edit-heading">
+              <div>
+                <strong>Yêu cầu chỉnh sửa</strong>
+                <span>Chọn đúng phạm vi trước khi nhập</span>
+              </div>
+              <button className="ns-story-edit-close" type="button" aria-label="Đóng bảng chỉnh sửa" title="Đóng" onClick={() => setShowEdit(false)}>
+                {Icon.close({ size: 16 })}
+              </button>
             </div>
-            <textarea aria-label={`Yêu cầu chỉnh sửa cảnh ${idx + 1}`} className="ns-input" value={current ? (edits[current.sceneId] ?? "") : ""}
-              maxLength={2000} rows={5} onChange={(e) => setCurrentEdit(e.target.value)}
-              placeholder="Nói tự nhiên điều muốn đổi cho cảnh này: “to chữ tiêu đề”, “đổi nền sang xanh”, “bỏ bớt chữ, thêm biểu đồ cột”…"
-              style={{ width: "100%", resize: "none" }} />
-            <label style={{ fontSize: 12, color: "var(--muted-foreground)" }}>Ghi chú chung cho cả video (tùy chọn)</label>
-            <textarea aria-label="Ghi chú chung cho cả video" className="ns-input" value={notes} maxLength={2000} rows={3}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder="vd “giọng nhanh hơn”, “tông màu ấm hơn”…"
-              style={{ width: "100%", resize: "none" }} />
-            <p style={{ margin: 0, fontSize: 12, color: "var(--muted-foreground)" }}>
-              Chuyển cảnh khác để ghi thêm — yêu cầu được giữ lại tới khi bạn bấm “Gửi chỉnh sửa” trên đầu.
-            </p>
-          </div>
+
+            <section className="ns-edit-scope is-scene">
+              <div className="ns-edit-scope-heading">
+                <span className="ns-edit-scope-icon">{Icon.pencil({ size: 15 })}</span>
+                <strong>Cảnh {idx + 1}</strong>
+                <span className="ns-edit-scope-badge">Riêng cảnh này</span>
+              </div>
+              <textarea aria-label={`Yêu cầu chỉnh sửa cảnh ${idx + 1}`} className="ns-input ns-edit-textarea" value={current ? (edits[current.sceneId] ?? "") : ""}
+                maxLength={2000} rows={5} onChange={(e) => setCurrentEdit(e.target.value)}
+                placeholder="Nhập yêu cầu cho cảnh này…" />
+            </section>
+
+            <section className="ns-edit-scope is-global">
+              <div className="ns-edit-scope-heading">
+                <span className="ns-edit-scope-icon">{Icon.globe({ size: 15 })}</span>
+                <strong>Toàn video</strong>
+                <span className="ns-edit-scope-badge">Mọi cảnh</span>
+              </div>
+              <textarea aria-label="Ghi chú chung cho cả video" className="ns-input ns-edit-textarea" value={notes} maxLength={2000} rows={3}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder="Nhập yêu cầu chung cho toàn video…" />
+            </section>
+          </aside>
         )}
       </div>
     </div>

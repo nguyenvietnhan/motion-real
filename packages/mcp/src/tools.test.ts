@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import fc from "fast-check";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { PipelineError, type RenderProjectResult } from "@news/pipeline";
+import { addBgmTrack, ensureProject, PipelineError, projectPaths, writeJson, type RenderProjectResult } from "@news/pipeline";
 import {
   createTools,
   fullRenderAllowed,
@@ -113,6 +113,47 @@ describe("TTS provider preservation — Property 10", () => {
     const result = await tools.render_draft({ projectId: "p" });
     expect(result.ok).toBe(true);
     expect(seen).toMatchObject({ ttsApiKey: "closure-key", voiceId: "closure-voice" });
+  });
+
+  it("resolves a selected project BGM track into render_draft/render_full options", async () => {
+    const src = join(home, "picked.mp3");
+    await writeFile(src, Buffer.alloc(32, 1));
+    const track = await addBgmTrack(src);
+    await ensureProject("p");
+    await writeJson(projectPaths("p").manifest, { title: "T", bgm: track.name, scenes: [] });
+
+    const seen: Array<Parameters<ToolDeps["renderProject"]>[1]> = [];
+    const tools = createTools({
+      draftExistsFor: () => true,
+      ttsConfig: okConfig,
+      renderProject: async (_projectId, opts) => {
+        seen.push(opts);
+        return renderOk();
+      },
+    });
+
+    expect((await tools.render_draft({ projectId: "p" })).ok).toBe(true);
+    expect((await tools.render_full({ projectId: "p" })).ok).toBe(true);
+    expect(seen.map((opts) => opts?.bgmPath)).toEqual([track.path, track.path]);
+  });
+
+  it("passes explicit no-music through draft and full instead of allowing the default fallback", async () => {
+    await ensureProject("p");
+    await writeJson(projectPaths("p").manifest, { title: "T", scenes: [] });
+
+    const seen: Array<Parameters<ToolDeps["renderProject"]>[1]> = [];
+    const tools = createTools({
+      draftExistsFor: () => true,
+      ttsConfig: okConfig,
+      renderProject: async (_projectId, opts) => {
+        seen.push(opts);
+        return renderOk();
+      },
+    });
+
+    expect((await tools.render_draft({ projectId: "p" })).ok).toBe(true);
+    expect((await tools.render_full({ projectId: "p" })).ok).toBe(true);
+    expect(seen.map((opts) => opts?.bgmPath)).toEqual([null, null]);
   });
 });
 

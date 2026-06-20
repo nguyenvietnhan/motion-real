@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import type { AiAccountState, GatewayState, ModelInfo, SettingsModel } from "../../shared/types.js";
 import { DEFAULT_REFINE_PASSES } from "../../shared/settings-model.js";
 import { activeAccount } from "../../shared/active-account.js";
@@ -15,10 +15,13 @@ export const SettingsView: React.FC<{
   settings: SettingsModel;
   onManageAccounts: () => void;
   onSelectModel: (modelId: string) => void;
-  onUpdate: (patch: Partial<SettingsModel>) => void;
+  onUpdate: (patch: Partial<SettingsModel>) => void | Promise<unknown>;
 }> = ({ gateway, account, models, settings, onManageAccounts, onSelectModel, onUpdate }) => {
   const [tab, setTab] = useState<SettingsTab>("ai");
   const [refineExpanded, setRefineExpanded] = useState(settings.refinePasses > 0);
+  const [showVoiceKey, setShowVoiceKey] = useState(false);
+  const [saveState, setSaveState] = useState<"idle" | "saving" | "error">("idle");
+  const saveSeq = useRef(0);
   const connected = account.kind === "connected" ? account.accounts : [];
   const currentAccount = activeAccount(account);
   const selectedModelId = account.kind === "connected" ? account.selectedModel?.id ?? "" : "";
@@ -35,9 +38,23 @@ export const SettingsView: React.FC<{
     { id: "about", label: "Giới thiệu", icon: Icon.home({ size: 16 }) },
   ];
 
+  const update = (patch: Partial<SettingsModel>): void => {
+    const seq = saveSeq.current + 1;
+    saveSeq.current = seq;
+    setSaveState("saving");
+    void Promise.resolve(onUpdate(patch))
+      .then(() => { if (saveSeq.current === seq) setSaveState("idle"); })
+      .catch(() => { if (saveSeq.current === seq) setSaveState("error"); });
+  };
+
+  const saveStatus = saveState === "saving" ? "Đang lưu…" : saveState === "error" ? "Không lưu được" : "";
+
   return (
     <div className="ns-content">
-      <PageHeader title="Cài đặt" />
+      <PageHeader
+        title="Cài đặt"
+        action={saveStatus && <span className={`ns-settings-save is-${saveState}`} role="status">{saveStatus}</span>}
+      />
       <div className="ns-settings">
         <nav className="ns-settings-nav">
           {TABS.map((t) => (
@@ -97,24 +114,29 @@ export const SettingsView: React.FC<{
                 <input className="ns-input" value={settings.voiceProvider} disabled style={{ width: "100%", maxWidth: 260, opacity: 0.7 }} />
               </Field>
               <Field label="API key giọng đọc (Vivibe)">
-                <input className="ns-input" type="password" placeholder="dán API key…" value={settings.voiceApiKey ?? ""}
-                  onChange={(e) => onUpdate({ voiceApiKey: e.target.value })} style={{ width: "100%", maxWidth: 480 }} />
+                <div className="ns-secret-field">
+                  <input className="ns-input" type={showVoiceKey ? "text" : "password"} placeholder="dán API key…" value={settings.voiceApiKey ?? ""}
+                    onChange={(e) => update({ voiceApiKey: e.target.value })} />
+                  <button type="button" className="ns-secret-toggle" onClick={() => setShowVoiceKey((v) => !v)}>
+                    {showVoiceKey ? "Ẩn" : "Hiện"}
+                  </button>
+                </div>
               </Field>
               <Field label="Voice ID" hint="Mã giọng đọc cụ thể trên Vivibe.">
                 <input className="ns-input" placeholder="voice id…" value={settings.voiceId ?? ""}
-                  onChange={(e) => onUpdate({ voiceId: e.target.value })} style={{ width: "100%", maxWidth: 480 }} />
+                  onChange={(e) => update({ voiceId: e.target.value })} style={{ width: "100%", maxWidth: 480 }} />
               </Field>
             </SettingsCard>
           )}
 
           {tab === "build" && (
             <SettingsCard title="Dựng video" desc="Tuỳ chọn quy trình tự dựng và chọn ảnh.">
-              <Toggle checked={settings.scriptGateEnabled} onChange={(v) => onUpdate({ scriptGateEnabled: v })}
+              <Toggle checked={settings.scriptGateEnabled} onChange={(v) => update({ scriptGateEnabled: v })}
                 title="Duyệt kịch bản trước khi dựng"
                 desc="Tạm dừng để bạn xem và sửa lời đọc trước khi AI dựng video." />
               <ExpandableToggle
                 checked={settings.refinePasses > 0}
-                onChange={(v) => { onUpdate({ refinePasses: v ? DEFAULT_REFINE_PASSES : 0 }); if (v) setRefineExpanded(true); }}
+                onChange={(v) => { update({ refinePasses: v ? DEFAULT_REFINE_PASSES : 0 }); if (v) setRefineExpanded(true); }}
                 expanded={refineExpanded}
                 onToggleExpanded={() => setRefineExpanded((e) => !e)}
                 title="Tự tinh chỉnh hình ảnh bằng AI"
@@ -122,19 +144,19 @@ export const SettingsView: React.FC<{
                 {settings.refinePasses > 0 && (
                   <>
                     <NumberRow value={settings.refinePasses} min={1} max={5} indent
-                      onChange={(v) => onUpdate({ refinePasses: v })}
+                      onChange={(v) => update({ refinePasses: v })}
                       title="Số lần tinh chỉnh"
                       desc="Số lượt AI nhìn ảnh và sửa lại tối đa." />
-                    <Toggle checked={settings.refineEarlyStop} onChange={(v) => onUpdate({ refineEarlyStop: v })} indent
+                    <Toggle checked={settings.refineEarlyStop} onChange={(v) => update({ refineEarlyStop: v })} indent
                       title="Dừng sớm khi đã ổn định"
                       desc="Dừng khi hai lượt liên tiếp không còn lỗi, thay vì luôn chạy đủ số lần." />
                   </>
                 )}
               </ExpandableToggle>
-              <Toggle checked={settings.imageCrawlAiFilter} onChange={(v) => onUpdate({ imageCrawlAiFilter: v })}
+              <Toggle checked={settings.imageCrawlAiFilter} onChange={(v) => update({ imageCrawlAiFilter: v })}
                 title="AI tự chọn ảnh từ bài báo"
                 desc="Khi yêu cầu có đường dẫn bài báo, AI chọn sẵn ảnh phù hợp nội dung. Cần model nhìn được ảnh." />
-              <Toggle checked={settings.imageCrawlHumanReview} onChange={(v) => onUpdate({ imageCrawlHumanReview: v })}
+              <Toggle checked={settings.imageCrawlHumanReview} onChange={(v) => update({ imageCrawlHumanReview: v })}
                 title="Cho tôi duyệt ảnh trước khi dựng"
                 desc="Hiện màn chọn ảnh cào từ bài báo để bạn xác nhận trước khi AI viết kịch bản." />
             </SettingsCard>

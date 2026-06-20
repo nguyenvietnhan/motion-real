@@ -3,6 +3,7 @@ import { existsSync } from "node:fs";
 import { cpus } from "node:os";
 import { join, resolve } from "node:path";
 import { performance } from "node:perf_hooks";
+import { createHash } from "node:crypto";
 import { DEFAULT_TTS_SPEED, type DurationPreset, type LockedVideoSpec, type VideoSpec } from "@news/schema";
 import {
   appendEvent,
@@ -166,7 +167,8 @@ export type RenderProjectOptions = {
   ttsApiKey?: string;
   voiceId?: string;
   speed?: number;
-  bgmPath?: string;
+  /** Absolute track path; null explicitly disables BGM, undefined keeps the legacy bundled fallback. */
+  bgmPath?: string | null;
   concurrency?: number;
   /** Chromium `--gl` renderer. Use env `NEWS_RENDER_GL=angle` to configure globally per machine. */
   chromiumOpenGlRenderer?: RenderOpenGlRenderer | null;
@@ -412,6 +414,7 @@ export async function renderProject(projectId: string, opts: RenderProjectOption
     throwIfCancelled(); // before TTS spends money / time
     await setState(projectId, { state: "tts", currentStep: "synthesizing narration", error: null });
     const synthesize = deps.synthesize ?? synthesizeNarration;
+    const selectedBgmPath = opts.bgmPath === undefined ? defaultBgmPath() : opts.bgmPath;
     const tts = await timedPipelineStage(
       "stage.tts",
       () => synthesize(spec, {
@@ -420,7 +423,7 @@ export async function renderProject(projectId: string, opts: RenderProjectOption
         ...(opts.ttsApiKey ? { apiKey: opts.ttsApiKey } : {}),
         voiceId,
         speed,
-        bgmPath: opts.bgmPath ?? defaultBgmPath(),
+        ...(selectedBgmPath ? { bgmPath: selectedBgmPath } : {}),
       }),
       { provider, scenes: spec.scenes.length },
     );
@@ -519,9 +522,25 @@ export async function renderProject(projectId: string, opts: RenderProjectOption
     const authoredSources = await timedPipelineStage("stage.read_authored_sources", () => readAuthoredSources(authoredFiles), {
       files: authoredFiles.length,
     });
-    const hash = await timedPipelineStage("stage.render_cache_key", () => renderCacheKey(locked, authoredSources), {
-      files: authoredSources.length,
-    });
+    // Desktop/MCP callers always pass bgmPath as either a selected path or null.
+    // Fold that explicit choice into the full-render cache key; otherwise a
+    // cached MP4 with music could be reused after the user chooses silence.
+    let bgmCacheDiscriminator = "";
+    if (opts.bgmPath !== undefined) {
+      bgmCacheDiscriminator = "bgm:none";
+      if (selectedBgmPath && existsSync(selectedBgmPath)) {
+        const bytes = await readFile(selectedBgmPath);
+        bgmCacheDiscriminator = `bgm:${createHash("sha256").update(bytes).digest("hex")}`;
+      }
+    }
+    const hash = await timedPipelineStage(
+      "stage.render_cache_key",
+      () => renderCacheKey(locked, authoredSources, bgmCacheDiscriminator),
+      {
+        files: authoredSources.length,
+        bgm: bgmCacheDiscriminator === "" ? "legacy" : bgmCacheDiscriminator === "bgm:none" ? "none" : "selected",
+      },
+    );
     const mp4Path = join(paths.rendersDir, isDraft ? `${projectId}.draft.mp4` : `${projectId}.mp4`);
     // Drafts never read/write the full-quality cache (different pixels).
     const cachedPath = opts.noCache || isDraft ? null : getCachedRender(hash);

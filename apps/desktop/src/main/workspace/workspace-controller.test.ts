@@ -3,7 +3,7 @@ import fc from "fast-check";
 import { WorkspaceController, type WorkspaceDeps, type WsManifest } from "./workspace-controller.js";
 import { stripL0Tokens } from "../redact/friendly.js";
 import type { AgentHooks, AgentWorker, AuthorImageRef, AuthorOutcome, RepairOutcome } from "../agent/agent-worker.js";
-import type { ProjectStage, ScriptEdit } from "../../shared/types.js";
+import type { ProjectCardVM, ProjectStage, ScriptEdit } from "../../shared/types.js";
 
 /**
  * Feature: reconcile-main-controllers — WorkspaceController property tests (S4).
@@ -39,6 +39,45 @@ function baseDeps(over: Partial<WorkspaceDeps> = {}): WorkspaceDeps {
 }
 
 const flush = () => new Promise((r) => setTimeout(r, 0));
+
+function card(over: Partial<ProjectCardVM> = {}): ProjectCardVM {
+  return {
+    projectId: "p1",
+    title: "T",
+    thumbnailPath: null,
+    format: "tiktok",
+    status: "error",
+    createdAtLabel: "20/06/2026",
+    ...over,
+  };
+}
+
+describe("projects:list status recovery", () => {
+  it("uses the full MP4 on disk as done when the brief/card status is stale", async () => {
+    const ctrl = new WorkspaceController(baseDeps({
+      listProjects: async () => [card({ status: "error" })],
+      hasOutput: () => true,
+    }));
+    expect((await ctrl.list())[0]?.status).toBe("done");
+  });
+
+  it("uses an existing draft on disk as draft-ready when no full MP4 exists", async () => {
+    const ctrl = new WorkspaceController(baseDeps({
+      listProjects: async () => [card({ status: "building" })],
+      hasDraft: () => true,
+    }));
+    expect((await ctrl.list())[0]?.status).toBe("draft-ready");
+  });
+
+  it("lets a live in-memory stage win over disk artifacts", async () => {
+    const ctrl = new WorkspaceController(baseDeps({
+      listProjects: async () => [card({ status: "done" })],
+      hasOutput: () => true,
+    }));
+    ctrl.setStage("p1", { kind: "error", message: "x", fixable: false });
+    expect((await ctrl.list())[0]?.status).toBe("error");
+  });
+});
 
 // Property 7: Empty-narration guard for applyEdits
 describe("Property 7: empty-narration guard (manifest order, no write on reject)", () => {

@@ -294,6 +294,14 @@ describe("renderCacheKey — authored source is part of the full render key", ()
     const b = renderCacheKey(locked, ["sourceB", "sourceA"]);
     expect(a).toBe(b);
   });
+
+  it("invalidates when the explicit BGM choice changes", () => {
+    const silent = renderCacheKey(locked, [], "bgm:none");
+    const withMusic = renderCacheKey(locked, [], "bgm:content-hash");
+
+    expect(silent).not.toBe(withMusic);
+    expect(silent).toBe(renderCacheKey(locked, [], "bgm:none"));
+  });
 });
 
 // --- Determinism guard: Property 2 / N16 ----------------------------------

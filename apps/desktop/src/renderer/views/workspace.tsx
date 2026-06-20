@@ -322,9 +322,9 @@ export const ProjectWorkspaceView: React.FC<{
   /** Open the native picker to add audio file(s) to the library. */
   onBgmAdd: () => void;
   /** Delete one library track by name. */
-  onBgmRemove: (name: string) => void;
+  onBgmRemove: (name: string) => Promise<void>;
   /** Set (or clear, with null) the open project's BGM track; persisted to its manifest. */
-  onBgmSelect: (name: string | null) => void;
+  onBgmSelect: (name: string | null) => Promise<void>;
   /** Generate a caption-free cover from the first authored scene. */
   onGenerateThumbnail: () => Promise<{ thumbnailUrl: string } | null>;
   /** Copy the generated cover PNG through a native Save dialog. */
@@ -372,7 +372,7 @@ export const ProjectWorkspaceView: React.FC<{
             }
           : {
               title: "AI đang viết kịch bản từ nội dung của bạn…",
-              detail: "Lần đầu gọi model qua 9Router/Codex có thể mất 1-3 phút để khởi động. App vẫn đang chờ phản hồi.",
+              detail: "Quá trình này có thể mất vài phút. Ứng dụng sẽ tự tiếp tục khi hoàn tất.",
             }
       : null;
 
@@ -409,7 +409,7 @@ export const ProjectWorkspaceView: React.FC<{
               <h2 className="ns-publish-title">{stage.title || "Video đã sẵn sàng"}</h2>
             </div>
             <div className="ns-publish-cta">
-              <button className="ns-btn ns-btn-primary" onClick={onSave}>{Icon.download({ size: 16 })} Tải về…</button>
+              <button className="ns-btn ns-btn-primary" onClick={onSave}>{Icon.download({ size: 16 })} Lưu video</button>
               <button className="ns-btn" onClick={onReveal}>{Icon.folder({ size: 15 })} Mở thư mục</button>
             </div>
             <PublishCopyPanel title={stage.title} hashtags={stage.hashtags} />

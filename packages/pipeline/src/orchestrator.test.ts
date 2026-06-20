@@ -266,6 +266,28 @@ describe("renderProject — render pipeline (skipAuthoring)", () => {
     expect(timingEvents.every((e) => typeof e.ms === "number")).toBe(true);
   });
 
+  it("treats bgmPath null as explicit silence instead of using default.mp3", async () => {
+    const projectId = await readyProject();
+    const synthesize = fakeSynthesize();
+    let seenBgmPath: string | undefined;
+
+    await renderProject(projectId, {
+      skipAuthoring: true,
+      ttsProvider: "mock",
+      bgmPath: null,
+      checklist: FULL_CHECKLIST,
+      composeContactSheet: fakeCompositor(),
+      deps: {
+        synthesize: async (spec, opts) => {
+          seenBgmPath = opts.bgmPath;
+          return synthesize!(spec, opts);
+        },
+      },
+    });
+
+    expect(seenBgmPath).toBeUndefined();
+  });
+
   it("adapts default draft concurrency but leaves full render on the renderer default", async () => {
     const draftProject = await readyProject();
 

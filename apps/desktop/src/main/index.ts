@@ -2,7 +2,7 @@ import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
 import { fileURLToPath } from "node:url";
 import { basename, dirname, join } from "node:path";
 import { createTools } from "@news/mcp";
-import { loadManifest, writeJson, projectPaths, videoToolHome, stagingDir, ensureProject, importImageBytes, setAuthoredLoader, reconcileStaleStates, pruneRenderCache, pruneTtsCache, readBrief, listBgmTracks, addBgmTrack, removeBgmTrack, renderThumbnail, type BgmTrack } from "@news/pipeline";
+import { loadManifest, writeJson, projectPaths, videoToolHome, stagingDir, ensureProject, importImageBytes, setAuthoredLoader, reconcileStaleStates, pruneRenderCache, pruneTtsCache, readBrief, listBgmTracks, addBgmTrack, ensureBgmTrack, removeBgmTrack, renderThumbnail, workspaceRoot, type BgmTrack } from "@news/pipeline";
 import { registerIpcRouter, type InvokeHandlers } from "./ipc-router.js";
 import { ModelGatewayManager } from "./gateway/model-gateway-manager.js";
 import { buildNineRouterGatewayDeps } from "./gateway/ninerouter-deps.js";
@@ -81,11 +81,33 @@ applyNonSensitiveEnvironment(fileEnv);
 scrubSensitiveEnvironment(fileEnv);
 scrubSensitiveEnvironment(process.env);
 
-/** Map a library BGM track to its renderer VM (a compact human size label). */
-function toBgmVM(t: BgmTrack): { name: string; sizeLabel: string } {
+const BUNDLED_BGM_NAME = "nhac-nen-mac-dinh.mp3";
+
+/** Map a library BGM track to its renderer VM (label + preview URL stay local). */
+function toBgmVM(t: BgmTrack) {
   const mb = t.sizeBytes / (1024 * 1024);
   const sizeLabel = mb >= 1 ? `${mb.toFixed(1)} MB` : `${Math.max(1, Math.round(t.sizeBytes / 1024))} KB`;
-  return { name: t.name, sizeLabel };
+  const builtIn = t.name === BUNDLED_BGM_NAME;
+  return {
+    name: t.name,
+    label: builtIn ? "Nhạc nền mặc định" : t.name,
+    sizeLabel,
+    previewUrl: mediaUrl(t.path) ?? "",
+    builtIn,
+  };
+}
+
+/** Keep the bundled track visible in the same explicit library as user tracks. */
+async function listBgmViewModels() {
+  const bundled = join(workspaceRoot(), "default.mp3");
+  if (existsSync(bundled)) {
+    try {
+      await ensureBgmTrack(bundled, BUNDLED_BGM_NAME);
+    } catch (e) {
+      console.warn("[desktop] failed to expose bundled BGM:", e);
+    }
+  }
+  return (await listBgmTracks()).map(toBgmVM);
 }
 
 /**
@@ -452,7 +474,7 @@ const handlers: InvokeHandlers = {
     return undefined;
   },
 
-  "bgm:list": async () => (await listBgmTracks()).map(toBgmVM),
+  "bgm:list": listBgmViewModels,
   "bgm:add": async () => {
     // Open a native multi-select picker and copy each chosen audio file into the
     // per-machine library (collision-safe). A single bad/locked file is skipped
@@ -473,11 +495,12 @@ const handlers: InvokeHandlers = {
         }
       }
     }
-    return (await listBgmTracks()).map(toBgmVM);
+    return listBgmViewModels();
   },
   "bgm:remove": async (name) => {
-    await removeBgmTrack(String(name));
-    return (await listBgmTracks()).map(toBgmVM);
+    const trackName = String(name);
+    if (trackName !== BUNDLED_BGM_NAME) await removeBgmTrack(trackName);
+    return listBgmViewModels();
   },
   "bgm:getForProject": async (projectId) => {
     try {
@@ -572,6 +595,8 @@ async function createWindow(): Promise<void> {
   const win = new BrowserWindow({
     width: 1180,
     height: 820,
+    minWidth: 1080,
+    minHeight: 720,
     show: true,
     webPreferences: {
       preload: join(here, "../preload/index.cjs"),
