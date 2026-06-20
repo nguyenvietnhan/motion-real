@@ -1,7 +1,10 @@
 import { spawn } from "node:child_process";
 import type { GatewayDeps } from "./model-gateway-manager.js";
 import { NineRouterClient } from "./ninerouter-client.js";
+import { createLogger } from "@news/pipeline";
 import { sanitizedChildEnvironment } from "../security/runtime-security.js";
+
+const log = createLogger("gateway");
 
 /**
  * Build the REAL `GatewayDeps` backed by a live 9router (web-dashboard concrete
@@ -40,7 +43,7 @@ export function buildNineRouterGatewayDeps(opts: NineRouterDepsOptions): Gateway
       // A missing/un-PATHed 9router emits 'error' asynchronously; swallow it so it
       // never becomes an unhandled exception in the main process (launch() will
       // just time out and the gateway reports unavailable, then self-heals).
-      child.on("error", (e) => console.warn(`[gateway] could not spawn 9router: ${e.message}`));
+      child.on("error", (error) => log.warn({ err: error }, "could not spawn 9router; readiness poll will continue"));
       child.unref();
     });
 
@@ -49,7 +52,8 @@ export function buildNineRouterGatewayDeps(opts: NineRouterDepsOptions): Gateway
       if (await client.isReachable()) return true;
       try {
         spawnGateway();
-      } catch {
+      } catch (error) {
+        log.warn({ err: error }, "9router spawn threw; reporting gateway unavailable");
         return false;
       }
       const deadline = Date.now() + readyTimeoutMs;

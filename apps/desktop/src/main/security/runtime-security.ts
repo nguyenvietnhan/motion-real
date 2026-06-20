@@ -1,5 +1,8 @@
 import { spawnSync } from "node:child_process";
 import { join } from "node:path";
+import { createLogger } from "@news/pipeline";
+
+const log = createLogger("security");
 
 /** Environment names that commonly carry credentials rather than configuration. */
 const SECRET_ENV_NAME =
@@ -88,7 +91,8 @@ export function detectProcessPrivilege(opts: PrivilegeProbeOptions = {}): Privil
   if (!getuid) return "standard";
   try {
     return getuid() === 0 ? "elevated" : "standard";
-  } catch {
+  } catch (error) {
+    log.warn({ err: error }, "process privilege probe failed; reporting unknown");
     return "unknown";
   }
 }

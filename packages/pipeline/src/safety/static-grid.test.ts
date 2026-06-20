@@ -144,6 +144,14 @@ describe("static grid — N2 unknown component", () => {
     expect(set.has("N2")).toBe(true);
     expect(runStaticGrid(spec).ok).toBe(false);
   });
+
+  it("accepts a component id admitted from authored source without host-registering it", () => {
+    const spec = validSpec();
+    spec.scenes[1]!.component = "authored-only-scene";
+    const report = runStaticGrid(spec, { authoredComponentIds: ["authored-only-scene"] });
+    expect(report.issues.some((i) => i.check === "N2")).toBe(false);
+    expect(report.ok).toBe(true);
+  });
 });
 
 describe("static grid — N3 prop validation", () => {
@@ -153,6 +161,15 @@ describe("static grid — N3 prop validation", () => {
     const issues = runStaticGrid(spec).issues.filter((i) => i.check === "N3");
     expect(issues.length).toBeGreaterThan(0);
     expect(issues[0]!.sceneId).toBe("scene-03");
+  });
+
+  it("skips host-side N3 validation for admitted authored component ids", () => {
+    const spec = validSpec();
+    spec.scenes[2]!.component = "authored-props-live-in-untrusted-code";
+    spec.scenes[2]!.props = {};
+    const issues = runStaticGrid(spec, { authoredComponentIds: ["authored-props-live-in-untrusted-code"] }).issues;
+    expect(issues.some((i) => i.check === "N2")).toBe(false);
+    expect(issues.some((i) => i.check === "N3")).toBe(false);
   });
 
   // Regression (Working Agreement #1): models recurrently declare the FRAMEWORK
@@ -227,6 +244,12 @@ describe("static grid — N6 phonetic / N7 spaced abbreviations", () => {
       "Công nghệ A I đang thay đổi cách chúng ta làm việc mỗi ngày và điều đó kéo theo rất nhiều hệ quả đáng suy ngẫm cho tương lai gần.";
     expect(checks(spec).has("N7")).toBe(true);
   });
+
+  it("detects phonetic spelling encoded with decomposed Vietnamese accents (NFD)", () => {
+    const spec = validSpec();
+    spec.scenes[3]!.headline = "Sức mạnh của Ô pân".normalize("NFD");
+    expect(runStaticGrid(spec).issues.some((i) => i.check === "N6")).toBe(true);
+  });
 });
 
 describe("static grid — N8 number rules (warning)", () => {
@@ -257,6 +280,12 @@ describe("static grid — N9 remote-media ban (hard)", () => {
     expect(runStaticGrid(spec).ok).toBe(false);
   });
 
+  it("fires when a scene image.ref is protocol-relative", () => {
+    const spec = validSpec();
+    spec.scenes[6]!.image = { ref: "//cdn.example.com/banner.png" };
+    expect(runStaticGrid(spec).issues.some((i) => i.check === "N9")).toBe(true);
+  });
+
   it("passes a scene with a LOCAL image.ref", () => {
     const spec = validSpec();
     spec.scenes[6]!.image = { ref: "assets/photo.png" };
@@ -266,6 +295,19 @@ describe("static grid — N9 remote-media ban (hard)", () => {
   it("fires when a remote image URL is hidden in free-form props", () => {
     const spec = validSpec();
     (spec.scenes[6]!.props as Record<string, unknown>).bg = "https://cdn.example.com/banner.jpg";
+    expect(runStaticGrid(spec).issues.some((i) => i.check === "N9")).toBe(true);
+  });
+
+  it.each([
+    "https://cdn.example.com/banner.svg",
+    "https://cdn.example.com/image",
+    "//cdn.example.com/banner.png",
+    "data:image/svg+xml;base64,PHN2Zy8+",
+    "blob:https://example.com/id",
+    "file:///C:/secret.png",
+  ])("fires when URL-like media ref %s is hidden in free-form props", (ref) => {
+    const spec = validSpec();
+    (spec.scenes[6]!.props as Record<string, unknown>).bg = ref;
     expect(runStaticGrid(spec).issues.some((i) => i.check === "N9")).toBe(true);
   });
 
@@ -323,5 +365,19 @@ describe("static grid — N27 generic CTA (warning)", () => {
     const issues = runStaticGrid(spec).issues.filter((i) => i.check === "N27");
     expect(issues.length).toBe(1);
     expect(issues[0]!.severity).toBe("warning");
+  });
+
+  it("allows a follow CTA when it names a topic anchor from the video", () => {
+    const spec = validSpec();
+    spec.title = "Lộ trình dự án Alpha";
+    spec.scenes[0]!.headline = "Alpha bước vào giai đoạn mới";
+    spec.scenes.at(-1)!.narration = "Theo dõi cập nhật của dự án Alpha trong quý tới.";
+    expect(runStaticGrid(spec).issues.filter((i) => i.check === "N27")).toEqual([]);
+  });
+
+  it("still warns on a follow CTA with no topic anchor", () => {
+    const spec = validSpec();
+    spec.scenes.at(-1)!.narration = "Hãy theo dõi để xem thêm nhiều nội dung mới trong thời gian tới nhé.";
+    expect(runStaticGrid(spec).issues.some((i) => i.check === "N27")).toBe(true);
   });
 });

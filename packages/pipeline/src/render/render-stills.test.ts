@@ -6,9 +6,8 @@ import type { VideoSpec } from "@news/schema";
 
 /**
  * `renderProjectStills` self-tests (freeform-engine D1). The authoring admission
- * path does a dynamic `.tsx` import whose bundled-loader repo-root resolution
- * doesn't hold under vitest, and Remotion would download/launch Chromium — so we
- * mock the authoring module (admission + manifest reads) and the renderer's
+ * path is a pure AST admission, while Remotion would download/launch Chromium —
+ * so we mock the authoring module (admission + manifest reads) and the renderer's
  * `renderSceneStills`. What we actually assert is the WIRING: admit gates the
  * render, the no-TTS lock is used, and `sceneIds` flows through to the stills.
  */

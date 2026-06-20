@@ -17,9 +17,19 @@ import { runContentRules } from "./content-rules.js";
  *  - N8: display/narration number rules (warning)
  *  - N9/N26/N27: media-ban (hard), weak hook & generic CTA (warning)
  */
-export function runStaticGrid(spec: VideoSpec): SafetyReport {
+export type StaticGridOptions = {
+  /**
+   * AI-authored component ids admitted from project .tsx files. They are known
+   * to the eventual Remotion bundle, but are intentionally not imported into the
+   * Node host registry during admission.
+   */
+  authoredComponentIds?: Iterable<string>;
+};
+
+export function runStaticGrid(spec: VideoSpec, opts: StaticGridOptions = {}): SafetyReport {
   const issues: SafetyIssue[] = [];
-  const known = knownComponentIds();
+  const authored = new Set(opts.authoredComponentIds ?? []);
+  const known = new Set([...knownComponentIds(), ...authored]);
 
   // N1: structural (uses the registry's known ids for unknown-component detection too)
   const structural = validateVideoSpecStructure(spec, known);
@@ -62,6 +72,7 @@ export function runStaticGrid(spec: VideoSpec): SafetyReport {
   // renderable video.
   for (const scene of spec.scenes) {
     if (!known.has(scene.component)) continue; // N2 already flagged it
+    if (authored.has(scene.component)) continue; // schema lives in untrusted authored code; N10/render gates cover crash-class failures.
     const mergedProps = {
       ...(scene.props ?? {}),
       headline: scene.headline,

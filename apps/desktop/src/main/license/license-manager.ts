@@ -1,4 +1,7 @@
 import type { LicenseState } from "../../shared/types.js";
+import { createLogger } from "@news/pipeline";
+
+const log = createLogger("license");
 
 /**
  * License manager (web-dashboard Task 4.1, design §License manager, Req 1).
@@ -55,7 +58,11 @@ async function withTimeout(
   const timer = setTimeout(() => controller.abort(), ms);
   try {
     return await call(controller.signal);
-  } catch {
+  } catch (error) {
+    log.warn(
+      { err: error, timedOut: controller.signal.aborted },
+      "license request failed; returning typed timeout/offline outcome",
+    );
     return controller.signal.aborted
       ? { ok: false, reason: "timeout" }
       : { ok: false, reason: "offline" };

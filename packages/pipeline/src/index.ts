@@ -25,7 +25,11 @@ export * from "./audio/sfx.js";
 export * from "./audio/tts.js";
 export * from "./audio/bgm-library.js";
 export * from "./render/renderer.js";
-export * from "./render/render-stills.js";
+export {
+  renderProjectStills,
+  type RenderProjectStillsOptions,
+  type RenderProjectStillsResult,
+} from "./render/render-stills.js";
 export * from "./render/render-thumbnail.js";
 export * from "./authoring/authored-entry.js";
 export * from "./render/cache.js";

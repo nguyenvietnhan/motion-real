@@ -15,9 +15,9 @@ import type { SafetyIssue } from "../types.js";
  *     fetch/XMLHttpRequest, eval/Function, require/dynamic import, fs/
  *     child_process/process, window.location/document.cookie,
  *     dangerouslySetInnerHTML) may not appear anywhere in the AST.
- * Authored code reaches the typecheck → registration → bundle steps only after
- * it passes this static gate, so a module referencing a banned API never even
- * gets loaded (defense in depth, exactly like the static lint tier for specs).
+ * Authored code reaches typecheck → bundle only after it passes this static
+ * gate; its registerComponent side effect runs later inside the Remotion render
+ * entry, never in the Node host.
  */
 
 export type AdmissionPolicy = {
@@ -120,6 +120,7 @@ export function admitAuthoredComponent(
   const allowed = policy.allowedImports;
   const exportedNames = new Set<string>();
   let componentId: string | null = null;
+  const constantStrings = collectConstantStrings(src);
 
   const at = (node: ts.Node): string => {
     const { line } = src.getLineAndCharacterOfPosition(node.getStart(src));
@@ -136,6 +137,18 @@ export function admitAuthoredComponent(
       message: `Authored scene code uses forbidden API "${token}"; scene visuals must be pure functions of the frame (use Remotion's random(seed)).`,
     });
   };
+
+  const parseDiagnostics = (src as ts.SourceFile & { parseDiagnostics?: readonly ts.DiagnosticWithLocation[] }).parseDiagnostics ?? [];
+  for (const diagnostic of parseDiagnostics) {
+    const start = diagnostic.start ?? 0;
+    const { line } = src.getLineAndCharacterOfPosition(start);
+    violations.push({
+      check: "N4",
+      severity: "error",
+      path: `${file}:${line + 1}`,
+      message: `Authored module has invalid TSX syntax: ${ts.flattenDiagnosticMessageText(diagnostic.messageText, " ")}`,
+    });
+  }
 
   const importAllowed = (spec: string): boolean => {
     // A `..` segment escapes the whitelisted package root (e.g.
@@ -188,12 +201,35 @@ export function admitAuthoredComponent(
     // so `x[atob(...)]` is doubly caught; this covers the pure string-concat form.) ---
     if (ts.isElementAccessExpression(node)) {
       const keyExpr = node.argumentExpression;
-      if (ts.isStringLiteral(keyExpr)) {
-        const key = keyExpr.text;
-        if (key === "constructor" || banned.has(key)) addN5(node, `["${key}"]`);
+      const key = resolveConstantString(keyExpr, constantStrings);
+      if (key !== null) {
+        if (isDangerousMemberName(key, banned)) addN5(node, `["${key}"]`);
       } else if (isNameBuildingKey(keyExpr)) {
         addN5(node, "computed member access with a runtime-built string key");
       }
+    }
+
+    // --- raw JSX media/network carriers (N5/N9). Authored scenes may render
+    // user-provided local images only via <SceneImage>; raw browser elements can
+    // fetch arbitrary remote/file URLs from Chromium and break offline
+    // determinism, so block the carriers themselves. ---
+    if ((ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) && ts.isIdentifier(node.tagName)) {
+      const tag = constantStrings.get(node.tagName.text) ?? node.tagName.text;
+      if (RAW_MEDIA_TAGS.has(tag)) addN5(node, `<${tag}>`);
+    }
+    if (ts.isCallExpression(node) && isCreateElementCall(node.expression)) {
+      const tagArg = node.arguments[0];
+      const tag = tagArg ? resolveConstantString(tagArg, constantStrings) : null;
+      if (tag && RAW_MEDIA_TAGS.has(tag)) addN5(node, `createElement("${tag}")`);
+    }
+
+    // --- remote/file URL literals (N5/N9). This catches hard-coded URLs in JSX,
+    // CSS url(...), and props-like literals; legitimate media must flow through
+    // the local-only manifest image.ref + <SceneImage> path. ---
+    if (isStringLikeLiteral(node)) {
+      const value = node.text;
+      if (isDangerousMemberName(value, banned)) addN5(node, `string literal "${value}"`);
+      if (isUrlLikeLiteral(value)) addN5(node, `remote/file URL literal "${truncate(value)}"`);
     }
 
     // --- import.meta (MetaProperty) leaks the host path / `import.meta.resolve`
@@ -346,6 +382,89 @@ function containsStringLiteral(expr: ts.Expression): boolean {
     return containsStringLiteral(expr.left) || containsStringLiteral(expr.right);
   }
   return false;
+}
+
+const RAW_MEDIA_TAGS = new Set(["img", "video", "audio", "iframe", "object", "embed", "source", "track", "link", "script"]);
+const DANGEROUS_MEMBER_NAMES = new Set(["constructor", "__proto__", "prototype"]);
+
+function isStringLikeLiteral(node: ts.Node): node is ts.StringLiteral | ts.NoSubstitutionTemplateLiteral {
+  return ts.isStringLiteralLike(node);
+}
+
+function isDangerousMemberName(value: string, banned: ReadonlySet<string>): boolean {
+  return DANGEROUS_MEMBER_NAMES.has(value) || banned.has(value);
+}
+
+function isUrlLikeLiteral(value: string): boolean {
+  return /(?:https?:\/\/|data:|blob:|file:|url\s*\(|^\/\/)/i.test(value);
+}
+
+function isCreateElementCall(expr: ts.LeftHandSideExpression): boolean {
+  return (ts.isIdentifier(expr) && expr.text === "createElement") ||
+    (ts.isPropertyAccessExpression(expr) && expr.name.text === "createElement");
+}
+
+function truncate(value: string): string {
+  return value.length > 80 ? `${value.slice(0, 77)}...` : value;
+}
+
+function collectConstantStrings(src: ts.SourceFile): ReadonlyMap<string, string> {
+  const out = new Map<string, string>();
+  const declarations: ts.VariableDeclaration[] = [];
+  const visitConst = (node: ts.Node): void => {
+    if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && isConstDeclaration(node) && node.initializer) {
+      declarations.push(node);
+    }
+    ts.forEachChild(node, visitConst);
+  };
+  visitConst(src);
+  for (let pass = 0; pass < declarations.length; pass += 1) {
+    let changed = false;
+    for (const declaration of declarations) {
+      const name = (declaration.name as ts.Identifier).text;
+      if (out.has(name) || !declaration.initializer) continue;
+      const value = resolveConstantString(declaration.initializer, out);
+      if (value !== null) {
+        out.set(name, value);
+        changed = true;
+      }
+    }
+    if (!changed) break;
+  }
+  return out;
+}
+
+function isConstDeclaration(node: ts.VariableDeclaration): boolean {
+  return (ts.getCombinedNodeFlags(node.parent) & ts.NodeFlags.Const) !== 0;
+}
+
+function resolveConstantString(expr: ts.Expression, known: ReadonlyMap<string, string>, seen = new Set<string>()): string | null {
+  if (ts.isParenthesizedExpression(expr)) return resolveConstantString(expr.expression, known, seen);
+  if (ts.isStringLiteralLike(expr)) return expr.text;
+  if (ts.isIdentifier(expr)) {
+    if (seen.has(expr.text)) return null;
+    const value = known.get(expr.text);
+    if (value === undefined) return null;
+    seen.add(expr.text);
+    return value;
+  }
+  if (ts.isBinaryExpression(expr) && expr.operatorToken.kind === ts.SyntaxKind.PlusToken) {
+    const left = resolveConstantString(expr.left, known, seen);
+    const right = resolveConstantString(expr.right, known, seen);
+    return left !== null && right !== null ? `${left}${right}` : null;
+  }
+  if (ts.isCallExpression(expr) && ts.isPropertyAccessExpression(expr.expression)) {
+    const callee = expr.expression;
+    if (ts.isIdentifier(callee.expression) && callee.expression.text === "String" && callee.name.text === "fromCharCode") {
+      const chars: number[] = [];
+      for (const arg of expr.arguments) {
+        if (!ts.isNumericLiteral(arg)) return null;
+        chars.push(Number(arg.text));
+      }
+      return String.fromCharCode(...chars);
+    }
+  }
+  return null;
 }
 
 function hasExportModifier(node: ts.HasModifiers): boolean {

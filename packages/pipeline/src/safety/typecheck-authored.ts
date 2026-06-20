@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { extname, resolve } from "node:path";
 import ts from "typescript";
 import type { SafetyIssue } from "../types.js";
@@ -224,14 +224,18 @@ function directoryFingerprint(dir: string): string {
         continue;
       }
       if (!entry.isFile() || ![".ts", ".tsx"].includes(extname(entry.name)) || /\.test\.tsx?$/.test(entry.name)) continue;
-      const st = statSync(path);
       h.update(path);
-      h.update(`${st.mtimeMs}:${st.size}`);
+      h.update(fileFingerprint(path));
     }
   } catch {
     h.update("missing");
   }
   return h.digest("hex");
+}
+
+/** Test seam proving contract cache keys depend on bytes, not mutable fs metadata. */
+export function __directoryFingerprint(dir: string): string {
+  return directoryFingerprint(dir);
 }
 
 /**
@@ -252,6 +256,12 @@ function severityFor(code: number, message: string): SafetyIssue["severity"] {
   if (/does not exist on type 'Theme(?:Colors)?'/.test(message)) return "warning";
   if (/does not exist on type 'IntrinsicAttributes/.test(message)) return "warning";
   if (/is not assignable to type 'Tone/.test(message)) return "warning";
+
+  // These diagnostics only report missing type annotations. TypeScript erases
+  // them without changing the emitted JavaScript, so they cannot by themselves
+  // cause SceneFallback: implicit parameter, rest-parameter, or binding-element
+  // `any`. Keep this allowlist narrow; every other unknown diagnostic stays hard.
+  if (code === 7006 || code === 7019 || code === 7031) return "warning";
 
   // Definitely fallback-prone: an unbound value is erased by transpile-only
   // bundling and throws `ReferenceError` at render time, producing SceneFallback.

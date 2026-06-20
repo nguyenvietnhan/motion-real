@@ -2,7 +2,7 @@ import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
 import { fileURLToPath } from "node:url";
 import { basename, dirname, join } from "node:path";
 import { createTools } from "@news/mcp";
-import { loadManifest, writeJson, projectPaths, videoToolHome, stagingDir, ensureProject, importImageBytes, setAuthoredLoader, reconcileStaleStates, pruneRenderCache, pruneTtsCache, readBrief, listBgmTracks, addBgmTrack, ensureBgmTrack, removeBgmTrack, renderThumbnail, workspaceRoot, type BgmTrack } from "@news/pipeline";
+import { createLogger, loadManifest, writeJson, projectPaths, videoToolHome, stagingDir, ensureProject, importImageBytes, reconcileStaleStates, pruneRenderCache, pruneTtsCache, readBrief, listBgmTracks, addBgmTrack, ensureBgmTrack, removeBgmTrack, renderThumbnail, workspaceRoot, type BgmTrack } from "@news/pipeline";
 import { registerIpcRouter, type InvokeHandlers } from "./ipc-router.js";
 import { ModelGatewayManager } from "./gateway/model-gateway-manager.js";
 import { buildNineRouterGatewayDeps } from "./gateway/ninerouter-deps.js";
@@ -12,6 +12,7 @@ import { CustomLoopAgentWorker } from "./agent/custom-loop-worker.js";
 import { LicenseManager } from "./license/license-manager.js";
 import { DevLicenseService } from "./license/dev-license-service.js";
 import { WorkspaceController } from "./workspace/workspace-controller.js";
+import { runStartupSequence } from "./startup-sequence.js";
 import { CreateController } from "./create/create-controller.js";
 import { stripL0Tokens } from "./redact/friendly.js";
 import { toCards } from "../shared/gallery-controller.js";
@@ -19,7 +20,6 @@ import { defaultSettings } from "../shared/settings-model.js";
 import { SettingsStore } from "./settings/settings-store.js";
 import { registerMediaScheme, handleMediaProtocol, mediaUrl } from "./media-protocol.js";
 import { events, setEventTarget } from "./event-bus.js";
-import { loadAuthoredTsx } from "./authoring/tsx-loader.js";
 import { existsSync, readFileSync } from "node:fs";
 import { copyFile, readFile, readdir, rm, stat } from "node:fs/promises";
 import type { DroppedImage, ModelInfo, PickImagesResult, ScriptEdit, SettingsModel } from "../shared/types.js";
@@ -31,14 +31,14 @@ import {
   scrubSensitiveEnvironment,
 } from "./security/runtime-security.js";
 
+const log = createLogger("desktop");
+
 // The `media://` scheme must be registered before the app is ready.
 registerMediaScheme();
 
 // The bundled Electron main is plain Node ESM (no `.tsx` loader), so authored
 // scenes are loaded for the admission handshake via esbuild — set process-wide
 // so BOTH the authoring step AND renderProject's admission use it.
-setAuthoredLoader(loadAuthoredTsx);
-
 // Electron reads `.env` once, captures only the Vivibe values it needs in a
 // closure, then removes credential-looking variables from process.env before any
 // authored module can be loaded. Non-secret runtime configuration still follows
@@ -211,7 +211,8 @@ const workspace = new WorkspaceController({
       const text = brief.prompt?.trim();
       if (!text) return null;
       return { text, urls: extractUrls(text) };
-    } catch {
+    } catch (error) {
+      log.warn({ err: error, projectId: id }, "project brief unreadable; retry remains in-session only");
       return null; // no readable brief → in-session retry only
     }
   },
@@ -256,8 +257,11 @@ const create = new CreateController({
         const bytes = await readFile(stagedAbs);
         const res = await importImageBytes(bytes, assetsDir, { refPrefix: "assets" });
         if (res.ok) out.push({ ref: res.ref, width: res.width, height: res.height });
-      } catch {
-        /* unreadable staged file → skip; create proceeds without this image */
+      } catch (error) {
+        log.warn(
+          { err: error, projectId, stagedRef: img.ref },
+          "staged image promotion failed; create will continue without this image",
+        );
       }
     }
     return out;
@@ -287,7 +291,8 @@ async function pickImages(): Promise<PickImagesResult> {
     const name = path.split(/[\\/]/).pop() ?? path;
     try {
       await stageImported(name, await readFile(path), result);
-    } catch {
+    } catch (error) {
+      log.warn({ err: error, fileName: name }, "picked image import failed; reporting decode failure");
       result.rejected.push({ name, reason: "decode-failed" });
     }
   }
@@ -307,7 +312,8 @@ async function importDroppedImages(files: DroppedImage[]): Promise<PickImagesRes
     try {
       // The bytes arrive base64-encoded over IPC; decode to a Buffer to import.
       await stageImported(file.name, Buffer.from(file.dataBase64, "base64"), result);
-    } catch {
+    } catch (error) {
+      log.warn({ err: error, fileName: file.name }, "dropped image import failed; reporting decode failure");
       result.rejected.push({ name: file.name, reason: "decode-failed" });
     }
   }
@@ -365,7 +371,8 @@ async function sweepStagingDir(maxAgeMs = 24 * 60 * 60 * 1000): Promise<void> {
   let entries: string[];
   try {
     entries = await readdir(dir);
-  } catch {
+  } catch (error) {
+    log.warn({ err: error }, "staging directory unavailable; sweep skipped");
     return; // no staging dir yet → nothing to sweep
   }
   const now = Date.now();
@@ -374,8 +381,8 @@ async function sweepStagingDir(maxAgeMs = 24 * 60 * 60 * 1000): Promise<void> {
     try {
       const st = await stat(abs);
       if (now - st.mtimeMs > maxAgeMs) await rm(abs, { force: true });
-    } catch {
-      /* a single unstattable/locked entry must not abort the sweep */
+    } catch (error) {
+      log.warn({ err: error, entry: name }, "staging entry cleanup failed; continuing sweep");
     }
   }
 }
@@ -618,7 +625,7 @@ async function createWindow(): Promise<void> {
 
 app
   .whenReady()
-  .then(() => {
+  .then(async () => {
     const privilegeError = privilegeStartupError(detectProcessPrivilege());
     if (privilegeError) {
       dialog.showErrorBox("Không thể khởi động an toàn", privilegeError);
@@ -626,13 +633,6 @@ app
       return;
     }
     handleMediaProtocol();
-    // Reset any project left mid-job by a crashed prior session (audit P1-5), so
-    // the gallery never shows a permanently-stuck "rendering" badge. Best-effort:
-    // a sweep failure must never block startup.
-    void reconcileStaleStates().catch((error) => {
-      // eslint-disable-next-line no-console
-      console.error("[desktop] stale-state reconcile failed:", error);
-    });
     // Clear stale staged create-time images (picked but never used). Best-effort.
     void sweepStagingDir().catch((error) => {
       // eslint-disable-next-line no-console
@@ -650,8 +650,14 @@ app
       // eslint-disable-next-line no-console
       console.error("[desktop] tts-cache prune failed:", error);
     });
-    startGateway();
-    return createWindow();
+    await runStartupSequence({
+      reconcileStaleStates,
+      onReconcileError: (error) => {
+        log.warn({ err: error }, "stale-state reconcile failed; desktop startup will continue");
+      },
+      startGateway,
+      createWindow,
+    });
   })
   .catch((error) => {
     // eslint-disable-next-line no-console

@@ -1,10 +1,10 @@
 import { existsSync } from "node:fs";
 import { mkdir, readdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import type { DurationTier, SceneImage, TitleLanguage, VideoFormat, VideoSpec } from "@news/schema";
+import { VideoSpecSchema, type DurationTier, type SceneImage, type TitleLanguage, type VideoFormat, type VideoSpec } from "@news/schema";
 import type { SafetyIssue } from "../types.js";
 import { ensureProject, projectPaths, readJson, writeJson } from "../store/store.js";
-import { admitAndRegisterAuthored } from "./register.js";
+import { admitAuthoredSceneFile } from "./register.js";
 
 /**
  * Per-project manifest (author-mode-v2 R8/R10). A manifest is the AUTHOR-mode
@@ -104,7 +104,7 @@ export function manifestToVideoSpec(manifest: Manifest): VideoSpec {
   // user's UI choice; absent ⇒ the historical vertical default so an older
   // manifest still resolves. `ratio` is derived from format for readability.
   const format: VideoFormat = manifest.format ?? "tiktok";
-  return {
+  const candidate = {
     version: 1,
     title: (manifest.title?.trim() || "Untitled").slice(0, 140),
     styleId: "clean-luxury-tech",
@@ -131,6 +131,7 @@ export function manifestToVideoSpec(manifest: Manifest): VideoSpec {
       emphasis: scene.emphasis,
     })),
   };
+  return VideoSpecSchema.parse(candidate);
 }
 
 /** Scaffold a project skeleton: folder tree + `authored/` dir + empty manifest. */
@@ -193,14 +194,14 @@ export type AdmitProjectResult =
   | { ok: false; violations: SafetyIssue[] };
 
 /**
- * Admit + register every authored scene in a project (R1.3/R10.2). Each `.tsx`
- * must pass the static AST gate (N4/N5) and self-register exactly one component
- * with a schema + example. Returns the registered ids on success, or the
- * blocking violations. A module that fails the gate is never imported/bundled.
+ * Admit every authored scene in a project (R1.3/R10.2). Each `.tsx` must pass
+ * the static AST gate (N4/N5) and declare exactly one literal component id.
+ * Returns the admitted ids on success, or the blocking violations. Authored code
+ * is never imported into the Node host; render-time registration happens inside
+ * the generated Remotion entry.
  */
 export async function admitProjectScenes(
   projectId: string,
-  opts: { load?: (fileUrl: string) => Promise<unknown> } = {},
 ): Promise<AdmitProjectResult> {
   const files = await listAuthoredScenes(projectId);
   if (files.length === 0) {
@@ -221,7 +222,7 @@ export async function admitProjectScenes(
   const violations: SafetyIssue[] = [];
   const seenComponentIds = new Set<string>();
   for (const file of files) {
-    const result = await admitAndRegisterAuthored(file, opts.load ? { load: opts.load } : {});
+    const result = await admitAuthoredSceneFile(file);
     if (result.ok) {
       if (seenComponentIds.has(result.componentId)) {
         violations.push({

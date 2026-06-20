@@ -3,7 +3,9 @@ import { createReadStream } from "node:fs";
 import { stat } from "node:fs/promises";
 import { extname, isAbsolute, relative, resolve } from "node:path";
 import { Readable } from "node:stream";
-import { videoToolHome } from "@news/pipeline";
+import { createLogger, videoToolHome } from "@news/pipeline";
+
+const log = createLogger("media");
 
 /**
  * Local-file protocol (web-dashboard B7). The renderer runs on an http(s)/file
@@ -117,7 +119,8 @@ export function handleMediaProtocol(): void {
           "Accept-Ranges": "bytes",
         },
       });
-    } catch {
+    } catch (error) {
+      log.warn({ err: error }, "media request failed; returning 404");
       return new Response("Not found", { status: 404 });
     }
   });

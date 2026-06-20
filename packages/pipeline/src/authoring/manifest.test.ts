@@ -104,4 +104,12 @@ describe("manifestToVideoSpec + clampTheme (AI-output → spec bridge)", () => {
     const spec = manifestToVideoSpec({ ...oneScene(), title: "T".repeat(400) });
     expect(VideoSpecSchema.safeParse(spec).success).toBe(true);
   });
+
+  it.each([
+    "https://cdn.example.com/a.png",
+    "//cdn.example.com/a.png",
+    "assets/a.svg",
+  ])("rejects invalid image.ref before TTS/lock: %s", (ref) => {
+    expect(() => manifestToVideoSpec(oneScene({ image: { ref } }))).toThrow();
+  });
 });

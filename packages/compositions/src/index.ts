@@ -2,9 +2,9 @@
  * @news/compositions — the registry + master composition layer (pure AUTHOR
  * mode). This package NO LONGER ships built-in scene templates: importing it
  * registers nothing. The registry is populated only by AI-AUTHORED scene
- * modules that self-register after passing the admission gate
- * (`@news/pipeline` admit + register), and the master `VideoComposition`
- * renders whatever the project's locked spec references.
+ * modules that self-register inside the generated Remotion entry after passing
+ * the host-side AST admission gate, and the master `VideoComposition` renders
+ * whatever the project's locked spec references.
  *
  * Reusable, slot-based layout blocks live in `@news/blocks`; authored scenes
  * compose those for structure and author bespoke code for imagery.

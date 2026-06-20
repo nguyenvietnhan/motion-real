@@ -121,6 +121,29 @@ describe("authorScenes (pure-author)", () => {
     expect(out.message).toMatch(/model/i);
   });
 
+  it("continues authoring when URL ingest throws and reports the URL as unreadable", async () => {
+    const projectId = "pa-ingest-fallback";
+    const client = { chat: vi.fn(async () => validReply()) } as unknown as NineRouterClient;
+    const ingestUrl = vi.fn(async () => { throw new Error("ingest offline"); });
+    const backend = new NineRouterAuthoringBackend({
+      client,
+      tools: { ingest_url: ingestUrl } as never,
+      model: () => "test-model",
+      apiKey: () => undefined,
+      admit: vi.fn(async () => ({ ok: true as const, componentIds: ["alpha", "beta"], files: [] })),
+    });
+
+    const out = await backend.authorScenes({
+      projectId,
+      input: { text: "chủ đề", urls: ["https://example.test/article"] },
+      scriptGate: false,
+    });
+
+    expect(out.scenes).toHaveLength(3);
+    expect(out.unreadableUrls).toEqual(["https://example.test/article"]);
+    expect(ingestUrl).toHaveBeenCalledOnce();
+  });
+
   it("injects the user-chosen delivery knobs (format/tier/titleLanguage) into the manifest — the AI never authors them", async () => {
     const projectId = "pa-delivery";
     const { backend } = makeBackend(validReply());

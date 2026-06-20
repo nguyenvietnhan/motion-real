@@ -4,7 +4,7 @@ import { readdir, readFile, rm, writeFile } from "node:fs/promises";
 import {
   createLogger,
   admitProjectScenes,
-  admitAndRegisterAuthored,
+  admitAuthoredSceneFile,
   loadManifest,
   projectPaths,
   writeAuthoredScene,
@@ -33,7 +33,6 @@ import { extractJsonObject } from "./manifest-schema.js";
 import { sceneFileName, resolveSceneFile } from "./scene-files.js";
 import { normalizeAuthoredImports } from "./normalize-imports.js";
 import { normalizeAuthoredFontSizes } from "./normalize-fontsize.js";
-import { loadAuthoredTsx } from "./tsx-loader.js";
 import type { VideoFormat, DurationTier, TitleLanguage } from "@news/schema";
 
 /**
@@ -94,12 +93,11 @@ export type NineRouterBackendDeps = {
    */
   wordsPerSecond?: () => number | undefined;
   /**
-   * Admit + register a project's authored scenes (injectable for tests). The
-   * default runs the real gate through the esbuild `.tsx` loader; tests stub it
-   * because the bundled loader's repo-root resolution doesn't hold under vitest.
+   * Admit a project's authored scenes (injectable for tests). The default is a
+   * pure AST gate; authored code is never imported into the Electron/Node host.
    */
   admit?: (projectId: string) => Promise<AdmitProjectResult>;
-  /** Admit + register ONE authored module (injectable for tests; reauthor path). */
+  /** Admit ONE authored module (injectable for tests; reauthor path). */
   admitOne?: (tsxPath: string) => Promise<AuthoredRegistration>;
 };
 
@@ -218,7 +216,10 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
     const chunks: string[] = [];
     const unreadableUrls: string[] = [];
     for (const url of job.input.urls) {
-      const ing = await this.deps.tools.ingest_url({ url }).catch(() => null);
+      const ing = await this.deps.tools.ingest_url({ url }).catch((error) => {
+        log.warn({ err: error, url }, "URL ingest threw; authoring will continue without article text");
+        return null;
+      });
       // ingest_url returns an IngestResult ({ researchPath, metadata, wordCount });
       // the extracted article (text + provenance header) is written to that file —
       // the body is NOT inlined in the result. Read the research file to ground the
@@ -226,7 +227,10 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
       // EVERY link was silently treated as unreadable even on a clean fetch.)
       let body: string | undefined;
       if (ing && ing.ok) {
-        body = await readFile(ing.data.researchPath, "utf8").catch(() => undefined);
+        body = await readFile(ing.data.researchPath, "utf8").catch((error) => {
+          log.warn({ err: error, url, researchPath: ing.data.researchPath }, "ingested article file unreadable");
+          return undefined;
+        });
       }
       if (body && body.trim()) {
         chunks.push(`# ${url}\n${body.trim()}`);
@@ -288,7 +292,7 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
     });
     await writeJson(manifestPathOf(job.projectId), engineManifest);
 
-    const admit = this.deps.admit ?? ((id: string) => admitProjectScenes(id, { load: loadAuthoredTsx }));
+    const admit = this.deps.admit ?? ((id: string) => admitProjectScenes(id));
     const admitted = await admit(job.projectId);
     if (!admitted.ok) {
       log.error(
@@ -329,7 +333,7 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
     const model = this.deps.model();
     if (!model) return { scenes: [] };
     const reviewDir = projectPaths(projectId).reviewDir;
-    const admitOne = this.deps.admitOne ?? ((p: string) => admitAndRegisterAuthored(p, { load: loadAuthoredTsx }));
+    const admitOne = this.deps.admitOne ?? ((p: string) => admitAuthoredSceneFile(p));
     const done: AuthoredScene[] = [];
 
     // Read the manifest once to find which scenes carry an image, so the reauthor
@@ -337,7 +341,10 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
     // it on a vague "make it nicer" edit while the manifest still references the
     // image). The multi-style concept is gone (one neutral theme — D1), so there is
     // no per-project style to thread into the repair prompt anymore.
-    const manifestForReauthor = await loadManifest(projectId).catch(() => undefined);
+    const manifestForReauthor = await loadManifest(projectId).catch((error) => {
+      log.warn({ err: error, projectId }, "reauthor manifest unreadable; image-preservation hints unavailable");
+      return undefined;
+    });
     const imageSceneIds = new Set(
       (manifestForReauthor?.scenes ?? [])
         .filter((s: { image?: { ref?: string } }) => !!s.image?.ref)
@@ -349,7 +356,10 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
       // (the in-flight chat is aborted via the signal). Already-rewritten scenes
       // stay applied; the controller restores the prior reviewable stage.
       if (signal?.aborted) break;
-      const resolved = await resolveSceneFile(projectId, t.sceneId, (id) => loadManifest(id).catch(() => ({ scenes: [] })));
+      const resolved = await resolveSceneFile(projectId, t.sceneId, (id) => loadManifest(id).catch((error) => {
+        log.warn({ err: error, projectId: id, sceneId: t.sceneId }, "scene manifest unreadable during reauthor resolution");
+        return { scenes: [] };
+      }));
       if (!resolved) {
         log.error({ sceneId: t.sceneId }, "[reauthor] cannot resolve authored file; skipping");
         continue;
@@ -429,7 +439,7 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
       if (!applied) {
         await writeFile(path, originalCode, "utf8");
         unregisterComponent(componentId);
-        await admitOne(path).catch((e) => log.debug({ err: e, sceneId: t.sceneId, componentId }, "[reauthor] re-admit of restored original failed (registry may be stale)"));
+        await admitOne(path).catch((e) => log.debug({ err: e, sceneId: t.sceneId, componentId }, "[reauthor] re-admit of restored original failed"));
         continue;
       }
       done.push({ sceneId: t.sceneId, stillPath: join(reviewDir, `${t.sceneId}.png`) });
@@ -438,10 +448,9 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
   }
 
   /**
-   * Clear this project's authored component ids from the process-wide registry
-   * so the upcoming render re-registers them FRESH from THIS project's files.
-   * Guards against a cross-project id collision (the registry is shared across
-   * the long-lived Electron session) staling the Node-side prop validation.
+   * Clear any stale host-registry entries left by older sessions/tests. Current
+   * admission no longer imports authored code into the host; render-time
+   * registration happens inside the generated Remotion entry.
    */
   private async refreshRegistry(projectId: string): Promise<void> {
     try {
@@ -637,7 +646,8 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
       if (!Array.isArray(keep)) return [];
       // Intersect with the provided refs so a hallucinated path can't slip in.
       return keep.filter((r): r is string => typeof r === "string" && allowed.has(r));
-    } catch {
+    } catch (error) {
+      log.warn({ err: error, projectId }, "image-filter JSON parse failed; using no preselection");
       return [];
     }
   }
@@ -681,7 +691,10 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
   async visualQa(projectId: string, sceneIds?: string[], signal?: AbortSignal): Promise<VisualDefect[]> {
     const model = this.deps.model();
     if (!model) return [];
-    const manifest = await loadManifest(projectId).catch(() => null);
+    const manifest = await loadManifest(projectId).catch((error) => {
+      log.warn({ err: error, projectId }, "visual-QA manifest unreadable; QA skipped");
+      return null;
+    });
     if (!manifest) return [];
     const reviewDir = projectPaths(projectId).reviewDir;
     const wanted = sceneIds && sceneIds.length > 0 ? new Set(sceneIds) : null;
@@ -709,7 +722,10 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
   async snapshotScenes(projectId: string, sceneIds: string[]): Promise<SceneSnapshot> {
     const snap: SceneSnapshot = [];
     for (const sceneId of sceneIds) {
-      const resolved = await resolveSceneFile(projectId, sceneId, (id) => loadManifest(id).catch(() => ({ scenes: [] })));
+      const resolved = await resolveSceneFile(projectId, sceneId, (id) => loadManifest(id).catch((error) => {
+        log.warn({ err: error, projectId: id, sceneId }, "scene manifest unreadable during snapshot resolution");
+        return { scenes: [] };
+      }));
       if (!resolved) continue;
       try {
         snap.push({ sceneId, code: await readFile(resolved.path, "utf8") });
@@ -722,14 +738,17 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
 
   /** Restore authored source from a snapshot + re-admit so the next render uses it. */
   async restoreScenes(projectId: string, snapshot: SceneSnapshot): Promise<void> {
-    const admitOne = this.deps.admitOne ?? ((p: string) => admitAndRegisterAuthored(p, { load: loadAuthoredTsx }));
+    const admitOne = this.deps.admitOne ?? ((p: string) => admitAuthoredSceneFile(p));
     for (const { sceneId, code } of snapshot) {
-      const resolved = await resolveSceneFile(projectId, sceneId, (id) => loadManifest(id).catch(() => ({ scenes: [] })));
+      const resolved = await resolveSceneFile(projectId, sceneId, (id) => loadManifest(id).catch((error) => {
+        log.warn({ err: error, projectId: id, sceneId }, "scene manifest unreadable during restore resolution");
+        return { scenes: [] };
+      }));
       if (!resolved) continue;
       try {
         await writeFile(resolved.path, code, "utf8");
         unregisterComponent(resolved.componentId);
-        await admitOne(resolved.path).catch((e) => log.debug({ err: e, projectId, sceneId }, "[visual-qa] re-admit after restore failed (registry refresh on next render)"));
+        await admitOne(resolved.path).catch((e) => log.debug({ err: e, projectId, sceneId }, "[visual-qa] re-admit after restore failed"));
       } catch (e) {
         log.warn({ err: e, projectId, sceneId }, "[visual-qa] restore failed");
       }
@@ -744,7 +763,8 @@ function parseVisualDefects(reply: string, knownScenes: Set<string>): VisualDefe
   let raw: unknown;
   try {
     raw = JSON.parse(json);
-  } catch {
+  } catch (error) {
+    log.warn({ err: error }, "visual-QA JSON parse failed; treating reply as no defects");
     return [];
   }
   const issues = (raw as { issues?: unknown })?.issues;

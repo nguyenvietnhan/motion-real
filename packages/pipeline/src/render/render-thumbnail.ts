@@ -3,7 +3,8 @@ import { basename, join } from "node:path";
 import type { VideoFormat } from "@news/schema";
 import { projectPaths, ensureProject } from "../store/store.js";
 import { loadManifest } from "../authoring/manifest.js";
-import { renderProjectStills } from "./render-stills.js";
+import { renderProjectStillsUnlocked } from "./render-stills.js";
+import { withProjectRenderLock } from "./project-lock.js";
 
 /**
  * Cover render (R12/I3): render the first authored scene through the existing
@@ -28,6 +29,10 @@ export type RenderThumbnailResult = {
 
 export async function renderThumbnail(projectId: string): Promise<RenderThumbnailResult> {
   await ensureProject(projectId);
+  return withProjectRenderLock(projectId, "thumbnail", () => renderThumbnailUnlocked(projectId));
+}
+
+async function renderThumbnailUnlocked(projectId: string): Promise<RenderThumbnailResult> {
   const paths = projectPaths(projectId);
   const manifest = await loadManifest(projectId);
   const firstScene = manifest.scenes[0];
@@ -45,7 +50,7 @@ export async function renderThumbnail(projectId: string): Promise<RenderThumbnai
   }
 
   try {
-    const { stills } = await renderProjectStills(projectId, { sceneIds: [firstScene.id] });
+    const { stills } = await renderProjectStillsUnlocked(projectId, { sceneIds: [firstScene.id] });
     const firstSceneStill = stills.find((path) => basename(path) === `${firstScene.id}.png`);
     if (!firstSceneStill) throw new Error(`Cover still was not rendered for first scene ${firstScene.id}.`);
 

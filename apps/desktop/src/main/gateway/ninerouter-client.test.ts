@@ -140,3 +140,23 @@ describe("NineRouterClient.chat continuation (finish_reason: length)", () => {
     expect(calls()).toBe(1);
   });
 });
+
+describe("NineRouterClient best-effort management fallbacks", () => {
+  const failingFetch: FetchImpl = async () => { throw new Error("gateway offline"); };
+
+  it("reports unreachable instead of throwing when the reachability request fails", async () => {
+    const client = new NineRouterClient("http://test", { fetchImpl: failingFetch });
+    await expect(client.isReachable()).resolves.toBe(false);
+  });
+
+  it("returns empty provider/model lists when management requests fail", async () => {
+    const client = new NineRouterClient("http://test", { fetchImpl: failingFetch });
+    await expect(client.connectedAccounts()).resolves.toEqual([]);
+    await expect(client.listModels()).resolves.toEqual([]);
+  });
+
+  it("returns null when API-key creation fails", async () => {
+    const client = new NineRouterClient("http://test", { fetchImpl: failingFetch });
+    await expect(client.createApiKey("news-studio")).resolves.toBeNull();
+  });
+});

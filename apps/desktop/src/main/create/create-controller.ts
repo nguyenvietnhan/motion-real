@@ -5,10 +5,12 @@ import {
   type CreateBrief,
   type CreateValidation,
 } from "../../shared/create-validation.js";
-import type { SerializedPipelineError } from "@news/pipeline";
+import { createLogger, type SerializedPipelineError } from "@news/pipeline";
 import type { AuthorInput, AuthorImageRef } from "../agent/agent-worker.js";
 import type { StagedImageRef, VideoFormatChoice, DurationTierChoice, TitleLanguageChoice } from "../../shared/types.js";
 import { toFriendlyError } from "../redact/friendly.js";
+
+const log = createLogger("create");
 
 /**
  * Create-input validation lives in `shared/create-validation.ts` (pure + total)
@@ -87,7 +89,13 @@ export class CreateController {
     // can place them. A promote failure never blocks create — the brief still
     // authors (text-only), images just don't reach the AI.
     const promoted = images.length > 0 && this.deps.promoteImages
-      ? await this.deps.promoteImages(res.projectId, images).catch(() => [] as AuthorImageRef[])
+      ? await this.deps.promoteImages(res.projectId, images).catch((error) => {
+          log.warn(
+            { err: error, projectId: res.projectId, imageCount: images.length },
+            "staged image promotion failed; authoring will continue text-only",
+          );
+          return [] as AuthorImageRef[];
+        })
       : [];
     this.deps.beginCreate(res.projectId, {
       text: v.brief.text,

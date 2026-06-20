@@ -2,7 +2,10 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { createLogger } from "@news/pipeline";
 import type { ConnectedAccount, ModelInfo, ProviderInfo } from "../../shared/types.js";
+
+const log = createLogger("gateway");
 
 /**
  * Real 9router HTTP client (web-dashboard — concrete Model_Gateway integration).
@@ -140,7 +143,8 @@ function dataDir(): string {
 function readFileSafe(path: string): string {
   try {
     return readFileSync(path, "utf8").trim();
-  } catch {
+  } catch (error) {
+    log.warn({ err: error, path }, "gateway credential metadata unreadable; treating as absent");
     return "";
   }
 }
@@ -223,7 +227,8 @@ export class NineRouterClient {
     try {
       const res = await fetchWithTimeout(`${this.base}/v1/models`, {}, QUICK_TIMEOUT_MS, this.fetchImpl);
       return res.ok;
-    } catch {
+    } catch (error) {
+      log.warn({ err: error }, "gateway reachability check failed; reporting unavailable");
       return false;
     }
   }
@@ -233,7 +238,8 @@ export class NineRouterClient {
     try {
       const data = await this.api<{ connections?: ApiConnection[] }>("GET", "/api/providers");
       return data.connections ?? [];
-    } catch {
+    } catch (error) {
+      log.warn({ err: error }, "gateway provider listing failed; returning empty list");
       return [];
     }
   }
@@ -272,7 +278,8 @@ export class NineRouterClient {
     try {
       const data = await this.api<{ data?: { id: string }[] }>("GET", "/v1/models");
       return (data.data ?? []).map((m) => ({ id: m.id, label: m.id }));
-    } catch {
+    } catch (error) {
+      log.warn({ err: error }, "gateway model listing failed; returning empty list");
       return [];
     }
   }
@@ -282,7 +289,8 @@ export class NineRouterClient {
     try {
       const data = await this.api<{ key?: string }>("POST", "/api/keys", { name });
       return data.key ?? null;
-    } catch {
+    } catch (error) {
+      log.warn({ err: error, keyName: name }, "gateway API-key creation failed; returning no key");
       return null;
     }
   }
@@ -388,7 +396,10 @@ export class NineRouterClient {
       // Read the gateway/upstream error body — it names the actual reason (e.g. an
       // unsupported param, an image part the provider rejects, a bad model id) so
       // a 400 isn't an opaque dead end. Best-effort: a body read failure is fine.
-      const detail = await res.text().catch(() => "");
+      const detail = await res.text().catch((error) => {
+        log.warn({ err: error, status: res.status }, "gateway error body unreadable; continuing without detail");
+        return "";
+      });
       const suffix = detail ? `: ${detail.slice(0, 500)}` : "";
       throw new GatewayChatError(kind, `9router chat → HTTP ${res.status}${suffix}`, { status: res.status });
     }

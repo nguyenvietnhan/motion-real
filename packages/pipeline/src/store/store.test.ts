@@ -13,6 +13,7 @@ import {
   projectsRoot,
   pruneCacheDir,
   reconcileStaleStates,
+  resetStaleStateIfUnchanged,
   renderCacheDir,
   setState,
   ttsCacheDir,
@@ -193,6 +194,13 @@ describe("project store", () => {
     expect(assertSafeProjectId(safe)).toBe(safe);
   });
 
+  it("rejects Windows device-reserved project ids on every platform", () => {
+    for (const reserved of ["CON", "prn", "Aux", "NUL", "COM1", "com9", "LPT1", "lpt9"]) {
+      expect(() => assertSafeProjectId(reserved)).toThrow(/Invalid project id/);
+    }
+    expect(assertSafeProjectId("con-video-12345678")).toBe("con-video-12345678");
+  });
+
   it("listProjects skips an unsafe folder name instead of throwing (a stray dotfile must not break the gallery)", async () => {
     const root = projectsRoot();
     await mkdir(root, { recursive: true });
@@ -223,6 +231,43 @@ describe("project store", () => {
     // A terminal state is never touched.
     const doneBrief = JSON.parse(await readFile(projectPaths(done).brief, "utf8"));
     expect(doneBrief.state).toBe("done");
+  });
+
+  it("serializes concurrent event appends into complete NDJSON records", async () => {
+    const id = "events-00000004";
+    await ensureProject(id);
+    await Promise.all(Array.from({ length: 50 }, (_, index) => appendEvent(id, { type: "parallel", index })));
+
+    const lines = (await readFile(projectPaths(id).events, "utf8")).trim().split("\n");
+    expect(lines).toHaveLength(50);
+    const indexes = lines.map((line) => JSON.parse(line).index as number).sort((a, b) => a - b);
+    expect(indexes).toEqual(Array.from({ length: 50 }, (_, index) => index));
+    expect(existsSync(join(projectPaths(id).root, ".events.lock"))).toBe(false);
+  });
+
+  it("rotates events.ndjson before an append would exceed the configured cap", async () => {
+    const id = "events-00000005";
+    await ensureProject(id);
+    await appendEvent(id, { type: "first", payload: "x".repeat(80) }, { maxBytes: 140 });
+    await appendEvent(id, { type: "second", payload: "y".repeat(80) }, { maxBytes: 140 });
+
+    const current = (await readFile(projectPaths(id).events, "utf8")).trim().split("\n").map((line) => JSON.parse(line));
+    const archived = (await readFile(`${projectPaths(id).events}.1`, "utf8")).trim().split("\n").map((line) => JSON.parse(line));
+    expect(current.map((event) => event.type)).toEqual(["second"]);
+    expect(archived.map((event) => event.type)).toEqual(["first"]);
+  });
+
+  it("does not overwrite a brief changed after the stale snapshot was observed", async () => {
+    const id = "race-00000003";
+    await ensureProject(id);
+    const observed = { ...sampleBrief(id), state: "rendering" as const, updatedAt: "2026-01-01T00:00:00.000Z" };
+    await writeBrief(observed);
+    await writeBrief({ ...observed, state: "done", currentStep: "done", updatedAt: "2026-01-01T00:00:01.000Z" });
+
+    expect(await resetStaleStateIfUnchanged(observed)).toBe(false);
+    const current = JSON.parse(await readFile(projectPaths(id).brief, "utf8"));
+    expect(current.state).toBe("done");
+    expect(current.updatedAt).toBe("2026-01-01T00:00:01.000Z");
   });
 });
 

@@ -137,7 +137,7 @@ function manifestJson(text: string, fences: Fence[]): string | null {
     // whole-text balanced-brace scan (which tracks string state, so ``` and {}
     // inside string values are handled correctly).
     const fromFence = extractJsonObject(jsonFence.body);
-    if (fromFence && parsesAsObject(fromFence)) return fromFence;
+    if (fromFence && parseJsonProbe(fromFence).ok) return fromFence;
   }
   // Robust fallback: the FIRST balanced, string-aware {…} in the RAW reply that
   // parses as JSON. Scanning the raw text (not a fence-sliced body) means a
@@ -171,7 +171,7 @@ function firstParseableObject(text: string): string | null {
         depth--;
         if (depth === 0) {
           const candidate = text.slice(start, i + 1);
-          if (parsesAsObject(candidate)) return candidate;
+          if (parseJsonProbe(candidate).ok) return candidate;
           break; // balanced but not valid JSON → try the next `{`
         }
       }
@@ -180,13 +180,15 @@ function firstParseableObject(text: string): string | null {
   return null;
 }
 
-/** True iff `s` parses as a JSON value (object/array/primitive). */
-function parsesAsObject(s: string): boolean {
+type JsonParseProbe = { ok: true } | { ok: false; error: unknown };
+
+/** Typed probe: invalid balanced candidates are expected and routed to the next scan position. */
+function parseJsonProbe(s: string): JsonParseProbe {
   try {
     JSON.parse(s);
-    return true;
-  } catch {
-    return false;
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, error };
   }
 }
 

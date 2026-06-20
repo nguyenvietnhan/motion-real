@@ -39,25 +39,29 @@ function displayFields(scene: VideoSpec["scenes"][number]): Array<{ name: string
   ];
 }
 
+function findRemoteUrlLike(value: string): string | undefined {
+  return value.match(/(?:https?:\/\/|data:|blob:|file:|\/\/)[^"'\s,)}\]]*/i)?.[0];
+}
+
 // --- N6: phonetic spellings / spaced abbreviations in display or narration ---
 
 const PHONETIC_PATTERNS: Array<[RegExp, string]> = [
-  [/Ô[- ]?pân/i, "OpenAI"],
-  [/Gút[- ]?gồ/i, "Google"],
-  [/Đíp[- ]?xích/i, "DeepSeek"],
-  [/Giê[- ]?mi[- ]?nai/i, "Gemini"],
-  [/Cờ[- ]?lót/i, "Claude"],
-  [/An[- ]?thờ[- ]?rô[- ]?pích/i, "Anthropic"],
-  [/Chát\s*Gi\s*Pi\s*Ti/i, "ChatGPT"],
-  [/Diu[- ]?túp/i, "YouTube"],
-  [/Eo[- ]?eo[- ]?em/i, "LLM"],
+  [/\bo\s*pan\b/, "OpenAI"],
+  [/\bgut\s*go\b/, "Google"],
+  [/\bdip\s*xich\b/, "DeepSeek"],
+  [/\bgie\s*mi\s*nai\b/, "Gemini"],
+  [/\bco\s*lot\b/, "Claude"],
+  [/\ban\s*tho\s*ro\s*pich\b/, "Anthropic"],
+  [/\bchat\s*gi\s*pi\s*ti\b/, "ChatGPT"],
+  [/\bdiu\s*tup\b/, "YouTube"],
+  [/\beo\s*eo\s*em\b/, "LLM"],
 ];
 
 const SPACED_ABBREV_PATTERNS: Array<[RegExp, string]> = [
-  [/\bA[\s.\-]+I\b/, "AI"],
-  [/\bA[\s.\-]+P[\s.\-]+I\b/, "API"],
-  [/\bG[\s.\-]+P[\s.\-]+T\b/, "GPT"],
-  [/\bL[\s.\-]+L[\s.\-]+M\b/, "LLM"],
+  [/\ba\s+i\b/, "AI"],
+  [/\ba\s+p\s+i\b/, "API"],
+  [/\bg\s+p\s+t\b/, "GPT"],
+  [/\bl\s+l\s+m\b/, "LLM"],
 ];
 
 // --- N8: narration may use DIGITS (the TTS layer reads them as natural
@@ -94,23 +98,40 @@ function badOpeningReason(value: string): string | null {
   return patterns.find(([pattern]) => pattern.test(normalized))?.[1] ?? null;
 }
 
-function genericCtaReason(scene: VideoSpec["scenes"][number]): string | null {
+const CTA_TOPIC_STOPWORDS = new Set([
+  "ban", "ben", "binh", "cap", "cac", "chia", "cho", "clip", "comment", "cua", "dang", "day", "doi",
+  "du", "duoi", "hay", "kien", "kenh", "kia", "ky", "like", "luan", "minh", "mot", "nay", "neu",
+  "nghi", "nhung", "noi", "phia", "quy", "sao", "se", "subscribe", "thay", "theo", "thong", "tin",
+  "toi", "tren", "trong", "video", "voi",
+]);
+
+function topicAnchorTokens(spec: VideoSpec): Set<string> {
+  const priorSceneLabels = spec.scenes.slice(0, -1).flatMap((scene) => [scene.headline, scene.eyebrow ?? ""]);
+  const normalized = [spec.title, ...priorSceneLabels].map(normalizeVietnameseText).join(" ");
+  return new Set(
+    (normalized.match(/[\p{L}\p{N}]+/gu) ?? []).filter(
+      (token) => token.length >= 3 && !CTA_TOPIC_STOPWORDS.has(token),
+    ),
+  );
+}
+
+function genericCtaReason(spec: VideoSpec, scene: VideoSpec["scenes"][number]): string | null {
   const values = [scene.headline, scene.body ?? "", scene.narration, JSON.stringify(scene.props ?? {})];
   const joined = values.map(normalizeVietnameseText).filter(Boolean).join(" ");
-  if (/\b(dang ky|subscribe|like|theo doi kenh|theo doi)\b/.test(joined)) {
+  if (/\b(dang ky|subscribe|like|theo doi kenh)\b/.test(joined)) {
     return "avoid subscribe/follow/like calls";
-  }
-  if (/\b(binh luan|comment)\b/.test(joined) || /\bde lai\s+(?:y kien|binh luan|comment)\b/.test(joined)) {
-    return "avoid generic comment prompts";
-  }
-  if (/\bchia se\b/.test(joined)) {
-    return "avoid generic 'chia sẻ' engagement-bait";
   }
   if (/\b(ben duoi|phia duoi)\b/.test(joined)) {
     return "avoid 'bên dưới' comment/share bait";
   }
   if (/\bban nghi sao\b/.test(joined) || /\bban thay sao\b/.test(joined)) {
     return "avoid vague 'Bạn nghĩ sao?' closers";
+  }
+
+  const finalTokens = new Set(joined.match(/[\p{L}\p{N}]+/gu) ?? []);
+  const hasTopicAnchor = [...topicAnchorTokens(spec)].some((token) => finalTokens.has(token));
+  if (!hasTopicAnchor && /\b(theo doi|chia se|binh luan|comment)\b/.test(joined)) {
+    return "avoid generic follow/share/comment calls without a topic-specific anchor";
   }
   return null;
 }
@@ -122,8 +143,9 @@ export function runContentRules(spec: VideoSpec): SafetyIssue[] {
   for (const scene of spec.scenes) {
     // N6: phonetic spellings (hard) in any field
     for (const field of sceneTextFields(scene)) {
+      const normalized = normalizeVietnameseText(field.value);
       for (const [pattern, original] of PHONETIC_PATTERNS) {
-        const matched = field.value.match(pattern)?.[0];
+        const matched = normalized.match(pattern)?.[0];
         if (matched) {
           issues.push({
             check: "N6",
@@ -136,7 +158,7 @@ export function runContentRules(spec: VideoSpec): SafetyIssue[] {
       }
       // N7 (folded into N6 tier): spaced abbreviations (hard)
       for (const [pattern, original] of SPACED_ABBREV_PATTERNS) {
-        const matched = field.value.match(pattern)?.[0];
+        const matched = normalized.match(pattern)?.[0];
         if (matched) {
           issues.push({
             check: "N7",
@@ -193,7 +215,7 @@ export function runContentRules(spec: VideoSpec): SafetyIssue[] {
     //  (b) any remote image URL hidden in free-form `props` (e.g. an authored
     //      component reading `props.bg` and rendering it) is banned too.
     const imageRef = scene.image?.ref;
-    if (imageRef && /^[a-z][a-z0-9+.-]*:/i.test(imageRef)) {
+    if (imageRef && (/^[a-z][a-z0-9+.-]*:/i.test(imageRef) || /^\/\//.test(imageRef))) {
       issues.push({
         check: "N9",
         severity: "error",
@@ -203,14 +225,14 @@ export function runContentRules(spec: VideoSpec): SafetyIssue[] {
       });
     }
     const propText = JSON.stringify(scene.props ?? {});
-    const remoteInProps = propText.match(/https?:\/\/[^"'\s]+\.(?:png|jpe?g|webp|gif)/i)?.[0];
+    const remoteInProps = findRemoteUrlLike(propText);
     if (remoteInProps) {
       issues.push({
         check: "N9",
         severity: "error",
         sceneId: scene.id,
         path: "props",
-        message: `${scene.id} props reference a remote image URL ("${remoteInProps}"); remote media is banned at render time. Download it to a local asset and use the scene's image field instead.`,
+        message: `${scene.id} props reference a remote/file URL ("${remoteInProps}"); external media is banned at render time. Download it to a local asset and use the scene's image field instead.`,
       });
     }
   }
@@ -233,7 +255,7 @@ export function runContentRules(spec: VideoSpec): SafetyIssue[] {
   // N27: generic CTA (warning) on final scene
   const last = spec.scenes.at(-1);
   if (last) {
-    const reason = genericCtaReason(last);
+    const reason = genericCtaReason(spec, last);
     if (reason) {
       issues.push({
         check: "N27",

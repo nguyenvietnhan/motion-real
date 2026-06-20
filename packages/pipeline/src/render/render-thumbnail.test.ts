@@ -5,11 +5,11 @@ import { join } from "node:path";
 
 const mocks = vi.hoisted(() => ({
   loadManifest: vi.fn(),
-  renderProjectStills: vi.fn(),
+  renderProjectStillsUnlocked: vi.fn(),
 }));
 
 vi.mock("../authoring/manifest.js", () => ({ loadManifest: mocks.loadManifest }));
-vi.mock("./render-stills.js", () => ({ renderProjectStills: mocks.renderProjectStills }));
+vi.mock("./render-stills.js", () => ({ renderProjectStillsUnlocked: mocks.renderProjectStillsUnlocked }));
 
 import { renderThumbnail } from "./render-thumbnail.js";
 import { projectPaths } from "../store/store.js";
@@ -28,7 +28,7 @@ beforeEach(async () => {
       { id: "scene-02", component: "b-scene" },
     ],
   });
-  mocks.renderProjectStills.mockImplementation(async (projectId: string, opts: { sceneIds?: string[] }) => {
+  mocks.renderProjectStillsUnlocked.mockImplementation(async (projectId: string, opts: { sceneIds?: string[] }) => {
     const paths = projectPaths(projectId);
     const sceneId = opts.sceneIds?.[0] ?? "scene-01";
     const still = join(paths.reviewDir, `${sceneId}.png`);
@@ -54,7 +54,7 @@ describe("renderThumbnail", () => {
 
     const result = await renderThumbnail("p1");
 
-    expect(mocks.renderProjectStills).toHaveBeenCalledWith("p1", { sceneIds: ["scene-01"] });
+    expect(mocks.renderProjectStillsUnlocked).toHaveBeenCalledWith("p1", { sceneIds: ["scene-01"] });
     expect(result.path).toBe(join(paths.reviewDir, "thumbnail.png"));
     expect(result.format).toBe("tiktok");
     expect(await readFile(result.path, "utf8")).toBe("caption-free-first-scene");
@@ -68,7 +68,7 @@ describe("renderThumbnail", () => {
 
     const result = await renderThumbnail("p1");
 
-    expect(mocks.renderProjectStills).toHaveBeenCalledWith("p1", { sceneIds: ["intro"] });
+    expect(mocks.renderProjectStillsUnlocked).toHaveBeenCalledWith("p1", { sceneIds: ["intro"] });
     expect(result.format).toBe("youtube");
   });
 
@@ -86,7 +86,7 @@ describe("renderThumbnail", () => {
     const paths = projectPaths("p1");
     await mkdir(paths.root, { recursive: true });
     await writeFile(paths.lock, Buffer.from("published-full-render-lock"));
-    mocks.renderProjectStills.mockImplementationOnce(async () => {
+    mocks.renderProjectStillsUnlocked.mockImplementationOnce(async () => {
       await writeFile(paths.lock, Buffer.from("temporary-no-tts-lock"));
       throw new Error("render failed");
     });

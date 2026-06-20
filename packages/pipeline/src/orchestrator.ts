@@ -48,6 +48,7 @@ import { synthesizeNarration, type SynthesizeOptions } from "./audio/tts.js";
 import { lockSpec } from "./audio/lock.js";
 import { checkDeterminism, type DeterminismOptions } from "./render/determinism.js";
 import { renderCacheKey, getCachedRender, putCachedRender } from "./render/cache.js";
+import { withProjectRenderLock } from "./render/project-lock.js";
 import {
   renderVideo,
   measureSceneLayouts,
@@ -225,6 +226,11 @@ export type RenderProjectResult = {
  */
 export async function renderProject(projectId: string, opts: RenderProjectOptions = {}): Promise<RenderProjectResult> {
   await ensureProject(projectId);
+  const purpose = opts.quality === "draft" ? "draft" : "full";
+  return withProjectRenderLock(projectId, purpose, () => renderProjectUnlocked(projectId, opts));
+}
+
+async function renderProjectUnlocked(projectId: string, opts: RenderProjectOptions = {}): Promise<RenderProjectResult> {
   const paths = projectPaths(projectId);
   const deps = opts.deps ?? {};
   let generatedEntry: string | null = null;
@@ -348,7 +354,11 @@ export async function renderProject(projectId: string, opts: RenderProjectOption
       await appendEvent(projectId, { type: "authored.admitted", components: admitted.componentIds.length });
 
       // Tier-1 static grid gate (structure + per-component props + content rules).
-      const staticReport = await timedPipelineStage("stage.static_grid", () => runStaticGrid(spec), { scenes: spec.scenes.length });
+      const staticReport = await timedPipelineStage(
+        "stage.static_grid",
+        () => runStaticGrid(spec, { authoredComponentIds: admitted.componentIds }),
+        { scenes: spec.scenes.length },
+      );
       if (!staticReport.ok) {
         // Persist the report BEFORE throwing (mirror the N10 gate below) so the
         // repair loop can read the flagged scenes back and reauthor the precise

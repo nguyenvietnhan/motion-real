@@ -1,4 +1,4 @@
-export { runStaticGrid } from "./static-grid.js";
+export { runStaticGrid, type StaticGridOptions } from "./static-grid.js";
 export { runContentRules } from "./content-rules.js";
 export { runBuildGridStatic, typecheckIssues, bundleIssues } from "./build-grid.js";
 export { typecheckAuthoredScenes } from "./typecheck-authored.js";

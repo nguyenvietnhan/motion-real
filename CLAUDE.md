@@ -97,9 +97,10 @@ self-test.
   under `projects/<id>/authored/`. Each is admitted only through
   `admitAuthoredComponent` (AST gate: import whitelist `react`/`remotion`/
   `@news/compositions`/`zod` + banned-API blacklist + required `default`/`schema`/
-  `example` exports, N4/N5), then self-registers via a registration handshake. A
-  manifest may reference an authored id only after admission. Authored scene code
-  runs only inside the Remotion render context.
+  `example` exports, N4/N5). The host never imports authored `.tsx`; it only
+  records admitted ids, and those modules self-register inside the generated
+  Remotion render entry. A manifest may reference an authored id only after
+  admission. Authored scene code runs only inside the Remotion render context.
 - There is NO PICK mode, no fixed template catalog, and NO layout-block toolkit.
   Every scene is bespoke JSX/SVG the AI writes by hand; a plain text/list scene is
   a valid first-class choice. The only non-react/remotion import a scene may use is

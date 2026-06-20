@@ -13,6 +13,7 @@ import { generateAuthoredEntry } from "../authoring/authored-entry.js";
 import { lockSpec } from "../audio/lock.js";
 import { renderSceneStills, remotionAppRoot, type RenderTiming } from "./renderer.js";
 import { PipelineError } from "../errors.js";
+import { withProjectRenderLock } from "./project-lock.js";
 
 /**
  * Fast per-scene STILLS render (freeform-engine R4/R5) — the cheap inner loop the
@@ -65,6 +66,13 @@ export async function renderProjectStills(
   opts: RenderProjectStillsOptions = {},
 ): Promise<RenderProjectStillsResult> {
   await ensureProject(projectId);
+  return withProjectRenderLock(projectId, "stills", () => renderProjectStillsUnlocked(projectId, opts));
+}
+
+export async function renderProjectStillsUnlocked(
+  projectId: string,
+  opts: RenderProjectStillsOptions = {},
+): Promise<RenderProjectStillsResult> {
   const paths = projectPaths(projectId);
   let generatedEntry: string | null = null;
   const renderTimings: RenderTiming[] = [];
@@ -126,8 +134,8 @@ export async function renderProjectStills(
   try {
     if (opts.signal?.aborted) throw new PipelineError({ stage: "render", cause: "stills render cancelled before start" });
 
-    // Admit + register every authored scene (same AST gate as a real render). A
-    // rejected scene stops the stills render with the violations summarized.
+    // Admit every authored scene (same AST gate as a real render). A rejected
+    // scene stops the stills render with the violations summarized.
     const admitted = await timedStillsStage("authoring.admission", () => admitProjectScenes(projectId));
     if (!admitted.ok) {
       throw new PipelineError({

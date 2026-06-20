@@ -199,6 +199,45 @@ describe("scaffoldVideoProject — R8/R10", () => {
 });
 
 describe("renderProject — render pipeline (skipAuthoring)", () => {
+  it("rejects a concurrent render for the same project before it can mutate render state", async () => {
+    const projectId = await readyProject();
+    let entered!: () => void;
+    let release!: () => void;
+    const enteredSynthesize = new Promise<void>((resolve) => {
+      entered = resolve;
+    });
+    const releaseSynthesize = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const synthesize: RenderProjectDeps["synthesize"] = async (spec, opts) => {
+      entered();
+      await releaseSynthesize;
+      return fakeSynthesize()!(spec, opts);
+    };
+
+    const first = renderProject(projectId, {
+      skipAuthoring: true,
+      ttsProvider: "mock",
+      checklist: FULL_CHECKLIST,
+      composeContactSheet: fakeCompositor(),
+      deps: { synthesize },
+    });
+    await enteredSynthesize;
+
+    await expect(
+      renderProject(projectId, {
+        skipAuthoring: true,
+        ttsProvider: "mock",
+        checklist: FULL_CHECKLIST,
+        composeContactSheet: fakeCompositor(),
+        deps: { synthesize: fakeSynthesize() },
+      }),
+    ).rejects.toMatchObject({ stage: "render-lock" });
+
+    release();
+    await expect(first).resolves.toMatchObject({ projectId });
+  });
+
   it("locks, runs build gate + determinism, renders, caches, oracles + review → done", async () => {
     const projectId = await readyProject();
     const compose = fakeCompositor();

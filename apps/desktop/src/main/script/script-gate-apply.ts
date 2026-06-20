@@ -1,4 +1,7 @@
 import type { ApplyResult, ScriptEdit } from "../../shared/types.js";
+import { createLogger } from "@news/pipeline";
+
+const log = createLogger("script");
 
 /**
  * Script-gate edit application (web-dashboard Task 4.7, design §script gate,
@@ -63,7 +66,8 @@ export async function applyScriptEdits(
   try {
     await writeScenes(computed.scenes);
     return { ok: true };
-  } catch {
+  } catch (error) {
+    log.warn({ err: error }, "script edit persistence failed; returning typed write-failed result");
     return { ok: false, reason: "write-failed" };
   }
 }

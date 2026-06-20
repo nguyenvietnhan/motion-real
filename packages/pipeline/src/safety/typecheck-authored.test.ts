@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { __resetTypecheckAuthoredCache, __typecheckAuthoredCacheStats, typecheckAuthoredScenes } from "./typecheck-authored.js";
+import { mkdtempSync, rmSync, statSync, utimesSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { __directoryFingerprint, __resetTypecheckAuthoredCache, __typecheckAuthoredCacheStats, typecheckAuthoredScenes } from "./typecheck-authored.js";
 
 /**
  * N10 authored-typecheck self-tests. Non-vacuous: a scene that composes
@@ -75,6 +77,18 @@ describe("typecheckAuthoredScenes (N10)", () => {
     );
   }, TS_PROGRAM_TIMEOUT);
 
+  it("warns on an implicit-any parameter because the emitted JavaScript is runtime-safe", () => {
+    const issues = typecheckAuthoredScenes([fixture("typecheck-implicit-any.tsx")], root);
+    expect(issues).toContainEqual(
+      expect.objectContaining({
+        check: "N10",
+        severity: "warning",
+        message: expect.stringContaining("TS7006"),
+      }),
+    );
+    expect(issues.some((i) => i.severity === "error")).toBe(false);
+  }, TS_PROGRAM_TIMEOUT);
+
   it("flags a FLAT theme.* color read (type 'Theme') as a WARNING too, not a hard error", () => {
     // The gizmodo 591bfd84 habit: `theme.accent` / `theme.someUnknown` straight
     // off the theme. The theme Proxy resolves both safely, so an un-aliased flat
@@ -125,4 +139,27 @@ describe("typecheckAuthoredScenes (N10)", () => {
     expect(second).toEqual(first);
     expect(__typecheckAuthoredCacheStats()).toEqual({ hits: 1, misses: 1, entries: 1 });
   }, TS_PROGRAM_TIMEOUT);
+
+  it("fingerprints contract source bytes rather than mtime and size", () => {
+    const dir = mkdtempSync(join(tmpdir(), "n10-fingerprint-"));
+    try {
+      const file = join(dir, "contract.ts");
+      writeFileSync(file, "export const value = 'aaaa';\n", "utf8");
+      const originalStat = statSync(file);
+      const original = __directoryFingerprint(dir);
+
+      // Same byte length and restored mtime, but different source bytes.
+      writeFileSync(file, "export const value = 'bbbb';\n", "utf8");
+      utimesSync(file, originalStat.atime, originalStat.mtime);
+      expect(statSync(file).size).toBe(originalStat.size);
+      expect(__directoryFingerprint(dir)).not.toBe(original);
+
+      const changed = __directoryFingerprint(dir);
+      const touched = new Date(Date.now() + 60_000);
+      utimesSync(file, touched, touched);
+      expect(__directoryFingerprint(dir)).toBe(changed);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
 });

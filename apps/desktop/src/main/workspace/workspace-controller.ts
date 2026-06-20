@@ -1,6 +1,6 @@
 import { computeScriptEdits, type ManifestScene } from "../script/script-gate-apply.js";
 import { buildStoryboard } from "../review/storyboard.js";
-import { serializeError, type CrawledImage } from "@news/pipeline";
+import { createLogger, serializeError, type CrawledImage } from "@news/pipeline";
 import { classifyError } from "../agent/error-classifier.js";
 import { toFriendlyError } from "../redact/friendly.js";
 import type { AgentHooks, AgentWorker, AuthorInput, AuthorImageRef, SceneSnapshot } from "../agent/agent-worker.js";
@@ -16,6 +16,8 @@ import type {
   SceneCard,
   StoryboardModel,
 } from "../../shared/types.js";
+
+const log = createLogger("workspace");
 
 /** Map a live workspace stage to the gallery's friendly status. */
 function stageToFriendlyStatus(kind: ProjectStage["kind"]): FriendlyStatus {
@@ -340,12 +342,15 @@ export class WorkspaceController {
       // a crawl failure yields [] and authoring proceeds text-only).
       for (const url of input.urls) {
         if (signal?.aborted) break;
-        const got = await (this.deps.worker.crawlImages?.(projectId, url, signal) ?? Promise.resolve([] as CrawledImage[])).catch(() => [] as CrawledImage[]);
+        const got = await (this.deps.worker.crawlImages?.(projectId, url, signal) ?? Promise.resolve([] as CrawledImage[])).catch((error) => {
+          log.warn({ err: error, projectId, url }, "image crawl failed; continuing with remaining links");
+          return [] as CrawledImage[];
+        });
         pool.push(...got);
         if (pool.length >= 24) break; // hard ceiling across links (review stays scannable)
       }
     } catch (e) {
-      console.warn(`[workspace] image crawl failed for ${projectId}:`, e);
+      log.warn({ err: e, projectId }, "image crawl stage failed; authoring will continue text-only");
       pool = [];
     }
     if (signal?.aborted) {
@@ -367,7 +372,10 @@ export class WorkspaceController {
       // The brief text is the article context the filter judges relevance against
       // (the crawl already fetched the page; we don't re-ingest just to filter).
       const keep = await (this.deps.worker.filterCrawledImages?.(projectId, input.text, refs, signal) ?? Promise.resolve([] as string[]))
-        .catch(() => [] as string[]);
+        .catch((error) => {
+          log.warn({ err: error, projectId }, "image relevance filter failed; using no preselection");
+          return [] as string[];
+        });
       suggested = new Set(keep);
     }
     if (signal?.aborted) {
@@ -562,7 +570,10 @@ export class WorkspaceController {
       // ONLY a video-wide note was given — every scene (the note applies to all).
       let entries = named;
       if (entries.length === 0) {
-        const manifest = await this.deps.loadManifest(projectId).catch(() => ({ scenes: [] as WsScene[] }));
+        const manifest = await this.deps.loadManifest(projectId).catch((error) => {
+          log.warn({ err: error, projectId }, "edit manifest read failed; no scenes selected for global edit");
+          return { scenes: [] as WsScene[] };
+        });
         entries = manifest.scenes.map((s) => ({ sceneId: s.id, text: "" }));
       }
       const sceneIds = entries.map((e) => e.sceneId);
@@ -572,7 +583,10 @@ export class WorkspaceController {
       // to the draft the user already had — an edit may only IMPROVE or KEEP the
       // draft, never downgrade a passing one to a broken/error state. Mirrors the
       // visual-QA non-regression guard, now extended to user edits.
-      const snapshot = (await this.deps.worker.snapshotScenes?.(projectId, sceneIds).catch(() => [])) ?? [];
+      const snapshot = (await this.deps.worker.snapshotScenes?.(projectId, sceneIds).catch((error) => {
+        log.warn({ err: error, projectId, sceneIds }, "pre-edit snapshot failed; rollback snapshot is empty");
+        return [];
+      })) ?? [];
       // Apply the user's instruction by re-authoring the scene code…
       const applied = await this.deps.worker.reauthorScenes(
         { projectId, sceneIds, preprompt: { contractRef: "SKILL.md+AGENTS.md", affectedSceneIds: sceneIds, perSceneIntent, globalNotes } },
@@ -698,7 +712,10 @@ export class WorkspaceController {
   private async snapshotFresh(projectId: string, sceneIds: string[], preRefine: SceneSnapshot, snapshotted: Set<string>): Promise<void> {
     const fresh = sceneIds.filter((id) => !snapshotted.has(id));
     if (fresh.length === 0 || !this.deps.worker.snapshotScenes) return;
-    const snap = await this.deps.worker.snapshotScenes(projectId, fresh).catch(() => [] as SceneSnapshot);
+    const snap = await this.deps.worker.snapshotScenes(projectId, fresh).catch((error) => {
+      log.warn({ err: error, projectId, sceneIds: fresh }, "refine snapshot failed; continuing without those rollback entries");
+      return [] as SceneSnapshot;
+    });
     for (const s of snap) {
       preRefine.push(s);
       snapshotted.add(s.sceneId);
@@ -717,7 +734,10 @@ export class WorkspaceController {
    */
   private async creativeBootstrapPass(projectId: string, signal: AbortSignal | undefined, preRefine: SceneSnapshot, snapshotted: Set<string>): Promise<void> {
     if (signal?.aborted) return;
-    const manifest = await this.deps.loadManifest(projectId).catch(() => ({ scenes: [] as WsScene[] }));
+    const manifest = await this.deps.loadManifest(projectId).catch((error) => {
+      log.warn({ err: error, projectId }, "creative-bootstrap manifest read failed; bootstrap skipped");
+      return { scenes: [] as WsScene[] };
+    });
     const sceneIds = manifest.scenes.map((s) => s.id);
     if (sceneIds.length === 0) return;
 
@@ -772,7 +792,10 @@ export class WorkspaceController {
       this.setStage(projectId, { kind: "rendering", percent: 0, phase: "qa", qaPass: pass, qaTotal: passes });
       const flagged = await this.deps.worker
         .visualQa(projectId, scope, signal)
-        .catch(() => [] as { sceneId: string; issue: string }[]);
+        .catch((error) => {
+          log.warn({ err: error, projectId, sceneIds: scope }, "visual QA failed; treating pass as unflagged");
+          return [] as { sceneId: string; issue: string }[];
+        });
       if (signal?.aborted) break;
       // A clean pass has nothing to re-author. Count it toward the early-stop
       // streak and move on; never break on the FIRST clean pass alone (L4).
@@ -870,7 +893,10 @@ export class WorkspaceController {
     // Hidden pre-draft stills render (L3): a neutral "prepare" phase, never a raw
     // "draft"/"qa" percent, so the user only sees the refined take.
     this.setStage(projectId, { kind: "rendering", percent: 0, phase: "prepare" });
-    const first = await this.deps.worker.renderStills(projectId, sceneIds, signal).catch(() => ({ stills: [] }));
+    const first = await this.deps.worker.renderStills(projectId, sceneIds, signal).catch((error) => {
+      log.warn({ err: error, projectId, sceneIds }, "edited-scene still render failed; edit acceptance will fail");
+      return { stills: [] };
+    });
     if (signal?.aborted) return false;
     // Empty stills ⇒ the edit broke admission/render — caller restores the prior draft.
     if (first.stills.length === 0) return false;
@@ -1075,7 +1101,8 @@ export class WorkspaceController {
       const hasStills = manifest.scenes.some((s) => this.deps.hasStill(projectId, s.id));
       if (hasStills) return this.readyStage(projectId, await this.storyboardScenesOf(projectId));
       return { kind: "script", lines: await this.scriptLinesOf(projectId) };
-    } catch {
+    } catch (error) {
+      log.warn({ err: error, projectId }, "project recovery read failed; returning recoverable error stage");
       // An unreadable/absent manifest is the same stranded case (scaffold without
       // a manifest yet) — a recoverable error beats a permanent spinner.
       return {
@@ -1090,7 +1117,8 @@ export class WorkspaceController {
   async open(projectId: string): Promise<StoryboardModel> {
     try {
       return { projectId, scenes: await this.storyboardScenesOf(projectId), globalNotes: "" };
-    } catch {
+    } catch (error) {
+      log.warn({ err: error, projectId }, "storyboard open failed; returning empty scene list");
       return { projectId, scenes: [], globalNotes: "" };
     }
   }
@@ -1157,7 +1185,8 @@ export class WorkspaceController {
     try {
       const lines = await this.scriptLinesOf(projectId);
       return { projectId, enabled, scenes: lines.map((l) => ({ sceneId: l.sceneId, order: l.order, narration: l.narration, headline: l.headline })) };
-    } catch {
+    } catch (error) {
+      log.warn({ err: error, projectId }, "script gate read failed; returning empty scene list");
       return { projectId, enabled, scenes: [] };
     }
   }
@@ -1183,7 +1212,8 @@ export class WorkspaceController {
         this.setStage(projectId, { kind: "script", lines: await this.scriptLinesOf(projectId) });
       }
       return { ok: true };
-    } catch {
+    } catch (error) {
+      log.warn({ err: error, projectId }, "script edits failed; returning typed write-failed result");
       return { ok: false, reason: "write-failed" };
     }
   }

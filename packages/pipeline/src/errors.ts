@@ -19,6 +19,7 @@ export type PipelineStage =
   | "static-grid"
   | "build-gate"
   | "determinism"
+  | "render-lock"
   | "render"
   | "render-oracle"
   | "review"

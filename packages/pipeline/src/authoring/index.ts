@@ -8,10 +8,9 @@ export {
   type AdmissionResult,
 } from "./admission.js";
 export {
-  admitAndRegisterAuthored,
-  setAuthoredLoader,
+  admitAuthoredSceneFile,
   type AuthoredRegistration,
-  type AdmitAndRegisterOptions,
+  type AdmitAuthoredSceneOptions,
 } from "./register.js";
 export {
   scaffoldProject,

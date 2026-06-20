@@ -7,6 +7,9 @@ import type {
   ProviderInfo,
 } from "../../shared/types.js";
 import { aiReady } from "../../shared/ai-ready.js";
+import { createLogger } from "@news/pipeline";
+
+const log = createLogger("gateway");
 
 // Re-export the pure gate so existing importers of this module keep working,
 // while the source of truth lives in `shared/` (renderer-safe).
@@ -102,7 +105,10 @@ export class ModelGatewayManager {
     const max = this.deps.maxStartAttempts ?? MAX_START_ATTEMPTS;
     for (let attempt = 1; attempt <= max; attempt++) {
       this.gw = { kind: "starting", attempt };
-      const ok = await this.deps.launch().catch(() => false);
+      const ok = await this.deps.launch().catch((error) => {
+        log.warn({ err: error, attempt }, "gateway launch attempt failed; retrying if budget remains");
+        return false;
+      });
       if (ok) {
         await this.ensureLocalKey();
         this.gw = { kind: "ready", baseUrl: GATEWAY_BASE_URL };

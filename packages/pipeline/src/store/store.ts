@@ -1,8 +1,11 @@
 import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
-import { mkdir, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
+import { mkdir, open, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import type { ProjectBrief, ProjectEvent, ProjectState } from "../types.js";
+import { createLogger } from "../log/logger.js";
+
+const log = createLogger("store");
 
 /**
  * Project store + workspace hygiene. All generated artifacts live under
@@ -37,9 +40,14 @@ export function projectsRoot(): string {
  * separators, no `..`, no drive letters, no NUL.
  */
 const PROJECT_ID_RE = /^[A-Za-z0-9_-]+$/;
+const WINDOWS_RESERVED_PROJECT_ID_RE = /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])$/i;
+
+function isSafeProjectId(projectId: string): boolean {
+  return PROJECT_ID_RE.test(projectId) && !WINDOWS_RESERVED_PROJECT_ID_RE.test(projectId);
+}
 
 export function assertSafeProjectId(projectId: string): string {
-  if (typeof projectId !== "string" || !PROJECT_ID_RE.test(projectId)) {
+  if (typeof projectId !== "string" || !isSafeProjectId(projectId)) {
     throw new Error(`Invalid project id: ${JSON.stringify(projectId)}`);
   }
   return projectId;
@@ -173,12 +181,136 @@ export async function setState(
   return next;
 }
 
-/** Append a lifecycle event to events.ndjson. */
-export async function appendEvent(projectId: string, event: Omit<ProjectEvent, "at">): Promise<void> {
+export const DEFAULT_EVENT_LOG_MAX_BYTES = 5 * 1024 * 1024;
+export const EVENT_APPEND_LOCK_STALE_MS = 30_000;
+const EVENT_APPEND_LOCK_WAIT_MS = 5_000;
+const eventAppendQueues = new Map<string, Promise<void>>();
+
+export type AppendEventOptions = { maxBytes?: number };
+type EventLockMetadata = { pid: number; startedAt: string; nonce: string };
+
+/** Append one complete NDJSON event under in-process and cross-process locks. */
+export async function appendEvent(
+  projectId: string,
+  event: Omit<ProjectEvent, "at">,
+  options: AppendEventOptions = {},
+): Promise<void> {
+  assertSafeProjectId(projectId);
+  const previous = eventAppendQueues.get(projectId) ?? Promise.resolve();
+  const task = previous
+    .catch(() => undefined)
+    .then(() => appendEventWithFileLock(projectId, event, options.maxBytes ?? DEFAULT_EVENT_LOG_MAX_BYTES));
+  eventAppendQueues.set(projectId, task);
+  try {
+    await task;
+  } finally {
+    if (eventAppendQueues.get(projectId) === task) eventAppendQueues.delete(projectId);
+  }
+}
+
+async function appendEventWithFileLock(
+  projectId: string,
+  event: Omit<ProjectEvent, "at">,
+  maxBytes: number,
+): Promise<void> {
   const path = projectPaths(projectId).events;
   await mkdir(dirname(path), { recursive: true });
-  const line = JSON.stringify({ ...event, at: new Date().toISOString() });
-  await writeFile(path, `${line}\n`, { flag: "a" });
+  const release = await acquireEventAppendLock(projectId);
+  try {
+    const encoded = `${JSON.stringify({ ...event, at: new Date().toISOString() })}\n`;
+    const byteLength = Buffer.byteLength(encoded);
+    let currentSize = 0;
+    try {
+      currentSize = (await stat(path)).size;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+    }
+    if (currentSize > 0 && currentSize + byteLength > maxBytes) {
+      const archive = `${path}.1`;
+      await rm(archive, { force: true });
+      await rename(path, archive);
+    }
+    const handle = await open(path, "a");
+    try {
+      await handle.writeFile(encoded, "utf8");
+    } finally {
+      await handle.close();
+    }
+  } finally {
+    await release();
+  }
+}
+
+async function acquireEventAppendLock(projectId: string): Promise<() => Promise<void>> {
+  const path = join(projectPaths(projectId).root, ".events.lock");
+  const metadata: EventLockMetadata = {
+    pid: process.pid,
+    startedAt: new Date().toISOString(),
+    nonce: randomUUID(),
+  };
+  const deadline = Date.now() + EVENT_APPEND_LOCK_WAIT_MS;
+
+  while (true) {
+    try {
+      const handle = await open(path, "wx");
+      try {
+        await handle.writeFile(`${JSON.stringify(metadata)}\n`, "utf8");
+      } catch (error) {
+        await handle.close().catch(() => undefined);
+        await rm(path, { force: true }).catch(() => undefined);
+        throw error;
+      }
+      return async () => {
+        await handle.close().catch(() => undefined);
+        const current = await readEventLock(path);
+        if (current?.nonce === metadata.nonce) await rm(path, { force: true });
+      };
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+    }
+
+    if (await isEventLockBreakable(path)) {
+      await rm(path, { force: true });
+      continue;
+    }
+    if (Date.now() >= deadline) throw new Error(`Timed out waiting for event append lock: ${projectId}`);
+    await new Promise((resolveDelay) => setTimeout(resolveDelay, 20));
+  }
+}
+
+async function readEventLock(path: string): Promise<EventLockMetadata | null> {
+  try {
+    const parsed = JSON.parse(await readFile(path, "utf8")) as Partial<EventLockMetadata>;
+    return typeof parsed.pid === "number" && typeof parsed.startedAt === "string" && typeof parsed.nonce === "string"
+      ? { pid: parsed.pid, startedAt: parsed.startedAt, nonce: parsed.nonce }
+      : null;
+  } catch (error) {
+    return null;
+  }
+}
+
+async function isEventLockBreakable(path: string): Promise<boolean> {
+  const lock = await readEventLock(path);
+  if (lock) {
+    const started = Date.parse(lock.startedAt);
+    return (Number.isFinite(started) && Date.now() - started > EVENT_APPEND_LOCK_STALE_MS) || !isProcessAlive(lock.pid);
+  }
+  try {
+    return Date.now() - (await stat(path)).mtimeMs > EVENT_APPEND_LOCK_STALE_MS;
+  } catch (error) {
+    return false;
+  }
+}
+
+function isProcessAlive(pid: number): boolean {
+  if (!Number.isInteger(pid) || pid <= 0) return false;
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    return code !== "ESRCH";
+  }
 }
 
 export type ProjectSummary = {
@@ -219,7 +351,7 @@ export async function listProjects(): Promise<ProjectSummary[]> {
     // A real project dir is always a `createProjectId` slug; skip anything else
     // (dotfiles like `.DS_Store`/`Thumbs.db`, stray folders) rather than letting
     // `projectPaths` → `assertSafeProjectId` throw and abort the whole listing.
-    if (!PROJECT_ID_RE.test(id)) continue;
+    if (!isSafeProjectId(id)) continue;
     const p = projectPaths(id);
     if (!existsSync(p.brief)) continue;
     let brief: ProjectBrief | undefined;
@@ -256,6 +388,31 @@ const NON_TERMINAL_STATES: ReadonlySet<ProjectState> = new Set<ProjectState>([
 ]);
 
 /**
+ * Reset one stale brief only if it has not changed since the caller observed it.
+ * Desktop startup waits for reconciliation before accepting work, while this
+ * comparison also prevents an independently updated brief from being overwritten
+ * by the sweep's older listProjects snapshot.
+ */
+export async function resetStaleStateIfUnchanged(observed: ProjectBrief): Promise<boolean> {
+  const current = await readBrief(observed.projectId);
+  if (
+    current.state !== observed.state ||
+    current.updatedAt !== observed.updatedAt ||
+    !NON_TERMINAL_STATES.has(current.state)
+  ) {
+    return false;
+  }
+
+  await writeBrief({
+    ...current,
+    state: "failed",
+    currentStep: "Phiên trước bị gián đoạn khi đang xử lý. Hãy thử lại.",
+    updatedAt: new Date().toISOString(),
+  });
+  return true;
+}
+
+/**
  * Reconcile stale non-terminal project states left by a crashed prior session.
  * Rewrites any brief stuck mid-job to `failed` (with a friendly step) so the UI
  * never shows a permanently-stuck "rendering" badge. Best-effort and total: a
@@ -268,13 +425,12 @@ export async function reconcileStaleStates(): Promise<string[]> {
     const brief = summary.brief;
     if (!brief || !NON_TERMINAL_STATES.has(brief.state)) continue;
     try {
-      await setState(brief.projectId, {
-        state: "failed",
-        currentStep: "Phiên trước bị gián đoạn khi đang xử lý. Hãy thử lại.",
-      });
-      reset.push(brief.projectId);
-    } catch {
-      /* a single unwritable brief must not abort the sweep */
+      if (await resetStaleStateIfUnchanged(brief)) reset.push(brief.projectId);
+    } catch (error) {
+      log.warn(
+        { err: error, projectId: brief.projectId },
+        "stale-state reconcile failed for project; continuing sweep",
+      );
     }
   }
   return reset;
