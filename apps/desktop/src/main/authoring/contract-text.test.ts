@@ -86,4 +86,12 @@ describe("AUTHORING_CONTRACT — no-block / raw-JSX invariants", () => {
     expect(AUTHORING_CONTRACT).toMatch(/advisory — KHÔNG chặn render/);
     expect(AUTHORING_CONTRACT).toMatch(/Không có đường kẻ nào do hệ thống vẽ/);
   });
+
+  it("encourages scene-long visual progression without making motion mandatory", () => {
+    expect(AUTHORING_CONTRACT).toMatch(/DIỄN TIẾN qua phần lớn thời lượng/);
+    expect(AUTHORING_CONTRACT).toMatch(/KHÔNG phải luật bắt buộc/);
+    expect(AUTHORING_CONTRACT).toMatch(/cảnh tĩnh có chủ đích vẫn hoàn toàn hợp lệ/);
+    expect(AUTHORING_CONTRACT).toMatch(/không cần làm mọi phần tử chuyển động/);
+    expect(AUTHORING_CONTRACT).not.toMatch(/ANIMATION PHẢI|mọi cảnh phải chuyển động/);
+  });
 });

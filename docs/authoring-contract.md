@@ -234,12 +234,23 @@ the full line; keep the scene airy with one or two large text marks.
 
 ## Motion
 
-Every scene needs deliberate, tasteful motion — content must neither just "pop" in
-fully formed nor sit frozen. The rules:
+When it serves the idea, prefer a scene that keeps **visually progressing across
+much of its duration** instead of completing one entrance and then sitting
+frozen. Treat motion as part of visual storytelling: information can reveal in
+stages, a path can continue drawing, values or relationships can develop, focus
+can move between elements, or a few gentle phases can follow one another.
+
+This is **creative encouragement, not a requirement**. Not every scene needs
+continuous movement, not every element should move, and an intentionally static
+scene is valid. Do not add meaningless motion merely to keep pixels moving.
+When motion fits:
 
 - **Entrances settle.** Drive entrances with `useCurrentFrame()` +
   `interpolate(..., { extrapolateRight: "clamp" })` or `spring()` so they ease in
   and reach a steady state — never just snap to fully-formed.
+- **Let the scene evolve beyond its entrance.** A second or third bounded phase
+  may continue the story after the initial reveal. Keep each phase purposeful
+  and frame-derived; it may settle before the next phase begins.
 - **Ambient "living card" tilt (optional).** If you want subtle life, compute one
   small rotation angle from the frame and apply it to the ONE parent wrapper that
   holds the scene's floating elements — never per-child — so they move together as
@@ -258,7 +269,8 @@ fully formed nor sit frozen. The rules:
 - **Captions are smooth karaoke on TikTok.** The caption track highlights the
   spoken word with an EASED scale + color ramp (not a hard snap). It is generated
   centrally; do not author it. YouTube-format output does not burn this layer in.
-- Stagger multiple elements so a scene assembles, but finish well before the hold.
+- Stagger multiple elements when assembly helps the idea; a later bounded phase
+  may carry the visual story forward instead of leaving a long inert hold.
 
 ## Duration target (rather over than under)
 

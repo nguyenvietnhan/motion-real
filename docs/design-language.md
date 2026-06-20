@@ -81,10 +81,17 @@ The ONE authored-facing import beyond react/remotion/zod is
 
 ## Motion (still disciplined — a viewer rule, not a look rule)
 
-Motion discipline survives the pivot because janky motion hurts the viewer:
+Motion discipline survives the pivot because janky motion hurts the viewer.
+When it suits the content, **prefer a visual progression across much of the
+scene** over one entrance followed by a long frozen hold. That progression can
+be a staged reveal, a continuing draw, a developing relationship, or a shift of
+focus between elements. This is guidance, not a quota: an intentionally static
+scene is valid, and there is no need to move every element.
 
 - **Entrances settle** (springs / clamped ramps, fps-aware) — `useCurrentFrame()`
   + `interpolate(..., { extrapolateRight: "clamp" })` or `spring()`.
+- **A scene may keep evolving after the entrance** through a few bounded,
+  purposeful phases rather than ambient movement for its own sake.
 - **Ambient "living card" tilt** on the ONE parent wrapper (a small frame-derived
   rotation), never per-child — alive, not jittery.
 - **No perpetual oscillation / unbounded motion** — never animate off

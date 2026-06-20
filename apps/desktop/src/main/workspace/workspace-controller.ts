@@ -681,11 +681,13 @@ export class WorkspaceController {
   private static readonly BOOTSTRAP_INTENT =
     "Làm cảnh này TÁO BẠO và ĐẸP hơn hẳn — bố cục lệch chuẩn có chủ đích, điểm nhấn mạnh, " +
     "đồ hoạ SVG/CSS tự vẽ phong phú. Coi như bản CUỐI, đừng chơi an toàn. " +
-    "ANIMATION PHẢI CÓ NHỊP ĐIỆU SUỐT CẢNH, không chỉ vài frame đầu rồi đứng im: lấy useCurrentFrame() " +
-    "làm động cơ cho NHIỀU PHA chuyển động nối tiếp — lớp vào, số/thanh chạy dần, nét vẽ hiện dần, " +
-    "thị sai dịch chuyển có điểm dừng, rồi nhấn và settle. Dùng interpolate có clamp hoặc spring nối tiếp; " +
-    "KHÔNG dùng Math.sin(frame), frame % n, interpolate không clamp hay bất kỳ dao động/lặp vĩnh viễn nào. " +
-    "Chuyển động phải mượt, có chủ đích và luôn tiến tới trạng thái hoàn tất. Giữ nguyên nội dung/ý + lời đọc của cảnh.";
+    "Khi hợp với nội dung, hãy để hình ảnh có cảm giác ĐANG DIỄN TIẾN qua phần lớn thời lượng cảnh, " +
+    "không chỉ xuất hiện ở vài frame đầu rồi đứng yên. Có thể hé lộ thông tin dần, vẽ tiếp đường/nét, " +
+    "dịch chuyển điểm nhấn hoặc nối vài nhịp motion nhẹ — tự chọn cách phù hợp với ý tưởng. " +
+    "Đây là khuyến khích sáng tạo, KHÔNG bắt buộc mọi cảnh hay mọi phần tử phải chuyển động; cảnh tĩnh có chủ đích vẫn hợp lệ. " +
+    "Nếu dùng motion, giữ nó mượt, có mục đích, deterministic và giới hạn bằng interpolate có clamp hoặc spring; " +
+    "KHÔNG dùng Math.sin(frame), frame % n, interpolate không clamp hay dao động/lặp vĩnh viễn. " +
+    "Giữ nguyên nội dung/ý + lời đọc của cảnh.";
 
   /**
    * Snapshot the authored source of any scenes not yet snapshotted in this refine

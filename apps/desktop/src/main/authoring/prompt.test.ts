@@ -77,6 +77,15 @@ describe("buildAuthorMessages", () => {
     expect(text).toMatch(/beat chữ ký|bespoke/i);
   });
 
+  it("encourages visual progression across a scene without forcing motion everywhere", () => {
+    const [sys] = buildAuthorMessages({ text: "Chủ đề bất kỳ", urls: [] });
+    const text = sys!.content;
+    expect(text).toMatch(/DIỄN TIẾN qua phần lớn thời lượng/);
+    expect(text).toMatch(/KHÔNG phải luật bắt buộc/);
+    expect(text).toMatch(/cảnh tĩnh có chủ đích vẫn hoàn toàn hợp lệ/);
+    expect(text).not.toMatch(/ANIMATION PHẢI|mọi cảnh phải chuyển động/);
+  });
+
   it("demands SHARP narration voice with a hook + a banned-cliché list (not flat encyclopedic prose)", () => {
     // The observed defect: the prompt poured all its creative pressure into the
     // VISUAL ("TÁO BẠO" — big stats, two columns, SVG beats) but said nothing about
@@ -256,6 +265,14 @@ describe("buildReauthorMessages", () => {
     expect(text).toContain("hook-eye");
     expect(text).toContain("bị cắt chữ");
     expect(text).toContain(base.currentCode);
+  });
+
+  it("carries the same soft motion direction into user-requested scene rewrites", () => {
+    const msgs = buildReauthorMessages({ ...base, intent: "chỉnh lại cảnh theo ý người dùng" });
+    const system = msgs[0]!.content as string;
+    expect(system).toMatch(/DIỄN TIẾN qua phần lớn thời lượng/);
+    expect(system).toMatch(/KHÔNG phải luật bắt buộc/);
+    expect(system).toMatch(/cảnh tĩnh có chủ đích vẫn hoàn toàn hợp lệ/);
   });
 
   it("includes an image_url part when a still data URL is provided", () => {
