@@ -54,7 +54,9 @@ are enforced by `packages/pipeline/src/safety/content-rules.ts` (N6–N9, N26, N
   that is NOT an error when the voice is complete, natural, uncut, and unrushed.
 - Each scene supplies `component` (an admitted authored id), `headline`,
   optional `body`/`eyebrow`, `narration`, `props` (matching that component's Zod
-  schema), optional `sfx`, and optional `transitionToNext` (`slide`/`fade`).
+  schema), and optional `sfx`. Prefer authoring a custom `transitionToNext`
+  component inside the outgoing scene module when a content-specific handoff
+  helps; the legacy manifest transition field is still accepted for old projects.
 - **Captions are generated for you**, centrally, in the selected video language
   captions from each scene's `narration` (timed from the TTS SRT). TikTok burns
   them in as word-paged karaoke; YouTube-format output omits the burned caption

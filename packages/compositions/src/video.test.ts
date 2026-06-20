@@ -3,26 +3,85 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { makeTheme } from "@news/theme";
 import type { LockedSceneSpec } from "@news/schema";
-import { CompositionBackdrop, SceneContent } from "./video.js";
+import { z } from "zod";
+import { registerComponent, unregisterComponent, type SceneTransitionProps } from "./registry.js";
+import { CompositionBackdrop, presentationForSceneTransition, SceneContent } from "./video.js";
+
+function makeScene(overrides: Partial<LockedSceneSpec> = {}): LockedSceneSpec {
+  return {
+    id: "scene-01",
+    component: "not-registered",
+    durationInSeconds: 3,
+    headline: "Fallback",
+    narration: "Một câu đọc thử.",
+    props: {},
+    startFrame: 0,
+    durationInFrames: 90,
+    ...overrides,
+  };
+}
+
+function renderPresentation(
+  presentation: ReturnType<typeof presentationForSceneTransition>,
+  direction: "entering" | "exiting",
+  progress: number,
+): string {
+  return renderToStaticMarkup(
+    React.createElement(
+      presentation.component as React.ComponentType<Record<string, unknown>>,
+      {
+        presentationProgress: progress,
+        presentationDirection: direction,
+        presentationDurationInFrames: 15,
+        passedProps: presentation.props,
+        onElementImage: () => {},
+        onUnmount: () => {},
+        bothEnteringAndExiting: false,
+      },
+      React.createElement("span", null, "child"),
+    ),
+  );
+}
 
 describe("VideoComposition missing-component fallback", () => {
   it("renders a visible error panel for unknown component ids", () => {
-    const scene: LockedSceneSpec = {
-      id: "scene-01",
-      component: "not-registered",
-      durationInSeconds: 3,
-      headline: "Fallback",
-      narration: "Một câu đọc thử.",
-      props: {},
-      startFrame: 0,
-      durationInFrames: 90,
-    };
+    const scene: LockedSceneSpec = makeScene();
 
     const html = renderToStaticMarkup(React.createElement(SceneContent, { scene }));
 
     expect(html).toContain("scene-01");
     expect(html).toContain("unknown component");
     expect(html).toContain("not-registered");
+  });
+});
+
+describe("VideoComposition authored transitions", () => {
+  it("uses the outgoing component's authored transition before the legacy enum", () => {
+    const id = "test-transition-scene";
+    unregisterComponent(id);
+    const Transition: React.FC<SceneTransitionProps> = ({ direction, children }) =>
+      React.createElement("div", { "data-authored-transition": direction }, children);
+    registerComponent({
+      id,
+      displayName: "Test transition",
+      promptGuide: "test only",
+      schema: z.object({}),
+      Component: () => null,
+      transitionToNext: Transition,
+      example: {},
+    });
+
+    const presentation = presentationForSceneTransition(makeScene({ component: id, transitionToNext: "slide" }), 0);
+    const html = renderPresentation(presentation, "entering", 0.5);
+    expect(html).toContain('data-authored-transition="entering"');
+
+    unregisterComponent(id);
+  });
+
+  it("falls back to fade when no authored transition or legacy enum exists", () => {
+    const presentation = presentationForSceneTransition(makeScene(), 0);
+    const html = renderPresentation(presentation, "entering", 0.5);
+    expect(html).toContain("opacity:0.5");
   });
 });
 

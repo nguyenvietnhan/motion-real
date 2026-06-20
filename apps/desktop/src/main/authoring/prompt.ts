@@ -123,7 +123,7 @@ const OUTPUT_FORMAT = `ĐỊNH DẠNG TRẢ VỀ (AI_Output_Contract) — trả 
   "hashtags": ["#chu_de", "#tu_khoa"],
   "theme": { "dominant": "#RRGGBB", "mood": "mô tả ngắn tông màu" },
   "scenes": [
-    { "component": "id-canh", "eyebrow": "NHÃN", "headline": "tiêu đề cảnh", "narration": "lời đọc", "props": { }, "transitionToNext": "slide|fade|wipe|clockWipe|zoom" }
+    { "component": "id-canh", "eyebrow": "NHÃN", "headline": "tiêu đề cảnh", "narration": "lời đọc", "props": { } }
   ]
 }
 \`\`\`
@@ -134,24 +134,30 @@ const OUTPUT_FORMAT = `ĐỊNH DẠNG TRẢ VỀ (AI_Output_Contract) — trả 
 import React from "react";
 import { z } from "zod";
 import { useCurrentFrame, interpolate } from "remotion";
-import { registerComponent, type SceneComponentProps } from "@news/compositions";
+import { registerComponent, type SceneComponentProps, type SceneTransitionProps } from "@news/compositions";
 export const schema = z.object({ /* props */ });
 type Props = z.infer<typeof schema>;
 const Scene: React.FC<SceneComponentProps<Props>> = ({ headline, eyebrow }) => {
   const frame = useCurrentFrame();
   const enter = interpolate(frame, [0, 18], [0, 1], { extrapolateRight: "clamp" });
   return (
-    <div style={{ position: "absolute", inset: 0, background: "#0b1020", display: "flex", flexDirection: "column", justifyContent: "center", padding: 80, opacity: enter }}>
+    <div style={{ position: "absolute", inset: 0, background: "#0b1020", display: "flex", flexDirection: "column", justifyContent: "center", padding: 80 }}>
       <span style={{ fontSize: 28, letterSpacing: 4, color: "#7dd3fc" }}>{eyebrow ?? "TIN"}</span>
-      <h1 style={{ fontSize: 96, lineHeight: 1.05, color: "#fff", margin: 0, fontWeight: 800 }}>{headline}</h1>
+      <h1 style={{ fontSize: 96, lineHeight: 1.05, color: "#fff", margin: 0, fontWeight: 800, opacity: enter }}>{headline}</h1>
       {/* đồ hoạ SVG/CSS bespoke riêng cho cảnh này ở đây */}
     </div>
   );
 };
+const TransitionToNext: React.FC<SceneTransitionProps> = ({ progress, direction, children }) => (
+  <div style={{ position: "absolute", inset: 0, overflow: "hidden", transform: direction === "entering" ? \`translateY(\${(1 - progress) * 10}px)\` : "none", opacity: direction === "entering" ? progress : 1 }}>
+    {children}
+    <div style={{ position: "absolute", inset: 0, background: \`linear-gradient(90deg, transparent, rgba(125,211,252,\${0.28 * (1 - Math.abs(progress - 0.5) * 2)}), transparent)\`, transform: \`translateX(\${-80 + progress * 160}%)\`, pointerEvents: "none" }} />
+  </div>
+);
 export const example: Props = { /* hợp lệ với schema */ };
-export default registerComponent<Props>({ id: "id-canh", displayName: "...", promptGuide: "...", schema, Component: Scene, example });
+export default registerComponent<Props>({ id: "id-canh", displayName: "...", promptGuide: "...", schema, Component: Scene, transitionToNext: TransitionToNext, example });
 \`\`\`
-id trong manifest phải KHỚP id literal trong registerComponent. KHÔNG kèm văn bản thừa ngoài các khối trên.`;
+id trong manifest phải KHỚP id literal trong registerComponent. KHÔNG thêm transitionToNext vào JSON manifest; nếu muốn transition riêng, viết transitionToNext trong registerComponent của module .tsx. KHÔNG kèm văn bản thừa ngoài các khối trên.`;
 
 /**
  * Build the AUTHOR system prompt for the chosen DELIVERY FORMAT (no design style

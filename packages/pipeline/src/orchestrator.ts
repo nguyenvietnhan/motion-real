@@ -61,6 +61,7 @@ import {
   type RenderVideoOptions,
   type RenderVideoResult,
 } from "./render/renderer.js";
+import { DEFAULT_TRANSITION_SAMPLE_FRACTIONS } from "./render/transition-samples.js";
 import { buildReview, type BuildReviewOptions, type ComposeContactSheet, type ReviewArtifacts } from "./review.js";
 
 /**
@@ -616,9 +617,17 @@ async function renderProjectUnlocked(projectId: string, opts: RenderProjectOptio
           // keyframes (same bundle, no extra browser/bundle) so the N14 late pass
           // below has post-midpoint frames to scan. The returned keyframe list is
           // unchanged, so the contact sheet stays one-still-per-scene.
-          renderOptions: { ...renderEntry, timingScope: "review-stills", extraFractions: LATE_SAFE_AREA_FRACTIONS },
+          renderOptions: {
+            ...renderEntry,
+            timingScope: "review-stills",
+            extraFractions: LATE_SAFE_AREA_FRACTIONS,
+            transitionFractions: [...DEFAULT_TRANSITION_SAMPLE_FRACTIONS],
+          },
         }),
-      { extraFractions: LATE_SAFE_AREA_FRACTIONS.length },
+      {
+        extraFractions: LATE_SAFE_AREA_FRACTIONS.length,
+        transitionFractions: DEFAULT_TRANSITION_SAMPLE_FRACTIONS.length,
+      },
     );
 
     // --- (7) Tier-3 render oracles over the review keyframes. ---
@@ -628,6 +637,7 @@ async function renderProjectUnlocked(projectId: string, opts: RenderProjectOptio
       ...(spec.language === "vi" ? { maxWordsPerSecond: 5.0 } : {}),
       // Soft duration target (±tolerance) from the brief, when set.
       ...(brief.duration ? { targetDurationSeconds: brief.duration } : {}),
+      transitionSampleFractions: [...DEFAULT_TRANSITION_SAMPLE_FRACTIONS],
     };
     const renderGrid = await timedPipelineStage(
       "stage.render_oracles",

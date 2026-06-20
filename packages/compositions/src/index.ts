@@ -20,6 +20,7 @@ export {
   validateProps,
   type SceneComponentDefinition,
   type SceneComponentProps,
+  type SceneTransitionProps,
   type PropValidationIssue,
 } from "./registry.js";
 

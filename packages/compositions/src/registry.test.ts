@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
+import type React from "react";
 import {
   getComponent,
   registerComponent,
   unregisterComponent,
   type SceneComponentDefinition,
+  type SceneTransitionProps,
 } from "./registry.js";
 
 function makeDef(id: string): SceneComponentDefinition<Record<string, never>> {
@@ -41,5 +43,17 @@ describe("unregisterComponent seam", () => {
     // Leave the registry clean.
     unregisterComponent(id);
     expect(getComponent(id)).toBeUndefined();
+  });
+
+  it("stores an optional authored transition on the component definition", () => {
+    const id = "test-authored-transition";
+    unregisterComponent(id);
+    const Transition: React.FC<SceneTransitionProps> = ({ children }) => children;
+    const def = { ...makeDef(id), transitionToNext: Transition };
+
+    registerComponent(def);
+    expect(getComponent(id)?.transitionToNext).toBe(Transition);
+
+    unregisterComponent(id);
   });
 });

@@ -11,6 +11,7 @@ import type { LockedVideoSpec } from "@news/schema";
 import { transitionFrames } from "@news/schema";
 import { createLogger } from "../log/logger.js";
 import { stableStringify } from "./cache.js";
+import { transitionSampleFileName, transitionSampleFrame } from "./transition-samples.js";
 
 const DEFAULT_COMPOSITION_ID = "NewsVideo";
 
@@ -147,6 +148,8 @@ export type RenderSceneStillsOptions = RenderBaseOptions & {
    * unchanged (midpoints only), so the review contact sheet is unaffected.
    */
   extraFractions?: number[];
+  /** Extra per-transition samples, as fractions through each fixed overlap. */
+  transitionFractions?: number[];
   /**
    * Render stills for ONLY these scene ids (the fast refine loop re-renders just
    * the scenes it edited — R4.3/R5.3). The composition still bundles + lays out
@@ -317,6 +320,33 @@ export async function renderSceneStills(
           }),
         { sceneId: scene.id, frame: lateFrame, kind: "late", fraction },
       );
+    }
+
+    if (index < spec.scenes.length - 1) {
+      const next = spec.scenes[index + 1]!;
+      for (const fraction of timingOpts.transitionFractions ?? []) {
+        const transitionFrame = transitionSampleFrame(spec, index, fraction);
+        if (transitionFrame === null) continue;
+        await timedRender(
+          timingOpts,
+          "renderStill",
+          () =>
+            renderStill({
+              composition: prepared.composition,
+              serveUrl: prepared.serveUrl,
+              output: join(stillDir, transitionSampleFileName(scene.id, next.id, fraction)),
+              frame: transitionFrame,
+              inputProps: prepared.inputProps,
+              imageFormat: "png",
+              overwrite: true,
+              timeoutInMilliseconds: BROWSER_TIMEOUT_MS,
+              logLevel: timingOpts.logLevel ?? "warn",
+              ...chromiumRuntimeOptions(timingOpts),
+              ...(cancelSignal ? { cancelSignal } : {}),
+            }),
+          { sceneId: next.id, frame: transitionFrame, kind: "transition", fraction, fromSceneId: scene.id },
+        );
+      }
     }
 
     timingOpts.onProgress?.(index + 1, spec.scenes.length);

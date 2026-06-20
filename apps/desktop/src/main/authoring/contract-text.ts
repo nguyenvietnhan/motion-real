@@ -20,6 +20,7 @@ EXPORT BẮT BUỘC (mọi module):
 - export const example: Props = {...}      // PHẢI hợp lệ với schema
 - export default registerComponent<Props>({ id: "ten-canh", displayName, promptGuide, schema, Component: Scene, example });
   → id là CHUỖI LITERAL (chữ thường/số/gạch-ngang), trùng id trong manifest.
+- TUỲ CHỌN: có thể thêm transitionToNext trong registerComponent nếu cảnh này cần chuyển sang cảnh kế tiếp theo cách riêng. Transition là React component nhận { progress, direction, durationInFrames, children } từ type SceneTransitionProps của "@news/compositions".
 
 CÚ PHÁP TSX BẮT BUỘC (tự kiểm như chạy TypeScript parser trước khi trả lời):
 - Mỗi module phải là TypeScript/TSX parse được hoàn chỉnh: import/export hợp lệ, JSX tag đóng đủ, ngoặc (), {}, [], dấu phẩy và dấu nháy cân bằng.
@@ -56,6 +57,13 @@ CHỮ TRÊN CẢNH ≠ LỜI ĐỌC (lỗi hay gặp: bê NGUYÊN câu narration
 CAPTIONS: phụ đề tiếng Việt một dòng sinh TRUNG TÂM từ narration + đốt vào video (karaoke). KHÔNG tự viết phụ đề trong props.
 
 DETERMINISM + MOTION: KHUYẾN KHÍCH cảnh có cảm giác đang DIỄN TIẾN qua phần lớn thời lượng khi phù hợp với nội dung, thay vì mọi thứ chỉ xuất hiện ở đầu rồi đứng yên. Hãy nghĩ motion như một phần của cách kể bằng hình: thông tin có thể được hé lộ dần, nét/đường được vẽ tiếp, số liệu hoặc quan hệ thay đổi theo tiến trình, điểm nhấn chuyển từ phần này sang phần khác, hay nhiều lớp chuyển động nhẹ nối nhau. Đây là HƯỚNG SÁNG TẠO, KHÔNG phải luật bắt buộc: không cần làm mọi phần tử chuyển động, và một cảnh tĩnh có chủ đích vẫn hoàn toàn hợp lệ; đừng thêm chuyển động vô nghĩa chỉ để cảnh luôn động. Tự viết hoạt hoạ bằng useCurrentFrame() + spring()/interpolate() của remotion (KHÔNG có hook block nào nữa — không useReveal/useRamp/useTilt), giữ chuyển động mượt, có mục đích và deterministic. Có thể chia thành vài nhịp tự nhiên trong cảnh, nhưng mỗi nhịp nên được giới hạn/settle bằng interpolate có clamp hoặc spring; KHÔNG dao động/lặp vĩnh viễn (đừng dùng Math.sin(frame), frame%n, interpolate không clamp).
+
+AI-AUTHORED TRANSITIONS (tuỳ chọn, để chuyển cảnh hợp nội dung):
+- Nếu cảnh có một visual/metaphor rõ để nối sang cảnh sau, hãy tự viết một transitionToNext trong module này: vệt quét cùng màu với biểu đồ, đường nối node mở ra cảnh tiếp theo, mask/slide tự vẽ, hoặc camera push hợp ý. Nếu cảnh cần nhẹ nhàng, bỏ transitionToNext để hệ thống dùng fade/legacy an toàn.
+- Runtime cố định thời lượng transition ~0,5s và đặt overlap vào khoảng im lặng; bạn KHÔNG tự quản thời gian, KHÔNG cắt lời đọc, KHÔNG dùng setTimeout/requestAnimationFrame.
+- Transition component PHẢI render {children}. Dùng progress 0→1 và direction "entering"/"exiting" để style wrapper khác nhau cho cảnh đi ra / đi vào. Dùng <div>/<svg> deterministic; không import thư viện transition ngoài.
+- Tránh flash đen: nền/root của scene nên có mặt từ frame 0; đừng fade toàn bộ root scene từ opacity 0 ở đầu cảnh. Nếu muốn reveal, reveal nội dung/graphic bên trong, không làm mất nền toàn khung trong overlap.
+- Transition đẹp là transition phục vụ nội dung, không phải hiệu ứng nặng ở mọi điểm nối. Tự do sáng tạo, nhưng giữ mượt và đọc được.
 
 ĐA DẠNG HÌNH THỨC + VISUALIZE SÁNG TẠO (QUAN TRỌNG — lỗi hay gặp nhất là MỌI cảnh chỉ là một tiêu đề + một panel chữ ở giữa, video nào cũng một khuôn). Đừng chỉ ĐẶT CHỮ lên cảnh — hãy BIẾN Ý của cảnh thành HÌNH: tự vẽ đồ hoạ/sơ đồ/ẩn dụ thị giác riêng cho nội dung đó bằng SVG/CSS. Mỗi cảnh CHỌN cách trình bày theo KIỂU nội dung; khi ý có chủ thể cụ thể, ưu tiên một hình tự vẽ hơn là thêm một hộp chữ. Bản đồ nội dung → hình thức (gợi ý, KHÔNG phải khuôn buộc):
 - Con số/chỉ số THẬT (%, tiền, lượng) → số RẤT lớn (80–160px, tự dựng bằng <div> chữ to + đếm lên bằng interpolate), hoặc TỰ VẼ con số thành hình: vòng tròn tiến trình, cột/thanh tỉ lệ, lưới chấm "x trên 100", kim đồng hồ đo. KHÔNG nhét số vào câu chữ thường.
