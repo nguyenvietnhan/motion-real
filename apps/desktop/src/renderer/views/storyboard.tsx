@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import type { BgmTrackVM, StoryboardModel } from "../../shared/types.js";
 import { Icon } from "../icons.js";
 import { EmptyState, InfoHint } from "../primitives.js";
+import { compactNotificationMessage, errorDetails, useNotifications } from "../notifications.js";
 
 /**
  * Background-music picker (I2): a compact dropdown of the per-machine BGM
@@ -103,7 +104,7 @@ const BgmPicker: React.FC<{
           </div>
 
           {missing && (
-            <div className="ns-bgm-missing">Không tìm thấy “{selected}”. Hãy chọn bài khác.</div>
+          <div className="ns-bgm-missing">Không tìm thấy “{selected}”. Chọn bài khác.</div>
           )}
 
           {bgm.map((track) => (
@@ -133,7 +134,7 @@ const BgmPicker: React.FC<{
             </div>
           ))}
 
-          {bgm.length === 0 && <div className="ns-bgm-empty">Chưa có nhạc nền. Bấm + để thêm.</div>}
+          {bgm.length === 0 && <div className="ns-bgm-empty">Chưa có nhạc nền. Thêm bằng nút +.</div>}
         </div>
       )}
     </div>
@@ -186,10 +187,10 @@ export const StoryboardView: React.FC<{
   // When a draft video exists, the big preview defaults to playing it; this flips
   // to the selected scene's still (what you point at to edit one scene).
   const [showStill, setShowStill] = useState(false);
-  const [dismissedNotice, setDismissedNotice] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [submitError, setSubmitError] = useState("");
   const [bgmSaving, setBgmSaving] = useState(false);
+  const notify = useNotifications();
+  const lastNotice = useRef("");
 
   const scenes = model.scenes;
   const idx = Math.min(selected, Math.max(0, scenes.length - 1));
@@ -202,10 +203,19 @@ export const StoryboardView: React.FC<{
   const setCurrentEdit = (text: string): void => {
     if (current) setEdits((m) => ({ ...m, [current.sceneId]: text }));
   };
+  useEffect(() => {
+    if (!notice || notice === lastNotice.current) return;
+    lastNotice.current = notice;
+    notify.warning({
+      title: "Cần chú ý",
+      message: compactNotificationMessage(notice, "Kiểm tra bản nháp trước khi duyệt."),
+      details: notice,
+    });
+  }, [notice, notify]);
+
   const sendAll = (): void => {
     if (!canSend || submitting) return;
     setSubmitting(true);
-    setSubmitError("");
     // Capture drafts, but DON'T clear them until the backend confirms — on a
     // failed/rejected submit the user keeps everything they typed (audit P1-7).
     void onSubmit(batch, notes.trim())
@@ -215,11 +225,20 @@ export const StoryboardView: React.FC<{
           setNotes("");
           setShowEdit(false);
         } else {
-          setSubmitError("Không gửi được chỉnh sửa. Nội dung bạn nhập vẫn được giữ — hãy thử lại.");
+          notify.error({
+            title: "Không gửi được chỉnh sửa",
+            message: "Nội dung bạn nhập vẫn được giữ.",
+            details: "Backend từ chối chỉnh sửa.",
+          });
         }
       })
-      .catch(() => {
-        setSubmitError("Không gửi được chỉnh sửa. Nội dung bạn nhập vẫn được giữ — hãy thử lại.");
+      .catch((error: unknown) => {
+        const details = errorDetails(error);
+        notify.error({
+          title: "Không gửi được chỉnh sửa",
+          message: "Nội dung bạn nhập vẫn được giữ.",
+          details,
+        });
       })
       .finally(() => setSubmitting(false));
   };
@@ -246,7 +265,7 @@ export const StoryboardView: React.FC<{
   // fills the rest WITHOUT page scroll (rail + edit panel scroll internally).
   const Header = (
     <div className="ns-story-header">
-      <button className="ns-btn" onClick={onBack}>← Quay lại</button>
+      <button className="ns-btn" onClick={onBack}>Quay lại</button>
       <div className="ns-story-title">
         <strong style={{ fontSize: 16 }}>Duyệt cảnh</strong>
         {scenes.length > 0 && <span style={{ color: "var(--muted-foreground)", fontSize: 13 }}>Cảnh {idx + 1}/{scenes.length}</span>}
@@ -288,22 +307,6 @@ export const StoryboardView: React.FC<{
   return (
     <div style={{ height: "100%", display: "flex", flexDirection: "column", overflow: "hidden" }}>
       {Header}
-
-      {notice && notice !== dismissedNotice && (
-        <div style={{ display: "flex", alignItems: "center", gap: 12, margin: "10px 14px 0", padding: "10px 14px",
-          borderRadius: 8, border: "1px solid var(--warn)", background: "color-mix(in srgb, transparent 86%, var(--warn))", flexShrink: 0 }}>
-          <span style={{ fontSize: 13, color: "var(--foreground)", marginRight: "auto" }}>{notice}</span>
-          <button className="ns-btn" style={{ padding: "4px 10px" }} onClick={() => setDismissedNotice(notice)}>Đã hiểu</button>
-        </div>
-      )}
-
-      {submitError && (
-        <div role="alert" style={{ display: "flex", alignItems: "center", gap: 12, margin: "10px 14px 0", padding: "10px 14px",
-          borderRadius: 8, border: "1px solid var(--danger)", background: "color-mix(in srgb, transparent 86%, var(--danger))", flexShrink: 0 }}>
-          <span style={{ fontSize: 13, color: "var(--foreground)", marginRight: "auto" }}>{submitError}</span>
-          <button className="ns-btn" style={{ padding: "4px 10px" }} onClick={() => setSubmitError("")}>Đã hiểu</button>
-        </div>
-      )}
 
       {/* Body fills the viewport; rail + edit panel scroll internally (no page scroll). */}
       <div style={{ flex: 1, minHeight: 0, display: "flex", gap: 14, padding: 14 }}>
@@ -353,7 +356,7 @@ export const StoryboardView: React.FC<{
               </div>
               {/* Hover-only hint: the shared (i) primitive, so the tooltip style
                   matches Settings instead of a raw native title bubble. */}
-              <InfoHint text="Bản nháp nhẹ để xem nhịp & nghe giọng — bản cuối sẽ nét hơn." />
+              <InfoHint text="Bản nháp nhẹ để xem nhịp và nghe giọng. Bản cuối sẽ nét hơn." />
             </div>
           )}
           {/* Grid track is pinned to minmax(0,1fr) on both axes: an auto track would

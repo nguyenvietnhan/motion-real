@@ -4,6 +4,7 @@ import type { GalleryLoad } from "../../shared/gallery-controller.js";
 import { validateCreateInput, extractUrls } from "../../shared/create-validation.js";
 import { Icon } from "../icons.js";
 import { EmptyState, PageHeader, ProjectGrid } from "../primitives.js";
+import { compactNotificationMessage, errorDetails, useNotifications } from "../notifications.js";
 
 /** Read a File's bytes and base64-encode them (stable across the IPC boundary). */
 async function fileToBase64(file: File): Promise<string> {
@@ -22,6 +23,10 @@ const REJECT_REASON: Record<string, string> = {
   "decode-failed": "không đọc được ảnh",
   empty: "tệp rỗng",
 };
+
+function rejectedImageDetails(rejected: PickImagesResult["rejected"]): string {
+  return rejected.map((r) => REJECT_REASON[r.reason] ?? r.reason).join(", ");
+}
 
 /**
  * A compact delivery-knob button (freeform-engine G3): a short pill showing an
@@ -154,12 +159,11 @@ export const HomeView: React.FC<{
   /** Rename a project's display title (H2/R9.4). Absent ⇒ no rename affordance. */
   onRename?: (id: string, newTitle: string) => void;
   onRetry?: () => void;
-  createError?: string;
-}> = ({ aiReady, load, cards, onCreate, onOpen, onConnectPrompt, defaultVoiceProvider, onPickImages, onImportImageBytes, onUnstageImage, onDelete, onReveal, onRename, onRetry, createError }) => {
+}> = ({ aiReady, load, cards, onCreate, onOpen, onConnectPrompt, defaultVoiceProvider, onPickImages, onImportImageBytes, onUnstageImage, onDelete, onReveal, onRename, onRetry }) => {
   const [raw, setRaw] = useState("");
   const [images, setImages] = useState<StagedImage[]>([]);
-  const [rejectNote, setRejectNote] = useState("");
   const [dragOver, setDragOver] = useState(false);
+  const notify = useNotifications();
   // The three delivery knobs the user picks at create time (freeform-engine
   // R7/R9). The backend threads these into the prompt + spec — the model never
   // chooses them. Defaults: TikTok / tier 1 / Vietnamese video. (Crude temporary
@@ -196,16 +200,27 @@ export const HomeView: React.FC<{
       const seen = new Set(prev.map((s) => s.ref));
       return [...prev, ...res.staged.filter((s) => !seen.has(s.ref))];
     });
-    setRejectNote(
-      res.rejected.length > 0
-        ? `Bỏ qua ${res.rejected.length} ảnh: ${res.rejected.map((r) => REJECT_REASON[r.reason] ?? r.reason).join(", ")}.`
-        : "",
-    );
+    if (res.rejected.length > 0) {
+      notify.warning({
+        title: "Một số ảnh bị bỏ qua",
+        message: `${res.rejected.length} ảnh không hợp lệ.`,
+        details: rejectedImageDetails(res.rejected),
+      });
+    }
   };
 
   const pickImages = (): void => {
     if (!onPickImages) return;
-    void onPickImages().then(mergeResult);
+    void onPickImages()
+      .then(mergeResult)
+      .catch((err: unknown) => {
+        const details = errorDetails(err);
+        notify.error({
+          title: "Không nạp được ảnh",
+          message: compactNotificationMessage(details, "Kiểm tra tệp rồi thử lại."),
+          details,
+        });
+      });
   };
 
   /**
@@ -220,12 +235,14 @@ export const HomeView: React.FC<{
     )
       .then((dropped) => onImportImageBytes(dropped))
       .then(mergeResult)
-      .catch((err: unknown) =>
-        // Surface the real reason (not a generic line) so a stale-preload "…is
-        // not a function" — the classic "ran the old bundle" symptom — is visible
-        // instead of silently swallowed.
-        setRejectNote(`Không nạp được ảnh: ${err instanceof Error ? err.message : String(err)}`),
-      );
+      .catch((err: unknown) => {
+        const details = errorDetails(err);
+        notify.error({
+          title: "Không nạp được ảnh",
+          message: compactNotificationMessage(details, "Kiểm tra tệp rồi thử lại."),
+          details,
+        });
+      });
   };
 
   /**
@@ -447,16 +464,14 @@ export const HomeView: React.FC<{
               </button>
             </div>
           </div>
-          {/* Crawled-image / staged-image rejections + AI-readiness hints below. */}
+          {/* Crawled-image and AI-readiness hints below. */}
         </div>
-        {rejectNote && <p style={{ color: "var(--warn)", fontSize: 12, margin: "10px 0 0" }}>{rejectNote}</p>}
         {hasLink && (
           <p style={{ color: "var(--muted-foreground)", fontSize: 12, margin: "10px 0 0" }}>
             Phát hiện {linkCount} link: app sẽ đọc nội dung và cào ảnh từ bài báo; ảnh bạn tự đính kèm vẫn được đưa cho AI.
           </p>
         )}
-        {!aiReady && <p style={{ color: "var(--muted-foreground)", fontSize: 13, margin: "10px 0 0" }}>Chưa sẵn sàng AI — bấm “Tạo bản nháp” để mở Cài đặt.</p>}
-        {createError && <p style={{ color: "var(--danger)", fontSize: 13, margin: "10px 0 0" }}>{createError}</p>}
+        {!aiReady && <p style={{ color: "var(--muted-foreground)", fontSize: 13, margin: "10px 0 0" }}>Chưa sẵn sàng AI. Bấm “Tạo bản nháp” để mở Cài đặt.</p>}
       </div>
 
       <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 14 }}>
@@ -469,14 +484,14 @@ export const HomeView: React.FC<{
         <EmptyState
           icon={Icon.film({ size: 34 })}
           title="Chưa có video nào"
-          hint="Tạo video đầu tiên bằng ô “Tạo video mới” ở trên — chỉ cần một chủ đề hoặc đường dẫn."
+          hint="Tạo video đầu tiên bằng ô “Tạo video mới”. Chỉ cần một chủ đề hoặc đường dẫn."
         />
       )}
       {load === "error" && (
         <EmptyState
           icon={Icon.film({ size: 34 })}
           title="Không tải được danh sách video"
-          hint="Đã xảy ra lỗi khi đọc dự án. Hãy thử lại."
+          hint="Không đọc được dự án. Thử lại."
           action={onRetry && <button className="ns-btn ns-btn-primary" onClick={onRetry}>Thử lại</button>}
         />
       )}

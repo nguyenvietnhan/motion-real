@@ -710,9 +710,6 @@ textarea.ns-input {
   color: var(--muted-foreground);
   font-size: 12px;
 }
-.ns-settings-save.is-error {
-  color: var(--danger);
-}
 .ns-secret-field {
   position: relative;
   width: 100%;
@@ -1640,9 +1637,106 @@ textarea.ns-input {
   color: white;
   backdrop-filter: blur(4px);
 }
-.ns-cover-error {
-  color: var(--bad);
+.ns-toast-viewport {
+  position: fixed;
+  top: 18px;
+  right: 18px;
+  z-index: 80;
+  width: min(380px, calc(100vw - 36px));
+  display: grid;
+  gap: 10px;
+  pointer-events: none;
+}
+.ns-toast {
+  pointer-events: auto;
+  padding: 13px 14px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--popover) 94%, transparent);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.36);
+  backdrop-filter: blur(14px);
+}
+.ns-toast.is-success {
+  border-color: color-mix(in srgb, var(--good) 55%, var(--border));
+}
+.ns-toast.is-info {
+  border-color: color-mix(in srgb, var(--brand) 50%, var(--border));
+}
+.ns-toast.is-warning {
+  border-color: color-mix(in srgb, var(--warn) 58%, var(--border));
+}
+.ns-toast.is-error {
+  border-color: color-mix(in srgb, var(--danger) 58%, var(--border));
+}
+.ns-toast-main {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+.ns-toast-copy {
+  min-width: 0;
+  flex: 1;
+}
+.ns-toast-copy h3 {
+  margin: 0;
+  color: var(--foreground);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+.ns-toast-copy p {
+  margin: 4px 0 0;
+  color: var(--muted-foreground);
   font-size: 12px;
+  line-height: 1.45;
+}
+.ns-toast-close {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted-foreground);
+  cursor: pointer;
+  line-height: 1;
+}
+.ns-toast-close:hover {
+  color: var(--foreground);
+  border-color: var(--foreground);
+}
+.ns-toast-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 10px;
+}
+.ns-toast-link {
+  border: 0;
+  background: transparent;
+  color: var(--brand);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0;
+}
+.ns-toast-link:hover {
+  color: var(--foreground);
+}
+.ns-toast-details {
+  margin: 10px 0 0;
+  max-height: 160px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  padding: 10px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: rgba(0, 0, 0, 0.24);
+  color: var(--muted-foreground);
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
+  font-size: 11px;
+  line-height: 1.45;
 }
 .ns-cover-lightbox {
   z-index: 60;

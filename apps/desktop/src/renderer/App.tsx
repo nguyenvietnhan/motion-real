@@ -4,6 +4,7 @@ import { reduceDesktop, type DesktopState } from "./state/desktop-state.js";
 import { aiReady } from "../shared/ai-ready.js";
 import { defaultSettings } from "../shared/settings-model.js";
 import type { BgmTrackVM, LicenseState, ModelInfo, ProjectStage } from "../shared/types.js";
+import { compactNotificationMessage, errorDetails, NotificationProvider, useNotifications } from "./notifications.js";
 
 /**
  * Renderer root (web-dashboard) — enterprise shell: a left Sidebar + a content
@@ -20,7 +21,13 @@ const initial: DesktopState = {
   gallery: { load: "loading", cards: [] },
 };
 
-export const App: React.FC = () => {
+export const App: React.FC = () => (
+  <NotificationProvider>
+    <AppShell />
+  </NotificationProvider>
+);
+
+const AppShell: React.FC = () => {
   const [state, dispatch] = useReducer(reduceDesktop, initial);
   const [screen, setScreen] = useState<Screen>("home");
   const [license, setLicense] = useState<LicenseState>({ kind: "unactivated" });
@@ -30,11 +37,11 @@ export const App: React.FC = () => {
   const [models, setModels] = useState<ModelInfo[]>([]);
   const [openProjectId, setOpenProjectId] = useState<string | null>(null);
   const [stage, setStage] = useState<ProjectStage>({ kind: "writing" });
-  const [createError, setCreateError] = useState<string>("");
   // BGM library (per-machine, shared) + the open project's current selection.
   // Loaded when a workspace opens; the picker mutates the library then refreshes.
   const [bgm, setBgm] = useState<BgmTrackVM[]>([]);
   const [bgmSelected, setBgmSelected] = useState<string | null>(null);
+  const notify = useNotifications();
 
   const dash = typeof window !== "undefined" ? window.dashboard : undefined;
   const ready = aiReady(gateway, account);
@@ -221,7 +228,6 @@ export const App: React.FC = () => {
                 : Promise.reject(new Error("Cần khởi động lại ứng dụng để bật dán/kéo-thả ảnh (bản nền chưa cập nhật)."))
             }
             onCreate={(raw, images, choices) => {
-              setCreateError("");
               if (!dash) return Promise.resolve();
               return dash.projects
                 .create({
@@ -240,7 +246,14 @@ export const App: React.FC = () => {
                   void refreshGallery();
                   openProject(r.projectId);
                 })
-                .catch((err: unknown) => setCreateError(err instanceof Error ? err.message : "Không tạo được dự án. Hãy thử lại."));
+                .catch((err: unknown) => {
+                  const details = errorDetails(err);
+                  notify.error({
+                    title: "Không tạo được dự án",
+                    message: compactNotificationMessage(details, "Kiểm tra cài đặt rồi thử lại."),
+                    details,
+                  });
+                });
             }}
             onUnstageImage={(ref) => {
               // Best-effort: free the staged bytes when the user removes a pick
@@ -253,7 +266,6 @@ export const App: React.FC = () => {
             onReveal={onReveal}
             onRename={onRename}
             onRetry={() => void refreshGallery()}
-            createError={createError}
           />
         )}
 

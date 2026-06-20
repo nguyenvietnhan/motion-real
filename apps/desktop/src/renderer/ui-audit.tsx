@@ -8,6 +8,7 @@ import { ProjectsView } from "./views/projects.js";
 import { SettingsView } from "./views/settings.js";
 import { StoryboardView } from "./views/storyboard.js";
 import { ProjectWorkspaceView } from "./views/workspace.js";
+import { NotificationProvider } from "./notifications.js";
 import "./theme.css";
 
 const account: AiAccountState = { kind: "connected", accounts: [{ provider: "kiro", label: "nhan@example.com", active: true }], selectedModel: { id: "kr/claude-sonnet", label: "Claude Sonnet" } };
@@ -38,8 +39,10 @@ const content = screen === "projects" ? (
 );
 
 createRoot(document.getElementById("root")!).render(
-  <div className="ns-shell">
-    <Sidebar active={screen === "projects" ? "projects" : screen === "settings" ? "settings" : "home"} gateway={{ kind: "ready", baseUrl: "http://127.0.0.1:20128" }} account={account} onNavigate={() => {}} />
-    <main className="ns-main">{content}</main>
-  </div>,
+  <NotificationProvider>
+    <div className="ns-shell">
+      <Sidebar active={screen === "projects" ? "projects" : screen === "settings" ? "settings" : "home"} gateway={{ kind: "ready", baseUrl: "http://127.0.0.1:20128" }} account={account} onNavigate={() => {}} />
+      <main className="ns-main">{content}</main>
+    </div>
+  </NotificationProvider>,
 );

@@ -1,9 +1,10 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import type { BgmTrackVM, ProjectStage, ScriptLine, VideoFormatChoice } from "../../shared/types.js";
 import { Icon } from "../icons.js";
 import { EmptyState, PageHeader, Spinner } from "../primitives.js";
 import { StoryboardView } from "./storyboard.js";
 import { ImageReviewView } from "./image-review.js";
+import { compactNotificationMessage, errorDetails, useNotifications } from "../notifications.js";
 
 /**
  * Project workspace: staged flow (write script → review → render → scenes).
@@ -17,7 +18,7 @@ import { ImageReviewView } from "./image-review.js";
  * TikTok/YouTube. Title doubles as the project name (clean, no inline hashtags);
  * hashtags are the separate publish tags. Renders nothing when neither exists
  * (an older video authored before the title/hashtags split, or a YouTube video
- * with no hashtags). UI tạm (D-UI): a plain "Đã copy" flash, no toast system.
+ * with no hashtags). Copy feedback stays local to the small icon button.
  */
 const PublishCopyPanel: React.FC<{ title?: string; hashtags?: string[] }> = ({ title, hashtags }) => {
   const [copied, setCopied] = useState<"title" | "tags" | null>(null);
@@ -70,41 +71,26 @@ const ScriptReview: React.FC<{
   const [draft, setDraft] = useState<Record<string, { headline: string; narration: string }>>(
     Object.fromEntries(lines.map((l) => [l.sceneId, { headline: l.headline, narration: l.narration }])),
   );
-  const [warningDismissed, setWarningDismissed] = useState(false);
+  const notify = useNotifications();
+  const lastWarning = useRef("");
   const edits = lines.map((l) => ({ sceneId: l.sceneId, headline: draft[l.sceneId]?.headline, narration: draft[l.sceneId]?.narration }));
+  useEffect(() => {
+    if (!linkWarning || linkWarning === lastWarning.current) return;
+    lastWarning.current = linkWarning;
+    notify.warning({
+      title: "Không đọc được một số link",
+      message: compactNotificationMessage(linkWarning, "App sẽ dùng phần nội dung đọc được."),
+      details: linkWarning,
+    });
+  }, [linkWarning, notify]);
+
   return (
     <>
-      {linkWarning && !warningDismissed && (
-        <div
-          className="ns-card"
-          role="status"
-          style={{
-            padding: "12px 14px",
-            marginBottom: 16,
-            display: "flex",
-            alignItems: "center",
-            gap: 10,
-            borderColor: "#d97706",
-            background: "rgba(217, 119, 6, 0.08)",
-          }}
-        >
-          <span style={{ color: "#d97706", flexShrink: 0, display: "inline-flex" }}><Icon.info size={16} /></span>
-          <span style={{ color: "var(--foreground)", fontSize: 13, flex: 1 }}>{linkWarning}</span>
-          <button
-            className="ns-btn"
-            aria-label="Đóng cảnh báo"
-            onClick={() => setWarningDismissed(true)}
-            style={{ flexShrink: 0, padding: "4px 10px" }}
-          >
-            Đóng
-          </button>
-        </div>
-      )}
       <div className="ns-card" style={{ padding: 16, marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
         <span style={{ color: "var(--muted-foreground)" }}>AI đã soạn kịch bản. Sửa lời đọc nếu cần, rồi duyệt để dựng video.</span>
         <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
           <button className="ns-btn" onClick={() => onApply(edits)}>Lưu</button>
-          <button className="ns-btn ns-btn-primary" onClick={() => { onApply(edits); onApprove(); }}>Duyệt &amp; dựng video →</button>
+          <button className="ns-btn ns-btn-primary" onClick={() => { onApply(edits); onApprove(); }}>Duyệt và dựng</button>
         </div>
       </div>
       <div style={{ display: "grid", gap: 12 }}>
@@ -204,10 +190,10 @@ const ThumbnailPanel: React.FC<{
   const [generating, setGenerating] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
-  const [saveError, setSaveError] = useState("");
   const [previewOpen, setPreviewOpen] = useState(false);
   const [freshUrl, setFreshUrl] = useState<string | null>(null);
   const [nonce, setNonce] = useState(0);
+  const notify = useNotifications();
   const baseUrl = freshUrl ?? thumbnailPath ?? null;
   const shownUrl = baseUrl ? `${baseUrl}${baseUrl.includes("?") ? "&" : "?"}t=${nonce}` : null;
 
@@ -237,17 +223,28 @@ const ThumbnailPanel: React.FC<{
     if (saving || !baseUrl) return;
     setSaving(true);
     setSaved(false);
-    setSaveError("");
     void onSave()
       .then((result) => {
         if (result.saved) {
           setSaved(true);
+          notify.success({ title: "Đã lưu ảnh bìa" });
           setTimeout(() => setSaved(false), 1800);
         } else if (result.error) {
-          setSaveError(result.error);
+          notify.error({
+            title: "Không lưu được ảnh bìa",
+            message: compactNotificationMessage(result.error, "Kiểm tra quyền lưu rồi thử lại."),
+            details: result.error,
+          });
         }
       })
-      .catch(() => setSaveError("Không mở được hộp thoại lưu ảnh. Hãy thử lại."))
+      .catch((error: unknown) => {
+        const details = errorDetails(error);
+        notify.error({
+          title: "Không lưu được ảnh bìa",
+          message: compactNotificationMessage(details, "Kiểm tra quyền lưu rồi thử lại."),
+          details,
+        });
+      })
       .finally(() => setSaving(false));
   };
 
@@ -261,7 +258,6 @@ const ThumbnailPanel: React.FC<{
           </button>
         </div>
       )}
-      {saveError && <span className="ns-cover-error" role="status">{saveError}</span>}
       {shownUrl && (
         <div className={`ns-cover-media${isTikTok ? "" : " is-landscape"}`}>
           <button
@@ -378,7 +374,7 @@ export const ProjectWorkspaceView: React.FC<{
 
   return (
     <div className="ns-content">
-      <PageHeader title={title[stage.kind]} action={<button className="ns-btn" onClick={onBack}>← Quay lại</button>} />
+      <PageHeader title={title[stage.kind]} action={<button className="ns-btn" onClick={onBack}>Quay lại</button>} />
       {stage.kind === "writing" && (
         <div className="ns-card" style={{ padding: 48, display: "grid", placeItems: "center", gap: 12 }}>
           <Spinner />

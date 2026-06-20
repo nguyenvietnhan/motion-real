@@ -4,6 +4,7 @@ import { DEFAULT_REFINE_PASSES } from "../../shared/settings-model.js";
 import { activeAccount } from "../../shared/active-account.js";
 import { Icon } from "../icons.js";
 import { ExpandableToggle, Field, InfoRow, NumberRow, PageHeader, SettingsCard, Toggle } from "../primitives.js";
+import { compactNotificationMessage, errorDetails, useNotifications } from "../notifications.js";
 
 type SettingsTab = "ai" | "voice" | "build" | "about";
 
@@ -25,6 +26,7 @@ export const SettingsView: React.FC<{
   const [voiceKeyInput, setVoiceKeyInput] = useState("");
   const [saveState, setSaveState] = useState<"idle" | "saving" | "error">("idle");
   const saveSeq = useRef(0);
+  const notify = useNotifications();
   const connected = account.kind === "connected" ? account.accounts : [];
   const currentAccount = activeAccount(account);
   const selectedModelId = account.kind === "connected" ? account.selectedModel?.id ?? "" : "";
@@ -50,10 +52,46 @@ export const SettingsView: React.FC<{
     setSaveState("saving");
     void Promise.resolve(onUpdate(patch))
       .then(() => { if (saveSeq.current === seq) setSaveState("idle"); })
-      .catch(() => { if (saveSeq.current === seq) setSaveState("error"); });
+      .catch((error: unknown) => {
+        if (saveSeq.current !== seq) return;
+        const details = errorDetails(error);
+        setSaveState("error");
+        notify.error({
+          title: "Không lưu được cài đặt",
+          message: compactNotificationMessage(details, "Thay đổi chưa được lưu."),
+          details,
+        });
+      });
   };
 
-  const saveStatus = saveState === "saving" ? "Đang lưu…" : saveState === "error" ? "Không lưu được" : "";
+  const saveVoiceKey = (): void => {
+    const provider = voiceProvider;
+    const apiKey = voiceKeyInput;
+    void onSetApiKey(provider, apiKey)
+      .then(() => setVoiceKeyInput(""))
+      .catch((error: unknown) => {
+        const details = errorDetails(error);
+        notify.error({
+          title: "Không lưu được API key",
+          message: compactNotificationMessage(details, "Kiểm tra key rồi thử lại."),
+          details,
+        });
+      });
+  };
+
+  const clearVoiceKey = (): void => {
+    const provider = voiceProvider;
+    void onClearApiKey(provider).catch((error: unknown) => {
+      const details = errorDetails(error);
+      notify.error({
+        title: "Không xóa được API key",
+        message: compactNotificationMessage(details, "Thử lại sau."),
+        details,
+      });
+    });
+  };
+
+  const saveStatus = saveState === "saving" ? "Đang lưu…" : "";
 
   return (
     <div className="ns-content">
@@ -76,7 +114,7 @@ export const SettingsView: React.FC<{
             <SettingsCard title="Tài khoản AI & model" desc="Kết nối tài khoản qua 9Router và chọn model dùng để dựng video.">
               {gateway.kind === "starting" && <p style={{ color: "var(--muted-foreground)", margin: 0 }}>Đang khởi động dịch vụ AI…</p>}
               {gateway.kind === "unavailable" && (
-                <p style={{ color: "var(--danger)", margin: 0 }}>Không khởi động được 9Router. Hãy kiểm tra 9Router đã cài rồi mở lại app.</p>
+                <p style={{ color: "var(--danger)", margin: 0 }}>Không khởi động được 9Router. Kiểm tra cài đặt rồi mở lại app.</p>
               )}
               {gateway.kind === "ready" && connected.length === 0 && (
                 <>
@@ -104,7 +142,7 @@ export const SettingsView: React.FC<{
                   <div style={{ marginTop: 20 }}>
                     <Field label="Model dùng để dựng" hint="Model nhìn được ảnh sẽ tự soát và sửa lỗi bố cục tốt hơn.">
                       <select className="ns-input" aria-label="Chọn model dựng video" value={selectedModelId} onChange={(e) => onSelectModel(e.target.value)} style={{ width: "100%", maxWidth: 460 }}>
-                        <option value="" disabled>— chọn model —</option>
+                        <option value="" disabled>Chọn model</option>
                         {models.map((m) => (<option key={m.id} value={m.id}>{m.id}</option>))}
                       </select>
                     </Field>
@@ -118,7 +156,7 @@ export const SettingsView: React.FC<{
             <SettingsCard title="Giọng đọc" desc="Cấu hình riêng từng nhà cung cấp. Lựa chọn này là mặc định cho dự án mới.">
               <Field label="Nhà cung cấp giọng">
                 <select className="ns-input" value={voiceProvider} onChange={(e) => update({ voiceProvider: e.target.value as VoiceProviderChoice })} style={{ width: "100%", maxWidth: 320 }}>
-                  <option value="vivibe">Vivibe - chỉ hỗ trợ tiếng Việt</option>
+                  <option value="vivibe">Vivibe (chỉ tiếng Việt)</option>
                   <option value="elevenlabs">ElevenLabs</option>
                 </select>
               </Field>
@@ -136,10 +174,8 @@ export const SettingsView: React.FC<{
                   </button>
                 </div>
                 <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-                  <button className="ns-btn" disabled={!voiceKeyInput.trim()} onClick={() => {
-                    void onSetApiKey(voiceProvider, voiceKeyInput).then(() => setVoiceKeyInput(""));
-                  }}>Lưu API key</button>
-                  {credentialState === "saved" && <button className="ns-btn" onClick={() => void onClearApiKey(voiceProvider)}>Xóa key đã lưu</button>}
+                  <button className="ns-btn" disabled={!voiceKeyInput.trim()} onClick={saveVoiceKey}>Lưu API key</button>
+                  {credentialState === "saved" && <button className="ns-btn" onClick={clearVoiceKey}>Xóa key đã lưu</button>}
                 </div>
               </Field>
               <Field

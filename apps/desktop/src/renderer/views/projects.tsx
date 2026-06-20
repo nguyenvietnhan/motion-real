@@ -27,12 +27,12 @@ export const ProjectsView: React.FC<{
         action={<button className="ns-btn ns-btn-primary" onClick={onNew}>{Icon.plus({ size: 16 })} Tạo video</button>}
       />
       {load === "loading" && <p style={{ color: "var(--muted-foreground)" }}>Đang tải…</p>}
-      {load === "empty" && <EmptyState icon={Icon.film({ size: 34 })} title="Chưa có dự án" hint="Bấm “Tạo video” để bắt đầu." />}
+      {load === "empty" && <EmptyState icon={Icon.film({ size: 34 })} title="Chưa có dự án" hint="Tạo video mới để bắt đầu." />}
       {load === "error" && (
         <EmptyState
           icon={Icon.film({ size: 34 })}
           title="Không tải được danh sách video"
-          hint="Đã xảy ra lỗi khi đọc dự án. Hãy thử lại."
+          hint="Không đọc được dự án. Thử lại."
           action={onRetry && <button className="ns-btn ns-btn-primary" onClick={onRetry}>Thử lại</button>}
         />
       )}
@@ -41,9 +41,9 @@ export const ProjectsView: React.FC<{
           <ProjectGrid cards={items} onOpen={onOpen} onDelete={onDelete} onReveal={onReveal} onRename={onRename} />
           {totalPages > 1 && (
             <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 14, marginTop: 18 }}>
-              <button className="ns-btn" disabled={cur <= 1} onClick={() => setPage(cur - 1)}>← Trước</button>
+              <button className="ns-btn" disabled={cur <= 1} onClick={() => setPage(cur - 1)}>Trước</button>
               <span style={{ color: "var(--muted-foreground)", fontSize: 13 }}>Trang {cur}/{totalPages} · {total} dự án</span>
-              <button className="ns-btn" disabled={cur >= totalPages} onClick={() => setPage(cur + 1)}>Sau →</button>
+              <button className="ns-btn" disabled={cur >= totalPages} onClick={() => setPage(cur + 1)}>Sau</button>
             </div>
           )}
         </>

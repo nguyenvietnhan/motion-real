@@ -53,7 +53,7 @@ export const ImageReviewView: React.FC<{
             disabled={submitting || count === 0}
             title={count === 0 ? "Chưa chọn ảnh nào. Bấm vào ảnh để chọn, hoặc dùng nút Bỏ qua ảnh." : undefined}
           >
-            {submitting ? "Đang xử lý…" : `Dùng ảnh đã chọn (${count}) →`}
+            {submitting ? "Đang xử lý…" : `Dùng ảnh đã chọn (${count})`}
           </button>
         </div>
       </div>
