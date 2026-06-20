@@ -25,7 +25,7 @@ headless Chromium, ffmpeg).
 Topic/URL -> AI authors scene .tsx + manifest.json
 -> optional hidden no-TTS stills/vision refine loop in the desktop app
 -> admission gate (N4/N5) -> manifest -> VideoSpec -> static grid (N1-N9)
--> Vivibe TTS (+ breath gaps + SRT) -> lockSpec (transition-aware, caption cues)
+-> configured TTS (Vivibe/ElevenLabs; breath gaps + timing) -> lockSpec (transition-aware, caption cues)
 -> build grid (N10-N13) -> determinism guard (N16)
 -> Remotion render (TransitionSeries + TikTok caption track) -> MP4
 -> render oracles (N14, N18-N22, N28-N30; N15/N17/N23 exported, not auto-run) -> review loop (N24-N25) -> done
@@ -53,7 +53,7 @@ license. See https://remotion.dev/docs/license. This repo assumes the free tier
 
 ```bash
 npm install
-cp .env.example .env   # add Vivibe (VIETNAMESE_API_KEY / VIETNAMESE_VOICEID) keys
+cp .env.example .env   # configure Vivibe or ElevenLabs TTS credentials
 npm run studio         # open Remotion Studio with the bundled sample
 ```
 

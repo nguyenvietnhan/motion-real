@@ -46,7 +46,7 @@ function manifestFor(spec: VideoSpec, durations: number[]): TtsManifest {
       source: "mock",
     };
   });
-  return { updatedAt: "t", voiceId: "mock", speed: 1, byScene, mixedSrc: "audio/narration.mixed.wav" };
+  return { updatedAt: "t", provider: "mock", voiceId: "mock", speed: 1, byScene, mixedSrc: "audio/narration.mixed.wav" };
 }
 
 describe("lockSpec — Property 1: transition-aware timeline (R5)", () => {

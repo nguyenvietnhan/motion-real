@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import type { ProjectCardVM, StagedImage, PickImagesResult, DroppedImage, VideoFormatChoice, DurationTierChoice, TitleLanguageChoice } from "../../shared/types.js";
+import type { ProjectCardVM, StagedImage, PickImagesResult, DroppedImage, VideoFormatChoice, DurationTierChoice, TitleLanguageChoice, VoiceProviderChoice } from "../../shared/types.js";
 import type { GalleryLoad } from "../../shared/gallery-controller.js";
 import { validateCreateInput, extractUrls } from "../../shared/create-validation.js";
 import { Icon } from "../icons.js";
@@ -115,10 +115,11 @@ export const HomeView: React.FC<{
   onCreate: (
     raw: string,
     images: StagedImage[],
-    choices: { format: VideoFormatChoice; durationTier: DurationTierChoice; titleLanguage: TitleLanguageChoice },
+    choices: { format: VideoFormatChoice; durationTier: DurationTierChoice; titleLanguage: TitleLanguageChoice; voiceProvider: VoiceProviderChoice },
   ) => void | Promise<void>;
   onOpen: (projectId: string) => void;
   onConnectPrompt: () => void;
+  defaultVoiceProvider: VoiceProviderChoice;
   /** Open the native image picker (Phase 2 Block A); resolves staged images + rejections. */
   onPickImages?: () => Promise<PickImagesResult>;
   /** Import raw bytes from a paste (Ctrl+V) or drag-drop (Phase 2 Block A); resolves staged images + rejections. */
@@ -131,7 +132,7 @@ export const HomeView: React.FC<{
   onRename?: (id: string, newTitle: string) => void;
   onRetry?: () => void;
   createError?: string;
-}> = ({ aiReady, load, cards, onCreate, onOpen, onConnectPrompt, onPickImages, onImportImageBytes, onUnstageImage, onDelete, onReveal, onRename, onRetry, createError }) => {
+}> = ({ aiReady, load, cards, onCreate, onOpen, onConnectPrompt, defaultVoiceProvider, onPickImages, onImportImageBytes, onUnstageImage, onDelete, onReveal, onRename, onRetry, createError }) => {
   const [raw, setRaw] = useState("");
   const [images, setImages] = useState<StagedImage[]>([]);
   const [rejectNote, setRejectNote] = useState("");
@@ -143,10 +144,12 @@ export const HomeView: React.FC<{
   const [format, setFormat] = useState<VideoFormatChoice>("tiktok");
   const [durationTier, setDurationTier] = useState<DurationTierChoice>(1);
   const [titleLanguage, setTitleLanguage] = useState<TitleLanguageChoice>("vi");
+  const [voiceProvider, setVoiceProvider] = useState<VoiceProviderChoice>(defaultVoiceProvider);
   const [creating, setCreating] = useState(false);
   // Which delivery-knob popover is open (only one at a time); null = all closed.
   // Each knob is its own inline chip next to "+", revealing its options on click.
-  const [openKnob, setOpenKnob] = useState<null | "format" | "duration" | "title">(null);
+  const [openKnob, setOpenKnob] = useState<null | "format" | "duration" | "title" | "voice">(null);
+  useEffect(() => setVoiceProvider(defaultVoiceProvider), [defaultVoiceProvider]);
   // Drag enter/leave fire for EVERY child the cursor crosses, so a naive
   // boolean toggles on each border → flicker. Count enters minus leaves and
   // only clear the highlight when the count returns to 0 (cursor truly left).
@@ -269,7 +272,7 @@ export const HomeView: React.FC<{
     }
     setCreating(true);
     try {
-      void Promise.resolve(onCreate(raw, images, { format, durationTier, titleLanguage })).finally(() => setCreating(false));
+      void Promise.resolve(onCreate(raw, images, { format, durationTier, titleLanguage, voiceProvider })).finally(() => setCreating(false));
     } catch (error) {
       setCreating(false);
       throw error;
@@ -386,6 +389,19 @@ export const HomeView: React.FC<{
                   { value: "vi", label: "Việt" },
                   { value: "en", label: "Anh" },
                   { value: "mix", label: "Trộn" },
+                ]}
+              />
+              <KnobButton
+                icon={Icon.spark({ size: 15 })}
+                title="Nhà cung cấp giọng đọc"
+                value={voiceProvider}
+                open={openKnob === "voice"}
+                onToggle={() => setOpenKnob((k) => (k === "voice" ? null : "voice"))}
+                onClose={() => setOpenKnob(null)}
+                onChange={setVoiceProvider}
+                options={[
+                  { value: "vivibe", label: "Vivibe", warn: "Vivibe chỉ hỗ trợ tiếng Việt." },
+                  { value: "elevenlabs", label: "ElevenLabs" },
                 ]}
               />
             </div>

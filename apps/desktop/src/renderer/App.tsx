@@ -209,6 +209,7 @@ export const App: React.FC = () => {
             load={state.gallery.load}
             cards={state.gallery.cards}
             onConnectPrompt={() => setScreen("settings")}
+            defaultVoiceProvider={settings.voiceProvider}
             onPickImages={() => dash?.projects.pickImages() ?? Promise.resolve({ staged: [], rejected: [] })}
             onImportImageBytes={(files) =>
               // The method is absent on a stale preload bundle (added this session;
@@ -229,6 +230,7 @@ export const App: React.FC = () => {
                   ...(choices.format ? { format: choices.format } : {}),
                   ...(choices.durationTier ? { durationTier: choices.durationTier } : {}),
                   ...(choices.titleLanguage ? { titleLanguage: choices.titleLanguage } : {}),
+                  voiceProvider: choices.voiceProvider,
                 })
                 .then((r) => {
                   // Refresh the gallery the moment the project exists on disk
@@ -283,6 +285,15 @@ export const App: React.FC = () => {
               if (!dash) return Promise.reject(new Error("Dashboard API is unavailable"));
               return dash.settings.update(patch).then((next) => { setSettings(next); });
             }}
+            onSetApiKey={(provider, apiKey) => {
+              if (!dash) return Promise.reject(new Error("Dashboard API is unavailable"));
+              return dash.tts.setApiKey(provider, apiKey).then((next) => { setSettings(next); return next; });
+            }}
+            onClearApiKey={(provider) => {
+              if (!dash) return Promise.reject(new Error("Dashboard API is unavailable"));
+              return dash.tts.clearApiKey(provider).then((next) => { setSettings(next); return next; });
+            }}
+            onListVoices={(provider) => dash?.tts.listVoices(provider) ?? Promise.reject(new Error("Dashboard API is unavailable"))}
           />
         )}
 

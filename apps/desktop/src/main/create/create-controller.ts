@@ -7,7 +7,7 @@ import {
 } from "../../shared/create-validation.js";
 import { createLogger, type SerializedPipelineError } from "@news/pipeline";
 import type { AuthorInput, AuthorImageRef } from "../agent/agent-worker.js";
-import type { StagedImageRef, VideoFormatChoice, DurationTierChoice, TitleLanguageChoice } from "../../shared/types.js";
+import type { StagedImageRef, VideoFormatChoice, DurationTierChoice, TitleLanguageChoice, VoiceProviderChoice } from "../../shared/types.js";
 import { toFriendlyError } from "../redact/friendly.js";
 
 const log = createLogger("create");
@@ -41,7 +41,7 @@ const VALIDATION_MESSAGE: Record<"empty" | "too-long", string> = {
 
 export interface CreateDeps {
   /** Scaffold through the ONE `createTools` registry (R4.6). */
-  scaffold: (prompt: string) => Promise<{ ok: true; projectId: string } | { ok: false; error: SerializedPipelineError }>;
+  scaffold: (prompt: string, voiceProvider: VoiceProviderChoice) => Promise<{ ok: true; projectId: string } | { ok: false; error: SerializedPipelineError }>;
   /**
    * Hand the brief off to the WorkspaceController. With a link this runs the
    * crawl → (AI-filter) → (image-review) → author flow (Phase 2 Block B); with
@@ -65,7 +65,7 @@ export interface CreateDeps {
    * does NOT gate on gateway/model state — that stays a "guide, don't gate" chip
    * in the UI — only on a guaranteed-fatal local config gap.
    */
-  preflight?: () => string | undefined;
+  preflight?: (voiceProvider: VoiceProviderChoice) => string | undefined;
 }
 
 export class CreateController {
@@ -74,16 +74,17 @@ export class CreateController {
   async create(
     raw: string,
     images: StagedImageRef[] = [],
-    choices: { format?: VideoFormatChoice; durationTier?: DurationTierChoice; titleLanguage?: TitleLanguageChoice } = {},
+    choices: { format?: VideoFormatChoice; durationTier?: DurationTierChoice; titleLanguage?: TitleLanguageChoice; voiceProvider?: VoiceProviderChoice } = {},
   ): Promise<{ projectId: string }> {
     const v = validateCreateInput({ raw });
     if (!v.ok) throw new Error(VALIDATION_MESSAGE[v.reason]); // invalid ⇒ no scaffold (R1.3)
     // Block on a guaranteed-fatal config gap BEFORE scaffolding/authoring, so the
     // user isn't told "ready" only to have the whole AI pass burn and then fail at
     // TTS. A clean (no-message) preflight — or no preflight dep — proceeds.
-    const block = this.deps.preflight?.();
+    const voiceProvider = choices.voiceProvider ?? "vivibe";
+    const block = this.deps.preflight?.(voiceProvider);
     if (block) throw new Error(block);
-    const res = await this.deps.scaffold(v.brief.text);
+    const res = await this.deps.scaffold(v.brief.text, voiceProvider);
     if (!res.ok) throw new Error(toFriendlyError(res.error).message); // redacted (R8.5)
     // Promote staged images into the project before authoring so the first draft
     // can place them. A promote failure never blocks create — the brief still

@@ -23,6 +23,8 @@ import type {
   StatusEvent,
   StoryboardModel,
   SubmitResult,
+  TtsVoiceVM,
+  VoiceProviderChoice,
 } from "./types.js";
 
 /** Unsubscribe handle returned by every event subscription. */
@@ -107,6 +109,11 @@ export interface DashboardApi {
   settings: {
     get(): Promise<SettingsModel>;
     update(patch: Partial<SettingsModel>): Promise<SettingsModel>;
+  };
+  tts: {
+    listVoices(provider: VoiceProviderChoice): Promise<TtsVoiceVM[]>;
+    setApiKey(provider: VoiceProviderChoice, apiKey: string): Promise<SettingsModel>;
+    clearApiKey(provider: VoiceProviderChoice): Promise<SettingsModel>;
   };
   events: {
     onProgress(cb: (e: ProgressEvent) => void): Unsubscribe;

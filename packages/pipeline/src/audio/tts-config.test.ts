@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { resolveVivibeCredentials } from "./tts.js";
+import { resolveElevenLabsCredentials, resolveVivibeCredentials } from "./tts.js";
 
 describe("Vivibe credential resolution", () => {
   it("uses explicit in-memory credentials after process.env has been scrubbed", () => {
@@ -15,5 +15,14 @@ describe("Vivibe credential resolution", () => {
     expect(
       resolveVivibeCredentials({}, { apiKey: "env-key", voiceId: "env-voice" }),
     ).toEqual({ apiKey: "env-key", voiceId: "env-voice" });
+  });
+});
+
+describe("ElevenLabs credential resolution", () => {
+  it("keeps explicit provider config ahead of environment fallback", () => {
+    expect(resolveElevenLabsCredentials(
+      { apiKey: " key ", voiceId: " voice ", modelId: " model " },
+      { apiKey: "env-key", voiceId: "env-voice", modelId: "env-model" },
+    )).toEqual({ apiKey: "key", voiceId: "voice", modelId: "model" });
   });
 });

@@ -1,5 +1,8 @@
 # Vivibe / LucyLab Provider Notes
 
+> Vivibe is exposed in the desktop UI as a Vietnamese-only provider. The app
+> keeps this limitation visible anywhere the user selects a provider.
+
 Ported from `news_video_tool` (the `@news/tts` client is the same code). Status:
 probed against a real key on 2026-05-22.
 

@@ -51,25 +51,25 @@ describe("S0 baseline — license:activate", () => {
 // update: { ...settings, ...patch, voiceProvider:"vivibe" }; NO clamp.
 function loadBaseline(home: string, saved: Partial<SettingsModel>): SettingsModel {
   const base = defaultSettings(home);
-  return { ...base, ...saved, voiceProvider: "vivibe", aiAccount: base.aiAccount };
+  return { ...base, ...saved, aiAccount: base.aiAccount };
 }
 function updateBaseline(current: SettingsModel, patch: Partial<SettingsModel>): SettingsModel {
-  return { ...current, ...patch, voiceProvider: "vivibe" };
+  return { ...current, ...patch };
 }
 
 describe("S0 baseline — settings load merge precedence", () => {
   const home = "/home/.video-tool";
 
   it("saved overrides base for normal keys", () => {
-    const out = loadBaseline(home, { outputDir: "/custom", scriptGateEnabled: false, voiceId: "v9" });
+    const out = loadBaseline(home, { outputDir: "/custom", scriptGateEnabled: false, vivibeVoiceId: "v9" });
     expect(out.outputDir).toBe("/custom");
     expect(out.scriptGateEnabled).toBe(false);
-    expect(out.voiceId).toBe("v9");
+    expect(out.vivibeVoiceId).toBe("v9");
   });
 
-  it("voiceProvider is always forced to vivibe", () => {
-    const out = loadBaseline(home, { voiceProvider: "vivibe" as const });
-    expect(out.voiceProvider).toBe("vivibe");
+  it("voiceProvider persists for the next project", () => {
+    const out = loadBaseline(home, { voiceProvider: "elevenlabs" });
+    expect(out.voiceProvider).toBe("elevenlabs");
   });
 
   it("aiAccount is always taken from default (saved aiAccount ignored)", () => {
@@ -86,11 +86,11 @@ describe("S0 baseline — settings load merge precedence", () => {
 describe("S0 baseline — settings:update merge precedence", () => {
   const base = defaultSettings("/home/.video-tool");
 
-  it("patch overrides, voiceProvider forced, no clamp", () => {
-    const out = updateBaseline(base, { maxRepairAttempts: 42, scriptGateEnabled: false });
+  it("patch overrides provider and normal fields without clamping repair budget", () => {
+    const out = updateBaseline(base, { maxRepairAttempts: 42, scriptGateEnabled: false, voiceProvider: "elevenlabs" });
     expect(out.maxRepairAttempts).toBe(42);
     expect(out.scriptGateEnabled).toBe(false);
-    expect(out.voiceProvider).toBe("vivibe");
+    expect(out.voiceProvider).toBe("elevenlabs");
   });
 });
 

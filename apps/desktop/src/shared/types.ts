@@ -88,6 +88,8 @@ export type TitleLanguageChoice = "vi" | "en" | "mix";
 
 export type CreateInput = {
   raw: string;
+  /** TTS provider captured into the project brief at create time. */
+  voiceProvider?: VoiceProviderChoice;
   /** Delivery format (default tiktok). */
   format?: VideoFormatChoice;
   /** Duration tier the word-budget aims at (default 1). */
@@ -144,6 +146,10 @@ export type ProjectCardVM = {
   status: FriendlyStatus;
   createdAtLabel: string;
 };
+
+export type VoiceProviderChoice = "vivibe" | "elevenlabs";
+export type CredentialState = "saved" | "environment" | "missing";
+export type TtsVoiceVM = { id: string; name: string };
 
 // --- background music library (Req 11 / I2) --------------------------------
 
@@ -221,9 +227,14 @@ export type ApproveResult = { ok: true; outputPath: string } | { ok: false; reas
 
 export type SettingsModel = {
   aiAccount: AiAccountState;
-  voiceProvider: "vivibe";
-  voiceId?: string;
-  voiceApiKey?: string;
+  /** Default for the create screen; each project persists its actual selection. */
+  voiceProvider: VoiceProviderChoice;
+  vivibeVoiceId?: string;
+  elevenLabsVoiceId?: string;
+  elevenLabsModelId: string;
+  voiceCredentials: Record<VoiceProviderChoice, CredentialState>;
+  /** Measured WPS keyed by provider/model/voice/speed identity. */
+  voiceCalibrations: Record<string, number>;
   outputDir: string;
   maxRepairAttempts: number;
   scriptGateEnabled: boolean;
@@ -249,23 +260,6 @@ export type SettingsModel = {
   imageCrawlAiFilter: boolean;
   /** Show a blocking review screen so the user confirms crawled images before authoring (Phase 2 Block B). */
   imageCrawlHumanReview: boolean;
-  /**
-   * MEASURED Vietnamese narration rate (words/second) for the configured voice
-   * (freeform-engine K1/R5.4/D13). The author prompt turns a duration target into
-   * a total word budget at this rate; a wrong rate makes a "90s" request render as
-   * ~60s. Populated by `scripts/calibrate-voice.ts` (sends fixed-length passages
-   * through Vivibe, measures real seconds → avg w/s). Absent ⇒ the prompt falls
-   * back to the baked default (~4.7). Clamped to a sane band before use.
-   */
-  voiceWordsPerSecond?: number;
-  /**
-   * The voiceId the `voiceWordsPerSecond` rate was measured for. The rate is
-   * voice-specific (a faster/slower voice reads at a different w/s), so when the
-   * configured `voiceId` differs from this, the measured rate is STALE and the
-   * prompt ignores it (falls back to the default) until re-calibrated. Absent ⇒
-   * never calibrated.
-   */
-  voiceWpsCalibratedFor?: string;
 };
 
 // --- streaming events (Req 5, 9, 10) ---------------------------------------

@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080">
+  <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#071526"/><stop offset=".58" stop-color="#123b5b"/><stop offset="1" stop-color="#0a1018"/></linearGradient></defs>
+  <rect width="1920" height="1080" fill="url(#g)"/>
+  <circle cx="1460" cy="250" r="310" fill="#2c86c7" opacity=".34"/>
+  <rect x="210" y="180" width="1280" height="650" rx="44" fill="#0e2234" stroke="#4cb7e8" stroke-width="10"/>
+  <path d="M410 700 710 420l220 230 230-320 330 370z" fill="#4cb7e8" opacity=".72"/>
+  <circle cx="570" cy="340" r="78" fill="#f4bd69"/>
+  <text x="960" y="930" fill="white" font-family="Arial" font-size="56" text-anchor="middle" font-weight="700">Tin công nghệ</text>
+</svg>

@@ -71,7 +71,7 @@ export function createMcpServer(overrides: Partial<ToolDeps> = {}): McpServer {
     "render_draft",
     {
       title: "Render a draft preview",
-      description: "Render a fast low-res draft (<id>.draft.mp4) for review. Runs the full safety grid + Vivibe TTS.",
+      description: "Render a fast low-res draft (<id>.draft.mp4) for review. Runs the full safety grid + configured TTS.",
       inputSchema: renderDraftInput.shape,
     },
     async (args, extra) => toCallResult(await tools.render_draft(args, makeProgress(extra))),

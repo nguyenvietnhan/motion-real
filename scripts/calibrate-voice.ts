@@ -1,10 +1,22 @@
 import { existsSync, readFileSync, writeFileSync, renameSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { VivibeClient, measureAudioDuration } from "../packages/tts/src/index.js";
-import { vivibeApiKey, defaultVivibeVoiceId, videoToolHome } from "../packages/pipeline/src/index.js";
+import {
+  ELEVENLABS_DEFAULT_MODEL_ID,
+  ElevenLabsClient,
+  VivibeClient,
+  defaultElevenLabsVoiceId,
+  defaultVivibeVoiceId,
+  elevenLabsApiKey,
+  measureAudioDuration,
+  vivibeApiKey,
+  type CloudTtsProvider,
+  type TtsClient,
+} from "../packages/tts/src/index.js";
+import { videoToolHome } from "../packages/pipeline/src/index.js";
 import {
   computeWordsPerSecond,
+  voiceCalibrationKey,
   type CalibrationSample,
 } from "../apps/desktop/src/shared/settings-model.js";
 
@@ -41,6 +53,12 @@ const PASSAGES: string[] = [
 ];
 
 type DesktopSettings = {
+  voiceProvider?: CloudTtsProvider;
+  vivibeVoiceId?: string;
+  elevenLabsVoiceId?: string;
+  elevenLabsModelId?: string;
+  voiceCalibrations?: Record<string, number>;
+  // Legacy fields remain readable for migration compatibility.
   voiceId?: string;
   voiceApiKey?: string;
   voiceWordsPerSecond?: number;
@@ -74,32 +92,40 @@ async function main(): Promise<void> {
   const settingsPath = settingsFilePath();
   const settings = readSettings(settingsPath);
 
-  // Voice config: a key/id saved in the settings UI wins, else the .env fallback
-  // the engine reads (VIVIBE_API_KEY / VIETNAMESE_API_KEY, VIVIBE_VOICE_ID / …).
-  const apiKey = (settings.voiceApiKey?.trim() || vivibeApiKey()).trim();
-  const voiceId = (settings.voiceId?.trim() || defaultVivibeVoiceId() || "").trim();
+  const providerArg = process.argv.find((arg) => arg.startsWith("--provider="))?.split("=")[1]
+    ?? (process.argv.includes("--provider") ? process.argv[process.argv.indexOf("--provider") + 1] : undefined);
+  const provider: CloudTtsProvider = providerArg === "elevenlabs"
+    ? "elevenlabs"
+    : providerArg === "vivibe" ? "vivibe" : settings.voiceProvider ?? "vivibe";
+  const apiKey = (provider === "vivibe" ? vivibeApiKey() : elevenLabsApiKey()).trim();
+  const voiceId = ((provider === "vivibe"
+    ? settings.vivibeVoiceId?.trim() || settings.voiceId?.trim() || defaultVivibeVoiceId()
+    : settings.elevenLabsVoiceId?.trim() || defaultElevenLabsVoiceId()) || "").trim();
+  const modelId = provider === "elevenlabs"
+    ? settings.elevenLabsModelId?.trim() || ELEVENLABS_DEFAULT_MODEL_ID
+    : undefined;
   if (!apiKey) {
-    console.error("[calibrate] Missing Vivibe API key. Set VIVIBE_API_KEY / VIETNAMESE_API_KEY in .env (or save it in Settings).");
+    console.error(`[calibrate] Missing ${provider === "vivibe" ? "VIVIBE_API_KEY / VIETNAMESE_API_KEY" : "ELEVENLABS_API_KEY"} in .env.`);
     process.exitCode = 1;
     return;
   }
   if (!voiceId) {
-    console.error("[calibrate] Missing Vivibe voice id. Set VIVIBE_VOICE_ID / VIETNAMESE_VOICEID in .env (or save it in Settings).");
+    console.error(`[calibrate] Missing ${provider === "vivibe" ? "Vivibe" : "ElevenLabs"} voice id.`);
     process.exitCode = 1;
     return;
   }
 
-  const client = new VivibeClient({ apiKey });
+  const client: TtsClient = provider === "vivibe" ? new VivibeClient({ apiKey }) : new ElevenLabsClient({ apiKey });
   const workDir = mkdtempSync(join(tmpdir(), "vivibe-calib-"));
   const samples: CalibrationSample[] = [];
 
-  console.log(`[calibrate] voice=${voiceId} — synthesizing ${PASSAGES.length} passages…`);
+  console.log(`[calibrate] provider=${provider} voice=${voiceId} — synthesizing ${PASSAGES.length} passages…`);
   try {
     for (let i = 0; i < PASSAGES.length; i += 1) {
       const text = PASSAGES[i]!;
       const outputPath = join(workDir, `passage-${i + 1}.mp3`);
       try {
-        const result = await client.synthesize({ text, voiceId, speed: 1.0, outputPath });
+        const result = await client.synthesize({ text, voiceId, speed: 1.0, outputPath, ...(modelId ? { modelId, languageCode: "vi" } : {}) });
         const seconds = await measureAudioDuration(result.audioPath);
         const words = text.trim().split(/\s+/).filter(Boolean).length;
         console.log(`[calibrate]   passage ${i + 1}: ${words} từ → ${seconds.toFixed(2)}s (${(words / seconds).toFixed(2)} từ/giây)`);
@@ -125,11 +151,15 @@ async function main(): Promise<void> {
     return;
   }
 
-  settings.voiceWordsPerSecond = wps;
-  settings.voiceWpsCalibratedFor = voiceId;
+  settings.voiceCalibrations = {
+    ...(settings.voiceCalibrations ?? {}),
+    [voiceCalibrationKey({ provider, voiceId, ...(modelId ? { modelId } : {}), speed: 1 })]: wps,
+  };
+  delete settings.voiceWordsPerSecond;
+  delete settings.voiceWpsCalibratedFor;
   writeSettings(settingsPath, settings);
   console.log(`[calibrate] OK — measured ${wps.toFixed(2)} từ/giây for voice ${voiceId}.`);
-  console.log(`[calibrate] Wrote voiceWordsPerSecond=${wps.toFixed(2)} to ${settingsPath}. The author prompt will use it on the next video.`);
+  console.log(`[calibrate] Saved provider-specific calibration to ${settingsPath}. The author prompt will use it on the next matching voice.`);
 }
 
 void main();

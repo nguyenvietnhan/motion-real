@@ -115,6 +115,29 @@ describe("TTS provider preservation — Property 10", () => {
     expect(seen).toMatchObject({ ttsApiKey: "closure-key", voiceId: "closure-voice" });
   });
 
+  it("preserves the ElevenLabs provider, voice and model", async () => {
+    let seen: Parameters<ToolDeps["renderProject"]>[1];
+    const tools = createTools({
+      ttsConfig: () => ({
+        provider: "elevenlabs",
+        apiKey: "eleven-key",
+        voiceId: "eleven-voice",
+        modelId: "eleven_multilingual_v2",
+      }),
+      renderProject: async (_projectId, opts) => {
+        seen = opts;
+        return renderOk();
+      },
+    });
+    expect((await tools.render_draft({ projectId: "p" })).ok).toBe(true);
+    expect(seen).toMatchObject({
+      ttsProvider: "elevenlabs",
+      ttsApiKey: "eleven-key",
+      voiceId: "eleven-voice",
+      modelId: "eleven_multilingual_v2",
+    });
+  });
+
   it("resolves a selected project BGM track into render_draft/render_full options", async () => {
     const src = join(home, "picked.mp3");
     await writeFile(src, Buffer.alloc(32, 1));

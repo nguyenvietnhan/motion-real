@@ -33,7 +33,7 @@ describe("CreateController.create", () => {
     const result = await ctrl.create("tin công nghệ");
     expect(result).toEqual({ projectId: "proj-7" });
     expect(scaffold).toHaveBeenCalledOnce();
-    expect(scaffold).toHaveBeenCalledWith("tin công nghệ");
+    expect(scaffold).toHaveBeenCalledWith("tin công nghệ", "vivibe");
     expect(began).toEqual([{ id: "proj-7", input: { text: "tin công nghệ", urls: [] } }]);
   });
 
@@ -78,6 +78,13 @@ describe("CreateController.create", () => {
     expect(began[0]!.input.format).toBe("youtube");
     expect(began[0]!.input.durationTier).toBe(2);
     expect(began[0]!.input.titleLanguage).toBe("en");
+  });
+
+  it("captures the selected voice provider during scaffold", async () => {
+    const scaffold = vi.fn(async () => ({ ok: true as const, projectId: "p-eleven" }));
+    const ctrl = new CreateController({ scaffold, beginCreate: vi.fn() });
+    await ctrl.create("chủ đề", [], { voiceProvider: "elevenlabs" });
+    expect(scaffold).toHaveBeenCalledWith("chủ đề", "elevenlabs");
   });
 
   it("with no delivery knobs chosen, the author input omits them (backend falls back to tiktok/tier 1/vi)", async () => {

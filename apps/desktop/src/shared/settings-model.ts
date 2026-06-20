@@ -1,4 +1,15 @@
-import type { SettingsModel } from "./types.js";
+import type { SettingsModel, VoiceProviderChoice } from "./types.js";
+
+export const ELEVENLABS_DEFAULT_MODEL_ID = "eleven_multilingual_v2";
+
+export function voiceCalibrationKey(input: {
+  provider: VoiceProviderChoice;
+  voiceId: string;
+  modelId?: string;
+  speed?: number;
+}): string {
+  return [input.provider, input.modelId ?? "default", input.voiceId, String(input.speed ?? 1)].join(":");
+}
 
 /** Default repair budget (mirrors the engine clamp lower bound in repair-loop). */
 const DEFAULT_MAX_REPAIR_ATTEMPTS = 3;
@@ -83,7 +94,7 @@ export function computeWordsPerSecond(samples: CalibrationSample[]): number | un
 /**
  * Settings defaults (web-dashboard Task 10.1, design §Settings,
  * Req 11.3/11.4/11.7/11.8). Every L3 setting is PRE-POPULATED so a user can run
- * the whole flow without ever opening Settings: Vivibe voice, a default output
+ * the whole flow with Vivibe as the default provider, a default output
  * dir, repair budget 3, and the script gate ON. `outputDir` is supplied by the
  * main process (the `.video-tool` home) to keep this module pure.
  *
@@ -97,6 +108,9 @@ export function defaultSettings(outputDir: string): SettingsModel {
   return {
     aiAccount: { kind: "disconnected" },
     voiceProvider: "vivibe",
+    elevenLabsModelId: ELEVENLABS_DEFAULT_MODEL_ID,
+    voiceCredentials: { vivibe: "missing", elevenlabs: "missing" },
+    voiceCalibrations: {},
     outputDir,
     maxRepairAttempts: DEFAULT_MAX_REPAIR_ATTEMPTS,
     scriptGateEnabled: true,

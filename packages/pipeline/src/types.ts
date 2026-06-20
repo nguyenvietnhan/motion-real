@@ -18,7 +18,8 @@ export type ProjectState =
   | "done"
   | "failed";
 
-export type TtsProvider = "vivibe" | "mock" | "none";
+export type VoiceProvider = "vivibe" | "elevenlabs";
+export type TtsProvider = VoiceProvider | "mock" | "none";
 export type AiProvider = "mock" | "openai-compatible" | "deepseek";
 
 /** Persisted project state (brief.json). */
@@ -33,6 +34,7 @@ export type ProjectBrief = {
   tts: {
     provider: TtsProvider;
     voiceId?: string;
+    modelId?: string;
     speed: number;
   };
   state: ProjectState;
@@ -64,7 +66,9 @@ export type TtsManifestScene = {
 /** tts-manifest.json */
 export type TtsManifest = {
   updatedAt: string;
+  provider: TtsProvider;
   voiceId: string;
+  modelId?: string;
   speed: number;
   byScene: Record<string, TtsManifestScene>;
   /** project-relative path to the concatenated (+ optional BGM) narration track */

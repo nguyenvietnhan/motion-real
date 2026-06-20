@@ -7,7 +7,12 @@ import { pathToFileURL } from "node:url";
 import { listComponents } from "@news/compositions";
 import { getStylePack, listStylePackIds } from "@news/theme";
 import { fontCoverageReport } from "@news/blocks";
-import { defaultVivibeVoiceId, vivibeApiKey } from "@news/tts";
+import {
+  defaultElevenLabsVoiceId,
+  defaultVivibeVoiceId,
+  elevenLabsApiKey,
+  vivibeApiKey,
+} from "@news/tts";
 import type { TtsProvider } from "../types.js";
 import { projectPaths, trackerPath as defaultTrackerPath } from "../store/store.js";
 import { ingestUrl } from "../ingest/url-ingest.js";
@@ -37,7 +42,7 @@ export type CliResult = {
   lines: string[];
 };
 
-const TTS_PROVIDERS: ReadonlySet<string> = new Set<TtsProvider>(["vivibe", "mock", "none"]);
+const TTS_PROVIDERS: ReadonlySet<string> = new Set<TtsProvider>(["vivibe", "elevenlabs", "mock", "none"]);
 
 const PARSE_OPTIONS = {
   tts: { type: "string" },
@@ -115,7 +120,7 @@ async function runAuthor(
 ): Promise<CliResult> {
   const sub = positionals[1];
   if (sub !== "scaffold") {
-    emit("Usage: author scaffold <id-or-topic> [--tts vivibe|mock|none]");
+    emit("Usage: author scaffold <id-or-topic> [--tts vivibe|elevenlabs|mock|none]");
     return { exitCode: 1, lines };
   }
   const topic = positionals.slice(2).join(" ").trim();
@@ -131,7 +136,8 @@ async function runAuthor(
     return { exitCode: 1, lines };
   }
 
-  const result = await scaffoldVideoProject({ prompt: topic, tts: tts.value ? { provider: tts.value } : undefined });
+  const provider = tts.value ?? (process.env.TTS_PROVIDER === "elevenlabs" ? "elevenlabs" : undefined);
+  const result = await scaffoldVideoProject({ prompt: topic, tts: provider ? { provider } : undefined });
   emit(`Scaffolded project ${result.projectId} (state: ${result.brief.state}).`);
   emit(`  manifest: ${result.manifestPath}`);
   emit(`  authored: ${result.authoredDir}`);
@@ -392,11 +398,17 @@ export async function runDoctor(deps: DoctorDeps = {}): Promise<DoctorReport> {
 }
 
 function defaultCheckEnv(): DoctorCheck {
+  const provider = process.env.TTS_PROVIDER === "elevenlabs" ? "elevenlabs" : "vivibe";
   const missing: string[] = [];
-  if (!vivibeApiKey()) missing.push("VIVIBE_API_KEY/VIETNAMESE_API_KEY");
-  if (!defaultVivibeVoiceId()) missing.push("VIVIBE_VOICE_ID/VIETNAMESE_VOICEID");
+  if (provider === "vivibe") {
+    if (!vivibeApiKey()) missing.push("VIVIBE_API_KEY/VIETNAMESE_API_KEY");
+    if (!defaultVivibeVoiceId()) missing.push("VIVIBE_VOICE_ID/VIETNAMESE_VOICEID");
+  } else {
+    if (!elevenLabsApiKey()) missing.push("ELEVENLABS_API_KEY");
+    if (!defaultElevenLabsVoiceId()) missing.push("ELEVENLABS_VOICE_ID");
+  }
   return {
-    name: "Vivibe .env",
+    name: `${provider === "vivibe" ? "Vivibe" : "ElevenLabs"} .env`,
     ok: missing.length === 0,
     detail: missing.length === 0 ? "API key + voice id configured" : `missing: ${missing.join(", ")}`,
   };
@@ -552,7 +564,7 @@ type Emit = (line?: string) => void;
 function resolveTts(value: string | undefined): { ok: true; value?: TtsProvider } | { ok: false; message: string } {
   if (value === undefined) return { ok: true, value: undefined };
   if (!TTS_PROVIDERS.has(value)) {
-    return { ok: false, message: `Unknown --tts "${value}". Use one of: vivibe, mock, none.` };
+    return { ok: false, message: `Unknown --tts "${value}". Use one of: vivibe, elevenlabs, mock, none.` };
   }
   return { ok: true, value: value as TtsProvider };
 }
@@ -568,8 +580,8 @@ function usage(): string {
     "Usage: pipeline <command> [options]",
     "",
     "Commands:",
-    "  author scaffold <id-or-topic> [--tts vivibe|mock|none]   Create a project skeleton + empty manifest + authored/ dir",
-    "  render <id> [--tts vivibe|mock|none] [--concurrency N] [--no-cache] [--draft] [--force-full]",
+    "  author scaffold <id-or-topic> [--tts vivibe|elevenlabs|mock|none]   Create a project skeleton + empty manifest + authored/ dir",
+    "  render <id> [--tts vivibe|elevenlabs|mock|none] [--concurrency N] [--no-cache] [--draft] [--force-full]",
     "                                      Draft-first: render --draft for a preview, then full (gated on a prior draft; --force-full to override)",
     "  render --sample [--out <path>]      Render the bundled no-voice sample draft (no Vivibe needed)",
     "  preview <id>                        Print the Studio command for a project's locked spec",

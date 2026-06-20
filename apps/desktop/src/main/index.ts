@@ -1,8 +1,8 @@
-import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, safeStorage, shell } from "electron";
 import { fileURLToPath } from "node:url";
 import { basename, dirname, join } from "node:path";
 import { createTools } from "@news/mcp";
-import { createLogger, loadManifest, writeJson, projectPaths, videoToolHome, stagingDir, ensureProject, importImageBytes, reconcileStaleStates, pruneRenderCache, pruneTtsCache, readBrief, listBgmTracks, addBgmTrack, ensureBgmTrack, removeBgmTrack, renderThumbnail, workspaceRoot, type BgmTrack } from "@news/pipeline";
+import { createLogger, loadManifest, writeJson, projectPaths, videoToolHome, stagingDir, ensureProject, importImageBytes, reconcileStaleStates, pruneRenderCache, pruneTtsCache, readBrief, listBgmTracks, addBgmTrack, ensureBgmTrack, removeBgmTrack, renderThumbnail, workspaceRoot, VivibeClient, ElevenLabsClient, ELEVENLABS_DEFAULT_MODEL_ID, type BgmTrack, type VoiceProvider } from "@news/pipeline";
 import { registerIpcRouter, type InvokeHandlers } from "./ipc-router.js";
 import { ModelGatewayManager } from "./gateway/model-gateway-manager.js";
 import { buildNineRouterGatewayDeps } from "./gateway/ninerouter-deps.js";
@@ -22,7 +22,7 @@ import { registerMediaScheme, handleMediaProtocol, mediaUrl } from "./media-prot
 import { events, setEventTarget } from "./event-bus.js";
 import { existsSync, readFileSync } from "node:fs";
 import { copyFile, readFile, readdir, rm, stat } from "node:fs/promises";
-import type { DroppedImage, ModelInfo, PickImagesResult, ScriptEdit, SettingsModel } from "../shared/types.js";
+import type { DroppedImage, ModelInfo, PickImagesResult, ScriptEdit, SettingsModel, VoiceProviderChoice } from "../shared/types.js";
 import { extractUrls } from "../shared/create-validation.js";
 import {
   applyNonSensitiveEnvironment,
@@ -65,17 +65,24 @@ function readEnvFile(path: string): Record<string, string> {
 const REPO_ROOT = dirname(process.env.VIDEO_TOOL_HOME ?? videoToolHome());
 const fileEnv = readEnvFile(join(REPO_ROOT, ".env"));
 const bootVoiceEnv = Object.freeze({
-  apiKey:
+  vivibeApiKey:
     process.env.VIVIBE_API_KEY?.trim() ||
     process.env.VIETNAMESE_API_KEY?.trim() ||
     fileEnv.VIVIBE_API_KEY?.trim() ||
     fileEnv.VIETNAMESE_API_KEY?.trim() ||
     "",
-  voiceId:
+  vivibeVoiceId:
     process.env.VIVIBE_VOICE_ID?.trim() ||
     process.env.VIETNAMESE_VOICEID?.trim() ||
     fileEnv.VIVIBE_VOICE_ID?.trim() ||
     fileEnv.VIETNAMESE_VOICEID?.trim(),
+  elevenLabsApiKey:
+    process.env.ELEVENLABS_API_KEY?.trim() ||
+    fileEnv.ELEVENLABS_API_KEY?.trim() ||
+    "",
+  elevenLabsVoiceId:
+    process.env.ELEVENLABS_VOICE_ID?.trim() ||
+    fileEnv.ELEVENLABS_VOICE_ID?.trim(),
 });
 applyNonSensitiveEnvironment(fileEnv);
 scrubSensitiveEnvironment(fileEnv);
@@ -126,14 +133,28 @@ const SETTINGS_FILE = join(videoToolHome(), "news-studio-settings.json");
 const settingsStore = new SettingsStore({
   filePath: SETTINGS_FILE,
   defaults: () => defaultSettings(videoToolHome()),
-  envApiKey: () => bootVoiceEnv.apiKey,
-  envVoiceId: () => bootVoiceEnv.voiceId,
+  envApiKey: () => bootVoiceEnv.vivibeApiKey,
+  envVoiceId: () => bootVoiceEnv.vivibeVoiceId,
+  envElevenLabsApiKey: () => bootVoiceEnv.elevenLabsApiKey,
+  envElevenLabsVoiceId: () => bootVoiceEnv.elevenLabsVoiceId,
+  cipher: {
+    isEncryptionAvailable: () => safeStorage.isEncryptionAvailable(),
+    encryptString: (value) => safeStorage.encryptString(value),
+    decryptString: (value) => safeStorage.decryptString(value),
+  },
 });
 let selectedModel: ModelInfo | undefined;
 
 // TTS config: a user-entered voice key/id (Settings) overrides the .env fallback.
 const tools = createTools({
-  ttsConfig: () => settingsStore.voiceConfig(),
+  ttsConfig: async (projectId) => {
+    const brief = await readBrief(projectId);
+    const provider = brief.tts.provider;
+    if (provider === "mock" || provider === "none") {
+      return { provider, apiKey: "", voiceId: brief.tts.voiceId, modelId: brief.tts.modelId };
+    }
+    return settingsStore.voiceConfig(provider, { voiceId: brief.tts.voiceId, modelId: brief.tts.modelId });
+  },
 });
 const nrClient = new NineRouterClient();
 const gateway = new ModelGatewayManager(
@@ -152,7 +173,16 @@ const authoringBackend = new NineRouterAuthoringBackend({
   apiKey: () => undefined, // 9router /v1 is open on localhost
   // Per-voice CALIBRATED narration rate for the author word-budget (K1/R5.4/D13);
   // undefined when uncalibrated/stale ⇒ the prompt uses its baked default (~4.7).
-  wordsPerSecond: () => settingsStore.calibratedWordsPerSecond(),
+  wordsPerSecond: async (projectId) => {
+    const brief = await readBrief(projectId);
+    if (brief.tts.provider !== "vivibe" && brief.tts.provider !== "elevenlabs") return undefined;
+    return settingsStore.calibratedWordsPerSecond({
+      provider: brief.tts.provider,
+      voiceId: brief.tts.voiceId,
+      modelId: brief.tts.modelId,
+      speed: brief.tts.speed,
+    });
+  },
   onRenderProgress: (ratio, projectId) => {
     // Drive the staged rendering bar from the renderer's REAL per-frame ratio.
     // The active phase (draft/qa/edit/full) is owned by the WorkspaceController
@@ -226,8 +256,14 @@ reportProgress = (projectId, ratio) => workspace.reportRenderProgress(projectId,
 // Create flow (validate → scaffold via the ONE registry → hand off to the
 // staged workspace) lives in the tested CreateController (reconcile S5).
 const create = new CreateController({
-  scaffold: async (prompt) => {
-    const res = await tools.scaffold_project({ prompt });
+  scaffold: async (prompt, voiceProvider) => {
+    const config = settingsStore.voiceConfig(voiceProvider);
+    const res = await tools.scaffold_project({
+      prompt,
+      ttsProvider: voiceProvider,
+      voiceId: config.voiceId,
+      ...(config.modelId ? { modelId: config.modelId } : {}),
+    });
     return res.ok ? { ok: true, projectId: res.data.projectId } : { ok: false, error: res.error };
   },
   beginCreate: (id, input) => workspace.beginCreate(id, input),
@@ -236,13 +272,14 @@ const create = new CreateController({
   // whole AI authoring pass doesn't burn and then fail at TTS. Read from the
   // settings store, not env, so a key configured in the Settings UI counts. We
   // do NOT gate on gateway/model here — that stays a "guide, don't gate" chip.
-  preflight: () => {
-    const { apiKey, voiceId } = settingsStore.voiceConfig();
+  preflight: (voiceProvider) => {
+    const { apiKey, voiceId } = settingsStore.voiceConfig(voiceProvider);
     const missing: string[] = [];
     if (!apiKey) missing.push("API key giọng đọc");
     if (!voiceId) missing.push("giọng đọc (voice id)");
     if (missing.length === 0) return undefined;
-    return `Chưa cấu hình ${missing.join(" và ")} cho giọng đọc tiếng Việt. Mở Cài đặt để thêm rồi thử lại.`;
+    const label = voiceProvider === "vivibe" ? "Vivibe" : "ElevenLabs";
+    return `Chưa cấu hình ${missing.join(" và ")} cho ${label}. Mở Cài đặt để thêm rồi thử lại.`;
   },
   // Move each staged create-time image into the project's assetsDir by RE-importing
   // its bytes (content-addressed, so the <sha>.<ext> filename — and thus the ref —
@@ -414,12 +451,14 @@ const handlers: InvokeHandlers = {
       format?: "tiktok" | "youtube";
       durationTier?: 1 | 2 | 3;
       titleLanguage?: "vi" | "en" | "mix";
+      voiceProvider?: VoiceProviderChoice;
       images?: { ref: string; width: number; height: number }[];
     };
     return create.create(i.raw, i.images ?? [], {
       ...(i.format ? { format: i.format } : {}),
       ...(i.durationTier ? { durationTier: i.durationTier } : {}),
       ...(i.titleLanguage ? { titleLanguage: i.titleLanguage } : {}),
+      ...(i.voiceProvider ? { voiceProvider: parseVoiceProvider(i.voiceProvider) } : {}),
     });
   },
   "projects:pickImages": () => pickImages(),
@@ -584,7 +623,23 @@ const handlers: InvokeHandlers = {
   "settings:update": (patch) => {
     return settingsStore.update(patch as Partial<SettingsModel>);
   },
+  "tts:listVoices": async (providerRaw) => {
+    const provider = parseVoiceProvider(providerRaw);
+    const config = settingsStore.voiceConfig(provider);
+    if (!config.apiKey) throw new Error(`Chưa cấu hình API key ${provider === "vivibe" ? "Vivibe" : "ElevenLabs"}.`);
+    const client = provider === "vivibe"
+      ? new VivibeClient({ apiKey: config.apiKey })
+      : new ElevenLabsClient({ apiKey: config.apiKey });
+    return (await client.listVoices()).map((voice) => ({ id: voice.id, name: voice.name }));
+  },
+  "tts:setApiKey": (providerRaw, apiKey) => settingsStore.setApiKey(parseVoiceProvider(providerRaw), String(apiKey)),
+  "tts:clearApiKey": (providerRaw) => settingsStore.clearApiKey(parseVoiceProvider(providerRaw)),
 };
+
+function parseVoiceProvider(value: unknown): VoiceProviderChoice {
+  if (value === "vivibe" || value === "elevenlabs") return value;
+  throw new Error("Nhà cung cấp giọng đọc không hợp lệ.");
+}
 
 registerIpcRouter(ipcMain, handlers);
 
@@ -626,6 +681,9 @@ async function createWindow(): Promise<void> {
 app
   .whenReady()
   .then(async () => {
+    if (!settingsStore.migrateLegacySecret()) {
+      log.warn("legacy Vivibe API key could not be encrypted; user must re-enter it in Settings");
+    }
     const privilegeError = privilegeStartupError(detectProcessPrivilege());
     if (privilegeError) {
       dialog.showErrorBox("Không thể khởi động an toàn", privilegeError);

@@ -44,6 +44,9 @@ export const INVOKE_CHANNELS = [
   "review:approveDraft",
   "settings:get",
   "settings:update",
+  "tts:listVoices",
+  "tts:setApiKey",
+  "tts:clearApiKey",
 ] as const;
 
 export type InvokeChannel = (typeof INVOKE_CHANNELS)[number];

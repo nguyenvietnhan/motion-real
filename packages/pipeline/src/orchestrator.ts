@@ -98,7 +98,7 @@ export type ScaffoldVideoProjectOptions = {
   projectId?: string;
   /** Soft target duration in seconds (drives the N28 duration check); defaults to 60. */
   duration?: DurationPreset;
-  tts?: { provider?: TtsProvider; voiceId?: string; speed?: number };
+  tts?: { provider?: TtsProvider; voiceId?: string; modelId?: string; speed?: number };
 };
 
 export type ScaffoldVideoProjectResult = {
@@ -130,6 +130,7 @@ export async function scaffoldVideoProject(opts: ScaffoldVideoProjectOptions): P
     tts: {
       provider: opts.tts?.provider ?? "vivibe",
       voiceId: opts.tts?.voiceId,
+      modelId: opts.tts?.modelId,
       speed: opts.tts?.speed ?? DEFAULT_TTS_SPEED,
     },
     state: "scaffolded",
@@ -164,9 +165,10 @@ export type RenderProjectDeps = {
 
 export type RenderProjectOptions = {
   ttsProvider?: TtsProvider;
-  /** Explicit Vivibe credential; avoids retaining it in Electron's process.env. */
+  /** Explicit selected-provider credential; avoids retaining it in Electron's process.env. */
   ttsApiKey?: string;
   voiceId?: string;
+  modelId?: string;
   speed?: number;
   /** Absolute track path; null explicitly disables BGM, undefined keeps the legacy bundled fallback. */
   bgmPath?: string | null;
@@ -417,7 +419,9 @@ async function renderProjectUnlocked(projectId: string, opts: RenderProjectOptio
     const spec = await readJson<VideoSpec>(paths.spec);
 
     const provider: TtsProvider = opts.ttsProvider ?? brief.tts.provider;
-    const voiceId = opts.voiceId ?? brief.tts.voiceId;
+    const sameProviderAsBrief = provider === brief.tts.provider;
+    const voiceId = opts.voiceId ?? (sameProviderAsBrief ? brief.tts.voiceId : undefined);
+    const modelId = opts.modelId ?? (sameProviderAsBrief ? brief.tts.modelId : undefined);
     const speed = opts.speed ?? brief.tts.speed;
 
     // --- (1) TTS. ---
@@ -432,6 +436,7 @@ async function renderProjectUnlocked(projectId: string, opts: RenderProjectOptio
         provider,
         ...(opts.ttsApiKey ? { apiKey: opts.ttsApiKey } : {}),
         voiceId,
+        modelId,
         speed,
         ...(selectedBgmPath ? { bgmPath: selectedBgmPath } : {}),
       }),

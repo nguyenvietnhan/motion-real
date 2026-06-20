@@ -2,14 +2,21 @@ import { existsSync } from "node:fs";
 import { copyFile, mkdir, readFile } from "node:fs/promises";
 import { extname, join, relative } from "node:path";
 import {
+  ELEVENLABS_DEFAULT_MODEL_ID,
+  ELEVENLABS_OUTPUT_FORMAT,
+  TTS_NORMALIZER_VERSION,
+  ElevenLabsClient,
   VivibeClient,
   concatAudioWithGaps,
   defaultVivibeVoiceId,
+  defaultElevenLabsVoiceId,
+  elevenLabsApiKey,
   measureAudioDuration,
   mixBgm,
   synthesizeMockAudio,
   ttsCacheKey,
   vivibeApiKey,
+  type TtsClient,
 } from "@news/tts";
 import { BREATH_GAP_SECONDS, DEFAULT_TTS_SPEED, type VideoSpec } from "@news/schema";
 import type { TtsManifest, TtsManifestScene, TtsProvider } from "../types.js";
@@ -36,6 +43,7 @@ export type SynthesizeOptions = {
   /** Explicit in-memory credential. Desktop passes this after scrubbing process.env. */
   apiKey?: string;
   voiceId?: string;
+  modelId?: string;
   speed?: number;
   /** absolute path to a BGM file to mix under the narration, if any */
   bgmPath?: string;
@@ -44,6 +52,7 @@ export type SynthesizeOptions = {
 };
 
 export type VivibeCredentials = { apiKey: string; voiceId: string | undefined };
+export type ElevenLabsCredentials = VivibeCredentials & { modelId: string };
 
 /** Resolve explicit credentials first; environment remains a CLI-only fallback. */
 export function resolveVivibeCredentials(
@@ -53,6 +62,21 @@ export function resolveVivibeCredentials(
   return {
     apiKey: opts.apiKey?.trim() || fallback.apiKey,
     voiceId: opts.voiceId?.trim() || fallback.voiceId,
+  };
+}
+
+export function resolveElevenLabsCredentials(
+  opts: Pick<SynthesizeOptions, "apiKey" | "voiceId" | "modelId">,
+  fallback: ElevenLabsCredentials = {
+    apiKey: elevenLabsApiKey(),
+    voiceId: defaultElevenLabsVoiceId(),
+    modelId: ELEVENLABS_DEFAULT_MODEL_ID,
+  },
+): ElevenLabsCredentials {
+  return {
+    apiKey: opts.apiKey?.trim() || fallback.apiKey,
+    voiceId: opts.voiceId?.trim() || fallback.voiceId,
+    modelId: opts.modelId?.trim() || fallback.modelId,
   };
 }
 
@@ -77,13 +101,15 @@ const VIVIBE_TTS_DICTIONARY: Array<[RegExp, string]> = [
   [/\bAI\b/g, "Ây-Ai"],
 ];
 
-function prepareTtsText(text: string): string {
+function prepareTtsText(text: string, provider: TtsProvider): string {
   // Read digit numbers as natural Vietnamese FIRST (so a year like "2026" is
   // spoken "hai nghìn không trăm hai mươi sáu", never "hai mươi hai sáu"), then
   // adapt brand/tech terms for pronunciation. Display/captions keep the digits.
   let out = normalizeVietnameseNumbers(text.trim());
-  for (const [pattern, replacement] of VIVIBE_TTS_DICTIONARY) {
-    out = out.replace(pattern, replacement);
+  if (provider === "vivibe") {
+    for (const [pattern, replacement] of VIVIBE_TTS_DICTIONARY) {
+      out = out.replace(pattern, replacement);
+    }
   }
   // Preserve sentence-final intonation (author-mode-v2 R4.2): do NOT convert a
   // trailing period into a comma. The silent breath gap between clips (inserted
@@ -118,7 +144,9 @@ export async function synthesizeNarration(
   await mkdir(cacheRoot, { recursive: true });
 
   // Resolve voice + validate config up front (stop-and-report).
-  const credentials = resolveVivibeCredentials(opts);
+  const credentials = opts.provider === "elevenlabs"
+    ? resolveElevenLabsCredentials(opts)
+    : resolveVivibeCredentials(opts);
   const voiceId = credentials.voiceId;
   if (opts.provider === "vivibe") {
     if (!credentials.apiKey) {
@@ -130,16 +158,37 @@ export async function synthesizeNarration(
       throw new Error("Vivibe TTS requires a voice id. Set VIVIBE_VOICE_ID / VIETNAMESE_VOICEID in .env.");
     }
   }
+  if (opts.provider === "elevenlabs") {
+    if (!credentials.apiKey) {
+      throw new Error("ElevenLabs TTS selected but ELEVENLABS_API_KEY is missing. Set it before rendering.");
+    }
+    if (!voiceId) {
+      throw new Error("ElevenLabs TTS requires a voice id. Set ELEVENLABS_VOICE_ID before rendering.");
+    }
+  }
   const effectiveVoiceId = voiceId ?? "mock";
+  const modelId = opts.provider === "elevenlabs"
+    ? (credentials as ElevenLabsCredentials).modelId
+    : undefined;
 
-  const client = opts.provider === "vivibe" ? new VivibeClient({ apiKey: credentials.apiKey }) : null;
+  let client: TtsClient | null = null;
+  if (opts.provider === "vivibe") client = new VivibeClient({ apiKey: credentials.apiKey });
+  if (opts.provider === "elevenlabs") client = new ElevenLabsClient({ apiKey: credentials.apiKey });
   const byScene: Record<string, TtsManifestScene> = {};
   const orderedClips: string[] = [];
 
   for (let i = 0; i < spec.scenes.length; i += 1) {
     const scene = spec.scenes[i]!;
-    const text = prepareTtsText(scene.narration);
-    const key = ttsCacheKey(text, effectiveVoiceId, speed);
+    const text = prepareTtsText(scene.narration, opts.provider);
+    const key = ttsCacheKey({
+      provider: opts.provider === "mock" ? "mock" : opts.provider,
+      text,
+      voiceId: effectiveVoiceId,
+      speed,
+      ...(modelId ? { modelId } : {}),
+      outputFormat: opts.provider === "elevenlabs" ? ELEVENLABS_OUTPUT_FORMAT : "provider-default",
+      normalizerVersion: TTS_NORMALIZER_VERSION,
+    });
     const cacheBase = join(cacheRoot, key);
 
     let audioPath: string;
@@ -163,6 +212,8 @@ export async function synthesizeNarration(
           voiceId: effectiveVoiceId,
           speed,
           outputPath: cacheBase,
+          ...(modelId ? { modelId } : {}),
+          ...(opts.provider === "elevenlabs" ? { languageCode: "vi" } : {}),
         });
         audioPath = join(p.audioDir, `${scene.id}${extname(result.audioPath)}`);
         await copyFile(result.audioPath, audioPath);
@@ -193,7 +244,9 @@ export async function synthesizeNarration(
 
   return {
     updatedAt: new Date().toISOString(),
+    provider: opts.provider,
     voiceId: effectiveVoiceId,
+    ...(modelId ? { modelId } : {}),
     speed,
     byScene,
     mixedSrc: toProjectRel(opts.projectId, mixedAbs),

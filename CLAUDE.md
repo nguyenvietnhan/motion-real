@@ -44,7 +44,7 @@ Topic/URL -> AI authors scenes .tsx + manifest.json
 -> desktop hidden stills loop (optional refinePasses: blind stills -> creative
    bootstrap -> vision QA over stills) -> user sees only the refined draft path
 -> admission gate (N4/N5) -> manifest->VideoSpec -> static grid (N1-N9)
--> Vivibe TTS (+ breath gaps + SRT) -> lockSpec (transition-aware, caption cues)
+-> configured TTS (Vivibe or ElevenLabs; + breath gaps + timing) -> lockSpec (transition-aware, caption cues)
 -> build grid (N10-N13) -> determinism guard (N16)
 -> Remotion render (TransitionSeries + TikTok caption track) -> MP4
 -> render oracles (N14, N18-N22, N28-N30; N15/N17 over measured layouts; N23 exported, not auto-run) -> review loop (N24-N25) -> done
@@ -56,7 +56,7 @@ Topic/URL -> AI authors scenes .tsx + manifest.json
 | `@news/theme` | One NEUTRAL theme (post-freeform-pivot; replaced the deleted multi-language `@news/design`): `theme.ts` holds the `Theme` shape + a 2-layer cross-model defense (typed aliases + Proxy fallback) so the render runtime + `SceneImage` resolve `useTheme()`; OFF the authored import whitelist (authored scenes hard-code all visuals) |
 | `@news/blocks` | Render RUNTIME internals consumed by `@news/compositions` (NOT authored-facing): Captions, layout-probe, scene-timing, motion, theme-context, chrome surface-kit, fonts — plus the single authored-facing survivor `SceneImage`, re-exported through `@news/compositions`. The slot-based layout blocks (Frame/TitleBlock/KeyPoints/Panel/Story/…) were DELETED; do not re-add them |
 | `@news/compositions` | Registry + master `VideoComposition` (TransitionSeries + TikTok caption overlay; caption/divider omitted for `format:"youtube"`); `ThumbnailComposition`; NO built-in templates |
-| `@news/tts` | Vivibe/LucyLab client, audio measure/concat-with-gaps/mix, SRT capture |
+| `@news/tts` | Vivibe/LucyLab + ElevenLabs clients, audio measure/concat-with-gaps/mix, SRT/timestamp capture |
 | `@news/pipeline` | authoring/admission + manifest, ingest, tts, captions, lock, BGM resolution/mix handoff, thumbnails, no-TTS still renders, sfx, store, cache, determinism, renderer, review, orchestrator, cli, safety grid |
 | `@news/mcp` | MCP server exposing the pipeline as tools |
 | `apps/remotion` | Remotion root, sample fixture, studio/render entry |
@@ -169,7 +169,7 @@ Follow `docs/ai-content-guide.md` exactly. Highlights:
 
 ## 7. Runtime Rules
 
-- Preserve the configured TTS provider/voice. If Vivibe is configured, use it; do
+- Preserve the configured TTS provider/voice/model. Vivibe supports Vietnamese only; do
   not silently fall back to `mock`/`none` unless the user asks for no voice.
 - If TTS config is incomplete, STOP and report the exact missing key/endpoint/
   voice id. Do not substitute a lower-quality voice.

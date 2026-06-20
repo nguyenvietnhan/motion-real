@@ -91,7 +91,7 @@ export type NineRouterBackendDeps = {
    * recalibration takes effect on the next author call; absent ⇒ the prompt's
    * baked default (~4.7). The backend only passes it through to `buildAuthorMessages`.
    */
-  wordsPerSecond?: () => number | undefined;
+  wordsPerSecond?: (projectId: string) => number | undefined | Promise<number | undefined>;
   /**
    * Admit a project's authored scenes (injectable for tests). The default is a
    * pure AST gate; authored code is never imported into the Electron/Node host.
@@ -257,7 +257,8 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
     // (never provided), which is its real purpose.
     const allowedRefs = new Set((job.input.images ?? []).map((i) => i.ref));
 
-    const messages = buildAuthorMessages(job.input, research, images.length > 0 ? images : undefined, this.deps.wordsPerSecond?.());
+    const wordsPerSecond = await this.deps.wordsPerSecond?.(job.projectId);
+    const messages = buildAuthorMessages(job.input, research, images.length > 0 ? images : undefined, wordsPerSecond);
     let reply: string;
     try {
       log.info({ model, projectId: job.projectId }, "calling AI model for authoring");

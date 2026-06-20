@@ -134,6 +134,7 @@ function fakeSynthesize(): RenderProjectDeps["synthesize"] {
     await writeFile(join(paths.audioDir, "narration.mixed.wav"), Buffer.from("mixed-wav-bytes"));
     return {
       updatedAt: "2026-01-01T00:00:00.000Z",
+      provider: opts.provider,
       voiceId: "mock-voice",
       speed: 1,
       byScene,
@@ -195,6 +196,19 @@ describe("scaffoldVideoProject — R8/R10", () => {
     expect(existsSync(paths.authoredDir)).toBe(true);
     expect(result.brief.state).toBe("scaffolded");
     expect(await readBriefState(result.projectId)).toBe("scaffolded");
+  });
+
+  it("captures the selected ElevenLabs voice and model in the project brief", async () => {
+    const result = await scaffoldVideoProject({
+      prompt: "ElevenLabs project",
+      tts: { provider: "elevenlabs", voiceId: "voice-1", modelId: "eleven_multilingual_v2" },
+    });
+    expect(result.brief.tts).toMatchObject({
+      provider: "elevenlabs",
+      voiceId: "voice-1",
+      modelId: "eleven_multilingual_v2",
+      speed: 1,
+    });
   });
 });
 

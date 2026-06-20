@@ -17,8 +17,12 @@ import {
   resolveBgmTrack,
   PipelineError,
   serializeError,
+  readBrief,
+  ELEVENLABS_DEFAULT_MODEL_ID,
   vivibeApiKey,
   defaultVivibeVoiceId,
+  elevenLabsApiKey,
+  defaultElevenLabsVoiceId,
   type IngestResult,
   type ScaffoldVideoProjectResult,
   type RenderProjectResult,
@@ -29,6 +33,7 @@ import {
   type TrackerStatus,
   type SafetyReport,
   type SafetyIssue,
+  type TtsProvider,
 } from "@news/pipeline";
 import { ok, err, type ToolResult } from "./types.js";
 
@@ -55,10 +60,15 @@ export type ToolDeps = {
   /** Does a reviewed draft exist for this project? (draft-first gate input.) */
   draftExistsFor: (projectId: string) => boolean;
   /** TTS config presence — used to refuse a downgrade, never to substitute. */
-  ttsConfig: () => { apiKey: string; voiceId: string | undefined };
+  ttsConfig: (projectId: string) => TtsConfig | Promise<TtsConfig>;
 };
 
-type TtsConfig = ReturnType<ToolDeps["ttsConfig"]>;
+export type TtsConfig = {
+  provider?: TtsProvider;
+  apiKey: string;
+  voiceId: string | undefined;
+  modelId?: string;
+};
 
 /** Default draft-first input: the orchestrator writes `<id>.draft.mp4` here. */
 export function draftExistsFor(projectId: string): boolean {
@@ -80,7 +90,24 @@ const DEFAULT_DEPS: ToolDeps = {
   readTracker,
   writeTracker,
   draftExistsFor,
-  ttsConfig: () => ({ apiKey: vivibeApiKey(), voiceId: defaultVivibeVoiceId() }),
+  ttsConfig: async (projectId) => {
+    const brief = await readBrief(projectId);
+    const provider = brief.tts.provider;
+    if (provider === "elevenlabs") {
+      return {
+        provider,
+        apiKey: elevenLabsApiKey(),
+        voiceId: brief.tts.voiceId ?? defaultElevenLabsVoiceId(),
+        modelId: brief.tts.modelId ?? ELEVENLABS_DEFAULT_MODEL_ID,
+      };
+    }
+    return {
+      provider,
+      apiKey: vivibeApiKey(),
+      voiceId: brief.tts.voiceId ?? defaultVivibeVoiceId(),
+      modelId: brief.tts.modelId,
+    };
+  },
 };
 
 // --- input schemas (Zod) ---------------------------------------------------
@@ -96,6 +123,9 @@ export const scaffoldProjectInput = z.object({
   prompt: z.string().min(1),
   projectId: z.string().min(1).optional(),
   duration: z.union([z.literal(60), z.literal(90), z.literal(120), z.literal(180)]).optional(),
+  ttsProvider: z.enum(["vivibe", "elevenlabs"]).optional(),
+  voiceId: z.string().min(1).optional(),
+  modelId: z.string().min(1).optional(),
 });
 
 export const renderDraftInput = z.object({
@@ -182,18 +212,25 @@ export type SafetyReportView = { ok: boolean; hardErrors: SafetyIssue[]; warning
 // --- TTS guard (R3.6, R10.9, Property 10) ----------------------------------
 
 /**
- * Refuse a render when the Vivibe config is incomplete, naming the EXACT missing
- * field — and never substituting `mock`/`none`. The provider stays Vivibe.
+ * Refuse a render when the selected provider config is incomplete, naming the
+ * exact missing field and never substituting `mock`/`none`.
  */
-function assertVivibeConfig({ apiKey, voiceId }: TtsConfig): PipelineError | undefined {
+function assertTtsConfig({ provider = "vivibe", apiKey, voiceId }: TtsConfig): PipelineError | undefined {
+  if (provider === "mock" || provider === "none") return undefined;
   const missing: string[] = [];
-  if (!apiKey) missing.push("VIVIBE_API_KEY/VIETNAMESE_API_KEY");
-  if (!voiceId) missing.push("VIVIBE_VOICE_ID/VIETNAMESE_VOICEID");
+  if (provider === "elevenlabs") {
+    if (!apiKey) missing.push("ELEVENLABS_API_KEY");
+    if (!voiceId) missing.push("ELEVENLABS_VOICE_ID");
+  } else {
+    if (!apiKey) missing.push("VIVIBE_API_KEY/VIETNAMESE_API_KEY");
+    if (!voiceId) missing.push("VIVIBE_VOICE_ID/VIETNAMESE_VOICEID");
+  }
   if (missing.length === 0) return undefined;
+  const label = provider === "elevenlabs" ? "ElevenLabs" : "Vivibe";
   return new PipelineError({
     stage: "config",
-    cause: `incomplete Vivibe TTS config: missing ${missing.join(", ")}`,
-    remediation: "Set the missing Vivibe key/voice id in .env; the provider stays Vivibe (never downgraded to mock/none).",
+    cause: `incomplete ${label} TTS config: missing ${missing.join(", ")}`,
+    remediation: `Set the missing ${label} key/voice id; the provider is never downgraded to mock/none.`,
   });
 }
 
@@ -222,6 +259,13 @@ export function createTools(overrides: Partial<ToolDeps> = {}) {
           prompt: input.prompt,
           ...(input.projectId ? { projectId: input.projectId } : {}),
           ...(input.duration ? { duration: input.duration } : {}),
+          ...(input.ttsProvider ? {
+            tts: {
+              provider: input.ttsProvider,
+              ...(input.voiceId ? { voiceId: input.voiceId } : {}),
+              ...(input.modelId ? { modelId: input.modelId } : {}),
+            },
+          } : {}),
         });
         return ok(res);
       } catch (e) {
@@ -234,8 +278,8 @@ export function createTools(overrides: Partial<ToolDeps> = {}) {
       onProgress?: (ratio: number) => void,
       signal?: AbortSignal,
     ): Promise<ToolResult<RenderProjectResult>> {
-      const ttsConfig = deps.ttsConfig();
-      const cfgError = assertVivibeConfig(ttsConfig);
+      const ttsConfig = await deps.ttsConfig(input.projectId);
+      const cfgError = assertTtsConfig(ttsConfig);
       if (cfgError) return err(cfgError.toSerialized());
       try {
         // Resolve the project's chosen BGM (manifest `bgm` ref) to an absolute
@@ -244,8 +288,10 @@ export function createTools(overrides: Partial<ToolDeps> = {}) {
         const bgmPath = await resolveProjectBgm(input.projectId);
         const res = await deps.renderProject(input.projectId, {
           quality: "draft",
+          ...(ttsConfig.provider ? { ttsProvider: ttsConfig.provider } : {}),
           ttsApiKey: ttsConfig.apiKey,
           voiceId: ttsConfig.voiceId,
+          modelId: ttsConfig.modelId,
           bgmPath,
           ...(input.concurrency ? { concurrency: input.concurrency } : {}),
           ...(onProgress ? { onProgress } : {}),
@@ -275,16 +321,18 @@ export function createTools(overrides: Partial<ToolDeps> = {}) {
           }).toSerialized(),
         );
       }
-      const ttsConfig = deps.ttsConfig();
-      const cfgError = assertVivibeConfig(ttsConfig);
+      const ttsConfig = await deps.ttsConfig(input.projectId);
+      const cfgError = assertTtsConfig(ttsConfig);
       if (cfgError) return err(cfgError.toSerialized());
       try {
         const bgmPath = await resolveProjectBgm(input.projectId);
         const res = await deps.renderProject(input.projectId, {
           quality: "full",
           forceFull,
+          ...(ttsConfig.provider ? { ttsProvider: ttsConfig.provider } : {}),
           ttsApiKey: ttsConfig.apiKey,
           voiceId: ttsConfig.voiceId,
+          modelId: ttsConfig.modelId,
           bgmPath,
           ...(onProgress ? { onProgress } : {}),
           ...(signal ? { signal } : {}),
@@ -303,7 +351,7 @@ export function createTools(overrides: Partial<ToolDeps> = {}) {
     ): Promise<ToolResult<RenderProjectStillsResult>> {
       // Stills need NO Vivibe config (no TTS) — this is the cheap visual-only
       // loop the silent refine pass iterates on, so it deliberately skips the
-      // assertVivibeConfig guard the MP4 render tools enforce.
+      // provider-config guard the MP4 render tools enforce.
       try {
         const res = await deps.renderProjectStills(input.projectId, {
           ...(input.sceneIds ? { sceneIds: input.sceneIds } : {}),

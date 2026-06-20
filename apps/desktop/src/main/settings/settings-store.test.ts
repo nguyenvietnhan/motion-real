@@ -14,13 +14,21 @@ const HOME = "/home/.video-tool";
 const defaults = (): SettingsModel => defaultSettings(HOME);
 
 /** Build a store over an in-memory file (no disk), optionally pre-seeded. */
-function memStore(seed?: string, env?: { apiKey?: string; voiceId?: string }) {
+function memStore(seed?: string, env?: { apiKey?: string; voiceId?: string }, cipherAvailable = true, decryptFails = false) {
   let file: string | undefined = seed;
   const deps: SettingsStoreDeps = {
     filePath: "settings.json",
     defaults,
     envApiKey: () => env?.apiKey,
     envVoiceId: () => env?.voiceId,
+    cipher: {
+      isEncryptionAvailable: () => cipherAvailable,
+      encryptString: (value) => Buffer.from(`encrypted:${value}`),
+      decryptString: (value) => {
+        if (decryptFails) throw new Error("wrong user");
+        return value.toString().replace(/^encrypted:/, "");
+      },
+    },
     exists: () => file !== undefined,
     readText: () => file ?? "",
     writeText: (_p, text) => {
@@ -37,8 +45,7 @@ const aiAccountArb: fc.Arbitrary<AiAccountState> = fc.constantFrom<AiAccountStat
 
 const savedArb = fc.record(
   {
-    voiceId: fc.option(fc.string(), { nil: undefined }),
-    voiceApiKey: fc.option(fc.string(), { nil: undefined }),
+    vivibeVoiceId: fc.option(fc.string(), { nil: undefined }),
     outputDir: fc.string(),
     maxRepairAttempts: fc.integer({ min: -5, max: 99 }),
     scriptGateEnabled: fc.boolean(),
@@ -55,7 +62,7 @@ describe("Property 2: Settings load merge precedence", () => {
         const { store } = memStore(JSON.stringify(saved));
         const out = store.current();
         const base = defaults();
-        for (const k of ["voiceId", "voiceApiKey", "outputDir", "maxRepairAttempts", "scriptGateEnabled"] as const) {
+        for (const k of ["vivibeVoiceId", "outputDir", "maxRepairAttempts", "scriptGateEnabled"] as const) {
           const expected = k in saved ? (saved as Record<string, unknown>)[k] : (base as Record<string, unknown>)[k];
           expect((out as Record<string, unknown>)[k]).toEqual(expected);
         }
@@ -78,13 +85,14 @@ describe("Property 3: Settings update merge precedence (no clamp)", () => {
         for (const k of Object.keys(patch) as (keyof SettingsModel)[]) {
           expect(out[k]).toEqual((patch as Record<string, unknown>)[k]);
         }
-        expect(out.voiceProvider).toBe("vivibe");
+        expect(out.voiceProvider).toBe(before.voiceProvider);
         if ("maxRepairAttempts" in patch) expect(out.maxRepairAttempts).toBe(patch.maxRepairAttempts);
         else expect(out.maxRepairAttempts).toBe(before.maxRepairAttempts);
         // persisted (minus aiAccount) equals the returned settings
         const persisted = JSON.parse(readFile()!) as Partial<SettingsModel>;
-        const { aiAccount: _a, ...expected } = out;
-        expect(persisted).toEqual(expected);
+        const { aiAccount: _a, voiceCredentials: _c, ...expected } = out;
+        expect(persisted).toMatchObject(JSON.parse(JSON.stringify(expected)) as Partial<SettingsModel>);
+        expect(persisted).toHaveProperty("encryptedVoiceApiKeys");
       }),
       { numRuns: 100 },
     );
@@ -100,7 +108,9 @@ describe("Property 4: Persistence excludes aiAccount", () => {
         const out = store.update(patch);
         const persisted = JSON.parse(readFile()!) as Record<string, unknown>;
         expect("aiAccount" in persisted).toBe(false);
+        expect("voiceCredentials" in persisted).toBe(false);
         for (const k of Object.keys(persisted)) {
+          if (k === "encryptedVoiceApiKeys") continue;
           expect(persisted[k]).toEqual((out as Record<string, unknown>)[k]);
         }
       }),
@@ -111,25 +121,35 @@ describe("Property 4: Persistence excludes aiAccount", () => {
 
 // Property 5: Voice config resolution
 describe("Property 5: Voice config resolution", () => {
-  it("trimmed setting if non-empty after trim, else env fallback", () => {
-    fc.assert(
-      fc.property(
-        fc.option(fc.string(), { nil: undefined }),
-        fc.option(fc.string(), { nil: undefined }),
-        fc.string(),
-        fc.string(),
-        (voiceApiKey, voiceId, envKey, envVoice) => {
-          const { store } = memStore(undefined, { apiKey: envKey, voiceId: envVoice });
-          store.update({ voiceApiKey, voiceId });
-          const cfg = store.voiceConfig();
-          const expectKey = voiceApiKey?.trim() || envKey || "";
-          const expectVoice = voiceId?.trim() || envVoice || "";
-          expect(cfg.apiKey).toBe(expectKey);
-          expect(cfg.voiceId).toBe(expectVoice);
-        },
-      ),
-      { numRuns: 100 },
-    );
+  it("encrypted setting wins over env and never appears in the renderer model", () => {
+    const { store, readFile } = memStore(undefined, { apiKey: "env-key", voiceId: "env-voice" });
+    store.update({ vivibeVoiceId: "saved-voice" });
+    store.setApiKey("vivibe", "saved-key");
+    expect(store.voiceConfig("vivibe")).toMatchObject({ apiKey: "saved-key", voiceId: "saved-voice" });
+    expect(JSON.stringify(store.current())).not.toContain("saved-key");
+    expect(readFile()).not.toContain("saved-key");
+  });
+
+  it("migrates the legacy plaintext Vivibe key only after encryption succeeds", () => {
+    const { store, readFile } = memStore(JSON.stringify({ voiceApiKey: "legacy", voiceId: "v1" }));
+    expect(store.migrateLegacySecret()).toBe(true);
+    expect(store.voiceConfig("vivibe").apiKey).toBe("legacy");
+    expect(readFile()).not.toContain('"voiceApiKey"');
+    expect(readFile()).not.toContain("legacy");
+  });
+
+  it("fails closed when OS encryption is unavailable", () => {
+    const { store, readFile } = memStore(JSON.stringify({ voiceApiKey: "legacy", voiceId: "v1" }), undefined, false);
+    expect(store.migrateLegacySecret()).toBe(false);
+    expect(store.voiceConfig("vivibe").apiKey).toBe("");
+    expect(readFile()).toContain("legacy");
+    expect(() => store.setApiKey("vivibe", "new-key")).toThrow(/Không thể mã hóa/);
+  });
+
+  it("drops an undecryptable saved key and requires re-entry", () => {
+    const { store } = memStore(JSON.stringify({ encryptedVoiceApiKeys: { elevenlabs: "v1:YmFk" } }), undefined, true, true);
+    expect(store.voiceConfig("elevenlabs").apiKey).toBe("");
+    expect(store.current().voiceCredentials.elevenlabs).toBe("missing");
   });
 });
 

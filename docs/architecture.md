@@ -13,7 +13,7 @@ Không dùng pnpm/turbo. Hai vùng: `packages/` (logic) + `apps/` (entry points)
 | `@news/theme` | Một theme TRUNG TÍNH duy nhất (sau pivot freeform, thay `@news/design` đa-ngôn-ngữ đã xoá): `theme.ts` giữ shape `Theme` + phòng thủ 2 lớp cross-model (typed aliases + Proxy fallback) để runtime render + `SceneImage` resolve `useTheme()` nội bộ; KHÔNG nằm trong whitelist authored — cảnh authored hardcode mọi visual trong code |
 | `@news/blocks` | Runtime nội bộ của lớp render do `@news/compositions` tiêu thụ (KHÔNG phải authored-facing): Captions, layout-probe, scene-timing, motion, theme-context, chrome surface-kit, fonts — cộng `SceneImage` là authored-facing survivor duy nhất, re-export qua `@news/compositions`. Các layout block slot-based (Frame/TitleBlock/KeyPoints/Panel/Story/…) đã bị XOÁ |
 | `@news/compositions` | Registry + master `VideoComposition` (TransitionSeries + TikTok caption overlay; caption/divider omitted for `format:"youtube"`), `ThumbnailComposition`; KHÔNG có template built-in |
-| `@news/tts` | Vivibe/LucyLab client, audio measure/concat-with-gaps/mix, SRT capture |
+| `@news/tts` | Vivibe/LucyLab + ElevenLabs clients, audio measure/concat-with-gaps/mix, SRT/timestamp capture |
 | `@news/pipeline` | authoring/admission, manifest, ingest, tts, captions, lock, BGM handoff, no-TTS stills, thumbnail render, sfx, store, cache, determinism, renderer, review, orchestrator, cli, safety grid |
 | `@news/mcp` | MCP server phơi pipeline thành typed tools |
 | `apps/remotion` | Remotion root (`Root.tsx`), một composition `NewsVideo`, studio/render entry |
@@ -35,7 +35,7 @@ Topic/URL
   -> manifest -> VideoSpec               [loadManifestAsSpec]
   -> static grid (N1-N9)                 [safety/*, runStaticGrid]
   -> typecheck authored (N10)            [safety/typecheck-authored.ts]
-  -> Vivibe TTS (+ breath gaps + SRT)    [@news/tts]
+  -> configured TTS (Vivibe/ElevenLabs; breath gaps + timing) [@news/tts]
   -> lockSpec (transition-aware, caption cues) -> LockedVideoSpec
   -> build grid (N11-N13)                [safety/build-grid.ts]
   -> determinism guard (N16)             [render/determinism.ts]

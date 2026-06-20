@@ -82,6 +82,11 @@ export function createDashboardClient(ipc: IpcLike): DashboardApi {
       get: () => inv("settings:get"),
       update: (patch) => inv("settings:update", patch),
     },
+    tts: {
+      listVoices: (provider) => inv("tts:listVoices", provider),
+      setApiKey: (provider, apiKey) => inv("tts:setApiKey", provider, apiKey),
+      clearApiKey: (provider) => inv("tts:clearApiKey", provider),
+    },
     events: {
       onProgress: (cb) => subscribe(ipc, "events:progress", cb),
       onScene: (cb) => subscribe(ipc, "events:scene", cb),
