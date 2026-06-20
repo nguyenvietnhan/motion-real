@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import { mkdir, readdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { VideoSpecSchema, type DurationTier, type SceneImage, type TitleLanguage, type VideoFormat, type VideoSpec } from "@news/schema";
+import { VideoSpecSchema, normalizeVideoLanguage, type DurationTier, type LegacyTitleLanguage, type SceneImage, type VideoFormat, type VideoLanguage, type VideoSpec } from "@news/schema";
 import type { SafetyIssue } from "../types.js";
 import { ensureProject, projectPaths, readJson, writeJson } from "../store/store.js";
 import { admitAuthoredSceneFile } from "./register.js";
@@ -66,12 +66,10 @@ export type Manifest = {
    * value (or a stale ref to a deleted track) ⇒ no music. The AI never sets it.
    */
   bgm?: string;
-  /**
-   * Publish-title language (R9.2/D10): vi/en/mix. The backend injects it from the
-   * user's UI choice (it only steers the generated title/hashtags, NOT the script
-   * — narration is always Vietnamese). Absent ⇒ "vi".
-   */
-  titleLanguage?: TitleLanguage;
+  /** Authored video language: title, hashtags, on-screen text, narration, captions. Absent ⇒ "vi". */
+  videoLanguage?: VideoLanguage;
+  /** @deprecated Legacy field from the old title-only picker; `mix` normalizes to "vi". */
+  titleLanguage?: LegacyTitleLanguage;
   theme?: { dominant: string; mood?: string };
   scenes: ManifestScene[];
 };
@@ -104,15 +102,16 @@ export function manifestToVideoSpec(manifest: Manifest): VideoSpec {
   // user's UI choice; absent ⇒ the historical vertical default so an older
   // manifest still resolves. `ratio` is derived from format for readability.
   const format: VideoFormat = manifest.format ?? "tiktok";
+  const videoLanguage = manifest.videoLanguage ?? normalizeVideoLanguage(manifest.titleLanguage);
   const candidate = {
     version: 1,
     title: (manifest.title?.trim() || "Untitled").slice(0, 140),
     styleId: "clean-luxury-tech",
     format,
     ...(manifest.durationTier ? { durationTier: manifest.durationTier } : {}),
-    ...(manifest.titleLanguage ? { titleLanguage: manifest.titleLanguage } : {}),
+    videoLanguage,
     ratio: format === "youtube" ? "16:9" : "9:16",
-    language: "vi",
+    language: videoLanguage,
     // Clamp to the VideoSpec schema so a manifest authored with AI variance
     // (or written by an older build) never trips validation at render time.
     theme: manifest.theme?.dominant ? clampTheme(manifest.theme) : undefined,

@@ -273,6 +273,7 @@ export type TtsCacheIdentity = {
   voiceId: string;
   speed: number;
   modelId?: string;
+  languageCode?: string;
   outputFormat?: string;
   normalizerVersion?: string;
 };
@@ -468,10 +469,15 @@ export function alignmentToSrt(alignment: ElevenLabsAlignment): string {
 async function elevenLabsHttpError(res: Response, operation: string): Promise<Error> {
   let detail = "";
   try {
-    const body = (await res.json()) as { detail?: unknown };
+    const body = (await res.json()) as { detail?: unknown; code?: unknown; message?: unknown; type?: unknown; status?: unknown };
     detail = typeof body.detail === "string" ? body.detail : JSON.stringify(body.detail ?? body);
   } catch {
     detail = res.statusText;
+  }
+  if (res.status === 402 && /paid_plan_required|library voices?/i.test(detail)) {
+    return new Error(
+      `ElevenLabs ${operation} failed (402): selected voice requires a paid ElevenLabs plan for API use. Choose a personal/default voice allowed by your plan, or upgrade ElevenLabs.`,
+    );
   }
   return new Error(`ElevenLabs ${operation} failed (${res.status}): ${detail}`);
 }

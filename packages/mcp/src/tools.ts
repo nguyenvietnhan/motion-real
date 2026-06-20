@@ -123,6 +123,7 @@ export const scaffoldProjectInput = z.object({
   prompt: z.string().min(1),
   projectId: z.string().min(1).optional(),
   duration: z.union([z.literal(60), z.literal(90), z.literal(120), z.literal(180)]).optional(),
+  language: z.enum(["vi", "en"]).optional(),
   ttsProvider: z.enum(["vivibe", "elevenlabs"]).optional(),
   voiceId: z.string().min(1).optional(),
   modelId: z.string().min(1).optional(),
@@ -259,6 +260,7 @@ export function createTools(overrides: Partial<ToolDeps> = {}) {
           prompt: input.prompt,
           ...(input.projectId ? { projectId: input.projectId } : {}),
           ...(input.duration ? { duration: input.duration } : {}),
+          ...(input.language ? { language: input.language } : {}),
           ...(input.ttsProvider ? {
             tts: {
               provider: input.ttsProvider,

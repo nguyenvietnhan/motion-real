@@ -33,7 +33,7 @@ import { extractJsonObject } from "./manifest-schema.js";
 import { sceneFileName, resolveSceneFile } from "./scene-files.js";
 import { normalizeAuthoredImports } from "./normalize-imports.js";
 import { normalizeAuthoredFontSizes } from "./normalize-fontsize.js";
-import type { VideoFormat, DurationTier, TitleLanguage } from "@news/schema";
+import type { VideoFormat, DurationTier, VideoLanguage } from "@news/schema";
 
 /**
  * Pure-AUTHOR authoring backend (desktop-author-mode). The AI writes FRESH `.tsx`
@@ -86,10 +86,10 @@ export type NineRouterBackendDeps = {
   /** Forward fine-grained render progress to the UI (per project). */
   onRenderProgress?: (ratio: number, projectId: string) => void;
   /**
-   * The Vietnamese narration rate (words/second) the author prompt's word-budget
-   * math uses (freeform-engine K1/R5.4/D13). Read live from settings so a voice
-   * recalibration takes effect on the next author call; absent ⇒ the prompt's
-   * baked default (~4.7). The backend only passes it through to `buildAuthorMessages`.
+   * The narration rate (words/second) the author prompt's word-budget math uses.
+   * Read live from settings for calibrated Vietnamese voices so recalibration
+   * takes effect on the next author call. English currently uses its
+   * language-specific prompt default.
    */
   wordsPerSecond?: (projectId: string) => number | undefined | Promise<number | undefined>;
   /**
@@ -147,14 +147,14 @@ function sanitizeTheme(theme: { dominant: string; mood?: string }): { dominant: 
  *
  * `delivery` carries the three create-screen knobs the USER picked (the AI never
  * authors them — it only writes `theme.dominant`/`mood` + the scenes). We inject
- * `format` / `durationTier` / `titleLanguage` into the engine manifest here so the
- * canvas + caption presence + word-budget + title language are driven by the
+ * `format` / `durationTier` / `videoLanguage` into the engine manifest here so the
+ * canvas + caption presence + word-budget + authored content language are driven by the
  * user's choice, defaulting to tiktok / undefined / vi.
  */
 function toEngineManifest(
   m: AuthorManifest,
   allowedRefs: ReadonlySet<string> = new Set(),
-  delivery: { format?: VideoFormat; durationTier?: DurationTier; titleLanguage?: TitleLanguage } = {},
+  delivery: { format?: VideoFormat; durationTier?: DurationTier; videoLanguage?: VideoLanguage } = {},
 ): Manifest {
   const scenes: ManifestScene[] = m.scenes.map((s, i) => {
     const keepImage = s.image && allowedRefs.has(s.image.ref);
@@ -182,7 +182,7 @@ function toEngineManifest(
     theme: sanitizeTheme(m.theme),
     ...(delivery.format ? { format: delivery.format } : {}),
     ...(delivery.durationTier ? { durationTier: delivery.durationTier } : {}),
-    ...(delivery.titleLanguage ? { titleLanguage: delivery.titleLanguage } : {}),
+    ...(delivery.videoLanguage ? { videoLanguage: delivery.videoLanguage } : {}),
     scenes,
   } as Manifest;
 }
@@ -289,7 +289,7 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
     const engineManifest = toEngineManifest(parsed.manifest, allowedRefs, {
       ...(job.input.format ? { format: job.input.format } : {}),
       ...(job.input.durationTier ? { durationTier: job.input.durationTier } : {}),
-      ...(job.input.titleLanguage ? { titleLanguage: job.input.titleLanguage } : {}),
+      ...(job.input.videoLanguage ? { videoLanguage: job.input.videoLanguage } : {}),
     });
     await writeJson(manifestPathOf(job.projectId), engineManifest);
 

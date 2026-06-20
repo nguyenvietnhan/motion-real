@@ -23,7 +23,7 @@
 | D7 | **Chỉ giữ oracle "không-bay-khỏi-khung"** + lớp chống-vỡ. Còn lại hạ warning / gỡ. Cẩn thận đừng xích lại. | Oracle layout thành **theo-format**. |
 | D8 | **YouTube KHÔNG burn caption** (YT có phụ đề sẵn). TikTok giữ karaoke cháy-chữ. | Caption band chỉ áp cho dọc. |
 | D9 | **Tự sinh tiêu đề** + dùng làm tên dự án. TikTok < 100 ký tự (kèm hashtag), YouTube < 200. Cho đổi tên. Trùng → thêm hậu tố. | Tên dự án hết là link/prompt dài. |
-| D10 | **Ngôn ngữ tiêu đề/hashtag** người dùng chọn: full Việt / full Anh / trộn. | Áp cho title + hashtag, KHÔNG đổi ngôn ngữ kịch bản. |
+| D10 | **Ngôn ngữ video** người dùng chọn: Việt hoặc Anh. | Áp cho title, hashtag, chữ hiển thị, narration, CTA và caption; Vivibe chỉ dùng với Việt. |
 | D11 | **BGM người dùng quản lý** (chọn/thêm/xoá). **SFX** phát triển sau. | BGM thành tài nguyên có UI. |
 | D12 | **Thumbnail/cover cho cả 2 format** sinh tự động bằng brand card sạch (theme wash + title), không overlay lên frame cảnh thật. | Tránh lỗi chồng 2 khối text lớn; artifact riêng `review/thumbnail.png`. |
 | D13 | **Calib tốc độ đọc Vivibe bằng SỐ LIỆU** (đo đi đo lại), không đoán. | Giữ lệch ≤ 20s ở D4. |
@@ -126,7 +126,7 @@ khung hình và độ dài phù hợp nền tảng.
 9.1. WHEN sinh kịch bản, THE SYSTEM SHALL sinh KÈM một **tiêu đề đăng tải**:
   - TikTok: **< 100 ký tự, có hashtag**.
   - YouTube: **< 200 ký tự**.
-9.2. THE SYSTEM SHALL cho người dùng chọn ngôn ngữ tiêu đề/hashtag: **full Việt / full Anh / trộn** (D10); KHÔNG đổi ngôn ngữ kịch bản.
+9.2. THE SYSTEM SHALL cho người dùng chọn ngôn ngữ toàn video: **Việt / Anh** (D10). Chọn Anh SHALL dùng ElevenLabs; Vivibe + Anh SHALL bị chặn trước scaffold/render.
 9.3. THE SYSTEM SHALL đặt **tên dự án = tiêu đề** (slug hoá); IF trùng, THEN thêm hậu tố ngắn (D9/H).
 9.4. THE SYSTEM SHALL cho người dùng **đổi tên** dự án.
 9.5. WHEN bản full render xong, THE SYSTEM SHALL hiện tiêu đề (+hashtag) ở màn cuối kèm nút **Copy**.

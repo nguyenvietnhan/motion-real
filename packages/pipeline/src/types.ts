@@ -21,6 +21,7 @@ export type ProjectState =
 export type VoiceProvider = "vivibe" | "elevenlabs";
 export type TtsProvider = VoiceProvider | "mock" | "none";
 export type AiProvider = "mock" | "openai-compatible" | "deepseek";
+export type VideoLanguage = "vi" | "en";
 
 /** Persisted project state (brief.json). */
 export type ProjectBrief = {
@@ -29,7 +30,7 @@ export type ProjectBrief = {
   duration: DurationPreset;
   styleId: "clean-luxury-tech";
   ratio: "9:16";
-  language: "vi";
+  language: VideoLanguage;
   aiProvider: AiProvider;
   tts: {
     provider: TtsProvider;

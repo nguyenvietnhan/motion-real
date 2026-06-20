@@ -39,6 +39,7 @@ Ngẫu nhiên → random(seed) của remotion; hoạt hoạ → useCurrentFrame(
 TỰ DỰNG MỌI THỨ (KHÔNG có block dựng sẵn): viết toàn bộ cảnh bằng JSX thuần — thẻ <div>/<span> style inline + <svg>. Tự dựng nền full-bleed (một <div> phủ kín, position absolute inset 0), tự dựng card/khung/số-lớn/danh-sách/nhãn bằng div+CSS, tự vẽ mọi đồ hoạ bằng SVG. Tự chọn font-family, màu, khoảng cách, bo góc — hardcode tất cả.
 - KHÔNG tự render caption/phụ đề — caption do hệ thống sinh trung tâm từ narration.
 Được vẽ SVG/CSS bespoke tuỳ ý (đồ hoạ riêng cho chủ đề); cấm chỉ là ảnh/asset thật bên ngoài.
+SVG được dùng <defs> nội bộ với fill/stroke/marker/filter kiểu url(#id). KHÔNG dùng url(http...), url(file...), data:, blob: hay ảnh ngoài.
 
 LAYOUT ZONES:
 - Nội dung chính ở content-zone phía TRÊN (~tới 62% chiều cao); tự căn nội dung vào vùng này.

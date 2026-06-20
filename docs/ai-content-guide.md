@@ -40,9 +40,9 @@ are enforced by `packages/pipeline/src/safety/content-rules.ts` (N6–N9, N26, N
 
 - The AUTHOR manifest carries `title`, optional `hashtags`, `theme.dominant`,
   and ordered scenes. The desktop backend injects `format`, `durationTier`, and
-  `titleLanguage` from the user's UI choice; the renderer derives the rest.
+  `videoLanguage` from the user's UI choice; the renderer derives the rest.
   `styleId: "clean-luxury-tech"` is a legacy discriminator, not a look;
-  `ratio` is derived from `format`; script language remains `vi`.
+  `ratio` is derived from `format`; `language` is `vi` or `en`.
 - Current format status: TikTok 9:16 is the stable end-to-end production path.
   YouTube 16:9 has schema/prompt/thumbnail plumbing, but long-form
   author-by-segment + true 16:9 main-video production is still pending Group J.
@@ -50,12 +50,12 @@ are enforced by `packages/pipeline/src/safety/content-rules.ts` (N6–N9, N26, N
   `duration` is an optional pacing target only; scene count and total length are
   free. Use as many scenes as the story needs.
 - Scene ids are sequential: `scene-01`, `scene-02`, … Real timing follows the
-  measured Vietnamese TTS, so the locked render may be longer than any target —
+  measured selected-provider TTS, so the locked render may be longer than any target —
   that is NOT an error when the voice is complete, natural, uncut, and unrushed.
 - Each scene supplies `component` (an admitted authored id), `headline`,
   optional `body`/`eyebrow`, `narration`, `props` (matching that component's Zod
   schema), optional `sfx`, and optional `transitionToNext` (`slide`/`fade`).
-- **Captions are generated for you**, centrally, as single-line Vietnamese
+- **Captions are generated for you**, centrally, in the selected video language
   captions from each scene's `narration` (timed from the TTS SRT). TikTok burns
   them in as word-paged karaoke; YouTube-format output omits the burned caption
   layer. Do NOT author captions/subtitles in props.
@@ -145,26 +145,30 @@ are enforced by `packages/pipeline/src/safety/content-rules.ts` (N6–N9, N26, N
   context you genuinely know/verify to be true is welcome and often sharpens the
   story — just keep anything you can't stand behind as real out of the video.
 
-## Vietnamese And TTS
+## Video Language And TTS
 
-- Narration and display text are Vietnamese. Prefer natural Vietnamese terms
-  when a clear equivalent exists (`chi phí điện toán`, `quy trình tự động`,
-  `thị giác máy tính`).
-- Keep English for brand/product/model names, abbreviations, and precise
+- `videoLanguage` applies to title, hashtags, display text, narration, CTA, and
+  generated captions. Do not mix languages except for proper names and technical
+  terms that naturally remain untranslated.
+- For Vietnamese, prefer natural Vietnamese terms when a clear equivalent exists
+  (`chi phí điện toán`, `quy trình tự động`, `thị giác máy tính`). Keep English
+  for brand/product/model names, abbreviations, and precise
   technical keywords (`OpenAI`, `Google`, `AI`, `API`, `DeepSeek`, `Claude`,
   `GPT`, `Gemini`, `YouTube`, `LLM`, `token`, `prompt`, `agent`, `cache`,
   `benchmark`, `SDK`, `GPU`).
+- For English, all authored viewer-facing strings must be natural English; do
+  not leave Vietnamese text in scene props or JSX/SVG.
 - No phonetic spellings in any field: `Ô pân A I`, `Gút gồ`, `Đíp xích`,
   `Giê mi nai`, `A Pê I` (N6). The TTS layer handles pronunciation.
 - No spaced/punctuated abbreviations: write `AI`, `API`, `GPT`, `LLM`, never
   `A I`, `A P I`, `G P T`, `L L M` (N7).
-- Keep numbers as **digits** in BOTH display and narration: `92%`, `2026`,
-  `110.000`, `920 triệu`, `30 tỷ`, `180 đến 190 tỷ`. The TTS layer reads digits
-  as natural Vietnamese (`2026` → "hai nghìn không trăm hai mươi sáu"), so do NOT
-  hand-spell numbers and NEVER English-pair a year ("hai mươi hai sáu" is wrong).
-  Write dates as `ngày 5 tháng 6 năm 2026`. Keep the magnitude word in Vietnamese
-  (`triệu`/`tỷ`/`nghìn`/`phần trăm`); avoid the `$` symbol and English suffixes
-  like `1.5M` (write `1,5 triệu USD`) — the reader can't voice those (N8 warns).
+- Keep numbers as **digits** in BOTH display and narration. Vietnamese uses forms
+  such as `110.000`, `920 triệu`, and `ngày 5 tháng 6 năm 2026`; its TTS layer
+  normalizes digits into natural Vietnamese speech. English keeps English number,
+  currency, magnitude, and date conventions and is not passed through the
+  Vietnamese number normalizer.
+- Vivibe may only render Vietnamese projects. English projects require
+  ElevenLabs; an invalid pairing is blocked before scaffold and again at TTS.
 
 ## Authoring Scenes
 

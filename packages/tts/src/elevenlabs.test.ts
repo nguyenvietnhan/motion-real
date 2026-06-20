@@ -83,15 +83,60 @@ describe("ElevenLabsClient", () => {
       .rejects.toThrow(`ElevenLabs synthesize speech failed (${status})`);
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
+
+  it("surfaces the free-plan library-voice restriction as an actionable message", async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(new Response(
+      JSON.stringify({
+        type: "payment_required",
+        code: "paid_plan_required",
+        message: "Free users cannot use library voices via the API.",
+        status: "payment_required",
+      }),
+      { status: 402, headers: { "content-type": "application/json" } },
+    ));
+    const client = new ElevenLabsClient({ apiKey: "secret", fetch: fetchMock });
+    await expect(client.synthesize({ text: "x", voiceId: "v", speed: 1, outputPath: "unused" }))
+      .rejects.toThrow(/requires a paid ElevenLabs plan|Choose a personal\/default voice/);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("forwards an explicit English language code", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "elevenlabs-test-"));
+    dirs.push(dir);
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({
+      audio_base64: Buffer.from("fake-mp3").toString("base64"),
+    }), { status: 200, headers: { "content-type": "application/json" } }));
+    const client = new ElevenLabsClient({
+      apiKey: "secret",
+      baseUrl: "https://api.test",
+      fetch: fetchMock,
+      measureDuration: async () => 0.5,
+    });
+
+    await client.synthesize({
+      text: "The year is 2026.",
+      voiceId: "voice-1",
+      speed: 1,
+      outputPath: join(dir, "english"),
+      languageCode: "en",
+    });
+
+    expect(JSON.parse(String(fetchMock.mock.calls[0]![1]?.body))).toMatchObject({
+      text: "The year is 2026.",
+      language_code: "en",
+    });
+  });
 });
 
 describe("TTS provider identity", () => {
-  it("keeps cache entries distinct across providers and models", () => {
+  it("keeps cache entries distinct across providers, models, and languages", () => {
     const base = { text: "xin chao", voiceId: "same", speed: 1 };
     const vivibe = ttsCacheKey({ ...base, provider: "vivibe" });
     const eleven = ttsCacheKey({ ...base, provider: "elevenlabs", modelId: "m1" });
     const otherModel = ttsCacheKey({ ...base, provider: "elevenlabs", modelId: "m2" });
-    expect(new Set([vivibe, eleven, otherModel]).size).toBe(3);
+    const english = ttsCacheKey({ ...base, provider: "elevenlabs", modelId: "m1", languageCode: "en" });
+    const vietnamese = ttsCacheKey({ ...base, provider: "elevenlabs", modelId: "m1", languageCode: "vi" });
+    expect(new Set([vivibe, eleven, otherModel, english, vietnamese]).size).toBe(5);
   });
 
   it("groups character alignment into SRT words", () => {

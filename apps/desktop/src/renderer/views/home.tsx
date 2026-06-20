@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import type { ProjectCardVM, StagedImage, PickImagesResult, DroppedImage, VideoFormatChoice, DurationTierChoice, TitleLanguageChoice, VoiceProviderChoice } from "../../shared/types.js";
+import type { ProjectCardVM, StagedImage, PickImagesResult, DroppedImage, VideoFormatChoice, DurationTierChoice, VideoLanguageChoice, VoiceProviderChoice } from "../../shared/types.js";
 import type { GalleryLoad } from "../../shared/gallery-controller.js";
 import { validateCreateInput, extractUrls } from "../../shared/create-validation.js";
 import { Icon } from "../icons.js";
@@ -27,7 +27,7 @@ const REJECT_REASON: Record<string, string> = {
  * A compact delivery-knob button (freeform-engine G3): a short pill showing an
  * icon + the current value, sitting inline next to the "+" attach button. Click
  * it to open a small popover of mutually-exclusive options; the choice closes the
- * popover. Generic over the option value so format / tier / title-language stay
+ * popover. Generic over the option value so format / tier / video-language stay
  * type-safe. `open`/`onToggle` are lifted to the parent so only ONE knob popover
  * is open at a time. Keeping each knob a separate button (rather than one big
  * "Tùy chỉnh" panel) means a non-technical user only ever sees three tidy chips.
@@ -40,7 +40,7 @@ function KnobButton<T extends string | number>(props: {
   onToggle: () => void;
   onClose: () => void;
   onChange: (next: T) => void;
-  options: { value: T; label: string; warn?: string }[];
+  options: readonly { value: T; label: string; warn?: string }[];
 }): React.ReactElement {
   const current = props.options.find((o) => o.value === props.value);
   const ref = useRef<HTMLDivElement>(null);
@@ -107,6 +107,29 @@ function KnobButton<T extends string | number>(props: {
   );
 }
 
+export function applyVideoLanguageSelection(
+  next: VideoLanguageChoice,
+  currentProvider: VoiceProviderChoice,
+): { videoLanguage: VideoLanguageChoice; voiceProvider: VoiceProviderChoice } {
+  return next === "en"
+    ? { videoLanguage: "en", voiceProvider: "elevenlabs" }
+    : { videoLanguage: "vi", voiceProvider: currentProvider };
+}
+
+export const VIDEO_LANGUAGE_OPTIONS = [
+  { value: "vi", label: "Việt" },
+  { value: "en", label: "Anh", warn: "Video tiếng Anh sử dụng ElevenLabs." },
+] as const satisfies readonly { value: VideoLanguageChoice; label: string; warn?: string }[];
+
+export function applyVoiceProviderSelection(
+  next: VoiceProviderChoice,
+  currentLanguage: VideoLanguageChoice,
+): { videoLanguage: VideoLanguageChoice; voiceProvider: VoiceProviderChoice } {
+  return next === "vivibe"
+    ? { videoLanguage: "vi", voiceProvider: "vivibe" }
+    : { videoLanguage: currentLanguage, voiceProvider: "elevenlabs" };
+}
+
 /** Home: create hero (chat-style brief) + recent-projects grid. */
 export const HomeView: React.FC<{
   aiReady: boolean;
@@ -115,7 +138,7 @@ export const HomeView: React.FC<{
   onCreate: (
     raw: string,
     images: StagedImage[],
-    choices: { format: VideoFormatChoice; durationTier: DurationTierChoice; titleLanguage: TitleLanguageChoice; voiceProvider: VoiceProviderChoice },
+    choices: { format: VideoFormatChoice; durationTier: DurationTierChoice; videoLanguage: VideoLanguageChoice; voiceProvider: VoiceProviderChoice },
   ) => void | Promise<void>;
   onOpen: (projectId: string) => void;
   onConnectPrompt: () => void;
@@ -139,17 +162,21 @@ export const HomeView: React.FC<{
   const [dragOver, setDragOver] = useState(false);
   // The three delivery knobs the user picks at create time (freeform-engine
   // R7/R9). The backend threads these into the prompt + spec — the model never
-  // chooses them. Defaults: TikTok / tier 1 / Vietnamese title. (Crude temporary
+  // chooses them. Defaults: TikTok / tier 1 / Vietnamese video. (Crude temporary
   // UI per D-UI; not styled.)
   const [format, setFormat] = useState<VideoFormatChoice>("tiktok");
   const [durationTier, setDurationTier] = useState<DurationTierChoice>(1);
-  const [titleLanguage, setTitleLanguage] = useState<TitleLanguageChoice>("vi");
+  const [videoLanguage, setVideoLanguage] = useState<VideoLanguageChoice>("vi");
   const [voiceProvider, setVoiceProvider] = useState<VoiceProviderChoice>(defaultVoiceProvider);
   const [creating, setCreating] = useState(false);
   // Which delivery-knob popover is open (only one at a time); null = all closed.
   // Each knob is its own inline chip next to "+", revealing its options on click.
-  const [openKnob, setOpenKnob] = useState<null | "format" | "duration" | "title" | "voice">(null);
-  useEffect(() => setVoiceProvider(defaultVoiceProvider), [defaultVoiceProvider]);
+  const [openKnob, setOpenKnob] = useState<null | "format" | "duration" | "language" | "voice">(null);
+  useEffect(() => {
+    const selection = applyVoiceProviderSelection(defaultVoiceProvider, videoLanguage);
+    setVoiceProvider(selection.voiceProvider);
+    setVideoLanguage(selection.videoLanguage);
+  }, [defaultVoiceProvider]);
   // Drag enter/leave fire for EVERY child the cursor crosses, so a naive
   // boolean toggles on each border → flicker. Count enters minus leaves and
   // only clear the highlight when the count returns to 0 (cursor truly left).
@@ -272,7 +299,7 @@ export const HomeView: React.FC<{
     }
     setCreating(true);
     try {
-      void Promise.resolve(onCreate(raw, images, { format, durationTier, titleLanguage, voiceProvider })).finally(() => setCreating(false));
+      void Promise.resolve(onCreate(raw, images, { format, durationTier, videoLanguage, voiceProvider })).finally(() => setCreating(false));
     } catch (error) {
       setCreating(false);
       throw error;
@@ -336,8 +363,8 @@ export const HomeView: React.FC<{
                 {Icon.plus({ size: 18 })}
               </button>
             )}
-            {/* Three delivery-knob chips inline with "+": format / duration /
-                title-language (freeform-engine G3). Each is a compact pill showing
+            {/* Delivery-knob chips inline with "+": format / duration /
+                video-language / voice provider. Each is a compact pill showing
                 its current value; clicking opens a small popover of options. Only
                 one popover is open at a time. The backend threads these into the
                 prompt + spec; the model never picks them. */}
@@ -379,17 +406,17 @@ export const HomeView: React.FC<{
               />
               <KnobButton
                 icon={Icon.globe({ size: 15 })}
-                title="Ngôn ngữ tiêu đề"
-                value={titleLanguage}
-                open={openKnob === "title"}
-                onToggle={() => setOpenKnob((k) => (k === "title" ? null : "title"))}
+                title="Ngôn ngữ video"
+                value={videoLanguage}
+                open={openKnob === "language"}
+                onToggle={() => setOpenKnob((k) => (k === "language" ? null : "language"))}
                 onClose={() => setOpenKnob(null)}
-                onChange={setTitleLanguage}
-                options={[
-                  { value: "vi", label: "Việt" },
-                  { value: "en", label: "Anh" },
-                  { value: "mix", label: "Trộn" },
-                ]}
+                onChange={(next) => {
+                  const selection = applyVideoLanguageSelection(next, voiceProvider);
+                  setVideoLanguage(selection.videoLanguage);
+                  setVoiceProvider(selection.voiceProvider);
+                }}
+                options={VIDEO_LANGUAGE_OPTIONS}
               />
               <KnobButton
                 icon={Icon.spark({ size: 15 })}
@@ -398,7 +425,11 @@ export const HomeView: React.FC<{
                 open={openKnob === "voice"}
                 onToggle={() => setOpenKnob((k) => (k === "voice" ? null : "voice"))}
                 onClose={() => setOpenKnob(null)}
-                onChange={setVoiceProvider}
+                onChange={(next) => {
+                  const selection = applyVoiceProviderSelection(next, videoLanguage);
+                  setVideoLanguage(selection.videoLanguage);
+                  setVoiceProvider(selection.voiceProvider);
+                }}
                 options={[
                   { value: "vivibe", label: "Vivibe", warn: "Vivibe chỉ hỗ trợ tiếng Việt." },
                   { value: "elevenlabs", label: "ElevenLabs" },

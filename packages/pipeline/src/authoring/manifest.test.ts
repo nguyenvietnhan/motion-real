@@ -105,6 +105,18 @@ describe("manifestToVideoSpec + clampTheme (AI-output → spec bridge)", () => {
     expect(VideoSpecSchema.safeParse(spec).success).toBe(true);
   });
 
+  it("persists the selected video language into both metadata fields", () => {
+    const spec = manifestToVideoSpec({ ...oneScene(), videoLanguage: "en" });
+    expect(spec.videoLanguage).toBe("en");
+    expect(spec.language).toBe("en");
+  });
+
+  it("normalizes the retired legacy mix title language to Vietnamese", () => {
+    const spec = manifestToVideoSpec({ ...oneScene(), titleLanguage: "mix" });
+    expect(spec.videoLanguage).toBe("vi");
+    expect(spec.language).toBe("vi");
+  });
+
   it.each([
     "https://cdn.example.com/a.png",
     "//cdn.example.com/a.png",

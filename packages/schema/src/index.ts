@@ -181,13 +181,20 @@ export function tierSeconds(format: VideoFormat, tier: DurationTier): number {
 }
 
 /**
- * Language of the GENERATED publish title + hashtags (freeform-engine R9.2/D10):
- * full Vietnamese, full English, or a mix. This NEVER changes the script/narration
- * language (always `vi`) — it only steers the title/hashtag the model writes. The
- * user picks it at the create screen; the backend threads it into the prompt.
+ * Language of the authored video content: publish title, hashtags, on-screen
+ * text, narration, and therefore generated captions. Vivibe supports only `vi`;
+ * English video generation must use a multilingual provider such as ElevenLabs.
  */
-export const TitleLanguageSchema = z.enum(["vi", "en", "mix"]);
-export type TitleLanguage = z.infer<typeof TitleLanguageSchema>;
+export const VideoLanguageSchema = z.enum(["vi", "en"]);
+export type VideoLanguage = z.infer<typeof VideoLanguageSchema>;
+
+/** Legacy create/manifest value kept only to read older projects safely. */
+export const LegacyTitleLanguageSchema = z.enum(["vi", "en", "mix"]);
+export type LegacyTitleLanguage = z.infer<typeof LegacyTitleLanguageSchema>;
+
+export function normalizeVideoLanguage(value: VideoLanguage | LegacyTitleLanguage | undefined): VideoLanguage {
+  return value === "en" ? "en" : "vi";
+}
 
 /** Max publish-title length per format (R9.1): TikTok is tweet-short + hashtag, YouTube longer. */
 export function titleMaxChars(format: VideoFormat): number {
@@ -202,8 +209,8 @@ export const VideoSpecSchema = z.object({
   format: VideoFormatSchema,
   /** User-chosen duration bucket (optional): the word-budget target, see `tierSeconds`. */
   durationTier: DurationTierSchema.optional(),
-  /** Language of the generated publish title/hashtags (optional → vi). NEVER changes the script. */
-  titleLanguage: TitleLanguageSchema.optional(),
+  /** Language of the authored video content (optional → vi). */
+  videoLanguage: VideoLanguageSchema.optional(),
   /**
    * Optional pacing TARGET in seconds (free pacing, R6): not a hard constraint.
    * Scene count and total duration are free; a longer measured render is fine.
@@ -211,7 +218,7 @@ export const VideoSpecSchema = z.object({
   duration: z.number().positive().optional(),
   /** Aspect ratio. Derivable from `format`; kept for back-compat + readability. */
   ratio: z.enum(["9:16", "16:9"]).optional(),
-  language: z.literal("vi"),
+  language: VideoLanguageSchema,
   /** Per-project dominant color the AI chose (optional → default palette). */
   theme: ThemeSpecSchema.optional(),
   scenes: z.array(SceneSpecSchema),

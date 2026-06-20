@@ -1,7 +1,9 @@
 # Vivibe / LucyLab Provider Notes
 
 > Vivibe is exposed in the desktop UI as a Vietnamese-only provider. The app
-> keeps this limitation visible anywhere the user selects a provider.
+> keeps this limitation visible anywhere the user selects a provider. Selecting
+> English switches the create screen to ElevenLabs; Vivibe + English is also
+> rejected by backend validation and the TTS boundary.
 
 Ported from `news_video_tool` (the `@news/tts` client is the same code). Status:
 probed against a real key on 2026-05-22.

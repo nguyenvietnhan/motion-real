@@ -2,7 +2,7 @@ import { app, BrowserWindow, dialog, ipcMain, safeStorage, shell } from "electro
 import { fileURLToPath } from "node:url";
 import { basename, dirname, join } from "node:path";
 import { createTools } from "@news/mcp";
-import { createLogger, loadManifest, writeJson, projectPaths, videoToolHome, stagingDir, ensureProject, importImageBytes, reconcileStaleStates, pruneRenderCache, pruneTtsCache, readBrief, listBgmTracks, addBgmTrack, ensureBgmTrack, removeBgmTrack, renderThumbnail, workspaceRoot, VivibeClient, ElevenLabsClient, ELEVENLABS_DEFAULT_MODEL_ID, type BgmTrack, type VoiceProvider } from "@news/pipeline";
+import { createLogger, loadManifest, writeJson, projectPaths, videoToolHome, stagingDir, ensureProject, importImageBytes, reconcileStaleStates, pruneRenderCache, pruneTtsCache, readBrief, listBgmTracks, addBgmTrack, ensureBgmTrack, removeBgmTrack, renderThumbnail, workspaceRoot, ELEVENLABS_DEFAULT_MODEL_ID, type BgmTrack, type VoiceProvider } from "@news/pipeline";
 import { registerIpcRouter, type InvokeHandlers } from "./ipc-router.js";
 import { ModelGatewayManager } from "./gateway/model-gateway-manager.js";
 import { buildNineRouterGatewayDeps } from "./gateway/ninerouter-deps.js";
@@ -175,6 +175,9 @@ const authoringBackend = new NineRouterAuthoringBackend({
   // undefined when uncalibrated/stale ⇒ the prompt uses its baked default (~4.7).
   wordsPerSecond: async (projectId) => {
     const brief = await readBrief(projectId);
+    // Existing calibrations are measured with Vietnamese passages. English uses
+    // the language-specific prompt default until calibration keys include language.
+    if (brief.language === "en") return undefined;
     if (brief.tts.provider !== "vivibe" && brief.tts.provider !== "elevenlabs") return undefined;
     return settingsStore.calibratedWordsPerSecond({
       provider: brief.tts.provider,
@@ -256,10 +259,11 @@ reportProgress = (projectId, ratio) => workspace.reportRenderProgress(projectId,
 // Create flow (validate → scaffold via the ONE registry → hand off to the
 // staged workspace) lives in the tested CreateController (reconcile S5).
 const create = new CreateController({
-  scaffold: async (prompt, voiceProvider) => {
+  scaffold: async (prompt, voiceProvider, videoLanguage) => {
     const config = settingsStore.voiceConfig(voiceProvider);
     const res = await tools.scaffold_project({
       prompt,
+      language: videoLanguage,
       ttsProvider: voiceProvider,
       voiceId: config.voiceId,
       ...(config.modelId ? { modelId: config.modelId } : {}),
@@ -272,7 +276,10 @@ const create = new CreateController({
   // whole AI authoring pass doesn't burn and then fail at TTS. Read from the
   // settings store, not env, so a key configured in the Settings UI counts. We
   // do NOT gate on gateway/model here — that stays a "guide, don't gate" chip.
-  preflight: (voiceProvider) => {
+  preflight: (voiceProvider, videoLanguage) => {
+    if (voiceProvider === "vivibe" && videoLanguage === "en") {
+      return "Vivibe chỉ hỗ trợ tiếng Việt. Hãy chọn ElevenLabs để tạo video tiếng Anh.";
+    }
     const { apiKey, voiceId } = settingsStore.voiceConfig(voiceProvider);
     const missing: string[] = [];
     if (!apiKey) missing.push("API key giọng đọc");
@@ -450,6 +457,8 @@ const handlers: InvokeHandlers = {
       raw: string;
       format?: "tiktok" | "youtube";
       durationTier?: 1 | 2 | 3;
+      videoLanguage?: "vi" | "en";
+      /** Legacy stale-renderer payload. */
       titleLanguage?: "vi" | "en" | "mix";
       voiceProvider?: VoiceProviderChoice;
       images?: { ref: string; width: number; height: number }[];
@@ -457,7 +466,8 @@ const handlers: InvokeHandlers = {
     return create.create(i.raw, i.images ?? [], {
       ...(i.format ? { format: i.format } : {}),
       ...(i.durationTier ? { durationTier: i.durationTier } : {}),
-      ...(i.titleLanguage ? { titleLanguage: i.titleLanguage } : {}),
+      ...(i.videoLanguage ? { videoLanguage: i.videoLanguage } : {}),
+      ...(!i.videoLanguage && i.titleLanguage ? { titleLanguage: i.titleLanguage } : {}),
       ...(i.voiceProvider ? { voiceProvider: parseVoiceProvider(i.voiceProvider) } : {}),
     });
   },
@@ -622,15 +632,6 @@ const handlers: InvokeHandlers = {
   "settings:get": () => settingsStore.current(),
   "settings:update": (patch) => {
     return settingsStore.update(patch as Partial<SettingsModel>);
-  },
-  "tts:listVoices": async (providerRaw) => {
-    const provider = parseVoiceProvider(providerRaw);
-    const config = settingsStore.voiceConfig(provider);
-    if (!config.apiKey) throw new Error(`Chưa cấu hình API key ${provider === "vivibe" ? "Vivibe" : "ElevenLabs"}.`);
-    const client = provider === "vivibe"
-      ? new VivibeClient({ apiKey: config.apiKey })
-      : new ElevenLabsClient({ apiKey: config.apiKey });
-    return (await client.listVoices()).map((voice) => ({ id: voice.id, name: voice.name }));
   },
   "tts:setApiKey": (providerRaw, apiKey) => settingsStore.setApiKey(parseVoiceProvider(providerRaw), String(apiKey)),
   "tts:clearApiKey": (providerRaw) => settingsStore.clearApiKey(parseVoiceProvider(providerRaw)),

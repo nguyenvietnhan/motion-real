@@ -12,7 +12,7 @@
  */
 
 import type { SerializedPipelineError, CrawledImage } from "@news/pipeline";
-import type { VideoFormat, DurationTier, TitleLanguage } from "@news/schema";
+import type { VideoFormat, DurationTier, VideoLanguage } from "@news/schema";
 
 /**
  * A local image the user attached at create time (Phase 2 Block A). Carries only
@@ -30,8 +30,8 @@ export type AuthorImageRef = { ref: string; width: number; height: number };
  * The freeform-engine create screen (R7/R9/D10) picks three delivery knobs the
  * backend threads into the prompt + spec (it never lets the model choose them):
  * `format` (TikTok 9:16 / YouTube 16:9 → canvas + caption presence), `durationTier`
- * (the word-budget bucket, see `tierSeconds`), and `titleLanguage` (vi/en/mix for
- * the generated publish title only — NOT the script). All optional: absent ⇒ the
+ * (the word-budget bucket, see `tierSeconds`), and `videoLanguage` (vi/en for the
+ * whole authored video: title, on-screen text, narration, captions). All optional: absent ⇒ the
  * backend's defaults (tiktok / tier 1 / vi). The old `stylePackId` is gone (the
  * multi-style design system was removed — D1).
  */
@@ -41,7 +41,7 @@ export type AuthorInput = {
   images?: AuthorImageRef[];
   format?: VideoFormat;
   durationTier?: DurationTier;
-  titleLanguage?: TitleLanguage;
+  videoLanguage?: VideoLanguage;
 };
 
 /** Author scenes for a brand-new project: ingest → author → (script gate) → draft. */

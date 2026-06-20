@@ -23,7 +23,6 @@ import type {
   StatusEvent,
   StoryboardModel,
   SubmitResult,
-  TtsVoiceVM,
   VoiceProviderChoice,
 } from "./types.js";
 
@@ -111,7 +110,6 @@ export interface DashboardApi {
     update(patch: Partial<SettingsModel>): Promise<SettingsModel>;
   };
   tts: {
-    listVoices(provider: VoiceProviderChoice): Promise<TtsVoiceVM[]>;
     setApiKey(provider: VoiceProviderChoice, apiKey: string): Promise<SettingsModel>;
     clearApiKey(provider: VoiceProviderChoice): Promise<SettingsModel>;
   };

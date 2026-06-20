@@ -83,8 +83,10 @@ export type PickImagesResult = {
 export type VideoFormatChoice = "tiktok" | "youtube";
 /** Duration tier (1/2/3) the user picks; maps to per-format second targets (R7.3). */
 export type DurationTierChoice = 1 | 2 | 3;
-/** Publish-title language the user picks (R9.2); never changes the script language. */
-export type TitleLanguageChoice = "vi" | "en" | "mix";
+/** Authored video language the user picks: content, narration, captions, title, hashtags. */
+export type VideoLanguageChoice = "vi" | "en";
+/** Legacy create payload value; `mix` normalizes to Vietnamese. */
+export type LegacyTitleLanguageChoice = VideoLanguageChoice | "mix";
 
 export type CreateInput = {
   raw: string;
@@ -94,8 +96,10 @@ export type CreateInput = {
   format?: VideoFormatChoice;
   /** Duration tier the word-budget aims at (default 1). */
   durationTier?: DurationTierChoice;
-  /** Publish-title language (default vi). */
-  titleLanguage?: TitleLanguageChoice;
+  /** Authored video language (default vi). */
+  videoLanguage?: VideoLanguageChoice;
+  /** @deprecated Legacy create payload; prefer videoLanguage. */
+  titleLanguage?: LegacyTitleLanguageChoice;
   images?: StagedImageRef[];
 };
 
@@ -149,8 +153,6 @@ export type ProjectCardVM = {
 
 export type VoiceProviderChoice = "vivibe" | "elevenlabs";
 export type CredentialState = "saved" | "environment" | "missing";
-export type TtsVoiceVM = { id: string; name: string };
-
 // --- background music library (Req 11 / I2) --------------------------------
 
 /** One track in the per-machine BGM library (shared across projects). */

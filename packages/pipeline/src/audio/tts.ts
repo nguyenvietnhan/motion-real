@@ -101,12 +101,12 @@ const VIVIBE_TTS_DICTIONARY: Array<[RegExp, string]> = [
   [/\bAI\b/g, "Ây-Ai"],
 ];
 
-function prepareTtsText(text: string, provider: TtsProvider): string {
-  // Read digit numbers as natural Vietnamese FIRST (so a year like "2026" is
-  // spoken "hai nghìn không trăm hai mươi sáu", never "hai mươi hai sáu"), then
-  // adapt brand/tech terms for pronunciation. Display/captions keep the digits.
-  let out = normalizeVietnameseNumbers(text.trim());
-  if (provider === "vivibe") {
+export function prepareTtsText(text: string, provider: TtsProvider, language: VideoSpec["language"]): string {
+  // Vietnamese narration gets deterministic number reading and Vivibe-specific
+  // pronunciation preparation. English must remain untouched so digits/words are
+  // interpreted by the multilingual provider in English.
+  let out = language === "vi" ? normalizeVietnameseNumbers(text.trim()) : text.trim();
+  if (language === "vi" && provider === "vivibe") {
     for (const [pattern, replacement] of VIVIBE_TTS_DICTIONARY) {
       out = out.replace(pattern, replacement);
     }
@@ -136,6 +136,9 @@ export async function synthesizeNarration(
   opts: SynthesizeOptions,
 ): Promise<TtsManifest | null> {
   if (opts.provider === "none") return null;
+  if (opts.provider === "vivibe" && spec.language === "en") {
+    throw new Error("Vivibe only supports Vietnamese. Select ElevenLabs for English video narration.");
+  }
 
   const speed = opts.speed ?? DEFAULT_TTS_SPEED;
   const p = projectPaths(opts.projectId);
@@ -179,15 +182,16 @@ export async function synthesizeNarration(
 
   for (let i = 0; i < spec.scenes.length; i += 1) {
     const scene = spec.scenes[i]!;
-    const text = prepareTtsText(scene.narration, opts.provider);
+    const text = prepareTtsText(scene.narration, opts.provider, spec.language);
     const key = ttsCacheKey({
       provider: opts.provider === "mock" ? "mock" : opts.provider,
       text,
       voiceId: effectiveVoiceId,
       speed,
       ...(modelId ? { modelId } : {}),
+      languageCode: spec.language,
       outputFormat: opts.provider === "elevenlabs" ? ELEVENLABS_OUTPUT_FORMAT : "provider-default",
-      normalizerVersion: TTS_NORMALIZER_VERSION,
+      normalizerVersion: spec.language === "vi" ? TTS_NORMALIZER_VERSION : "none-v1",
     });
     const cacheBase = join(cacheRoot, key);
 
@@ -213,7 +217,7 @@ export async function synthesizeNarration(
           speed,
           outputPath: cacheBase,
           ...(modelId ? { modelId } : {}),
-          ...(opts.provider === "elevenlabs" ? { languageCode: "vi" } : {}),
+          ...(opts.provider === "elevenlabs" ? { languageCode: spec.language } : {}),
         });
         audioPath = join(p.audioDir, `${scene.id}${extname(result.audioPath)}`);
         await copyFile(result.audioPath, audioPath);

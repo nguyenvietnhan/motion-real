@@ -154,20 +154,20 @@
 
 ## Nhóm G — format/tier/title/titleLang vào schema + prompt + UI — R7/R9, D10
 
-- [x] **G1. Schema: `format`, `durationTier`, `titleLanguage`.**
+- [x] **G1. Schema: `format`, `durationTier`, `videoLanguage`.**
   - `authorManifestSchema` + `CreateInput`: thêm 3 field (backend tiêm format/tier,
     không để model chọn format). Bỏ `stylePackId/accentColor`.
   - Title rule theo format: TikTok `<100` + hashtag; YouTube `<200`.
-  - **Test:** coercion + cap ký tự; titleLanguage ∈ {vi,en,mix}.
+  - **Test:** coercion + cap ký tự; videoLanguage ∈ {vi,en}; legacy mix → vi.
 
 - [x] **G2. Prompt builder de-style + theo format + ngân sách-từ theo tier.**
   - Bỏ mọi câu "đọc theme/style". Tiêm format (khung + có/không caption), tier
-    (ngân sách từ từ calib §K), titleLanguage (chỉ title/hashtag).
+    (ngân sách từ từ calib §K), videoLanguage (toàn bộ nội dung video).
   - **Test:** `prompt.test` cập nhật — không còn chuỗi style/news cứng; có ngân
     sách-từ theo tier.
 
 - [x] **G3. UI tạm: chọn format + mức thời lượng + ngôn ngữ title.**
-  - 3 nút/segmented control thô ở màn create (TikTok/YouTube; 3 mức; vi/en/mix).
+  - Các nút chọn ở màn create: TikTok/YouTube; 3 mức; vi/en; Vivibe/ElevenLabs.
     KHÔNG style đẹp. (D-UI tạm.)
 
 ---

@@ -4,7 +4,7 @@ import { cpus } from "node:os";
 import { join, resolve } from "node:path";
 import { performance } from "node:perf_hooks";
 import { createHash } from "node:crypto";
-import { DEFAULT_TTS_SPEED, type DurationPreset, type LockedVideoSpec, type VideoSpec } from "@news/schema";
+import { DEFAULT_TTS_SPEED, type DurationPreset, type LockedVideoSpec, type VideoLanguage, type VideoSpec } from "@news/schema";
 import {
   appendEvent,
   createProjectId,
@@ -98,6 +98,8 @@ export type ScaffoldVideoProjectOptions = {
   projectId?: string;
   /** Soft target duration in seconds (drives the N28 duration check); defaults to 60. */
   duration?: DurationPreset;
+  /** Authored video language; defaults to Vietnamese for older callers. */
+  language?: VideoLanguage;
   tts?: { provider?: TtsProvider; voiceId?: string; modelId?: string; speed?: number };
 };
 
@@ -125,7 +127,7 @@ export async function scaffoldVideoProject(opts: ScaffoldVideoProjectOptions): P
     duration: opts.duration ?? parseDurationFromPrompt(opts.prompt) ?? 60,
     styleId: "clean-luxury-tech",
     ratio: "9:16",
-    language: "vi",
+    language: opts.language ?? "vi",
     aiProvider: "mock" as AiProvider,
     tts: {
       provider: opts.tts?.provider ?? "vivibe",
@@ -623,7 +625,7 @@ async function renderProjectUnlocked(projectId: string, opts: RenderProjectOptio
     const renderGridOptions: RenderGridOptions = {
       // Vietnamese is monosyllabic, so a higher words/sec is normal speech, not
       // rushed pacing; relax N20 for `vi` (still catches gross over-cramming).
-      ...(brief.language === "vi" ? { maxWordsPerSecond: 5.0 } : {}),
+      ...(spec.language === "vi" ? { maxWordsPerSecond: 5.0 } : {}),
       // Soft duration target (±tolerance) from the brief, when set.
       ...(brief.duration ? { targetDurationSeconds: brief.duration } : {}),
     };

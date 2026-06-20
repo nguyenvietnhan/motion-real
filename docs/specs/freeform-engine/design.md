@@ -270,7 +270,7 @@ vẫn cần author theo đoạn.
 - `authorManifestSchema.title` đã có (`max(160)`). Thêm luật theo format:
   - TikTok: `< 100` ký tự, **kèm hashtag**.
   - YouTube: `< 200` ký tự.
-- Thêm field `titleLanguage: "vi"|"en"|"mix"` (người dùng chọn, D10) tiêm vào
+- Thêm field `videoLanguage: "vi"|"en"` (người dùng chọn, D10) tiêm vào
   prompt builder — CHỈ ảnh hưởng title/hashtag, KHÔNG đổi ngôn ngữ kịch bản.
 - Hashtag: prompt yêu cầu 3–6 hashtag hợp chủ đề.
 

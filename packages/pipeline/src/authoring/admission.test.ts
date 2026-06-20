@@ -114,6 +114,12 @@ describe("admitAuthoredComponent (static AST gate)", () => {
     }
   });
 
+  it("allows local SVG fragment paint-server refs like url(#gradient)", () => {
+    const result = admitAuthoredComponent(fixture("svg-fragment-url-ok.tsx"));
+    expect(result.admitted).toBe(true);
+    if (result.admitted) expect(result.componentId).toBe("authored-svg-fragment-url-ok");
+  });
+
   it("rejects a module missing required exports (N4: schema/example)", () => {
     const result = admitAuthoredComponent(fixture("missing-export.tsx"));
     expect(result.admitted).toBe(false);

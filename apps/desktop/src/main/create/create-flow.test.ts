@@ -33,15 +33,15 @@ describe("CreateController.create", () => {
     const result = await ctrl.create("tin công nghệ");
     expect(result).toEqual({ projectId: "proj-7" });
     expect(scaffold).toHaveBeenCalledOnce();
-    expect(scaffold).toHaveBeenCalledWith("tin công nghệ", "vivibe");
-    expect(began).toEqual([{ id: "proj-7", input: { text: "tin công nghệ", urls: [] } }]);
+    expect(scaffold).toHaveBeenCalledWith("tin công nghệ", "vivibe", "vi");
+    expect(began).toEqual([{ id: "proj-7", input: { text: "tin công nghệ", urls: [], videoLanguage: "vi" } }]);
   });
 
   it("passes a brief carrying the link found in the input", async () => {
     const { deps: d, began } = deps();
     const ctrl = new CreateController(d);
     await ctrl.create("https://news.example.com/a");
-    expect(began).toEqual([{ id: "p1", input: { text: "https://news.example.com/a", urls: ["https://news.example.com/a"] } }]);
+    expect(began).toEqual([{ id: "p1", input: { text: "https://news.example.com/a", urls: ["https://news.example.com/a"], videoLanguage: "vi" } }]);
   });
 
   it("promotes staged images and threads the resulting refs into the author input (Phase 2 Block A)", async () => {
@@ -71,29 +71,45 @@ describe("CreateController.create", () => {
     expect(began[0]!.input.images).toBeUndefined();
   });
 
-  it("threads the chosen delivery knobs (format/tier/titleLanguage) into the author input (create-screen picker)", async () => {
+  it("threads format/tier/videoLanguage into the author input", async () => {
     const { deps: d, began } = deps();
     const ctrl = new CreateController(d);
-    await ctrl.create("chủ đề", [], { format: "youtube", durationTier: 2, titleLanguage: "en" });
+    await ctrl.create("chủ đề", [], { format: "youtube", durationTier: 2, videoLanguage: "en", voiceProvider: "elevenlabs" });
     expect(began[0]!.input.format).toBe("youtube");
     expect(began[0]!.input.durationTier).toBe(2);
-    expect(began[0]!.input.titleLanguage).toBe("en");
+    expect(began[0]!.input.videoLanguage).toBe("en");
   });
 
   it("captures the selected voice provider during scaffold", async () => {
     const scaffold = vi.fn(async () => ({ ok: true as const, projectId: "p-eleven" }));
     const ctrl = new CreateController({ scaffold, beginCreate: vi.fn() });
     await ctrl.create("chủ đề", [], { voiceProvider: "elevenlabs" });
-    expect(scaffold).toHaveBeenCalledWith("chủ đề", "elevenlabs");
+    expect(scaffold).toHaveBeenCalledWith("chủ đề", "elevenlabs", "vi");
   });
 
-  it("with no delivery knobs chosen, the author input omits them (backend falls back to tiktok/tier 1/vi)", async () => {
+  it("defaults the authored video language to Vietnamese", async () => {
     const { deps: d, began } = deps();
     const ctrl = new CreateController(d);
     await ctrl.create("chủ đề");
     expect(began[0]!.input.format).toBeUndefined();
     expect(began[0]!.input.durationTier).toBeUndefined();
-    expect(began[0]!.input.titleLanguage).toBeUndefined();
+    expect(began[0]!.input.videoLanguage).toBe("vi");
+  });
+
+  it("maps the retired legacy mix value to Vietnamese", async () => {
+    const { deps: d, began } = deps();
+    const ctrl = new CreateController(d);
+    await ctrl.create("chủ đề", [], { titleLanguage: "mix" });
+    expect(began[0]!.input.videoLanguage).toBe("vi");
+  });
+
+  it("blocks Vivibe + English before scaffold", async () => {
+    const { deps: d, scaffold, began } = deps();
+    const ctrl = new CreateController(d);
+    await expect(ctrl.create("topic", [], { videoLanguage: "en", voiceProvider: "vivibe" }))
+      .rejects.toThrow(/Vivibe.*tiếng Việt|ElevenLabs/i);
+    expect(scaffold).not.toHaveBeenCalled();
+    expect(began).toEqual([]);
   });
 
   it("a failing preflight blocks create BEFORE scaffold (its message is thrown, workspace never starts)", async () => {
@@ -111,7 +127,7 @@ describe("CreateController.create", () => {
     const { deps: d, began } = deps({ preflight });
     const ctrl = new CreateController(d);
     const result = await ctrl.create("chủ đề");
-    expect(preflight).toHaveBeenCalledOnce();
+    expect(preflight).toHaveBeenCalledWith("vivibe", "vi");
     expect(result).toEqual({ projectId: "p1" });
     expect(began).toHaveLength(1);
   });

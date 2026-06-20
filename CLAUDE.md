@@ -60,7 +60,7 @@ Topic/URL -> AI authors scenes .tsx + manifest.json
 | `@news/pipeline` | authoring/admission + manifest, ingest, tts, captions, lock, BGM resolution/mix handoff, thumbnails, no-TTS still renders, sfx, store, cache, determinism, renderer, review, orchestrator, cli, safety grid |
 | `@news/mcp` | MCP server exposing the pipeline as tools |
 | `apps/remotion` | Remotion root, sample fixture, studio/render entry |
-| `apps/desktop` | Electron desktop app (create/workspace/settings UI, format/tier/title-language picker, hidden stills/vision refine loop, BGM + thumbnail UI, 9router gateway, license manager) wrapping the pipeline |
+| `apps/desktop` | Electron desktop app (create/workspace/settings UI, format/tier/video-language/provider pickers, hidden stills/vision refine loop, BGM + thumbnail UI, 9router gateway, license manager) wrapping the pipeline |
 
 ## 3. The Safety Grid (N1–N30)
 
@@ -129,10 +129,10 @@ Follow `docs/ai-content-guide.md` exactly. Highlights:
 
 - Output a valid AUTHOR manifest: `title`, optional `hashtags`, `theme.dominant`,
   and ordered scenes with sequential `scene-NN` ids. The desktop backend injects
-  `format`, `durationTier`, and `titleLanguage` from the user's UI choice; the
+  `format`, `durationTier`, and `videoLanguage` from the user's UI choice; the
   pipeline converts the manifest to `VideoSpec` with `version:1`,
   `styleId:"clean-luxury-tech"` (legacy discriminator, not a look), `ratio`
-  derived from format, and `language:"vi"`. Post-freeform-pivot there is NO
+  derived from format, and `language:"vi"|"en"`. Post-freeform-pivot there is NO
   selectable style/look (the multi-language `@news/design` was deleted); a single
   neutral `@news/theme` exists only so render runtime + `SceneImage` resolve.
   **Free pacing**: scene count and total duration are NOT fixed presets.
@@ -162,9 +162,12 @@ Follow `docs/ai-content-guide.md` exactly. Highlights:
   turn ideas into self-drawn shapes (a big number, two columns, a metaphor).
 - **One idea per scene; don't overcrowd, don't leave sparse.** Condense narration
   to the essential sentence.
-- Vietnamese display + narration; brand/model names in English; no phonetic
-  spellings or spaced abbreviations. **Write numbers as DIGITS** in BOTH display
-  and narration. Dates as `ngày 5 tháng 6 năm 2026`; scale words in Vietnamese.
+- The selected `videoLanguage` governs title, hashtags, display text, narration,
+  CTA, and generated captions. Vietnamese may keep brand/model names in English;
+  English content must not leak Vietnamese text. No phonetic spellings or spaced
+  abbreviations. **Write numbers as DIGITS** in BOTH display and narration.
+- Vivibe is Vietnamese-only. English projects require ElevenLabs; never silently
+  switch provider or language during render.
 - Lists are hand-built; number items yourself in JSX if the list needs numbering.
 
 ## 7. Runtime Rules

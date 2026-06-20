@@ -17,7 +17,7 @@ Không dùng pnpm/turbo. Hai vùng: `packages/` (logic) + `apps/` (entry points)
 | `@news/pipeline` | authoring/admission, manifest, ingest, tts, captions, lock, BGM handoff, no-TTS stills, thumbnail render, sfx, store, cache, determinism, renderer, review, orchestrator, cli, safety grid |
 | `@news/mcp` | MCP server phơi pipeline thành typed tools |
 | `apps/remotion` | Remotion root (`Root.tsx`), một composition `NewsVideo`, studio/render entry |
-| `apps/desktop` | Electron app (create/workspace/settings UI, format/tier/title-language picker, hidden stills/vision refine loop, BGM + thumbnail UI, 9router gateway, license, self-repair loop) wrap pipeline |
+| `apps/desktop` | Electron app (create/workspace/settings UI, format/tier/video-language/provider pickers, hidden stills/vision refine loop, BGM + thumbnail UI, 9router gateway, license, self-repair loop) wrap pipeline |
 
 **Format status:** TikTok 9:16 is the stable end-to-end production path. The repo
 already carries YouTube-format primitives (schema geometry, prompt budgeting,

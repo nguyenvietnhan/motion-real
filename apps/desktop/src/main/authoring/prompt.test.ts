@@ -169,7 +169,7 @@ describe("buildAuthorMessages", () => {
     expect(text).toContain("800×600");
   });
 
-  // --- freeform-engine G2: format / tier / title-language are prompt-driven ---
+  // --- format / tier / video-language are prompt-driven ---
 
   it("is de-styled: no leftover design-language / style-pack wording in the prompt", () => {
     // The multi-style design system was deleted (D1). The prompt must no longer
@@ -206,20 +206,29 @@ describe("buildAuthorMessages", () => {
     expect(t3!.content).toMatch(/705 từ/);
   });
 
-  it("title-language rule steers ONLY the publish title; caps length per format", () => {
+  it("video-language rule applies to title, display text, narration, and captions", () => {
     // vi (default) on TikTok: under 100 chars + a SEPARATE hashtags field (kept
     // out of the title so the title doubles as a clean project name, D9/H3).
-    const [vi] = buildAuthorMessages({ text: "X", urls: [], format: "tiktok", titleLanguage: "vi" });
+    const [vi] = buildAuthorMessages({ text: "X", urls: [], format: "tiktok", videoLanguage: "vi" });
     expect(vi!.content).toMatch(/100 ký tự/);
     expect(vi!.content).toMatch(/hashtag/i);
     // The hashtags must NOT be baked into the title (separate "hashtags" field).
     expect(vi!.content).toMatch(/KHÔNG nhồi hashtag vào trong "title"|field RIÊNG "hashtags"/);
-    expect(vi!.content).toMatch(/lời đọc.*TIẾNG VIỆT|vẫn luôn TIẾNG VIỆT/i); // script stays vi
+    expect(vi!.content).toMatch(/TOÀN BỘ.*TIẾNG VIỆT|Hiển thị \+ lời đọc: tiếng Việt/is);
 
-    // en on YouTube: under 200 chars, no hashtag requirement.
-    const [en] = buildAuthorMessages({ text: "X", urls: [], format: "youtube", titleLanguage: "en" });
+    // en on YouTube: under 200 chars, no hashtag requirement, all video content English.
+    const [en] = buildAuthorMessages({ text: "X", urls: [], format: "youtube", videoLanguage: "en" });
     expect(en!.content).toMatch(/200 ký tự/);
     expect(en!.content).toMatch(/TIẾNG ANH/);
+    expect(en!.content).toMatch(/title.*hashtags.*eyebrow\/headline\/body.*narration.*CTA/is);
+    expect(en!.content).toMatch(/KHÔNG xen câu tiếng Việt|Không để sót câu tiếng Việt/i);
+    expect(en!.content).not.toMatch(/vẫn luôn TIẾNG VIỆT/i);
+  });
+
+  it("uses a conservative English word-rate default instead of the Vietnamese calibration", () => {
+    const [en] = buildAuthorMessages({ text: "X", urls: [], format: "tiktok", durationTier: 1, videoLanguage: "en" });
+    expect(en!.content).toMatch(/Giọng đọc tiếng Anh ~2.5 từ\/giây/);
+    expect(en!.content).toMatch(/113 từ/);
   });
 
   it("demands a HOOKED publish title (a hook + banned empty-clickbait, not a flat description)", () => {

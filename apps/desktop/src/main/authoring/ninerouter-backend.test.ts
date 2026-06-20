@@ -144,15 +144,15 @@ describe("authorScenes (pure-author)", () => {
     expect(ingestUrl).toHaveBeenCalledOnce();
   });
 
-  it("injects the user-chosen delivery knobs (format/tier/titleLanguage) into the manifest — the AI never authors them", async () => {
+  it("injects the user-chosen delivery knobs (format/tier/videoLanguage) into the manifest — the AI never authors them", async () => {
     const projectId = "pa-delivery";
     const { backend } = makeBackend(validReply());
     // The model's manifest carries only theme + scenes; the create-screen knobs
-    // (format/durationTier/titleLanguage) are injected by the backend so the
-    // canvas + word-budget + title language are the user's choice, not the AI's.
+    // (format/durationTier/videoLanguage) are injected by the backend so the
+    // canvas + word-budget + full content language are the user's choice, not the AI's.
     const job: AuthorJob = {
       projectId,
-      input: { text: "chủ đề", urls: [], format: "youtube", durationTier: 2, titleLanguage: "en" },
+      input: { text: "topic", urls: [], format: "youtube", durationTier: 2, videoLanguage: "en" },
       scriptGate: false,
     };
 
@@ -161,7 +161,7 @@ describe("authorScenes (pure-author)", () => {
     const manifest = JSON.parse(readFileSync(join(home, ".video-tool", "projects", projectId, "manifest.json"), "utf8"));
     expect(manifest.format).toBe("youtube");
     expect(manifest.durationTier).toBe(2);
-    expect(manifest.titleLanguage).toBe("en");
+    expect(manifest.videoLanguage).toBe("en");
   });
 
   it("omits the delivery knobs when none are chosen (manifest falls back to the engine defaults)", async () => {
@@ -174,7 +174,7 @@ describe("authorScenes (pure-author)", () => {
     const manifest = JSON.parse(readFileSync(join(home, ".video-tool", "projects", projectId, "manifest.json"), "utf8"));
     expect(manifest.format).toBeUndefined();
     expect(manifest.durationTier).toBeUndefined();
-    expect(manifest.titleLanguage).toBeUndefined();
+    expect(manifest.videoLanguage).toBeUndefined();
   });
 
   it("keeps a provided image.ref on a scene and STRIPS an invented one (Phase 2 Block A)", async () => {

@@ -40,6 +40,8 @@ export function clampRefinePasses(n: number): number {
  * fallback when no calibration has run.
  */
 export const DEFAULT_WORDS_PER_SECOND = 4.7;
+/** Conservative default for English ElevenLabs narration until language-aware calibration is added. */
+export const DEFAULT_ENGLISH_WORDS_PER_SECOND = 2.5;
 /**
  * A measured rate is clamped to this sane band before it's trusted: a TTS/network
  * hiccup (e.g. a near-zero or absurdly large measured duration) must never poison

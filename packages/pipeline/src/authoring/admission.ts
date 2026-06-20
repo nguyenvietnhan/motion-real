@@ -225,7 +225,9 @@ export function admitAuthoredComponent(
 
     // --- remote/file URL literals (N5/N9). This catches hard-coded URLs in JSX,
     // CSS url(...), and props-like literals; legitimate media must flow through
-    // the local-only manifest image.ref + <SceneImage> path. ---
+    // the local-only manifest image.ref + <SceneImage> path. Fragment-only
+    // SVG paint-server refs like "url(#bgGradient)" are local to the same SVG
+    // document and are allowed; they do not fetch network/file resources.
     if (isStringLikeLiteral(node)) {
       const value = node.text;
       if (isDangerousMemberName(value, banned)) addN5(node, `string literal "${value}"`);
@@ -396,7 +398,12 @@ function isDangerousMemberName(value: string, banned: ReadonlySet<string>): bool
 }
 
 function isUrlLikeLiteral(value: string): boolean {
+  if (isSafeSvgFragmentUrl(value)) return false;
   return /(?:https?:\/\/|data:|blob:|file:|url\s*\(|^\/\/)/i.test(value);
+}
+
+function isSafeSvgFragmentUrl(value: string): boolean {
+  return /^url\(\s*(['"]?)#[A-Za-z_][\w:.-]*\1\s*\)$/i.test(value.trim());
 }
 
 function isCreateElementCall(expr: ts.LeftHandSideExpression): boolean {

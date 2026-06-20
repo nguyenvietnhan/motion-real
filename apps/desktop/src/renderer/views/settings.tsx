@@ -1,5 +1,5 @@
-import React, { useEffect, useRef, useState } from "react";
-import type { AiAccountState, GatewayState, ModelInfo, SettingsModel, TtsVoiceVM, VoiceProviderChoice } from "../../shared/types.js";
+import React, { useRef, useState } from "react";
+import type { AiAccountState, GatewayState, ModelInfo, SettingsModel, VoiceProviderChoice } from "../../shared/types.js";
 import { DEFAULT_REFINE_PASSES } from "../../shared/settings-model.js";
 import { activeAccount } from "../../shared/active-account.js";
 import { Icon } from "../icons.js";
@@ -18,14 +18,11 @@ export const SettingsView: React.FC<{
   onUpdate: (patch: Partial<SettingsModel>) => void | Promise<unknown>;
   onSetApiKey: (provider: VoiceProviderChoice, apiKey: string) => Promise<SettingsModel>;
   onClearApiKey: (provider: VoiceProviderChoice) => Promise<SettingsModel>;
-  onListVoices: (provider: VoiceProviderChoice) => Promise<TtsVoiceVM[]>;
-}> = ({ gateway, account, models, settings, onManageAccounts, onSelectModel, onUpdate, onSetApiKey, onClearApiKey, onListVoices }) => {
+}> = ({ gateway, account, models, settings, onManageAccounts, onSelectModel, onUpdate, onSetApiKey, onClearApiKey }) => {
   const [tab, setTab] = useState<SettingsTab>("ai");
   const [refineExpanded, setRefineExpanded] = useState(settings.refinePasses > 0);
   const [showVoiceKey, setShowVoiceKey] = useState(false);
   const [voiceKeyInput, setVoiceKeyInput] = useState("");
-  const [voices, setVoices] = useState<TtsVoiceVM[]>([]);
-  const [voiceLoad, setVoiceLoad] = useState<"idle" | "loading" | "error">("idle");
   const [saveState, setSaveState] = useState<"idle" | "saving" | "error">("idle");
   const saveSeq = useRef(0);
   const connected = account.kind === "connected" ? account.accounts : [];
@@ -39,11 +36,6 @@ export const SettingsView: React.FC<{
   const voiceProvider = settings.voiceProvider;
   const voiceId = voiceProvider === "vivibe" ? settings.vivibeVoiceId ?? "" : settings.elevenLabsVoiceId ?? "";
   const credentialState = settings.voiceCredentials[voiceProvider];
-  useEffect(() => {
-    setVoiceKeyInput("");
-    setVoices([]);
-    setVoiceLoad("idle");
-  }, [voiceProvider]);
 
   const TABS: { id: SettingsTab; label: string; icon: React.ReactNode }[] = [
     { id: "ai", label: "Tài khoản AI", icon: Icon.spark({ size: 16 }) },
@@ -133,7 +125,7 @@ export const SettingsView: React.FC<{
               <p style={{ margin: 0, color: "var(--muted-foreground)", fontSize: 13 }}>
                 {voiceProvider === "vivibe"
                   ? "Vivibe chỉ hỗ trợ tiếng Việt."
-                  : "ElevenLabs hỗ trợ đa ngôn ngữ; News Studio hiện vẫn tạo lời đọc tiếng Việt."}
+                  : "ElevenLabs hỗ trợ video tiếng Việt và tiếng Anh."}
               </p>
               <Field label={`API key ${voiceProvider === "vivibe" ? "Vivibe" : "ElevenLabs"}`} hint={`Trạng thái: ${credentialState === "saved" ? "đã lưu an toàn" : credentialState === "environment" ? "đang dùng từ .env" : "chưa cấu hình"}.`}>
                 <div className="ns-secret-field">
@@ -150,22 +142,12 @@ export const SettingsView: React.FC<{
                   {credentialState === "saved" && <button className="ns-btn" onClick={() => void onClearApiKey(voiceProvider)}>Xóa key đã lưu</button>}
                 </div>
               </Field>
-              <Field label="Danh sách giọng" hint="Tải từ tài khoản provider; vẫn có thể nhập Voice ID thủ công bên dưới.">
-                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                  <button className="ns-btn" disabled={credentialState === "missing" || voiceLoad === "loading"} onClick={() => {
-                    setVoiceLoad("loading");
-                    void onListVoices(voiceProvider).then((next) => { setVoices(next); setVoiceLoad("idle"); }).catch(() => setVoiceLoad("error"));
-                  }}>{voiceLoad === "loading" ? "Đang tải…" : "Tải danh sách giọng"}</button>
-                  {voiceLoad === "error" && <span style={{ color: "var(--danger)", fontSize: 13 }}>Không tải được danh sách giọng.</span>}
-                </div>
-                {voices.length > 0 && (
-                  <select className="ns-input" value={voices.some((v) => v.id === voiceId) ? voiceId : ""} onChange={(e) => update(voiceProvider === "vivibe" ? { vivibeVoiceId: e.target.value } : { elevenLabsVoiceId: e.target.value })} style={{ width: "100%", maxWidth: 480, marginTop: 8 }}>
-                    <option value="">— chọn giọng —</option>
-                    {voices.map((voice) => <option key={voice.id} value={voice.id}>{voice.name}</option>)}
-                  </select>
-                )}
-              </Field>
-              <Field label="Voice ID" hint={`Mã giọng đọc cụ thể trên ${voiceProvider === "vivibe" ? "Vivibe" : "ElevenLabs"}.`}>
+              <Field
+                label="Voice ID"
+                hint={voiceProvider === "vivibe"
+                  ? "Nghe thử và lấy Voice ID trên trang Vivibe, sau đó dán vào đây."
+                  : "Nghe thử và lấy Voice ID trên trang ElevenLabs. Một số library voice yêu cầu gói trả phí để dùng qua API."}
+              >
                 <input className="ns-input" placeholder="voice id…" value={voiceId}
                   onChange={(e) => update(voiceProvider === "vivibe" ? { vivibeVoiceId: e.target.value } : { elevenLabsVoiceId: e.target.value })} style={{ width: "100%", maxWidth: 480 }} />
               </Field>

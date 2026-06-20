@@ -229,7 +229,7 @@ export const App: React.FC = () => {
                   ...(images.length > 0 ? { images: images.map((s) => ({ ref: s.ref, width: s.width, height: s.height })) } : {}),
                   ...(choices.format ? { format: choices.format } : {}),
                   ...(choices.durationTier ? { durationTier: choices.durationTier } : {}),
-                  ...(choices.titleLanguage ? { titleLanguage: choices.titleLanguage } : {}),
+                  videoLanguage: choices.videoLanguage,
                   voiceProvider: choices.voiceProvider,
                 })
                 .then((r) => {
@@ -293,7 +293,6 @@ export const App: React.FC = () => {
               if (!dash) return Promise.reject(new Error("Dashboard API is unavailable"));
               return dash.tts.clearApiKey(provider).then((next) => { setSettings(next); return next; });
             }}
-            onListVoices={(provider) => dash?.tts.listVoices(provider) ?? Promise.reject(new Error("Dashboard API is unavailable"))}
           />
         )}
 

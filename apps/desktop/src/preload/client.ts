@@ -83,7 +83,6 @@ export function createDashboardClient(ipc: IpcLike): DashboardApi {
       update: (patch) => inv("settings:update", patch),
     },
     tts: {
-      listVoices: (provider) => inv("tts:listVoices", provider),
       setApiKey: (provider, apiKey) => inv("tts:setApiKey", provider, apiKey),
       clearApiKey: (provider) => inv("tts:clearApiKey", provider),
     },
