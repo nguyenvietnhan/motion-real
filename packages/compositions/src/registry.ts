@@ -23,17 +23,6 @@ export type SceneComponentProps<P = Record<string, unknown>> = {
   image?: SceneImage;
 };
 
-export type SceneTransitionProps = {
-  /** 0→1 progress across the fixed transition overlap. */
-  progress: number;
-  /** Whether this wrapper is rendering the outgoing or incoming scene. */
-  direction: "entering" | "exiting";
-  /** Fixed transition length in frames for this render. */
-  durationInFrames: number;
-  /** The scene content that must remain mounted during the transition. */
-  children: React.ReactNode;
-};
-
 export type SceneComponentDefinition<P = any> = {
   id: string;
   displayName: string;
@@ -43,12 +32,6 @@ export type SceneComponentDefinition<P = any> = {
   schema: z.ZodType<P>;
   /** The React component that renders the scene's visual. */
   Component: React.FC<SceneComponentProps<P>>;
-  /**
-   * Optional AI-authored visual transition from this scene into the next one.
-   * Runtime still owns timing/audio; this component only wraps entering/exiting
-   * pixels during the fixed transition overlap.
-   */
-  transitionToNext?: React.FC<SceneTransitionProps>;
   /** Example payload used for docs and fixtures. */
   example: P;
 };

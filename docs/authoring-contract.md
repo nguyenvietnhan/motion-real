@@ -18,7 +18,7 @@ but not auto-run — see CLAUDE.md "The Safety Grid").
 import React from "react";
 import { useCurrentFrame, interpolate } from "remotion";
 import { z } from "zod";
-import { registerComponent, type SceneComponentProps, type SceneTransitionProps } from "@news/compositions";
+import { registerComponent, type SceneComponentProps } from "@news/compositions";
 
 export const schema = z.object({ /* this scene's props */ });
 type Props = z.infer<typeof schema>;
@@ -36,12 +36,6 @@ const Scene: React.FC<SceneComponentProps<Props>> = ({ headline, body, eyebrow, 
   );
 };
 
-const MyTransition: React.FC<SceneTransitionProps> = ({ progress, direction, children }) => (
-  <div style={{ position: "absolute", inset: 0, opacity: direction === "entering" ? progress : 1 }}>
-    {children}
-  </div>
-);
-
 export const example: Props = { /* a valid sample payload */ };
 export default registerComponent<Props>({
   id: "my-scene",            // a literal string id, referenced by the manifest
@@ -49,9 +43,6 @@ export default registerComponent<Props>({
   promptGuide: "when to use this scene",
   schema,
   Component: Scene,
-  // Optional: author a visual transition from this scene into the next one.
-  // Runtime still owns the fixed overlap duration and audio-safe timing.
-  transitionToNext: MyTransition,
   example,
 });
 ```
@@ -59,10 +50,6 @@ export default registerComponent<Props>({
 - MUST export `default` (the `registerComponent(...)` result), `schema`, and
   `example`; `example` MUST satisfy `schema`.
 - MUST call `registerComponent({ id: "..." })` with a **literal** string id.
-- MAY provide `transitionToNext` in the registered component definition. It is a
-  React component taking `SceneTransitionProps` (`progress`, `direction`,
-  `durationInFrames`, `children`) from `@news/compositions`; it controls only the
-  pixels during the fixed transition overlap, not audio or timing.
 - `schema` describes ONLY this scene's bespoke `props` payload. Do NOT declare
   `headline`, `eyebrow`, `body`, or `image` in it — those are framework-level
   fields the master composition passes top-level (destructured as `({ headline,
@@ -284,9 +271,6 @@ When motion fits:
   centrally; do not author it. YouTube-format output does not burn this layer in.
 - Stagger multiple elements when assembly helps the idea; a later bounded phase
   may carry the visual story forward instead of leaving a long inert hold.
-- **Root background exists from frame 0.** Avoid fading the entire scene root from
-  opacity 0 at the start; reveal inner content instead. This prevents a dark
-  flash when the scene is also being blended by the transition overlap.
 
 ## Duration target (rather over than under)
 
@@ -321,13 +305,8 @@ not just while iterating:
 
 ## Transitions & timing
 
-- Prefer authoring a scene-specific `transitionToNext` component in the outgoing
-  scene module when the content suggests a meaningful visual handoff. If omitted,
-  the legacy manifest enum still works, and the runtime falls back to a calm
-  fade. The lock makes the transition overlap land on a silent breath gap so no
-  speech is clipped — you do not manage timing yourself.
-- A good transition serves the idea: a graph-colored sweep, a node line that
-  opens the next scene, a mask, or a restrained push. A calm fade is correct for
-  recaps/CTA or when a bespoke effect would be visual noise.
+- Set `transitionToNext` per scene in the manifest (`slide` default; `fade` for
+  recap/CTA). The lock makes the transition overlap land on a silent breath gap
+  so no speech is clipped — you do not manage timing yourself.
 - Real timing follows the measured Vietnamese TTS; a longer render than any
   target is fine when the voice is complete and unrushed.

@@ -5,11 +5,11 @@ import { slide, type SlideDirection } from "@remotion/transitions/slide";
 import { fade } from "@remotion/transitions/fade";
 import { wipe } from "@remotion/transitions/wipe";
 import { clockWipe } from "@remotion/transitions/clock-wipe";
-import type { TransitionPresentation, TransitionPresentationComponentProps } from "@remotion/transitions";
+import type { TransitionPresentation } from "@remotion/transitions";
 import { CANVAS, CONTENT_ZONE, rectWidth, transitionFrames, type LockedSceneSpec, type LockedVideoSpec } from "@news/schema";
 import { makeTheme, sceneBackground, type Theme } from "@news/theme";
 import { Captions, LayoutProbe, SceneTimingProvider, useIntroZoom } from "@news/blocks";
-import { getComponent, type SceneTransitionProps } from "./registry.js";
+import { getComponent } from "./registry.js";
 import { ThemeProvider, useTheme } from "./theme-context.js";
 
 export type VideoCompositionProps = {
@@ -44,58 +44,15 @@ function zoomPush(): TransitionPresentation<ZoomProps> {
   return { component: ZoomPresentationComponent, props: {} } as unknown as TransitionPresentation<ZoomProps>;
 }
 
-type AuthoredTransitionPresentationProps = {
-  Transition: React.FC<SceneTransitionProps>;
-};
-
-const FadeFallbackPresentation: React.FC<SceneTransitionProps> = ({ progress, direction, children }) => {
-  return (
-    <AbsoluteFill style={{ opacity: direction === "entering" ? progress : 1 }}>
-      {children}
-    </AbsoluteFill>
-  );
-};
-
-const AuthoredTransitionPresentation: React.FC<
-  TransitionPresentationComponentProps<AuthoredTransitionPresentationProps>
-> = ({ presentationProgress, presentationDirection, presentationDurationInFrames, children, passedProps }) => {
-  const Transition = passedProps.Transition;
-  const fallback = (
-    <FadeFallbackPresentation
-      progress={presentationProgress}
-      direction={presentationDirection}
-      durationInFrames={presentationDurationInFrames}
-    >
-      {children}
-    </FadeFallbackPresentation>
-  );
-
-  return (
-    <TransitionErrorBoundary fallback={fallback}>
-      <Transition
-        progress={presentationProgress}
-        direction={presentationDirection}
-        durationInFrames={presentationDurationInFrames}
-      >
-        {children}
-      </Transition>
-    </TransitionErrorBoundary>
-  );
-};
-
-function authoredPresentation(
-  Transition: React.FC<SceneTransitionProps>,
-): TransitionPresentation<AuthoredTransitionPresentationProps> {
-  return { component: AuthoredTransitionPresentation, props: { Transition } };
-}
-
-/** Map a legacy `transitionToNext` enum to a deterministic presentation (DOM, no GL). */
-function legacyPresentationFor(
-  kind: LockedSceneSpec["transitionToNext"] | undefined,
+/** Map a scene's `transitionToNext` to a deterministic presentation (DOM, no GL). */
+function presentationFor(
+  kind: LockedSceneSpec["transitionToNext"],
   index: number,
 ): TransitionPresentation<Record<string, unknown>> {
   const cast = (p: unknown) => p as TransitionPresentation<Record<string, unknown>>;
   switch (kind) {
+    case "fade":
+      return cast(fade());
     case "wipe": {
       const dirs: Array<"from-left" | "from-right"> = ["from-left", "from-right"];
       return cast(wipe({ direction: dirs[index % dirs.length]! }));
@@ -104,30 +61,13 @@ function legacyPresentationFor(
       return cast(clockWipe({ width: CANVAS.width, height: CANVAS.height }));
     case "zoom":
       return cast(zoomPush());
-    case "slide": {
+    case "slide":
+    default: {
       // Alternate the slide direction for visual variety (mostly horizontal).
       const dirs: SlideDirection[] = ["from-right", "from-left", "from-bottom", "from-left"];
       return cast(slide({ direction: dirs[index % dirs.length]! }));
     }
-    case "fade":
-    default:
-      return cast(fade());
   }
-}
-
-/**
- * Runtime transition selection: authored transition on the outgoing scene wins;
- * otherwise keep the legacy manifest enum, and fall back to a calm fade.
- */
-export function presentationForSceneTransition(
-  scene: LockedSceneSpec,
-  index: number,
-): TransitionPresentation<Record<string, unknown>> {
-  const authored = getComponent(scene.component)?.transitionToNext;
-  if (authored) {
-    return authoredPresentation(authored) as unknown as TransitionPresentation<Record<string, unknown>>;
-  }
-  return legacyPresentationFor(scene.transitionToNext, index);
 }
 
 /**
@@ -136,8 +76,8 @@ export function presentationForSceneTransition(
  * sequence so the transition overlap lands on the silent breath gap and no
  * speech is clipped (author-mode-v2 R3/R5). Transitions use `springTiming`
  * (smooth, premium) pinned to the lock's overlap length, with per-scene
- * presentations: authored transition components first, then legacy enum/fade
- * fallback. The narration is ONE continuous top-level `<Audio>`, and the burned-in karaoke captions are a
+ * presentations (slide/fade/wipe/clockWipe/zoom) for variety. The narration is
+ * ONE continuous top-level `<Audio>`, and the burned-in karaoke captions are a
  * top-level `<Captions>` overlay — both OUTSIDE the transition series.
  */
 export const VideoComposition: React.FC<VideoCompositionProps> = ({ spec, measure }) => {
@@ -161,7 +101,7 @@ export const VideoComposition: React.FC<VideoCompositionProps> = ({ spec, measur
                 {!isLast ? (
                   <TransitionSeries.Transition
                     timing={timing}
-                    presentation={presentationForSceneTransition(scene, i)}
+                    presentation={presentationFor(scene.transitionToNext, i)}
                   />
                 ) : null}
               </React.Fragment>
@@ -270,22 +210,6 @@ export const SceneContent: React.FC<{ scene: LockedSceneSpec }> = ({ scene }) =>
  * fallback pixels (no time/random/network), keeping the N16 guard valid.
  */
 class SceneErrorBoundary extends React.Component<
-  { fallback: React.ReactNode; children: React.ReactNode },
-  { failed: boolean }
-> {
-  constructor(props: { fallback: React.ReactNode; children: React.ReactNode }) {
-    super(props);
-    this.state = { failed: false };
-  }
-  static getDerivedStateFromError(): { failed: boolean } {
-    return { failed: true };
-  }
-  render(): React.ReactNode {
-    return this.state.failed ? this.props.fallback : this.props.children;
-  }
-}
-
-class TransitionErrorBoundary extends React.Component<
   { fallback: React.ReactNode; children: React.ReactNode },
   { failed: boolean }
 > {

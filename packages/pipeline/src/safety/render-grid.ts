@@ -11,7 +11,6 @@ import {
 } from "@news/schema";
 import { makeReport, type SafetyIssue, type SafetyReport } from "../types.js";
 import { MAX_CAPTION_LINE_CHARS } from "../audio/captions.js";
-import { transitionSampleFileName } from "../render/transition-samples.js";
 import { decodePng } from "./png.js";
 import {
   analyzeFrame,
@@ -40,9 +39,7 @@ import {
  * defects can only be approximated. `runRenderGrid` auto-runs the frame-only
  * oracles (N14 content-zone + caption-clearance, N18, N19, N30), the pure
  * spec-level oracles (N20, N22, N28, N29), and a coarse adjacent-still
- * transition check (N21). When review artifacts include in-overlap transition
- * samples, `runRenderGrid` also scans those frames for blank/dark flashes and
- * abrupt jumps. Three oracles are exported + self-tested but are NOT
+ * transition check (N21). Three oracles are exported + self-tested but are NOT
  * auto-run, because a flat midpoint still lacks the inputs they need:
  *   - N15 (overlap) and N17 (truncation) need per-block layout rects / a content
  *     box, which a flat raster does not carry — feed them those hints to use them.
@@ -100,8 +97,6 @@ export type RenderGridOptions = {
   dividerClearanceAboveTolerance?: number;
   /** Above this content-zone fill fraction, a scene reads as overcrowded (N30, advisory). */
   densityFraction?: number;
-  /** Transition-overlap sample fractions to inspect when matching PNG artifacts exist. */
-  transitionSampleFractions?: readonly number[];
 };
 
 const DEFAULTS: Required<RenderGridOptions> = {
@@ -121,7 +116,6 @@ const DEFAULTS: Required<RenderGridOptions> = {
   dividerClearanceAbove: true,
   dividerClearanceAboveTolerance: 0.01,
   densityFraction: 0.6,
-  transitionSampleFractions: [0.25, 0.5, 0.75],
 };
 
 function countWords(value: string): number {
@@ -682,36 +676,6 @@ export function checkTransition(a: Frame, b: Frame, sceneId?: string, options?: 
   return [];
 }
 
-export function analyzeTransitionSamples(samples: readonly Frame[], sceneId?: string, options?: RenderGridOptions): SafetyIssue[] {
-  const o = opt(options);
-  const issues: SafetyIssue[] = [];
-
-  const blankIndex = samples.findIndex((frame) => analyzeFrame(frame, o.contentThreshold).contentFraction < o.deadAirFraction);
-  if (blankIndex >= 0) {
-    issues.push({
-      check: "N21",
-      severity: "warning",
-      sceneId,
-      message: `Transition sample ${blankIndex + 1}/${samples.length} is nearly blank/dark (possible flash during scene overlap).`,
-    });
-  }
-
-  for (let i = 1; i < samples.length; i += 1) {
-    const diff = frameDiffFraction(samples[i - 1]!, samples[i]!, o.contentThreshold);
-    if (diff > 0.98) {
-      issues.push({
-        check: "N21",
-        severity: "warning",
-        sceneId,
-        message: "Transition samples change almost entirely between adjacent frames (possible flicker / abrupt jump).",
-      });
-      break;
-    }
-  }
-
-  return issues;
-}
-
 // --- N22: audio sync (WARNING, pure spec) ---------------------------------
 
 export function checkAudioSync(locked: LockedVideoSpec, options?: RenderGridOptions): SafetyIssue[] {
@@ -1061,23 +1025,6 @@ export async function runRenderGrid(
     for (const oracle of transitionOracles) {
       issues.push(...oracle.run(a, b, locked.scenes[i + 1]!.id, options));
     }
-  }
-
-  // Fine transition checks over frames sampled inside the actual overlap. These
-  // artifacts are optional so older review dirs and tests remain compatible.
-  for (let i = 0; i < locked.scenes.length - 1; i += 1) {
-    const from = locked.scenes[i]!;
-    const to = locked.scenes[i + 1]!;
-    const samples: Frame[] = [];
-    for (const fraction of opt(options).transitionSampleFractions) {
-      const path = join(artifacts.framesDir, transitionSampleFileName(from.id, to.id, fraction));
-      try {
-        samples.push(decodePng(await readFile(path)));
-      } catch {
-        /* transition sample absent/undecodable → skip that sample */
-      }
-    }
-    if (samples.length > 0) issues.push(...analyzeTransitionSamples(samples, to.id, options));
   }
 
   return makeReport(issues, ["render"]);

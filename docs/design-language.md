@@ -98,10 +98,8 @@ scene is valid, and there is no need to move every element.
   `Math.sin(frame)`, `frame % n`, or a non-clamped `interpolate`. Monotonic motion
   that resolves by scene end is fine; a forever-bouncing shape reads as a bug.
 - **One-time emphasis zoom** that settles to scale 1.0 before the midpoint.
-- **Transitions**: Runtime keeps the fixed ~0.5s overlap and audio-safe timing.
-  The outgoing scene may author a custom `transitionToNext` wrapper for a
-  content-specific handoff; otherwise the legacy DOM presentations/fade fallback
-  apply. No WebGL transitions (non-deterministic in render).
+- **Transitions**: `springTiming` with varied DOM presentations (slide/wipe/
+  clock-wipe/zoom), ~0.5s. No WebGL transitions (non-deterministic in render).
 
 ## Imagery rules (a viewer/legal rule, not a look rule)
 

@@ -21,7 +21,6 @@ import {
   checkSafeArea,
   checkTransition,
   checkTruncation,
-  analyzeTransitionSamples,
   runRenderGrid,
   RENDER_ORACLES,
   type Frame,
@@ -29,7 +28,6 @@ import {
 } from "./render-grid.js";
 import * as renderGridModule from "./render-grid.js";
 import { encodePngRGBA } from "./png.js";
-import { transitionSampleFileName } from "../render/transition-samples.js";
 
 /**
  * Render-oracle self-tests (Requirement 9.3). Every oracle (N14, N15, N17, N18,
@@ -393,19 +391,6 @@ describe("N21 transition / flicker", () => {
     paint(b, { x: 30, y: 20, width: 40, height: 40 }, WHITE);
     expect(checkTransition(a, b)).toEqual([]);
   });
-
-  it("fires on a blank/dark in-transition sample", () => {
-    const blank = makeFrame(100, 100);
-    const issues = analyzeTransitionSamples([blank], "scene-02");
-    expect(issues.some((i) => i.check === "N21" && /blank\/dark/.test(i.message))).toBe(true);
-  });
-
-  it("fires when in-transition samples jump almost entirely", () => {
-    const a = makeFrame(60, 60, { r: 0, g: 0, b: 0 });
-    const b = makeFrame(60, 60, { r: 255, g: 255, b: 255 });
-    const issues = analyzeTransitionSamples([a, b], "scene-02");
-    expect(issues.some((i) => i.check === "N21" && /abrupt jump/.test(i.message))).toBe(true);
-  });
 });
 
 describe("N22 audio sync", () => {
@@ -525,18 +510,6 @@ describe("runRenderGrid aggregator", () => {
 
     const report = await runRenderGrid(locked, { framesDir: dir });
     expect(report.issues.some((i) => i.sceneId === "scene-02" && /could not load still/i.test(i.message))).toBe(true);
-  });
-
-  it("runs N21 over optional transition sample artifacts", async () => {
-    await writeFile(join(dir, "scene-01.png"), cleanFrame({ x: 30, y: 30, width: 40, height: 40 }));
-    await writeFile(join(dir, "scene-02.png"), cleanFrame({ x: 30, y: 20, width: 40, height: 40 }));
-    await writeFile(join(dir, transitionSampleFileName("scene-01", "scene-02", 0.25)), encodePngRGBA(100, 100, makeFrame(100, 100).data));
-    const locked = lockedFixture({
-      scenes: [scene("scene-01", 0, 600, "tu mot hai ba"), scene("scene-02", 585, 600, "tu nam sau bay")],
-    });
-
-    const report = await runRenderGrid(locked, { framesDir: dir }, { transitionSampleFractions: [0.25] });
-    expect(report.issues.some((i) => i.check === "N21" && /blank\/dark/.test(i.message))).toBe(true);
   });
 
 });
