@@ -98,8 +98,12 @@ scene is valid, and there is no need to move every element.
   `Math.sin(frame)`, `frame % n`, or a non-clamped `interpolate`. Monotonic motion
   that resolves by scene end is fine; a forever-bouncing shape reads as a bug.
 - **One-time emphasis zoom** that settles to scale 1.0 before the midpoint.
-- **Transitions**: `springTiming` with varied DOM presentations (slide/wipe/
-  clock-wipe/zoom), ~0.5s. No WebGL transitions (non-deterministic in render).
+- **Transitions**: new projects use authored boundary-level transition modules,
+  ~0.5s, DOM/SVG/CSS only, receiving both scene layers (`from` and `to`). They
+  should preserve visual continuity with the two scenes, not clear to a random
+  full-frame color interstitial. Legacy projects may still use the built-in
+  deterministic DOM presentations (slide/wipe/clock-wipe/zoom). No WebGL
+  transitions (non-deterministic in render).
 
 ## Imagery rules (a viewer/legal rule, not a look rule)
 

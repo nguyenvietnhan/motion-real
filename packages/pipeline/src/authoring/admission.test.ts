@@ -1,8 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { getComponent, unregisterComponent } from "@news/compositions";
-import { admitAuthoredComponent, admitAuthoredSceneFile } from "./index.js";
+import { getComponent, getTransition, unregisterComponent, unregisterTransition } from "@news/compositions";
+import {
+  admitAuthoredComponent,
+  admitAuthoredSceneFile,
+  admitAuthoredTransition,
+  admitAuthoredTransitionFile,
+} from "./index.js";
 
 /**
  * AI AUTHOR admission-gate self-tests (Requirement 13). Non-vacuous: a clean
@@ -160,5 +165,33 @@ describe("admitAuthoredSceneFile (pure no-host-execution admission)", () => {
     const result = await admitAuthoredSceneFile(fixture("banned-api.tsx"));
     expect(result.ok).toBe(false);
     expect(getComponent("authored-bad-api")).toBeUndefined();
+  });
+});
+
+describe("authored boundary transition admission", () => {
+  it("admits a clean transition with only a default export", async () => {
+    const id = "scene-01-to-scene-02";
+    unregisterTransition(id);
+    expect(admitAuthoredTransition(fixture("clean-transition.tsx"))).toEqual({ admitted: true, transitionId: id });
+    expect(await admitAuthoredTransitionFile(fixture("clean-transition.tsx"))).toEqual({ ok: true, transitionId: id });
+    expect(getTransition(id)).toBeUndefined();
+  });
+
+  it("rejects banned APIs with N5", () => {
+    const result = admitAuthoredTransition(fixture("banned-transition-api.tsx"));
+    expect(result.admitted).toBe(false);
+    if (!result.admitted) expect(result.violations.some((v) => v.check === "N5" && /Math\.random/.test(v.message))).toBe(true);
+  });
+
+  it("rejects a transition missing its default export", () => {
+    const result = admitAuthoredTransition(fixture("missing-transition-default.tsx"));
+    expect(result.admitted).toBe(false);
+    if (!result.admitted) expect(result.violations.some((v) => /default/.test(v.message))).toBe(true);
+  });
+
+  it("rejects a non-literal registerTransition id", () => {
+    const result = admitAuthoredTransition(fixture("no-literal-transition-id.tsx"));
+    expect(result.admitted).toBe(false);
+    if (!result.admitted) expect(result.violations.some((v) => /literal string id/.test(v.message))).toBe(true);
   });
 });

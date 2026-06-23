@@ -11,6 +11,7 @@ import {
 } from "@news/schema";
 import { makeReport, type SafetyIssue, type SafetyReport } from "../types.js";
 import { MAX_CAPTION_LINE_CHARS } from "../audio/captions.js";
+import { transitionSampleFileName } from "../render/transition-samples.js";
 import { decodePng } from "./png.js";
 import {
   analyzeFrame,
@@ -97,6 +98,8 @@ export type RenderGridOptions = {
   dividerClearanceAboveTolerance?: number;
   /** Above this content-zone fill fraction, a scene reads as overcrowded (N30, advisory). */
   densityFraction?: number;
+  /** Transition-overlap sample fractions to inspect when matching PNG artifacts exist. */
+  transitionSampleFractions?: readonly number[];
 };
 
 const DEFAULTS: Required<RenderGridOptions> = {
@@ -116,6 +119,7 @@ const DEFAULTS: Required<RenderGridOptions> = {
   dividerClearanceAbove: true,
   dividerClearanceAboveTolerance: 0.01,
   densityFraction: 0.6,
+  transitionSampleFractions: [0.25, 0.5, 0.75],
 };
 
 function countWords(value: string): number {
@@ -676,6 +680,80 @@ export function checkTransition(a: Frame, b: Frame, sceneId?: string, options?: 
   return [];
 }
 
+export function analyzeTransitionSamples(
+  samples: readonly Frame[],
+  sceneId?: string,
+  options?: RenderGridOptions,
+  references?: { from: Frame; to: Frame },
+): SafetyIssue[] {
+  const o = opt(options);
+  const issues: SafetyIssue[] = [];
+
+  const blankIndex = samples.findIndex((frame) => analyzeFrame(frame, o.contentThreshold).contentFraction < o.deadAirFraction);
+  if (blankIndex >= 0) {
+    issues.push({
+      check: "N21",
+      severity: "warning",
+      sceneId,
+      message: `Transition sample ${blankIndex + 1}/${samples.length} is nearly blank/dark (possible flash during scene overlap).`,
+    });
+  }
+
+  for (let i = 1; i < samples.length; i += 1) {
+    const diff = frameDiffFraction(samples[i - 1]!, samples[i]!, o.contentThreshold);
+    if (diff > 0.98) {
+      issues.push({
+        check: "N21",
+        severity: "warning",
+        sceneId,
+        message: "Transition samples change almost entirely between adjacent frames (possible flicker / abrupt jump).",
+      });
+      break;
+    }
+  }
+
+  if (references) {
+    const flatCoverIndex = samples.findIndex((sample) => {
+      const paletteCoverage = dominantQuantizedColorCoverage(sample, 4);
+      const differsFromFrom = frameDiffFraction(sample, references.from, o.contentThreshold) > 0.75;
+      const differsFromTo = frameDiffFraction(sample, references.to, o.contentThreshold) > 0.75;
+      return paletteCoverage > 0.82 && differsFromFrom && differsFromTo;
+    });
+    if (flatCoverIndex >= 0) {
+      issues.push({
+        check: "N21",
+        severity: "warning",
+        sceneId,
+        message: `Transition sample ${flatCoverIndex + 1}/${samples.length} is dominated by a low-detail full-frame color cover unlike either scene (possible random-color interstitial).`,
+      });
+    }
+  }
+
+  return issues;
+}
+
+function dominantQuantizedColorCoverage(frame: Frame, topBins: number): number {
+  const bins = new Map<number, number>();
+  let sampled = 0;
+  const pixelCount = frame.width * frame.height;
+  const stride = Math.max(1, Math.floor(pixelCount / 50_000));
+  for (let pixel = 0; pixel < pixelCount; pixel += stride) {
+    const i = pixel * 4;
+    const r = frame.data[i]! >> 5;
+    const g = frame.data[i + 1]! >> 5;
+    const b = frame.data[i + 2]! >> 5;
+    const key = (r << 6) | (g << 3) | b;
+    bins.set(key, (bins.get(key) ?? 0) + 1);
+    sampled += 1;
+  }
+  if (sampled === 0) return 1;
+  const dominant = [...bins.values()]
+    .sort((a, b) => b - a)
+    .slice(0, topBins)
+    .reduce((sum, count) => sum + count, 0);
+  return dominant / sampled;
+}
+
 // --- N22: audio sync (WARNING, pure spec) ---------------------------------
 
 export function checkAudioSync(locked: LockedVideoSpec, options?: RenderGridOptions): SafetyIssue[] {
@@ -1024,6 +1102,32 @@ export async function runRenderGrid(
     if (!a || !b) continue;
     for (const oracle of transitionOracles) {
       issues.push(...oracle.run(a, b, locked.scenes[i + 1]!.id, options));
+    }
+  }
+
+  for (let i = 0; i < locked.scenes.length - 1; i += 1) {
+    const from = locked.scenes[i]!;
+    const to = locked.scenes[i + 1]!;
+    const samples: Frame[] = [];
+    for (const fraction of opt(options).transitionSampleFractions) {
+      const path = join(artifacts.framesDir, transitionSampleFileName(from.id, to.id, fraction));
+      try {
+        samples.push(decodePng(await readFile(path)));
+      } catch {
+        // Transition samples are optional so older review dirs remain valid.
+      }
+    }
+    const fromFrame = frames[i];
+    const toFrame = frames[i + 1];
+    if (samples.length > 0) {
+      issues.push(
+        ...analyzeTransitionSamples(
+          samples,
+          to.id,
+          options,
+          fromFrame && toFrame ? { from: fromFrame, to: toFrame } : undefined,
+        ),
+      );
     }
   }
 

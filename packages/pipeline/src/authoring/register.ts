@@ -1,5 +1,11 @@
 import type { SafetyIssue } from "../types.js";
-import { admitAuthoredComponent, DEFAULT_ADMISSION_POLICY, type AdmissionPolicy } from "./admission.js";
+import {
+  admitAuthoredComponent,
+  admitAuthoredTransition,
+  DEFAULT_ADMISSION_POLICY,
+  DEFAULT_TRANSITION_ADMISSION_POLICY,
+  type AdmissionPolicy,
+} from "./admission.js";
 
 /**
  * Authored admission handshake without host execution.
@@ -13,6 +19,10 @@ import { admitAuthoredComponent, DEFAULT_ADMISSION_POLICY, type AdmissionPolicy 
 
 export type AuthoredRegistration =
   | { ok: true; componentId: string }
+  | { ok: false; violations: SafetyIssue[] };
+
+export type AuthoredTransitionRegistration =
+  | { ok: true; transitionId: string }
   | { ok: false; violations: SafetyIssue[] };
 
 export type AdmitAuthoredSceneOptions = {
@@ -32,4 +42,20 @@ export async function admitAuthoredSceneFile(
     return { ok: false, violations: admission.violations };
   }
   return { ok: true, componentId: admission.componentId };
+}
+
+/**
+ * Admit one authored boundary-transition module and return its transition id.
+ * Pure with respect to authored code: reads/parses the file only; never imports
+ * or executes it.
+ */
+export async function admitAuthoredTransitionFile(
+  tsxPath: string,
+  options: AdmitAuthoredSceneOptions = {},
+): Promise<AuthoredTransitionRegistration> {
+  const admission = admitAuthoredTransition(tsxPath, options.policy ?? DEFAULT_TRANSITION_ADMISSION_POLICY);
+  if (!admission.admitted) {
+    return { ok: false, violations: admission.violations };
+  }
+  return { ok: true, transitionId: admission.transitionId };
 }

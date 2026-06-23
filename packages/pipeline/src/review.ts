@@ -8,6 +8,7 @@ import { transitionFrames, type LockedVideoSpec } from "@news/schema";
 import { makeReport, type ReviewChecklist, type SafetyIssue, type SafetyReport } from "./types.js";
 import { appendEvent, ensureProject, projectPaths, writeJson } from "./store/store.js";
 import { renderSceneStills, type RenderSceneStillsOptions, type RenderTiming } from "./render/renderer.js";
+import { transitionSampleFileName, transitionSampleFrame } from "./render/transition-samples.js";
 
 /**
  * Tier-4 perceptual review loop gate (N24, N25; Requirement 10). Mirrors
@@ -361,7 +362,7 @@ export async function extractKeyframesFromMp4(
   spec: LockedVideoSpec,
   outDir: string,
   mp4Path: string,
-  opts: { extraFractions?: number[]; onTiming?: (timing: RenderTiming) => void; timingScope?: string } = {},
+  opts: { extraFractions?: number[]; transitionFractions?: number[]; onTiming?: (timing: RenderTiming) => void; timingScope?: string } = {},
 ): Promise<string[]> {
   const outputs: string[] = [];
   for (const [index, scene] of spec.scenes.entries()) {
@@ -392,6 +393,22 @@ export async function extractKeyframesFromMp4(
         { sceneId: scene.id, frame: lateFrame, kind: "late", fraction },
       );
     }
+
+    if (index < spec.scenes.length - 1) {
+      const next = spec.scenes[index + 1]!;
+      for (const fraction of opts.transitionFractions ?? []) {
+        const transitionFrame = transitionSampleFrame(spec, index, fraction);
+        if (transitionFrame === null) continue;
+        const fileName = transitionSampleFileName(scene.id, next.id, fraction);
+        const label = fileName.replace(/\.png$/i, "");
+        await timedReview(
+          opts,
+          "ffmpegFrame",
+          () => extractFrameFromMp4(mp4Path, transitionFrame / spec.fps, join(resolve(outDir), fileName), label),
+          { sceneId: next.id, frame: transitionFrame, kind: "transition", fraction, fromSceneId: scene.id },
+        );
+      }
+    }
   }
   return outputs;
 }
@@ -413,10 +430,15 @@ async function extractReviewFrames(
         () =>
           extractKeyframesFromMp4(spec, outDir, mp4Abs, {
             extraFractions: renderOptions.extraFractions,
+            transitionFractions: renderOptions.transitionFractions,
             onTiming: timingOpts.onTiming,
             timingScope: timingOpts.timingScope,
           }),
-        { scenes: spec.scenes.length, extraFractions: renderOptions.extraFractions?.length ?? 0 },
+        {
+          scenes: spec.scenes.length,
+          extraFractions: renderOptions.extraFractions?.length ?? 0,
+          transitionFractions: renderOptions.transitionFractions?.length ?? 0,
+        },
       );
     } catch {
       // Keep review robust: ffmpeg extraction is an optimization, not a gate.
@@ -426,7 +448,11 @@ async function extractReviewFrames(
     timingOpts,
     "renderStillFallback",
     () => renderSceneStills(spec, outDir, renderOptions),
-    { scenes: spec.scenes.length, extraFractions: renderOptions.extraFractions?.length ?? 0 },
+    {
+      scenes: spec.scenes.length,
+      extraFractions: renderOptions.extraFractions?.length ?? 0,
+      transitionFractions: renderOptions.transitionFractions?.length ?? 0,
+    },
   );
 }
 

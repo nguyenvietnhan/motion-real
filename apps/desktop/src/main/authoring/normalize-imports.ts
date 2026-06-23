@@ -46,7 +46,7 @@ export function normalizeAuthoredImports(code: string): string {
       return lines.join("\n");
     },
   );
-  return normalizeColorInterpolation(normalizeRemotionImports(moved));
+  return normalizeColorInterpolation(normalizeRemotionImports(normalizeRemotionAliases(normalizeCompositionRemotionImports(moved))));
 }
 
 /**
@@ -62,6 +62,63 @@ export function normalizeAuthoredImports(code: string): string {
 const REMOTION_MEMBER_REWRITES: Record<string, Record<string, string>> = {
   Extrapolate: { CLAMP: '"clamp"', EXTEND: '"extend"', IDENTITY: '"identity"' },
 };
+
+const REMOTION_ALIAS_REWRITES: Record<string, string> = {
+  // Remotion's public API is interpolateColors. Models often hallucinate the
+  // singular form from other animation libraries; normalize it deterministically
+  // instead of spending a retry on a stale API typo.
+  interpolateColor: "interpolateColors",
+};
+
+const REMOTION_SYMBOLS_OFTEN_MISIMPORTED_FROM_COMPOSITIONS = new Set([
+  "AbsoluteFill",
+  "Easing",
+  "Sequence",
+  "Series",
+  "interpolate",
+  "interpolateColor",
+  "interpolateColors",
+  "random",
+  "spring",
+  "useCurrentFrame",
+  "useVideoConfig",
+]);
+
+function normalizeRemotionAliases(code: string): string {
+  let out = code;
+  let changed = false;
+  for (const [from, to] of Object.entries(REMOTION_ALIAS_REWRITES)) {
+    const re = new RegExp(`\\b${from}\\b`, "g");
+    if (re.test(out)) {
+      out = out.replace(re, to);
+      changed = true;
+    }
+  }
+  return changed && /\binterpolateColors\b/.test(out) ? ensureNamedImport(out, "remotion", ["interpolateColors"]) : out;
+}
+
+/**
+ * Models sometimes put Remotion helpers on `@news/compositions` because that
+ * module is the authored registry import. Move only known Remotion primitives
+ * back to `remotion`; leave registry/types/SceneImage on @news/compositions.
+ */
+function normalizeCompositionRemotionImports(code: string): string {
+  const moved: string[] = [];
+  const out = code.replace(
+    /import\s*\{([^}]*)\}\s*from\s*["']@news\/compositions["'];?/g,
+    (full, inner: string) => {
+      const clauses = inner.split(",").map((s) => s.trim()).filter(Boolean);
+      const keep: string[] = [];
+      for (const clause of clauses) {
+        if (REMOTION_SYMBOLS_OFTEN_MISIMPORTED_FROM_COMPOSITIONS.has(baseName(clause))) moved.push(clause);
+        else keep.push(clause);
+      }
+      if (moved.length === 0 || keep.length === clauses.length) return full;
+      return keep.length > 0 ? `import { ${keep.join(", ")} } from "@news/compositions";` : "";
+    },
+  );
+  return moved.length > 0 ? ensureNamedImport(out, "remotion", moved) : out;
+}
 
 /**
  * Rewrite removed-symbol member accesses (e.g. `Extrapolate.CLAMP` → `"clamp"`)
@@ -207,15 +264,28 @@ function normalizeColorInterpolation(code: string): string {
 
 /** Ensure `interpolateColors` is imported from "remotion" (add to an existing import, else a new line). */
 function ensureInterpolateColorsImport(code: string): string {
-  if (/\binterpolateColors\b[^;]*from\s*["']remotion["']/.test(code)) return code; // already imported
-  const importRe = /import\s*\{([^}]*)\}\s*from\s*["']remotion["'];?/;
+  return ensureNamedImport(code, "remotion", ["interpolateColors"]);
+}
+
+function ensureNamedImport(code: string, moduleName: string, names: string[]): string {
+  const needed = names.filter(Boolean);
+  if (needed.length === 0) return code;
+  const importRe = new RegExp(`import\\s*\\{([^}]*)\\}\\s*from\\s*["']${escapeRegExp(moduleName)}["'];?`);
   const m = importRe.exec(code);
   if (m) {
     const clauses = m[1]!.split(",").map((s) => s.trim()).filter(Boolean);
-    if (clauses.some((c) => baseName(c) === "interpolateColors")) return code;
-    clauses.push("interpolateColors");
-    return code.replace(importRe, `import { ${clauses.join(", ")} } from "remotion";`);
+    const seen = new Set(clauses.map(baseName));
+    for (const name of needed) {
+      if (!seen.has(baseName(name))) {
+        clauses.push(name);
+        seen.add(baseName(name));
+      }
+    }
+    return code.replace(importRe, `import { ${clauses.join(", ")} } from "${moduleName}";`);
   }
-  // No remotion import at all — prepend one (kept minimal; admission allows it).
-  return `import { interpolateColors } from "remotion";\n${code}`;
+  return `import { ${needed.join(", ")} } from "${moduleName}";\n${code}`;
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }

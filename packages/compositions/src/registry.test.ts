@@ -2,9 +2,14 @@ import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import {
   getComponent,
+  getTransition,
+  listTransitions,
   registerComponent,
+  registerTransition,
   unregisterComponent,
+  unregisterTransition,
   type SceneComponentDefinition,
+  type SceneBoundaryTransitionDefinition,
 } from "./registry.js";
 
 function makeDef(id: string): SceneComponentDefinition<Record<string, never>> {
@@ -41,5 +46,31 @@ describe("unregisterComponent seam", () => {
     // Leave the registry clean.
     unregisterComponent(id);
     expect(getComponent(id)).toBeUndefined();
+  });
+});
+
+describe("boundary transition registry", () => {
+  const id = "scene-01-to-scene-02";
+  const makeTransition = (): SceneBoundaryTransitionDefinition => ({
+    id,
+    displayName: "Test boundary",
+    Component: () => null,
+  });
+
+  it("registers, resolves, lists, and unregisters a transition", () => {
+    unregisterTransition(id);
+    const def = makeTransition();
+    registerTransition(def);
+    expect(getTransition(id)).toBe(def);
+    expect(listTransitions()).toContain(def);
+    unregisterTransition(id);
+    expect(getTransition(id)).toBeUndefined();
+  });
+
+  it("rejects duplicate transition ids", () => {
+    unregisterTransition(id);
+    registerTransition(makeTransition());
+    expect(() => registerTransition(makeTransition())).toThrow(/duplicate scene transition id/i);
+    unregisterTransition(id);
   });
 });

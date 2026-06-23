@@ -13,19 +13,23 @@ import type { VideoSpec } from "@news/schema";
  */
 
 const mocks = vi.hoisted(() => ({
-  admitProjectScenes: vi.fn(),
+  admitProjectAuthored: vi.fn(),
   loadManifest: vi.fn(),
   loadManifestAsSpec: vi.fn(),
   manifestSceneFiles: vi.fn(),
+  manifestTransitionFiles: vi.fn(),
+  manifestBoundaryTransitionIds: vi.fn(),
   generateAuthoredEntry: vi.fn(),
   renderSceneStills: vi.fn(),
 }));
 
 vi.mock("../authoring/manifest.js", () => ({
-  admitProjectScenes: mocks.admitProjectScenes,
+  admitProjectAuthored: mocks.admitProjectAuthored,
   loadManifest: mocks.loadManifest,
   loadManifestAsSpec: mocks.loadManifestAsSpec,
   manifestSceneFiles: mocks.manifestSceneFiles,
+  manifestTransitionFiles: mocks.manifestTransitionFiles,
+  manifestBoundaryTransitionIds: mocks.manifestBoundaryTransitionIds,
 }));
 
 vi.mock("../authoring/authored-entry.js", () => ({
@@ -61,17 +65,27 @@ beforeEach(async () => {
   prevHome = process.env.VIDEO_TOOL_HOME;
   process.env.VIDEO_TOOL_HOME = tempRoot;
 
-  mocks.admitProjectScenes.mockResolvedValue({
+  mocks.admitProjectAuthored.mockResolvedValue({
     ok: true,
+    components: [
+      { componentId: "a-scene", file: "/proj/authored/a-scene.tsx" },
+      { componentId: "b-scene", file: "/proj/authored/b-scene.tsx" },
+    ],
+    transitions: [],
     componentIds: ["a-scene", "b-scene"],
+    transitionIds: [],
+    sceneFiles: ["/proj/authored/a-scene.tsx", "/proj/authored/b-scene.tsx"],
+    transitionFiles: [],
     files: ["/proj/authored/a-scene.tsx", "/proj/authored/b-scene.tsx"],
   });
   mocks.loadManifest.mockResolvedValue({ scenes: [{ id: "scene-01", component: "a-scene" }, { id: "scene-02", component: "b-scene" }] });
+  mocks.manifestBoundaryTransitionIds.mockReturnValue(["scene-01-to-scene-02"]);
   mocks.loadManifestAsSpec.mockResolvedValue(SPEC);
   mocks.manifestSceneFiles.mockReturnValue([
     { sceneId: "scene-01", componentId: "a-scene", file: "/proj/authored/a-scene.tsx" },
     { sceneId: "scene-02", componentId: "b-scene", file: "/proj/authored/b-scene.tsx" },
   ]);
+  mocks.manifestTransitionFiles.mockReturnValue([]);
   mocks.generateAuthoredEntry.mockResolvedValue("/proj/authored/_entry.stills.tsx");
   mocks.renderSceneStills.mockImplementation(async (_spec, outDir, opts) => {
     const ids = opts?.sceneIds ?? ["scene-01", "scene-02"];
@@ -95,7 +109,9 @@ describe("renderProjectStills", () => {
   it("admits scenes, locks WITHOUT TTS, and renders one still per scene", async () => {
     const res = await renderProjectStills("proj-1");
 
-    expect(mocks.admitProjectScenes).toHaveBeenCalledWith("proj-1");
+    expect(mocks.admitProjectAuthored).toHaveBeenCalledWith("proj-1", {
+      expectedTransitionIds: ["scene-01-to-scene-02"],
+    });
     expect(mocks.generateAuthoredEntry).toHaveBeenCalledTimes(1);
     // The no-TTS lock + still render ran; result lists both scene stills.
     expect(mocks.renderSceneStills).toHaveBeenCalledTimes(1);
@@ -118,6 +134,12 @@ describe("renderProjectStills", () => {
     expect(opts.sceneIds).toEqual(["scene-02"]);
     const reviewDir = projectPaths("proj-1").reviewDir;
     expect(res.stills).toEqual([join(resolve(reviewDir), "scene-02.png")]);
+  });
+
+  it("expands transitionFractions:true to stable 25/50/75 QA samples", async () => {
+    await renderProjectStills("proj-1", { transitionFractions: true });
+    const [, , opts] = mocks.renderSceneStills.mock.calls[0]!;
+    expect(opts.transitionFractions).toEqual([0.25, 0.5, 0.75]);
   });
 
   it("records timing events for the stills pipeline and Remotion still render", async () => {
@@ -156,7 +178,7 @@ describe("renderProjectStills", () => {
   });
 
   it("throws a PipelineError (not a silent pass) when admission rejects a scene", async () => {
-    mocks.admitProjectScenes.mockResolvedValueOnce({
+    mocks.admitProjectAuthored.mockResolvedValueOnce({
       ok: false,
       violations: [{ check: "N4", severity: "error", path: "authored/bad.tsx", message: "banned import" }],
     });

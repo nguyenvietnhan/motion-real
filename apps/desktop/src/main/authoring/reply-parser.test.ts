@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import fc from "fast-check";
-import { parseAuthorReply, parseReauthorReply } from "./reply-parser.js";
+import { parseAuthorReply, parseReauthorReply, parseTransitionReply } from "./reply-parser.js";
 
 /**
  * Property tests for the AI_Output_Contract parser (desktop-author-mode).
@@ -134,6 +134,47 @@ describe("Property 1: author-reply parse roundtrip", () => {
       }),
       { numRuns: 200 },
     );
+  });
+});
+
+describe("boundary transition reply parser", () => {
+  const transitionBlock = (marker: string, literal = marker): string => [
+    "```tsx",
+    `// transition: ${marker}`,
+    'import { registerTransition } from "@news/compositions";',
+    "const Component = () => null;",
+    `export default registerTransition({ id: "${literal}", displayName: "x", Component });`,
+    "```",
+  ].join("\n");
+
+  it("requires every expected boundary and preserves expected order", () => {
+    const expected = ["scene-01-to-scene-02", "scene-02-to-scene-03"];
+    const reply = [
+      transitionBlock("extra-to-boundary"),
+      transitionBlock(expected[1]!),
+      transitionBlock(expected[0]!),
+    ].join("\n");
+    const parsed = parseTransitionReply(reply, expected);
+    expect(parsed.ok).toBe(true);
+    if (parsed.ok) expect(parsed.modules.map((m) => m.id)).toEqual(expected);
+  });
+
+  it("rejects a missing expected boundary", () => {
+    const parsed = parseTransitionReply(
+      transitionBlock("scene-01-to-scene-02"),
+      ["scene-01-to-scene-02", "scene-02-to-scene-03"],
+    );
+    expect(parsed.ok).toBe(false);
+    if (!parsed.ok) expect(parsed.reason).toBe("missing-code");
+  });
+
+  it("rejects marker/registerTransition id mismatch", () => {
+    const parsed = parseTransitionReply(
+      transitionBlock("scene-01-to-scene-02", "scene-02-to-scene-03"),
+      ["scene-01-to-scene-02"],
+    );
+    expect(parsed.ok).toBe(false);
+    if (!parsed.ok) expect(parsed.reason).toBe("id-mismatch");
   });
 });
 

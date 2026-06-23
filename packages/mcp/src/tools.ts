@@ -148,6 +148,8 @@ export const renderStillsInput = z.object({
   projectId: z.string().min(1),
   /** Render only these scene ids (the scenes a refine pass touched); absent ⇒ all. */
   sceneIds: z.array(z.string().min(1)).optional(),
+  /** Render transition QA samples; true means the default 25%/50%/75% set. */
+  transitionFractions: z.union([z.literal(true), z.array(z.number().min(0).max(1))]).optional(),
 });
 
 export const doctorInput = z.object({});
@@ -357,6 +359,7 @@ export function createTools(overrides: Partial<ToolDeps> = {}) {
       try {
         const res = await deps.renderProjectStills(input.projectId, {
           ...(input.sceneIds ? { sceneIds: input.sceneIds } : {}),
+          ...(input.transitionFractions ? { transitionFractions: input.transitionFractions } : {}),
           ...(onProgress ? { onProgress } : {}),
           ...(signal ? { signal } : {}),
         });

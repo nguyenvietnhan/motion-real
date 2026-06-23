@@ -44,7 +44,7 @@ export const PageHeader: React.FC<{ title: string; subtitle?: string; action?: R
 );
 
 export const StatusPill: React.FC<{ status: FriendlyStatus }> = ({ status }) => (
-  <span className="ns-pill" style={{ alignSelf: "flex-start", background: "color-mix(in srgb, transparent 84%, " + STATUS_COLOR[status] + ")", color: STATUS_COLOR[status] }}>
+  <span className="ns-pill" style={{ alignSelf: "flex-start", color: STATUS_COLOR[status] }}>
     <span style={{ width: 6, height: 6, borderRadius: 999, background: STATUS_COLOR[status], flexShrink: 0 }} />
     {FRIENDLY_LABELS[status]}
   </span>

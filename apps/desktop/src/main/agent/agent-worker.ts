@@ -94,6 +94,15 @@ export type PublishResult = { ok: true; outputPath: string } | { ok: false; erro
 /** A layout defect the AI visual-QA flagged on a rendered scene still. */
 export type VisualDefect = { sceneId: string; issue: string };
 
+/** A structural defect the transition QA flagged on a rendered boundary sample. */
+export type TransitionDefect = { boundaryId: string; issue: string };
+
+/** Best-effort transition authoring result; failed boundaries use runtime fallback. */
+export type TransitionAuthorOutcome = {
+  authoredBoundaryIds: string[];
+  failedBoundaryIds: string[];
+};
+
 /** A snapshot of authored scene source, used to roll back a regressive QA round. */
 export type SceneSnapshot = { sceneId: string; code: string }[];
 
@@ -120,6 +129,13 @@ export interface AgentWorker {
   author(job: AuthorJob, hooks: AgentHooks): Promise<AuthorOutcome>;
   /** Re-author ONLY the named scenes from batched visual edits (Req 8.7). */
   reauthorScenes(job: ReauthorJob, hooks: AgentHooks, signal?: AbortSignal): Promise<AuthorOutcome>;
+  /**
+   * Optional boundary-level transition pass. Runs after scene authoring/refine so
+   * transition code sees the final scene source. `sceneIds` scopes regeneration
+   * to boundaries touching edited scenes; omitted means every adjacent boundary.
+   * Best-effort: failed/missing boundaries render with deterministic fallback.
+   */
+  prepareTransitions?(projectId: string, sceneIds?: string[], signal?: AbortSignal): Promise<TransitionAuthorOutcome>;
   /**
    * Optional fast per-scene STILLS render (no TTS/MP4/heavy-oracle) — the cheap
    * inner loop the SILENT refine pass iterates on (freeform-engine R4.2/R4.3).

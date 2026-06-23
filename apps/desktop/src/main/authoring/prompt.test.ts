@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { buildAuthorMessages, buildImageFilterMessages, buildReauthorMessages, type ContentPart } from "./prompt.js";
+import {
+  buildAuthorMessages,
+  buildBoundaryTransitionMessages,
+  buildTransitionDirectorMessages,
+  buildTransitionQaMessages,
+  buildImageFilterMessages,
+  buildReauthorMessages,
+  type ContentPart,
+} from "./prompt.js";
 
 /**
  * Feature: desktop-author-mode — prompt builders carry the full Authoring_Contract
@@ -18,6 +26,7 @@ describe("buildAuthorMessages", () => {
     expect(sys!.role).toBe("system");
     for (const token of required) expect(sys!.content).toContain(token);
     expect(user!.content).toContain("Chủ đề thử");
+    expect(sys!.content).not.toContain('"transitionToNext":');
   });
 
   it("embeds research + links for a brief with a link", () => {
@@ -256,6 +265,69 @@ describe("buildAuthorMessages", () => {
     const text = sys!.content;
     expect(text).toMatch(/"hashtags":\s*\[/);
     expect(text).toMatch(/"title":\s*"[^"]*KHÔNG chứa hashtag/);
+  });
+});
+
+describe("post-refine transition prompts", () => {
+  const fromScene = {
+    id: "scene-01",
+    component: "alpha",
+    headline: "Một",
+    narration: "Câu một.",
+    code: 'const BG = "#112233";',
+  };
+  const toScene = {
+    id: "scene-02",
+    component: "beta",
+    headline: "Hai",
+    narration: "Câu hai.",
+    code: 'const ACCENT = "#abcdef";',
+  };
+
+  it("director plans concepts without writing code or prescribing a fade", () => {
+    const messages = buildTransitionDirectorMessages({ scenes: [fromScene, toScene] });
+    const text = messages.map((m) => m.content).join("\n");
+    expect(text).toContain("scene-01-to-scene-02");
+    expect(text).toContain("KHÔNG viết code");
+    expect(text).not.toMatch(/opacity:\s*progress|crossfade example/i);
+  });
+
+  it("single-boundary prompt carries only the two final scene sources and exact id", () => {
+    const messages = buildBoundaryTransitionMessages({
+      boundaryId: "scene-01-to-scene-02",
+      fromScene,
+      toScene,
+      plan: "Nối đường viền của cảnh A sang cảnh B",
+    });
+    const text = messages.map((m) => typeof m.content === "string" ? m.content : JSON.stringify(m.content)).join("\n");
+    expect(text).toContain("scene-01-to-scene-02");
+    expect(text).toContain(JSON.stringify(fromScene.code).slice(1, -1));
+    expect(text).toContain(JSON.stringify(toScene.code).slice(1, -1));
+    expect(text).toContain("Nối đường viền");
+    expect(text).toContain("đúng MỘT transition module");
+    expect(text).toContain("SOURCE CODE");
+    expect(text).toContain("registerTransition");
+    expect(text).toMatch(/KHÔNG dùng spring\(\{frame: progress \* 30, fps: 30\}\)/);
+    expect(text).toMatch(/Frame đầu.*\{from\}.*frame cuối.*\{to\}/);
+    expect(text).toMatch(/không dùng các mảng màu đặc che gần toàn màn hình/i);
+    expect(text).toMatch(/Không thêm headline\/slogan\/chữ mới/i);
+    expect(text).not.toContain("opacity: progress");
+  });
+
+  it("QA prompt attaches 25/50/75 images and limits judgment to structural defects", () => {
+    const messages = buildTransitionQaMessages({
+      samplesByBoundary: [{
+        boundaryId: "scene-01-to-scene-02",
+        fromHeadline: "Một",
+        toHeadline: "Hai",
+        samples: [0.25, 0.5, 0.75].map((fraction) => ({ fraction, dataUrl: `data:image/png;base64,${fraction}` })),
+      }],
+    });
+    const parts = messages[1]!.content as ContentPart[];
+    expect(parts.filter((part) => part.type === "image_url")).toHaveLength(3);
+    const text = parts.find((part): part is { type: "text"; text: string } => part.type === "text")!.text;
+    expect(text).toMatch(/không chấm gu thẩm mỹ/i);
+    expect(text).toMatch(/dark\/blank flash|kéo giãn/);
   });
 });
 

@@ -42,11 +42,15 @@ stills/vision refine loop in the desktop flow.
 ```
 Topic/URL -> AI authors scenes .tsx + manifest.json
 -> desktop hidden stills loop (optional refinePasses: blind stills -> creative
-   bootstrap -> vision QA over stills) -> user sees only the refined draft path
+   bootstrap -> vision QA over stills)
+-> desktop boundary-transition pass: director concepts -> one isolated AI call
+   per adjacent scene pair -> admission -> 25/50/75 still QA (best-effort)
+-> user sees only the refined draft path
 -> admission gate (N4/N5) -> manifest->VideoSpec -> static grid (N1-N9)
 -> configured TTS (Vivibe or ElevenLabs; + breath gaps + timing) -> lockSpec (transition-aware, caption cues)
 -> build grid (N10-N13) -> determinism guard (N16)
--> Remotion render (TransitionSeries + TikTok caption track) -> MP4
+-> Remotion render (V2 boundary timeline when modules exist; unchanged legacy
+   TransitionSeries otherwise; + TikTok caption track) -> MP4
 -> render oracles (N14, N18-N22, N28-N30; N15/N17 over measured layouts; N23 exported, not auto-run) -> review loop (N24-N25) -> done
 ```
 
@@ -55,7 +59,7 @@ Topic/URL -> AI authors scenes .tsx + manifest.json
 | `@news/schema` | Renderer-agnostic `VideoSpec`/`LockedVideoSpec`, timing consts, format geometry (`tiktok` 1080×1920 + `youtube` 1920×1080), layout zones, `CaptionCue`, duration tiers, free-pacing validation |
 | `@news/theme` | One NEUTRAL theme (post-freeform-pivot; replaced the deleted multi-language `@news/design`): `theme.ts` holds the `Theme` shape + a 2-layer cross-model defense (typed aliases + Proxy fallback) so the render runtime + `SceneImage` resolve `useTheme()`; OFF the authored import whitelist (authored scenes hard-code all visuals) |
 | `@news/blocks` | Render RUNTIME internals consumed by `@news/compositions` (NOT authored-facing): Captions, layout-probe, scene-timing, motion, theme-context, chrome surface-kit, fonts — plus the single authored-facing survivor `SceneImage`, re-exported through `@news/compositions`. The slot-based layout blocks (Frame/TitleBlock/KeyPoints/Panel/Story/…) were DELETED; do not re-add them |
-| `@news/compositions` | Registry + master `VideoComposition` (TransitionSeries + TikTok caption overlay; caption/divider omitted for `format:"youtube"`); `ThumbnailComposition`; NO built-in templates |
+| `@news/compositions` | Scene + boundary-transition registries; master `VideoComposition` (V2 boundary timeline when authored transitions exist, unchanged legacy TransitionSeries otherwise, + TikTok caption overlay; caption/divider omitted for `format:"youtube"`); `ThumbnailComposition`; NO built-in scene templates |
 | `@news/tts` | Vivibe/LucyLab + ElevenLabs clients, audio measure/concat-with-gaps/mix, SRT/timestamp capture |
 | `@news/pipeline` | authoring/admission + manifest, ingest, tts, captions, lock, BGM resolution/mix handoff, thumbnails, no-TTS still renders, sfx, store, cache, determinism, renderer, review, orchestrator, cli, safety grid |
 | `@news/mcp` | MCP server exposing the pipeline as tools |
@@ -101,6 +105,18 @@ self-test.
   records admitted ids, and those modules self-register inside the generated
   Remotion render entry. A manifest may reference an authored id only after
   admission. Authored scene code runs only inside the Remotion render context.
+- **Boundary transitions are a separate post-scene pass:** initial scene authoring
+  never depends on transition output. After hidden scene refine settles the final
+  scene source, the runtime asks for director concepts, then authors/admit-checks
+  one boundary module at a time. A failed boundary cannot reject a valid script:
+  it keeps a prior valid module when available, otherwise the render uses the
+  deterministic full-frame wipe fallback. Transition QA samples 25/50/75% and may
+  repair only high-confidence structural defects; it does not gate visual taste.
+- Transition modules use the same import/API safety boundary as scenes, export
+  `registerTransition({id, displayName, Component})`, and receive both `from` and
+  `to` layers plus boundary/scene metadata. Editing a scene regenerates only its
+  adjacent boundaries. Projects with no V2 modules keep legacy `transitionToNext`
+  behavior unchanged.
 - There is NO PICK mode, no fixed template catalog, and NO layout-block toolkit.
   Every scene is bespoke JSX/SVG the AI writes by hand; a plain text/list scene is
   a valid first-class choice. The only non-react/remotion import a scene may use is

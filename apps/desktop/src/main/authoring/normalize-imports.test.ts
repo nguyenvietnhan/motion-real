@@ -65,6 +65,40 @@ describe("normalizeAuthoredImports — SceneImage re-home", () => {
     expect(normalizeAuthoredImports(code)).toBe(code);
   });
 
+  it("moves Remotion helpers accidentally imported from @news/compositions back to remotion", () => {
+    const code = [
+      `import React from "react";`,
+      `import { registerTransition, interpolate, type SceneBoundaryTransitionProps } from "@news/compositions";`,
+      `const x = interpolate(0.5, [0, 1], [0, 100]);`,
+    ].join("\n");
+    const out = normalizeAuthoredImports(code);
+    expect(out).toContain(`import { registerTransition, type SceneBoundaryTransitionProps } from "@news/compositions";`);
+    expect(out).toContain(`import { interpolate } from "remotion";`);
+    expect(out).toContain(`const x = interpolate(0.5, [0, 1], [0, 100]);`);
+  });
+
+  it("normalizes stale interpolateColor API calls to Remotion interpolateColors", () => {
+    const code = [
+      `import { interpolateColor } from "remotion";`,
+      `const c = interpolateColor(t, [0, 1], ["#fff", "#000"]);`,
+    ].join("\n");
+    const out = normalizeAuthoredImports(code);
+    expect(out).toContain(`import { interpolateColors } from "remotion";`);
+    expect(out).toContain(`const c = interpolateColors(t, [0, 1], ["#fff", "#000"]);`);
+    expect(out).not.toMatch(/\binterpolateColor\b/);
+  });
+
+  it("moves aliased interpolateColor from @news/compositions and keeps registry imports there", () => {
+    const code = [
+      `import { registerTransition, interpolateColor as color, type SceneBoundaryTransitionProps } from "@news/compositions";`,
+      `const c = color(t, [0, 1], ["#fff", "#000"]);`,
+    ].join("\n");
+    const out = normalizeAuthoredImports(code);
+    expect(out).toContain(`import { registerTransition, type SceneBoundaryTransitionProps } from "@news/compositions";`);
+    expect(out).toContain(`import { interpolateColors as color } from "remotion";`);
+    expect(out).toContain(`const c = color(t, [0, 1], ["#fff", "#000"]);`);
+  });
+
   it("does NOT mangle a same-named member of another object (foo.Extrapolate.CLAMP)", () => {
     // The standalone-identifier guard: a member access whose `Extrapolate` is
     // itself a property of something else must be left alone — only a top-level

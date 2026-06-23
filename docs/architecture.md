@@ -12,7 +12,7 @@ Không dùng pnpm/turbo. Hai vùng: `packages/` (logic) + `apps/` (entry points)
 | `@news/schema` | `VideoSpec`/`LockedVideoSpec` renderer-agnostic, timing consts, `geometry(format)` (`tiktok` 1080×1920, `youtube` 1920×1080), layout zones, duration tiers, `CaptionCue`, free-pacing validation |
 | `@news/theme` | Một theme TRUNG TÍNH duy nhất (sau pivot freeform, thay `@news/design` đa-ngôn-ngữ đã xoá): `theme.ts` giữ shape `Theme` + phòng thủ 2 lớp cross-model (typed aliases + Proxy fallback) để runtime render + `SceneImage` resolve `useTheme()` nội bộ; KHÔNG nằm trong whitelist authored — cảnh authored hardcode mọi visual trong code |
 | `@news/blocks` | Runtime nội bộ của lớp render do `@news/compositions` tiêu thụ (KHÔNG phải authored-facing): Captions, layout-probe, scene-timing, motion, theme-context, chrome surface-kit, fonts — cộng `SceneImage` là authored-facing survivor duy nhất, re-export qua `@news/compositions`. Các layout block slot-based (Frame/TitleBlock/KeyPoints/Panel/Story/…) đã bị XOÁ |
-| `@news/compositions` | Registry + master `VideoComposition` (TransitionSeries + TikTok caption overlay; caption/divider omitted for `format:"youtube"`), `ThumbnailComposition`; KHÔNG có template built-in |
+| `@news/compositions` | Scene registry + boundary-transition registry; master `VideoComposition` (V2 boundary timeline nếu có authored transition, legacy TransitionSeries giữ nguyên nếu không có; TikTok caption overlay, caption/divider omitted for `format:"youtube"`), `ThumbnailComposition`; KHÔNG có scene template built-in |
 | `@news/tts` | Vivibe/LucyLab + ElevenLabs clients, audio measure/concat-with-gaps/mix, SRT/timestamp capture |
 | `@news/pipeline` | authoring/admission, manifest, ingest, tts, captions, lock, BGM handoff, no-TTS stills, thumbnail render, sfx, store, cache, determinism, renderer, review, orchestrator, cli, safety grid |
 | `@news/mcp` | MCP server phơi pipeline thành typed tools |
@@ -31,6 +31,8 @@ work in `docs/specs/freeform-engine/tasks.md`.
 Topic/URL
   -> AI authors scenes .tsx + manifest.json (desktop: qua 9router gateway)
   -> desktop hidden stills refine (optional): renderStills no-TTS -> creative bootstrap -> vision QA pass(es)
+  -> transition V2 (best-effort): director concept -> một AI call/admission cho mỗi boundary
+     -> render mẫu 25/50/75% -> vision QA structural -> sửa riêng boundary lỗi
   -> admission gate (N4/N5 AST)          [authoring/admission.ts]
   -> manifest -> VideoSpec               [loadManifestAsSpec]
   -> static grid (N1-N9)                 [safety/*, runStaticGrid]
@@ -43,6 +45,19 @@ Topic/URL
   -> review stills -> render oracles (N14, N15, N17, N18-N22, N28-N30)  [safety/render-grid.ts]
   -> review loop (N24-N25) -> done
 ```
+
+Scene authoring và transition authoring là hai transaction tách biệt. Kịch bản +
+scene hợp lệ được persist trước; lỗi model/parser/admission ở một transition chỉ
+ảnh hưởng boundary đó và không làm thất bại bước tạo kịch bản. Module cũ hợp lệ
+được giữ khi có thể; boundary chưa có module dùng deterministic wipe runtime.
+Khi người dùng sửa scene, chỉ hai boundary kề scene đó được sinh lại.
+
+Render có hai nhánh tương thích: nếu project không đăng ký transition V2 thì dùng
+legacy `TransitionSeries`/`transitionToNext` hoàn toàn như cũ. Nếu có ít nhất một
+module V2, timeline dành overlap cho boundary overlay; module nhận `from`, `to`,
+`progress`, duration và metadata hai scene. Boundary thiếu module hoặc component
+transition crash sẽ dùng full-frame wipe fallback, không dùng fade làm mặc định
+sáng tạo và không dừng video.
 
 Toàn bộ chạy trong **một process** import `@news/pipeline` từ source (một registry
 instance duy nhất). Xem [adr/004-single-process-orchestration.md](adr/004-single-process-orchestration.md).

@@ -357,6 +357,19 @@ describe("render_stills — fast per-scene stills (freeform R4/R5)", () => {
     expect(seenSceneIds).toEqual(["scene-02"]);
   });
 
+  it("passes the transition QA sample request through to the pipeline", async () => {
+    let seen: true | readonly number[] | undefined;
+    const tools = createTools({
+      renderProjectStills: async (projectId, opts) => {
+        seen = opts?.transitionFractions;
+        return { projectId, stills: [] };
+      },
+    });
+    const res = await tools.render_stills({ projectId: "st-transition", transitionFractions: true });
+    expect(res.ok).toBe(true);
+    expect(seen).toBe(true);
+  });
+
   it("surfaces a pipeline failure as a structured error (never throws)", async () => {
     const tools = createTools({
       renderProjectStills: async () => {

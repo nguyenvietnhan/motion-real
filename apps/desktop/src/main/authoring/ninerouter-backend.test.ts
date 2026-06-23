@@ -47,8 +47,53 @@ function validReply(): string {
   return "```json\n" + JSON.stringify(manifest) + "\n```\n\n" + block("alpha") + "\n\n" + block("beta");
 }
 
-function makeBackend(reply: string, admit = vi.fn(async () => ({ ok: true as const, componentIds: ["alpha", "beta"], files: [] }))) {
-  const client = { chat: vi.fn(async () => reply) } as unknown as NineRouterClient;
+function transitionBlock(id: string): string {
+  return [
+    "```tsx",
+    `// transition: ${id}`,
+    'import { registerTransition } from "@news/compositions";',
+    "const Component = () => null;",
+    `export default registerTransition({ id: "${id}", displayName: "Test", Component });`,
+    "```",
+  ].join("\n");
+}
+
+function validTransitionReply(): string {
+  return [transitionBlock("scene-01-to-scene-02"), transitionBlock("scene-02-to-scene-03")].join("\n\n");
+}
+
+function admittedOk() {
+  return {
+    ok: true as const,
+    components: [],
+    transitions: [],
+    componentIds: ["alpha", "beta"],
+    transitionIds: ["scene-01-to-scene-02", "scene-02-to-scene-03"],
+    sceneFiles: [],
+    transitionFiles: [],
+    files: [],
+  };
+}
+
+function isTransitionRequest(messages: ChatMessage[]): boolean {
+  return messages.some((message) => typeof message.content === "string" && message.content.includes("đạo diễn CHUYỂN CẢNH"));
+}
+
+function isTransitionDirectorRequest(messages: ChatMessage[]): boolean {
+  return messages.some((message) => typeof message.content === "string" && message.content.includes("Chỉ lập ý tưởng ngắn"));
+}
+
+function requestedBoundaryId(messages: ChatMessage[]): string | null {
+  const text = messages.map((message) => typeof message.content === "string" ? message.content : JSON.stringify(message.content)).join("\n");
+  return /scene-\d+-to-scene-\d+/.exec(text)?.[0] ?? null;
+}
+
+function makeBackend(reply: string, admit = vi.fn(async () => admittedOk())) {
+  const client = {
+    chat: vi.fn(async (_model: string, messages: ChatMessage[]) =>
+      isTransitionRequest(messages) ? validTransitionReply() : reply,
+    ),
+  } as unknown as NineRouterClient;
   const deps: NineRouterBackendDeps = {
     client,
     tools: {} as never,
@@ -64,7 +109,7 @@ function authoredDir(projectId: string): string {
 }
 
 describe("authorScenes (pure-author)", () => {
-  it("valid reply ⇒ writes one .tsx per unique id + open-id manifest + admits + returns scenes", async () => {
+  it("valid reply ⇒ writes scenes + manifest without coupling script creation to transitions", async () => {
     const projectId = "pa-valid";
     const { backend, admit } = makeBackend(validReply());
     const job: AuthorJob = { projectId, input: { text: "chủ đề", urls: [] }, scriptGate: false };
@@ -77,6 +122,8 @@ describe("authorScenes (pure-author)", () => {
     const dir = authoredDir(projectId);
     expect(existsSync(join(dir, "alpha.tsx"))).toBe(true);
     expect(existsSync(join(dir, "beta.tsx"))).toBe(true);
+    expect(existsSync(join(dir, "transition-scene-01-to-scene-02.tsx"))).toBe(false);
+    expect(existsSync(join(dir, "transition-scene-02-to-scene-03.tsx"))).toBe(false);
 
     const manifest = JSON.parse(readFileSync(join(home, ".video-tool", "projects", projectId, "manifest.json"), "utf8"));
     expect(manifest.scenes.map((s: { component: string }) => s.component)).toEqual(["alpha", "beta", "alpha"]);
@@ -87,6 +134,7 @@ describe("authorScenes (pure-author)", () => {
     const dir = authoredDir(projectId);
     mkdirSync(dir, { recursive: true });
     writeFileSync(join(dir, "orphan.tsx"), "this is not valid tsx");
+    writeFileSync(join(dir, "transition-scene-01-to-scene-02.tsx"), "stale transition");
     writeFileSync(join(dir, "_entry.tsx"), "// generated entry must survive");
     const { backend, admit } = makeBackend(validReply());
     const job: AuthorJob = { projectId, input: { text: "chủ đề", urls: [] }, scriptGate: false };
@@ -98,6 +146,7 @@ describe("authorScenes (pure-author)", () => {
     expect(existsSync(join(dir, "_entry.tsx"))).toBe(true);
     expect(existsSync(join(dir, "alpha.tsx"))).toBe(true);
     expect(existsSync(join(dir, "beta.tsx"))).toBe(true);
+    expect(existsSync(join(dir, "transition-scene-01-to-scene-02.tsx"))).toBe(false);
   });
 
   it("invalid reply ⇒ {scenes:[]}, no admit call, no kit/.tsx written", async () => {
@@ -123,14 +172,18 @@ describe("authorScenes (pure-author)", () => {
 
   it("continues authoring when URL ingest throws and reports the URL as unreadable", async () => {
     const projectId = "pa-ingest-fallback";
-    const client = { chat: vi.fn(async () => validReply()) } as unknown as NineRouterClient;
+    const client = {
+      chat: vi.fn(async (_model: string, messages: ChatMessage[]) =>
+        isTransitionRequest(messages) ? validTransitionReply() : validReply(),
+      ),
+    } as unknown as NineRouterClient;
     const ingestUrl = vi.fn(async () => { throw new Error("ingest offline"); });
     const backend = new NineRouterAuthoringBackend({
       client,
       tools: { ingest_url: ingestUrl } as never,
       model: () => "test-model",
       apiKey: () => undefined,
-      admit: vi.fn(async () => ({ ok: true as const, componentIds: ["alpha", "beta"], files: [] })),
+      admit: vi.fn(async () => admittedOk()),
     });
 
     const out = await backend.authorScenes({
@@ -270,6 +323,108 @@ describe("authorScenes (pure-author)", () => {
     expect(out.scenes.length).toBeGreaterThan(0); // authoring still succeeds
     expect(out.unreadableUrls).toEqual(["https://bad.example.com/b"]);
     expect(ingest_url).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("prepareTransitions (post-refine boundary authoring)", () => {
+  function transitionBackend(projectId: string, replyForBoundary?: (id: string, attempt: number) => string) {
+    const attempts = new Map<string, number>();
+    const chat = vi.fn(async (_model: string, messages: ChatMessage[]) => {
+      if (isTransitionDirectorRequest(messages)) {
+        return JSON.stringify({ boundaries: [
+          { id: "scene-01-to-scene-02", concept: "nối hình học A sang B" },
+          { id: "scene-02-to-scene-03", concept: "nối hình học B sang C" },
+        ] });
+      }
+      if (isTransitionRequest(messages)) {
+        const id = requestedBoundaryId(messages) ?? "scene-01-to-scene-02";
+        const attempt = (attempts.get(id) ?? 0) + 1;
+        attempts.set(id, attempt);
+        return replyForBoundary?.(id, attempt) ?? transitionBlock(id);
+      }
+      return validReply();
+    });
+    const tools = {
+      render_stills: vi.fn(async () => ({ ok: true as const, data: { projectId, stills: [] } })),
+    };
+    const admitTransitionOne: NonNullable<NineRouterBackendDeps["admitTransitionOne"]> = async (path) => ({
+      ok: true,
+      transitionId: /transition-(scene-\d+-to-scene-\d+)\.tsx$/.exec(path.replace(/\\/g, "/"))?.[1] ?? "",
+    });
+    const backend = new NineRouterAuthoringBackend({
+      client: { chat } as unknown as NineRouterClient,
+      tools: tools as never,
+      model: () => "test-model",
+      apiKey: () => undefined,
+      admit: vi.fn(async () => admittedOk()),
+      admitTransitionOne,
+      typecheckTransition: () => [],
+    });
+    return { backend, chat, tools, attempts };
+  }
+
+  it("authors one module per boundary only after scenes already exist", async () => {
+    const projectId = "tr-post-refine";
+    const { backend, attempts } = transitionBackend(projectId);
+    await backend.authorScenes({ projectId, input: { text: "x", urls: [] }, scriptGate: false });
+    const dir = authoredDir(projectId);
+    expect(existsSync(join(dir, "transition-scene-01-to-scene-02.tsx"))).toBe(false);
+
+    const out = await backend.prepareTransitions(projectId);
+
+    expect(out.failedBoundaryIds).toEqual([]);
+    expect(out.authoredBoundaryIds).toEqual(["scene-01-to-scene-02", "scene-02-to-scene-03"]);
+    expect(existsSync(join(dir, "transition-scene-01-to-scene-02.tsx"))).toBe(true);
+    expect(existsSync(join(dir, "transition-scene-02-to-scene-03.tsx"))).toBe(true);
+    expect(attempts.get("scene-01-to-scene-02")).toBe(1);
+    expect(attempts.get("scene-02-to-scene-03")).toBe(1);
+  });
+
+  it("retries and isolates a bad boundary without discarding valid scenes or sibling transitions", async () => {
+    const projectId = "tr-isolated-failure";
+    const { backend, attempts } = transitionBackend(projectId, (id) =>
+      id === "scene-01-to-scene-02" ? "không có code hợp lệ" : transitionBlock(id),
+    );
+    await backend.authorScenes({ projectId, input: { text: "x", urls: [] }, scriptGate: false });
+
+    const out = await backend.prepareTransitions(projectId);
+
+    expect(out.authoredBoundaryIds).toEqual(["scene-02-to-scene-03"]);
+    expect(out.failedBoundaryIds).toEqual(["scene-01-to-scene-02"]);
+    expect(attempts.get("scene-01-to-scene-02")).toBe(2);
+    expect(existsSync(join(authoredDir(projectId), "alpha.tsx"))).toBe(true);
+    expect(existsSync(join(authoredDir(projectId), "beta.tsx"))).toBe(true);
+    expect(existsSync(join(authoredDir(projectId), "transition-scene-01-to-scene-02.tsx"))).toBe(false);
+    expect(existsSync(join(authoredDir(projectId), "transition-scene-02-to-scene-03.tsx"))).toBe(true);
+  });
+
+  it("retries and removes a transition that passes admission but fails typecheck", async () => {
+    const projectId = "tr-typecheck-failure";
+    const { backend, attempts } = transitionBackend(projectId);
+    (backend as unknown as { deps: NineRouterBackendDeps }).deps.typecheckTransition = (path) =>
+      path.includes("transition-scene-01-to-scene-02")
+        ? [{ check: "N10", severity: "error", path, message: 'TS2305: Module "@news/compositions" has no exported member "interpolate".' }]
+        : [];
+    await backend.authorScenes({ projectId, input: { text: "x", urls: [] }, scriptGate: false });
+
+    const out = await backend.prepareTransitions(projectId);
+
+    expect(out.authoredBoundaryIds).toEqual(["scene-02-to-scene-03"]);
+    expect(out.failedBoundaryIds).toEqual(["scene-01-to-scene-02"]);
+    expect(attempts.get("scene-01-to-scene-02")).toBe(2);
+    expect(existsSync(join(authoredDir(projectId), "transition-scene-01-to-scene-02.tsx"))).toBe(false);
+    expect(existsSync(join(authoredDir(projectId), "transition-scene-02-to-scene-03.tsx"))).toBe(true);
+  });
+
+  it("scopes regeneration to boundaries touching edited scenes", async () => {
+    const projectId = "tr-scope";
+    const { backend, attempts } = transitionBackend(projectId);
+    await backend.authorScenes({ projectId, input: { text: "x", urls: [] }, scriptGate: false });
+
+    await backend.prepareTransitions(projectId, ["scene-01"]);
+
+    expect(attempts.get("scene-01-to-scene-02")).toBe(1);
+    expect(attempts.has("scene-02-to-scene-03")).toBe(false);
   });
 });
 
@@ -462,14 +617,14 @@ describe("vision-incapable model hardening", () => {
     writeAsset(projectId, "assets/img.png");
     const chat = vi.fn(async (_model: string, messages: ChatMessage[]) => {
       if (listHasImage(messages)) throw new GatewayChatError("http", "HTTP 400 improperly formed", { status: 400 });
-      return validReply();
+      return isTransitionRequest(messages) ? validTransitionReply() : validReply();
     });
     const deps: NineRouterBackendDeps = {
       client: { chat } as unknown as NineRouterClient,
       tools: {} as never,
       model: () => "kr/auto",
       apiKey: () => undefined,
-      admit: vi.fn(async () => ({ ok: true as const, componentIds: ["alpha", "beta"], files: [] })),
+      admit: vi.fn(async () => admittedOk()),
     };
     const backend = new NineRouterAuthoringBackend(deps);
     const out = await backend.authorScenes({
@@ -478,7 +633,7 @@ describe("vision-incapable model hardening", () => {
       scriptGate: false,
     });
     expect(out.scenes.length).toBeGreaterThan(0); // authored via the text-only retry
-    expect(chat).toHaveBeenCalledTimes(2); // image attempt (400) + text-only retry
+    expect(chat).toHaveBeenCalledTimes(2); // image attempt (400) + text-only scene retry; transitions run later
     expect(listHasImage(chat.mock.calls[0]![1] as ChatMessage[])).toBe(true);
     expect(listHasImage(chat.mock.calls[1]![1] as ChatMessage[])).toBe(false);
   });
@@ -488,14 +643,14 @@ describe("vision-incapable model hardening", () => {
     writeAsset(projectId, "assets/a.png");
     const chat = vi.fn(async (_model: string, messages: ChatMessage[]) => {
       if (listHasImage(messages)) throw new GatewayChatError("http", "HTTP 400 improperly formed", { status: 400 });
-      return validReply();
+      return isTransitionRequest(messages) ? validTransitionReply() : validReply();
     });
     const deps: NineRouterBackendDeps = {
       client: { chat } as unknown as NineRouterClient,
       tools: {} as never,
       model: () => "kr/auto",
       apiKey: () => undefined,
-      admit: vi.fn(async () => ({ ok: true as const, componentIds: ["alpha", "beta"], files: [] })),
+      admit: vi.fn(async () => admittedOk()),
     };
     const backend = new NineRouterAuthoringBackend(deps);
     // First, an authoring call that hits the 400 marks the model image-unsupported.

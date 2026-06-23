@@ -13,6 +13,7 @@ import { authorManifestSchema, extractJsonObject, type AuthorManifest } from "./
  */
 
 export type AuthoredModule = { id: string; code: string };
+export type AuthoredTransitionModule = { id: string; code: string };
 
 export type ParseReason =
   | "no-manifest" // không tìm thấy/parse được manifest JSON
@@ -27,6 +28,10 @@ export type ParsedAuthorReply =
 
 export type ParsedReauthorReply =
   | { ok: true; module: AuthoredModule }
+  | { ok: false; reason: ParseReason; detail: string };
+
+export type ParsedTransitionReply =
+  | { ok: true; modules: AuthoredTransitionModule[] }
   | { ok: false; reason: ParseReason; detail: string };
 
 type Fence = { lang: string; body: string };
@@ -69,6 +74,10 @@ function isCodeFence(f: Fence): boolean {
   return TSX_LANGS.has(f.lang) && /registerComponent\s*[<(]/.test(f.body);
 }
 
+function isTransitionCodeFence(f: Fence): boolean {
+  return TSX_LANGS.has(f.lang) && /registerTransition\s*[<(]/.test(f.body);
+}
+
 /**
  * Recover authored modules a model returned WITHOUT any ```tsx fence (it emitted
  * the raw code straight, e.g. a reauthor reply that began `// component: …` with
@@ -91,6 +100,15 @@ function extractBareModules(text: string): Fence[] {
   return starts.map((start, i) => ({ lang: "tsx", body: text.slice(start, starts[i + 1] ?? text.length) }));
 }
 
+function extractBareTransitionModules(text: string): Fence[] {
+  const markerRe = /^[ \t]*\/\/[ \t]*transition:[ \t]*[a-z][a-z0-9-]*-to-[a-z][a-z0-9-]*[ \t]*$/gim;
+  const starts: number[] = [];
+  let m: RegExpExecArray | null;
+  while ((m = markerRe.exec(text)) !== null) starts.push(m.index);
+  if (starts.length === 0) return [];
+  return starts.map((start, i) => ({ lang: "tsx", body: text.slice(start, starts[i + 1] ?? text.length) }));
+}
+
 /**
  * Code blocks carrying an authored module: fenced first, and — only when the
  * model emitted NO fenced code at all — bare `// component:`-marked modules as a
@@ -100,6 +118,12 @@ function codeBlocks(text: string, fences: Fence[]): Fence[] {
   const fenced = fences.filter(isCodeFence);
   if (fenced.length > 0) return fenced;
   return extractBareModules(text).filter(isCodeFence);
+}
+
+function transitionCodeBlocks(text: string, fences: Fence[]): Fence[] {
+  const fenced = fences.filter(isTransitionCodeFence);
+  if (fenced.length > 0) return fenced;
+  return extractBareTransitionModules(text).filter(isTransitionCodeFence);
 }
 
 /** First `// component: <id>` marker line in a code block, if present. */
@@ -124,6 +148,24 @@ function resolveModuleId(code: string): { id: string } | { error: string } {
   const literal = registeredId(code);
   if (!literal) return { error: "khối code thiếu registerComponent({ id: \"…\" }) literal" };
   if (marker && marker !== literal) return { error: `marker "${marker}" ≠ id literal "${literal}"` };
+  return { id: literal };
+}
+
+function transitionMarkerId(code: string): string | null {
+  const m = /^\s*\/\/\s*transition:\s*([a-z][a-z0-9-]*-to-[a-z][a-z0-9-]*)\s*$/im.exec(code);
+  return m ? m[1]! : null;
+}
+
+function registeredTransitionId(code: string): string | null {
+  const m = /registerTransition\s*(?:<[^>]*>)?\s*\(\s*\{[\s\S]*?\bid\s*:\s*["']([^"']+)["']/.exec(code);
+  return m ? m[1]! : null;
+}
+
+function resolveTransitionModuleId(code: string): { id: string } | { error: string } {
+  const marker = transitionMarkerId(code);
+  const literal = registeredTransitionId(code);
+  if (!literal) return { error: "khối transition thiếu registerTransition({ id: \"…\" }) literal" };
+  if (marker && marker !== literal) return { error: `transition marker "${marker}" ≠ id literal "${literal}"` };
   return { id: literal };
 }
 
@@ -236,6 +278,27 @@ export function parseAuthorReply(text: string): ParsedAuthorReply {
 
   const modules: AuthoredModule[] = [...byId.entries()].map(([id, code]) => ({ id, code }));
   return { ok: true, manifest, modules };
+}
+
+export function parseTransitionReply(text: string, expectedIds: readonly string[]): ParsedTransitionReply {
+  const expected = new Set(expectedIds);
+  const codeFences = transitionCodeBlocks(text, extractFences(text));
+  if (codeFences.length === 0) return { ok: false, reason: "no-code", detail: "không có khối transition .tsx nào trong reply" };
+
+  const byId = new Map<string, string>();
+  for (const f of codeFences) {
+    const r = resolveTransitionModuleId(f.body);
+    if ("error" in r) return { ok: false, reason: "id-mismatch", detail: r.error };
+    if (!expected.has(r.id)) continue;
+    if (!byId.has(r.id)) byId.set(r.id, f.body);
+  }
+
+  const missing = expectedIds.filter((id) => !byId.has(id));
+  if (missing.length > 0) {
+    return { ok: false, reason: "missing-code", detail: `thiếu transition code cho: ${missing.join(", ")}` };
+  }
+
+  return { ok: true, modules: expectedIds.map((id) => ({ id, code: byId.get(id)! })) };
 }
 
 /** Parse a reauthor reply: exactly one .tsx block whose id literal === expectId. */

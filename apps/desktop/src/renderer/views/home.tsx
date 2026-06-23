@@ -328,7 +328,7 @@ export const HomeView: React.FC<{
       <PageHeader title="Trang chủ" />
 
       {!aiReady && (
-        <div className="ns-card" style={{ padding: 16, marginBottom: 20, display: "flex", alignItems: "center", justifyContent: "space-between", borderColor: "var(--brand)" }}>
+        <div className="ns-card ns-connect-banner">
           <span style={{ color: "var(--muted-foreground)" }}>Kết nối tài khoản AI để bắt đầu tạo video.</span>
           <button className="ns-btn ns-btn-primary" onClick={onConnectPrompt}>{Icon.spark({ size: 15 })} Kết nối AI</button>
         </div>

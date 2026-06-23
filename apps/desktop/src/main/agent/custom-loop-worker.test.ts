@@ -57,6 +57,28 @@ describe("CustomLoopAgentWorker.author", () => {
   });
 });
 
+describe("CustomLoopAgentWorker.prepareTransitions", () => {
+  it("delegates the project, edited-scene scope, and cancellation signal", async () => {
+    const prepareTransitions = vi.fn(async () => ({
+      authoredBoundaryIds: ["scene-01-to-scene-02"],
+      failedBoundaryIds: [],
+    }));
+    const worker = new CustomLoopAgentWorker(backend({ prepareTransitions }));
+    const controller = new AbortController();
+
+    await expect(worker.prepareTransitions("p1", ["scene-02"], controller.signal)).resolves.toEqual({
+      authoredBoundaryIds: ["scene-01-to-scene-02"],
+      failedBoundaryIds: [],
+    });
+    expect(prepareTransitions).toHaveBeenCalledWith("p1", ["scene-02"], controller.signal);
+  });
+
+  it("is a no-op for backends that do not implement transition authoring", async () => {
+    const worker = new CustomLoopAgentWorker(backend());
+    await expect(worker.prepareTransitions("p1")).resolves.toEqual({ authoredBoundaryIds: [], failedBoundaryIds: [] });
+  });
+});
+
 describe("CustomLoopAgentWorker.generateValidateRepair", () => {
   it("delegates to the repair loop, re-authoring flagged scenes until clean", async () => {
     let renders = 0;

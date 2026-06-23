@@ -4,14 +4,17 @@ import { performance } from "node:perf_hooks";
 import { FPS, type VideoSpec } from "@news/schema";
 import { appendEvent, projectPaths, ensureProject, writeJson } from "../store/store.js";
 import {
-  admitProjectScenes,
+  admitProjectAuthored,
   loadManifest,
   loadManifestAsSpec,
   manifestSceneFiles,
+  manifestTransitionFiles,
+  manifestBoundaryTransitionIds,
 } from "../authoring/manifest.js";
 import { generateAuthoredEntry } from "../authoring/authored-entry.js";
 import { lockSpec } from "../audio/lock.js";
 import { renderSceneStills, remotionAppRoot, type RenderTiming } from "./renderer.js";
+import { DEFAULT_TRANSITION_SAMPLE_FRACTIONS } from "./transition-samples.js";
 import { PipelineError } from "../errors.js";
 import { withProjectRenderLock } from "./project-lock.js";
 
@@ -43,6 +46,8 @@ const STILLS_FPS = FPS;
 export type RenderProjectStillsOptions = {
   /** Render only these scene ids (the scenes a refine pass touched); absent ⇒ all. */
   sceneIds?: string[];
+  /** Render transition samples at these fractions; true uses the default 25/50/75 set. */
+  transitionFractions?: readonly number[] | true;
   /** User-cancel signal ("Dừng"): aborts the in-flight still render. */
   signal?: AbortSignal;
   onProgress?: (done: number, total: number) => void;
@@ -134,31 +139,35 @@ export async function renderProjectStillsUnlocked(
   try {
     if (opts.signal?.aborted) throw new PipelineError({ stage: "render", cause: "stills render cancelled before start" });
 
-    // Admit every authored scene (same AST gate as a real render). A rejected
-    // scene stops the stills render with the violations summarized.
-    const admitted = await timedStillsStage("authoring.admission", () => admitProjectScenes(projectId));
+    const manifest = await timedStillsStage("authoring.load_manifest", () => loadManifest(projectId));
+
+    // Admit every authored module (same AST gate as a real render). A rejected
+    // scene/transition stops the stills render with the violations summarized.
+    const expectedTransitionIds = manifestBoundaryTransitionIds(manifest);
+    const admitted = await timedStillsStage("authoring.admission", () =>
+      admitProjectAuthored(projectId, { expectedTransitionIds }),
+    );
     if (!admitted.ok) {
       throw new PipelineError({
         stage: "build-gate",
-        cause: `authored admission rejected ${admitted.violations.length} scene(s): ${admitted.violations
+        cause: `authored admission rejected ${admitted.violations.length} module(s): ${admitted.violations
           .map((v) => `${v.check} ${v.path}: ${v.message}`)
           .join("; ")}`,
-        remediation: "Fix or re-author the rejected scene(s) before rendering stills.",
+        remediation: "Fix or re-author the rejected authored module(s) before rendering stills.",
       });
     }
 
     // Scope the bundle to exactly the files the manifest references (same 1:1
     // pairing the orchestrator uses), so a stale orphan .tsx is not bundled.
-    const componentToFile = new Map<string, string>();
-    admitted.componentIds.forEach((id, i) => {
-      const file = admitted.files[i];
-      if (file) componentToFile.set(id, file);
-    });
-    const manifest = await timedStillsStage("authoring.load_manifest", () => loadManifest(projectId));
+    const componentToFile = new Map(admitted.components.map((c) => [c.componentId, c.file] as const));
+    const transitionToFile = new Map(admitted.transitions.map((t) => [t.transitionId, t.file] as const));
     const authoredFiles = await timedStillsStage(
       "authoring.resolve_scene_files",
-      () => manifestSceneFiles(manifest, componentToFile).map((s) => s.file),
-      { files: admitted.files.length, scenes: manifest.scenes.length },
+      () => [
+        ...manifestSceneFiles(manifest, componentToFile).map((s) => s.file),
+        ...manifestTransitionFiles(manifest, transitionToFile).map((t) => t.file),
+      ],
+      { files: admitted.files.length, scenes: manifest.scenes.length, transitions: admitted.transitionIds.length },
     );
 
     const spec: VideoSpec = await timedStillsStage("authoring.resolve_spec", () => loadManifestAsSpec(projectId), {
@@ -197,6 +206,9 @@ export async function renderProjectStillsUnlocked(
           timingScope: "stills",
           onTiming: recordRenderTiming,
           ...(opts.sceneIds ? { sceneIds: opts.sceneIds } : {}),
+          ...(opts.transitionFractions
+            ? { transitionFractions: [...(opts.transitionFractions === true ? DEFAULT_TRANSITION_SAMPLE_FRACTIONS : opts.transitionFractions)] }
+            : {}),
           ...(opts.signal ? { signal: opts.signal } : {}),
           ...(opts.onProgress ? { onProgress: opts.onProgress } : {}),
         }),

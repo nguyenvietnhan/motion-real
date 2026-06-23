@@ -14,6 +14,7 @@ export {
   checkDeadAir,
   checkPacing,
   checkTransition,
+  analyzeTransitionSamples,
   checkAudioSync,
   checkDuration,
   checkCaptions,

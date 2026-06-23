@@ -1,10 +1,10 @@
 import { existsSync } from "node:fs";
 import { mkdir, readdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { VideoSpecSchema, normalizeVideoLanguage, type DurationTier, type LegacyTitleLanguage, type SceneImage, type VideoFormat, type VideoLanguage, type VideoSpec } from "@news/schema";
+import { VideoSpecSchema, boundaryTransitionId, normalizeVideoLanguage, type DurationTier, type LegacyTitleLanguage, type SceneImage, type VideoFormat, type VideoLanguage, type VideoSpec } from "@news/schema";
 import type { SafetyIssue } from "../types.js";
 import { ensureProject, projectPaths, readJson, writeJson } from "../store/store.js";
-import { admitAuthoredSceneFile } from "./register.js";
+import { admitAuthoredSceneFile, admitAuthoredTransitionFile } from "./register.js";
 
 /**
  * Per-project manifest (author-mode-v2 R8/R10). A manifest is the AUTHOR-mode
@@ -156,6 +156,27 @@ export async function loadManifestAsSpec(projectId: string): Promise<VideoSpec> 
 /** A manifest scene resolved to the authored `.tsx` that defines its component. */
 export type ManifestSceneFile = { sceneId: string; componentId: string; file: string };
 
+export type ManifestTransitionFile = { boundaryId: string; fromSceneId: string; toSceneId: string; file: string };
+
+export const AUTHORED_TRANSITION_FILE_PREFIX = "transition-";
+
+export function transitionFileName(boundaryId: string): string {
+  const safe = boundaryId.replace(/[^a-zA-Z0-9-]/g, "-").replace(/^[_-]+/, "");
+  return AUTHORED_TRANSITION_FILE_PREFIX + (safe || "boundary") + ".tsx";
+}
+
+function isAuthoredTransitionFileName(fileName: string): boolean {
+  return fileName.startsWith(AUTHORED_TRANSITION_FILE_PREFIX) && /\.tsx$/i.test(fileName);
+}
+
+export function manifestBoundaryTransitionIds(manifest: Manifest): string[] {
+  const out: string[] = [];
+  for (let i = 0; i < manifest.scenes.length - 1; i += 1) {
+    out.push(boundaryTransitionId(manifest.scenes[i]!.id, manifest.scenes[i + 1]!.id));
+  }
+  return out;
+}
+
 /**
  * Scope the admitted authored files to exactly those the manifest references, in
  * manifest (render) order — pairing each manifest scene with the `.tsx` whose
@@ -177,13 +198,38 @@ export function manifestSceneFiles(
   return out;
 }
 
+export function manifestTransitionFiles(
+  manifest: Manifest,
+  transitionToFile: ReadonlyMap<string, string>,
+): ManifestTransitionFile[] {
+  const out: ManifestTransitionFile[] = [];
+  for (let i = 0; i < manifest.scenes.length - 1; i += 1) {
+    const from = manifest.scenes[i]!;
+    const to = manifest.scenes[i + 1]!;
+    const boundaryId = boundaryTransitionId(from.id, to.id);
+    const file = transitionToFile.get(boundaryId);
+    if (file) out.push({ boundaryId, fromSceneId: from.id, toSceneId: to.id, file });
+  }
+  return out;
+}
+
 /** List the authored scene `.tsx` files in a project (excluding the generated entry). */
 export async function listAuthoredScenes(projectId: string): Promise<string[]> {
   const dir = projectPaths(projectId).authoredDir;
   if (!existsSync(dir)) return [];
   const files = await readdir(dir);
   return files
-    .filter((f) => /\.tsx$/.test(f) && !f.startsWith("_"))
+    .filter((f) => /\.tsx$/.test(f) && !f.startsWith("_") && !isAuthoredTransitionFileName(f))
+    .sort()
+    .map((f) => join(dir, f));
+}
+
+export async function listAuthoredTransitions(projectId: string): Promise<string[]> {
+  const dir = projectPaths(projectId).authoredDir;
+  if (!existsSync(dir)) return [];
+  const files = await readdir(dir);
+  return files
+    .filter((f) => /\.tsx$/.test(f) && !f.startsWith("_") && isAuthoredTransitionFileName(f))
     .sort()
     .map((f) => join(dir, f));
 }
@@ -240,6 +286,121 @@ export async function admitProjectScenes(
   }
   if (violations.length > 0) return { ok: false, violations };
   return { ok: true, componentIds, files };
+}
+
+export type AuthoredComponentFile = { componentId: string; file: string };
+export type AuthoredTransitionFile = { transitionId: string; file: string };
+
+export type AdmitProjectAuthoredResult =
+  | {
+      ok: true;
+      components: AuthoredComponentFile[];
+      transitions: AuthoredTransitionFile[];
+      componentIds: string[];
+      transitionIds: string[];
+      sceneFiles: string[];
+      transitionFiles: string[];
+      files: string[];
+    }
+  | { ok: false; violations: SafetyIssue[] };
+
+export type AdmitProjectAuthoredOptions = {
+  expectedTransitionIds?: readonly string[];
+  requireTransitions?: boolean;
+};
+
+export async function admitProjectAuthored(
+  projectId: string,
+  options: AdmitProjectAuthoredOptions = {},
+): Promise<AdmitProjectAuthoredResult> {
+  const sceneFiles = await listAuthoredScenes(projectId);
+  const transitionFiles = await listAuthoredTransitions(projectId);
+  if (sceneFiles.length === 0) {
+    return {
+      ok: false,
+      violations: [
+        {
+          check: "N4",
+          severity: "error",
+          path: projectPaths(projectId).authoredDir,
+          message: "No authored scenes found. Add scene .tsx modules under authored/ before rendering.",
+        },
+      ],
+    };
+  }
+
+  const components: AuthoredComponentFile[] = [];
+  const transitions: AuthoredTransitionFile[] = [];
+  const violations: SafetyIssue[] = [];
+  const seenComponentIds = new Set<string>();
+  const seenTransitionIds = new Set<string>();
+
+  for (const file of sceneFiles) {
+    const result = await admitAuthoredSceneFile(file);
+    if (result.ok) {
+      if (seenComponentIds.has(result.componentId)) {
+        violations.push({
+          check: "N4",
+          severity: "error",
+          path: file,
+          message: 'Authored project registers duplicate component id "' + result.componentId + '". Each authored scene must use a unique id.',
+        });
+      } else {
+        seenComponentIds.add(result.componentId);
+        components.push({ componentId: result.componentId, file });
+      }
+    } else {
+      violations.push(...result.violations);
+    }
+  }
+
+  for (const file of transitionFiles) {
+    const result = await admitAuthoredTransitionFile(file);
+    if (result.ok) {
+      if (seenTransitionIds.has(result.transitionId)) {
+        violations.push({
+          check: "N4",
+          severity: "error",
+          path: file,
+          message: 'Authored project registers duplicate transition id "' + result.transitionId + '". Each boundary transition must use a unique id.',
+        });
+      } else {
+        seenTransitionIds.add(result.transitionId);
+        transitions.push({ transitionId: result.transitionId, file });
+      }
+    } else {
+      violations.push(...result.violations);
+    }
+  }
+
+  const expected = options.expectedTransitionIds ?? [];
+  const shouldRequireTransitions = options.requireTransitions === true;
+  if (shouldRequireTransitions) {
+    for (const id of expected) {
+      if (!seenTransitionIds.has(id)) {
+        violations.push({
+          check: "N4",
+          severity: "error",
+          path: projectPaths(projectId).authoredDir,
+          message: 'Missing authored transition module for boundary "' + id + '".',
+        });
+      }
+    }
+  }
+
+  if (violations.length > 0) return { ok: false, violations };
+  const componentIds = components.map((c) => c.componentId);
+  const transitionIds = transitions.map((t) => t.transitionId);
+  return {
+    ok: true,
+    components,
+    transitions,
+    componentIds,
+    transitionIds,
+    sceneFiles,
+    transitionFiles,
+    files: [...sceneFiles, ...transitionFiles],
+  };
 }
 
 /** Write a starter authored scene + manifest entry placeholder (used by scaffold examples/tests). */

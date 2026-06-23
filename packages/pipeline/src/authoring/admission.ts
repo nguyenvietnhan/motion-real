@@ -90,8 +90,21 @@ export const DEFAULT_ADMISSION_POLICY: AdmissionPolicy = {
   requiredExports: ["default", "schema", "example"],
 };
 
+export const DEFAULT_TRANSITION_ADMISSION_POLICY: AdmissionPolicy = {
+  ...DEFAULT_ADMISSION_POLICY,
+  requiredExports: ["default"],
+};
+
 export type AdmissionResult =
   | { admitted: true; componentId: string }
+  | { admitted: false; violations: SafetyIssue[] };
+
+export type TransitionAdmissionResult =
+  | { admitted: true; transitionId: string }
+  | { admitted: false; violations: SafetyIssue[] };
+
+type InternalAdmissionResult =
+  | { admitted: true; id: string }
   | { admitted: false; violations: SafetyIssue[] };
 
 /**
@@ -103,6 +116,31 @@ export function admitAuthoredComponent(
   tsxPath: string,
   policy: AdmissionPolicy = DEFAULT_ADMISSION_POLICY,
 ): AdmissionResult {
+  const result = admitAuthoredRegistration(tsxPath, policy, "registerComponent", "component");
+  if (!result.admitted) return result;
+  return { admitted: true, componentId: result.id };
+}
+
+/**
+ * Statically admit (or reject) an authored boundary-transition module. Pure and
+ * side-effect free: it never imports or executes the module. On success it
+ * returns the transition id parsed from registerTransition({ id: "..." }).
+ */
+export function admitAuthoredTransition(
+  tsxPath: string,
+  policy: AdmissionPolicy = DEFAULT_TRANSITION_ADMISSION_POLICY,
+): TransitionAdmissionResult {
+  const result = admitAuthoredRegistration(tsxPath, policy, "registerTransition", "transition");
+  if (!result.admitted) return result;
+  return { admitted: true, transitionId: result.id };
+}
+
+function admitAuthoredRegistration(
+  tsxPath: string,
+  policy: AdmissionPolicy,
+  registerFunction: "registerComponent" | "registerTransition",
+  registerLabel: "component" | "transition",
+): InternalAdmissionResult {
   let text: string;
   try {
     text = readFileSync(tsxPath, "utf8");
@@ -119,7 +157,7 @@ export function admitAuthoredComponent(
   const banned = new Set(policy.bannedApis);
   const allowed = policy.allowedImports;
   const exportedNames = new Set<string>();
-  let componentId: string | null = null;
+  let registrationId: string | null = null;
   const constantStrings = collectConstantStrings(src);
 
   const at = (node: ts.Node): string => {
@@ -320,8 +358,8 @@ export function admitAuthoredComponent(
   function collectRegisterId(call: ts.CallExpression): void {
     const callee = call.expression;
     const isRegister =
-      (ts.isIdentifier(callee) && callee.text === "registerComponent") ||
-      (ts.isPropertyAccessExpression(callee) && callee.name.text === "registerComponent");
+      (ts.isIdentifier(callee) && callee.text === registerFunction) ||
+      (ts.isPropertyAccessExpression(callee) && callee.name.text === registerFunction);
     if (!isRegister) return;
     const arg = call.arguments[0];
     if (arg && ts.isObjectLiteralExpression(arg)) {
@@ -331,7 +369,7 @@ export function admitAuthoredComponent(
           prop.name.getText(src) === "id" &&
           ts.isStringLiteral(prop.initializer)
         ) {
-          componentId = prop.initializer.text;
+          registrationId = prop.initializer.text;
         }
       }
     }
@@ -346,15 +384,15 @@ export function admitAuthoredComponent(
     }
   }
 
-  // A literal registerComponent id is required to reference the component.
-  if (componentId === null) {
-    addN4(src, `Authored module must call registerComponent({ id: "..." }) with a literal string id.`);
+  // A literal registration id is required to reference the authored module.
+  if (registrationId === null) {
+    addN4(src, `Authored ${registerLabel} module must call ${registerFunction}({ id: "..." }) with a literal string id.`);
   }
 
-  if (violations.length > 0 || componentId === null) {
+  if (violations.length > 0 || registrationId === null) {
     return { admitted: false, violations };
   }
-  return { admitted: true, componentId };
+  return { admitted: true, id: registrationId };
 }
 
 /**

@@ -37,9 +37,12 @@ import {
   scaffoldProject,
   loadManifest,
   loadManifestAsSpec,
-  admitProjectScenes,
+  admitProjectAuthored,
   manifestSceneFiles,
+  manifestTransitionFiles,
+  manifestBoundaryTransitionIds,
   type ManifestSceneFile,
+  type ManifestTransitionFile,
 } from "./authoring/manifest.js";
 import { PipelineError, RenderCancelledError, isRenderCancelledError } from "./errors.js";
 import { generateAuthoredEntry } from "./authoring/authored-entry.js";
@@ -61,6 +64,7 @@ import {
   type RenderVideoOptions,
   type RenderVideoResult,
 } from "./render/renderer.js";
+import { DEFAULT_TRANSITION_SAMPLE_FRACTIONS } from "./render/transition-samples.js";
 import { buildReview, type BuildReviewOptions, type ComposeContactSheet, type ReviewArtifacts } from "./review.js";
 
 /**
@@ -163,6 +167,7 @@ export type RenderProjectDeps = {
   render?: (opts: RenderVideoOptions) => Promise<RenderVideoResult>;
   determinism?: (spec: LockedVideoSpec, opts?: DeterminismOptions) => Promise<SafetyReport>;
   review?: (spec: LockedVideoSpec, opts: BuildReviewOptions) => Promise<ReviewArtifacts>;
+  typecheckAuthored?: (files: string[], workspaceRoot: string, sceneIdByFile?: ReadonlyMap<string, string>) => SafetyIssue[];
 };
 
 export type RenderProjectOptions = {
@@ -331,31 +336,32 @@ async function renderProjectUnlocked(projectId: string, opts: RenderProjectOptio
     // --- (0) Admit authored scenes + resolve the spec (manifest → VideoSpec). ---
     let authoredFiles: string[] = [];
     let authoredSceneFiles: ManifestSceneFile[] = [];
+    let authoredTransitionFiles: ManifestTransitionFile[] = [];
     if (!opts.skipAuthoring) {
       throwIfCancelled(); // before the admission/bundle work begins
-      const admitted = await timedPipelineStage("stage.authoring.admission", () => admitProjectScenes(projectId));
+      const manifest = await timedPipelineStage("stage.authoring.load_manifest", () => loadManifest(projectId));
+      const expectedTransitionIds = manifestBoundaryTransitionIds(manifest);
+      const admitted = await timedPipelineStage("stage.authoring.admission", () =>
+        admitProjectAuthored(projectId, { expectedTransitionIds }),
+      );
       if (!admitted.ok) {
         await fail(projectId, `Authored admission blocked render: ${errorSummary(admitted.violations)}`);
-        throw new Error(`renderProject: ${admitted.violations.length} authored scene(s) rejected by the admission gate.`);
+        throw new Error(`renderProject: ${admitted.violations.length} authored module(s) rejected by the admission gate.`);
       }
       // Scope the bundle to exactly the files the manifest references. admitted
-      // returns componentIds ↔ files 1:1 in the same order; pair them so a stale
-      // orphan .tsx (an earlier authoring batch left behind after a reauthor
-      // rewrote the manifest with new ids) is neither bundled nor typechecked —
-      // it must not crash or block a render it is no longer part of.
-      const componentToFile = new Map<string, string>();
-      admitted.componentIds.forEach((id, i) => {
-        const file = admitted.files[i];
-        if (file) componentToFile.set(id, file);
-      });
-      const manifest = await timedPipelineStage("stage.authoring.load_manifest", () => loadManifest(projectId));
+      // returns explicit id → file pairs; pair them so stale orphan .tsx files
+      // are admitted for visibility but not bundled/typechecked unless the
+      // current manifest references them.
+      const componentToFile = new Map(admitted.components.map((c) => [c.componentId, c.file] as const));
+      const transitionToFile = new Map(admitted.transitions.map((t) => [t.transitionId, t.file] as const));
       authoredSceneFiles = manifestSceneFiles(manifest, componentToFile);
-      authoredFiles = authoredSceneFiles.map((s) => s.file);
+      authoredTransitionFiles = manifestTransitionFiles(manifest, transitionToFile);
+      authoredFiles = [...authoredSceneFiles.map((s) => s.file), ...authoredTransitionFiles.map((t) => t.file)];
       const spec = await timedPipelineStage("stage.authoring.resolve_spec", () => loadManifestAsSpec(projectId), {
         scenes: manifest.scenes.length,
       });
       await timedPipelineStage("stage.authoring.write_spec", () => writeJson(paths.spec, spec));
-      await appendEvent(projectId, { type: "authored.admitted", components: admitted.componentIds.length });
+      await appendEvent(projectId, { type: "authored.admitted", components: admitted.componentIds.length, transitions: authoredTransitionFiles.length });
 
       // Tier-1 static grid gate (structure + per-component props + content rules).
       const staticReport = await timedPipelineStage(
@@ -390,11 +396,38 @@ async function renderProjectUnlocked(projectId: string, opts: RenderProjectOptio
       // admission/bundle above skips the typecheck entirely instead of forcing
       // the user to wait out a block they already asked to stop.
       throwIfCancelled();
+      const sceneAuthoredFiles = authoredSceneFiles.map((s) => s.file);
+      const transitionAuthoredFiles = authoredTransitionFiles.map((t) => t.file);
+      const checkAuthored = deps.typecheckAuthored ?? typecheckAuthoredScenes;
       const typeIssues = await timedPipelineStage(
         "stage.authored_typecheck",
-        () => typecheckAuthoredScenes(authoredFiles, workspaceRoot(), sceneIdByFile),
-        { files: authoredFiles.length },
+        () => checkAuthored(sceneAuthoredFiles, workspaceRoot(), sceneIdByFile),
+        { files: sceneAuthoredFiles.length, kind: "scene" },
       );
+      const transitionTypeIssues = transitionAuthoredFiles.length > 0
+        ? await timedPipelineStage(
+            "stage.authored_transition_typecheck",
+            () => checkAuthored(transitionAuthoredFiles, workspaceRoot()),
+            { files: transitionAuthoredFiles.length, kind: "transition" },
+          )
+        : [];
+      const transitionTypeErrors = transitionTypeIssues.filter((i) => i.severity === "error");
+      if (transitionTypeErrors.length > 0) {
+        const badTransitionFiles = filesWithIssues(transitionAuthoredFiles, transitionTypeErrors);
+        if (badTransitionFiles.size === 0) {
+          for (const file of transitionAuthoredFiles) badTransitionFiles.add(resolve(file));
+        }
+        const skipped = authoredTransitionFiles.filter((t) => badTransitionFiles.has(resolve(t.file)));
+        authoredTransitionFiles = authoredTransitionFiles.filter((t) => !badTransitionFiles.has(resolve(t.file)));
+        authoredFiles = [...sceneAuthoredFiles, ...authoredTransitionFiles.map((t) => t.file)];
+        await appendEvent(projectId, {
+          type: "transition.typecheck.skipped",
+          boundaries: skipped.map((t) => t.boundaryId),
+          errors: transitionTypeErrors.map((issue) => issue.message),
+        });
+      } else {
+        authoredFiles = [...sceneAuthoredFiles, ...transitionAuthoredFiles];
+      }
       // Only crash-class diagnostics (severity "error") gate the render — a
       // wrong-shape prop that would crash Chromium at runtime. A missing color
       // token is emitted as a WARNING (the design Proxy already resolves it to a
@@ -402,8 +435,20 @@ async function renderProjectUnlocked(projectId: string, opts: RenderProjectOptio
       // visibility and an advisory reauthor. Persist whenever there's anything to
       // carry so the repair loop can read it back.
       const typeErrors = typeIssues.filter((i) => i.severity === "error");
-      if (typeIssues.length > 0) {
-        await persistFailureReport(projectId, typeIssues);
+      if (typeIssues.length > 0 || transitionTypeIssues.length > 0) {
+        await persistFailureReport(projectId, [
+          ...typeIssues,
+          ...transitionTypeIssues.map((issue) => {
+            const skipped = transitionTypeErrors.includes(issue);
+            return {
+              ...issue,
+              severity: "warning" as const,
+              message: skipped
+                ? `${issue.message} Transition module was skipped; boundary fallback wipe will render instead.`
+                : `${issue.message} Transition module remains enabled; this is advisory.`,
+            };
+          }),
+        ]);
       }
       if (typeErrors.length > 0) {
         await fail(projectId, `Authored typecheck (N10) blocked render: ${errorSummary(typeErrors)}`);
@@ -616,9 +661,14 @@ async function renderProjectUnlocked(projectId: string, opts: RenderProjectOptio
           // keyframes (same bundle, no extra browser/bundle) so the N14 late pass
           // below has post-midpoint frames to scan. The returned keyframe list is
           // unchanged, so the contact sheet stays one-still-per-scene.
-          renderOptions: { ...renderEntry, timingScope: "review-stills", extraFractions: LATE_SAFE_AREA_FRACTIONS },
+          renderOptions: {
+            ...renderEntry,
+            timingScope: "review-stills",
+            extraFractions: LATE_SAFE_AREA_FRACTIONS,
+            transitionFractions: [...DEFAULT_TRANSITION_SAMPLE_FRACTIONS],
+          },
         }),
-      { extraFractions: LATE_SAFE_AREA_FRACTIONS.length },
+      { extraFractions: LATE_SAFE_AREA_FRACTIONS.length, transitionFractions: DEFAULT_TRANSITION_SAMPLE_FRACTIONS.length },
     );
 
     // --- (7) Tier-3 render oracles over the review keyframes. ---
@@ -628,6 +678,7 @@ async function renderProjectUnlocked(projectId: string, opts: RenderProjectOptio
       ...(spec.language === "vi" ? { maxWordsPerSecond: 5.0 } : {}),
       // Soft duration target (±tolerance) from the brief, when set.
       ...(brief.duration ? { targetDurationSeconds: brief.duration } : {}),
+      transitionSampleFractions: [...DEFAULT_TRANSITION_SAMPLE_FRACTIONS],
     };
     const renderGrid = await timedPipelineStage(
       "stage.render_oracles",
@@ -642,7 +693,13 @@ async function renderProjectUnlocked(projectId: string, opts: RenderProjectOptio
     // Eased in as WARNINGS (not a hard gate) while we observe false-positive rate;
     // a measurement failure must never fail the render, so it's fully guarded.
     const overlapIssues: SafetyIssue[] = [];
-    const layoutSceneIds = layoutMeasureSceneIds(locked, authoredSources, authoredSceneFiles);
+    const authoredSceneSources =
+      authoredTransitionFiles.length === 0
+        ? authoredSources
+        : await timedPipelineStage("stage.read_authored_scene_sources", () => readAuthoredSources(authoredSceneFiles.map((s) => s.file)), {
+            files: authoredSceneFiles.length,
+          });
+    const layoutSceneIds = layoutMeasureSceneIds(locked, authoredSceneSources, authoredSceneFiles);
     if (layoutSceneIds.length === 0) {
       await appendEvent(projectId, { type: "render.overlap.skipped", cause: "no tagged layout blocks" });
       await appendTimingEvent("stage.layout_measure.skipped", 0, { cause: "no tagged layout blocks" });
@@ -775,6 +832,29 @@ function layoutMeasureSceneIds(
   }
 
   return [...ids];
+}
+
+function filesWithIssues(files: readonly string[], issues: readonly SafetyIssue[]): Set<string> {
+  const normalized = files.map((file) => resolve(file));
+  const out = new Set<string>();
+  for (const issue of issues) {
+    const issuePath = normalizeIssuePath(issue.path);
+    for (const file of normalized) {
+      if (issuePathBelongsToFile(issuePath, file)) out.add(file);
+    }
+  }
+  return out;
+}
+
+function normalizeIssuePath(path: string | undefined): string {
+  if (!path) return "";
+  return resolve(path.replace(/:\d+:\d+$/, ""));
+}
+
+function issuePathBelongsToFile(issuePath: string, file: string): boolean {
+  const a = issuePath.toLowerCase();
+  const b = file.toLowerCase();
+  return a === b || a.startsWith(`${b}:`);
 }
 
 function renderChromiumRuntimeOptions(

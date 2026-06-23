@@ -1,15 +1,15 @@
 import React from "react";
-import { AbsoluteFill, Audio, interpolate, staticFile } from "remotion";
+import { AbsoluteFill, Audio, Sequence, interpolate, staticFile, useCurrentFrame } from "remotion";
 import { TransitionSeries, springTiming } from "@remotion/transitions";
 import { slide, type SlideDirection } from "@remotion/transitions/slide";
 import { fade } from "@remotion/transitions/fade";
 import { wipe } from "@remotion/transitions/wipe";
 import { clockWipe } from "@remotion/transitions/clock-wipe";
 import type { TransitionPresentation } from "@remotion/transitions";
-import { CANVAS, CONTENT_ZONE, rectWidth, transitionFrames, type LockedSceneSpec, type LockedVideoSpec } from "@news/schema";
+import { CANVAS, CONTENT_ZONE, boundaryTransitionId, rectWidth, transitionFrames, type LockedSceneSpec, type LockedVideoSpec } from "@news/schema";
 import { makeTheme, sceneBackground, type Theme } from "@news/theme";
 import { Captions, LayoutProbe, SceneTimingProvider, useIntroZoom } from "@news/blocks";
-import { getComponent } from "./registry.js";
+import { getComponent, getTransition, type BoundarySceneInfo } from "./registry.js";
 import { ThemeProvider, useTheme } from "./theme-context.js";
 
 export type VideoCompositionProps = {
@@ -84,30 +84,11 @@ export const VideoComposition: React.FC<VideoCompositionProps> = ({ spec, measur
   const theme = makeTheme(spec.theme?.dominant, spec.theme?.stylePackId);
   const scenes = spec.scenes;
   const T = transitionFrames(spec.fps);
-  const timing = springTiming({ config: { damping: 200, mass: 0.8, stiffness: 100 }, durationInFrames: T });
+  const hasAuthoredTransitions = usesAuthoredBoundaryTimeline(scenes);
   return (
     <ThemeProvider theme={theme}>
       <CompositionBackdrop theme={theme}>
-        <TransitionSeries>
-          {scenes.map((scene, i) => {
-            const isLast = i === scenes.length - 1;
-            return (
-              <React.Fragment key={scene.id}>
-                <TransitionSeries.Sequence durationInFrames={scene.durationInFrames}>
-                  <SceneTimingProvider durationInFrames={scene.durationInFrames}>
-                    <SceneContent scene={scene} />
-                  </SceneTimingProvider>
-                </TransitionSeries.Sequence>
-                {!isLast ? (
-                  <TransitionSeries.Transition
-                    timing={timing}
-                    presentation={presentationFor(scene.transitionToNext, i)}
-                  />
-                ) : null}
-              </React.Fragment>
-            );
-          })}
-        </TransitionSeries>
+        {hasAuthoredTransitions ? <BoundaryTimeline scenes={scenes} transitionFrames={T} /> : <LegacyTransitionTimeline scenes={scenes} transitionFrames={T} />}
 
         {spec.audio.narrationSrc ? <Audio src={resolveAudio(spec.audio.narrationSrc)} /> : null}
         {/* Caption band + divider are a TikTok (9:16) concern only (freeform-engine
@@ -126,6 +107,214 @@ export const VideoComposition: React.FC<VideoCompositionProps> = ({ spec, measur
     </ThemeProvider>
   );
 };
+
+export function usesAuthoredBoundaryTimeline(scenes: readonly LockedSceneSpec[]): boolean {
+  return scenes.some((scene, i) => {
+    const next = scenes[i + 1];
+    return next ? !!getTransition(boundaryTransitionId(scene.id, next.id)) : false;
+  });
+}
+
+const LegacyTransitionTimeline: React.FC<{ scenes: LockedSceneSpec[]; transitionFrames: number }> = ({ scenes, transitionFrames }) => {
+  const timing = springTiming({ config: { damping: 200, mass: 0.8, stiffness: 100 }, durationInFrames: transitionFrames });
+  return (
+    <TransitionSeries>
+      {scenes.map((scene, i) => {
+        const isLast = i === scenes.length - 1;
+        return (
+          <React.Fragment key={scene.id}>
+            <TransitionSeries.Sequence durationInFrames={scene.durationInFrames}>
+              <SceneTimingProvider durationInFrames={scene.durationInFrames}>
+                <SceneContent scene={scene} />
+              </SceneTimingProvider>
+            </TransitionSeries.Sequence>
+            {!isLast ? (
+              <TransitionSeries.Transition
+                timing={timing}
+                presentation={presentationFor(scene.transitionToNext, i)}
+              />
+            ) : null}
+          </React.Fragment>
+        );
+      })}
+    </TransitionSeries>
+  );
+};
+
+const BoundaryTimeline: React.FC<{ scenes: LockedSceneSpec[]; transitionFrames: number }> = ({ scenes, transitionFrames }) => {
+  const frame = useCurrentFrame();
+  return (
+    <>
+      {scenes.map((scene, i) => (
+        <BaseSceneSequence
+          key={scene.id}
+          scene={scene}
+          index={i}
+          totalScenes={scenes.length}
+          transitionFrames={transitionFrames}
+          globalFrame={frame}
+        />
+      ))}
+      {scenes.slice(0, -1).map((scene, i) => (
+        <BoundaryTransitionSequence
+          key={boundaryTransitionId(scene.id, scenes[i + 1]!.id)}
+          fromScene={scene}
+          toScene={scenes[i + 1]!}
+          transitionFrames={transitionFrames}
+        />
+      ))}
+    </>
+  );
+};
+
+const BaseSceneSequence: React.FC<{
+  scene: LockedSceneSpec;
+  index: number;
+  totalScenes: number;
+  transitionFrames: number;
+  globalFrame: number;
+}> = ({ scene, index, totalScenes, transitionFrames, globalFrame }) => {
+  const hidden = isBaseSceneHiddenAtFrame(scene, index, totalScenes, transitionFrames, globalFrame);
+  if (hidden) return null;
+  return (
+    <Sequence from={scene.startFrame} durationInFrames={scene.durationInFrames} layout="absolute-fill">
+      <SceneTimingProvider durationInFrames={scene.durationInFrames}>
+        <SceneContent scene={scene} />
+      </SceneTimingProvider>
+    </Sequence>
+  );
+};
+
+export function isBaseSceneHiddenAtFrame(
+  scene: LockedSceneSpec,
+  index: number,
+  totalScenes: number,
+  transitionFrames: number,
+  globalFrame: number,
+): boolean {
+  return (
+    (index > 0 && globalFrame >= scene.startFrame && globalFrame < scene.startFrame + transitionFrames) ||
+    (index < totalScenes - 1 &&
+      globalFrame >= scene.startFrame + scene.durationInFrames - transitionFrames &&
+      globalFrame < scene.startFrame + scene.durationInFrames)
+  );
+}
+
+const BoundaryTransitionSequence: React.FC<{
+  fromScene: LockedSceneSpec;
+  toScene: LockedSceneSpec;
+  transitionFrames: number;
+}> = ({ fromScene, toScene, transitionFrames }) => {
+  if (transitionFrames <= 0) return null;
+  const boundaryStart = toScene.startFrame;
+  return (
+    <Sequence from={boundaryStart} durationInFrames={transitionFrames} layout="absolute-fill">
+      <BoundaryTransitionContent
+        fromScene={fromScene}
+        toScene={toScene}
+        boundaryStart={boundaryStart}
+        transitionFrames={transitionFrames}
+      />
+    </Sequence>
+  );
+};
+
+const BoundaryTransitionContent: React.FC<{
+  fromScene: LockedSceneSpec;
+  toScene: LockedSceneSpec;
+  boundaryStart: number;
+  transitionFrames: number;
+}> = ({ fromScene, toScene, boundaryStart, transitionFrames }) => {
+  const localFrame = useCurrentFrame();
+  const progress = transitionFrames <= 1 ? 1 : Math.min(1, Math.max(0, localFrame / (transitionFrames - 1)));
+  const boundaryId = boundaryTransitionId(fromScene.id, toScene.id);
+  const from = <SceneAtBoundaryFrame scene={fromScene} boundaryStart={boundaryStart} />;
+  const to = <SceneAtBoundaryFrame scene={toScene} boundaryStart={boundaryStart} />;
+  return (
+    <BoundaryTransitionStage
+      progress={progress}
+      durationInFrames={transitionFrames}
+      boundaryId={boundaryId}
+      from={from}
+      to={to}
+      fromScene={sceneInfo(fromScene)}
+      toScene={sceneInfo(toScene)}
+    />
+  );
+};
+
+export const BoundaryTransitionStage: React.FC<{
+  progress: number;
+  durationInFrames: number;
+  boundaryId: string;
+  from: React.ReactNode;
+  to: React.ReactNode;
+  fromScene: BoundarySceneInfo;
+  toScene: BoundarySceneInfo;
+}> = ({ progress, durationInFrames, boundaryId, from, to, fromScene, toScene }) => {
+  const fallback = <FallbackBoundaryWipe progress={progress} from={from} to={to} />;
+  if (progress <= 0) return <>{from}</>;
+  if (progress >= 1) return <>{to}</>;
+  const def = getTransition(boundaryId);
+  if (!def) return fallback;
+  return (
+    <TransitionErrorBoundary fallback={fallback}>
+      <def.Component
+        progress={progress}
+        durationInFrames={durationInFrames}
+        boundaryId={boundaryId}
+        from={from}
+        to={to}
+        fromScene={fromScene}
+        toScene={toScene}
+      />
+    </TransitionErrorBoundary>
+  );
+};
+
+const SceneAtBoundaryFrame: React.FC<{ scene: LockedSceneSpec; boundaryStart: number }> = ({ scene, boundaryStart }) => (
+  <Sequence from={scene.startFrame - boundaryStart} durationInFrames={scene.durationInFrames} layout="absolute-fill">
+    <SceneTimingProvider durationInFrames={scene.durationInFrames}>
+      <SceneContent scene={scene} />
+    </SceneTimingProvider>
+  </Sequence>
+);
+
+export const FallbackBoundaryWipe: React.FC<{ progress: number; from: React.ReactNode; to: React.ReactNode }> = ({ progress, from, to }) => {
+  const reveal = Math.min(100, Math.max(0, progress * 100));
+  return (
+    <AbsoluteFill style={{ background: "#050712", overflow: "hidden" }}>
+      <AbsoluteFill>{from}</AbsoluteFill>
+      <AbsoluteFill style={{ clipPath: "inset(0 " + (100 - reveal).toFixed(2) + "% 0 0)" }}>{to}</AbsoluteFill>
+      <div
+        style={{
+          position: "absolute",
+          top: 0,
+          bottom: 0,
+          left: reveal + "%",
+          width: 10,
+          transform: "translateX(-5px)",
+          background: "linear-gradient(180deg, rgba(255,255,255,0), rgba(255,255,255,0.85), rgba(255,255,255,0))",
+          boxShadow: "0 0 36px rgba(255,255,255,0.55)",
+        }}
+      />
+    </AbsoluteFill>
+  );
+};
+
+function sceneInfo(scene: LockedSceneSpec): BoundarySceneInfo {
+  return {
+    id: scene.id,
+    component: scene.component,
+    headline: scene.headline,
+    narration: scene.narration,
+    props: scene.props ?? {},
+    startFrame: scene.startFrame,
+    durationInFrames: scene.durationInFrames,
+    ...(scene.body !== undefined ? { body: scene.body } : {}),
+    ...(scene.eyebrow !== undefined ? { eyebrow: scene.eyebrow } : {}),
+  };
+}
 
 /**
  * The top-level background WASH (freeform-engine L2). The composition used to
@@ -210,6 +399,22 @@ export const SceneContent: React.FC<{ scene: LockedSceneSpec }> = ({ scene }) =>
  * fallback pixels (no time/random/network), keeping the N16 guard valid.
  */
 class SceneErrorBoundary extends React.Component<
+  { fallback: React.ReactNode; children: React.ReactNode },
+  { failed: boolean }
+> {
+  constructor(props: { fallback: React.ReactNode; children: React.ReactNode }) {
+    super(props);
+    this.state = { failed: false };
+  }
+  static getDerivedStateFromError(): { failed: boolean } {
+    return { failed: true };
+  }
+  render(): React.ReactNode {
+    return this.state.failed ? this.props.fallback : this.props.children;
+  }
+}
+
+class TransitionErrorBoundary extends React.Component<
   { fallback: React.ReactNode; children: React.ReactNode },
   { failed: boolean }
 > {

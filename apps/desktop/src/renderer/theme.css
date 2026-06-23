@@ -33,6 +33,48 @@
   --radius: 12px;
   --radius-sm: 8px;
   --font-sans: "AppSans", "Segoe UI", Inter, system-ui, -apple-system, sans-serif;
+
+  /* --- Glass + aurora surface system --------------------------------------
+   * Frosted-glass / soft-light aesthetic layered on top of the dark base. These
+   * are ADDITIVE tokens — the legacy tokens above stay the source of truth for
+   * color meaning; glass only expresses how a surface catches light. Surfaces
+   * that should stay fully opaque (media wells, video frames) simply don't use
+   * these. All values are dark-safe: a surface using --glass-bg over the aurora
+   * still clears WCAG contrast because the ink is near-white on a near-black base.
+   */
+
+  /* Glass fills: the surface is only lightly tinted so the aurora COLOUR shows
+     through (frosted glass reads as coloured light, not a flat dark panel). Two
+     strengths — most surfaces use the soft one; floating layers (popovers,
+     modals, menus) are a touch more opaque so their text reads crisply over
+     moving content, while still letting the colour leak. */
+  --glass-bg: color-mix(in srgb, var(--card) 42%, transparent);
+  --glass-bg-strong: color-mix(in srgb, var(--popover) 56%, transparent);
+  /* Glass borders: a brighter hairline is what makes a panel read as the edge of
+     lit glass. The "highlight" is the top-edge sheen (inset 1px) that sells it. */
+  --glass-border: color-mix(in srgb, white 18%, transparent);
+  --glass-border-strong: color-mix(in srgb, white 26%, transparent);
+  --glass-highlight: color-mix(in srgb, white 20%, transparent);
+  /* Blur amounts. Kept moderate: enough to defocus the aurora behind a panel
+     without smearing text or taxing low-end GPUs on a full-sidebar blur. */
+  --glass-blur: 18px;
+  --glass-blur-strong: 28px;
+
+  /* Aurora: the soft colour blobs fixed behind the shell. Pushed brighter so the
+     colour is unmistakable — the glass panels pick it up as coloured light hắt-ing
+     through. Reads as ambient glow in the corners, the way real light hits glass. */
+  --aurora-1: color-mix(in srgb, var(--brand) 62%, transparent);
+  --aurora-2: color-mix(in srgb, #7c5cff 56%, transparent);
+  --aurora-3: color-mix(in srgb, #1f8a8a 44%, transparent);
+
+  /* Unified elevation shadows. The existing one-off rgba shadows are migrated to
+     these so depth is consistent across cards, popovers, modals. --shadow-glow
+     is the brand-coloured halo for primary CTAs. */
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.28);
+  --shadow-md: 0 10px 30px rgba(0, 0, 0, 0.36);
+  --shadow-lg: 0 24px 64px rgba(0, 0, 0, 0.55);
+  --shadow-xl: 0 32px 90px rgba(0, 0, 0, 0.66);
+  --shadow-glow: 0 8px 28px color-mix(in srgb, var(--brand) 34%, transparent);
 }
 
 /*
@@ -95,6 +137,30 @@ body {
   text-rendering: optimizeLegibility;
 }
 
+/* Aurora: two big soft colour washes fixed behind everything. They never move
+ * (no animation — ambient light shouldn't draw the eye or burn GPU), sit below
+ * the shell (z-index: 0), and ignore pointer events. The shell floats above
+ * (z-index: 1); frosted panels blur them so the colour reads as light hắt-ing
+ * through glass rather than as flat decoration. */
+body::before,
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+body::before {
+  background:
+    radial-gradient(60% 50% at 8% -4%, var(--aurora-1), transparent 60%),
+    radial-gradient(45% 42% at 92% 8%, var(--aurora-2), transparent 62%);
+}
+body::after {
+  background:
+    radial-gradient(55% 50% at 78% 108%, var(--aurora-2), transparent 60%),
+    radial-gradient(40% 38% at 6% 96%, var(--aurora-3), transparent 64%);
+}
+
 button {
   font-family: inherit;
 }
@@ -110,18 +176,20 @@ button {
   color: #fff;
 }
 
-/* Quiet, dark scrollbars. */
+/* Quiet, dark scrollbars with a subtle lift on hover. */
 ::-webkit-scrollbar {
   width: 10px;
   height: 10px;
 }
 ::-webkit-scrollbar-thumb {
-  background: #2a2a2a;
+  background: linear-gradient(180deg, #2f2f33, #26262a);
   border-radius: 8px;
-  border: 2px solid var(--background);
+  border: 2px solid transparent;
+  background-clip: padding-box;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #383838;
+  background: linear-gradient(180deg, #3d3d42, #313136);
+  background-clip: padding-box;
 }
 
 /* Native form controls inherit the dark theme. */
@@ -135,6 +203,8 @@ select {
 /* --- Layout + component classes ---------------------------------------- */
 
 .ns-shell {
+  position: relative;
+  z-index: 1;
   display: flex;
   height: 100vh;
   overflow: hidden;
@@ -142,6 +212,8 @@ select {
 .ns-main {
   flex: 1;
   overflow-y: auto;
+  /* Transparent so the aurora shows through; frosted panels sit on top of it. */
+  background: transparent;
 }
 .ns-content {
   max-width: 1080px;
@@ -153,8 +225,12 @@ select {
 .ns-sidebar {
   width: 248px;
   flex-shrink: 0;
-  background: var(--sidebar);
-  border-right: 1px solid var(--sidebar-border);
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  /* The border + top sheen sell the glass edge against the aurora behind. */
+  border-right: 1px solid var(--glass-border);
+  box-shadow: inset 1px 0 0 var(--glass-highlight);
   display: flex;
   flex-direction: column;
   padding: 16px 12px;
@@ -188,16 +264,17 @@ select {
   font-size: 14px;
   cursor: pointer;
   text-align: left;
-  transition: background 0.12s, color 0.12s;
+  transition: background 0.18s ease, color 0.18s ease;
 }
 .ns-nav:hover {
-  background: var(--card);
+  background: var(--glass-bg);
   color: var(--foreground);
 }
 .ns-nav.active {
-  background: var(--card);
+  background: var(--glass-bg-strong);
   color: var(--foreground);
   font-weight: 600;
+  box-shadow: inset 0 0 0 1px var(--glass-border);
 }
 .ns-account {
   margin-top: auto;
@@ -206,17 +283,17 @@ select {
   gap: 11px;
   width: 100%;
   text-align: left;
-  border: 1px solid var(--border);
+  border: 1px solid var(--glass-border);
   border-radius: var(--radius-sm);
   padding: 10px 12px;
-  background: var(--card);
+  background: var(--glass-bg);
   color: var(--foreground);
   cursor: pointer;
-  transition: background 0.12s, border-color 0.12s;
+  transition: background 0.18s ease, border-color 0.18s ease;
 }
 .ns-account:hover {
-  background: var(--card-hover);
-  border-color: rgba(255, 255, 255, 0.18);
+  background: var(--glass-bg-strong);
+  border-color: var(--glass-border-strong);
 }
 .ns-account-avatar {
   position: relative;
@@ -270,16 +347,21 @@ select {
   gap: 8px;
   padding: 10px 16px;
   border-radius: var(--radius-sm);
-  border: 1px solid var(--border);
-  background: transparent;
+  border: 1px solid var(--glass-border);
+  background: var(--glass-bg);
   color: var(--foreground);
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
-  transition: background 0.12s, border-color 0.12s, opacity 0.12s;
+  box-shadow: inset 0 1px 0 var(--glass-highlight);
+  transition: background 0.18s ease, border-color 0.18s ease, transform 0.18s ease, opacity 0.18s ease;
 }
 .ns-btn:hover {
-  background: var(--card-hover);
+  background: var(--glass-bg-strong);
+  border-color: var(--glass-border-strong);
+}
+.ns-btn:active {
+  transform: translateY(1px);
 }
 .ns-btn-primary {
   background: var(--brand);
@@ -288,6 +370,7 @@ select {
 }
 .ns-btn-primary:hover {
   background: var(--brand-hover);
+  border-color: transparent;
 }
 .ns-btn:disabled {
   opacity: 0.45;
@@ -305,10 +388,14 @@ select {
 
 /* Cards */
 .ns-card {
-  background: var(--card);
-  border: 1px solid var(--border);
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
+  /* Top-edge sheen is what makes a panel read as lit glass, not flat. */
+  box-shadow: inset 0 1px 0 var(--glass-highlight), var(--shadow-sm);
   border-radius: var(--radius);
-  transition: transform 0.12s, border-color 0.12s, background 0.12s;
+  transition: transform 0.18s ease, border-color 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;
 }
 .ns-project {
   position: relative;
@@ -320,21 +407,22 @@ select {
 }
 .ns-project:hover,
 .ns-project:focus-within {
-  transform: translateY(-2px);
-  border-color: rgba(255, 255, 255, 0.22);
-  background: var(--card-hover);
+  transform: translateY(-3px);
+  border-color: var(--glass-border-strong);
+  background: var(--glass-bg-strong);
+  box-shadow: inset 0 1px 0 var(--glass-highlight), var(--shadow-md);
 }
 
 /* Inputs */
 .ns-input {
-  background: var(--input);
-  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--input) 88%, transparent);
+  border: 1px solid var(--glass-border);
   border-radius: var(--radius-sm);
   color: var(--foreground);
   padding: 12px 14px;
   font-size: 14px;
   outline: none;
-  transition: border-color 0.12s, box-shadow 0.12s;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
 }
 /* Textareas: allow only VERTICAL resize (no dragging the handle off-screen
  * horizontally) and cap the height so it can't grow past the viewport. */
@@ -345,7 +433,7 @@ textarea.ns-input {
 }
 .ns-input:focus {
   border-color: var(--ring);
-  box-shadow: 0 0 0 3px rgba(59, 111, 224, 0.25);
+  box-shadow: 0 0 0 3px rgba(59, 111, 224, 0.22), 0 0 18px rgba(59, 111, 224, 0.18);
 }
 /* Compact numeric stepper (NumberRow): hide the native spin buttons so the
  * value sits truly centred in the small box instead of being pushed left by
@@ -367,13 +455,15 @@ textarea.ns-input {
   margin-bottom: 32px;
   padding: 28px;
   background:
-    radial-gradient(circle at 8% 0%, color-mix(in srgb, var(--brand) 14%, transparent), transparent 32%),
-    linear-gradient(180deg, #181a21, var(--card));
+    radial-gradient(circle at 8% 0%, color-mix(in srgb, var(--brand) 18%, transparent), transparent 32%),
+    linear-gradient(180deg, color-mix(in srgb, #181a21 80%, transparent), var(--glass-bg));
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
   transition: border-color 0.18s ease, box-shadow 0.18s ease;
 }
 .ns-create-card:focus-within {
   border-color: color-mix(in srgb, var(--brand) 45%, var(--border));
-  box-shadow: 0 18px 55px rgba(0, 0, 0, 0.22);
+  box-shadow: inset 0 1px 0 var(--glass-highlight), 0 18px 55px rgba(0, 0, 0, 0.3), 0 0 40px rgba(59, 111, 224, 0.12);
 }
 .ns-create-card.is-dragging {
   outline: 2px dashed var(--brand);
@@ -389,19 +479,21 @@ textarea.ns-input {
   line-height: 1.35;
 }
 
-/* Unified composer: textarea and controls share one surface; focus belongs to
+/* Unified composer: textarea and controls share one surface; focus belongs for
  * the full surface rather than to a small input rectangle. */
 .ns-composer {
   border: 1px solid color-mix(in srgb, var(--border) 86%, white);
   border-radius: 16px;
-  background: color-mix(in srgb, var(--input) 92%, transparent);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.025), 0 10px 30px rgba(0, 0, 0, 0.12);
+  background: color-mix(in srgb, var(--input) 78%, transparent);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 10px 30px rgba(0, 0, 0, 0.22);
   transition: border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
 }
 .ns-composer:focus-within {
   border-color: var(--ring);
-  background: color-mix(in srgb, var(--input) 97%, var(--brand));
-  box-shadow: 0 0 0 3px rgba(59, 111, 224, 0.16), 0 16px 38px rgba(0, 0, 0, 0.2);
+  background: color-mix(in srgb, var(--input) 84%, var(--brand));
+  box-shadow: 0 0 0 3px rgba(59, 111, 224, 0.18), 0 16px 38px rgba(0, 0, 0, 0.28), 0 0 30px rgba(59, 111, 224, 0.14);
 }
 .ns-composer-input {
   display: block;
@@ -433,15 +525,17 @@ textarea.ns-input {
   width: 36px;
   height: 36px;
   border-radius: 999px;
-  border: 1px solid var(--border);
-  background: color-mix(in srgb, var(--card-hover) 48%, transparent);
+  border: 1px solid var(--glass-border);
+  background: var(--glass-bg);
   color: var(--foreground);
   cursor: pointer;
-  transition: background 0.12s, border-color 0.12s;
+  box-shadow: inset 0 1px 0 var(--glass-highlight);
+  transition: background 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
 }
 .ns-icon-btn:hover {
   border-color: color-mix(in srgb, var(--brand) 45%, var(--border));
-  background: var(--card-hover);
+  background: var(--glass-bg-strong);
+  transform: translateY(-1px);
 }
 
 /* Delivery-knob chips on the create composer (format / duration / title-language),
@@ -459,22 +553,24 @@ textarea.ns-input {
   gap: 6px;
   height: 36px;
   padding: 0 12px;
-  background: color-mix(in srgb, var(--card-hover) 35%, transparent);
-  border: 1px solid var(--border);
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
   border-radius: 999px;
   color: var(--foreground);
   font-size: 13px;
   cursor: pointer;
   white-space: nowrap;
-  transition: background 0.12s, border-color 0.12s;
+  box-shadow: inset 0 1px 0 var(--glass-highlight);
+  transition: background 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
 }
 .ns-knob-chip:hover {
   border-color: color-mix(in srgb, var(--brand) 30%, var(--border));
-  background: var(--card-hover);
+  background: var(--glass-bg-strong);
+  transform: translateY(-1px);
 }
 .ns-knob-chip.is-open {
   border-color: var(--brand);
-  background: var(--card-hover);
+  background: var(--glass-bg-strong);
 }
 .ns-knob-pop {
   position: absolute;
@@ -486,10 +582,12 @@ textarea.ns-input {
   gap: 2px;
   min-width: 168px;
   padding: 6px;
-  background: var(--card);
-  border: 1px solid var(--border);
+  background: var(--glass-bg-strong);
+  backdrop-filter: blur(var(--glass-blur-strong));
+  -webkit-backdrop-filter: blur(var(--glass-blur-strong));
+  border: 1px solid var(--glass-border-strong);
   border-radius: var(--radius-sm);
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+  box-shadow: inset 0 1px 0 var(--glass-highlight), var(--shadow-md);
 }
 .ns-knob-pop-label {
   padding: 4px 8px 6px;
@@ -510,10 +608,10 @@ textarea.ns-input {
   font-size: 13px;
   text-align: left;
   cursor: pointer;
-  transition: background 0.12s;
+  transition: background 0.18s ease;
 }
 .ns-knob-opt:hover {
-  background: var(--card-hover);
+  background: var(--glass-bg);
 }
 .ns-knob-opt.is-active {
   color: var(--brand);
@@ -546,7 +644,9 @@ textarea.ns-input {
   left: calc(100% + 8px);
   width: max-content;
   max-width: 240px;
-  background: var(--popover);
+  background: var(--glass-bg-strong);
+  backdrop-filter: blur(var(--glass-blur-strong));
+  -webkit-backdrop-filter: blur(var(--glass-blur-strong));
   color: var(--foreground);
   border: 1px solid var(--warn);
   border-radius: var(--radius-sm);
@@ -556,11 +656,11 @@ textarea.ns-input {
   line-height: 1.5;
   text-align: left;
   white-space: normal;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  box-shadow: inset 0 1px 0 var(--glass-highlight), var(--shadow-md);
   opacity: 0;
   pointer-events: none;
   transform: translateY(-50%) translateX(-4px);
-  transition: opacity 0.12s, transform 0.12s;
+  transition: opacity 0.18s ease, transform 0.18s ease;
   z-index: 40;
 }
 .ns-warn-hint:hover .ns-warn-tip,
@@ -584,17 +684,20 @@ textarea.ns-input {
   justify-content: center;
   padding: 32px;
   background: rgba(0, 0, 0, 0.62);
-  backdrop-filter: blur(2px);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
   animation: ns-modal-fade 0.14s ease-out;
 }
 .ns-modal {
   position: relative;
   display: flex;
   flex-direction: column;
-  background: var(--card);
-  border: 1px solid var(--border);
+  background: var(--glass-bg-strong);
+  backdrop-filter: blur(var(--glass-blur-strong));
+  -webkit-backdrop-filter: blur(var(--glass-blur-strong));
+  border: 1px solid var(--glass-border-strong);
   border-radius: var(--radius);
-  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
+  box-shadow: inset 0 1px 0 var(--glass-highlight), var(--shadow-lg);
   max-height: 88vh;
   overflow: hidden;
   animation: ns-modal-rise 0.16s ease-out;
@@ -616,7 +719,7 @@ textarea.ns-input {
   justify-content: space-between;
   gap: 16px;
   padding: 20px 22px 16px;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--glass-border);
 }
 .ns-modal-title {
   margin: 0;
@@ -644,15 +747,16 @@ textarea.ns-input {
   padding: 16px 14px 14px;
   border-radius: 10px;
   border: 2px solid transparent;
-  background: var(--card-hover);
+  background: var(--glass-bg);
   color: var(--foreground);
   cursor: pointer;
   text-align: center;
-  transition: border-color 0.12s, transform 0.12s;
+  box-shadow: inset 0 1px 0 var(--glass-highlight);
+  transition: border-color 0.18s ease, transform 0.18s ease;
 }
 .ns-style-tile:hover {
   transform: translateY(-2px);
-  border-color: var(--border);
+  border-color: var(--glass-border-strong);
 }
 .ns-style-tile.is-active {
   border-color: var(--brand);
@@ -694,16 +798,17 @@ textarea.ns-input {
   font-size: 14px;
   cursor: pointer;
   text-align: left;
-  transition: background 0.12s, color 0.12s;
+  transition: background 0.18s ease, color 0.18s ease;
 }
 .ns-settings-tab:hover {
-  background: var(--card);
+  background: var(--glass-bg);
   color: var(--foreground);
 }
 .ns-settings-tab.active {
-  background: var(--card);
+  background: var(--glass-bg-strong);
   color: var(--foreground);
   font-weight: 600;
+  box-shadow: inset 0 0 0 1px var(--glass-border);
 }
 .ns-settings-save {
   align-self: center;
@@ -730,6 +835,7 @@ textarea.ns-input {
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
+  transition: color 0.18s ease;
 }
 .ns-secret-toggle:hover,
 .ns-secret-toggle:focus-visible {
@@ -755,9 +861,9 @@ textarea.ns-input {
   width: 40px;
   height: 22px;
   border-radius: 999px;
-  background: var(--muted);
-  border: 1px solid var(--border);
-  transition: background 0.15s;
+  background: color-mix(in srgb, var(--input) 80%, transparent);
+  border: 1px solid var(--glass-border);
+  transition: background 0.18s ease, box-shadow 0.18s ease;
 }
 .ns-switch-track::after {
   content: "";
@@ -769,11 +875,12 @@ textarea.ns-input {
   border-radius: 999px;
   background: #fff;
   transform: translateY(-50%);
-  transition: transform 0.15s;
+  transition: transform 0.18s ease;
 }
 .ns-switch input:checked + .ns-switch-track {
   background: var(--brand);
   border-color: transparent;
+  box-shadow: 0 0 14px rgba(59, 111, 224, 0.45);
 }
 .ns-switch input:checked + .ns-switch-track::after {
   transform: translateY(-50%) translateX(18px);
@@ -792,9 +899,10 @@ textarea.ns-input {
   align-items: center;
   gap: 14px;
   padding: 14px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--glass-border);
   border-radius: var(--radius-sm);
-  background: var(--input);
+  background: color-mix(in srgb, var(--input) 72%, transparent);
+  box-shadow: inset 0 1px 0 var(--glass-highlight);
 }
 .ns-acct-avatar {
   position: relative;
@@ -821,7 +929,7 @@ textarea.ns-input {
   height: 12px;
   border-radius: 999px;
   background: var(--danger);
-  border: 2.5px solid var(--input);
+  border: 2.5px solid var(--glass-bg);
 }
 .ns-acct-status.is-live {
   background: var(--good);
@@ -885,11 +993,11 @@ textarea.ns-input {
 
 /* Storyboard slide thumbnail: subtle lift on hover for a Canva-like rail. */
 .ns-thumb {
-  transition: transform 0.12s, box-shadow 0.12s, border-color 0.12s;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
 }
 .ns-thumb:hover {
   transform: translateY(-1px);
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5);
 }
 
 @keyframes ns-spin {
@@ -933,7 +1041,10 @@ textarea.ns-input {
   min-height: 40px;
   padding: 0 18px;
   border-radius: 12px;
-  box-shadow: 0 7px 20px color-mix(in srgb, var(--brand) 22%, transparent);
+  box-shadow: var(--shadow-glow);
+}
+.ns-create-submit:hover {
+  box-shadow: 0 10px 34px color-mix(in srgb, var(--brand) 42%, transparent);
 }
 .ns-create-submit:disabled {
   box-shadow: none;
@@ -969,11 +1080,13 @@ textarea.ns-input {
   position: relative;
   pointer-events: none;
   aspect-ratio: 16 / 10;
+  /* Kept dark: this is a media well holding a thumbnail. Frosting it would
+   * wash out the image and fight the aurora behind the card. */
   background: #101216;
   display: grid;
   place-items: center;
   color: #3a3f49;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--glass-border);
   overflow: hidden;
 }
 .ns-project-media {
@@ -1014,7 +1127,7 @@ textarea.ns-input {
   gap: 6px;
   opacity: 0;
   transform: translateY(-2px);
-  transition: opacity 0.12s, transform 0.12s;
+  transition: opacity 0.18s ease, transform 0.18s ease;
 }
 .ns-project:hover .ns-project-actions,
 .ns-project:focus-within .ns-project-actions {
@@ -1031,11 +1144,13 @@ textarea.ns-input {
   border: 1px solid rgba(255, 255, 255, 0.16);
   color: #fff;
   cursor: pointer;
-  backdrop-filter: blur(4px);
-  transition: background 0.12s, color 0.12s;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  transition: background 0.18s ease, color 0.18s ease, border-color 0.18s ease;
 }
 .ns-project-action:hover {
   background: rgba(0, 0, 0, 0.78);
+  border-color: rgba(255, 255, 255, 0.28);
 }
 .ns-project-action.danger:hover {
   color: var(--danger);
@@ -1080,7 +1195,13 @@ textarea.ns-input {
   align-items: center;
   gap: 10px;
   padding: 12px 18px;
-  border-bottom: 1px solid var(--border);
+  /* Frosted so the storyboard toolbar reads as a floating control bar over the
+   * aurora, instead of transparently showing the body wash behind the buttons. */
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border-bottom: 1px solid var(--glass-border);
+  box-shadow: inset 0 -1px 0 var(--glass-highlight);
   flex-shrink: 0;
 }
 .ns-story-header .ns-btn,
@@ -1096,8 +1217,9 @@ textarea.ns-input {
 }
 .ns-story-edit-toggle.is-active {
   border-color: color-mix(in srgb, var(--brand) 58%, var(--border));
-  background: color-mix(in srgb, var(--brand) 14%, transparent);
+  background: color-mix(in srgb, var(--brand) 16%, transparent);
   color: color-mix(in srgb, var(--brand) 78%, white);
+  box-shadow: inset 0 1px 0 var(--glass-highlight), 0 0 16px rgba(59, 111, 224, 0.18);
 }
 
 /* Background music is one compact compound control: selection opens downward;
@@ -1113,9 +1235,10 @@ textarea.ns-input {
   display: inline-flex;
   height: 36px;
   overflow: hidden;
-  border: 1px solid var(--border);
+  border: 1px solid var(--glass-border);
   border-radius: var(--radius-sm);
-  background: transparent;
+  background: var(--glass-bg);
+  box-shadow: inset 0 1px 0 var(--glass-highlight);
 }
 .ns-bgm-trigger,
 .ns-bgm-add {
@@ -1127,6 +1250,7 @@ textarea.ns-input {
   color: var(--foreground);
   cursor: pointer;
   font: inherit;
+  transition: background 0.18s ease, color 0.18s ease;
 }
 .ns-bgm-trigger {
   min-width: 0;
@@ -1137,13 +1261,13 @@ textarea.ns-input {
 .ns-bgm-add {
   width: 35px;
   flex-shrink: 0;
-  border-left: 1px solid var(--border);
+  border-left: 1px solid var(--glass-border);
   color: var(--muted-foreground);
 }
 .ns-bgm-trigger:hover,
 .ns-bgm-add:hover,
 .ns-bgm-trigger[aria-expanded="true"] {
-  background: var(--card-hover);
+  background: var(--glass-bg-strong);
   color: var(--foreground);
 }
 .ns-bgm-trigger:disabled,
@@ -1185,10 +1309,12 @@ textarea.ns-input {
   max-height: min(360px, calc(100vh - 96px));
   overflow-y: auto;
   padding: 4px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--glass-border-strong);
   border-radius: var(--radius-sm);
-  background: var(--popover);
-  box-shadow: 0 16px 42px rgba(0, 0, 0, 0.46);
+  background: var(--glass-bg-strong);
+  backdrop-filter: blur(var(--glass-blur-strong));
+  -webkit-backdrop-filter: blur(var(--glass-blur-strong));
+  box-shadow: inset 0 1px 0 var(--glass-highlight), var(--shadow-lg);
 }
 .ns-bgm-row {
   display: flex;
@@ -1198,7 +1324,7 @@ textarea.ns-input {
 }
 .ns-bgm-row:hover,
 .ns-bgm-row:focus-within {
-  background: var(--card-hover);
+  background: var(--glass-bg);
 }
 .ns-bgm-preview,
 .ns-bgm-remove,
@@ -1321,16 +1447,17 @@ textarea.ns-input {
   height: 30px;
   flex-shrink: 0;
   place-items: center;
-  border: 1px solid var(--border);
+  border: 1px solid var(--glass-border);
   border-radius: 8px;
-  background: transparent;
+  background: var(--glass-bg);
   color: var(--muted-foreground);
   cursor: pointer;
+  transition: background 0.18s ease, border-color 0.18s ease, color 0.18s ease;
 }
 .ns-story-edit-close:hover,
 .ns-story-edit-close:focus-visible {
   border-color: color-mix(in srgb, var(--brand) 42%, var(--border));
-  background: var(--card-hover);
+  background: var(--glass-bg-strong);
   color: var(--foreground);
 }
 .ns-story-edit-close:focus-visible {
@@ -1342,13 +1469,15 @@ textarea.ns-input {
   flex-direction: column;
   gap: 10px;
   padding: 12px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--glass-border);
   border-radius: 12px;
-  background: color-mix(in srgb, var(--input) 72%, transparent);
+  background: color-mix(in srgb, var(--input) 62%, transparent);
+  box-shadow: inset 0 1px 0 var(--glass-highlight);
 }
 .ns-edit-scope.is-scene {
-  border-color: color-mix(in srgb, var(--brand) 38%, var(--border));
-  background: var(--input);
+  border-color: color-mix(in srgb, var(--brand) 40%, var(--border));
+  background: color-mix(in srgb, var(--brand) 10%, var(--input));
+  box-shadow: inset 0 1px 0 var(--glass-highlight), 0 0 18px rgba(59, 111, 224, 0.1);
 }
 .ns-edit-scope-heading {
   display: flex;
@@ -1390,8 +1519,14 @@ textarea.ns-input {
   width: 100%;
   resize: none;
   border-radius: 9px;
-  background: color-mix(in srgb, var(--input) 88%, black);
+  border: 1px solid var(--glass-border);
+  background: color-mix(in srgb, var(--input) 86%, black);
   line-height: 1.5;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
+}
+.ns-edit-textarea:focus {
+  border-color: var(--ring);
+  box-shadow: 0 0 0 3px rgba(59, 111, 224, 0.18);
 }
 .ns-edit-scope.is-scene .ns-edit-textarea {
   min-height: 132px;
@@ -1447,9 +1582,11 @@ textarea.ns-input {
   transform: translateX(-50%) translateY(4px);
   width: max-content;
   max-width: 260px;
-  background: var(--popover);
+  background: var(--glass-bg-strong);
+  backdrop-filter: blur(var(--glass-blur-strong));
+  -webkit-backdrop-filter: blur(var(--glass-blur-strong));
   color: var(--foreground);
-  border: 1px solid var(--border);
+  border: 1px solid var(--glass-border-strong);
   border-radius: var(--radius-sm);
   padding: 8px 11px;
   font-size: 12px;
@@ -1457,10 +1594,10 @@ textarea.ns-input {
   line-height: 1.5;
   text-align: left;
   white-space: normal;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  box-shadow: inset 0 1px 0 var(--glass-highlight), var(--shadow-md);
   opacity: 0;
   pointer-events: none;
-  transition: opacity 0.12s, transform 0.12s;
+  transition: opacity 0.18s ease, transform 0.18s ease;
   z-index: 30;
 }
 .ns-info:hover .ns-info-tip,
@@ -1500,8 +1637,8 @@ textarea.ns-input {
   width: 100%;
   aspect-ratio: 9 / 16;
   border-radius: var(--radius);
-  border: 1px solid var(--border);
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--shadow-lg);
   background: #0c0e12;
   object-fit: contain;
 }
@@ -1594,6 +1731,7 @@ textarea.ns-input {
   background: #0c0e12;
   color: white;
   cursor: zoom-in;
+  box-shadow: var(--shadow-md);
 }
 .ns-cover-preview img {
   display: block;
@@ -1635,7 +1773,8 @@ textarea.ns-input {
   border-color: rgba(255, 255, 255, 0.2);
   background: rgba(0, 0, 0, 0.7);
   color: white;
-  backdrop-filter: blur(4px);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
 }
 .ns-toast-viewport {
   position: fixed;
@@ -1650,11 +1789,12 @@ textarea.ns-input {
 .ns-toast {
   pointer-events: auto;
   padding: 13px 14px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--glass-border-strong);
   border-radius: 14px;
-  background: color-mix(in srgb, var(--popover) 94%, transparent);
-  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.36);
-  backdrop-filter: blur(14px);
+  background: color-mix(in srgb, var(--popover) 82%, transparent);
+  box-shadow: inset 0 1px 0 var(--glass-highlight), var(--shadow-lg);
+  backdrop-filter: blur(var(--glass-blur-strong));
+  -webkit-backdrop-filter: blur(var(--glass-blur-strong));
 }
 .ns-toast.is-success {
   border-color: color-mix(in srgb, var(--good) 55%, var(--border));
@@ -1748,10 +1888,10 @@ textarea.ns-input {
   max-width: min(92vw, 1280px);
   max-height: 90vh;
   padding: 12px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--glass-border-strong);
   border-radius: var(--radius);
   background: #090b0f;
-  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.72);
+  box-shadow: var(--shadow-xl);
 }
 .ns-cover-lightbox-card img {
   display: block;
@@ -1792,9 +1932,11 @@ textarea.ns-input {
   align-items: center;
   gap: 10px;
   padding: 11px 13px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--glass-border);
   border-radius: var(--radius-sm);
-  background: var(--input);
+  background: color-mix(in srgb, var(--input) 72%, transparent);
+  box-shadow: inset 0 1px 0 var(--glass-highlight);
+}
 }
 .ns-meta-value {
   flex: 1;
@@ -1815,17 +1957,126 @@ textarea.ns-input {
   display: grid;
   place-items: center;
   border-radius: var(--radius-sm);
-  border: 1px solid var(--border);
-  background: transparent;
+  border: 1px solid var(--glass-border);
+  background: var(--glass-bg);
   color: var(--muted-foreground);
   cursor: pointer;
-  transition: background 0.12s, color 0.12s, border-color 0.12s;
+  transition: background 0.18s ease, color 0.18s ease, border-color 0.18s ease;
 }
 .ns-copy-btn:hover {
-  background: var(--card-hover);
+  background: var(--glass-bg-strong);
   color: var(--foreground);
 }
 .ns-copy-btn.is-copied {
   color: var(--good);
   border-color: var(--good);
+}
+
+/* --- Storyboard: segmented toggle + scene rail + big preview ----------------
+ * Promoted from per-element inline styles so the storyboard reads consistently
+ * with the frosted language (a glass track + brand-filled active segment, and a
+ * media-well big preview that stays dark but picks up the soft shadow tokens). */
+.ns-seg {
+  display: inline-flex;
+  border-radius: 8px;
+  border: 1px solid var(--glass-border);
+  overflow: hidden;
+  background: var(--glass-bg);
+  box-shadow: inset 0 1px 0 var(--glass-highlight);
+}
+.ns-seg-btn {
+  border: none;
+  padding: 5px 14px;
+  font-size: 13px;
+  line-height: 1.4;
+  cursor: pointer;
+  background: transparent;
+  color: var(--muted-foreground);
+  font-weight: 500;
+  transition: background 0.18s ease, color 0.18s ease;
+}
+.ns-seg-btn.is-active {
+  background: var(--brand);
+  color: #fff;
+  font-weight: 700;
+}
+/* The slide rail's per-scene thumbnail button. A media well (stays dark) with a
+ * brand ring when selected + a soft glow so the active scene reads as "live". */
+.ns-scene-thumb {
+  position: relative;
+  flex-shrink: 0;
+  padding: 0;
+  cursor: pointer;
+  border-radius: 8px;
+  overflow: hidden;
+  aspect-ratio: 9 / 16;
+  width: 100%;
+  background: #101216;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+}
+.ns-scene-thumb.is-active {
+  box-shadow: 0 0 0 2px var(--brand), 0 0 16px rgba(59, 111, 224, 0.35);
+}
+.ns-scene-thumb-num {
+  position: absolute;
+  left: 4px;
+  top: 4px;
+  font-size: 10px;
+  font-weight: 800;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.6);
+  border-radius: 5px;
+  padding: 0 5px;
+  line-height: 15px;
+}
+/* The big 9:16 preview frame in the storyboard (draft video or scene still). A
+ * dark media well so the video/still pops, with the unified soft shadow + a glass
+ * hairline edge instead of a flat border. */
+.ns-story-frame {
+  position: relative;
+  height: 100%;
+  aspect-ratio: 9 / 16;
+  max-width: 100%;
+  border-radius: 12px;
+  border: 1px solid var(--glass-border);
+  overflow: hidden;
+  box-shadow: var(--shadow-lg);
+  background: #0c0e12;
+  display: grid;
+  place-items: center;
+  color: #3a3f49;
+}
+.ns-story-video {
+  height: 100%;
+  max-height: 100%;
+  aspect-ratio: 9 / 16;
+  max-width: 100%;
+  border-radius: 12px;
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--shadow-lg);
+  background: #0c0e12;
+  object-fit: contain;
+}
+
+/* --- Connect-prompt banner (Home, when AI is not ready) ---------------------
+ * A glass brand-tinted banner so the "connect your AI account" nudge reads as
+ * part of the surface language, not a flat coloured box. */
+.ns-connect-banner {
+  padding: 16px;
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: color-mix(in srgb, var(--brand) 14%, var(--glass-bg));
+  border: 1px solid color-mix(in srgb, var(--brand) 40%, var(--glass-border));
+  box-shadow: inset 0 1px 0 var(--glass-highlight), 0 0 24px rgba(59, 111, 224, 0.1);
+}
+
+/* --- Status pill glass + publish done chip (override the inline color-mix) ---
+ * Promoted from primitives.tsx inline style so the pill catches the glass edge
+ * like every other surface. */
+.ns-pill {
+  background: color-mix(in srgb, transparent 84%, currentColor);
+  box-shadow: inset 0 1px 0 var(--glass-highlight);
 }

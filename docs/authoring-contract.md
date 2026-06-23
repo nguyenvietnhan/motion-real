@@ -305,8 +305,24 @@ not just while iterating:
 
 ## Transitions & timing
 
-- Set `transitionToNext` per scene in the manifest (`slide` default; `fade` for
-  recap/CTA). The lock makes the transition overlap land on a silent breath gap
-  so no speech is clipped — you do not manage timing yourself.
+- For new projects, do **not** put transition choices in scene manifest JSON.
+  After scene authoring and hidden scene refinement settle the final source, the
+  desktop backend first asks for director concepts, then asks the model to write
+  one separate `.tsx` transition module per adjacent boundary, with ids like
+  `scene-01-to-scene-02`. Each boundary is a separate retry/admission transaction;
+  failure cannot discard the valid script or sibling transitions. Each module
+  registers via `registerTransition` and receives both rendered layers (`from`,
+  `to`) plus scene metadata.
+- Transition quality is checked from rendered 25%/50%/75% overlap samples. Vision
+  QA repairs only high-confidence structural defects (blank/dark flash, random
+  full-frame color, broken geometry, missing endpoint layer), not aesthetic taste.
+  A missing/failed module uses the runtime's deterministic wipe fallback. This is
+  failure containment, never the normal creative default.
+- Editing a scene regenerates only boundaries touching that scene.
+- Legacy manifests may still contain `transitionToNext` (`slide`/`fade`/`wipe`/
+  `clockWipe`/`zoom`); those are kept only for old projects with no authored
+  boundary-transition modules.
+- The lock makes the transition overlap land on a silent breath gap so no speech
+  is clipped — authored transition code does not manage timing itself.
 - Real timing follows the measured Vietnamese TTS; a longer render than any
   target is fine when the voice is complete and unrushed.

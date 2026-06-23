@@ -313,15 +313,11 @@ export const StoryboardView: React.FC<{
         {/* Slide rail */}
         <div style={{ width: 88, flexShrink: 0, display: "flex", flexDirection: "column", gap: 8, overflowY: "auto", paddingRight: 4 }}>
           {scenes.map((s, i) => (
-            <button key={s.sceneId} onClick={() => { setSelected(i); setShowStill(true); }} title={`Cảnh ${i + 1}`} className="ns-thumb"
-              style={{
-                position: "relative", flexShrink: 0, padding: 0, cursor: "pointer", borderRadius: 8, overflow: "hidden",
-                border: i === idx ? "2px solid var(--brand)" : "1px solid var(--border)",
-                background: s.stillPath ? `center/cover no-repeat #0c0e12 url(${s.stillPath})` : "#101216",
-                aspectRatio: "9 / 16", width: "100%",
-              }}>
-              <span style={{ position: "absolute", left: 4, top: 4, fontSize: 10, fontWeight: 800, color: "#fff",
-                background: "rgba(0,0,0,0.6)", borderRadius: 5, padding: "0 5px", lineHeight: "15px" }}>{i + 1}</span>
+            <button key={s.sceneId} onClick={() => { setSelected(i); setShowStill(true); }} title={`Cảnh ${i + 1}`}
+              className={`ns-thumb ns-scene-thumb${i === idx ? " is-active" : ""}`}
+              style={{ border: i === idx ? "2px solid var(--brand)" : "1px solid var(--border)",
+                background: s.stillPath ? `center/cover no-repeat #0c0e12 url(${s.stillPath})` : "#101216" }}>
+              <span className="ns-scene-thumb-num">{i + 1}</span>
               {hasEdit(s.sceneId) && (
                 <span title="Đã ghi yêu cầu chỉnh sửa" style={{ position: "absolute", right: 4, top: 4, width: 15, height: 15,
                   display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, color: "#fff",
@@ -341,14 +337,11 @@ export const StoryboardView: React.FC<{
             <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
               {/* Minimal segmented toggle: one bordered track, the active segment
                   filled. No icons/emoji — the labels alone carry the purpose. */}
-              <div style={{ display: "inline-flex", borderRadius: 8, border: "1px solid var(--border)", overflow: "hidden", background: "var(--muted)" }}>
+              <div className="ns-seg">
                 {[{ still: false, label: "Video nháp" }, { still: true, label: `Ảnh cảnh ${idx + 1}` }].map((seg) => {
                   const active = showStill === seg.still;
                   return (
-                    <button key={seg.label} onClick={() => setShowStill(seg.still)}
-                      style={{ border: "none", padding: "5px 14px", fontSize: 13, cursor: "pointer", lineHeight: 1.4,
-                        background: active ? "var(--brand)" : "transparent",
-                        color: active ? "#fff" : "var(--muted-foreground)", fontWeight: active ? 700 : 500 }}>
+                    <button key={seg.label} className={`ns-seg-btn${active ? " is-active" : ""}`} onClick={() => setShowStill(seg.still)}>
                       {seg.label}
                     </button>
                   );
@@ -364,15 +357,10 @@ export const StoryboardView: React.FC<{
               would balloon past the still. Pinning bounds the cell to the container. */}
           <div style={{ flex: 1, minHeight: 0, display: "grid", gridTemplateRows: "minmax(0, 1fr)", gridTemplateColumns: "minmax(0, 1fr)", placeItems: "center" }}>
             {draftPath && !showStill ? (
-              <video src={draftPath} controls style={{ height: "100%", maxHeight: "100%", aspectRatio: "9 / 16", maxWidth: "100%",
-                borderRadius: 12, border: "1px solid var(--border)", boxShadow: "0 12px 40px rgba(0,0,0,0.5)",
-                background: "#0c0e12", objectFit: "contain" }} />
+              <video src={draftPath} controls className="ns-story-video" />
             ) : (
-              <div style={{ height: "100%", aspectRatio: "9 / 16", maxWidth: "100%",
-                borderRadius: 12, border: "1px solid var(--border)", overflow: "hidden",
-                boxShadow: "0 12px 40px rgba(0,0,0,0.5)",
-                background: current?.stillPath ? `center/contain no-repeat #0c0e12 url(${current.stillPath})` : "#101216",
-                display: "grid", placeItems: "center", color: "#3a3f49" }}>
+              <div className="ns-story-frame"
+                style={{ background: current?.stillPath ? `center/contain no-repeat #0c0e12 url(${current.stillPath})` : "#101216" }}>
                 {!current?.stillPath && Icon.film({ size: 30 })}
               </div>
             )}

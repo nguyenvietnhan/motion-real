@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { VideoSpecSchema } from "@news/schema";
-import { manifestSceneFiles, manifestToVideoSpec, type Manifest } from "./manifest.js";
+import {
+  manifestBoundaryTransitionIds,
+  manifestSceneFiles,
+  manifestToVideoSpec,
+  manifestTransitionFiles,
+  transitionFileName,
+  type Manifest,
+} from "./manifest.js";
 
 /**
  * `manifestSceneFiles` scoping self-tests. The render entry and the N10
@@ -123,5 +130,32 @@ describe("manifestToVideoSpec + clampTheme (AI-output → spec bridge)", () => {
     "assets/a.svg",
   ])("rejects invalid image.ref before TTS/lock: %s", (ref) => {
     expect(() => manifestToVideoSpec(oneScene({ image: { ref } }))).toThrow();
+  });
+});
+
+describe("manifest transition scoping", () => {
+  it("derives stable ids and resolves transition files in boundary order", () => {
+    const m = manifest(["hook", "body", "cta"]);
+    expect(manifestBoundaryTransitionIds(m)).toEqual(["scene-01-to-scene-02", "scene-02-to-scene-03"]);
+    const map = new Map([
+      ["scene-02-to-scene-03", "/p/authored/transition-b.tsx"],
+      ["scene-01-to-scene-02", "/p/authored/transition-a.tsx"],
+      ["orphan-to-orphan", "/p/authored/transition-orphan.tsx"],
+    ]);
+    expect(manifestTransitionFiles(m, map)).toEqual([
+      {
+        boundaryId: "scene-01-to-scene-02",
+        fromSceneId: "scene-01",
+        toSceneId: "scene-02",
+        file: "/p/authored/transition-a.tsx",
+      },
+      {
+        boundaryId: "scene-02-to-scene-03",
+        fromSceneId: "scene-02",
+        toSceneId: "scene-03",
+        file: "/p/authored/transition-b.tsx",
+      },
+    ]);
+    expect(transitionFileName("scene-01-to-scene-02")).toBe("transition-scene-01-to-scene-02.tsx");
   });
 });

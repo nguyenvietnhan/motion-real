@@ -639,6 +639,11 @@ export class WorkspaceController {
         }
         return;
       }
+      await this.prepareTransitionsBeforeDraft(projectId, sceneIds, signal);
+      if (signal?.aborted) {
+        await this.recoverAfterCancel(projectId);
+        return;
+      }
       // …then render the draft ONCE (and auto-repair any new oracle errors).
       this.setStage(projectId, { kind: "rendering", percent: 0, phase: "draft" });
       const outcome = await this.deps.worker.generateValidateRepair(projectId, { maxAttempts: this.deps.settings.maxRepairAttempts }, hooks, signal);
@@ -874,6 +879,28 @@ export class WorkspaceController {
   }
 
   /**
+   * Boundary-level transition pass (V2): transitions are authored AFTER the scene
+   * source has settled, not during initial script creation. This is best-effort:
+   * a boundary that fails AI/admission/QA keeps or falls back to the deterministic
+   * runtime wipe, so transition experimentation never discards a valid script.
+   */
+  private async prepareTransitionsBeforeDraft(projectId: string, sceneIds: string[] | undefined, signal: AbortSignal | undefined): Promise<void> {
+    if (!this.deps.worker.prepareTransitions) return;
+    this.setStage(projectId, { kind: "rendering", percent: 0, phase: "prepare" });
+    try {
+      const result = await this.deps.worker.prepareTransitions(projectId, sceneIds, signal);
+      if (result.failedBoundaryIds.length > 0) {
+        log.warn(
+          { projectId, failedBoundaryIds: result.failedBoundaryIds },
+          "transition authoring left some boundaries on runtime fallback",
+        );
+      }
+    } catch (error) {
+      log.warn({ err: error, projectId, sceneIds }, "transition authoring failed; continuing with existing/fallback transitions");
+    }
+  }
+
+  /**
    * Edit-path refine (freeform-engine L1): mirrors {@link refineBeforeDraft} for a
    * USER EDIT — render cheap stills for the edited scenes → the DEFECT-fixing
    * vision loop, all on the no-TTS/no-MP4 path, BEFORE any draft MP4. Unlike the
@@ -965,6 +992,11 @@ export class WorkspaceController {
       // "stuck at 100%" symptom). `preRefine` is the blind pre-refine source we
       // fall back to if the refined draft can't be repaired (never ship worse).
       const preRefine = await this.refineBeforeDraft(projectId, signal);
+      if (signal?.aborted) {
+        await this.recoverAfterCancel(projectId);
+        return;
+      }
+      await this.prepareTransitionsBeforeDraft(projectId, undefined, signal);
       if (signal?.aborted) {
         await this.recoverAfterCancel(projectId);
         return;

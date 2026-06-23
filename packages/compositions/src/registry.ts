@@ -23,6 +23,35 @@ export type SceneComponentProps<P = Record<string, unknown>> = {
   image?: SceneImage;
 };
 
+export type BoundarySceneInfo = {
+  id: string;
+  component: string;
+  headline: string;
+  body?: string;
+  eyebrow?: string;
+  narration: string;
+  props: Record<string, unknown>;
+  startFrame: number;
+  durationInFrames: number;
+};
+
+export type SceneBoundaryTransitionProps = {
+  /** Normalized transition progress through this boundary, clamped to [0, 1]. */
+  progress: number;
+  /** Fixed boundary duration in frames. */
+  durationInFrames: number;
+  /** Stable boundary id, e.g. "scene-01-to-scene-02". */
+  boundaryId: string;
+  /** Rendered outgoing scene layer at the correct local frame. */
+  from: React.ReactNode;
+  /** Rendered incoming scene layer at the correct local frame. */
+  to: React.ReactNode;
+  /** Metadata for the outgoing scene. */
+  fromScene: BoundarySceneInfo;
+  /** Metadata for the incoming scene. */
+  toScene: BoundarySceneInfo;
+};
+
 export type SceneComponentDefinition<P = any> = {
   id: string;
   displayName: string;
@@ -36,7 +65,15 @@ export type SceneComponentDefinition<P = any> = {
   example: P;
 };
 
+export type SceneBoundaryTransitionDefinition = {
+  id: string;
+  displayName: string;
+  /** The React component that owns the full-frame transition stage. */
+  Component: React.FC<SceneBoundaryTransitionProps>;
+};
+
 const registry = new Map<string, SceneComponentDefinition>();
+const transitionRegistry = new Map<string, SceneBoundaryTransitionDefinition>();
 
 export function registerComponent<P>(def: SceneComponentDefinition<P>): SceneComponentDefinition<P> {
   if (registry.has(def.id)) {
@@ -60,6 +97,26 @@ export function listComponents(): SceneComponentDefinition[] {
 
 export function knownComponentIds(): ReadonlySet<string> {
   return new Set(registry.keys());
+}
+
+export function registerTransition(def: SceneBoundaryTransitionDefinition): SceneBoundaryTransitionDefinition {
+  if (transitionRegistry.has(def.id)) {
+    throw new Error(`Duplicate scene transition id: ${def.id}`);
+  }
+  transitionRegistry.set(def.id, def);
+  return def;
+}
+
+export function getTransition(id: string): SceneBoundaryTransitionDefinition | undefined {
+  return transitionRegistry.get(id);
+}
+
+export function unregisterTransition(id: string): void {
+  transitionRegistry.delete(id);
+}
+
+export function listTransitions(): SceneBoundaryTransitionDefinition[] {
+  return [...transitionRegistry.values()];
 }
 
 export type PropValidationIssue = { path: string; message: string };

@@ -498,6 +498,70 @@ describe("renderProject — render pipeline (skipAuthoring)", () => {
   });
 });
 
+describe("renderProject — authored transition containment", () => {
+  it("skips a typecheck-broken transition module instead of failing the draft", async () => {
+    const { projectId } = await scaffoldVideoProject({ prompt: "Transition containment", tts: { provider: "mock" } });
+    const paths = projectPaths(projectId);
+    await writeJson(paths.manifest, {
+      title: "Transition containment",
+      theme: { dominant: "#4CE0A7" },
+      scenes: [
+        {
+          id: "scene-01",
+          component: "auth-hook",
+          headline: "Mở đầu",
+          narration: "Một câu đọc thử cho cảnh mở đầu để giữ nhịp tự nhiên.",
+          props: {},
+        },
+        {
+          id: "scene-02",
+          component: "auth-cta",
+          headline: "Kết",
+          narration: "Một câu kết ngắn nhưng đủ dài cho phần đóng lại.",
+          props: {},
+        },
+      ],
+    });
+    await writeFile(join(paths.authoredDir, "auth-hook.tsx"), authoredSceneSource("auth-hook"));
+    await writeFile(join(paths.authoredDir, "auth-cta.tsx"), authoredSceneSource("auth-cta"));
+    await writeFile(
+      join(paths.authoredDir, "transition-scene-01-to-scene-02.tsx"),
+      [
+        `// transition: scene-01-to-scene-02`,
+        `import React from "react";`,
+        `import { registerTransition, type SceneBoundaryTransitionProps } from "@news/compositions";`,
+        `const Component: React.FC<SceneBoundaryTransitionProps> = ({ from }) => <>{from}</>;`,
+        `export default registerTransition({`,
+        `  id: "scene-01-to-scene-02",`,
+        `  displayName: "Broken",`,
+        `  displayName: "Duplicate",`,
+        `  Component,`,
+        `});`,
+      ].join("\n"),
+    );
+
+    const result = await renderProject(projectId, {
+      quality: "draft",
+      ttsProvider: "none",
+      checklist: FULL_CHECKLIST,
+      composeContactSheet: fakeCompositor(),
+      deps: {
+        synthesize: async () => null,
+        typecheckAuthored: (files) =>
+          files.some((file) => file.includes("transition-scene-01-to-scene-02"))
+            ? [{ check: "N10", severity: "error", path: join(paths.authoredDir, "transition-scene-01-to-scene-02.tsx") + ":8:3", message: "TS1117: duplicate property" }]
+            : [],
+      },
+    });
+
+    expect(existsSync(result.mp4Path)).toBe(true);
+    const events = (await readFile(paths.events, "utf8")).trim().split("\n").map((l) => JSON.parse(l));
+    const skipped = events.find((event) => event.type === "transition.typecheck.skipped");
+    expect(skipped?.boundaries).toEqual(["scene-01-to-scene-02"]);
+    expect(await readBriefState(projectId)).toBe("done");
+  });
+});
+
 /**
  * A 1080×1920 PNG whose only content is a white bar painted INTO the caption
  * clearance gap (y≈1360) — exactly the synthetic input `checkCaptionClearance`
@@ -523,4 +587,22 @@ function dirtyLateStillPng(): Buffer {
     }
   }
   return encodePngRGBA(width, height, rgba);
+}
+
+function authoredSceneSource(id: string): string {
+  return [
+    `// component: ${id}`,
+    `import React from "react";`,
+    `import { z } from "zod";`,
+    `import { registerComponent, type SceneComponentProps } from "@news/compositions";`,
+    `export const schema = z.object({});`,
+    `type Props = z.infer<typeof schema>;`,
+    `const Scene: React.FC<SceneComponentProps<Props>> = ({ headline }) => (`,
+    `  <div style={{ position: "absolute", inset: 0, background: "#050712", color: "white", padding: 80 }}>`,
+    `    <h1>{headline}</h1>`,
+    `  </div>`,
+    `);`,
+    `export const example: Props = {};`,
+    `export default registerComponent<Props>({ id: "${id}", displayName: "${id}", promptGuide: "${id}", schema, Component: Scene, example });`,
+  ].join("\n");
 }

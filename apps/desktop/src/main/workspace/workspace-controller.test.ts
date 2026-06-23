@@ -239,6 +239,64 @@ function workerWith(outcome: RepairOutcome | (() => Promise<RepairOutcome>)): Ag
 }
 
 describe("fixWithAi + fixable flag", () => {
+  it("authors boundary transitions after final scene refine and before the first draft", async () => {
+    const calls: string[] = [];
+    const worker: AgentWorker = {
+      author: async (): Promise<AuthorOutcome> => ({ kind: "authored", sceneIds: [] }),
+      reauthorScenes: async (job): Promise<AuthorOutcome> => {
+        calls.push("scene-refine");
+        return { kind: "authored", sceneIds: job.sceneIds };
+      },
+      publish: async () => ({ ok: true, outputPath: "out.mp4" }),
+      renderStills: async () => {
+        calls.push("scene-stills");
+        return { stills: ["media://still/scene-01.png", "media://still/scene-02.png"] };
+      },
+      visualQa: async () => {
+        calls.push("scene-qa");
+        return [];
+      },
+      snapshotScenes: async (_id, ids) => ids.map((id) => ({ sceneId: id, code: "// blind" })),
+      restoreScenes: async () => {},
+      prepareTransitions: async (_id, scope) => {
+        calls.push("transitions");
+        expect(scope).toBeUndefined();
+        return { authoredBoundaryIds: ["scene-01-to-scene-02"], failedBoundaryIds: [] };
+      },
+      generateValidateRepair: async (): Promise<RepairOutcome> => {
+        calls.push("draft");
+        return { kind: "passed", attempts: 1 };
+      },
+    };
+    const ctrl = new WorkspaceController(baseDeps({
+      worker,
+      loadManifest: async () => ({ scenes: [{ id: "scene-01" }, { id: "scene-02" }] }),
+      settings: { scriptGateEnabled: false, maxRepairAttempts: 3, refinePasses: 1, refineEarlyStop: true, imageCrawlAiFilter: false, imageCrawlHumanReview: false },
+    }));
+
+    ctrl.approve("p1");
+    await flush();
+
+    expect(calls.indexOf("scene-refine")).toBeLessThan(calls.indexOf("transitions"));
+    expect(calls.indexOf("scene-qa")).toBeLessThan(calls.indexOf("transitions"));
+    expect(calls.indexOf("transitions")).toBeLessThan(calls.indexOf("draft"));
+  });
+
+  it("keeps a valid script renderable when transition preparation throws", async () => {
+    const draft = vi.fn(async (): Promise<RepairOutcome> => ({ kind: "passed", attempts: 1 }));
+    const worker: AgentWorker = {
+      ...workerWith(draft),
+      prepareTransitions: async () => { throw new Error("transition model failed"); },
+    };
+    const ctrl = new WorkspaceController(baseDeps({ worker }));
+
+    ctrl.approve("p1");
+    await flush();
+
+    expect(draft).toHaveBeenCalledTimes(1);
+    expect((await ctrl.stage("p1")).kind).toBe("ready");
+  });
+
   it("silent refine BEFORE the draft: vision flags a scene, reauthors + re-renders stills, then the draft renders ONCE; stops early", async () => {
     // freeform-engine L1: refine now runs on the cheap stills path BEFORE the first
     // MP4 draft (not after a 100%-complete draft). The manifest here has the flagged
@@ -431,6 +489,10 @@ describe("fixWithAi + fixable flag", () => {
     const reauthorScenes = vi.fn(async (): Promise<AuthorOutcome> => { calls.push("reauthor"); return { kind: "authored", sceneIds: ["scene-01"] }; });
     const renderStills = vi.fn(async () => { calls.push("renderStills"); return { stills: ["media://still/scene-01.png"] }; });
     const visualQa = vi.fn(async () => { calls.push("visualQa"); return [] as { sceneId: string; issue: string }[]; });
+    const prepareTransitions = vi.fn(async (_projectId: string, sceneIds?: string[]) => {
+      calls.push("transitions");
+      return { authoredBoundaryIds: ["scene-01-to-scene-02"], failedBoundaryIds: [] };
+    });
     const generateValidateRepair = vi.fn(async (): Promise<RepairOutcome> => { calls.push("draft"); return { kind: "passed", attempts: 1 }; });
     const worker: AgentWorker = {
       author: async (): Promise<AuthorOutcome> => ({ kind: "authored", sceneIds: [] }),
@@ -439,6 +501,7 @@ describe("fixWithAi + fixable flag", () => {
       generateValidateRepair,
       visualQa,
       renderStills,
+      prepareTransitions,
       snapshotScenes: async (_id, ids) => ids.map((id) => ({ sceneId: id, code: "// good" })),
       restoreScenes: async () => {},
     };
@@ -450,6 +513,9 @@ describe("fixWithAi + fixable flag", () => {
     // renderStills + visualQa both ran before the only draft render.
     expect(calls.indexOf("renderStills")).toBeLessThan(calls.indexOf("draft"));
     expect(calls.indexOf("visualQa")).toBeLessThan(calls.indexOf("draft"));
+    expect(calls.indexOf("visualQa")).toBeLessThan(calls.indexOf("transitions"));
+    expect(calls.indexOf("transitions")).toBeLessThan(calls.indexOf("draft"));
+    expect(prepareTransitions).toHaveBeenCalledWith("p1", ["scene-01"], expect.any(AbortSignal));
     expect((await ctrl.stage("p1")).kind).toBe("ready");
   });
 

@@ -123,7 +123,7 @@ const OUTPUT_FORMAT = `ĐỊNH DẠNG TRẢ VỀ (AI_Output_Contract) — trả 
   "hashtags": ["#chu_de", "#tu_khoa"],
   "theme": { "dominant": "#RRGGBB", "mood": "mô tả ngắn tông màu" },
   "scenes": [
-    { "component": "id-canh", "eyebrow": "NHÃN", "headline": "tiêu đề cảnh", "narration": "lời đọc", "props": { }, "transitionToNext": "slide|fade|wipe|clockWipe|zoom" }
+    { "component": "id-canh", "eyebrow": "NHÃN", "headline": "tiêu đề cảnh", "narration": "lời đọc", "props": { } }
   ]
 }
 \`\`\`
@@ -239,6 +239,172 @@ export function buildAuthorMessages(
   return [
     { role: "system", content: `${system}${IMAGE_RULE}` },
     { role: "user", content: parts },
+  ];
+}
+
+export type TransitionPromptScene = {
+  id: string;
+  component: string;
+  eyebrow?: string;
+  headline: string;
+  body?: string;
+  narration: string;
+  props?: Record<string, unknown>;
+  /** Full admitted scene source so transition authoring can see its real visual language. */
+  code: string;
+};
+
+export type TransitionPromptInput = {
+  format?: VideoFormat;
+  videoLanguage?: VideoLanguage;
+  scenes: TransitionPromptScene[];
+};
+
+function transitionSystem(format: VideoFormat, videoLanguage: VideoLanguage): string {
+  const frame = format === "youtube" ? "16:9 ngang" : "9:16 dọc";
+  const lang = videoLanguage === "en" ? "English" : "Vietnamese";
+  return [
+    "Bạn là đạo diễn CHUYỂN CẢNH Remotion cho video " + frame + ". Cảnh chính đã được viết xong; nhiệm vụ của bạn là viết module .tsx RIÊNG cho từng ranh giới scene A → scene B.",
+    "",
+    "MỤC TIÊU: mỗi transition là một sân khấu full-frame có chủ đích, nhận cả layer cảnh đi ra và cảnh đi vào. Được sáng tạo tự do bằng JSX/SVG/CSS: mask, wipe, split screen, card flip, object bridge, match-cut, zoom tunnel, diagram morph, typographic bridge, hard cut hoặc calm fade nếu nội dung thật sự cần. KHÔNG có enum style. KHÔNG dùng cùng một fade/crossfade generic cho mọi boundary.",
+    "",
+    "HỢP ĐỒNG MODULE TRANSITION:",
+    "- Mỗi module là một khối tsx, dòng đầu: // transition: <boundary-id>",
+    "- Chỉ import: react, remotion, @news/compositions, zod nếu cần.",
+    "- Import từ @news/compositions: registerTransition và type SceneBoundaryTransitionProps.",
+    "- Viết một React component nhận SceneBoundaryTransitionProps: progress, durationInFrames, boundaryId, from, to, fromScene, toScene.",
+    "- Component PHẢI trả về một stage full-frame absolute/inset 0 và tự quyết định khi nào render {from} / {to}.",
+    "- progress đã là nguồn thời gian chuẩn 0..1 của đúng transition 0,5 giây. Ưu tiên dùng trực tiếp progress + interpolate. KHÔNG dùng spring({frame: progress * 30, fps: 30}) hoặc hardcode fps/frame; cách đó gây overshoot/flash ở draft 10fps và transition ngắn.",
+    "- Mọi interpolate có input range không bắt đầu 0 hoặc không kết thúc 1 phải clamp CẢ extrapolateLeft và extrapolateRight; opacity/clip/scale không được vượt khoảng hợp lệ.",
+    "- Frame đầu phải tương đương {from}; frame cuối phải tương đương {to}. Trong mọi frame trung gian phải còn nhìn thấy ít nhất một trong hai layer; không được clear cả hai để lộ một màu nền trống.",
+    "- Đọc SOURCE CODE của hai scene để lấy palette, hình học, visual anchor và hướng motion thật. Transition phải nối tiếp ngôn ngữ hình ảnh đó, KHÔNG tự bịa một palette full-frame không có trong hai scene.",
+    "- Được vẽ overlay/mask/shape hỗ trợ, nhưng không dùng các mảng màu đặc che gần toàn màn hình như một interstitial độc lập. Không thêm headline/slogan/chữ mới; nội dung chữ chỉ thuộc scene.",
+    "- default export PHẢI là registerTransition({ id: \"<boundary-id>\", displayName: \"...\", Component: <component> }).",
+    "- KHÔNG export schema/example; transition không có props riêng.",
+    "- KHÔNG Math.random, Date/Date.now, fetch, dynamic import, raw img/video/audio, external URL, WebGL, dangerouslySetInnerHTML.",
+    "- Nếu cần randomness deterministic thì dùng random(seed) từ remotion.",
+    "- Nếu bắt buộc phải vẽ ký hiệu chữ cực ngắn như nhãn kỹ thuật, nó phải theo ngôn ngữ video: " + lang + ". Nhưng mặc định KHÔNG thêm chữ mới trong transition.",
+    "",
+    "TRẢ VỀ: chỉ các khối tsx, mỗi boundary đúng một module. Không kèm JSON, không kèm giải thích.",
+  ].join("\n");
+}
+
+export type BoundaryTransitionPromptInput = {
+  format?: VideoFormat;
+  videoLanguage?: VideoLanguage;
+  boundaryId: string;
+  fromScene: TransitionPromptScene;
+  toScene: TransitionPromptScene;
+  /** Optional whole-video direction from the non-blocking director pass. */
+  plan?: string;
+  /** Optional admission / QA feedback from a failed attempt. */
+  feedback?: string;
+  /** Optional current code when repairing an already-authored transition. */
+  currentCode?: string;
+  /** Optional rendered transition samples for visual repair. */
+  samples?: { fraction: number; dataUrl: string }[];
+};
+
+export function buildTransitionDirectorMessages(input: TransitionPromptInput): VisionMessage[] {
+  const format = input.format ?? "tiktok";
+  const videoLanguage = input.videoLanguage ?? "vi";
+  const frame = format === "youtube" ? "16:9 ngang" : "9:16 dọc";
+  const lang = videoLanguage === "en" ? "English" : "Vietnamese";
+  const scenes = input.scenes.map(({ code: _code, ...scene }) => scene);
+  const boundaries = scenes.slice(0, -1).map((scene, i) => ({
+    id: scene.id + "-to-" + scenes[i + 1]!.id,
+    fromScene: scene,
+    toScene: scenes[i + 1]!,
+  }));
+  return [
+    {
+      role: "system",
+      content: [
+        "Bạn là đạo diễn dựng nhịp transition cho video " + frame + ".",
+        "Chỉ lập ý tưởng ngắn; KHÔNG viết code.",
+        "Mỗi boundary cần một concept riêng nhưng vẫn cùng ngôn ngữ hình ảnh. Ưu tiên nối visual anchor thật của hai scene.",
+        "Không đề xuất interstitial màu trống, không thêm slogan/headline mới. Ngôn ngữ nếu có chữ cực ngắn: " + lang + ".",
+        'Trả về DUY NHẤT JSON dạng {"boundaries":[{"id":"scene-01-to-scene-02","concept":"...","risk":"..."}]}.',
+      ].join("\n"),
+    },
+    {
+      role: "user",
+      content: ["SCENES:", JSON.stringify(scenes, null, 2), "", "BOUNDARIES:", JSON.stringify(boundaries, null, 2)].join("\n"),
+    },
+  ];
+}
+
+export function buildBoundaryTransitionMessages(input: BoundaryTransitionPromptInput): VisionMessage[] {
+  const format = input.format ?? "tiktok";
+  const videoLanguage = input.videoLanguage ?? "vi";
+  const text = [
+    "Viết hoặc sửa đúng MỘT transition module cho boundary này.",
+    "",
+    "BOUNDARY:",
+    JSON.stringify({
+      id: input.boundaryId,
+      fromScene: input.fromScene,
+      toScene: input.toScene,
+      ...(input.plan ? { directorPlan: input.plan } : {}),
+    }, null, 2),
+    "",
+    input.currentCode ? "CURRENT TRANSITION CODE:\n```tsx\n" + input.currentCode + "\n```" : "",
+    input.feedback ? "FEEDBACK CẦN SỬA:\n" + input.feedback : "",
+    input.samples && input.samples.length > 0
+      ? "Có ảnh sample transition đính kèm theo thứ tự 25%/50%/75%. Sửa lỗi cấu trúc rõ ràng nếu có: dark flash, khoảng trống lớn, kéo giãn scene, chữ chồng nhau, hoặc frame trung gian giống lỗi hơn là chuyển cảnh."
+      : "",
+    "",
+    "Trả về đúng một khối tsx với marker // transition: " + input.boundaryId + ". Không kèm JSON, không giải thích.",
+  ].filter(Boolean).join("\n");
+  const content: string | ContentPart[] =
+    input.samples && input.samples.length > 0
+      ? [
+          { type: "text", text },
+          ...input.samples.map((sample) => ({
+            type: "image_url" as const,
+            image_url: { url: sample.dataUrl },
+          })),
+        ]
+      : text;
+  return [
+    { role: "system", content: transitionSystem(format, videoLanguage) },
+    { role: "user", content },
+  ];
+}
+
+export type TransitionQaPromptInput = {
+  samplesByBoundary: {
+    boundaryId: string;
+    fromHeadline: string;
+    toHeadline: string;
+    samples: { fraction: number; dataUrl: string }[];
+  }[];
+};
+
+export function buildTransitionQaMessages(input: TransitionQaPromptInput): VisionMessage[] {
+  const text = [
+    "Bạn là QA kỹ thuật cho transition Remotion. Chỉ flag lỗi CẤU TRÚC rõ ràng, không chấm gu thẩm mỹ.",
+    "Flag high khi sample có dark/blank flash, khoảng trống lớn vô nghĩa, layer bị kéo giãn/sai crop, chữ hai scene chồng đến mức không đọc được, hoặc nhìn như render lỗi.",
+    "Không flag chỉ vì style táo bạo, wipe/flip/zoom lạ, hoặc hard cut có chủ đích nhưng frame vẫn rõ.",
+    'Trả về DUY NHẤT JSON dạng {"issues":[{"boundaryId":"scene-01-to-scene-02","severity":"high","issue":"..."}]}. Nếu ổn trả {"issues":[]}.',
+    "",
+    "BOUNDARIES:",
+    JSON.stringify(input.samplesByBoundary.map(({ boundaryId, fromHeadline, toHeadline, samples }) => ({
+      boundaryId,
+      fromHeadline,
+      toHeadline,
+      sampleFractions: samples.map((s) => s.fraction),
+    })), null, 2),
+  ].join("\n");
+  const content: ContentPart[] = [{ type: "text", text }];
+  for (const boundary of input.samplesByBoundary) {
+    for (const sample of boundary.samples) {
+      content.push({ type: "image_url", image_url: { url: sample.dataUrl } });
+    }
+  }
+  return [
+    { role: "system", content: "Bạn chỉ trả JSON QA transition, không giải thích." },
+    { role: "user", content },
   ];
 }
 

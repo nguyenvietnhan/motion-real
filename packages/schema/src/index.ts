@@ -42,6 +42,11 @@ export const T_TRANSITION = transitionFrames(FPS);
 /** Breath gap between consecutive scene narration clips, in seconds. */
 export const BREATH_GAP_SECONDS = T_TRANSITION_SECONDS;
 
+/** Stable id for the authored transition boundary between two locked scenes. */
+export function boundaryTransitionId(fromSceneId: string, toSceneId: string): string {
+  return `${fromSceneId}-to-${toSceneId}`;
+}
+
 /** A pacing target is advisory; videos may run shorter/longer than any preset. */
 export const DURATION_PRESETS = [60, 90, 120, 180] as const;
 export type DurationPreset = (typeof DURATION_PRESETS)[number];

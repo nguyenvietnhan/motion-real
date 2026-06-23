@@ -15,11 +15,18 @@ export {
   registerComponent,
   getComponent,
   unregisterComponent,
+  registerTransition,
+  getTransition,
+  unregisterTransition,
+  listTransitions,
   listComponents,
   knownComponentIds,
   validateProps,
+  type BoundarySceneInfo,
   type SceneComponentDefinition,
   type SceneComponentProps,
+  type SceneBoundaryTransitionDefinition,
+  type SceneBoundaryTransitionProps,
   type PropValidationIssue,
 } from "./registry.js";
 

@@ -3,31 +3,50 @@ import { existsSync, readFileSync } from "node:fs";
 import { readdir, readFile, rm, writeFile } from "node:fs/promises";
 import {
   createLogger,
-  admitProjectScenes,
+  admitProjectAuthored,
   admitAuthoredSceneFile,
+  admitAuthoredTransitionFile,
   loadManifest,
   projectPaths,
   writeAuthoredScene,
   writeJson,
   unregisterComponent,
+  unregisterTransition,
+  manifestBoundaryTransitionIds,
+  transitionFileName,
   makeSafeFetch,
   crawlArticleImages,
   type CrawledImage,
   type Manifest,
   type ManifestScene,
-  type AdmitProjectResult,
+  type AdmitProjectAuthoredResult,
   type AuthoredRegistration,
+  type AuthoredTransitionRegistration,
   type SafetyIssue,
   type SerializedPipelineError,
+  DEFAULT_TRANSITION_SAMPLE_FRACTIONS,
+  transitionSampleFileName,
+  typecheckAuthoredScenes,
+  workspaceRoot,
 } from "@news/pipeline";
 import type { createTools } from "@news/mcp";
 import type { AuthoringBackend, AuthoredScene, ReauthorTarget } from "../agent/custom-loop-worker.js";
 import type { SafetyReportView } from "../agent/repair-loop.js";
-import type { AuthorJob, VisualDefect, SceneSnapshot, AuthorImageRef } from "../agent/agent-worker.js";
+import type { AuthorJob, VisualDefect, SceneSnapshot, AuthorImageRef, TransitionAuthorOutcome, TransitionDefect } from "../agent/agent-worker.js";
 import { GatewayChatError, type NineRouterClient, type ChatMessage } from "../gateway/ninerouter-client.js";
-import { buildAuthorMessages, buildReauthorMessages, buildVisualQaMessages, buildImageFilterMessages, type AuthorImageInput } from "./prompt.js";
+import {
+  buildAuthorMessages,
+  buildBoundaryTransitionMessages,
+  buildTransitionDirectorMessages,
+  buildTransitionQaMessages,
+  buildReauthorMessages,
+  buildVisualQaMessages,
+  buildImageFilterMessages,
+  type AuthorImageInput,
+  type TransitionPromptScene,
+} from "./prompt.js";
 import { parseAuthorReply } from "./reply-parser.js";
-import { parseReauthorReply } from "./reply-parser.js";
+import { parseReauthorReply, parseTransitionReply } from "./reply-parser.js";
 import type { AuthorManifest } from "./manifest-schema.js";
 import { extractJsonObject } from "./manifest-schema.js";
 import { sceneFileName, resolveSceneFile } from "./scene-files.js";
@@ -93,12 +112,16 @@ export type NineRouterBackendDeps = {
    */
   wordsPerSecond?: (projectId: string) => number | undefined | Promise<number | undefined>;
   /**
-   * Admit a project's authored scenes (injectable for tests). The default is a
+   * Admit a project's authored modules (injectable for tests). The default is a
    * pure AST gate; authored code is never imported into the Electron/Node host.
    */
-  admit?: (projectId: string) => Promise<AdmitProjectResult>;
+  admit?: (projectId: string) => Promise<AdmitProjectAuthoredResult>;
   /** Admit ONE authored module (injectable for tests; reauthor path). */
   admitOne?: (tsxPath: string) => Promise<AuthoredRegistration>;
+  /** Admit ONE authored transition module (injectable for tests; boundary transition path). */
+  admitTransitionOne?: (tsxPath: string) => Promise<AuthoredTransitionRegistration>;
+  /** Typecheck ONE transition module (injectable for tests). */
+  typecheckTransition?: (tsxPath: string) => SafetyIssue[];
 };
 
 function manifestPathOf(projectId: string): string {
@@ -278,6 +301,11 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
       return { scenes: [], message: "AI chưa trả về kịch bản hợp lệ. Hãy thử lại hoặc mô tả rõ hơn." };
     }
 
+    const engineManifest = toEngineManifest(parsed.manifest, allowedRefs, {
+      ...(job.input.format ? { format: job.input.format } : {}),
+      ...(job.input.durationTier ? { durationTier: job.input.durationTier } : {}),
+      ...(job.input.videoLanguage ? { videoLanguage: job.input.videoLanguage } : {}),
+    });
     // Write each AI-authored module. Unregister first so a re-authored id (or a
     // cross-project id collision in the process-wide registry) is refreshed with
     // THIS project's code at admission time.
@@ -286,18 +314,13 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
       unregisterComponent(mod.id);
       await writeAuthoredScene(job.projectId, sceneFileName(mod.id), normalizeAuthoredFontSizes(normalizeAuthoredImports(mod.code)));
     }
-    const engineManifest = toEngineManifest(parsed.manifest, allowedRefs, {
-      ...(job.input.format ? { format: job.input.format } : {}),
-      ...(job.input.durationTier ? { durationTier: job.input.durationTier } : {}),
-      ...(job.input.videoLanguage ? { videoLanguage: job.input.videoLanguage } : {}),
-    });
     await writeJson(manifestPathOf(job.projectId), engineManifest);
 
-    const admit = this.deps.admit ?? ((id: string) => admitProjectScenes(id));
+    const admit = this.deps.admit ?? ((id: string) => admitProjectAuthored(id));
     const admitted = await admit(job.projectId);
     if (!admitted.ok) {
       log.error(
-        { projectId: job.projectId, violations: admitted.violations.map((v) => `${v.check} ${v.path}: ${v.message}`) },
+        { projectId: job.projectId, violations: admitted.violations.map((v) => v.check + " " + v.path + ": " + v.message) },
         "admission failed",
       );
       // NO kit fallback — pure-author surfaces the failure for retry / AI-fix.
@@ -310,6 +333,379 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
       stillPath: join(reviewDir, `${s.id}.png`),
     }));
     return { scenes, ...(unreadableUrls.length > 0 ? { unreadableUrls } : {}) };
+  }
+
+  async prepareTransitions(projectId: string, sceneIds?: string[], signal?: AbortSignal): Promise<TransitionAuthorOutcome> {
+    const model = this.deps.model();
+    if (!model) return { authoredBoundaryIds: [], failedBoundaryIds: [] };
+
+    const manifest = await loadManifest(projectId).catch((error) => {
+      log.warn({ err: error, projectId }, "transition authoring skipped: manifest unreadable");
+      return null;
+    });
+    if (!manifest || manifest.scenes.length < 2) return { authoredBoundaryIds: [], failedBoundaryIds: [] };
+
+    const scenes = await this.readTransitionPromptScenes(projectId);
+    if (scenes.length < 2) return { authoredBoundaryIds: [], failedBoundaryIds: manifestBoundaryTransitionIds(manifest) };
+    const wanted = new Set(this.boundaryIdsForScope(manifest, sceneIds));
+    if (wanted.size === 0) return { authoredBoundaryIds: [], failedBoundaryIds: [] };
+
+    const plan = await this.transitionDirectorPlan(projectId, scenes, signal);
+    const authored = new Set<string>();
+    const failed = new Set<string>();
+    const sceneById = new Map(scenes.map((scene) => [scene.id, scene] as const));
+
+    for (let i = 0; i < manifest.scenes.length - 1; i += 1) {
+      if (signal?.aborted) break;
+      const from = manifest.scenes[i]!;
+      const to = manifest.scenes[i + 1]!;
+      const boundaryId = `${from.id}-to-${to.id}`;
+      if (!wanted.has(boundaryId)) continue;
+      const fromScene = sceneById.get(from.id);
+      const toScene = sceneById.get(to.id);
+      if (!fromScene || !toScene) {
+        failed.add(boundaryId);
+        continue;
+      }
+      const ok = await this.authorOneBoundaryTransition(projectId, {
+        model,
+        boundaryId,
+        fromScene,
+        toScene,
+        format: manifest.format,
+        videoLanguage: manifest.videoLanguage,
+        plan: plan.get(boundaryId),
+        signal,
+      });
+      if (ok) authored.add(boundaryId);
+      else failed.add(boundaryId);
+    }
+
+    if (signal?.aborted) return { authoredBoundaryIds: [...authored], failedBoundaryIds: [...failed] };
+
+    const samples = await this.renderTransitionSamples(projectId, [...wanted], signal);
+    const defects = await this.transitionVisualQa(projectId, samples, signal);
+    for (const defect of defects) {
+      if (signal?.aborted) break;
+      const parts = this.scenesForBoundary(defect.boundaryId, scenes);
+      if (!parts) continue;
+      const currentCode = await this.readTransitionCode(projectId, defect.boundaryId);
+      const ok = await this.authorOneBoundaryTransition(projectId, {
+        model,
+        boundaryId: defect.boundaryId,
+        fromScene: parts.fromScene,
+        toScene: parts.toScene,
+        format: manifest.format,
+        videoLanguage: manifest.videoLanguage,
+        plan: plan.get(defect.boundaryId),
+        feedback: defect.issue,
+        currentCode,
+        samples: samples.get(defect.boundaryId),
+        signal,
+      });
+      if (ok) {
+        authored.add(defect.boundaryId);
+        failed.delete(defect.boundaryId);
+      } else {
+        failed.add(defect.boundaryId);
+      }
+    }
+
+    return { authoredBoundaryIds: [...authored], failedBoundaryIds: [...failed] };
+  }
+
+  private async readTransitionPromptScenes(projectId: string): Promise<TransitionPromptScene[]> {
+    const manifest = await loadManifest(projectId);
+    const out: TransitionPromptScene[] = [];
+    for (const scene of manifest.scenes) {
+      const resolved = await resolveSceneFile(projectId, scene.id, (id) => loadManifest(id).catch((error) => {
+        log.warn({ err: error, projectId: id, sceneId: scene.id }, "scene manifest unreadable during transition source resolution");
+        return { scenes: [] };
+      }));
+      if (!resolved) {
+        log.warn({ projectId, sceneId: scene.id, component: scene.component }, "transition authoring cannot resolve scene source");
+        continue;
+      }
+      const code = await readFile(resolved.path, "utf8").catch((error) => {
+        log.warn({ err: error, projectId, sceneId: scene.id, path: resolved.path }, "transition authoring cannot read scene source");
+        return "";
+      });
+      out.push({
+        id: scene.id,
+        component: scene.component,
+        headline: scene.headline,
+        narration: scene.narration,
+        props: scene.props ?? {},
+        code,
+        ...(scene.eyebrow ? { eyebrow: scene.eyebrow } : {}),
+        ...(scene.body ? { body: scene.body } : {}),
+      });
+    }
+    return out;
+  }
+
+  private boundaryIdsForScope(manifest: Manifest, sceneIds?: string[]): string[] {
+    const scope = sceneIds && sceneIds.length > 0 ? new Set(sceneIds) : null;
+    const ids: string[] = [];
+    for (let i = 0; i < manifest.scenes.length - 1; i += 1) {
+      const from = manifest.scenes[i]!;
+      const to = manifest.scenes[i + 1]!;
+      if (scope && !scope.has(from.id) && !scope.has(to.id)) continue;
+      ids.push(`${from.id}-to-${to.id}`);
+    }
+    return ids;
+  }
+
+  private async transitionDirectorPlan(projectId: string, scenes: TransitionPromptScene[], signal?: AbortSignal): Promise<Map<string, string>> {
+    const model = this.deps.model();
+    if (!model) return new Map();
+    const manifest = await loadManifest(projectId).catch((error) => {
+      log.warn({ err: error, projectId }, "transition director manifest unreadable; using default delivery context");
+      return null;
+    });
+    const messages = buildTransitionDirectorMessages({
+      format: manifest?.format,
+      videoLanguage: manifest?.videoLanguage,
+      scenes,
+    });
+    try {
+      const reply = await this.chatWithVisionFallback(model, messages, signal);
+      const json = extractJsonObject(reply);
+      if (!json) return new Map();
+      const parsed = JSON.parse(json) as { boundaries?: unknown };
+      if (!Array.isArray(parsed.boundaries)) return new Map();
+      const out = new Map<string, string>();
+      for (const item of parsed.boundaries) {
+        const o = item as { id?: unknown; concept?: unknown; risk?: unknown };
+        if (typeof o.id !== "string" || typeof o.concept !== "string") continue;
+        out.set(o.id, [o.concept, typeof o.risk === "string" && o.risk.trim() ? `Risk: ${o.risk}` : ""].filter(Boolean).join("\n"));
+      }
+      return out;
+    } catch (error) {
+      log.warn({ err: error, projectId }, "transition director plan failed; continuing without it");
+      return new Map();
+    }
+  }
+
+  private async authorOneBoundaryTransition(
+    projectId: string,
+    input: {
+      model: string;
+      boundaryId: string;
+      fromScene: TransitionPromptScene;
+      toScene: TransitionPromptScene;
+      format?: Manifest["format"];
+      videoLanguage?: Manifest["videoLanguage"];
+      plan?: string;
+      feedback?: string;
+      currentCode?: string;
+      samples?: { fraction: number; dataUrl: string }[];
+      signal?: AbortSignal;
+    },
+  ): Promise<boolean> {
+    const path = join(projectPaths(projectId).authoredDir, transitionFileName(input.boundaryId));
+    const original = existsSync(path) ? await readFile(path, "utf8").catch((error) => {
+      log.warn({ err: error, projectId, boundaryId: input.boundaryId, path }, "existing transition source unreadable; treating as absent");
+      return undefined;
+    }) : undefined;
+    const admitOne = this.deps.admitTransitionOne ?? ((tsxPath: string) => admitAuthoredTransitionFile(tsxPath));
+    let feedback = input.feedback;
+    const MAX_ATTEMPTS = 2;
+    for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt += 1) {
+      if (input.signal?.aborted) return false;
+      let reply: string;
+      try {
+        reply = await this.chatWithVisionFallback(
+          input.model,
+          buildBoundaryTransitionMessages({
+            boundaryId: input.boundaryId,
+            fromScene: input.fromScene,
+            toScene: input.toScene,
+            ...(input.format ? { format: input.format } : {}),
+            ...(input.videoLanguage ? { videoLanguage: input.videoLanguage } : {}),
+            ...(input.plan ? { plan: input.plan } : {}),
+            ...(feedback ? { feedback } : {}),
+            ...(input.currentCode ? { currentCode: input.currentCode } : {}),
+            ...(input.samples && input.samples.length > 0 ? { samples: input.samples } : {}),
+          }),
+          input.signal,
+        );
+      } catch (error) {
+        log.warn({ err: error, projectId, boundaryId: input.boundaryId, attempt: attempt + 1 }, "transition AI call failed");
+        feedback = `Lần trước AI call bị lỗi: ${error instanceof Error ? error.message : String(error)}. Hãy trả đúng một module TSX hợp lệ.`;
+        continue;
+      }
+
+      const parsed = parseTransitionReply(reply, [input.boundaryId]);
+      if (!parsed.ok) {
+        log.warn(
+          { projectId, boundaryId: input.boundaryId, reason: parsed.reason, detail: parsed.detail, rawReply: reply.slice(0, 1200) },
+          "single-boundary transition parse failed",
+        );
+        feedback = `Lần trước reply bị từ chối: ${parsed.detail}. Trả về đúng một khối tsx có marker và id literal "${input.boundaryId}".`;
+        continue;
+      }
+
+      const code = normalizeAuthoredFontSizes(normalizeAuthoredImports(parsed.modules[0]!.code));
+      const written = await writeAuthoredScene(projectId, transitionFileName(input.boundaryId), code);
+      unregisterTransition(input.boundaryId);
+      const admitted = await admitOne(written);
+      if (admitted.ok && admitted.transitionId === input.boundaryId) {
+        const typeIssues = this.typecheckTransitionCandidate(written);
+        const typeErrors = typeIssues.filter((issue) => issue.severity === "error");
+        if (typeErrors.length === 0) {
+          return true;
+        }
+        const typeText = typeErrors.map((issue) => `${issue.check} ${issue.path ?? written}: ${issue.message}`).join("\n");
+        log.warn({ projectId, boundaryId: input.boundaryId, attempt: attempt + 1, errors: typeText }, "transition typecheck failed");
+        feedback =
+          `Lần trước mã qua admission nhưng lỗi TypeScript khi build:\n${typeText}\n\n` +
+          `Sửa thành TSX typecheck sạch. Remotion import từ "remotion" (vd interpolate, interpolateColors, AbsoluteFill); @news/compositions chỉ dùng registerTransition và type SceneBoundaryTransitionProps.`;
+        continue;
+      }
+      const violationText = admitted.ok
+        ? `registerTransition id "${admitted.transitionId}" khác boundary "${input.boundaryId}".`
+        : admitted.violations.map((v) => `${v.check} ${v.path}: ${v.message}`).join("\n");
+      log.warn({ projectId, boundaryId: input.boundaryId, attempt: attempt + 1, violations: violationText }, "transition admission failed");
+      feedback =
+        `Lần trước mã bị TỪ CHỐI khi nạp:\n${violationText}\n\n` +
+        `Sửa theo contract: chỉ import react, remotion, @news/compositions, zod; default export registerTransition({ id: "${input.boundaryId}", displayName, Component }); không schema/example.`;
+    }
+
+    await this.restoreTransitionCandidate(projectId, input.boundaryId, original);
+    return false;
+  }
+
+  private typecheckTransitionCandidate(tsxPath: string): SafetyIssue[] {
+    const check = this.deps.typecheckTransition ?? ((path: string) => typecheckAuthoredScenes([path], workspaceRoot()));
+    try {
+      return check(tsxPath);
+    } catch (error) {
+      log.warn({ err: error, path: tsxPath }, "transition typecheck threw; letting render-time fallback handle it");
+      return [];
+    }
+  }
+
+  private async restoreTransitionCandidate(projectId: string, boundaryId: string, original: string | undefined): Promise<void> {
+    const path = join(projectPaths(projectId).authoredDir, transitionFileName(boundaryId));
+    unregisterTransition(boundaryId);
+    if (original !== undefined) {
+      await writeFile(path, original, "utf8").catch((error) => {
+        log.warn({ err: error, projectId, boundaryId, path }, "failed to restore previous transition module");
+      });
+      return;
+    }
+    await rm(path, { force: true }).catch((error) => {
+      log.warn({ err: error, projectId, boundaryId, path }, "failed to remove rejected transition module");
+    });
+  }
+
+  private async renderTransitionSamples(
+    projectId: string,
+    boundaryIds: string[],
+    signal?: AbortSignal,
+  ): Promise<Map<string, { fraction: number; dataUrl: string }[]>> {
+    const out = new Map<string, { fraction: number; dataUrl: string }[]>();
+    if (boundaryIds.length === 0) return out;
+    const res = await this.deps.tools.render_stills(
+      { projectId, transitionFractions: true },
+      undefined,
+      signal,
+    ).catch((error) => {
+      log.warn({ err: error, projectId }, "transition sample render threw");
+      return null;
+    });
+    if (!res?.ok) {
+      if (res && !res.ok) log.warn({ projectId, stage: res.error.stage, cause: res.error.cause }, "transition sample render failed");
+      return out;
+    }
+    const reviewDir = projectPaths(projectId).reviewDir;
+    for (const boundaryId of boundaryIds) {
+      const [fromSceneId, toSceneId] = boundaryId.split("-to-");
+      if (!fromSceneId || !toSceneId) continue;
+      const samples: { fraction: number; dataUrl: string }[] = [];
+      for (const fraction of DEFAULT_TRANSITION_SAMPLE_FRACTIONS) {
+        const path = join(reviewDir, transitionSampleFileName(fromSceneId, toSceneId, fraction));
+        const url = readStillDataUrl(path);
+        if (url) samples.push({ fraction, dataUrl: url });
+      }
+      if (samples.length > 0) out.set(boundaryId, samples);
+    }
+    return out;
+  }
+
+  private async transitionVisualQa(
+    projectId: string,
+    samples: Map<string, { fraction: number; dataUrl: string }[]>,
+    signal?: AbortSignal,
+  ): Promise<TransitionDefect[]> {
+    if (samples.size === 0) return [];
+    const manifest = await loadManifest(projectId).catch((error) => {
+      log.warn({ err: error, projectId }, "transition QA manifest unreadable; QA skipped");
+      return null;
+    });
+    if (!manifest) return [];
+    const sceneById = new Map(manifest.scenes.map((scene) => [scene.id, scene] as const));
+    const samplesByBoundary = [...samples.entries()].map(([boundaryId, boundarySamples]) => {
+      const [fromSceneId, toSceneId] = boundaryId.split("-to-");
+      return {
+        boundaryId,
+        fromHeadline: sceneById.get(fromSceneId ?? "")?.headline ?? "",
+        toHeadline: sceneById.get(toSceneId ?? "")?.headline ?? "",
+        samples: boundarySamples,
+      };
+    });
+    const model = this.deps.model();
+    if (!model) return [];
+    // Do not let the generic image-call fallback turn this into text-only QA.
+    // Without the pixels the model can only guess and may rewrite a valid,
+    // distinctive transition based on a hallucinated structural defect.
+    if (this.imageUnsupportedModels.has(model)) return [];
+    let reply: string;
+    try {
+      reply = await this.chatWithVisionFallback(model, buildTransitionQaMessages({ samplesByBoundary }), signal);
+    } catch (error) {
+      log.warn({ err: error, projectId }, "transition visual QA failed; skipping repair");
+      return [];
+    }
+    const json = extractJsonObject(reply);
+    if (!json) return [];
+    try {
+      const raw = JSON.parse(json) as { issues?: unknown };
+      if (!Array.isArray(raw.issues)) return [];
+      const known = new Set(samples.keys());
+      const out: TransitionDefect[] = [];
+      const seen = new Set<string>();
+      for (const item of raw.issues) {
+        const o = item as { boundaryId?: unknown; severity?: unknown; issue?: unknown };
+        const boundaryId = typeof o.boundaryId === "string" ? o.boundaryId : "";
+        const severity = typeof o.severity === "string" ? o.severity.toLowerCase() : "high";
+        const issue = typeof o.issue === "string" ? o.issue.trim() : "";
+        if (!known.has(boundaryId) || seen.has(boundaryId) || severity !== "high" || issue === "") continue;
+        seen.add(boundaryId);
+        out.push({ boundaryId, issue });
+      }
+      return out;
+    } catch (error) {
+      log.warn({ err: error, projectId }, "transition visual QA JSON parse failed");
+      return [];
+    }
+  }
+
+  private scenesForBoundary(boundaryId: string, scenes: TransitionPromptScene[]): { fromScene: TransitionPromptScene; toScene: TransitionPromptScene } | null {
+    const [fromSceneId, toSceneId] = boundaryId.split("-to-");
+    const fromScene = scenes.find((scene) => scene.id === fromSceneId);
+    const toScene = scenes.find((scene) => scene.id === toSceneId);
+    return fromScene && toScene ? { fromScene, toScene } : null;
+  }
+
+  private async readTransitionCode(projectId: string, boundaryId: string): Promise<string | undefined> {
+    const path = join(projectPaths(projectId).authoredDir, transitionFileName(boundaryId));
+    if (!existsSync(path)) return undefined;
+    return readFile(path, "utf8").catch((error) => {
+      log.warn({ err: error, projectId, boundaryId, path }, "transition source unreadable during QA repair");
+      return undefined;
+    });
   }
 
   private async clearAuthoredSceneFiles(projectId: string): Promise<void> {
@@ -457,6 +853,7 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
     try {
       const m = await loadManifest(projectId);
       for (const s of m.scenes) unregisterComponent(s.component);
+      for (const id of manifestBoundaryTransitionIds(m)) unregisterTransition(id);
     } catch (e) {
       // best-effort: a missing/unreadable manifest just means nothing to clear
       log.debug({ err: e, projectId }, "refreshRegistry: no manifest to clear");

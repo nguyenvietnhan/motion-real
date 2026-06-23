@@ -10,7 +10,8 @@ import { projectPaths } from "@news/pipeline";
 
 /** Derive the `.tsx` filename for a component id (never starts with `_`, which is reserved). */
 export function sceneFileName(componentId: string): string {
-  const safe = componentId.replace(/[^a-zA-Z0-9-]/g, "-").replace(/^[_-]+/, "");
+  let safe = componentId.replace(/[^a-zA-Z0-9-]/g, "-").replace(/^[_-]+/, "");
+  if (/^transition-/i.test(safe)) safe = `scene-${safe}`;
   return `${safe || "scene"}.tsx`;
 }
 

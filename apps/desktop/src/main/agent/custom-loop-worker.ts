@@ -7,6 +7,7 @@ import type {
   RepairLoopOptions,
   RepairOutcome,
   PublishResult,
+  TransitionAuthorOutcome,
   VisualDefect,
   SceneSnapshot,
 } from "./agent-worker.js";
@@ -39,6 +40,8 @@ export interface AuthoringBackend {
   authorScenes(job: AuthorJob): Promise<{ scenes: AuthoredScene[]; message?: string; unreadableUrls?: string[] }>;
   /** Re-author ONLY the named scenes (code-level self-repair / visual edit). */
   reauthor(projectId: string, targets: ReauthorTarget[], signal?: AbortSignal): Promise<{ scenes: AuthoredScene[] }>;
+  /** Optional boundary-level transition authoring after scene refine. */
+  prepareTransitions?(projectId: string, sceneIds?: string[], signal?: AbortSignal): Promise<TransitionAuthorOutcome>;
   /** Render one draft (drives the MCP `render_draft` tool); failure carries the engine error. */
   renderDraft(projectId: string, signal?: AbortSignal): Promise<RenderResult>;
   /** Optional fast per-scene STILLS render (no TTS/MP4) — the cheap loop the silent refine pass iterates on. */
@@ -93,6 +96,10 @@ export class CustomLoopAgentWorker implements AgentWorker {
     const result = await this.backend.reauthor(job.projectId, targets, signal);
     emitScenes(result.scenes, hooks);
     return { kind: "authored", sceneIds: result.scenes.map((s) => s.sceneId) };
+  }
+
+  prepareTransitions(projectId: string, sceneIds?: string[], signal?: AbortSignal): Promise<TransitionAuthorOutcome> {
+    return this.backend.prepareTransitions?.(projectId, sceneIds, signal) ?? Promise.resolve({ authoredBoundaryIds: [], failedBoundaryIds: [] });
   }
 
   publish(projectId: string, signal?: AbortSignal): Promise<PublishResult> {
