@@ -1,0 +1,58 @@
+- generic [ref=e3]:
+  - complementary [ref=e4]:
+    - generic [ref=e5]:
+      - img [ref=e7]
+      - generic [ref=e9]:
+        - generic [ref=e10]: News Studio
+        - generic [ref=e11]: Xưởng video tin tức
+    - navigation [ref=e12]:
+      - button "Trang chủ" [ref=e13] [cursor=pointer]:
+        - img [ref=e14]
+        - text: Trang chủ
+      - button "Dự án" [ref=e16] [cursor=pointer]:
+        - img [ref=e17]
+        - text: Dự án
+      - button "Cài đặt" [ref=e20] [cursor=pointer]:
+        - img [ref=e21]
+        - text: Cài đặt
+    - button "N nhan@example.com kr/claude-sonnet" [ref=e24] [cursor=pointer]:
+      - generic [ref=e26]: "N"
+      - generic [ref=e28]:
+        - generic [ref=e29]: nhan@example.com
+        - generic [ref=e30]: kr/claude-sonnet
+  - main [ref=e31]:
+    - generic [ref=e32]:
+      - generic [ref=e33]:
+        - heading "Đã xuất bản" [level=1] [ref=e35]
+        - button "← Quay lại" [ref=e36] [cursor=pointer]
+      - generic [ref=e40]:
+        - generic [ref=e41]:
+          - generic [ref=e42]:
+            - img [ref=e44]
+            - text: Đã xuất bản
+          - heading "AI tự điều khiển chó robot nhanh gấp 20 lần" [level=2] [ref=e46]
+        - generic [ref=e47]:
+          - button "Lưu video" [ref=e48] [cursor=pointer]:
+            - img [ref=e49]
+            - text: Lưu video
+          - button "Mở thư mục" [ref=e51] [cursor=pointer]:
+            - img [ref=e52]
+            - text: Mở thư mục
+        - generic [ref=e54]:
+          - generic [ref=e55]: Đăng tải
+          - generic [ref=e56]:
+            - generic [ref=e57]: AI tự điều khiển chó robot nhanh gấp 20 lần
+            - button "Copy" [ref=e58] [cursor=pointer]:
+              - img [ref=e59]
+          - generic [ref=e62]:
+            - generic [ref=e63]: "#AI #Robotics #Technology"
+            - button "Copy" [ref=e64] [cursor=pointer]:
+              - img [ref=e65]
+        - generic [ref=e68]:
+          - generic [ref=e69]: Ảnh bìa
+          - generic [ref=e70]:
+            - button "Xem ảnh bìa kích thước lớn" [ref=e71]:
+              - img "Ảnh bìa lấy từ cảnh đầu tiên" [ref=e72]
+              - generic [ref=e73]: Xem lớn
+            - button "Tải ảnh bìa PNG" [ref=e74] [cursor=pointer]:
+              - img [ref=e75]

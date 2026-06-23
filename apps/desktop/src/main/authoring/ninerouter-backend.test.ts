@@ -47,6 +47,50 @@ function validReply(): string {
   return "```json\n" + JSON.stringify(manifest) + "\n```\n\n" + block("alpha") + "\n\n" + block("beta");
 }
 
+function hyperframesBlock(sceneId: string): string {
+  return [
+    "```html",
+    `<!-- scene: ${sceneId} -->`,
+    "<!doctype html>",
+    "<html>",
+    '  <head><script src="../vendor/gsap.min.js"></script></head>',
+    "  <body>",
+    `    <div data-composition-id="${sceneId}" data-start="0" data-duration="1" data-width="1920" data-height="1080">`,
+    "      <style>.box { color: #fff; }</style>",
+    `      <div class="box">${sceneId}</div>`,
+    "      <script>",
+    "        window.__timelines = window.__timelines || {};",
+    "        const tl = gsap.timeline({ paused: true });",
+    '        tl.from(".box", { opacity: 0, y: 20, duration: 0.4, ease: "power2.out" }, 0.1);',
+    `        window.__timelines["${sceneId}"] = tl;`,
+    "      </script>",
+    "    </div>",
+    "  </body>",
+    "</html>",
+    "```",
+  ].join("\n");
+}
+
+function validHyperframesReply(): string {
+  const manifest = {
+    title: "Video kiểm thử HyperFrames",
+    theme: { dominant: "#1E9CB0", mood: "thử" },
+    scenes: [
+      { component: "hf-scene", eyebrow: "A", headline: "Một", narration: "Câu một." },
+      { component: "hf-scene", eyebrow: "B", headline: "Hai", narration: "Câu hai." },
+      { component: "hf-scene", eyebrow: "C", headline: "Ba", narration: "Câu ba." },
+    ],
+  };
+  return [
+    "```json",
+    JSON.stringify(manifest),
+    "```",
+    hyperframesBlock("scene-01"),
+    hyperframesBlock("scene-02"),
+    hyperframesBlock("scene-03"),
+  ].join("\n\n");
+}
+
 function transitionBlock(id: string): string {
   return [
     "```tsx",
@@ -199,7 +243,7 @@ describe("authorScenes (pure-author)", () => {
 
   it("injects the user-chosen delivery knobs (format/tier/videoLanguage) into the manifest — the AI never authors them", async () => {
     const projectId = "pa-delivery";
-    const { backend } = makeBackend(validReply());
+    const { backend } = makeBackend(validHyperframesReply());
     // The model's manifest carries only theme + scenes; the create-screen knobs
     // (format/durationTier/videoLanguage) are injected by the backend so the
     // canvas + word-budget + full content language are the user's choice, not the AI's.

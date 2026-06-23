@@ -103,6 +103,12 @@ export function projectPaths(projectId: string) {
     reviewDir: join(root, "review"),
     logsDir: join(root, "logs"),
     authoredDir: join(root, "authored"),
+    hyperframesDir: join(root, "hyperframes"),
+    hyperframesDesign: join(root, "hyperframes", "DESIGN.md"),
+    hyperframesScenesDir: join(root, "hyperframes", "scenes"),
+    hyperframesChunksDir: join(root, "hyperframes", "chunks"),
+    hyperframesVendorDir: join(root, "hyperframes", "vendor"),
+    renderChunksDir: join(root, "renders", "chunks"),
     /** Local image assets the AI may place in scenes; content-addressed `<sha>.<ext>`. */
     assetsDir: join(root, "assets"),
   };
@@ -123,7 +129,19 @@ export function createProjectId(prompt: string): string {
 /** Create the project folder tree and shared caches. Idempotent. */
 export async function ensureProject(projectId: string): Promise<string> {
   const p = projectPaths(projectId);
-  for (const dir of [p.root, p.audioDir, p.rendersDir, p.reviewDir, p.logsDir, p.assetsDir]) {
+  for (const dir of [
+    p.root,
+    p.audioDir,
+    p.rendersDir,
+    p.reviewDir,
+    p.logsDir,
+    p.authoredDir,
+    p.assetsDir,
+    p.hyperframesScenesDir,
+    p.hyperframesChunksDir,
+    p.hyperframesVendorDir,
+    p.renderChunksDir,
+  ]) {
     await mkdir(dir, { recursive: true });
   }
   await mkdir(ttsCacheDir(), { recursive: true });

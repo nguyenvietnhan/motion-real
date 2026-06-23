@@ -1,6 +1,6 @@
 import { join } from "node:path";
 import { existsSync, readFileSync } from "node:fs";
-import { readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import {
   createLogger,
   admitProjectAuthored,
@@ -16,6 +16,7 @@ import {
   transitionFileName,
   makeSafeFetch,
   crawlArticleImages,
+  appendEvent,
   type CrawledImage,
   type Manifest,
   type ManifestScene,
@@ -28,6 +29,9 @@ import {
   transitionSampleFileName,
   typecheckAuthoredScenes,
   workspaceRoot,
+  resolveVideoRenderer,
+  admitProjectHyperframes,
+  writeHyperframesScene,
 } from "@news/pipeline";
 import type { createTools } from "@news/mcp";
 import type { AuthoringBackend, AuthoredScene, ReauthorTarget } from "../agent/custom-loop-worker.js";
@@ -45,7 +49,7 @@ import {
   type AuthorImageInput,
   type TransitionPromptScene,
 } from "./prompt.js";
-import { parseAuthorReply } from "./reply-parser.js";
+import { parseAuthorReply, parseHyperframesAuthorReply } from "./reply-parser.js";
 import { parseReauthorReply, parseTransitionReply } from "./reply-parser.js";
 import type { AuthorManifest } from "./manifest-schema.js";
 import { extractJsonObject } from "./manifest-schema.js";
@@ -292,10 +296,11 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
       return { scenes: [], message: authorCallErrorMessage(e) };
     }
 
-    const parsed = parseAuthorReply(reply);
+    const useHyperframes = resolveVideoRenderer(job.input.format ?? "tiktok") === "hyperframes";
+    const parsed = useHyperframes ? parseHyperframesAuthorReply(reply) : parseAuthorReply(reply);
     if (!parsed.ok) {
       log.error(
-        { projectId: job.projectId, reason: parsed.reason, detail: parsed.detail, rawReply: reply.slice(0, 2000) },
+        { projectId: job.projectId, renderer: useHyperframes ? "hyperframes" : "remotion", reason: parsed.reason, detail: parsed.detail, rawReply: reply.slice(0, 2000) },
         "author-reply parse failed",
       );
       return { scenes: [], message: "AI chưa trả về kịch bản hợp lệ. Hãy thử lại hoặc mô tả rõ hơn." };
@@ -306,18 +311,34 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
       ...(job.input.durationTier ? { durationTier: job.input.durationTier } : {}),
       ...(job.input.videoLanguage ? { videoLanguage: job.input.videoLanguage } : {}),
     });
-    // Write each AI-authored module. Unregister first so a re-authored id (or a
-    // cross-project id collision in the process-wide registry) is refreshed with
-    // THIS project's code at admission time.
-    await this.clearAuthoredSceneFiles(job.projectId);
-    for (const mod of parsed.modules) {
-      unregisterComponent(mod.id);
-      await writeAuthoredScene(job.projectId, sceneFileName(mod.id), normalizeAuthoredFontSizes(normalizeAuthoredImports(mod.code)));
+    if (useHyperframes) {
+      const hyperframesParsed = parsed as { ok: true; manifest: AuthorManifest; scenes: { sceneId: string; html: string }[] };
+      await this.clearHyperframesSceneFiles(job.projectId);
+      await this.writeHyperframesDesign(job.projectId, engineManifest);
+      await appendEvent(job.projectId, {
+        type: "hyperframes.design",
+        phase: "done",
+        path: projectPaths(job.projectId).hyperframesDesign,
+      });
+      for (const scene of hyperframesParsed.scenes) {
+        await writeHyperframesScene(job.projectId, scene.sceneId, scene.html);
+      }
+    } else {
+      const remotionParsed = parsed as { ok: true; manifest: AuthorManifest; modules: { id: string; code: string }[] };
+      // Write each AI-authored module. Unregister first so a re-authored id (or a
+      // cross-project id collision in the process-wide registry) is refreshed with
+      // THIS project's code at admission time.
+      await this.clearAuthoredSceneFiles(job.projectId);
+      for (const mod of remotionParsed.modules) {
+        unregisterComponent(mod.id);
+        await writeAuthoredScene(job.projectId, sceneFileName(mod.id), normalizeAuthoredFontSizes(normalizeAuthoredImports(mod.code)));
+      }
     }
     await writeJson(manifestPathOf(job.projectId), engineManifest);
 
-    const admit = this.deps.admit ?? ((id: string) => admitProjectAuthored(id));
-    const admitted = await admit(job.projectId);
+    const admitted = useHyperframes
+      ? await admitProjectHyperframes(job.projectId, engineManifest)
+      : await (this.deps.admit ?? ((id: string) => admitProjectAuthored(id)))(job.projectId);
     if (!admitted.ok) {
       log.error(
         { projectId: job.projectId, violations: admitted.violations.map((v) => v.check + " " + v.path + ": " + v.message) },
@@ -344,6 +365,9 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
       return null;
     });
     if (!manifest || manifest.scenes.length < 2) return { authoredBoundaryIds: [], failedBoundaryIds: [] };
+    if (resolveVideoRenderer(manifest.format ?? "tiktok") === "hyperframes") {
+      return { authoredBoundaryIds: [], failedBoundaryIds: [] };
+    }
 
     const scenes = await this.readTransitionPromptScenes(projectId);
     if (scenes.length < 2) return { authoredBoundaryIds: [], failedBoundaryIds: manifestBoundaryTransitionIds(manifest) };
@@ -717,6 +741,43 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
         .filter((file) => /\.tsx$/.test(file) && !file.startsWith("_"))
         .map((file) => rm(join(dir, file), { force: true })),
     );
+  }
+
+  private async clearHyperframesSceneFiles(projectId: string): Promise<void> {
+    const dir = projectPaths(projectId).hyperframesScenesDir;
+    if (!existsSync(dir)) return;
+    const files = await readdir(dir);
+    await Promise.all(files.filter((file) => /\.html$/i.test(file)).map((file) => rm(join(dir, file), { force: true })));
+  }
+
+  private async writeHyperframesDesign(projectId: string, manifest: Manifest): Promise<void> {
+    const paths = projectPaths(projectId);
+    await mkdir(paths.hyperframesDir, { recursive: true });
+    const dominant = manifest.theme?.dominant ?? "#1E9CB0";
+    const mood = manifest.theme?.mood ?? "editorial, cinematic, clear";
+    const text = [
+      "# DESIGN.md",
+      "",
+      "Creative guidance for this HyperFrames project. This is not a template, component kit, or layout constraint.",
+      "",
+      "## Palette",
+      `- Dominant: ${dominant}`,
+      "- Supporting colors: choose per scene for contrast and narrative fit.",
+      "",
+      "## Typography",
+      "- Use bespoke typography per scene; prioritize legibility on 1920x1080.",
+      "",
+      "## Motion Tone",
+      `- ${mood}`,
+      "- Entrance animations should feel authored for the scene, not copied from a preset.",
+      "",
+      "## What NOT to Do",
+      "- Do not make every scene a centered title card.",
+      "- Do not use external assets, fonts, URLs, data URLs, or remote scripts.",
+      "- Do not introduce a reusable scene/template catalog.",
+      "",
+    ].join("\n");
+    await writeFile(paths.hyperframesDesign, text, "utf8");
   }
 
   /**

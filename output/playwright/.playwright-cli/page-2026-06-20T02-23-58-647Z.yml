@@ -1,0 +1,156 @@
+- generic [ref=e3]:
+  - complementary [ref=e4]:
+    - generic [ref=e5]:
+      - img [ref=e7]
+      - generic [ref=e9]:
+        - generic [ref=e10]: News Studio
+        - generic [ref=e11]: Xưởng video tin tức
+    - navigation [ref=e12]:
+      - button "Trang chủ" [ref=e13] [cursor=pointer]:
+        - img [ref=e14]
+        - text: Trang chủ
+      - button "Dự án" [ref=e16] [cursor=pointer]:
+        - img [ref=e17]
+        - text: Dự án
+      - button "Cài đặt" [ref=e20] [cursor=pointer]:
+        - img [ref=e21]
+        - text: Cài đặt
+    - button "N nhan@example.com kr/claude-sonnet" [ref=e24] [cursor=pointer]:
+      - generic [ref=e26]: "N"
+      - generic [ref=e28]:
+        - generic [ref=e29]: nhan@example.com
+        - generic [ref=e30]: kr/claude-sonnet
+  - main [ref=e31]:
+    - generic [ref=e32]:
+      - heading "Trang chủ" [level=1] [ref=e35]
+      - generic [ref=e36]:
+        - generic [ref=e37]:
+          - heading "Tạo video mới" [level=2] [ref=e38]
+          - generic [ref=e39]: Bạn muốn tạo gì hôm nay?
+        - generic [ref=e40]:
+          - textbox "Mô tả video hoặc đường dẫn bài báo" [ref=e41]:
+            - /placeholder: Mô tả ý tưởng, dán đường link bài báo hoặc thêm ảnh…
+          - generic [ref=e42]:
+            - button "Thêm ảnh" [ref=e43] [cursor=pointer]:
+              - img [ref=e44]
+            - generic [ref=e46]:
+              - button "TikTok 9:16" [ref=e48] [cursor=pointer]:
+                - img [ref=e49]
+                - generic [ref=e51]: TikTok 9:16
+              - button "0:45" [ref=e53] [cursor=pointer]:
+                - img [ref=e54]
+                - generic [ref=e57]: 0:45
+              - button "Việt" [ref=e59] [cursor=pointer]:
+                - img [ref=e60]
+                - generic [ref=e63]: Việt
+            - button "Tạo bản nháp" [disabled] [ref=e65]:
+              - img [ref=e66]
+              - text: Tạo bản nháp
+      - generic [ref=e68]:
+        - heading "Video gần đây" [level=2] [ref=e69]
+        - generic [ref=e70]: 8 dự án
+      - generic [ref=e71]:
+        - button "Đổi tên dự án Hoàn tất AI tự điều khiển chó robot nhanh gấp 20 lần 19/06/2026" [ref=e72] [cursor=pointer]:
+          - generic [ref=e73]:
+            - generic [ref=e74]:
+              - button "Đổi tên dự án" [ref=e75]:
+                - img [ref=e76]
+              - button "Mở thư mục dự án" [ref=e78]:
+                - img [ref=e79]
+              - button "Xoá dự án" [ref=e81]:
+                - img [ref=e82]
+            - generic "Hoàn tất" [ref=e84]
+          - generic [ref=e85]:
+            - strong [ref=e86]: AI tự điều khiển chó robot nhanh gấp 20 lần
+            - generic [ref=e87]: 19/06/2026
+        - button "Đổi tên dự án Nháp sẵn sàng để duyệt 4 gã khổng lồ AI gom sạch 188 tỷ USD 18/06/2026" [ref=e88] [cursor=pointer]:
+          - generic [ref=e89]:
+            - generic [ref=e90]:
+              - button "Đổi tên dự án" [ref=e91]:
+                - img [ref=e92]
+              - button "Mở thư mục dự án" [ref=e94]:
+                - img [ref=e95]
+              - button "Xoá dự án" [ref=e97]:
+                - img [ref=e98]
+            - generic "Nháp sẵn sàng để duyệt" [ref=e100]
+          - generic [ref=e101]:
+            - strong [ref=e102]: 4 gã khổng lồ AI gom sạch 188 tỷ USD
+            - generic [ref=e103]: 18/06/2026
+        - button "Đổi tên dự án Đang dựng… Tại sao mô hình nhỏ đang thắng 17/06/2026" [ref=e104] [cursor=pointer]:
+          - generic [ref=e105]:
+            - generic [ref=e106]:
+              - button "Đổi tên dự án" [ref=e107]:
+                - img [ref=e108]
+              - button "Mở thư mục dự án" [ref=e110]:
+                - img [ref=e111]
+              - button "Xoá dự án" [ref=e113]:
+                - img [ref=e114]
+            - generic "Đang dựng…" [ref=e116]
+          - generic [ref=e117]:
+            - strong [ref=e118]: Tại sao mô hình nhỏ đang thắng
+            - generic [ref=e119]: 17/06/2026
+        - button "Đổi tên dự án Gặp lỗi — thử lại Xu hướng công nghệ đáng chú ý tuần này 16/06/2026" [ref=e120] [cursor=pointer]:
+          - generic [ref=e121]:
+            - generic [ref=e122]:
+              - button "Đổi tên dự án" [ref=e123]:
+                - img [ref=e124]
+              - button "Mở thư mục dự án" [ref=e126]:
+                - img [ref=e127]
+              - button "Xoá dự án" [ref=e129]:
+                - img [ref=e130]
+            - generic "Gặp lỗi — thử lại" [ref=e132]
+          - generic [ref=e133]:
+            - strong [ref=e134]: Xu hướng công nghệ đáng chú ý tuần này
+            - generic [ref=e135]: 16/06/2026
+        - button "Đổi tên dự án Hoàn tất AI tự điều khiển chó robot nhanh gấp 20 lần 15/06/2026" [ref=e136] [cursor=pointer]:
+          - generic [ref=e137]:
+            - generic [ref=e138]:
+              - button "Đổi tên dự án" [ref=e139]:
+                - img [ref=e140]
+              - button "Mở thư mục dự án" [ref=e142]:
+                - img [ref=e143]
+              - button "Xoá dự án" [ref=e145]:
+                - img [ref=e146]
+            - generic "Hoàn tất" [ref=e148]
+          - generic [ref=e149]:
+            - strong [ref=e150]: AI tự điều khiển chó robot nhanh gấp 20 lần
+            - generic [ref=e151]: 15/06/2026
+        - button "Đổi tên dự án Nháp sẵn sàng để duyệt 4 gã khổng lồ AI gom sạch 188 tỷ USD 14/06/2026" [ref=e152] [cursor=pointer]:
+          - generic [ref=e153]:
+            - generic [ref=e154]:
+              - button "Đổi tên dự án" [ref=e155]:
+                - img [ref=e156]
+              - button "Mở thư mục dự án" [ref=e158]:
+                - img [ref=e159]
+              - button "Xoá dự án" [ref=e161]:
+                - img [ref=e162]
+            - generic "Nháp sẵn sàng để duyệt" [ref=e164]
+          - generic [ref=e165]:
+            - strong [ref=e166]: 4 gã khổng lồ AI gom sạch 188 tỷ USD
+            - generic [ref=e167]: 14/06/2026
+        - button "Đổi tên dự án Đang dựng… Tại sao mô hình nhỏ đang thắng 13/06/2026" [ref=e168] [cursor=pointer]:
+          - generic [ref=e169]:
+            - generic [ref=e170]:
+              - button "Đổi tên dự án" [ref=e171]:
+                - img [ref=e172]
+              - button "Mở thư mục dự án" [ref=e174]:
+                - img [ref=e175]
+              - button "Xoá dự án" [ref=e177]:
+                - img [ref=e178]
+            - generic "Đang dựng…" [ref=e180]
+          - generic [ref=e181]:
+            - strong [ref=e182]: Tại sao mô hình nhỏ đang thắng
+            - generic [ref=e183]: 13/06/2026
+        - button "Đổi tên dự án Gặp lỗi — thử lại Xu hướng công nghệ đáng chú ý tuần này 12/06/2026" [ref=e184] [cursor=pointer]:
+          - generic [ref=e185]:
+            - generic [ref=e186]:
+              - button "Đổi tên dự án" [ref=e187]:
+                - img [ref=e188]
+              - button "Mở thư mục dự án" [ref=e190]:
+                - img [ref=e191]
+              - button "Xoá dự án" [ref=e193]:
+                - img [ref=e194]
+            - generic "Gặp lỗi — thử lại" [ref=e196]
+          - generic [ref=e197]:
+            - strong [ref=e198]: Xu hướng công nghệ đáng chú ý tuần này
+            - generic [ref=e199]: 12/06/2026

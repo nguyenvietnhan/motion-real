@@ -1,0 +1,48 @@
+- generic [ref=e3]:
+  - complementary [ref=e4]:
+    - generic [ref=e5]:
+      - img [ref=e7]
+      - generic [ref=e9]:
+        - generic [ref=e10]: News Studio
+        - generic [ref=e11]: Xưởng video tin tức
+    - navigation [ref=e12]:
+      - button "Trang chủ" [ref=e13] [cursor=pointer]:
+        - img [ref=e14]
+        - text: Trang chủ
+      - button "Dự án" [ref=e16] [cursor=pointer]:
+        - img [ref=e17]
+        - text: Dự án
+      - button "Cài đặt" [ref=e20] [cursor=pointer]:
+        - img [ref=e21]
+        - text: Cài đặt
+    - button "N nhan@example.com kr/claude-sonnet" [ref=e24] [cursor=pointer]:
+      - generic [ref=e26]: "N"
+      - generic [ref=e28]:
+        - generic [ref=e29]: nhan@example.com
+        - generic [ref=e30]: kr/claude-sonnet
+  - main [ref=e31]:
+    - generic [ref=e32]:
+      - generic [ref=e33]:
+        - button "← Quay lại" [ref=e34] [cursor=pointer]
+        - generic [ref=e35]:
+          - strong [ref=e36]: Duyệt cảnh
+          - generic [ref=e37]: Cảnh 1/5
+        - generic "Nhạc nền trộn vào bản đầy đủ" [ref=e38]:
+          - img [ref=e40]
+          - combobox [ref=e44]:
+            - option "Không nhạc" [selected]
+          - button "Thêm" [ref=e45] [cursor=pointer]
+        - button "✎ Sửa cảnh" [ref=e46] [cursor=pointer]
+        - button "Gửi chỉnh sửa" [disabled] [ref=e47]
+        - button "Duyệt & xuất bản" [ref=e48] [cursor=pointer]
+      - generic [ref=e50]:
+        - button "1" [ref=e51] [cursor=pointer]:
+          - generic [ref=e52]: "1"
+        - button "2" [ref=e53] [cursor=pointer]:
+          - generic [ref=e54]: "2"
+        - button "3" [ref=e55] [cursor=pointer]:
+          - generic [ref=e56]: "3"
+        - button "4" [ref=e57] [cursor=pointer]:
+          - generic [ref=e58]: "4"
+        - button "5" [ref=e59] [cursor=pointer]:
+          - generic [ref=e60]: "5"

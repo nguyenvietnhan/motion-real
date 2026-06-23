@@ -44,3 +44,17 @@ export {
   type AuthoredTransitionFile,
 } from "./manifest.js";
 export { parseDurationFromPrompt } from "./parse-duration.js";
+export {
+  admitHyperframesScene,
+  admitProjectHyperframes,
+  ensureHyperframesVendor,
+  hyperframesSceneFileName,
+  hyperframesScenePath,
+  listHyperframesSceneFiles,
+  normalizeHyperframesSceneHtml,
+  readHyperframesSceneSources,
+  writeHyperframesScene,
+  type HyperframesProjectAdmissionResult,
+  type HyperframesSceneAdmissionContext,
+  type HyperframesSceneAdmissionResult,
+} from "./hyperframes.js";

@@ -1,0 +1,61 @@
+- generic [ref=e3]:
+  - complementary [ref=e4]:
+    - generic [ref=e5]:
+      - img [ref=e7]
+      - generic [ref=e9]:
+        - generic [ref=e10]: News Studio
+        - generic [ref=e11]: Xưởng video tin tức
+    - navigation [ref=e12]:
+      - button "Trang chủ" [ref=e13] [cursor=pointer]:
+        - img [ref=e14]
+        - text: Trang chủ
+      - button "Dự án" [ref=e16] [cursor=pointer]:
+        - img [ref=e17]
+        - text: Dự án
+      - button "Cài đặt" [ref=e20] [cursor=pointer]:
+        - img [ref=e21]
+        - text: Cài đặt
+    - button "N nhan@example.com kr/claude-sonnet" [ref=e24] [cursor=pointer]:
+      - generic [ref=e26]: "N"
+      - generic [ref=e28]:
+        - generic [ref=e29]: nhan@example.com
+        - generic [ref=e30]: kr/claude-sonnet
+  - main [ref=e31]:
+    - generic [ref=e32]:
+      - heading "Cài đặt" [level=1] [ref=e35]
+      - generic [ref=e36]:
+        - navigation [ref=e37]:
+          - button "Tài khoản AI" [ref=e38] [cursor=pointer]:
+            - img [ref=e39]
+            - text: Tài khoản AI
+          - button "Giọng đọc" [ref=e41] [cursor=pointer]:
+            - img [ref=e42]
+            - text: Giọng đọc
+          - button "Dựng video" [ref=e45] [cursor=pointer]:
+            - img [ref=e46]
+            - text: Dựng video
+          - button "Giới thiệu" [ref=e49] [cursor=pointer]:
+            - img [ref=e50]
+            - text: Giới thiệu
+        - generic [ref=e53]:
+          - generic [ref=e54]:
+            - heading "Tài khoản AI & model" [level=3] [ref=e55]
+            - paragraph [ref=e56]: Kết nối tài khoản qua 9Router và chọn model dùng để dựng video.
+          - generic [ref=e57]:
+            - generic [ref=e58]:
+              - generic [ref=e59]: "N"
+              - generic "Đang hoạt động" [ref=e60]
+            - generic [ref=e61]:
+              - generic "nhan@example.com" [ref=e62]
+              - generic [ref=e63]: kr/claude-sonnet
+            - button "Quản lý" [ref=e64] [cursor=pointer]
+          - generic [ref=e66]:
+            - generic [ref=e67]:
+              - generic [ref=e68]: Model dùng để dựng
+              - note "Model nhìn được ảnh sẽ tự soát và sửa lỗi bố cục tốt hơn." [ref=e69]:
+                - img [ref=e70]
+                - generic: Model nhìn được ảnh sẽ tự soát và sửa lỗi bố cục tốt hơn.
+            - combobox "Chọn model dựng video" [ref=e73]:
+              - option "— chọn model —" [disabled]
+              - option "kr/claude-sonnet" [selected]
+              - option "kr/gemini-pro"

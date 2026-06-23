@@ -11,12 +11,15 @@ import {
   manifestTransitionFiles,
   manifestBoundaryTransitionIds,
 } from "../authoring/manifest.js";
+import { admitProjectHyperframes, hyperframesScenePath } from "../authoring/hyperframes.js";
 import { generateAuthoredEntry } from "../authoring/authored-entry.js";
 import { lockSpec } from "../audio/lock.js";
 import { renderSceneStills, remotionAppRoot, type RenderTiming } from "./renderer.js";
+import { resolveVideoRenderer } from "./engine.js";
 import { DEFAULT_TRANSITION_SAMPLE_FRACTIONS } from "./transition-samples.js";
 import { PipelineError } from "../errors.js";
 import { withProjectRenderLock } from "./project-lock.js";
+import type { VideoRenderer } from "../types.js";
 
 /**
  * Fast per-scene STILLS render (freeform-engine R4/R5) — the cheap inner loop the
@@ -140,35 +143,53 @@ export async function renderProjectStillsUnlocked(
     if (opts.signal?.aborted) throw new PipelineError({ stage: "render", cause: "stills render cancelled before start" });
 
     const manifest = await timedStillsStage("authoring.load_manifest", () => loadManifest(projectId));
+    const videoRenderer: VideoRenderer = resolveVideoRenderer(manifest.format ?? "tiktok");
+    let authoredFiles: string[] = [];
 
-    // Admit every authored module (same AST gate as a real render). A rejected
-    // scene/transition stops the stills render with the violations summarized.
-    const expectedTransitionIds = manifestBoundaryTransitionIds(manifest);
-    const admitted = await timedStillsStage("authoring.admission", () =>
-      admitProjectAuthored(projectId, { expectedTransitionIds }),
-    );
-    if (!admitted.ok) {
-      throw new PipelineError({
-        stage: "build-gate",
-        cause: `authored admission rejected ${admitted.violations.length} module(s): ${admitted.violations
-          .map((v) => `${v.check} ${v.path}: ${v.message}`)
-          .join("; ")}`,
-        remediation: "Fix or re-author the rejected authored module(s) before rendering stills.",
+    if (videoRenderer === "hyperframes") {
+      const admitted = await timedStillsStage("hyperframes.admission", () => admitProjectHyperframes(projectId, manifest), {
+        scenes: manifest.scenes.length,
       });
-    }
+      if (!admitted.ok) {
+        throw new PipelineError({
+          stage: "build-gate",
+          cause: `HyperFrames admission rejected ${admitted.violations.length} scene(s): ${admitted.violations
+            .map((v) => `${v.check} ${v.path}: ${v.message}`)
+            .join("; ")}`,
+          remediation: "Fix or re-author the rejected HyperFrames scene HTML before rendering stills.",
+        });
+      }
+      authoredFiles = manifest.scenes.map((scene) => hyperframesScenePath(projectId, scene.id));
+    } else {
+      // Admit every authored module (same AST gate as a real render). A rejected
+      // scene/transition stops the stills render with the violations summarized.
+      const expectedTransitionIds = manifestBoundaryTransitionIds(manifest);
+      const admitted = await timedStillsStage("authoring.admission", () =>
+        admitProjectAuthored(projectId, { expectedTransitionIds }),
+      );
+      if (!admitted.ok) {
+        throw new PipelineError({
+          stage: "build-gate",
+          cause: `authored admission rejected ${admitted.violations.length} module(s): ${admitted.violations
+            .map((v) => `${v.check} ${v.path}: ${v.message}`)
+            .join("; ")}`,
+          remediation: "Fix or re-author the rejected authored module(s) before rendering stills.",
+        });
+      }
 
-    // Scope the bundle to exactly the files the manifest references (same 1:1
-    // pairing the orchestrator uses), so a stale orphan .tsx is not bundled.
-    const componentToFile = new Map(admitted.components.map((c) => [c.componentId, c.file] as const));
-    const transitionToFile = new Map(admitted.transitions.map((t) => [t.transitionId, t.file] as const));
-    const authoredFiles = await timedStillsStage(
-      "authoring.resolve_scene_files",
-      () => [
-        ...manifestSceneFiles(manifest, componentToFile).map((s) => s.file),
-        ...manifestTransitionFiles(manifest, transitionToFile).map((t) => t.file),
-      ],
-      { files: admitted.files.length, scenes: manifest.scenes.length, transitions: admitted.transitionIds.length },
-    );
+      // Scope the bundle to exactly the files the manifest references (same 1:1
+      // pairing the orchestrator uses), so a stale orphan .tsx is not bundled.
+      const componentToFile = new Map(admitted.components.map((c) => [c.componentId, c.file] as const));
+      const transitionToFile = new Map(admitted.transitions.map((t) => [t.transitionId, t.file] as const));
+      authoredFiles = await timedStillsStage(
+        "authoring.resolve_scene_files",
+        () => [
+          ...manifestSceneFiles(manifest, componentToFile).map((s) => s.file),
+          ...manifestTransitionFiles(manifest, transitionToFile).map((t) => t.file),
+        ],
+        { files: admitted.files.length, scenes: manifest.scenes.length, transitions: admitted.transitionIds.length },
+      );
+    }
 
     const spec: VideoSpec = await timedStillsStage("authoring.resolve_spec", () => loadManifestAsSpec(projectId), {
       scenes: manifest.scenes.length,
@@ -187,22 +208,24 @@ export async function renderProjectStillsUnlocked(
       { fps: STILLS_FPS, scenes: spec.scenes.length },
     );
 
-    // Per-project Remotion entry that imports the admitted authored scenes (same
-    // generator as the real render path), so the stills bundle THOSE scenes.
-    generatedEntry = join(paths.authoredDir, "_entry.stills.tsx");
-    await timedStillsStage(
-      "authored_entry",
-      () => generateAuthoredEntry({ entryPath: generatedEntry!, authoredFiles, lockJsonPath: paths.lock }),
-      { files: authoredFiles.length },
-    );
+    if (videoRenderer === "remotion") {
+      // Per-project Remotion entry that imports the admitted authored scenes (same
+      // generator as the real render path), so the stills bundle THOSE scenes.
+      generatedEntry = join(paths.authoredDir, "_entry.stills.tsx");
+      await timedStillsStage(
+        "authored_entry",
+        () => generateAuthoredEntry({ entryPath: generatedEntry!, authoredFiles, lockJsonPath: paths.lock }),
+        { files: authoredFiles.length },
+      );
+    }
 
     const stills = await timedStillsStage(
       "render_scene_stills",
       () =>
         renderSceneStills(locked, paths.reviewDir, {
-          entryPoint: generatedEntry!,
-          remotionRoot: remotionAppRoot(),
+          ...(generatedEntry ? { entryPoint: generatedEntry, remotionRoot: remotionAppRoot() } : {}),
           projectRoot: paths.root,
+          renderer: videoRenderer,
           timingScope: "stills",
           onTiming: recordRenderTiming,
           ...(opts.sceneIds ? { sceneIds: opts.sceneIds } : {}),

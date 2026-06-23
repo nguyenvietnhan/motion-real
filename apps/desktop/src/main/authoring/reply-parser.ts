@@ -14,6 +14,7 @@ import { authorManifestSchema, extractJsonObject, type AuthorManifest } from "./
 
 export type AuthoredModule = { id: string; code: string };
 export type AuthoredTransitionModule = { id: string; code: string };
+export type HyperframesSceneModule = { sceneId: string; html: string };
 
 export type ParseReason =
   | "no-manifest" // không tìm thấy/parse được manifest JSON
@@ -32,6 +33,10 @@ export type ParsedReauthorReply =
 
 export type ParsedTransitionReply =
   | { ok: true; modules: AuthoredTransitionModule[] }
+  | { ok: false; reason: ParseReason; detail: string };
+
+export type ParsedHyperframesAuthorReply =
+  | { ok: true; manifest: AuthorManifest; scenes: HyperframesSceneModule[] }
   | { ok: false; reason: ParseReason; detail: string };
 
 type Fence = { lang: string; body: string };
@@ -68,6 +73,7 @@ export function extractFences(text: string): Fence[] {
 }
 
 const TSX_LANGS = new Set(["tsx", "ts", "jsx", "typescript", "javascript", ""]);
+const HTML_LANGS = new Set(["html", "htm"]);
 
 /** A fenced code block carrying an authored module (right lang + a registerComponent call). */
 function isCodeFence(f: Fence): boolean {
@@ -76,6 +82,10 @@ function isCodeFence(f: Fence): boolean {
 
 function isTransitionCodeFence(f: Fence): boolean {
   return TSX_LANGS.has(f.lang) && /registerTransition\s*[<(]/.test(f.body);
+}
+
+function isHyperframesHtmlFence(f: Fence): boolean {
+  return HTML_LANGS.has(f.lang) && /^\s*<!--\s*scene:\s*scene-[0-9]{2}\s*-->/im.test(f.body);
 }
 
 /**
@@ -126,6 +136,10 @@ function transitionCodeBlocks(text: string, fences: Fence[]): Fence[] {
   return extractBareTransitionModules(text).filter(isTransitionCodeFence);
 }
 
+function hyperframesHtmlBlocks(fences: Fence[]): Fence[] {
+  return fences.filter(isHyperframesHtmlFence);
+}
+
 /** First `// component: <id>` marker line in a code block, if present. */
 function markerId(code: string): string | null {
   const m = /^\s*\/\/\s*component:\s*([a-z][a-z0-9-]*)\s*$/im.exec(code);
@@ -153,6 +167,11 @@ function resolveModuleId(code: string): { id: string } | { error: string } {
 
 function transitionMarkerId(code: string): string | null {
   const m = /^\s*\/\/\s*transition:\s*([a-z][a-z0-9-]*-to-[a-z][a-z0-9-]*)\s*$/im.exec(code);
+  return m ? m[1]! : null;
+}
+
+function hyperframesSceneMarkerId(html: string): string | null {
+  const m = /^\s*<!--\s*scene:\s*(scene-[0-9]{2})\s*-->/im.exec(html);
   return m ? m[1]! : null;
 }
 
@@ -278,6 +297,50 @@ export function parseAuthorReply(text: string): ParsedAuthorReply {
 
   const modules: AuthoredModule[] = [...byId.entries()].map(([id, code]) => ({ id, code }));
   return { ok: true, manifest, modules };
+}
+
+export function parseHyperframesAuthorReply(text: string): ParsedHyperframesAuthorReply {
+  const fences = extractFences(text);
+
+  const json = manifestJson(text, fences);
+  if (!json) return { ok: false, reason: "no-manifest", detail: "không tìm thấy manifest JSON trong reply" };
+  let raw: unknown;
+  try {
+    raw = JSON.parse(json);
+  } catch (e) {
+    return { ok: false, reason: "no-manifest", detail: e instanceof Error ? e.message : String(e) };
+  }
+  const parsed = authorManifestSchema.safeParse(raw);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      reason: "manifest-invalid",
+      detail: parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; "),
+    };
+  }
+  const manifest = parsed.data;
+
+  const htmlFences = hyperframesHtmlBlocks(fences);
+  if (htmlFences.length === 0) return { ok: false, reason: "no-code", detail: "không có khối html HyperFrames nào trong reply" };
+
+  const byScene = new Map<string, string>();
+  for (const f of htmlFences) {
+    const sceneId = hyperframesSceneMarkerId(f.body);
+    if (!sceneId) return { ok: false, reason: "id-mismatch", detail: "khối html thiếu marker <!-- scene: scene-NN -->" };
+    if (!byScene.has(sceneId)) byScene.set(sceneId, f.body);
+  }
+
+  const expectedIds = manifest.scenes.map((_, index) => `scene-${String(index + 1).padStart(2, "0")}`);
+  const missing = expectedIds.filter((id) => !byScene.has(id));
+  if (missing.length > 0) {
+    return { ok: false, reason: "missing-code", detail: `thiếu html cho: ${missing.join(", ")}` };
+  }
+
+  return {
+    ok: true,
+    manifest,
+    scenes: expectedIds.map((sceneId) => ({ sceneId, html: byScene.get(sceneId)! })),
+  };
 }
 
 export function parseTransitionReply(text: string, expectedIds: readonly string[]): ParsedTransitionReply {

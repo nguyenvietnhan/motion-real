@@ -70,3 +70,30 @@ LUẬT CHỐNG LẶP (đếm được, tự kiểm trước khi trả về):
 2) Trong toàn video, một video 9–12 cảnh nên dùng ÍT NHẤT 3 dạng bố cục khác nhau VÀ có ÍT NHẤT 1–2 cảnh mang đồ hoạ/ẩn dụ TỰ VẼ (SVG/CSS), không phải toàn cảnh card chữ (vd: vài cảnh tiêu đề, ≥1 cảnh số lớn, ≥1 cảnh hai-cột hoặc list, ≥1 beat hình tự vẽ).
 3) Số lớn/đếm-lên chỉ cho số THẬT có trong tư liệu — không có số thật thì đừng bịa ra để "có dạng stat".
 Text/list thuần là lựa chọn CÓ CHỦ ĐÍCH cho nội dung chữ, KHÔNG phải khuôn mặc định cho mọi cảnh.`;
+
+export const HYPERFRAMES_AUTHORING_CONTRACT = `HỢP ĐỒNG VIẾT CẢNH HYPERFRAMES (AUTHOR mode HTML/CSS/GSAP — KHÔNG CÓ TEMPLATE/KIT) — mỗi cảnh là MỘT file HTML độc lập bạn TỰ VIẾT MỚI 100%.
+
+CẤU TRÚC BẮT BUỘC MỖI CẢNH:
+- Mỗi khối html bắt đầu bằng marker đúng dòng đầu: <!-- scene: scene-01 -->, <!-- scene: scene-02 -->...
+- Root duy nhất có data-composition-id, data-start="0", data-duration="1", data-width="1920", data-height="1080". data-duration chỉ là placeholder; hệ thống sẽ rewrite theo lock TTS.
+- Import GSAP cục bộ: <script src="../vendor/gsap.min.js"></script>. KHÔNG dùng CDN khác.
+- Tạo timeline đồng bộ: window.__timelines = window.__timelines || {}; const tl = gsap.timeline({ paused: true }); ... window.__timelines["scene-01"] = tl;
+- Mọi animation dùng GSAP timeline paused. KHÔNG async/await, Promise, setTimeout, setInterval, requestAnimationFrame, Date, Math.random, fetch, XMLHttpRequest, eval, Function, require, import(), process, localStorage, window.location, document.cookie.
+- KHÔNG repeat:-1; nếu cần loop thì tính repeat hữu hạn theo duration placeholder.
+
+MEDIA/ASSET:
+- Cấm iframe/audio/video/source/object/embed/link/font/external URL/data/blob/absolute path.
+- Nếu scene có image.ref trong manifest, được dùng TỐI ĐA một <img src="assets/<ref thật>"> với đúng ref đã cho; không có image.ref thì không dùng <img>. Không bịa đường dẫn.
+- CSS url(...) chỉ dùng được fragment nội bộ url(#id) trong SVG/CSS; không dùng url ảnh/font/file.
+
+LAYOUT/MOTION:
+- Canvas YouTube 16:9 1920x1080, không có burned caption band. Dùng layout ngang, tận dụng bề rộng.
+- Đặt layout ở trạng thái hero-frame trước, rồi dùng gsap.from() để animate vào vị trí đó. Container nội dung chính nên dùng flex/grid/padding, không tuyệt đối hoá mọi thứ bằng top/left.
+- Mỗi scene phải có entrance animation rõ ràng cho các phần tử chính. Chuyển cảnh giữa các file do FFmpeg xfade xử lý, nên KHÔNG cần giữ state giữa scene.
+- Tự hardcode màu, font, bo góc, SVG/CSS bespoke theo nội dung. DESIGN.md là hướng dẫn sáng tạo, không phải style kit.
+- Text trên cảnh chỉ là ý chính cô đọng; narration kể câu đầy đủ. Không tự render phụ đề.
+
+ĐỊNH DẠNG TRẢ VỀ HYPERFRAMES:
+1) Đúng một khối json manifest. Manifest vẫn phải có "component" cho mỗi scene, dùng id placeholder như "hf-scene-01", "hf-scene-02" (AI không chọn engine).
+2) Với mỗi scene theo thứ tự manifest, đúng một khối html có marker <!-- scene: scene-NN --> ở dòng đầu.
+3) Không kèm prose ngoài các code fences.`;

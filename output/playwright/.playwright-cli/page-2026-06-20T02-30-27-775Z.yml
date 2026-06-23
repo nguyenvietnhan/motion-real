@@ -1,0 +1,93 @@
+- generic [ref=e3]:
+  - complementary [ref=e4]:
+    - generic [ref=e5]:
+      - img [ref=e7]
+      - generic [ref=e9]:
+        - generic [ref=e10]: News Studio
+        - generic [ref=e11]: Xưởng video tin tức
+    - navigation [ref=e12]:
+      - button "Trang chủ" [ref=e13] [cursor=pointer]:
+        - img [ref=e14]
+        - text: Trang chủ
+      - button "Dự án" [ref=e16] [cursor=pointer]:
+        - img [ref=e17]
+        - text: Dự án
+      - button "Cài đặt" [ref=e20] [cursor=pointer]:
+        - img [ref=e21]
+        - text: Cài đặt
+    - button "N nhan@example.com kr/claude-sonnet" [ref=e24] [cursor=pointer]:
+      - generic [ref=e26]: "N"
+      - generic [ref=e28]:
+        - generic [ref=e29]: nhan@example.com
+        - generic [ref=e30]: kr/claude-sonnet
+  - main [ref=e31]:
+    - generic [ref=e32]:
+      - heading "Cài đặt" [level=1] [ref=e35]
+      - generic [ref=e36]:
+        - navigation [ref=e37]:
+          - button "Tài khoản AI" [ref=e38] [cursor=pointer]:
+            - img [ref=e39]
+            - text: Tài khoản AI
+          - button "Giọng đọc" [ref=e41] [cursor=pointer]:
+            - img [ref=e42]
+            - text: Giọng đọc
+          - button "Dựng video" [active] [ref=e45] [cursor=pointer]:
+            - img [ref=e46]
+            - text: Dựng video
+          - button "Giới thiệu" [ref=e49] [cursor=pointer]:
+            - img [ref=e50]
+            - text: Giới thiệu
+        - generic [ref=e74]:
+          - generic [ref=e75]:
+            - heading "Dựng video" [level=3] [ref=e76]
+            - paragraph [ref=e77]: Tuỳ chọn quy trình tự dựng và chọn ảnh.
+          - generic [ref=e78] [cursor=pointer]:
+            - generic [ref=e79]:
+              - generic [ref=e80]: Duyệt kịch bản trước khi dựng
+              - note "Tạm dừng để bạn xem và sửa lời đọc trước khi AI dựng video." [ref=e81]:
+                - img [ref=e82]
+                - generic: Tạm dừng để bạn xem và sửa lời đọc trước khi AI dựng video.
+            - generic [ref=e85]:
+              - checkbox "Duyệt kịch bản trước khi dựng Tạm dừng để bạn xem và sửa lời đọc trước khi AI dựng video." [checked]
+          - generic [ref=e87]:
+            - button "Tự tinh chỉnh hình ảnh bằng AI Trước bản nháp đầu, AI xem ảnh từng cảnh và tự sửa lỗi bố cục. Cần model nhìn được ảnh. Tự tinh chỉnh hình ảnh bằng AI" [expanded] [ref=e88] [cursor=pointer]:
+              - generic [ref=e89]:
+                - img [ref=e91]
+                - generic [ref=e93]: Tự tinh chỉnh hình ảnh bằng AI
+                - note "Trước bản nháp đầu, AI xem ảnh từng cảnh và tự sửa lỗi bố cục. Cần model nhìn được ảnh." [ref=e94]:
+                  - img [ref=e95]
+                  - generic: Trước bản nháp đầu, AI xem ảnh từng cảnh và tự sửa lỗi bố cục. Cần model nhìn được ảnh.
+              - generic [ref=e98]:
+                - checkbox "Tự tinh chỉnh hình ảnh bằng AI" [checked]
+            - generic [ref=e100]:
+              - generic [ref=e101]:
+                - generic [ref=e102]:
+                  - generic [ref=e103]: Số lần tinh chỉnh
+                  - note "Số lượt AI nhìn ảnh và sửa lại tối đa." [ref=e104]:
+                    - img [ref=e105]
+                    - generic: Số lượt AI nhìn ảnh và sửa lại tối đa.
+                - textbox "Số lần tinh chỉnh" [ref=e108]: "2"
+              - generic [ref=e109] [cursor=pointer]:
+                - generic [ref=e110]:
+                  - generic [ref=e111]: Dừng sớm khi đã ổn định
+                  - note "Dừng khi hai lượt liên tiếp không còn lỗi, thay vì luôn chạy đủ số lần." [ref=e112]:
+                    - img [ref=e113]
+                    - generic: Dừng khi hai lượt liên tiếp không còn lỗi, thay vì luôn chạy đủ số lần.
+                - generic [ref=e116]:
+                  - checkbox "Dừng sớm khi đã ổn định Dừng khi hai lượt liên tiếp không còn lỗi, thay vì luôn chạy đủ số lần." [checked]
+          - generic [ref=e118] [cursor=pointer]:
+            - generic [ref=e119]:
+              - generic [ref=e120]: AI tự chọn ảnh từ bài báo
+              - note "Khi yêu cầu có đường dẫn bài báo, AI chọn sẵn ảnh phù hợp nội dung. Cần model nhìn được ảnh." [ref=e121]:
+                - img [ref=e122]
+                - generic: Khi yêu cầu có đường dẫn bài báo, AI chọn sẵn ảnh phù hợp nội dung. Cần model nhìn được ảnh.
+            - generic [ref=e125]:
+              - checkbox "AI tự chọn ảnh từ bài báo Khi yêu cầu có đường dẫn bài báo, AI chọn sẵn ảnh phù hợp nội dung. Cần model nhìn được ảnh." [checked]
+          - generic [ref=e127] [cursor=pointer]:
+            - generic [ref=e128]:
+              - generic [ref=e129]: Cho tôi duyệt ảnh trước khi dựng
+              - note "Hiện màn chọn ảnh cào từ bài báo để bạn xác nhận trước khi AI viết kịch bản." [ref=e130]:
+                - img [ref=e131]
+                - generic: Hiện màn chọn ảnh cào từ bài báo để bạn xác nhận trước khi AI viết kịch bản.
+            - generic [ref=e134]:
+              - checkbox "Cho tôi duyệt ảnh trước khi dựng Hiện màn chọn ảnh cào từ bài báo để bạn xác nhận trước khi AI viết kịch bản." [checked]

@@ -1,7 +1,7 @@
 import type { AuthorInput } from "../agent/agent-worker.js";
 import type { SafetyIssue } from "@news/pipeline";
 import { tierSeconds, titleMaxChars, type DurationTier, type VideoFormat, type VideoLanguage } from "@news/schema";
-import { AUTHORING_CONTRACT } from "./contract-text.js";
+import { AUTHORING_CONTRACT, HYPERFRAMES_AUTHORING_CONTRACT } from "./contract-text.js";
 import { DEFAULT_ENGLISH_WORDS_PER_SECOND, DEFAULT_WORDS_PER_SECOND } from "../../shared/settings-model.js";
 
 /**
@@ -153,6 +153,44 @@ export default registerComponent<Props>({ id: "id-canh", displayName: "...", pro
 \`\`\`
 id trong manifest phải KHỚP id literal trong registerComponent. KHÔNG kèm văn bản thừa ngoài các khối trên.`;
 
+const HYPERFRAMES_OUTPUT_FORMAT = `ĐỊNH DẠNG TRẢ VỀ (AI_Output_Contract_HyperFrames) — trả về TRONG MỘT REPLY:
+1) Đúng MỘT khối \`\`\`json là manifest:
+\`\`\`json
+{
+  "title": "tiêu đề video",
+  "hashtags": [],
+  "theme": { "dominant": "#RRGGBB", "mood": "mô tả ngắn" },
+  "scenes": [
+    { "component": "hf-scene-01", "eyebrow": "NHÃN", "headline": "tiêu đề cảnh", "narration": "lời đọc", "props": {} }
+  ]
+}
+\`\`\`
+2) Với MỖI scene theo thứ tự manifest, MỘT khối \`\`\`html. DÒNG ĐẦU phải là marker "<!-- scene: scene-01 -->", tăng tuần tự scene-02, scene-03...
+\`\`\`html
+<!-- scene: scene-01 -->
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <script src="../vendor/gsap.min.js"></script>
+  </head>
+  <body>
+    <div data-composition-id="scene-01" data-start="0" data-duration="1" data-width="1920" data-height="1080">
+      <style>/* CSS bespoke của scene */</style>
+      <div class="scene-content">...</div>
+      <script>
+        window.__timelines = window.__timelines || {};
+        const tl = gsap.timeline({ paused: true });
+        tl.from(".scene-content", { opacity: 0, y: 40, duration: 0.6, ease: "power3.out" }, 0.15);
+        window.__timelines["scene-01"] = tl;
+      </script>
+    </div>
+  </body>
+</html>
+\`\`\`
+Không kèm văn bản thừa ngoài các khối trên.`;
+
 /**
  * Build the AUTHOR system prompt for the chosen DELIVERY FORMAT (no design style
  * anymore — the multi-language system was deleted, D1). The format block fixes the
@@ -162,6 +200,21 @@ id trong manifest phải KHỚP id literal trong registerComponent. KHÔNG kèm 
  */
 function authorSystem(format: VideoFormat, tier: DurationTier, videoLanguage: VideoLanguage, wps: number): string {
   const frame = format === "youtube" ? "16:9" : "9:16";
+  if (format === "youtube") {
+    return `Bạn là tác giả video YouTube long-form 16:9 SÁNG TẠO cho MỌI chủ đề người dùng muốn, kiêm motion designer HyperFrames. Bạn TỰ VIẾT MỚI HTML/CSS/SVG/GSAP cho từng cảnh (KHÔNG chọn từ tập component có sẵn). Mục tiêu tối thượng: video phải THẬT LÓA MẮT, CUỐN HÚT — bám đúng yêu cầu người dùng và dám phá cách.
+
+${formatBlock(format)}
+
+${tierBudgetBlock(format, tier, videoLanguage, wps)}
+
+${languageBlock(format, videoLanguage)}
+
+${contentRules(wps, videoLanguage)}
+
+${HYPERFRAMES_AUTHORING_CONTRACT}
+
+${HYPERFRAMES_OUTPUT_FORMAT}`;
+  }
   return `Bạn là tác giả video ngắn ${frame} SÁNG TẠO cho MỌI chủ đề người dùng muốn (không chỉ tin tức: giải thích, kể chuyện, quảng bá, giáo dục, giải trí…), kiêm lập trình viên Remotion. Bạn TỰ VIẾT MỚI mã .tsx cho từng cảnh (KHÔNG chọn từ tập component có sẵn). Mục tiêu tối thượng: video phải THẬT LÓA MẮT, CUỐN HÚT — bám đúng yêu cầu người dùng và dám phá cách.
 
 ${formatBlock(format)}
@@ -198,6 +251,14 @@ QUAN TRỌNG VỀ KÍCH THƯỚC: <SceneImage> TỰ canh theo đúng tỉ lệ t
 CHỈ dùng ref đã được cung cấp, TUYỆT ĐỐI KHÔNG bịa đường dẫn/URL ảnh. Viết nội dung sao cho ảnh khớp tổng thể.
 BẮT BUỘC DÙNG ẢNH: những ảnh này do NGƯỜI DÙNG chủ động chọn/đính kèm, nên PHẢI được đưa vào video — KHÔNG được bỏ hết. Hãy đặt MỖI ảnh đã cho vào một cảnh phù hợp (mỗi cảnh tối đa 1 ảnh, nên trải ảnh ra nhiều cảnh); nếu có nhiều ảnh hơn số cảnh hợp, hãy ưu tiên những ảnh khớp nội dung nhất, nhưng TỐI THIỂU phải dùng một ảnh. Soạn nội dung/kịch bản bám theo ảnh để chúng khớp tự nhiên.`;
 
+const HYPERFRAMES_IMAGE_RULE = `
+
+ẢNH (NGƯỜI DÙNG ĐÍNH KÈM — PHẢI DÙNG): Người dùng đính kèm một số ẢNH, mỗi ảnh có một "ref" CỐ ĐỊNH (vd "assets/<hash>.png") kèm kích thước. Bạn ĐƯỢC XEM các ảnh này. Cách đặt ảnh trong HyperFrames:
+- thêm "image": { "ref": "<ref đã cho>" } vào MỘT scene phù hợp trong manifest (tối đa 1 ảnh/scene);
+- trong đúng khối html của scene đó, dùng đúng một <img src="<ref đã cho>" alt="...">. src phải là CHÍNH XÁC ref được cung cấp, ví dụ src="assets/abc.png". Hệ thống sẽ rewrite relative path khi render chunk.
+- Không dùng ảnh ngoài, không bịa ref, không dùng data/blob/http/file URL, không dùng CSS background-image.
+BẮT BUỘC DÙNG ẢNH: những ảnh này do NGƯỜI DÙNG chủ động chọn/đính kèm, nên PHẢI được đưa vào video — tối thiểu một ảnh, và nếu hợp nội dung thì trải mỗi ảnh vào một scene riêng.`;
+
 export function buildAuthorMessages(
   input: AuthorInput,
   research?: string,
@@ -211,7 +272,10 @@ export function buildAuthorMessages(
       ? "\n\n(Không đọc được nội dung link. Chỉ dùng thông tin trong yêu cầu + kiến thức chắc chắn về chủ đề. KHÔNG bịa số liệu, ngày tháng, giá, phần trăm hay tên sản phẩm/phiên bản mới — thiếu căn cứ thì đừng nêu.)"
       : "";
   const source = `Yêu cầu của người dùng:\n${input.text}${links}${grounding}`;
-  const instruction = `${source}\n\nHãy soạn kịch bản + VIẾT MÃ .tsx cho từng cảnh, trả về đúng định dạng AI_Output_Contract.`;
+  const isHyperframes = (input.format ?? "tiktok") === "youtube";
+  const instruction = `${source}\n\nHãy soạn kịch bản + VIẾT ${isHyperframes ? "HTML HyperFrames" : "MÃ .tsx"} cho từng cảnh, trả về đúng định dạng ${
+    isHyperframes ? "AI_Output_Contract_HyperFrames" : "AI_Output_Contract"
+  }.`;
   // System prompt is driven by the chosen DELIVERY FORMAT (canvas + caption
   // presence), the duration tier (word budget), and the full video language — the
   // backend injects these from the user's create-screen choice; the model never
@@ -237,7 +301,7 @@ export function buildAuthorMessages(
     parts.push({ type: "image_url", image_url: { url: img.dataUrl } });
   }
   return [
-    { role: "system", content: `${system}${IMAGE_RULE}` },
+    { role: "system", content: `${system}${isHyperframes ? HYPERFRAMES_IMAGE_RULE : IMAGE_RULE}` },
     { role: "user", content: parts },
   ];
 }

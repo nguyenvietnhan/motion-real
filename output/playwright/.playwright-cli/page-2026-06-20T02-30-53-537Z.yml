@@ -1,0 +1,56 @@
+- generic [ref=e3]:
+  - complementary [ref=e4]:
+    - generic [ref=e5]:
+      - img [ref=e7]
+      - generic [ref=e9]:
+        - generic [ref=e10]: News Studio
+        - generic [ref=e11]: Xưởng video tin tức
+    - navigation [ref=e12]:
+      - button "Trang chủ" [ref=e13] [cursor=pointer]:
+        - img [ref=e14]
+        - text: Trang chủ
+      - button "Dự án" [ref=e16] [cursor=pointer]:
+        - img [ref=e17]
+        - text: Dự án
+      - button "Cài đặt" [ref=e20] [cursor=pointer]:
+        - img [ref=e21]
+        - text: Cài đặt
+    - button "N nhan@example.com kr/claude-sonnet" [ref=e24] [cursor=pointer]:
+      - generic [ref=e26]: "N"
+      - generic [ref=e28]:
+        - generic [ref=e29]: nhan@example.com
+        - generic [ref=e30]: kr/claude-sonnet
+  - main [ref=e31]:
+    - generic [ref=e32]:
+      - heading "Cài đặt" [level=1] [ref=e35]
+      - generic [ref=e36]:
+        - navigation [ref=e37]:
+          - button "Tài khoản AI" [ref=e38] [cursor=pointer]:
+            - img [ref=e39]
+            - text: Tài khoản AI
+          - button "Giọng đọc" [active] [ref=e41] [cursor=pointer]:
+            - img [ref=e42]
+            - text: Giọng đọc
+          - button "Dựng video" [ref=e45] [cursor=pointer]:
+            - img [ref=e46]
+            - text: Dựng video
+          - button "Giới thiệu" [ref=e49] [cursor=pointer]:
+            - img [ref=e50]
+            - text: Giới thiệu
+        - generic [ref=e136]:
+          - generic [ref=e137]:
+            - heading "Giọng đọc" [level=3] [ref=e138]
+            - paragraph [ref=e139]: Cấu hình giọng đọc Vivibe. Bỏ trống sẽ dùng cấu hình trong file .env (nếu có).
+          - generic [ref=e140]:
+            - generic [ref=e142]: Nhà cung cấp giọng
+            - textbox [disabled] [ref=e143]: vivibe
+          - generic [ref=e144]:
+            - generic [ref=e146]: API key giọng đọc (Vivibe)
+            - textbox "dán API key…" [ref=e147]
+          - generic [ref=e148]:
+            - generic [ref=e149]:
+              - generic [ref=e150]: Voice ID
+              - note "Mã giọng đọc cụ thể trên Vivibe." [ref=e151]:
+                - img [ref=e152]
+                - generic: Mã giọng đọc cụ thể trên Vivibe.
+            - textbox "voice id…" [ref=e155]

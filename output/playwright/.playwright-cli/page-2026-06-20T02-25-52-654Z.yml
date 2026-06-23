@@ -1,0 +1,134 @@
+- generic [ref=e3]:
+  - complementary [ref=e4]:
+    - generic [ref=e5]:
+      - img [ref=e7]
+      - generic [ref=e9]:
+        - generic [ref=e10]: News Studio
+        - generic [ref=e11]: Xưởng video tin tức
+    - navigation [ref=e12]:
+      - button "Trang chủ" [ref=e13] [cursor=pointer]:
+        - img [ref=e14]
+        - text: Trang chủ
+      - button "Dự án" [ref=e16] [cursor=pointer]:
+        - img [ref=e17]
+        - text: Dự án
+      - button "Cài đặt" [ref=e20] [cursor=pointer]:
+        - img [ref=e21]
+        - text: Cài đặt
+    - button "N nhan@example.com kr/claude-sonnet" [ref=e24] [cursor=pointer]:
+      - generic [ref=e26]: "N"
+      - generic [ref=e28]:
+        - generic [ref=e29]: nhan@example.com
+        - generic [ref=e30]: kr/claude-sonnet
+  - main [ref=e31]:
+    - generic [ref=e32]:
+      - generic [ref=e33]:
+        - heading "Dự án" [level=1] [ref=e35]
+        - button "Tạo video" [ref=e36] [cursor=pointer]:
+          - img [ref=e37]
+          - text: Tạo video
+      - generic [ref=e39]:
+        - button "Đổi tên dự án Hoàn tất AI tự điều khiển chó robot nhanh gấp 20 lần 19/06/2026" [ref=e40] [cursor=pointer]:
+          - generic [ref=e41]:
+            - generic [ref=e42]:
+              - button "Đổi tên dự án" [ref=e43]:
+                - img [ref=e44]
+              - button "Mở thư mục dự án" [ref=e46]:
+                - img [ref=e47]
+              - button "Xoá dự án" [ref=e49]:
+                - img [ref=e50]
+            - generic "Hoàn tất" [ref=e52]
+          - generic [ref=e53]:
+            - strong [ref=e54]: AI tự điều khiển chó robot nhanh gấp 20 lần
+            - generic [ref=e55]: 19/06/2026
+        - button "Đổi tên dự án Nháp sẵn sàng để duyệt 4 gã khổng lồ AI gom sạch 188 tỷ USD 18/06/2026" [ref=e56] [cursor=pointer]:
+          - generic [ref=e57]:
+            - generic [ref=e58]:
+              - button "Đổi tên dự án" [ref=e59]:
+                - img [ref=e60]
+              - button "Mở thư mục dự án" [ref=e62]:
+                - img [ref=e63]
+              - button "Xoá dự án" [ref=e65]:
+                - img [ref=e66]
+            - generic "Nháp sẵn sàng để duyệt" [ref=e68]
+          - generic [ref=e69]:
+            - strong [ref=e70]: 4 gã khổng lồ AI gom sạch 188 tỷ USD
+            - generic [ref=e71]: 18/06/2026
+        - button "Đổi tên dự án Đang dựng… Tại sao mô hình nhỏ đang thắng 17/06/2026" [ref=e72] [cursor=pointer]:
+          - generic [ref=e73]:
+            - generic [ref=e74]:
+              - button "Đổi tên dự án" [ref=e75]:
+                - img [ref=e76]
+              - button "Mở thư mục dự án" [ref=e78]:
+                - img [ref=e79]
+              - button "Xoá dự án" [ref=e81]:
+                - img [ref=e82]
+            - generic "Đang dựng…" [ref=e84]
+          - generic [ref=e85]:
+            - strong [ref=e86]: Tại sao mô hình nhỏ đang thắng
+            - generic [ref=e87]: 17/06/2026
+        - button "Đổi tên dự án Gặp lỗi — thử lại Xu hướng công nghệ đáng chú ý tuần này 16/06/2026" [ref=e88] [cursor=pointer]:
+          - generic [ref=e89]:
+            - generic [ref=e90]:
+              - button "Đổi tên dự án" [ref=e91]:
+                - img [ref=e92]
+              - button "Mở thư mục dự án" [ref=e94]:
+                - img [ref=e95]
+              - button "Xoá dự án" [ref=e97]:
+                - img [ref=e98]
+            - generic "Gặp lỗi — thử lại" [ref=e100]
+          - generic [ref=e101]:
+            - strong [ref=e102]: Xu hướng công nghệ đáng chú ý tuần này
+            - generic [ref=e103]: 16/06/2026
+        - button "Đổi tên dự án Hoàn tất AI tự điều khiển chó robot nhanh gấp 20 lần 15/06/2026" [ref=e104] [cursor=pointer]:
+          - generic [ref=e105]:
+            - generic [ref=e106]:
+              - button "Đổi tên dự án" [ref=e107]:
+                - img [ref=e108]
+              - button "Mở thư mục dự án" [ref=e110]:
+                - img [ref=e111]
+              - button "Xoá dự án" [ref=e113]:
+                - img [ref=e114]
+            - generic "Hoàn tất" [ref=e116]
+          - generic [ref=e117]:
+            - strong [ref=e118]: AI tự điều khiển chó robot nhanh gấp 20 lần
+            - generic [ref=e119]: 15/06/2026
+        - button "Đổi tên dự án Nháp sẵn sàng để duyệt 4 gã khổng lồ AI gom sạch 188 tỷ USD 14/06/2026" [ref=e120] [cursor=pointer]:
+          - generic [ref=e121]:
+            - generic [ref=e122]:
+              - button "Đổi tên dự án" [ref=e123]:
+                - img [ref=e124]
+              - button "Mở thư mục dự án" [ref=e126]:
+                - img [ref=e127]
+              - button "Xoá dự án" [ref=e129]:
+                - img [ref=e130]
+            - generic "Nháp sẵn sàng để duyệt" [ref=e132]
+          - generic [ref=e133]:
+            - strong [ref=e134]: 4 gã khổng lồ AI gom sạch 188 tỷ USD
+            - generic [ref=e135]: 14/06/2026
+        - button "Đổi tên dự án Đang dựng… Tại sao mô hình nhỏ đang thắng 13/06/2026" [ref=e136] [cursor=pointer]:
+          - generic [ref=e137]:
+            - generic [ref=e138]:
+              - button "Đổi tên dự án" [ref=e139]:
+                - img [ref=e140]
+              - button "Mở thư mục dự án" [ref=e142]:
+                - img [ref=e143]
+              - button "Xoá dự án" [ref=e145]:
+                - img [ref=e146]
+            - generic "Đang dựng…" [ref=e148]
+          - generic [ref=e149]:
+            - strong [ref=e150]: Tại sao mô hình nhỏ đang thắng
+            - generic [ref=e151]: 13/06/2026
+        - button "Đổi tên dự án Gặp lỗi — thử lại Xu hướng công nghệ đáng chú ý tuần này 12/06/2026" [ref=e152] [cursor=pointer]:
+          - generic [ref=e153]:
+            - generic [ref=e154]:
+              - button "Đổi tên dự án" [ref=e155]:
+                - img [ref=e156]
+              - button "Mở thư mục dự án" [ref=e158]:
+                - img [ref=e159]
+              - button "Xoá dự án" [ref=e161]:
+                - img [ref=e162]
+            - generic "Gặp lỗi — thử lại" [ref=e164]
+          - generic [ref=e165]:
+            - strong [ref=e166]: Xu hướng công nghệ đáng chú ý tuần này
+            - generic [ref=e167]: 12/06/2026

@@ -22,6 +22,7 @@ export type VoiceProvider = "vivibe" | "elevenlabs";
 export type TtsProvider = VoiceProvider | "mock" | "none";
 export type AiProvider = "mock" | "openai-compatible" | "deepseek";
 export type VideoLanguage = "vi" | "en";
+export type VideoRenderer = "remotion" | "hyperframes";
 
 /** Persisted project state (brief.json). */
 export type ProjectBrief = {

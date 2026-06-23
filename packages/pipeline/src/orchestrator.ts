@@ -44,6 +44,11 @@ import {
   type ManifestSceneFile,
   type ManifestTransitionFile,
 } from "./authoring/manifest.js";
+import {
+  admitProjectHyperframes,
+  hyperframesScenePath,
+  readHyperframesSceneSources,
+} from "./authoring/hyperframes.js";
 import { PipelineError, RenderCancelledError, isRenderCancelledError } from "./errors.js";
 import { generateAuthoredEntry } from "./authoring/authored-entry.js";
 import { parseDurationFromPrompt } from "./authoring/parse-duration.js";
@@ -64,8 +69,10 @@ import {
   type RenderVideoOptions,
   type RenderVideoResult,
 } from "./render/renderer.js";
+import { resolveVideoRenderer } from "./render/engine.js";
 import { DEFAULT_TRANSITION_SAMPLE_FRACTIONS } from "./render/transition-samples.js";
 import { buildReview, type BuildReviewOptions, type ComposeContactSheet, type ReviewArtifacts } from "./review.js";
+import type { VideoRenderer } from "./types.js";
 
 /**
  * Extra per-scene still samples for the late-drift N14 pass, as fractions through
@@ -337,9 +344,48 @@ async function renderProjectUnlocked(projectId: string, opts: RenderProjectOptio
     let authoredFiles: string[] = [];
     let authoredSceneFiles: ManifestSceneFile[] = [];
     let authoredTransitionFiles: ManifestTransitionFile[] = [];
+    let videoRenderer: VideoRenderer = "remotion";
     if (!opts.skipAuthoring) {
       throwIfCancelled(); // before the admission/bundle work begins
       const manifest = await timedPipelineStage("stage.authoring.load_manifest", () => loadManifest(projectId));
+      videoRenderer = resolveVideoRenderer(manifest.format ?? "tiktok");
+      await appendEvent(projectId, { type: "renderer.selected", renderer: videoRenderer, format: manifest.format ?? "tiktok" });
+      if (videoRenderer === "hyperframes") {
+        await appendEvent(projectId, { type: "hyperframes.admission", phase: "start", scenes: manifest.scenes.length });
+        const admitted = await timedPipelineStage("stage.hyperframes.admission", () => admitProjectHyperframes(projectId, manifest), {
+          scenes: manifest.scenes.length,
+        });
+        if (!admitted.ok) {
+          await persistFailureReport(projectId, admitted.violations);
+          await fail(projectId, `HyperFrames admission blocked render: ${errorSummary(admitted.violations)}`);
+          throw new Error(`renderProject: ${admitted.violations.length} HyperFrames scene(s) rejected by the admission gate.`);
+        }
+        authoredFiles = admitted.files;
+        authoredSceneFiles = manifest.scenes.map((scene) => ({
+          sceneId: scene.id,
+          componentId: scene.component,
+          file: hyperframesScenePath(projectId, scene.id),
+        }));
+        authoredTransitionFiles = [];
+        await appendEvent(projectId, { type: "hyperframes.admission", phase: "done", scenes: admitted.sceneIds.length });
+
+        const spec = await timedPipelineStage("stage.authoring.resolve_spec", () => loadManifestAsSpec(projectId), {
+          scenes: manifest.scenes.length,
+        });
+        await timedPipelineStage("stage.authoring.write_spec", () => writeJson(paths.spec, spec));
+        await appendEvent(projectId, { type: "authored.admitted", renderer: "hyperframes", components: admitted.sceneIds.length, transitions: 0 });
+
+        const staticReport = await timedPipelineStage(
+          "stage.static_grid",
+          () => runStaticGrid(spec, { authoredComponentIds: manifest.scenes.map((scene) => scene.component) }),
+          { scenes: spec.scenes.length, renderer: "hyperframes" },
+        );
+        if (!staticReport.ok) {
+          await persistFailureReport(projectId, staticReport.issues);
+          await fail(projectId, `Static safety grid blocked render: ${errorSummary(staticReport.issues)}`);
+          throw new Error(`renderProject: static grid reported ${errorCount(staticReport.issues)} hard error(s).`);
+        }
+      } else {
       const expectedTransitionIds = manifestBoundaryTransitionIds(manifest);
       const admitted = await timedPipelineStage("stage.authoring.admission", () =>
         admitProjectAuthored(projectId, { expectedTransitionIds }),
@@ -461,9 +507,14 @@ async function renderProjectUnlocked(projectId: string, opts: RenderProjectOptio
           remediation: "An authored scene uses a block/component with the wrong prop types. Re-author the flagged scene to match the block's contract.",
         });
       }
+      }
     }
 
     const spec = await readJson<VideoSpec>(paths.spec);
+    if (opts.skipAuthoring) {
+      videoRenderer = resolveVideoRenderer(spec.format);
+      await appendEvent(projectId, { type: "renderer.selected", renderer: videoRenderer, format: spec.format });
+    }
 
     const provider: TtsProvider = opts.ttsProvider ?? brief.tts.provider;
     const sameProviderAsBrief = provider === brief.tts.provider;
@@ -515,7 +566,7 @@ async function renderProjectUnlocked(projectId: string, opts: RenderProjectOptio
         // scene modules are gated separately by the AST admission gate. Opt out only
         // by explicitly passing `lintSources: false`.
         const buildReports =
-          opts.lintSources === false
+          videoRenderer === "hyperframes" || opts.lintSources === false
             ? [buildReport]
             : [buildReport, lintSceneSources(compositionsSrcDir()), lintSceneSources(blocksSrcDir())];
         return gate(buildReports);
@@ -538,17 +589,19 @@ async function renderProjectUnlocked(projectId: string, opts: RenderProjectOptio
       remotionRoot?: string;
       projectRoot: string;
       signal?: AbortSignal;
+      renderer?: VideoRenderer;
       onTiming?: (timing: RenderTiming) => void;
       timingScope?: string;
       chromiumOptions?: RenderVideoOptions["chromiumOptions"];
       chromeMode?: RenderVideoOptions["chromeMode"];
     } = {
       projectRoot: paths.root,
+      renderer: videoRenderer,
       onTiming: recordRenderTiming,
       ...chromiumRuntime,
       ...(opts.signal ? { signal: opts.signal } : {}),
     };
-    if (!opts.skipAuthoring) {
+    if (!opts.skipAuthoring && videoRenderer === "remotion") {
       generatedEntry = join(paths.authoredDir, "_entry.tsx");
       await timedPipelineStage(
         "stage.authored_entry",
@@ -559,6 +612,7 @@ async function renderProjectUnlocked(projectId: string, opts: RenderProjectOptio
         entryPoint: generatedEntry,
         remotionRoot: remotionAppRoot(),
         projectRoot: paths.root,
+        renderer: videoRenderer,
         onTiming: recordRenderTiming,
         ...chromiumRuntime,
         ...(opts.signal ? { signal: opts.signal } : {}),
@@ -581,9 +635,14 @@ async function renderProjectUnlocked(projectId: string, opts: RenderProjectOptio
     // The cache key includes the authored scene SOURCE (not just the locked
     // spec), so a visual-only edit to a `.tsx` (same id/props/narration) is a
     // cache miss and actually re-renders instead of serving a stale MP4.
-    const authoredSources = await timedPipelineStage("stage.read_authored_sources", () => readAuthoredSources(authoredFiles), {
-      files: authoredFiles.length,
-    });
+    const authoredSources = await timedPipelineStage(
+      "stage.read_authored_sources",
+      () => (videoRenderer === "hyperframes" ? readHyperframesSceneSources(authoredFiles) : readAuthoredSources(authoredFiles)),
+      {
+        files: authoredFiles.length,
+        renderer: videoRenderer,
+      },
+    );
     // Desktop/MCP callers always pass bgmPath as either a selected path or null.
     // Fold that explicit choice into the full-render cache key; otherwise a
     // cached MP4 with music could be reused after the user chooses silence.
@@ -595,12 +654,17 @@ async function renderProjectUnlocked(projectId: string, opts: RenderProjectOptio
         bgmCacheDiscriminator = `bgm:${createHash("sha256").update(bytes).digest("hex")}`;
       }
     }
+    const runtimeCacheDiscriminator =
+      videoRenderer === "hyperframes"
+        ? ["renderer:hyperframes", "hyperframes:0.7.3", "gsap:3.15.0", bgmCacheDiscriminator].filter(Boolean).join(";")
+        : bgmCacheDiscriminator;
     const hash = await timedPipelineStage(
       "stage.render_cache_key",
-      () => renderCacheKey(locked, authoredSources, bgmCacheDiscriminator),
+      () => renderCacheKey(locked, authoredSources, runtimeCacheDiscriminator),
       {
         files: authoredSources.length,
         bgm: bgmCacheDiscriminator === "" ? "legacy" : bgmCacheDiscriminator === "bgm:none" ? "none" : "selected",
+        renderer: videoRenderer,
       },
     );
     const mp4Path = join(paths.rendersDir, isDraft ? `${projectId}.draft.mp4` : `${projectId}.mp4`);
@@ -696,9 +760,17 @@ async function renderProjectUnlocked(projectId: string, opts: RenderProjectOptio
     const authoredSceneSources =
       authoredTransitionFiles.length === 0
         ? authoredSources
-        : await timedPipelineStage("stage.read_authored_scene_sources", () => readAuthoredSources(authoredSceneFiles.map((s) => s.file)), {
-            files: authoredSceneFiles.length,
-          });
+        : await timedPipelineStage(
+            "stage.read_authored_scene_sources",
+            () =>
+              videoRenderer === "hyperframes"
+                ? readHyperframesSceneSources(authoredSceneFiles.map((s) => s.file))
+                : readAuthoredSources(authoredSceneFiles.map((s) => s.file)),
+            {
+              files: authoredSceneFiles.length,
+              renderer: videoRenderer,
+            },
+          );
     const layoutSceneIds = layoutMeasureSceneIds(locked, authoredSceneSources, authoredSceneFiles);
     if (layoutSceneIds.length === 0) {
       await appendEvent(projectId, { type: "render.overlap.skipped", cause: "no tagged layout blocks" });

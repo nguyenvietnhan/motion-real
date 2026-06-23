@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import fc from "fast-check";
-import { parseAuthorReply, parseReauthorReply, parseTransitionReply } from "./reply-parser.js";
+import { parseAuthorReply, parseHyperframesAuthorReply, parseReauthorReply, parseTransitionReply } from "./reply-parser.js";
 
 /**
  * Property tests for the AI_Output_Contract parser (desktop-author-mode).
@@ -407,5 +407,47 @@ describe("bare (un-fenced) module recovery — the scene-13 symptom", () => {
     const parsed = parseReauthorReply(codeBlock("scene-13-loss"), "scene-13-loss");
     expect(parsed.ok).toBe(true);
     if (parsed.ok) expect(parsed.module.id).toBe("scene-13-loss");
+  });
+});
+
+describe("parseHyperframesAuthorReply", () => {
+  function hyperframesReply(sceneIds: string[]): string {
+    const manifest = {
+      title: "Video ngang",
+      theme: { dominant: "#1E9CB0", mood: "cinematic" },
+      scenes: sceneIds.map((sceneId, index) => ({
+        component: `hf-${sceneId}`,
+        eyebrow: "HF",
+        headline: `Cảnh ${index + 1}`,
+        narration: `Câu ${index + 1} đủ dài cho kiểm thử.`,
+      })),
+    };
+    return [
+      "```json",
+      JSON.stringify(manifest),
+      "```",
+      ...sceneIds.flatMap((sceneId) => [
+        "```html",
+        `<!-- scene: ${sceneId} -->\n<div data-composition-id="${sceneId}"></div>`,
+        "```",
+      ]),
+    ].join("\n");
+  }
+
+  it("parses manifest plus one html block per sequential scene marker", () => {
+    const parsed = parseHyperframesAuthorReply(hyperframesReply(["scene-01", "scene-02", "scene-03"]));
+    expect(parsed.ok).toBe(true);
+    if (parsed.ok) expect(parsed.scenes.map((scene) => scene.sceneId)).toEqual(["scene-01", "scene-02", "scene-03"]);
+  });
+
+  it("rejects a missing html scene block", () => {
+    const parsed = parseHyperframesAuthorReply(
+      hyperframesReply(["scene-01", "scene-02", "scene-03"]).replace(
+        /```html\n<!-- scene: scene-02 -->[\s\S]*?```\n/,
+        "",
+      ),
+    );
+    expect(parsed.ok).toBe(false);
+    if (!parsed.ok) expect(parsed.reason).toBe("missing-code");
   });
 });

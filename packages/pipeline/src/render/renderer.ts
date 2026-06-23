@@ -10,8 +10,15 @@ import type { CancelSignal, ChromeMode, ChromiumOptions, VideoImageFormat } from
 import type { LockedVideoSpec } from "@news/schema";
 import { transitionFrames } from "@news/schema";
 import { createLogger } from "../log/logger.js";
+import type { VideoRenderer } from "../types.js";
 import { stableStringify } from "./cache.js";
 import { transitionSampleFileName, transitionSampleFrame } from "./transition-samples.js";
+import {
+  measureHyperframesSceneLayouts,
+  renderHyperframesFrameTwice,
+  renderHyperframesSceneStills,
+  renderHyperframesVideo,
+} from "./hyperframes-renderer.js";
 
 const DEFAULT_COMPOSITION_ID = "NewsVideo";
 
@@ -40,6 +47,8 @@ type RenderBaseOptions = {
   timingScope?: string;
   /** Abort the in-flight render(s) when this fires (user pressed "Dừng"). */
   signal?: AbortSignal;
+  /** Visual renderer implementation. Omitted keeps the legacy Remotion path. */
+  renderer?: VideoRenderer;
 };
 
 export type RenderOpenGlRenderer = NonNullable<ChromiumOptions["gl"]>;
@@ -173,6 +182,7 @@ const BROWSER_TIMEOUT_MS = 120_000;
 
 /** Node API path: ensure Chromium, bundle the Remotion app, select composition, render h264 MP4. */
 export async function renderVideo(opts: RenderVideoOptions): Promise<RenderVideoResult> {
+  if (opts.renderer === "hyperframes") return renderHyperframesVideo(opts);
   const outPath = resolve(opts.outPath);
   const timingOpts: RenderVideoOptions = { ...opts, timingScope: opts.timingScope ?? "video" };
   const prepared = await prepareComposition(opts.spec, {
@@ -255,6 +265,7 @@ export async function renderSceneStills(
   outDir: string,
   opts: RenderSceneStillsOptions = {},
 ): Promise<string[]> {
+  if (opts.renderer === "hyperframes") return renderHyperframesSceneStills(spec, outDir, opts);
   const stillDir = resolve(outDir);
   const timingOpts: RenderSceneStillsOptions = { ...opts, timingScope: opts.timingScope ?? "stills" };
   const prepared = await prepareComposition(spec, {
@@ -374,6 +385,7 @@ export async function measureSceneLayouts(
   spec: LockedVideoSpec,
   opts: RenderSceneStillsOptions = {},
 ): Promise<Record<string, MeasuredBlock[]>> {
+  if (opts.renderer === "hyperframes") return measureHyperframesSceneLayouts(spec, opts);
   const timingOpts: RenderSceneStillsOptions = { ...opts, timingScope: opts.timingScope ?? "layout-measure" };
   const prepared = await prepareComposition(spec, { ...timingOpts, artifactPath: resolve(timingOpts.projectRoot ?? ".") });
   const measureProps = { ...prepared.inputProps, measure: true };
@@ -460,6 +472,7 @@ export async function renderFrameTwice(
   outputs: readonly [string, string],
   opts: RenderFrameOptions = {},
 ): Promise<[string, string]> {
+  if (opts.renderer === "hyperframes") return renderHyperframesFrameTwice(spec, frame, outputs, opts);
   const outA = resolve(outputs[0]);
   const outB = resolve(outputs[1]);
   const timingOpts: RenderFrameOptions = { ...opts, timingScope: opts.timingScope ?? "determinism" };
