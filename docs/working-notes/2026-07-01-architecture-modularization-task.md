@@ -1,6 +1,6 @@
 # Temporary Task — Architecture Modularization
 
-Status: Step 7D implementation complete; Step 7E close audit next.
+Status: Step 7 complete; Step 8 create/crawl/image-review extraction next.
 
 This is a temporary working task for the next large cleanup after the docs
 contract consolidation. Keep it updated as work progresses. Delete this file
@@ -689,6 +689,22 @@ Step 7E approval gate:
 - no broad recovery/list/generate-thumbnail module is created in Step 7;
 - next target is either Step 8 or a newly designed stop point.
 
+Step 7E audit result:
+
+- close Step 7 with no source movement;
+- `list` stays in the controller because it overlays live in-memory stages,
+  recovers disk artifact status, and owns gallery card status policy;
+- `rename` stays in the controller because it loads/writes manifests and
+  re-emits live published state;
+- `stage` and `recoverStage` stay in the controller because they memoize
+  recovered state, inspect disk artifacts, and choose retry semantics;
+- `open` stays in the controller because it is a boundary wrapper around
+  storyboard recovery and empty-fallback behavior;
+- `generateThumbnail` stays in the controller because it owns mutual exclusion,
+  thumbnail render IO, and published-stage re-emission;
+- no tiny pure helper with clear tests was found in the remaining Step 7 scope;
+- next target is Step 8.
+
 ## Approval Model
 
 Every step below has an approval gate. A step is not approved until all of its
@@ -826,6 +842,11 @@ spending context on stale detail.
   `typecheck`, view-model test (10 tests), controller test (62 tests), full
   `test` (84 files, 841 tests), and `build`. No public API or package barrel
   changed. Step 7 remains open; next gate: Step 7E close audit.
+- 2026-07-02 Step 7E complete. Audited `list`, `rename`, `stage`,
+  `recoverStage`, `open`, and `generateThumbnail`; no remaining tiny pure helper
+  was found, so Step 7 closed with no source movement and no broad recovery
+  rewrite. Checks passed: `typecheck`, controller test (62 tests), full `test`
+  (84 files, 841 tests), and `build`. Next gate: Step 8.
 
 ## Non-Negotiable Guardrails
 
@@ -940,7 +961,7 @@ Suggested commit names:
 - [x] Step 4: Legacy compatibility inventory.
 - [x] Step 5: First extraction design, no code movement.
 - [x] Step 6: Extract pure workspace helpers.
-- [ ] Step 7: Extract workspace view-model and recovery helpers.
+- [x] Step 7: Extract workspace view-model and recovery helpers.
 - [ ] Step 8: Extract create/crawl/image-review flow.
 - [ ] Step 9: Extract script-gate flow.
 - [ ] Step 10: Extract render/refine/publish helpers or stop deliberately.
