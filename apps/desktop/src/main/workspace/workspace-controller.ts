@@ -1,5 +1,6 @@
 import { computeScriptEdits, type ManifestScene } from "../script/script-gate-apply.js";
 import { buildStoryboard } from "../review/storyboard.js";
+import { combineIntent, linkWarningOf, stageToFriendlyStatus } from "./workspace-helpers.js";
 import { createLogger, serializeError, type CrawledImage } from "@news/pipeline";
 import { classifyError } from "../agent/error-classifier.js";
 import { toFriendlyError } from "../redact/friendly.js";
@@ -7,7 +8,6 @@ import type { AgentHooks, AgentWorker, AuthorInput, AuthorImageRef, SceneSnapsho
 import type {
   ApplyResult,
   CrawledImageVM,
-  FriendlyStatus,
   ProjectCardVM,
   ProjectStage,
   ScriptEdit,
@@ -18,43 +18,6 @@ import type {
 } from "../../shared/types.js";
 
 const log = createLogger("workspace");
-
-/** Map a live workspace stage to the gallery's friendly status. */
-function stageToFriendlyStatus(kind: ProjectStage["kind"]): FriendlyStatus {
-  switch (kind) {
-    case "ready":
-      return "draft-ready";
-    case "published":
-      return "done";
-    case "error":
-      return "error";
-    default:
-      return "building"; // writing | script | rendering
-  }
-}
-
-/**
- * Combine a per-scene edit instruction with the video-wide note into ONE intent
- * the AI receives for that scene. Either part may be empty; a scene targeted by
- * a global-note-only edit carries just the note.
- */
-function combineIntent(perScene: string, globalNotes: string): string {
-  const parts: string[] = [];
-  if (perScene.trim()) parts.push(perScene.trim());
-  if (globalNotes.trim()) parts.push(`Ghi chú chung cho cả video: ${globalNotes.trim()}`);
-  return parts.join("\n\n");
-}
-
-/**
- * Build a non-blocking warning when one or more brief links couldn't be read.
- * The content then leans on the model's own knowledge (potentially stale), so
- * the user should verify before approving. Returns undefined when every link
- * was read (or there were none).
- */
-function linkWarningOf(totalUrls: number, unreadableUrls: string[]): string | undefined {
-  if (unreadableUrls.length === 0) return undefined;
-  return `Không đọc được ${unreadableUrls.length}/${totalUrls} đường dẫn. Nội dung liên quan dựa trên hiểu biết của AI.`;
-}
 
 /**
  * WorkspaceController (reconcile-main-controllers S4) — the tested home for the

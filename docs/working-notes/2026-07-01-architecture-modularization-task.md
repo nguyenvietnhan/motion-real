@@ -1,6 +1,6 @@
 # Temporary Task — Architecture Modularization
 
-Status: Step 5 complete; waiting for owner approval before Step 6.
+Status: Step 6 complete; waiting for owner approval before Step 7.
 
 This is a temporary working task for the next large cleanup after the docs
 contract consolidation. Keep it updated as work progresses. Delete this file
@@ -432,6 +432,12 @@ spending context on stale detail.
   destination files, exact pure-helper move list, import impact, and test
   evidence map for Step 6. No source code was moved. Next gate: owner approval
   before Step 6.
+- 2026-07-01 Step 6 complete. Extracted `stageToFriendlyStatus`,
+  `combineIntent`, and `linkWarningOf` into `workspace-helpers.ts`; added direct
+  helper tests; updated `workspace-controller.ts` to import the helpers. Checks
+  passed: pre-edit `typecheck`/`test`/`build`; post-edit `typecheck`, helper
+  test, controller test, full `test` (83 files, 831 tests), and `build`. No
+  public API changed. Next gate: owner approval before Step 7.
 
 ## Non-Negotiable Guardrails
 
@@ -545,7 +551,7 @@ Suggested commit names:
 - [x] Step 3: Compare organization models and lock the chosen approach.
 - [x] Step 4: Legacy compatibility inventory.
 - [x] Step 5: First extraction design, no code movement.
-- [ ] Step 6: Extract pure workspace helpers.
+- [x] Step 6: Extract pure workspace helpers.
 - [ ] Step 7: Extract workspace view-model and recovery helpers.
 - [ ] Step 8: Extract create/crawl/image-review flow.
 - [ ] Step 9: Extract script-gate flow.

@@ -1,0 +1,37 @@
+import type { FriendlyStatus, ProjectStage } from "../../shared/types.js";
+
+/** Map a live workspace stage to the gallery's friendly status. */
+export function stageToFriendlyStatus(kind: ProjectStage["kind"]): FriendlyStatus {
+  switch (kind) {
+    case "ready":
+      return "draft-ready";
+    case "published":
+      return "done";
+    case "error":
+      return "error";
+    default:
+      return "building"; // writing | image-review | script | rendering
+  }
+}
+
+/**
+ * Combine a per-scene edit instruction with the video-wide note into one intent
+ * the AI receives for that scene. Either part may be empty; a scene targeted by
+ * a global-note-only edit carries just the note.
+ */
+export function combineIntent(perScene: string, globalNotes: string): string {
+  const parts: string[] = [];
+  if (perScene.trim()) parts.push(perScene.trim());
+  if (globalNotes.trim()) parts.push(`Ghi chú chung cho cả video: ${globalNotes.trim()}`);
+  return parts.join("\n\n");
+}
+
+/**
+ * Build a non-blocking warning when one or more brief links couldn't be read.
+ * The content then leans on the model's own knowledge, so the user should
+ * verify before approving. Returns undefined when every link was read.
+ */
+export function linkWarningOf(totalUrls: number, unreadableUrls: string[]): string | undefined {
+  if (unreadableUrls.length === 0) return undefined;
+  return `Không đọc được ${unreadableUrls.length}/${totalUrls} đường dẫn. Nội dung liên quan dựa trên hiểu biết của AI.`;
+}
