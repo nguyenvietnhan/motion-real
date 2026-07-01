@@ -1,6 +1,7 @@
 import { computeScriptEdits, type ManifestScene } from "../script/script-gate-apply.js";
 import { buildStoryboard } from "../review/storyboard.js";
 import { combineIntent, linkWarningOf, stageToFriendlyStatus } from "./workspace-helpers.js";
+import { readyStageOf } from "./workspace-view-model.js";
 import { createLogger, serializeError, type CrawledImage } from "@news/pipeline";
 import { classifyError } from "../agent/error-classifier.js";
 import { toFriendlyError } from "../redact/friendly.js";
@@ -208,7 +209,7 @@ export class WorkspaceController {
    */
   private readyStage(projectId: string, scenes: SceneCard[], notice?: string): ProjectStage {
     const draftPath = this.deps.hasDraft(projectId) ? this.deps.draftMedia(projectId) : undefined;
-    return { kind: "ready", scenes, ...(draftPath ? { draftPath } : {}), ...(notice ? { notice } : {}) };
+    return readyStageOf(scenes, { draftPath, notice });
   }
 
   /**
