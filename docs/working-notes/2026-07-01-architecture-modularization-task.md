@@ -1,6 +1,6 @@
 # Temporary Task — Architecture Modularization
 
-Status: Step 0 complete; waiting for owner approval before Step 1.
+Status: Step 1 complete; waiting for owner approval before Step 2.
 
 This is a temporary working task for the next large cleanup after the docs
 contract consolidation. Keep it updated as work progresses. Delete this file
@@ -66,6 +66,69 @@ problem is that several large files and barrels hide too many responsibilities:
 - `packages/pipeline/src/render/renderer.ts`
 - `packages/tts/src/index.ts`
 - `packages/pipeline/src/index.ts` as an overly broad public barrel
+
+Step 1 inventory confirmed this assessment rather than changing it:
+
+- tracked root areas are concentrated in `packages/` (146 files), `apps/` (116
+  files), `docs/` (18 files), and `scripts/` (8 files);
+- the workspace has one private root package, two private app packages
+  (`@news/desktop`, `@news/remotion`), and seven shared packages
+  (`@news/blocks`, `@news/compositions`, `@news/mcp`, `@news/pipeline`,
+  `@news/schema`, `@news/theme`, `@news/tts`);
+- the required runtime-artifact scan found only `default.mp3`;
+- an extra media scan found only `default.mp3` plus the two desktop logo PNGs;
+- no tracked `node_modules`, `dist-electron`, `.video-tool`, video outputs,
+  coverage folders, logs, or temp files were found.
+
+Tracked asset classification:
+
+- `default.mp3` is an intentional source asset, not accidental output. It is
+  referenced by the desktop startup path and the pipeline BGM fallback.
+- `apps/desktop/src/main/logo.png` and
+  `apps/desktop/src/renderer/logo.png` are intentional app branding assets.
+
+Large-file pressure points from the Step 1 audit:
+
+- `apps/desktop/src/main/workspace/workspace-controller.test.ts` — 1184 lines.
+- `apps/desktop/src/main/workspace/workspace-controller.ts` — 1157 lines.
+- `packages/pipeline/src/safety/render-grid.ts` — 967 lines.
+- `packages/pipeline/src/orchestrator.ts` — 864 lines.
+- `packages/tts/src/index.ts` — 809 lines.
+- `apps/desktop/src/main/authoring/ninerouter-backend.ts` — 754 lines.
+- `apps/desktop/src/main/index.ts` — 697 lines.
+- `packages/pipeline/src/render/renderer.ts` — 662 lines.
+- `packages/pipeline/src/cli/cli.ts` — 559 lines.
+- `packages/pipeline/src/safety/render-grid.test.ts` — 549 lines.
+- `apps/desktop/src/renderer/views/home.tsx` — 540 lines.
+- `packages/theme/src/theme.ts` — 521 lines.
+- `packages/pipeline/src/review.ts` — 477 lines.
+- `packages/pipeline/src/orchestrator.test.ts` — 476 lines.
+- `packages/pipeline/src/store/store.ts` — 472 lines.
+- `apps/desktop/src/main/authoring/ninerouter-backend.test.ts` — 470
+  lines.
+
+Files and assets that must not be refactored casually:
+
+- source-of-truth contracts: `AI_CONTRACT.md`, `packages/schema/src/index.ts`,
+  and `packages/pipeline/src/index.ts`;
+- desktop orchestration and its broad tests:
+  `apps/desktop/src/main/workspace/workspace-controller.ts` and
+  `apps/desktop/src/main/workspace/workspace-controller.test.ts`;
+- app startup and IPC wiring: `apps/desktop/src/main/index.ts`;
+- AI authoring backend and parser-sensitive tests:
+  `apps/desktop/src/main/authoring/ninerouter-backend.ts` and
+  `apps/desktop/src/main/authoring/ninerouter-backend.test.ts`;
+- core pipeline orchestration and render safety:
+  `packages/pipeline/src/orchestrator.ts`,
+  `packages/pipeline/src/safety/render-grid.ts`,
+  `packages/pipeline/src/render/renderer.ts`, and their related tests;
+- audio/TTS and BGM behavior: `packages/tts/src/index.ts`,
+  `packages/pipeline/src/audio/bgm-library.ts`, and `default.mp3`;
+- MCP command/tool surface: `packages/mcp/src/tools.ts` and the pre-existing
+  dirty `packages/mcp/src/bin.ts`;
+- desktop branding assets:
+  `apps/desktop/src/main/logo.png` and
+  `apps/desktop/src/renderer/logo.png`.
 
 ## Preferred Organization Model
 
@@ -148,6 +211,10 @@ spending context on stale detail.
   code was moved. Baseline checks passed: `npm.cmd run typecheck`,
   `npm.cmd test` (82 files, 828 tests), and `npm.cmd run build`. Next gate:
   owner approval before Step 1.
+- 2026-07-01 Step 1 complete. Repo organization audit recorded root layout,
+  package/app boundaries, tracked asset classification, large-file pressure
+  points, and files that must not be refactored casually. No code was moved.
+  Next gate: owner approval before Step 2.
 
 ## Non-Negotiable Guardrails
 
@@ -256,7 +323,7 @@ Suggested commit names:
 ## Progress Checklist
 
 - [x] Step 0: Baseline and dirty-worktree ownership.
-- [ ] Step 1: Repo organization audit record.
+- [x] Step 1: Repo organization audit record.
 - [ ] Step 2: Dependency and boundary audit.
 - [ ] Step 3: Compare organization models and lock the chosen approach.
 - [ ] Step 4: Legacy compatibility inventory.
