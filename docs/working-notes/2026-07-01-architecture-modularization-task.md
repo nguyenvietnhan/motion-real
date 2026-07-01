@@ -1,6 +1,6 @@
 # Temporary Task — Architecture Modularization
 
-Status: Step 8 complete; Step 9 script-gate extraction next.
+Status: Step 9 slice plan complete; Step 9A script-gate VM extraction next.
 
 This is a temporary working task for the next large cleanup after the docs
 contract consolidation. Keep it updated as work progresses. Delete this file
@@ -873,6 +873,12 @@ spending context on stale detail.
   current-stage validation, and `beginScript` resume. Checks passed:
   `typecheck`, create-flow helper test (8 tests), controller test (62 tests),
   full `test` (85 files, 849 tests), and `build`. Next gate: Step 9.
+- 2026-07-02 Step 9 slice plan complete. Audited `beginScript`, `retry`,
+  `runScript`, `scriptGate`, `applyEdits`, `script-gate-apply.ts`, and related
+  controller/script tests. Step 9 is split into Step 9A script-gate VM shaping,
+  Step 9B manifest edit application, Step 9C authoring runner extraction only if
+  still justified after 9A/9B, and Step 9D close audit. No source code was
+  moved. Next gate: Step 9A implementation.
 
 ## Non-Negotiable Guardrails
 
@@ -1614,6 +1620,202 @@ Expected output:
 - commit: `refactor(desktop): isolate workspace script flow`.
 
 Required checks:
+
+```bash
+npm.cmd run typecheck
+npm.cmd test -- apps/desktop/src/main/workspace/workspace-controller.test.ts
+npm.cmd test
+npm.cmd run build
+```
+
+Step 9 slice plan:
+
+Step 9 is too broad for one source edit. Keep it capped at the following small
+slices and stop after the close audit. Do not move render/refine behavior in
+Step 9.
+
+Remaining code/planning slices:
+
+1. Step 9A: extract script-gate view-model shaping.
+2. Step 9B: extract manifest edit application helper.
+3. Step 9C: extract authoring runner only if the direct audit after 9A/9B still
+   shows a safe exact-callback boundary.
+4. Step 9D: close Step 9 with an audit decision.
+
+Step 9A small-slice design, no source movement yet:
+
+Chosen first Step 9 source slice:
+
+- create `apps/desktop/src/main/workspace/workspace-script-flow.ts`;
+- create `apps/desktop/src/main/workspace/workspace-script-flow.test.ts`;
+- extract only a pure script-gate view-model helper, tentatively named
+  `scriptGateModelFromLines`;
+- keep the existing async controller method `scriptGate(projectId)` as the
+  wrapper that reads lines and catches manifest/read failures;
+- pass only `projectId`, enabled flag, and `ScriptLine[]` into the helper;
+- do not move `beginScript`, `retry`, `runScript`, `applyEdits`, manifest
+  loading, logging, or render branching in this slice.
+
+Exact expected implementation for Step 9A:
+
+```ts
+export function scriptGateModelFromLines(
+  projectId: string,
+  enabled: boolean,
+  lines: ScriptLine[],
+): ScriptGateModel
+```
+
+Controller wrapper should remain conceptually equivalent to:
+
+```ts
+async scriptGate(projectId: string): Promise<ScriptGateModel> {
+  const enabled = this.deps.settings.scriptGateEnabled;
+  try {
+    return scriptGateModelFromLines(projectId, enabled, await this.scriptLinesOf(projectId));
+  } catch (error) {
+    log.warn({ err: error, projectId }, "script gate read failed; returning empty scene list");
+    return { projectId, enabled, scenes: [] };
+  }
+}
+```
+
+Step 9A test evidence map:
+
+| Behavior touched | Existing test(s) | Gap? | New test or reason no new test |
+| --- | --- | --- | --- |
+| script-gate model maps script lines in order | workspace flows exercise script stages indirectly | direct helper output is not isolated | add direct helper test |
+| `enabled` flag and `projectId` are preserved | `scriptGate(...)` callers rely on returned model shape | direct helper output is not isolated | add direct helper test |
+| image preview-only fields are omitted from gate scenes | script-line image-path tests cover script stage, not script-gate model | direct helper output is not isolated | add direct helper test |
+
+Step 9A required checks:
+
+```bash
+npm.cmd run typecheck
+npm.cmd test -- apps/desktop/src/main/workspace/workspace-script-flow.test.ts
+npm.cmd test -- apps/desktop/src/main/workspace/workspace-controller.test.ts
+npm.cmd test
+npm.cmd run build
+```
+
+Step 9B small-slice design, no source movement yet:
+
+Chosen second Step 9 source slice:
+
+- add only a manifest edit application helper to
+  `apps/desktop/src/main/workspace/workspace-script-flow.ts`;
+- tentative helper name: `applyScriptEditsToManifest`;
+- keep `WorkspaceController.applyEdits(...)` responsible for `loadManifest`,
+  `writeManifest`, script-stage refresh, and error logging;
+- use the existing `computeScriptEdits` behavior rather than introducing a new
+  empty-narration rule;
+- preserve the current in-memory manifest mutation behavior so existing tests
+  and write seams remain equivalent;
+- do not move `applyScriptEdits(...)` from `apps/desktop/src/main/script/` or
+  change its tests in this slice.
+
+Exact expected implementation for Step 9B:
+
+```ts
+export function applyScriptEditsToManifest(
+  manifest: { scenes: Array<{ id: string; narration?: string; headline?: string }> },
+  edits: ScriptEdit[],
+): ApplyResult
+```
+
+Controller wrapper should remain conceptually equivalent to:
+
+```ts
+const manifest = await this.deps.loadManifest(projectId);
+const result = applyScriptEditsToManifest(manifest, edits);
+if (!result.ok) return result;
+await this.deps.writeManifest(projectId, manifest);
+if (this.stages.get(projectId)?.kind === "script") {
+  this.setStage(projectId, { kind: "script", lines: await this.scriptLinesOf(projectId) });
+}
+return { ok: true };
+```
+
+Step 9B test evidence map:
+
+| Behavior touched | Existing test(s) | Gap? | New test or reason no new test |
+| --- | --- | --- | --- |
+| empty narration rejects before write | controller Property 7 and `script-gate-apply.test.ts` cover the route and lower compute helper | direct workspace manifest helper output is not isolated | add direct helper test |
+| valid edits mutate manifest scenes and preserve other fields | `applies valid edits exactly once` covers controller route | direct helper output is not isolated | add direct helper test |
+| write failure returns `write-failed` | `script-gate-apply.test.ts` covers lower writer abstraction; controller catches write errors | no source write behavior moves into helper | keep controller test coverage plus existing lower test |
+
+Step 9B required checks:
+
+```bash
+npm.cmd run typecheck
+npm.cmd test -- apps/desktop/src/main/workspace/workspace-script-flow.test.ts
+npm.cmd test -- apps/desktop/src/main/script/script-gate-apply.test.ts
+npm.cmd test -- apps/desktop/src/main/workspace/workspace-controller.test.ts
+npm.cmd test
+npm.cmd run build
+```
+
+Step 9C authoring-runner decision gate:
+
+Potential source slice only if Step 9A and Step 9B are green and a fresh audit
+still shows a narrow exact-callback boundary:
+
+- add a helper tentatively named `runScriptAuthoring`;
+- pass exact callbacks for stage setting, script-line loading, render start,
+  friendly-error emission, redaction, and error logging;
+- keep `beginScript`, `retry`, `inFlight`, `inputs`, `guarded`, and
+  `runRender` ownership in `WorkspaceController`;
+- preserve author failure `retry: "create"`, unreadable-link warnings, script
+  gate ON/OFF branching, and generic authoring failure text;
+- do not move render/refine/publish behavior in this slice.
+
+Expected decision if the callback boundary becomes too wide:
+
+- stop Step 9 after 9A/9B and record that `runScript` remains in the controller
+  because it is an orchestration boundary between authoring, script review, and
+  render kickoff.
+
+Step 9C test evidence map if implemented:
+
+| Behavior touched | Existing test(s) | Gap? | New test or reason no new test |
+| --- | --- | --- | --- |
+| no-source authoring returns redacted non-fixable create error | `error-stage messages are redacted`; `an author failure tags retry:"create"` | direct helper output is not isolated | add direct helper test or keep in controller if not moved |
+| gate ON sets script stage with optional link warning | `gate ON + unreadable link`; `gate ON + every link read` | direct helper output is not isolated | add direct helper test if moved |
+| gate OFF passes link warning to render notice | `gate OFF + unreadable link` | direct helper output is not isolated | add direct helper test if moved |
+| thrown authoring error becomes generic create error and friendlyError | existing broad controller error tests are indirect | direct helper output is not isolated | add direct helper test if moved |
+
+Step 9C required checks if implemented:
+
+```bash
+npm.cmd run typecheck
+npm.cmd test -- apps/desktop/src/main/workspace/workspace-script-flow.test.ts
+npm.cmd test -- apps/desktop/src/main/workspace/workspace-controller.test.ts
+npm.cmd test
+npm.cmd run build
+```
+
+Step 9D close decision:
+
+Audit scope:
+
+- `beginScript`;
+- `retry`;
+- `runScript`;
+- `scriptGate`;
+- `applyEdits`;
+- `workspace-script-flow.ts` exports.
+
+Expected decision unless new evidence appears:
+
+- keep `beginScript` in the controller because it owns in-flight guard, input
+  memory, stage transition, and guarded-job startup;
+- keep `retry` in the controller because it owns in-memory/persisted input
+  recovery and routes back through `beginScript`;
+- keep `runRender` and any render/refine branching out of Step 9;
+- close Step 9 once the safe script-gate helpers are extracted or deliberately
+  declined.
+
+Step 9D required checks:
 
 ```bash
 npm.cmd run typecheck
