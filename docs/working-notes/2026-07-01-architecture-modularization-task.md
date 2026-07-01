@@ -1,6 +1,6 @@
 # Temporary Task — Architecture Modularization
 
-Status: Step 9 complete; Step 10 render/refine/publish helper decision next.
+Status: Step 10A slice plan complete; Step 10B pure helper extraction next.
 
 This is a temporary working task for the next large cleanup after the docs
 contract consolidation. Keep it updated as work progresses. Delete this file
@@ -910,6 +910,11 @@ spending context on stale detail.
   exports; closed Step 9 with no further source movement. Checks passed:
   `typecheck`, controller test (62 tests), full `test` (86 files, 858 tests),
   and `build`. Next gate: Step 10.
+- 2026-07-02 Step 10A slice plan complete. Audited render/refine/publish risk
+  boundaries, controller tests, and the real-render smoke gate. No source code
+  was moved. Evidence: controller test passed (62 tests); `npm.cmd run smoke`
+  failed inside the sandbox with network `EACCES`, then passed when rerun outside
+  the sandbox. Next gate: owner approval before Step 10B pure helper extraction.
 
 ## Non-Negotiable Guardrails
 
@@ -1928,6 +1933,148 @@ npm.cmd run build
 # plus, for behavior-affecting render/refine/publish changes:
 npm.cmd run smoke
 ```
+
+Step 10A slice plan, no source movement:
+
+Risk assessment:
+
+- `runSceneEdits`, `runRender`, `runVisionPasses`, `refineBeforeDraft`,
+  `refineEditedScenes`, `restoreToPriorDraft`, and `runPublish` are not safe to
+  move whole. They encode async ordering, cancellation recovery, rollback
+  policy, stage emissions, and retry semantics.
+- `approve`, `fixWithAi`, `publish`, and `submitEdits` should remain controller
+  entry points for now because they own live-stage guards and guarded-job
+  startup.
+- `renderHooks`/`editHooks` are small, but they close over event emitters and
+  media mapping. They can be considered only as callback factories, not as a
+  first slice.
+- The safest value is to extract pure builders first: prompt/intent strings,
+  preprompt payload shaping, and small render-stage/progress shaping helpers.
+- If a slice changes render/refine/publish behavior rather than only moving pure
+  helper logic, it needs `npm.cmd run smoke` in addition to unit/build checks.
+
+Step 10 invariants that must not change:
+
+- first visible draft renders only after hidden still/refine/bootstrap work;
+- hidden pre-draft still renders use neutral `prepare`, not visible `draft` or
+  raw QA progress;
+- vision defect passes use `qa` with `qaPass`/`qaTotal`;
+- edit flow order stays reauthor -> scoped stills -> scoped vision QA -> one
+  draft MP4;
+- an edit that breaks stills/render restores the prior draft when a snapshot is
+  available;
+- a refined first draft that exhausts repairs restores the blind pre-refine
+  source and rerenders;
+- cancellation recovers a reviewable prior stage instead of surfacing an error;
+- render failures tag `retry: "draft"`; publish failures tag `retry: "full"`;
+- full publish remains gated to `ready` or `error` with `retry: "full"`;
+- redacted friendly errors stay redacted.
+
+Step 10B planned source slice - pure render/refine intent helpers:
+
+- create `apps/desktop/src/main/workspace/workspace-render-flow.ts`;
+- create `apps/desktop/src/main/workspace/workspace-render-flow.test.ts`;
+- move only pure prompt/preprompt builders, with no async, no worker, no stage
+  map, no controller instance, no filesystem, and no event dependency;
+- tentative exports:
+  - `CREATIVE_BOOTSTRAP_INTENT`;
+  - `creativeBootstrapPreprompt(sceneIds: string[])`;
+  - `visionRepairIntent(issue: string)`;
+  - `visionRepairPreprompt(flagged: { sceneId: string; issue: string }[])`;
+- route `creativeBootstrapPass(...)` and `runVisionPasses(...)` through those
+  helpers while keeping the methods themselves in `WorkspaceController`;
+- do not move `runSceneEdits`, `runRender`, `runPublish`, `snapshotFresh`,
+  `restoreToPriorDraft`, or any render/refine async method in Step 10B.
+
+Step 10B test evidence map:
+
+| Behavior touched | Existing test(s) | Gap? | New test or reason no new test |
+| --- | --- | --- | --- |
+| creative bootstrap intent text stays exact enough for current guard phrases | `first-author creative bootstrap reauthors EVERY scene once before the draft` | direct helper output is not isolated | add direct helper test |
+| creative bootstrap preprompt maps every scene to the same bootstrap intent | same bootstrap controller test checks job shape indirectly | direct helper output is not isolated | add direct helper test |
+| vision repair intent keeps minimal-fix/title-card guard language | `silent refine BEFORE the draft...` checks selected intent phrases indirectly | direct helper output is not isolated | add direct helper test |
+| vision repair preprompt maps flagged defects by scene id | vision/refine controller tests exercise the worker job indirectly | direct helper output is not isolated | add direct helper test |
+
+Step 10B required checks:
+
+```bash
+npm.cmd run typecheck
+npm.cmd test -- apps/desktop/src/main/workspace/workspace-render-flow.test.ts
+npm.cmd test -- apps/desktop/src/main/workspace/workspace-controller.test.ts
+npm.cmd test
+npm.cmd run build
+```
+
+Step 10B smoke decision:
+
+- `npm.cmd run smoke` is not required for a pure no-behavior string/helper move
+  if the helper tests and controller tests prove the emitted prompt/preprompt
+  payloads are unchanged.
+- If any Step 10B change alters prompt text, stage timing, render calls, or
+  worker-call ordering, stop and run `npm.cmd run smoke` before continuing.
+
+Step 10C possible source slice - pure render stage/progress helpers:
+
+- only consider after Step 10B is green and committed;
+- possible destination remains `workspace-render-flow.ts`;
+- tentative helpers:
+  - `renderingStageOf(phase, options?)`;
+  - `renderPercentFromRatio(ratio)`;
+  - `renderProgressEventOf(projectId, ratio, phase)`;
+- keep `renderHooks(...)` and `reportRenderProgress(...)` in the controller as
+  wrappers unless a direct review proves the helper boundary is smaller and
+  clearer;
+- add direct tests for clamping/rounding and preserve Property 9 controller
+  coverage.
+
+Step 10C required checks if implemented:
+
+```bash
+npm.cmd run typecheck
+npm.cmd test -- apps/desktop/src/main/workspace/workspace-render-flow.test.ts
+npm.cmd test -- apps/desktop/src/main/workspace/workspace-controller.test.ts
+npm.cmd test
+npm.cmd run build
+```
+
+Step 10D decision slice - async render/refine/publish workflow audit:
+
+- after 10B and optionally 10C, re-audit whether any async workflow boundary is
+  still narrow enough to extract;
+- expected decision unless new evidence appears:
+  - keep `runSceneEdits` in the controller because it owns edit admission,
+    snapshot, refine, draft render, restore, notices, and friendly errors;
+  - keep `runVisionPasses` in the controller because it owns iterative stage
+    emission, early-stop state, worker calls, still rerenders, and rollback;
+  - keep `refineBeforeDraft` and `refineEditedScenes` in the controller because
+    they own hidden prepare/stills sequencing and refine-mode differences;
+  - keep `restoreToPriorDraft` in the controller because it owns restore plus
+    draft rerender and render-version bump;
+  - keep `runRender` in the controller because it owns draft-first ordering,
+    cancellation recovery, restored fallback, ready/error final states, and
+    friendly errors;
+  - keep `runPublish` in the controller because it owns publish stage, abort
+    recovery, `publishedStage(...)`, retry:`full`, and friendly errors.
+- do not create a broad `workspace-render-workflow` object unless the callback
+  boundary is smaller than the current controller methods and has direct tests.
+
+Step 10D required checks:
+
+```bash
+npm.cmd run typecheck
+npm.cmd test -- apps/desktop/src/main/workspace/workspace-controller.test.ts
+npm.cmd test
+npm.cmd run build
+npm.cmd run smoke
+```
+
+Step 10E close decision:
+
+- close Step 10 after the approved pure helper slices, or earlier if Step 10B
+  proves too risky;
+- record every non-moved async method and the reason it stays in the controller;
+- do not proceed to Step 11 until Step 10 is either completed with checks or
+  explicitly stopped with owner approval.
 
 ## Step 11 — Decide Next Target After Workspace Controller
 
