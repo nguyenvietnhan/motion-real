@@ -31,7 +31,7 @@ thật (2026-06-16): chỉ adopt Pino.** Bảng dưới ghi cả kế hoạch l�
 | **Firecrawl** | [/firecrawl/firecrawl-docs](https://context7.com/firecrawl/firecrawl-docs) score 84.7 | `ingest_url` + `crawlArticleImages` | **KHÔNG adopt** — `@mozilla/readability` + `linkedom` đã đủ và nhẹ. |
 | **neverthrow** | [/supermacro/neverthrow](https://context7.com/supermacro/neverthrow) score 89.5 | `{ok}` ad-hoc | **KHÔNG adopt** — `{ ok } \| { ok: false }` thủ công đã đủ, không đáng thêm dependency + lối viết. |
 
-**Đã eval, KHÔNG adopt** (lý do trong [refactor-backlog.md](../refactor-backlog.md)):
+**Đã eval, KHÔNG adopt**:
 - **XState** (state machine) — defer P1, chuyển `workspace-controller.ts` là
   refactor lớn, đáng có ADR riêng.
 - **ts-morph** (AST) — skip, admission gate đã solid 9 fixture + 11 test;

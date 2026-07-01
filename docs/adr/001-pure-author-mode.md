@@ -47,7 +47,7 @@ cấp, nó dùng `SceneImage` import từ `@news/compositions`; không dùng `<i
 - **Hệ luỵ chính (quy tắc cứng)**: một class lỗi mới do AI sinh ra **phải** được
   graduate thành một admission check hoặc render oracle + self-test — KHÔNG vá
   bằng cách thêm một dòng prompt. Đây là gốc của Working Agreement rule 1 và 3
-  (xem [CLAUDE.md](../../CLAUDE.md) §Working Agreement, [ADR-003](003-safety-grid-as-contract.md)).
+  (xem [AI_CONTRACT.md](../../AI_CONTRACT.md) và [ADR-003](003-safety-grid-as-contract.md)).
 - Admission gate là tuyến phòng thủ bảo mật duy nhất chặn AI output xấu/độc — nó
   phải solid (hiện có 9 fixture + 11 test, cover RCE bypass, computed-key
   evasion, host-RCE).

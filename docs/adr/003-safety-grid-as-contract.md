@@ -36,7 +36,7 @@ minh check thực sự fire.
   không kèm fixture trong `__fixtures__/` + vitest case.
 - **Working Agreement rule 3**: trước khi thêm prompt rule, phải tự hỏi
   schema/normalizer/gate có đúng chỗ hơn không.
-- Khi user nói "thêm rule chống lỗi X", Claude phải hỏi tầng nào đúng trước khi
+- Khi user nói "thêm rule chống lỗi X", agent phải hỏi tầng nào đúng trước khi
   đụng prompt (Section G của plan).
 - Prompt giữ được kích thước, không phình theo mỗi edge case.
 - Chi phí: viết một check + self-test tốn hơn thêm một dòng prompt — nhưng đó

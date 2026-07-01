@@ -34,7 +34,7 @@ pipeline architecture đang chạy đúng).
 - fix churn > 8 commit / 90 ngày, **HOẶC**
 - coverage gap rõ ở vùng rủi ro cao.
 
-Xem bảng ưu tiên trong [docs/refactor-backlog.md](../refactor-backlog.md).
+Các vùng nhạy cảm hiện được tóm tắt trong [maintenance.md](../current/maintenance.md).
 
 ## Consequences
 
