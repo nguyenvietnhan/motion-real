@@ -1,8 +1,23 @@
+import { linkWarningOf } from "./workspace-helpers.js";
 import { computeScriptEdits } from "../script/script-gate-apply.js";
-import type { ApplyResult, ScriptEdit, ScriptGateModel, ScriptLine } from "../../shared/types.js";
+import type { AgentHooks, AgentWorker, AuthorInput } from "../agent/agent-worker.js";
+import type { ApplyResult, FriendlyError, ProjectStage, ScriptEdit, ScriptGateModel, ScriptLine } from "../../shared/types.js";
 
 type EditableManifest = {
   scenes: Array<{ id: string; narration?: string; headline?: string }>;
+};
+
+type RunScriptAuthoringOptions = {
+  projectId: string;
+  input: AuthorInput;
+  worker: Pick<AgentWorker, "author">;
+  scriptGateEnabled: boolean;
+  redact: (message: string) => string;
+  loadScriptLines: () => Promise<ScriptLine[]>;
+  setStage: (stage: ProjectStage) => void;
+  runRender: (readyNotice?: string) => Promise<void>;
+  friendlyError: (error: FriendlyError) => void;
+  logError?: (message?: unknown, ...optionalParams: unknown[]) => void;
 };
 
 export function scriptGateModelFromLines(
@@ -20,6 +35,47 @@ export function scriptGateModelFromLines(
       headline: line.headline,
     })),
   };
+}
+
+export async function runScriptAuthoring({
+  projectId,
+  input,
+  worker,
+  scriptGateEnabled,
+  redact,
+  loadScriptLines,
+  setStage,
+  runRender,
+  friendlyError,
+  logError,
+}: RunScriptAuthoringOptions): Promise<void> {
+  const hooks: AgentHooks = { onProgress: () => {}, onSceneProduced: () => {}, onRepair: () => {} };
+
+  try {
+    const authored = await worker.author({ projectId, input, scriptGate: scriptGateEnabled }, hooks);
+    if (authored.kind !== "authored") {
+      const message = redact(authored.message ?? "Chưa tìm được nguồn nội dung phù hợp.");
+      setStage({ kind: "error", message, fixable: false, retry: "create" });
+      friendlyError({ projectId, message, retry: "create", fixable: false });
+      return;
+    }
+
+    const linkWarning = linkWarningOf(input.urls.length, authored.unreadableUrls ?? []);
+    if (scriptGateEnabled) {
+      setStage({
+        kind: "script",
+        lines: await loadScriptLines(),
+        ...(linkWarning ? { linkWarning } : {}),
+      });
+    } else {
+      await runRender(linkWarning);
+    }
+  } catch (error) {
+    logError?.(`[workspace] authoring failed for ${projectId}:`, error);
+    const message = "Có lỗi khi viết kịch bản. Hãy thử lại.";
+    setStage({ kind: "error", message, fixable: false, retry: "create" });
+    friendlyError({ projectId, message, retry: "create", fixable: false });
+  }
 }
 
 export function applyScriptEditsToManifest(manifest: EditableManifest, edits: ScriptEdit[]): ApplyResult {

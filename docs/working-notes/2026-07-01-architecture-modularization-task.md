@@ -1,6 +1,6 @@
 # Temporary Task — Architecture Modularization
 
-Status: Step 9B implementation complete; Step 9C authoring-runner decision next.
+Status: Step 9C implementation complete; Step 9D close audit next.
 
 This is a temporary working task for the next large cleanup after the docs
 contract consolidation. Keep it updated as work progresses. Delete this file
@@ -896,6 +896,15 @@ spending context on stale detail.
   tests), lower script-gate apply test (2 tests), controller test (62 tests),
   full `test` (86 files, 854 tests), and `build`. Next gate: Step 9C
   authoring-runner decision.
+- 2026-07-02 Step 9C implementation complete. Extracted
+  `runScriptAuthoring` into `workspace-script-flow.ts` using exact callbacks for
+  stage setting, script-line loading, render start, friendly-error emission,
+  redaction, and error logging. `WorkspaceController` still owns `beginScript`,
+  `retry`, `inFlight`, `inputs`, `guarded`, and `runRender`. Checks passed:
+  pre-edit `typecheck`/`test` (86 files, 854 tests)/`build`; post-edit
+  `typecheck`, script-flow helper test (9 tests), controller test (62 tests),
+  full `test` (86 files, 858 tests), and `build`. Next gate: Step 9D close
+  audit.
 
 ## Non-Negotiable Guardrails
 
@@ -1772,12 +1781,12 @@ npm.cmd test
 npm.cmd run build
 ```
 
-Step 9C authoring-runner decision gate:
+Step 9C authoring-runner implementation:
 
-Potential source slice only if Step 9A and Step 9B are green and a fresh audit
-still shows a narrow exact-callback boundary:
+Step 9A and Step 9B were green, and a fresh audit found a narrow exact-callback
+boundary:
 
-- add a helper tentatively named `runScriptAuthoring`;
+- add `runScriptAuthoring` to `workspace-script-flow.ts`;
 - pass exact callbacks for stage setting, script-line loading, render start,
   friendly-error emission, redaction, and error logging;
 - keep `beginScript`, `retry`, `inFlight`, `inputs`, `guarded`, and
@@ -1786,22 +1795,16 @@ still shows a narrow exact-callback boundary:
   gate ON/OFF branching, and generic authoring failure text;
 - do not move render/refine/publish behavior in this slice.
 
-Expected decision if the callback boundary becomes too wide:
-
-- stop Step 9 after 9A/9B and record that `runScript` remains in the controller
-  because it is an orchestration boundary between authoring, script review, and
-  render kickoff.
-
-Step 9C test evidence map if implemented:
+Step 9C test evidence map:
 
 | Behavior touched | Existing test(s) | Gap? | New test or reason no new test |
 | --- | --- | --- | --- |
-| no-source authoring returns redacted non-fixable create error | `error-stage messages are redacted`; `an author failure tags retry:"create"` | direct helper output is not isolated | add direct helper test or keep in controller if not moved |
-| gate ON sets script stage with optional link warning | `gate ON + unreadable link`; `gate ON + every link read` | direct helper output is not isolated | add direct helper test if moved |
-| gate OFF passes link warning to render notice | `gate OFF + unreadable link` | direct helper output is not isolated | add direct helper test if moved |
-| thrown authoring error becomes generic create error and friendlyError | existing broad controller error tests are indirect | direct helper output is not isolated | add direct helper test if moved |
+| no-source authoring returns redacted non-fixable create error | `error-stage messages are redacted`; `an author failure tags retry:"create"` | direct helper output was not isolated | added direct helper test |
+| gate ON sets script stage with optional link warning | `gate ON + unreadable link`; `gate ON + every link read` | direct helper output was not isolated | added direct helper test |
+| gate OFF passes link warning to render notice | `gate OFF + unreadable link` | direct helper output was not isolated | added direct helper test |
+| thrown authoring error becomes generic create error and friendlyError | existing broad controller error tests are indirect | direct helper output was not isolated | added direct helper test |
 
-Step 9C required checks if implemented:
+Step 9C required checks:
 
 ```bash
 npm.cmd run typecheck

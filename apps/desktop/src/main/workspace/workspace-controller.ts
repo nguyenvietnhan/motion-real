@@ -1,6 +1,6 @@
 import { authorInputWithCrawledImages, runCreateCrawlThenAuthor } from "./workspace-create-flow.js";
-import { combineIntent, linkWarningOf, stageToFriendlyStatus } from "./workspace-helpers.js";
-import { applyScriptEditsToManifest, scriptGateModelFromLines } from "./workspace-script-flow.js";
+import { combineIntent, stageToFriendlyStatus } from "./workspace-helpers.js";
+import { applyScriptEditsToManifest, runScriptAuthoring, scriptGateModelFromLines } from "./workspace-script-flow.js";
 import { publishedStageOf, readyStageOf, scriptLinesFromScenes, storyboardScenesFromScenes } from "./workspace-view-model.js";
 import { createLogger, serializeError, type CrawledImage } from "@news/pipeline";
 import { classifyError } from "../agent/error-classifier.js";
@@ -330,34 +330,18 @@ export class WorkspaceController {
   }
 
   private async runScript(projectId: string, input: AuthorInput): Promise<void> {
-    const hooks: AgentHooks = { onProgress: () => {}, onSceneProduced: () => {}, onRepair: () => {} };
-    try {
-      const authored = await this.deps.worker.author({ projectId, input, scriptGate: this.deps.settings.scriptGateEnabled }, hooks);
-      if (authored.kind !== "authored") {
-        const message = this.deps.redact(authored.message ?? "Chưa tìm được nguồn nội dung phù hợp.");
-        this.setStage(projectId, { kind: "error", message, fixable: false, retry: "create" });
-        this.deps.events.friendlyError({ projectId, message, retry: "create", fixable: false });
-        return;
-      }
-      // If any brief link couldn't be read, the content leans on the model's own
-      // knowledge — surface a non-blocking warning so the user verifies before
-      // approving (audit: unreadable-link silent fallback).
-      const linkWarning = linkWarningOf(input.urls.length, authored.unreadableUrls ?? []);
-      if (this.deps.settings.scriptGateEnabled) {
-        this.setStage(projectId, {
-          kind: "script",
-          lines: await this.scriptLinesOf(projectId),
-          ...(linkWarning ? { linkWarning } : {}),
-        });
-      } else {
-        await this.runRender(projectId, linkWarning);
-      }
-    } catch (e) {
-      console.error(`[workspace] authoring failed for ${projectId}:`, e);
-      const message = "Có lỗi khi viết kịch bản. Hãy thử lại.";
-      this.setStage(projectId, { kind: "error", message, fixable: false, retry: "create" });
-      this.deps.events.friendlyError({ projectId, message, retry: "create", fixable: false });
-    }
+    await runScriptAuthoring({
+      projectId,
+      input,
+      worker: this.deps.worker,
+      scriptGateEnabled: this.deps.settings.scriptGateEnabled,
+      redact: this.deps.redact,
+      loadScriptLines: () => this.scriptLinesOf(projectId),
+      setStage: (stage) => this.setStage(projectId, stage),
+      runRender: (readyNotice) => this.runRender(projectId, readyNotice),
+      friendlyError: (error) => this.deps.events.friendlyError(error),
+      logError: (message, error) => console.error(message, error),
+    });
   }
 
   /** Stage 2: render voice + draft via generate-validate-repair (R2.4–R2.7, R2.9). */
