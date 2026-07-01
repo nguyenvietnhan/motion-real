@@ -1,6 +1,6 @@
 # Temporary Task — Architecture Modularization
 
-Status: Step 9C implementation complete; Step 9D close audit next.
+Status: Step 9 complete; Step 10 render/refine/publish helper decision next.
 
 This is a temporary working task for the next large cleanup after the docs
 contract consolidation. Keep it updated as work progresses. Delete this file
@@ -905,6 +905,11 @@ spending context on stale detail.
   `typecheck`, script-flow helper test (9 tests), controller test (62 tests),
   full `test` (86 files, 858 tests), and `build`. Next gate: Step 9D close
   audit.
+- 2026-07-02 Step 9D complete. Audited `beginScript`, `retry`,
+  `runScript`, `scriptGate`, `applyEdits`, and `workspace-script-flow.ts`
+  exports; closed Step 9 with no further source movement. Checks passed:
+  `typecheck`, controller test (62 tests), full `test` (86 files, 858 tests),
+  and `build`. Next gate: Step 10.
 
 ## Non-Negotiable Guardrails
 
@@ -1021,7 +1026,7 @@ Suggested commit names:
 - [x] Step 6: Extract pure workspace helpers.
 - [x] Step 7: Extract workspace view-model and recovery helpers.
 - [x] Step 8: Extract create/crawl/image-review flow.
-- [ ] Step 9: Extract script-gate flow.
+- [x] Step 9: Extract script-gate flow.
 - [ ] Step 10: Extract render/refine/publish helpers or stop deliberately.
 - [ ] Step 11: Decide next target after workspace controller.
 - [ ] Step 12: Final docs/code sync sweep.
@@ -1834,6 +1839,25 @@ Expected decision unless new evidence appears:
 - keep `runRender` and any render/refine branching out of Step 9;
 - close Step 9 once the safe script-gate helpers are extracted or deliberately
   declined.
+
+Step 9D audit result:
+
+- close Step 9 with no further source movement;
+- `beginScript` stays in the controller because it owns in-flight guarding,
+  input memory, the initial writing stage, and guarded-job startup;
+- `retry` stays in the controller because it owns in-memory/persisted input
+  recovery and routes back through `beginScript`;
+- `runScript` stays as a thin controller adapter into `runScriptAuthoring`
+  because it binds exact controller dependencies and the render-start callback;
+- `scriptGate` stays in the controller because it owns the live enabled setting,
+  script-line loading, and read-failure fallback/logging;
+- `applyEdits` stays in the controller because it owns manifest load/write,
+  script-stage refresh, and write-failed fallback/logging;
+- `workspace-script-flow.ts` exports remain limited to
+  `scriptGateModelFromLines`, `applyScriptEditsToManifest`, and
+  `runScriptAuthoring`;
+- no render/refine/publish behavior was moved in Step 9;
+- next target is Step 10.
 
 Step 9D required checks:
 
