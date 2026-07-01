@@ -1,6 +1,6 @@
 # Temporary Task — Architecture Modularization
 
-Status: Step 3 complete; waiting for owner approval before Step 4.
+Status: Step 4 complete; waiting for owner approval before Step 5.
 
 This is a temporary working task for the next large cleanup after the docs
 contract consolidation. Keep it updated as work progresses. Delete this file
@@ -244,6 +244,47 @@ First target area:
 - the exact function-move list is not approved yet and belongs to Step 5;
 - Step 4 compatibility inventory must run before any source-code extraction.
 
+Step 4 legacy compatibility inventory:
+
+| Item | Location(s) | Classification | Keep/Move/Delete Later | Approval Needed? |
+| --- | --- | --- | --- | --- |
+| `StylePackVM` | `apps/desktop/src/shared/types.ts` | stale/dead type plus stale comment; scan found no active reference outside this inventory | delete later in a focused source cleanup after confirming no renderer/API consumer | yes |
+| `@news/design` references | `packages/theme/src/theme.ts`, `packages/theme/src/index.ts`, `packages/theme/src/theme.test.ts`, `packages/schema/src/zones.ts`, `apps/desktop/src/shared/types.ts`, `apps/desktop/src/main/authoring/ninerouter-backend.ts`, ADR/maintenance/working notes | mixed: history/negative guard is intentional; `StylePackVM` and some source comments are stale | keep history and negative authoring guard; later clean stale source comments that imply an active design package | yes for source cleanup |
+| `stylePackId` in schema/theme/render path | `packages/schema/src/index.ts`, `packages/theme/src/theme.ts`, `packages/theme/src/theme.test.ts`, `packages/compositions/src/video.tsx`, `packages/pipeline/src/safety/static-grid.test.ts` | intentional compatibility; old specs parse, `makeTheme` accepts and ignores it, tests lock that behavior | keep until a separate de-style migration removes schema field, theme shims, and render call sites together | yes |
+| `stylePackId` in guard tests/templates | `tests/script-template.test.ts`, `apps/desktop/src/main/authoring/agent-guidance.test.ts` | current guard against reintroducing old authored API | keep | yes before removal |
+| `stylePackId` in comments | `apps/desktop/src/main/index.ts`, `apps/desktop/src/main/workspace/workspace-controller.ts`, `apps/desktop/src/main/agent/agent-worker.ts` | mostly stale explanatory comments about old create input/persistence | clean comments later only when touching nearby code; no behavior change | low-risk yes |
+| `styleId: "clean-luxury-tech"` | `packages/schema/src/index.ts`, `packages/pipeline/src/types.ts`, `packages/pipeline/src/authoring/manifest.ts`, `packages/pipeline/src/orchestrator.ts`, tests/fixtures | current persisted discriminator and compatibility constant | keep; removing requires schema/project migration and broad fixture updates | yes, high-risk |
+| `ProjectBrief.ratio` | `packages/pipeline/src/types.ts`, `apps/desktop/src/shared/gallery-controller.ts` | active mismatch: pipeline type is TikTok-only, gallery defensively reads possible `16:9` | keep defensive read; future cleanup should align `ProjectBrief` with `format`/YouTube support | yes |
+| `default.mp3` and legacy BGM fallback | repo root, `apps/desktop/src/main/index.ts`, `packages/pipeline/src/orchestrator.ts`, `packages/pipeline/src/audio/bgm-library.ts`, `packages/mcp/src/tools.ts`, tests | intentional source asset and compatibility fallback; MCP/Desktop can explicitly pass `null` for silence | keep; future BGM-only-library migration must preserve silence semantics and cache key behavior | yes |
+| broad `@news/pipeline` barrel | `packages/pipeline/src/index.ts`, desktop/MCP imports | current public surface but overly broad; constrains extraction because many callers import from the barrel | keep public imports stable during workspace-controller slices; narrow later only with caller/test updates | yes |
+| `SceneImage` re-export | `packages/compositions/src/index.ts`, `packages/blocks/src/scene-image.tsx`, authoring docs/tests | current authored-facing image contract and intentional compatibility escape from old block imports | keep; do not remove during modularization | yes, high-risk |
+| `ThemeProvider`/`useTheme` re-export | `packages/compositions/src/theme-context.tsx`, `packages/compositions/src/index.ts`, typecheck fixtures | intentional back-compat for existing imports and shared context instance | keep unless authoring/import contract changes separately | yes |
+| settings/create/API migrations | `apps/desktop/src/main/settings/settings-store.ts`, `apps/desktop/src/shared/settings-model.ts`, `apps/desktop/src/main/create/create-controller.ts`, gateway/render-cache tests | intentional migrations/back-compat for older settings, `titleLanguage: "mix"`, gateway replies, and cache behavior | keep; only prune after explicit migration-window decision | yes |
+
+Recommended future cleanup candidates from Step 4:
+
+1. Remove `StylePackVM` and rewrite its stale `@news/design` comment if no UI
+   consumer exists.
+2. Clean stale comments in `workspace-controller.ts`, `index.ts`, and
+   `schema/zones.ts` so they describe the current neutral-theme/source-of-truth
+   reality without mentioning old design as current.
+3. Plan a separate de-style migration for `styleId`, `stylePackId`, theme
+   registry shims, and related fixtures. Do not mix it with workspace-controller
+   extraction.
+4. Align `ProjectBrief.ratio` with current format support, likely by widening or
+   replacing it with an explicit format field in a future persistence slice.
+5. Narrow `@news/pipeline` exports only after the desktop workspace slices are
+   stable.
+
+Step 4 doc status:
+
+- active docs are acceptable: `docs/current/maintenance.md` lists legacy terms as
+  legacy-only, and ADR/working notes mention them in history/planning contexts;
+- no active project doc was found instructing new authored scenes to use
+  `stylePackId` or `@news/design`;
+- source comments/types still contain cleanup candidates, but no source behavior
+  changed in this step.
+
 ## Approval Model
 
 Every step below has an approval gate. A step is not approved until all of its
@@ -318,6 +359,11 @@ spending context on stale detail.
   ceremony, extra packages, and Nx/Turbo tooling. First target remains
   `workspace-controller.ts`, but no source code was moved. Next gate: owner
   approval before Step 4.
+- 2026-07-01 Step 4 complete. Legacy/compatibility inventory recorded
+  `StylePackVM`, `stylePackId`, `styleId`, `ProjectBrief.ratio`, `default.mp3`,
+  broad `@news/pipeline` exports, `SceneImage`/theme re-exports, and settings/API
+  migrations. No code was moved or deleted. Next gate: owner approval before
+  Step 5.
 
 ## Non-Negotiable Guardrails
 
@@ -429,7 +475,7 @@ Suggested commit names:
 - [x] Step 1: Repo organization audit record.
 - [x] Step 2: Dependency and boundary audit.
 - [x] Step 3: Compare organization models and lock the chosen approach.
-- [ ] Step 4: Legacy compatibility inventory.
+- [x] Step 4: Legacy compatibility inventory.
 - [ ] Step 5: First extraction design, no code movement.
 - [ ] Step 6: Extract pure workspace helpers.
 - [ ] Step 7: Extract workspace view-model and recovery helpers.
