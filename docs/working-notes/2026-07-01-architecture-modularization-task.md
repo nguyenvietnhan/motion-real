@@ -1,6 +1,6 @@
 # Temporary Task — Architecture Modularization
 
-Status: Step 7B design complete; waiting for owner approval before Step 7B implementation.
+Status: Step 7B implementation complete; waiting for owner approval before Step 7C design.
 
 This is a temporary working task for the next large cleanup after the docs
 contract consolidation. Keep it updated as work progresses. Delete this file
@@ -613,6 +613,14 @@ spending context on stale detail.
   `publishedStageOf` helper as the second Step 7 source slice, keeping manifest
   read/catch and thumbnail checks in the controller. No source code was moved.
   Next gate: owner approval before Step 7B implementation.
+- 2026-07-02 Step 7B implementation complete. Added `publishedStageOf` to
+  `workspace-view-model.ts`, extended direct view-model tests, and routed the
+  existing async `publishedStage(...)` wrapper through the helper while keeping
+  manifest read/catch and thumbnail checks in the controller. Checks passed:
+  pre-edit `typecheck`/`test` (84 files, 834 tests)/`build`; post-edit
+  `typecheck`, view-model test (6 tests), controller test (62 tests), full
+  `test` (84 files, 837 tests), and `build`. No public API or package barrel
+  changed. Step 7 remains open; next gate: owner approval before Step 7C design.
 
 ## Non-Negotiable Guardrails
 

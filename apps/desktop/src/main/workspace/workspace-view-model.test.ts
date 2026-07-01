@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { SceneCard } from "../../shared/types.js";
-import { readyStageOf } from "./workspace-view-model.js";
+import { publishedStageOf, readyStageOf } from "./workspace-view-model.js";
 
 const scenes: SceneCard[] = [
   {
@@ -31,6 +31,40 @@ describe("workspace view model helpers", () => {
       kind: "ready",
       scenes,
       notice: "Some scenes were kept.",
+    });
+  });
+
+  it("builds a default published stage", () => {
+    expect(publishedStageOf("media://out.mp4")).toEqual({
+      kind: "published",
+      outputPath: "media://out.mp4",
+      format: "tiktok",
+    });
+  });
+
+  it("keeps published copy metadata", () => {
+    expect(publishedStageOf("media://out.mp4", { title: "Launch", hashtags: ["#ai", "#video"] })).toEqual({
+      kind: "published",
+      outputPath: "media://out.mp4",
+      format: "tiktok",
+      title: "Launch",
+      hashtags: ["#ai", "#video"],
+    });
+  });
+
+  it("keeps published thumbnail and format while omitting empty optional fields", () => {
+    expect(
+      publishedStageOf("media://out.mp4", {
+        title: "",
+        hashtags: [],
+        thumbnailPath: "media://thumbnail.png",
+        format: "youtube",
+      }),
+    ).toEqual({
+      kind: "published",
+      outputPath: "media://out.mp4",
+      format: "youtube",
+      thumbnailPath: "media://thumbnail.png",
     });
   });
 });

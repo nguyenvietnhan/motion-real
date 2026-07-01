@@ -1,7 +1,7 @@
 import { computeScriptEdits, type ManifestScene } from "../script/script-gate-apply.js";
 import { buildStoryboard } from "../review/storyboard.js";
 import { combineIntent, linkWarningOf, stageToFriendlyStatus } from "./workspace-helpers.js";
-import { readyStageOf } from "./workspace-view-model.js";
+import { publishedStageOf, readyStageOf } from "./workspace-view-model.js";
 import { createLogger, serializeError, type CrawledImage } from "@news/pipeline";
 import { classifyError } from "../agent/error-classifier.js";
 import { toFriendlyError } from "../redact/friendly.js";
@@ -239,14 +239,7 @@ export class WorkspaceController {
     // Never generated here — the user triggers it from the published screen; this
     // only reflects what exists on disk so a re-entry/recover shows it too.
     const thumbnailPath = this.deps.hasThumbnail(projectId) ? this.deps.thumbnailMedia(projectId) : undefined;
-    return {
-      kind: "published",
-      outputPath,
-      format,
-      ...(title ? { title } : {}),
-      ...(hashtags ? { hashtags } : {}),
-      ...(thumbnailPath ? { thumbnailPath } : {}),
-    };
+    return publishedStageOf(outputPath, { title, hashtags, format, thumbnailPath });
   }
 
   private async scriptLinesOf(projectId: string): Promise<ScriptLine[]> {
