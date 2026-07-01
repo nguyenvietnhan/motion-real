@@ -1,6 +1,6 @@
 # Temporary Task — Architecture Modularization
 
-Status: Step 8A implementation complete; Step 8B create-flow extraction decision next.
+Status: Step 8B implementation complete; Step 8C close/create-flow decision next.
 
 This is a temporary working task for the next large cleanup after the docs
 contract consolidation. Keep it updated as work progresses. Delete this file
@@ -855,6 +855,15 @@ spending context on stale detail.
   post-edit `typecheck`, create-flow helper test (4 tests), controller test (62
   tests), full `test` (85 files, 845 tests), and `build`. Next gate: Step 8B
   design/extraction decision.
+- 2026-07-02 Step 8B implementation complete. Extracted
+  `runCreateCrawlThenAuthor` into `workspace-create-flow.ts` using exact
+  callbacks for stage updates, cancellation recovery, script continuation,
+  review parking, preview URL mapping, and logging. `WorkspaceController` still
+  owns `beginCreate`, `submitImageReview`, `pendingReview`, `inFlight`,
+  `signalOf`, and `recoverAfterCancel`. Checks passed: pre-edit
+  `typecheck`/`test` (85 files, 845 tests)/`build`; post-edit `typecheck`,
+  create-flow helper test (8 tests), controller test (62 tests), full `test` (85
+  files, 849 tests), and `build`. Next gate: Step 8C close/create-flow decision.
 
 ## Non-Negotiable Guardrails
 
@@ -1473,6 +1482,40 @@ Step 8A test evidence map:
 | image-review VM preview URL/source/suggested mapping | `review ON -> parks image-review with AI-suggested pre-ticked` | direct helper output was not isolated | add direct helper test |
 
 Step 8A required checks:
+
+```bash
+npm.cmd run typecheck
+npm.cmd test -- apps/desktop/src/main/workspace/workspace-create-flow.test.ts
+npm.cmd test -- apps/desktop/src/main/workspace/workspace-controller.test.ts
+npm.cmd test
+npm.cmd run build
+```
+
+Step 8B small-slice implementation:
+
+Chosen second Step 8 source slice:
+
+- add `runCreateCrawlThenAuthor` to
+  `apps/desktop/src/main/workspace/workspace-create-flow.ts`;
+- route the existing controller `runCrawlThenAuthor(...)` wrapper through that
+  helper;
+- pass exact callbacks for `setStage`, `recoverAfterCancel`, `runScript`,
+  `parkReview`, `previewUrlOf`, and warning logging;
+- keep `beginCreate`, `submitImageReview`, `pendingReview`, `inFlight`,
+  `signalOf`, `recoverAfterCancel`, `beginScript`, and `runScript` in
+  `WorkspaceController`;
+- do not pass the controller instance into the create-flow helper.
+
+Step 8B test evidence map:
+
+| Behavior touched | Existing test(s) | Gap? | New test or reason no new test |
+| --- | --- | --- | --- |
+| crawl failure never blocks authoring | `a crawl that throws never blocks authoring (best-effort) -> text-only` | helper runner behavior was not isolated | add direct helper test |
+| AI-filter ON and human-review OFF authors with the suggested subset | `AI-filter ON + review OFF -> authors with exactly the AI-suggested subset` | helper runner behavior was not isolated | add direct helper test |
+| human-review ON parks review cards and does not author yet | `review ON -> parks image-review with AI-suggested pre-ticked; submit authors the user's selection` | helper runner behavior was not isolated | add direct helper test |
+| cancellation after crawl recovers instead of authoring | controller cancellation behavior is broader than this crawl boundary | helper cancellation branch was not isolated | add direct helper test |
+
+Step 8B required checks:
 
 ```bash
 npm.cmd run typecheck

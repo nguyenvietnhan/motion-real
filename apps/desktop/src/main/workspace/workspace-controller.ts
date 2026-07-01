@@ -1,11 +1,11 @@
 import { computeScriptEdits, type ManifestScene } from "../script/script-gate-apply.js";
-import { authorInputWithCrawledImages, imageReviewViewModelFromCrawledImages } from "./workspace-create-flow.js";
+import { authorInputWithCrawledImages, runCreateCrawlThenAuthor } from "./workspace-create-flow.js";
 import { combineIntent, linkWarningOf, stageToFriendlyStatus } from "./workspace-helpers.js";
 import { publishedStageOf, readyStageOf, scriptLinesFromScenes, storyboardScenesFromScenes } from "./workspace-view-model.js";
 import { createLogger, serializeError, type CrawledImage } from "@news/pipeline";
 import { classifyError } from "../agent/error-classifier.js";
 import { toFriendlyError } from "../redact/friendly.js";
-import type { AgentHooks, AgentWorker, AuthorInput, AuthorImageRef, SceneSnapshot } from "../agent/agent-worker.js";
+import type { AgentHooks, AgentWorker, AuthorInput, SceneSnapshot } from "../agent/agent-worker.js";
 import type {
   ApplyResult,
   ProjectCardVM,
@@ -275,69 +275,18 @@ export class WorkspaceController {
   }
 
   private async runCrawlThenAuthor(projectId: string, input: AuthorInput): Promise<void> {
-    const signal = this.signalOf(projectId);
-    let pool: CrawledImage[] = [];
-    try {
-      // Crawl every brief link's images into the project assets (best-effort:
-      // a crawl failure yields [] and authoring proceeds text-only).
-      for (const url of input.urls) {
-        if (signal?.aborted) break;
-        const got = await (this.deps.worker.crawlImages?.(projectId, url, signal) ?? Promise.resolve([] as CrawledImage[])).catch((error) => {
-          log.warn({ err: error, projectId, url }, "image crawl failed; continuing with remaining links");
-          return [] as CrawledImage[];
-        });
-        pool.push(...got);
-        if (pool.length >= 24) break; // hard ceiling across links (review stays scannable)
-      }
-    } catch (e) {
-      log.warn({ err: e, projectId }, "image crawl stage failed; authoring will continue text-only");
-      pool = [];
-    }
-    if (signal?.aborted) {
-      await this.recoverAfterCancel(projectId);
-      return;
-    }
-
-    // Zero crawled images → straight to authoring (no empty review screen).
-    if (pool.length === 0) {
-      await this.runScript(projectId, input);
-      return;
-    }
-
-    // AI pre-selection (when enabled): the refs the model judges fit the article.
-    let suggested = new Set<string>();
-    if (this.deps.settings.imageCrawlAiFilter) {
-      this.setStage(projectId, { kind: "writing", phase: "image-filter" });
-      const refs: AuthorImageRef[] = pool.map((c) => ({ ref: c.ref, width: c.width, height: c.height }));
-      // The brief text is the article context the filter judges relevance against
-      // (the crawl already fetched the page; we don't re-ingest just to filter).
-      const keep = await (this.deps.worker.filterCrawledImages?.(projectId, input.text, refs, signal) ?? Promise.resolve([] as string[]))
-        .catch((error) => {
-          log.warn({ err: error, projectId }, "image relevance filter failed; using no preselection");
-          return [] as string[];
-        });
-      suggested = new Set(keep);
-    }
-    if (signal?.aborted) {
-      await this.recoverAfterCancel(projectId);
-      return;
-    }
-
-    // Human review OFF → author directly with the chosen set (AI-suggested when
-    // the filter ran, else the whole crawled pool — the authoring AI is still the
-    // final placement filter and uses only what fits, ≤1/scene).
-    if (!this.deps.settings.imageCrawlHumanReview) {
-      const chosen = suggested.size > 0 ? pool.filter((c) => suggested.has(c.ref)) : pool;
-      await this.runScript(projectId, authorInputWithCrawledImages(input, chosen));
-      return;
-    }
-
-    // Human review ON → park the pool + open the blocking review stage. The
-    // guarded crawl job ends here; `submitImageReview` resumes with the selection.
-    this.pendingReview.set(projectId, { input, pool });
-    this.setStage(projectId, {
-      kind: "image-review",
-      images: imageReviewViewModelFromCrawledImages(pool, suggested, (ref) => this.deps.assetMedia(projectId, ref)),
+    await runCreateCrawlThenAuthor({
+      projectId,
+      input,
+      signal: this.signalOf(projectId),
+      worker: this.deps.worker,
+      settings: this.deps.settings,
+      setStage: (stage) => this.setStage(projectId, stage),
+      recoverAfterCancel: () => this.recoverAfterCancel(projectId),
+      runScript: (nextInput) => this.runScript(projectId, nextInput),
+      parkReview: (review) => this.pendingReview.set(projectId, review),
+      previewUrlOf: (ref) => this.deps.assetMedia(projectId, ref),
+      warn: (details, message) => log.warn(details, message),
     });
   }
 
