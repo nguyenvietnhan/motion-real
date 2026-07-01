@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { SceneCard } from "../../shared/types.js";
-import { publishedStageOf, readyStageOf } from "./workspace-view-model.js";
+import { publishedStageOf, readyStageOf, scriptLinesFromScenes } from "./workspace-view-model.js";
 
 const scenes: SceneCard[] = [
   {
@@ -66,5 +66,41 @@ describe("workspace view model helpers", () => {
       format: "youtube",
       thumbnailPath: "media://thumbnail.png",
     });
+  });
+
+  it("maps script scenes to ordered script lines with text defaults", () => {
+    expect(
+      scriptLinesFromScenes(
+        [
+          { id: "scene-01" },
+          { id: "scene-02", headline: "Headline", narration: "Narration" },
+        ],
+        (ref) => `media://${ref}`,
+      ),
+    ).toEqual([
+      { sceneId: "scene-01", order: 0, headline: "", narration: "" },
+      { sceneId: "scene-02", order: 1, headline: "Headline", narration: "Narration" },
+    ]);
+  });
+
+  it("maps scene image refs to previewable script-line image paths", () => {
+    expect(
+      scriptLinesFromScenes(
+        [
+          { id: "scene-01", image: { ref: "image-a.png" } },
+          { id: "scene-02" },
+        ],
+        (ref) => `media://asset/${ref}`,
+      ),
+    ).toEqual([
+      {
+        sceneId: "scene-01",
+        order: 0,
+        headline: "",
+        narration: "",
+        imagePath: "media://asset/image-a.png",
+      },
+      { sceneId: "scene-02", order: 1, headline: "", narration: "" },
+    ]);
   });
 });

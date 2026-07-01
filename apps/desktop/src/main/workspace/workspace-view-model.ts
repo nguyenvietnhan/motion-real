@@ -1,4 +1,11 @@
-import type { ProjectStage, SceneCard, VideoFormatChoice } from "../../shared/types.js";
+import type { ProjectStage, SceneCard, ScriptLine, VideoFormatChoice } from "../../shared/types.js";
+
+type ScriptLineSourceScene = {
+  id: string;
+  headline?: string;
+  narration?: string;
+  image?: { ref: string };
+};
 
 export function readyStageOf(
   scenes: SceneCard[],
@@ -29,4 +36,17 @@ export function publishedStageOf(
     ...(options.hashtags && options.hashtags.length > 0 ? { hashtags: options.hashtags } : {}),
     ...(options.thumbnailPath ? { thumbnailPath: options.thumbnailPath } : {}),
   };
+}
+
+export function scriptLinesFromScenes(
+  scenes: ScriptLineSourceScene[],
+  assetMediaOf: (ref: string) => string,
+): ScriptLine[] {
+  return scenes.map((scene, index) => ({
+    sceneId: scene.id,
+    order: index,
+    headline: scene.headline ?? "",
+    narration: scene.narration ?? "",
+    ...(scene.image?.ref ? { imagePath: assetMediaOf(scene.image.ref) } : {}),
+  }));
 }

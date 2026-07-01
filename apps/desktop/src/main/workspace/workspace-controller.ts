@@ -1,7 +1,7 @@
 import { computeScriptEdits, type ManifestScene } from "../script/script-gate-apply.js";
 import { buildStoryboard } from "../review/storyboard.js";
 import { combineIntent, linkWarningOf, stageToFriendlyStatus } from "./workspace-helpers.js";
-import { publishedStageOf, readyStageOf } from "./workspace-view-model.js";
+import { publishedStageOf, readyStageOf, scriptLinesFromScenes } from "./workspace-view-model.js";
 import { createLogger, serializeError, type CrawledImage } from "@news/pipeline";
 import { classifyError } from "../agent/error-classifier.js";
 import { toFriendlyError } from "../redact/friendly.js";
@@ -244,16 +244,7 @@ export class WorkspaceController {
 
   private async scriptLinesOf(projectId: string): Promise<ScriptLine[]> {
     const manifest = await this.deps.loadManifest(projectId);
-    return manifest.scenes.map((s, i) => ({
-      sceneId: s.id,
-      order: i,
-      headline: s.headline ?? "",
-      narration: s.narration ?? "",
-      // Surface the image the AI decided to place on this scene (Phase 2 Block B)
-      // so the script-review screen shows it inline — the user sees WHICH image
-      // landed WHERE before approving, not just the text.
-      ...(s.image?.ref ? { imagePath: this.deps.assetMedia(projectId, s.image.ref) } : {}),
-    }));
+    return scriptLinesFromScenes(manifest.scenes, (ref) => this.deps.assetMedia(projectId, ref));
   }
 
   private async storyboardScenesOf(projectId: string): Promise<SceneCard[]> {

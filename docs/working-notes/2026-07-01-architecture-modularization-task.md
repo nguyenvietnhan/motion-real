@@ -1,6 +1,6 @@
 # Temporary Task — Architecture Modularization
 
-Status: Step 7 remaining-slice plan complete; Step 7C implementation next.
+Status: Step 7C implementation complete; Step 7D implementation next.
 
 This is a temporary working task for the next large cleanup after the docs
 contract consolidation. Keep it updated as work progresses. Delete this file
@@ -518,7 +518,7 @@ Remaining code slices:
 2. Step 7D: extract storyboard scene enrichment.
 3. Step 7E: close Step 7 with an audit decision, not a broad recovery rewrite.
 
-Step 7C small-slice design, no source movement yet:
+Step 7C small-slice implementation:
 
 Chosen third Step 7 implementation slice:
 
@@ -809,6 +809,14 @@ spending context on stale detail.
   `open`, and `generateThumbnail` unless Step 7E finds a tiny pure helper. No
   source code was moved in this planning slice. Next gate: Step 7C
   implementation.
+- 2026-07-02 Step 7C implementation complete. Added `scriptLinesFromScenes` to
+  `workspace-view-model.ts`, extended direct view-model tests, and routed the
+  existing async `scriptLinesOf(...)` wrapper through the helper while keeping
+  manifest loading and asset-path mapping ownership in the controller. Checks
+  passed: pre-edit `typecheck`/`test` (84 files, 837 tests)/`build`; post-edit
+  `typecheck`, view-model test (8 tests), controller test (62 tests), full
+  `test` (84 files, 839 tests), and `build`. No public API or package barrel
+  changed. Step 7 remains open; next gate: Step 7D implementation.
 
 ## Non-Negotiable Guardrails
 
