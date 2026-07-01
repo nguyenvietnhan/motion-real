@@ -1,4 +1,5 @@
 import { computeScriptEdits, type ManifestScene } from "../script/script-gate-apply.js";
+import { authorInputWithCrawledImages, imageReviewViewModelFromCrawledImages } from "./workspace-create-flow.js";
 import { combineIntent, linkWarningOf, stageToFriendlyStatus } from "./workspace-helpers.js";
 import { publishedStageOf, readyStageOf, scriptLinesFromScenes, storyboardScenesFromScenes } from "./workspace-view-model.js";
 import { createLogger, serializeError, type CrawledImage } from "@news/pipeline";
@@ -7,7 +8,6 @@ import { toFriendlyError } from "../redact/friendly.js";
 import type { AgentHooks, AgentWorker, AuthorInput, AuthorImageRef, SceneSnapshot } from "../agent/agent-worker.js";
 import type {
   ApplyResult,
-  CrawledImageVM,
   ProjectCardVM,
   ProjectStage,
   ScriptEdit,
@@ -328,14 +328,17 @@ export class WorkspaceController {
     // final placement filter and uses only what fits, ≤1/scene).
     if (!this.deps.settings.imageCrawlHumanReview) {
       const chosen = suggested.size > 0 ? pool.filter((c) => suggested.has(c.ref)) : pool;
-      await this.runScript(projectId, this.withImages(input, chosen));
+      await this.runScript(projectId, authorInputWithCrawledImages(input, chosen));
       return;
     }
 
     // Human review ON → park the pool + open the blocking review stage. The
     // guarded crawl job ends here; `submitImageReview` resumes with the selection.
     this.pendingReview.set(projectId, { input, pool });
-    this.setStage(projectId, { kind: "image-review", images: this.reviewVmOf(projectId, pool, suggested) });
+    this.setStage(projectId, {
+      kind: "image-review",
+      images: imageReviewViewModelFromCrawledImages(pool, suggested, (ref) => this.deps.assetMedia(projectId, ref)),
+    });
   }
 
   /**
@@ -350,27 +353,7 @@ export class WorkspaceController {
     this.pendingReview.delete(projectId);
     const allowed = new Set(selectedRefs);
     const chosen = parked.pool.filter((c) => allowed.has(c.ref));
-    this.beginScript(projectId, this.withImages(parked.input, chosen));
-  }
-
-  /** Fold crawled images into an AuthorInput's image pool (content-addressed refs). */
-  private withImages(input: AuthorInput, images: CrawledImage[]): AuthorInput {
-    const refs: AuthorImageRef[] = images.map((c) => ({ ref: c.ref, width: c.width, height: c.height }));
-    const existing = input.images ?? [];
-    const merged = [...existing, ...refs];
-    return { ...input, ...(merged.length > 0 ? { images: merged } : {}) };
-  }
-
-  /** Build the review view-model: previewable, AI-suggested-flagged crawled images. */
-  private reviewVmOf(projectId: string, pool: CrawledImage[], suggested: Set<string>): CrawledImageVM[] {
-    return pool.map((c) => ({
-      ref: c.ref,
-      previewUrl: this.deps.assetMedia(projectId, c.ref),
-      width: c.width,
-      height: c.height,
-      sourceUrl: c.sourceUrl,
-      suggested: suggested.has(c.ref),
-    }));
+    this.beginScript(projectId, authorInputWithCrawledImages(parked.input, chosen));
   }
 
   /** Stage 1: AI writes the script; then wait for approval unless the gate is off (R2.1–R2.3, R2.7). */

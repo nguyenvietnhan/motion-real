@@ -1,6 +1,6 @@
 # Temporary Task — Architecture Modularization
 
-Status: Step 7 complete; Step 8 create/crawl/image-review extraction next.
+Status: Step 8A implementation complete; Step 8B create-flow extraction decision next.
 
 This is a temporary working task for the next large cleanup after the docs
 contract consolidation. Keep it updated as work progresses. Delete this file
@@ -847,6 +847,14 @@ spending context on stale detail.
   was found, so Step 7 closed with no source movement and no broad recovery
   rewrite. Checks passed: `typecheck`, controller test (62 tests), full `test`
   (84 files, 841 tests), and `build`. Next gate: Step 8.
+- 2026-07-02 Step 8A implementation complete. Added pure create-flow image
+  helpers in `workspace-create-flow.ts`, direct tests, and routed controller
+  image-selection/review-card shaping through those helpers while keeping the
+  async create/crawl/review workflow and map ownership in `WorkspaceController`.
+  Checks passed: pre-edit `typecheck`/`test` (84 files, 841 tests)/`build`;
+  post-edit `typecheck`, create-flow helper test (4 tests), controller test (62
+  tests), full `test` (85 files, 845 tests), and `build`. Next gate: Step 8B
+  design/extraction decision.
 
 ## Non-Negotiable Guardrails
 
@@ -1434,6 +1442,41 @@ Required checks:
 
 ```bash
 npm.cmd run typecheck
+npm.cmd test -- apps/desktop/src/main/workspace/workspace-controller.test.ts
+npm.cmd test
+npm.cmd run build
+```
+
+Step 8A small-slice implementation:
+
+Chosen first Step 8 source slice:
+
+- create `apps/desktop/src/main/workspace/workspace-create-flow.ts`;
+- extract only pure image-shaping helpers:
+  - `authorInputWithCrawledImages`;
+  - `imageReviewViewModelFromCrawledImages`;
+- add direct tests in
+  `apps/desktop/src/main/workspace/workspace-create-flow.test.ts`;
+- route the controller's existing image-selection and review-view-model mapping
+  through those helpers;
+- keep `beginCreate`, `runCrawlThenAuthor`, `submitImageReview`,
+  `pendingReview`, `inFlight`, `signalOf`, `recoverAfterCancel`,
+  `beginScript`, and `runScript` in `WorkspaceController`.
+
+Step 8A test evidence map:
+
+| Behavior touched | Existing test(s) | Gap? | New test or reason no new test |
+| --- | --- | --- | --- |
+| crawled image refs folded into `AuthorInput.images` | Block B tests assert authored image refs through controller flows | direct helper output was not isolated | add direct helper test |
+| empty review selection remains text-only when there are no existing images | `review ON, submit NONE -> authors text-only` | direct helper output was not isolated | add direct helper test |
+| existing attached images are preserved | broader create/image tests cover attached images outside crawl flow | direct helper output was not isolated | add direct helper test |
+| image-review VM preview URL/source/suggested mapping | `review ON -> parks image-review with AI-suggested pre-ticked` | direct helper output was not isolated | add direct helper test |
+
+Step 8A required checks:
+
+```bash
+npm.cmd run typecheck
+npm.cmd test -- apps/desktop/src/main/workspace/workspace-create-flow.test.ts
 npm.cmd test -- apps/desktop/src/main/workspace/workspace-controller.test.ts
 npm.cmd test
 npm.cmd run build
