@@ -1,6 +1,6 @@
 # Temporary Task — Architecture Modularization
 
-Status: Step 6 complete; waiting for owner approval before Step 7.
+Status: Step 7A design complete; waiting for owner approval before Step 7A implementation.
 
 This is a temporary working task for the next large cleanup after the docs
 contract consolidation. Keep it updated as work progresses. Delete this file
@@ -349,6 +349,80 @@ Dependency impact:
 - helper imports only shared types from `../../shared/types.js`;
 - public API remains unchanged.
 
+Step 7A small-slice design, no source movement yet:
+
+Chosen first Step 7 implementation slice:
+
+- create `apps/desktop/src/main/workspace/workspace-view-model.ts`;
+- create `apps/desktop/src/main/workspace/workspace-view-model.test.ts`;
+- extract only a pure ready-stage builder, tentatively named `readyStageOf`;
+- keep the existing controller method `readyStage(projectId, scenes, notice?)`
+  as the single wrapper used by current call sites;
+- keep `WorkspaceController` responsible for checking `hasDraft(projectId)` and
+  producing `draftMedia(projectId)`;
+- pass only plain data into the helper: `scenes`, optional `draftPath`, and
+  optional `notice`;
+- do not move `publishedStage`, `scriptLinesOf`, `storyboardScenesOf`, `list`,
+  `stage`, `recoverStage`, `open`, or `generateThumbnail` in this slice.
+
+Reason for this smaller slice:
+
+- Step 7 as originally written is correct directionally but too broad for the
+  first source edit after Step 6;
+- `readyStage` is the lowest-risk view-model shaping point because the helper
+  can be pure and has no async, manifest, filesystem, event, or controller-map
+  dependency;
+- keeping draft existence checks in the controller avoids hiding IO behind a
+  misleading view-model helper;
+- preserving the `readyStage(...)` wrapper means all existing ready-stage call
+  sites stay unchanged.
+
+Exact expected implementation for Step 7A:
+
+```ts
+export function readyStageOf(
+  scenes: SceneCard[],
+  options?: { draftPath?: string; notice?: string },
+): ProjectStage
+```
+
+Controller wrapper should remain conceptually equivalent to:
+
+```ts
+private readyStage(projectId: string, scenes: SceneCard[], notice?: string): ProjectStage {
+  const draftPath = this.deps.hasDraft(projectId) ? this.deps.draftMedia(projectId) : undefined;
+  return readyStageOf(scenes, { draftPath, notice });
+}
+```
+
+Step 7A test evidence map:
+
+| Behavior touched | Existing test(s) | Gap? | New test or reason no new test |
+| --- | --- | --- | --- |
+| `ready` stage without draft or notice | many controller tests assert `ready` kind indirectly | direct helper output is not isolated | add direct `workspace-view-model.test.ts` case |
+| `ready` stage with draft player path | `cancel during a render reports back to ready (a draft existed)` and `projects:list status recovery` cover controller behavior | direct helper output is not isolated | add direct helper test for `draftPath` |
+| `ready` stage with notice | link-warning and failed-edit tests check notices through controller flows | direct helper output is not isolated | add direct helper test for `notice` |
+
+Step 7A required checks after implementation:
+
+```bash
+npm.cmd run typecheck
+npm.cmd test -- apps/desktop/src/main/workspace/workspace-view-model.test.ts
+npm.cmd test -- apps/desktop/src/main/workspace/workspace-controller.test.ts
+npm.cmd test
+npm.cmd run build
+```
+
+Step 7A approval gate:
+
+- `readyStageOf` imports only shared types and does not import the controller;
+- no async, filesystem, event, stage-map, render-version, or worker dependency
+  enters `workspace-view-model.ts`;
+- all existing controller call sites still route through `readyStage(...)`;
+- no public API or package barrel changes;
+- no unrelated formatting churn;
+- full required checks pass before commit.
+
 ## Approval Model
 
 Every step below has an approval gate. A step is not approved until all of its
@@ -438,6 +512,11 @@ spending context on stale detail.
   passed: pre-edit `typecheck`/`test`/`build`; post-edit `typecheck`, helper
   test, controller test, full `test` (83 files, 831 tests), and `build`. No
   public API changed. Next gate: owner approval before Step 7.
+- 2026-07-01 Step 7A design complete. Re-checked `readyStage`,
+  `publishedStage`, `scriptLinesOf`, `storyboardScenesOf`, recovery/open methods,
+  and related controller tests. Narrowed the first Step 7 source slice to a pure
+  `readyStageOf` helper plus direct tests only; no source code was moved. Next
+  gate: owner approval before Step 7A implementation.
 
 ## Non-Negotiable Guardrails
 
