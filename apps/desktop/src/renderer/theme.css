@@ -7,15 +7,15 @@
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
 
 :root {
-  --background: #09090b; /* Solid charcoal black */
+  --background: #131317; /* Slate dark grey background, less dark than original black */
   --foreground: #f4f4f5; /* Zinc-100 */
-  --card: #18181b; /* Zinc-900 card background */
-  --card-hover: #222227; /* Zinc-850 hover */
-  --popover: #18181b; /* Solid Zinc-900 popover */
-  --muted: #27272a; /* Zinc-800 */
+  --card: #1e1e24; /* Distinct lighter card background */
+  --card-hover: #26262e; /* Card hover tint */
+  --popover: #1e1e24; /* Popover background matching cards */
+  --muted: #25252b; /* Muted background */
   --muted-foreground: #a1a1aa; /* Zinc-400 */
-  --border: #27272a; /* Zinc-800 border */
-  --input: #09090b; /* Deep input field background */
+  --border: #25252b; /* Clean border color */
+  --input: #0c0c0f; /* Slightly darker input field background */
   --ring: rgba(59, 130, 246, 0.4); /* Cobalt blue focus ring */
 
   --primary: #ffffff;
@@ -32,8 +32,8 @@
   --warn: #f59e0b; /* Amber Yellow */
   --danger: #ef4444; /* Rose Red */
 
-  --sidebar: #09090b; /* Matching sidebar background */
-  --sidebar-border: #18181b;
+  --sidebar: #131317; /* Sidebar matching the app background */
+  --sidebar-border: #1e1e24; /* Sidebar border matching cards */
 
   --radius: 8px; /* Clean, tighter rounded corners */
   --radius-sm: 6px;
@@ -972,11 +972,10 @@ select.ns-input option {
 
 /* Storyboard slide thumbnail: subtle lift on hover for a Canva-like rail. */
 .ns-thumb {
-  transition: transform 0.12s, box-shadow 0.12s, border-color 0.12s;
+  transition: filter 0.12s, border-color 0.12s;
 }
 .ns-thumb:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
+  filter: brightness(1.15);
 }
 
 @keyframes ns-spin {
