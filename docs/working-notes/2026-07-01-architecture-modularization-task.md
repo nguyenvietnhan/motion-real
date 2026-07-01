@@ -1,6 +1,6 @@
 # Temporary Task — Architecture Modularization
 
-Status: Step 8B implementation complete; Step 8C close/create-flow decision next.
+Status: Step 8 complete; Step 9 script-gate extraction next.
 
 This is a temporary working task for the next large cleanup after the docs
 contract consolidation. Keep it updated as work progresses. Delete this file
@@ -864,6 +864,15 @@ spending context on stale detail.
   `typecheck`/`test` (85 files, 845 tests)/`build`; post-edit `typecheck`,
   create-flow helper test (8 tests), controller test (62 tests), full `test` (85
   files, 849 tests), and `build`. Next gate: Step 8C close/create-flow decision.
+- 2026-07-02 Step 8C complete. Audited the remaining create/crawl/image-review
+  controller methods and closed Step 8 with no source movement. `beginCreate`
+  stays in the controller because it owns entry gating, input memory, initial
+  crawl stage emission, and guarded-job startup; `runCrawlThenAuthor` is now only
+  a controller adapter into `runCreateCrawlThenAuthor`; `submitImageReview`
+  stays in the controller because it owns parked-review map lookup/deletion,
+  current-stage validation, and `beginScript` resume. Checks passed:
+  `typecheck`, create-flow helper test (8 tests), controller test (62 tests),
+  full `test` (85 files, 849 tests), and `build`. Next gate: Step 9.
 
 ## Non-Negotiable Guardrails
 
@@ -979,7 +988,7 @@ Suggested commit names:
 - [x] Step 5: First extraction design, no code movement.
 - [x] Step 6: Extract pure workspace helpers.
 - [x] Step 7: Extract workspace view-model and recovery helpers.
-- [ ] Step 8: Extract create/crawl/image-review flow.
+- [x] Step 8: Extract create/crawl/image-review flow.
 - [ ] Step 9: Extract script-gate flow.
 - [ ] Step 10: Extract render/refine/publish helpers or stop deliberately.
 - [ ] Step 11: Decide next target after workspace controller.
@@ -1516,6 +1525,47 @@ Step 8B test evidence map:
 | cancellation after crawl recovers instead of authoring | controller cancellation behavior is broader than this crawl boundary | helper cancellation branch was not isolated | add direct helper test |
 
 Step 8B required checks:
+
+```bash
+npm.cmd run typecheck
+npm.cmd test -- apps/desktop/src/main/workspace/workspace-create-flow.test.ts
+npm.cmd test -- apps/desktop/src/main/workspace/workspace-controller.test.ts
+npm.cmd test
+npm.cmd run build
+```
+
+Step 8C close decision, no source movement:
+
+Purpose:
+
+- end Step 8 deliberately instead of drifting into script-gate or controller
+  lifecycle work.
+
+Audit scope:
+
+- `beginCreate`;
+- controller wrapper `runCrawlThenAuthor`;
+- `submitImageReview`;
+- parked review map ownership;
+- create-flow helper exports.
+
+Decision:
+
+- close Step 8 with no source movement;
+- keep `beginCreate` in the controller because it owns the in-flight guard,
+  remembered author input, initial `writing/crawl` stage, and guarded job
+  startup;
+- keep the controller `runCrawlThenAuthor` wrapper because it is now only the
+  adapter that binds exact controller callbacks into `runCreateCrawlThenAuthor`;
+- keep `submitImageReview` in the controller because it checks and deletes
+  `pendingReview`, validates the current `image-review` stage, and resumes
+  authoring via `beginScript`;
+- keep `pendingReview`, `inFlight`, `signalOf`, and `recoverAfterCancel` owned by
+  `WorkspaceController`;
+- do not create a broader create-flow object or move script-gate/render methods
+  as part of Step 8.
+
+Step 8C required checks:
 
 ```bash
 npm.cmd run typecheck
