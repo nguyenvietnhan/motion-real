@@ -6,7 +6,8 @@ import {
   clampWordsPerSecond,
   voiceCalibrationKey,
 } from "../../shared/settings-model.js";
-import { existsSync, readFileSync, writeFileSync, renameSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync, renameSync, mkdirSync } from "node:fs";
+import { dirname } from "node:path";
 
 export type SecretCipher = {
   isEncryptionAvailable(): boolean;
@@ -272,6 +273,7 @@ function defaultExists(path: string): boolean { return existsSync(path); }
 function defaultReadText(path: string): string { return readFileSync(path, "utf8"); }
 function defaultWriteText(path: string, text: string): void {
   const tmp = `${path}.tmp`;
+  mkdirSync(dirname(path), { recursive: true });
   writeFileSync(tmp, text, "utf8");
   renameSync(tmp, path);
 }
