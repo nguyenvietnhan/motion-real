@@ -1,6 +1,6 @@
 # Temporary Task — Architecture Modularization
 
-Status: planned, expanded after repo-structure audit and external plan review.
+Status: Step 0 complete; waiting for owner approval before Step 1.
 
 This is a temporary working task for the next large cleanup after the docs
 contract consolidation. Keep it updated as work progresses. Delete this file
@@ -141,6 +141,14 @@ Do not paste long `git diff`, test logs, generated output, or full grep output
 into this file. Link or summarize instead. This keeps future AI sessions from
 spending context on stale detail.
 
+## Progress Notes
+
+- 2026-07-01 Step 0 complete. Dirty worktree contains only the pre-existing
+  `packages/mcp/src/bin.ts` change; no unrelated files are staged; no source
+  code was moved. Baseline checks passed: `npm.cmd run typecheck`,
+  `npm.cmd test` (82 files, 828 tests), and `npm.cmd run build`. Next gate:
+  owner approval before Step 1.
+
 ## Non-Negotiable Guardrails
 
 - Do not do a rewrite.
@@ -247,7 +255,7 @@ Suggested commit names:
 
 ## Progress Checklist
 
-- [ ] Step 0: Baseline and dirty-worktree ownership.
+- [x] Step 0: Baseline and dirty-worktree ownership.
 - [ ] Step 1: Repo organization audit record.
 - [ ] Step 2: Dependency and boundary audit.
 - [ ] Step 3: Compare organization models and lock the chosen approach.
