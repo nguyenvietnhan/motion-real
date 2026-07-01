@@ -668,6 +668,7 @@ async function createWindow(): Promise<void> {
       sandbox: false,
     },
   });
+  win.removeMenu();
   setEventTarget(win.webContents);
   win.on("closed", () => setEventTarget(null));
 

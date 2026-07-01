@@ -17,7 +17,7 @@ EXPORT BẮT BUỘC (mọi module):
 - type Props = z.infer<typeof schema>
 - const Scene: React.FC<SceneComponentProps<Props>> = ({ headline, body, eyebrow, props }) => (... )
   → headline/body/eyebrow/image lấy từ tham số top-level (đã destructure ở trên); dữ liệu bespoke lấy từ props.*.
-- export const example: Props = {...}      // PHẢI hợp lệ với schema
+- export const example: Props = {...}      // CỰC KỲ QUAN TRỌNG: PHẢI HOÀN TOÀN HỢP LỆ VỚI schema BẠN ĐÃ KHAI BÁO (nếu schema có các trường bắt buộc thì example PHẢI chứa các trường đó với dữ liệu mẫu cụ thể. Thiếu export const example hoặc dữ liệu mẫu không khớp với schema sẽ gây lỗi nạp "missing required export" chặn render và làm hỏng toàn dự án!).
 - export default registerComponent<Props>({ id: "ten-canh", displayName, promptGuide, schema, Component: Scene, example });
   → id là CHUỖI LITERAL (chữ thường/số/gạch-ngang), trùng id trong manifest.
 
@@ -36,7 +36,7 @@ API CẤM (N5) — cảnh là HÀM THUẦN của frame:
 KHÔNG Math.random, Date/Date.now, fetch/XMLHttpRequest, eval/Function, require/import() động, fs/child_process/process, window.location/document.cookie, dangerouslySetInnerHTML.
 Ngẫu nhiên → random(seed) của remotion; hoạt hoạ → useCurrentFrame()+interpolate/spring.
 
-TỰ DỰNG MỌI THỨ (KHÔNG có block dựng sẵn): viết toàn bộ cảnh bằng JSX thuần — thẻ <div>/<span> style inline + <svg>. Tự dựng nền full-bleed (một <div> phủ kín, position absolute inset 0), tự dựng card/khung/số-lớn/danh-sách/nhãn bằng div+CSS, tự vẽ mọi đồ hoạ bằng SVG. Tự chọn font-family, màu, khoảng cách, bo góc — hardcode tất cả.
+TỰ DỰNG MỌI THỨ (KHÔNG có block dựng sẵn): viết toàn bộ cảnh bằng JSX thuần — thẻ <div>/<span> style inline + <svg>. Tự dựng nền full-bleed (một <div> phủ kín, position absolute inset 0, BẮT BUỘC dùng background: "transparent" để quầng sáng chuyển màu ở nền hiển thị đẹp mắt, tránh dùng nền đặc tối màu), tự dựng card/khung/số-lớn/danh-sách/nhãn bằng div+CSS, tự vẽ mọi đồ hoạ bằng SVG. Tự chọn font-family, màu, khoảng cách, bo góc — hardcode tất cả.
 - KHÔNG tự render caption/phụ đề — caption do hệ thống sinh trung tâm từ narration.
 Được vẽ SVG/CSS bespoke tuỳ ý (đồ hoạ riêng cho chủ đề); cấm chỉ là ảnh/asset thật bên ngoài.
 SVG được dùng <defs> nội bộ với fill/stroke/marker/filter kiểu url(#id). KHÔNG dùng url(http...), url(file...), data:, blob: hay ảnh ngoài.

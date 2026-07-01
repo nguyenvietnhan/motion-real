@@ -95,30 +95,47 @@ const ScriptReview: React.FC<{
       </div>
       <div style={{ display: "grid", gap: 12 }}>
         {lines.map((l, i) => (
-          <div key={l.sceneId} className="ns-card" style={{ padding: 16, display: "flex", gap: 14 }}>
-            {/* Thumbnail of the image the AI chose to place on THIS scene (Phase 2
-                Block B) — so the user sees, at script-review time, which photo each
-                scene will carry. Absent when the AI gave the scene no image. */}
-            {l.imagePath && (
-              <div
-                title="Ảnh AI gắn cho cảnh này"
-                style={{
-                  flexShrink: 0, width: 72, aspectRatio: "9 / 16", borderRadius: 8, overflow: "hidden",
-                  border: "1px solid var(--border)",
-                  background: `center/contain no-repeat #0c0e12 url(${l.imagePath})`,
-                }}
-              />
-            )}
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ display: "flex", gap: 10, alignItems: "baseline", marginBottom: 8 }}>
-                <span style={{ color: "var(--brand)", fontWeight: 800 }}>{i + 1}</span>
-                <input className="ns-input" value={draft[l.sceneId]?.headline ?? ""} placeholder="Tiêu đề cảnh"
-                  onChange={(e) => setDraft((d) => ({ ...d, [l.sceneId]: { ...d[l.sceneId]!, headline: e.target.value } }))}
-                  style={{ flex: 1, padding: "8px 10px" }} />
-              </div>
+          <div key={l.sceneId} className="ns-card" style={{ padding: 16, display: "flex", gap: 16, alignItems: "stretch" }}>
+            {/* Left: Fixed-width scene index so numbers are perfectly aligned vertically */}
+            <div style={{ flexShrink: 0, display: "flex", flexDirection: "column", alignItems: "center", paddingTop: 8 }}>
+              <span style={{ color: "var(--brand)", fontWeight: 800, fontSize: 16, minWidth: 20, textAlign: "center" }}>{i + 1}</span>
+            </div>
+
+            {/* Center: Input fields (Heading & Textarea) */}
+            <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 8 }}>
+              <input className="ns-input" value={draft[l.sceneId]?.headline ?? ""} placeholder="Tiêu đề cảnh"
+                onChange={(e) => setDraft((d) => ({ ...d, [l.sceneId]: { ...d[l.sceneId]!, headline: e.target.value } }))}
+                style={{ width: "100%", padding: "8px 12px" }} />
+              
               <textarea className="ns-input" value={draft[l.sceneId]?.narration ?? ""} rows={2} placeholder="Lời đọc"
                 onChange={(e) => setDraft((d) => ({ ...d, [l.sceneId]: { ...d[l.sceneId]!, narration: e.target.value } }))}
-                style={{ width: "100%" }} />
+                style={{ width: "100%", padding: "8px 12px", resize: "vertical" }} />
+            </div>
+
+            {/* Right: Media preview thumbnail slot (fixed-width, keeps text inputs perfectly aligned across all cards) */}
+            <div style={{ flexShrink: 0, width: 80, display: "flex", alignItems: "center", justifyContent: "center" }}>
+              {l.imagePath ? (
+                <div
+                  title="Ảnh AI gắn cho cảnh này"
+                  style={{
+                    width: 72, height: 72, borderRadius: 8, overflow: "hidden",
+                    border: "1px solid var(--border)",
+                    background: `center/cover no-repeat #0c0e12 url(${l.imagePath})`,
+                  }}
+                />
+              ) : (
+                <div
+                  style={{
+                    width: 72, height: 72, borderRadius: 8,
+                    border: "1px dashed rgba(255, 255, 255, 0.08)",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    color: "rgba(255, 255, 255, 0.15)"
+                  }}
+                  title="Cảnh này không dùng ảnh minh họa"
+                >
+                  {Icon.film({ size: 16 })}
+                </div>
+              )}
             </div>
           </div>
         ))}
@@ -430,7 +447,7 @@ export const ProjectWorkspaceView: React.FC<{
               ) : (
                 // An author or infra error: re-running the failed loop is meaningful
                 // (infra blips self-heal; a fresh author attempt may succeed).
-                <button className="ns-btn ns-btn-primary" onClick={onRetry}>{Icon.plus({ size: 15 })} Thử lại</button>
+                <button className="ns-btn ns-btn-primary" onClick={onRetry}>{Icon.refresh({ size: 14 })} Thử lại</button>
               )}
               <button className="ns-btn" onClick={onBack}>Quay lại Trang chủ</button>
             </div>

@@ -141,14 +141,18 @@ const Scene: React.FC<SceneComponentProps<Props>> = ({ headline, eyebrow }) => {
   const frame = useCurrentFrame();
   const enter = interpolate(frame, [0, 18], [0, 1], { extrapolateRight: "clamp" });
   return (
-    <div style={{ position: "absolute", inset: 0, background: "#0b1020", display: "flex", flexDirection: "column", justifyContent: "center", padding: 80, opacity: enter }}>
+    <div style={{ position: "absolute", inset: 0, background: "transparent", display: "flex", flexDirection: "column", justifyContent: "center", padding: 80, opacity: enter }}>
       <span style={{ fontSize: 28, letterSpacing: 4, color: "#7dd3fc" }}>{eyebrow ?? "TIN"}</span>
       <h1 style={{ fontSize: 96, lineHeight: 1.05, color: "#fff", margin: 0, fontWeight: 800 }}>{headline}</h1>
       {/* đồ hoạ SVG/CSS bespoke riêng cho cảnh này ở đây */}
     </div>
   );
 };
-export const example: Props = { /* hợp lệ với schema */ };
+// CỰC KỲ QUAN TRỌNG: example PHẢI chứa dữ liệu mẫu khớp hoàn toàn với định nghĩa schema ở trên.
+// Ví dụ nếu ở trên schema có trường percentage thì ở đây example bắt buộc phải có percentage.
+export const example: Props = {
+  // Điền các trường dữ liệu mẫu hợp lệ ở đây
+};
 export default registerComponent<Props>({ id: "id-canh", displayName: "...", promptGuide: "...", schema, Component: Scene, example });
 \`\`\`
 id trong manifest phải KHỚP id literal trong registerComponent. KHÔNG kèm văn bản thừa ngoài các khối trên.`;

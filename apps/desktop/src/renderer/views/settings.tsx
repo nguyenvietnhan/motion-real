@@ -8,6 +8,79 @@ import { compactNotificationMessage, errorDetails, useNotifications } from "../n
 
 type SettingsTab = "ai" | "voice" | "build" | "about";
 
+interface CustomSelectOption {
+  value: string;
+  label: string;
+}
+
+interface CustomSelectProps {
+  value: string;
+  onChange: (value: string) => void;
+  options: CustomSelectOption[];
+  placeholder?: string;
+  style?: React.CSSProperties;
+}
+
+const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options, placeholder, style }) => {
+  const [open, setOpen] = React.useState(false);
+  const containerRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleOutsideClick);
+    return () => document.removeEventListener("mousedown", handleOutsideClick);
+  }, []);
+
+  const selectedOption = options.find((opt) => opt.value === value);
+
+  return (
+    <div ref={containerRef} className="ns-custom-select-container" style={{ position: "relative", ...style }}>
+      <button
+        type="button"
+        className={`ns-input ns-custom-select-trigger${open ? " is-open" : ""}`}
+        onClick={() => setOpen(!open)}
+        style={{ width: "100%", textAlign: "left", display: "flex", alignItems: "center", justifyContent: "space-between" }}
+      >
+        <span>{selectedOption ? selectedOption.label : placeholder || "Chọn..."}</span>
+      </button>
+
+      {open && (
+        <div
+          className="ns-custom-select-dropdown"
+          style={{
+            position: "absolute",
+            top: "calc(100% + 4px)",
+            left: 0,
+            width: "100%",
+            zIndex: 100,
+            maxHeight: "260px",
+            overflowY: "auto"
+          }}
+        >
+          {options.map((opt) => (
+            <button
+              key={opt.value}
+              type="button"
+              className={`ns-custom-select-option${opt.value === value ? " is-active" : ""}`}
+              onClick={() => {
+                onChange(opt.value);
+                setOpen(false);
+              }}
+              style={{ width: "100%", textAlign: "left", display: "block" }}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
 /** Enterprise tabbed settings: AI account / voice / video build / about. */
 export const SettingsView: React.FC<{
   gateway: GatewayState;
@@ -141,10 +214,13 @@ export const SettingsView: React.FC<{
                   </div>
                   <div style={{ marginTop: 20 }}>
                     <Field label="Model dùng để dựng" hint="Model nhìn được ảnh sẽ tự soát và sửa lỗi bố cục tốt hơn.">
-                      <select className="ns-input" aria-label="Chọn model dựng video" value={selectedModelId} onChange={(e) => onSelectModel(e.target.value)} style={{ width: "100%", maxWidth: 460 }}>
-                        <option value="" disabled>Chọn model</option>
-                        {models.map((m) => (<option key={m.id} value={m.id}>{m.id}</option>))}
-                      </select>
+                      <CustomSelect
+                        value={selectedModelId}
+                        onChange={onSelectModel}
+                        options={models.map((m) => ({ value: m.id, label: m.id }))}
+                        placeholder="Chọn model"
+                        style={{ width: "100%", maxWidth: 460 }}
+                      />
                     </Field>
                   </div>
                 </>
@@ -155,16 +231,21 @@ export const SettingsView: React.FC<{
           {tab === "voice" && (
             <SettingsCard title="Giọng đọc" desc="Cấu hình riêng từng nhà cung cấp. Lựa chọn này là mặc định cho dự án mới.">
               <Field label="Nhà cung cấp giọng">
-                <select className="ns-input" value={voiceProvider} onChange={(e) => update({ voiceProvider: e.target.value as VoiceProviderChoice })} style={{ width: "100%", maxWidth: 320 }}>
-                  <option value="vivibe">Vivibe (chỉ tiếng Việt)</option>
-                  <option value="elevenlabs">ElevenLabs</option>
-                </select>
+                <CustomSelect
+                  value={voiceProvider}
+                  onChange={(val) => update({ voiceProvider: val as VoiceProviderChoice })}
+                  options={[
+                    { value: "vivibe", label: "Vivibe (chỉ tiếng Việt)" },
+                    { value: "elevenlabs", label: "ElevenLabs" }
+                  ]}
+                  style={{ width: "100%", maxWidth: 320 }}
+                />
+                <p style={{ margin: "8px 0 0", color: "var(--muted-foreground)", fontSize: 12 }}>
+                  {voiceProvider === "vivibe"
+                    ? "Vivibe chỉ hỗ trợ tiếng Việt."
+                    : "ElevenLabs hỗ trợ video tiếng Việt và tiếng Anh."}
+                </p>
               </Field>
-              <p style={{ margin: 0, color: "var(--muted-foreground)", fontSize: 13 }}>
-                {voiceProvider === "vivibe"
-                  ? "Vivibe chỉ hỗ trợ tiếng Việt."
-                  : "ElevenLabs hỗ trợ video tiếng Việt và tiếng Anh."}
-              </p>
               <Field label={`API key ${voiceProvider === "vivibe" ? "Vivibe" : "ElevenLabs"}`} hint={`Trạng thái: ${credentialState === "saved" ? "đã lưu an toàn" : credentialState === "environment" ? "đang dùng từ .env" : "chưa cấu hình"}.`}>
                 <div className="ns-secret-field">
                   <input className="ns-input" type={showVoiceKey ? "text" : "password"} placeholder={credentialState === "missing" ? "dán API key…" : "nhập key mới để thay thế…"} value={voiceKeyInput}

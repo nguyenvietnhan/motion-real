@@ -57,10 +57,10 @@ const log = createLogger("authoring");
 export function authorCallErrorMessage(e: unknown): string {
   if (e instanceof GatewayChatError) {
     if (e.kind === "timeout") {
-      return "Model phản hồi quá lâu (hết thời gian chờ). Model có thể đang quá tải — hãy thử lại hoặc chọn model khác.";
+      return "Model phản hồi quá lâu (quá thời gian chờ). Vui lòng thử lại hoặc chọn model khác.";
     }
     if (e.kind === "transient") {
-      return "9Router/model tạm thời không phản hồi (thường do model đang khởi động). Đã thử lại vài lần nhưng chưa được — hãy chờ chút rồi thử lại, hoặc đổi model.";
+      return "Model tạm thời không phản hồi (đang khởi động). Vui lòng thử lại sau ít phút hoặc đổi model.";
     }
     // Non-retryable HTTP (e.g. 4xx). 401/403 with a "reset after" window is the
     // upstream provider account being rate-limited / quota-locked (NOT a wrong
