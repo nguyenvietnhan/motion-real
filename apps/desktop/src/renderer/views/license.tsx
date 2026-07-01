@@ -9,7 +9,7 @@ export const LicenseView: React.FC<{
 }> = ({ state, onActivate }) => {
   const [key, setKey] = useState("");
   const msg: Record<string, { text: string; color: string }> = {
-    unactivated: { text: "Nhập mã kích hoạt để bắt đầu dùng News Studio.", color: "var(--muted-foreground)" },
+    unactivated: { text: "Nhập mã kích hoạt để bắt đầu dùng Motion Real.", color: "var(--muted-foreground)" },
     activating: { text: "Đang kích hoạt…", color: "var(--muted-foreground)" },
     error: { text: "Mã không hợp lệ. Hãy kiểm tra lại và thử lại.", color: "var(--danger)" },
     lapsed: { text: "Giấy phép đã hết hiệu lực.", color: "var(--warn)" },
@@ -21,7 +21,7 @@ export const LicenseView: React.FC<{
       <div className="ns-card" style={{ padding: 32, width: 420, maxWidth: "100%" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
           <span className="ns-brand-dot" style={{ width: 32, height: 32 }}>{Icon.spark({ size: 18 })}</span>
-          <h1 style={{ margin: 0, fontSize: 20 }}>News Studio</h1>
+          <h1 style={{ margin: 0, fontSize: 20 }}>Motion Real</h1>
         </div>
         <p style={{ color: m.color, marginTop: 0 }}>{m.text}</p>
         <input

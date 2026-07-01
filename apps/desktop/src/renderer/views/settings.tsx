@@ -235,10 +235,10 @@ export const SettingsView: React.FC<{
                   value={voiceProvider}
                   onChange={(val) => update({ voiceProvider: val as VoiceProviderChoice })}
                   options={[
-                    { value: "vivibe", label: "Vivibe (chỉ tiếng Việt)" },
+                    { value: "vivibe", label: "Vivibe" },
                     { value: "elevenlabs", label: "ElevenLabs" }
                   ]}
-                  style={{ width: "100%", maxWidth: 320 }}
+                  style={{ width: "100%", maxWidth: 180 }}
                 />
                 <p style={{ margin: "8px 0 0", color: "var(--muted-foreground)", fontSize: 12 }}>
                   {voiceProvider === "vivibe"
@@ -306,10 +306,10 @@ export const SettingsView: React.FC<{
           )}
 
           {tab === "about" && (
-            <SettingsCard title="Giới thiệu" desc="News Studio dựng video tin tức ngắn 9:16 bằng AI.">
-              <InfoRow label="Phiên bản" value="News Studio 0.1.0" />
+            <SettingsCard title="Giới thiệu" desc="Motion Real dựng video tin tức ngắn 9:16 bằng AI.">
+              <InfoRow label="Phiên bản" value="Motion Real 0.1.0" />
               <InfoRow label="Dịch vụ AI" value="9Router · localhost:20128"
-                hint="Đăng nhập tài khoản nhà cung cấp được uỷ quyền cho 9Router. News Studio không lưu mật khẩu của bạn." />
+                hint="Đăng nhập tài khoản nhà cung cấp được uỷ quyền cho 9Router. Motion Real không lưu mật khẩu của bạn." />
               <InfoRow label="Mã kích hoạt (bản dev)" value="123" />
               <InfoRow label="Thư mục lưu dự án" value={settings.outputDir || "(mặc định)"} mono />
             </SettingsCard>

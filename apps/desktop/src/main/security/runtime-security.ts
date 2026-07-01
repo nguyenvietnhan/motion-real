@@ -101,7 +101,7 @@ export function detectProcessPrivilege(opts: PrivilegeProbeOptions = {}): Privil
 export function privilegeStartupError(status: PrivilegeStatus): string | undefined {
   if (status === "standard") return undefined;
   if (status === "elevated") {
-    return "News Studio đang chạy với quyền Administrator/root. Hãy đóng ứng dụng và mở lại từ tài khoản hoặc terminal không nâng quyền.";
+    return "Motion Real đang chạy với quyền Administrator/root. Hãy đóng ứng dụng và mở lại từ tài khoản hoặc terminal không nâng quyền.";
   }
-  return "Không thể xác minh quyền của tiến trình. Vì an toàn, News Studio chưa khởi động. Hãy mở lại từ terminal người dùng thông thường.";
+  return "Không thể xác minh quyền của tiến trình. Vì an toàn, Motion Real chưa khởi động. Hãy mở lại từ terminal người dùng thông thường.";
 }

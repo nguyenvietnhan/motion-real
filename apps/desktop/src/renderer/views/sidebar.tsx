@@ -3,6 +3,7 @@ import type { AiAccountState, GatewayState } from "../../shared/types.js";
 import { Icon } from "../icons.js";
 import { activeAccount } from "../../shared/active-account.js";
 import { aiStatus, type Screen } from "../primitives.js";
+import logoUrl from "../logo.png";
 
 /** Left navigation rail + AI status card. */
 export const Sidebar: React.FC<{
@@ -25,12 +26,8 @@ export const Sidebar: React.FC<{
   );
   return (
     <aside className="ns-sidebar">
-      <div className="ns-brand">
-        <span className="ns-brand-dot">{Icon.spark({ size: 15 })}</span>
-        <div>
-          <div style={{ fontWeight: 700, fontSize: 15 }}>News Studio</div>
-          <div style={{ fontSize: 11, color: "var(--muted-foreground)" }}>Xưởng video tin tức</div>
-        </div>
+      <div style={{ background: "#ffffff", padding: "6px 8px", borderRadius: "8px", display: "flex", justifyContent: "center", alignItems: "center", marginBottom: "20px" }}>
+        <img src={logoUrl} alt="Motion Real Logo" style={{ height: "54px", maxWidth: "100%", objectFit: "contain" }} />
       </div>
       <nav>
         {NavItem("home", "Trang chủ", Icon.home({}))}
