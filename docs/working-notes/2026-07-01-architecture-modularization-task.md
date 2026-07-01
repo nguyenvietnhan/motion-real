@@ -1,6 +1,6 @@
 # Temporary Task — Architecture Modularization
 
-Status: Step 4 complete; waiting for owner approval before Step 5.
+Status: Step 5 complete; waiting for owner approval before Step 6.
 
 This is a temporary working task for the next large cleanup after the docs
 contract consolidation. Keep it updated as work progresses. Delete this file
@@ -285,6 +285,70 @@ Step 4 doc status:
 - source comments/types still contain cleanup candidates, but no source behavior
   changed in this step.
 
+Step 5 first extraction design:
+
+Controller responsibility map:
+
+| Group | Current members | Notes |
+| --- | --- | --- |
+| pure helpers | `stageToFriendlyStatus`, `combineIntent`, `linkWarningOf` | no controller state, no IO, no logger, safest first move |
+| stage lifecycle/concurrency | `guarded`, `signalOf`, `cancel`, `recoverAfterCancel`, `setStage`, `bumpRenderVersion` | keep in controller for now because they own maps/events |
+| view-model/recovery | `readyStage`, `publishedStage`, `scriptLinesOf`, `storyboardScenesOf`, `list`, `rename`, `stage`, `recoverStage`, `open`, `generateThumbnail` | later Step 7 candidate after pure helpers |
+| create/crawl/image-review | `beginCreate`, `runCrawlThenAuthor`, `submitImageReview`, `withImages`, `reviewVmOf` | later Step 8; depends on pending review map, worker crawl/filter, and settings |
+| script gate/authoring | `beginScript`, `retry`, `runScript`, `scriptGate`, `applyEdits` | later Step 9; manifest read/write and link-warning behavior must stay exact |
+| edit/refine/render draft | `submitEdits`, `runSceneEdits`, `editHooks`, `BOOTSTRAP_INTENT`, `snapshotFresh`, `creativeBootstrapPass`, `runVisionPasses`, `refineBeforeDraft`, `refineEditedScenes`, `restoreToPriorDraft`, `renderHooks`, `reportRenderProgress`, `runRender` | high-risk Step 10 area; needs targeted tests plus render smoke if behavior changes |
+| publish/filesystem actions | `publish`, `runPublish`, `delete`, `reveal` | keep in controller until smaller flows are stable |
+
+Proposed destination files before any code movement:
+
+- Step 6 exact file: `apps/desktop/src/main/workspace/workspace-helpers.ts`.
+- Step 6 likely test file:
+  `apps/desktop/src/main/workspace/workspace-helpers.test.ts`.
+- Later possible files, not approved for Step 6:
+  - `workspace-view-model.ts`;
+  - `workspace-create-flow.ts`;
+  - `workspace-script-flow.ts`;
+  - `workspace-render-flow.ts` only if Step 10 proves a safe slice exists.
+
+Exact first slice for Step 6:
+
+- move only `stageToFriendlyStatus`, `combineIntent`, and `linkWarningOf`;
+- export only those helpers from `workspace-helpers.ts`;
+- make `workspace-controller.ts` import the helpers from
+  `./workspace-helpers.js`;
+- move the `FriendlyStatus` type import to the helper file if no longer needed
+  by the controller;
+- keep `ProjectStage` in `workspace-controller.ts` because controller methods
+  still use it throughout;
+- do not move `log`, `TITLE_MAX_CHARS`, interfaces/types, class fields, any
+  async method, or any function that reads controller state/deps.
+
+Test evidence map for Step 6:
+
+| Behavior touched | Existing test(s) | Gap? | New test or reason no new test |
+| --- | --- | --- | --- |
+| friendly status mapping from workspace stage kind | `projects:list status recovery` covers live error overlay and disk-based done/draft-ready status; many tests exercise `setStage` indirectly | direct mapping of ready/published/writing to helper outputs is not isolated | add `workspace-helpers.test.ts` direct cases for `ready`, `published`, `error`, and default building |
+| edit intent composition | `submitEdits` tests: `from ready`, `global-note-only`, `folds a global note INTO each per-scene intent` | no behavior gap for controller path | direct helper test optional; controller tests already assert produced `perSceneIntent` |
+| unreadable link warning text/count | `runScript link warning` tests for gate on `1/1`, all-read undefined, and gate off ready-stage notice `2/2` | no behavior gap for controller path | direct helper test optional; controller tests already cover both return branches |
+
+Step 6 required targeted checks:
+
+```bash
+npm.cmd run typecheck
+npm.cmd test -- apps/desktop/src/main/workspace/workspace-helpers.test.ts
+npm.cmd test -- apps/desktop/src/main/workspace/workspace-controller.test.ts
+npm.cmd test
+npm.cmd run build
+```
+
+Dependency impact:
+
+- no new package dependency;
+- no new barrel;
+- no import from helper back into the controller;
+- helper imports only shared types from `../../shared/types.js`;
+- public API remains unchanged.
+
 ## Approval Model
 
 Every step below has an approval gate. A step is not approved until all of its
@@ -364,6 +428,10 @@ spending context on stale detail.
   broad `@news/pipeline` exports, `SceneImage`/theme re-exports, and settings/API
   migrations. No code was moved or deleted. Next gate: owner approval before
   Step 5.
+- 2026-07-01 Step 5 complete. First extraction design recorded method groups,
+  destination files, exact pure-helper move list, import impact, and test
+  evidence map for Step 6. No source code was moved. Next gate: owner approval
+  before Step 6.
 
 ## Non-Negotiable Guardrails
 
@@ -476,7 +544,7 @@ Suggested commit names:
 - [x] Step 2: Dependency and boundary audit.
 - [x] Step 3: Compare organization models and lock the chosen approach.
 - [x] Step 4: Legacy compatibility inventory.
-- [ ] Step 5: First extraction design, no code movement.
+- [x] Step 5: First extraction design, no code movement.
 - [ ] Step 6: Extract pure workspace helpers.
 - [ ] Step 7: Extract workspace view-model and recovery helpers.
 - [ ] Step 8: Extract create/crawl/image-review flow.
