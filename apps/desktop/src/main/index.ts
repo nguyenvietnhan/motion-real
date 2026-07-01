@@ -661,6 +661,7 @@ async function createWindow(): Promise<void> {
     minWidth: 1080,
     minHeight: 720,
     show: true,
+    icon: join(here, "../../src/main/logo.png"),
     webPreferences: {
       preload: join(here, "../preload/index.cjs"),
       contextIsolation: true,
