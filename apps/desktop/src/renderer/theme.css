@@ -183,7 +183,7 @@ select {
   border-right: 1px solid var(--sidebar-border);
   display: flex;
   flex-direction: column;
-  padding: 24px 16px;
+  padding: 12px 16px 24px;
   box-shadow: none;
 }
 .ns-brand {

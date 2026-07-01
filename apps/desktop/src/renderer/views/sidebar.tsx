@@ -26,8 +26,8 @@ export const Sidebar: React.FC<{
   );
   return (
     <aside className="ns-sidebar">
-      <div className="ns-brand" style={{ display: "flex", alignItems: "center", gap: "12px", padding: "8px 4px 20px" }}>
-        <img src={logoUrl} alt="Motion Real Logo" style={{ height: "48px", width: "48px", objectFit: "contain" }} />
+      <div className="ns-brand" style={{ display: "flex", alignItems: "center", gap: "12px", padding: "0 4px 10px" }}>
+        <img src={logoUrl} alt="Motion Real Logo" style={{ height: "60px", width: "60px", objectFit: "contain" }} />
         <div>
           <div style={{ fontWeight: 700, fontSize: 17, letterSpacing: "-0.01em" }}>Motion Real</div>
           <div style={{ fontSize: 11, color: "var(--muted-foreground)" }}>Xưởng video tin tức</div>
