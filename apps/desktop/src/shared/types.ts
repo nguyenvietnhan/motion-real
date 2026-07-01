@@ -186,7 +186,15 @@ export type ApplyResult =
 
 // --- storyboard review + edits (Req 8) -------------------------------------
 
-export type SceneCard = { sceneId: string; order: number; stillPath: string; editText: string };
+export type SceneCard = {
+  sceneId: string;
+  order: number;
+  stillPath: string;
+  editText: string;
+  headline?: string;
+  narration?: string;
+  eyebrow?: string;
+};
 
 export type StoryboardModel = { projectId: string; scenes: SceneCard[]; globalNotes: string };
 

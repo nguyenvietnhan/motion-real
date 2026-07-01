@@ -69,7 +69,7 @@ function linkWarningOf(totalUrls: number, unreadableUrls: string[]): string | un
  */
 
 /** A manifest scene as the dashboard needs it (other fields preserved opaquely). */
-export type WsScene = { id: string; narration?: string; headline?: string; image?: { ref: string } };
+export type WsScene = { id: string; narration?: string; headline?: string; eyebrow?: string; image?: { ref: string } };
 /**
  * The manifest projection the dashboard reads. `title`/`hashtags` are the publish
  * metadata (the project display name + TikTok hashtags); rename patches `title`
@@ -311,7 +311,16 @@ export class WorkspaceController {
       manifest.scenes.map((s) => s.id),
       "",
       (_root, sceneId) => this.deps.reviewStill(projectId, sceneId),
-    ).scenes.map((s) => ({ ...s, stillPath: s.stillPath ? `${s.stillPath}#r${ver}` : s.stillPath }));
+    ).scenes.map((s) => {
+      const ms = manifest.scenes.find((x) => x.id === s.sceneId);
+      return {
+        ...s,
+        stillPath: s.stillPath ? `${s.stillPath}#r${ver}` : s.stillPath,
+        headline: ms?.headline,
+        narration: ms?.narration,
+        eyebrow: ms?.eyebrow,
+      };
+    });
   }
 
   /**

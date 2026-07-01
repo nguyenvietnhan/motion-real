@@ -183,7 +183,7 @@ export const StoryboardView: React.FC<{
   // typed. You gather edits across many scenes and send them in ONE pass.
   const [edits, setEdits] = useState<Record<string, string>>({});
   const [notes, setNotes] = useState("");
-  const [showEdit, setShowEdit] = useState(false);
+  const [showEdit, setShowEdit] = useState(true);
   // When a draft video exists, the big preview defaults to playing it; this flips
   // to the selected scene's still (what you point at to edit one scene).
   const [showStill, setShowStill] = useState(false);
@@ -309,109 +309,223 @@ export const StoryboardView: React.FC<{
       {Header}
 
       {/* Body fills the viewport; rail + edit panel scroll internally (no page scroll). */}
-      <div style={{ flex: 1, minHeight: 0, display: "flex", gap: 14, padding: 14 }}>
+      <div style={{ flex: 1, minHeight: 0, display: "flex", gap: 16, padding: 14 }}>
         {/* Slide rail */}
-        <div style={{ width: 88, flexShrink: 0, display: "flex", flexDirection: "column", gap: 8, overflowY: "auto", paddingRight: 4 }}>
-          {scenes.map((s, i) => (
-            <button key={s.sceneId} onClick={() => { setSelected(i); setShowStill(true); }} title={`Cảnh ${i + 1}`} className="ns-thumb"
-              style={{
-                position: "relative", flexShrink: 0, padding: 0, cursor: "pointer", borderRadius: 8, overflow: "hidden",
-                border: i === idx ? "2px solid var(--brand)" : "1px solid var(--border)",
-                background: s.stillPath ? `center/cover no-repeat #0c0e12 url(${s.stillPath})` : "#101216",
-                aspectRatio: "9 / 16", width: "100%",
-              }}>
-              <span style={{ position: "absolute", left: 4, top: 4, fontSize: 10, fontWeight: 800, color: "#fff",
-                background: "rgba(0,0,0,0.6)", borderRadius: 5, padding: "0 5px", lineHeight: "15px" }}>{i + 1}</span>
-              {hasEdit(s.sceneId) && (
-                <span title="Đã ghi yêu cầu chỉnh sửa" style={{ position: "absolute", right: 4, top: 4, width: 15, height: 15,
-                  display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, color: "#fff",
-                  background: "var(--brand)", borderRadius: 999, lineHeight: 1 }}>✎</span>
-              )}
-            </button>
-          ))}
+        <div style={{ width: 240, flexShrink: 0, display: "flex", flexDirection: "column", gap: 10, overflowY: "auto", paddingRight: 6 }}>
+          {scenes.map((s, i) => {
+            const active = i === idx;
+            return (
+              <button
+                key={s.sceneId}
+                onClick={() => { setSelected(i); setShowStill(true); }}
+                title={`Cảnh ${i + 1}: ${s.headline ?? ""}`}
+                className="ns-thumb"
+                style={{
+                  flexShrink: 0,
+                  padding: 8,
+                  cursor: "pointer",
+                  borderRadius: 10,
+                  border: active ? "2px solid var(--brand)" : "1px solid var(--border)",
+                  background: active ? "rgba(59, 130, 246, 0.06)" : "var(--card)",
+                  display: "flex",
+                  gap: 12,
+                  alignItems: "center",
+                  width: "100%",
+                  transition: "all 0.15s ease",
+                  boxSizing: "border-box",
+                }}
+              >
+                {/* Thumbnail */}
+                <div
+                  style={{
+                    width: 46,
+                    height: 80,
+                    borderRadius: 6,
+                    flexShrink: 0,
+                    background: s.stillPath ? `center/cover no-repeat #0c0e12 url(${s.stillPath})` : "#101216",
+                    border: "1px solid rgba(255, 255, 255, 0.06)",
+                    position: "relative",
+                  }}
+                >
+                  <span
+                    style={{
+                      position: "absolute",
+                      left: 4,
+                      top: 4,
+                      fontSize: 9,
+                      fontWeight: 800,
+                      color: "#fff",
+                      background: "rgba(0,0,0,0.65)",
+                      borderRadius: 4,
+                      padding: "1px 4px",
+                      lineHeight: 1,
+                    }}
+                  >
+                    {i + 1}
+                  </span>
+                </div>
+
+                {/* Content details */}
+                <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 4, textAlign: "left" }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6 }}>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: active ? "var(--brand)" : "#fff" }}>
+                      Cảnh {i + 1}
+                    </span>
+                    {hasEdit(s.sceneId) && (
+                      <span
+                        title="Đã ghi yêu cầu chỉnh sửa"
+                        style={{
+                          fontSize: 9,
+                          color: "var(--brand)",
+                          background: "color-mix(in srgb, var(--brand) 15%, transparent)",
+                          padding: "2px 6px",
+                          borderRadius: 999,
+                          fontWeight: 700,
+                        }}
+                      >
+                        ✎ Đã sửa
+                      </span>
+                    )}
+                  </div>
+                  <span
+                    style={{
+                      fontSize: 11,
+                      color: "var(--muted-foreground)",
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      display: "block",
+                    }}
+                  >
+                    {s.headline || "Không có tiêu đề"}
+                  </span>
+                </div>
+              </button>
+            );
+          })}
         </div>
 
-        {/* Big preview (always visible; click a slide to enlarge it here). When a
-            draft MP4 exists it is the default — the user plays it to check pacing
-            + voice in-app; a toggle switches to the selected scene's still (what
-            you point at to edit one scene). No draft → just the still. The video
-            shares the still's exact frame so it is never larger than a scene image. */}
-        <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 8, minHeight: 0 }}>
+        {/* Big preview */}
+        <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 10, minHeight: 0 }}>
           {draftPath && (
             <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
-              {/* Minimal segmented toggle: one bordered track, the active segment
-                  filled. No icons/emoji — the labels alone carry the purpose. */}
-              <div style={{ display: "inline-flex", borderRadius: 8, border: "1px solid var(--border)", overflow: "hidden", background: "var(--muted)" }}>
+              <div style={{ display: "inline-flex", borderRadius: 10, border: "1px solid rgba(255, 255, 255, 0.08)", overflow: "hidden", background: "rgba(255, 255, 255, 0.03)", padding: 4 }}>
                 {[{ still: false, label: "Video nháp" }, { still: true, label: `Ảnh cảnh ${idx + 1}` }].map((seg) => {
                   const active = showStill === seg.still;
                   return (
                     <button key={seg.label} onClick={() => setShowStill(seg.still)}
-                      style={{ border: "none", padding: "5px 14px", fontSize: 13, cursor: "pointer", lineHeight: 1.4,
+                      style={{ border: "none", padding: "6px 16px", fontSize: 13, cursor: "pointer", lineHeight: 1.4,
+                        borderRadius: 6,
                         background: active ? "var(--brand)" : "transparent",
-                        color: active ? "#fff" : "var(--muted-foreground)", fontWeight: active ? 700 : 500 }}>
+                        color: active ? "#fff" : "var(--muted-foreground)", fontWeight: active ? 700 : 500,
+                        boxShadow: active ? "0 2px 8px rgba(59, 130, 246, 0.35)" : "none",
+                        transition: "all 0.15s ease" }}>
                       {seg.label}
                     </button>
                   );
                 })}
               </div>
-              {/* Hover-only hint: the shared (i) primitive, so the tooltip style
-                  matches Settings instead of a raw native title bubble. */}
               <InfoHint text="Bản nháp nhẹ để xem nhịp và nghe giọng. Bản cuối sẽ nét hơn." />
             </div>
           )}
-          {/* Grid track is pinned to minmax(0,1fr) on both axes: an auto track would
-              grow to the video's intrinsic 1080×1920, so once metadata loads the player
-              would balloon past the still. Pinning bounds the cell to the container. */}
+          
           <div style={{ flex: 1, minHeight: 0, display: "grid", gridTemplateRows: "minmax(0, 1fr)", gridTemplateColumns: "minmax(0, 1fr)", placeItems: "center" }}>
-            {draftPath && !showStill ? (
-              <video src={draftPath} controls style={{ height: "100%", maxHeight: "100%", aspectRatio: "9 / 16", maxWidth: "100%",
-                borderRadius: 12, border: "1px solid var(--border)", boxShadow: "0 12px 40px rgba(0,0,0,0.5)",
-                background: "#0c0e12", objectFit: "contain" }} />
-            ) : (
-              <div style={{ height: "100%", aspectRatio: "9 / 16", maxWidth: "100%",
-                borderRadius: 12, border: "1px solid var(--border)", overflow: "hidden",
-                boxShadow: "0 12px 40px rgba(0,0,0,0.5)",
-                background: current?.stillPath ? `center/contain no-repeat #0c0e12 url(${current.stillPath})` : "#101216",
-                display: "grid", placeItems: "center", color: "#3a3f49" }}>
-                {!current?.stillPath && Icon.film({ size: 30 })}
-              </div>
-            )}
+            <div
+              style={{
+                height: "100%",
+                maxHeight: "100%",
+                aspectRatio: "9 / 16",
+                maxWidth: "100%",
+                borderRadius: 24,
+                border: "8px solid #1c1c1f",
+                boxShadow: "0 20px 50px rgba(0, 0, 0, 0.6), inset 0 0 1px rgba(255, 255, 255, 0.2)",
+                background: "#0c0e12",
+                display: "flex",
+                flexDirection: "column",
+                overflow: "hidden",
+                boxSizing: "border-box",
+              }}
+            >
+              {draftPath && !showStill ? (
+                <video src={draftPath} controls style={{ height: "100%", width: "100%", objectFit: "contain", background: "#000" }} />
+              ) : (
+                <div style={{ height: "100%", width: "100%",
+                  background: current?.stillPath ? `center/contain no-repeat #0c0e12 url(${current.stillPath})` : "#101216",
+                  display: "grid", placeItems: "center", color: "#3a3f49" }}>
+                  {!current?.stillPath && Icon.film({ size: 30 })}
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
         {/* Edit panel — shown only on demand (toggle in header) */}
         {showEdit && (
-          <aside className="ns-card ns-story-edit-panel" aria-label="Yêu cầu chỉnh sửa">
+          <aside className="ns-card ns-story-edit-panel" aria-label="Yêu cầu chỉnh sửa" style={{ width: 360 }}>
             <div className="ns-story-edit-heading">
               <div>
-                <strong>Yêu cầu chỉnh sửa</strong>
-                <span>Chọn đúng phạm vi trước khi nhập</span>
+                <strong>Biên tập &amp; Góp ý</strong>
+                <span>Chọn cảnh bên trái để xem kịch bản</span>
               </div>
               <button className="ns-story-edit-close" type="button" aria-label="Đóng bảng chỉnh sửa" title="Đóng" onClick={() => setShowEdit(false)}>
                 {Icon.close({ size: 16 })}
               </button>
             </div>
 
+            {/* Current script context display */}
+            {current && (
+              <section
+                style={{
+                  background: "rgba(255, 255, 255, 0.02)",
+                  border: "1px solid var(--border)",
+                  borderRadius: 10,
+                  padding: 14,
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 10,
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <span style={{ color: "var(--brand)", fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: 1.5 }}>
+                    Kịch bản gốc
+                  </span>
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  {current.eyebrow && (
+                    <span style={{ fontSize: 11, color: "var(--brand)", fontWeight: 700, letterSpacing: 1 }}>
+                      {current.eyebrow}
+                    </span>
+                  )}
+                  <h4 style={{ fontSize: 14, fontWeight: 800, color: "#fff", margin: 0, lineHeight: 1.3 }}>
+                    {current.headline}
+                  </h4>
+                  <p style={{ fontSize: 12, color: "var(--muted-foreground)", margin: "4px 0 0 0", lineHeight: 1.45, fontStyle: "italic" }}>
+                    "{current.narration}"
+                  </p>
+                </div>
+              </section>
+            )}
+
             <section className="ns-edit-scope is-scene">
               <div className="ns-edit-scope-heading">
                 <span className="ns-edit-scope-icon">{Icon.pencil({ size: 15 })}</span>
-                <strong>Cảnh {idx + 1}</strong>
+                <strong>Chỉnh sửa Cảnh {idx + 1}</strong>
                 <span className="ns-edit-scope-badge">Riêng cảnh này</span>
               </div>
               <textarea aria-label={`Yêu cầu chỉnh sửa cảnh ${idx + 1}`} className="ns-input ns-edit-textarea" value={current ? (edits[current.sceneId] ?? "") : ""}
-                maxLength={2000} rows={5} onChange={(e) => setCurrentEdit(e.target.value)}
-                placeholder="Nhập yêu cầu cho cảnh này…" />
+                maxLength={2000} rows={4} onChange={(e) => setCurrentEdit(e.target.value)}
+                placeholder="Nhập yêu cầu chỉnh sửa (ví dụ: đổi ảnh, viết lại chữ, tăng thời gian...)" />
             </section>
 
             <section className="ns-edit-scope is-global">
               <div className="ns-edit-scope-heading">
                 <span className="ns-edit-scope-icon">{Icon.globe({ size: 15 })}</span>
-                <strong>Toàn video</strong>
+                <strong>Góp ý toàn video</strong>
                 <span className="ns-edit-scope-badge">Mọi cảnh</span>
               </div>
               <textarea aria-label="Ghi chú chung cho cả video" className="ns-input ns-edit-textarea" value={notes} maxLength={2000} rows={3}
                 onChange={(e) => setNotes(e.target.value)}
-                placeholder="Nhập yêu cầu chung cho toàn video…" />
+                placeholder="Nhập ghi chú chung cho toàn bộ video..." />
             </section>
           </aside>
         )}
