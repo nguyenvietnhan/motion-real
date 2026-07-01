@@ -1,6 +1,6 @@
 # Temporary Task — Architecture Modularization
 
-Status: Step 7B implementation complete; waiting for owner approval before Step 7C design.
+Status: Step 7 remaining-slice plan complete; Step 7C implementation next.
 
 This is a temporary working task for the next large cleanup after the docs
 contract consolidation. Keep it updated as work progresses. Delete this file
@@ -507,6 +507,188 @@ Step 7B approval gate:
 - no unrelated formatting churn;
 - full required checks pass before commit.
 
+Step 7 remaining stop plan:
+
+Step 7 is now deliberately capped at three remaining slices. Do not keep pulling
+controller methods into view-model helpers just because they are nearby.
+
+Remaining code slices:
+
+1. Step 7C: extract script-line view-model mapping.
+2. Step 7D: extract storyboard scene enrichment.
+3. Step 7E: close Step 7 with an audit decision, not a broad recovery rewrite.
+
+Step 7C small-slice design, no source movement yet:
+
+Chosen third Step 7 implementation slice:
+
+- add a pure script-line mapper to
+  `apps/desktop/src/main/workspace/workspace-view-model.ts`;
+- extend `apps/desktop/src/main/workspace/workspace-view-model.test.ts`;
+- tentative helper name: `scriptLinesFromScenes`;
+- keep the existing async controller method `scriptLinesOf(projectId)` as the
+  single wrapper used by current call sites;
+- keep manifest loading in `WorkspaceController`;
+- pass only manifest scenes and an exact asset-media mapper into the helper;
+- do not pass `projectId`, controller deps, or the controller instance into the
+  helper;
+- do not move script-gate, apply-edits, recovery, or authoring behavior in this
+  slice.
+
+Exact expected implementation for Step 7C:
+
+```ts
+type ScriptLineSourceScene = {
+  id: string;
+  headline?: string;
+  narration?: string;
+  image?: { ref: string };
+};
+
+export function scriptLinesFromScenes(
+  scenes: ScriptLineSourceScene[],
+  assetMediaOf: (ref: string) => string,
+): ScriptLine[]
+```
+
+Controller wrapper should remain conceptually equivalent to:
+
+```ts
+private async scriptLinesOf(projectId: string): Promise<ScriptLine[]> {
+  const manifest = await this.deps.loadManifest(projectId);
+  return scriptLinesFromScenes(manifest.scenes, (ref) => this.deps.assetMedia(projectId, ref));
+}
+```
+
+Step 7C test evidence map:
+
+| Behavior touched | Existing test(s) | Gap? | New test or reason no new test |
+| --- | --- | --- | --- |
+| scene order and default empty headline/narration | script-stage recovery and script-gate tests exercise `scriptLinesOf` indirectly | direct helper output is not isolated | add direct helper test |
+| AI-placed image ref becomes previewable `imagePath` | `script lines carry the AI-placed image as a previewable imagePath` | direct helper output is not isolated | add direct helper test for image ref mapping |
+| scenes without image omit `imagePath` | same controller test checks second scene undefined | direct helper output is not isolated | add direct helper test |
+
+Step 7C required checks:
+
+```bash
+npm.cmd run typecheck
+npm.cmd test -- apps/desktop/src/main/workspace/workspace-view-model.test.ts
+npm.cmd test -- apps/desktop/src/main/workspace/workspace-controller.test.ts
+npm.cmd test
+npm.cmd run build
+```
+
+Step 7D small-slice design, no source movement yet:
+
+Chosen fourth Step 7 implementation slice:
+
+- add storyboard scene enrichment to
+  `apps/desktop/src/main/workspace/workspace-view-model.ts`;
+- extend `apps/desktop/src/main/workspace/workspace-view-model.test.ts`;
+- tentative helper name: `storyboardScenesFromScenes`;
+- move the `buildStoryboard(...)` view-model composition call out of the
+  controller only after Step 7C is green;
+- keep manifest loading and render-version lookup in `WorkspaceController`;
+- pass only `projectId`, manifest scenes, current render version, and an exact
+  review-still mapper into the helper;
+- do not move `open`, `recoverStage`, render-version map ownership, or still
+  generation behavior in this slice.
+
+Exact expected implementation for Step 7D:
+
+```ts
+type StoryboardSourceScene = {
+  id: string;
+  headline?: string;
+  narration?: string;
+  eyebrow?: string;
+};
+
+export function storyboardScenesFromScenes(
+  projectId: string,
+  scenes: StoryboardSourceScene[],
+  renderVersion: number,
+  reviewStillOf: (sceneId: string) => string,
+): SceneCard[]
+```
+
+Controller wrapper should remain conceptually equivalent to:
+
+```ts
+private async storyboardScenesOf(projectId: string): Promise<SceneCard[]> {
+  const manifest = await this.deps.loadManifest(projectId);
+  const ver = this.renderVersions.get(projectId) ?? 0;
+  return storyboardScenesFromScenes(projectId, manifest.scenes, ver, (sceneId) =>
+    this.deps.reviewStill(projectId, sceneId),
+  );
+}
+```
+
+Step 7D test evidence map:
+
+| Behavior touched | Existing test(s) | Gap? | New test or reason no new test |
+| --- | --- | --- | --- |
+| scene order and still path mapping | `buildStoryboard` unit tests cover the lower builder | controller-specific enrichment is not isolated | add direct helper test |
+| render-version fragment appended to still path | controller tests exercise ready/open paths indirectly | direct helper output is not isolated | add direct helper test for `#rN` |
+| headline/narration/eyebrow copied from manifest | broad workspace flows exercise storyboards indirectly | direct helper output is not isolated | add direct helper test |
+
+Step 7D required checks:
+
+```bash
+npm.cmd run typecheck
+npm.cmd test -- apps/desktop/src/main/workspace/workspace-view-model.test.ts
+npm.cmd test -- apps/desktop/src/main/workspace/workspace-controller.test.ts
+npm.cmd test
+npm.cmd run build
+```
+
+Step 7E close decision, no source movement unless a tiny pure helper is proven:
+
+Purpose:
+
+- end Step 7 deliberately instead of drifting into recovery/orchestration work.
+
+Audit scope:
+
+- `list`;
+- `rename`;
+- `stage`;
+- `recoverStage`;
+- `open`;
+- `generateThumbnail`.
+
+Expected decision unless new evidence appears:
+
+- do not move `list` in Step 7 because it combines project listing, live stage
+  overlay, disk-artifact status recovery, and gallery card status policy;
+- do not move `rename` because it writes manifest data and re-emits live stage
+  state;
+- do not move `stage`/`recoverStage` because they memoize recovered state,
+  inspect disk artifacts, and choose retry semantics;
+- do not move `open` because it is a boundary wrapper around storyboard recovery
+  and error fallback;
+- do not move `generateThumbnail` because it owns mutual exclusion,
+  render-thumbnail IO, and published-stage re-emission;
+- close Step 7 after Step 7C and Step 7D are green unless a direct review finds
+  a tiny pure helper with clear tests.
+
+Step 7E required checks:
+
+```bash
+npm.cmd run typecheck
+npm.cmd test -- apps/desktop/src/main/workspace/workspace-controller.test.ts
+npm.cmd test
+npm.cmd run build
+```
+
+Step 7E approval gate:
+
+- remaining non-moved methods have explicit reasons;
+- Step 7 checklist is marked complete only after Step 7C and Step 7D are
+  committed and Step 7E checks pass;
+- no broad recovery/list/generate-thumbnail module is created in Step 7;
+- next target is either Step 8 or a newly designed stop point.
+
 ## Approval Model
 
 Every step below has an approval gate. A step is not approved until all of its
@@ -621,6 +803,12 @@ spending context on stale detail.
   `typecheck`, view-model test (6 tests), controller test (62 tests), full
   `test` (84 files, 837 tests), and `build`. No public API or package barrel
   changed. Step 7 remains open; next gate: owner approval before Step 7C design.
+- 2026-07-02 Step 7 remaining-slice plan complete. Capped Step 7 at Step 7C
+  script-line mapping, Step 7D storyboard scene enrichment, and Step 7E close
+  audit. Explicitly deferred moving `list`, `rename`, `stage`, `recoverStage`,
+  `open`, and `generateThumbnail` unless Step 7E finds a tiny pure helper. No
+  source code was moved in this planning slice. Next gate: Step 7C
+  implementation.
 
 ## Non-Negotiable Guardrails
 
