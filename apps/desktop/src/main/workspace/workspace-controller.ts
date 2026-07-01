@@ -1,7 +1,6 @@
-import { computeScriptEdits, type ManifestScene } from "../script/script-gate-apply.js";
 import { authorInputWithCrawledImages, runCreateCrawlThenAuthor } from "./workspace-create-flow.js";
 import { combineIntent, linkWarningOf, stageToFriendlyStatus } from "./workspace-helpers.js";
-import { scriptGateModelFromLines } from "./workspace-script-flow.js";
+import { applyScriptEditsToManifest, scriptGateModelFromLines } from "./workspace-script-flow.js";
 import { publishedStageOf, readyStageOf, scriptLinesFromScenes, storyboardScenesFromScenes } from "./workspace-view-model.js";
 import { createLogger, serializeError, type CrawledImage } from "@news/pipeline";
 import { classifyError } from "../agent/error-classifier.js";
@@ -1067,18 +1066,8 @@ export class WorkspaceController {
   async applyEdits(projectId: string, edits: ScriptEdit[]): Promise<ApplyResult> {
     try {
       const manifest = await this.deps.loadManifest(projectId);
-      // Pure guard over manifest-order scenes (reports the first offending scene).
-      const ms: ManifestScene[] = manifest.scenes.map((s) => ({ sceneId: s.id, narration: s.narration ?? "", headline: s.headline }));
-      const guard = computeScriptEdits(ms, edits);
-      if (!guard.ok) return guard;
-      // Apply edits onto the real manifest objects, preserving other fields.
-      const byId = new Map(edits.map((e) => [e.sceneId, e]));
-      for (const s of manifest.scenes) {
-        const e = byId.get(s.id);
-        if (!e) continue;
-        if (e.narration !== undefined) s.narration = e.narration;
-        if (e.headline !== undefined) s.headline = e.headline;
-      }
+      const result = applyScriptEditsToManifest(manifest, edits);
+      if (!result.ok) return result;
       await this.deps.writeManifest(projectId, manifest);
       if (this.stages.get(projectId)?.kind === "script") {
         this.setStage(projectId, { kind: "script", lines: await this.scriptLinesOf(projectId) });

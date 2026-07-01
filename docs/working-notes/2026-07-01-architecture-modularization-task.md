@@ -1,6 +1,6 @@
 # Temporary Task — Architecture Modularization
 
-Status: Step 9A implementation complete; Step 9B manifest edit application next.
+Status: Step 9B implementation complete; Step 9C authoring-runner decision next.
 
 This is a temporary working task for the next large cleanup after the docs
 contract consolidation. Keep it updated as work progresses. Delete this file
@@ -887,6 +887,15 @@ spending context on stale detail.
   `typecheck`, script-flow helper test (3 tests), controller test (62 tests),
   full `test` (86 files, 852 tests), and `build`. Next gate: Step 9B
   implementation.
+- 2026-07-02 Step 9B implementation complete. Added
+  `applyScriptEditsToManifest` to `workspace-script-flow.ts`, added direct helper
+  tests, and routed `WorkspaceController.applyEdits(...)` through the helper
+  while keeping manifest load/write, script-stage refresh, and write-failed
+  fallback in the controller. Checks passed: pre-edit `typecheck`/`test` (86
+  files, 852 tests)/`build`; post-edit `typecheck`, script-flow helper test (5
+  tests), lower script-gate apply test (2 tests), controller test (62 tests),
+  full `test` (86 files, 854 tests), and `build`. Next gate: Step 9C
+  authoring-runner decision.
 
 ## Non-Negotiable Guardrails
 
@@ -1706,7 +1715,7 @@ npm.cmd test
 npm.cmd run build
 ```
 
-Step 9B small-slice design, no source movement yet:
+Step 9B small-slice implementation:
 
 Chosen second Step 9 source slice:
 
