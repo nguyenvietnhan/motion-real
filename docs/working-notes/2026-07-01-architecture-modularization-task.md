@@ -1,6 +1,6 @@
 # Temporary Task — Architecture Modularization
 
-Status: Step 7A implementation complete; waiting for owner approval before Step 7B design.
+Status: Step 7B design complete; waiting for owner approval before Step 7B implementation.
 
 This is a temporary working task for the next large cleanup after the docs
 contract consolidation. Keep it updated as work progresses. Delete this file
@@ -423,6 +423,90 @@ Step 7A approval gate:
 - no unrelated formatting churn;
 - full required checks pass before commit.
 
+Step 7B small-slice design, no source movement yet:
+
+Chosen second Step 7 implementation slice:
+
+- add only a pure published-stage builder to
+  `apps/desktop/src/main/workspace/workspace-view-model.ts`;
+- extend `apps/desktop/src/main/workspace/workspace-view-model.test.ts`;
+- tentative helper name: `publishedStageOf`;
+- keep the existing async controller method `publishedStage(projectId,
+  outputPath)` as the single wrapper used by current call sites;
+- keep manifest loading, manifest-read failure fallback, title trimming,
+  hashtag validation, `hasThumbnail(projectId)`, and `thumbnailMedia(projectId)`
+  in `WorkspaceController`;
+- pass only plain data into the helper: `outputPath`, optional `title`,
+  optional `hashtags`, optional `format`, and optional `thumbnailPath`;
+- do not move `scriptLinesOf`, `storyboardScenesOf`, `list`, `stage`,
+  `recoverStage`, `open`, `generateThumbnail`, or any publish/render method in
+  this slice.
+
+Reason for this smaller slice:
+
+- `publishedStage` is still view-model shaping, but the risky work around reading
+  the manifest and checking thumbnail files can remain in the controller;
+- the helper can be pure and can mirror the current spread behavior exactly;
+- this is safer than moving script-line or storyboard mapping first, because
+  those have asset/still callback seams and more active recovery-path tests;
+- preserving the `publishedStage(...)` wrapper keeps all current call sites
+  unchanged.
+
+Exact expected implementation for Step 7B:
+
+```ts
+export function publishedStageOf(
+  outputPath: string,
+  options?: {
+    title?: string;
+    hashtags?: string[];
+    thumbnailPath?: string;
+    format?: VideoFormatChoice;
+  },
+): ProjectStage
+```
+
+Controller wrapper should remain conceptually equivalent to:
+
+```ts
+private async publishedStage(projectId: string, outputPath: string): Promise<ProjectStage> {
+  // unchanged manifest read/catch/trim/hashtags/format/thumbnail checks
+  return publishedStageOf(outputPath, { title, hashtags, format, thumbnailPath });
+}
+```
+
+Step 7B test evidence map:
+
+| Behavior touched | Existing test(s) | Gap? | New test or reason no new test |
+| --- | --- | --- | --- |
+| default published stage output path and format | `from ready: renders full and moves to published with the output path`; `recovers a published stage from disk when the full MP4 exists` | direct helper default is not isolated | add direct `workspace-view-model.test.ts` case |
+| published title/hashtags copy metadata | `re-emits the live published stage with the new title so an open Copy panel updates` protects live title refresh | direct helper output for title/hashtags is not isolated | add direct helper test for copy metadata |
+| published thumbnail and YouTube format | thumbnail path and format are only lightly guarded through controller paths | direct helper output is not isolated | add direct helper test for `thumbnailPath` and `format: "youtube"` |
+
+Step 7B required checks after implementation:
+
+```bash
+npm.cmd run typecheck
+npm.cmd test -- apps/desktop/src/main/workspace/workspace-view-model.test.ts
+npm.cmd test -- apps/desktop/src/main/workspace/workspace-controller.test.ts
+npm.cmd test
+npm.cmd run build
+```
+
+Step 7B approval gate:
+
+- `publishedStageOf` imports only shared types and does not import the
+  controller;
+- no async, filesystem, manifest loading, logging, event, stage-map, worker, or
+  render dependency enters `workspace-view-model.ts`;
+- `publishedStage(...)` remains the only controller wrapper used by existing
+  call sites;
+- the helper preserves the current default `format: "tiktok"` behavior;
+- empty title, empty hashtag arrays, and missing thumbnail stay omitted;
+- no public API or package barrel changes;
+- no unrelated formatting churn;
+- full required checks pass before commit.
+
 ## Approval Model
 
 Every step below has an approval gate. A step is not approved until all of its
@@ -524,6 +608,11 @@ spending context on stale detail.
   view-model test (3 tests), controller test (62 tests), full `test` (84 files,
   834 tests), and `build`. No public API or package barrel changed. Step 7
   remains open; next gate: owner approval before Step 7B design.
+- 2026-07-01 Step 7B design complete. Re-checked `publishedStage`,
+  script-line/storyboard candidates, and related controller tests. Chose a pure
+  `publishedStageOf` helper as the second Step 7 source slice, keeping manifest
+  read/catch and thumbnail checks in the controller. No source code was moved.
+  Next gate: owner approval before Step 7B implementation.
 
 ## Non-Negotiable Guardrails
 
