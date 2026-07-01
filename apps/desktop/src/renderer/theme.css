@@ -15,7 +15,7 @@
   --muted: #25252b; /* Muted background */
   --muted-foreground: #a1a1aa; /* Zinc-400 */
   --border: #25252b; /* Clean border color */
-  --input: #0c0c0f; /* Slightly darker input field background */
+  --input: #1a1a22; /* Lighter, clean input field background */
   --ring: rgba(59, 130, 246, 0.4); /* Cobalt blue focus ring */
 
   --primary: #ffffff;
