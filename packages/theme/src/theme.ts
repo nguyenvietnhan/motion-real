@@ -441,12 +441,15 @@ function wrapTheme(base: Omit<Theme, keyof ThemeColors>, colors: ThemeColors): T
       if (typeof key !== "string" || key in target || PROBE_KEYS.has(key)) {
         return Reflect.get(target, key, receiver);
       }
-      if (!loggedFlatColorReads.has(key)) {
-        loggedFlatColorReads.add(key);
-        // eslint-disable-next-line no-console
-        console.warn(`[theme] authored scene read color token "theme.${key}" directly — resolving via theme.colors.${key}.`);
+      if (key in colors) {
+        if (!loggedFlatColorReads.has(key)) {
+          loggedFlatColorReads.add(key);
+          // eslint-disable-next-line no-console
+          console.warn(`[theme] authored scene read color token "theme.${key}" directly — resolving via theme.colors.${key}.`);
+        }
+        return (colors as unknown as Record<string, string>)[key];
       }
-      return (colors as unknown as Record<string, string>)[key];
+      return Reflect.get(target, key, receiver);
     },
   });
 }
@@ -474,6 +477,7 @@ export function makeTheme(dominant: string = DEFAULT_DOMINANT, _stylePackId?: st
     backdrop: NEUTRAL_BACKDROP,
     // No captionScrim: the burned karaoke caption is text-only (bold ink + halo),
     // no background plate behind it — the halo alone keeps it legible over video.
+    captionScrim: undefined,
     space: (n: number) => n * 8,
     canvas: CANVAS,
   };
