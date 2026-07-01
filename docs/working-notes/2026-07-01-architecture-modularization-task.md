@@ -1,6 +1,6 @@
 # Temporary Task — Architecture Modularization
 
-Status: Step 2 complete; waiting for owner approval before Step 3.
+Status: Step 3 complete; waiting for owner approval before Step 4.
 
 This is a temporary working task for the next large cleanup after the docs
 contract consolidation. Keep it updated as work progresses. Delete this file
@@ -213,6 +213,37 @@ Avoid these for now:
 - enforcing a strict Clean Architecture layer system that the current code does
   not naturally follow.
 
+Step 3 locked decision:
+
+- choose model 1 plus model 5:
+  - keep the current npm workspace monorepo;
+  - keep the top-level `apps/` + `packages/` shape unchanged;
+  - split oversized files into small internal modules inside their current
+    app/package before creating new packages;
+  - use feature folders inside `apps/desktop/src/main`;
+  - use domain folders inside `packages/pipeline/src`;
+  - keep colocated tests unless a later focused step proves a specific test move
+    is safer.
+- reject/defer model 2, strict Clean Architecture layers: it would add
+  repository/use-case/entity ceremony that the current render/auth pipeline does
+  not naturally follow, increasing churn before boundaries are clearer.
+- reject/defer model 3, more npm packages for every domain: Step 2 found a
+  coherent package graph already; new packages would add public API and
+  dependency-management cost before the large internal files are smaller.
+- reject/defer model 4, Nx/Turbo-style repo tooling: the current pain is module
+  ownership and file size, not repo-scale build orchestration.
+- keep compatibility behavior explicit instead of hiding it during refactors;
+  Step 4 must inventory legacy-looking fields before any cleanup decision.
+
+First target area:
+
+- the first code-design target remains
+  `apps/desktop/src/main/workspace/workspace-controller.ts`;
+- the first likely extraction is a local pure-helper module under
+  `apps/desktop/src/main/workspace`;
+- the exact function-move list is not approved yet and belongs to Step 5;
+- Step 4 compatibility inventory must run before any source-code extraction.
+
 ## Approval Model
 
 Every step below has an approval gate. A step is not approved until all of its
@@ -281,6 +312,12 @@ spending context on stale detail.
   package direction, strict `@news/*` import edges, broad barrels, unavailable
   cycle tooling, desktop relative-import pressure, and the first extraction
   boundary. No code was moved. Next gate: owner approval before Step 3.
+- 2026-07-01 Step 3 complete. Organization model locked: keep npm workspace
+  monorepo with `apps/` + `packages/`, combine internal module splitting with
+  feature-sliced desktop/domain-sliced pipeline, and defer Clean Architecture
+  ceremony, extra packages, and Nx/Turbo tooling. First target remains
+  `workspace-controller.ts`, but no source code was moved. Next gate: owner
+  approval before Step 4.
 
 ## Non-Negotiable Guardrails
 
@@ -391,7 +428,7 @@ Suggested commit names:
 - [x] Step 0: Baseline and dirty-worktree ownership.
 - [x] Step 1: Repo organization audit record.
 - [x] Step 2: Dependency and boundary audit.
-- [ ] Step 3: Compare organization models and lock the chosen approach.
+- [x] Step 3: Compare organization models and lock the chosen approach.
 - [ ] Step 4: Legacy compatibility inventory.
 - [ ] Step 5: First extraction design, no code movement.
 - [ ] Step 6: Extract pure workspace helpers.
