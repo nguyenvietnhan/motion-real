@@ -1,5 +1,13 @@
 # Project Audit Notes — 2026-07-01
 
+Status update after the first docs-cleanup slice:
+
+- Active source of truth is now `AI_CONTRACT.md` plus `docs/current/`.
+- The stale `scripts/_video-template.txt` mismatch described below has been
+  fixed; `tests/script-template.test.ts` now guards the scaffolded template.
+- Treat this file as dated audit evidence and planning context, not live project
+  contract.
+
 This note captures the current maintainability assessment before any cleanup or
 refactor work. It is intentionally detailed and temporary: use it as a shared
 map for deciding what to do slowly, with tests, without breaking the parts that
@@ -468,17 +476,16 @@ after meaningful source changes.
 
 ## First Likely Task Candidates
 
-These are small, high-signal, low-risk candidates for the next working session:
+These are small, high-signal, low-risk candidates for later working sessions:
 
-1. Fix or retire `scripts/_video-template.txt`.
-2. Add a test that `scripts/new-video.ts` output respects current AUTHOR import
-   rules.
-3. Correct stale comments in `packages/compositions/src/index.ts`.
-4. Create a short `docs/current-contract.md` or similar index.
-5. Mark `docs/specs/freeform-engine/*` as design/archive/status docs, not the
-   immediate agent contract.
-6. Create a legacy inventory table for `stylePackId`, `styleId`,
-   `LegacyTitleLanguage`, and old block vocabulary.
+1. Done: fix `scripts/_video-template.txt` and guard it with
+   `tests/script-template.test.ts`.
+2. Done: correct stale comments in `packages/compositions/src/index.ts`.
+3. Done: create the current-docs index through `AI_CONTRACT.md` and
+   `docs/current/`.
+4. Done: remove stale `docs/specs/freeform-engine/*` from the active docs tree.
+5. Still open: create a legacy inventory table for `stylePackId`, `styleId`,
+   `LegacyTitleLanguage`, and old block vocabulary if code cleanup needs it.
 
 ## Current Best Interpretation
 
@@ -489,4 +496,3 @@ The cleanup strategy should be archaeological and conservative: first make the
 system explain itself truthfully, then remove dead paths, then split modules.
 The product behavior should stay boringly stable while the internal shape gets
 cleaner.
-

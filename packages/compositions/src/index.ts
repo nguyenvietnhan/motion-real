@@ -6,8 +6,10 @@
  * the host-side AST admission gate, and the master `VideoComposition` renders
  * whatever the project's locked spec references.
  *
- * Reusable, slot-based layout blocks live in `@news/blocks`; authored scenes
- * compose those for structure and author bespoke code for imagery.
+ * `@news/blocks` remains a render-runtime package for captions, timing, image
+ * rendering, and chrome helpers. Authored scenes do not import it; they write
+ * their own raw JSX/CSS/SVG and reach images only through the `SceneImage`
+ * re-export below.
  */
 
 // Registry + validation:
@@ -23,7 +25,7 @@ export {
   type PropValidationIssue,
 } from "./registry.js";
 
-// Per-project theme propagation (re-exported from @news/blocks; one shared context):
+// Per-project theme propagation for the master composition/runtime layer:
 export { ThemeProvider, useTheme } from "./theme-context.js";
 
 // The single sanctioned image block, re-exported so an authored scene can reach
