@@ -383,13 +383,14 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
       const MAX_REAUTHOR_ATTEMPTS = 2;
       let applied = false;
       let feedback: string | undefined;
+      let lastGeneratedCode: string | undefined;
       for (let attempt = 0; attempt < MAX_REAUTHOR_ATTEMPTS && !applied; attempt++) {
         const stillDataUrl = needsVision(t.issues) || t.visual ? readStillDataUrl(join(reviewDir, `${t.sceneId}.png`)) : undefined;
         const intent = [t.intent, feedback].filter((s) => s && s.trim()).join("\n\n") || undefined;
         const messages = buildReauthorMessages({
           sceneId: t.sceneId,
           componentId,
-          currentCode: originalCode,
+          currentCode: lastGeneratedCode ?? originalCode,
           ...(t.issues ? { issues: t.issues } : {}),
           ...(intent ? { intent } : {}),
           ...(stillDataUrl ? { stillDataUrl } : {}),
@@ -415,6 +416,15 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
           );
           continue; // retry if attempts remain
         }
+
+        // If this is a retry attempt (attempt > 0), verify that the model did not just bypass checks with a fake comment fix.
+        if (attempt > 0 && !isLogicChanged(lastGeneratedCode ?? originalCode, parsed.module.code)) {
+          log.error({ sceneId: t.sceneId, attempt: attempt + 1 }, "[reauthor] reject fake fix: no logic change detected");
+          feedback = `Lần trước bạn không thay đổi bất kỳ logic cốt lõi nào của mã nguồn mà chỉ thay đổi khoảng trắng hoặc chú thích (comment). Bạn bắt buộc phải thay đổi mã nguồn thực tế để sửa lỗi đã nêu!`;
+          continue;
+        }
+
+        lastGeneratedCode = parsed.module.code;
 
         // Overwrite + re-admit; on admission failure, capture the violations as
         // corrective feedback for the next attempt (or roll back if exhausted).
@@ -783,4 +793,12 @@ function parseVisualDefects(reply: string, knownScenes: Set<string>): VisualDefe
     out.push({ sceneId, issue });
   }
   return out;
+}
+
+function isLogicChanged(oldCode: string, newCode: string): boolean {
+  const clean = (s: string) => {
+    const noComments = s.replace(/\/\*[\s\S]*?\*\/|([^\\:]|^)\/\/.*$/gm, "$1");
+    return noComments.replace(/\s+/g, "");
+  };
+  return clean(oldCode) !== clean(newCode);
 }

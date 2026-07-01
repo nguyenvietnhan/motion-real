@@ -105,6 +105,15 @@ export function blocksSrcDir(): string {
   return join(workspaceRoot(), "packages", "blocks", "src");
 }
 
+function stripComments(code: string): string {
+  return code.replace(/\/\*[\s\S]*?\*\/|([^\\:]|^)\/\/.*$/gm, (match, prefix) => {
+    if (match.startsWith("/*")) {
+      return match.replace(/[^\r\n]/g, " ");
+    }
+    return (prefix || "") + " ".repeat(match.length - (prefix || "").length);
+  });
+}
+
 /**
  * Lint every `.ts`/`.tsx` source under `dir` (default: the compositions package
  * sources) for forbidden constructs. Each violation becomes a hard N5 error.
@@ -115,7 +124,9 @@ export function lintSceneSources(dir: string = compositionsSrcDir()): SafetyRepo
 
   for (const file of files) {
     const rel = relative(dir, file).split("\\").join("/");
-    const lines = readFileSync(file, "utf8").split(/\r?\n/);
+    const raw = readFileSync(file, "utf8");
+    const clean = stripComments(raw);
+    const lines = clean.split(/\r?\n/);
     lines.forEach((line, index) => {
       for (const rule of FORBIDDEN_RULES) {
         if (rule.pattern.test(line)) {

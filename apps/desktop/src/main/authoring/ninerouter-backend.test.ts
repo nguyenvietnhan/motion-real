@@ -295,9 +295,14 @@ function setupProject(projectId: string): { authoredPath: string } {
 }
 
 function backendForReauthor(reply: string, admitOne: NineRouterBackendDeps["admitOne"], capture?: ChatMessage[]) {
+  let callCount = 0;
   const client = {
     chat: vi.fn(async (_model: string, messages: ChatMessage[]) => {
       if (capture) capture.push(...messages);
+      callCount++;
+      if (callCount > 1) {
+        return reply.replace("// NEW", "// NEW (RETRY)\nconst retryFix = true;");
+      }
       return reply;
     }),
   } as unknown as NineRouterClient;

@@ -370,7 +370,7 @@ async function renderProjectUnlocked(projectId: string, opts: RenderProjectOptio
         // fails the same deterministic grid, looping forever with no target.
         await persistFailureReport(projectId, staticReport.issues);
         await fail(projectId, `Static safety grid blocked render: ${errorSummary(staticReport.issues)}`);
-        throw new Error(`renderProject: static grid reported ${errorCount(staticReport.issues)} hard error(s).`);
+        throw new Error(`renderProject: static grid reported ${errorCount(staticReport.issues)} hard error(s):\n${formatIssues(staticReport.issues)}`);
       }
 
       // N10 — typecheck authored scenes against the real @news/blocks +
@@ -479,7 +479,7 @@ async function renderProjectUnlocked(projectId: string, opts: RenderProjectOptio
     );
     if (!buildGate.ok) {
       await fail(projectId, `Build gate blocked render: ${errorSummary(buildGate.issues)}`);
-      throw new Error(`renderProject: build gate reported ${errorCount(buildGate.issues)} hard error(s).`);
+      throw new Error(`renderProject: build gate reported ${errorCount(buildGate.issues)} hard error(s):\n${formatIssues(buildGate.issues)}`);
     }
     await appendEvent(projectId, { type: "build.ok" });
 
@@ -528,7 +528,7 @@ async function renderProjectUnlocked(projectId: string, opts: RenderProjectOptio
     );
     if (!detReport.ok) {
       await fail(projectId, `Determinism guard failed: ${errorSummary(detReport.issues)}`);
-      throw new Error(`renderProject: determinism guard reported ${errorCount(detReport.issues)} hard error(s).`);
+      throw new Error(`renderProject: determinism guard reported ${errorCount(detReport.issues)} hard error(s):\n${formatIssues(detReport.issues)}`);
     }
     await appendEvent(projectId, { type: "determinism.ok" });
 
@@ -922,4 +922,8 @@ async function readAuthoredSources(files: string[]): Promise<string[]> {
 function defaultBgmPath(): string | undefined {
   const candidate = join(workspaceRoot(), "default.mp3");
   return existsSync(candidate) ? candidate : undefined;
+}
+
+function formatIssues(issues: SafetyIssue[]): string {
+  return issues.map((i) => `  - [${i.check}] ${i.path}: ${i.message}`).join("\n");
 }

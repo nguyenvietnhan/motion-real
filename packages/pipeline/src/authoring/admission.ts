@@ -397,9 +397,16 @@ function isDangerousMemberName(value: string, banned: ReadonlySet<string>): bool
   return DANGEROUS_MEMBER_NAMES.has(value) || banned.has(value);
 }
 
+const SAFE_NAMESPACES = new Set([
+  "http://www.w3.org/2000/svg",
+  "http://www.w3.org/1999/xlink",
+  "http://www.w3.org/1999/xhtml",
+]);
+
 function isUrlLikeLiteral(value: string): boolean {
+  if (SAFE_NAMESPACES.has(value)) return false;
   if (isSafeSvgFragmentUrl(value)) return false;
-  return /(?:https?:\/\/|data:|blob:|file:|url\s*\(|^\/\/)/i.test(value);
+  return /(?:https?:\/\/|data:|blob:|file:|url\s*\(|^\/\/[a-zA-Z0-9.-]+)/i.test(value);
 }
 
 function isSafeSvgFragmentUrl(value: string): boolean {
