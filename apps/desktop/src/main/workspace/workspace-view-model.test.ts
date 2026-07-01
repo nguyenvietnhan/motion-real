@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { SceneCard } from "../../shared/types.js";
-import { publishedStageOf, readyStageOf, scriptLinesFromScenes } from "./workspace-view-model.js";
+import {
+  publishedStageOf,
+  readyStageOf,
+  scriptLinesFromScenes,
+  storyboardScenesFromScenes,
+} from "./workspace-view-model.js";
 
 const scenes: SceneCard[] = [
   {
@@ -101,6 +106,64 @@ describe("workspace view model helpers", () => {
         imagePath: "media://asset/image-a.png",
       },
       { sceneId: "scene-02", order: 1, headline: "", narration: "" },
+    ]);
+  });
+
+  it("maps storyboard scenes to review stills in manifest order", () => {
+    expect(
+      storyboardScenesFromScenes(
+        "p1",
+        [{ id: "scene-02" }, { id: "scene-01" }],
+        3,
+        (sceneId) => `media://review/${sceneId}.png`,
+      ),
+    ).toEqual([
+      {
+        sceneId: "scene-02",
+        order: 0,
+        stillPath: "media://review/scene-02.png#r3",
+        editText: "",
+        headline: undefined,
+        narration: undefined,
+        eyebrow: undefined,
+      },
+      {
+        sceneId: "scene-01",
+        order: 1,
+        stillPath: "media://review/scene-01.png#r3",
+        editText: "",
+        headline: undefined,
+        narration: undefined,
+        eyebrow: undefined,
+      },
+    ]);
+  });
+
+  it("copies storyboard display copy from the manifest scene", () => {
+    expect(
+      storyboardScenesFromScenes(
+        "p1",
+        [
+          {
+            id: "scene-01",
+            headline: "Headline",
+            narration: "Narration",
+            eyebrow: "Context",
+          },
+        ],
+        0,
+        (sceneId) => `media://review/${sceneId}.png`,
+      ),
+    ).toEqual([
+      {
+        sceneId: "scene-01",
+        order: 0,
+        stillPath: "media://review/scene-01.png#r0",
+        editText: "",
+        headline: "Headline",
+        narration: "Narration",
+        eyebrow: "Context",
+      },
     ]);
   });
 });

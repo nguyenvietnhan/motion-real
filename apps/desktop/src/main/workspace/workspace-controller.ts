@@ -1,7 +1,6 @@
 import { computeScriptEdits, type ManifestScene } from "../script/script-gate-apply.js";
-import { buildStoryboard } from "../review/storyboard.js";
 import { combineIntent, linkWarningOf, stageToFriendlyStatus } from "./workspace-helpers.js";
-import { publishedStageOf, readyStageOf, scriptLinesFromScenes } from "./workspace-view-model.js";
+import { publishedStageOf, readyStageOf, scriptLinesFromScenes, storyboardScenesFromScenes } from "./workspace-view-model.js";
 import { createLogger, serializeError, type CrawledImage } from "@news/pipeline";
 import { classifyError } from "../agent/error-classifier.js";
 import { toFriendlyError } from "../redact/friendly.js";
@@ -250,25 +249,9 @@ export class WorkspaceController {
   private async storyboardScenesOf(projectId: string): Promise<SceneCard[]> {
     const manifest = await this.deps.loadManifest(projectId);
     const ver = this.renderVersions.get(projectId) ?? 0;
-    // Reuse the tested buildStoryboard view-model builder (R5.6), mapping each
-    // still through the mediaUrl-wrapping seam; append a render-version fragment
-    // (ignored by the media protocol) so the still reloads only on a real re-render.
-    return buildStoryboard(
-      projectId,
-      "",
-      manifest.scenes.map((s) => s.id),
-      "",
-      (_root, sceneId) => this.deps.reviewStill(projectId, sceneId),
-    ).scenes.map((s) => {
-      const ms = manifest.scenes.find((x) => x.id === s.sceneId);
-      return {
-        ...s,
-        stillPath: s.stillPath ? `${s.stillPath}#r${ver}` : s.stillPath,
-        headline: ms?.headline,
-        narration: ms?.narration,
-        eyebrow: ms?.eyebrow,
-      };
-    });
+    return storyboardScenesFromScenes(projectId, manifest.scenes, ver, (sceneId) =>
+      this.deps.reviewStill(projectId, sceneId),
+    );
   }
 
   /**

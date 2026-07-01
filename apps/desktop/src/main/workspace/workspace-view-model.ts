@@ -1,10 +1,18 @@
 import type { ProjectStage, SceneCard, ScriptLine, VideoFormatChoice } from "../../shared/types.js";
+import { buildStoryboard } from "../review/storyboard.js";
 
 type ScriptLineSourceScene = {
   id: string;
   headline?: string;
   narration?: string;
   image?: { ref: string };
+};
+
+type StoryboardSourceScene = {
+  id: string;
+  headline?: string;
+  narration?: string;
+  eyebrow?: string;
 };
 
 export function readyStageOf(
@@ -49,4 +57,28 @@ export function scriptLinesFromScenes(
     narration: scene.narration ?? "",
     ...(scene.image?.ref ? { imagePath: assetMediaOf(scene.image.ref) } : {}),
   }));
+}
+
+export function storyboardScenesFromScenes(
+  projectId: string,
+  scenes: StoryboardSourceScene[],
+  renderVersion: number,
+  reviewStillOf: (sceneId: string) => string,
+): SceneCard[] {
+  return buildStoryboard(
+    projectId,
+    "",
+    scenes.map((scene) => scene.id),
+    "",
+    (_root, sceneId) => reviewStillOf(sceneId),
+  ).scenes.map((scene) => {
+    const manifestScene = scenes.find((candidate) => candidate.id === scene.sceneId);
+    return {
+      ...scene,
+      stillPath: scene.stillPath ? `${scene.stillPath}#r${renderVersion}` : scene.stillPath,
+      headline: manifestScene?.headline,
+      narration: manifestScene?.narration,
+      eyebrow: manifestScene?.eyebrow,
+    };
+  });
 }
