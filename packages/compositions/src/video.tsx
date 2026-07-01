@@ -84,7 +84,11 @@ export const VideoComposition: React.FC<VideoCompositionProps> = ({ spec, measur
   const theme = makeTheme(spec.theme?.dominant, spec.theme?.stylePackId);
   const scenes = spec.scenes;
   const T = transitionFrames(spec.fps);
-  const timing = springTiming({ config: { damping: 200, mass: 0.8, stiffness: 100 }, durationInFrames: T });
+  const timing = springTiming({
+    config: { damping: 200, mass: 0.8, stiffness: 100 },
+    durationInFrames: T,
+    durationRestThreshold: 0.001,
+  });
   return (
     <ThemeProvider theme={theme}>
       <CompositionBackdrop theme={theme}>
