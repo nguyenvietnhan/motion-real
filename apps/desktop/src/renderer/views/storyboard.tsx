@@ -379,46 +379,12 @@ export const StoryboardView: React.FC<{
             <div className="ns-story-edit-heading">
               <div>
                 <strong>Biên tập &amp; Góp ý</strong>
-                <span>Chọn cảnh bên trái để xem kịch bản</span>
+                <span>Gửi phản hồi chỉnh sửa cảnh hoặc toàn video</span>
               </div>
               <button className="ns-story-edit-close" type="button" aria-label="Đóng bảng chỉnh sửa" title="Đóng" onClick={() => setShowEdit(false)}>
                 {Icon.close({ size: 16 })}
               </button>
             </div>
-
-            {/* Current script context display */}
-            {current && (
-              <section
-                style={{
-                  background: "rgba(255, 255, 255, 0.02)",
-                  border: "1px solid var(--border)",
-                  borderRadius: 10,
-                  padding: 12,
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: 8,
-                }}
-              >
-                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                  <span style={{ color: "var(--brand)", fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: 1.5 }}>
-                    Kịch bản
-                  </span>
-                </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                  {current.eyebrow && (
-                    <span style={{ fontSize: 11, color: "var(--brand)", fontWeight: 700, letterSpacing: 1 }}>
-                      {current.eyebrow}
-                    </span>
-                  )}
-                  <h4 style={{ fontSize: 13, fontWeight: 800, color: "#fff", margin: 0, lineHeight: 1.3 }}>
-                    {current.headline}
-                  </h4>
-                  <p style={{ fontSize: 12, color: "var(--muted-foreground)", margin: "4px 0 0 0", lineHeight: 1.4, fontStyle: "italic" }}>
-                    "{current.narration}"
-                  </p>
-                </div>
-              </section>
-            )}
 
             <section className="ns-edit-scope is-scene">
               <div className="ns-edit-scope-heading">
