@@ -37,11 +37,30 @@ const ZoomPresentationComponent: React.FC<{
   const scale = entering
     ? interpolate(presentationProgress, [0, 1], [1.08, 1])
     : interpolate(presentationProgress, [0, 1], [1, 0.96]);
-  const opacity = entering ? presentationProgress : 1 - presentationProgress;
+  // Fade-to-background: exiting scene fades out in first half, entering fades in in second half.
+  const opacity = entering
+    ? (presentationProgress < 0.5 ? 0 : (presentationProgress - 0.5) * 2)
+    : (presentationProgress < 0.5 ? 1 - presentationProgress * 2 : 0);
   return <AbsoluteFill style={{ transform: `scale(${scale})`, opacity }}>{children}</AbsoluteFill>;
 };
 function zoomPush(): TransitionPresentation<ZoomProps> {
   return { component: ZoomPresentationComponent, props: {} } as unknown as TransitionPresentation<ZoomProps>;
+}
+
+const FadePresentationComponent: React.FC<{
+  presentationProgress: number;
+  presentationDirection: "entering" | "exiting";
+  children: React.ReactNode;
+}> = ({ presentationProgress, presentationDirection, children }) => {
+  const entering = presentationDirection === "entering";
+  // Fade-to-background: exiting scene fades out in first half, entering fades in in second half.
+  const opacity = entering
+    ? (presentationProgress < 0.5 ? 0 : (presentationProgress - 0.5) * 2)
+    : (presentationProgress < 0.5 ? 1 - presentationProgress * 2 : 0);
+  return <AbsoluteFill style={{ opacity }}>{children}</AbsoluteFill>;
+};
+function fadeToDb(): TransitionPresentation<Record<string, never>> {
+  return { component: FadePresentationComponent, props: {} } as unknown as TransitionPresentation<Record<string, never>>;
 }
 
 /** Map a scene's `transitionToNext` to a deterministic presentation (DOM, no GL). */
@@ -52,7 +71,7 @@ function presentationFor(
   const cast = (p: unknown) => p as TransitionPresentation<Record<string, unknown>>;
   switch (kind) {
     case "fade":
-      return cast(fade());
+      return cast(fadeToDb());
     case "wipe": {
       const dirs: Array<"from-left" | "from-right"> = ["from-left", "from-right"];
       return cast(wipe({ direction: dirs[index % dirs.length]! }));
