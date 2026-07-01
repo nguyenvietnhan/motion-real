@@ -1,6 +1,6 @@
 # Temporary Task — Architecture Modularization
 
-Status: Step 1 complete; waiting for owner approval before Step 2.
+Status: Step 2 complete; waiting for owner approval before Step 3.
 
 This is a temporary working task for the next large cleanup after the docs
 contract consolidation. Keep it updated as work progresses. Delete this file
@@ -130,6 +130,68 @@ Files and assets that must not be refactored casually:
   `apps/desktop/src/main/logo.png` and
   `apps/desktop/src/renderer/logo.png`.
 
+Step 2 dependency and boundary audit:
+
+- package-manifest dependency direction is coherent and acyclic at the workspace
+  package level:
+  - `@news/schema` has no workspace dependency and remains the lowest layer;
+  - `@news/theme` depends on `@news/schema`;
+  - `@news/blocks` depends on `@news/schema` and `@news/theme`;
+  - `@news/compositions` depends on `@news/blocks`, `@news/schema`, and
+    `@news/theme`;
+  - `@news/tts` has no workspace dependency;
+  - `@news/pipeline` depends on `@news/blocks`, `@news/compositions`,
+    `@news/schema`, `@news/theme`, and `@news/tts`;
+  - `@news/mcp` depends on `@news/pipeline`;
+  - `@news/desktop` depends on `@news/mcp` and `@news/pipeline`;
+  - `@news/remotion` depends on `@news/blocks`, `@news/compositions`,
+    `@news/schema`, and `@news/theme`.
+- true import scan found the same broad direction:
+  - `packages/pipeline -> @news/schema` (33 imports);
+  - `packages/pipeline -> @news/compositions` (30 imports);
+  - `apps/desktop -> @news/pipeline` (26 imports);
+  - `packages/blocks -> @news/theme` (6 imports);
+  - `packages/compositions -> @news/schema` (4 imports);
+  - `packages/compositions -> @news/theme` (3 imports);
+  - `packages/compositions -> @news/blocks` (2 imports);
+  - `packages/mcp -> @news/pipeline` (3 imports).
+- `madge` and `dependency-cruiser` are not installed in `node_modules/.bin`, so
+  no graph/cycle tool was run. Do not install one inside this refactor without a
+  separate owner-approved tooling slice.
+- no package-level cycle was found from package manifests or the strict import
+  scan. The highest coupling is intentional orchestration coupling:
+  `@news/pipeline` imports the render/runtime packages, and desktop imports the
+  pipeline/MCP public surfaces.
+- broad public barrels exist and constrain extraction:
+  - `packages/pipeline/src/index.ts` is the widest barrel and re-exports store,
+    ingest, safety, audio, render, authoring, CLI, and orchestrator surfaces;
+  - `packages/mcp/src/index.ts` re-exports types, tools, and server as a thin
+    adapter;
+  - `packages/theme/src/index.ts` and `packages/schema/src/index.ts` are simple
+    low-level barrels;
+  - `packages/compositions/src/index.ts` and `packages/blocks/src/index.ts`
+    are curated render-runtime barrels with compatibility-sensitive re-exports.
+- `apps/desktop/src/main` has 120 relative imports. The biggest local coupling
+  is `apps/desktop/src/main/index.ts` (20 relative imports), then
+  `apps/desktop/src/main/authoring/ninerouter-backend.ts` (12), then
+  `apps/desktop/src/main/workspace/workspace-controller.ts` (6).
+- `workspace-controller.ts` currently imports local helpers from:
+  `../script/script-gate-apply.js`, `../review/storyboard.js`,
+  `../agent/error-classifier.js`, `../redact/friendly.js`,
+  `../agent/agent-worker.js`, and `../../shared/types.js`, plus
+  `@news/pipeline`.
+
+First extraction boundary justified by dependency evidence:
+
+- keep the first code slice inside `apps/desktop/src/main/workspace`;
+- create only a local helper module such as `workspace-helpers.ts` for pure
+  helpers;
+- make `workspace-controller.ts` import the helper module, never the reverse;
+- do not introduce a new package, barrel, or package-level dependency for the
+  first slice;
+- do not move anything that imports `@news/pipeline`, MCP, filesystem,
+  renderer/UI, or controller instance state in the first slice.
+
 ## Preferred Organization Model
 
 Use a conservative hybrid:
@@ -215,6 +277,10 @@ spending context on stale detail.
   package/app boundaries, tracked asset classification, large-file pressure
   points, and files that must not be refactored casually. No code was moved.
   Next gate: owner approval before Step 2.
+- 2026-07-01 Step 2 complete. Dependency/boundary audit recorded workspace
+  package direction, strict `@news/*` import edges, broad barrels, unavailable
+  cycle tooling, desktop relative-import pressure, and the first extraction
+  boundary. No code was moved. Next gate: owner approval before Step 3.
 
 ## Non-Negotiable Guardrails
 
@@ -324,7 +390,7 @@ Suggested commit names:
 
 - [x] Step 0: Baseline and dirty-worktree ownership.
 - [x] Step 1: Repo organization audit record.
-- [ ] Step 2: Dependency and boundary audit.
+- [x] Step 2: Dependency and boundary audit.
 - [ ] Step 3: Compare organization models and lock the chosen approach.
 - [ ] Step 4: Legacy compatibility inventory.
 - [ ] Step 5: First extraction design, no code movement.
