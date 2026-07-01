@@ -1,6 +1,7 @@
 import { computeScriptEdits, type ManifestScene } from "../script/script-gate-apply.js";
 import { authorInputWithCrawledImages, runCreateCrawlThenAuthor } from "./workspace-create-flow.js";
 import { combineIntent, linkWarningOf, stageToFriendlyStatus } from "./workspace-helpers.js";
+import { scriptGateModelFromLines } from "./workspace-script-flow.js";
 import { publishedStageOf, readyStageOf, scriptLinesFromScenes, storyboardScenesFromScenes } from "./workspace-view-model.js";
 import { createLogger, serializeError, type CrawledImage } from "@news/pipeline";
 import { classifyError } from "../agent/error-classifier.js";
@@ -1055,8 +1056,7 @@ export class WorkspaceController {
   async scriptGate(projectId: string): Promise<ScriptGateModel> {
     const enabled = this.deps.settings.scriptGateEnabled;
     try {
-      const lines = await this.scriptLinesOf(projectId);
-      return { projectId, enabled, scenes: lines.map((l) => ({ sceneId: l.sceneId, order: l.order, narration: l.narration, headline: l.headline })) };
+      return scriptGateModelFromLines(projectId, enabled, await this.scriptLinesOf(projectId));
     } catch (error) {
       log.warn({ err: error, projectId }, "script gate read failed; returning empty scene list");
       return { projectId, enabled, scenes: [] };

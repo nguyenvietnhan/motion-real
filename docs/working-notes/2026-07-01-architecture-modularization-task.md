@@ -1,6 +1,6 @@
 # Temporary Task — Architecture Modularization
 
-Status: Step 9 slice plan complete; Step 9A script-gate VM extraction next.
+Status: Step 9A implementation complete; Step 9B manifest edit application next.
 
 This is a temporary working task for the next large cleanup after the docs
 contract consolidation. Keep it updated as work progresses. Delete this file
@@ -879,6 +879,14 @@ spending context on stale detail.
   Step 9B manifest edit application, Step 9C authoring runner extraction only if
   still justified after 9A/9B, and Step 9D close audit. No source code was
   moved. Next gate: Step 9A implementation.
+- 2026-07-02 Step 9A implementation complete. Added
+  `scriptGateModelFromLines` to `workspace-script-flow.ts`, added direct helper
+  tests, and routed `WorkspaceController.scriptGate(...)` through the helper
+  while keeping line loading and error fallback in the controller. Checks passed:
+  pre-edit `typecheck`/`test` (85 files, 849 tests)/`build`; post-edit
+  `typecheck`, script-flow helper test (3 tests), controller test (62 tests),
+  full `test` (86 files, 852 tests), and `build`. Next gate: Step 9B
+  implementation.
 
 ## Non-Negotiable Guardrails
 
@@ -1642,7 +1650,7 @@ Remaining code/planning slices:
    shows a safe exact-callback boundary.
 4. Step 9D: close Step 9 with an audit decision.
 
-Step 9A small-slice design, no source movement yet:
+Step 9A small-slice implementation:
 
 Chosen first Step 9 source slice:
 
