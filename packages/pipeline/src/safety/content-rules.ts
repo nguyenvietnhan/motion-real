@@ -40,7 +40,7 @@ function displayFields(scene: VideoSpec["scenes"][number]): Array<{ name: string
 }
 
 function findRemoteUrlLike(value: string): string | undefined {
-  return value.match(/(?:https?:\/\/|data:|blob:|file:|\/\/[a-zA-Z0-9.-]+)[^"'\s,)}\]]*/i)?.[0];
+  return value.match(/(?:https?:\/\/|data:|blob:|file:|\/\/[a-zA-Z0-9-]+\.[a-zA-Z0-9.-]+)[^"'\s,)}\]]*/i)?.[0];
 }
 
 // --- N6: phonetic spellings / spaced abbreviations in display or narration ---

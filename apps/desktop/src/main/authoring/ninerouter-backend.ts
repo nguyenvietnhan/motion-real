@@ -795,7 +795,7 @@ function parseVisualDefects(reply: string, knownScenes: Set<string>): VisualDefe
   return out;
 }
 
-function isLogicChanged(oldCode: string, newCode: string): boolean {
+export function isLogicChanged(oldCode: string, newCode: string): boolean {
   const clean = (s: string) => {
     const noComments = s.replace(/\/\*[\s\S]*?\*\/|([^\\:]|^)\/\/.*$/gm, "$1");
     return noComments.replace(/\s+/g, "");

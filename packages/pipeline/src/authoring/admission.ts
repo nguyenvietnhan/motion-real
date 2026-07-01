@@ -406,7 +406,7 @@ const SAFE_NAMESPACES = new Set([
 function isUrlLikeLiteral(value: string): boolean {
   if (SAFE_NAMESPACES.has(value)) return false;
   if (isSafeSvgFragmentUrl(value)) return false;
-  return /(?:https?:\/\/|data:|blob:|file:|url\s*\(|^\/\/[a-zA-Z0-9.-]+)/i.test(value);
+  return /(?:https?:\/\/|data:|blob:|file:|url\s*\(|^\/\/[a-zA-Z0-9-]+\.[a-zA-Z0-9.-]+)/i.test(value);
 }
 
 function isSafeSvgFragmentUrl(value: string): boolean {

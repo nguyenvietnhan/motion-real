@@ -2,7 +2,7 @@ import { describe, expect, it, vi, beforeAll, afterAll } from "vitest";
 import { mkdtempSync, rmSync, existsSync, readFileSync, mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { NineRouterAuthoringBackend, authorCallErrorMessage, type NineRouterBackendDeps } from "./ninerouter-backend.js";
+import { NineRouterAuthoringBackend, authorCallErrorMessage, isLogicChanged, type NineRouterBackendDeps } from "./ninerouter-backend.js";
 import { GatewayChatError, type NineRouterClient, type ChatMessage, type ContentPart } from "../gateway/ninerouter-client.js";
 import type { AuthorJob } from "../agent/agent-worker.js";
 
@@ -514,5 +514,25 @@ describe("vision-incapable model hardening", () => {
     const keep = await backend.filterCrawledImages(projectId, "bài báo", [{ ref: "assets/a.png", width: 800, height: 600 }]);
     expect(keep).toEqual([]);
     expect(chat).not.toHaveBeenCalled();
+  });
+
+  describe("isLogicChanged", () => {
+    it("returns false if only comments and whitespace differ", () => {
+      const code1 = `
+        // Some comment
+        const a = 1; /* inline block comment */
+      `;
+      const code2 = `
+        const a = 1;
+        // another comment
+      `;
+      expect(isLogicChanged(code1, code2)).toBe(false);
+    });
+
+    it("returns true if variables or logic differ", () => {
+      const code1 = `const a = 1;`;
+      const code2 = `const a = 2;`;
+      expect(isLogicChanged(code1, code2)).toBe(true);
+    });
   });
 });

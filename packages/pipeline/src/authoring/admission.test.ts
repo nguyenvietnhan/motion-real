@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { mkdtemp, writeFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { getComponent, unregisterComponent } from "@news/compositions";
 import { admitAuthoredComponent, admitAuthoredSceneFile } from "./index.js";
 
@@ -143,6 +145,57 @@ describe("admitAuthoredComponent (static AST gate)", () => {
     expect(result.admitted).toBe(false);
     if (!result.admitted) {
       expect(result.violations.some((v) => /literal string id/.test(v.message))).toBe(true);
+    }
+  });
+
+  it("allows safe SVG namespaces exactly, but rejects prefix bypass and protocol-relative URLs with host dot", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "news-admission-"));
+    try {
+      const template = (literal: string) => `
+import React from "react";
+import { registerComponent } from "@news/compositions";
+import { z } from "zod";
+export const schema = z.object({});
+export const example = {};
+const Comp = () => <div className="${literal}" />;
+export default registerComponent({
+  id: "authored-test-comp",
+  displayName: "Test",
+  promptGuide: "Test",
+  schema,
+  Component: Comp,
+  example,
+});
+`;
+      // 1. Safe namespace (exact match) -> should PASS
+      const p1 = join(dir, "p1.tsx");
+      await writeFile(p1, template("http://www.w3.org/2000/svg"));
+      expect(admitAuthoredComponent(p1).admitted).toBe(true);
+
+      // 2. Prefix bypass -> should FAIL
+      const p2 = join(dir, "p2.tsx");
+      await writeFile(p2, template("http://www-w3-org.proxy.ustclug.org/2000/svg.evil.com"));
+      const r2 = admitAuthoredComponent(p2);
+      expect(r2.admitted).toBe(false);
+      if (!r2.admitted) {
+        expect(r2.violations.some((v) => v.check === "N5" && /remote\/file URL literal/.test(v.message))).toBe(true);
+      }
+
+      // 3. Comment-like string without dot (e.g. //TODO) -> should PASS
+      const p3 = join(dir, "p3.tsx");
+      await writeFile(p3, template("//TODO"));
+      expect(admitAuthoredComponent(p3).admitted).toBe(true);
+
+      // 4. Protocol-relative URL with dot -> should FAIL
+      const p4 = join(dir, "p4.tsx");
+      await writeFile(p4, template("//google.com"));
+      const r4 = admitAuthoredComponent(p4);
+      expect(r4.admitted).toBe(false);
+      if (!r4.admitted) {
+        expect(r4.violations.some((v) => v.check === "N5" && /remote\/file URL literal/.test(v.message))).toBe(true);
+      }
+    } finally {
+      await rm(dir, { recursive: true, force: true });
     }
   });
 });

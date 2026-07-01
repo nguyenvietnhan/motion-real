@@ -418,4 +418,25 @@ describe("lintSceneSources — N5 forbidden-API guard", () => {
       await rm(dir, { recursive: true, force: true });
     }
   });
+
+  it("passes on comments containing banned APIs and comments without spaces after //", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "news-lint-"));
+    try {
+      await writeFile(
+        join(dir, "scene.tsx"),
+        [
+          "// Math.random() in comment should pass",
+          "/* Date.now() in block comment should pass */",
+          "//TODO: check this",
+          "//eslint-disable-next-line",
+          "//NOTE: check this",
+          "export const ok = 1;",
+        ].join("\n"),
+      );
+      const report = lintSceneSources(dir);
+      expect(report.ok).toBe(true);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
 });
