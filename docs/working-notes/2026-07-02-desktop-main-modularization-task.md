@@ -1,7 +1,6 @@
 # Temporary Task - Desktop Main Modularization
 
-Status: Step 1 runtime-env extraction complete; Step 2 image-staging extraction
-next.
+Status: Step 2 image-staging extraction complete; Step 3 BGM extraction next.
 
 This is a temporary working task for thinning
 `apps/desktop/src/main/index.ts`. It is not project contract. Current contract
@@ -258,13 +257,23 @@ For each completed step, add at most:
   `npm.cmd run build`. Desktop GUI smoke was not run because
   `npm.cmd --workspace @news/desktop run app` is interactive and does not
   self-complete in this tool session. Next gate: Step 2.
+- 2026-07-02 Step 2 complete. Extracted create-time image staging helpers into
+  `apps/desktop/src/main/create/image-staging.ts`, added direct tests, and kept
+  the Electron native picker dialog wrapper in `index.ts`. `promoteImages`
+  remains root-owned as planned. Checks passed: `npm.cmd run typecheck`,
+  `image-staging.test.ts` (6 tests), `create-flow.test.ts` (14 tests),
+  `create-controller.test.ts` (8 tests), full `npm.cmd test` (normal lane: 88
+  files / 864 tests; N10 heavy lane: 1 file / 13 tests), and
+  `npm.cmd run build`. Desktop GUI smoke was not run because this slice requires
+  interactive app/dialog use (`pick/import/remove image`) that cannot
+  self-complete in this tool session. Next gate: Step 3.
 
 ## Progress Checklist
 
 - [x] Planning scan: read contract/docs and audit `index.ts` responsibility map.
 - [x] Step 0: Baseline and dirty-worktree ownership.
 - [x] Step 1: Extract runtime env parsing/boot voice helpers.
-- [ ] Step 2: Extract create-time image staging helpers.
+- [x] Step 2: Extract create-time image staging helpers.
 - [ ] Step 3: Extract BGM view-model and handlers.
 - [ ] Step 4: Extract native save/export helpers.
 - [ ] Step 5: Extract small create/project IPC payload helpers.
@@ -762,18 +771,17 @@ Expected output:
 
 ## Current Next Source Slice Recommendation
 
-After owner approval, start with Step 2.
+After owner approval, start with Step 3.
 
 Reason:
 
-- Step 1 proved the smaller env-helper extraction path with direct tests and
-  full checks;
-- Step 2 is the next strongest extraction candidate because native image
-  staging/delete/sweep behavior is currently inline in `index.ts` and not
-  directly isolated by tests;
-- Step 2 touches native image dialog/staging filesystem behavior, so keep it in
-  the planned 2A/2B/optional-2C order and record GUI smoke feasibility after the
-  source slice.
+- Step 2 isolated native image staging/delete/sweep behavior with direct tests
+  and full checks;
+- Step 3 is the next contained helper/handler group because desktop BGM
+  view-model and contained BGM IPC behavior still live inline in `index.ts`;
+- keep Step 3 in the planned 3A/3B order and do not touch pipeline BGM storage,
+  manifest schema, workspace render/publish behavior, or project-level silence
+  semantics.
 
-If Step 2 reveals picker/staging ambiguity, stop and fix that before any BGM or
-native save/export extraction.
+If Step 3 reveals BGM library or silence-semantics ambiguity, stop and fix that
+before native save/export extraction.
