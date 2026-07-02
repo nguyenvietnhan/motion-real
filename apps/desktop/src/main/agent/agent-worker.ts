@@ -2,7 +2,7 @@
  * The `AgentWorker` abstraction (web-dashboard Task 2.6, design §Agent_Worker).
  *
  * ONE interface, TWO swappable implementations decided by the POC_Spike (Req 7):
- *   (Y) headless agent-runtime adapter (auto-loads SKILL.md/AGENTS.md, MCP tools)
+ *   (Y) headless agent-runtime adapter (auto-loads the shared contract/docs and MCP tools)
  *   (X) custom-loop adapter (assembles a Preprompt, drives the OpenAI-compatible
  *       gateway + MCP tools ourselves)
  * Both drive the SAME `@news/mcp` tools / single-process orchestrator, so the
@@ -21,6 +21,8 @@ import type { VideoFormat, DurationTier, VideoLanguage } from "@news/schema";
  * disk to build the vision part, so this stays small + serializable across IPC.
  */
 export type AuthorImageRef = { ref: string; width: number; height: number };
+
+export const AUTHORING_CONTRACT_REF = "AI_CONTRACT.md+docs/current" as const;
 
 /**
  * Input for a fresh authoring job: a free-form user brief (chat-style) plus any
@@ -65,8 +67,8 @@ export type ReauthorJob = {
  * as the user intent alongside the auto-loaded contract files.
  */
 export type PrepromptPayload = {
-  /** The contract bearer is always the repo's SKILL.md + AGENTS.md (never inlined here). */
-  contractRef: "SKILL.md+AGENTS.md";
+  /** Contract bearer reference only; the contract text is never inlined here. */
+  contractRef: typeof AUTHORING_CONTRACT_REF;
   affectedSceneIds: string[];
   perSceneIntent: Record<string, string>;
   globalNotes: string;

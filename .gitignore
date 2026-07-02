@@ -8,7 +8,6 @@ coverage/
 *.log
 *.tsbuildinfo
 .DS_Store
-.claude/settings.local.json
 
 # Remotion
 remotion-render-*/

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { AUTHORING_CONTRACT_REF } from "../agent/agent-worker.js";
 import {
   CREATIVE_BOOTSTRAP_INTENT,
   clampRenderRatio,
@@ -22,7 +23,7 @@ describe("workspace render-flow helpers", () => {
 
   it("maps every scene to the creative bootstrap intent", () => {
     expect(creativeBootstrapPreprompt(["scene-01", "scene-02"])).toEqual({
-      contractRef: "SKILL.md+AGENTS.md",
+      contractRef: AUTHORING_CONTRACT_REF,
       affectedSceneIds: ["scene-01", "scene-02"],
       perSceneIntent: {
         "scene-01": CREATIVE_BOOTSTRAP_INTENT,
@@ -49,7 +50,7 @@ describe("workspace render-flow helpers", () => {
         { sceneId: "scene-01", issue: "headline bị che" },
       ]),
     ).toEqual({
-      contractRef: "SKILL.md+AGENTS.md",
+      contractRef: AUTHORING_CONTRACT_REF,
       affectedSceneIds: ["scene-02", "scene-01"],
       perSceneIntent: {
         "scene-02": visionRepairIntent("ảnh lệch khỏi khung"),

@@ -1,4 +1,4 @@
-import type { PrepromptPayload } from "../agent/agent-worker.js";
+import { AUTHORING_CONTRACT_REF, type PrepromptPayload } from "../agent/agent-worker.js";
 import type { ProgressEvent, ProjectStage } from "../../shared/types.js";
 
 export type VisualDefectInput = { sceneId: string; issue: string };
@@ -20,7 +20,7 @@ export const CREATIVE_BOOTSTRAP_INTENT =
 
 export function creativeBootstrapPreprompt(sceneIds: string[]): PrepromptPayload {
   return {
-    contractRef: "SKILL.md+AGENTS.md",
+    contractRef: AUTHORING_CONTRACT_REF,
     affectedSceneIds: sceneIds,
     perSceneIntent: Object.fromEntries(sceneIds.map((id) => [id, CREATIVE_BOOTSTRAP_INTENT])),
     globalNotes: "",
@@ -37,7 +37,7 @@ export function visionRepairIntent(issue: string): string {
 
 export function visionRepairPreprompt(flagged: VisualDefectInput[]): PrepromptPayload {
   return {
-    contractRef: "SKILL.md+AGENTS.md",
+    contractRef: AUTHORING_CONTRACT_REF,
     affectedSceneIds: flagged.map((defect) => defect.sceneId),
     perSceneIntent: Object.fromEntries(flagged.map((defect) => [defect.sceneId, visionRepairIntent(defect.issue)])),
     globalNotes: "",

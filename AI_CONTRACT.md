@@ -1,8 +1,8 @@
 # AI Contract — MotionReal
 
 This is the single canonical contract for any AI or human assistant working in
-this repository. Tool-specific files such as `AGENTS.md`, `CLAUDE.md`, and
-`.claude/*` must only point here or provide thin tool wiring. They must not carry
+this repository. Compatibility entry points such as `AGENTS.md` may only point
+here or provide thin tool wiring. Vendor-specific assistant files must not carry
 separate project rules.
 
 ## Project In One Paragraph
@@ -115,4 +115,3 @@ npm.cmd run typecheck
 npm.cmd test
 npm.cmd run build
 ```
-

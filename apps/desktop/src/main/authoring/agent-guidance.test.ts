@@ -5,11 +5,6 @@ import { describe, expect, it } from "vitest";
 const rootFile = (path: string): string =>
   readFileSync(fileURLToPath(new URL(`../../../../../${path}`, import.meta.url)), "utf8");
 
-const adapterFiles = [
-  ".claude/commands/news-video.md",
-  ".claude/agents/scene-author.md",
-] as const;
-
 describe("AI video-authoring guidance", () => {
   it("keeps the canonical contract aligned with the freeform authored surface", () => {
     const text = rootFile("AI_CONTRACT.md");
@@ -29,11 +24,11 @@ describe("AI video-authoring guidance", () => {
     expect(text).not.toMatch(/use Math\.sin|interpolate \+ Math\.sin/i);
   });
 
-  it.each(adapterFiles)("%s is only a thin pointer to the shared contract", (path) => {
-    const text = rootFile(path);
+  it("keeps repo-level AI entry points vendor-neutral", () => {
+    const text = rootFile("AGENTS.md");
 
     expect(text).toContain("AI_CONTRACT.md");
-    expect(text).toMatch(/not a separate source of truth|must not contain project rules/i);
+    expect(text).toMatch(/not a separate contract/i);
     expect(text).not.toMatch(/raw JSX\/SVG|raw <div>\/<svg>/);
     expect(text).not.toMatch(/clamped `interpolate`\/`spring`/);
     expect(text).not.toMatch(/Frame|TitleBlock|KeyPoints|stylePackId/);

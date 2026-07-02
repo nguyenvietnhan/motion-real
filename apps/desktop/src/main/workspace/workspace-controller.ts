@@ -6,7 +6,7 @@ import { publishedStageOf, readyStageOf, scriptLinesFromScenes, storyboardScenes
 import { createLogger, serializeError, type CrawledImage } from "@news/pipeline";
 import { classifyError } from "../agent/error-classifier.js";
 import { toFriendlyError } from "../redact/friendly.js";
-import type { AgentHooks, AgentWorker, AuthorInput, SceneSnapshot } from "../agent/agent-worker.js";
+import { AUTHORING_CONTRACT_REF, type AgentHooks, type AgentWorker, type AuthorInput, type SceneSnapshot } from "../agent/agent-worker.js";
 import type {
   ApplyResult,
   ProjectCardVM,
@@ -446,7 +446,7 @@ export class WorkspaceController {
       })) ?? [];
       // Apply the user's instruction by re-authoring the scene code…
       const applied = await this.deps.worker.reauthorScenes(
-        { projectId, sceneIds, preprompt: { contractRef: "SKILL.md+AGENTS.md", affectedSceneIds: sceneIds, perSceneIntent, globalNotes } },
+        { projectId, sceneIds, preprompt: { contractRef: AUTHORING_CONTRACT_REF, affectedSceneIds: sceneIds, perSceneIntent, globalNotes } },
         editHooks,
         signal,
       );
