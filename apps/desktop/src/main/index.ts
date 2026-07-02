@@ -20,7 +20,7 @@ import { defaultSettings } from "../shared/settings-model.js";
 import { SettingsStore } from "./settings/settings-store.js";
 import { registerMediaScheme, handleMediaProtocol, mediaUrl } from "./media-protocol.js";
 import { events, setEventTarget } from "./event-bus.js";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { copyFile, readFile, readdir, rm, stat } from "node:fs/promises";
 import type { DroppedImage, ModelInfo, PickImagesResult, ScriptEdit, SettingsModel, VoiceProviderChoice } from "../shared/types.js";
 import { extractUrls } from "../shared/create-validation.js";
@@ -30,6 +30,7 @@ import {
   privilegeStartupError,
   scrubSensitiveEnvironment,
 } from "./security/runtime-security.js";
+import { readEnvFile, resolveBootVoiceEnv } from "./security/runtime-env.js";
 
 const log = createLogger("desktop");
 
@@ -39,51 +40,13 @@ registerMediaScheme();
 // The bundled Electron main is plain Node ESM (no `.tsx` loader), so authored
 // scenes are loaded for the admission handshake via esbuild — set process-wide
 // so BOTH the authoring step AND renderProject's admission use it.
-// Electron reads `.env` once, captures only the Vivibe values it needs in a
+// Electron reads `.env` once, captures only the voice values it needs in a
 // closure, then removes credential-looking variables from process.env before any
 // authored module can be loaded. Non-secret runtime configuration still follows
 // normal env precedence.
-function readEnvFile(path: string): Record<string, string> {
-  if (!existsSync(path)) return {};
-  const values: Record<string, string> = {};
-  try {
-    for (const line of readFileSync(path, "utf8").split(/\r?\n/)) {
-      const m = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*?)\s*$/.exec(line);
-      if (!m || line.trim().startsWith("#")) continue;
-      const key = m[1]!;
-      let val = m[2]!;
-      if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
-        val = val.slice(1, -1);
-      }
-      values[key] = val;
-    }
-  } catch (e) {
-    console.warn("[env] failed to load .env:", e);
-  }
-  return values;
-}
 const REPO_ROOT = dirname(process.env.VIDEO_TOOL_HOME ?? videoToolHome());
 const fileEnv = readEnvFile(join(REPO_ROOT, ".env"));
-const bootVoiceEnv = Object.freeze({
-  vivibeApiKey:
-    process.env.VIVIBE_API_KEY?.trim() ||
-    process.env.VIETNAMESE_API_KEY?.trim() ||
-    fileEnv.VIVIBE_API_KEY?.trim() ||
-    fileEnv.VIETNAMESE_API_KEY?.trim() ||
-    "",
-  vivibeVoiceId:
-    process.env.VIVIBE_VOICE_ID?.trim() ||
-    process.env.VIETNAMESE_VOICEID?.trim() ||
-    fileEnv.VIVIBE_VOICE_ID?.trim() ||
-    fileEnv.VIETNAMESE_VOICEID?.trim(),
-  elevenLabsApiKey:
-    process.env.ELEVENLABS_API_KEY?.trim() ||
-    fileEnv.ELEVENLABS_API_KEY?.trim() ||
-    "",
-  elevenLabsVoiceId:
-    process.env.ELEVENLABS_VOICE_ID?.trim() ||
-    fileEnv.ELEVENLABS_VOICE_ID?.trim(),
-});
+const bootVoiceEnv = resolveBootVoiceEnv(process.env, fileEnv);
 applyNonSensitiveEnvironment(fileEnv);
 scrubSensitiveEnvironment(fileEnv);
 scrubSensitiveEnvironment(process.env);

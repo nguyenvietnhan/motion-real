@@ -1,7 +1,7 @@
 # Temporary Task - Desktop Main Modularization
 
-Status: Step 0 baseline complete; MCP de-scope note recorded; Step 1
-runtime-env extraction next.
+Status: Step 1 runtime-env extraction complete; Step 2 image-staging extraction
+next.
 
 This is a temporary working task for thinning
 `apps/desktop/src/main/index.ts`. It is not project contract. Current contract
@@ -249,12 +249,21 @@ For each completed step, add at most:
   product-optional under the current desktop-app direction. Kept Steps 1-5
   unchanged and assigned internal tool-facade/MCP removal decisions to Step 6 or
   a separate task. No source code moved. Next gate: Step 1.
+- 2026-07-02 Step 1 complete. Extracted `.env` parsing/reading and boot voice
+  env precedence into `apps/desktop/src/main/security/runtime-env.ts`, added
+  direct helper tests, and kept env apply/scrub side effects in `index.ts`.
+  Checks passed: `npm.cmd run typecheck`, `runtime-env.test.ts` (5 tests),
+  `runtime-security.test.ts` (5 tests), full `npm.cmd test` (normal lane: 87
+  files / 858 tests; N10 heavy lane: 1 file / 13 tests), and
+  `npm.cmd run build`. Desktop GUI smoke was not run because
+  `npm.cmd --workspace @news/desktop run app` is interactive and does not
+  self-complete in this tool session. Next gate: Step 2.
 
 ## Progress Checklist
 
 - [x] Planning scan: read contract/docs and audit `index.ts` responsibility map.
 - [x] Step 0: Baseline and dirty-worktree ownership.
-- [ ] Step 1: Extract runtime env parsing/boot voice helpers.
+- [x] Step 1: Extract runtime env parsing/boot voice helpers.
 - [ ] Step 2: Extract create-time image staging helpers.
 - [ ] Step 3: Extract BGM view-model and handlers.
 - [ ] Step 4: Extract native save/export helpers.
@@ -751,20 +760,20 @@ Expected output:
 - commit suggestion:
   `chore: remove desktop main modularization task note`.
 
-## Current First Source Slice Recommendation
+## Current Next Source Slice Recommendation
 
-After Step 0 passes, start with Step 1.
+After owner approval, start with Step 2.
 
 Reason:
 
-- it is narrow and testable;
-- it reduces top-of-file boot logic without moving side effects;
-- it improves coverage for `.env` parsing and voice-env precedence;
-- it does not touch IPC, workspace, create, render, publish, or Electron app
-  lifecycle.
-- Step 2 remains a strong extraction candidate, but it touches native image
-  dialog/staging filesystem behavior and therefore comes after the smaller
-  env-helper slice proves the process.
+- Step 1 proved the smaller env-helper extraction path with direct tests and
+  full checks;
+- Step 2 is the next strongest extraction candidate because native image
+  staging/delete/sweep behavior is currently inline in `index.ts` and not
+  directly isolated by tests;
+- Step 2 touches native image dialog/staging filesystem behavior, so keep it in
+  the planned 2A/2B/optional-2C order and record GUI smoke feasibility after the
+  source slice.
 
-If Step 1 reveals boot/security ambiguity, stop and fix that before any BGM or
-image staging extraction.
+If Step 2 reveals picker/staging ambiguity, stop and fix that before any BGM or
+native save/export extraction.
