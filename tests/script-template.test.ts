@@ -22,7 +22,7 @@ const forbiddenTemplatePatterns = [
 ] as const;
 
 function template(): string {
-  return rootFile("scripts/_video-template.txt");
+  return rootFile("scripts/templates/video-template.txt");
 }
 
 function extractSceneConstant(name: "STATEMENT" | "METRIC"): string {

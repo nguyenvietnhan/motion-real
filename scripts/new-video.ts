@@ -41,7 +41,7 @@ function main(): void {
     return;
   }
 
-  const template = readFileSync(join(here, "_video-template.txt"), "utf8");
+  const template = readFileSync(join(here, "templates", "video-template.txt"), "utf8");
   // Substitute id/title, and make the placeholder component ids ("vt-*") unique
   // to this project so two scaffolded videos can never collide on a registry id.
   const content = template
