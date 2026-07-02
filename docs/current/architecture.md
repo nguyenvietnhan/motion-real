@@ -14,9 +14,39 @@ instance.
 | `@news/compositions` | Registry, master `VideoComposition`, `ThumbnailComposition`, and the authored-facing re-export of `SceneImage`. |
 | `@news/tts` | Vivibe/LucyLab and ElevenLabs clients, audio measurement, concat/mix helpers, SRT/timestamp support. |
 | `@news/pipeline` | Authoring/admission, manifest conversion, ingest, TTS orchestration, lock, render, cache, review, safety grid, store, CLI. |
-| `@news/mcp` | MCP tools over the pipeline. |
+| `@news/mcp` | MCP tools over the pipeline. Desktop currently also uses its `createTools` facade in-process; the external stdio server is a separate cleanup candidate. |
 | `apps/remotion` | Remotion root and sample fixtures. |
 | `apps/desktop` | Electron app: create flow, workspace stages, settings, 9router gateway, hidden refine, BGM, thumbnail, export. |
+
+## Desktop Main Internals
+
+`apps/desktop/src/main/index.ts` remains the Electron composition root. It owns
+process-wide startup side effects, settings construction, gateway/backend/worker
+wiring, controller construction, IPC router registration, and Electron app
+lifecycle hooks.
+
+Local desktop-main seams now carry behavior that is narrow enough to test
+directly:
+
+- `security/runtime-env.ts` parses `.env` text and resolves boot voice env
+  precedence. `runtime-security.ts` still owns non-sensitive env application and
+  secret scrubbing.
+- `create/image-staging.ts` owns create-time picked/dropped image staging,
+  unstage, and stale staging cleanup. Project asset promotion stays with the
+  create-controller dependency wiring.
+- `bgm/bgm-handlers.ts` owns BGM view-model/list behavior and the contained BGM
+  IPC handler group. The native picker adapter stays in `index.ts`.
+- `export/native-save.ts` owns video/thumbnail save helper behavior. The
+  Electron dialog/window adapter stays in `index.ts`.
+- `create/create-ipc.ts` owns `projects:create` payload coercion and voice
+  provider validation while `CreateController.create(...)` stays root-owned.
+- `startup-sequence.ts` keeps the tested ordering seam: stale-state
+  reconciliation completes before gateway/window startup. Media scheme/protocol
+  registration and app lifecycle hooks stay in `index.ts`.
+
+Avoid creating a broad desktop handler builder or moving Electron lifecycle code
+just to reduce line count; those pieces are clearer at the composition root
+unless a future focused slice proves otherwise.
 
 ## Desktop Workspace Internals
 
