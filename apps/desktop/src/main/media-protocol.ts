@@ -1,9 +1,9 @@
 import { protocol } from "electron";
 import { createReadStream } from "node:fs";
 import { stat } from "node:fs/promises";
-import { extname, isAbsolute, relative, resolve } from "node:path";
+import { extname, isAbsolute, join, relative, resolve } from "node:path";
 import { Readable } from "node:stream";
-import { createLogger, videoToolHome } from "@news/pipeline";
+import { createLogger, videoToolHome, workspaceRoot } from "@news/pipeline";
 
 const log = createLogger("media");
 
@@ -11,8 +11,9 @@ const log = createLogger("media");
  * Local-file protocol (web-dashboard B7). The renderer runs on an http(s)/file
  * origin, so raw `file://` paths to stills/MP4s under `.video-tool` won't load.
  * We register a privileged `media://` scheme and serve files through it, so
- * `<img src>` / `<video src>` can show generated artifacts. `mediaUrl(absPath)`
- * builds the URL; `media://file/<encoded-abs-path>`.
+ * `<img src>` / `<video src>` / `<audio src>` can show generated artifacts and
+ * bundled app media. `mediaUrl(absPath)` builds the URL;
+ * `media://file/<encoded-abs-path>`.
  *
  * The handler answers HTTP Range requests (206 Partial Content). This is what
  * makes the `<video>` seekbar work: a browser seeks by re-requesting a byte
@@ -42,6 +43,24 @@ function contentType(abs: string): string {
   return MIME[extname(abs).toLowerCase()] ?? "application/octet-stream";
 }
 
+export function defaultMediaRoots(): string[] {
+  return [
+    videoToolHome(),
+    join(workspaceRoot(), "apps", "desktop", "assets"),
+  ];
+}
+
+function isContainedInRoot(absPath: string, rootPath: string): boolean {
+  const abs = resolve(absPath);
+  const root = resolve(rootPath);
+  const rel = relative(root, abs);
+  return rel === "" || (!rel.startsWith("..") && !isAbsolute(rel));
+}
+
+export function isAllowedMediaPath(absPath: string, roots = defaultMediaRoots()): boolean {
+  return roots.some((root) => isContainedInRoot(absPath, root));
+}
+
 /** A Node fs read-stream as a web ReadableStream the Response body accepts. */
 function bodyStream(abs: string, range?: { start: number; end: number }): ReadableStream<Uint8Array> {
   const node = range ? createReadStream(abs, { start: range.start, end: range.end }) : createReadStream(abs);
@@ -59,24 +78,21 @@ export function registerMediaScheme(): void {
 }
 
 /** Must be called AFTER app `ready`. */
-export function handleMediaProtocol(): void {
+export function handleMediaProtocol(roots = defaultMediaRoots()): void {
   protocol.handle(SCHEME, async (request) => {
     try {
       const encoded = new URL(request.url).pathname.replace(/^\//, "");
       const requested = decodeURIComponent(encoded);
-      // Containment: only serve files under the .video-tool home — never an
+      // Containment: only serve files under explicit local-media roots — never an
       // arbitrary absolute path (defense-in-depth against a crafted media:// URL).
       // A raw `startsWith` on the un-normalized string is bypassable: a URL like
-      // `media://file/<home>/../../Windows/win.ini` literally starts with `<home>`
+      // `media://file/<root>/../../Windows/win.ini` literally starts with `<root>`
       // yet `createReadStream` resolves the `..` at the fs layer and reads outside
       // the sandbox. So resolve BOTH paths and compare via `path.relative` — if the
       // target sits outside root, the relative path starts with `..` (or is an
       // absolute path on another drive), and we refuse.
       const abs = resolve(requested);
-      const root = resolve(videoToolHome());
-      const rel = relative(root, abs);
-      const contained = rel === "" || (!rel.startsWith("..") && !isAbsolute(rel));
-      if (!contained) {
+      if (!isAllowedMediaPath(abs, roots)) {
         return new Response("Forbidden", { status: 403 });
       }
 
@@ -129,6 +145,7 @@ export function handleMediaProtocol(): void {
 /** Build a `media://` URL for an absolute filesystem path (or pass through null). */
 export function mediaUrl(absPath: string | null | undefined): string | null {
   if (!absPath) return null;
+  if (!isAllowedMediaPath(absPath)) return null;
   const normalized = absPath.replace(/\\/g, "/");
   return `${SCHEME}://file/${encodeURIComponent(normalized)}`;
 }
