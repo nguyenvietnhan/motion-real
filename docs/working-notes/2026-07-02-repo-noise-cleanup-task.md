@@ -1,7 +1,7 @@
 # Temporary Task - Repo Noise And Asset Cleanup
 
-Status: Step 3 cleanup complete; Step 4 script-template standardization next if
-owner approves.
+Status: Step 5 cleanup complete; Step 6 final scan/docs sync next if owner
+approves.
 
 This is a temporary working note for standardizing repository entry points,
 asset locations, legacy naming, and duplicate/noisy files. It is not project
@@ -132,12 +132,14 @@ Dev/test fixture evidence:
   - `apps/remotion/src/demo-scenes.tsx`;
   - `apps/remotion/src/fixtures/sample-spec.ts`.
 - Script template is active:
-  - `scripts/_video-template.txt`;
+  - before Step 4 it lived at `scripts/_video-template.txt`;
+  - after Step 4 it lives at `scripts/templates/video-template.txt`;
   - referenced by `scripts/new-video.ts` and `tests/script-template.test.ts`.
 
 Empty config evidence:
 
-- `.vscode/settings.json` contains only `{}`.
+- Before Step 5, `.vscode/settings.json` contained only `{}`.
+- After Step 5, that empty tracked editor config has been removed.
 
 BGM test evidence found:
 
@@ -281,6 +283,23 @@ BGM test evidence found:
   continuing. Checks passed: audit fixture scan, `npm.cmd --workspace
   @news/desktop run build:renderer`, `npm.cmd run typecheck`, `npm.cmd test`,
   and `npm.cmd run build`.
+- 2026-07-02 BGM preview bugfix committed as `cabbbe7`
+  (`fix(desktop): allow bundled bgm media previews`). The bundled default BGM
+  asset now passes the `media://` allow-list alongside generated `.video-tool`
+  media while arbitrary paths remain blocked. Checks passed: targeted
+  media/BGM/render tests, `npm.cmd run typecheck`, `npm.cmd test`,
+  `npm.cmd run build`, and `npm.cmd --workspace @news/desktop run build:main`.
+- 2026-07-02 Step 4 complete and committed as `d6030ca`
+  (`chore: move script templates under templates`). Moved the scaffold template
+  to `scripts/templates/video-template.txt` and updated the scaffold script plus
+  template admission tests. Checks passed: `script-template.test.ts`,
+  `npm.cmd run typecheck`, `npm.cmd test` (92 files / 889 tests plus heavy lane
+  1 file / 13 tests), and `npm.cmd run build`.
+- 2026-07-02 Step 5 complete and committed as `d06830a`
+  (`chore: remove empty workspace settings`). Removed tracked
+  `.vscode/settings.json` after confirming it contained only `{}`. Checks
+  passed: staged diff check, `npm.cmd run typecheck`, `npm.cmd test` (92 files /
+  889 tests plus heavy lane 1 file / 13 tests), and `npm.cmd run build`.
 
 ## Progress Checklist
 
@@ -289,8 +308,8 @@ BGM test evidence found:
 - [x] Step 1B: Verify virtual built-in default BGM.
 - [x] Step 2: Canonicalize desktop brand assets.
 - [x] Step 3: Move dev/audit fixtures out of main renderer surface.
-- [ ] Step 4: Standardize script template location.
-- [ ] Step 5: Remove empty workspace config.
+- [x] Step 4: Standardize script template location.
+- [x] Step 5: Remove empty workspace config.
 - [ ] Step 6: Final scan and docs sync.
 - [ ] Step 7: Delete this temporary note after owner approval.
 
@@ -539,12 +558,12 @@ Expected output:
 
 ## Current Recommendation
 
-After owner approval, continue with Step 4.
+After owner approval, continue with Step 6.
 
 Reason:
 
-- Steps 1A, 1B, 2, and 3 are now committed separately with checks;
-- the next small confirmed cleanup is moving `scripts/_video-template.txt` under
-  `scripts/templates/`;
+- Steps 1A, 1B, 2, 3, 4, and 5 are now committed separately with checks;
+- the next gate is a final scan/docs sync for remaining intentional legacy
+  surfaces and stale references;
 - MCP/package renaming and style compatibility cleanup remain larger follow-up
   migrations and should not be mixed into simple file cleanup.
