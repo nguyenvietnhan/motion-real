@@ -1,6 +1,6 @@
 # Temporary Task — Architecture Modularization
 
-Status: Step 10 complete; Step 11 next-target decision next.
+Status: Step 11 next-target decision complete; test stability slice next.
 
 This is a temporary working task for the next large cleanup after the docs
 contract consolidation. Keep it updated as work progresses. Delete this file
@@ -1072,7 +1072,7 @@ Suggested commit names:
 - [x] Step 8: Extract create/crawl/image-review flow.
 - [x] Step 9: Extract script-gate flow.
 - [x] Step 10: Extract render/refine/publish helpers or stop deliberately.
-- [ ] Step 11: Decide next target after workspace controller.
+- [x] Step 11: Decide next target after workspace controller.
 - [ ] Step 12: Final docs/code sync sweep.
 - [ ] Step 13: Delete this temporary task file and commit deletion.
 
@@ -2208,6 +2208,21 @@ Expected output:
 
 - a written continue/stop decision;
 - optional new task note if switching target.
+
+Step 11 decision:
+
+- stop the first pass on `workspace-controller.ts` here;
+- do not force further async render/refine/publish extraction now, because the
+  remaining methods are real orchestration rather than narrow helper logic;
+- create a separate test-stability slice next for the default parallel
+  `npm.cmd test` timeout in
+  `packages/pipeline/src/safety/typecheck-authored.test.ts`;
+- after test stability, the next architecture target is likely
+  `apps/desktop/src/main/index.ts`;
+- do not jump into `packages/pipeline/src/orchestrator.ts` or
+  `packages/pipeline/src/safety/render-grid.ts` before the test-runner issue is
+  understood;
+- no source-code refactor is in progress for this step.
 
 ## Step 12 — Final Docs And Code Sync Sweep
 
