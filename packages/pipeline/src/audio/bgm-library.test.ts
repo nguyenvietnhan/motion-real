@@ -6,11 +6,11 @@ import { join } from "node:path";
 import {
   addBgmTrack,
   bgmLibraryDir,
-  ensureBgmTrack,
   listBgmTracks,
   removeBgmTrack,
   resolveBgmTrack,
 } from "./bgm-library.js";
+import { BUNDLED_DEFAULT_BGM_TRACK_NAME, bundledDefaultBgmPath } from "../assets/bundled-media.js";
 
 /**
  * BGM library (I2/O4): a per-machine flat audio dir shared by every project; a
@@ -69,15 +69,21 @@ describe("BGM library", () => {
     expect(names).toEqual(["song-1.mp3", "song.mp3"]);
   });
 
-  it("seeds a bundled track under a stable name without duplicating it", async () => {
-    const src = await fakeAudio("default.mp3", 24);
-    const first = await ensureBgmTrack(src, "nhac-nen-mac-dinh.mp3");
-    await writeFile(src, Buffer.alloc(48, 2));
-    const second = await ensureBgmTrack(src, "nhac-nen-mac-dinh.mp3");
+  it("reserves the bundled default name for the virtual built-in track", async () => {
+    const src = await fakeAudio(BUNDLED_DEFAULT_BGM_TRACK_NAME, 24);
+    const track = await addBgmTrack(src);
 
-    expect(first.name).toBe("nhac-nen-mac-dinh.mp3");
-    expect(second.sizeBytes).toBe(24);
-    expect((await listBgmTracks()).map((track) => track.name)).toEqual(["nhac-nen-mac-dinh.mp3"]);
+    expect(track.name).toBe("nhac-nen-mac-dinh-1.mp3");
+    expect((await listBgmTracks()).map((item) => item.name)).toEqual(["nhac-nen-mac-dinh-1.mp3"]);
+  });
+
+  it("ignores a stale physical copy of the virtual built-in track in the user library", async () => {
+    const dir = bgmLibraryDir();
+    await mkdir(dir, { recursive: true });
+    await writeFile(join(dir, BUNDLED_DEFAULT_BGM_TRACK_NAME), Buffer.alloc(24, 1));
+    await addBgmTrack(await fakeAudio("real.mp3"));
+
+    expect((await listBgmTracks()).map((item) => item.name)).toEqual(["real.mp3"]);
   });
 
   it("removes a track by name", async () => {
@@ -98,6 +104,7 @@ describe("BGM library", () => {
   it("resolveBgmTrack returns the absolute path for an existing track, undefined otherwise", async () => {
     const track = await addBgmTrack(await fakeAudio("bg.mp3"));
     expect(resolveBgmTrack("bg.mp3")).toBe(track.path);
+    expect(resolveBgmTrack(BUNDLED_DEFAULT_BGM_TRACK_NAME)).toBe(bundledDefaultBgmPath());
     // Empty/absent ⇒ no BGM (the common no-music case).
     expect(resolveBgmTrack(undefined)).toBeUndefined();
     expect(resolveBgmTrack("")).toBeUndefined();

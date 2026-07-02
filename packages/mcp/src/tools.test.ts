@@ -3,7 +3,16 @@ import fc from "fast-check";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { addBgmTrack, ensureProject, PipelineError, projectPaths, writeJson, type RenderProjectResult } from "@news/pipeline";
+import {
+  BUNDLED_DEFAULT_BGM_TRACK_NAME,
+  addBgmTrack,
+  bundledDefaultBgmPath,
+  ensureProject,
+  PipelineError,
+  projectPaths,
+  writeJson,
+  type RenderProjectResult,
+} from "@news/pipeline";
 import {
   createTools,
   fullRenderAllowed,
@@ -158,6 +167,24 @@ describe("TTS provider preservation — Property 10", () => {
     expect((await tools.render_draft({ projectId: "p" })).ok).toBe(true);
     expect((await tools.render_full({ projectId: "p" })).ok).toBe(true);
     expect(seen.map((opts) => opts?.bgmPath)).toEqual([track.path, track.path]);
+  });
+
+  it("resolves the bundled default BGM directly to the app asset without requiring a runtime copy", async () => {
+    await ensureProject("p");
+    await writeJson(projectPaths("p").manifest, { title: "T", bgm: BUNDLED_DEFAULT_BGM_TRACK_NAME, scenes: [] });
+
+    const seen: Array<Parameters<ToolDeps["renderProject"]>[1]> = [];
+    const tools = createTools({
+      draftExistsFor: () => true,
+      ttsConfig: okConfig,
+      renderProject: async (_projectId, opts) => {
+        seen.push(opts);
+        return renderOk();
+      },
+    });
+
+    expect((await tools.render_draft({ projectId: "p" })).ok).toBe(true);
+    expect(seen[0]?.bgmPath).toBe(bundledDefaultBgmPath());
   });
 
   it("passes explicit no-music through draft and full instead of allowing the default fallback", async () => {

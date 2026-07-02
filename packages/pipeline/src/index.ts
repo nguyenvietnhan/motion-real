@@ -10,6 +10,7 @@ export * from "./errors.js";
 export * from "./log/logger.js";
 export * from "./store/store.js";
 export * from "./assets/import-image.js";
+export * from "./assets/bundled-media.js";
 export * from "./ingest/url-ingest.js";
 export * from "./ingest/safe-fetch.js";
 export * from "./ingest/crawl-images.js";

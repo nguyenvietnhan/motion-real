@@ -100,6 +100,30 @@ Important files include:
 
 Shared caches live under `VIDEO_TOOL_HOME/.video-tool/cache/`.
 
+Shared user-added background music lives under
+`VIDEO_TOOL_HOME/.video-tool/bgm/`. A project stores only the selected track
+filename in its manifest. Bundled application media lives with the app, for
+example `apps/desktop/assets/bgm/default.mp3`; the default BGM is exposed as a
+virtual built-in track that resolves directly to this asset, not as a copied
+runtime-library file. Root-level media assets should not be added.
+
+## Repository Layout
+
+Root files are reserved for project-wide metadata and entry points: package
+metadata, TypeScript/Vitest config, `.env.example`, `README.md`, `LICENSE`,
+`AI_CONTRACT.md`, `AGENTS.md`, and MCP compatibility config while the MCP
+surface still exists.
+
+Use domain folders for content:
+
+- bundled desktop assets: `apps/desktop/assets/<domain>/`;
+- Remotion fixtures: `apps/remotion/src/fixtures/`;
+- runtime/generated/user state: `VIDEO_TOOL_HOME/.video-tool/<domain>/`;
+- temporary plans: `docs/working-notes/`.
+
+Do not add vendor-specific AI contract files or loose root media files. Shared
+AI guidance belongs in `AI_CONTRACT.md` and `docs/current/`.
+
 ## Boundaries
 
 - Authored scene code is admitted before render.

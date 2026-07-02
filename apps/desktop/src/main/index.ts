@@ -2,7 +2,7 @@ import { app, BrowserWindow, dialog, ipcMain, safeStorage, shell } from "electro
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { createTools } from "@news/mcp";
-import { createLogger, loadManifest, writeJson, projectPaths, videoToolHome, stagingDir, ensureProject, importImageBytes, reconcileStaleStates, pruneRenderCache, pruneTtsCache, readBrief, listBgmTracks, addBgmTrack, ensureBgmTrack, removeBgmTrack, renderThumbnail, workspaceRoot, ELEVENLABS_DEFAULT_MODEL_ID, type VoiceProvider } from "@news/pipeline";
+import { createLogger, loadManifest, writeJson, projectPaths, videoToolHome, stagingDir, ensureProject, importImageBytes, reconcileStaleStates, pruneRenderCache, pruneTtsCache, readBrief, listBgmTracks, addBgmTrack, removeBgmTrack, renderThumbnail, workspaceRoot, ELEVENLABS_DEFAULT_MODEL_ID, type VoiceProvider } from "@news/pipeline";
 import { registerIpcRouter, type InvokeHandlers } from "./ipc-router.js";
 import { ModelGatewayManager } from "./gateway/model-gateway-manager.js";
 import { buildNineRouterGatewayDeps } from "./gateway/ninerouter-deps.js";
@@ -35,7 +35,7 @@ import {
 } from "./export/native-save.js";
 import { registerMediaScheme, handleMediaProtocol, mediaUrl } from "./media-protocol.js";
 import { events, setEventTarget } from "./event-bus.js";
-import { existsSync } from "node:fs";
+import { existsSync, statSync } from "node:fs";
 import { copyFile, readFile, readdir, rm, stat } from "node:fs/promises";
 import type { DroppedImage, ModelInfo, PickImagesResult, ScriptEdit, SettingsModel } from "../shared/types.js";
 import { extractUrls } from "../shared/create-validation.js";
@@ -313,7 +313,7 @@ async function pickBgmAudioFiles(): Promise<string[] | null> {
 const bgmHandlers = createBgmHandlers({
   workspaceRoot,
   exists: existsSync,
-  ensureBgmTrack,
+  fileSize: (path) => statSync(path).size,
   listBgmTracks,
   mediaUrl,
   warn: (details, message) => log.warn(details, message),

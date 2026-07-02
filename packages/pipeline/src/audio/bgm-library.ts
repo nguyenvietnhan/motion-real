@@ -2,6 +2,7 @@ import { existsSync } from "node:fs";
 import { copyFile, mkdir, readdir, rm, stat } from "node:fs/promises";
 import { basename, extname, join } from "node:path";
 import { videoToolHome } from "../store/store.js";
+import { BUNDLED_DEFAULT_BGM_TRACK_NAME, bundledDefaultBgmPath } from "../assets/bundled-media.js";
 
 /**
  * Background-music library (freeform-engine I2/O4). BGM lives ONCE per machine
@@ -9,6 +10,8 @@ import { videoToolHome } from "../store/store.js";
  * project stores only the chosen track's filename (the `bgm` field on its
  * manifest), resolved back to an absolute path at render time and mixed under
  * the narration by the existing `mixBgm` path. Supported formats: .mp3/.m4a/.wav.
+ * The bundled default track is virtual: its manifest ref resolves directly to
+ * the app asset instead of being copied into this user library.
  *
  * The library is a flat directory of audio files — no index/db. Listing reads
  * the dir; add copies a picked file in (collision-safe); remove deletes one.
@@ -66,6 +69,7 @@ export async function listBgmTracks(): Promise<BgmTrack[]> {
   }
   const out: BgmTrack[] = [];
   for (const name of names) {
+    if (name === BUNDLED_DEFAULT_BGM_TRACK_NAME) continue;
     if (!BGM_EXTENSIONS.has(extname(name).toLowerCase())) continue;
     const path = join(dir, name);
     try {
@@ -94,29 +98,12 @@ export async function addBgmTrack(srcPath: string): Promise<BgmTrack> {
   const base = sanitizeBgmBase(basename(srcPath, extname(srcPath))) || "track";
   let name = `${base}${ext}`;
   let n = 1;
-  while (existsSync(join(dir, name))) {
+  while (name === BUNDLED_DEFAULT_BGM_TRACK_NAME || existsSync(join(dir, name))) {
     name = `${base}-${n}${ext}`;
     n += 1;
   }
   const dest = join(dir, name);
   await copyFile(srcPath, dest);
-  const st = await stat(dest);
-  return { name, path: dest, sizeBytes: st.size };
-}
-
-/**
- * Seed one known track under a stable library name without overwriting it.
- * Used by the desktop app to expose its bundled `default.mp3` in the same
- * picker as user-added tracks, so it can be previewed and selected explicitly.
- */
-export async function ensureBgmTrack(srcPath: string, name = basename(srcPath)): Promise<BgmTrack> {
-  const ext = extname(srcPath).toLowerCase();
-  if (!BGM_EXTENSIONS.has(ext) || extname(name).toLowerCase() !== ext) {
-    throw new Error(`Unsupported BGM format: ${ext || "(none)"}. Use .mp3/.m4a/.wav.`);
-  }
-  const dest = safeBgmPath(name);
-  await mkdir(bgmLibraryDir(), { recursive: true });
-  if (!existsSync(dest)) await copyFile(srcPath, dest);
   const st = await stat(dest);
   return { name, path: dest, sizeBytes: st.size };
 }
@@ -134,6 +121,10 @@ export async function removeBgmTrack(name: string): Promise<void> {
  */
 export function resolveBgmTrack(name: string | undefined): string | undefined {
   if (!name) return undefined;
+  if (name === BUNDLED_DEFAULT_BGM_TRACK_NAME) {
+    const path = bundledDefaultBgmPath();
+    return existsSync(path) ? path : undefined;
+  }
   let path: string;
   try {
     path = safeBgmPath(name);

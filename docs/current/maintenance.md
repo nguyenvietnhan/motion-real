@@ -49,6 +49,26 @@ The external MCP stdio entrypoint is legacy/product-optional under the current
 desktop-app direction. Do not delete `packages/mcp` until product code no longer
 imports `createTools` or MCP-owned types through `@news/mcp`.
 
+## Repository Hygiene
+
+Prefer descriptive, domain-owned paths over loose root files:
+
+- root: project metadata and compatibility entry points only;
+- `apps/desktop/assets/<domain>/`: bundled desktop assets shipped with the app;
+- `VIDEO_TOOL_HOME/.video-tool/<domain>/`: generated runtime state and user-added
+  media;
+- `docs/current/`: durable documentation;
+- `docs/working-notes/`: temporary plans only.
+
+AI guidance must stay vendor-neutral. `AI_CONTRACT.md` is the only contract and
+`AGENTS.md` is the generic entry-point pointer. Do not add assistant-specific
+contract files unless the owner explicitly accepts the tool adapter and it does
+not duplicate project rules.
+
+Bundled media should not be copied into runtime libraries just to make it
+selectable. Prefer virtual built-in entries that point to their app asset, while
+user-added media is copied into the canonical `.video-tool` library.
+
 ## Legacy Terms
 
 These terms may appear only when explicitly discussing compatibility or ADR

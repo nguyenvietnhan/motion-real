@@ -192,11 +192,11 @@ async function persistSafetyReport(projectId: string, report: SafetyReport): Pro
 
 /**
  * Resolve the project's chosen BGM (freeform-engine I2/O4) to an absolute path
- * for the mixer. The selection lives on the manifest's `bgm` field (a library
- * filename); we read it and resolve it through the library (which returns
- * undefined for an empty/stale/deleted ref). This boundary converts that result
- * to null so a project that says "Không nhạc" explicitly disables the legacy
- * orchestrator `default.mp3` fallback.
+ * for the mixer. The selection lives on the manifest's `bgm` field: a user
+ * library filename or the virtual bundled-default name. Empty/stale/deleted
+ * refs resolve to undefined. This boundary converts that result to null so a
+ * project that says "Không nhạc" explicitly disables the bundled orchestrator
+ * BGM fallback.
  */
 async function resolveProjectBgm(projectId: string): Promise<string | null> {
   try {

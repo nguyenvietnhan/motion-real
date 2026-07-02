@@ -1,15 +1,14 @@
-import { join } from "node:path";
-import type { BgmTrack } from "@news/pipeline";
+import { BUNDLED_DEFAULT_BGM_TRACK_NAME, bundledDefaultBgmPath, type BgmTrack } from "@news/pipeline";
 import type { BgmTrackVM } from "../../shared/types.js";
 
-export const BUNDLED_BGM_NAME = "nhac-nen-mac-dinh.mp3";
+export const BUNDLED_BGM_NAME = BUNDLED_DEFAULT_BGM_TRACK_NAME;
 
 type ManifestWithBgm = Record<string, unknown> & { bgm?: unknown };
 
 export type BgmListDeps = {
   workspaceRoot: () => string;
   exists: (path: string) => boolean;
-  ensureBgmTrack: (srcPath: string, name?: string) => Promise<BgmTrack>;
+  fileSize: (path: string) => number;
   listBgmTracks: () => Promise<BgmTrack[]>;
   mediaUrl: (path: string) => string | null;
   warn: (details: unknown, message: string) => void;
@@ -45,17 +44,22 @@ export function bgmTrackViewModel(track: BgmTrack, mediaUrl: (path: string) => s
   };
 }
 
-/** Keep the bundled track visible in the same explicit library as user tracks. */
-export async function listBgmViewModels(deps: BgmListDeps): Promise<BgmTrackVM[]> {
-  const bundled = join(deps.workspaceRoot(), "default.mp3");
-  if (deps.exists(bundled)) {
-    try {
-      await deps.ensureBgmTrack(bundled, BUNDLED_BGM_NAME);
-    } catch (error) {
-      deps.warn({ err: error, path: bundled }, "failed to expose bundled BGM");
-    }
+function bundledDefaultTrack(deps: BgmListDeps): BgmTrack | null {
+  const path = bundledDefaultBgmPath(deps.workspaceRoot());
+  if (!deps.exists(path)) return null;
+  try {
+    return { name: BUNDLED_BGM_NAME, path, sizeBytes: deps.fileSize(path) };
+  } catch (error) {
+    deps.warn({ err: error, path }, "failed to read bundled BGM asset");
+    return null;
   }
-  return (await deps.listBgmTracks()).map((track) => bgmTrackViewModel(track, deps.mediaUrl));
+}
+
+/** Keep the bundled track visible as a virtual built-in next to user tracks. */
+export async function listBgmViewModels(deps: BgmListDeps): Promise<BgmTrackVM[]> {
+  const userTracks = (await deps.listBgmTracks()).filter((track) => track.name !== BUNDLED_BGM_NAME);
+  const bundled = bundledDefaultTrack(deps);
+  return [...(bundled ? [bundled] : []), ...userTracks].map((track) => bgmTrackViewModel(track, deps.mediaUrl));
 }
 
 export function createBgmHandlers(deps: BgmHandlerDeps): BgmHandlers {

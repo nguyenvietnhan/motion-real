@@ -1,5 +1,5 @@
-import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
+import { bundledDefaultBgmPath } from "@news/pipeline";
 import {
   BUNDLED_BGM_NAME,
   bgmTrackViewModel,
@@ -16,7 +16,7 @@ function deps(overrides: Partial<BgmHandlerDeps> = {}): BgmHandlerDeps {
   return {
     workspaceRoot: () => "V:/MotionReal",
     exists: () => false,
-    ensureBgmTrack: async (srcPath, name = "default.mp3") => track(name, 1024, srcPath),
+    fileSize: () => 100,
     listBgmTracks: async () => [],
     mediaUrl: (path) => `media://${path}`,
     warn: () => undefined,
@@ -28,6 +28,8 @@ function deps(overrides: Partial<BgmHandlerDeps> = {}): BgmHandlerDeps {
     ...overrides,
   };
 }
+
+const bundledDefault = bundledDefaultBgmPath("V:/MotionReal");
 
 describe("bgmTrackViewModel", () => {
   it("labels the bundled track and marks it as built-in", () => {
@@ -52,32 +54,45 @@ describe("bgmTrackViewModel", () => {
 });
 
 describe("listBgmViewModels", () => {
-  it("exposes the bundled default when it exists", async () => {
-    const ensureBgmTrack = vi.fn(async () => track(BUNDLED_BGM_NAME, 100));
+  it("exposes the bundled default as a virtual built-in track when the asset exists", async () => {
     const result = await listBgmViewModels(
       deps({
         exists: () => true,
-        ensureBgmTrack,
-        listBgmTracks: async () => [track(BUNDLED_BGM_NAME, 100, "V:/MotionReal/.video-tool/bgm/default.mp3")],
+        fileSize: () => 100,
       }),
     );
 
-    expect(ensureBgmTrack).toHaveBeenCalledWith(join("V:/MotionReal", "default.mp3"), BUNDLED_BGM_NAME);
     expect(result).toEqual([
       expect.objectContaining({
         name: BUNDLED_BGM_NAME,
         label: "Nhạc nền mặc định",
+        previewUrl: `media://${bundledDefault}`,
         builtIn: true,
       }),
     ]);
   });
 
-  it("logs bundled exposure failures and still returns the library list", async () => {
+  it("filters stale runtime copies of the built-in name from the user library", async () => {
+    const result = await listBgmViewModels(
+      deps({
+        exists: () => true,
+        listBgmTracks: async () => [
+          track(BUNDLED_BGM_NAME, 100, "V:/MotionReal/.video-tool/bgm/nhac-nen-mac-dinh.mp3"),
+          track("user.mp3", 2048),
+        ],
+      }),
+    );
+
+    expect(result.map((item) => item.name)).toEqual([BUNDLED_BGM_NAME, "user.mp3"]);
+    expect(result[0]?.previewUrl).toBe(`media://${bundledDefault}`);
+  });
+
+  it("logs bundled size-read failures and still returns the user library list", async () => {
     const warn = vi.fn();
     const result = await listBgmViewModels(
       deps({
         exists: () => true,
-        ensureBgmTrack: async () => {
+        fileSize: () => {
           throw new Error("locked");
         },
         listBgmTracks: async () => [track("user.mp3", 2048)],
@@ -85,7 +100,7 @@ describe("listBgmViewModels", () => {
       }),
     );
 
-    expect(warn).toHaveBeenCalledWith(expect.objectContaining({ path: join("V:/MotionReal", "default.mp3") }), "failed to expose bundled BGM");
+    expect(warn).toHaveBeenCalledWith(expect.objectContaining({ path: bundledDefault }), "failed to read bundled BGM asset");
     expect(result.map((item) => item.name)).toEqual(["user.mp3"]);
   });
 });

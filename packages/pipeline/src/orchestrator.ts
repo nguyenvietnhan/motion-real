@@ -62,6 +62,7 @@ import {
   type RenderVideoResult,
 } from "./render/renderer.js";
 import { buildReview, type BuildReviewOptions, type ComposeContactSheet, type ReviewArtifacts } from "./review.js";
+import { bundledDefaultBgmPath } from "./assets/bundled-media.js";
 
 /**
  * Extra per-scene still samples for the late-drift N14 pass, as fractions through
@@ -172,7 +173,7 @@ export type RenderProjectOptions = {
   voiceId?: string;
   modelId?: string;
   speed?: number;
-  /** Absolute track path; null explicitly disables BGM, undefined keeps the legacy bundled fallback. */
+  /** Absolute track path; null explicitly disables BGM, undefined keeps the bundled fallback. */
   bgmPath?: string | null;
   concurrency?: number;
   /** Chromium `--gl` renderer. Use env `NEWS_RENDER_GL=angle` to configure globally per machine. */
@@ -915,12 +916,12 @@ async function readAuthoredSources(files: string[]): Promise<string[]> {
 }
 
 /**
- * Resolve the default background-music track: `default.mp3` at the repo root.
+ * Resolve the bundled default background-music track from the desktop asset tree.
  * Returns undefined when absent so renders simply run without BGM. Callers may
  * override with an explicit `bgmPath`.
  */
 function defaultBgmPath(): string | undefined {
-  const candidate = join(workspaceRoot(), "default.mp3");
+  const candidate = bundledDefaultBgmPath(workspaceRoot());
   return existsSync(candidate) ? candidate : undefined;
 }
 
