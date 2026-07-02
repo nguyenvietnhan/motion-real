@@ -4,7 +4,6 @@ import {
   runDoctor,
   defaultCheckStylePacks,
   defaultCheckFonts,
-  defaultCheckMcp,
   type DoctorCheck,
   type DoctorDeps,
 } from "./cli.js";
@@ -14,13 +13,13 @@ import {
 const PASS = (name: string): DoctorCheck => ({ name, ok: true, detail: "ok" });
 const FAIL = (name: string): DoctorCheck => ({ name, ok: false, detail: "missing" });
 
-/** The seven check slots runDoctor composes, in order. */
-const SLOTS = ["checkEnv", "checkFfmpeg", "checkBrowser", "checkRegistry", "checkStylePacks", "checkFonts", "checkMcp"] as const;
+/** The six check slots runDoctor composes, in order. */
+const SLOTS = ["checkEnv", "checkFfmpeg", "checkBrowser", "checkRegistry", "checkStylePacks", "checkFonts"] as const;
 
 describe("doctor — Property 16: reports every failure (never short-circuits)", () => {
   it("for any subset of failing checks, runDoctor runs all and lists exactly those failures", async () => {
     await fc.assert(
-      fc.asyncProperty(fc.array(fc.boolean(), { minLength: 7, maxLength: 7 }), async (oks) => {
+      fc.asyncProperty(fc.array(fc.boolean(), { minLength: 6, maxLength: 6 }), async (oks) => {
         const deps: DoctorDeps = {};
         const expectedFailures: string[] = [];
         SLOTS.forEach((slot, i) => {
@@ -34,8 +33,8 @@ describe("doctor — Property 16: reports every failure (never short-circuits)",
         });
 
         const report = await runDoctor(deps);
-        // Every check ran — the report always has all seven, regardless of failures.
-        expect(report.checks).toHaveLength(7);
+        // Every check ran — the report always has all six, regardless of failures.
+        expect(report.checks).toHaveLength(6);
         // overall ready iff no failures (R6.3)
         expect(report.ok).toBe(expectedFailures.length === 0);
         // Every failure is listed (R6.2/R6.4) — none swallowed by short-circuit.
@@ -60,16 +59,5 @@ describe("doctor — per-check defaults (R6.1, R6.2)", () => {
     expect(check.name).toBe("fonts (vietnamese coverage)");
     expect(check.ok).toBe(true);
     expect(check.detail).toMatch(/vietnamese/i);
-  });
-
-  it("MCP-wiring check reports a pass/fail with actionable remediation text", () => {
-    const check = defaultCheckMcp();
-    expect(check.name).toBe("MCP wiring");
-    // Whether or not the package/registration exist yet, the detail is actionable.
-    if (!check.ok) {
-      expect(check.detail).toMatch(/mcp\.json|packages\/mcp|@news\/mcp/i);
-    } else {
-      expect(check.detail).toMatch(/registered|present/i);
-    }
   });
 });

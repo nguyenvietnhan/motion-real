@@ -1,6 +1,7 @@
 # Temporary Task - Deferred Repo Cleanup Plan
 
-Status: MCP-1 source migration completed; MCP-2/MCP-3 still pending.
+Status: MCP-2 stdio de-scope completed; MCP-3 tracked `.mcp.json` policy still
+pending.
 
 This is a temporary working note for the remaining repo-noise items that were
 intentionally deferred after the repo hygiene cleanup. It is not project
@@ -95,11 +96,11 @@ one sweep.
 
 Current docs already record this policy:
 
-- `docs/current/maintenance.md` says the external MCP stdio entrypoint is
-  product-optional, but `packages/mcp` must not be deleted while product code
-  still imports `createTools` or MCP-owned types through `@news/mcp`.
+- `docs/current/maintenance.md` says `createTools` is pipeline-owned and the
+  external `@news/mcp` stdio package has been removed.
 - `docs/current/maintenance.md` also says `.mcp.json` may still contain local
-  machine-specific wiring until the MCP de-scope work is approved.
+  non-product tool wiring, including machine-specific paths, until tracked
+  config policy is decided.
 - `docs/current/maintenance.md` lists `stylePackId`, `clean-luxury-tech`, and
   `@news/design` as legacy terms that may appear only for compatibility or ADR
   history.
@@ -111,14 +112,13 @@ Current docs already record this policy:
 Known files from the latest scan:
 
 - `.mcp.json`
-  - contains the `news` MCP server command:
-    `packages/mcp/src/bin.ts`;
-  - contains a machine-specific filesystem path:
+  - no longer contains the legacy `news` MCP server command;
+  - still contains a machine-specific filesystem path:
     `V:/video_tool`.
 - `packages/mcp/src/bin.ts`
-  - stdio entrypoint.
+  - deleted in MCP-2.
 - `packages/mcp/src/server.ts`
-  - MCP server construction.
+  - deleted in MCP-2.
 - `packages/mcp/src/tools.ts`
   - moved to `packages/pipeline/src/tools/create-tools.ts` in MCP-1.
 - `packages/mcp/src/tools.test.ts`
@@ -126,7 +126,7 @@ Known files from the latest scan:
 - `packages/mcp/src/types.ts`
   - moved to `packages/pipeline/src/tools/tool-result.ts` in MCP-1.
 - `packages/mcp/src/index.ts`, `packages/mcp/package.json`
-  - package surface and dependency metadata.
+  - deleted in MCP-2.
 - `apps/desktop/src/main/index.ts`
   - now imports `createTools` from `@news/pipeline`.
 - `apps/desktop/src/main/authoring/ninerouter-backend.ts`
@@ -139,26 +139,24 @@ Known files from the latest scan:
   - no longer depends on `@news/mcp`.
 - `tsconfig.json`, `vitest.config.ts`, `package-lock.json`
   - no longer contain `@news/mcp` aliases or desktop dependency metadata;
-    package-lock still contains the workspace package while `packages/mcp`
-    remains.
+    package-lock no longer contains the `@news/mcp` workspace package.
 - `packages/pipeline/src/cli/cli.ts`
-  - has MCP doctor/remediation text.
+  - no longer has the legacy `mcp` command or MCP-wiring doctor check.
 - `README.md`, `docs/current/architecture.md`, `docs/current/maintenance.md`
   - document the current/deferred state.
 
 ### Why It Was Not Removed
 
 `packages/mcp` used to own an internal `tools.ts` facade used in-process by the
-desktop app and tests. MCP-1 moved that facade to `@news/pipeline`, so deleting
-or shrinking the remaining stdio adapter is now possible as a separate slice.
+desktop app and tests. MCP-1 moved that facade to `@news/pipeline`; MCP-2 then
+removed the remaining stdio package and `news` entry from `.mcp.json`.
 
-The remaining boundary is the external stdio server and compatibility config:
-`.mcp.json`, MCP SDK dependency, CLI doctor text, and package/docs references
-still need a focused MCP-2/MCP-3 decision.
+The remaining boundary is tracked `.mcp.json` policy: the file still contains
+non-product local tool wiring, including `V:/video_tool`.
 
 ### Proposed MCP De-Scope Plan
 
-Step MCP-0: baseline and inventory.
+Step MCP-0: baseline and inventory. Completed.
 
 ```bash
 git status --short
@@ -168,7 +166,8 @@ npm.cmd test
 npm.cmd run build
 ```
 
-Step MCP-1: move the internal tool facade to a neutral owner.
+Step MCP-1: move the internal tool facade to a neutral owner. Completed in
+commit `06d9291`.
 
 Preferred starting hypothesis:
 
@@ -212,15 +211,15 @@ refactor: move internal tool facade out of mcp package
 ```
 
 Step MCP-2: remove or shrink the external MCP stdio surface only after no
-product code imports `@news/mcp`.
+product code imports `@news/mcp`. Completed.
 
-Possible changes, subject to audit:
+Completed changes:
 
-- delete or archive `packages/mcp/src/bin.ts` and `packages/mcp/src/server.ts`;
-- remove the `news` entry from `.mcp.json`;
-- remove MCP SDK dependency if nothing else imports it;
-- update CLI doctor/remediation text in `packages/pipeline/src/cli/cli.ts`;
-- update docs.
+- deleted `packages/mcp`;
+- removed the `news` entry from `.mcp.json`;
+- removed MCP SDK/package-lock references;
+- removed the CLI `mcp` command and MCP-wiring doctor check;
+- updated docs.
 
 Required checks:
 
@@ -259,7 +258,7 @@ Examples:
 
 - root `package.json` scripts use `@news/remotion`;
 - packages are named `@news/schema`, `@news/pipeline`, `@news/compositions`,
-  `@news/blocks`, `@news/theme`, `@news/tts`, `@news/mcp`;
+  `@news/blocks`, `@news/theme`, and `@news/tts`;
 - authored scene import whitelist allows `@news/compositions`;
 - prompts and current docs tell authored scenes to import `@news/compositions`;
 - saved/generated authored scenes may already contain `@news/compositions`;
@@ -455,8 +454,8 @@ This belongs to a product/runtime maintenance task, not repo-source cleanup.
 - Do not delete `.env`.
 - Do not delete `.video-tool/projects`, successful renders, project manifests,
   or user project state.
-- Do not remove `packages/mcp` until product code no longer imports `createTools`
-  or MCP-owned types through `@news/mcp`.
+- Do not reintroduce a product dependency on `@news/mcp` or a `packages/mcp`
+  owner for the internal tool facade.
 - Do not rename `@news/*` packages in the same slice as MCP de-scope.
 - Do not remove `stylePackId` or `clean-luxury-tech` compatibility in the same
   slice as namespace or MCP cleanup.
@@ -478,17 +477,16 @@ git diff --stat
 
 ## Recommended Next Step
 
-Start with MCP-0 and MCP-1.
+Start with MCP-3.
 
 Reason:
 
-- `.mcp.json` contains the most visibly stale path (`V:/video_tool`);
-- MCP-1 is the first prerequisite because product code must stop importing the
-  internal `createTools` facade through `@news/mcp` before the MCP package can
-  become only an external adapter;
-- MCP-2 and MCP-3, not MCP-1 alone, are the steps that decide whether the
-  external stdio server remains and how the tracked `.mcp.json` path should be
-  removed or templated.
+- `.mcp.json` still contains the most visibly stale path (`V:/video_tool`);
+- MCP-1 and MCP-2 have removed the product dependency on `@news/mcp` and the
+  legacy stdio server;
+- the remaining choice is tracked config policy: remove local-only tool wiring,
+  replace it with a template, or keep a documented local-only config out of
+  source control.
 
 Do not start package namespace or style compatibility cleanup until MCP ownership
 is clarified.

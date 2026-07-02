@@ -27,8 +27,8 @@ Preferred order:
 
 1. keep docs truthful and current;
 2. inventory legacy compatibility;
-3. de-scope the legacy MCP stdio surface after the internal tool facade has its
-   neutral owner in `@news/pipeline`;
+3. decide tracked `.mcp.json` policy after the legacy MCP stdio surface is
+   removed;
 4. split authoring backend seams;
 5. revisit workspace state machine only after a new narrow slice is proven;
 6. split render-grid/orchestrator only after safer outer cleanup.
@@ -45,12 +45,11 @@ create-time image staging, BGM handlers, native save/export helpers, and
 scheme/protocol ordering, controller construction, and broad handler composition
 root-owned unless a future slice has a narrower reason than line count.
 
-The internal `createTools` facade is pipeline-owned. The external MCP stdio
-entrypoint is legacy/product-optional under the current desktop-app direction.
-Do not delete `packages/mcp` except in a focused MCP de-scope slice that updates
-the stdio config, CLI doctor text, package metadata, and docs together.
-The root `.mcp.json` compatibility config may still contain local server wiring,
-including machine-specific paths, until that MCP de-scope work is approved.
+The internal `createTools` facade is pipeline-owned. The external `@news/mcp`
+stdio package has been removed under the current desktop-app direction.
+The root `.mcp.json` compatibility config may still contain local non-product
+tool wiring, including machine-specific paths, until tracked config policy is
+decided.
 
 ## Repository Hygiene
 

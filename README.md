@@ -39,8 +39,7 @@ settings.
 | `packages/blocks` | Render runtime internals only. Not authored-facing. |
 | `packages/theme` | Neutral runtime theme for render internals. Not authored-facing. |
 | `packages/tts` | Vivibe and ElevenLabs clients plus audio helpers. |
-| `packages/pipeline` | Authoring, admission, TTS, lock, render, safety, cache, review, store. |
-| `packages/mcp` | MCP tools over the pipeline. |
+| `packages/pipeline` | Authoring, admission, TTS, lock, render, safety, cache, review, store, and internal tool facade. |
 
 ## Documentation
 
@@ -69,4 +68,3 @@ npm.cmd run build
 
 `npm.cmd run build` verifies the Remotion webpack bundle. It does not render a
 video or download a browser.
-

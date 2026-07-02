@@ -1,6 +1,5 @@
 import { spawn } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { existsSync } from "node:fs";
 import { parseArgs } from "node:util";
 import { pathToFileURL } from "node:url";
 
@@ -97,8 +96,6 @@ export async function main(argv: string[]): Promise<CliResult> {
         return await runTrackerVerb(values, positionals, emit, lines);
       case "bulk":
         return await runBulkVerb(values, emit, lines);
-      case "mcp":
-        return runMcpVerb(emit, lines);
       default:
         emit(verb ? `Unknown command: ${verb}` : "No command given.");
         emit(usage());
@@ -228,7 +225,7 @@ async function runDoctorVerb(emit: Emit, lines: string[]): Promise<CliResult> {
   return { exitCode: report.ok ? 0 : 1, lines };
 }
 
-// --- ingest / tracker / bulk / mcp ----------------------------------------
+// --- ingest / tracker / bulk ----------------------------------------------
 
 async function runIngestVerb(values: ParsedValues, positionals: string[], emit: Emit, lines: string[]): Promise<CliResult> {
   const url = positionals[1];
@@ -316,7 +313,7 @@ async function runBulkVerb(values: ParsedValues, emit: Emit, lines: string[]): P
   // must carry a projectId whose authored scenes are ready.
   const worker: BulkWorker = async (item) => {
     if (!item.projectId) {
-      throw new Error("no projectId: scaffold + author the project first (e.g. via the agent / MCP), then set the item's projectId");
+      throw new Error("no projectId: scaffold + author the project first, then set the item's projectId");
     }
     await renderProject(item.projectId, { quality: "draft" });
     await renderProject(item.projectId, { quality: "full" });
@@ -334,16 +331,6 @@ async function runBulkVerb(values: ParsedValues, emit: Emit, lines: string[]): P
   const paused = outcomes.filter((o) => o.status === "paused-resumable").length;
   emit(`Bulk run: ${outcomes.length} processed — ${done} done, ${failed} failed, ${paused} paused.`);
   return { exitCode: failed > 0 ? 1 : 0, lines };
-}
-
-function runMcpVerb(emit: Emit, lines: string[]): CliResult {
-  const root = findWorkspaceRoot() ?? process.cwd();
-  const bin = join(root, "packages", "mcp", "src", "bin.ts");
-  emit("MCP server (news) — exposes the pipeline as typed tools over stdio.");
-  emit(`  entry: ${bin}`);
-  emit("  registered in .mcp.json (server 'news'); MCP clients auto-launch it.");
-  emit("  run manually: npx tsx --env-file=.env packages/mcp/src/bin.ts");
-  return { exitCode: 0, lines };
 }
 
 /** Deterministic slug from a URL host+path (fallback tracker id). */
@@ -371,14 +358,13 @@ export type DoctorDeps = {
   checkRegistry?: () => DoctorCheck;
   checkStylePacks?: () => DoctorCheck;
   checkFonts?: () => DoctorCheck;
-  checkMcp?: () => DoctorCheck;
 };
 
 /**
  * Verify environment readiness: Vivibe `.env` config, ffmpeg, a usable headless
  * browser, registry health, the style-pack registry, per-pack Vietnamese font
- * coverage, and MCP wiring (tool-productization R6). Each probe is injectable so
- * tests never spawn ffmpeg or download Chromium. ALL checks run (never
+ * coverage, and bundled font readiness. Each probe is injectable so tests never
+ * spawn ffmpeg or download Chromium. ALL checks run (never
  * short-circuit) so a single report lists every failure (R6.4); overall ready
  * only when every check passes (R6.3). In pure AUTHOR mode the registry is empty
  * until a project's authored scenes are admitted, so the registry check reports
@@ -392,7 +378,6 @@ export async function runDoctor(deps: DoctorDeps = {}): Promise<DoctorReport> {
     (deps.checkRegistry ?? defaultCheckRegistry)(),
     (deps.checkStylePacks ?? defaultCheckStylePacks)(),
     (deps.checkFonts ?? defaultCheckFonts)(),
-    (deps.checkMcp ?? defaultCheckMcp)(),
   ];
   return { ok: checks.every((check) => check.ok), checks };
 }
@@ -484,50 +469,6 @@ export function defaultCheckFonts(): DoctorCheck {
   };
 }
 
-/** Find the workspace root by walking up from cwd for the root `.mcp.json`. */
-function findWorkspaceRoot(start: string = process.cwd()): string | undefined {
-  let dir = start;
-  for (let i = 0; i < 10; i++) {
-    if (existsSync(join(dir, ".mcp.json"))) return dir;
-    const parent = dirname(dir);
-    if (parent === dir) break;
-    dir = parent;
-  }
-  return undefined;
-}
-
-/** R6.1: the MCP server package resolves and is registered in the root `.mcp.json`. */
-export function defaultCheckMcp(): DoctorCheck {
-  const root = findWorkspaceRoot();
-  const remediation =
-    "create the @news/mcp package and add its stdio server entry to .mcp.json";
-  if (!root) {
-    return { name: "MCP wiring", ok: false, detail: `workspace root not found; ${remediation}` };
-  }
-  const hasPackage = existsSync(join(root, "packages", "mcp", "package.json"));
-  const mcpJson = join(root, ".mcp.json");
-  let listed = false;
-  if (existsSync(mcpJson)) {
-    try {
-      const cfg = JSON.parse(readFileSync(mcpJson, "utf8")) as { mcpServers?: Record<string, unknown> };
-      const servers = cfg.mcpServers ?? {};
-      listed = Object.keys(servers).some(
-        (key) => /news/i.test(key) || /news[\\/]?mcp/i.test(JSON.stringify(servers[key])),
-      );
-    } catch {
-      listed = false;
-    }
-  }
-  const missing: string[] = [];
-  if (!hasPackage) missing.push("packages/mcp not found");
-  if (!listed) missing.push(".mcp.json has no news MCP server entry");
-  return {
-    name: "MCP wiring",
-    ok: hasPackage && listed,
-    detail: missing.length === 0 ? "@news/mcp package present and registered" : `${missing.join("; ")}; ${remediation}`,
-  };
-}
-
 function probeCommand(command: string, args: string[]): Promise<boolean> {
   return new Promise((resolve) => {
     try {
@@ -588,8 +529,7 @@ function usage(): string {
     "  ingest <url> [--id <id>]            Fetch an article into planning/<id>.md (text + metadata only)",
     "  tracker list | add <url> ... | update <id> ...   Manage the bulk work queue (--tracker <path>)",
     "  bulk [--tracker <path>] [--limit N]  Resumable bulk loop over the tracker (finishes authored projects)",
-    "  mcp                                 Show how to start the MCP server (news)",
-    "  doctor | probe                      Check .env (Vivibe), ffmpeg, browser, registry, style packs, fonts, and MCP wiring",
+    "  doctor | probe                      Check .env (Vivibe), ffmpeg, browser, registry, style packs, and fonts",
   ].join("\n");
 }
 

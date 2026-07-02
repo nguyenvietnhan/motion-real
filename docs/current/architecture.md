@@ -14,7 +14,6 @@ instance.
 | `@news/compositions` | Registry, master `VideoComposition`, `ThumbnailComposition`, and the authored-facing re-export of `SceneImage`. |
 | `@news/tts` | Vivibe/LucyLab and ElevenLabs clients, audio measurement, concat/mix helpers, SRT/timestamp support. |
 | `@news/pipeline` | Authoring/admission, manifest conversion, ingest, TTS orchestration, lock, render, cache, review, safety grid, store, CLI, and the in-process `createTools` facade. |
-| `@news/mcp` | Legacy/product-optional MCP stdio adapter over the pipeline-owned tool facade. The external stdio server is a separate cleanup candidate. |
 | `apps/remotion` | Remotion root and sample fixtures. |
 | `apps/desktop` | Electron app: create flow, workspace stages, settings, 9router gateway, hidden refine, BGM, thumbnail, export. |
 
@@ -111,8 +110,8 @@ runtime-library file. Root-level media assets should not be added.
 
 Root files are reserved for project-wide metadata and entry points: package
 metadata, TypeScript/Vitest config, `.env.example`, `README.md`, `LICENSE`,
-`AI_CONTRACT.md`, `AGENTS.md`, and MCP compatibility config while the MCP
-surface still exists.
+`AI_CONTRACT.md`, `AGENTS.md`, and tracked tool compatibility config while it is
+still being de-scoped.
 
 Use domain folders for content:
 

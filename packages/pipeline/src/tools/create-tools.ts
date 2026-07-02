@@ -47,10 +47,9 @@ import { ok, err, type ToolResult } from "./tool-result.js";
 /**
  * The internal engine tool facade (tool-productization R3). Each tool is a
  * plain async function returning a `ToolResult` so it is unit-testable without a
- * transport; `packages/mcp` adapts these to MCP `registerTool` handlers. Every
- * tool drives the single-process orchestrator, so the full `N1-N30` grid, the
- * draft-first gate, determinism, caches, and the Vivibe provider rule apply
- * identically to the CLI (R3.3, R3.5, R10.1).
+ * transport. Every tool drives the single-process orchestrator, so the full
+ * `N1-N30` grid, the draft-first gate, determinism, caches, and the Vivibe
+ * provider rule apply identically to the CLI (R3.3, R3.5, R10.1).
  */
 
 // --- injectable deps (real pipeline by default) ---------------------------

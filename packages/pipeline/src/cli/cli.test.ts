@@ -38,7 +38,6 @@ describe("runDoctor", () => {
       checkBrowser: async () => PASS("browser"),
       checkStylePacks: () => PASS("style packs"),
       checkFonts: () => PASS("fonts (vietnamese coverage)"),
-      checkMcp: () => PASS("MCP wiring"),
     });
     expect(report.ok).toBe(true);
     const registry = report.checks.find((c) => c.name === "registry");
@@ -54,7 +53,6 @@ describe("runDoctor", () => {
       checkRegistry: () => PASS("registry"),
       checkStylePacks: () => PASS("style packs"),
       checkFonts: () => PASS("fonts (vietnamese coverage)"),
-      checkMcp: () => PASS("MCP wiring"),
     });
     expect(report.ok).toBe(false);
     expect(report.checks.filter((c) => !c.ok).map((c) => c.name)).toEqual(["Vivibe .env"]);
@@ -68,14 +66,13 @@ describe("runDoctor", () => {
       checkRegistry: () => PASS("registry"),
       checkStylePacks: () => FAIL("style packs"),
       checkFonts: () => PASS("fonts (vietnamese coverage)"),
-      checkMcp: () => FAIL("MCP wiring"),
     });
     expect(report.ok).toBe(false);
     expect(report.checks.filter((c) => !c.ok).map((c) => c.name).sort()).toEqual(
-      ["MCP wiring", "Vivibe .env", "style packs"].sort(),
+      ["Vivibe .env", "style packs"].sort(),
     );
-    // All seven checks are present even though several failed.
-    expect(report.checks).toHaveLength(7);
+    // All six checks are present even though several failed.
+    expect(report.checks).toHaveLength(6);
   });
 });
 
@@ -123,7 +120,7 @@ describe("main — verbs", () => {
   });
 });
 
-describe("main — new verbs (ingest / tracker / bulk / mcp)", () => {
+describe("main — new verbs (ingest / tracker / bulk)", () => {
   it("ingest with no url prints usage and exits 1", async () => {
     const res = await main(["ingest"]);
     expect(res.exitCode).toBe(1);
@@ -175,12 +172,5 @@ describe("main — new verbs (ingest / tracker / bulk / mcp)", () => {
     const res = await main(["bulk", "--limit", "0"]);
     expect(res.exitCode).toBe(1);
     expect(res.lines.join("\n")).toMatch(/Invalid --limit/);
-  });
-
-  it("mcp prints how to start the server (exit 0)", async () => {
-    const res = await main(["mcp"]);
-    expect(res.exitCode).toBe(0);
-    expect(res.lines.join("\n")).toMatch(/MCP server/);
-    expect(res.lines.join("\n")).toMatch(/bin\.ts/);
   });
 });
