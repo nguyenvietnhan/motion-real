@@ -1,6 +1,6 @@
 # Temporary Task — Architecture Modularization
 
-Status: Step 10D async workflow audit complete; Step 10E close decision next.
+Status: Step 10 complete; Step 11 next-target decision next.
 
 This is a temporary working task for the next large cleanup after the docs
 contract consolidation. Keep it updated as work progresses. Delete this file
@@ -944,6 +944,16 @@ spending context on stale detail.
   code they would move. Checks passed: `typecheck`, controller test (62 tests),
   full `test` (87 files, 866 tests), `build`, and `smoke`. Next gate: Step 10E
   close decision.
+- 2026-07-02 Step 10E complete. Closed Step 10 after the approved pure helper
+  slices only: prompt/preprompt helpers and render stage/progress helpers now
+  live in `workspace-render-flow.ts`, while async render/refine/publish
+  orchestration remains in `WorkspaceController`. Checks passed: `typecheck`,
+  controller test (62 tests), focused N10 typecheck-authored test (13 tests),
+  full `test -- --maxWorkers=1` (87 files, 866 tests), `build`, and `smoke`.
+  Note: default parallel `npm.cmd test` hit N10 TypeScript-program timeouts
+  twice under worker load; no source moved in Step 10E, and the focused N10 plus
+  single-worker full suite passed. Any runner-concurrency tuning belongs in a
+  separate tooling slice. Next gate: Step 11.
 
 ## Non-Negotiable Guardrails
 
@@ -1061,7 +1071,7 @@ Suggested commit names:
 - [x] Step 7: Extract workspace view-model and recovery helpers.
 - [x] Step 8: Extract create/crawl/image-review flow.
 - [x] Step 9: Extract script-gate flow.
-- [ ] Step 10: Extract render/refine/publish helpers or stop deliberately.
+- [x] Step 10: Extract render/refine/publish helpers or stop deliberately.
 - [ ] Step 11: Decide next target after workspace controller.
 - [ ] Step 12: Final docs/code sync sweep.
 - [ ] Step 13: Delete this temporary task file and commit deletion.
@@ -2134,11 +2144,38 @@ npm.cmd run smoke
 
 Step 10E close decision:
 
-- close Step 10 after the approved pure helper slices, or earlier if Step 10B
-  proves too risky;
-- record every non-moved async method and the reason it stays in the controller;
-- do not proceed to Step 11 until Step 10 is either completed with checks or
-  explicitly stopped with owner approval.
+- close Step 10 after the approved pure helper slices only;
+- completed extractions:
+  - `workspace-render-flow.ts` owns pure prompt/preprompt helpers:
+    `CREATIVE_BOOTSTRAP_INTENT`, `creativeBootstrapPreprompt(...)`,
+    `visionRepairIntent(...)`, and `visionRepairPreprompt(...)`;
+  - `workspace-render-flow.ts` also owns pure render stage/progress helpers:
+    `renderingStageOf(...)`, `renderPercentFromRatio(...)`,
+    `clampRenderRatio(...)`, and `renderProgressEventOf(...)`;
+- async workflow methods stay in `WorkspaceController` for the reasons recorded
+  in Step 10D:
+  `runSceneEdits`, `runVisionPasses`, `refineBeforeDraft`,
+  `refineEditedScenes`, `restoreToPriorDraft`, `runRender`, `runPublish`,
+  `publish`, `approve`, `fixWithAi`, `submitEdits`, `editHooks`,
+  `renderHooks`, and `snapshotFresh`;
+- no broad `workspace-render-workflow` object was created;
+- no render/refine/publish behavior was intentionally changed;
+- Step 10 close checks:
+  - `npm.cmd run typecheck` passed;
+  - `npm.cmd test -- apps/desktop/src/main/workspace/workspace-controller.test.ts`
+    passed (62 tests);
+  - `npm.cmd test -- packages/pipeline/src/safety/typecheck-authored.test.ts`
+    passed (13 tests) after default full-suite timeouts pointed at N10;
+  - `npm.cmd test -- --maxWorkers=1` passed (87 files, 866 tests);
+  - `npm.cmd run build` passed;
+  - `npm.cmd run smoke` passed;
+- gate caveat: default parallel `npm.cmd test` timed out twice inside
+  `packages/pipeline/src/safety/typecheck-authored.test.ts` while creating real
+  TypeScript programs under worker load. Because focused N10 and full
+  single-worker test runs passed, treat this as a runner-concurrency/test-budget
+  stability issue, not a Step 10 behavior regression. Do not tune Vitest
+  concurrency or N10 test timeouts inside this architecture slice without a
+  separate owner-approved tooling task.
 
 ## Step 11 — Decide Next Target After Workspace Controller
 
