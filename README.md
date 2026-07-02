@@ -28,6 +28,10 @@ npm.cmd run build
 Configure Vivibe or ElevenLabs credentials in `.env` or through the desktop app
 settings.
 
+Optional local MCP/dev-tool config is intentionally machine-specific. If needed,
+copy `.mcp.example.json` to `.mcp.json` and keep local filesystem paths only in
+that ignored file.
+
 ## Apps And Packages
 
 | Path | Purpose |

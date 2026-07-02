@@ -1,6 +1,6 @@
 # Temporary Task - Deferred Repo Cleanup Plan
 
-Status: MCP-2 stdio de-scope completed; MCP-3 tracked `.mcp.json` policy still
+Status: MCP cleanup completed; namespace and style compatibility cleanup still
 pending.
 
 This is a temporary working note for the remaining repo-noise items that were
@@ -22,7 +22,7 @@ Start here if this is a new session with no chat history:
 
 ```bash
 git status --short
-rg -n "V:/video_tool|@news/mcp|packages/mcp|createTools|ToolDeps|stylePackId|clean-luxury-tech|@news/design|@news/" .mcp.json package.json package-lock.json tsconfig.json vitest.config.ts apps packages docs/current README.md
+rg -n "@news/mcp|packages/mcp|createTools|ToolDeps|mcpServers|server-filesystem|stylePackId|clean-luxury-tech|@news/design|@news/" .mcp.example.json package.json package-lock.json tsconfig.json vitest.config.ts apps packages docs/current README.md
 ```
 
 Do not start implementation until the dirty worktree and current references are
@@ -98,9 +98,9 @@ Current docs already record this policy:
 
 - `docs/current/maintenance.md` says `createTools` is pipeline-owned and the
   external `@news/mcp` stdio package has been removed.
-- `docs/current/maintenance.md` also says `.mcp.json` may still contain local
-  non-product tool wiring, including machine-specific paths, until tracked
-  config policy is decided.
+- `docs/current/maintenance.md` also says `.mcp.json` is local-only and ignored,
+  while `.mcp.example.json` is the tracked template without absolute machine
+  paths.
 - `docs/current/maintenance.md` lists `stylePackId`, `clean-luxury-tech`, and
   `@news/design` as legacy terms that may appear only for compatibility or ADR
   history.
@@ -112,9 +112,10 @@ Current docs already record this policy:
 Known files from the latest scan:
 
 - `.mcp.json`
-  - no longer contains the legacy `news` MCP server command;
-  - still contains a machine-specific filesystem path:
-    `V:/video_tool`.
+  - local-only and ignored after MCP-3.
+- `.mcp.example.json`
+  - tracked template for optional local MCP/dev-tool config;
+  - does not contain a filesystem server or absolute machine path.
 - `packages/mcp/src/bin.ts`
   - deleted in MCP-2.
 - `packages/mcp/src/server.ts`
@@ -151,8 +152,9 @@ Known files from the latest scan:
 desktop app and tests. MCP-1 moved that facade to `@news/pipeline`; MCP-2 then
 removed the remaining stdio package and `news` entry from `.mcp.json`.
 
-The remaining boundary is tracked `.mcp.json` policy: the file still contains
-non-product local tool wiring, including `V:/video_tool`.
+MCP ownership is now clarified: product code uses the pipeline-owned
+`createTools` facade, the legacy stdio package is removed, and `.mcp.json` is
+local-only.
 
 ### Proposed MCP De-Scope Plan
 
@@ -160,7 +162,7 @@ Step MCP-0: baseline and inventory. Completed.
 
 ```bash
 git status --short
-rg -n "createTools|ToolDeps|@news/mcp|packages/mcp|mcpServers|V:/video_tool" .mcp.json package.json package-lock.json tsconfig.json vitest.config.ts apps packages docs/current README.md
+rg -n "createTools|ToolDeps|@news/mcp|packages/mcp|mcpServers|server-filesystem" .mcp.example.json package.json package-lock.json tsconfig.json vitest.config.ts apps packages docs/current README.md
 npm.cmd run typecheck
 npm.cmd test
 npm.cmd run build
@@ -224,7 +226,7 @@ Completed changes:
 Required checks:
 
 ```bash
-rg -n "@news/mcp|packages/mcp|mcpServers|V:/video_tool" .mcp.json package.json package-lock.json tsconfig.json vitest.config.ts apps packages docs/current README.md
+rg -n "@news/mcp|packages/mcp|mcpServers|server-filesystem" .mcp.example.json package.json package-lock.json tsconfig.json vitest.config.ts apps packages docs/current README.md
 npm.cmd run typecheck
 npm.cmd test
 npm.cmd run build
@@ -236,14 +238,14 @@ Commit suggestion:
 chore: de-scope legacy mcp stdio server
 ```
 
-Step MCP-3: decide tracked `.mcp.json` policy.
+Step MCP-3: decide tracked `.mcp.json` policy. Completed.
 
-Do not leave the stale `V:/video_tool` path as if it were a canonical path.
-Choose one owner-approved policy:
+Chosen policy:
 
-- remove the filesystem MCP server from tracked config;
-- replace tracked config with a documented template;
-- or keep a local-only config out of source control.
+- `.mcp.json` is ignored local-only config;
+- `.mcp.example.json` is the tracked template;
+- the template does not contain a filesystem MCP server or absolute machine
+  path.
 
 Do not silently replace it with another machine-specific absolute path.
 
@@ -477,16 +479,16 @@ git diff --stat
 
 ## Recommended Next Step
 
-Start with MCP-3.
+Start with NS-0: decide whether the internal `@news/*` namespace remains
+acceptable compatibility or should gain `@motionreal/*` aliases first.
 
 Reason:
 
-- `.mcp.json` still contains the most visibly stale path (`V:/video_tool`);
-- MCP-1 and MCP-2 have removed the product dependency on `@news/mcp` and the
-  legacy stdio server;
-- the remaining choice is tracked config policy: remove local-only tool wiring,
-  replace it with a template, or keep a documented local-only config out of
-  source control.
+- MCP-1 through MCP-3 have removed the product dependency on `@news/mcp`, the
+  legacy stdio server, and tracked machine-specific `.mcp.json` config;
+- the remaining deferred cleanup surfaces are namespace compatibility and style
+  compatibility;
+- namespace work should start with an owner decision before any package or
+  authored-scene import migration.
 
-Do not start package namespace or style compatibility cleanup until MCP ownership
-is clarified.
+Do not combine namespace cleanup with style compatibility cleanup.

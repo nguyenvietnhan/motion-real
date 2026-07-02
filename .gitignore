@@ -2,6 +2,7 @@ node_modules/
 dist/
 out/
 .env
+.mcp.json
 .video-tool/
 coverage/
 .cleanup-quarantine/

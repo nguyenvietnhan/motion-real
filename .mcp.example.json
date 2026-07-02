@@ -8,15 +8,6 @@
       ],
       "env": {}
     },
-    "filesystem": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "@modelcontextprotocol/server-filesystem@latest",
-        "V:/video_tool"
-      ],
-      "env": {}
-    },
     "context7": {
       "command": "npx",
       "args": [

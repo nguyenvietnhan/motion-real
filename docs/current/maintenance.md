@@ -27,8 +27,7 @@ Preferred order:
 
 1. keep docs truthful and current;
 2. inventory legacy compatibility;
-3. decide tracked `.mcp.json` policy after the legacy MCP stdio surface is
-   removed;
+3. keep `.mcp.json` local-only after the legacy MCP stdio surface removal;
 4. split authoring backend seams;
 5. revisit workspace state machine only after a new narrow slice is proven;
 6. split render-grid/orchestrator only after safer outer cleanup.
@@ -47,9 +46,9 @@ root-owned unless a future slice has a narrower reason than line count.
 
 The internal `createTools` facade is pipeline-owned. The external `@news/mcp`
 stdio package has been removed under the current desktop-app direction.
-The root `.mcp.json` compatibility config may still contain local non-product
-tool wiring, including machine-specific paths, until tracked config policy is
-decided.
+The root `.mcp.json` is local-only and ignored. Keep `.mcp.example.json` as a
+template without absolute machine paths; do not reintroduce a repo-provided
+`news` MCP server without a focused owner-approved slice.
 
 ## Repository Hygiene
 

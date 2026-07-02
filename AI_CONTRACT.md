@@ -85,7 +85,7 @@ explicit owner approval.
 
 For video production:
 
-1. Scaffold or create a project through the supported desktop/MCP/pipeline path.
+1. Scaffold or create a project through the supported desktop or pipeline path.
 2. Author fresh scene modules and manifest.
 3. Render stills for fast visual inspection/refine.
 4. Render a draft MP4.
@@ -93,8 +93,9 @@ For video production:
 6. Render full only after explicit approval.
 
 For OpenAI/Remotion/React/Zod/Electron or other library questions, verify against
-official/current docs before changing code. For pipeline operations, prefer the
-available `news` MCP tools when they are available in the environment.
+official/current docs before changing code. For pipeline operations, use the
+supported desktop, CLI, or pipeline APIs; do not assume a repo-provided `news`
+MCP server exists.
 
 ## Development Rules
 

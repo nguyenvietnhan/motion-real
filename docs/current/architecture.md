@@ -110,8 +110,8 @@ runtime-library file. Root-level media assets should not be added.
 
 Root files are reserved for project-wide metadata and entry points: package
 metadata, TypeScript/Vitest config, `.env.example`, `README.md`, `LICENSE`,
-`AI_CONTRACT.md`, `AGENTS.md`, and tracked tool compatibility config while it is
-still being de-scoped.
+`AI_CONTRACT.md`, `AGENTS.md`, and `.mcp.example.json` as the local tool config
+template. Machine-specific `.mcp.json` files are local-only and ignored.
 
 Use domain folders for content:
 
