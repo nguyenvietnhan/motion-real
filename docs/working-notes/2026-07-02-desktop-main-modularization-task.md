@@ -1,6 +1,7 @@
 # Temporary Task - Desktop Main Modularization
 
-Status: Step 0 baseline complete; Step 1 runtime-env extraction next.
+Status: Step 0 baseline complete; MCP de-scope note recorded; Step 1
+runtime-env extraction next.
 
 This is a temporary working task for thinning
 `apps/desktop/src/main/index.ts`. It is not project contract. Current contract
@@ -130,6 +131,25 @@ Explicit deferrals from the scan:
   `registerMediaScheme()`, `handleMediaProtocol()`, stale-state reconciliation,
   gateway start, and window creation is more important than raw line count.
 
+MCP de-scope finding:
+
+- The product direction is now a desktop app that connects to API providers, not
+  an AI-agent skill packaged primarily around an MCP server.
+- The external MCP stdio surface appears legacy/product-optional:
+  `packages/mcp/src/bin.ts`, `packages/mcp/src/server.ts`, the `news` entry in
+  `.mcp.json`, and the MCP SDK dependency.
+- Do not delete `packages/mcp` during Steps 1-5. Desktop currently imports
+  `createTools` from `@news/mcp` and uses it as an in-process tool facade for
+  `list_projects` and `scaffold_project`; tests also import `createTools` and
+  `ToolDeps`.
+- The confusing boundary is naming/ownership, not proof that the code is trash:
+  `createTools` likely belongs in a neutral pipeline or desktop service module
+  before the external MCP server can be removed.
+- Step 6 must audit whether to split this into a separate MCP de-scope task:
+  first move/rename the internal tool facade away from `@news/mcp`, then remove
+  the stdio server, `.mcp.json` news entry, CLI doctor MCP checks, and MCP SDK
+  dependency only after no product code imports them.
+
 ## Non-Negotiable Guardrails
 
 - Do not change IPC channel names or payload shapes.
@@ -137,6 +157,8 @@ Explicit deferrals from the scan:
 - Do not change TTS provider fallback or silently downgrade voice provider.
 - Do not change `SettingsStore` persistence semantics.
 - Do not touch `packages/mcp/src/bin.ts`.
+- Do not remove or rename `@news/mcp` inside Steps 1-5; MCP de-scope belongs to
+  the Step 6 audit or a separate owner-approved task.
 - Do not touch `packages/pipeline/src/orchestrator.ts` or
   `packages/pipeline/src/safety/render-grid.ts`.
 - Do not create a new package or public barrel for this task.
@@ -222,6 +244,11 @@ For each completed step, add at most:
   moved. Baseline checks passed: `npm.cmd run typecheck`, `npm.cmd test`
   (normal lane: 86 files / 853 tests; N10 heavy lane: 1 file / 13 tests), and
   `npm.cmd run build`. Next gate: Step 1.
+- 2026-07-02 MCP de-scope note recorded. Verified `packages/mcp/src/bin.ts` is
+  a real stdio MCP entrypoint, not trash, but the external MCP server appears
+  product-optional under the current desktop-app direction. Kept Steps 1-5
+  unchanged and assigned internal tool-facade/MCP removal decisions to Step 6 or
+  a separate task. No source code moved. Next gate: Step 1.
 
 ## Progress Checklist
 
@@ -578,13 +605,20 @@ Expected output:
 
 ## Step 6 - Handler Builder Decision
 
-Goal: decide deliberately whether to extract the remaining `handlers` map.
+Goal: decide deliberately whether to extract the remaining `handlers` map and
+whether MCP de-scope needs a separate task.
 
 Audit after Steps 1-5:
 
 - count remaining `index.ts` lines;
 - list remaining inline handler groups;
 - compare handler deps needed for a potential builder.
+- audit the remaining `@news/mcp` dependency from desktop:
+  - `createTools`;
+  - `ToolDeps` type imports in desktop tests/backend typing;
+  - `apps/desktop/build-electron.mjs` alias to `packages/mcp/src/tools.ts`;
+  - `tsconfig`/Vitest aliases;
+  - CLI doctor/MCP references and `.mcp.json` news server entry.
 
 Expected decision unless evidence changes:
 
@@ -594,6 +628,8 @@ Expected decision unless evidence changes:
   - license/AI gateway handlers;
   - script/review/workspace delegation handlers;
   - settings/TTS handlers.
+- do not delete `packages/mcp` until the internal `createTools` facade has a
+  neutral owner outside the MCP package, likely as a separate follow-up task.
 
 Possible destination only if justified:
 
@@ -620,6 +656,8 @@ Expected output:
 
 - either a small handler builder with direct tests, or a written stop decision
   explaining why `index.ts` should keep root handler composition.
+- a written decision on whether MCP de-scope stays out of this desktop-main
+  modularization and becomes its own task.
 - Commit suggestion if code changed:
   `refactor(desktop): group desktop ipc handlers`.
 
