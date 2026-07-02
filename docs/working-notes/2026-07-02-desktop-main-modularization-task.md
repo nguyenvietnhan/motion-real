@@ -1,6 +1,6 @@
 # Temporary Task - Desktop Main Modularization
 
-Status: Step 2 image-staging extraction complete; Step 3 BGM extraction next.
+Status: Step 3 BGM extraction complete; Step 4 native-save extraction next.
 
 This is a temporary working task for thinning
 `apps/desktop/src/main/index.ts`. It is not project contract. Current contract
@@ -267,6 +267,19 @@ For each completed step, add at most:
   `npm.cmd run build`. Desktop GUI smoke was not run because this slice requires
   interactive app/dialog use (`pick/import/remove image`) that cannot
   self-complete in this tool session. Next gate: Step 3.
+- 2026-07-02 transient create-input/render concern checked. The create textarea
+  source was not disabled and Step 2 did not touch renderer files; the issue
+  resolved after app/runtime recovery, so no source fix was made. The reported
+  render instability also did not reproduce after the owner completed a render.
+  Next gate stayed Step 3.
+- 2026-07-02 Step 3 complete. Extracted BGM view-model/list/handler behavior into
+  `apps/desktop/src/main/bgm/bgm-handlers.ts`, added direct tests, and kept only
+  the native BGM picker adapter in `index.ts`. Checks passed:
+  `npm.cmd run typecheck`, `bgm-handlers.test.ts` (8 tests),
+  `bgm-library.test.ts` (9 tests), full `npm.cmd test` (normal lane: 89 files /
+  872 tests; N10 heavy lane: 1 file / 13 tests), and `npm.cmd run build`.
+  Desktop GUI smoke was not run because BGM list/add/remove/select requires
+  interactive app/dialog/audio-picker use. Next gate: Step 4.
 
 ## Progress Checklist
 
@@ -274,7 +287,7 @@ For each completed step, add at most:
 - [x] Step 0: Baseline and dirty-worktree ownership.
 - [x] Step 1: Extract runtime env parsing/boot voice helpers.
 - [x] Step 2: Extract create-time image staging helpers.
-- [ ] Step 3: Extract BGM view-model and handlers.
+- [x] Step 3: Extract BGM view-model and handlers.
 - [ ] Step 4: Extract native save/export helpers.
 - [ ] Step 5: Extract small create/project IPC payload helpers.
 - [ ] Step 6: Decide whether to extract a handler builder or stop.
@@ -771,17 +784,16 @@ Expected output:
 
 ## Current Next Source Slice Recommendation
 
-After owner approval, start with Step 3.
+After owner approval, start with Step 4.
 
 Reason:
 
-- Step 2 isolated native image staging/delete/sweep behavior with direct tests
-  and full checks;
-- Step 3 is the next contained helper/handler group because desktop BGM
-  view-model and contained BGM IPC behavior still live inline in `index.ts`;
-- keep Step 3 in the planned 3A/3B order and do not touch pipeline BGM storage,
-  manifest schema, workspace render/publish behavior, or project-level silence
-  semantics.
+- Step 3 isolated BGM view-model/list/handler behavior with direct tests and
+  full checks;
+- Step 4 is the next contained extraction candidate because native save/export
+  behavior is still inline in `index.ts` and has no direct helper tests.
+- keep Step 4 scoped to native save/export helpers; do not move thumbnail
+  generation, pipeline render behavior, media protocol, or Electron lifecycle.
 
-If Step 3 reveals BGM library or silence-semantics ambiguity, stop and fix that
-before native save/export extraction.
+If Step 4 reveals export/native-dialog ambiguity, stop and fix that before any
+create IPC payload helper extraction.

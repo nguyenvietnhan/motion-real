@@ -2,7 +2,7 @@ import { app, BrowserWindow, dialog, ipcMain, safeStorage, shell } from "electro
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { createTools } from "@news/mcp";
-import { createLogger, loadManifest, writeJson, projectPaths, videoToolHome, stagingDir, ensureProject, importImageBytes, reconcileStaleStates, pruneRenderCache, pruneTtsCache, readBrief, listBgmTracks, addBgmTrack, ensureBgmTrack, removeBgmTrack, renderThumbnail, workspaceRoot, ELEVENLABS_DEFAULT_MODEL_ID, type BgmTrack, type VoiceProvider } from "@news/pipeline";
+import { createLogger, loadManifest, writeJson, projectPaths, videoToolHome, stagingDir, ensureProject, importImageBytes, reconcileStaleStates, pruneRenderCache, pruneTtsCache, readBrief, listBgmTracks, addBgmTrack, ensureBgmTrack, removeBgmTrack, renderThumbnail, workspaceRoot, ELEVENLABS_DEFAULT_MODEL_ID, type VoiceProvider } from "@news/pipeline";
 import { registerIpcRouter, type InvokeHandlers } from "./ipc-router.js";
 import { ModelGatewayManager } from "./gateway/model-gateway-manager.js";
 import { buildNineRouterGatewayDeps } from "./gateway/ninerouter-deps.js";
@@ -25,6 +25,7 @@ import {
   unstageImage,
   type ImageStagingDeps,
 } from "./create/image-staging.js";
+import { createBgmHandlers } from "./bgm/bgm-handlers.js";
 import { registerMediaScheme, handleMediaProtocol, mediaUrl } from "./media-protocol.js";
 import { events, setEventTarget } from "./event-bus.js";
 import { existsSync } from "node:fs";
@@ -57,35 +58,6 @@ const bootVoiceEnv = resolveBootVoiceEnv(process.env, fileEnv);
 applyNonSensitiveEnvironment(fileEnv);
 scrubSensitiveEnvironment(fileEnv);
 scrubSensitiveEnvironment(process.env);
-
-const BUNDLED_BGM_NAME = "nhac-nen-mac-dinh.mp3";
-
-/** Map a library BGM track to its renderer VM (label + preview URL stay local). */
-function toBgmVM(t: BgmTrack) {
-  const mb = t.sizeBytes / (1024 * 1024);
-  const sizeLabel = mb >= 1 ? `${mb.toFixed(1)} MB` : `${Math.max(1, Math.round(t.sizeBytes / 1024))} KB`;
-  const builtIn = t.name === BUNDLED_BGM_NAME;
-  return {
-    name: t.name,
-    label: builtIn ? "Nhạc nền mặc định" : t.name,
-    sizeLabel,
-    previewUrl: mediaUrl(t.path) ?? "",
-    builtIn,
-  };
-}
-
-/** Keep the bundled track visible in the same explicit library as user tracks. */
-async function listBgmViewModels() {
-  const bundled = join(workspaceRoot(), "default.mp3");
-  if (existsSync(bundled)) {
-    try {
-      await ensureBgmTrack(bundled, BUNDLED_BGM_NAME);
-    } catch (e) {
-      console.warn("[desktop] failed to expose bundled BGM:", e);
-    }
-  }
-  return (await listBgmTracks()).map(toBgmVM);
-}
 
 /**
  * Electron main = the ENGINE HOST (web-dashboard). Imports the MCP tools (and
@@ -320,6 +292,31 @@ async function pickImages(): Promise<PickImagesResult> {
 // (the LicenseService seam; HttpLicenseService is the future online adapter).
 const licenseManager = new LicenseManager({ service: new DevLicenseService(), machineId: "dev" });
 
+async function pickBgmAudioFiles(): Promise<string[] | null> {
+  const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0];
+  const opts = {
+    title: "Thêm nhạc nền",
+    properties: ["openFile", "multiSelections"] as Array<"openFile" | "multiSelections">,
+    filters: [{ name: "Âm thanh", extensions: ["mp3", "m4a", "wav"] }],
+  };
+  const picked = win ? await dialog.showOpenDialog(win, opts) : await dialog.showOpenDialog(opts);
+  return picked.canceled ? null : picked.filePaths;
+}
+
+const bgmHandlers = createBgmHandlers({
+  workspaceRoot,
+  exists: existsSync,
+  ensureBgmTrack,
+  listBgmTracks,
+  mediaUrl,
+  warn: (details, message) => log.warn(details, message),
+  pickAudioFiles: pickBgmAudioFiles,
+  addBgmTrack,
+  removeBgmTrack,
+  loadManifest,
+  writeManifest: (projectId, manifest) => writeJson(projectPaths(projectId).manifest, manifest),
+});
+
 const handlers: InvokeHandlers = {
   "license:get": () => licenseManager.current(),
   "license:activate": (key) => licenseManager.activate(String(key)),
@@ -414,58 +411,7 @@ const handlers: InvokeHandlers = {
     return undefined;
   },
 
-  "bgm:list": listBgmViewModels,
-  "bgm:add": async () => {
-    // Open a native multi-select picker and copy each chosen audio file into the
-    // per-machine library (collision-safe). A single bad/locked file is skipped
-    // (logged) rather than aborting the rest; the updated list is returned.
-    const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0];
-    const opts = {
-      title: "Thêm nhạc nền",
-      properties: ["openFile", "multiSelections"] as Array<"openFile" | "multiSelections">,
-      filters: [{ name: "Âm thanh", extensions: ["mp3", "m4a", "wav"] }],
-    };
-    const picked = win ? await dialog.showOpenDialog(win, opts) : await dialog.showOpenDialog(opts);
-    if (!picked.canceled) {
-      for (const path of picked.filePaths) {
-        try {
-          await addBgmTrack(path);
-        } catch (e) {
-          console.warn(`[desktop] bgm:add skipped "${path}":`, e);
-        }
-      }
-    }
-    return listBgmViewModels();
-  },
-  "bgm:remove": async (name) => {
-    const trackName = String(name);
-    if (trackName !== BUNDLED_BGM_NAME) await removeBgmTrack(trackName);
-    return listBgmViewModels();
-  },
-  "bgm:getForProject": async (projectId) => {
-    try {
-      const manifest = await loadManifest(String(projectId));
-      const bgm = (manifest as { bgm?: unknown }).bgm;
-      return typeof bgm === "string" && bgm.length > 0 ? bgm : null;
-    } catch (e) {
-      console.warn(`[desktop] bgm:getForProject failed for ${String(projectId)}:`, e);
-      return null;
-    }
-  },
-  "bgm:setForProject": async (projectId, name) => {
-    // Persist the project's BGM choice on its manifest (load full → patch → write,
-    // same as rename so theme/format/scenes survive). null/empty clears it.
-    const id = String(projectId);
-    try {
-      const manifest = await loadManifest(id);
-      const chosen = typeof name === "string" && name.length > 0 ? name : undefined;
-      const next = { ...manifest, ...(chosen ? { bgm: chosen } : { bgm: undefined }) };
-      await writeJson(projectPaths(id).manifest, next);
-    } catch (e) {
-      console.warn(`[desktop] bgm:setForProject failed for ${id}:`, e);
-    }
-    return undefined;
-  },
+  ...bgmHandlers,
 
   "thumbnail:generate": (projectId) => workspace.generateThumbnail(String(projectId)),
   "thumbnail:save": async (projectId) => {
