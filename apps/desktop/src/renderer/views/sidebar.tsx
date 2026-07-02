@@ -3,7 +3,7 @@ import type { AiAccountState, GatewayState } from "../../shared/types.js";
 import { Icon } from "../icons.js";
 import { activeAccount } from "../../shared/active-account.js";
 import { aiStatus, type Screen } from "../primitives.js";
-import logoUrl from "../logo.png";
+import logoUrl from "../../../assets/brand/logo.png";
 
 /** Left navigation rail + AI status card. */
 export const Sidebar: React.FC<{

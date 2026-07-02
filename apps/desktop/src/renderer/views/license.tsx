@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import type { LicenseState } from "../../shared/types.js";
-import logoUrl from "../logo.png";
+import logoUrl from "../../../assets/brand/logo.png";
 
 /** First-run license activation screen. */
 export const LicenseView: React.FC<{
