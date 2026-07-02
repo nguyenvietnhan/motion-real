@@ -22,14 +22,34 @@ const args = process.argv.slice(2);
 const cwd = process.cwd().replace(/^([a-z]):/, (_m, d: string) => `${d.toUpperCase()}:`);
 const require = createRequire(import.meta.url);
 const vitestBin = join(dirname(require.resolve("vitest/package.json")), "vitest.mjs");
+const heavyTest = "packages/pipeline/src/safety/typecheck-authored.test.ts";
 
-const child = spawn(process.execPath, [vitestBin, "run", ...args], {
-  cwd,
-  stdio: "inherit",
-  shell: false,
-});
+function runVitest(runArgs: string[]): Promise<number> {
+  return new Promise((resolveCode) => {
+    const child = spawn(process.execPath, [vitestBin, "run", ...runArgs], {
+      cwd,
+      stdio: "inherit",
+      shell: false,
+    });
 
-child.on("exit", (code, signal) => {
-  if (signal) process.kill(process.pid, signal);
-  else process.exit(code ?? 1);
-});
+    child.on("error", (error) => {
+      console.error(error);
+      resolveCode(1);
+    });
+
+    child.on("exit", (code, signal) => {
+      if (signal) process.kill(process.pid, signal);
+      else resolveCode(code ?? 1);
+    });
+  });
+}
+
+let code: number;
+if (args.length === 0) {
+  code = await runVitest(["--exclude", heavyTest]);
+  if (code === 0) code = await runVitest(["--maxWorkers=1", heavyTest]);
+} else {
+  code = await runVitest(args);
+}
+
+process.exit(code);

@@ -1,6 +1,6 @@
 # Temporary Task — Architecture Modularization
 
-Status: Step 11 next-target decision complete; test stability slice next.
+Status: Step 11A test stability complete; Step 12 final sync next.
 
 This is a temporary working task for the next large cleanup after the docs
 contract consolidation. Keep it updated as work progresses. Delete this file
@@ -1073,6 +1073,7 @@ Suggested commit names:
 - [x] Step 9: Extract script-gate flow.
 - [x] Step 10: Extract render/refine/publish helpers or stop deliberately.
 - [x] Step 11: Decide next target after workspace controller.
+- [x] Step 11A: Stabilize N10 default test lane.
 - [ ] Step 12: Final docs/code sync sweep.
 - [ ] Step 13: Delete this temporary task file and commit deletion.
 
@@ -2223,6 +2224,34 @@ Step 11 decision:
   `packages/pipeline/src/safety/render-grid.ts` before the test-runner issue is
   understood;
 - no source-code refactor is in progress for this step.
+
+## Step 11A — Stabilize N10 Default Test Lane
+
+Goal: make the default full test run less sensitive to worker-load timeouts
+without changing product behavior.
+
+Decision:
+
+- keep N10 itself unchanged;
+- keep focused test commands unchanged;
+- split only the default no-args `npm.cmd test` runner path:
+  - first run the normal suite with
+    `packages/pipeline/src/safety/typecheck-authored.test.ts` excluded;
+  - then run `packages/pipeline/src/safety/typecheck-authored.test.ts` alone
+    with `--maxWorkers=1`;
+- continue treating the earlier default parallel timeout as test-runner
+  concurrency/test-budget instability, not a Step 10 behavior regression.
+
+Checks:
+
+- pre-change focused N10 passed: 1 file / 13 tests;
+- pre-change default `npm.cmd test` passed on this run, confirming the issue is
+  intermittent rather than deterministic;
+- post-change `npm.cmd run typecheck` passed;
+- post-change focused N10 passed: 1 file / 13 tests;
+- post-change default `npm.cmd test` passed as two lanes:
+  - normal lane: 86 files / 853 tests;
+  - N10 heavy lane: 1 file / 13 tests.
 
 ## Step 12 — Final Docs And Code Sync Sweep
 
