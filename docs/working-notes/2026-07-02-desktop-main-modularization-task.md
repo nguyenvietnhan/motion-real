@@ -1,6 +1,7 @@
 # Temporary Task - Desktop Main Modularization
 
-Status: Step 5 create-ipc extraction complete; Step 6 handler/MCP audit next.
+Status: Step 6 handler/MCP audit complete; Step 7 startup/window close audit
+next.
 
 This is a temporary working task for thinning
 `apps/desktop/src/main/index.ts`. It is not project contract. Current contract
@@ -296,6 +297,15 @@ For each completed step, add at most:
   885 tests; N10 heavy lane: 1 file / 13 tests), and `npm.cmd run build`. No GUI
   smoke was needed because this slice only moved pure IPC payload helpers. Next
   gate: Step 6.
+- 2026-07-02 Step 6 complete. Audited `index.ts` after Steps 1-5: 517 physical
+  lines remain; handler composition has 36 explicit handler keys plus the 5-key
+  `bgmHandlers` group, matching the 41 invoke channels. Decision: do not extract
+  a giant handler builder because it would need most root services and
+  Electron-adjacent adapters. Tiny groups are not worth a new source slice yet.
+  `promoteImages` remains root-owned. MCP de-scope stays out of this
+  desktop-main modularization and should become a separate follow-up after the
+  internal `createTools` facade is moved to a neutral owner. Docs-only checks
+  passed. Next gate: Step 7.
 
 ## Progress Checklist
 
@@ -306,7 +316,7 @@ For each completed step, add at most:
 - [x] Step 3: Extract BGM view-model and handlers.
 - [x] Step 4: Extract native save/export helpers.
 - [x] Step 5: Extract small create/project IPC payload helpers.
-- [ ] Step 6: Decide whether to extract a handler builder or stop.
+- [x] Step 6: Decide whether to extract a handler builder or stop.
 - [ ] Step 7: Window/startup close audit.
 - [ ] Step 8: Final docs/code sync.
 - [ ] Step 9: Delete this temporary task file.
@@ -800,17 +810,16 @@ Expected output:
 
 ## Current Next Source Slice Recommendation
 
-After owner approval, start with Step 6.
+After owner approval, start with Step 7.
 
 Reason:
 
-- Step 5 isolated create IPC payload coercion and voice-provider validation with
-  direct tests and
-  full checks;
-- Step 6 is now a decision/audit gate, not an automatic extraction: count the
-  remaining `index.ts` lines, list remaining inline handler groups, compare
-  dependencies for any tiny handler builders, and audit whether MCP de-scope
-  belongs in this task or a separate follow-up.
+- Step 6 deliberately stopped before creating a broad handler builder and split
+  MCP de-scope into a future follow-up;
+- Step 7 is now the startup/window close audit: confirm which Electron lifecycle
+  code remains root-owned and only extract a tiny window-options helper if it is
+  genuinely clearer.
 
-If Step 6 shows a handler builder would require passing most services/Electron
-primitives, record the stop decision instead of extracting a giant builder.
+If Step 7 shows moving lifecycle code would hide important ordering around
+media scheme/protocol, stale-state reconciliation, gateway start, or window
+creation, record the stop decision and leave it in `index.ts`.
