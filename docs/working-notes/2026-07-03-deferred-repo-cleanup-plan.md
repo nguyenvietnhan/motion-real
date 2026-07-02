@@ -1,6 +1,6 @@
 # Temporary Task - Deferred Repo Cleanup Plan
 
-Status: planning note created; no deferred cleanup source migration started yet.
+Status: MCP-1 source migration completed; MCP-2/MCP-3 still pending.
 
 This is a temporary working note for the remaining repo-noise items that were
 intentionally deferred after the repo hygiene cleanup. It is not project
@@ -120,23 +120,27 @@ Known files from the latest scan:
 - `packages/mcp/src/server.ts`
   - MCP server construction.
 - `packages/mcp/src/tools.ts`
-  - internal tool facade currently used by desktop/product code.
+  - moved to `packages/pipeline/src/tools/create-tools.ts` in MCP-1.
 - `packages/mcp/src/tools.test.ts`
-  - direct tests for the tool facade; should move with the facade in MCP-1.
+  - moved to `packages/pipeline/src/tools/create-tools.test.ts` in MCP-1.
+- `packages/mcp/src/types.ts`
+  - moved to `packages/pipeline/src/tools/tool-result.ts` in MCP-1.
 - `packages/mcp/src/index.ts`, `packages/mcp/package.json`
   - package surface and dependency metadata.
 - `apps/desktop/src/main/index.ts`
-  - imports `createTools` from `@news/mcp`.
+  - now imports `createTools` from `@news/pipeline`.
 - `apps/desktop/src/main/authoring/ninerouter-backend.ts`
-  - imports the `createTools` type from `@news/mcp`.
+  - now imports the `createTools` type from `@news/pipeline`.
 - `apps/desktop/src/main/preserved-invariants.test.ts`
-  - imports `createTools` and `ToolDeps` from `@news/mcp`.
+  - now imports `createTools` and `ToolDeps` from `@news/pipeline`.
 - `apps/desktop/build-electron.mjs`
-  - aliases `@news/mcp` to `packages/mcp/src/tools.ts`.
+  - no longer aliases `@news/mcp` into the desktop bundle.
 - `apps/desktop/package.json`
-  - depends on `@news/mcp`.
+  - no longer depends on `@news/mcp`.
 - `tsconfig.json`, `vitest.config.ts`, `package-lock.json`
-  - contain workspace/alias/dependency references.
+  - no longer contain `@news/mcp` aliases or desktop dependency metadata;
+    package-lock still contains the workspace package while `packages/mcp`
+    remains.
 - `packages/pipeline/src/cli/cli.ts`
   - has MCP doctor/remediation text.
 - `README.md`, `docs/current/architecture.md`, `docs/current/maintenance.md`
@@ -144,14 +148,13 @@ Known files from the latest scan:
 
 ### Why It Was Not Removed
 
-`packages/mcp` is not only an external server. Its `tools.ts` facade is still
-used in-process by the desktop app and tests. Deleting MCP first would break
-desktop create/scaffold flows, authoring backend typing, build aliases, and
-tests.
+`packages/mcp` used to own an internal `tools.ts` facade used in-process by the
+desktop app and tests. MCP-1 moved that facade to `@news/pipeline`, so deleting
+or shrinking the remaining stdio adapter is now possible as a separate slice.
 
-The confusing boundary is ownership and naming: the internal tool facade likely
-belongs outside `packages/mcp`, while the stdio MCP server can become optional
-or removable after product code no longer imports it.
+The remaining boundary is the external stdio server and compatibility config:
+`.mcp.json`, MCP SDK dependency, CLI doctor text, and package/docs references
+still need a focused MCP-2/MCP-3 decision.
 
 ### Proposed MCP De-Scope Plan
 

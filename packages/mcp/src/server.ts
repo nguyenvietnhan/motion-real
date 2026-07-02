@@ -14,12 +14,12 @@ import {
   trackerAddInput,
   trackerUpdateInput,
   getSafetyReportInput,
-} from "./tools.js";
-import type { ToolResult } from "./types.js";
+  type ToolResult,
+} from "@news/pipeline";
 
 /**
  * Build the MCP server (tool-productization R3). Each tool delegates to the
- * `tools.ts` layer (which drives the single-process orchestrator) and renders
+ * pipeline-owned tool facade (which drives the single-process orchestrator) and renders
  * the `ToolResult` as an MCP `CallToolResult`: the structured payload as JSON
  * text plus `isError` on a failure, so a hard grid failure / refusal surfaces as
  * a failing tool result and never as "done" (R3.5, R10.1).

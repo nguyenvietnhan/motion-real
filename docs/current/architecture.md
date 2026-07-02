@@ -13,8 +13,8 @@ instance.
 | `@news/blocks` | Render runtime internals: captions, scene timing, motion helpers, layout probe, fonts, chrome helpers, and `SceneImage`. Authored scenes do not import this package. |
 | `@news/compositions` | Registry, master `VideoComposition`, `ThumbnailComposition`, and the authored-facing re-export of `SceneImage`. |
 | `@news/tts` | Vivibe/LucyLab and ElevenLabs clients, audio measurement, concat/mix helpers, SRT/timestamp support. |
-| `@news/pipeline` | Authoring/admission, manifest conversion, ingest, TTS orchestration, lock, render, cache, review, safety grid, store, CLI. |
-| `@news/mcp` | MCP tools over the pipeline. Desktop currently also uses its `createTools` facade in-process; the external stdio server is a separate cleanup candidate. |
+| `@news/pipeline` | Authoring/admission, manifest conversion, ingest, TTS orchestration, lock, render, cache, review, safety grid, store, CLI, and the in-process `createTools` facade. |
+| `@news/mcp` | Legacy/product-optional MCP stdio adapter over the pipeline-owned tool facade. The external stdio server is a separate cleanup candidate. |
 | `apps/remotion` | Remotion root and sample fixtures. |
 | `apps/desktop` | Electron app: create flow, workspace stages, settings, 9router gateway, hidden refine, BGM, thumbnail, export. |
 
@@ -130,7 +130,7 @@ AI guidance belongs in `AI_CONTRACT.md` and `docs/current/`.
 - The host never uses authored scene modules as general Node code.
 - Authored scene imports are tightly whitelisted.
 - The Remotion bundle imports the generated per-project authored entry.
-- Desktop UI talks to the engine through typed IPC and pipeline/MCP seams.
+- Desktop UI talks to the engine through typed IPC and pipeline-owned tool seams.
 
 ## Sensitive Areas
 

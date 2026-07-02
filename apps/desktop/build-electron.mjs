@@ -25,13 +25,6 @@ const alias = {
   "@news/tts": pkg("tts"),
   "@news/compositions": pkg("compositions"),
   "@news/pipeline": pkg("pipeline"),
-  // Desktop main only needs `createTools` (in tools.ts). Aliasing to the barrel
-  // `index.ts` would also pull in `server.ts` → `@modelcontextprotocol/sdk`,
-  // whose ESM/CJS shape Electron's Node-20 ESM loader fails to link as an
-  // external (cjsPreparseModuleExports crash). The MCP stdio server is a
-  // SEPARATE process (bin.ts), so the desktop bundle has no business carrying
-  // the SDK — point straight at tools.ts and the SDK leaves the graph.
-  "@news/mcp": resolve(repo, "packages", "mcp", "src", "tools.ts"),
 };
 
 const common = {

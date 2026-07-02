@@ -20,7 +20,7 @@ import {
   type SafetyIssue,
   type SerializedPipelineError,
 } from "@news/pipeline";
-import type { createTools } from "@news/mcp";
+import type { createTools } from "@news/pipeline";
 import type { AuthoringBackend, AuthoredScene, ReauthorTarget } from "../agent/custom-loop-worker.js";
 import type { SafetyReportView } from "../agent/repair-loop.js";
 import type { AuthorJob, VisualDefect, SceneSnapshot, AuthorImageRef } from "../agent/agent-worker.js";
@@ -39,7 +39,7 @@ import type { VideoFormat, DurationTier, VideoLanguage } from "@news/schema";
  * Pure-AUTHOR authoring backend (desktop-author-mode). The AI writes FRESH `.tsx`
  * scene modules per topic (no fixed kit): it returns a manifest + one `.tsx` code
  * block per scene id; we write each module, admit them through the gate, and
- * render. Drives the SAME `@news/mcp` tools / single registry.
+ * render. Drives the SAME pipeline tools / single registry.
  */
 
 type Tools = ReturnType<typeof createTools>;

@@ -1,7 +1,7 @@
-import type { SerializedPipelineError } from "@news/pipeline";
+import type { SerializedPipelineError } from "../errors.js";
 
 /**
- * The one result shape every MCP tool returns (tool-productization R3.2, R7.5).
+ * The one result shape every engine tool returns (tool-productization R3.2, R7.5).
  *
  * A discriminated union: success carries typed `data`; failure carries the
  * SAME structured `SerializedPipelineError` (stage/cause/check/sceneId/

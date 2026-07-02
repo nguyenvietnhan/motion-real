@@ -2,15 +2,20 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { ProjectBrief, RenderProjectResult, ScaffoldVideoProjectResult } from "@news/pipeline";
-import { createTools, type ToolDeps } from "@news/mcp";
+import {
+  createTools,
+  type ProjectBrief,
+  type RenderProjectResult,
+  type ScaffoldVideoProjectResult,
+  type ToolDeps,
+} from "@news/pipeline";
 import { CreateController } from "./create/create-controller.js";
 
 /**
  * Feature: web-dashboard, Task 12.1 — the dashboard never bypasses the engine's
- * preserved invariants. The control plane drives the SAME `@news/mcp` tools
- * through ONE `createTools` instance (one registry), so the draft-first gate,
- * the configured-provider voice guard and the no-downgrade rule hold at the boundary.
+ * preserved invariants. The control plane drives the SAME pipeline tools through
+ * ONE `createTools` instance (one registry), so the draft-first gate, the
+ * configured-provider voice guard and the no-downgrade rule hold at the boundary.
  * (Req 12.1, 12.5, 12.7, 12.8, 12.10)
  *
  * reconcile-main-controllers S1: these invariants are asserted DIRECTLY against

@@ -16,8 +16,8 @@ export * from "./ingest/safe-fetch.js";
 export * from "./ingest/crawl-images.js";
 export * from "./tracker/tracker.js";
 export * from "./bulk/bulk.js";
-// Re-export the Vivibe config probes so leaf packages (e.g. @news/mcp) can read
-// TTS readiness without depending on @news/tts directly.
+// Re-export the Vivibe config probes so leaf adapters can read TTS readiness
+// without depending on @news/tts directly.
 export {
   ELEVENLABS_DEFAULT_MODEL_ID,
   VivibeClient,
@@ -47,3 +47,5 @@ export * from "./review.js";
 export * from "./authoring/index.js";
 export * from "./cli/cli.js";
 export * from "./orchestrator.js";
+export * from "./tools/create-tools.js";
+export * from "./tools/tool-result.js";

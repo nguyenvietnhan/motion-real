@@ -5,7 +5,7 @@
  *   (Y) headless agent-runtime adapter (auto-loads the shared contract/docs and MCP tools)
  *   (X) custom-loop adapter (assembles a Preprompt, drives the OpenAI-compatible
  *       gateway + MCP tools ourselves)
- * Both drive the SAME `@news/mcp` tools / single-process orchestrator, so the
+ * Both drive the SAME pipeline tools / single-process orchestrator, so the
  * rest of the design depends only on this interface — never on the chosen path
  * (Req 7.5). No engine internals appear here; this is the authoring contract the
  * control plane sees.

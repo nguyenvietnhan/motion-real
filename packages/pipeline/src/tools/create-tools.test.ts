@@ -21,15 +21,15 @@ import {
   scaffoldProjectInput,
   trackerAddInput,
   type ToolDeps,
-} from "./tools.js";
+} from "./create-tools.js";
 
-// Feature: tool-productization — MCP tools over the orchestrator (R3).
+// Feature: tool-productization — internal tools over the orchestrator (R3).
 
 let home: string;
 const prevHome = process.env.VIDEO_TOOL_HOME;
 
 beforeEach(async () => {
-  home = await mkdtemp(join(tmpdir(), "news-mcp-"));
+  home = await mkdtemp(join(tmpdir(), "news-tools-"));
   process.env.VIDEO_TOOL_HOME = join(home, ".video-tool");
 });
 

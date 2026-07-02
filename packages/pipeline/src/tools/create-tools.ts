@@ -2,48 +2,55 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { z } from "zod";
 import {
-  ingestUrl,
-  scaffoldVideoProject,
-  renderProject,
-  renderProjectStills,
-  runDoctor,
-  listProjects,
-  readTracker,
-  writeTracker,
-  upsertItem,
-  projectPaths,
-  writeJson,
-  readJson,
-  resolveBgmTrack,
-  PipelineError,
-  serializeError,
-  readBrief,
   ELEVENLABS_DEFAULT_MODEL_ID,
   vivibeApiKey,
   defaultVivibeVoiceId,
   elevenLabsApiKey,
   defaultElevenLabsVoiceId,
-  type IngestResult,
+} from "@news/tts";
+import { resolveBgmTrack } from "../audio/bgm-library.js";
+import { runDoctor, type DoctorReport } from "../cli/cli.js";
+import { PipelineError, serializeError } from "../errors.js";
+import { ingestUrl, type IngestResult } from "../ingest/url-ingest.js";
+import {
+  scaffoldVideoProject,
+  renderProject,
   type ScaffoldVideoProjectResult,
   type RenderProjectResult,
+} from "../orchestrator.js";
+import {
+  renderProjectStills,
   type RenderProjectStillsResult,
-  type DoctorReport,
-  type ProjectSummary,
+} from "../render/render-stills.js";
+import {
+  readTracker,
+  writeTracker,
+  upsertItem,
   type TrackerItem,
   type TrackerStatus,
+} from "../tracker/tracker.js";
+import {
+  projectPaths,
+  writeJson,
+  readJson,
+  readBrief,
+  listProjects,
+  type ProjectSummary,
+} from "../store/store.js";
+import {
   type SafetyReport,
   type SafetyIssue,
   type TtsProvider,
-} from "@news/pipeline";
-import { ok, err, type ToolResult } from "./types.js";
+} from "../types.js";
+import { ok, err, type ToolResult } from "./tool-result.js";
 
 /**
- * The MCP tool layer (tool-productization R3). Each tool is a plain async
- * function returning a `ToolResult` so it is unit-testable without a transport;
- * `server.ts` adapts these to MCP `registerTool` handlers. Every tool drives the
- * single-process orchestrator (`@news/pipeline` imported from source), so the
- * full `N1–N30` grid, the draft-first gate, determinism, caches, and the Vivibe
- * provider rule apply identically to the CLI (R3.3, R3.5, R10.1).
+ * The internal engine tool facade (tool-productization R3). Each tool is a
+ * plain async function returning a `ToolResult` so it is unit-testable without a
+ * transport; `packages/mcp` adapts these to MCP `registerTool` handlers. Every
+ * tool drives the single-process orchestrator, so the full `N1-N30` grid, the
+ * draft-first gate, determinism, caches, and the Vivibe provider rule apply
+ * identically to the CLI (R3.3, R3.5, R10.1).
  */
 
 // --- injectable deps (real pipeline by default) ---------------------------
