@@ -25,6 +25,7 @@ import {
   unstageImage,
   type ImageStagingDeps,
 } from "./create/image-staging.js";
+import { createControllerArgsFromIpc, parseVoiceProvider } from "./create/create-ipc.js";
 import { createBgmHandlers } from "./bgm/bgm-handlers.js";
 import {
   saveProjectThumbnail,
@@ -36,7 +37,7 @@ import { registerMediaScheme, handleMediaProtocol, mediaUrl } from "./media-prot
 import { events, setEventTarget } from "./event-bus.js";
 import { existsSync } from "node:fs";
 import { copyFile, readFile, readdir, rm, stat } from "node:fs/promises";
-import type { DroppedImage, ModelInfo, PickImagesResult, ScriptEdit, SettingsModel, VoiceProviderChoice } from "../shared/types.js";
+import type { DroppedImage, ModelInfo, PickImagesResult, ScriptEdit, SettingsModel } from "../shared/types.js";
 import { extractUrls } from "../shared/create-validation.js";
 import {
   applyNonSensitiveEnvironment,
@@ -360,23 +361,8 @@ const handlers: InvokeHandlers = {
 
   "projects:list": () => workspace.list(),
   "projects:create": (input) => {
-    const i = input as {
-      raw: string;
-      format?: "tiktok" | "youtube";
-      durationTier?: 1 | 2 | 3;
-      videoLanguage?: "vi" | "en";
-      /** Legacy stale-renderer payload. */
-      titleLanguage?: "vi" | "en" | "mix";
-      voiceProvider?: VoiceProviderChoice;
-      images?: { ref: string; width: number; height: number }[];
-    };
-    return create.create(i.raw, i.images ?? [], {
-      ...(i.format ? { format: i.format } : {}),
-      ...(i.durationTier ? { durationTier: i.durationTier } : {}),
-      ...(i.videoLanguage ? { videoLanguage: i.videoLanguage } : {}),
-      ...(!i.videoLanguage && i.titleLanguage ? { titleLanguage: i.titleLanguage } : {}),
-      ...(i.voiceProvider ? { voiceProvider: parseVoiceProvider(i.voiceProvider) } : {}),
-    });
+    const args = createControllerArgsFromIpc(input);
+    return create.create(args.raw, args.images, args.choices);
   },
   "projects:pickImages": () => pickImages(),
   "projects:importImageBytes": (files) => importDroppedImages(files as DroppedImage[], imageStagingDeps),
@@ -437,11 +423,6 @@ const handlers: InvokeHandlers = {
   "tts:setApiKey": (providerRaw, apiKey) => settingsStore.setApiKey(parseVoiceProvider(providerRaw), String(apiKey)),
   "tts:clearApiKey": (providerRaw) => settingsStore.clearApiKey(parseVoiceProvider(providerRaw)),
 };
-
-function parseVoiceProvider(value: unknown): VoiceProviderChoice {
-  if (value === "vivibe" || value === "elevenlabs") return value;
-  throw new Error("Nhà cung cấp giọng đọc không hợp lệ.");
-}
 
 registerIpcRouter(ipcMain, handlers);
 

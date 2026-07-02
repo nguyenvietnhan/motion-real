@@ -1,7 +1,6 @@
 # Temporary Task - Desktop Main Modularization
 
-Status: Step 4 native-save extraction complete; Step 5 create-ipc extraction
-next.
+Status: Step 5 create-ipc extraction complete; Step 6 handler/MCP audit next.
 
 This is a temporary working task for thinning
 `apps/desktop/src/main/index.ts`. It is not project contract. Current contract
@@ -289,6 +288,14 @@ For each completed step, add at most:
   tests), and `npm.cmd run build`. Desktop GUI smoke was not run because native
   save/export requires interactive app/dialog and an existing artifact. Next
   gate: Step 5.
+- 2026-07-02 Step 5 complete. Extracted `projects:create` payload coercion and
+  `parseVoiceProvider` into `apps/desktop/src/main/create/create-ipc.ts`, added
+  direct tests, and kept `CreateController.create(...)` ownership in `index.ts`.
+  Checks passed: `npm.cmd run typecheck`, `create-ipc.test.ts` (6 tests),
+  `create-flow.test.ts` (14 tests), full `npm.cmd test` (normal lane: 91 files /
+  885 tests; N10 heavy lane: 1 file / 13 tests), and `npm.cmd run build`. No GUI
+  smoke was needed because this slice only moved pure IPC payload helpers. Next
+  gate: Step 6.
 
 ## Progress Checklist
 
@@ -298,7 +305,7 @@ For each completed step, add at most:
 - [x] Step 2: Extract create-time image staging helpers.
 - [x] Step 3: Extract BGM view-model and handlers.
 - [x] Step 4: Extract native save/export helpers.
-- [ ] Step 5: Extract small create/project IPC payload helpers.
+- [x] Step 5: Extract small create/project IPC payload helpers.
 - [ ] Step 6: Decide whether to extract a handler builder or stop.
 - [ ] Step 7: Window/startup close audit.
 - [ ] Step 8: Final docs/code sync.
@@ -793,17 +800,17 @@ Expected output:
 
 ## Current Next Source Slice Recommendation
 
-After owner approval, start with Step 5.
+After owner approval, start with Step 6.
 
 Reason:
 
-- Step 4 isolated native save/export behavior with direct tests and
+- Step 5 isolated create IPC payload coercion and voice-provider validation with
+  direct tests and
   full checks;
-- Step 5 is the next contained extraction candidate because create IPC payload
-  coercion is still inline in `index.ts` and has no direct helper tests.
-- keep Step 5 scoped to `projects:create` payload shaping and voice provider
-  validation; do not move `CreateController`, scaffold/tool wiring, preflight,
-  or staged image promotion.
+- Step 6 is now a decision/audit gate, not an automatic extraction: count the
+  remaining `index.ts` lines, list remaining inline handler groups, compare
+  dependencies for any tiny handler builders, and audit whether MCP de-scope
+  belongs in this task or a separate follow-up.
 
-If Step 5 reveals create payload ambiguity, stop and fix that before any handler
-builder decision.
+If Step 6 shows a handler builder would require passing most services/Electron
+primitives, record the stop decision instead of extracting a giant builder.
