@@ -1,7 +1,7 @@
 # Temporary Task - Repo Noise And Asset Cleanup
 
-Status: Step 5 cleanup complete; Step 6 final scan/docs sync next if owner
-approves.
+Status: Step 6 final scan/docs sync complete; Step 7 temporary-note cleanup
+next.
 
 This is a temporary working note for standardizing repository entry points,
 asset locations, legacy naming, and duplicate/noisy files. It is not project
@@ -300,6 +300,13 @@ BGM test evidence found:
   `.vscode/settings.json` after confirming it contained only `{}`. Checks
   passed: staged diff check, `npm.cmd run typecheck`, `npm.cmd test` (92 files /
   889 tests plus heavy lane 1 file / 13 tests), and `npm.cmd run build`.
+- 2026-07-03 Step 6 complete. Final scan found no remaining Claude-specific
+  entrypoint outside this temporary note. Current docs already describe the
+  canonical desktop asset layout, virtual built-in default BGM, and repo hygiene
+  rules; `docs/current/maintenance.md` now also names root `.mcp.json`
+  machine-specific MCP wiring as deferred legacy compatibility. Remaining
+  `@news/mcp`, `stylePackId`, `clean-luxury-tech`, and MCP config matches are
+  intentional follow-up surfaces. Next gate: Step 7.
 
 ## Progress Checklist
 
@@ -310,7 +317,7 @@ BGM test evidence found:
 - [x] Step 3: Move dev/audit fixtures out of main renderer surface.
 - [x] Step 4: Standardize script template location.
 - [x] Step 5: Remove empty workspace config.
-- [ ] Step 6: Final scan and docs sync.
+- [x] Step 6: Final scan and docs sync.
 - [ ] Step 7: Delete this temporary note after owner approval.
 
 ## Proposed Slice Plan

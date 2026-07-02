@@ -48,6 +48,8 @@ root-owned unless a future slice has a narrower reason than line count.
 The external MCP stdio entrypoint is legacy/product-optional under the current
 desktop-app direction. Do not delete `packages/mcp` until product code no longer
 imports `createTools` or MCP-owned types through `@news/mcp`.
+The root `.mcp.json` compatibility config may still contain local server wiring,
+including machine-specific paths, until that MCP de-scope work is approved.
 
 ## Repository Hygiene
 
