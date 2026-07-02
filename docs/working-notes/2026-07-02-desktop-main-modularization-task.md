@@ -1,6 +1,6 @@
 # Temporary Task - Desktop Main Modularization
 
-Status: Step 6 handler/MCP audit complete; Step 7 startup/window close audit
+Status: Step 7 startup/window close audit complete; Step 8 final docs/code sync
 next.
 
 This is a temporary working task for thinning
@@ -306,6 +306,18 @@ For each completed step, add at most:
   desktop-main modularization and should become a separate follow-up after the
   internal `createTools` facade is moved to a neutral owner. Docs-only checks
   passed. Next gate: Step 7.
+- 2026-07-02 Step 7 complete. Audited the Electron startup/window lifecycle and
+  kept it root-owned: `registerMediaScheme()` stays before app readiness,
+  `handleMediaProtocol()` stays inside `app.whenReady()`, stale-state
+  reconciliation still runs through the tested `runStartupSequence` seam before
+  gateway/window startup, and the `window-all-closed`/`activate` hooks stay in
+  `index.ts`. No `desktop-window.ts` helper was added because extracting window
+  options would separate `BrowserWindow` setup from preload path, event-target
+  wiring, and dev/prod load behavior without improving testability. Checks
+  passed: `npm.cmd run typecheck`, `startup-sequence.test.ts` (2 tests), full
+  `npm.cmd test` (normal lane: 91 files / 885 tests; N10 heavy lane: 1 file / 13
+  tests), and `npm.cmd run build`. No desktop GUI smoke was run because no source
+  code moved and app launch remains interactive. Next gate: Step 8.
 
 ## Progress Checklist
 
@@ -317,7 +329,7 @@ For each completed step, add at most:
 - [x] Step 4: Extract native save/export helpers.
 - [x] Step 5: Extract small create/project IPC payload helpers.
 - [x] Step 6: Decide whether to extract a handler builder or stop.
-- [ ] Step 7: Window/startup close audit.
+- [x] Step 7: Window/startup close audit.
 - [ ] Step 8: Final docs/code sync.
 - [ ] Step 9: Delete this temporary task file.
 
@@ -810,16 +822,16 @@ Expected output:
 
 ## Current Next Source Slice Recommendation
 
-After owner approval, start with Step 7.
+After owner approval, start with Step 8.
 
 Reason:
 
-- Step 6 deliberately stopped before creating a broad handler builder and split
-  MCP de-scope into a future follow-up;
-- Step 7 is now the startup/window close audit: confirm which Electron lifecycle
-  code remains root-owned and only extract a tiny window-options helper if it is
-  genuinely clearer.
+- Step 7 deliberately kept Electron lifecycle side effects root-owned because
+  moving them would hide important startup ordering;
+- Step 8 is now a docs/code sync gate: update current docs only if the new local
+  desktop-main modules or remaining `index.ts` responsibilities need to be
+  reflected outside this temporary note.
 
-If Step 7 shows moving lifecycle code would hide important ordering around
-media scheme/protocol, stale-state reconciliation, gateway start, or window
-creation, record the stop decision and leave it in `index.ts`.
+If current docs already describe the structure truthfully enough, record that
+decision and proceed to the temporary-note cleanup gate only after owner
+approval.
