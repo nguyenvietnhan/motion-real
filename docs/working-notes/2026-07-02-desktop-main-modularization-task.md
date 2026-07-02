@@ -1,7 +1,6 @@
 # Temporary Task - Desktop Main Modularization
 
-Status: planning scan complete; external review reconciled; Step 0 baseline
-next.
+Status: Step 0 baseline complete; Step 1 runtime-env extraction next.
 
 This is a temporary working task for thinning
 `apps/desktop/src/main/index.ts`. It is not project contract. Current contract
@@ -218,11 +217,16 @@ For each completed step, add at most:
   Step 0-before-Step 1 sequencing, documented 9router and Vivibe env aliases,
   deferred `promoteImages`, added native runtime-smoke guidance, and tightened
   Step 2 targeted checks. No source code moved. Next gate: Step 0.
+- 2026-07-02 Step 0 complete. Dirty worktree contains only the pre-existing
+  `packages/mcp/src/bin.ts` change; no unrelated file is staged; no source code
+  moved. Baseline checks passed: `npm.cmd run typecheck`, `npm.cmd test`
+  (normal lane: 86 files / 853 tests; N10 heavy lane: 1 file / 13 tests), and
+  `npm.cmd run build`. Next gate: Step 1.
 
 ## Progress Checklist
 
 - [x] Planning scan: read contract/docs and audit `index.ts` responsibility map.
-- [ ] Step 0: Baseline and dirty-worktree ownership.
+- [x] Step 0: Baseline and dirty-worktree ownership.
 - [ ] Step 1: Extract runtime env parsing/boot voice helpers.
 - [ ] Step 2: Extract create-time image staging helpers.
 - [ ] Step 3: Extract BGM view-model and handlers.
