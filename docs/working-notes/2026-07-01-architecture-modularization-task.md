@@ -1,6 +1,6 @@
 # Temporary Task — Architecture Modularization
 
-Status: Step 10C implementation complete; Step 10D async render/refine/publish workflow audit next.
+Status: Step 10D async workflow audit complete; Step 10E close decision next.
 
 This is a temporary working task for the next large cleanup after the docs
 contract consolidation. Keep it updated as work progresses. Delete this file
@@ -936,6 +936,14 @@ spending context on stale detail.
   Smoke was not required because this was a pure stage/event-shape helper move
   with no render-call, stage-timing, worker-ordering, or async workflow change.
   Next gate: Step 10D async workflow audit.
+- 2026-07-02 Step 10D complete. Audited async render/refine/publish boundaries
+  and closed the slice with no source movement. `runSceneEdits`,
+  `runVisionPasses`, `refineBeforeDraft`, `refineEditedScenes`,
+  `restoreToPriorDraft`, `runRender`, and `runPublish` stay in
+  `WorkspaceController` because their callback/state boundary is wider than the
+  code they would move. Checks passed: `typecheck`, controller test (62 tests),
+  full `test` (87 files, 866 tests), `build`, and `smoke`. Next gate: Step 10E
+  close decision.
 
 ## Non-Negotiable Guardrails
 
@@ -2078,26 +2086,41 @@ Step 10C smoke decision:
 - If a later Step 10 slice moves async render/refine/publish behavior, run the
   smoke gate before commit.
 
-Step 10D decision slice - async render/refine/publish workflow audit:
+Step 10D audit result - async render/refine/publish workflow boundary:
 
-- after 10B and optionally 10C, re-audit whether any async workflow boundary is
-  still narrow enough to extract;
-- expected decision unless new evidence appears:
-  - keep `runSceneEdits` in the controller because it owns edit admission,
-    snapshot, refine, draft render, restore, notices, and friendly errors;
-  - keep `runVisionPasses` in the controller because it owns iterative stage
-    emission, early-stop state, worker calls, still rerenders, and rollback;
-  - keep `refineBeforeDraft` and `refineEditedScenes` in the controller because
-    they own hidden prepare/stills sequencing and refine-mode differences;
-  - keep `restoreToPriorDraft` in the controller because it owns restore plus
-    draft rerender and render-version bump;
-  - keep `runRender` in the controller because it owns draft-first ordering,
-    cancellation recovery, restored fallback, ready/error final states, and
-    friendly errors;
-  - keep `runPublish` in the controller because it owns publish stage, abort
-    recovery, `publishedStage(...)`, retry:`full`, and friendly errors.
-- do not create a broad `workspace-render-workflow` object unless the callback
-  boundary is smaller than the current controller methods and has direct tests.
+- after Step 10B and Step 10C were green, a fresh audit found no async workflow
+  boundary that is narrow enough to extract safely in this slice;
+- close Step 10D with no source movement;
+- keep `runSceneEdits` in the controller because it owns ready-stage entry
+  assumptions, edit admission/intent resolution, snapshots, authoring
+  application, stills refine, draft render, restore fallback, notices, and
+  friendly errors;
+- keep `runVisionPasses` in the controller because it owns loop ordering, QA
+  stage emissions with pass metadata, early-stop clean-streak state,
+  `visualQa(...)` errors, `snapshotFresh(...)` integration, reauthor calls,
+  still rerenders, rollback, and `changedAny` semantics;
+- keep `refineBeforeDraft` in the controller because it owns the hidden
+  prepare/stills/bootstrap/vision sequence, skip conditions, and blind
+  pre-refine snapshot returned to `runRender`;
+- keep `refineEditedScenes` in the controller because it owns edited-scene
+  scoped hidden stills, disabled/unsupported no-op behavior, empty-stills
+  acceptance failure, and separate edited-code snapshot semantics;
+- keep `restoreToPriorDraft` in the controller because it owns pre-edit restore
+  plus draft rerender, render-version bump, and the boolean branch contract used
+  by edit error handling;
+- keep `runRender` in the controller because it owns draft-first ordering,
+  cancellation recovery, refined-draft fallback restore, final ready/error
+  states, `retry: "draft"`, and friendly errors;
+- keep `runPublish` in the controller because it owns publish stage transition,
+  abort recovery, `publishedStage(...)`, `retry: "full"`, and friendly errors;
+- keep `publish`, `approve`, `fixWithAi`, and `submitEdits` entry points in the
+  controller because they own guards and guarded-job startup;
+- keep `editHooks`, `renderHooks`, and `snapshotFresh` in the controller because
+  they close over event emitters, media mapping, shared snapshot sets, and
+  logging;
+- do not create a broad `workspace-render-workflow` object because it would
+  require a callback object wider than the behavior it would move and would hide
+  orchestration instead of clarifying it.
 
 Step 10D required checks:
 
