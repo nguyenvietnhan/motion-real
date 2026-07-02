@@ -1,7 +1,7 @@
 # Temporary Task - Repo Noise And Asset Cleanup
 
-Status: planning note revised after review; owner approval required before
-cleanup edits.
+Status: Step 3 cleanup complete; Step 4 script-template standardization next if
+owner approves.
 
 This is a temporary working note for standardizing repository entry points,
 asset locations, legacy naming, and duplicate/noisy files. It is not project
@@ -45,7 +45,7 @@ Current working note state:
 - The prior desktop-main modularization task note has already been removed.
 - `docs/working-notes/README.md` remains as the folder guide.
 
-Current dirty-worktree evidence:
+Initial dirty-worktree evidence before cleanup commits:
 
 - Vendor-specific Claude files are already deleted in the worktree:
   - `.claude/agents/scene-author.md`;
@@ -55,7 +55,8 @@ Current dirty-worktree evidence:
 - Root `default.mp3` is already deleted in the worktree.
 - `apps/desktop/assets/bgm/default.mp3` is newly present.
 - BGM virtual built-in code/docs are already pending in the worktree.
-- Do not assume these changes are committed.
+- These findings were the Step 1 starting state. See Progress Notes for the
+  committed cleanup slices.
 
 Review reconciliation:
 
@@ -121,11 +122,12 @@ Style/legacy term evidence:
 
 Dev/test fixture evidence:
 
-- Renderer audit files live directly under renderer source:
-  - `apps/desktop/src/renderer/ui-audit.tsx`;
-  - `apps/desktop/src/renderer/ui-audit.html`;
-  - `apps/desktop/src/renderer/audit-fixture.svg`;
-  - `apps/desktop/src/renderer/audit-fixture-youtube.svg`.
+- Before Step 3, renderer audit files lived directly under renderer source.
+- After Step 3, they live under `apps/desktop/src/renderer/dev-audit/`:
+  - `ui-audit.tsx`;
+  - `ui-audit.html`;
+  - `audit-fixture.svg`;
+  - `audit-fixture-youtube.svg`.
 - Remotion demo/sample files are active references:
   - `apps/remotion/src/demo-scenes.tsx`;
   - `apps/remotion/src/fixtures/sample-spec.ts`.
@@ -245,6 +247,52 @@ BGM test evidence found:
    - This is expected cache behavior, but it can grow.
    - Add a user-invoked cleanup command or age/size pruning policy if desired.
    - Do not delete project audio or cache as part of source-file cleanup.
+
+## Progress Notes
+
+- 2026-07-02 plan created and committed as `32cb40a`
+  (`docs: add repo noise cleanup plan`). Baseline checks passed:
+  `npm.cmd run typecheck`, `npm.cmd test` (91 files / 887 tests plus heavy lane
+  1 file / 13 tests), and `npm.cmd run build`.
+- 2026-07-02 Step 1A complete and committed as `d244d2f`
+  (`docs: consolidate ai agent entrypoints`). Removed tracked Claude-specific
+  entrypoints, kept `AI_CONTRACT.md` canonical and `AGENTS.md` thin. Checks
+  passed: vendor-specific entrypoint scan, targeted guidance/workspace contract
+  tests, `npm.cmd run typecheck`, `npm.cmd test`, and `npm.cmd run build`.
+- 2026-07-02 Step 1B complete and committed as `ad5e3b0`
+  (`refactor: use virtual built-in default bgm`). Moved the source default BGM
+  to `apps/desktop/assets/bgm/default.mp3` and made the default track resolve as
+  a virtual built-in without recreating `.video-tool/bgm/nhac-nen-mac-dinh.mp3`.
+  Checks passed: default-BGM duplicate scan, targeted BGM/render tests,
+  `npm.cmd run typecheck`, `npm.cmd test`, and `npm.cmd run build`. GUI/render
+  smoke was not run because the desktop app is interactive in this tool session;
+  targeted tests cover the default BGM resolve path.
+- 2026-07-02 Step 2 complete and committed as `728d247`
+  (`refactor(desktop): canonicalize brand assets`). Canonicalized the desktop
+  logo at `apps/desktop/assets/brand/logo.png`, removed duplicate main/renderer
+  logo files, and updated Electron/renderer references. Checks passed:
+  packaging/icon path scan, `npm.cmd --workspace @news/desktop run
+  build:renderer`, `npm.cmd --workspace @news/desktop run build:main`,
+  `npm.cmd run typecheck`, `npm.cmd test`, and `npm.cmd run build`.
+- 2026-07-02 Step 3 complete and committed as `5a73158`
+  (`chore(desktop): move renderer audit fixtures`). Moved renderer audit-only
+  files into `apps/desktop/src/renderer/dev-audit/` and updated audit entry and
+  fixture URLs. A first typecheck caught a moved import path; it was fixed before
+  continuing. Checks passed: audit fixture scan, `npm.cmd --workspace
+  @news/desktop run build:renderer`, `npm.cmd run typecheck`, `npm.cmd test`,
+  and `npm.cmd run build`.
+
+## Progress Checklist
+
+- [x] Step 0: Approval, baseline, and plan commit.
+- [x] Step 1A: Finish canonical AI entry-point cleanup.
+- [x] Step 1B: Verify virtual built-in default BGM.
+- [x] Step 2: Canonicalize desktop brand assets.
+- [x] Step 3: Move dev/audit fixtures out of main renderer surface.
+- [ ] Step 4: Standardize script template location.
+- [ ] Step 5: Remove empty workspace config.
+- [ ] Step 6: Final scan and docs sync.
+- [ ] Step 7: Delete this temporary note after owner approval.
 
 ## Proposed Slice Plan
 
@@ -491,13 +539,12 @@ Expected output:
 
 ## Current Recommendation
 
-After owner approval, start with Step 0, Step 1A, then Step 1B.
+After owner approval, continue with Step 4.
 
 Reason:
 
-- AI contract cleanup and default BGM cleanup are already pending in the
-  worktree but are separate concerns, so they should be verified and committed
-  separately;
-- logo deduplication is a clean next slice;
-- MCP/package renaming and style compatibility cleanup are larger migrations and
-  should not be mixed into simple file cleanup.
+- Steps 1A, 1B, 2, and 3 are now committed separately with checks;
+- the next small confirmed cleanup is moving `scripts/_video-template.txt` under
+  `scripts/templates/`;
+- MCP/package renaming and style compatibility cleanup remain larger follow-up
+  migrations and should not be mixed into simple file cleanup.
