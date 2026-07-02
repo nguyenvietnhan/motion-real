@@ -1,6 +1,10 @@
 import type { PrepromptPayload } from "../agent/agent-worker.js";
+import type { ProgressEvent, ProjectStage } from "../../shared/types.js";
 
 export type VisualDefectInput = { sceneId: string; issue: string };
+export type RenderingStage = Extract<ProjectStage, { kind: "rendering" }>;
+export type RenderingStagePhase = RenderingStage["phase"];
+export type RenderProgressPhase = ProgressEvent["phase"];
 
 /** Refine intent for the one-shot creative bootstrap (first author only). */
 export const CREATIVE_BOOTSTRAP_INTENT =
@@ -38,4 +42,30 @@ export function visionRepairPreprompt(flagged: VisualDefectInput[]): PrepromptPa
     perSceneIntent: Object.fromEntries(flagged.map((defect) => [defect.sceneId, visionRepairIntent(defect.issue)])),
     globalNotes: "",
   };
+}
+
+export function renderPercentFromRatio(ratio: number): number {
+  return Math.round(ratio * 100);
+}
+
+export function clampRenderRatio(ratio: number): number {
+  return Math.max(0, Math.min(1, ratio));
+}
+
+export function renderingStageOf(
+  phase: RenderingStagePhase,
+  options: { ratio?: number; percent?: number; qaPass?: number; qaTotal?: number } = {},
+): RenderingStage {
+  const stage: RenderingStage = {
+    kind: "rendering",
+    percent: options.percent ?? renderPercentFromRatio(options.ratio ?? 0),
+    phase,
+  };
+  if (options.qaPass !== undefined) stage.qaPass = options.qaPass;
+  if (options.qaTotal !== undefined) stage.qaTotal = options.qaTotal;
+  return stage;
+}
+
+export function renderProgressEventOf(projectId: string, ratio: number, phase: RenderProgressPhase): ProgressEvent {
+  return { projectId, ratio, phase };
 }

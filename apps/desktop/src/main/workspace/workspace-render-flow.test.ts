@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   CREATIVE_BOOTSTRAP_INTENT,
+  clampRenderRatio,
   creativeBootstrapPreprompt,
+  renderPercentFromRatio,
+  renderProgressEventOf,
+  renderingStageOf,
   visionRepairIntent,
   visionRepairPreprompt,
 } from "./workspace-render-flow.js";
@@ -53,5 +57,34 @@ describe("workspace render-flow helpers", () => {
       },
       globalNotes: "",
     });
+  });
+
+  it("maps render-hook ratios to rounded percents without clamping", () => {
+    expect(renderPercentFromRatio(0)).toBe(0);
+    expect(renderPercentFromRatio(0.424)).toBe(42);
+    expect(renderPercentFromRatio(0.425)).toBe(43);
+    expect(renderPercentFromRatio(1.2)).toBe(120);
+    expect(renderPercentFromRatio(-0.2)).toBe(-20);
+  });
+
+  it("clamps forwarded real-render ratios before stage mapping", () => {
+    expect(clampRenderRatio(-0.25)).toBe(0);
+    expect(clampRenderRatio(0.5)).toBe(0.5);
+    expect(clampRenderRatio(1.25)).toBe(1);
+  });
+
+  it("builds rendering stages with phase and optional QA pass metadata", () => {
+    expect(renderingStageOf("draft", { ratio: 0.425 })).toEqual({ kind: "rendering", percent: 43, phase: "draft" });
+    expect(renderingStageOf("qa", { percent: 0, qaPass: 1, qaTotal: 2 })).toEqual({
+      kind: "rendering",
+      percent: 0,
+      phase: "qa",
+      qaPass: 1,
+      qaTotal: 2,
+    });
+  });
+
+  it("builds render progress events without changing the raw ratio", () => {
+    expect(renderProgressEventOf("project-1", 0.625, "full")).toEqual({ projectId: "project-1", ratio: 0.625, phase: "full" });
   });
 });

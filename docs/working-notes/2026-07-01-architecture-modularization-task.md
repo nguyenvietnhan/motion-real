@@ -1,6 +1,6 @@
 # Temporary Task — Architecture Modularization
 
-Status: Step 10B implementation complete; Step 10C render stage/progress helper decision next.
+Status: Step 10C implementation complete; Step 10D async render/refine/publish workflow audit next.
 
 This is a temporary working task for the next large cleanup after the docs
 contract consolidation. Keep it updated as work progresses. Delete this file
@@ -925,6 +925,17 @@ spending context on stale detail.
   because this was a pure no-behavior string/preprompt helper move with no
   render-call, stage-timing, or worker-ordering change. Next gate: Step 10C
   decision.
+- 2026-07-02 Step 10C implementation complete. Added pure render
+  stage/progress helpers to `workspace-render-flow.ts`, added direct helper
+  tests, and routed `renderHooks(...)` progress stage/event shaping plus
+  `reportRenderProgress(...)` stage shaping through the helpers while keeping
+  event emission, stage-map ownership, and callback factories in
+  `WorkspaceController`. Checks passed: pre-edit `typecheck`/`test` (87 files,
+  862 tests)/`build`; post-edit `typecheck`, render-flow helper test (8 tests),
+  controller test (62 tests), full `test` (87 files, 866 tests), and `build`.
+  Smoke was not required because this was a pure stage/event-shape helper move
+  with no render-call, stage-timing, worker-ordering, or async workflow change.
+  Next gate: Step 10D async workflow audit.
 
 ## Non-Negotiable Guardrails
 
@@ -2023,19 +2034,31 @@ Step 10B smoke decision:
 - If any Step 10B change alters prompt text, stage timing, render calls, or
   worker-call ordering, stop and run `npm.cmd run smoke` before continuing.
 
-Step 10C possible source slice - pure render stage/progress helpers:
+Step 10C implementation - pure render stage/progress helpers:
 
-- only consider after Step 10B is green and committed;
-- possible destination remains `workspace-render-flow.ts`;
-- tentative helpers:
+- implemented after Step 10B was green and committed;
+- destination remains `workspace-render-flow.ts`;
+- added helpers:
   - `renderingStageOf(phase, options?)`;
   - `renderPercentFromRatio(ratio)`;
+  - `clampRenderRatio(ratio)`;
   - `renderProgressEventOf(projectId, ratio, phase)`;
-- keep `renderHooks(...)` and `reportRenderProgress(...)` in the controller as
-  wrappers unless a direct review proves the helper boundary is smaller and
-  clearer;
-- add direct tests for clamping/rounding and preserve Property 9 controller
+- routed `renderHooks(...)` progress stage/event shaping through the helpers;
+- routed `reportRenderProgress(...)` clamped stage shaping through the helpers;
+- kept `renderHooks(...)` and `reportRenderProgress(...)` in the controller as
+  wrappers because they own event emission, callback construction, and stage-map
+  lookup;
+- added direct tests for clamping/rounding and preserved Property 9 controller
   coverage.
+
+Step 10C test evidence map:
+
+| Behavior touched | Existing test(s) | Gap? | New test or reason no new test |
+| --- | --- | --- | --- |
+| render-hook ratios map to `Math.round(ratio * 100)` without clamping | Property 9 checks controller percents and progress events | direct helper output was not isolated | added direct helper test |
+| forwarded real-render ratios are clamped before updating stage percent | `reportRenderProgress(...)` is exercised through render plumbing, but edge ratios were not isolated | direct clamp behavior was not isolated | added direct helper test |
+| render progress events preserve raw ratio and phase | Property 9 checks `{ projectId, ratio, phase: "draft" }` through controller route | direct helper output was not isolated | added direct helper test |
+| optional QA pass metadata stays in rendering stage shape | hidden refine tests check `qaPass`/`qaTotal` through controller stages | direct helper output was not isolated | added direct helper test |
 
 Step 10C required checks if implemented:
 
@@ -2046,6 +2069,14 @@ npm.cmd test -- apps/desktop/src/main/workspace/workspace-controller.test.ts
 npm.cmd test
 npm.cmd run build
 ```
+
+Step 10C smoke decision:
+
+- `npm.cmd run smoke` is not required for this slice because only pure
+  stage/event shape helpers moved, and no render/refine call ordering, stage
+  timing, worker invocation, or async workflow changed.
+- If a later Step 10 slice moves async render/refine/publish behavior, run the
+  smoke gate before commit.
 
 Step 10D decision slice - async render/refine/publish workflow audit:
 

@@ -1,6 +1,6 @@
 import { authorInputWithCrawledImages, runCreateCrawlThenAuthor } from "./workspace-create-flow.js";
 import { combineIntent, stageToFriendlyStatus } from "./workspace-helpers.js";
-import { creativeBootstrapPreprompt, visionRepairPreprompt } from "./workspace-render-flow.js";
+import { clampRenderRatio, creativeBootstrapPreprompt, renderProgressEventOf, renderingStageOf, visionRepairPreprompt } from "./workspace-render-flow.js";
 import { applyScriptEditsToManifest, runScriptAuthoring, scriptGateModelFromLines } from "./workspace-script-flow.js";
 import { publishedStageOf, readyStageOf, scriptLinesFromScenes, storyboardScenesFromScenes } from "./workspace-view-model.js";
 import { createLogger, serializeError, type CrawledImage } from "@news/pipeline";
@@ -769,8 +769,8 @@ export class WorkspaceController {
   private renderHooks(projectId: string, phase: "draft" | "full" = "draft"): AgentHooks {
     return {
       onProgress: (ratio) => {
-        this.setStage(projectId, { kind: "rendering", percent: Math.round(ratio * 100), phase });
-        this.deps.events.progress({ projectId, ratio, phase });
+        this.setStage(projectId, renderingStageOf(phase, { ratio }));
+        this.deps.events.progress(renderProgressEventOf(projectId, ratio, phase));
       },
       onSceneProduced: (sceneId, stillPath) => this.deps.events.scene({ projectId, sceneId, stillPath: this.deps.toMedia(stillPath) }),
       onRepair: () => {},
@@ -785,8 +785,7 @@ export class WorkspaceController {
   reportRenderProgress(projectId: string, ratio: number): void {
     const s = this.stages.get(projectId);
     if (s?.kind !== "rendering") return;
-    const clamped = Math.max(0, Math.min(1, ratio));
-    this.setStage(projectId, { kind: "rendering", percent: Math.round(clamped * 100), phase: s.phase });
+    this.setStage(projectId, renderingStageOf(s.phase, { ratio: clampRenderRatio(ratio) }));
   }
 
   private async runRender(projectId: string, readyNotice?: string): Promise<void> {
