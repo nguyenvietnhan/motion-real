@@ -1,5 +1,6 @@
 import { authorInputWithCrawledImages, runCreateCrawlThenAuthor } from "./workspace-create-flow.js";
 import { combineIntent, stageToFriendlyStatus } from "./workspace-helpers.js";
+import { creativeBootstrapPreprompt, visionRepairPreprompt } from "./workspace-render-flow.js";
 import { applyScriptEditsToManifest, runScriptAuthoring, scriptGateModelFromLines } from "./workspace-script-flow.js";
 import { publishedStageOf, readyStageOf, scriptLinesFromScenes, storyboardScenesFromScenes } from "./workspace-view-model.js";
 import { createLogger, serializeError, type CrawledImage } from "@news/pipeline";
@@ -547,18 +548,6 @@ export class WorkspaceController {
     };
   }
 
-  /** Refine intent for the one-shot creative bootstrap (first author only). */
-  private static readonly BOOTSTRAP_INTENT =
-    "Làm cảnh này TÁO BẠO và ĐẸP hơn hẳn — bố cục lệch chuẩn có chủ đích, điểm nhấn mạnh, " +
-    "đồ hoạ SVG/CSS tự vẽ phong phú. Coi như bản CUỐI, đừng chơi an toàn. " +
-    "Khi hợp với nội dung, hãy để hình ảnh có cảm giác ĐANG DIỄN TIẾN qua phần lớn thời lượng cảnh, " +
-    "không chỉ xuất hiện ở vài frame đầu rồi đứng yên. Có thể hé lộ thông tin dần, vẽ tiếp đường/nét, " +
-    "dịch chuyển điểm nhấn hoặc nối vài nhịp motion nhẹ — tự chọn cách phù hợp với ý tưởng. " +
-    "Đây là khuyến khích sáng tạo, KHÔNG bắt buộc mọi cảnh hay mọi phần tử phải chuyển động; cảnh tĩnh có chủ đích vẫn hợp lệ. " +
-    "Nếu dùng motion, giữ nó mượt, có mục đích, deterministic và giới hạn bằng interpolate có clamp hoặc spring; " +
-    "KHÔNG dùng Math.sin(frame), frame % n, interpolate không clamp hay dao động/lặp vĩnh viễn. " +
-    "Giữ nguyên nội dung/ý + lời đọc của cảnh.";
-
   /**
    * Snapshot the authored source of any scenes not yet snapshotted in this refine
    * run, appending to the cumulative `preRefine` so a later restore returns the
@@ -601,9 +590,8 @@ export class WorkspaceController {
     // "prepare" (not "qa"): this is one of the two HIDDEN pre-draft renders (L3) —
     // the user sees a neutral "Đang dựng bản nháp…", never the bland/bootstrap take.
     this.setStage(projectId, { kind: "rendering", percent: 0, phase: "prepare" });
-    const perSceneIntent = Object.fromEntries(sceneIds.map((id) => [id, WorkspaceController.BOOTSTRAP_INTENT]));
     await this.deps.worker.reauthorScenes(
-      { projectId, sceneIds, preprompt: { contractRef: "SKILL.md+AGENTS.md", affectedSceneIds: sceneIds, perSceneIntent, globalNotes: "" } },
+      { projectId, sceneIds, preprompt: creativeBootstrapPreprompt(sceneIds) },
       this.editHooks(projectId),
       signal,
     );
@@ -665,16 +653,8 @@ export class WorkspaceController {
       const sceneIds = flagged.map((f) => f.sceneId);
       await this.snapshotFresh(projectId, sceneIds, preRefine, snapshotted);
       this.setStage(projectId, { kind: "rendering", percent: 0, phase: "qa", qaPass: pass, qaTotal: passes });
-      const perSceneIntent = Object.fromEntries(
-        flagged.map((f) => [
-          f.sceneId,
-          `Nhìn ảnh đã dựng và SỬA đúng lỗi bố cục: ${f.issue}\n` +
-            "Sửa tối thiểu trên scene hiện tại: giữ lại/khôi phục nền, SVG/CSS, ảnh, list/số liệu, motion và visual anchor. " +
-            "KHÔNG được biến cảnh thành title-card đơn giản chỉ có eyebrow/headline/text.",
-        ]),
-      );
       await this.deps.worker.reauthorScenes(
-        { projectId, sceneIds, preprompt: { contractRef: "SKILL.md+AGENTS.md", affectedSceneIds: sceneIds, perSceneIntent, globalNotes: "" } },
+        { projectId, sceneIds, preprompt: visionRepairPreprompt(flagged) },
         this.editHooks(projectId),
         signal,
       );

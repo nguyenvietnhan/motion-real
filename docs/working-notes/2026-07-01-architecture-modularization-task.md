@@ -1,6 +1,6 @@
 # Temporary Task — Architecture Modularization
 
-Status: Step 10A slice plan complete; Step 10B pure helper extraction next.
+Status: Step 10B implementation complete; Step 10C render stage/progress helper decision next.
 
 This is a temporary working task for the next large cleanup after the docs
 contract consolidation. Keep it updated as work progresses. Delete this file
@@ -915,6 +915,16 @@ spending context on stale detail.
   was moved. Evidence: controller test passed (62 tests); `npm.cmd run smoke`
   failed inside the sandbox with network `EACCES`, then passed when rerun outside
   the sandbox. Next gate: owner approval before Step 10B pure helper extraction.
+- 2026-07-02 Step 10B implementation complete. Added
+  `workspace-render-flow.ts` pure prompt/preprompt helpers and direct tests, then
+  routed creative bootstrap and vision repair preprompt construction through the
+  helpers while keeping async render/refine methods in `WorkspaceController`.
+  Checks passed: pre-edit `typecheck`/`test` (86 files, 858 tests)/`build`;
+  post-edit `typecheck`, render-flow helper test (4 tests), controller test (62
+  tests), full `test` (87 files, 862 tests), and `build`. Smoke was not required
+  because this was a pure no-behavior string/preprompt helper move with no
+  render-call, stage-timing, or worker-ordering change. Next gate: Step 10C
+  decision.
 
 ## Non-Negotiable Guardrails
 
@@ -1970,30 +1980,30 @@ Step 10 invariants that must not change:
 - full publish remains gated to `ready` or `error` with `retry: "full"`;
 - redacted friendly errors stay redacted.
 
-Step 10B planned source slice - pure render/refine intent helpers:
+Step 10B implementation - pure render/refine intent helpers:
 
-- create `apps/desktop/src/main/workspace/workspace-render-flow.ts`;
-- create `apps/desktop/src/main/workspace/workspace-render-flow.test.ts`;
-- move only pure prompt/preprompt builders, with no async, no worker, no stage
+- created `apps/desktop/src/main/workspace/workspace-render-flow.ts`;
+- created `apps/desktop/src/main/workspace/workspace-render-flow.test.ts`;
+- moved only pure prompt/preprompt builders, with no async, no worker, no stage
   map, no controller instance, no filesystem, and no event dependency;
-- tentative exports:
+- exports:
   - `CREATIVE_BOOTSTRAP_INTENT`;
   - `creativeBootstrapPreprompt(sceneIds: string[])`;
   - `visionRepairIntent(issue: string)`;
   - `visionRepairPreprompt(flagged: { sceneId: string; issue: string }[])`;
-- route `creativeBootstrapPass(...)` and `runVisionPasses(...)` through those
+- routed `creativeBootstrapPass(...)` and `runVisionPasses(...)` through those
   helpers while keeping the methods themselves in `WorkspaceController`;
-- do not move `runSceneEdits`, `runRender`, `runPublish`, `snapshotFresh`,
+- did not move `runSceneEdits`, `runRender`, `runPublish`, `snapshotFresh`,
   `restoreToPriorDraft`, or any render/refine async method in Step 10B.
 
 Step 10B test evidence map:
 
 | Behavior touched | Existing test(s) | Gap? | New test or reason no new test |
 | --- | --- | --- | --- |
-| creative bootstrap intent text stays exact enough for current guard phrases | `first-author creative bootstrap reauthors EVERY scene once before the draft` | direct helper output is not isolated | add direct helper test |
-| creative bootstrap preprompt maps every scene to the same bootstrap intent | same bootstrap controller test checks job shape indirectly | direct helper output is not isolated | add direct helper test |
-| vision repair intent keeps minimal-fix/title-card guard language | `silent refine BEFORE the draft...` checks selected intent phrases indirectly | direct helper output is not isolated | add direct helper test |
-| vision repair preprompt maps flagged defects by scene id | vision/refine controller tests exercise the worker job indirectly | direct helper output is not isolated | add direct helper test |
+| creative bootstrap intent text stays exact enough for current guard phrases | `first-author creative bootstrap reauthors EVERY scene once before the draft` | direct helper output was not isolated | added direct helper test |
+| creative bootstrap preprompt maps every scene to the same bootstrap intent | same bootstrap controller test checks job shape indirectly | direct helper output was not isolated | added direct helper test |
+| vision repair intent keeps minimal-fix/title-card guard language | `silent refine BEFORE the draft...` checks selected intent phrases indirectly | direct helper output was not isolated | added direct helper test |
+| vision repair preprompt maps flagged defects by scene id | vision/refine controller tests exercise the worker job indirectly | direct helper output was not isolated | added direct helper test |
 
 Step 10B required checks:
 
