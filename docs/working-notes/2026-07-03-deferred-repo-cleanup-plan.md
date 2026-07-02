@@ -27,6 +27,26 @@ rg -n "V:/video_tool|@news/mcp|packages/mcp|createTools|ToolDeps|stylePackId|cle
 Do not start implementation until the dirty worktree and current references are
 understood.
 
+## Per-Task Workflow
+
+Before each main cleanup task:
+
+1. Run `git status --short`.
+2. Re-audit the task's current source/noise references with `rg`.
+3. Read the directly touched code/docs before editing.
+4. Confirm the task can stay inside the intended slice and guardrails.
+
+After each main cleanup task:
+
+1. Re-run the same status/noise audit to catch stale references and accidental
+   scope creep.
+2. Run the targeted checks listed for that task, then broader checks when the
+   slice requires them.
+3. Review `git diff --stat` and the relevant diff before committing.
+4. Commit the slice separately.
+5. Report what changed, what checks ran, any residual risk, and the next
+   recommended task before starting the next source slice.
+
 ## Session Summary Before This Note
 
 The prior repo-noise cleanup completed and was committed in small slices:
@@ -102,7 +122,7 @@ Known files from the latest scan:
 - `packages/mcp/src/tools.ts`
   - internal tool facade currently used by desktop/product code.
 - `packages/mcp/src/tools.test.ts`
-  - direct tests for the tool facade.
+  - direct tests for the tool facade; should move with the facade in MCP-1.
 - `packages/mcp/src/index.ts`, `packages/mcp/package.json`
   - package surface and dependency metadata.
 - `apps/desktop/src/main/index.ts`
@@ -155,20 +175,28 @@ Preferred starting hypothesis:
 - move or re-home `ToolDeps` with it.
 - keep `packages/mcp` as a thin stdio adapter importing the moved facade.
 
-Update product imports:
+Update product imports and adapter wiring:
 
+- new neutral source/test owner, for example
+  `packages/pipeline/src/tools/create-tools.ts` and
+  `packages/pipeline/src/tools/create-tools.test.ts`;
+- `packages/mcp/src/server.ts`;
+- `packages/mcp/src/index.ts`;
+- `packages/mcp/package.json` if dependency metadata changes;
 - `apps/desktop/src/main/index.ts`;
 - `apps/desktop/src/main/authoring/ninerouter-backend.ts`;
 - `apps/desktop/src/main/preserved-invariants.test.ts`;
 - `apps/desktop/build-electron.mjs`;
 - `apps/desktop/package.json`;
-- root aliases/config if needed.
+- `tsconfig.json`;
+- `vitest.config.ts`;
+- root `package.json` / `package-lock.json` if workspace dependencies change.
 
 Required checks:
 
 ```bash
 npm.cmd run typecheck
-npm.cmd test -- packages/mcp/src/tools.test.ts
+npm.cmd test -- packages/pipeline/src/tools/create-tools.test.ts
 npm.cmd test -- apps/desktop/src/main/preserved-invariants.test.ts
 npm.cmd test
 npm.cmd run build
@@ -291,6 +319,8 @@ Known files from the latest scan include:
   - writes compatibility defaults.
 - `packages/pipeline/src/types.ts`
   - still has style fields/types.
+- `packages/pipeline/src/orchestrator.ts`
+  - writes the current `styleId: "clean-luxury-tech"` default.
 - tests across schema/theme/pipeline/render/cache still use
   `clean-luxury-tech`.
 - `apps/desktop/src/main/workspace/workspace-controller.ts`
@@ -306,12 +336,17 @@ These strings are tied to stored manifest compatibility and render defaults.
 Removing them without migration may break old projects or tests that assert the
 current compatibility behavior.
 
-Also, some matches are in sensitive files:
+Also, some direct matches or downstream behavior dependencies touch sensitive
+areas:
 
 - `packages/pipeline/src/orchestrator.ts`;
 - `packages/pipeline/src/safety/render-grid.ts`;
 - `apps/desktop/src/main/workspace/workspace-controller.ts`.
 
+The latest scan shows a direct legacy default in `orchestrator.ts` and a
+compatibility comment in `workspace-controller.ts`. `render-grid.ts` is listed
+as downstream-sensitive rather than as a direct legacy-string match: its tests
+cover render/layout behavior that can regress if style/theme defaults change.
 Those files must not be casually edited as part of cleanup.
 
 ### Proposed Style Compatibility Plan
@@ -328,6 +363,9 @@ Classify as:
 - write-time default that can be stopped;
 - docs/comment noise that can be updated safely;
 - test fixture that needs replacement only after behavior changes.
+
+Separately classify sensitive downstream behavior that may not show a direct
+legacy-string match, especially render-grid/orchestrator/workspace behavior.
 
 Step STYLE-1: remove docs/comment noise only.
 
@@ -367,11 +405,35 @@ npm.cmd run build
 Step STYLE-3: remove compatibility fields only after there is an explicit stored
 project migration or the owner accepts breaking old project manifests.
 
-## Deferred Surface 4 - Runtime Cache Duplication Policy
+Before this step can start, define the compatibility story explicitly:
+
+- a reader/coercion path that still accepts old manifests, or a one-time stored
+  project migration with tests and rollback notes;
+- fixtures for old manifests containing `stylePackId` / `clean-luxury-tech`;
+- updated docs explaining whether old projects remain supported.
+
+Required targeted checks:
+
+```bash
+npm.cmd test -- packages/schema/src/schema.test.ts
+npm.cmd test -- packages/theme/src/theme.test.ts
+npm.cmd test -- packages/pipeline/src/authoring/manifest.test.ts
+npm.cmd test -- packages/pipeline/src/safety/static-grid.test.ts
+npm.cmd test -- packages/pipeline/src/safety/render-grid.test.ts
+npm.cmd test -- packages/pipeline/src/orchestrator.test.ts
+npm.cmd run typecheck
+npm.cmd test
+npm.cmd run build
+```
+
+## Out Of Scope Note - Runtime Cache Duplication Policy
 
 The prior cleanup found that `.video-tool/cache/tts/*.wav` may duplicate project
 scene audio by hash. This is expected runtime cache behavior, not source-file
 trash.
+
+This is intentionally not a deferred source-cleanup surface and does not need a
+step-by-step plan in this note.
 
 Do not delete `.video-tool/projects`, successful renders, project manifests, or
 runtime cache as part of source cleanup unless the owner explicitly asks for a
@@ -399,6 +461,10 @@ This belongs to a product/runtime maintenance task, not repo-source cleanup.
   `packages/pipeline/src/safety/render-grid.ts`, or desktop workspace flow
   unless the slice explicitly requires it, names the risk, and has targeted
   tests.
+- This conditional wording is intentional for this broader cleanup note. Narrow
+  desktop-main notes may forbid touching those files entirely because they have
+  no valid reason to edit them; this note only allows a future style-compat
+  slice to open them with explicit owner approval and targeted tests.
 - Commit each source/docs slice separately.
 - Before every commit:
 
@@ -414,10 +480,12 @@ Start with MCP-0 and MCP-1.
 Reason:
 
 - `.mcp.json` contains the most visibly stale path (`V:/video_tool`);
-- the path cannot be cleaned correctly until the internal `createTools` facade is
-  no longer owned by `packages/mcp`;
-- moving the facade is a narrower, testable prerequisite for deleting or
-  shrinking the external MCP server.
+- MCP-1 is the first prerequisite because product code must stop importing the
+  internal `createTools` facade through `@news/mcp` before the MCP package can
+  become only an external adapter;
+- MCP-2 and MCP-3, not MCP-1 alone, are the steps that decide whether the
+  external stdio server remains and how the tracked `.mcp.json` path should be
+  removed or templated.
 
 Do not start package namespace or style compatibility cleanup until MCP ownership
 is clarified.
