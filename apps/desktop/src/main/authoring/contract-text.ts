@@ -1,10 +1,10 @@
 /**
  * The pure-AUTHOR contract, inlined (desktop-author-mode, Req 1.5). A condensed
- * but faithful version of `docs/authoring-contract.md` — inlined as a
+ * but faithful version of `docs/current/authoring-contract.md` — inlined as a
  * constant so the bundled Electron main never reads it from disk (deterministic,
  * no fs in the hot path). Embedded into the author + reauthor prompts so the AI
  * writes `.tsx` scene modules that pass the admission gate (N4/N5) and look
- * on-brand. Keep this in sync with `docs/authoring-contract.md` when the contract changes.
+ * on-brand. Keep this in sync with `docs/current/authoring-contract.md` when the contract changes.
  */
 
 export const AUTHORING_CONTRACT = `HỢP ĐỒNG VIẾT CẢNH (AUTHOR mode — KHÔNG CÓ THƯ VIỆN BLOCK) — mỗi cảnh là MỘT module .tsx Remotion bạn TỰ VIẾT MỚI 100% bằng JSX/SVG trần.

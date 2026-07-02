@@ -29,8 +29,13 @@ Preferred order:
 2. inventory legacy compatibility;
 3. thin desktop main wiring;
 4. split authoring backend seams;
-5. clarify workspace state machine;
+5. revisit workspace state machine only after a new narrow slice is proven;
 6. split render-grid/orchestrator only after safer outer cleanup.
+
+The first workspace-controller pass is complete: local pure/view-model/create/
+script/render helpers exist, while async render/refine/publish orchestration
+stays in `WorkspaceController`. Do not force that extraction just to reduce line
+count.
 
 ## Legacy Terms
 
@@ -50,4 +55,3 @@ They must not appear as current instructions.
 
 Temporary task planning belongs in `docs/working-notes/`. Those notes may mention
 obsolete terms while tracking cleanup, but they are not project contracts.
-

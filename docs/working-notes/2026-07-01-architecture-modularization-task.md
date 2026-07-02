@@ -1,6 +1,6 @@
 # Temporary Task — Architecture Modularization
 
-Status: Step 11A test stability complete; Step 12 final sync next.
+Status: Step 12 final docs/code sync complete; Step 13 deletion next.
 
 This is a temporary working task for the next large cleanup after the docs
 contract consolidation. Keep it updated as work progresses. Delete this file
@@ -1074,7 +1074,7 @@ Suggested commit names:
 - [x] Step 10: Extract render/refine/publish helpers or stop deliberately.
 - [x] Step 11: Decide next target after workspace controller.
 - [x] Step 11A: Stabilize N10 default test lane.
-- [ ] Step 12: Final docs/code sync sweep.
+- [x] Step 12: Final docs/code sync sweep.
 - [ ] Step 13: Delete this temporary task file and commit deletion.
 
 ## Step 0 — Baseline And Dirty-Worktree Ownership
@@ -2314,6 +2314,19 @@ npm.cmd run typecheck
 npm.cmd test
 npm.cmd run build
 ```
+
+Step 12 result:
+
+- active docs now record the local workspace helper boundaries and the decision
+  to keep async render/refine/publish orchestration in `WorkspaceController`;
+- maintenance docs now say the first workspace-controller pass is complete and
+  the next architecture target is desktop main wiring rather than more forced
+  workspace extraction;
+- stale source-comment references to the old authoring-contract location were
+  corrected to `docs/current/authoring-contract.md`;
+- `.claude/` files were checked and remain thin adapters;
+- deleted-doc scan is clean except for historical working-note references;
+- required checks passed: `typecheck`, default two-lane `test`, and `build`.
 
 ## Step 13 — Delete This Temporary Task File
 

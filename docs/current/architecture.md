@@ -18,6 +18,22 @@ instance.
 | `apps/remotion` | Remotion root and sample fixtures. |
 | `apps/desktop` | Electron app: create flow, workspace stages, settings, 9router gateway, hidden refine, BGM, thumbnail, export. |
 
+## Desktop Workspace Internals
+
+The workspace controller has been split only along narrow local seams:
+
+- `workspace-helpers.ts` owns pure status, intent, and link-warning helpers.
+- `workspace-view-model.ts` owns pure ready/published/script/storyboard shaping.
+- `workspace-create-flow.ts` owns create/crawl/image-review helpers and the
+  callback-driven create runner.
+- `workspace-script-flow.ts` owns script-gate, manifest-edit, and script
+  authoring runner helpers.
+- `workspace-render-flow.ts` owns pure render/refine prompt and progress helpers.
+
+`workspace-controller.ts` still owns orchestration: live stage maps, in-flight
+jobs, cancellation, retry, snapshot/restore, async render/refine/publish
+ordering, publish state, and event emission.
+
 ## Data Flow
 
 ```text
@@ -71,4 +87,3 @@ Avoid broad refactors in these areas without a focused plan and tests:
 - `apps/desktop/src/main/workspace/workspace-controller.ts`
 - `apps/desktop/src/main/authoring/ninerouter-backend.ts`
 - `packages/pipeline/src/render/renderer.ts`
-
