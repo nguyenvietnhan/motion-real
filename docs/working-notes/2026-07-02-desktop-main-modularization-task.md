@@ -1,6 +1,7 @@
 # Temporary Task - Desktop Main Modularization
 
-Status: Step 3 BGM extraction complete; Step 4 native-save extraction next.
+Status: Step 4 native-save extraction complete; Step 5 create-ipc extraction
+next.
 
 This is a temporary working task for thinning
 `apps/desktop/src/main/index.ts`. It is not project contract. Current contract
@@ -280,6 +281,14 @@ For each completed step, add at most:
   872 tests; N10 heavy lane: 1 file / 13 tests), and `npm.cmd run build`.
   Desktop GUI smoke was not run because BGM list/add/remove/select requires
   interactive app/dialog/audio-picker use. Next gate: Step 4.
+- 2026-07-02 Step 4 complete. Extracted full-video and thumbnail native
+  save/export helpers into `apps/desktop/src/main/export/native-save.ts`, added
+  direct tests, and kept the Electron save-dialog/window adapter in `index.ts`.
+  Checks passed: `npm.cmd run typecheck`, `native-save.test.ts` (7 tests), full
+  `npm.cmd test` (normal lane: 90 files / 879 tests; N10 heavy lane: 1 file / 13
+  tests), and `npm.cmd run build`. Desktop GUI smoke was not run because native
+  save/export requires interactive app/dialog and an existing artifact. Next
+  gate: Step 5.
 
 ## Progress Checklist
 
@@ -288,7 +297,7 @@ For each completed step, add at most:
 - [x] Step 1: Extract runtime env parsing/boot voice helpers.
 - [x] Step 2: Extract create-time image staging helpers.
 - [x] Step 3: Extract BGM view-model and handlers.
-- [ ] Step 4: Extract native save/export helpers.
+- [x] Step 4: Extract native save/export helpers.
 - [ ] Step 5: Extract small create/project IPC payload helpers.
 - [ ] Step 6: Decide whether to extract a handler builder or stop.
 - [ ] Step 7: Window/startup close audit.
@@ -784,16 +793,17 @@ Expected output:
 
 ## Current Next Source Slice Recommendation
 
-After owner approval, start with Step 4.
+After owner approval, start with Step 5.
 
 Reason:
 
-- Step 3 isolated BGM view-model/list/handler behavior with direct tests and
+- Step 4 isolated native save/export behavior with direct tests and
   full checks;
-- Step 4 is the next contained extraction candidate because native save/export
-  behavior is still inline in `index.ts` and has no direct helper tests.
-- keep Step 4 scoped to native save/export helpers; do not move thumbnail
-  generation, pipeline render behavior, media protocol, or Electron lifecycle.
+- Step 5 is the next contained extraction candidate because create IPC payload
+  coercion is still inline in `index.ts` and has no direct helper tests.
+- keep Step 5 scoped to `projects:create` payload shaping and voice provider
+  validation; do not move `CreateController`, scaffold/tool wiring, preflight,
+  or staged image promotion.
 
-If Step 4 reveals export/native-dialog ambiguity, stop and fix that before any
-create IPC payload helper extraction.
+If Step 5 reveals create payload ambiguity, stop and fix that before any handler
+builder decision.

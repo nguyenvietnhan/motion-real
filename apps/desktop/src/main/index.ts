@@ -26,6 +26,12 @@ import {
   type ImageStagingDeps,
 } from "./create/image-staging.js";
 import { createBgmHandlers } from "./bgm/bgm-handlers.js";
+import {
+  saveProjectThumbnail,
+  saveProjectVideo,
+  type NativeSaveDeps,
+  type NativeSaveDialogOptions,
+} from "./export/native-save.js";
 import { registerMediaScheme, handleMediaProtocol, mediaUrl } from "./media-protocol.js";
 import { events, setEventTarget } from "./event-bus.js";
 import { existsSync } from "node:fs";
@@ -317,6 +323,26 @@ const bgmHandlers = createBgmHandlers({
   writeManifest: (projectId, manifest) => writeJson(projectPaths(projectId).manifest, manifest),
 });
 
+async function showNativeSaveDialog(options: NativeSaveDialogOptions) {
+  const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0];
+  return win ? dialog.showSaveDialog(win, options) : dialog.showSaveDialog(options);
+}
+
+const nativeSaveDeps: NativeSaveDeps = {
+  exists: existsSync,
+  copyFile,
+  showSaveDialog: showNativeSaveDialog,
+  currentOutputDir: () => settingsStore.current().outputDir,
+  downloadsDir: () => app.getPath("downloads"),
+  projectTitle: async (projectId) => {
+    const cards = await tools.list_projects();
+    return cards.ok ? toCards(cards.data).find((card) => card.projectId === projectId)?.title : undefined;
+  },
+  videoSourcePath: (projectId) => join(projectPaths(projectId).rendersDir, `${projectId}.mp4`),
+  thumbnailSourcePath: (projectId) => join(projectPaths(projectId).reviewDir, "thumbnail.png"),
+  warn: (details, message) => log.warn(details, message),
+};
+
 const handlers: InvokeHandlers = {
   "license:get": () => licenseManager.current(),
   "license:activate": (key) => licenseManager.activate(String(key)),
@@ -360,40 +386,7 @@ const handlers: InvokeHandlers = {
   "projects:open": (projectId) => workspace.open(String(projectId)),
   "projects:delete": (projectId) => workspace.delete(String(projectId)),
   "projects:reveal": (projectId) => workspace.reveal(String(projectId)),
-  "projects:save": async (projectId) => {
-    // Export the finished full MP4 to a user-chosen location. Distinct from
-    // `reveal` (which only opens the store folder): a native Save dialog lets a
-    // non-tech user drop the video wherever they want. We COPY (never move) —
-    // the original must stay in the store so `hasOutput`/the `published` stage
-    // keep resolving. Writing OUTSIDE the `.video-tool` sandbox is intentional
-    // here: it's a user-initiated export gated by the dialog, the one allowed
-    // path out. No dialog ⇒ no write, ever.
-    const id = String(projectId);
-    const src = join(projectPaths(id).rendersDir, `${id}.mp4`);
-    if (!existsSync(src)) return { saved: false };
-    const cards = await tools.list_projects();
-    const title = cards.ok ? toCards(cards.data).find((c) => c.projectId === id)?.title : undefined;
-    const safeName = (title ?? id).replace(/[\\/:*?"<>|]/g, "_").trim() || id;
-    const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0];
-    const opts = {
-      title: "Lưu video",
-      defaultPath: join(settingsStore.current().outputDir || app.getPath("downloads"), `${safeName}.mp4`),
-      filters: [{ name: "Video MP4", extensions: ["mp4"] }],
-    };
-    const picked = win ? await dialog.showSaveDialog(win, opts) : await dialog.showSaveDialog(opts);
-    if (picked.canceled || !picked.filePath) return { saved: false };
-    try {
-      await copyFile(src, picked.filePath);
-      return { saved: true };
-    } catch (e) {
-      // A raw fs error here (a locked destination, EPERM/EACCES on a protected
-      // folder, a removed drive) would otherwise propagate the absolute path +
-      // OS error code straight to the renderer's rejected invoke — every other
-      // handler redacts. Swallow to a clean flag + a generic Vietnamese reason.
-      console.warn(`[desktop] save/export failed for ${id}:`, e);
-      return { saved: false, error: "Không lưu được video ra vị trí đã chọn. Hãy thử lại hoặc chọn thư mục khác." };
-    }
-  },
+  "projects:save": (projectId) => saveProjectVideo(projectId, nativeSaveDeps),
   "projects:cancel": (projectId) => {
     workspace.cancel(String(projectId));
     return undefined;
@@ -414,29 +407,7 @@ const handlers: InvokeHandlers = {
   ...bgmHandlers,
 
   "thumbnail:generate": (projectId) => workspace.generateThumbnail(String(projectId)),
-  "thumbnail:save": async (projectId) => {
-    const id = String(projectId);
-    const src = join(projectPaths(id).reviewDir, "thumbnail.png");
-    if (!existsSync(src)) return { saved: false };
-    const cards = await tools.list_projects();
-    const title = cards.ok ? toCards(cards.data).find((card) => card.projectId === id)?.title : undefined;
-    const safeName = (title ?? id).replace(/[\\/:*?"<>|]/g, "_").trim() || id;
-    const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0];
-    const opts = {
-      title: "Lưu ảnh bìa",
-      defaultPath: join(settingsStore.current().outputDir || app.getPath("downloads"), `${safeName}-cover.png`),
-      filters: [{ name: "Ảnh PNG", extensions: ["png"] }],
-    };
-    const picked = win ? await dialog.showSaveDialog(win, opts) : await dialog.showSaveDialog(opts);
-    if (picked.canceled || !picked.filePath) return { saved: false };
-    try {
-      await copyFile(src, picked.filePath);
-      return { saved: true };
-    } catch (error) {
-      console.warn(`[desktop] thumbnail export failed for ${id}:`, error);
-      return { saved: false, error: "Không lưu được ảnh bìa. Hãy thử lại hoặc chọn thư mục khác." };
-    }
-  },
+  "thumbnail:save": (projectId) => saveProjectThumbnail(projectId, nativeSaveDeps),
 
   "script:get": (projectId) => workspace.scriptGate(String(projectId)),
   "script:applyEdits": (projectId, edits) => workspace.applyEdits(String(projectId), edits as ScriptEdit[]),
