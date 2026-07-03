@@ -10,7 +10,7 @@ import { VENDORED_FONTS } from "./vendor-fonts.generated.js";
 /**
  * Render-safe font loading (tool-productization R1, Property 19).
  *
- * Every style-pack font must be present with the **vietnamese** subset so a
+ * Every render font must be present with the **vietnamese** subset so a
  * Vietnamese diacritic never falls back to a system face ("nét to nét nhỏ").
  *
  * STRATEGY — self-hosted first, never fatal:
@@ -32,8 +32,8 @@ import { VENDORED_FONTS } from "./vendor-fonts.generated.js";
  * data: URL is a plain string and `FontFace` is guarded on `typeof`, so this
  * module is inert in Node and real in the browser.
  *
- * Family map: Inter (bold-editorial display/body), Be Vietnam Pro (galaxy
- * display/body), Cascadia Mono (both packs' mono labels) — all Vietnamese-complete.
+ * Family map: Inter (display/body), Be Vietnam Pro (alternate display/body),
+ * Cascadia Mono (mono labels) — all Vietnamese-complete.
  */
 
 /** Register the vendored faces locally (no network). Returns false if nothing was vendored. */
@@ -91,7 +91,7 @@ if (!loadVendoredFonts()) {
   loadNetworkFonts();
 }
 
-/** Loaded family names — MUST match the style packs' `fontFamily` stacks. */
+/** Loaded family names — MUST match the neutral render theme font stacks. */
 export const LOADED_FONT_FAMILIES = {
   display: "Inter",
   bodyPremium: "Be Vietnam Pro",
@@ -102,7 +102,7 @@ export const LOADED_FONT_FAMILIES = {
 export type FontCoverage = { family: string; hasVietnamese: boolean };
 
 /**
- * Report whether each loaded style-pack font ships the `vietnamese` subset — the
+ * Report whether each loaded render font ships the `vietnamese` subset — the
  * coverage that prevents diacritic fallback ("nét to nét nhỏ"). Used by the
  * doctor font-coverage check (tool-productization R6 / design §6). When fonts are
  * vendored, coverage is verified from the manifest; otherwise from the google-fonts

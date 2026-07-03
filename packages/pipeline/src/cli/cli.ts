@@ -362,7 +362,7 @@ export type DoctorDeps = {
 
 /**
  * Verify environment readiness: Vivibe `.env` config, ffmpeg, a usable headless
- * browser, registry health, the style-pack registry, per-pack Vietnamese font
+ * browser, registry health, legacy theme resolution, Vietnamese font
  * coverage, and bundled font readiness. Each probe is injectable so tests never
  * spawn ffmpeg or download Chromium. ALL checks run (never
  * short-circuit) so a single report lists every failure (R6.4); overall ready
@@ -443,7 +443,7 @@ export function defaultCheckStylePacks(): DoctorCheck {
   };
 }
 
-/** R6 / design §6: every style pack's font families cover the Vietnamese subset. */
+/** R6 / design §6: render font families cover the Vietnamese subset. */
 export function defaultCheckFonts(): DoctorCheck {
   const coverage = new Map(fontCoverageReport().map((f) => [f.family, f.hasVietnamese]));
   const leading = (stack: string): string => (stack.split(",")[0] ?? "").trim().replace(/^["']|["']$/g, "");

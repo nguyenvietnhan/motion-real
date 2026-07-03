@@ -171,9 +171,9 @@ describe("buildAuthorMessages", () => {
 
   // --- format / tier / video-language are prompt-driven ---
 
-  it("is de-styled: no leftover design-language / style-pack wording in the prompt", () => {
+  it("is de-styled: no leftover design-language / style-selection wording in the prompt", () => {
     // The multi-style design system was deleted (D1). The prompt must no longer
-    // tell the model to author "on a design language" / "style pack" — there is
+    // tell the model to author "on a design language" or pick a style — there is
     // only the delivery format's geometry now.
     const [sys] = buildAuthorMessages({ text: "Chủ đề bất kỳ", urls: [] });
     const text = sys!.content;

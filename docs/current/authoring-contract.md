@@ -95,7 +95,7 @@ These are not available to authored scenes:
 - `Panel`
 - `CountUp`
 - `useTheme`
-- style packs
+- authored-facing style selection
 - theme tokens
 - any authored-facing layout-block toolkit
 
@@ -134,4 +134,3 @@ refine unless live code marks a class as hard render-integrity failure.
 
 For YouTube format, there is no burned caption band, but long-form YouTube is
 not yet the stable production path.
-

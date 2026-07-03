@@ -72,10 +72,10 @@ user-added media is copied into the canonical `.video-tool` library.
 
 ## Legacy Terms
 
-These terms may appear only when explicitly discussing compatibility or ADR
-history:
+These terms may appear only when explicitly discussing compatibility cleanup or
+ADR history:
 
-- deleted design-registry names
+- deleted design-system names
 - `stylePack`
 - `stylePackId`
 - `clean-luxury-tech`

@@ -34,8 +34,8 @@ export const AUTHORING_CONTRACT_REF = "AI_CONTRACT.md+docs/current" as const;
  * `format` (TikTok 9:16 / YouTube 16:9 → canvas + caption presence), `durationTier`
  * (the word-budget bucket, see `tierSeconds`), and `videoLanguage` (vi/en for the
  * whole authored video: title, on-screen text, narration, captions). All optional: absent ⇒ the
- * backend's defaults (tiktok / tier 1 / vi). The old `stylePackId` is gone (the
- * multi-style design system was removed — D1).
+ * backend's defaults (tiktok / tier 1 / vi). Style selection is not part of the
+ * authoring input; the multi-style design system was removed (D1).
  */
 export type AuthorInput = {
   text: string;

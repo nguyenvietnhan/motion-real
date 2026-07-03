@@ -12,8 +12,8 @@
  * This module keeps the EXACT `Theme` shape the old design package produced — and
  * the proven 2-layer cross-model defense (typed alias keys + a Proxy fallback) for
  * `colors` and `radius`, so an AI-authored token name can never break a render. A
- * handful of registry-shaped shims (`makeTheme`, `getStylePack`,
- * `listStylePackIds`, …) are kept so consumers still compile during the migration;
+ * handful of legacy-shaped shims (`makeTheme`, `getStylePack`,
+ * `listStylePackIds`, ...) are kept so consumers still compile during the migration;
  * they all resolve to the one neutral theme (stylePackId is ignored). Those shims
  * are retired as later groups remove the style concept from the prompt/schema/UI.
  *
@@ -458,7 +458,7 @@ function wrapTheme(base: Omit<Theme, keyof ThemeColors>, colors: ThemeColors): T
 
 /**
  * Build the neutral theme for a dominant hue. `stylePackId` is accepted + ignored
- * (the style concept is retired) so call sites still compile during the migration.
+ * so call sites still compile during the migration.
  */
 export function makeTheme(dominant: string = DEFAULT_DOMINANT, _stylePackId?: string): Theme {
   const hex = normalizeHex(dominant) ?? DEFAULT_DOMINANT;
@@ -504,15 +504,15 @@ export function sceneBackground(t: Theme = theme): string {
   ].join(", ");
 }
 
-// --- Registry shims (transitional) ----------------------------------------
+// --- Legacy style identity shims (transitional) ---------------------------
 //
-// The old multi-language registry (getStylePack/listStylePackIds/…) is gone, but
+// The old multi-language style system (getStylePack/listStylePackIds/...) is gone, but
 // N1, the prompt builder, the CLI, and the desktop UI still call these names. They
 // now resolve to the ONE neutral theme so everything compiles; later groups (G:
 // de-style the prompt + drop stylePackId from the schema/UI) remove the call sites
 // and these shims with them.
 
-/** Back-compat: the neutral theme described as a "style pack" (single entry). */
+/** Back-compat: the neutral theme exposed through the legacy shape. */
 export type StylePreview = {
   dark: boolean;
   rounded: boolean;
@@ -555,7 +555,7 @@ const NEUTRAL_PACK: StylePack = {
 /** The single style id `makeTheme` resolves to. */
 export const DEFAULT_STYLE_PACK_ID: string = NEUTRAL_THEME_ID;
 
-/** Resolve a "style pack" — always the neutral pack (id is ignored). */
+/** Resolve the legacy style identity — always the neutral theme (id is ignored). */
 export function getStylePack(_id?: string): StylePack {
   return NEUTRAL_PACK;
 }

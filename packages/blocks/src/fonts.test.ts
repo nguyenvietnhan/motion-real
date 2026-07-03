@@ -11,15 +11,15 @@ function leading(stack: string): string {
   return (stack.split(",")[0] ?? "").trim().replace(/^["']|["']$/g, "");
 }
 
-// Feature: tool-productization, Property 19: Style-pack fonts cover Vietnamese and load render-safe
-describe("style-pack fonts — Property 19: Vietnamese coverage + render-safe", () => {
-  it("every loaded pack font ships the vietnamese subset (no diacritic fallback)", () => {
+// Feature: tool-productization, Property 19: render fonts cover Vietnamese and load safely
+describe("render fonts — Property 19: Vietnamese coverage + render-safe", () => {
+  it("every loaded render font ships the vietnamese subset (no diacritic fallback)", () => {
     for (const info of [interInfo(), bvpInfo(), cascadiaInfo()]) {
       expect(info.subsets).toContain("vietnamese");
     }
   });
 
-  it("every style pack's font families are render-safe loaded families", () => {
+  it("the neutral theme font families are render-safe loaded families", () => {
     const loaded = new Set<string>([interFamily, bvpFamily, cascadiaFamily]); // Inter, Be Vietnam Pro, Cascadia Mono
     for (const id of listStylePackIds()) {
       const f = getStylePack(id)!.fonts;
@@ -41,7 +41,7 @@ describe("style-pack fonts — Property 19: Vietnamese coverage + render-safe", 
 // intermittent "Timed out loading Google Font" failures). These lock the vendored
 // manifest's completeness so a bad re-vendor can't silently drop a family/subset.
 describe("vendored fonts — self-hosted, render-safe (no network)", () => {
-  it("vendors all three style-pack families with the vietnamese subset", () => {
+  it("vendors all three render families with the vietnamese subset", () => {
     for (const family of ["Inter", "Be Vietnam Pro", "Cascadia Mono"]) {
       const viet = VENDORED_FONTS.filter((f) => f.family === family && f.subset === "vietnamese");
       expect(viet.length, `${family} must have a vendored vietnamese face`).toBeGreaterThan(0);

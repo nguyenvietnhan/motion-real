@@ -46,7 +46,7 @@ the project contract.
   arbitrary packages from authored scenes.
 - Do not reintroduce `Frame`, `Story`, `TitleBlock`, `KeyPoints`, `Panel`,
   `CountUp`, or any authored-facing layout-block toolkit.
-- Do not reintroduce a style-pack or theme-token leash for authored scenes.
+- Do not reintroduce style selection or a theme-token leash for authored scenes.
 - Scene visuals must be deterministic functions of the frame. No `Math.random`,
   `Date`, network, filesystem, dynamic import, `eval`, or host access.
 - Captions are generated centrally from narration. Authored scenes do not render

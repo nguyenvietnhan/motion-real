@@ -145,8 +145,8 @@ export const ThemeSpecSchema = z.object({
   /** Optional short mood label for human readability (e.g. "calm tech blue"). */
   mood: z.string().max(40).optional(),
   /**
-   * Legacy style-pack id kept only so old specs parse. The style-pack registry
-   * was retired; render resolves one neutral theme and ignores this value.
+   * Legacy style identity kept only during cleanup. Render resolves one neutral
+   * theme and ignores this value.
    */
   stylePackId: z.string().optional(),
 });

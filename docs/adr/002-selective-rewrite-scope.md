@@ -19,7 +19,7 @@ liên tiếp/90 ngày. Nhưng các package nền (`schema`, `blocks`, `compositi
 ## Decision
 
 Selective rewrite. Quyết định gốc là giữ các package nền và chỉ thay vùng gây
-churn. **Amended theo freeform pivot 2026-06-17:** design registry cũ đã bị xoá
+churn. **Amended theo freeform pivot 2026-06-17:** design system cũ đã bị xoá
 và thay bằng `@motionreal/theme`; `@motionreal/blocks` không còn layout toolkit
 authored-facing, chỉ còn runtime internals + `SceneImage`. Các vùng vẫn phải cực
 kỳ thận trọng: `@motionreal/schema`, `@motionreal/theme`,

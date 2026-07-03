@@ -329,8 +329,8 @@ describe("static grid — N26 weak hook (warning)", () => {
   });
 });
 
-describe("static grid — legacy stylePackId", () => {
-  it("ignores unknown theme.stylePackId because style packs are retired", () => {
+describe("static grid — retired theme style identity", () => {
+  it("ignores unknown theme.stylePackId because style selection is retired", () => {
     const spec = validSpec();
     spec.theme = { dominant: "#2F5FF0", stylePackId: "totally-made-up-pack" };
     const issues = runStaticGrid(spec).issues.filter((i) => /stylePackId/i.test(i.message));

@@ -47,14 +47,14 @@ describe("doctor — Property 16: reports every failure (never short-circuits)",
 });
 
 describe("doctor — per-check defaults (R6.1, R6.2)", () => {
-  it("style-pack check passes: the neutral theme resolves", () => {
+  it("legacy theme-resolution check passes: the neutral theme resolves", () => {
     const check = defaultCheckStylePacks();
     expect(check.name).toBe("style packs");
     expect(check.ok).toBe(true);
     expect(check.detail).toMatch(/neutral/);
   });
 
-  it("font check passes: every style-pack font covers the vietnamese subset", () => {
+  it("font check passes: neutral render fonts cover the vietnamese subset", () => {
     const check = defaultCheckFonts();
     expect(check.name).toBe("fonts (vietnamese coverage)");
     expect(check.ok).toBe(true);

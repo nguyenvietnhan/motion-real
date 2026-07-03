@@ -4,10 +4,10 @@
  * master composition, and the N14 oracles all read these so the rules never
  * drift between authoring and validation (author-mode-v2 R15).
  *
- * ONE shared layout for every style. Styles differ only in CHROME (the "outfit":
- * square vs rounded corners, framed vs frameless, fonts/colors) — NOT in where
- * content/captions sit. So these zones are plain global constants; the oracles
- * and every block read the same rectangles regardless of style pack.
+ * ONE shared layout for every visual treatment. Chrome may differ (corners,
+ * framing, fonts/colors) — NOT where content/captions sit. So these zones are
+ * plain global constants; the oracles and every block read the same rectangles
+ * regardless of visual treatment.
  *
  * Rationale (short-platform friendly):
  *  - Primary content lives in an UPPER band (the content zone) so TikTok/Reels/
@@ -20,10 +20,10 @@
  *    VALIDATION threshold only — nothing renders from it.
  *
  * Pure constants only (no IO / no design import): `@motionreal/schema` is the lowest
- * layer, so it cannot depend on any design registry.
+ * layer, so it cannot depend on any design system.
  */
 
-/** Fixed render canvas (mirrors the deleted design-registry CANVAS; kept here to avoid a layer cycle). */
+/** Fixed render canvas (mirrors the render design-system CANVAS; kept here to avoid a layer cycle). */
 export const CANVAS = { width: 1080, height: 1920 } as const;
 
 /** An axis-aligned rectangle in canvas pixel space. */
@@ -38,7 +38,7 @@ export type Rect = { top: number; bottom: number; left: number; right: number };
  * Lowered from the historical bottom of 1190 to 1350 so every scene gets more
  * vertical room for images/visualizations, and so the divider sits close to the
  * caption (only a ~20px gap) rather than floating well above it. ONE shared zone
- * for all styles (styles differ only in chrome, not in where content sits).
+ * for all visual treatments (chrome differs, not where content sits).
  */
 export const CONTENT_ZONE: Rect = { top: 96, bottom: 1350, left: 80, right: 1000 };
 

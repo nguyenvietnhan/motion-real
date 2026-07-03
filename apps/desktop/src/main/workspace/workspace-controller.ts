@@ -320,8 +320,8 @@ export class WorkspaceController {
    * rehydrating it from the persisted brief (prompt → text + extracted urls).
    * Without this, a project stranded across a restart shows an error screen
    * whose "Thử lại" calls retry() → empty inputs → silent no-op → the poll
-   * re-derives the same error (an error↔writing flicker). The stylePackId and
-   * create-time images aren't persisted, so a rehydrated retry re-authors from
+   * re-derives the same error (an error↔writing flicker). Create-time images
+   * aren't persisted, so a rehydrated retry re-authors from
    * text + links only — a degraded but functional recovery, not a dead button.
    */
   async retry(projectId: string): Promise<void> {

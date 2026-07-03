@@ -1,7 +1,8 @@
 # Temporary Task - Deferred Repo Cleanup Plan
 
 Status: MCP cleanup and workspace namespace cleanup completed; style-pack
-removal decision and inventory completed; style source migration still pending.
+removal decision, inventory, and wording cleanup completed; style source
+migration still pending.
 
 This is a temporary working note for the remaining repo-noise items that were
 intentionally deferred after the repo hygiene cleanup. It is not project
@@ -299,16 +300,16 @@ rg -n "styleId|theme\\?|makeTheme|getStylePack|listStylePackIds|StylePack|StyleP
 rg -n "clean-luxury-tech|stylePackId|stylePack|StylePack|style packs|style-pack|design registry" package.json package-lock.json tsconfig.json vitest.config.ts apps packages docs/current README.md AI_CONTRACT.md docs/adr docs/working-notes
 ```
 
-Step STYLE-1: remove docs/comment/test-name noise only.
+Step STYLE-1: remove docs/comment/test-name noise only. Completed.
 
-Allowed changes:
+Completed changes:
 
-- rename comments in docs/current, ADRs, blocks font comments, generated-font
-  generator comment, authoring tests, and desktop comments away from style-pack
-  vocabulary;
-- do not change schema, manifest conversion, theme APIs, CLI behavior, or
-  orchestrator defaults in this slice;
-- if touching generated file comments, update the generator script too.
+- renamed current docs, contract wording, blocks font comments, generated-font
+  generator comments, authoring test names, and desktop comments away from
+  style-pack vocabulary;
+- did not change schema, manifest conversion, theme APIs, CLI behavior, or
+  orchestrator defaults;
+- updated the generated-font header and its generator together.
 
 Required checks:
 
@@ -484,15 +485,17 @@ git diff --stat
 
 ## Recommended Next Step
 
-Start with STYLE-1: remove style-pack wording noise only.
+Start with STYLE-2: remove style identity from schemas and new runtime outputs.
 
 Reason:
 
 - MCP cleanup is complete;
 - workspace namespace cleanup is complete;
-- STYLE-0 is complete: owner decision, theory, and inventory now say style-pack
+- STYLE-0 is complete: owner decision, theory, and inventory say style-pack
   identity should be removed rather than preserved as compatibility;
-- the first source/doc slice should be wording-only so behavioral style removal
-  starts from a cleaner audit surface;
-- schema, orchestrator, render-grid, and desktop workspace behavior stay for
-  later dedicated style slices with targeted tests.
+- STYLE-1 is complete: wording/comment/test-name noise has been reduced without
+  changing behavior;
+- the next slice is the first behavior-bearing migration and must remove
+  `VideoSpec.styleId`, `ProjectBrief.styleId`, and `ThemeSpec.stylePackId` with
+  targeted tests;
+- theme registry shims and CLI readiness naming stay for STYLE-3.

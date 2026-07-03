@@ -58,5 +58,4 @@ should not become hard look/style constraints without owner approval.
 ## Do Not Regress
 
 Do not reintroduce hard aesthetic gates. Do not force a fixed visual style,
-theme, style pack, or layout toolkit through the safety grid.
-
+theme selection, or layout toolkit through the safety grid.

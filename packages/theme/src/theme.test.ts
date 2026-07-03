@@ -3,7 +3,7 @@ import { makeTheme, DEFAULT_DOMINANT, PRINT, NEUTRAL_THEME_ID } from "./index.js
 
 /**
  * @motionreal/theme self-tests — the single neutral theme + the proven 2-layer
- * cross-model defense ported from the deleted design registry. A token name an
+ * cross-model defense ported from the deleted design system. A token name an
  * AI-authored scene reaches for must never break a render: Layer 1 declares the
  * cross-model alias vocabulary as real keys; Layer 2 (Proxy) catches anything
  * unforeseen. The neutral theme is dark (near-black base, near-white ink) with
@@ -13,7 +13,7 @@ import { makeTheme, DEFAULT_DOMINANT, PRINT, NEUTRAL_THEME_ID } from "./index.js
 describe("neutral theme — shape + polarity", () => {
   const t = makeTheme(DEFAULT_DOMINANT);
 
-  it("is the single neutral pack, dark, with render-safe fonts", () => {
+  it("is the single neutral theme, dark, with render-safe fonts", () => {
     expect(t.id).toBe(NEUTRAL_THEME_ID);
     expect(t.stylePackId).toBe(NEUTRAL_THEME_ID);
     expect(t.dark).toBe(true);
