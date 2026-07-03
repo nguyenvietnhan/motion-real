@@ -1,5 +1,5 @@
 {
-  "name": "@news/pipeline",
+  "name": "@motionreal/pipeline",
   "version": "0.1.0",
   "type": "module",
   "main": "src/index.ts",
@@ -13,11 +13,11 @@
   },
   "dependencies": {
     "@mozilla/readability": "^0.6.0",
-    "@news/blocks": "0.1.0",
-    "@news/compositions": "0.1.0",
-    "@news/schema": "0.1.0",
-    "@news/theme": "0.1.0",
-    "@news/tts": "0.1.0",
+    "@motionreal/blocks": "0.1.0",
+    "@motionreal/compositions": "0.1.0",
+    "@motionreal/schema": "0.1.0",
+    "@motionreal/theme": "0.1.0",
+    "@motionreal/tts": "0.1.0",
     "@remotion/bundler": "4.0.481",
     "@remotion/renderer": "4.0.481",
     "linkedom": "^0.18.0",

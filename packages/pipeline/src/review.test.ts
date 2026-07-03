@@ -3,7 +3,7 @@ import { existsSync } from "node:fs";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { LockedVideoSpec } from "@news/schema";
+import type { LockedVideoSpec } from "@motionreal/schema";
 
 /**
  * Review-loop gate tests (Requirement 10; N24/N25). @remotion/bundler +

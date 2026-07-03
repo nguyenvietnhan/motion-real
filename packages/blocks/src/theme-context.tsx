@@ -1,11 +1,11 @@
 import React, { createContext, useContext } from "react";
-import { theme as defaultTheme, type Theme } from "@news/theme";
+import { theme as defaultTheme, type Theme } from "@motionreal/theme";
 
 /**
- * Per-project theme propagation. This context lives in `@news/blocks` — the
+ * Per-project theme propagation. This context lives in `@motionreal/blocks` — the
  * lowest React-aware layer — so blocks, the master composition, and authored
- * scenes all share ONE context instance without `@news/compositions` and
- * `@news/blocks` importing each other (the dependency rule is
+ * scenes all share ONE context instance without `@motionreal/compositions` and
+ * `@motionreal/blocks` importing each other (the dependency rule is
  * design → blocks → compositions, no cycles).
  *
  * Outside a provider (Studio defaults, unit tests) it falls back to the default

@@ -1,19 +1,19 @@
 # Architecture
 
 MotionReal is an npm workspace monorepo. The main rule is that rendering and
-authoring run through one process and one shared `@news/compositions` registry
+authoring run through one process and one shared `@motionreal/compositions` registry
 instance.
 
 ## Packages
 
 | Package | Role |
 | --- | --- |
-| `@news/schema` | Renderer-agnostic specs, locked specs, timing constants, format geometry, caption cues, validation helpers. |
-| `@news/theme` | One neutral runtime theme used by render internals. It is not authored-facing. |
-| `@news/blocks` | Render runtime internals: captions, scene timing, motion helpers, layout probe, fonts, chrome helpers, and `SceneImage`. Authored scenes do not import this package. |
-| `@news/compositions` | Registry, master `VideoComposition`, `ThumbnailComposition`, and the authored-facing re-export of `SceneImage`. |
-| `@news/tts` | Vivibe/LucyLab and ElevenLabs clients, audio measurement, concat/mix helpers, SRT/timestamp support. |
-| `@news/pipeline` | Authoring/admission, manifest conversion, ingest, TTS orchestration, lock, render, cache, review, safety grid, store, CLI, and the in-process `createTools` facade. |
+| `@motionreal/schema` | Renderer-agnostic specs, locked specs, timing constants, format geometry, caption cues, validation helpers. |
+| `@motionreal/theme` | One neutral runtime theme used by render internals. It is not authored-facing. |
+| `@motionreal/blocks` | Render runtime internals: captions, scene timing, motion helpers, layout probe, fonts, chrome helpers, and `SceneImage`. Authored scenes do not import this package. |
+| `@motionreal/compositions` | Registry, master `VideoComposition`, `ThumbnailComposition`, and the authored-facing re-export of `SceneImage`. |
+| `@motionreal/tts` | Vivibe/LucyLab and ElevenLabs clients, audio measurement, concat/mix helpers, SRT/timestamp support. |
+| `@motionreal/pipeline` | Authoring/admission, manifest conversion, ingest, TTS orchestration, lock, render, cache, review, safety grid, store, CLI, and the in-process `createTools` facade. |
 | `apps/remotion` | Remotion root and sample fixtures. |
 | `apps/desktop` | Electron app: create flow, workspace stages, settings, 9router gateway, hidden refine, BGM, thumbnail, export. |
 

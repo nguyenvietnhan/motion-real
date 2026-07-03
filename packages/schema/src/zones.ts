@@ -1,6 +1,6 @@
 /**
  * Layout zones for the 9:16 (1080×1920) canvas — the single source of truth for
- * WHERE content, captions, and platform UI live. Blocks (`@news/blocks`), the
+ * WHERE content, captions, and platform UI live. Blocks (`@motionreal/blocks`), the
  * master composition, and the N14 oracles all read these so the rules never
  * drift between authoring and validation (author-mode-v2 R15).
  *
@@ -19,7 +19,7 @@
  *    overlays its caption/username (bottom) and action rail (right). It is a
  *    VALIDATION threshold only — nothing renders from it.
  *
- * Pure constants only (no IO / no design import): `@news/schema` is the lowest
+ * Pure constants only (no IO / no design import): `@motionreal/schema` is the lowest
  * layer, so it cannot depend on `@news/design`.
  */
 

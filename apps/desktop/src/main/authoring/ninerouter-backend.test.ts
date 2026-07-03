@@ -26,7 +26,7 @@ function block(id: string): string {
   return [
     "```tsx",
     `// component: ${id}`,
-    'import { registerComponent } from "@news/compositions";',
+    'import { registerComponent } from "@motionreal/compositions";',
     "export const schema = {};",
     "export const example = {};",
     `export default registerComponent({ id: "${id}" });`,
@@ -277,7 +277,7 @@ describe("authorScenes (pure-author)", () => {
 
 const ORIGINAL = "// component: alpha\nexport default 1; // ORIGINAL";
 function newBlock(): string {
-  return ["```tsx", "// component: alpha", 'import { registerComponent } from "@news/compositions";', "export default registerComponent({ id: \"alpha\" }); // NEW", "```"].join("\n");
+  return ["```tsx", "// component: alpha", 'import { registerComponent } from "@motionreal/compositions";', "export default registerComponent({ id: \"alpha\" }); // NEW", "```"].join("\n");
 }
 
 function setupProject(projectId: string): { authoredPath: string } {
@@ -348,10 +348,10 @@ describe("reauthor (self-repair)", () => {
     expect(out.scenes.map((s) => s.sceneId)).toEqual(["scene-01"]);
     expect(calls).toBe(2); // first admit failed, retry admit succeeded
     const retryUserText = messages.filter((m) => m.role === "user").at(-1)!.content as string;
-    expect(retryUserText).toContain("chỉ import react, remotion, zod, @news/compositions");
+    expect(retryUserText).toContain("chỉ import react, remotion, zod, @motionreal/compositions");
     expect(retryUserText).toContain("TSX parse được");
     expect(retryUserText).not.toContain("useTheme/surfaceBorder");
-    expect(retryUserText).not.toContain('nhập từ "@news/blocks"');
+    expect(retryUserText).not.toContain('nhập từ "@motionreal/blocks"');
   });
 
   it("needsVision: N14 attaches the still as an image part; other issues do not", async () => {

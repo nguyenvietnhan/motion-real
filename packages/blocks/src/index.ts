@@ -1,20 +1,20 @@
 /**
- * @news/blocks — render RUNTIME internals + the single sanctioned image block.
+ * @motionreal/blocks — render RUNTIME internals + the single sanctioned image block.
  *
  * Post-freeform-pivot the layout blocks (Frame/Content/TitleBlock/KeyPoints/
  * Panel/StatBlock/Story/…) were DELETED: the AI bốc them into every scene, which
  * made every video look the same. Authored scenes now write 100% bespoke JSX/SVG
- * and `@news/blocks` is NO LONGER on the authored-import whitelist (admission N4).
+ * and `@motionreal/blocks` is NO LONGER on the authored-import whitelist (admission N4).
  *
- * What survives is the render runtime that `@news/compositions` (the render layer,
+ * What survives is the render runtime that `@motionreal/compositions` (the render layer,
  * not authored scenes) consumes — theme context, scene-timing, motion hooks, the
  * caption track, fonts, the N15/N17 layout probe — PLUS `SceneImage`, the one
  * authored-facing export (the only sanctioned way a scene shows a user/crawled
- * image). Authored code reaches `SceneImage` via `@news/compositions` (which
- * re-exports it), since `@news/blocks` itself is no longer importable by a scene.
+ * image). Authored code reaches `SceneImage` via `@motionreal/compositions` (which
+ * re-exports it), since `@motionreal/blocks` itself is no longer importable by a scene.
  */
 
-// Theme context (the single shared instance; re-exported by @news/compositions):
+// Theme context (the single shared instance; re-exported by @motionreal/compositions):
 export { ThemeProvider, useTheme } from "./theme-context.js";
 
 // Per-scene timing context (wraps each scene so effects can sync to scene end):
@@ -39,7 +39,7 @@ export {
 
 // Single sanctioned image block (the ONLY way an authored scene shows an image;
 // authored code is banned from raw Img/staticFile — see admission N5). Authored
-// scenes import it from @news/compositions, which re-exports it.
+// scenes import it from @motionreal/compositions, which re-exports it.
 export { SceneImage } from "./scene-image.js";
 
 // Caption track (used by the master composition, not authored scenes):

@@ -1,14 +1,14 @@
 import React from "react";
 import { AbsoluteFill } from "remotion";
 import { z } from "zod";
-import { geometry, rectWidth, rectHeight, VideoFormatSchema } from "@news/schema";
-import { makeTheme, sceneBackground } from "@news/theme";
-// Importing from @news/blocks evaluates its index, whose font module side-effect
+import { geometry, rectWidth, rectHeight, VideoFormatSchema } from "@motionreal/schema";
+import { makeTheme, sceneBackground } from "@motionreal/theme";
+// Importing from @motionreal/blocks evaluates its index, whose font module side-effect
 // loads the Vietnamese-subset fonts, so the thumbnail gets render-safe diacritics.
 // `useReveal` settles the title's entrance within ~2 frames (the still is taken at
 // the last frame, reveal === 1). The layout blocks are gone (the AI no longer uses
 // them), so the cover draws its title card as raw JSX from the theme tokens.
-import { ThemeProvider, useReveal } from "@news/blocks";
+import { ThemeProvider, useReveal } from "@motionreal/blocks";
 
 /**
  * Thumbnail / cover composition (freeform-engine R12, I3) — a CLEAN brand card

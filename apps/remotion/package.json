@@ -1,5 +1,5 @@
 {
-  "name": "@news/remotion",
+  "name": "@motionreal/remotion",
   "version": "0.1.0",
   "type": "module",
   "private": true,
@@ -10,10 +10,10 @@
     "upgrade": "remotion upgrade"
   },
   "dependencies": {
-    "@news/blocks": "0.1.0",
-    "@news/compositions": "0.1.0",
-    "@news/schema": "0.1.0",
-    "@news/theme": "0.1.0",
+    "@motionreal/blocks": "0.1.0",
+    "@motionreal/compositions": "0.1.0",
+    "@motionreal/schema": "0.1.0",
+    "@motionreal/theme": "0.1.0",
     "@remotion/cli": "4.0.481",
     "@remotion/transitions": "4.0.481",
     "react": "^19.2.1",

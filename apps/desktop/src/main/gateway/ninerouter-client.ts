@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { createLogger } from "@news/pipeline";
+import { createLogger } from "@motionreal/pipeline";
 import type { ConnectedAccount, ModelInfo, ProviderInfo } from "../../shared/types.js";
 
 const log = createLogger("gateway");

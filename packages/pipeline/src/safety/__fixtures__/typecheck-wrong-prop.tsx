@@ -6,7 +6,7 @@
 // type and the bad value reaches render. N10 must catch this at typecheck time.
 import React from "react";
 import { z } from "zod";
-import { registerComponent, type SceneComponentProps, SceneImage } from "@news/compositions";
+import { registerComponent, type SceneComponentProps, SceneImage } from "@motionreal/compositions";
 
 export const schema = z.object({
   caps: z.array(z.string()),

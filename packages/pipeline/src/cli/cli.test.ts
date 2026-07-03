@@ -106,7 +106,7 @@ describe("main — verbs", () => {
     expect(result.exitCode).toBe(0);
     const output = result.lines.join("\n");
     expect(output).toMatch(/manifest/);
-    expect(output).toMatch(/@news\/remotion run studio/);
+    expect(output).toMatch(/@motionreal\/remotion run studio/);
   });
 
   it("rejects an unknown command and an unknown --tts value", async () => {

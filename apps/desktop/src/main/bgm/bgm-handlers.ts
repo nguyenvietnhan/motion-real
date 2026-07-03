@@ -1,4 +1,4 @@
-import { BUNDLED_DEFAULT_BGM_TRACK_NAME, bundledDefaultBgmPath, type BgmTrack } from "@news/pipeline";
+import { BUNDLED_DEFAULT_BGM_TRACK_NAME, bundledDefaultBgmPath, type BgmTrack } from "@motionreal/pipeline";
 import type { BgmTrackVM } from "../../shared/types.js";
 
 export const BUNDLED_BGM_NAME = BUNDLED_DEFAULT_BGM_TRACK_NAME;

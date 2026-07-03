@@ -8,7 +8,7 @@ import {
   geometry,
   type FormatGeometry,
   type LockedVideoSpec,
-} from "@news/schema";
+} from "@motionreal/schema";
 import { makeReport, type SafetyIssue, type SafetyReport } from "../types.js";
 import { MAX_CAPTION_LINE_CHARS } from "../audio/captions.js";
 import { decodePng } from "./png.js";
@@ -449,7 +449,7 @@ function overlapArea(a: Rect, b: Rect): number {
 
 /**
  * N15 — sibling layout blocks must not overlap. `blocks` are the measured rects
- * of the COMPOSED `@news/blocks` units (from the layout probe), which are
+ * of the COMPOSED `@motionreal/blocks` units (from the layout probe), which are
  * siblings in the content column, so any real overlap between them is stacked,
  * illegible content. A small `tolerance` fraction of the smaller block's area is
  * ignored so a 1–2px touch from rounding/borders never false-fires. `severity`
@@ -532,7 +532,7 @@ export function checkTruncation(
  * that finally makes N17 run on real renders — `checkTruncation` needs a content
  * box, which a flat raster can't carry, so it stayed `phase: "manual"` (defined
  * + self-tested but never wired). The orchestrator already measures each tagged
- * `@news/blocks` unit's rect for N15 overlap; we reuse those rects here.
+ * `@motionreal/blocks` unit's rect for N15 overlap; we reuse those rects here.
  *
  * Posture matches N15 overlap: eased in as WARNINGS (not a hard gate) while we
  * observe the false-positive rate on real content, and fully guarded — a decode

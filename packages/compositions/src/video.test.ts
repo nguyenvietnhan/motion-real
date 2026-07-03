@@ -1,8 +1,8 @@
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { makeTheme } from "@news/theme";
-import type { LockedSceneSpec } from "@news/schema";
+import { makeTheme } from "@motionreal/theme";
+import type { LockedSceneSpec } from "@motionreal/schema";
 import { CompositionBackdrop, SceneContent } from "./video.js";
 
 describe("VideoComposition missing-component fallback", () => {

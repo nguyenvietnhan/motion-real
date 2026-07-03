@@ -1,6 +1,6 @@
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { BUNDLED_DEFAULT_BGM_FILENAME, workspaceRoot } from "@news/pipeline";
+import { BUNDLED_DEFAULT_BGM_FILENAME, workspaceRoot } from "@motionreal/pipeline";
 
 vi.mock("electron", () => ({
   protocol: {

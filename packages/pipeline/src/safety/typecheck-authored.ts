@@ -23,7 +23,7 @@ const typecheckCacheStats = { hits: 0, misses: 0 };
 
 /**
  * N10 — TypeScript typecheck of AI-authored scene modules against the REAL
- * @news/blocks + @news/compositions prop contracts. This is the type-level
+ * @motionreal/blocks + @motionreal/compositions prop contracts. This is the type-level
  * analogue of the AST admission gate (admission.ts): admission proves a module
  * imports only whitelisted packages and exports the right SHAPE; N10 proves the
  * module USES those packages' components with the right prop TYPES.
@@ -39,29 +39,29 @@ const typecheckCacheStats = { hits: 0, misses: 0 };
  *
  * Scope + safety (this gate must never block a renderable video):
  *  - Only diagnostics located IN the authored files are reported; errors inside
- *    the @news sources themselves are filtered out (they pass their own tsc).
+ *    the MotionReal sources themselves are filtered out (they pass their own tsc).
  *  - `noUncheckedIndexedAccess` is deliberately OFF here (it is ON repo-wide):
  *    arr[i] access is ubiquitous in authored scenes and almost always safe at
  *    runtime, so flagging it would block working videos. We keep the rest of
  *    `strict` (so a real wrong-shape prop or a null-deref still trips).
- *  - If the workspace @news sources can't be resolved (an unexpected packaging
+ *  - If the workspace MotionReal sources can't be resolved (an unexpected packaging
  *    layout), the check DEGRADES TO A NO-OP rather than blocking every render
- *    with bogus "cannot find module @news/blocks" errors. It only ever runs when
+ *    with bogus "cannot find module @motionreal/blocks" errors. It only ever runs when
  *    it can run correctly.
  */
 
-/** @news/* path mapping, mirroring the root tsconfig (sources, not built d.ts). */
+/** @motionreal/* path mapping, mirroring the root tsconfig (sources, not built d.ts). */
 function authoredPaths(workspaceRoot: string): Record<string, string[]> {
   const src = (name: string) => [resolve(workspaceRoot, "packages", name, "src", "index.ts")];
   return {
-    "@news/schema": src("schema"),
-    "@news/theme": src("theme"),
-    "@news/blocks": src("blocks"),
-    "@news/tts": src("tts"),
-    "@news/compositions": src("compositions"),
-    "@news/compositions/*": [resolve(workspaceRoot, "packages", "compositions", "src", "*")],
-    "@news/pipeline": src("pipeline"),
-    "@news/pipeline/*": [resolve(workspaceRoot, "packages", "pipeline", "src", "*")],
+    "@motionreal/schema": src("schema"),
+    "@motionreal/theme": src("theme"),
+    "@motionreal/blocks": src("blocks"),
+    "@motionreal/tts": src("tts"),
+    "@motionreal/compositions": src("compositions"),
+    "@motionreal/compositions/*": [resolve(workspaceRoot, "packages", "compositions", "src", "*")],
+    "@motionreal/pipeline": src("pipeline"),
+    "@motionreal/pipeline/*": [resolve(workspaceRoot, "packages", "pipeline", "src", "*")],
   };
 }
 
@@ -103,9 +103,9 @@ export function typecheckAuthoredScenes(
   sceneIdByFile?: ReadonlyMap<string, string>,
 ): SafetyIssue[] {
   if (files.length === 0) return [];
-  // Degrade to a no-op if the @news sources aren't where we expect: better to
+  // Degrade to a no-op if the MotionReal sources aren't where we expect: better to
   // fall back to the prior (no-typecheck) behavior than to block every render
-  // with bogus "cannot find module '@news/blocks'" errors on every authored file.
+  // with bogus "cannot find module '@motionreal/blocks'" errors on every authored file.
   // BUT this degrade is a SILENT SAFETY HOLE in a packaged app: a shipped build
   // ships no TS source tree, so N10 would return [] for EVERY project and a
   // wrong-shape prop ({text}[] vs string[]) — the exact crash-class N10 catches —
@@ -114,7 +114,7 @@ export function typecheckAuthoredScenes(
   // but a packaged build that lost N10 will say so in the logs instead of going
   // quiet. (Warn-once: this runs per render, not per frame, but no need to spam.)
   if (!existsSync(resolve(workspaceRoot, "packages", "blocks", "src", "index.ts"))) {
-    warnN10Degraded(`@news sources not found under ${workspaceRoot} — N10 typecheck SKIPPED`);
+    warnN10Degraded(`MotionReal sources not found under ${workspaceRoot} — N10 typecheck SKIPPED`);
     return [];
   }
 
@@ -141,7 +141,7 @@ export function typecheckAuthoredScenes(
   const authored = new Set(files.map((f) => resolve(f)));
   const issues: SafetyIssue[] = [];
   for (const d of ts.getPreEmitDiagnostics(program)) {
-    // Skip global/options diagnostics (no file) and errors inside @news sources.
+    // Skip global/options diagnostics (no file) and errors inside MotionReal sources.
     if (!d.file || !authored.has(resolve(d.file.fileName))) continue;
     const message = ts.flattenDiagnosticMessageText(d.messageText, "\n");
     const abs = resolve(d.file.fileName);

@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { projectPaths } from "@news/pipeline";
+import { projectPaths } from "@motionreal/pipeline";
 
 /**
  * Authored scene file naming + resolution (desktop-author-mode, Req 3.3/3.8).

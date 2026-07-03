@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
 import type { GatewayDeps } from "./model-gateway-manager.js";
 import { NineRouterClient } from "./ninerouter-client.js";
-import { createLogger } from "@news/pipeline";
+import { createLogger } from "@motionreal/pipeline";
 import { sanitizedChildEnvironment } from "../security/runtime-security.js";
 
 const log = createLogger("gateway");

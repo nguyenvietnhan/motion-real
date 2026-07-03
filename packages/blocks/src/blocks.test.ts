@@ -3,11 +3,11 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, it, expect, vi } from "vitest";
 
 /**
- * Render-free tests for the SURVIVING @news/blocks surface (post-block-removal):
+ * Render-free tests for the SURVIVING @motionreal/blocks surface (post-block-removal):
  * the layout blocks (Frame/TitleBlock/KeyPoints/Panel/Story/…) were deleted —
  * the AI bốc them into every scene → monotony — so authored scenes now write raw
  * JSX/SVG. What remains is the render runtime + `SceneImage`, the one sanctioned
- * image block (authored code reaches it via @news/compositions). These two are
+ * image block (authored code reaches it via @motionreal/compositions). These two are
  * what the render path still depends on, so they keep a non-vacuous test.
  *
  * Blocks call Remotion's frame hooks, so we mock ONLY `useCurrentFrame`/
@@ -35,11 +35,11 @@ vi.mock("remotion", async (importOriginal) => {
 });
 
 import { Captions, SceneImage } from "./index.js";
-import { type CaptionCue } from "@news/schema";
+import { type CaptionCue } from "@motionreal/schema";
 
 const html = (el: React.ReactElement): string => renderToStaticMarkup(el);
 
-describe("@news/blocks — surviving render surface", () => {
+describe("@motionreal/blocks — surviving render surface", () => {
   it("Captions shows the active cue and hides when none is active (R16.1)", () => {
     const cues: CaptionCue[] = [
       { startFrame: 0, endFrame: 60, text: "Dòng caption đang chạy", sceneId: "scene-01" },

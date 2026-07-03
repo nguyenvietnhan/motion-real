@@ -1,5 +1,5 @@
 {
-  "name": "@news/blocks",
+  "name": "@motionreal/blocks",
   "version": "0.1.0",
   "type": "module",
   "main": "src/index.ts",
@@ -11,8 +11,8 @@
     "build": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "@news/schema": "0.1.0",
-    "@news/theme": "0.1.0",
+    "@motionreal/schema": "0.1.0",
+    "@motionreal/theme": "0.1.0",
     "@remotion/google-fonts": "4.0.481"
   },
   "peerDependencies": {

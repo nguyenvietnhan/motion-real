@@ -28,7 +28,7 @@ import { VENDORED_FONTS } from "./vendor-fonts.generated.js";
  *     fall back to the original `@remotion/google-fonts` network loads so the
  *     app still works — just with the old network dependency.
  *
- * `fonts.ts` runs in BOTH Node (vitest, via `@news/blocks`) and the browser. A
+ * `fonts.ts` runs in BOTH Node (vitest, via `@motionreal/blocks`) and the browser. A
  * data: URL is a plain string and `FontFace` is guarded on `typeof`, so this
  * module is inert in Node and real in the browser.
  *

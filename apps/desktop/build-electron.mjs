@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 
 /**
- * Bundle the Electron main + preload (web-dashboard). The `@news/*` workspace
+ * Bundle the Electron main + preload (web-dashboard). The `@motionreal/*` workspace
  * packages are source-only (no built dist), so we ALIAS them to their `src`
  * entry and let esbuild inline the first-party graph; everything in node_modules
  * (electron, react, remotion, etc.) stays external and resolves at runtime.
@@ -19,12 +19,12 @@ const pkg = (name) => resolve(repo, "packages", name, "src", "index.ts");
 const isProd = process.argv.includes("--prod") || process.env.NODE_ENV === "production";
 
 const alias = {
-  "@news/schema": pkg("schema"),
-  "@news/theme": pkg("theme"),
-  "@news/blocks": pkg("blocks"),
-  "@news/tts": pkg("tts"),
-  "@news/compositions": pkg("compositions"),
-  "@news/pipeline": pkg("pipeline"),
+  "@motionreal/schema": pkg("schema"),
+  "@motionreal/theme": pkg("theme"),
+  "@motionreal/blocks": pkg("blocks"),
+  "@motionreal/tts": pkg("tts"),
+  "@motionreal/compositions": pkg("compositions"),
+  "@motionreal/pipeline": pkg("pipeline"),
 };
 
 const common = {

@@ -44,8 +44,8 @@ create-time image staging, BGM handlers, native save/export helpers, and
 scheme/protocol ordering, controller construction, and broad handler composition
 root-owned unless a future slice has a narrower reason than line count.
 
-The internal `createTools` facade is pipeline-owned. The external `@news/mcp`
-stdio package has been removed under the current desktop-app direction.
+The internal `createTools` facade is pipeline-owned. The external MCP stdio
+package has been removed under the current desktop-app direction.
 The root `.mcp.json` is local-only and ignored. Keep `.mcp.example.json` as a
 template without absolute machine paths; do not reintroduce a repo-provided
 `news` MCP server without a focused owner-approved slice.

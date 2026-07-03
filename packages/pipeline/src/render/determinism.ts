@@ -1,7 +1,7 @@
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { LockedVideoSpec } from "@news/schema";
+import type { LockedVideoSpec } from "@motionreal/schema";
 import { makeReport, type SafetyIssue, type SafetyReport } from "../types.js";
 import { renderFrameTwice, type RenderFrameOptions } from "./renderer.js";
 

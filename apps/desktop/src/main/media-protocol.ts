@@ -3,7 +3,7 @@ import { createReadStream } from "node:fs";
 import { stat } from "node:fs/promises";
 import { extname, isAbsolute, join, relative, resolve } from "node:path";
 import { Readable } from "node:stream";
-import { createLogger, videoToolHome, workspaceRoot } from "@news/pipeline";
+import { createLogger, videoToolHome, workspaceRoot } from "@motionreal/pipeline";
 
 const log = createLogger("media");
 

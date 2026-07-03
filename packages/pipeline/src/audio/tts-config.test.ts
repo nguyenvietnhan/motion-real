@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { VideoSpec } from "@news/schema";
+import type { VideoSpec } from "@motionreal/schema";
 import {
   prepareTtsText,
   resolveElevenLabsCredentials,

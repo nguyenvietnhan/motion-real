@@ -2,15 +2,15 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { admitAuthoredComponent } from "@news/pipeline";
+import { admitAuthoredComponent } from "@motionreal/pipeline";
 import { describe, expect, it } from "vitest";
 
 const rootFile = (path: string): string =>
   readFileSync(fileURLToPath(new URL(`../${path}`, import.meta.url)), "utf8");
 
 const forbiddenTemplatePatterns = [
-  /from\s+["']@news\/blocks["']/,
-  /from\s+["']@news\/theme["']/,
+  /from\s+["']@motionreal\/blocks["']/,
+  /from\s+["']@motionreal\/theme["']/,
   /\bFrame\b/,
   /\bStory\b/,
   /\bTitleBlock\b/,
@@ -37,7 +37,7 @@ describe("scripts/new-video template", () => {
 
     expect(text).toContain("AI_CONTRACT.md");
     expect(text).toContain("docs/current/authoring-contract.md");
-    expect(text).toContain('from "@news/compositions"');
+    expect(text).toContain('from "@motionreal/compositions"');
     expect(text).toContain('from "remotion"');
     expect(text).toContain('id: "vt-statement"');
     expect(text).toContain('id: "vt-metric"');

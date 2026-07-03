@@ -1,4 +1,4 @@
-import { FPS, T_TRANSITION, type LockedVideoSpec, secondsToFrames } from "@news/schema";
+import { FPS, T_TRANSITION, type LockedVideoSpec, secondsToFrames } from "@motionreal/schema";
 
 /**
  * A hand-built locked spec used to preview the pipeline in Studio without

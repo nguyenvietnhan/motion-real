@@ -3,10 +3,10 @@
 // habit: `whicheverToken`). At RUNTIME the theme Proxy resolves any unknown token
 // to a safe color, so this renders fine — N10 must flag it as a WARNING, never a
 // hard error. (A scene MAY still read the theme via useTheme even though the
-// layout blocks are gone; useTheme is re-exported from @news/compositions.)
+// layout blocks are gone; useTheme is re-exported from @motionreal/compositions.)
 import React from "react";
 import { z } from "zod";
-import { registerComponent, type SceneComponentProps, useTheme } from "@news/compositions";
+import { registerComponent, type SceneComponentProps, useTheme } from "@motionreal/compositions";
 
 export const schema = z.object({
   label: z.string(),

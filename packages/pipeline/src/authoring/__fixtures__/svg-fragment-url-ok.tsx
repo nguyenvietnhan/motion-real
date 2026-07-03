@@ -1,6 +1,6 @@
 import React from "react";
 import { z } from "zod";
-import { registerComponent, type SceneComponentProps } from "@news/compositions";
+import { registerComponent, type SceneComponentProps } from "@motionreal/compositions";
 
 export const schema = z.object({});
 type Props = z.infer<typeof schema>;

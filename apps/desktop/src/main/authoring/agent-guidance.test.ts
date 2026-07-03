@@ -10,9 +10,9 @@ describe("AI video-authoring guidance", () => {
     const text = rootFile("AI_CONTRACT.md");
 
     expect(text).toMatch(/raw JSX\/SVG|raw <div>\/<svg>/);
-    expect(text).toContain("@news/compositions");
-    expect(text).toMatch(/Do not import `@news\/blocks`|Do not reintroduce `Frame`/i);
-    expect(text).not.toMatch(/compose `@news\/blocks`|Set `manifest\.theme\.stylePackId`/i);
+    expect(text).toContain("@motionreal/compositions");
+    expect(text).toMatch(/Do not import `@motionreal\/blocks`|Do not reintroduce `Frame`/i);
+    expect(text).not.toMatch(/compose `@motionreal\/blocks`|Set `manifest\.theme\.stylePackId`/i);
     expect(text).not.toMatch(/bold-editorial|galaxy look|never hard-code/i);
   });
 

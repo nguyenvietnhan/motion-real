@@ -7,7 +7,7 @@ import type {
   ProviderInfo,
 } from "../../shared/types.js";
 import { aiReady } from "../../shared/ai-ready.js";
-import { createLogger } from "@news/pipeline";
+import { createLogger } from "@motionreal/pipeline";
 
 const log = createLogger("gateway");
 

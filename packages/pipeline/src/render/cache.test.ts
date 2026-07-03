@@ -3,7 +3,7 @@ import fc from "fast-check";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { LockedVideoSpec } from "@news/schema";
+import type { LockedVideoSpec } from "@motionreal/schema";
 
 /**
  * Caching + determinism tests (Requirements 7.2, 7.4, 7.5; design Properties
@@ -351,7 +351,7 @@ describe("lintSceneSources — N5 forbidden-API guard", () => {
     expect(compositionsSrcDir().endsWith(join("packages", "compositions", "src"))).toBe(true);
   });
 
-  it("passes on the @news/blocks sources (R2.3 deterministic blocks)", () => {
+  it("passes on the @motionreal/blocks sources (R2.3 deterministic blocks)", () => {
     const report = lintSceneSources(blocksSrcDir());
     if (!report.ok) {
       console.error(report.issues);

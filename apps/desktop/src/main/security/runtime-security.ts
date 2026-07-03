@@ -1,6 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { join } from "node:path";
-import { createLogger } from "@news/pipeline";
+import { createLogger } from "@motionreal/pipeline";
 
 const log = createLogger("security");
 

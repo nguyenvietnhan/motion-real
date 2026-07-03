@@ -11,7 +11,7 @@
 // "... is not assignable to type 'Tone'", the same message the oracle softens.
 import React from "react";
 import { z } from "zod";
-import { registerComponent, type SceneComponentProps } from "@news/compositions";
+import { registerComponent, type SceneComponentProps } from "@motionreal/compositions";
 
 type Tone = "accent" | "signal" | "danger";
 const toneColor = (tone: Tone): string => {

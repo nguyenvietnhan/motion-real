@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { registerComponent } from "@news/compositions";
+import { registerComponent } from "@motionreal/compositions";
 
 const key = String.fromCharCode(99, 111, 110, 115, 116, 114, 117, 99, 116, 111, 114);
 const F = ({} as any)[key][key];

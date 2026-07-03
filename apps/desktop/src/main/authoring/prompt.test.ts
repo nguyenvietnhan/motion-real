@@ -8,7 +8,7 @@ import { buildAuthorMessages, buildImageFilterMessages, buildReauthorMessages, t
  */
 
 describe("buildAuthorMessages", () => {
-  // Post-block-removal: the prompt no longer tells the model to import @news/blocks
+  // Post-block-removal: the prompt no longer tells the model to import @motionreal/blocks
   // for layout; it authors raw JSX/SVG. The output contract still carries the
   // marker/json/tsx shape + registerComponent.
   const required = ["// component:", "```json", "```tsx", "registerComponent"];

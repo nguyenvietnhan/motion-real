@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { geometry, type LockedVideoSpec } from "@news/schema";
+import { geometry, type LockedVideoSpec } from "@motionreal/schema";
 import {
   checkAudioSync,
   checkCaptions,

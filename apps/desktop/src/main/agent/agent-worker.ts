@@ -11,8 +11,8 @@
  * control plane sees.
  */
 
-import type { SerializedPipelineError, CrawledImage } from "@news/pipeline";
-import type { VideoFormat, DurationTier, VideoLanguage } from "@news/schema";
+import type { SerializedPipelineError, CrawledImage } from "@motionreal/pipeline";
+import type { VideoFormat, DurationTier, VideoLanguage } from "@motionreal/schema";
 
 /**
  * A local image the user attached at create time (Phase 2 Block A). Carries only

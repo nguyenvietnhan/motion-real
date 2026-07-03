@@ -1,4 +1,4 @@
-import type { SafetyIssue, SerializedPipelineError, PipelineStage } from "@news/pipeline";
+import type { SafetyIssue, SerializedPipelineError, PipelineStage } from "@motionreal/pipeline";
 
 /**
  * Error classification (desktop-author-mode, Req 4). Splits a failure into:

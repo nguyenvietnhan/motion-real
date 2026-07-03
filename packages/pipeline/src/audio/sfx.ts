@@ -1,4 +1,4 @@
-import type { LockedVideoSpec } from "@news/schema";
+import type { LockedVideoSpec } from "@motionreal/schema";
 
 /**
  * SFX cue mapping (design B.5). Mirrors math_video_tool's

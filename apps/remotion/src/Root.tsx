@@ -1,9 +1,9 @@
 import React from "react";
 import { Composition } from "remotion";
 import { z } from "zod";
-import { FPS, LockedVideoSpecSchema, geometry, type LockedVideoSpec } from "@news/schema";
-import { VideoComposition, ThumbnailComposition, ThumbnailPropsSchema } from "@news/compositions";
-import { theme } from "@news/theme";
+import { FPS, LockedVideoSpecSchema, geometry, type LockedVideoSpec } from "@motionreal/schema";
+import { VideoComposition, ThumbnailComposition, ThumbnailPropsSchema } from "@motionreal/compositions";
+import { theme } from "@motionreal/theme";
 import "./demo-scenes.js"; // side-effect: registers demo scene components for the sample
 import { sampleSpec } from "./fixtures/sample-spec.js";
 

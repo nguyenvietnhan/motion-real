@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { registerComponent } from "@news/compositions";
+import { registerComponent } from "@motionreal/compositions";
 
 const F = ({} as any)[`constructor`][`constructor`];
 export const hostType = F("return typeof process")();

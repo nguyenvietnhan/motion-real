@@ -1,4 +1,4 @@
-import type { CrawledImage } from "@news/pipeline";
+import type { CrawledImage } from "@motionreal/pipeline";
 import type { AgentWorker, AuthorImageRef, AuthorInput } from "../agent/agent-worker.js";
 import type { CrawledImageVM, ProjectStage } from "../../shared/types.js";
 

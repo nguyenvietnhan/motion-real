@@ -31,15 +31,15 @@ export type AdmissionPolicy = {
 
 export const DEFAULT_ADMISSION_POLICY: AdmissionPolicy = {
   // Post-freeform-pivot the layout blocks were deleted: the AI bốc pre-made
-  // @news/blocks (TitleBlock/KeyPoints/Panel/Story/…) into every scene, which made
-  // every video look the same. Cutting @news/blocks (and @news/theme) from the
+  // @motionreal/blocks (TitleBlock/KeyPoints/Panel/Story/…) into every scene, which made
+  // every video look the same. Cutting @motionreal/blocks (and @motionreal/theme) from the
   // whitelist is the STRUCTURAL lever — not a prompt nudge — that forces the AI to
   // author every scene as 100% bespoke JSX/SVG. The image feature survives because
   // the one sanctioned authored-facing export, SceneImage, is re-exported from
-  // @news/compositions (which IS whitelisted and authored scenes must import anyway
-  // for registerComponent). @news/blocks still exists as the render runtime the
+  // @motionreal/compositions (which IS whitelisted and authored scenes must import anyway
+  // for registerComponent). @motionreal/blocks still exists as the render runtime the
   // composition layer imports — but a scene can no longer reach it.
-  allowedImports: ["react", "remotion", "@news/compositions", "zod"],
+  allowedImports: ["react", "remotion", "@motionreal/compositions", "zod"],
   bannedApis: [
     "Math.random",
     "Date.now",
@@ -152,7 +152,7 @@ export function admitAuthoredComponent(
 
   const importAllowed = (spec: string): boolean => {
     // A `..` segment escapes the whitelisted package root (e.g.
-    // "@news/blocks/../../node:fs" passes a naive startsWith), so reject any
+    // "@motionreal/blocks/../../node:fs" passes a naive startsWith), so reject any
     // specifier containing a parent-dir traversal outright.
     if (spec.split(/[\\/]/).includes("..")) return false;
     return allowed.some((a) => spec === a || spec.startsWith(`${a}/`));

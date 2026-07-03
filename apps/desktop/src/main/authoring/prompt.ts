@@ -1,6 +1,6 @@
 import type { AuthorInput } from "../agent/agent-worker.js";
-import type { SafetyIssue } from "@news/pipeline";
-import { tierSeconds, titleMaxChars, type DurationTier, type VideoFormat, type VideoLanguage } from "@news/schema";
+import type { SafetyIssue } from "@motionreal/pipeline";
+import { tierSeconds, titleMaxChars, type DurationTier, type VideoFormat, type VideoLanguage } from "@motionreal/schema";
 import { AUTHORING_CONTRACT } from "./contract-text.js";
 import { DEFAULT_ENGLISH_WORDS_PER_SECOND, DEFAULT_WORDS_PER_SECOND } from "../../shared/settings-model.js";
 
@@ -128,13 +128,13 @@ const OUTPUT_FORMAT = `ĐỊNH DẠNG TRẢ VỀ (AI_Output_Contract) — trả 
 }
 \`\`\`
 2) Với MỖI component id duy nhất, MỘT khối \`\`\`tsx, DÒNG ĐẦU là marker "// component: <id>", thân là module .tsx đầy đủ theo hợp đồng.
-   ⚠ Khối mẫu DƯỚI ĐÂY chỉ minh hoạ CẤU TRÚC export bắt buộc + cách tự dựng bằng JSX/SVG trần — KHÔNG phải mẫu thẩm mỹ để chép cho mọi cảnh. KHÔNG còn thư viện block: mỗi cảnh TỰ DỰNG nền + bố cục + đồ hoạ bằng <div>/<svg> theo nội dung (xem QUY TẮC NỘI DUNG về sự táo bạo). KHÔNG import "@news/blocks"/"@news/theme":
+   ⚠ Khối mẫu DƯỚI ĐÂY chỉ minh hoạ CẤU TRÚC export bắt buộc + cách tự dựng bằng JSX/SVG trần — KHÔNG phải mẫu thẩm mỹ để chép cho mọi cảnh. KHÔNG còn thư viện block: mỗi cảnh TỰ DỰNG nền + bố cục + đồ hoạ bằng <div>/<svg> theo nội dung (xem QUY TẮC NỘI DUNG về sự táo bạo). KHÔNG import "@motionreal/blocks"/"@motionreal/theme":
 \`\`\`tsx
 // component: id-canh
 import React from "react";
 import { z } from "zod";
 import { useCurrentFrame, interpolate } from "remotion";
-import { registerComponent, type SceneComponentProps } from "@news/compositions";
+import { registerComponent, type SceneComponentProps } from "@motionreal/compositions";
 export const schema = z.object({ /* props */ });
 type Props = z.infer<typeof schema>;
 const Scene: React.FC<SceneComponentProps<Props>> = ({ headline, eyebrow }) => {
@@ -197,7 +197,7 @@ const IMAGE_RULE = `
 ẢNH (NGƯỜI DÙNG ĐÍNH KÈM — PHẢI DÙNG): Người dùng đính kèm một số ẢNH, mỗi ảnh có một "ref" CỐ ĐỊNH (vd "assets/<hash>.png") kèm kích thước. Bạn ĐƯỢC XEM các ảnh này. Cách đặt ảnh:
 - thêm "image": { "ref": "<ref đã cho>" } vào MỘT cảnh phù hợp trong manifest (tối đa 1 ảnh/cảnh; cảnh KHÔNG mang ảnh thì bỏ field này — nhưng tổng thể KHÔNG được bỏ hết ảnh, xem luật bắt buộc bên dưới);
 - trong .tsx của cảnh đó, render ảnh qua block <SceneImage imageRef={image.ref} alt={image.alt} /> (image đến từ SceneComponentProps), đặt trong vùng nội dung phía trên (tránh dải phụ đề đáy) để ảnh nằm trong vùng an toàn;
-- import { SceneImage } from "@news/compositions" (KHÔNG phải @news/blocks — block layout đã bị gỡ; SceneImage là export DUY NHẤT cho ảnh, lấy từ @news/compositions). Đây là NGOẠI LỆ DUY NHẤT được phép import ngoài react/remotion/zod cho phần hình.
+- import { SceneImage } from "@motionreal/compositions" (KHÔNG phải @motionreal/blocks — block layout đã bị gỡ; SceneImage là export DUY NHẤT cho ảnh, lấy từ @motionreal/compositions). Đây là NGOẠI LỆ DUY NHẤT được phép import ngoài react/remotion/zod cho phần hình.
 QUAN TRỌNG VỀ KÍCH THƯỚC: <SceneImage> TỰ canh theo đúng tỉ lệ thật của ảnh (khung ôm khít ảnh). TUYỆT ĐỐI KHÔNG bọc nó trong khung có chiều cao/rộng cố định, không dùng overflow:"hidden", height:"...px", aspectRatio hay objectFit ép quanh nó — làm vậy sẽ CẮT hoặc BÓP MÉO ảnh. Cứ đặt <SceneImage> trực tiếp trong cột nội dung; muốn giới hạn chiều cao thì truyền prop maxHeight (số px), đừng tự dựng khung.
 CHỈ dùng ref đã được cung cấp, TUYỆT ĐỐI KHÔNG bịa đường dẫn/URL ảnh. Viết nội dung sao cho ảnh khớp tổng thể.
 BẮT BUỘC DÙNG ẢNH: những ảnh này do NGƯỜI DÙNG chủ động chọn/đính kèm, nên PHẢI được đưa vào video — KHÔNG được bỏ hết. Hãy đặt MỖI ảnh đã cho vào một cảnh phù hợp (mỗi cảnh tối đa 1 ảnh, nên trải ảnh ra nhiều cảnh); nếu có nhiều ảnh hơn số cảnh hợp, hãy ưu tiên những ảnh khớp nội dung nhất, nhưng TỐI THIỂU phải dùng một ảnh. Soạn nội dung/kịch bản bám theo ảnh để chúng khớp tự nhiên.`;

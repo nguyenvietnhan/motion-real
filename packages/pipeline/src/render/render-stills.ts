@@ -1,7 +1,7 @@
 import { rm } from "node:fs/promises";
 import { join } from "node:path";
 import { performance } from "node:perf_hooks";
-import { FPS, type VideoSpec } from "@news/schema";
+import { FPS, type VideoSpec } from "@motionreal/schema";
 import { appendEvent, projectPaths, ensureProject, writeJson } from "../store/store.js";
 import {
   admitProjectScenes,

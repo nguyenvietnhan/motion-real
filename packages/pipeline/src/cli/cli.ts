@@ -3,15 +3,15 @@ import { existsSync } from "node:fs";
 import { parseArgs } from "node:util";
 import { pathToFileURL } from "node:url";
 
-import { listComponents } from "@news/compositions";
-import { getStylePack, listStylePackIds } from "@news/theme";
-import { fontCoverageReport } from "@news/blocks";
+import { listComponents } from "@motionreal/compositions";
+import { getStylePack, listStylePackIds } from "@motionreal/theme";
+import { fontCoverageReport } from "@motionreal/blocks";
 import {
   defaultElevenLabsVoiceId,
   defaultVivibeVoiceId,
   elevenLabsApiKey,
   vivibeApiKey,
-} from "@news/tts";
+} from "@motionreal/tts";
 import type { TtsProvider } from "../types.js";
 import { projectPaths, trackerPath as defaultTrackerPath } from "../store/store.js";
 import { ingestUrl } from "../ingest/url-ingest.js";
@@ -25,7 +25,7 @@ import {
 } from "../orchestrator.js";
 
 /**
- * @news/pipeline CLI — pure AUTHOR mode. Verbs:
+ * @motionreal/pipeline CLI — pure AUTHOR mode. Verbs:
  *
  *   author scaffold <id-or-topic> [--tts ...]   Create a project skeleton + empty manifest + authored/ dir
  *   render <id> [--tts ...] [--concurrency N] [--no-cache] | render --sample
@@ -209,7 +209,7 @@ function runPreview(positionals: string[], emit: Emit, lines: string[]): CliResu
   const kind = specPath === paths.lock ? "locked" : specPath === paths.spec ? "draft" : "manifest";
   emit(`Preview ${id} (${kind}): ${specPath}`);
   emit("Launch Remotion Studio with the locked spec via inputProps, e.g.:");
-  emit(`  npm --workspace @news/remotion run studio -- --props=${paths.lock}`);
+  emit(`  npm --workspace @motionreal/remotion run studio -- --props=${paths.lock}`);
   return { exitCode: 0, lines };
 }
 

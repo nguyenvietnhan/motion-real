@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { bundledDefaultBgmPath } from "@news/pipeline";
+import { bundledDefaultBgmPath } from "@motionreal/pipeline";
 import {
   BUNDLED_BGM_NAME,
   bgmTrackViewModel,

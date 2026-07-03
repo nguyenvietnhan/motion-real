@@ -10,7 +10,7 @@ import type {
   VisualDefect,
   SceneSnapshot,
 } from "./agent-worker.js";
-import type { SafetyIssue, CrawledImage } from "@news/pipeline";
+import type { SafetyIssue, CrawledImage } from "@motionreal/pipeline";
 import type { AuthorImageRef } from "./agent-worker.js";
 import { generateValidateRepair, type SafetyReportView, type RenderResult } from "./repair-loop.js";
 

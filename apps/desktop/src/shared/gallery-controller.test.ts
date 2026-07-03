@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import fc from "fast-check";
-import type { ProjectBrief, ProjectState, ProjectSummary } from "@news/pipeline";
+import type { ProjectBrief, ProjectState, ProjectSummary } from "@motionreal/pipeline";
 import { formatShortDate, galleryLoadState, paginate, PROJECTS_PER_PAGE, toCards } from "./gallery-controller.js";
 import { FRIENDLY_STATUSES } from "./friendly-status.js";
 

@@ -19,8 +19,8 @@ import {
   type AuthoredRegistration,
   type SafetyIssue,
   type SerializedPipelineError,
-} from "@news/pipeline";
-import type { createTools } from "@news/pipeline";
+} from "@motionreal/pipeline";
+import type { createTools } from "@motionreal/pipeline";
 import type { AuthoringBackend, AuthoredScene, ReauthorTarget } from "../agent/custom-loop-worker.js";
 import type { SafetyReportView } from "../agent/repair-loop.js";
 import type { AuthorJob, VisualDefect, SceneSnapshot, AuthorImageRef } from "../agent/agent-worker.js";
@@ -33,7 +33,7 @@ import { extractJsonObject } from "./manifest-schema.js";
 import { sceneFileName, resolveSceneFile } from "./scene-files.js";
 import { normalizeAuthoredImports } from "./normalize-imports.js";
 import { normalizeAuthoredFontSizes } from "./normalize-fontsize.js";
-import type { VideoFormat, DurationTier, VideoLanguage } from "@news/schema";
+import type { VideoFormat, DurationTier, VideoLanguage } from "@motionreal/schema";
 
 /**
  * Pure-AUTHOR authoring backend (desktop-author-mode). The AI writes FRESH `.tsx`
@@ -443,7 +443,7 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
         );
         feedback =
           `Lần trước mã bị TỪ CHỐI khi nạp:\n${violationText}\n\n` +
-          `Sửa theo AUTHOR mode hiện tại: chỉ import react, remotion, zod, @news/compositions; KHÔNG import @news/blocks, @news/theme, @news/design; ` +
+          `Sửa theo AUTHOR mode hiện tại: chỉ import react, remotion, zod, @motionreal/compositions; KHÔNG import @motionreal/blocks, @motionreal/theme, @news/design; ` +
           `mã phải là TSX parse được, giữ nguyên id "${componentId}", chỉ dùng API được phép. Trả về lại đúng một khối tsx.`;
       }
 

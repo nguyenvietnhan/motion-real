@@ -3,7 +3,7 @@ import { combineIntent, stageToFriendlyStatus } from "./workspace-helpers.js";
 import { clampRenderRatio, creativeBootstrapPreprompt, renderProgressEventOf, renderingStageOf, visionRepairPreprompt } from "./workspace-render-flow.js";
 import { applyScriptEditsToManifest, runScriptAuthoring, scriptGateModelFromLines } from "./workspace-script-flow.js";
 import { publishedStageOf, readyStageOf, scriptLinesFromScenes, storyboardScenesFromScenes } from "./workspace-view-model.js";
-import { createLogger, serializeError, type CrawledImage } from "@news/pipeline";
+import { createLogger, serializeError, type CrawledImage } from "@motionreal/pipeline";
 import { classifyError } from "../agent/error-classifier.js";
 import { toFriendlyError } from "../redact/friendly.js";
 import { AUTHORING_CONTRACT_REF, type AgentHooks, type AgentWorker, type AuthorInput, type SceneSnapshot } from "../agent/agent-worker.js";

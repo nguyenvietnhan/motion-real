@@ -1,7 +1,7 @@
 import { app, BrowserWindow, dialog, ipcMain, safeStorage, shell } from "electron";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { createLogger, createTools, loadManifest, writeJson, projectPaths, videoToolHome, stagingDir, ensureProject, importImageBytes, reconcileStaleStates, pruneRenderCache, pruneTtsCache, readBrief, listBgmTracks, addBgmTrack, removeBgmTrack, renderThumbnail, workspaceRoot, ELEVENLABS_DEFAULT_MODEL_ID, type VoiceProvider } from "@news/pipeline";
+import { createLogger, createTools, loadManifest, writeJson, projectPaths, videoToolHome, stagingDir, ensureProject, importImageBytes, reconcileStaleStates, pruneRenderCache, pruneTtsCache, readBrief, listBgmTracks, addBgmTrack, removeBgmTrack, renderThumbnail, workspaceRoot, ELEVENLABS_DEFAULT_MODEL_ID, type VoiceProvider } from "@motionreal/pipeline";
 import { registerIpcRouter, type InvokeHandlers } from "./ipc-router.js";
 import { ModelGatewayManager } from "./gateway/model-gateway-manager.js";
 import { buildNineRouterGatewayDeps } from "./gateway/ninerouter-deps.js";
@@ -67,7 +67,7 @@ scrubSensitiveEnvironment(process.env);
 
 /**
  * Electron main = the ENGINE HOST (web-dashboard). Imports the pipeline tools
- * from source -> ONE `@news/compositions` registry.
+ * from source -> ONE `@motionreal/compositions` registry.
  * The bundled Model_Gateway is a real 9router on localhost:20128; login is
  * delegated to 9router's own UI. License is dev-bypassed here so the app is
  * launchable for review without a live License_Service.

@@ -11,7 +11,7 @@ export const AUTHORING_CONTRACT = `HỢP ĐỒNG VIẾT CẢNH (AUTHOR mode — 
 
 EXPORT BẮT BUỘC (mọi module):
 - import React from "react"; import { z } from "zod";
-- import { registerComponent, type SceneComponentProps } from "@news/compositions";
+- import { registerComponent, type SceneComponentProps } from "@motionreal/compositions";
 - export const schema = z.object({...})  // CHỈ props BESPOKE của cảnh
   → TUYỆT ĐỐI KHÔNG khai báo headline/eyebrow/body/image trong schema — đó là field TOP-LEVEL hệ thống tự truyền vào cảnh (xem SceneComponentProps), KHÔNG thuộc props. Đặt chúng vào schema là lỗi N3 ("props invalid at headline: expected string, received undefined") chặn render. schema chỉ chứa dữ liệu RIÊNG cảnh tự nghĩ ra (số liệu, nhãn, danh sách…). Cảnh không có props riêng thì để z.object({}).
 - type Props = z.infer<typeof schema>
@@ -27,9 +27,9 @@ CÚ PHÁP TSX BẮT BUỘC (tự kiểm như chạy TypeScript parser trước k
 - CSS inline của React phải dùng key camelCase với value rõ ràng, ví dụ justifyContent: "flex-start", alignItems: "center", backgroundColor: "#111827". Không dùng cú pháp CSS string rời/kebab-case như trong file .css.
 - Nếu tự thêm motion/math/helper trong component, khai báo biến/hàm hợp lệ trước khi dùng; không để câu chữ giải thích hoặc pseudocode lọt vào khối .tsx.
 
-IMPORT WHITELIST (N4) — CHỈ được import: react, remotion, @news/compositions, zod.
-KHÔNG CÒN thư viện block/theme: TUYỆT ĐỐI KHÔNG import "@news/blocks" hay "@news/theme" (đã ngắt — import vào là lỗi N4 chặn render). Không có useTheme, không có Frame/Story/TitleBlock… nào để gọi.
-NGOẠI LỆ DUY NHẤT cho ảnh: nếu cảnh có ảnh (field image), import { SceneImage } from "@news/compositions" và render <SceneImage imageRef={image.ref} alt={image.alt} /> — đây là cách DUY NHẤT được phép hiện ảnh (cấm tự dùng <img>/Img/staticFile).
+IMPORT WHITELIST (N4) — CHỈ được import: react, remotion, @motionreal/compositions, zod.
+KHÔNG CÒN thư viện block/theme: TUYỆT ĐỐI KHÔNG import "@motionreal/blocks" hay "@motionreal/theme" (đã ngắt — import vào là lỗi N4 chặn render). Không có useTheme, không có Frame/Story/TitleBlock… nào để gọi.
+NGOẠI LỆ DUY NHẤT cho ảnh: nếu cảnh có ảnh (field image), import { SceneImage } from "@motionreal/compositions" và render <SceneImage imageRef={image.ref} alt={image.alt} /> — đây là cách DUY NHẤT được phép hiện ảnh (cấm tự dùng <img>/Img/staticFile).
 KHÔNG: node:*, gói bên thứ ba, import tương đối ra ngoài file.
 
 API CẤM (N5) — cảnh là HÀM THUẦN của frame:

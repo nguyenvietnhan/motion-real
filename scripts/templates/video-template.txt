@@ -26,7 +26,7 @@ const TARGET_SECONDS = 90 as const;
 const STATEMENT = `import React from "react";
 import { AbsoluteFill, interpolate, useCurrentFrame } from "remotion";
 import { z } from "zod";
-import { registerComponent, type SceneComponentProps } from "@news/compositions";
+import { registerComponent, type SceneComponentProps } from "@motionreal/compositions";
 
 const DISPLAY = "Inter, system-ui, sans-serif";
 const COLORS = {
@@ -109,7 +109,7 @@ export default registerComponent<P>({
 const METRIC = `import React from "react";
 import { AbsoluteFill, interpolate, useCurrentFrame } from "remotion";
 import { z } from "zod";
-import { registerComponent, type SceneComponentProps } from "@news/compositions";
+import { registerComponent, type SceneComponentProps } from "@motionreal/compositions";
 
 const DISPLAY = "Inter, system-ui, sans-serif";
 const COLORS = {

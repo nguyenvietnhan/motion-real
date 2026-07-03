@@ -1,4 +1,4 @@
-import type { ProjectSummary } from "@news/pipeline";
+import type { ProjectSummary } from "@motionreal/pipeline";
 import type { ProjectCardVM } from "./types.js";
 import { toFriendlyStatus } from "./friendly-status.js";
 

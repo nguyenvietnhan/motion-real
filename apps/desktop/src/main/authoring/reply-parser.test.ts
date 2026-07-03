@@ -31,7 +31,7 @@ function codeBlock(id: string, opts: { marker?: string; literal?: string } = {})
   return [
     "```tsx",
     `${markerLine}import React from "react";`,
-    'import { registerComponent } from "@news/compositions";',
+    'import { registerComponent } from "@motionreal/compositions";',
     "export const schema = {};",
     "export const example = {};",
     `export default registerComponent({ id: "${literal}" });`,
@@ -273,7 +273,7 @@ describe("truncated reply recovery (unclosed final fence) — freeform-engine R3
       "```tsx",
       `// component: ${id}`,
       'import React from "react";',
-      'import { registerComponent } from "@news/compositions";',
+      'import { registerComponent } from "@motionreal/compositions";',
       "export const schema = {};",
       "export const example = {};",
       `export default registerComponent({ id: "${id}" });`,
@@ -326,7 +326,7 @@ describe("bare (un-fenced) module recovery — the scene-13 symptom", () => {
     return [
       `// component: ${id}`,
       'import React from "react";',
-      'import { registerComponent } from "@news/compositions";',
+      'import { registerComponent } from "@motionreal/compositions";',
       "export const schema = {};",
       "export const example = {};",
       `export default registerComponent({ id: "${id}" });`,

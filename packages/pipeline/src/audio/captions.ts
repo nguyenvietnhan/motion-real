@@ -1,4 +1,4 @@
-import { type CaptionCue } from "@news/schema";
+import { type CaptionCue } from "@motionreal/schema";
 
 /**
  * Caption pipeline (author-mode-v2 R16). Pure + deterministic: turn a scene's

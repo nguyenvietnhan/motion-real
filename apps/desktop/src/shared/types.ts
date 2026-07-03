@@ -1,4 +1,4 @@
-import type { ProjectState } from "@news/pipeline";
+import type { ProjectState } from "@motionreal/pipeline";
 
 /**
  * UI-side view-model types shared between the main (engine host) and renderer

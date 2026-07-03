@@ -7,8 +7,8 @@ import { fileURLToPath } from "node:url";
 import { bundle, type WebpackOverrideFn } from "@remotion/bundler";
 import { ensureBrowser, makeCancelSignal, renderMedia, renderStill, selectComposition } from "@remotion/renderer";
 import type { CancelSignal, ChromeMode, ChromiumOptions, VideoImageFormat } from "@remotion/renderer";
-import type { LockedVideoSpec } from "@news/schema";
-import { transitionFrames } from "@news/schema";
+import type { LockedVideoSpec } from "@motionreal/schema";
+import { transitionFrames } from "@motionreal/schema";
 import { createLogger } from "../log/logger.js";
 import { stableStringify } from "./cache.js";
 
@@ -328,7 +328,7 @@ export async function renderSceneStills(
 export type MeasuredBlock = { kind: string; x: number; y: number; width: number; height: number };
 
 /**
- * Measure the real DOM layout of COMPOSED `@news/blocks` units, per scene,
+ * Measure the real DOM layout of COMPOSED `@motionreal/blocks` units, per scene,
  * by rendering each scene's midpoint frame in the dedicated MEASURE mode
  * (`measure: true` mounts the `LayoutProbe`, which emits the tagged blocks'
  * `getBoundingClientRect()` as a `layout.json` artifact). This is the
@@ -682,7 +682,7 @@ function assertStaticAudioCanResolve(spec: LockedVideoSpec, publicDir: string | 
 
 /**
  * Webpack override that lets the bundler resolve the workspace's TypeScript
- * sources directly: it maps each `@news/*` package to its `src/index.ts` and
+ * sources directly: it maps each `@motionreal/*` package to its `src/index.ts` and
  * teaches webpack that `.js` import specifiers may resolve to `.ts`/`.tsx`.
  * Exported so the production bundle build (`npm run build`) reuses the exact
  * same resolution rules as the renderer instead of duplicating them.
@@ -701,12 +701,12 @@ export function makeWorkspaceWebpackOverride(root: string): WebpackOverrideFn {
       },
       alias: {
         ...(config.resolve?.alias ?? {}),
-        "@news/schema": pkg("schema"),
-        "@news/theme": pkg("theme"),
-        "@news/blocks": pkg("blocks"),
-        "@news/compositions": pkg("compositions"),
-        "@news/tts": pkg("tts"),
-        "@news/pipeline": pkg("pipeline"),
+        "@motionreal/schema": pkg("schema"),
+        "@motionreal/theme": pkg("theme"),
+        "@motionreal/blocks": pkg("blocks"),
+        "@motionreal/compositions": pkg("compositions"),
+        "@motionreal/tts": pkg("tts"),
+        "@motionreal/pipeline": pkg("pipeline"),
       },
     },
   });

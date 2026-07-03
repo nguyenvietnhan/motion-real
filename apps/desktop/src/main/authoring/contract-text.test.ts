@@ -4,17 +4,17 @@ import { AUTHORING_CONTRACT } from "./contract-text.js";
 /**
  * Feature: block removal — the inlined AUTHORING_CONTRACT is the text the model
  * actually reads (embedded into the author + reauthor prompts). Post-pivot the
- * layout blocks were DELETED and @news/blocks/@news/theme dropped from the
+ * layout blocks were DELETED and @motionreal/blocks/@motionreal/theme dropped from the
  * authored-import whitelist: a scene is 100% bespoke JSX/SVG. The ONE survivor is
- * SceneImage (the image feature), reached via @news/compositions. These lock that
+ * SceneImage (the image feature), reached via @motionreal/compositions. These lock that
  * contract IN so a future edit can't silently re-introduce the block crutch.
  */
 describe("AUTHORING_CONTRACT — no-block / raw-JSX invariants", () => {
-  it("whitelists ONLY react/remotion/@news/compositions/zod — never @news/blocks or @news/theme", () => {
+  it("whitelists ONLY react/remotion/@motionreal/compositions/zod — never @motionreal/blocks or @motionreal/theme", () => {
     // The structural lever against monotony: a scene literally cannot import a
     // layout block, so the model must author raw JSX. The contract must say so.
-    expect(AUTHORING_CONTRACT).toContain("@news/compositions");
-    expect(AUTHORING_CONTRACT).toMatch(/KHÔNG import "@news\/blocks"/);
+    expect(AUTHORING_CONTRACT).toContain("@motionreal/compositions");
+    expect(AUTHORING_CONTRACT).toMatch(/KHÔNG import "@motionreal\/blocks"/);
     // No leftover instruction to compose blocks (Frame/Story/TitleBlock/…).
     expect(AUTHORING_CONTRACT).not.toMatch(/COMPOSE|compose these|đừng tự code khung/);
   });
@@ -37,10 +37,10 @@ describe("AUTHORING_CONTRACT — no-block / raw-JSX invariants", () => {
   });
 
   it("keeps the SceneImage exception so the image feature still works", () => {
-    // Images are the ONE sanctioned non-react/remotion import, via @news/compositions.
+    // Images are the ONE sanctioned non-react/remotion import, via @motionreal/compositions.
     expect(AUTHORING_CONTRACT).toMatch(/SceneImage/);
     expect(AUTHORING_CONTRACT).toMatch(/NGOẠI LỆ DUY NHẤT cho ảnh/);
-    expect(AUTHORING_CONTRACT).toMatch(/from "@news\/compositions"/);
+    expect(AUTHORING_CONTRACT).toMatch(/from "@motionreal\/compositions"/);
   });
 
   /**

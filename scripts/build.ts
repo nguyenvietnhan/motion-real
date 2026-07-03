@@ -2,7 +2,7 @@
  * Production build = a real Remotion webpack bundle of the app (Requirement
  * 12.4). This compiles and bundles the entire React/Remotion graph — the app
  * entry, the master composition, every registered scene component, and the
- * `@news/*` workspace sources reached through the shared alias override. If any
+ * `@motionreal/*` workspace sources reached through the shared alias override. If any
  * of that fails to type-resolve or compile under webpack, the bundle throws and
  * this script exits non-zero; on success it exits 0.
  *

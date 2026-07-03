@@ -7,12 +7,12 @@ import { __directoryFingerprint, __resetTypecheckAuthoredCache, __typecheckAutho
 
 /**
  * N10 authored-typecheck self-tests. Non-vacuous: a scene that composes
- * @news/blocks with the CORRECT prop types passes (no issue), while the exact
+ * @motionreal/blocks with the CORRECT prop types passes (no issue), while the exact
  * real-world Gemini mistake — passing `{text}[]` where a block is typed
  * `string[]` — is caught as an N10 error BEFORE any render (the render bundler
  * is transpile-only and would let it crash headless Chromium at runtime).
  *
- * The check resolves @news/* to the workspace sources, so these run against the
+ * The check resolves @motionreal/* to the workspace sources, so these run against the
  * REAL block contracts, not a stub.
  */
 
@@ -26,7 +26,7 @@ describe("typecheckAuthoredScenes (N10)", () => {
     __resetTypecheckAuthoredCache();
   });
 
-  // Each of these spins up a real TypeScript program over the @news sources
+  // Each of these spins up a real TypeScript program over the MotionReal sources
   // (~3-5s); the default 5s vitest timeout is too tight under parallel load, so
   // give the program-creating cases explicit headroom.
   const TS_PROGRAM_TIMEOUT = 30_000;
@@ -44,7 +44,7 @@ describe("typecheckAuthoredScenes (N10)", () => {
     const issues = typecheckAuthoredScenes([fixture("typecheck-wrong-prop.tsx")], root);
     expect(issues.length).toBeGreaterThan(0);
     expect(issues.every((i) => i.check === "N10" && i.severity === "error")).toBe(true);
-    // The diagnostic must point at the wrong-prop fixture, not a @news source.
+    // The diagnostic must point at the wrong-prop fixture, not a MotionReal source.
     expect(issues.every((i) => /typecheck-wrong-prop\.tsx/.test(i.path ?? ""))).toBe(true);
   }, TS_PROGRAM_TIMEOUT);
 
@@ -125,7 +125,7 @@ describe("typecheckAuthoredScenes (N10)", () => {
     expect(typecheckAuthoredScenes([], root)).toEqual([]);
   });
 
-  it("degrades to a no-op (never blocks) when the @news sources can't be resolved", () => {
+  it("degrades to a no-op (never blocks) when the MotionReal sources can't be resolved", () => {
     const issues = typecheckAuthoredScenes([fixture("typecheck-wrong-prop.tsx")], resolve(here, "no-such-workspace"));
     expect(issues).toEqual([]);
   });

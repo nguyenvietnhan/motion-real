@@ -19,7 +19,7 @@ import {
 } from "./index.js";
 
 /**
- * @news/schema self-tests: the single source of truth for layout zones + timing.
+ * @motionreal/schema self-tests: the single source of truth for layout zones + timing.
  * Pure, deterministic.
  */
 

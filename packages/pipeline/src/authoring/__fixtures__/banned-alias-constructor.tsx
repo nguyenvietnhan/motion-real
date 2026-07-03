@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { registerComponent } from "@news/compositions";
+import { registerComponent } from "@motionreal/compositions";
 
 const key = "constructor";
 const F = ({} as any)[key][key];

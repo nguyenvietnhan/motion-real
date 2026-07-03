@@ -29,7 +29,7 @@ Minimal shape:
 import React from "react";
 import { useCurrentFrame, interpolate } from "remotion";
 import { z } from "zod";
-import { registerComponent, type SceneComponentProps } from "@news/compositions";
+import { registerComponent, type SceneComponentProps } from "@motionreal/compositions";
 
 export const schema = z.object({
   label: z.string(),
@@ -70,15 +70,15 @@ Authored scenes may import only:
 - `react`
 - `remotion`
 - `zod`
-- `@news/compositions`
+- `@motionreal/compositions`
 
-`SceneImage` must be imported from `@news/compositions` when a scene uses its
+`SceneImage` must be imported from `@motionreal/compositions` when a scene uses its
 single local `image` field.
 
 Do not import:
 
-- `@news/blocks`
-- `@news/theme`
+- `@motionreal/blocks`
+- `@motionreal/theme`
 - Node built-ins
 - browser host APIs
 - remote media libraries

@@ -8,7 +8,7 @@ import {
   type RenderProjectResult,
   type ScaffoldVideoProjectResult,
   type ToolDeps,
-} from "@news/pipeline";
+} from "@motionreal/pipeline";
 import { CreateController } from "./create/create-controller.js";
 
 /**

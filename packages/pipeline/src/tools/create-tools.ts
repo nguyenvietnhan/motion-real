@@ -7,7 +7,7 @@ import {
   defaultVivibeVoiceId,
   elevenLabsApiKey,
   defaultElevenLabsVoiceId,
-} from "@news/tts";
+} from "@motionreal/tts";
 import { resolveBgmTrack } from "../audio/bgm-library.js";
 import { runDoctor, type DoctorReport } from "../cli/cli.js";
 import { PipelineError, serializeError } from "../errors.js";

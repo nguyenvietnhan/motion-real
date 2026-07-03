@@ -1,12 +1,12 @@
 import React from "react";
 import { z } from "zod";
-import { registerComponent, type SceneComponentProps } from "@news/compositions";
+import { registerComponent, type SceneComponentProps } from "@motionreal/compositions";
 
 /**
  * Fixture for the dual-instance registry handshake test: a clean authored module
  * with a UNIQUE id. The test injects a custom `load` whose default export is a
  * valid definition that was NOT registered (simulating a second
- * `@news/compositions` registry instance), so the handshake must MIRROR it into
+ * `@motionreal/compositions` registry instance), so the handshake must MIRROR it into
  * the pipeline's registry rather than fail.
  */
 export const schema = z.object({ label: z.string().min(1).max(40) });

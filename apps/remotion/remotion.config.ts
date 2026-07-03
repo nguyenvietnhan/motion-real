@@ -47,10 +47,10 @@ Config.overrideWebpackConfig((config) => {
       },
       alias: {
         ...(config.resolve?.alias ?? {}),
-        "@news/schema": pkg("schema"),
-        "@news/theme": pkg("theme"),
-        "@news/blocks": pkg("blocks"),
-        "@news/compositions": pkg("compositions"),
+        "@motionreal/schema": pkg("schema"),
+        "@motionreal/theme": pkg("theme"),
+        "@motionreal/blocks": pkg("blocks"),
+        "@motionreal/compositions": pkg("compositions"),
       },
     },
   };

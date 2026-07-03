@@ -2,40 +2,40 @@ import { describe, expect, it } from "vitest";
 import { normalizeAuthoredImports } from "./normalize-imports.js";
 
 describe("normalizeAuthoredImports — SceneImage re-home", () => {
-  // Post-block-removal: @news/blocks + @news/theme are off the authored whitelist.
-  // The ONE authored-facing survivor, SceneImage, lives behind @news/compositions.
-  // The model trained on the old contract still writes it from @news/blocks, so
+  // Post-block-removal: @motionreal/blocks + @motionreal/theme are off the authored whitelist.
+  // The ONE authored-facing survivor, SceneImage, lives behind @motionreal/compositions.
+  // The model trained on the old contract still writes it from @motionreal/blocks, so
   // re-home ONLY SceneImage; every other (now-deleted) block symbol is left to
   // fail N4, which is correct — the model must rewrite it as raw JSX.
-  it("re-homes a bare SceneImage import from @news/blocks to @news/compositions", () => {
-    const out = normalizeAuthoredImports(`import { SceneImage } from "@news/blocks";`);
-    expect(out).toBe(`import { SceneImage } from "@news/compositions";`);
+  it("re-homes a bare SceneImage import from @motionreal/blocks to @motionreal/compositions", () => {
+    const out = normalizeAuthoredImports(`import { SceneImage } from "@motionreal/blocks";`);
+    expect(out).toBe(`import { SceneImage } from "@motionreal/compositions";`);
   });
 
-  it("re-homes SceneImage from @news/theme too", () => {
-    const out = normalizeAuthoredImports(`import { SceneImage } from "@news/theme";`);
-    expect(out).toBe(`import { SceneImage } from "@news/compositions";`);
+  it("re-homes SceneImage from @motionreal/theme too", () => {
+    const out = normalizeAuthoredImports(`import { SceneImage } from "@motionreal/theme";`);
+    expect(out).toBe(`import { SceneImage } from "@motionreal/compositions";`);
   });
 
-  it("pulls SceneImage onto @news/compositions but leaves the dead block symbols to fail N4", () => {
+  it("pulls SceneImage onto @motionreal/compositions but leaves the dead block symbols to fail N4", () => {
     // A mixed import: SceneImage is rescued; Frame/TitleBlock are NOT (those blocks
-    // were deleted) — they stay on the now-dead @news/blocks line so N4 still flags
+    // were deleted) — they stay on the now-dead @motionreal/blocks line so N4 still flags
     // them and the model is forced to drop them, rather than silently vanishing.
-    const out = normalizeAuthoredImports(`import { Frame, SceneImage, TitleBlock } from "@news/blocks";`);
-    expect(out).toContain(`import { SceneImage } from "@news/compositions";`);
+    const out = normalizeAuthoredImports(`import { Frame, SceneImage, TitleBlock } from "@motionreal/blocks";`);
+    expect(out).toContain(`import { SceneImage } from "@motionreal/compositions";`);
     expect(out).toContain(`Frame`);
     expect(out).toContain(`TitleBlock`);
-    expect(out).toContain(`"@news/blocks"`); // the leftover (to-fail-N4) line is kept
+    expect(out).toContain(`"@motionreal/blocks"`); // the leftover (to-fail-N4) line is kept
   });
 
   it("leaves an import with no SceneImage untouched (nothing to rescue)", () => {
-    const code = `import { Frame, Story, useTheme } from "@news/blocks";`;
+    const code = `import { Frame, Story, useTheme } from "@motionreal/blocks";`;
     expect(normalizeAuthoredImports(code)).toBe(code);
   });
 
   it("handles a `type`/alias clause when rescuing SceneImage", () => {
-    const out = normalizeAuthoredImports(`import { SceneImage, type Foo } from "@news/blocks";`);
-    expect(out).toContain(`import { SceneImage } from "@news/compositions";`);
+    const out = normalizeAuthoredImports(`import { SceneImage, type Foo } from "@motionreal/blocks";`);
+    expect(out).toContain(`import { SceneImage } from "@motionreal/compositions";`);
     expect(out).toContain(`type Foo`);
   });
 

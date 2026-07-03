@@ -8,7 +8,7 @@
 // "... does not exist on type 'IntrinsicAttributes …").
 import React from "react";
 import { z } from "zod";
-import { registerComponent, type SceneComponentProps, SceneImage } from "@news/compositions";
+import { registerComponent, type SceneComponentProps, SceneImage } from "@motionreal/compositions";
 
 export const schema = z.object({
   label: z.string(),

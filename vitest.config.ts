@@ -25,12 +25,12 @@ const testWorkers = Math.max(1, Math.min(4, availableParallelism() - 1));
 export default defineConfig({
   resolve: {
     alias: {
-      "@news/schema": pkg("schema"),
-      "@news/theme": pkg("theme"),
-      "@news/blocks": pkg("blocks"),
-      "@news/tts": pkg("tts"),
-      "@news/compositions": pkg("compositions"),
-      "@news/pipeline": pkg("pipeline"),
+      "@motionreal/schema": pkg("schema"),
+      "@motionreal/theme": pkg("theme"),
+      "@motionreal/blocks": pkg("blocks"),
+      "@motionreal/tts": pkg("tts"),
+      "@motionreal/compositions": pkg("compositions"),
+      "@motionreal/pipeline": pkg("pipeline"),
     },
   },
   test: {

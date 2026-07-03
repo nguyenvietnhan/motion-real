@@ -6,9 +6,9 @@ import { fade } from "@remotion/transitions/fade";
 import { wipe } from "@remotion/transitions/wipe";
 import { clockWipe } from "@remotion/transitions/clock-wipe";
 import type { TransitionPresentation } from "@remotion/transitions";
-import { CANVAS, CONTENT_ZONE, rectWidth, transitionFrames, type LockedSceneSpec, type LockedVideoSpec } from "@news/schema";
-import { makeTheme, sceneBackground, type Theme } from "@news/theme";
-import { Captions, LayoutProbe, SceneTimingProvider, useIntroZoom } from "@news/blocks";
+import { CANVAS, CONTENT_ZONE, rectWidth, transitionFrames, type LockedSceneSpec, type LockedVideoSpec } from "@motionreal/schema";
+import { makeTheme, sceneBackground, type Theme } from "@motionreal/theme";
+import { Captions, LayoutProbe, SceneTimingProvider, useIntroZoom } from "@motionreal/blocks";
 import { getComponent } from "./registry.js";
 import { ThemeProvider, useTheme } from "./theme-context.js";
 

@@ -5,7 +5,7 @@ import {
   type CreateBrief,
   type CreateValidation,
 } from "../../shared/create-validation.js";
-import { createLogger, type SerializedPipelineError } from "@news/pipeline";
+import { createLogger, type SerializedPipelineError } from "@motionreal/pipeline";
 import type { AuthorInput, AuthorImageRef } from "../agent/agent-worker.js";
 import type {
   StagedImageRef,

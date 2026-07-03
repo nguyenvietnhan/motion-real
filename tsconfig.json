@@ -14,14 +14,14 @@
     "noUncheckedIndexedAccess": true,
     "types": ["node"],
     "paths": {
-      "@news/schema": ["./packages/schema/src/index.ts"],
-      "@news/theme": ["./packages/theme/src/index.ts"],
-      "@news/blocks": ["./packages/blocks/src/index.ts"],
-      "@news/tts": ["./packages/tts/src/index.ts"],
-      "@news/compositions": ["./packages/compositions/src/index.ts"],
-      "@news/compositions/*": ["./packages/compositions/src/*"],
-      "@news/pipeline": ["./packages/pipeline/src/index.ts"],
-      "@news/pipeline/*": ["./packages/pipeline/src/*"]
+      "@motionreal/schema": ["./packages/schema/src/index.ts"],
+      "@motionreal/theme": ["./packages/theme/src/index.ts"],
+      "@motionreal/blocks": ["./packages/blocks/src/index.ts"],
+      "@motionreal/tts": ["./packages/tts/src/index.ts"],
+      "@motionreal/compositions": ["./packages/compositions/src/index.ts"],
+      "@motionreal/compositions/*": ["./packages/compositions/src/*"],
+      "@motionreal/pipeline": ["./packages/pipeline/src/index.ts"],
+      "@motionreal/pipeline/*": ["./packages/pipeline/src/*"]
     }
   },
   "include": ["apps/**/*", "packages/**/*", "tests/**/*", "scripts/**/*"],

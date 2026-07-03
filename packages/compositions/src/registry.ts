@@ -1,6 +1,6 @@
 import type React from "react";
 import { z } from "zod";
-import type { SceneImage } from "@news/schema";
+import type { SceneImage } from "@motionreal/schema";
 
 /**
  * Open, extensible component registry. Each scene component declares its own

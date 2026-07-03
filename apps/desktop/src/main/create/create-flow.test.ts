@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import fc from "fast-check";
 import { CreateController, type CreateDeps } from "./create-controller.js";
 import type { AuthorInput } from "../agent/agent-worker.js";
-import type { SerializedPipelineError } from "@news/pipeline";
+import type { SerializedPipelineError } from "@motionreal/pipeline";
 
 /**
  * Feature: reconcile-main-controllers, S5 — create→scaffold→beginScript wiring.

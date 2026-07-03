@@ -4,7 +4,7 @@ import { cpus } from "node:os";
 import { join, resolve } from "node:path";
 import { performance } from "node:perf_hooks";
 import { createHash } from "node:crypto";
-import { DEFAULT_TTS_SPEED, type DurationPreset, type LockedVideoSpec, type VideoLanguage, type VideoSpec } from "@news/schema";
+import { DEFAULT_TTS_SPEED, type DurationPreset, type LockedVideoSpec, type VideoLanguage, type VideoSpec } from "@motionreal/schema";
 import {
   appendEvent,
   createProjectId,
@@ -182,7 +182,7 @@ export type RenderProjectOptions = {
   chromeMode?: RenderChromeMode;
   onProgress?: (ratio: number) => void;
   checklist?: ReviewChecklist;
-  /** Lint the @news/blocks + @news/compositions sources for forbidden APIs (N5) in the build gate. Default on; pass `false` to skip. */
+  /** Lint the @motionreal/blocks + @motionreal/compositions sources for forbidden APIs (N5) in the build gate. Default on; pass `false` to skip. */
   lintSources?: boolean;
   composeContactSheet?: ComposeContactSheet;
   /** Force a fresh render: bypass the render cache read (R9.4 `--no-cache`). */
@@ -374,14 +374,14 @@ async function renderProjectUnlocked(projectId: string, opts: RenderProjectOptio
         throw new Error(`renderProject: static grid reported ${errorCount(staticReport.issues)} hard error(s):\n${formatIssues(staticReport.issues)}`);
       }
 
-      // N10 — typecheck authored scenes against the real @news/blocks +
-      // @news/compositions prop contracts. The render bundler strips types
+      // N10 — typecheck authored scenes against the real @motionreal/blocks +
+      // @motionreal/compositions prop contracts. The render bundler strips types
       // without checking them, so a wrong-shape prop (e.g. {text}[] passed to a
       // string[] block) compiles and then crashes headless Chromium at runtime.
       // Checking here — before TTS spends money — turns that class of model
       // mistake into a deterministic, scene-targeted content error the repair
       // loop can self-fix. Each issue carries its sceneId for precise reauthor.
-      // Degrades to a no-op when the @news sources can't be resolved; it must
+      // Degrades to a no-op when the MotionReal sources can't be resolved; it must
       // never block a render it can't check correctly.
       const sceneIdByFile = new Map(authoredSceneFiles.map((s) => [resolve(s.file), s.sceneId]));
       // The N10 typecheck is SYNCHRONOUS and CPU-heavy (~5-8s) — it blocks the
@@ -466,7 +466,7 @@ async function renderProjectUnlocked(projectId: string, opts: RenderProjectOptio
       "stage.build_gate",
       () => {
         const buildReport = runBuildGridStatic(locked, projectId);
-        // N5: lint the shippable @news/blocks + @news/compositions runtime sources
+        // N5: lint the shippable @motionreal/blocks + @motionreal/compositions runtime sources
         // for forbidden (nondeterministic/unsafe) APIs on every render. Authored
         // scene modules are gated separately by the AST admission gate. Opt out only
         // by explicitly passing `lintSources: false`.
@@ -639,7 +639,7 @@ async function renderProjectUnlocked(projectId: string, opts: RenderProjectOptio
 
     // N15 (block overlap) over the measured composed-block rects. Best-effort and
     // vision-independent: a dedicated measure-mode still emits each tagged
-    // @news/blocks unit's getBoundingClientRect, which a flat raster can't carry.
+    // @motionreal/blocks unit's getBoundingClientRect, which a flat raster can't carry.
     // Eased in as WARNINGS (not a hard gate) while we observe false-positive rate;
     // a measurement failure must never fail the render, so it's fully guarded.
     const overlapIssues: SafetyIssue[] = [];

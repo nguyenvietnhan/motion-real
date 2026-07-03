@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import fc from "fast-check";
-import type { PipelineStage, SafetyIssue, SerializedPipelineError, Severity } from "@news/pipeline";
+import type { PipelineStage, SafetyIssue, SerializedPipelineError, Severity } from "@motionreal/pipeline";
 import { classifyError, classifyIssue, CONTENT_CHECKS } from "./error-classifier.js";
 
 /**

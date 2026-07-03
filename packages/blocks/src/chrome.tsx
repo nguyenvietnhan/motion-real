@@ -1,5 +1,5 @@
 import React from "react";
-import { withAlpha, type Theme } from "@news/theme";
+import { withAlpha, type Theme } from "@motionreal/theme";
 
 /**
  * The block SURFACE-KIT — pure helpers that turn a resolved language's `surface`

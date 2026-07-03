@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import fc from "fast-check";
-import { FPS, T_TRANSITION, type VideoSpec } from "@news/schema";
+import { FPS, T_TRANSITION, type VideoSpec } from "@motionreal/schema";
 import { parseSrt, segmentToLines, buildSceneCaptionCues, MAX_CAPTION_LINE_CHARS } from "./captions.js";
 import { lockSpec } from "./lock.js";
 import type { TtsManifest } from "../types.js";

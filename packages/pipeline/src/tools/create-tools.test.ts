@@ -12,7 +12,7 @@ import {
   projectPaths,
   writeJson,
   type RenderProjectResult,
-} from "@news/pipeline";
+} from "@motionreal/pipeline";
 import {
   createTools,
   fullRenderAllowed,

@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import type { VideoSpec } from "@news/schema";
+import type { VideoSpec } from "@motionreal/schema";
 
 /**
  * `renderProjectStills` self-tests (freeform-engine D1). The authoring admission

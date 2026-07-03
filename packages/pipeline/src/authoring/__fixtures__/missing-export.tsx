@@ -1,6 +1,6 @@
 import React from "react";
 import { z } from "zod";
-import { registerComponent, type SceneComponentProps } from "@news/compositions";
+import { registerComponent, type SceneComponentProps } from "@motionreal/compositions";
 
 // `schema` and `example` are intentionally NOT exported (admission must reject).
 const schema = z.object({ label: z.string() });

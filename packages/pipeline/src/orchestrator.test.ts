@@ -3,7 +3,7 @@ import { existsSync } from "node:fs";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { cpus, tmpdir } from "node:os";
 import { join } from "node:path";
-import type { LockedVideoSpec, VideoSpec } from "@news/schema";
+import type { LockedVideoSpec, VideoSpec } from "@motionreal/schema";
 
 /**
  * Orchestrator tests (pure AUTHOR mode). @remotion/bundler + @remotion/renderer

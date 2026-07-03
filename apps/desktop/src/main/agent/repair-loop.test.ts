@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import fc from "fast-check";
-import type { SafetyIssue } from "@news/pipeline";
+import type { SafetyIssue } from "@motionreal/pipeline";
 import {
   clampAttempts,
   generateValidateRepair,

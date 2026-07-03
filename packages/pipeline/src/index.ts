@@ -1,5 +1,5 @@
 /**
- * @news/pipeline — the orchestration brain (the analogue of math_video_tool's
+ * @motionreal/pipeline — the orchestration brain (the analogue of math_video_tool's
  * mvlib.build). Wires authoring/admission + TTS + locking + safety grid +
  * renderer + review + project store together for pure AUTHOR mode. This barrel
  * re-exports the stable public surface.
@@ -17,7 +17,7 @@ export * from "./ingest/crawl-images.js";
 export * from "./tracker/tracker.js";
 export * from "./bulk/bulk.js";
 // Re-export the Vivibe config probes so leaf adapters can read TTS readiness
-// without depending on @news/tts directly.
+// without depending on @motionreal/tts directly.
 export {
   ELEVENLABS_DEFAULT_MODEL_ID,
   VivibeClient,
@@ -26,7 +26,7 @@ export {
   defaultVivibeVoiceId,
   elevenLabsApiKey,
   defaultElevenLabsVoiceId,
-} from "@news/tts";
+} from "@motionreal/tts";
 export * from "./safety/index.js";
 export * from "./audio/captions.js";
 export * from "./audio/lock.js";

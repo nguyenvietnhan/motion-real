@@ -1,8 +1,8 @@
 import {
   validateVideoSpecStructure,
   type VideoSpec,
-} from "@news/schema";
-import { knownComponentIds, validateProps } from "@news/compositions";
+} from "@motionreal/schema";
+import { knownComponentIds, validateProps } from "@motionreal/compositions";
 import { makeReport, type SafetyIssue, type SafetyReport } from "../types.js";
 import { runContentRules } from "./content-rules.js";
 

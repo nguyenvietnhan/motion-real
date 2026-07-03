@@ -3,7 +3,7 @@
 // emitted JavaScript is valid and renders normally, so N10 must keep it advisory.
 import React from "react";
 import { z } from "zod";
-import { registerComponent, type SceneComponentProps } from "@news/compositions";
+import { registerComponent, type SceneComponentProps } from "@motionreal/compositions";
 
 export const schema = z.object({ label: z.string() });
 type Props = z.infer<typeof schema>;

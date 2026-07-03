@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import { mkdir, readdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { VideoSpecSchema, normalizeVideoLanguage, type DurationTier, type LegacyTitleLanguage, type SceneImage, type VideoFormat, type VideoLanguage, type VideoSpec } from "@news/schema";
+import { VideoSpecSchema, normalizeVideoLanguage, type DurationTier, type LegacyTitleLanguage, type SceneImage, type VideoFormat, type VideoLanguage, type VideoSpec } from "@motionreal/schema";
 import type { SafetyIssue } from "../types.js";
 import { ensureProject, projectPaths, readJson, writeJson } from "../store/store.js";
 import { admitAuthoredSceneFile } from "./register.js";

@@ -1,5 +1,5 @@
 {
-  "name": "@news/theme",
+  "name": "@motionreal/theme",
   "version": "0.1.0",
   "type": "module",
   "main": "src/index.ts",
@@ -11,6 +11,6 @@
     "build": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "@news/schema": "0.1.0"
+    "@motionreal/schema": "0.1.0"
   }
 }

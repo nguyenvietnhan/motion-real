@@ -1,6 +1,6 @@
 import { copyFile, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { basename, join } from "node:path";
-import type { VideoFormat } from "@news/schema";
+import type { VideoFormat } from "@motionreal/schema";
 import { projectPaths, ensureProject } from "../store/store.js";
 import { loadManifest } from "../authoring/manifest.js";
 import { renderProjectStillsUnlocked } from "./render-stills.js";

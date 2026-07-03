@@ -8,7 +8,7 @@ import {
   type CaptionCue,
   type LockedVideoSpec,
   type VideoSpec,
-} from "@news/schema";
+} from "@motionreal/schema";
 import type { TtsManifest } from "../types.js";
 import { buildSceneCaptionCues } from "./captions.js";
 

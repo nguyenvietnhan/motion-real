@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { mkdtemp, rm, writeFile, mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { LockedVideoSpec } from "@news/schema";
+import type { LockedVideoSpec } from "@motionreal/schema";
 import { runBuildGridStatic, typecheckIssues, bundleIssues } from "./build-grid.js";
 import { ensureProject, projectPaths } from "../store/store.js";
 

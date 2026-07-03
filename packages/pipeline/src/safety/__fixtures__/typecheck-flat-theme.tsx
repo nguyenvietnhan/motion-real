@@ -6,7 +6,7 @@
 // resolves safely — so N10 must treat it as a WARNING, not a hard error.
 import React from "react";
 import { z } from "zod";
-import { registerComponent, type SceneComponentProps, useTheme } from "@news/compositions";
+import { registerComponent, type SceneComponentProps, useTheme } from "@motionreal/compositions";
 
 export const schema = z.object({
   label: z.string(),

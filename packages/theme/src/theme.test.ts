@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { makeTheme, DEFAULT_DOMINANT, PRINT, NEUTRAL_THEME_ID } from "./index.js";
 
 /**
- * @news/theme self-tests — the single neutral theme + the proven 2-layer
+ * @motionreal/theme self-tests — the single neutral theme + the proven 2-layer
  * cross-model defense ported from the deleted `@news/design`. A token name an
  * AI-authored scene reaches for must never break a render: Layer 1 declares the
  * cross-model alias vocabulary as real keys; Layer 2 (Proxy) catches anything

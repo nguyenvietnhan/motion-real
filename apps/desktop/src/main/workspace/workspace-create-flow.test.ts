@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import type { CrawledImage } from "@news/pipeline";
+import type { CrawledImage } from "@motionreal/pipeline";
 import type { AuthorInput } from "../agent/agent-worker.js";
 import {
   authorInputWithCrawledImages,

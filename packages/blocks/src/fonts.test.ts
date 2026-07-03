@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { getInfo as interInfo, fontFamily as interFamily } from "@remotion/google-fonts/Inter";
 import { getInfo as bvpInfo, fontFamily as bvpFamily } from "@remotion/google-fonts/BeVietnamPro";
 import { getInfo as cascadiaInfo, fontFamily as cascadiaFamily } from "@remotion/google-fonts/CascadiaMono";
-import { listStylePackIds, getStylePack } from "@news/theme";
+import { listStylePackIds, getStylePack } from "@motionreal/theme";
 import { VENDORED_FONTS } from "./vendor-fonts.generated.js";
 import { fontCoverageReport } from "./fonts.js";
 

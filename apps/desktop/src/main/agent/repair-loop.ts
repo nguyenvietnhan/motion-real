@@ -1,4 +1,4 @@
-import type { SafetyIssue, SerializedPipelineError } from "@news/pipeline";
+import type { SafetyIssue, SerializedPipelineError } from "@motionreal/pipeline";
 import type { AgentHooks, RepairLoopOptions, RepairOutcome } from "./agent-worker.js";
 import type { ReauthorTarget } from "./custom-loop-worker.js";
 import { toFriendlyFix } from "../redact/friendly.js";

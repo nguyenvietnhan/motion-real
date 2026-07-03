@@ -9,7 +9,7 @@ import { AbsoluteFill, Artifact, continueRender, delayRender } from "remotion";
  * block's text is CLIPPED, because a flat raster carries no layout boxes. The
  * vision-QA pass can, but it's model-dependent and unreliable.
  *
- * Instead we measure the real DOM at render time. Every COMPOSED `@news/blocks`
+ * Instead we measure the real DOM at render time. Every COMPOSED `@motionreal/blocks`
  * unit tags its outer boundary with `NRT_BLOCK_ATTR`; the `LayoutProbe` reads
  * each tagged element's `getBoundingClientRect()` once layout settles and emits
  * them as a JSON Remotion `<Artifact>`. The renderer feeds those rects to the

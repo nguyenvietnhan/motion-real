@@ -1,5 +1,5 @@
 import type { ApplyResult, ScriptEdit } from "../../shared/types.js";
-import { createLogger } from "@news/pipeline";
+import { createLogger } from "@motionreal/pipeline";
 
 const log = createLogger("script");
 

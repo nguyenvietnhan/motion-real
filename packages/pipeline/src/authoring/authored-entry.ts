@@ -6,7 +6,7 @@ import { dirname, relative } from "node:path";
  * AUTHOR-mode render bundling (the missing link for Requirement 13.5).
  *
  * In PICK mode the Remotion bundle only contains the components imported by
- * `@news/compositions`. AI-AUTHORED scenes live OUTSIDE that barrel — in a
+ * `@motionreal/compositions`. AI-AUTHORED scenes live OUTSIDE that barrel — in a
  * project's `authored/` dir — so they are not in the default bundle and cannot
  * render. This generator writes a project-specific Remotion entry that:
  *   1. imports every (already admitted) authored scene module, whose
@@ -15,7 +15,7 @@ import { dirname, relative } from "node:path";
  *   2. registers the `NewsVideo` composition driven by the project's locked spec.
  *
  * The renderer then bundles THIS entry (with the workspace webpack override that
- * aliases `@news/*` to their TS sources), so authored scenes render exactly like
+ * aliases `@motionreal/*` to their TS sources), so authored scenes render exactly like
  * built-in ones — but the code is per-project and lives in the project folder,
  * keeping each video self-contained.
  */
@@ -44,14 +44,14 @@ export function buildAuthoredEntrySource(opts: AuthoredEntryOptions): string {
 import React from "react";
 import { Composition, registerRoot } from "remotion";
 import { z } from "zod";
-import { FPS, LockedVideoSpecSchema } from "@news/schema";
-import { VideoComposition } from "@news/compositions";
-import { theme } from "@news/theme";
+import { FPS, LockedVideoSpecSchema } from "@motionreal/schema";
+import { VideoComposition } from "@motionreal/compositions";
+import { theme } from "@motionreal/theme";
 ${importLines}
 import lockedSpec from ${JSON.stringify(lockRel)};
 
 const { width, height } = theme.canvas;
-const spec = lockedSpec as unknown as import("@news/schema").LockedVideoSpec;
+const spec = lockedSpec as unknown as import("@motionreal/schema").LockedVideoSpec;
 
 const Root: React.FC = () =>
   React.createElement(Composition, {

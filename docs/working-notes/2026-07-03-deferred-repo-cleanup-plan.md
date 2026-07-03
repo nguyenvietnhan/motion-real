@@ -1,7 +1,7 @@
 # Temporary Task - Deferred Repo Cleanup Plan
 
-Status: MCP cleanup completed; `@news/*` namespace removal decision made;
-namespace source migration and style compatibility cleanup still pending.
+Status: MCP cleanup completed; NS-1 workspace namespace migration completed;
+NS-2 namespace text sweep and style compatibility cleanup still pending.
 
 This is a temporary working note for the remaining repo-noise items that were
 intentionally deferred after the repo hygiene cleanup. It is not project
@@ -271,7 +271,16 @@ Owner decision after MCP cleanup:
 The product is MotionReal, but workspace packages, imports, authored scene
 contracts, tests, scripts, and package metadata still use `@news/*`.
 
-Latest audit found `@news/` matches across 100+ files. Main surfaces:
+NS-1 migrated the active workspace namespace to `@motionreal/*`. Current active
+package/import/config/docs surfaces should have no `@news/schema`, `@news/theme`,
+`@news/blocks`, `@news/tts`, `@news/compositions`, `@news/pipeline`,
+`@news/desktop`, or `@news/remotion` references.
+
+Remaining `@news/` matches in current source/docs are the separate
+`@news/design` style-compatibility surface. Working notes may still mention
+`@news/*` while documenting completed migration history.
+
+Pre-NS-1 audit found `@news/` matches across 100+ files. Main surfaces were:
 
 Examples:
 
@@ -353,9 +362,28 @@ Decision:
   as namespace compatibility.
 
 Step NS-1: migrate the current source namespace to `@motionreal/*`.
+Completed.
 
 This should be one focused source migration, because partial namespace changes
 leave the repo in a broken package-resolution state.
+
+Completed changes:
+
+- root package metadata now uses `motionreal`, with old "news video generator"
+  wording removed;
+- workspace packages and dependencies now use `@motionreal/*`;
+- TypeScript, Vitest, Electron, Remotion, renderer, and authored-typecheck path
+  aliases now resolve `@motionreal/*`;
+- source imports, comments describing active architecture, tests, and authored
+  fixtures now use `@motionreal/*`;
+- authored-scene admission and prompt/contract guidance now whitelist
+  `@motionreal/compositions`;
+- the authored import normalizer no longer rescues old `@news/*` imports and
+  only re-homes current-namespace `SceneImage` mistakes from
+  `@motionreal/blocks` / `@motionreal/theme` to
+  `@motionreal/compositions`;
+- local `node_modules` workspace links were refreshed so stale `@news/*`
+  symlinks do not hide unresolved imports.
 
 Expected changes:
 
@@ -637,17 +665,19 @@ git diff --stat
 
 ## Recommended Next Step
 
-Start with NS-1: migrate the current source namespace from `@news/*` to
-`@motionreal/*` without keeping a compatibility bridge.
+Start with NS-2: final namespace text sweep.
 
 Reason:
 
 - MCP-1 through MCP-3 have removed the product dependency on `@news/mcp`, the
   legacy stdio server, and tracked machine-specific `.mcp.json` config;
 - NS-0 is complete: owner decision is not to keep `@news/*`;
+- NS-1 is complete: current workspace package names/imports/config/docs now use
+  `@motionreal/*`;
 - the remaining deferred cleanup surfaces are namespace migration and style
   compatibility;
-- namespace migration should happen before style cleanup so package/import noise
-  does not obscure style compatibility risk.
+- NS-2 should classify any remaining `@news/` text and leave `@news/design`
+  changes to STYLE-0/STYLE-1 unless the owner explicitly allows folding a
+  docs-only style reference cleanup into NS-2.
 
 Do not combine namespace cleanup with style compatibility cleanup.

@@ -1,4 +1,4 @@
-import type { VideoSpec } from "@news/schema";
+import type { VideoSpec } from "@motionreal/schema";
 import type { SafetyIssue } from "../types.js";
 
 /**

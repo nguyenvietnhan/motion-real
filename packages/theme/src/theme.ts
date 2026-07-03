@@ -1,10 +1,10 @@
 /**
- * @news/theme — the SINGLE neutral theme (freeform-engine R1/D1).
+ * @motionreal/theme — the SINGLE neutral theme (freeform-engine R1/D1).
  *
  * The "thay máu" overhaul deletes the multi-language design system (`@news/design`
  * with its editorial/galaxy `StyleLanguage` registry). Authored scenes now decide
  * ALL of their own visuals in code; the engine no longer imposes a look. But
- * `@news/blocks` still reads a resolved `Theme` off `useTheme()` everywhere, so we
+ * `@motionreal/blocks` still reads a resolved `Theme` off `useTheme()` everywhere, so we
  * keep ONE neutral theme: a dark near-black base, near-white ink, one accent,
  * medium corners, render-safe fonts. Blocks become OPTIONAL primitives (D2) that
  * render in this neutral grammar; an authored scene may ignore them entirely.
@@ -120,7 +120,7 @@ export function readableOn(fillHex: string, dark: string, light: string): string
 
 // --- Fixed constants ------------------------------------------------------
 
-/** The 9:16 canvas (TikTok). YouTube 16:9 geometry lives in `@news/schema`'s `geometry()`. */
+/** The 9:16 canvas (TikTok). YouTube 16:9 geometry lives in `@motionreal/schema`'s `geometry()`. */
 export const CANVAS = { width: 1080, height: 1920 } as const;
 
 /** Fallback dominant when a spec carries no palette (a punchy blue that reads on the dark base). */
@@ -575,5 +575,5 @@ export const designNotes = `## Neutral theme (freeform)
 
 Một theme trung tính DUY NHẤT cho video 9:16/16:9: nền tối gần đen, chữ gần trắng,
 một màu nhấn theo dominant, bo góc vừa, font render-safe (Inter + Cascadia Mono).
-A.I tự quyết toàn bộ màu/bố cục trong code cảnh; \`@news/blocks\` chỉ là primitive
+A.I tự quyết toàn bộ màu/bố cục trong code cảnh; \`@motionreal/blocks\` chỉ là primitive
 trung tính tùy chọn đọc theme tokens (theme.colors.*, theme.radius.*, theme.surface).`;

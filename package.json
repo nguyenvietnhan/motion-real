@@ -1,9 +1,9 @@
 {
-  "name": "news-remotion-tool",
+  "name": "motionreal",
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "AI-driven Vietnamese short-form news video generator built on Remotion (React) for diverse, code-generated visuals.",
+  "description": "AI-driven short-form video generator built on Remotion (React) for diverse, code-generated visuals.",
   "workspaces": [
     "packages/*",
     "apps/*"
@@ -13,8 +13,8 @@
     "npm": ">=11.0.0"
   },
   "scripts": {
-    "studio": "npm --workspace @news/remotion run studio",
-    "render": "npm --workspace @news/remotion run render",
+    "studio": "npm --workspace @motionreal/remotion run studio",
+    "render": "npm --workspace @motionreal/remotion run render",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "build": "tsx scripts/build.ts",
     "test": "tsx scripts/test.ts",

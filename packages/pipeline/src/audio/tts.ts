@@ -17,8 +17,8 @@ import {
   ttsCacheKey,
   vivibeApiKey,
   type TtsClient,
-} from "@news/tts";
-import { BREATH_GAP_SECONDS, DEFAULT_TTS_SPEED, type VideoSpec } from "@news/schema";
+} from "@motionreal/tts";
+import { BREATH_GAP_SECONDS, DEFAULT_TTS_SPEED, type VideoSpec } from "@motionreal/schema";
 import type { TtsManifest, TtsManifestScene, TtsProvider } from "../types.js";
 import { projectPaths, ttsCacheDir } from "../store/store.js";
 import { parseSrt, type SrtSegment } from "./captions.js";
@@ -26,7 +26,7 @@ import { normalizeVietnameseNumbers } from "./vi-number.js";
 
 /**
  * TTS synthesis + audio assembly (design B.5). Per-scene narration is
- * synthesized via @news/tts (Vivibe), cached by text+voiceId+speed, measured,
+ * synthesized via @motionreal/tts (Vivibe), cached by text+voiceId+speed, measured,
  * concatenated into one track, and optionally BGM-mixed. Locked timing is then
  * derived from the MEASURED durations (see lock.ts).
  *

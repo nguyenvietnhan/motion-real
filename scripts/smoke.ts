@@ -2,7 +2,7 @@
  * Real-render smoke test (NOT part of CI — needs a headless Chromium, so it is a
  * manual `npm run smoke`). The offline test suite mocks `@remotion/renderer`, so
  * NO test ever exercises the real Chromium render path; a Remotion/Chromium
- * upgrade or a regression in the shipped `@news/blocks` / neutral theme would slip
+ * upgrade or a regression in the shipped `@motionreal/blocks` / neutral theme would slip
  * through green CI and only surface when a user renders. This script closes that
  * gap with a fast, portable, no-voice render of the bundled sample fixture.
  *
@@ -25,7 +25,7 @@
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { LockedVideoSpec } from "@news/schema";
+import type { LockedVideoSpec } from "@motionreal/schema";
 import { sampleSpec } from "../apps/remotion/src/fixtures/sample-spec.js";
 import {
   renderSceneStills,

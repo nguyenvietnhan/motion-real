@@ -4,7 +4,7 @@ import { open, writeFile } from "node:fs/promises";
 import { isAbsolute, join, relative, resolve } from "node:path";
 import { performance } from "node:perf_hooks";
 import { promisify } from "node:util";
-import { transitionFrames, type LockedVideoSpec } from "@news/schema";
+import { transitionFrames, type LockedVideoSpec } from "@motionreal/schema";
 import { makeReport, type ReviewChecklist, type SafetyIssue, type SafetyReport } from "./types.js";
 import { appendEvent, ensureProject, projectPaths, writeJson } from "./store/store.js";
 import { renderSceneStills, type RenderSceneStillsOptions, type RenderTiming } from "./render/renderer.js";

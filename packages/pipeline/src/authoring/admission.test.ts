@@ -3,7 +3,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { mkdtemp, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { getComponent, unregisterComponent } from "@news/compositions";
+import { getComponent, unregisterComponent } from "@motionreal/compositions";
 import { admitAuthoredComponent, admitAuthoredSceneFile } from "./index.js";
 
 /**
@@ -153,7 +153,7 @@ describe("admitAuthoredComponent (static AST gate)", () => {
     try {
       const template = (literal: string) => `
 import React from "react";
-import { registerComponent } from "@news/compositions";
+import { registerComponent } from "@motionreal/compositions";
 import { z } from "zod";
 export const schema = z.object({});
 export const example = {};

@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { existsSync, statSync } from "node:fs";
 import { copyFile, mkdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import type { LockedVideoSpec } from "@news/schema";
+import type { LockedVideoSpec } from "@motionreal/schema";
 import { renderCacheDir } from "../store/store.js";
 
 /**

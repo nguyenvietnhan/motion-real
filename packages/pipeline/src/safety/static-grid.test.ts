@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { z } from "zod";
-import { getComponent, registerComponent } from "@news/compositions";
-import type { VideoSpec } from "@news/schema";
+import { getComponent, registerComponent } from "@motionreal/compositions";
+import type { VideoSpec } from "@motionreal/schema";
 import { runStaticGrid } from "./static-grid.js";
 
 /**

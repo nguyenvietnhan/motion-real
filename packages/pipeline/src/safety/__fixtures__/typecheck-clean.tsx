@@ -3,7 +3,7 @@
 // NOT flag this. Mirrors how a correct scene is now written (no layout blocks).
 import React from "react";
 import { z } from "zod";
-import { registerComponent, type SceneComponentProps, SceneImage } from "@news/compositions";
+import { registerComponent, type SceneComponentProps, SceneImage } from "@motionreal/compositions";
 
 export const schema = z.object({
   points: z.array(z.string()),

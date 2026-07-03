@@ -1,11 +1,11 @@
 import React from "react";
 import { AbsoluteFill, useCurrentFrame, interpolate } from "remotion";
 import { z } from "zod";
-import { registerComponent, type SceneComponentProps } from "@news/compositions";
+import { registerComponent, type SceneComponentProps } from "@motionreal/compositions";
 
 /**
  * App-local DEMO scenes for the Studio preview + no-voice sample draft. These are
- * NOT built-in templates (pure AUTHOR mode keeps `@news/compositions` template-
+ * NOT built-in templates (pure AUTHOR mode keeps `@motionreal/compositions` template-
  * free) — they live in the app and exist only so `render --sample` / Studio show
  * real visuals without a per-project authored bundle. Importing this module
  * registers them.

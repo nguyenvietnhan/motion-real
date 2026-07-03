@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { makeTheme, onColor } from "@news/theme";
+import { makeTheme, onColor } from "@motionreal/theme";
 import {
   surfaceBorder,
   surfaceBorderWidth,

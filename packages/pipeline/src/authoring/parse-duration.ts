@@ -1,4 +1,4 @@
-import { DURATION_PRESETS, type DurationPreset } from "@news/schema";
+import { DURATION_PRESETS, type DurationPreset } from "@motionreal/schema";
 
 /**
  * Parse a target duration (seconds) out of a free-text Vietnamese brief and snap

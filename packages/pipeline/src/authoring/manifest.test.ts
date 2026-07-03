@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { VideoSpecSchema } from "@news/schema";
+import { VideoSpecSchema } from "@motionreal/schema";
 import { manifestSceneFiles, manifestToVideoSpec, type Manifest } from "./manifest.js";
 
 /**

@@ -1,17 +1,17 @@
 /**
  * Deterministic authored-import normalizer (desktop-author-mode hardening).
  *
- * Post-freeform-pivot the layout blocks were deleted and `@news/blocks` /
- * `@news/theme` were dropped from the authored-import whitelist (admission N4):
+ * Post-freeform-pivot the layout blocks were deleted and `@motionreal/blocks` /
+ * `@motionreal/theme` were dropped from the authored-import whitelist (admission N4):
  * an authored scene writes 100% bespoke JSX/SVG and imports only `react`,
- * `remotion`, `@news/compositions`, `zod`. The ONE authored-facing symbol that
+ * `remotion`, `@motionreal/compositions`, `zod`. The ONE authored-facing symbol that
  * survives is `SceneImage` (the sanctioned image block), now re-exported from
- * `@news/compositions`.
+ * `@motionreal/compositions`.
  *
- * Models trained on the old contract still write `import { SceneImage } from
- * "@news/blocks"` — which now fails N4 and kills an image scene. So the only
- * useful re-home left is: route `SceneImage` from `@news/blocks`/`@news/theme`
- * onto `@news/compositions`. Every OTHER symbol from those modules (Frame,
+ * Models can still put `SceneImage` on the wrong current-namespace module, e.g.
+ * "@motionreal/blocks"` — which now fails N4 and kills an image scene. So the only
+ * useful re-home left is: route `SceneImage` from `@motionreal/blocks`/`@motionreal/theme`
+ * onto `@motionreal/compositions`. Every OTHER symbol from those modules (Frame,
  * TitleBlock, useTheme, …) is intentionally NOT rescued — those blocks are gone,
  * and a scene that reaches for them SHOULD fail N4 so the model rewrites it as
  * raw JSX. Pure string transform; leaves everything else as-is.
@@ -24,22 +24,22 @@ function baseName(clause: string): string {
 
 /**
  * Re-home a stray `SceneImage` import. The model may still write
- * `import { SceneImage } from "@news/blocks"` (or `@news/theme`), but those
+ * `import { SceneImage } from "@motionreal/blocks"` (or `@motionreal/theme`), but those
  * modules are no longer whitelisted — `SceneImage` lives behind
- * `@news/compositions` now. Pull `SceneImage` out of any such import onto a
- * `@news/compositions` line; leave the rest of that import untouched (it will
+ * `@motionreal/compositions` now. Pull `SceneImage` out of any such import onto a
+ * `@motionreal/compositions` line; leave the rest of that import untouched (it will
  * fail N4 on its own, which is correct — those blocks no longer exist for
  * authored code). Returns the code unchanged when there's nothing to re-home.
  */
 export function normalizeAuthoredImports(code: string): string {
   const moved = code.replace(
-    /import\s*\{([^}]*)\}\s*from\s*["']@news\/(?:blocks|theme)["'];?/g,
+    /import\s*\{([^}]*)\}\s*from\s*["']@motionreal\/(?:blocks|theme)["'];?/g,
     (full, inner: string) => {
       const clauses = inner.split(",").map((s) => s.trim()).filter(Boolean);
       const hasSceneImage = clauses.some((c) => baseName(c) === "SceneImage");
       if (!hasSceneImage) return full; // nothing we can rescue — leave it to fail N4
       const rest = clauses.filter((c) => baseName(c) !== "SceneImage");
-      const lines = [`import { SceneImage } from "@news/compositions";`];
+      const lines = [`import { SceneImage } from "@motionreal/compositions";`];
       // Preserve any other symbols on their original (now-dead) import so the N4
       // violation still surfaces them, rather than silently dropping the line.
       if (rest.length > 0) lines.push(full.replace(inner, ` ${rest.join(", ")} `));

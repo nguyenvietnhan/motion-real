@@ -6,7 +6,7 @@
 // the loader. (This file is intentionally never imported.)
 import React from "react";
 import { z } from "zod";
-import { registerComponent, type SceneComponentProps } from "@news/compositions";
+import { registerComponent, type SceneComponentProps } from "@motionreal/compositions";
 
 export const schema = z.object({ label: z.string() });
 type Props = z.infer<typeof schema>;

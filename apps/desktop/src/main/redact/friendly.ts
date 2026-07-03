@@ -1,4 +1,4 @@
-import type { PipelineStage, SerializedPipelineError, SafetyIssue } from "@news/pipeline";
+import type { PipelineStage, SerializedPipelineError, SafetyIssue } from "@motionreal/pipeline";
 import type { FriendlyError, FriendlyFix } from "../../shared/types.js";
 
 /**

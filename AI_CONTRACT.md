@@ -39,10 +39,10 @@ the project contract.
 - Pure AUTHOR mode only. Every video uses fresh authored `.tsx` scene modules.
 - Authored scenes write raw JSX/SVG/CSS by hand.
 - Authored scene imports are limited to `react`, `remotion`,
-  `@news/compositions`, and `zod`.
+  `@motionreal/compositions`, and `zod`.
 - The only authored-facing image primitive is `SceneImage` from
-  `@news/compositions`.
-- Do not import `@news/blocks`, `@news/theme`, Node APIs, browser host APIs, or
+  `@motionreal/compositions`.
+- Do not import `@motionreal/blocks`, `@motionreal/theme`, Node APIs, browser host APIs, or
   arbitrary packages from authored scenes.
 - Do not reintroduce `Frame`, `Story`, `TitleBlock`, `KeyPoints`, `Panel`,
   `CountUp`, or any authored-facing layout-block toolkit.

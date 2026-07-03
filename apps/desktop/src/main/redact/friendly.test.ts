@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import fc from "fast-check";
-import type { PipelineStage, SerializedPipelineError, SafetyIssue, Severity } from "@news/pipeline";
+import type { PipelineStage, SerializedPipelineError, SafetyIssue, Severity } from "@motionreal/pipeline";
 import { stripL0Tokens, toFriendlyError, toFriendlyFix } from "./friendly.js";
 
 /**

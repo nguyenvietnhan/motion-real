@@ -101,7 +101,7 @@ export function compositionsSrcDir(): string {
   return join(workspaceRoot(), "packages", "compositions", "src");
 }
 
-/** Absolute path to the @news/blocks sources (also forbidden-API linted; R2.3). */
+/** Absolute path to the @motionreal/blocks sources (also forbidden-API linted; R2.3). */
 export function blocksSrcDir(): string {
   return join(workspaceRoot(), "packages", "blocks", "src");
 }
