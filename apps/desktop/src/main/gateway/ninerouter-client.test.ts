@@ -28,9 +28,11 @@ function statusReply(status: number): Response {
 }
 
 /** Build a client whose fetch returns each queued result in order; sleep is a no-op. */
-function clientWith(results: Array<Response | Error>): { client: NineRouterClient; calls: () => number } {
+function clientWith(results: Array<Response | Error>): { client: NineRouterClient; calls: () => number; requests: unknown[] } {
   let i = 0;
-  const fetchImpl: FetchImpl = async () => {
+  const requests: unknown[] = [];
+  const fetchImpl: FetchImpl = async (_url, init) => {
+    requests.push(JSON.parse(String(init.body ?? "{}")));
     const r = results[Math.min(i, results.length - 1)] ?? statusReply(500);
     i++;
     if (r instanceof Error) throw r;
@@ -41,7 +43,7 @@ function clientWith(results: Array<Response | Error>): { client: NineRouterClien
   };
   const sleep = vi.fn(async () => {});
   const client = new NineRouterClient("http://test", { fetchImpl, sleep });
-  return { client, calls: () => i };
+  return { client, calls: () => i, requests };
 }
 
 describe("NineRouterClient.chat retry/backoff", () => {
@@ -106,6 +108,20 @@ describe("NineRouterClient.chat continuation (finish_reason: length)", () => {
     const { client, calls } = clientWith([okReply("phần đầu ", "length"), okReply("phần cuối", "stop")]);
     expect(await client.chat("m", MSG)).toBe("phần đầu phần cuối");
     expect(calls()).toBe(2);
+  });
+
+  it("baseline: continuation uses one assistant echo plus one exact continue instruction", async () => {
+    const { client, requests } = clientWith([okReply("phần đầu ", "length"), okReply("phần cuối", "stop")]);
+
+    await client.chat("m", MSG);
+
+    const second = requests[1] as { messages: Array<{ role: string; content: string }> };
+    expect(second.messages).toHaveLength(3);
+    expect(second.messages[0]).toEqual(MSG[0]);
+    expect(second.messages[1]).toEqual({ role: "assistant", content: "phần đầu " });
+    expect(second.messages[2]!.role).toBe("user");
+    expect(second.messages[2]!.content).toContain("VIẾT TIẾP CHÍNH XÁC");
+    expect(second.messages[2]!.content).toHaveLength(164);
   });
 
   it("returns immediately when the first reply finished (no continuation)", async () => {

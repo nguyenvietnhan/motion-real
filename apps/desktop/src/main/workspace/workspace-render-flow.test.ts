@@ -12,6 +12,16 @@ import {
 } from "./workspace-render-flow.js";
 
 describe("workspace render-flow helpers", () => {
+  it("baseline: records current render-flow prompt intent lengths", () => {
+    expect({
+      creativeBootstrapChars: CREATIVE_BOOTSTRAP_INTENT.length,
+      visionRepairChars: visionRepairIntent("chữ đè lên nhau").length,
+    }).toEqual({
+      creativeBootstrapChars: 795,
+      visionRepairChars: 244,
+    });
+  });
+
   it("keeps the creative bootstrap intent guard phrases", () => {
     expect(CREATIVE_BOOTSTRAP_INTENT).toMatch(/ĐANG DIỄN TIẾN qua phần lớn thời lượng/);
     expect(CREATIVE_BOOTSTRAP_INTENT).toMatch(/khuyến khích sáng tạo, KHÔNG bắt buộc/);

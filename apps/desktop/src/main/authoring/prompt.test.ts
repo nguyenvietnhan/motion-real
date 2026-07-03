@@ -1,11 +1,80 @@
 import { describe, expect, it } from "vitest";
-import { buildAuthorMessages, buildImageFilterMessages, buildReauthorMessages, type ContentPart } from "./prompt.js";
+import { buildAuthorMessages, buildImageFilterMessages, buildReauthorMessages, buildVisualQaMessages, type ContentPart } from "./prompt.js";
 
 /**
  * Feature: desktop-author-mode — prompt builders carry the full Authoring_Contract
  * + AI_Output_Contract (author) and a single-scene repair request (reauthor,
  * optionally multimodal).
  */
+
+function contentShape(content: string | ContentPart[]): { kind: "text" | "parts"; chars: number; textParts: number; imageParts: number } {
+  if (typeof content === "string") return { kind: "text", chars: content.length, textParts: 0, imageParts: 0 };
+  return {
+    kind: "parts",
+    chars: content.filter((p): p is { type: "text"; text: string } => p.type === "text").reduce((sum, p) => sum + p.text.length, 0),
+    textParts: content.filter((p) => p.type === "text").length,
+    imageParts: content.filter((p) => p.type === "image_url").length,
+  };
+}
+
+function promptShape(messages: { role: string; content: string | ContentPart[] }[]): Array<ReturnType<typeof contentShape> & { role: string }> {
+  return messages.map((m) => ({ role: m.role, ...contentShape(m.content) }));
+}
+
+describe("prompt surface baseline", () => {
+  it("records current message counts, part counts, and text lengths for every prompt builder", () => {
+    const image = { ref: "assets/a.png", width: 800, height: 600, dataUrl: "data:image/png;base64,AAA" };
+    const stills = [
+      { sceneId: "scene-01", stillDataUrl: "data:image/png;base64,AAA" },
+      { sceneId: "scene-02", stillDataUrl: "data:image/png;base64,BBB" },
+    ];
+
+    expect({
+      authorTextOnly: promptShape(buildAuthorMessages({ text: "Chủ đề baseline", urls: [] })),
+      authorWithResearch: promptShape(buildAuthorMessages({ text: "Tóm tắt link", urls: ["https://example.com/a"] }, "tư liệu baseline")),
+      authorWithImages: promptShape(buildAuthorMessages({ text: "Chủ đề có ảnh", urls: [] }, undefined, [image])),
+      reauthorTextOnly: promptShape(buildReauthorMessages({ sceneId: "scene-01", componentId: "alpha", currentCode: "// component: alpha\nexport default 1;", intent: "sửa nhẹ" })),
+      reauthorWithStill: promptShape(buildReauthorMessages({
+        sceneId: "scene-01",
+        componentId: "alpha",
+        currentCode: "// component: alpha\nexport default 1;",
+        issues: [{ check: "N14", severity: "error", message: "tràn chữ" }],
+        stillDataUrl: "data:image/png;base64,AAA",
+      })),
+      visualQa: promptShape(buildVisualQaMessages(stills)),
+      imageFilter: promptShape(buildImageFilterMessages("Bài nói về sự kiện X", [image])),
+    }).toEqual({
+      authorTextOnly: [
+        { role: "system", kind: "text", chars: 16763, textParts: 0, imageParts: 0 },
+        { role: "user", kind: "text", chars: 130, textParts: 0, imageParts: 0 },
+      ],
+      authorWithResearch: [
+        { role: "system", kind: "text", chars: 16763, textParts: 0, imageParts: 0 },
+        { role: "user", kind: "text", chars: 246, textParts: 0, imageParts: 0 },
+      ],
+      authorWithImages: [
+        { role: "system", kind: "text", chars: 18545, textParts: 0, imageParts: 0 },
+        { role: "user", kind: "parts", chars: 163, textParts: 2, imageParts: 1 },
+      ],
+      reauthorTextOnly: [
+        { role: "system", kind: "text", chars: 10574, textParts: 0, imageParts: 0 },
+        { role: "user", kind: "text", chars: 201, textParts: 0, imageParts: 0 },
+      ],
+      reauthorWithStill: [
+        { role: "system", kind: "text", chars: 10574, textParts: 0, imageParts: 0 },
+        { role: "user", kind: "parts", chars: 275, textParts: 1, imageParts: 1 },
+      ],
+      visualQa: [
+        { role: "system", kind: "text", chars: 921, textParts: 0, imageParts: 0 },
+        { role: "user", kind: "parts", chars: 140, textParts: 4, imageParts: 2 },
+      ],
+      imageFilter: [
+        { role: "system", kind: "text", chars: 601, textParts: 0, imageParts: 0 },
+        { role: "user", kind: "parts", chars: 228, textParts: 3, imageParts: 1 },
+      ],
+    });
+  });
+});
 
 describe("buildAuthorMessages", () => {
   // Post-block-removal: the prompt no longer tells the model to import @motionreal/blocks

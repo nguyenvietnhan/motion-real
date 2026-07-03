@@ -48,7 +48,8 @@ function validReply(): string {
 }
 
 function makeBackend(reply: string, admit = vi.fn(async () => ({ ok: true as const, componentIds: ["alpha", "beta"], files: [] }))) {
-  const client = { chat: vi.fn(async () => reply) } as unknown as NineRouterClient;
+  const chat = vi.fn(async (_model: string, _messages: ChatMessage[]) => reply);
+  const client = { chat } as unknown as NineRouterClient;
   const deps: NineRouterBackendDeps = {
     client,
     tools: {} as never,
@@ -56,7 +57,7 @@ function makeBackend(reply: string, admit = vi.fn(async () => ({ ok: true as con
     apiKey: () => undefined,
     admit,
   };
-  return { backend: new NineRouterAuthoringBackend(deps), admit, client };
+  return { backend: new NineRouterAuthoringBackend(deps), admit, client, chat };
 }
 
 function authoredDir(projectId: string): string {
@@ -64,6 +65,21 @@ function authoredDir(projectId: string): string {
 }
 
 describe("authorScenes (pure-author)", () => {
+  it("baseline: one successful text-only authoring run makes one chat call with the current prompt surface", async () => {
+    const projectId = "pa-chat-baseline";
+    const { backend, chat } = makeBackend(validReply());
+    const job: AuthorJob = { projectId, input: { text: "chủ đề baseline", urls: [] }, scriptGate: false };
+
+    await backend.authorScenes(job);
+
+    expect(chat).toHaveBeenCalledTimes(1);
+    const [model, messages] = chat.mock.calls[0]!;
+    expect(model).toBe("test-model");
+    expect(messages).toHaveLength(2);
+    expect(messages.map((m) => m.role)).toEqual(["system", "user"]);
+    expect(messages.every((m) => typeof m.content === "string")).toBe(true);
+  });
+
   it("valid reply ⇒ writes one .tsx per unique id + open-id manifest + admits + returns scenes", async () => {
     const projectId = "pa-valid";
     const { backend, admit } = makeBackend(validReply());
