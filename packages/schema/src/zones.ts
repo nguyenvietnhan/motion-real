@@ -20,10 +20,10 @@
  *    VALIDATION threshold only — nothing renders from it.
  *
  * Pure constants only (no IO / no design import): `@motionreal/schema` is the lowest
- * layer, so it cannot depend on `@news/design`.
+ * layer, so it cannot depend on any design registry.
  */
 
-/** Fixed render canvas (mirrors `@news/design` CANVAS; kept here to avoid a layer cycle). */
+/** Fixed render canvas (mirrors the deleted design-registry CANVAS; kept here to avoid a layer cycle). */
 export const CANVAS = { width: 1080, height: 1920 } as const;
 
 /** An axis-aligned rectangle in canvas pixel space. */

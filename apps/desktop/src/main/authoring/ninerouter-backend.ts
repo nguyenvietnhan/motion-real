@@ -443,7 +443,7 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
         );
         feedback =
           `Lần trước mã bị TỪ CHỐI khi nạp:\n${violationText}\n\n` +
-          `Sửa theo AUTHOR mode hiện tại: chỉ import react, remotion, zod, @motionreal/compositions; KHÔNG import @motionreal/blocks, @motionreal/theme, @news/design; ` +
+          `Sửa theo AUTHOR mode hiện tại: chỉ import react, remotion, zod, @motionreal/compositions; KHÔNG import @motionreal/blocks, @motionreal/theme, hay bất kỳ design/theme package nào; ` +
           `mã phải là TSX parse được, giữ nguyên id "${componentId}", chỉ dùng API được phép. Trả về lại đúng một khối tsx.`;
       }
 

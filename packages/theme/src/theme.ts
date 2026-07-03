@@ -1,8 +1,8 @@
 /**
  * @motionreal/theme — the SINGLE neutral theme (freeform-engine R1/D1).
  *
- * The "thay máu" overhaul deletes the multi-language design system (`@news/design`
- * with its editorial/galaxy `StyleLanguage` registry). Authored scenes now decide
+ * The "thay máu" overhaul deletes the multi-language design system and its
+ * editorial/galaxy `StyleLanguage` registry. Authored scenes now decide
  * ALL of their own visuals in code; the engine no longer imposes a look. But
  * `@motionreal/blocks` still reads a resolved `Theme` off `useTheme()` everywhere, so we
  * keep ONE neutral theme: a dark near-black base, near-white ink, one accent,

@@ -5,10 +5,11 @@
 - **Amended (2026-06-17, hiện hành)**: AUTHOR mode vẫn giữ, nhưng **thư viện
   layout-block đã bị XOÁ khỏi authored-facing surface** (owner phê duyệt) vì tái
   dùng block khiến mọi video trông một khuôn. Whitelist authored hiện là
-  `react`/`remotion`/`@news/compositions`/`zod` — KHÔNG còn `@news/blocks`/
-  `@news/theme`. Mỗi scene là JSX/SVG trần viết tay; ngoại lệ duy nhất là
-  `SceneImage` (qua `@news/compositions`) cho tính năng ảnh. `@news/blocks` vẫn
-  tồn tại như runtime internals cho composition/captions/probe/fonts.
+  `react`/`remotion`/`@motionreal/compositions`/`zod` — KHÔNG còn
+  `@motionreal/blocks`/`@motionreal/theme`. Mỗi scene là JSX/SVG trần viết tay;
+  ngoại lệ duy nhất là `SceneImage` (qua `@motionreal/compositions`) cho tính
+  năng ảnh. `@motionreal/blocks` vẫn tồn tại như runtime internals cho
+  composition/captions/probe/fonts.
 
 ## Context
 
@@ -32,15 +33,15 @@ Mỗi video, AI viết brand-new `.tsx` scene module dưới
 không có PICK mode. Một scene chỉ vào được render sau khi qua **admission gate**
 (`admitAuthoredComponent`, AST tĩnh — N4/N5):
 
-- import whitelist (`react`, `remotion`, `@news/compositions`, `zod`),
+- import whitelist (`react`, `remotion`, `@motionreal/compositions`, `zod`),
 - banned-API blacklist (`Math.random`, `Date`, `fetch`, `eval`, `fs`, …),
 - required exports (`default` = `registerComponent(...)`, `schema`, `example`),
 - `registerComponent({ id })` với id là **literal string**.
 
 Scene tự dựng text/structure/visual bằng raw JSX/SVG/CSS. Một scene text/list
 thuần là lựa chọn hợp lệ hạng nhất. Nếu scene có ảnh local do user/crawler cung
-cấp, nó dùng `SceneImage` import từ `@news/compositions`; không dùng `<img>`,
-`Img`, `staticFile`, URL, hay import `@news/blocks`.
+cấp, nó dùng `SceneImage` import từ `@motionreal/compositions`; không dùng
+`<img>`, `Img`, `staticFile`, URL, hay import `@motionreal/blocks`.
 
 ## Consequences
 

@@ -5,9 +5,9 @@
 ## Context
 
 Toàn bộ pipeline chạy trong **một process**: `orchestrator.ts` import
-`@news/compositions` từ source (một registry instance duy nhất), và cùng đường đó
-được test suite + MCP server + desktop main process dùng. Không có service
-boundary, không có queue/worker tách rời, không có DB (state là JSON file +
+`@motionreal/compositions` từ source (một registry instance duy nhất), và cùng
+đường đó được test suite + desktop main process dùng. Không có service boundary,
+không có queue/worker tách rời, không có DB (state là JSON file +
 `events.ndjson` append-only, atomic write qua temp+rename).
 
 Câu hỏi đặt ra khi refoundation: có nên tách render thành service riêng (scale,
@@ -18,8 +18,8 @@ isolation) không?
 **Giữ single-process.** Không tách service trong giai đoạn này.
 
 Lý do:
-- Registry handshake giữa authored scene và `@news/compositions` rất nhạy với
-  việc resolve **hai instance** registry (lỗi "registration not found" trên
+- Registry handshake giữa authored scene và `@motionreal/compositions` rất nhạy
+  với việc resolve **hai instance** registry (lỗi "registration not found" trên
   Windows khi chạy `tsx -e` inline). Một process = một registry = một nguồn sự
   thật. Tách service nhân đôi bề mặt lỗi này.
 - Deployment đơn giản: desktop app gọi `renderProject()` trực tiếp, không cần

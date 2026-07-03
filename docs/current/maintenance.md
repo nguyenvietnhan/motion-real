@@ -75,7 +75,7 @@ user-added media is copied into the canonical `.video-tool` library.
 These terms may appear only when explicitly discussing compatibility or ADR
 history:
 
-- `@news/design`
+- deleted design-registry names
 - `stylePack`
 - `stylePackId`
 - `clean-luxury-tech`

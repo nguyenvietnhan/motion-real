@@ -19,12 +19,13 @@ liên tiếp/90 ngày. Nhưng các package nền (`schema`, `blocks`, `compositi
 ## Decision
 
 Selective rewrite. Quyết định gốc là giữ các package nền và chỉ thay vùng gây
-churn. **Amended theo freeform pivot 2026-06-17:** `@news/design` đã bị xoá và
-thay bằng `@news/theme`; `@news/blocks` không còn layout toolkit authored-facing,
-chỉ còn runtime internals + `SceneImage`. Các vùng vẫn phải cực kỳ thận trọng:
-`@news/schema`, `@news/theme`, `@news/blocks` runtime, `@news/compositions`,
-`@news/tts`, `@news/mcp`, và đặc biệt `orchestrator.ts` (off-limits per user —
-pipeline architecture đang chạy đúng).
+churn. **Amended theo freeform pivot 2026-06-17:** design registry cũ đã bị xoá
+và thay bằng `@motionreal/theme`; `@motionreal/blocks` không còn layout toolkit
+authored-facing, chỉ còn runtime internals + `SceneImage`. Các vùng vẫn phải cực
+kỳ thận trọng: `@motionreal/schema`, `@motionreal/theme`,
+`@motionreal/blocks` runtime, `@motionreal/compositions`, `@motionreal/tts`,
+legacy MCP stdio package đã xoá, và đặc biệt `orchestrator.ts` (off-limits per
+user — pipeline architecture đang chạy đúng).
 
 **Trong scope** (theo tiêu chí inclusion bên dưới): luồng authoring trong
 `apps/desktop/src/main/authoring/`, bắt đầu từ slice `authorScenes`.

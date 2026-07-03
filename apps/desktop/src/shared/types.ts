@@ -104,9 +104,8 @@ export type CreateInput = {
 };
 
 /**
- * A selectable design style pack, surfaced to the create-screen picker. Read
- * from the `@news/design` registry (the single source of truth) so a newly
- * registered pack appears as a chip without touching the renderer. `preview`
+ * A selectable design style pack, surfaced to the create-screen picker. Kept as
+ * a legacy view-model shape while the product uses one neutral theme. `preview`
  * carries the few CHROME hints the renderer needs to draw a CSS thumbnail of the
  * look (no rendered image — a coarse, always-correct sketch driven by the same
  * tokens the real render reads).
