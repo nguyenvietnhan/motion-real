@@ -48,7 +48,6 @@ describe("language-aware TTS preparation", () => {
     const spec = {
       version: 1,
       title: "English",
-      styleId: "clean-luxury-tech",
       format: "tiktok",
       videoLanguage: "en",
       language: "en",

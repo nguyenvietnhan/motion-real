@@ -126,7 +126,6 @@ export async function scaffoldVideoProject(opts: ScaffoldVideoProjectOptions): P
     projectId,
     prompt: opts.prompt,
     duration: opts.duration ?? parseDurationFromPrompt(opts.prompt) ?? 60,
-    styleId: "clean-luxury-tech",
     ratio: "9:16",
     language: opts.language ?? "vi",
     aiProvider: "mock" as AiProvider,

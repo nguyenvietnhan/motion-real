@@ -100,6 +100,14 @@ describe("manifestToVideoSpec + clampTheme (AI-output → spec bridge)", () => {
     expect(VideoSpecSchema.safeParse(spec).success).toBe(true);
   });
 
+  it("does not emit retired style identity fields", () => {
+    const spec = manifestToVideoSpec(oneScene());
+    expect(Object.keys(spec).sort()).toEqual(
+      ["format", "language", "ratio", "scenes", "theme", "title", "version", "videoLanguage"].sort(),
+    );
+    expect(spec.theme ? Object.keys(spec.theme).sort() : []).toEqual(["dominant", "mood"]);
+  });
+
   it("clamps an over-long title into a schema-valid spec", () => {
     const spec = manifestToVideoSpec({ ...oneScene(), title: "T".repeat(400) });
     expect(VideoSpecSchema.safeParse(spec).success).toBe(true);

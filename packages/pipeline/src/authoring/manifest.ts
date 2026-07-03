@@ -106,7 +106,6 @@ export function manifestToVideoSpec(manifest: Manifest): VideoSpec {
   const candidate = {
     version: 1,
     title: (manifest.title?.trim() || "Untitled").slice(0, 140),
-    styleId: "clean-luxury-tech",
     format,
     ...(manifest.durationTier ? { durationTier: manifest.durationTier } : {}),
     videoLanguage,

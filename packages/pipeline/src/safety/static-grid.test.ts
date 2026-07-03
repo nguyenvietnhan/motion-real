@@ -72,7 +72,6 @@ function validSpec(): VideoSpec {
   return {
     version: 1,
     title: "Spec hợp lệ để kiểm thử",
-    styleId: "clean-luxury-tech",
     format: "tiktok",
     duration: 60,
     ratio: "9:16",
@@ -326,25 +325,6 @@ describe("static grid — N26 weak hook (warning)", () => {
     const issues = runStaticGrid(spec).issues.filter((i) => i.check === "N26");
     expect(issues.length).toBe(1);
     expect(issues[0]!.severity).toBe("warning");
-  });
-});
-
-describe("static grid — retired theme style identity", () => {
-  it("ignores unknown theme.stylePackId because style selection is retired", () => {
-    const spec = validSpec();
-    spec.theme = { dominant: "#2F5FF0", stylePackId: "totally-made-up-pack" };
-    const issues = runStaticGrid(spec).issues.filter((i) => /stylePackId/i.test(i.message));
-    expect(issues).toEqual([]);
-    expect(runStaticGrid(spec).ok).toBe(true);
-  });
-
-  it("accepts the neutral back-compat id and the default (no id)", () => {
-    const withPack = validSpec();
-    withPack.theme = { dominant: "#2F5FF0", stylePackId: "neutral" };
-    expect(runStaticGrid(withPack).issues.some((i) => /stylePackId/i.test(i.message))).toBe(false);
-
-    const noPack = validSpec();
-    expect(runStaticGrid(noPack).issues.some((i) => /stylePackId/i.test(i.message))).toBe(false);
   });
 });
 

@@ -66,7 +66,6 @@ function lockedSpec(): LockedVideoSpec {
   return {
     version: 1,
     title: "Renderer test",
-    styleId: "clean-luxury-tech",
     format: "tiktok",
     duration: 60,
     ratio: "9:16",

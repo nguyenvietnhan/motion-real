@@ -43,7 +43,6 @@ function sampleBrief(projectId: string): ProjectBrief {
     projectId,
     prompt: "test prompt",
     duration: 60,
-    styleId: "clean-luxury-tech",
     ratio: "9:16",
     language: "vi",
     aiProvider: "mock",

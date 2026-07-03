@@ -1,8 +1,8 @@
 # Temporary Task - Deferred Repo Cleanup Plan
 
 Status: MCP cleanup and workspace namespace cleanup completed; style-pack
-removal decision, inventory, and wording cleanup completed; style source
-migration still pending.
+removal decision, inventory, wording cleanup, and spec/runtime output migration
+completed; theme shim removal still pending.
 
 This is a temporary working note for the remaining repo-noise items that were
 intentionally deferred after the repo hygiene cleanup. It is not project
@@ -71,6 +71,7 @@ Deferred cleanup then proceeded in separate slices:
 - `8865509` `docs: update namespace cleanup plan`
 - `0995acf` `refactor: rename workspace namespace to motionreal`
 - `0eb8599` `docs: finish namespace text sweep`
+- `6d51eb6` `docs: remove style-pack wording noise`
 
 The last full verification before this note reported:
 
@@ -200,12 +201,12 @@ Remove these concepts:
 
 ### Current Inventory
 
-Schema/spec layer:
+Schema/spec layer after STYLE-2:
 
 - `packages/schema/src/index.ts`
-  - `ThemeSpecSchema` accepts `stylePackId`;
-  - `VideoSpecSchema` requires `styleId: "clean-luxury-tech"`;
-  - `LockedVideoSpecSchema` inherits `styleId` from `VideoSpecSchema`.
+  - `ThemeSpecSchema` no longer accepts style identity;
+  - `VideoSpecSchema` no longer requires a style identity;
+  - `LockedVideoSpecSchema` inherits the simplified spec shape.
 
 Theme layer:
 
@@ -221,18 +222,18 @@ Theme layer:
 Composition/render layer:
 
 - `packages/compositions/src/video.tsx`
-  - passes `spec.theme?.stylePackId` into `makeTheme(...)`.
+  - now calls `makeTheme(spec.theme?.dominant)`.
 - `apps/remotion/src/fixtures/sample-spec.ts`
-  - uses `styleId: "clean-luxury-tech"`.
+  - no longer carries style identity.
 
 Pipeline state and conversion:
 
 - `packages/pipeline/src/types.ts`
-  - `ProjectBrief` carries `styleId: "clean-luxury-tech"`.
+  - `ProjectBrief` no longer carries style identity.
 - `packages/pipeline/src/authoring/manifest.ts`
-  - writes `styleId: "clean-luxury-tech"` during manifest-to-spec conversion.
+  - no longer writes style identity during manifest-to-spec conversion.
 - `packages/pipeline/src/orchestrator.ts`
-  - writes `styleId: "clean-luxury-tech"` when scaffolding a project brief.
+  - no longer writes style identity when scaffolding a project brief.
 
 CLI and readiness checks:
 
@@ -271,11 +272,10 @@ Desktop/source text:
     but after source cleanup the wording can be reduced to "theme/style-token
     leash" to avoid preserving the old term.
 
-Tests/fixtures with `clean-luxury-tech`:
+Tests/fixtures with the retired style literal:
 
-- pipeline audio, render, safety, review, store, orchestrator, and desktop
-  gallery tests use `styleId: "clean-luxury-tech"` only because schemas/types
-  currently require it.
+- current spec, lock, render, safety, review, store, orchestrator, and desktop
+  gallery fixtures no longer carry it after STYLE-2.
 
 Sensitive behavior areas:
 
@@ -326,19 +326,18 @@ docs: remove style-pack wording noise
 ```
 
 Step STYLE-2: remove style identity from schemas and new runtime outputs.
+Completed.
 
-Expected changes:
+Completed changes:
 
-- remove `VideoSpec.styleId` from `packages/schema/src/index.ts`;
-- remove `ThemeSpec.stylePackId`;
-- stop `manifestToVideoSpec(...)` writing `styleId`;
-- stop `scaffoldVideoProject(...)` writing `ProjectBrief.styleId`;
-- remove `styleId` from `ProjectBrief`;
-- update tests/fixtures that only supplied `styleId` to satisfy the old schema;
-- confirm old specs/manifests with extra `styleId` / `theme.stylePackId` do not
-  need special compatibility. If a Zod parse path receives those extra fields,
-  default object parsing strips unknown keys; this is enough for the current
-  no-old-project-preservation direction unless a direct reader proves otherwise.
+- removed style identity from `VideoSpec`, `ThemeSpec`, and `ProjectBrief`;
+- stopped manifest conversion and project scaffolding from writing style
+  identity;
+- updated spec, lock, render, safety, review, store, orchestrator, Remotion, and
+  desktop gallery fixtures that only supplied style identity for the old schema;
+- changed the master composition to derive the runtime theme from
+  `theme.dominant` only;
+- added a manifest bridge test proving new specs emit only current fields.
 
 Required targeted checks:
 
@@ -485,7 +484,7 @@ git diff --stat
 
 ## Recommended Next Step
 
-Start with STYLE-2: remove style identity from schemas and new runtime outputs.
+Start with STYLE-3: remove style-pack registry shims and rename readiness checks.
 
 Reason:
 
@@ -495,7 +494,8 @@ Reason:
   identity should be removed rather than preserved as compatibility;
 - STYLE-1 is complete: wording/comment/test-name noise has been reduced without
   changing behavior;
-- the next slice is the first behavior-bearing migration and must remove
-  `VideoSpec.styleId`, `ProjectBrief.styleId`, and `ThemeSpec.stylePackId` with
-  targeted tests;
-- theme registry shims and CLI readiness naming stay for STYLE-3.
+- STYLE-2 is complete: specs, project briefs, manifest conversion, scaffolding,
+  composition input, and fixtures no longer carry style identity;
+- the remaining behavior-bearing style surface is the neutral theme shim/CLI
+  readiness layer: `Theme.stylePackId`, style registry shim exports,
+  `StylePackVM`, and CLI `checkStylePacks` naming.

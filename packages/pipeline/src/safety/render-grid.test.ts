@@ -67,7 +67,6 @@ function lockedFixture(overrides: Partial<LockedVideoSpec> & { scenes: LockedVid
   return {
     version: 1,
     title: "Render grid test",
-    styleId: "clean-luxury-tech",
     format: "tiktok",
     duration: 60,
     ratio: "9:16",

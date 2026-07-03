@@ -28,7 +28,6 @@ export type ProjectBrief = {
   projectId: string;
   prompt: string;
   duration: DurationPreset;
-  styleId: "clean-luxury-tech";
   ratio: "9:16";
   language: VideoLanguage;
   aiProvider: AiProvider;

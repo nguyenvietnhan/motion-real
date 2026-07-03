@@ -100,7 +100,7 @@ function presentationFor(
  * top-level `<Captions>` overlay — both OUTSIDE the transition series.
  */
 export const VideoComposition: React.FC<VideoCompositionProps> = ({ spec, measure }) => {
-  const theme = makeTheme(spec.theme?.dominant, spec.theme?.stylePackId);
+  const theme = makeTheme(spec.theme?.dominant);
   const scenes = spec.scenes;
   const T = transitionFrames(spec.fps);
   const timing = springTiming({

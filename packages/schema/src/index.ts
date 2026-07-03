@@ -144,11 +144,6 @@ export const ThemeSpecSchema = z.object({
   dominant: z.string().regex(/^#[0-9a-fA-F]{6}$/, "dominant must be a 6-digit hex color like #5B8CFF"),
   /** Optional short mood label for human readability (e.g. "calm tech blue"). */
   mood: z.string().max(40).optional(),
-  /**
-   * Legacy style identity kept only during cleanup. Render resolves one neutral
-   * theme and ignores this value.
-   */
-  stylePackId: z.string().optional(),
 });
 
 export type ThemeSpec = z.infer<typeof ThemeSpecSchema>;
@@ -204,7 +199,6 @@ export function titleMaxChars(format: VideoFormat): number {
 export const VideoSpecSchema = z.object({
   version: z.literal(1),
   title: z.string().min(1).max(140),
-  styleId: z.literal("clean-luxury-tech"),
   /** Delivery format (REQUIRED): drives canvas + zones + caption presence. */
   format: VideoFormatSchema,
   /** User-chosen duration bucket (optional): the word-budget target, see `tierSeconds`. */

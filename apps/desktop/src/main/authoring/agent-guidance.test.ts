@@ -12,7 +12,7 @@ describe("AI video-authoring guidance", () => {
     expect(text).toMatch(/raw JSX\/SVG|raw <div>\/<svg>/);
     expect(text).toContain("@motionreal/compositions");
     expect(text).toMatch(/Do not import `@motionreal\/blocks`|Do not reintroduce `Frame`/i);
-    expect(text).not.toMatch(/compose `@motionreal\/blocks`|Set `manifest\.theme\.stylePackId`/i);
+    expect(text).not.toMatch(/compose `@motionreal\/blocks`|pick a style/i);
     expect(text).not.toMatch(/bold-editorial|galaxy look|never hard-code/i);
   });
 
@@ -31,6 +31,6 @@ describe("AI video-authoring guidance", () => {
     expect(text).toMatch(/not a separate contract/i);
     expect(text).not.toMatch(/raw JSX\/SVG|raw <div>\/<svg>/);
     expect(text).not.toMatch(/clamped `interpolate`\/`spring`/);
-    expect(text).not.toMatch(/Frame|TitleBlock|KeyPoints|stylePackId/);
+    expect(text).not.toMatch(/Frame|TitleBlock|KeyPoints|pick a style/);
   });
 });

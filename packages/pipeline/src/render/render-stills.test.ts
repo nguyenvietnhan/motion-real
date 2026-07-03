@@ -46,7 +46,6 @@ let prevHome: string | undefined;
 const SPEC: VideoSpec = {
   version: 1,
   title: "Stills test",
-  styleId: "clean-luxury-tech",
   format: "tiktok",
   ratio: "9:16",
   language: "vi",

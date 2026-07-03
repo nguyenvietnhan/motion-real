@@ -28,7 +28,6 @@ function brief(createdAt: string, prompt: string, state: ProjectState): ProjectB
     projectId: "p",
     prompt,
     duration: 60,
-    styleId: "clean-luxury-tech",
     ratio: "9:16",
     language: "vi",
     aiProvider: "mock",

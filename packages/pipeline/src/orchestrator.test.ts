@@ -146,7 +146,6 @@ function fakeSynthesize(): RenderProjectDeps["synthesize"] {
 const SAMPLE_SPEC: VideoSpec = {
   version: 1,
   title: "Orchestrator test",
-  styleId: "clean-luxury-tech",
   format: "tiktok",
   ratio: "9:16",
   language: "vi",
