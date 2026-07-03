@@ -70,15 +70,10 @@ Bundled media should not be copied into runtime libraries just to make it
 selectable. Prefer virtual built-in entries that point to their app asset, while
 user-added media is copied into the canonical `.video-tool` library.
 
-## Legacy Terms
+## Retired Authoring Terms
 
-These terms may appear only when explicitly discussing compatibility cleanup or
-ADR history:
+These terms may appear only when explicitly discussing ADR history:
 
-- deleted design-system names
-- `stylePack`
-- `stylePackId`
-- `clean-luxury-tech`
 - old block names such as `Frame`, `Story`, `TitleBlock`, `KeyPoints`, `Panel`
 - `PICK mode`
 
