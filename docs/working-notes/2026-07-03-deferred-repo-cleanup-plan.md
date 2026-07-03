@@ -1,7 +1,7 @@
 # Temporary Task - Deferred Repo Cleanup Plan
 
-Status: MCP cleanup and workspace namespace cleanup completed; style
-compatibility cleanup still pending.
+Status: MCP cleanup and workspace namespace cleanup completed; style-pack
+removal decision and inventory completed; style source migration still pending.
 
 This is a temporary working note for the remaining repo-noise items that were
 intentionally deferred after the repo hygiene cleanup. It is not project
@@ -69,6 +69,7 @@ Deferred cleanup then proceeded in separate slices:
 - `74c3c1a` `chore: make mcp config local-only`
 - `8865509` `docs: update namespace cleanup plan`
 - `0995acf` `refactor: rename workspace namespace to motionreal`
+- `0eb8599` `docs: finish namespace text sweep`
 
 The last full verification before this note reported:
 
@@ -142,35 +143,138 @@ Post-NS-2 state:
 - product-facing instructions continue to use only `@motionreal/*`;
 - style compatibility behavior remains a separate cleanup surface.
 
-## Deferred Surface 3 - Style Compatibility
+## Deferred Surface 3 - Remove Style-Pack Identity
 
-The remaining cleanup surface is style compatibility, not package namespace.
+Owner decision after namespace cleanup:
 
-Current evidence from the latest scans includes:
+- style packs are not a current product concept;
+- `stylePackId`, `stylePack`, and the literal `clean-luxury-tech` should not
+  remain in current source, schemas, prompts, docs, tests, package APIs, or
+  runtime defaults;
+- do not keep old generated projects/manifests as a reason to preserve style
+  identity;
+- do not delete runtime project state, renders, manifests, or cache as part of
+  this cleanup;
+- the remaining valid visual concept is a single neutral runtime theme, driven
+  by an optional per-project dominant color.
+
+### Why It Can Be Removed
+
+Current contract and architecture have already made the product model simpler:
+
+- `AI_CONTRACT.md` says pure AUTHOR mode is the only visual model. Every scene
+  is fresh raw JSX/SVG/CSS, with no authored-facing theme system, template
+  catalog, layout-block toolkit, or style-token leash.
+- Authored scenes may import only `react`, `remotion`,
+  `@motionreal/compositions`, and `zod`; they cannot import theme or blocks.
+- `@motionreal/theme` is documented as one neutral runtime theme used by render
+  internals, not as a user-selectable style system.
+- The real product axes are delivery format, duration tier, video language,
+  prompt/content, images, audio, and BGM. Style pack is not a user decision,
+  renderer decision, or authoring decision anymore.
+
+Keep these concepts:
+
+- `theme.dominant`: a project-level dominant color used to derive a coherent
+  palette. It is not a style pack.
+- `makeTheme(dominant)`: a pure runtime palette/token derivation for render
+  internals.
+- theme token fallback/proxy behavior: a render-safety defense so unknown token
+  reads do not crash the render. It should be named as neutral theme safety, not
+  style-pack compatibility.
+- vendored font coverage: render-safety infrastructure. It should be described
+  as neutral-theme/render font readiness, not style-pack font readiness.
+
+Remove these concepts:
+
+- `VideoSpec.styleId`;
+- `ProjectBrief.styleId`;
+- `ThemeSpec.stylePackId`;
+- `Theme.stylePackId`;
+- `DEFAULT_STYLE_PACK_ID`;
+- `StylePack`, `StylePackVM`, `StylePreview`;
+- `getStylePack`, `listStylePackIds`, `registerStylePack`;
+- CLI `checkStylePacks` / `defaultCheckStylePacks`;
+- text/test fixtures that assert `clean-luxury-tech` or style-pack wording.
+
+### Current Inventory
+
+Schema/spec layer:
 
 - `packages/schema/src/index.ts`
-  - schema still accepts `stylePackId`;
-  - schema has `styleId: "clean-luxury-tech"`.
+  - `ThemeSpecSchema` accepts `stylePackId`;
+  - `VideoSpecSchema` requires `styleId: "clean-luxury-tech"`;
+  - `LockedVideoSpecSchema` inherits `styleId` from `VideoSpecSchema`.
+
+Theme layer:
+
 - `packages/theme/src/theme.ts`
-  - `stylePackId` is accepted/ignored by neutral theme compatibility shims.
+  - `Theme` includes `stylePackId`;
+  - `makeTheme(dominant, _stylePackId)` accepts and ignores a style id;
+  - neutral theme output sets `stylePackId: "neutral"`;
+  - `DEFAULT_STYLE_PACK_ID`, `StylePack`, `getStylePack`,
+    `listStylePackIds`, and `registerStylePack` are compatibility shims.
+- `packages/theme/src/theme.test.ts`
+  - asserts `t.stylePackId`.
+
+Composition/render layer:
+
 - `packages/compositions/src/video.tsx`
   - passes `spec.theme?.stylePackId` into `makeTheme(...)`.
-- `packages/pipeline/src/authoring/manifest.ts`
-  - writes compatibility defaults.
-- `packages/pipeline/src/types.ts`
-  - still has style fields/types.
-- `packages/pipeline/src/orchestrator.ts`
-  - writes the current `styleId: "clean-luxury-tech"` default.
-- tests across schema/theme/pipeline/render/cache still use
-  `clean-luxury-tech`.
-- `apps/desktop/src/main/workspace/workspace-controller.ts`
-  - has a compatibility comment mentioning `stylePackId`.
-- `apps/desktop/src/main/agent/agent-worker.ts`
-  - notes the old `stylePackId` is gone from worker inputs.
+- `apps/remotion/src/fixtures/sample-spec.ts`
+  - uses `styleId: "clean-luxury-tech"`.
 
-These strings are tied to stored manifest compatibility and render defaults.
-Removing them without a focused style slice can break tests or current render
-defaults.
+Pipeline state and conversion:
+
+- `packages/pipeline/src/types.ts`
+  - `ProjectBrief` carries `styleId: "clean-luxury-tech"`.
+- `packages/pipeline/src/authoring/manifest.ts`
+  - writes `styleId: "clean-luxury-tech"` during manifest-to-spec conversion.
+- `packages/pipeline/src/orchestrator.ts`
+  - writes `styleId: "clean-luxury-tech"` when scaffolding a project brief.
+
+CLI and readiness checks:
+
+- `packages/pipeline/src/cli/cli.ts`
+  - imports `getStylePack` / `listStylePackIds`;
+  - exposes `checkStylePacks` and `defaultCheckStylePacks`;
+  - font check loops over style packs to inspect fonts;
+  - usage text still says doctor checks style packs.
+- `packages/pipeline/src/cli/doctor.test.ts` and
+  `packages/pipeline/src/cli/cli.test.ts`
+  - test/inject style-pack doctor slots.
+
+Blocks/font readiness:
+
+- `packages/blocks/src/fonts.ts`
+  - comments describe font readiness as style-pack font coverage;
+  - `LOADED_FONT_FAMILIES` itself is still useful.
+- `packages/blocks/src/fonts.test.ts`
+  - imports style-pack registry shims to check fonts.
+- `packages/blocks/src/vendor-fonts.generated.ts`
+  - generated comment says style-pack fonts.
+
+Desktop/source text:
+
+- `apps/desktop/src/shared/types.ts`
+  - defines `StylePackVM`; current audit found no active use outside the type
+    itself.
+- `apps/desktop/src/main/agent/agent-worker.ts`
+  - comment mentions removed `stylePackId`.
+- `apps/desktop/src/main/index.ts`
+  - retry rehydration comment says `stylePackId/images`.
+- `apps/desktop/src/main/workspace/workspace-controller.ts`
+  - compatibility comment mentions `stylePackId`.
+- `docs/current/authoring-contract.md`
+  - lists style packs as a deleted authored surface. This is conceptually true,
+    but after source cleanup the wording can be reduced to "theme/style-token
+    leash" to avoid preserving the old term.
+
+Tests/fixtures with `clean-luxury-tech`:
+
+- pipeline audio, render, safety, review, store, orchestrator, and desktop
+  gallery tests use `styleId: "clean-luxury-tech"` only because schemas/types
+  currently require it.
 
 Sensitive behavior areas:
 
@@ -179,32 +283,32 @@ Sensitive behavior areas:
 - `apps/desktop/src/main/workspace/workspace-controller.ts`.
 
 `render-grid.ts` may not show a direct legacy-string match, but its tests cover
-render/layout behavior that can regress if style/theme defaults change. Those
-files must not be casually edited as part of cleanup.
+render/layout behavior that can regress if theme defaults change. Those files
+must only be opened in a focused style slice with targeted tests.
 
-### Proposed Style Compatibility Plan
+### Proposed Style Removal Plan
 
-Step STYLE-0: classify every match.
+Step STYLE-0: decision and inventory. Completed by this plan update.
+
+Pre-edit audit used:
 
 ```bash
 git status --short
 rg -n "stylePackId|clean-luxury-tech|stylePack|deleted design-registry|design registry" packages apps docs/current README.md
+rg -n "styleId|theme\\?|makeTheme|getStylePack|listStylePackIds|StylePack|StylePackVM|NEUTRAL_THEME_ID" packages apps docs/current README.md
+rg -n "clean-luxury-tech|stylePackId|stylePack|StylePack|style packs|style-pack|design registry" package.json package-lock.json tsconfig.json vitest.config.ts apps packages docs/current README.md AI_CONTRACT.md docs/adr docs/working-notes
 ```
 
-Classify as:
+Step STYLE-1: remove docs/comment/test-name noise only.
 
-- stored-project compatibility that must remain;
-- write-time default that can be stopped;
-- docs/comment noise that can be updated safely;
-- test fixture that needs replacement only after behavior changes.
+Allowed changes:
 
-Separately classify sensitive downstream behavior that may not show a direct
-legacy-string match, especially render-grid/orchestrator/workspace behavior.
-
-Step STYLE-1: remove docs/comment noise only.
-
-Do not touch schema/orchestrator/render-grid/workspace behavior in this first
-slice.
+- rename comments in docs/current, ADRs, blocks font comments, generated-font
+  generator comment, authoring tests, and desktop comments away from style-pack
+  vocabulary;
+- do not change schema, manifest conversion, theme APIs, CLI behavior, or
+  orchestrator defaults in this slice;
+- if touching generated file comments, update the generator script too.
 
 Required checks:
 
@@ -214,50 +318,121 @@ npm.cmd test
 npm.cmd run build
 ```
 
-Step STYLE-2: stop writing legacy style fields only if compatible readers stay.
+Commit suggestion:
 
-Likely touched areas:
+```text
+docs: remove style-pack wording noise
+```
 
-- manifest creation/defaulting;
-- theme compatibility;
-- schema read compatibility;
-- tests for stored projects.
+Step STYLE-2: remove style identity from schemas and new runtime outputs.
+
+Expected changes:
+
+- remove `VideoSpec.styleId` from `packages/schema/src/index.ts`;
+- remove `ThemeSpec.stylePackId`;
+- stop `manifestToVideoSpec(...)` writing `styleId`;
+- stop `scaffoldVideoProject(...)` writing `ProjectBrief.styleId`;
+- remove `styleId` from `ProjectBrief`;
+- update tests/fixtures that only supplied `styleId` to satisfy the old schema;
+- confirm old specs/manifests with extra `styleId` / `theme.stylePackId` do not
+  need special compatibility. If a Zod parse path receives those extra fields,
+  default object parsing strips unknown keys; this is enough for the current
+  no-old-project-preservation direction unless a direct reader proves otherwise.
 
 Required targeted checks:
 
 ```bash
-npm.cmd test -- packages/schema/src/schema.test.ts
-npm.cmd test -- packages/theme/src/theme.test.ts
 npm.cmd test -- packages/pipeline/src/authoring/manifest.test.ts
-npm.cmd test -- packages/pipeline/src/audio/lock.test.ts
 npm.cmd test -- packages/pipeline/src/orchestrator.test.ts
+npm.cmd test -- packages/pipeline/src/store/store.test.ts
+npm.cmd test -- packages/pipeline/src/audio/lock.test.ts
+npm.cmd test -- packages/pipeline/src/audio/tts-config.test.ts
+npm.cmd test -- packages/pipeline/src/audio/captions.test.ts
+npm.cmd test -- packages/pipeline/src/render/cache.test.ts
+npm.cmd test -- packages/pipeline/src/render/renderer.test.ts
+npm.cmd test -- packages/pipeline/src/render/render-stills.test.ts
+npm.cmd test -- packages/pipeline/src/review.test.ts
+npm.cmd test -- packages/pipeline/src/safety/build-grid.test.ts
+npm.cmd test -- packages/pipeline/src/safety/static-grid.test.ts
+npm.cmd test -- packages/pipeline/src/safety/render-grid.test.ts
+npm.cmd test -- apps/desktop/src/shared/gallery-controller.test.ts
 npm.cmd run typecheck
 npm.cmd test
 npm.cmd run build
 ```
 
-Step STYLE-3: remove compatibility fields only after there is an explicit stored
-project migration or the owner accepts breaking old project manifests.
+Commit suggestion:
 
-Before this step can start, define the compatibility story explicitly:
+```text
+refactor: remove style identity from specs
+```
 
-- a reader/coercion path that still accepts old manifests, or a one-time stored
-  project migration with tests and rollback notes;
-- fixtures for old manifests containing `stylePackId` / `clean-luxury-tech`;
-- updated docs explaining whether old projects remain supported.
+Step STYLE-3: remove style-pack registry shims and rename readiness checks.
+
+Expected changes:
+
+- change `makeTheme(dominant, _stylePackId)` to `makeTheme(dominant)`;
+- remove `Theme.stylePackId`;
+- remove `DEFAULT_STYLE_PACK_ID`, `StylePack`, `StylePreview`,
+  `getStylePack`, `listStylePackIds`, and `registerStylePack`;
+- replace CLI `checkStylePacks` with a neutral `checkTheme` or fold it into the
+  font/theme readiness checks;
+- update `defaultCheckFonts` to check the known neutral-theme font families
+  directly, not by iterating style packs;
+- update blocks font tests to assert render-safe neutral-theme fonts directly;
+- remove `StylePackVM` if it remains unused;
+- update generated-font comment via the generator script if that comment is
+  generated.
 
 Required targeted checks:
 
 ```bash
-npm.cmd test -- packages/schema/src/schema.test.ts
 npm.cmd test -- packages/theme/src/theme.test.ts
-npm.cmd test -- packages/pipeline/src/authoring/manifest.test.ts
-npm.cmd test -- packages/pipeline/src/safety/static-grid.test.ts
-npm.cmd test -- packages/pipeline/src/safety/render-grid.test.ts
-npm.cmd test -- packages/pipeline/src/orchestrator.test.ts
+npm.cmd test -- packages/blocks/src/fonts.test.ts
+npm.cmd test -- packages/pipeline/src/cli/doctor.test.ts
+npm.cmd test -- packages/pipeline/src/cli/cli.test.ts
+npm.cmd test -- packages/compositions/src/video.test.ts
 npm.cmd run typecheck
 npm.cmd test
 npm.cmd run build
+```
+
+Commit suggestion:
+
+```text
+refactor: remove style-pack theme shims
+```
+
+Step STYLE-4: final style identity audit.
+
+Target:
+
+- zero `stylePackId`;
+- zero `clean-luxury-tech`;
+- zero `StylePack` / `StylePackVM`;
+- zero style-pack registry function names;
+- no current docs/prompts/tests imply user-selectable styles.
+
+Audit:
+
+```bash
+rg -n "stylePackId|clean-luxury-tech|StylePack|StylePackVM|getStylePack|listStylePackIds|registerStylePack|DEFAULT_STYLE_PACK_ID|style packs|style-pack" package.json package-lock.json tsconfig.json vitest.config.ts apps packages docs/current README.md AI_CONTRACT.md docs/adr docs/working-notes
+git status --short
+git diff --stat
+```
+
+Required checks:
+
+```bash
+npm.cmd run typecheck
+npm.cmd test
+npm.cmd run build
+```
+
+Commit suggestion:
+
+```text
+chore: finish style identity cleanup
 ```
 
 ## Out Of Scope Note - Runtime Cache Duplication Policy
@@ -289,8 +464,8 @@ This belongs to a product/runtime maintenance task, not repo-source cleanup.
 - Do not reintroduce a product dependency on the removed MCP stdio package or a
   package-local owner for the internal tool facade.
 - Do not rename packages outside a dedicated namespace slice.
-- Do not remove `stylePackId` or `clean-luxury-tech` compatibility in the same
-  slice as namespace or MCP cleanup.
+- Remove style identity only inside the dedicated style-removal slices above.
+  Do not mix it with namespace, MCP, runtime cache, or unrelated refactors.
 - Do not touch `packages/pipeline/src/orchestrator.ts`,
   `packages/pipeline/src/safety/render-grid.ts`, or desktop workspace flow
   unless the slice explicitly requires it, names the risk, and has targeted
@@ -309,12 +484,15 @@ git diff --stat
 
 ## Recommended Next Step
 
-Start with STYLE-0: classify style compatibility references.
+Start with STYLE-1: remove style-pack wording noise only.
 
 Reason:
 
 - MCP cleanup is complete;
 - workspace namespace cleanup is complete;
-- the remaining deferred cleanup surface is style compatibility;
-- style cleanup must start with classification before touching schema,
-  orchestrator, render-grid, or desktop workspace behavior.
+- STYLE-0 is complete: owner decision, theory, and inventory now say style-pack
+  identity should be removed rather than preserved as compatibility;
+- the first source/doc slice should be wording-only so behavioral style removal
+  starts from a cleaner audit surface;
+- schema, orchestrator, render-grid, and desktop workspace behavior stay for
+  later dedicated style slices with targeted tests.
