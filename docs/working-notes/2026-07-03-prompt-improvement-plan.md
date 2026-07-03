@@ -1,7 +1,7 @@
 # Temporary Task - Prompt Improvement Plan
 
-Status: planning note revised after second review verification. No prompt code
-changes have been made in this slice.
+Status: PROMPT-0 baseline and PROMPT-1 stale prompt wording cleanup completed;
+content-plan schema/builder still pending.
 
 This is a temporary working note for improving MotionReal's runtime AI prompts.
 It is not project contract. Current contract remains `AI_CONTRACT.md` plus
@@ -52,10 +52,10 @@ Verified source facts:
 
 Verified source/code feedback:
 
-- `IMAGE_FILTER_SYSTEM` still says "video tin tức ngắn" in
-  `apps/desktop/src/main/authoring/prompt.ts`. The current source audit did not
-  find the English phrase "news short video" in active code, so PROMPT-1 must
-  target the Vietnamese literal rather than the stale English paraphrase.
+- before PROMPT-1, `IMAGE_FILTER_SYSTEM` said "video tin tức ngắn" in
+  `apps/desktop/src/main/authoring/prompt.ts`. The source audit did not find the
+  English phrase "news short video" in active code, so PROMPT-1 targeted the
+  Vietnamese literal rather than the stale English paraphrase.
 - `CREATIVE_BOOTSTRAP_INTENT` and `combineIntent(...)` are real prompt inputs:
   they feed `reauthorScenes(...)`, so they must be included in the prompt cleanup
   plan instead of only listed as surfaces.
@@ -146,8 +146,8 @@ Other issues to address:
   claim ledger;
 - the code skeleton is useful for structure but can dominate the model's visual
   imagination;
-- `IMAGE_FILTER_SYSTEM` still says "video tin tức ngắn", while the product now
-  supports any topic;
+- before PROMPT-1, `IMAGE_FILTER_SYSTEM` still said "video tin tức ngắn", while
+  the product supports any topic;
 - `CREATIVE_BOOTSTRAP_INTENT` and user edit intents (`combineIntent(...)`) are
   live prompt inputs and need explicit cleanup/test coverage;
 - prompt steps that change live LLM text should run broad checks, even if the
@@ -307,14 +307,14 @@ Reduce or move:
 
 ### PROMPT-0: Baseline And Snapshot
 
-No behavior change. Must run before PROMPT-1.
+Completed. No behavior change. Must run before PROMPT-1.
 
-Actions:
+Completed actions:
 
-- snapshot current prompt surfaces;
-- add or update tests that capture important current invariants;
-- record current prompt lengths and call counts;
-- confirm current live prompt call sites.
+- snapshotted current prompt surfaces;
+- added tests that capture important current invariants;
+- recorded current prompt lengths and call counts;
+- confirmed current live prompt call sites.
 
 Checks:
 
@@ -337,15 +337,15 @@ test: snapshot current prompt behavior
 
 ### PROMPT-1: Remove Current Prompt Noise
 
-Narrow behavior-bearing prompt text cleanup.
+Completed. Narrow behavior-bearing prompt text cleanup.
 
-Actions:
+Completed actions:
 
-- replace remaining "video tin tức ngắn" wording in `IMAGE_FILTER_SYSTEM`;
-- treat "news short video" as a stale English paraphrase to audit, not as the
+- replaced remaining "video tin tức ngắn" wording in `IMAGE_FILTER_SYSTEM`;
+- treated "news short video" as a stale English paraphrase to audit, not as the
   primary source literal for this prompt;
-- update comments that describe the old prompt role inaccurately;
-- do not change output structure or call count.
+- updated comments that described the old prompt role inaccurately;
+- did not change output structure or call count.
 
 Checks:
 
@@ -530,15 +530,15 @@ chore: finish prompt cleanup audit
 
 ## Recommended Next Step
 
-Start with PROMPT-0.
+Start with PROMPT-2.
 
 Reason:
 
-- it creates the baseline the review correctly identified as missing before
-  prompt text changes;
-- it captures current prompt invariants and call surfaces;
-- it gives PROMPT-1 and later behavior-bearing prompt edits a clean comparison
-  point.
+- PROMPT-0 is complete, so later prompt edits have a baseline;
+- PROMPT-1 is complete, so stale "news" wording is no longer blocking the prompt
+  migration;
+- PROMPT-2 is the next no-live-gateway behavior slice: add the content-plan
+  schema, parser, builder, and tests before any two-step authoring wire-up.
 
 Do not start PROMPT-4 until the owner approves the extra API-call behavior and
 the no-silent-one-step-fallback policy.

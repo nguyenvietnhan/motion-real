@@ -68,9 +68,9 @@ SỨC HÚT TIÊU ĐỀ (title là thứ quyết định người ta CÓ BẤM V�
 
 /**
  * Author + reauthor prompt builders (desktop-author-mode, pure AUTHOR). The
- * model acts as a Vietnamese short-form NEWS author and WRITES fresh `.tsx` per
- * scene per the Authoring_Contract, returning a manifest JSON + one ```tsx block
- * per component id (the AI_Output_Contract). Reauthor sends ONE flagged scene's
+ * model acts as a short-form author for any supported topic and WRITES fresh
+ * `.tsx` per scene per the Authoring_Contract, returning a manifest JSON + one
+ * ```tsx block per component id (the AI_Output_Contract). Reauthor sends ONE flagged scene's
  * current code + the issue (and, for layout/contrast defects, its rendered still
  * as an image part) and asks for a single corrected ```tsx block.
  */
@@ -345,9 +345,9 @@ export function buildVisualQaMessages(scenes: { sceneId: string; stillDataUrl: s
   ];
 }
 
-// --- AI image-filter (pre-select crawled article images that fit) -----------
+// --- AI image-filter (pre-select crawled source images that fit) -----------
 
-const IMAGE_FILTER_SYSTEM = `Bạn là biên tập ảnh cho video tin tức ngắn. Bạn được xem các ẢNH cào từ một bài báo, mỗi ảnh có một "ref" cố định, kèm tóm tắt nội dung bài. Nhiệm vụ: chọn các ảnh THỰC SỰ minh hoạ nội dung bài (ảnh chụp sự kiện/nhân vật/sản phẩm/biểu đồ liên quan).
+const IMAGE_FILTER_SYSTEM = `Bạn là biên tập ảnh cho video ngắn đa chủ đề. Bạn được xem các ẢNH thu thập từ một nguồn nội dung, mỗi ảnh có một "ref" cố định, kèm tóm tắt nội dung nguồn. Nhiệm vụ: chọn các ảnh THỰC SỰ minh hoạ nội dung (ảnh chụp sự kiện/nhân vật/sản phẩm/biểu đồ/địa điểm/đối tượng liên quan).
 LOẠI BỎ: logo, banner/quảng cáo, avatar tác giả, icon mạng xã hội, ảnh trang trí chung chung, ảnh không liên quan nội dung.
 KHÔNG bịa ref. Chỉ trả ref có trong danh sách được cung cấp. Không có ảnh nào phù hợp thì trả mảng rỗng.
 
@@ -360,16 +360,16 @@ TRẢ VỀ DUY NHẤT một khối JSON, không kèm văn bản khác:
 export type ImageFilterInput = { ref: string; width: number; height: number; dataUrl: string };
 
 /**
- * Build a multimodal image-filter request (Phase 2 Block B): the article summary
+ * Build a multimodal image-filter request (Phase 2 Block B): the source summary
  * + each crawled image (its ref label, then the image) so the model can keep only
  * the ones that fit the content. Mirrors the visual-QA builder's one-batched-call
  * shape. The returned `keep` refs are intersected with the provided set by the
  * caller (defense-in-depth, same spirit as the manifest `allowedRefs` strip).
  */
-export function buildImageFilterMessages(articleText: string, images: ImageFilterInput[]): VisionMessage[] {
-  const summary = articleText.trim().slice(0, 4000);
+export function buildImageFilterMessages(sourceText: string, images: ImageFilterInput[]): VisionMessage[] {
+  const summary = sourceText.trim().slice(0, 4000);
   const parts: ContentPart[] = [
-    { type: "text", text: `Tóm tắt nội dung bài:\n${summary || "(không có tóm tắt)"}\n\nDưới đây là ${images.length} ảnh cào từ bài. Mỗi ảnh kèm "ref" ngay trước nó. Chọn ảnh phù hợp nội dung.` },
+    { type: "text", text: `Tóm tắt nội dung nguồn:\n${summary || "(không có tóm tắt)"}\n\nDưới đây là ${images.length} ảnh thu thập từ nguồn. Mỗi ảnh kèm "ref" ngay trước nó. Chọn ảnh phù hợp nội dung.` },
   ];
   for (const img of images) {
     parts.push({ type: "text", text: `ref="${img.ref}" (${img.width}x${img.height}):` });

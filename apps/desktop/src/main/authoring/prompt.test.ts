@@ -69,8 +69,8 @@ describe("prompt surface baseline", () => {
         { role: "user", kind: "parts", chars: 140, textParts: 4, imageParts: 2 },
       ],
       imageFilter: [
-        { role: "system", kind: "text", chars: 601, textParts: 0, imageParts: 0 },
-        { role: "user", kind: "parts", chars: 228, textParts: 3, imageParts: 1 },
+        { role: "system", kind: "text", chars: 632, textParts: 0, imageParts: 0 },
+        { role: "user", kind: "parts", chars: 237, textParts: 3, imageParts: 1 },
       ],
     });
   });
@@ -383,18 +383,22 @@ describe("buildImageFilterMessages", () => {
     { ref: "assets/bbb.jpg", width: 1024, height: 768, dataUrl: "data:image/jpeg;base64,BBB" },
   ];
 
-  it("carries the article summary + one image_url per candidate, each labeled by its ref", () => {
+  it("carries the source summary + one image_url per candidate, each labeled by its ref", () => {
     const msgs = buildImageFilterMessages("Bài nói về sự kiện X", images);
     const sys = msgs[0]!;
     const parts = msgs[1]!.content as ContentPart[];
     // System prompt instructs keep-fitting / drop logo+ads, and the JSON shape.
     expect(sys.content).toMatch(/logo/i);
     expect(sys.content).toContain("keep");
+    expect(sys.content).toMatch(/video ngắn đa chủ đề/);
+    expect(sys.content).toMatch(/nguồn nội dung/);
+    expect(sys.content).not.toMatch(/video tin tức ngắn|news short video/i);
     // One image_url per candidate; each ref appears in a text part.
     const imageParts = parts.filter((p) => p.type === "image_url");
     expect(imageParts).toHaveLength(2);
     const text = parts.filter((p): p is { type: "text"; text: string } => p.type === "text").map((p) => p.text).join(" ");
     expect(text).toContain("Bài nói về sự kiện X");
+    expect(text).toContain("Tóm tắt nội dung nguồn");
     expect(text).toContain("assets/aaa.png");
     expect(text).toContain("assets/bbb.jpg");
   });
