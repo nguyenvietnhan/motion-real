@@ -63,6 +63,32 @@ The workspace controller has been split only along narrow local seams:
 jobs, cancellation, retry, snapshot/restore, async render/refine/publish
 ordering, publish state, and event emission.
 
+## Desktop Workflow
+
+The Electron app is the main user-facing workflow: create, gallery, settings,
+gateway connection, image review, optional script review, hidden stills/refine,
+draft review, full-render approval, BGM, thumbnail, and export.
+
+Runtime AI does not read repository docs directly. The desktop backend builds
+plain prompt messages from the current authoring contract and sends them through
+the selected 9router-compatible model.
+
+Before the user sees a first draft, the desktop flow may run a hidden sequence:
+
+```text
+author blind draft
+-> render stills
+-> creative bootstrap pass
+-> render stills again
+-> visual QA/refine passes
+-> render draft MP4
+```
+
+Those rough intermediate stills are hidden from the user. After draft review,
+edit flows skip broad creative bootstrap and use scoped scene repair. Script
+review is optional; draft review is mandatory before full render. Deliberate
+cancellation between stages is not treated as project failure.
+
 ## Data Flow
 
 ```text
@@ -76,9 +102,10 @@ Topic / URL / images
 -> lockSpec -> LockedVideoSpec
 -> build safety grid
 -> determinism guard
--> Remotion render
--> render oracles and review artifacts
--> draft/full MP4
+-> Remotion render stills
+-> draft MP4
+-> user review
+-> approved full MP4
 ```
 
 ## State
@@ -106,6 +133,12 @@ example `apps/desktop/assets/bgm/default.mp3`; the default BGM is exposed as a
 virtual built-in track that resolves directly to this asset, not as a copied
 runtime-library file. Root-level media assets should not be added.
 
+Stills are the cheap visual pass. Draft MP4s are lower quality previews that
+follow the same timing path as full renders. Full MP4 output is the deliverable
+and should run only after user approval. TTS provider and voice come from
+project/user settings; missing credentials stop render instead of silently
+falling back to another provider.
+
 ## Repository Layout
 
 Root files are reserved for project-wide metadata and entry points: package
@@ -118,7 +151,6 @@ Use domain folders for content:
 - bundled desktop assets: `apps/desktop/assets/<domain>/`;
 - Remotion fixtures: `apps/remotion/src/fixtures/`;
 - runtime/generated/user state: `VIDEO_TOOL_HOME/.video-tool/<domain>/`;
-- temporary plans: `docs/working-notes/`.
 
 Do not add vendor-specific AI contract files or loose root media files. Shared
 AI guidance belongs in `AI_CONTRACT.md` and `docs/current/`.

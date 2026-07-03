@@ -17,7 +17,7 @@ describe("Vivibe credential resolution", () => {
     ).toEqual({ apiKey: "explicit-key", voiceId: "explicit-voice" });
   });
 
-  it("keeps the environment fallback for CLI/MCP processes that still use it", () => {
+  it("keeps the environment fallback for non-desktop processes that still use it", () => {
     expect(
       resolveVivibeCredentials({}, { apiKey: "env-key", voiceId: "env-voice" }),
     ).toEqual({ apiKey: "env-key", voiceId: "env-voice" });

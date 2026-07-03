@@ -25,11 +25,11 @@ import { withProjectRenderLock } from "./project-lock.js";
  * → generate the per-project Remotion entry → render ONE PNG per scene at its
  * midpoint into the project `review/` dir.
  *
- * `renderProject` is off-limits (ADR-002), so this lives in its own module rather
- * than as a branch inside the orchestrator; it reuses the same building blocks
- * (`admitProjectScenes`, `generateAuthoredEntry`, `lockSpec`, `renderSceneStills`)
- * so the stills are byte-faithful to what a real render would produce for those
- * frames.
+ * `renderProject` is a sensitive orchestration seam, so this lives in its own
+ * module rather than as a branch inside the orchestrator; it reuses the same
+ * building blocks (`admitProjectScenes`, `generateAuthoredEntry`, `lockSpec`,
+ * `renderSceneStills`) so the stills are byte-faithful to what a real render
+ * would produce for those frames.
  *
  * `sceneIds` scopes the render to a subset (the scenes a refine pass just
  * rewrote), so a single-scene fix re-renders one still, not the whole video — the

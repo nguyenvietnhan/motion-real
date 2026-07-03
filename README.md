@@ -5,7 +5,7 @@ optional local images into a publishable MP4.
 
 The stable production path is TikTok/Reels/Shorts-style 9:16. YouTube 16:9
 support exists as shared format plumbing and thumbnail/caption behavior, but the
-true long-form YouTube author-by-segment production path is not finished.
+true long-form YouTube author-by-segment path is not a stable workflow.
 
 ## Current Model
 
@@ -48,17 +48,12 @@ that ignored file.
 ## Documentation
 
 - `AI_CONTRACT.md` — single canonical contract for all AI agents.
-- `docs/current/overview.md` — product status and invariants.
 - `docs/current/architecture.md` — current package map and data flow.
 - `docs/current/authoring-contract.md` — authored scene rules.
 - `docs/current/content-guide.md` — story, evidence, language, and visuals.
-- `docs/current/safety-grid.md` — hard blockers vs advisory checks.
-- `docs/current/desktop-flow.md` — desktop create/refine/review flow.
-- `docs/current/render-workflow.md` — stills, draft, full, TTS, artifacts.
 - `docs/current/maintenance.md` — cleanup and refactor guardrails.
 
-Provider setup lives in `docs/providers/`. Binding decisions live in `docs/adr/`.
-Temporary planning notes live in `docs/working-notes/`.
+Provider setup lives in `docs/providers/`.
 
 ## Health Checks
 

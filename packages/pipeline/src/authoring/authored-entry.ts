@@ -5,10 +5,10 @@ import { dirname, relative } from "node:path";
 /**
  * AUTHOR-mode render bundling (the missing link for Requirement 13.5).
  *
- * In PICK mode the Remotion bundle only contains the components imported by
- * `@motionreal/compositions`. AI-AUTHORED scenes live OUTSIDE that barrel — in a
- * project's `authored/` dir — so they are not in the default bundle and cannot
- * render. This generator writes a project-specific Remotion entry that:
+ * The base Remotion bundle only contains the components imported by
+ * `@motionreal/compositions`. AI-authored scenes live outside that barrel — in a
+ * project's `authored/` dir — so they are not in the default bundle. This
+ * generator writes a project-specific Remotion entry that:
  *   1. imports every (already admitted) authored scene module, whose
  *      `registerComponent(...)` side effect puts it in the SAME registry the
  *      master `VideoComposition` reads from, and

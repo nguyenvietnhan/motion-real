@@ -26,11 +26,9 @@ Open them only with focused tests and a clear slice.
 Preferred order:
 
 1. keep docs truthful and current;
-2. inventory legacy compatibility;
-3. keep `.mcp.json` local-only after the legacy MCP stdio surface removal;
-4. split authoring backend seams;
-5. revisit workspace state machine only after a new narrow slice is proven;
-6. split render-grid/orchestrator only after safer outer cleanup.
+2. split authoring backend seams;
+3. revisit workspace state machine only after a new narrow slice is proven;
+4. split render-grid/orchestrator only after safer outer cleanup.
 
 The first workspace-controller pass is complete: local pure/view-model/create/
 script/render helpers exist, while async render/refine/publish orchestration
@@ -44,11 +42,10 @@ create-time image staging, BGM handlers, native save/export helpers, and
 scheme/protocol ordering, controller construction, and broad handler composition
 root-owned unless a future slice has a narrower reason than line count.
 
-The internal `createTools` facade is pipeline-owned. The external MCP stdio
-package has been removed under the current desktop-app direction.
+The internal `createTools` facade is pipeline-owned.
 The root `.mcp.json` is local-only and ignored. Keep `.mcp.example.json` as a
 template without absolute machine paths; do not reintroduce a repo-provided
-`news` MCP server without a focused owner-approved slice.
+MCP server without a focused owner-approved slice.
 
 ## Repository Hygiene
 
@@ -58,8 +55,7 @@ Prefer descriptive, domain-owned paths over loose root files:
 - `apps/desktop/assets/<domain>/`: bundled desktop assets shipped with the app;
 - `VIDEO_TOOL_HOME/.video-tool/<domain>/`: generated runtime state and user-added
   media;
-- `docs/current/`: durable documentation;
-- `docs/working-notes/`: temporary plans only.
+- `docs/current/`: durable documentation.
 
 AI guidance must stay vendor-neutral. `AI_CONTRACT.md` is the only contract and
 `AGENTS.md` is the generic entry-point pointer. Do not add assistant-specific
@@ -69,17 +65,3 @@ not duplicate project rules.
 Bundled media should not be copied into runtime libraries just to make it
 selectable. Prefer virtual built-in entries that point to their app asset, while
 user-added media is copied into the canonical `.video-tool` library.
-
-## Retired Authoring Terms
-
-These terms may appear only when explicitly discussing ADR history:
-
-- old block names such as `Frame`, `Story`, `TitleBlock`, `KeyPoints`, `Panel`
-- `PICK mode`
-
-They must not appear as current instructions.
-
-## Working Notes
-
-Temporary task planning belongs in `docs/working-notes/`. Those notes may mention
-obsolete terms while tracking cleanup, but they are not project contracts.

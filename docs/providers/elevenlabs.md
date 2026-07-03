@@ -24,7 +24,7 @@ voice ids stop the render; the provider is never silently changed to mock/none.
 The TTS cache identity includes language, so Vietnamese and English clips never
 collide even when text/voice/model are otherwise identical.
 
-Desktop API keys are encrypted with Electron `safeStorage`. CLI/MCP read the
+Desktop API keys are encrypted with Electron `safeStorage`. CLI usage reads the
 environment variables above. Run a live, temporary probe with:
 
 ```bash

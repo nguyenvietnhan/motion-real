@@ -11,28 +11,22 @@ MotionReal turns a Vietnamese or English prompt, optionally with URLs/images,
 into a publishable Remotion MP4. The stable production path is short-form
 TikTok/Reels/Shorts-style 9:16. YouTube 16:9 support exists as shared format
 plumbing, thumbnail behavior, geometry, and caption-off rendering, but the true
-long-form YouTube author-by-segment production path is still pending work.
+long-form YouTube author-by-segment path is not a stable workflow.
 
 The visual model is pure AUTHOR mode: for every video, the runtime AI writes
 fresh Remotion React scene modules as raw JSX/SVG. There is no template catalog,
-PICK mode, authored-facing layout-block toolkit, or authored-facing theme system.
+authored-facing layout-block toolkit, or authored-facing theme system.
 
 ## Read Map
 
 Current docs live under `docs/current/`:
 
-- `overview.md` — product status, invariants, and out-of-scope items.
 - `architecture.md` — packages, data flow, persistence, and boundaries.
 - `authoring-contract.md` — scene module requirements and import rules.
 - `content-guide.md` — story, language, evidence, and visual guidance.
-- `safety-grid.md` — N1-N30 checks and what blocks render.
-- `desktop-flow.md` — Electron, 9router, hidden refine, and review stages.
-- `render-workflow.md` — stills, draft, full render, TTS, and artifacts.
 - `maintenance.md` — cleanup/refactor rules and known sensitive areas.
 
-Provider setup lives in `docs/providers/`. Binding architecture decisions live in
-`docs/adr/`. Temporary planning notes live in `docs/working-notes/` and are not
-the project contract.
+Provider setup lives in `docs/providers/`.
 
 ## Non-Negotiable Invariants
 
@@ -56,8 +50,6 @@ the project contract.
   `mock`, `none`, or another provider when configuration is missing.
 - Draft before full, every time.
 - Generated runtime artifacts belong under `VIDEO_TOOL_HOME/.video-tool/`.
-- `math_video_tool` and `news_video_tool` are reference designs only. Do not
-  modify them from this repository.
 
 ## Safety Posture
 
@@ -94,8 +86,8 @@ For video production:
 
 For OpenAI/Remotion/React/Zod/Electron or other library questions, verify against
 official/current docs before changing code. For pipeline operations, use the
-supported desktop, CLI, or pipeline APIs; do not assume a repo-provided `news`
-MCP server exists.
+supported desktop, CLI, or pipeline APIs; do not assume a repo-provided MCP
+server exists.
 
 ## Development Rules
 
