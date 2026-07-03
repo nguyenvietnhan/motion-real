@@ -1,7 +1,7 @@
 # Temporary Task - Deferred Repo Cleanup Plan
 
-Status: MCP cleanup completed; namespace and style compatibility cleanup still
-pending.
+Status: MCP cleanup completed; `@news/*` namespace removal decision made;
+namespace source migration and style compatibility cleanup still pending.
 
 This is a temporary working note for the remaining repo-noise items that were
 intentionally deferred after the repo hygiene cleanup. It is not project
@@ -22,7 +22,7 @@ Start here if this is a new session with no chat history:
 
 ```bash
 git status --short
-rg -n "@news/mcp|packages/mcp|createTools|ToolDeps|mcpServers|server-filesystem|stylePackId|clean-luxury-tech|@news/design|@news/" .mcp.example.json package.json package-lock.json tsconfig.json vitest.config.ts apps packages docs/current README.md
+rg -n "@news/|news-remotion-tool|Vietnamese short-form news|packages/mcp|mcpServers|server-filesystem|stylePackId|clean-luxury-tech|@news/design" .mcp.example.json package.json package-lock.json tsconfig.json vitest.config.ts apps packages docs/current README.md AI_CONTRACT.md
 ```
 
 Do not start implementation until the dirty worktree and current references are
@@ -89,10 +89,11 @@ The final full test lane reported 92 files / 889 tests plus the heavy lane with
 
 ## Why Deferred Items Remain
 
-The remaining matches are not small loose files. They are compatibility or
-migration surfaces that can break product behavior, saved projects, authored
-scene admission, package resolution, or assistant/tool workflows if removed in
-one sweep.
+The remaining matches are not small loose files. They are migration surfaces
+that can break product behavior, authored scene admission, package resolution,
+or assistant/tool workflows if removed in one sweep. The namespace decision is
+now explicit: `@news/*` is not kept for compatibility. The caution is about
+engineering blast radius, not preserving old generated projects.
 
 Current docs already record this policy:
 
@@ -249,59 +250,215 @@ Chosen policy:
 
 Do not silently replace it with another machine-specific absolute path.
 
-## Deferred Surface 2 - `@news/*` Package Namespace
+## Deferred Surface 2 - Remove `@news/*` Package Namespace
 
 ### Current Evidence
 
-The product is now MotionReal, but workspace packages, imports, authored scene
-contracts, tests, and scripts still use `@news/*`.
+Owner decision after MCP cleanup:
+
+- do not keep `@news/*` as the long-term namespace;
+- do not add a compatibility bridge for old authored scenes/projects;
+- old generated projects/scenes are not a preservation requirement for this
+  cleanup;
+- target namespace is `@motionreal/*`;
+- current source, current docs, prompts, fixtures, tests, package metadata, and
+  lockfile should end NS-1 with no active `@news/*` workspace-package
+  references;
+- the broader deferred-cleanup target is zero `@news/` references repo-wide, but
+  `@news/design` is still classified under the separate style cleanup surface so
+  namespace migration does not mix with style compatibility.
+
+The product is MotionReal, but workspace packages, imports, authored scene
+contracts, tests, scripts, and package metadata still use `@news/*`.
+
+Latest audit found `@news/` matches across 100+ files. Main surfaces:
 
 Examples:
 
-- root `package.json` scripts use `@news/remotion`;
-- packages are named `@news/schema`, `@news/pipeline`, `@news/compositions`,
-  `@news/blocks`, `@news/theme`, and `@news/tts`;
-- authored scene import whitelist allows `@news/compositions`;
-- prompts and current docs tell authored scenes to import `@news/compositions`;
-- saved/generated authored scenes may already contain `@news/compositions`;
-- `tsconfig.json`, `vitest.config.ts`, Remotion config, Electron build config,
-  tests, and source imports all depend on these aliases.
+- root `package.json`
+  - package name is still `news-remotion-tool`;
+  - description still says Vietnamese short-form news video generator;
+  - scripts target `npm --workspace @news/remotion`.
+- workspace package names and dependencies
+  - `apps/desktop` is `@news/desktop` and depends on `@news/pipeline`;
+  - `apps/remotion` is `@news/remotion` and depends on `@news/blocks`,
+    `@news/compositions`, `@news/schema`, and `@news/theme`;
+  - `packages/schema`, `packages/pipeline`, `packages/compositions`,
+    `packages/blocks`, `packages/theme`, and `packages/tts` are all named
+    `@news/*`;
+  - `package-lock.json` contains the matching workspace package names and links.
+- resolver/bundler config
+  - `tsconfig.json`, `vitest.config.ts`, `apps/desktop/build-electron.mjs`,
+    `apps/remotion/remotion.config.ts`, and
+    `packages/pipeline/src/render/renderer.ts` alias `@news/*` to source
+    packages;
+  - `packages/pipeline/src/safety/typecheck-authored.ts` mirrors those paths for
+    authored-scene typechecking.
+- authored-scene contract and prompt surface
+  - `AI_CONTRACT.md`, `docs/current/authoring-contract.md`,
+    `apps/desktop/src/main/authoring/contract-text.ts`,
+    `apps/desktop/src/main/authoring/prompt.ts`,
+    `apps/desktop/src/main/authoring/ninerouter-backend.ts`, and related tests
+    tell new scenes to import `@news/compositions`;
+  - `packages/pipeline/src/authoring/admission.ts` whitelists
+    `@news/compositions`;
+  - authored fixtures under `packages/pipeline/src/authoring/__fixtures__/` and
+    `packages/pipeline/src/safety/__fixtures__/` import `@news/compositions`.
+- source imports/comments/tests
+  - desktop, Remotion, compositions, blocks, theme, schema, pipeline, render,
+    safety, audio, CLI, and test files import `@news/*`;
+  - many comments mention the old names as current architecture, not only
+    history.
+- adjacent product-name noise
+  - root `package.json` still uses the old root package name and "news" wording;
+  - some source comments refer to `news_video_tool` as a reference design. Those
+    are not package namespace imports, but final branding hygiene should classify
+    them deliberately.
 
-### Why It Was Not Renamed
+### Why It Was Deferred
 
-This is a broad compatibility migration, not a simple cleanup. Renaming package
-namespace can break:
+This is a broad package and authored-contract migration, not a string cleanup.
+Renaming only one layer will break package resolution or generated scene
+admission.
 
-- old authored scenes stored in projects;
-- the import admission whitelist;
-- generated prompt instructions;
+- package names and workspace dependency metadata;
 - TS/Vitest/webpack aliases;
-- package lockfile and workspace scripts;
-- Remotion/Electron bundling.
+- Electron and Remotion bundling;
+- authored-scene admission whitelist;
+- generated prompt and repair guidance;
+- authored-scene fixtures and safety typecheck path maps;
+- package lockfile and workspace scripts.
+
+Old project/scene compatibility is explicitly not a reason to keep `@news/*`.
+The remaining reason to move carefully is engineering blast radius: every layer
+must agree on the same namespace in the same source slice.
 
 ### Proposed Namespace Plan
 
-Step NS-0: decide whether internal `@news/*` is acceptable compatibility or must
-be changed for product clarity.
+Step NS-0: owner decision. Completed.
 
-If changing:
+Decision:
 
-1. Add `@motionreal/*` aliases first while keeping `@news/*` compatibility.
-2. Update docs/prompts only after both aliases work.
-3. Update generated authored import guidance carefully.
-4. Keep admission compatibility for old `@news/compositions` scenes unless a
-   stored-project migration exists.
-5. Only later consider package name changes and lockfile churn.
+- `@news/*` is not acceptable as the current namespace.
+- Do not keep `@news/*` aliases.
+- Do not preserve `@news/compositions` in the authored import whitelist.
+- Do not write prompt/docs that instruct new authored scenes to import
+  `@news/compositions`.
+- Use `@motionreal/*` everywhere current source/config/docs need a scoped
+  package name.
+- Final NS-1 target for current source/docs/package metadata is zero active
+  `@news/*` workspace-package references.
+- Final deferred-cleanup target is zero `@news/` references repo-wide. Any
+  remaining `@news/design` matches must be handled in the style slice, not hidden
+  as namespace compatibility.
 
-Required checks for any namespace slice:
+Step NS-1: migrate the current source namespace to `@motionreal/*`.
+
+This should be one focused source migration, because partial namespace changes
+leave the repo in a broken package-resolution state.
+
+Expected changes:
+
+- root package metadata:
+  - rename root package from `news-remotion-tool` to a MotionReal name;
+  - remove "news video generator" product wording from the root description;
+  - update root scripts to target `@motionreal/remotion`.
+- workspace package metadata:
+  - rename `@news/desktop` -> `@motionreal/desktop`;
+  - rename `@news/remotion` -> `@motionreal/remotion`;
+  - rename `@news/schema` -> `@motionreal/schema`;
+  - rename `@news/pipeline` -> `@motionreal/pipeline`;
+  - rename `@news/compositions` -> `@motionreal/compositions`;
+  - rename `@news/blocks` -> `@motionreal/blocks`;
+  - rename `@news/theme` -> `@motionreal/theme`;
+  - rename `@news/tts` -> `@motionreal/tts`;
+  - update all workspace dependencies and `package-lock.json`.
+- source imports and aliases:
+  - update imports across `apps`, `packages`, `tests`, and scripts from
+    `@news/*` to `@motionreal/*`;
+  - update `tsconfig.json`, `vitest.config.ts`,
+    `apps/desktop/build-electron.mjs`, `apps/remotion/remotion.config.ts`, and
+    `packages/pipeline/src/render/renderer.ts`;
+  - update `packages/pipeline/src/safety/typecheck-authored.ts` path mappings,
+    degradation warnings, and cache comments.
+- authored scene contract:
+  - change admission whitelist from `@news/compositions` to
+    `@motionreal/compositions`;
+  - update `AI_CONTRACT.md`, `docs/current/authoring-contract.md`,
+    desktop `AUTHORING_CONTRACT`, prompt examples, retry guidance, and tests;
+  - update authored fixtures to import `@motionreal/compositions`.
+- authored import normalizer:
+  - stop rescuing old `@news/*` authored imports;
+  - keep any useful stale-symbol normalization only for the current
+    `@motionreal/*` namespace, for example re-homing `SceneImage` from
+    `@motionreal/blocks` or `@motionreal/theme` to
+    `@motionreal/compositions` if tests prove it is still useful;
+  - `@news/*` authored imports must fail N4 and force a rewrite to the current
+    contract.
+- comments/docs/tests:
+  - update current comments that describe active architecture;
+  - update tests whose names/assertions mention `@news/*`;
+  - do not mix this with style compatibility cleanup.
+
+Pre-edit audit for NS-1:
 
 ```bash
+git status --short
+rg -n "@news/|news-remotion-tool|Vietnamese short-form news" package.json package-lock.json tsconfig.json vitest.config.ts apps packages docs/current README.md AI_CONTRACT.md
+rg -n "@news/compositions|@news/blocks|@news/theme|allowedImports|AUTHORING_CONTRACT|typecheck-authored|build-electron|remotion.config" apps packages docs/current AI_CONTRACT.md
+```
+
+Required checks for NS-1:
+
+```bash
+npm.cmd install --package-lock-only --ignore-scripts
 npm.cmd run typecheck
 npm.cmd test -- packages/pipeline/src/authoring/admission.test.ts
 npm.cmd test -- packages/pipeline/src/safety/typecheck-authored.test.ts
 npm.cmd test -- apps/desktop/src/main/authoring/contract-text.test.ts
+npm.cmd test -- apps/desktop/src/main/authoring/agent-guidance.test.ts
+npm.cmd test -- apps/desktop/src/main/authoring/normalize-imports.test.ts
+npm.cmd test -- apps/desktop/src/main/authoring/prompt.test.ts
+npm.cmd test -- apps/desktop/src/main/authoring/ninerouter-backend.test.ts
+npm.cmd test -- packages/pipeline/src/tools/create-tools.test.ts
+npm.cmd test -- apps/desktop/src/main/preserved-invariants.test.ts
 npm.cmd test
 npm.cmd run build
+```
+
+Post-edit audit for NS-1:
+
+```bash
+rg -n "@news/(schema|theme|blocks|tts|compositions|pipeline|desktop|remotion)" package.json package-lock.json tsconfig.json vitest.config.ts apps packages docs/current README.md AI_CONTRACT.md
+rg -n "news-remotion-tool|Vietnamese short-form news" package.json package-lock.json README.md docs/current apps packages
+git status --short
+git diff --stat
+```
+
+Commit suggestion:
+
+```text
+refactor: rename workspace namespace to motionreal
+```
+
+Step NS-2: final namespace text sweep.
+
+Only after NS-1 passes and is committed:
+
+- audit all remaining `@news/` matches in the entire repo;
+- remove or rewrite current-source/current-doc references;
+- classify `@news/design` matches as the style surface and leave them for
+  STYLE-1/STYLE-2 unless the owner explicitly allows folding that docs-only
+  cleanup into NS-2;
+- ADR/history/reference-design mentions should be rewritten or removed unless
+  the owner explicitly asks to preserve historical wording.
+
+Required checks for NS-2:
+
+```bash
+rg -n "@news/" .
+git status --short
+git diff --stat
 ```
 
 Do not combine namespace migration with MCP or style cleanup.
@@ -458,7 +615,8 @@ This belongs to a product/runtime maintenance task, not repo-source cleanup.
   or user project state.
 - Do not reintroduce a product dependency on `@news/mcp` or a `packages/mcp`
   owner for the internal tool facade.
-- Do not rename `@news/*` packages in the same slice as MCP de-scope.
+- Rename `@news/*` only in the dedicated namespace slice. Do not mix it with
+  MCP cleanup or style compatibility cleanup.
 - Do not remove `stylePackId` or `clean-luxury-tech` compatibility in the same
   slice as namespace or MCP cleanup.
 - Do not touch `packages/pipeline/src/orchestrator.ts`,
@@ -479,16 +637,17 @@ git diff --stat
 
 ## Recommended Next Step
 
-Start with NS-0: decide whether the internal `@news/*` namespace remains
-acceptable compatibility or should gain `@motionreal/*` aliases first.
+Start with NS-1: migrate the current source namespace from `@news/*` to
+`@motionreal/*` without keeping a compatibility bridge.
 
 Reason:
 
 - MCP-1 through MCP-3 have removed the product dependency on `@news/mcp`, the
   legacy stdio server, and tracked machine-specific `.mcp.json` config;
-- the remaining deferred cleanup surfaces are namespace compatibility and style
+- NS-0 is complete: owner decision is not to keep `@news/*`;
+- the remaining deferred cleanup surfaces are namespace migration and style
   compatibility;
-- namespace work should start with an owner decision before any package or
-  authored-scene import migration.
+- namespace migration should happen before style cleanup so package/import noise
+  does not obscure style compatibility risk.
 
 Do not combine namespace cleanup with style compatibility cleanup.
