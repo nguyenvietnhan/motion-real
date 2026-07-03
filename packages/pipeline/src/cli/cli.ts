@@ -4,7 +4,7 @@ import { parseArgs } from "node:util";
 import { pathToFileURL } from "node:url";
 
 import { listComponents } from "@motionreal/compositions";
-import { getStylePack, listStylePackIds } from "@motionreal/theme";
+import { makeTheme, NEUTRAL_THEME_ID } from "@motionreal/theme";
 import { fontCoverageReport } from "@motionreal/blocks";
 import {
   defaultElevenLabsVoiceId,
@@ -356,13 +356,13 @@ export type DoctorDeps = {
   checkFfmpeg?: () => Promise<DoctorCheck>;
   checkBrowser?: () => Promise<DoctorCheck>;
   checkRegistry?: () => DoctorCheck;
-  checkStylePacks?: () => DoctorCheck;
+  checkTheme?: () => DoctorCheck;
   checkFonts?: () => DoctorCheck;
 };
 
 /**
  * Verify environment readiness: Vivibe `.env` config, ffmpeg, a usable headless
- * browser, registry health, legacy theme resolution, Vietnamese font
+ * browser, registry health, neutral theme resolution, Vietnamese font
  * coverage, and bundled font readiness. Each probe is injectable so tests never
  * spawn ffmpeg or download Chromium. ALL checks run (never
  * short-circuit) so a single report lists every failure (R6.4); overall ready
@@ -376,7 +376,7 @@ export async function runDoctor(deps: DoctorDeps = {}): Promise<DoctorReport> {
     await (deps.checkFfmpeg ?? defaultCheckFfmpeg)(),
     await (deps.checkBrowser ?? defaultCheckBrowser)(),
     (deps.checkRegistry ?? defaultCheckRegistry)(),
-    (deps.checkStylePacks ?? defaultCheckStylePacks)(),
+    (deps.checkTheme ?? defaultCheckTheme)(),
     (deps.checkFonts ?? defaultCheckFonts)(),
   ];
   return { ok: checks.every((check) => check.ok), checks };
@@ -430,16 +430,20 @@ function defaultCheckRegistry(): DoctorCheck {
   };
 }
 
-/** R6.1: the neutral theme resolves (the multi-language registry was retired). */
-export function defaultCheckStylePacks(): DoctorCheck {
-  const ids = listStylePackIds();
-  const ok = ids.length > 0 && !!getStylePack(ids[0]);
+/** R6.1: the neutral theme resolves. */
+export function defaultCheckTheme(): DoctorCheck {
+  const theme = makeTheme();
+  const ok =
+    theme.id === NEUTRAL_THEME_ID &&
+    theme.dark === true &&
+    typeof theme.colors.fg === "string" &&
+    typeof theme.fonts.display === "string";
   return {
-    name: "style packs",
+    name: "theme",
     ok,
     detail: ok
-      ? `${ids.length} theme(s): ${ids.join(", ")}`
-      : "no theme registered (the neutral theme failed to resolve)",
+      ? `neutral theme ready (${theme.fonts.display}, ${theme.fonts.mono})`
+      : "neutral theme failed to resolve",
   };
 }
 
@@ -448,15 +452,11 @@ export function defaultCheckFonts(): DoctorCheck {
   const coverage = new Map(fontCoverageReport().map((f) => [f.family, f.hasVietnamese]));
   const leading = (stack: string): string => (stack.split(",")[0] ?? "").trim().replace(/^["']|["']$/g, "");
   const problems: string[] = [];
-  for (const id of listStylePackIds()) {
-    const pack = getStylePack(id);
-    if (!pack) continue;
-    const families = pack.fonts;
-    for (const [role, stack] of Object.entries(families)) {
-      const family = leading(stack);
-      if (coverage.get(family) !== true) {
-        problems.push(`${id}.${role} → ${family || "(empty)"}`);
-      }
+  const families = makeTheme().fonts;
+  for (const [role, stack] of Object.entries(families)) {
+    const family = leading(stack);
+    if (coverage.get(family) !== true) {
+      problems.push(`${role} → ${family || "(empty)"}`);
     }
   }
   return {
@@ -464,7 +464,7 @@ export function defaultCheckFonts(): DoctorCheck {
     ok: problems.length === 0,
     detail:
       problems.length === 0
-        ? "all style-pack fonts load the vietnamese subset"
+        ? "all neutral-theme fonts load the vietnamese subset"
         : `font(s) missing vietnamese coverage or not loaded: ${problems.join(", ")}`,
   };
 }
@@ -529,7 +529,7 @@ function usage(): string {
     "  ingest <url> [--id <id>]            Fetch an article into planning/<id>.md (text + metadata only)",
     "  tracker list | add <url> ... | update <id> ...   Manage the bulk work queue (--tracker <path>)",
     "  bulk [--tracker <path>] [--limit N]  Resumable bulk loop over the tracker (finishes authored projects)",
-    "  doctor | probe                      Check .env (Vivibe), ffmpeg, browser, registry, style packs, and fonts",
+    "  doctor | probe                      Check .env (Vivibe), ffmpeg, browser, registry, theme, and fonts",
   ].join("\n");
 }
 

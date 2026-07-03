@@ -15,7 +15,6 @@ describe("neutral theme — shape + polarity", () => {
 
   it("is the single neutral theme, dark, with render-safe fonts", () => {
     expect(t.id).toBe(NEUTRAL_THEME_ID);
-    expect(t.stylePackId).toBe(NEUTRAL_THEME_ID);
     expect(t.dark).toBe(true);
     expect(t.fonts.display).toBe("Inter");
     expect(t.fonts.mono).toBe("Cascadia Mono");

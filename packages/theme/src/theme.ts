@@ -9,13 +9,11 @@
  * medium corners, render-safe fonts. Blocks become OPTIONAL primitives (D2) that
  * render in this neutral grammar; an authored scene may ignore them entirely.
  *
- * This module keeps the EXACT `Theme` shape the old design package produced — and
- * the proven 2-layer cross-model defense (typed alias keys + a Proxy fallback) for
- * `colors` and `radius`, so an AI-authored token name can never break a render. A
- * handful of legacy-shaped shims (`makeTheme`, `getStylePack`,
- * `listStylePackIds`, ...) are kept so consumers still compile during the migration;
- * they all resolve to the one neutral theme (stylePackId is ignored). Those shims
- * are retired as later groups remove the style concept from the prompt/schema/UI.
+ * This module keeps the runtime `Theme` shape and the proven 2-layer cross-model
+ * defense (typed alias keys + a Proxy fallback) for `colors` and `radius`, so an
+ * AI-authored token name can never break a render. There is no selectable style
+ * identity here: `makeTheme` derives one neutral runtime theme from the dominant
+ * hue.
  *
  * Pure + deterministic (no Math.random / Date / IO): a theme is a stable function
  * of its dominant hue.
@@ -180,7 +178,7 @@ export const springs = {
   snappy: { damping: 18, mass: 0.7, stiffness: 140 },
 };
 
-// --- Token model (same shape as the old design package) -------------------
+// --- Runtime token model --------------------------------------------------
 
 /** Corner radius scale (px). Read by blocks instead of hard-coding. */
 export type RadiusScale = { sm: number; md: number; lg: number };
@@ -276,8 +274,6 @@ export type Theme = Omit<ThemeColors, "surface"> & {
   id: string;
   name: string;
   dominant: string;
-  /** Resolved style id. Always the neutral id now (the style concept is retired). */
-  stylePackId: string;
   dark: boolean;
   colors: ThemeColors;
   fonts: { display: string; body: string; mono: string };
@@ -291,7 +287,7 @@ export type Theme = Omit<ThemeColors, "surface"> & {
 
 // --- The one neutral look -------------------------------------------------
 
-/** Stable id of the single neutral theme (kept for the registry shims). */
+/** Stable id of the single neutral theme. */
 export const NEUTRAL_THEME_ID = "neutral";
 
 /** Render-safe font families (Inter + Cascadia Mono ship the Vietnamese subset). */
@@ -456,11 +452,8 @@ function wrapTheme(base: Omit<Theme, keyof ThemeColors>, colors: ThemeColors): T
 
 // --- Theme assembly -------------------------------------------------------
 
-/**
- * Build the neutral theme for a dominant hue. `stylePackId` is accepted + ignored
- * so call sites still compile during the migration.
- */
-export function makeTheme(dominant: string = DEFAULT_DOMINANT, _stylePackId?: string): Theme {
+/** Build the neutral theme for a dominant hue. */
+export function makeTheme(dominant: string = DEFAULT_DOMINANT): Theme {
   const hex = normalizeHex(dominant) ?? DEFAULT_DOMINANT;
   const core = deriveNeutral(hex);
   const colors = wrapColors(buildThemeColors(core));
@@ -468,7 +461,6 @@ export function makeTheme(dominant: string = DEFAULT_DOMINANT, _stylePackId?: st
     id: NEUTRAL_THEME_ID,
     name: "Neutral",
     dominant: hex,
-    stylePackId: NEUTRAL_THEME_ID,
     dark: true,
     colors,
     fonts: { ...NEUTRAL_FONTS },
@@ -502,72 +494,6 @@ export function sceneBackground(t: Theme = theme): string {
     `radial-gradient(95% 75% at 88% 112%, ${withAlpha(t.colors.signal, 0.16)} 0%, transparent 58%)`,
     `linear-gradient(180deg, ${t.colors.bgElevated} 0%, ${t.colors.bg} 58%, ${t.colors.bg} 100%)`,
   ].join(", ");
-}
-
-// --- Legacy style identity shims (transitional) ---------------------------
-//
-// The old multi-language style system (getStylePack/listStylePackIds/...) is gone, but
-// N1, the prompt builder, the CLI, and the desktop UI still call these names. They
-// now resolve to the ONE neutral theme so everything compiles; later groups (G:
-// de-style the prompt + drop stylePackId from the schema/UI) remove the call sites
-// and these shims with them.
-
-/** Back-compat: the neutral theme exposed through the legacy shape. */
-export type StylePreview = {
-  dark: boolean;
-  rounded: boolean;
-  starfield: boolean;
-  grid: boolean;
-  registrationTicks: boolean;
-  borderWidth: number;
-  density: "compact" | "editorial" | "airy";
-};
-
-export type StylePack = {
-  id: string;
-  name: string;
-  description: string;
-  isDefault?: boolean;
-  fonts: { display: string; body: string; mono: string };
-  preview: StylePreview;
-  /** Empty now (the style concept is retired) — kept so `languageContract` compiles. */
-  contract: string;
-};
-
-const NEUTRAL_PACK: StylePack = {
-  id: NEUTRAL_THEME_ID,
-  name: "Neutral",
-  description: "Theme trung tính tối: nền gần đen, chữ gần trắng, một màu nhấn, bo góc vừa.",
-  isDefault: true,
-  fonts: { ...NEUTRAL_FONTS },
-  preview: {
-    dark: true,
-    rounded: true,
-    starfield: false,
-    grid: false,
-    registrationTicks: false,
-    borderWidth: 1,
-    density: "airy",
-  },
-  contract: "",
-};
-
-/** The single style id `makeTheme` resolves to. */
-export const DEFAULT_STYLE_PACK_ID: string = NEUTRAL_THEME_ID;
-
-/** Resolve the legacy style identity — always the neutral theme (id is ignored). */
-export function getStylePack(_id?: string): StylePack {
-  return NEUTRAL_PACK;
-}
-
-/** All registered style ids — just the neutral one. */
-export function listStylePackIds(): string[] {
-  return [NEUTRAL_THEME_ID];
-}
-
-/** No-op: registering a style is meaningless now (kept so call sites compile). */
-export function registerStylePack(_pack: unknown): void {
-  /* the style concept is retired; nothing to register */
 }
 
 /** Short design-system note surfaced to tooling (doctor). */

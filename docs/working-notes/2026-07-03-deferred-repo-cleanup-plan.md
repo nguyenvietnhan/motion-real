@@ -1,8 +1,8 @@
 # Temporary Task - Deferred Repo Cleanup Plan
 
-Status: MCP cleanup and workspace namespace cleanup completed; style-pack
-removal decision, inventory, wording cleanup, and spec/runtime output migration
-completed; theme shim removal still pending.
+Status: MCP cleanup and workspace namespace cleanup completed; style identity
+removal completed through theme shim removal; final style identity audit still
+pending.
 
 This is a temporary working note for the remaining repo-noise items that were
 intentionally deferred after the repo hygiene cleanup. It is not project
@@ -72,17 +72,19 @@ Deferred cleanup then proceeded in separate slices:
 - `0995acf` `refactor: rename workspace namespace to motionreal`
 - `0eb8599` `docs: finish namespace text sweep`
 - `6d51eb6` `docs: remove style-pack wording noise`
+- `1abb74d` `refactor: remove style identity from specs`
 
-The last full verification before this note reported:
+The latest STYLE-3 verification reported:
 
 ```bash
+npm.cmd test -- packages/theme/src/theme.test.ts packages/blocks/src/fonts.test.ts packages/pipeline/src/cli/doctor.test.ts packages/pipeline/src/cli/cli.test.ts packages/compositions/src/video.test.ts
 npm.cmd run typecheck
 npm.cmd test
 npm.cmd run build
 ```
 
-The full test lane reported 92 files / 887 tests plus the heavy lane with 1 file
-/ 13 tests.
+The targeted lane reported 5 files / 41 tests. The full test lane reported 92
+files / 886 tests plus the heavy lane with 1 file / 13 tests.
 
 ## Completed Surface 1 - MCP Config And Legacy MCP Package
 
@@ -208,16 +210,14 @@ Schema/spec layer after STYLE-2:
   - `VideoSpecSchema` no longer requires a style identity;
   - `LockedVideoSpecSchema` inherits the simplified spec shape.
 
-Theme layer:
+Theme layer after STYLE-3:
 
 - `packages/theme/src/theme.ts`
-  - `Theme` includes `stylePackId`;
-  - `makeTheme(dominant, _stylePackId)` accepts and ignores a style id;
-  - neutral theme output sets `stylePackId: "neutral"`;
-  - `DEFAULT_STYLE_PACK_ID`, `StylePack`, `getStylePack`,
-    `listStylePackIds`, and `registerStylePack` are compatibility shims.
+  - `Theme` no longer includes style identity;
+  - `makeTheme(dominant)` derives the single neutral runtime theme;
+  - style registry compatibility shims have been removed.
 - `packages/theme/src/theme.test.ts`
-  - asserts `t.stylePackId`.
+  - asserts neutral theme id, fonts, token aliases, and runtime fallback behavior.
 
 Composition/render layer:
 
@@ -235,42 +235,35 @@ Pipeline state and conversion:
 - `packages/pipeline/src/orchestrator.ts`
   - no longer writes style identity when scaffolding a project brief.
 
-CLI and readiness checks:
+CLI and readiness checks after STYLE-3:
 
 - `packages/pipeline/src/cli/cli.ts`
-  - imports `getStylePack` / `listStylePackIds`;
-  - exposes `checkStylePacks` and `defaultCheckStylePacks`;
-  - font check loops over style packs to inspect fonts;
-  - usage text still says doctor checks style packs.
+  - imports `makeTheme` / `NEUTRAL_THEME_ID`;
+  - exposes `checkTheme` and `defaultCheckTheme`;
+  - font check inspects the neutral theme font stacks directly;
+  - usage text says doctor checks theme and fonts.
 - `packages/pipeline/src/cli/doctor.test.ts` and
   `packages/pipeline/src/cli/cli.test.ts`
-  - test/inject style-pack doctor slots.
+  - test/inject the neutral theme doctor slot.
 
-Blocks/font readiness:
+Blocks/font readiness after STYLE-3:
 
 - `packages/blocks/src/fonts.ts`
-  - comments describe font readiness as style-pack font coverage;
   - `LOADED_FONT_FAMILIES` itself is still useful.
 - `packages/blocks/src/fonts.test.ts`
-  - imports style-pack registry shims to check fonts.
+  - imports `makeTheme` and checks neutral-theme font stacks directly.
 - `packages/blocks/src/vendor-fonts.generated.ts`
-  - generated comment says style-pack fonts.
+  - generated comment uses neutral render-font wording after STYLE-1.
 
-Desktop/source text:
+Desktop/source text after STYLE-3:
 
 - `apps/desktop/src/shared/types.ts`
-  - defines `StylePackVM`; current audit found no active use outside the type
-    itself.
-- `apps/desktop/src/main/agent/agent-worker.ts`
-  - comment mentions removed `stylePackId`.
-- `apps/desktop/src/main/index.ts`
-  - retry rehydration comment says `stylePackId/images`.
-- `apps/desktop/src/main/workspace/workspace-controller.ts`
-  - compatibility comment mentions `stylePackId`.
-- `docs/current/authoring-contract.md`
-  - lists style packs as a deleted authored surface. This is conceptually true,
-    but after source cleanup the wording can be reduced to "theme/style-token
-    leash" to avoid preserving the old term.
+  - no longer defines `StylePackVM`.
+- desktop source comments were renamed in STYLE-1 and no current desktop source
+  wording preserves style identity.
+- `docs/current/maintenance.md`
+  - still lists retired style identity terms for cleanup tracking; STYLE-4
+    should remove or rewrite that policy now that source behavior is gone.
 
 Tests/fixtures with the retired style literal:
 
@@ -368,21 +361,21 @@ refactor: remove style identity from specs
 ```
 
 Step STYLE-3: remove style-pack registry shims and rename readiness checks.
+Completed.
 
-Expected changes:
+Completed changes:
 
-- change `makeTheme(dominant, _stylePackId)` to `makeTheme(dominant)`;
-- remove `Theme.stylePackId`;
-- remove `DEFAULT_STYLE_PACK_ID`, `StylePack`, `StylePreview`,
+- changed `makeTheme(dominant, _stylePackId)` to `makeTheme(dominant)`;
+- removed `Theme.stylePackId`;
+- removed `DEFAULT_STYLE_PACK_ID`, `StylePack`, `StylePreview`,
   `getStylePack`, `listStylePackIds`, and `registerStylePack`;
-- replace CLI `checkStylePacks` with a neutral `checkTheme` or fold it into the
-  font/theme readiness checks;
-- update `defaultCheckFonts` to check the known neutral-theme font families
+- replaced CLI `checkStylePacks` with neutral `checkTheme`;
+- updated `defaultCheckFonts` to check the known neutral-theme font families
   directly, not by iterating style packs;
-- update blocks font tests to assert render-safe neutral-theme fonts directly;
-- remove `StylePackVM` if it remains unused;
-- update generated-font comment via the generator script if that comment is
-  generated.
+- updated blocks font tests to assert render-safe neutral-theme fonts directly;
+- removed unused `StylePackVM`;
+- no generated-font behavior change was needed in this slice because STYLE-1
+  already updated the generated comment and generator together.
 
 Required targeted checks:
 
@@ -484,7 +477,7 @@ git diff --stat
 
 ## Recommended Next Step
 
-Start with STYLE-3: remove style-pack registry shims and rename readiness checks.
+Start with STYLE-4: final style identity audit.
 
 Reason:
 
@@ -496,6 +489,7 @@ Reason:
   changing behavior;
 - STYLE-2 is complete: specs, project briefs, manifest conversion, scaffolding,
   composition input, and fixtures no longer carry style identity;
-- the remaining behavior-bearing style surface is the neutral theme shim/CLI
-  readiness layer: `Theme.stylePackId`, style registry shim exports,
-  `StylePackVM`, and CLI `checkStylePacks` naming.
+- STYLE-3 is complete: the neutral theme shim/CLI readiness layer no longer
+  exposes style identity;
+- the remaining work is a final repo-wide audit and docs/working-note cleanup so
+  current docs do not preserve retired style identity terms.

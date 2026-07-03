@@ -103,39 +103,6 @@ export type CreateInput = {
   images?: StagedImageRef[];
 };
 
-/**
- * Legacy style-selection view-model shape. Kept while the product uses one
- * neutral theme. `preview`
- * carries the few CHROME hints the renderer needs to draw a CSS thumbnail of the
- * look (no rendered image — a coarse, always-correct sketch driven by the same
- * tokens the real render reads).
- */
-export type StylePackVM = {
-  id: string;
-  name: string;
-  description: string;
-  /** True for the pack `makeTheme` falls back to — the picker pre-selects it. */
-  isDefault: boolean;
-  preview: {
-    /** Block border weight in px. */
-    borderWidth: number;
-    /** Border treatment: "none" ⇒ frameless (sketch draws no block outline). */
-    borderStyle: "solid" | "hairline" | "none";
-    /** Faint full-frame grid behind content. */
-    grid: boolean;
-    /** Corner registration ticks (editorial print detail). */
-    registrationTicks: boolean;
-    /** Whitespace/density bias — drives how "busy" the sketch reads. */
-    density: "compact" | "editorial" | "airy";
-    /** Dark base (vs the default light cream) — the sketch paints a dark canvas. */
-    dark: boolean;
-    /** Rounded corners (vs the squared editorial grammar) — sketch rounds blocks. */
-    rounded: boolean;
-    /** Decorative starfield backdrop (galaxy look) — sketch sprinkles faint stars. */
-    starfield: boolean;
-  };
-};
-
 // --- projects / gallery (Req 10) -------------------------------------------
 
 export type FriendlyStatus = "building" | "draft-ready" | "done" | "error";

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { getInfo as interInfo, fontFamily as interFamily } from "@remotion/google-fonts/Inter";
 import { getInfo as bvpInfo, fontFamily as bvpFamily } from "@remotion/google-fonts/BeVietnamPro";
 import { getInfo as cascadiaInfo, fontFamily as cascadiaFamily } from "@remotion/google-fonts/CascadiaMono";
-import { listStylePackIds, getStylePack } from "@motionreal/theme";
+import { makeTheme } from "@motionreal/theme";
 import { VENDORED_FONTS } from "./vendor-fonts.generated.js";
 import { fontCoverageReport } from "./fonts.js";
 
@@ -21,17 +21,15 @@ describe("render fonts — Property 19: Vietnamese coverage + render-safe", () =
 
   it("the neutral theme font families are render-safe loaded families", () => {
     const loaded = new Set<string>([interFamily, bvpFamily, cascadiaFamily]); // Inter, Be Vietnam Pro, Cascadia Mono
-    for (const id of listStylePackIds()) {
-      const f = getStylePack(id)!.fonts;
-      for (const stack of [f.display, f.body, f.mono]) {
-        expect(loaded.has(leading(stack))).toBe(true);
-      }
+    const f = makeTheme().fonts;
+    for (const stack of [f.display, f.body, f.mono]) {
+      expect(loaded.has(leading(stack))).toBe(true);
     }
   });
 
   it("the neutral theme leads with a render-safe Vietnamese-complete face", () => {
     const loaded = new Set<string>([interFamily, bvpFamily, cascadiaFamily]);
-    const f = getStylePack().fonts;
+    const f = makeTheme().fonts;
     expect(loaded.has(leading(f.display))).toBe(true);
   });
 });

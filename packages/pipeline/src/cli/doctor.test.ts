@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import fc from "fast-check";
 import {
   runDoctor,
-  defaultCheckStylePacks,
+  defaultCheckTheme,
   defaultCheckFonts,
   type DoctorCheck,
   type DoctorDeps,
@@ -14,7 +14,7 @@ const PASS = (name: string): DoctorCheck => ({ name, ok: true, detail: "ok" });
 const FAIL = (name: string): DoctorCheck => ({ name, ok: false, detail: "missing" });
 
 /** The six check slots runDoctor composes, in order. */
-const SLOTS = ["checkEnv", "checkFfmpeg", "checkBrowser", "checkRegistry", "checkStylePacks", "checkFonts"] as const;
+const SLOTS = ["checkEnv", "checkFfmpeg", "checkBrowser", "checkRegistry", "checkTheme", "checkFonts"] as const;
 
 describe("doctor — Property 16: reports every failure (never short-circuits)", () => {
   it("for any subset of failing checks, runDoctor runs all and lists exactly those failures", async () => {
@@ -47,9 +47,9 @@ describe("doctor — Property 16: reports every failure (never short-circuits)",
 });
 
 describe("doctor — per-check defaults (R6.1, R6.2)", () => {
-  it("legacy theme-resolution check passes: the neutral theme resolves", () => {
-    const check = defaultCheckStylePacks();
-    expect(check.name).toBe("style packs");
+  it("theme-resolution check passes: the neutral theme resolves", () => {
+    const check = defaultCheckTheme();
+    expect(check.name).toBe("theme");
     expect(check.ok).toBe(true);
     expect(check.detail).toMatch(/neutral/);
   });
