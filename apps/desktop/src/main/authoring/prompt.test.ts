@@ -46,15 +46,15 @@ describe("prompt surface baseline", () => {
       imageFilter: promptShape(buildImageFilterMessages("Bài nói về sự kiện X", [image])),
     }).toEqual({
       authorTextOnly: [
-        { role: "system", kind: "text", chars: 16763, textParts: 0, imageParts: 0 },
+        { role: "system", kind: "text", chars: 16744, textParts: 0, imageParts: 0 },
         { role: "user", kind: "text", chars: 130, textParts: 0, imageParts: 0 },
       ],
       authorWithResearch: [
-        { role: "system", kind: "text", chars: 16763, textParts: 0, imageParts: 0 },
+        { role: "system", kind: "text", chars: 16744, textParts: 0, imageParts: 0 },
         { role: "user", kind: "text", chars: 246, textParts: 0, imageParts: 0 },
       ],
       authorWithImages: [
-        { role: "system", kind: "text", chars: 18545, textParts: 0, imageParts: 0 },
+        { role: "system", kind: "text", chars: 18526, textParts: 0, imageParts: 0 },
         { role: "user", kind: "parts", chars: 163, textParts: 2, imageParts: 1 },
       ],
       reauthorTextOnly: [
@@ -445,12 +445,16 @@ describe("buildImageFilterMessages", () => {
     const msgs = buildImageFilterMessages("Bài nói về sự kiện X", images);
     const sys = msgs[0]!;
     const parts = msgs[1]!.content as ContentPart[];
+    const systemText = sys.content as string;
     // System prompt instructs keep-fitting / drop logo+ads, and the JSON shape.
-    expect(sys.content).toMatch(/logo/i);
-    expect(sys.content).toContain("keep");
-    expect(sys.content).toMatch(/video ngắn đa chủ đề/);
-    expect(sys.content).toMatch(/nguồn nội dung/);
-    expect(sys.content).not.toMatch(/video tin tức ngắn|news short video/i);
+    expect(systemText).toMatch(/logo/i);
+    expect(systemText).toContain("keep");
+    expect(systemText).toMatch(/video ngắn đa chủ đề/);
+    expect(systemText).toMatch(/nguồn nội dung/);
+    const retiredVietnamese = ["video", "tin", "tức", "ngắn"].join(" ");
+    const retiredEnglish = ["news", "short", "video"].join(" ");
+    expect(systemText.toLowerCase()).not.toContain(retiredVietnamese);
+    expect(systemText.toLowerCase()).not.toContain(retiredEnglish);
     // One image_url per candidate; each ref appears in a text part.
     const imageParts = parts.filter((p) => p.type === "image_url");
     expect(imageParts).toHaveLength(2);

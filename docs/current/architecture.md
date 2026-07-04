@@ -69,9 +69,12 @@ The Electron app is the main user-facing workflow: create, gallery, settings,
 gateway connection, image review, optional script review, hidden stills/refine,
 draft review, full-render approval, BGM, thumbnail, and export.
 
-Runtime AI does not read repository docs directly. The desktop backend builds
-plain prompt messages from the current authoring contract and sends them through
-the selected 9router-compatible model.
+Runtime AI does not read repository docs directly. For fresh authoring, the
+desktop backend first asks the selected 9router-compatible model for a structured
+content plan with a claim ledger, then validates that plan and feeds only usable
+facts and scene-plan data into the scene-code authoring prompt built from the
+current authoring contract. Edit/refine flows use scoped repair prompts instead
+of rerunning the full fresh-authoring chain.
 
 Before the user sees a first draft, the desktop flow may run a hidden sequence:
 
@@ -93,6 +96,7 @@ cancellation between stages is not treated as project failure.
 
 ```text
 Topic / URL / images
+-> AI plans story beats and usable claims
 -> AI authors .tsx scene modules and manifest
 -> optional hidden stills/refine in desktop
 -> admission gate

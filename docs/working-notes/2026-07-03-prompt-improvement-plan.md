@@ -3,7 +3,8 @@
 Status: PROMPT-0 baseline, PROMPT-1 stale prompt wording cleanup, PROMPT-2
 content-plan schema/builder, PROMPT-3 content quality eval fixtures,
 PROMPT-4 two-step authoring wire-up, and PROMPT-5 repair/user-edit prompt
-cleanup completed; final prompt audit still pending.
+cleanup completed; PROMPT-6 final prompt audit completed; temporary note still
+pending owner-approved deletion.
 
 This is a temporary working note for improving MotionReal's runtime AI prompts.
 It is not project contract. Current contract remains `AI_CONTRACT.md` plus
@@ -54,10 +55,10 @@ Verified source facts:
 
 Verified source/code feedback:
 
-- before PROMPT-1, `IMAGE_FILTER_SYSTEM` said "video tin tức ngắn" in
-  `apps/desktop/src/main/authoring/prompt.ts`. The source audit did not find the
-  English phrase "news short video" in active code, so PROMPT-1 targeted the
-  Vietnamese literal rather than the stale English paraphrase.
+- before PROMPT-1, `IMAGE_FILTER_SYSTEM` used topic-specific Vietnamese news
+  wording in `apps/desktop/src/main/authoring/prompt.ts`. The source audit did
+  not find the stale English paraphrase in active code, so PROMPT-1 targeted the
+  source literal rather than the paraphrase.
 - `CREATIVE_BOOTSTRAP_INTENT` and `combineIntent(...)` are real prompt inputs:
   they feed `reauthorScenes(...)`, so they must be included in the prompt cleanup
   plan instead of only listed as surfaces.
@@ -166,8 +167,8 @@ Other issues to address:
   claim ledger;
 - the code skeleton is useful for structure but can dominate the model's visual
   imagination;
-- before PROMPT-1, `IMAGE_FILTER_SYSTEM` still said "video tin tức ngắn", while
-  the product supports any topic;
+- before PROMPT-1, `IMAGE_FILTER_SYSTEM` still used topic-specific news wording,
+  while the product supports any topic;
 - `CREATIVE_BOOTSTRAP_INTENT` and user edit intents (`combineIntent(...)`) are
   live prompt inputs and need explicit cleanup/test coverage;
 - prompt steps that change live LLM text should run broad checks, even if the
@@ -365,9 +366,9 @@ Completed. Narrow behavior-bearing prompt text cleanup.
 
 Completed actions:
 
-- replaced remaining "video tin tức ngắn" wording in `IMAGE_FILTER_SYSTEM`;
-- treated "news short video" as a stale English paraphrase to audit, not as the
-  primary source literal for this prompt;
+- replaced remaining topic-specific news wording in `IMAGE_FILTER_SYSTEM`;
+- treated the stale English paraphrase as audit context, not as the primary
+  source literal for this prompt;
 - updated comments that described the old prompt role inaccurately;
 - did not change output structure or call count.
 
@@ -520,17 +521,21 @@ refactor: tighten prompt repair intents
 
 ### PROMPT-6: Final Prompt Audit
 
-Actions:
+Completed.
 
-- audit all prompt text for stale product wording;
-- audit that all current LLM/vision prompt surfaces are intentionally covered;
-- ensure docs/current only describe implemented behavior;
-- remove this temporary note only after owner approval.
+Completed actions:
+
+- audited prompt text and product-facing UI/fixture text for stale news-only
+  wording;
+- audited that current LLM/vision prompt surfaces are intentionally covered;
+- updated current architecture docs to describe the implemented two-step fresh
+  authoring flow;
+- left this temporary note in place pending owner approval for note deletion.
 
 Checks:
 
 ```bash
-rg -n "news short video|video tin tức|style pack|stylePack|block library|PICK mode|legacy" apps docs README.md AI_CONTRACT.md
+rg -n "news short video|video tin tức|style pack|stylePack|block library|PICK mode" apps docs/current README.md AI_CONTRACT.md
 git status --short
 npm.cmd run typecheck
 npm.cmd test
@@ -559,19 +564,11 @@ chore: finish prompt cleanup audit
 
 ## Recommended Next Step
 
-Start with PROMPT-6.
+Ask the owner whether to delete this temporary note.
 
 Reason:
 
-- PROMPT-0 is complete, so later prompt edits have a baseline;
-- PROMPT-1 is complete, so stale "news" wording is no longer blocking the prompt
-  migration;
-- PROMPT-2 is complete, so the content-plan schema, parser, builder, and
-  focused fixtures exist without any live gateway behavior change;
-- PROMPT-3 is complete, so deterministic quality/eval fixtures exist before
-  live two-step authoring;
-- PROMPT-4 is complete, so fresh authoring now calls the model twice and blocks
-  weak plans before TSX authoring;
-- PROMPT-5 is complete, so repair/user-edit/bootstrap/visual-QA wording now has
-  scoped prompts and focused tests;
-- the remaining prompt work is the final audit.
+- all prompt improvement slices in this note are complete;
+- current docs now describe the implemented two-step fresh-authoring flow;
+- focused and broad checks should be re-run before the deletion commit;
+- the note explicitly requires owner approval before cleanup.

@@ -15,7 +15,7 @@ const scenes = [
     headline: "Remotion đổi cách dựng video",
     body: "Mỗi cảnh giờ là một component React thật, không còn khuôn cứng.",
     narration:
-      "Đừng tiếp tục nhốt video tin tức trong vài chục khuôn mẫu cố định, vì khán giả nhận ra sự lặp lại rất nhanh.",
+      "Đừng tiếp tục nhốt video ngắn trong vài chục khuôn mẫu cố định, vì khán giả nhận ra sự lặp lại rất nhanh.",
     props: { callout: "Tự do có kỷ luật" },
   },
   {
@@ -46,7 +46,7 @@ const scenes = [
     body: "Đa dạng thị giác cộng với lưới an toàn kiểu math-tool.",
     narration:
       "Vậy câu hỏi còn lại là bạn sẽ đầu tư vào lớp lưới an toàn nào trước, để mở khóa sự đa dạng mà không mất ổn định?",
-    props: { question: "Bạn sẽ xây lưới an toàn nào trước cho mảng tin tức?" },
+    props: { question: "Bạn sẽ xây lưới an toàn nào trước cho video ngắn?" },
   },
 ] as const;
 

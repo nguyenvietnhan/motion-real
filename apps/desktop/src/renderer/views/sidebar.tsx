@@ -30,7 +30,7 @@ export const Sidebar: React.FC<{
         <img src={logoUrl} alt="Motion Real Logo" style={{ height: "42px", width: "42px", objectFit: "contain" }} />
         <div>
           <div style={{ fontWeight: 700, fontSize: 17, letterSpacing: "-0.01em" }}>Motion Real</div>
-          <div style={{ fontSize: 11, color: "var(--muted-foreground)" }}>Xưởng video tin tức</div>
+          <div style={{ fontSize: 11, color: "var(--muted-foreground)" }}>Xưởng video ngắn</div>
         </div>
       </div>
       <nav>

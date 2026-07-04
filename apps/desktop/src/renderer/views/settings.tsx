@@ -306,7 +306,7 @@ export const SettingsView: React.FC<{
           )}
 
           {tab === "about" && (
-            <SettingsCard title="Giới thiệu" desc="Motion Real dựng video tin tức ngắn 9:16 bằng AI.">
+            <SettingsCard title="Giới thiệu" desc="Motion Real dựng video ngắn 9:16 bằng AI.">
               <InfoRow label="Phiên bản" value="Motion Real 0.1.0" />
               <InfoRow label="Dịch vụ AI" value="9Router · localhost:20128"
                 hint="Đăng nhập tài khoản nhà cung cấp được uỷ quyền cho 9Router. Motion Real không lưu mật khẩu của bạn." />
