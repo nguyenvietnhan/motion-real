@@ -1,8 +1,8 @@
 # Temporary Task - Prompt Improvement Plan
 
-Status: PROMPT-0 baseline, PROMPT-1 stale prompt wording cleanup, and PROMPT-2
-content-plan schema/builder completed; content quality eval fixtures still
-pending.
+Status: PROMPT-0 baseline, PROMPT-1 stale prompt wording cleanup, PROMPT-2
+content-plan schema/builder, and PROMPT-3 content quality eval fixtures
+completed; two-step authoring wire-up still pending owner approval.
 
 This is a temporary working note for improving MotionReal's runtime AI prompts.
 It is not project contract. Current contract remains `AI_CONTRACT.md` plus
@@ -94,6 +94,7 @@ Planning-only prompt contract added in PROMPT-2, not wired to live gateway yet:
   - `parseContentPlan(...)`
   - `buildContentPlanMessages(...)`
   - `contentPlanForAuthoring(...)`
+  - `evaluateContentPlanQuality(...)`
 
 Current flow:
 
@@ -411,15 +412,17 @@ feat: add content plan prompt contract
 
 ### PROMPT-3: Add Content Quality Eval Fixtures
 
-No live gateway behavior yet.
+Completed. No live gateway behavior yet.
 
-Actions:
+Completed actions:
 
-- add deterministic local tests for prompt text and parsed plan examples;
-- test that hook, viewer promise, payoff, claim ledger, and layout diversity are
-  required;
-- test that `action: "omit"` claims are filtered before code-authoring input;
-- do not rely on live model calls in unit tests.
+- added deterministic local tests for prompt text and parsed plan examples;
+- added a local `evaluateContentPlanQuality(...)` helper for fixtures/future
+  wire-up;
+- tested that hook, viewer promise, payoff, claim ledger, and layout diversity
+  are required by schema, prompt text, or local quality evaluation;
+- tested that `action: "omit"` claims are filtered before code-authoring input;
+- did not rely on live model calls in unit tests.
 
 Checks:
 
@@ -541,7 +544,8 @@ chore: finish prompt cleanup audit
 
 ## Recommended Next Step
 
-Start with PROMPT-3.
+Start with PROMPT-4 only after owner approval for the extra API call and failure
+policy.
 
 Reason:
 
@@ -550,8 +554,10 @@ Reason:
   migration;
 - PROMPT-2 is complete, so the content-plan schema, parser, builder, and
   focused fixtures exist without any live gateway behavior change;
-- PROMPT-3 should add deterministic quality/eval fixtures around the content
-  plan contract before any two-step authoring wire-up.
+- PROMPT-3 is complete, so deterministic quality/eval fixtures exist before
+  live two-step authoring;
+- PROMPT-4 is the first behavior change that will call the model twice during
+  fresh authoring.
 
 Do not start PROMPT-4 until the owner approves the extra API-call behavior and
 the no-silent-one-step-fallback policy.

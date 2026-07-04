@@ -107,6 +107,50 @@ export function contentPlanForAuthoring(plan: ContentPlan): ContentPlan {
   };
 }
 
+export type ContentPlanQualityCheck = "hook" | "viewer-promise" | "payoff" | "claim-ledger" | "layout-diversity";
+export type ContentPlanQualityIssue = { check: ContentPlanQualityCheck; message: string; sceneId?: string };
+
+const CONCRETE_FACT_PATTERN = /(?:\d|%|\$|€|£|\bUSD\b|\bVND\b|\bEUR\b|\bGBP\b|triệu|tỷ|million|billion|20\d{2}|19\d{2})/i;
+
+function hasConcreteFact(value: string): boolean {
+  return CONCRETE_FACT_PATTERN.test(value);
+}
+
+/**
+ * Deterministic local quality gate for prompt/eval fixtures. It is not wired into
+ * authoring yet; PROMPT-4 can reuse or tighten it once the content-plan call is
+ * live.
+ */
+export function evaluateContentPlanQuality(plan: ContentPlan): ContentPlanQualityIssue[] {
+  const issues: ContentPlanQualityIssue[] = [];
+  if (plan.scenes[0]?.purpose !== "hook") {
+    issues.push({ check: "hook", sceneId: plan.scenes[0]?.sceneId, message: "scene-01 must be the hook beat" });
+  }
+  if (plan.viewerPromise.trim().length === 0) {
+    issues.push({ check: "viewer-promise", message: "viewerPromise is required" });
+  }
+  if (plan.payoff.trim().length === 0) {
+    issues.push({ check: "payoff", message: "payoff is required" });
+  }
+
+  for (const scene of plan.scenes) {
+    const sceneText = `${scene.beat}\n${scene.narration}\n${scene.onScreenText}`;
+    if (hasConcreteFact(sceneText) && scene.evidenceClaimIds.length === 0) {
+      issues.push({
+        check: "claim-ledger",
+        sceneId: scene.sceneId,
+        message: "number/date/price/source-like claims must reference usable evidenceClaimIds",
+      });
+    }
+  }
+
+  const layoutFamilies = new Set(plan.scenes.map((scene) => scene.layoutFamily));
+  if (plan.scenes.length >= 3 && layoutFamilies.size < 2) {
+    issues.push({ check: "layout-diversity", message: "plans with 3+ scenes need at least 2 layout families" });
+  }
+  return issues;
+}
+
 function extractJsonObject(text: string): string | null {
   const fenced = /```(?:json)?\s*([\s\S]*?)```/i.exec(text);
   const body = fenced ? fenced[1]! : text;
@@ -253,6 +297,13 @@ STORY RUBRIC:
 - On-screen text must be short enough to scan quickly.
 - Avoid scenes that are only "headline + body text" unless purpose is deliberately "statement".
 - Vary layoutFamily across scenes when the story needs contrast.
+
+QUALITY GATE BEFORE FINAL JSON:
+- scene-01 purpose must be "hook", and first3SecondsLine must make the viewer promise or tension concrete.
+- viewerPromise and payoff are mandatory; payoff must answer or resolve the openLoop.
+- For 3+ scenes, use at least 2 distinct layoutFamily values unless the whole video is intentionally one formal statement.
+- Any scene with a number/date/price/source-like factual detail must include evidenceClaimIds pointing only to supported/use claims.
+- action:"omit" claims are safety notes only; never use them in title, narration, on-screen text, payoff, or evidenceClaimIds.
 
 ${POSITIVE_BEAT_EXAMPLES}
 
