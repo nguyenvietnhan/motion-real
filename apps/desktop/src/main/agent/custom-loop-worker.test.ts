@@ -69,7 +69,7 @@ describe("CustomLoopAgentWorker.generateValidateRepair", () => {
         },
         getSafetyReport: async () =>
           renders === 1
-            ? { ok: false, hardErrors: [{ check: "N14", severity: "error", sceneId: "scene-02", message: "x" }], warnings: [] }
+            ? { ok: false, hardErrors: [{ check: "N31", severity: "error", sceneId: "scene-02", message: "runtime fallback" }], warnings: [] }
             : { ok: true, hardErrors: [], warnings: [] },
         reauthor,
       }),
@@ -79,7 +79,7 @@ describe("CustomLoopAgentWorker.generateValidateRepair", () => {
     expect(outcome).toEqual({ kind: "passed", attempts: 2 });
     expect(reauthor).toHaveBeenCalledWith(
       "p1",
-      [{ sceneId: "scene-02", issues: [{ check: "N14", severity: "error", sceneId: "scene-02", message: "x" }] }],
+      [{ sceneId: "scene-02", issues: [{ check: "N31", severity: "error", sceneId: "scene-02", message: "runtime fallback" }] }],
       undefined, // no cancel signal threaded in this direct-worker test
     );
   });

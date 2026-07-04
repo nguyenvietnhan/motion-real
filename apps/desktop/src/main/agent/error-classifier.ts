@@ -3,7 +3,7 @@ import type { SafetyIssue, SerializedPipelineError, PipelineStage } from "@motio
 /**
  * Error classification (desktop-author-mode, Req 4). Splits a failure into:
  *   - "content": a defect IN the AI-authored scene code (admission N4/N5,
- *     oracle N14/N17/N18…, authored layout) → the agent can self-repair it.
+ *     oracle N14/N17/N18..., N31 runtime probe) → the agent can self-repair it.
  *   - "infra": an environment/runtime failure (missing voice config, gateway/
  *     network, Chromium "target closed") → the agent CANNOT fix it; surface to
  *     the user instead of wasting reauthor attempts.
@@ -28,6 +28,7 @@ export const CONTENT_CHECKS: ReadonlySet<string> = new Set([
   "N21", // transition / flicker
   "N22", // audio-sync
   "N30", // content density
+  "N31", // authored scene runtime crash/fallback probe
 ]);
 
 /** Pipeline stages whose failures are authored-content defects. */

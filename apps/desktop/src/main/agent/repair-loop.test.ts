@@ -177,6 +177,7 @@ describe("Property 4: repair budget and routing", () => {
   // Feature: desktop-author-mode, Property 4: repair budget and routing
   const infraIssue = (sceneId?: string): SafetyIssue => ({ check: "N13", severity: "error", message: "infra", ...(sceneId ? { sceneId } : {}) });
   const contentIssue = (sceneId: string): SafetyIssue => ({ check: "N14", severity: "error", sceneId, message: "content" });
+  const n31Issue = (sceneId: string): SafetyIssue => ({ check: "N31", severity: "error", sceneId, message: "runtime fallback" });
 
   it("an infra hard error stops with kind 'infra' and never calls reauthor", async () => {
     let reauthored = 0;
@@ -214,6 +215,28 @@ describe("Property 4: repair budget and routing", () => {
     expect(outcome).toEqual({ kind: "passed", attempts: 2 });
     expect(received!.map((t) => t.sceneId).sort()).toEqual(["scene-01", "scene-03"]);
     expect(received!.every((t) => (t.issues ?? []).length > 0)).toBe(true);
+  });
+
+  it("N31 runtime fallback issues are targetable content defects", async () => {
+    let renders = 0;
+    let received: { sceneId: string; issues?: SafetyIssue[] }[] | null = null;
+    const deps: RepairLoopDeps = {
+      renderDraft: async () => {
+        renders++;
+        return { ok: true };
+      },
+      getSafetyReport: async () =>
+        renders === 1
+          ? { ok: false, hardErrors: [n31Issue("scene-04")], warnings: [] }
+          : { ok: true, hardErrors: [], warnings: [] },
+      reauthor: async (targets) => {
+        received = targets;
+      },
+      hooks: noopHooks,
+    };
+    const outcome = await generateValidateRepair(deps, { maxAttempts: 3 });
+    expect(outcome).toEqual({ kind: "passed", attempts: 2 });
+    expect(received).toEqual([{ sceneId: "scene-04", issues: [n31Issue("scene-04")] }]);
   });
 
   it("content errors with no scene to target ⇒ exhausted without looping forever", async () => {
@@ -275,18 +298,17 @@ describe("Property 4: repair budget and routing", () => {
     // re-rendering the identical broken code (the "retry does nothing" bug).
     let renders = 0;
     let reauthored: string[] | null = null;
-    const n10 = (sceneId: string): SafetyIssue => ({ check: "N10", severity: "error", sceneId, message: "wrong prop shape" });
     const deps: RepairLoopDeps = {
       renderDraft: async () => {
         renders++;
         // First attempt: a content-class crash (React #31). After the reauthor, it renders.
         return renders === 1
-          ? { ok: false, error: { message: "", stage: "render", cause: "Minified React error #31", severity: "error" } }
+          ? { ok: false, error: { message: "", stage: "render", cause: "authored scene runtime probe failed", check: "N31", severity: "error" } }
           : { ok: true };
       },
       getSafetyReport: async () =>
         renders === 1
-          ? { ok: false, hardErrors: [n10("scene-05")], warnings: [] }
+          ? { ok: false, hardErrors: [n31Issue("scene-05")], warnings: [] }
           : { ok: true, hardErrors: [], warnings: [] },
       reauthor: async (targets) => {
         reauthored = targets.map((t) => t.sceneId);

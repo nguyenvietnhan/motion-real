@@ -6,7 +6,7 @@ import type { FriendlyError, FriendlyFix } from "../../shared/types.js";
  * Handling). This is the ONLY place engine failures become user-facing, and the
  * ONLY error/fix shape allowed to cross IPC. Messages are built from a fixed
  * Vietnamese plain-language catalog keyed by stage/issue — engine text is NEVER
- * echoed — and the result is additionally swept for L0 tokens (N1–N30 codes,
+ * echoed — and the result is additionally swept for L0 tokens (N1–N31 codes,
  * `.tsx`, MCP, JSON braces, stack frames) so none can leak (Property 6,
  * Req 6.8/11.5/11.6/12.2).
  */
@@ -22,7 +22,7 @@ export function stripL0Tokens(text: string): string {
   const strip = (s: string): string =>
     s
       .replace(/[{}[\]]/g, " ") // manifest JSON braces → space (no gluing)
-      .replace(/\bN(?:[1-9]|[12]\d|30)\b/g, " ") // N1..N30 grid codes
+      .replace(/\bN(?:[1-9]|[12]\d|3[01])\b/g, " ") // N1..N31 grid codes
       .replace(/[\w./\\-]*\.tsx\b/gi, " ") // authored .tsx source files (incl. a bare ".tsx")
       .replace(/\bMCP\b/gi, " ") // MCP references
       .replace(/\bat\s+[^\n]+:\d+:\d+/g, " "); // stack frames "at fn (file:line:col)"
@@ -106,6 +106,7 @@ const CHECK_FIX_PHRASE: Record<string, string> = {
   N20: "có nhịp chưa hợp lý nên đã được điều chỉnh",
   N21: "có chuyển cảnh giật nên đã được làm mượt",
   N30: "hơi nhiều chi tiết nên đã được giãn bớt",
+  N31: "bị lỗi khi dựng nên đã được viết lại",
 };
 
 /** Translate a safety issue into a plain-language auto-fix description. */

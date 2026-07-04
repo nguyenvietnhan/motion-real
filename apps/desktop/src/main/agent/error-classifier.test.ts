@@ -7,7 +7,7 @@ import { classifyError, classifyIssue, CONTENT_CHECKS } from "./error-classifier
  * Property + self-tests for the error classifier (desktop-author-mode, Req 4).
  */
 
-const ALL_CHECKS = ["N1", "N3", "N4", "N5", "N9", "N10", "N12", "N14", "N16", "N17", "N18", "N19", "N20", "N21", "N22", "N24", "N25", "N28", "N30"];
+const ALL_CHECKS = ["N1", "N3", "N4", "N5", "N9", "N10", "N12", "N14", "N16", "N17", "N18", "N19", "N20", "N21", "N22", "N24", "N25", "N28", "N30", "N31"];
 const ALL_STAGES: PipelineStage[] = ["ingest", "admission", "static-grid", "build-gate", "determinism", "render", "render-oracle", "review", "tts", "config"];
 const severityArb = fc.constantFrom<Severity>("error", "warning");
 
@@ -69,6 +69,9 @@ describe("Property 3: error classification total & stable", () => {
   it("self-test: N14 issue → content", () => {
     expect(classifyIssue({ check: "N14", severity: "error", message: "overflow" })).toBe("content");
   });
+  it("self-test: N31 scene runtime issue → content", () => {
+    expect(classifyIssue({ check: "N31", severity: "error", sceneId: "scene-03", message: "runtime fallback" })).toBe("content");
+  });
   it("self-test: Chromium target-closed → infra", () => {
     expect(classifyError({ message: "", stage: "render", cause: "Page.bringToFront: Target closed", severity: "error" })).toBe("infra");
   });
@@ -102,6 +105,11 @@ describe("Property 3: error classification total & stable", () => {
   it("self-test: N10 typecheck failure tagged build-gate → content", () => {
     expect(
       classifyError({ message: "", stage: "build-gate", cause: "authored scene typecheck reported 1 error(s)", check: "N10", severity: "error" }),
+    ).toBe("content");
+  });
+  it("self-test: N31 tagged render failure → content", () => {
+    expect(
+      classifyError({ message: "", stage: "render", cause: "authored scene runtime probe failed", check: "N31", sceneId: "scene-03", severity: "error" }),
     ).toBe("content");
   });
 });
