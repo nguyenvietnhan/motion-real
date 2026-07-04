@@ -2,8 +2,8 @@
 
 Status: CLEANUP-0 baseline, CLEANUP-1 stale S0 baseline deletion, CLEANUP-2
 authored composition surface sealing, and CLEANUP-3 authored-theme fixture
-removal, and CLEANUP-4 prompt shape baseline cleanup completed; CLEANUP-5
-pending.
+removal, CLEANUP-4 prompt shape baseline cleanup, and CLEANUP-5 legacy language
+payload retirement completed; CLEANUP-6 pending.
 
 This is a temporary working note for pruning stale tests, stale authored-facing
 surfaces, and compatibility paths that no longer serve MotionReal's current
@@ -94,9 +94,9 @@ Verified facts:
   CLEANUP-2; local absence is not proof that every owner/user project is safe.
 - Before CLEANUP-4, `apps/desktop/src/main/authoring/prompt.test.ts`
   snapshotted exact prompt text character counts.
-- Legacy `titleLanguage` / `mix` support is still present in schema, desktop
-  shared types, IPC payload conversion, create controller normalization, manifest
-  conversion, and tests.
+- Before CLEANUP-5, legacy `titleLanguage` / `mix` support was still present in
+  schema, desktop shared types, IPC payload conversion, create controller
+  normalization, manifest conversion, and tests.
 - `scripts/new-video.ts` plus `scripts/templates/video-template.txt` are tested
   by `tests/script-template.test.ts`, but this helper is not referenced by
   README, `docs/current`, or package scripts.
@@ -425,7 +425,7 @@ test: remove brittle prompt length snapshots
 
 ### CLEANUP-5: Retire Legacy `titleLanguage` / `mix`
 
-Status: pending.
+Status: completed on 2026-07-04.
 
 Purpose: remove stale create/manifest compatibility after the UI and contract
 have settled on `videoLanguage`.
@@ -444,14 +444,16 @@ Touch:
 
 Actions:
 
-- remove `LegacyTitleLanguageSchema`, `LegacyTitleLanguage`, and legacy
+- confirmed local `.video-tool` had no saved project source/metadata using
+  `titleLanguage` or legacy `mix`;
+- removed `LegacyTitleLanguageSchema`, `LegacyTitleLanguage`, and legacy
   normalization that accepts `mix`;
-- remove `titleLanguage` from desktop shared create payload types;
-- remove IPC forwarding of legacy `titleLanguage`;
-- remove create-controller `titleLanguage` choice handling;
-- remove manifest `titleLanguage` input support;
-- remove tests that assert `mix` maps to Vietnamese;
-- keep tests proving current `videoLanguage` defaults and English/Vivibe
+- removed `titleLanguage` from desktop shared create payload types;
+- removed IPC forwarding of legacy `titleLanguage`;
+- removed create-controller `titleLanguage` choice handling;
+- removed manifest `titleLanguage` input support;
+- removed tests that assert `mix` maps to Vietnamese;
+- kept tests proving current `videoLanguage` defaults and English/Vivibe
   blocking still work.
 
 Checks:
@@ -466,6 +468,21 @@ npm.cmd run typecheck
 npm.cmd test
 npm.cmd run build
 ```
+
+Result:
+
+- local `.video-tool` scan had no legacy `titleLanguage`/language `mix` hits;
+- source/test audit had no remaining `titleLanguage`, `LegacyTitleLanguage`,
+  `normalizeVideoLanguage`, `normalizeCreateVideoLanguage`, or language `mix`
+  references in the affected code paths;
+- focused create IPC test passed with 5 tests;
+- focused create-flow test passed with 13 tests;
+- focused manifest test passed with 16 tests;
+- home language test passed with 3 tests;
+- schema test passed with 17 tests;
+- `npm.cmd run typecheck` passed;
+- `npm.cmd test` passed with 92 test files and 895 tests;
+- `npm.cmd run build` passed.
 
 Stop point:
 

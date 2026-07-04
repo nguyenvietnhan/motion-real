@@ -96,13 +96,6 @@ describe("CreateController.create", () => {
     expect(began[0]!.input.videoLanguage).toBe("vi");
   });
 
-  it("maps the retired legacy mix value to Vietnamese", async () => {
-    const { deps: d, began } = deps();
-    const ctrl = new CreateController(d);
-    await ctrl.create("chủ đề", [], { titleLanguage: "mix" });
-    expect(began[0]!.input.videoLanguage).toBe("vi");
-  });
-
   it("blocks Vivibe + English before scaffold", async () => {
     const { deps: d, scaffold, began } = deps();
     const ctrl = new CreateController(d);

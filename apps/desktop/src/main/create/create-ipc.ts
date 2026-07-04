@@ -1,6 +1,5 @@
 import type {
   DurationTierChoice,
-  LegacyTitleLanguageChoice,
   StagedImageRef,
   VideoFormatChoice,
   VideoLanguageChoice,
@@ -11,8 +10,6 @@ export type CreateControllerChoices = {
   format?: VideoFormatChoice;
   durationTier?: DurationTierChoice;
   videoLanguage?: VideoLanguageChoice;
-  /** @deprecated Accepted for stale renderer/preload payloads. */
-  titleLanguage?: LegacyTitleLanguageChoice;
   voiceProvider?: VoiceProviderChoice;
 };
 
@@ -27,8 +24,6 @@ type RawCreatePayload = {
   format?: VideoFormatChoice;
   durationTier?: DurationTierChoice;
   videoLanguage?: VideoLanguageChoice;
-  /** Legacy stale-renderer payload. */
-  titleLanguage?: LegacyTitleLanguageChoice;
   voiceProvider?: unknown;
   images?: StagedImageRef[];
 };
@@ -47,7 +42,6 @@ export function createControllerArgsFromIpc(input: unknown): CreateControllerArg
       ...(payload.format ? { format: payload.format } : {}),
       ...(payload.durationTier ? { durationTier: payload.durationTier } : {}),
       ...(payload.videoLanguage ? { videoLanguage: payload.videoLanguage } : {}),
-      ...(!payload.videoLanguage && payload.titleLanguage ? { titleLanguage: payload.titleLanguage } : {}),
       ...(payload.voiceProvider ? { voiceProvider: parseVoiceProvider(payload.voiceProvider) } : {}),
     },
   };

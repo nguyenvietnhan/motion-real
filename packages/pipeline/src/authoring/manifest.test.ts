@@ -119,8 +119,8 @@ describe("manifestToVideoSpec + clampTheme (AI-output → spec bridge)", () => {
     expect(spec.language).toBe("en");
   });
 
-  it("normalizes the retired legacy mix title language to Vietnamese", () => {
-    const spec = manifestToVideoSpec({ ...oneScene(), titleLanguage: "mix" });
+  it("defaults missing video language to Vietnamese", () => {
+    const spec = manifestToVideoSpec(oneScene());
     expect(spec.videoLanguage).toBe("vi");
     expect(spec.language).toBe("vi");
   });

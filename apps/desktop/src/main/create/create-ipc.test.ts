@@ -43,16 +43,6 @@ describe("createControllerArgsFromIpc", () => {
     });
   });
 
-  it("passes legacy titleLanguage only when videoLanguage is absent", () => {
-    expect(createControllerArgsFromIpc({ raw: "legacy", titleLanguage: "mix" }).choices).toEqual({
-      titleLanguage: "mix",
-    });
-
-    expect(createControllerArgsFromIpc({ raw: "modern", videoLanguage: "en", titleLanguage: "mix" }).choices).toEqual({
-      videoLanguage: "en",
-    });
-  });
-
   it("throws through invalid non-empty voice providers during payload conversion", () => {
     expect(() => createControllerArgsFromIpc({ raw: "chủ đề", voiceProvider: "bad-provider" })).toThrow(
       "Nhà cung cấp giọng đọc không hợp lệ.",

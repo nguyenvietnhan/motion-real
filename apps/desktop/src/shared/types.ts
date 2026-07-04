@@ -85,8 +85,6 @@ export type VideoFormatChoice = "tiktok" | "youtube";
 export type DurationTierChoice = 1 | 2 | 3;
 /** Authored video language the user picks: content, narration, captions, title, hashtags. */
 export type VideoLanguageChoice = "vi" | "en";
-/** Legacy create payload value; `mix` normalizes to Vietnamese. */
-export type LegacyTitleLanguageChoice = VideoLanguageChoice | "mix";
 
 export type CreateInput = {
   raw: string;
@@ -98,8 +96,6 @@ export type CreateInput = {
   durationTier?: DurationTierChoice;
   /** Authored video language (default vi). */
   videoLanguage?: VideoLanguageChoice;
-  /** @deprecated Legacy create payload; prefer videoLanguage. */
-  titleLanguage?: LegacyTitleLanguageChoice;
   images?: StagedImageRef[];
 };
 

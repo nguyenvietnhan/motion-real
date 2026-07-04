@@ -183,14 +183,6 @@ export function tierSeconds(format: VideoFormat, tier: DurationTier): number {
 export const VideoLanguageSchema = z.enum(["vi", "en"]);
 export type VideoLanguage = z.infer<typeof VideoLanguageSchema>;
 
-/** Legacy create/manifest value kept only to read older projects safely. */
-export const LegacyTitleLanguageSchema = z.enum(["vi", "en", "mix"]);
-export type LegacyTitleLanguage = z.infer<typeof LegacyTitleLanguageSchema>;
-
-export function normalizeVideoLanguage(value: VideoLanguage | LegacyTitleLanguage | undefined): VideoLanguage {
-  return value === "en" ? "en" : "vi";
-}
-
 /** Max publish-title length per format (R9.1): TikTok is tweet-short + hashtag, YouTube longer. */
 export function titleMaxChars(format: VideoFormat): number {
   return format === "tiktok" ? 100 : 200;

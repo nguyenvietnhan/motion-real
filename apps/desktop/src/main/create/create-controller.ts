@@ -11,7 +11,6 @@ import type {
   StagedImageRef,
   VideoFormatChoice,
   DurationTierChoice,
-  LegacyTitleLanguageChoice,
   VideoLanguageChoice,
   VoiceProviderChoice,
 } from "../../shared/types.js";
@@ -79,14 +78,6 @@ export interface CreateDeps {
   preflight?: (voiceProvider: VoiceProviderChoice, videoLanguage: VideoLanguageChoice) => string | undefined;
 }
 
-/** Normalize stale create payloads; the retired `mix` choice becomes Vietnamese. */
-export function normalizeCreateVideoLanguage(
-  videoLanguage?: VideoLanguageChoice,
-  legacyTitleLanguage?: LegacyTitleLanguageChoice,
-): VideoLanguageChoice {
-  return (videoLanguage ?? legacyTitleLanguage) === "en" ? "en" : "vi";
-}
-
 export class CreateController {
   constructor(private readonly deps: CreateDeps) {}
 
@@ -97,8 +88,6 @@ export class CreateController {
       format?: VideoFormatChoice;
       durationTier?: DurationTierChoice;
       videoLanguage?: VideoLanguageChoice;
-      /** @deprecated Accepted for stale renderer/preload payloads. */
-      titleLanguage?: LegacyTitleLanguageChoice;
       voiceProvider?: VoiceProviderChoice;
     } = {},
   ): Promise<{ projectId: string }> {
@@ -108,7 +97,7 @@ export class CreateController {
     // user isn't told "ready" only to have the whole AI pass burn and then fail at
     // TTS. A clean (no-message) preflight — or no preflight dep — proceeds.
     const voiceProvider = choices.voiceProvider ?? "vivibe";
-    const videoLanguage = normalizeCreateVideoLanguage(choices.videoLanguage, choices.titleLanguage);
+    const videoLanguage = choices.videoLanguage ?? "vi";
     if (voiceProvider === "vivibe" && videoLanguage === "en") {
       throw new Error("Vivibe chỉ hỗ trợ tiếng Việt. Hãy chọn ElevenLabs để tạo video tiếng Anh.");
     }

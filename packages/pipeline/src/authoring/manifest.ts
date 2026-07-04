@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import { mkdir, readdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { VideoSpecSchema, normalizeVideoLanguage, type DurationTier, type LegacyTitleLanguage, type SceneImage, type VideoFormat, type VideoLanguage, type VideoSpec } from "@motionreal/schema";
+import { VideoSpecSchema, type DurationTier, type SceneImage, type VideoFormat, type VideoLanguage, type VideoSpec } from "@motionreal/schema";
 import type { SafetyIssue } from "../types.js";
 import { ensureProject, projectPaths, readJson, writeJson } from "../store/store.js";
 import { admitAuthoredSceneFile } from "./register.js";
@@ -68,8 +68,6 @@ export type Manifest = {
   bgm?: string;
   /** Authored video language: title, hashtags, on-screen text, narration, captions. Absent ⇒ "vi". */
   videoLanguage?: VideoLanguage;
-  /** @deprecated Legacy field from the old title-only picker; `mix` normalizes to "vi". */
-  titleLanguage?: LegacyTitleLanguage;
   theme?: { dominant: string; mood?: string };
   scenes: ManifestScene[];
 };
@@ -102,7 +100,7 @@ export function manifestToVideoSpec(manifest: Manifest): VideoSpec {
   // user's UI choice; absent ⇒ the historical vertical default so an older
   // manifest still resolves. `ratio` is derived from format for readability.
   const format: VideoFormat = manifest.format ?? "tiktok";
-  const videoLanguage = manifest.videoLanguage ?? normalizeVideoLanguage(manifest.titleLanguage);
+  const videoLanguage = manifest.videoLanguage ?? "vi";
   const candidate = {
     version: 1,
     title: (manifest.title?.trim() || "Untitled").slice(0, 140),
