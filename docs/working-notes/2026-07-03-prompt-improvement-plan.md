@@ -1,9 +1,9 @@
 # Temporary Task - Prompt Improvement Plan
 
 Status: PROMPT-0 baseline, PROMPT-1 stale prompt wording cleanup, PROMPT-2
-content-plan schema/builder, PROMPT-3 content quality eval fixtures, and
-PROMPT-4 two-step authoring wire-up completed; repair/user-edit prompt cleanup
-still pending.
+content-plan schema/builder, PROMPT-3 content quality eval fixtures,
+PROMPT-4 two-step authoring wire-up, and PROMPT-5 repair/user-edit prompt
+cleanup completed; final prompt audit still pending.
 
 This is a temporary working note for improving MotionReal's runtime AI prompts.
 It is not project contract. Current contract remains `AI_CONTRACT.md` plus
@@ -487,18 +487,18 @@ feat: plan content before authoring scenes
 
 ### PROMPT-5: Tighten Reauthor, User Edit, Bootstrap, And Visual QA Prompts
 
-Behavior-bearing prompt text cleanup.
+Completed. Behavior-bearing prompt text cleanup.
 
-Actions:
+Completed actions:
 
-- add a small preserve-patch-verify repair rubric;
-- keep repair local and scene-id stable;
-- review `combineIntent(...)` so video-wide and per-scene user edits are framed
-  clearly without weakening scene scope;
-- review `CREATIVE_BOOTSTRAP_INTENT` so "bold" maps to concrete story/visual
-  improvement rather than vague aesthetic pressure;
-- keep visual QA limited to clear layout defects;
-- avoid turning taste/aesthetic preferences into hard defects.
+- added a preserve-patch-verify repair rubric to reauthor prompts;
+- kept repair local and scene-id/component-id stable;
+- clarified `combineIntent(...)` so video-wide and per-scene user edits are
+  framed with explicit priority/scope;
+- revised `CREATIVE_BOOTSTRAP_INTENT` so "bold" maps to concrete story/visual
+  improvements rather than vague aesthetic pressure;
+- kept visual QA limited to clear layout defects;
+- guarded against turning taste/aesthetic preferences into hard defects.
 
 Checks:
 
@@ -559,7 +559,7 @@ chore: finish prompt cleanup audit
 
 ## Recommended Next Step
 
-Start with PROMPT-5.
+Start with PROMPT-6.
 
 Reason:
 
@@ -572,4 +572,6 @@ Reason:
   live two-step authoring;
 - PROMPT-4 is complete, so fresh authoring now calls the model twice and blocks
   weak plans before TSX authoring;
-- the remaining prompt work is repair/user-edit/bootstrap/visual-QA wording.
+- PROMPT-5 is complete, so repair/user-edit/bootstrap/visual-QA wording now has
+  scoped prompts and focused tests;
+- the remaining prompt work is the final audit.

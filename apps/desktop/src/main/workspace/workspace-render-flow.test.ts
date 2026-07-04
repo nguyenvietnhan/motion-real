@@ -17,15 +17,21 @@ describe("workspace render-flow helpers", () => {
       creativeBootstrapChars: CREATIVE_BOOTSTRAP_INTENT.length,
       visionRepairChars: visionRepairIntent("chữ đè lên nhau").length,
     }).toEqual({
-      creativeBootstrapChars: 795,
-      visionRepairChars: 244,
+      creativeBootstrapChars: 1032,
+      visionRepairChars: 571,
     });
   });
 
   it("keeps the creative bootstrap intent guard phrases", () => {
+    expect(CREATIVE_BOOTSTRAP_INTENT).toMatch(/3 việc cụ thể/);
+    expect(CREATIVE_BOOTSTRAP_INTENT).toMatch(/visual anchor riêng/);
+    expect(CREATIVE_BOOTSTRAP_INTENT).toMatch(/không chỉ làm đẹp mơ hồ/);
     expect(CREATIVE_BOOTSTRAP_INTENT).toMatch(/ĐANG DIỄN TIẾN qua phần lớn thời lượng/);
+    expect(CREATIVE_BOOTSTRAP_INTENT).toMatch(/không bịa thêm số liệu/);
+    expect(CREATIVE_BOOTSTRAP_INTENT).toMatch(/không đổi scene id\/component id/);
     expect(CREATIVE_BOOTSTRAP_INTENT).toMatch(/khuyến khích sáng tạo, KHÔNG bắt buộc/);
     expect(CREATIVE_BOOTSTRAP_INTENT).toMatch(/cảnh tĩnh có chủ đích vẫn hợp lệ/);
+    expect(CREATIVE_BOOTSTRAP_INTENT).toMatch(/KHÔNG được biến cảnh thành title-card/);
     expect(CREATIVE_BOOTSTRAP_INTENT).toMatch(/interpolate có clamp hoặc spring/);
     expect(CREATIVE_BOOTSTRAP_INTENT).toMatch(/KHÔNG dùng Math\.sin\(frame\)/);
     expect(CREATIVE_BOOTSTRAP_INTENT).not.toMatch(/ANIMATION PHẢI|NHIỀU PHA|chuyển động LIÊN TỤC|mạch đập|nhịp thở chậm/);
@@ -47,9 +53,12 @@ describe("workspace render-flow helpers", () => {
     const intent = visionRepairIntent("chữ đè lên nhau");
 
     expect(intent).toContain("Nhìn ảnh đã dựng và SỬA đúng lỗi bố cục: chữ đè lên nhau");
+    expect(intent).toMatch(/BẢO TOÀN/);
+    expect(intent).toMatch(/VÁ ĐÚNG LỖI/);
+    expect(intent).toMatch(/TỰ KIỂM/);
     expect(intent).toMatch(/Sửa tối thiểu/);
-    expect(intent).toMatch(/giữ lại\/khôi phục nền/);
     expect(intent).toMatch(/visual anchor/);
+    expect(intent).toMatch(/không mở rộng sang gu\/thẩm mỹ/);
     expect(intent).toMatch(/KHÔNG được biến cảnh thành title-card/);
   });
 

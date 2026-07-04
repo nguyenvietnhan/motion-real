@@ -772,7 +772,7 @@ describe("submitEdits (per-scene free-form edit)", () => {
     const job = (reauthorScenes.mock.calls[0] as unknown[])[0] as { projectId: string; sceneIds: string[]; preprompt: { perSceneIntent: Record<string, string> } };
     expect(job.projectId).toBe("p1");
     expect(job.sceneIds).toEqual(["scene-01"]);
-    expect(job.preprompt.perSceneIntent).toEqual({ "scene-01": "to chữ tiêu đề lên" });
+    expect(job.preprompt.perSceneIntent).toEqual({ "scene-01": "Yêu cầu riêng cho cảnh này (ưu tiên): to chữ tiêu đề lên" });
     expect((await ctrl.stage("p1")).kind).toBe("ready");
   });
 

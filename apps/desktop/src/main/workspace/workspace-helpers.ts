@@ -21,8 +21,14 @@ export function stageToFriendlyStatus(kind: ProjectStage["kind"]): FriendlyStatu
  */
 export function combineIntent(perScene: string, globalNotes: string): string {
   const parts: string[] = [];
-  if (perScene.trim()) parts.push(perScene.trim());
-  if (globalNotes.trim()) parts.push(`Ghi chú chung cho cả video: ${globalNotes.trim()}`);
+  const scene = perScene.trim();
+  const global = globalNotes.trim();
+  if (scene) parts.push(`Yêu cầu riêng cho cảnh này (ưu tiên): ${scene}`);
+  if (global) {
+    parts.push(scene
+      ? `Ghi chú chung cho cả video (áp dụng khi phù hợp, không ghi đè yêu cầu riêng): ${global}`
+      : `Ghi chú chung cho cả video (áp dụng cho cảnh này): ${global}`);
+  }
   return parts.join("\n\n");
 }
 

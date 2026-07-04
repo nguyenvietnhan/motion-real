@@ -58,15 +58,15 @@ describe("prompt surface baseline", () => {
         { role: "user", kind: "parts", chars: 163, textParts: 2, imageParts: 1 },
       ],
       reauthorTextOnly: [
-        { role: "system", kind: "text", chars: 10574, textParts: 0, imageParts: 0 },
+        { role: "system", kind: "text", chars: 10887, textParts: 0, imageParts: 0 },
         { role: "user", kind: "text", chars: 201, textParts: 0, imageParts: 0 },
       ],
       reauthorWithStill: [
-        { role: "system", kind: "text", chars: 10574, textParts: 0, imageParts: 0 },
+        { role: "system", kind: "text", chars: 10887, textParts: 0, imageParts: 0 },
         { role: "user", kind: "parts", chars: 275, textParts: 1, imageParts: 1 },
       ],
       visualQa: [
-        { role: "system", kind: "text", chars: 921, textParts: 0, imageParts: 0 },
+        { role: "system", kind: "text", chars: 1161, textParts: 0, imageParts: 0 },
         { role: "user", kind: "parts", chars: 140, textParts: 4, imageParts: 2 },
       ],
       imageFilter: [
@@ -389,8 +389,12 @@ describe("buildReauthorMessages", () => {
     const msgs = buildReauthorMessages({ ...base, issues: [{ check: "N17", severity: "error", message: "bị cắt chữ" }] });
     expect(msgs[0]!.content as string).toMatch(/CÚ PHÁP TSX BẮT BUỘC/);
     expect(msgs[0]!.content as string).toMatch(/sửa cục bộ/);
+    expect(msgs[0]!.content as string).toMatch(/BẢO TOÀN/);
+    expect(msgs[0]!.content as string).toMatch(/VÁ ĐÚNG LỖI/);
+    expect(msgs[0]!.content as string).toMatch(/TỰ KIỂM/);
     expect(msgs[0]!.content as string).toMatch(/KHÔNG được thay cảnh bằng title-card/);
-    expect(msgs[0]!.content as string).toMatch(/biến\/hàm thiếu gây fallback/);
+    expect(msgs[0]!.content as string).toMatch(/khai báo biến thiếu/);
+    expect(msgs[0]!.content as string).toMatch(/KHÔNG coi sở thích màu\/gu\/thẩm mỹ là lỗi cứng/);
     const user = msgs[1]!;
     expect(typeof user.content).toBe("string");
     const text = user.content as string;
@@ -455,5 +459,18 @@ describe("buildImageFilterMessages", () => {
     expect(text).toContain("Tóm tắt nội dung nguồn");
     expect(text).toContain("assets/aaa.png");
     expect(text).toContain("assets/bbb.jpg");
+  });
+});
+
+describe("buildVisualQaMessages", () => {
+  it("keeps visual QA scoped to objective layout defects, not taste", () => {
+    const [system] = buildVisualQaMessages([{ sceneId: "scene-01", stillDataUrl: "data:image/png;base64,AAA" }]);
+    const text = system!.content as string;
+    expect(text).toMatch(/LỖI BỐ CỤC RÕ RÀNG/);
+    expect(text).toMatch(/KHÔNG biến nhận xét gu/);
+    expect(text).toMatch(/Chỉ báo khi có lỗi bố cục khách quan/);
+    expect(text).toMatch(/low sẽ không tự kích hoạt sửa/);
+    expect(text).toMatch(/"thiếu cao cấp" thành defect/);
+    expect(text).toMatch(/severity = "high" chỉ khi lỗi rõ ràng cần sửa/);
   });
 });

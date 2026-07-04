@@ -5,7 +5,7 @@ describe("workspace helpers", () => {
   it("baseline: records current combined edit-intent prompt shape", () => {
     const combined = combineIntent("to chu tieu de", "tong mau am");
 
-    expect(combined).toHaveLength(55);
+    expect(combined).toHaveLength(143);
     expect(combined.split("\n\n")).toHaveLength(2);
   });
 
@@ -22,10 +22,10 @@ describe("workspace helpers", () => {
 
   it("combines per-scene and global edit intent without losing either part", () => {
     expect(combineIntent("to chu tieu de", "tong mau am")).toBe(
-      "to chu tieu de\n\nGhi chú chung cho cả video: tong mau am",
+      "Yêu cầu riêng cho cảnh này (ưu tiên): to chu tieu de\n\nGhi chú chung cho cả video (áp dụng khi phù hợp, không ghi đè yêu cầu riêng): tong mau am",
     );
-    expect(combineIntent("   ", "tong mau am")).toBe("Ghi chú chung cho cả video: tong mau am");
-    expect(combineIntent("to chu tieu de", "   ")).toBe("to chu tieu de");
+    expect(combineIntent("   ", "tong mau am")).toBe("Ghi chú chung cho cả video (áp dụng cho cảnh này): tong mau am");
+    expect(combineIntent("to chu tieu de", "   ")).toBe("Yêu cầu riêng cho cảnh này (ưu tiên): to chu tieu de");
     expect(combineIntent("   ", "   ")).toBe("");
   });
 

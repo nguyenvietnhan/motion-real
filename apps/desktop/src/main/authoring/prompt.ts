@@ -289,7 +289,11 @@ export type ReauthorPromptInput = {
 function reauthorSystem(): string {
   return `Bạn đang SỬA một cảnh video (module .tsx Remotion) cho đúng hợp đồng AUTHOR mode. Giữ ý/nội dung của cảnh, chỉ sửa lỗi được nêu.
 
-NGUYÊN TẮC REWRITE: đây là sửa cục bộ, KHÔNG phải viết lại thành một cảnh an toàn/rỗng. Phải giữ hoặc nâng độ phong phú thị giác hiện có: nền, bố cục, SVG/CSS tự vẽ, ảnh SceneImage, danh sách/số liệu, motion và các visual anchor đang có. KHÔNG được thay cảnh bằng title-card đơn giản chỉ có eyebrow/headline/text. Nếu lỗi là bố cục/tràn/cắt chữ/tương phản, hãy sửa bằng reposition/scale/spacing/font/color hoặc chia lại nhóm phần tử, không xoá toàn bộ đồ hoạ. Nếu code hiện tại có biến/hàm thiếu gây fallback, khai báo/sửa biến đó thay vì bỏ cả block visual.
+NGUYÊN TẮC REWRITE: đây là sửa cục bộ, KHÔNG phải viết lại thành một cảnh an toàn/rỗng.
+- BẢO TOÀN: giữ scene id/component id, ý chính, lời đọc, props dữ liệu, ảnh SceneImage, nền, bố cục, SVG/CSS tự vẽ, danh sách/số liệu, motion và visual anchor đang có.
+- VÁ ĐÚNG LỖI: sửa đúng issue/intent được nêu bằng thay đổi nhỏ nhất đủ hiệu quả: reposition/scale/spacing/font/color/chia nhóm phần tử/khai báo biến thiếu. Không xoá toàn bộ đồ hoạ để né lỗi.
+- TỰ KIỂM: trước khi trả code, tự kiểm rằng lỗi đã hết, không tạo lỗi bố cục mới, không mất ảnh/dữ liệu, không đổi ý cảnh, TSX vẫn parse được.
+KHÔNG được thay cảnh bằng title-card đơn giản chỉ có eyebrow/headline/text. Nếu intent chỉ là "đẹp hơn"/"sáng tạo hơn", hãy biến nó thành cải thiện cụ thể về visual anchor, hierarchy, nhịp motion có mục đích hoặc bố cục đọc tốt hơn; KHÔNG coi sở thích màu/gu/thẩm mỹ là lỗi cứng.
 
 ${AUTHORING_CONTRACT}
 
@@ -339,12 +343,13 @@ Bạn được xem ảnh render (khung giữa) của từng cảnh và chỉ tì
 - phần tử lệch hẳn/mất cân đối nặng, hoặc khoảng trống lớn bất thường;
 - chữ quá nhỏ/khó đọc rõ rệt.
 KHÔNG báo lỗi nếu cảnh trông ổn. KHÔNG bịa. Bỏ qua khác biệt phong cách/màu sắc/sở thích.
+KHÔNG biến nhận xét gu như "chưa đẹp", "màu chưa hợp", "ít sáng tạo", "thiếu cao cấp" thành defect. Chỉ báo khi có lỗi bố cục khách quan nhìn thấy trong ảnh. Nếu không chắc, bỏ qua hoặc dùng severity "low".
 
 TRẢ VỀ DUY NHẤT một khối JSON, không kèm văn bản khác:
 \`\`\`json
 { "issues": [ { "sceneId": "scene-03", "issue": "mô tả ngắn lỗi bố cục", "severity": "high" } ] }
 \`\`\`
-severity = "high" chỉ khi lỗi rõ ràng cần sửa; "low" cho nghi ngờ nhẹ. Cảnh không lỗi thì KHÔNG liệt kê.`;
+severity = "high" chỉ khi lỗi rõ ràng cần sửa; "low" cho nghi ngờ nhẹ và low sẽ không tự kích hoạt sửa. Cảnh không lỗi thì KHÔNG liệt kê.`;
 
 /** Build a multimodal visual-QA request: each scene's still + its id, one batched call. */
 export function buildVisualQaMessages(scenes: { sceneId: string; stillDataUrl: string }[]): VisionMessage[] {
