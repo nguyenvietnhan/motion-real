@@ -45,12 +45,10 @@ import {
  * a flat midpoint still lacks the inputs they need:
  *   - N15 (overlap) and N17 (truncation) need per-block layout rects / a content
  *     box, which a flat raster does not carry — feed them those hints to use them.
- *   - N23 (richness) needs several frames per scene; and because the always-on
- *     ambient tilt (useTilt) moves every scene's pixels each frame, an
- *     inter-frame-motion oracle cannot separate a rich scene from a lazy static
- *     one on a real render. Richness is instead nudged by N30 + N19 + the
- *     visualization playbook guidance. The function stays for callers that sample
- *     tilt-free frames.
+ *   - N23 (richness) needs several chronological frames per scene, while the
+ *     default review lane currently samples one still per scene. Richness is
+ *     instead nudged by N30 + N19 + the visualization playbook guidance. The
+ *     function stays for callers that provide multi-frame samples.
  */
 
 export type { Frame };
@@ -812,7 +810,10 @@ export function checkCaptions(locked: LockedVideoSpec, maxLineChars = MAX_CAPTIO
 
 // --- N23: visual richness (WARNING) ---------------------------------------
 
-/** `frames` are samples across one scene; a long scene that barely changes is a static hold. */
+/**
+ * `frames` are chronological samples across one scene. Long scenes with no
+ * motion or with motion only in the early samples are advisory static-tail hits.
+ */
 export function checkRichness(
   frames: Frame[],
   sceneSeconds: number,
@@ -821,10 +822,11 @@ export function checkRichness(
 ): SafetyIssue[] {
   const o = opt(options);
   if (frames.length < 2 || sceneSeconds < o.richnessMinSeconds) return [];
-  let maxDiff = 0;
+  const diffs: number[] = [];
   for (let i = 1; i < frames.length; i += 1) {
-    maxDiff = Math.max(maxDiff, frameDiffFraction(frames[i - 1]!, frames[i]!, o.contentThreshold));
+    diffs.push(frameDiffFraction(frames[i - 1]!, frames[i]!, o.contentThreshold));
   }
+  const maxDiff = Math.max(...diffs);
   if (maxDiff < o.staticDiffFraction) {
     return [
       {
@@ -834,6 +836,21 @@ export function checkRichness(
         message: `${sceneId ?? "scene"} holds ${sceneSeconds.toFixed(1)}s with almost no motion (max inter-frame change ${(maxDiff * 100).toFixed(2)}%); show, don't tell.`,
       },
     ];
+  }
+  if (diffs.length >= 2) {
+    const tailStart = Math.max(1, Math.floor(diffs.length / 2));
+    const earlyMax = Math.max(...diffs.slice(0, tailStart));
+    const tailMax = Math.max(...diffs.slice(tailStart));
+    if (earlyMax >= o.staticDiffFraction && tailMax < o.staticDiffFraction) {
+      return [
+        {
+          check: "N23",
+          severity: "warning",
+          sceneId,
+          message: `${sceneId ?? "scene"} moves only in early samples, then holds a static tail (${(tailMax * 100).toFixed(2)}% late inter-frame change); keep purposeful progression across the scene or make the stillness intentional.`,
+        },
+      ];
+    }
   }
   return [];
 }
@@ -919,7 +936,7 @@ type TransitionOracle = BaseOracle & {
 /**
  * Exported + self-tested but NOT auto-run by `runRenderGrid`: a flat midpoint
  * still lacks the inputs these need (layout rects for overlap/truncation;
- * tilt-free multi-frame samples for richness; safe-area is subsumed by the
+ * chronological multi-frame samples for richness; safe-area is subsumed by the
  * content-zone scan). Kept in the registry so the suite still lists them.
  */
 type ManualOracle = BaseOracle & { phase: "manual" };
@@ -972,7 +989,7 @@ export type RenderGridArtifacts = {
  * still, with format-scoped checks skipped when they do not apply; a coarse
  * adjacent-still transition check (N21) runs between consecutive scenes.
  * Missing/undecodable stills become non-blocking warnings so the grid never
- * crashes. N15/N17 (need layout hints) and N23 (needs tilt-free multi-frame
+ * crashes. N15/N17 (need layout hints) and N23 (needs chronological multi-frame
  * samples) are exported separately for callers that have those inputs — see the
  * file header for why they don't auto-run.
  */

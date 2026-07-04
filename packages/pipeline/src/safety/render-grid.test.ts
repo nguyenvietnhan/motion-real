@@ -454,22 +454,47 @@ describe("N28 duration target (soft)", () => {
 });
 
 describe("N23 visual richness", () => {
-  it("fires when a long scene barely changes", () => {
+  function motionFrame(x: number): Frame {
+    const frame = makeFrame(80, 80);
+    paint(frame, { x, y: 28, width: 18, height: 18 }, WHITE);
+    return frame;
+  }
+
+  it("fires when a long scene has no motion", () => {
     const a = makeFrame(60, 60);
     paint(a, { x: 10, y: 10, width: 20, height: 20 }, WHITE);
     const b = makeFrame(60, 60);
     paint(b, { x: 10, y: 10, width: 20, height: 20 }, WHITE);
     expect(checkRichness([a, b], 8, "scene-02").some((i) => i.check === "N23")).toBe(true);
   });
+
+  it("fires when a long scene moves only early, then holds a static tail", () => {
+    const issues = checkRichness(
+      [motionFrame(8), motionFrame(30), motionFrame(30), motionFrame(30)],
+      8,
+      "scene-02",
+    );
+
+    expect(issues.some((i) => i.check === "N23" && /static tail/.test(i.message))).toBe(true);
+    expect(issues.every((i) => i.severity === "warning")).toBe(true);
+  });
+
   it("passes when a long scene shows motion", () => {
     const a = makeFrame(60, 60, { r: 0, g: 0, b: 0 });
     const b = makeFrame(60, 60, { r: 255, g: 255, b: 255 });
     expect(checkRichness([a, b], 8, "scene-02")).toEqual([]);
   });
+
+  it("passes when a long scene keeps staged motion into later samples", () => {
+    expect(checkRichness([motionFrame(8), motionFrame(24), motionFrame(40), motionFrame(56)], 8, "scene-02")).toEqual(
+      [],
+    );
+  });
+
   it("ignores short scenes", () => {
-    const a = makeFrame(60, 60);
-    const b = makeFrame(60, 60);
-    expect(checkRichness([a, b], 2, "scene-02")).toEqual([]);
+    expect(checkRichness([motionFrame(8), motionFrame(30), motionFrame(30), motionFrame(30)], 2, "scene-02")).toEqual(
+      [],
+    );
   });
 });
 

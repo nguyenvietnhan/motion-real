@@ -2,7 +2,8 @@
 
 Status: MOTION-0 baseline and reproduction audit, MOTION-1 scene-duration
 authored context, MOTION-2 content-plan motion intent, and MOTION-3
-code-authoring motion prompt/docs completed; MOTION-4 pending.
+code-authoring motion prompt/docs, and MOTION-4 advisory static-tail coverage
+completed; MOTION-5 pending.
 
 This is a temporary working note for fixing the observed issue where generated
 scenes animate for the first few seconds and then hold like static slides for
@@ -100,6 +101,10 @@ Verified facts:
   top-level `durationInFrames`, clamped scene progress, and content-plan
   `motionProgression`; removed the short `[0, 18]` entrance example from
   current prompt/docs; and kept static statement beats valid.
+- MOTION-4 kept N23 as a manual/advisory oracle and added pure multi-frame
+  coverage for no-motion, early-only static-tail motion, staged later motion,
+  and short-scene exemption. It did not wire extra Remotion sampling into the
+  default review/render lane.
 
 ## Attachment Review Notes
 
@@ -451,7 +456,7 @@ refactor: guide authored scenes toward duration-aware motion
 
 ### MOTION-4: Add Advisory Motion-Continuity Coverage
 
-Status: pending.
+Status: completed on 2026-07-04.
 
 Purpose: make the failure mode visible in tests/review without blocking renders
 as an aesthetic hard gate.
@@ -465,13 +470,13 @@ Touch:
 
 Actions:
 
-- add or adjust pure tests that distinguish:
+- added/adjusted pure tests that distinguish:
   - long scene with no motion;
   - long scene with only early motion then static tail;
   - long scene with staged motion across early/mid/late samples;
   - short scene exempted from motion-richness warnings;
-- keep the result advisory warning (`N23`) unless owner approves a hard gate;
-- prefer pure frame fixtures first. Only wire extra Remotion still sampling if
+- kept the result advisory warning (`N23`) unless owner approves a hard gate;
+- preferred pure frame fixtures first. Only wire extra Remotion still sampling if
   the review path needs the warning in normal desktop output.
 
 Checks:
@@ -489,6 +494,20 @@ Stop point:
 - If reliable multi-frame sampling would add too much render cost to every
   review, stop after pure coverage and make the runtime sampling decision
   explicit.
+
+Result:
+
+- `checkRichness(...)` now distinguishes a static long scene from a long scene
+  that moves only in early samples and then holds a static tail;
+- N23 remains advisory (`severity: "warning"`) and manual in
+  `RENDER_ORACLES`; the default `runRenderGrid(...)` still uses one still per
+  scene and does not pay for extra multi-frame Remotion sampling;
+- `packages/pipeline/src/safety/render-grid.test.ts` passed with 59 tests;
+- `packages/pipeline/src/review.test.ts` passed with 8 tests;
+- `npm.cmd run typecheck` passed;
+- `npm.cmd test` passed with 91 main-shard test files plus the N10 shard, 908
+  tests total;
+- `npm.cmd run build` passed; Remotion webpack bundle succeeded.
 
 Commit suggestion:
 
