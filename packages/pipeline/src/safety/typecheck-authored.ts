@@ -23,19 +23,18 @@ const typecheckCacheStats = { hits: 0, misses: 0 };
 
 /**
  * N10 — TypeScript typecheck of AI-authored scene modules against the REAL
- * @motionreal/blocks + @motionreal/compositions prop contracts. This is the type-level
- * analogue of the AST admission gate (admission.ts): admission proves a module
- * imports only whitelisted packages and exports the right SHAPE; N10 proves the
- * module USES those packages' components with the right prop TYPES.
+ * authored component contracts from `@motionreal/compositions`. This is the
+ * type-level analogue of the AST admission gate (admission.ts): admission proves
+ * a module imports only whitelisted packages and exports the right SHAPE; N10
+ * proves the module USES those components with the right prop TYPES.
  *
  * Why it exists: the render bundler (esbuild/webpack) is transpile-only — it
- * strips types without checking them — so a model that writes e.g.
- *   <KeyPoints items={list.map((text) => ({ text }))} />   // {text}[] vs string[]
- * compiles fine and then crashes headless Chromium at runtime (React error #31,
- * "Objects are not valid as a React child"). A real typecheck BEFORE render
- * turns that whole CLASS of model mistakes into a deterministic, pre-render
- * content error the repair loop can self-fix — regardless of which 9router model
- * authored the scene.
+ * strips types without checking them — so a model that writes a wrong-shaped
+ * component prop such as `maxHeight={props.labels}` for `SceneImage` can compile
+ * fine and then fail at runtime. A real typecheck BEFORE render turns that whole
+ * CLASS of model mistakes into a deterministic, pre-render content error the
+ * repair loop can self-fix — regardless of which 9router model authored the
+ * scene.
  *
  * Scope + safety (this gate must never block a renderable video):
  *  - Only diagnostics located IN the authored files are reported; errors inside
@@ -46,11 +45,15 @@ const typecheckCacheStats = { hits: 0, misses: 0 };
  *    `strict` (so a real wrong-shape prop or a null-deref still trips).
  *  - If the workspace MotionReal sources can't be resolved (an unexpected packaging
  *    layout), the check DEGRADES TO A NO-OP rather than blocking every render
- *    with bogus "cannot find module @motionreal/blocks" errors. It only ever runs when
- *    it can run correctly.
+ *    with bogus "cannot find module @motionreal/*" errors. It only ever runs
+ *    when it can run correctly.
  */
 
-/** @motionreal/* path mapping, mirroring the root tsconfig (sources, not built d.ts). */
+/**
+ * @motionreal/* path mapping, mirroring the root tsconfig (sources, not built
+ * d.ts). Runtime packages are included because `@motionreal/compositions`
+ * depends on them transitively, even though authored scenes may not import them.
+ */
 function authoredPaths(workspaceRoot: string): Record<string, string[]> {
   const src = (name: string) => [resolve(workspaceRoot, "packages", name, "src", "index.ts")];
   return {

@@ -6,14 +6,15 @@ import { tmpdir } from "node:os";
 import { __directoryFingerprint, __resetTypecheckAuthoredCache, __typecheckAuthoredCacheStats, typecheckAuthoredScenes } from "./typecheck-authored.js";
 
 /**
- * N10 authored-typecheck self-tests. Non-vacuous: a scene that composes
- * @motionreal/blocks with the CORRECT prop types passes (no issue), while the exact
- * real-world Gemini mistake — passing `{text}[]` where a block is typed
- * `string[]` — is caught as an N10 error BEFORE any render (the render bundler
- * is transpile-only and would let it crash headless Chromium at runtime).
+ * N10 authored-typecheck self-tests. Non-vacuous: a scene that uses the current
+ * authored surface (`@motionreal/compositions`) with correct prop types passes,
+ * while the exact class of real model mistake — passing an array/object-shaped
+ * value where a scalar component prop is required — is caught as an N10 error
+ * BEFORE any render (the render bundler is transpile-only and would let it crash
+ * headless Chromium at runtime).
  *
  * The check resolves @motionreal/* to the workspace sources, so these run against the
- * REAL block contracts, not a stub.
+ * real component contracts, not a stub.
  */
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -31,7 +32,7 @@ describe("typecheckAuthoredScenes (N10)", () => {
   // give the program-creating cases explicit headroom.
   const TS_PROGRAM_TIMEOUT = 30_000;
 
-  it("passes a scene that uses block props with the correct types", () => {
+  it("passes a scene that uses the current authored component surface with correct prop types", () => {
     const issues = typecheckAuthoredScenes([fixture("typecheck-clean.tsx")], root);
     expect(issues).toEqual([]);
   }, TS_PROGRAM_TIMEOUT);
@@ -80,10 +81,10 @@ describe("typecheckAuthoredScenes (N10)", () => {
     expect(issues.some((i) => i.severity === "error")).toBe(false);
   }, TS_PROGRAM_TIMEOUT);
 
-  it("flags an EXCESS component prop (<Frame style={…}>) as a WARNING, not a hard error", () => {
-    // The gemini-3-flash habit: passing `style`/other undeclared props to a block
-    // to set a background. React ignores undeclared props at runtime, so the scene
-    // renders fine — N10 must warn, never block.
+  it("flags an EXCESS component prop (<SceneImage caption={...}>) as a WARNING, not a hard error", () => {
+    // The model habit: passing undeclared props to a component to add nearby
+    // annotation. React ignores undeclared props at runtime, so the scene renders
+    // fine — N10 must warn, never block.
     const issues = typecheckAuthoredScenes([fixture("typecheck-excess-prop.tsx")], root);
     expect(issues.length).toBeGreaterThan(0);
     expect(issues.every((i) => i.severity === "warning")).toBe(true);
