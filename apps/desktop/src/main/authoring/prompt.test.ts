@@ -8,11 +8,10 @@ import { contentPlanForAuthoring, type ContentPlan } from "./content-plan.js";
  * optionally multimodal).
  */
 
-function contentShape(content: string | ContentPart[]): { kind: "text" | "parts"; chars: number; textParts: number; imageParts: number } {
-  if (typeof content === "string") return { kind: "text", chars: content.length, textParts: 0, imageParts: 0 };
+function contentShape(content: string | ContentPart[]): { kind: "text" | "parts"; textParts: number; imageParts: number } {
+  if (typeof content === "string") return { kind: "text", textParts: 0, imageParts: 0 };
   return {
     kind: "parts",
-    chars: content.filter((p): p is { type: "text"; text: string } => p.type === "text").reduce((sum, p) => sum + p.text.length, 0),
     textParts: content.filter((p) => p.type === "text").length,
     imageParts: content.filter((p) => p.type === "image_url").length,
   };
@@ -22,58 +21,93 @@ function promptShape(messages: { role: string; content: string | ContentPart[] }
   return messages.map((m) => ({ role: m.role, ...contentShape(m.content) }));
 }
 
+function contentText(content: string | ContentPart[]): string {
+  if (typeof content === "string") return content;
+  return content.filter((p): p is { type: "text"; text: string } => p.type === "text").map((p) => p.text).join("\n");
+}
+
+function promptText(messages: { content: string | ContentPart[] }[]): string {
+  return messages.map((m) => contentText(m.content)).join("\n");
+}
+
 describe("prompt surface baseline", () => {
-  it("records current message counts, part counts, and text lengths for every prompt builder", () => {
+  it("records stable message/part shapes and semantic anchors for every prompt builder", () => {
     const image = { ref: "assets/a.png", width: 800, height: 600, dataUrl: "data:image/png;base64,AAA" };
     const stills = [
       { sceneId: "scene-01", stillDataUrl: "data:image/png;base64,AAA" },
       { sceneId: "scene-02", stillDataUrl: "data:image/png;base64,BBB" },
     ];
+    const authorTextOnly = buildAuthorMessages({ text: "Chủ đề baseline", urls: [] });
+    const authorWithResearch = buildAuthorMessages({ text: "Tóm tắt link", urls: ["https://example.com/a"] }, "tư liệu baseline");
+    const authorWithImages = buildAuthorMessages({ text: "Chủ đề có ảnh", urls: [] }, undefined, [image]);
+    const reauthorTextOnly = buildReauthorMessages({
+      sceneId: "scene-01",
+      componentId: "alpha",
+      currentCode: "// component: alpha\nexport default 1;",
+      intent: "sửa nhẹ",
+    });
+    const reauthorWithStill = buildReauthorMessages({
+      sceneId: "scene-01",
+      componentId: "alpha",
+      currentCode: "// component: alpha\nexport default 1;",
+      issues: [{ check: "N14", severity: "error", message: "tràn chữ" }],
+      stillDataUrl: "data:image/png;base64,AAA",
+    });
+    const visualQa = buildVisualQaMessages(stills);
+    const imageFilter = buildImageFilterMessages("Bài nói về sự kiện X", [image]);
 
     expect({
-      authorTextOnly: promptShape(buildAuthorMessages({ text: "Chủ đề baseline", urls: [] })),
-      authorWithResearch: promptShape(buildAuthorMessages({ text: "Tóm tắt link", urls: ["https://example.com/a"] }, "tư liệu baseline")),
-      authorWithImages: promptShape(buildAuthorMessages({ text: "Chủ đề có ảnh", urls: [] }, undefined, [image])),
-      reauthorTextOnly: promptShape(buildReauthorMessages({ sceneId: "scene-01", componentId: "alpha", currentCode: "// component: alpha\nexport default 1;", intent: "sửa nhẹ" })),
-      reauthorWithStill: promptShape(buildReauthorMessages({
-        sceneId: "scene-01",
-        componentId: "alpha",
-        currentCode: "// component: alpha\nexport default 1;",
-        issues: [{ check: "N14", severity: "error", message: "tràn chữ" }],
-        stillDataUrl: "data:image/png;base64,AAA",
-      })),
-      visualQa: promptShape(buildVisualQaMessages(stills)),
-      imageFilter: promptShape(buildImageFilterMessages("Bài nói về sự kiện X", [image])),
+      authorTextOnly: promptShape(authorTextOnly),
+      authorWithResearch: promptShape(authorWithResearch),
+      authorWithImages: promptShape(authorWithImages),
+      reauthorTextOnly: promptShape(reauthorTextOnly),
+      reauthorWithStill: promptShape(reauthorWithStill),
+      visualQa: promptShape(visualQa),
+      imageFilter: promptShape(imageFilter),
     }).toEqual({
       authorTextOnly: [
-        { role: "system", kind: "text", chars: 16744, textParts: 0, imageParts: 0 },
-        { role: "user", kind: "text", chars: 130, textParts: 0, imageParts: 0 },
+        { role: "system", kind: "text", textParts: 0, imageParts: 0 },
+        { role: "user", kind: "text", textParts: 0, imageParts: 0 },
       ],
       authorWithResearch: [
-        { role: "system", kind: "text", chars: 16744, textParts: 0, imageParts: 0 },
-        { role: "user", kind: "text", chars: 246, textParts: 0, imageParts: 0 },
+        { role: "system", kind: "text", textParts: 0, imageParts: 0 },
+        { role: "user", kind: "text", textParts: 0, imageParts: 0 },
       ],
       authorWithImages: [
-        { role: "system", kind: "text", chars: 18526, textParts: 0, imageParts: 0 },
-        { role: "user", kind: "parts", chars: 163, textParts: 2, imageParts: 1 },
+        { role: "system", kind: "text", textParts: 0, imageParts: 0 },
+        { role: "user", kind: "parts", textParts: 2, imageParts: 1 },
       ],
       reauthorTextOnly: [
-        { role: "system", kind: "text", chars: 10887, textParts: 0, imageParts: 0 },
-        { role: "user", kind: "text", chars: 201, textParts: 0, imageParts: 0 },
+        { role: "system", kind: "text", textParts: 0, imageParts: 0 },
+        { role: "user", kind: "text", textParts: 0, imageParts: 0 },
       ],
       reauthorWithStill: [
-        { role: "system", kind: "text", chars: 10887, textParts: 0, imageParts: 0 },
-        { role: "user", kind: "parts", chars: 275, textParts: 1, imageParts: 1 },
+        { role: "system", kind: "text", textParts: 0, imageParts: 0 },
+        { role: "user", kind: "parts", textParts: 1, imageParts: 1 },
       ],
       visualQa: [
-        { role: "system", kind: "text", chars: 1161, textParts: 0, imageParts: 0 },
-        { role: "user", kind: "parts", chars: 140, textParts: 4, imageParts: 2 },
+        { role: "system", kind: "text", textParts: 0, imageParts: 0 },
+        { role: "user", kind: "parts", textParts: 4, imageParts: 2 },
       ],
       imageFilter: [
-        { role: "system", kind: "text", chars: 632, textParts: 0, imageParts: 0 },
-        { role: "user", kind: "parts", chars: 237, textParts: 3, imageParts: 1 },
+        { role: "system", kind: "text", textParts: 0, imageParts: 0 },
+        { role: "user", kind: "parts", textParts: 3, imageParts: 1 },
       ],
     });
+    expect(promptText(authorTextOnly)).toEqual(expect.stringContaining("AI_Output_Contract"));
+    expect(promptText(authorTextOnly)).toEqual(expect.stringContaining("registerComponent"));
+    expect(promptText(authorWithResearch)).toEqual(expect.stringContaining("tư liệu baseline"));
+    expect(promptText(authorWithImages)).toEqual(expect.stringContaining("BẮT BUỘC DÙNG ẢNH"));
+    expect(promptText(authorWithImages)).toEqual(expect.stringContaining('ref="assets/a.png"'));
+    expect(promptText(reauthorTextOnly)).toEqual(expect.stringContaining("BẢO TOÀN"));
+    expect(promptText(reauthorTextOnly)).toEqual(expect.stringContaining("sửa nhẹ"));
+    expect(promptText(reauthorWithStill)).toEqual(expect.stringContaining("tràn chữ"));
+    expect(promptText(reauthorWithStill)).toEqual(expect.stringContaining("Ảnh render hiện tại"));
+    expect(promptText(visualQa)).toEqual(expect.stringContaining("LỖI BỐ CỤC RÕ RÀNG"));
+    expect(promptText(visualQa)).toEqual(expect.stringContaining('Cảnh "scene-02"'));
+    expect(promptText(imageFilter)).toEqual(expect.stringContaining("video ngắn đa chủ đề"));
+    expect(promptText(imageFilter)).toEqual(expect.stringContaining("assets/a.png"));
+    expect(promptText(imageFilter)).toEqual(expect.stringContaining('"keep"'));
   });
 });
 

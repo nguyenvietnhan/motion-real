@@ -2,7 +2,8 @@
 
 Status: CLEANUP-0 baseline, CLEANUP-1 stale S0 baseline deletion, CLEANUP-2
 authored composition surface sealing, and CLEANUP-3 authored-theme fixture
-removal completed; CLEANUP-4 pending.
+removal, and CLEANUP-4 prompt shape baseline cleanup completed; CLEANUP-5
+pending.
 
 This is a temporary working note for pruning stale tests, stale authored-facing
 surfaces, and compatibility paths that no longer serve MotionReal's current
@@ -91,8 +92,8 @@ Verified facts:
   `useTheme`, `ThemeProvider`, `@motionreal/compositions/theme-context`, or an
   `@motionreal/compositions/*` subpath. Re-run that scan immediately before
   CLEANUP-2; local absence is not proof that every owner/user project is safe.
-- `apps/desktop/src/main/authoring/prompt.test.ts` still snapshots exact prompt
-  text character counts.
+- Before CLEANUP-4, `apps/desktop/src/main/authoring/prompt.test.ts`
+  snapshotted exact prompt text character counts.
 - Legacy `titleLanguage` / `mix` support is still present in schema, desktop
   shared types, IPC payload conversion, create controller normalization, manifest
   conversion, and tests.
@@ -376,7 +377,7 @@ test: remove authored theme typecheck fixtures
 
 ### CLEANUP-4: Loosen Prompt Shape Baseline From Exact Character Counts
 
-Status: pending.
+Status: completed on 2026-07-04.
 
 Purpose: keep prompt builder shape coverage without making every wording edit
 pay a brittle character-count tax.
@@ -387,10 +388,10 @@ Touch:
 
 Actions:
 
-- replace exact `chars` snapshot with stable shape assertions:
+- replaced exact `chars` snapshot with stable shape assertions:
   message count, role order, text-vs-parts shape, text part count, image part
   count, and important semantic tokens;
-- keep all existing semantic prompt tests for authoring, reauthor, image filter,
+- kept all existing semantic prompt tests for authoring, reauthor, image filter,
   visual QA, format, language, duration, claim filtering, and image refs.
 
 Checks:
@@ -399,7 +400,17 @@ Checks:
 npm.cmd test -- apps/desktop/src/main/authoring/prompt.test.ts
 npm.cmd test -- apps/desktop/src/main/authoring/content-plan.test.ts
 npm.cmd run typecheck
+npm.cmd test
 ```
+
+Result:
+
+- `apps/desktop/src/main/authoring/prompt.test.ts` passed with 29 tests;
+- `apps/desktop/src/main/authoring/content-plan.test.ts` passed with 16 tests;
+- audit found no remaining `records current message counts` or `chars:`
+  snapshot references in the authoring prompt tests;
+- `npm.cmd run typecheck` passed;
+- `npm.cmd test` passed with 92 test files and 897 tests.
 
 Stop point:
 
