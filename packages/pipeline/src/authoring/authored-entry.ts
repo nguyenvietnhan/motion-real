@@ -56,13 +56,17 @@ const Root: React.FC = () =>
   React.createElement(Composition, {
     id: "NewsVideo",
     component: VideoComposition,
-    schema: z.object({ spec: LockedVideoSpecSchema }),
+    schema: z.object({
+      spec: LockedVideoSpecSchema,
+      measure: z.boolean().optional(),
+      strictSceneErrors: z.boolean().optional(),
+    }),
     defaultProps: { spec },
     width: initialGeometry.canvas.width,
     height: initialGeometry.canvas.height,
     fps: spec.fps ?? FPS,
     durationInFrames: spec.durationInFrames,
-    calculateMetadata: ({ props }: { props: { spec: typeof spec } }) => {
+    calculateMetadata: ({ props }: { props: { spec: typeof spec; measure?: boolean; strictSceneErrors?: boolean } }) => {
       const g = geometry(props.spec.format);
       return {
         durationInFrames: props.spec.durationInFrames,

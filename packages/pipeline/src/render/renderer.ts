@@ -41,6 +41,11 @@ type RenderBaseOptions = {
   signal?: AbortSignal;
 };
 
+type StrictSceneErrorOptions = {
+  /** Probe mode: render authored scenes without the fallback error boundary. */
+  strictSceneErrors?: boolean;
+};
+
 export type RenderOpenGlRenderer = NonNullable<ChromiumOptions["gl"]>;
 export type RenderChromeMode = ChromeMode;
 
@@ -157,10 +162,16 @@ export type RenderSceneStillsOptions = RenderBaseOptions & {
   sceneIds?: string[];
 };
 
+type VideoCompositionInputProps = {
+  spec: LockedVideoSpec;
+  measure?: boolean;
+  strictSceneErrors?: boolean;
+};
+
 type PreparedComposition = {
   serveUrl: string;
   composition: Awaited<ReturnType<typeof selectComposition>>;
-  inputProps: { spec: LockedVideoSpec };
+  inputProps: VideoCompositionInputProps;
 };
 
 /** Browser launch + per-frame resolve timeout. The FIRST render on a cold
@@ -322,6 +333,103 @@ export async function renderSceneStills(
     timingOpts.onProgress?.(index + 1, spec.scenes.length);
   }
   return outputs;
+}
+
+export const RUNTIME_PROBE_FRACTIONS = [0.12, 0.5, 0.82] as const;
+
+export type RenderSceneRuntimeProbeIssue = {
+  sceneId: string;
+  frame: number;
+  message: string;
+};
+
+export type RenderSceneRuntimeProbeOptions = RenderBaseOptions & {
+  /** Fractions through each scene's clean speech window to sample. */
+  fractions?: readonly number[];
+  /** Optional scene subset for targeted repair loops. */
+  sceneIds?: string[];
+  onProgress?: (done: number, total: number) => void;
+};
+
+/**
+ * Render a few strict still samples for each scene. Unlike production renders,
+ * this disables SceneErrorBoundary so runtime-authored crashes (for example an
+ * invalid Remotion interpolate inputRange) become scene-targeted failures
+ * instead of silently resolving to the graceful fallback.
+ */
+export async function renderSceneRuntimeProbe(
+  spec: LockedVideoSpec,
+  opts: RenderSceneRuntimeProbeOptions = {},
+): Promise<RenderSceneRuntimeProbeIssue[]> {
+  const timingOpts: RenderSceneRuntimeProbeOptions & { strictSceneErrors: true } = {
+    ...opts,
+    strictSceneErrors: true,
+    timingScope: opts.timingScope ?? "runtime-probe",
+  };
+  const prepared = await prepareComposition(spec, {
+    ...timingOpts,
+    artifactPath: resolve(timingOpts.projectRoot ?? "."),
+  });
+  const cancelSignal = bridgeCancel(timingOpts.signal);
+  const onlyIds = timingOpts.sceneIds && timingOpts.sceneIds.length > 0 ? new Set(timingOpts.sceneIds) : null;
+  const scenesToProbe = spec.scenes
+    .map((scene, index) => ({ scene, index }))
+    .filter(({ scene }) => !onlyIds || onlyIds.has(scene.id));
+  const fractions = timingOpts.fractions ?? RUNTIME_PROBE_FRACTIONS;
+  const issues: RenderSceneRuntimeProbeIssue[] = [];
+
+  for (const [progressIndex, { scene, index }] of scenesToProbe.entries()) {
+    const frames = sampleSceneFrames(spec, index, fractions);
+    for (const frame of frames) {
+      try {
+        await timedRender(
+          timingOpts,
+          "renderStill",
+          () =>
+            renderStill({
+              composition: prepared.composition,
+              serveUrl: prepared.serveUrl,
+              output: null,
+              frame,
+              inputProps: prepared.inputProps,
+              imageFormat: "png",
+              overwrite: true,
+              timeoutInMilliseconds: BROWSER_TIMEOUT_MS,
+              logLevel: timingOpts.logLevel ?? "warn",
+              ...chromiumRuntimeOptions(timingOpts),
+              ...(cancelSignal ? { cancelSignal } : {}),
+            }),
+          { sceneId: scene.id, frame, kind: "strict-runtime-probe" },
+        );
+      } catch (error) {
+        issues.push({ sceneId: scene.id, frame, message: renderErrorMessage(error) });
+        break;
+      }
+    }
+    timingOpts.onProgress?.(progressIndex + 1, scenesToProbe.length);
+  }
+
+  return issues;
+}
+
+function sampleSceneFrames(spec: LockedVideoSpec, index: number, fractions: readonly number[]): number[] {
+  const win = speechWindow(spec, index);
+  const out: number[] = [];
+  const seen = new Set<number>();
+  for (const raw of fractions) {
+    const fraction = Math.min(1, Math.max(0, Number.isFinite(raw) ? raw : 0));
+    const frame = clampFrame(win.start + Math.round(fraction * Math.max(0, win.frames - 1)), spec);
+    if (!seen.has(frame)) {
+      seen.add(frame);
+      out.push(frame);
+    }
+  }
+  return out;
+}
+
+function renderErrorMessage(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error);
+  return message.length > 400 ? `${message.slice(0, 397)}...` : message;
 }
 
 /** A measured composed-block boundary in canvas pixels (matches the oracle Rect). */
@@ -562,9 +670,12 @@ export function __resetBundleCache(): void {
 
 async function prepareComposition(
   spec: LockedVideoSpec,
-  opts: RenderBaseOptions & { artifactPath: string },
+  opts: RenderBaseOptions & StrictSceneErrorOptions & { artifactPath: string },
 ): Promise<PreparedComposition> {
-  const inputProps = { spec };
+  const inputProps: VideoCompositionInputProps = {
+    spec,
+    ...(opts.strictSceneErrors ? { strictSceneErrors: true } : {}),
+  };
   const publicDir = resolvePublicDir(opts);
   assertStaticAudioCanResolve(spec, publicDir);
 
@@ -603,7 +714,7 @@ async function prepareComposition(
   }
 
   const compositionId = opts.compositionId ?? DEFAULT_COMPOSITION_ID;
-  const compositionCacheKey = compositionKey(key, compositionId, spec);
+  const compositionCacheKey = compositionKey(key, compositionId, inputProps);
   const selectStartedAt = performance.now();
   let composition = compositionCache.get(compositionCacheKey)?.composition;
   if (composition) {
@@ -638,13 +749,13 @@ async function prepareComposition(
   return { serveUrl, composition, inputProps };
 }
 
-function compositionKey(bundleCacheKey: string, compositionId: string, spec: LockedVideoSpec): string {
+function compositionKey(bundleCacheKey: string, compositionId: string, inputProps: VideoCompositionInputProps): string {
   const h = createHash("sha256");
   h.update(bundleCacheKey);
   h.update("\0");
   h.update(compositionId);
   h.update("\0");
-  h.update(stableStringify(spec), "utf8");
+  h.update(stableStringify(inputProps), "utf8");
   return h.digest("hex");
 }
 

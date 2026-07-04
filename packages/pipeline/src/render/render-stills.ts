@@ -11,9 +11,11 @@ import {
 } from "../authoring/manifest.js";
 import { generateAuthoredEntry } from "../authoring/authored-entry.js";
 import { lockSpec } from "../audio/lock.js";
-import { renderSceneStills, remotionAppRoot, type RenderTiming } from "./renderer.js";
+import { checkSceneRuntimeErrors, type SceneRuntimeProbeOptions } from "./runtime-probe.js";
+import { renderSceneStills, remotionAppRoot, RUNTIME_PROBE_FRACTIONS, type RenderTiming } from "./renderer.js";
 import { PipelineError } from "../errors.js";
 import { withProjectRenderLock } from "./project-lock.js";
+import type { SafetyIssue } from "../types.js";
 
 /**
  * Fast per-scene STILLS render (freeform-engine R4/R5) — the cheap inner loop the
@@ -48,6 +50,14 @@ export type RenderProjectStillsOptions = {
   onProgress?: (done: number, total: number) => void;
   /** Optional sink for stills-pipeline timing instrumentation. */
   onTiming?: (timing: RenderTiming) => void;
+  /**
+   * Strict preflight for authored runtime crashes before still PNGs are written.
+   * Defaults to true so fallback pixels do not silently pass visual refine; set
+   * false as a rollback if the extra sampled stills are too expensive.
+   */
+  strictStillsRuntimeProbe?: boolean;
+  /** Optional probe samples; defaults to the shared runtime-probe fractions. */
+  runtimeProbeFractions?: SceneRuntimeProbeOptions["fractions"];
 };
 
 export type RenderProjectStillsResult = {
@@ -187,6 +197,46 @@ export async function renderProjectStillsUnlocked(
       { files: authoredFiles.length },
     );
 
+    if (opts.strictStillsRuntimeProbe !== false) {
+      const runtimeReport = await timedStillsStage(
+        "scene_runtime_probe",
+        () =>
+          checkSceneRuntimeErrors(locked, {
+            entryPoint: generatedEntry!,
+            remotionRoot: remotionAppRoot(),
+            projectRoot: paths.root,
+            timingScope: "stills-runtime-probe",
+            onTiming: recordRenderTiming,
+            ...(opts.sceneIds ? { sceneIds: opts.sceneIds } : {}),
+            ...(opts.signal ? { signal: opts.signal } : {}),
+            ...(opts.runtimeProbeFractions ? { fractions: opts.runtimeProbeFractions } : {}),
+          }),
+        {
+          scenes: locked.scenes.length,
+          requestedSceneIds: opts.sceneIds?.length ?? locked.scenes.length,
+          samplesPerScene: opts.runtimeProbeFractions?.length ?? RUNTIME_PROBE_FRACTIONS.length,
+        },
+      );
+      await appendEvent(projectId, {
+        type: "stills.scene_runtime_probe",
+        ok: runtimeReport.ok,
+        issues: runtimeReport.issues.length,
+      });
+      if (!runtimeReport.ok) {
+        await writeJson(paths.safetyReport, runtimeReport);
+        const first = runtimeReport.issues.find((issue) => issue.severity === "error");
+        throw new PipelineError({
+          stage: "render",
+          cause: `stills scene runtime probe reported ${errorCount(runtimeReport.issues)} error(s): ${errorSummary(runtimeReport.issues)}`,
+          check: first?.check ?? "N31",
+          ...(first?.sceneId ? { sceneId: first.sceneId } : {}),
+          remediation: "Re-author the flagged scene so stills render without relying on fallback pixels.",
+        });
+      }
+    } else {
+      await appendEvent(projectId, { type: "stills.scene_runtime_probe", ok: true, issues: 0, strict: false });
+    }
+
     const stills = await timedStillsStage(
       "render_scene_stills",
       () =>
@@ -217,4 +267,15 @@ export async function renderProjectStillsUnlocked(
 
 function roundMs(ms: number): number {
   return Math.round(ms * 100) / 100;
+}
+
+function errorCount(issues: readonly SafetyIssue[]): number {
+  return issues.filter((issue) => issue.severity === "error").length;
+}
+
+function errorSummary(issues: readonly SafetyIssue[]): string {
+  return issues
+    .slice(0, 3)
+    .map((issue) => [issue.check, issue.sceneId, issue.path, issue.message].filter(Boolean).join(" "))
+    .join("; ");
 }

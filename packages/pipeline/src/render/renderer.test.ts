@@ -24,7 +24,7 @@ vi.mock("@remotion/renderer", () => ({
   renderStill: mocks.renderStill,
 }));
 
-import { __resetBundleCache, measureSceneLayouts, renderSceneStills, renderVideo } from "./renderer.js";
+import { __resetBundleCache, measureSceneLayouts, renderSceneRuntimeProbe, renderSceneStills, renderVideo } from "./renderer.js";
 
 let tempRoot: string;
 
@@ -223,6 +223,42 @@ describe("measureSceneLayouts", () => {
       }),
     );
     expect(onProgress).toHaveBeenCalledWith(1, 1);
+  });
+});
+
+describe("renderSceneRuntimeProbe", () => {
+  it("renders strict sampled frames and reports the scene/frame that crashes", async () => {
+    const spec = lockedSpec();
+    const projectRoot = join(tempRoot, "projects", "demo-12345678");
+    const onProgress = vi.fn();
+    mocks.renderStill.mockImplementation(async ({ frame }) => {
+      if (frame === 105) throw new Error("inputRange must be strictly monotonically increasing");
+      return { buffer: null, contentType: "image/png" };
+    });
+
+    const issues = await renderSceneRuntimeProbe(spec, { projectRoot, fractions: [0], onProgress });
+
+    expect(issues).toEqual([
+      {
+        sceneId: "scene-02",
+        frame: 105,
+        message: expect.stringContaining("inputRange"),
+      },
+    ]);
+    expect(mocks.selectComposition).toHaveBeenCalledWith(
+      expect.objectContaining({
+        inputProps: { spec, strictSceneErrors: true },
+      }),
+    );
+    expect(mocks.renderStill).toHaveBeenCalledWith(
+      expect.objectContaining({
+        output: null,
+        frame: 105,
+        inputProps: { spec, strictSceneErrors: true },
+      }),
+    );
+    expect(onProgress).toHaveBeenCalledWith(1, 2);
+    expect(onProgress).toHaveBeenCalledWith(2, 2);
   });
 });
 

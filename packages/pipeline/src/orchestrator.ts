@@ -47,6 +47,7 @@ import { parseDurationFromPrompt } from "./authoring/parse-duration.js";
 import { synthesizeNarration, type SynthesizeOptions } from "./audio/tts.js";
 import { lockSpec } from "./audio/lock.js";
 import { checkDeterminism, type DeterminismOptions } from "./render/determinism.js";
+import { checkSceneRuntimeErrors, type SceneRuntimeProbeOptions } from "./render/runtime-probe.js";
 import { renderCacheKey, getCachedRender, putCachedRender } from "./render/cache.js";
 import { withProjectRenderLock } from "./render/project-lock.js";
 import {
@@ -162,6 +163,7 @@ export type RenderProjectDeps = {
   synthesize?: (spec: VideoSpec, opts: SynthesizeOptions) => Promise<TtsManifest | null>;
   render?: (opts: RenderVideoOptions) => Promise<RenderVideoResult>;
   determinism?: (spec: LockedVideoSpec, opts?: DeterminismOptions) => Promise<SafetyReport>;
+  sceneRuntimeProbe?: (spec: LockedVideoSpec, opts?: SceneRuntimeProbeOptions) => Promise<SafetyReport>;
   review?: (spec: LockedVideoSpec, opts: BuildReviewOptions) => Promise<ReviewArtifacts>;
 };
 
@@ -520,6 +522,38 @@ async function renderProjectUnlocked(projectId: string, opts: RenderProjectOptio
       };
     }
 
+    // N31 — strict authored-scene runtime probe. Production renders keep the
+    // graceful SceneErrorBoundary fallback, but a fallback-clean frame is not a
+    // clean authored scene. Probe first with the boundary disabled so crash-class
+    // authored code gets a scene-targeted repair issue before determinism/cache.
+    let runtimeProbeReport = makeReport([], ["render"]);
+    if (!opts.skipAuthoring) {
+      throwIfCancelled();
+      const sceneRuntimeProbe = deps.sceneRuntimeProbe ?? checkSceneRuntimeErrors;
+      runtimeProbeReport = await timedPipelineStage(
+        "stage.scene_runtime_probe",
+        () => sceneRuntimeProbe(locked, { ...renderEntry, timingScope: "runtime-probe" }),
+        { scenes: locked.scenes.length },
+      );
+      await appendEvent(projectId, {
+        type: "scene.runtime_probe",
+        ok: runtimeProbeReport.ok,
+        issues: runtimeProbeReport.issues.length,
+      });
+      if (!runtimeProbeReport.ok) {
+        await persistFailureReport(projectId, runtimeProbeReport.issues);
+        await fail(projectId, `Scene runtime probe failed: ${errorSummary(runtimeProbeReport.issues)}`);
+        const first = runtimeProbeReport.issues.find((issue) => issue.severity === "error");
+        throw new PipelineError({
+          stage: "render",
+          cause: `scene runtime probe reported ${errorCount(runtimeProbeReport.issues)} error(s): ${errorSummary(runtimeProbeReport.issues)}`,
+          check: first?.check ?? "N31",
+          ...(first?.sceneId ? { sceneId: first.sceneId } : {}),
+          remediation: "Re-author the flagged scene so it renders without relying on SceneErrorBoundary fallback pixels.",
+        });
+      }
+    }
+
     // --- (4) Determinism guard (N16). ---
     throwIfCancelled(); // before the (double) determinism render
     const checkDet = deps.determinism ?? checkDeterminism;
@@ -718,7 +752,15 @@ async function renderProjectUnlocked(projectId: string, opts: RenderProjectOptio
     await appendEvent(projectId, { type: "render.latesafearea", issues: lateIssues.length });
 
     const report = makeReport(
-      [...buildGate.issues, ...detReport.issues, ...renderGrid.issues, ...overlapIssues, ...lateIssues, ...reviewArtifacts.report.issues],
+      [
+        ...buildGate.issues,
+        ...runtimeProbeReport.issues,
+        ...detReport.issues,
+        ...renderGrid.issues,
+        ...overlapIssues,
+        ...lateIssues,
+        ...reviewArtifacts.report.issues,
+      ],
       ["build", "render", "review"],
     );
 

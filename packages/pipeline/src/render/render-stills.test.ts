@@ -18,6 +18,7 @@ const mocks = vi.hoisted(() => ({
   loadManifestAsSpec: vi.fn(),
   manifestSceneFiles: vi.fn(),
   generateAuthoredEntry: vi.fn(),
+  checkSceneRuntimeErrors: vi.fn(),
   renderSceneStills: vi.fn(),
 }));
 
@@ -30,6 +31,10 @@ vi.mock("../authoring/manifest.js", () => ({
 
 vi.mock("../authoring/authored-entry.js", () => ({
   generateAuthoredEntry: mocks.generateAuthoredEntry,
+}));
+
+vi.mock("./runtime-probe.js", () => ({
+  checkSceneRuntimeErrors: mocks.checkSceneRuntimeErrors,
 }));
 
 vi.mock("./renderer.js", async (importOriginal) => {
@@ -72,6 +77,7 @@ beforeEach(async () => {
     { sceneId: "scene-02", componentId: "b-scene", file: "/proj/authored/b-scene.tsx" },
   ]);
   mocks.generateAuthoredEntry.mockResolvedValue("/proj/authored/_entry.stills.tsx");
+  mocks.checkSceneRuntimeErrors.mockResolvedValue({ ok: true, issues: [], ranTiers: ["render"] });
   mocks.renderSceneStills.mockImplementation(async (_spec, outDir, opts) => {
     const ids = opts?.sceneIds ?? ["scene-01", "scene-02"];
     opts?.onTiming?.({
@@ -96,8 +102,10 @@ describe("renderProjectStills", () => {
 
     expect(mocks.admitProjectScenes).toHaveBeenCalledWith("proj-1");
     expect(mocks.generateAuthoredEntry).toHaveBeenCalledTimes(1);
+    expect(mocks.checkSceneRuntimeErrors).toHaveBeenCalledTimes(1);
     // The no-TTS lock + still render ran; result lists both scene stills.
     expect(mocks.renderSceneStills).toHaveBeenCalledTimes(1);
+    expect(mocks.checkSceneRuntimeErrors.mock.invocationCallOrder[0]).toBeLessThan(mocks.renderSceneStills.mock.invocationCallOrder[0]!);
     const reviewDir = projectPaths("proj-1").reviewDir;
     expect(res.stills).toEqual([join(resolve(reviewDir), "scene-01.png"), join(resolve(reviewDir), "scene-02.png")]);
   });
@@ -113,6 +121,8 @@ describe("renderProjectStills", () => {
 
   it("passes sceneIds through so a subset re-renders just those stills", async () => {
     const res = await renderProjectStills("proj-1", { sceneIds: ["scene-02"] });
+    const [, probeOpts] = mocks.checkSceneRuntimeErrors.mock.calls[0]!;
+    expect(probeOpts.sceneIds).toEqual(["scene-02"]);
     const [, , opts] = mocks.renderSceneStills.mock.calls[0]!;
     expect(opts.sceneIds).toEqual(["scene-02"]);
     const reviewDir = projectPaths("proj-1").reviewDir;
@@ -131,6 +141,7 @@ describe("renderProjectStills", () => {
         "stills.stage.authoring.resolve_spec",
         "stills.stage.lock",
         "stills.stage.authored_entry",
+        "stills.stage.scene_runtime_probe",
         "stills.renderStill",
         "stills.stage.render_scene_stills",
       ]),
@@ -160,6 +171,42 @@ describe("renderProjectStills", () => {
       violations: [{ check: "N4", severity: "error", path: "authored/bad.tsx", message: "banned import" }],
     });
     await expect(renderProjectStills("proj-1")).rejects.toThrow(/admission rejected/i);
+    expect(mocks.checkSceneRuntimeErrors).not.toHaveBeenCalled();
     expect(mocks.renderSceneStills).not.toHaveBeenCalled();
+  });
+
+  it("throws a scene-targeted N31 PipelineError when the strict stills probe fails", async () => {
+    mocks.checkSceneRuntimeErrors.mockResolvedValueOnce({
+      ok: false,
+      ranTiers: ["render"],
+      issues: [
+        {
+          check: "N31",
+          severity: "error",
+          sceneId: "scene-02",
+          path: "frame:120",
+          message: "Authored scene crashed during strict runtime probe.",
+        },
+      ],
+    });
+
+    await expect(renderProjectStills("proj-1", { sceneIds: ["scene-02"], runtimeProbeFractions: [0] })).rejects.toMatchObject({
+      stage: "render",
+      check: "N31",
+      sceneId: "scene-02",
+    });
+    expect(mocks.renderSceneStills).not.toHaveBeenCalled();
+
+    const report = JSON.parse(await readFile(projectPaths("proj-1").safetyReport, "utf8"));
+    expect(report.issues).toEqual([
+      expect.objectContaining({ check: "N31", sceneId: "scene-02", severity: "error" }),
+    ]);
+  });
+
+  it("can disable the strict stills probe as an explicit rollback", async () => {
+    const res = await renderProjectStills("proj-1", { strictStillsRuntimeProbe: false });
+    expect(mocks.checkSceneRuntimeErrors).not.toHaveBeenCalled();
+    expect(mocks.renderSceneStills).toHaveBeenCalledTimes(1);
+    expect(res.stills).toHaveLength(2);
   });
 });

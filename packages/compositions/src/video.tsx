@@ -20,6 +20,12 @@ export type VideoCompositionProps = {
    * pixels are byte-identical and the N16 determinism guard is unaffected.
    */
   measure?: boolean;
+  /**
+   * Render authored scenes without the per-scene fallback boundary. Used only by
+   * the pre-render runtime probe so a crashing scene surfaces as a targeted
+   * pipeline error; normal/draft renders keep the fallback for graceful pixels.
+   */
+  strictSceneErrors?: boolean;
 };
 
 /**
@@ -99,7 +105,7 @@ function presentationFor(
  * ONE continuous top-level `<Audio>`, and the burned-in karaoke captions are a
  * top-level `<Captions>` overlay — both OUTSIDE the transition series.
  */
-export const VideoComposition: React.FC<VideoCompositionProps> = ({ spec, measure }) => {
+export const VideoComposition: React.FC<VideoCompositionProps> = ({ spec, measure, strictSceneErrors }) => {
   const theme = makeTheme(spec.theme?.dominant);
   const scenes = spec.scenes;
   const T = transitionFrames(spec.fps);
@@ -118,7 +124,7 @@ export const VideoComposition: React.FC<VideoCompositionProps> = ({ spec, measur
               <React.Fragment key={scene.id}>
                 <TransitionSeries.Sequence durationInFrames={scene.durationInFrames}>
                   <SceneTimingProvider durationInFrames={scene.durationInFrames}>
-                    <SceneContent scene={scene} />
+                    <SceneContent scene={scene} strictSceneErrors={strictSceneErrors} />
                   </SceneTimingProvider>
                 </TransitionSeries.Sequence>
                 {!isLast ? (
@@ -200,7 +206,7 @@ const CaptionDivider: React.FC<{ color: string }> = ({ color }) => {
   );
 };
 
-export const SceneContent: React.FC<{ scene: LockedSceneSpec }> = ({ scene }) => {
+export const SceneContent: React.FC<{ scene: LockedSceneSpec; strictSceneErrors?: boolean }> = ({ scene, strictSceneErrors }) => {
   const def = getComponent(scene.component);
   const content = def ? (
     <def.Component
@@ -217,14 +223,18 @@ export const SceneContent: React.FC<{ scene: LockedSceneSpec }> = ({ scene }) =>
   // AI-chosen, per-scene emphasis: a whole-scene punch-in zoom that settles to
   // 1.0 before the midpoint (so it's a deliberate spotlight, not an N14 risk).
   const inner = scene.emphasis === "zoom" ? <SceneZoom>{content}</SceneZoom> : content;
+  if (strictSceneErrors) return <>{inner}</>;
+
   // Freeform pivot: a single authored scene that THROWS at render time (e.g. a
   // `.map` over an undefined prop) used to crash headless Chromium and take the
   // WHOLE video down with an opaque error. With the hard prop/typecheck gates
   // relaxed to warnings, that risk moves to render time — so each scene renders
   // inside its OWN boundary: a throwing scene shows a graceful fallback (its
   // headline on a safe layout) while every other scene still renders. The video
-  // ALWAYS ships. The boundary is a pure function of its subtree (no state read
-  // from outside render), so determinism (N16) is unaffected.
+  // ALWAYS ships. The pre-render runtime probe flips `strictSceneErrors` so the
+  // pipeline still catches and targets the authored crash instead of accepting a
+  // fallback-clean render. The boundary is a pure function of its subtree (no
+  // state read from outside render), so determinism (N16) is unaffected.
   return (
     <SceneErrorBoundary fallback={<SceneFallback headline={scene.headline} eyebrow={scene.eyebrow} />}>
       {inner}

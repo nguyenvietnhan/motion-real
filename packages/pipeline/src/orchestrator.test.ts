@@ -36,7 +36,7 @@ import { projectPaths, renderCacheDir, writeJson } from "./store/store.js";
 import { specHash } from "./render/cache.js";
 import { encodePngRGBA } from "./safety/png.js";
 import type { ComposeContactSheet } from "./review.js";
-import type { ReviewChecklist, TtsManifest } from "./types.js";
+import { makeReport, type ReviewChecklist, type TtsManifest } from "./types.js";
 
 let tempRoot: string;
 let prevHome: string | undefined;
@@ -495,6 +495,58 @@ describe("renderProject — render pipeline (skipAuthoring)", () => {
       .map((l) => JSON.parse(l));
     expect(events.map((e) => e.type)).toContain("render.latesafearea");
   });
+
+  it("blocks authored renders when the strict scene runtime probe reports a fallback-hidden crash", async () => {
+    const { projectId } = await scaffoldVideoProject({
+      prompt: "Runtime probe authored project",
+      tts: { provider: "none" },
+    });
+    const paths = projectPaths(projectId);
+    await writeFile(join(paths.authoredDir, "scene-01.tsx"), authoredProbeSceneSource(), "utf8");
+    await writeJson(paths.manifest, {
+      title: "Runtime probe authored project",
+      scenes: [
+        {
+          id: "scene-01",
+          component: "authored-runtime-probe",
+          headline: "Probe",
+          narration: "Một câu đọc thử cho cảnh runtime probe.",
+          props: { label: "Demo" },
+          durationInSeconds: 4,
+        },
+      ],
+    });
+    const sceneRuntimeProbe: RenderProjectDeps["sceneRuntimeProbe"] = vi.fn(async () =>
+      makeReport(
+        [
+          {
+            check: "N31",
+            severity: "error",
+            sceneId: "scene-01",
+            path: "frame:0",
+            message: "Authored scene crashed during strict runtime probe: inputRange must be strictly increasing.",
+          },
+        ],
+        ["render"],
+      ),
+    );
+    const determinism: RenderProjectDeps["determinism"] = vi.fn(async () => makeReport([], ["render"]));
+
+    await expect(
+      renderProject(projectId, {
+        forceFull: true,
+        ttsProvider: "none",
+        checklist: FULL_CHECKLIST,
+        composeContactSheet: fakeCompositor(),
+        deps: { sceneRuntimeProbe, determinism },
+      }),
+    ).rejects.toMatchObject({ check: "N31", sceneId: "scene-01" });
+
+    expect(sceneRuntimeProbe).toHaveBeenCalled();
+    expect(determinism).not.toHaveBeenCalled();
+    expect(mocks.renderMedia).not.toHaveBeenCalled();
+    expect(await readBriefState(projectId)).toBe("failed");
+  });
 });
 
 /**
@@ -522,4 +574,32 @@ function dirtyLateStillPng(): Buffer {
     }
   }
   return encodePngRGBA(width, height, rgba);
+}
+
+function authoredProbeSceneSource(): string {
+  return `
+import React from "react";
+import { useCurrentFrame } from "remotion";
+import { registerComponent, type SceneComponentProps } from "@motionreal/compositions";
+import { z } from "zod";
+
+export const schema = z.object({ label: z.string().min(1) });
+type Props = z.infer<typeof schema>;
+
+const Scene: React.FC<SceneComponentProps<Props>> = ({ headline, props }) => {
+  const frame = useCurrentFrame();
+  return <div style={{ opacity: Math.min(1, frame / 15) }}>{headline}: {props.label}</div>;
+};
+
+export const example: Props = { label: "Demo" };
+
+export default registerComponent<Props>({
+  id: "authored-runtime-probe",
+  displayName: "Runtime Probe",
+  promptGuide: "Used by the orchestrator runtime probe test.",
+  schema,
+  Component: Scene,
+  example,
+});
+`;
 }

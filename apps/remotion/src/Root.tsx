@@ -10,7 +10,11 @@ import { sampleSpec } from "./fixtures/sample-spec.js";
 const defaultCanvas = geometry("tiktok").canvas;
 const { width, height } = defaultCanvas;
 
-const propsSchema = z.object({ spec: LockedVideoSpecSchema, measure: z.boolean().optional() });
+const propsSchema = z.object({
+  spec: LockedVideoSpecSchema,
+  measure: z.boolean().optional(),
+  strictSceneErrors: z.boolean().optional(),
+});
 
 /** Frames the 1-frame thumbnail still renders within; the still is taken at the
  *  LAST frame so the cover title's entrance reveal has fully settled (= 1). */
