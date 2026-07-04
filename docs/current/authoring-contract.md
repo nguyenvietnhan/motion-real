@@ -42,12 +42,17 @@ const Scene: React.FC<SceneComponentProps<Props>> = ({ headline, props, duration
   const progress =
     durationInFrames > 1 ? Math.min(1, Math.max(0, frame / (durationInFrames - 1))) : 1;
   const enter = interpolate(progress, [0, 0.18], [0, 1], { extrapolateRight: "clamp" });
+  const focus = interpolate(progress, [0.25, 0.75], [0, 1], {
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+  });
 
   return (
     <div style={{ position: "absolute", inset: 0, background: "#0B0E14", color: "#F4F7FB" }}>
       <div style={{ position: "absolute", top: 140, left: 80, right: 80, opacity: enter }}>
         <div style={{ fontSize: 76, fontWeight: 800 }}>{headline}</div>
         <div style={{ marginTop: 32, fontSize: 44 }}>{props.label}</div>
+        <div style={{ marginTop: 48, width: `${Math.round(focus * 100)}%`, height: 10, background: "#60A5FA" }} />
       </div>
     </div>
   );
@@ -117,6 +122,14 @@ const frame = useCurrentFrame();
 const progress =
   durationInFrames > 1 ? Math.min(1, Math.max(0, frame / (durationInFrames - 1))) : 1;
 ```
+
+Use that `progress` value for bounded scene-local motion. When the approved
+content plan includes `motionProgression`, implement that intent in TSX. Prefer
+staged motion that supports the beat across early/mid/late moments: reveals,
+line/path/chart draws, focus shifts, bounded background depth, or a final hold
+only after the main beat lands. Do not animate only the first 1-3 seconds of a
+long scene and then leave the rest static unless the scene is intentionally a
+mostly-static statement beat.
 
 Forbidden:
 

@@ -85,7 +85,22 @@ not the default fallback for every scene.
 
 ## Motion
 
-Motion should help the idea. Prefer bounded, frame-derived motion that settles.
+Motion should help the idea. Each content plan scene should name a
+`motionProgression`: a short non-code intent for what changes across early,
+middle, and late moments of the scene.
+
+Prefer bounded, frame-derived motion that supports the beat across useful scene
+duration and then settles or resolves cleanly:
+
+- staged reveals tied to scene progress;
+- line, chart, path, or relationship drawing across the scene;
+- focus shifts between important elements;
+- slow bounded background depth;
+- a final hold only after the main beat has landed.
+
+Do not animate only the first 1-3 seconds of a long scene and then leave the
+rest as a static slide. Deliberately static statement beats remain valid when
+stillness is the point.
 
 Avoid:
 
@@ -94,4 +109,3 @@ Avoid:
 - `frame % n` loops;
 - non-clamped endless interpolation;
 - motion added only to keep pixels moving.
-

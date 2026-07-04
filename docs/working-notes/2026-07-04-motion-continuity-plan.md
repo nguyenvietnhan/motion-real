@@ -1,8 +1,8 @@
 # Temporary Task - Motion Continuity Plan
 
 Status: MOTION-0 baseline and reproduction audit, MOTION-1 scene-duration
-authored context, and MOTION-2 content-plan motion intent completed; MOTION-3
-pending.
+authored context, MOTION-2 content-plan motion intent, and MOTION-3
+code-authoring motion prompt/docs completed; MOTION-4 pending.
 
 This is a temporary working note for fixing the observed issue where generated
 scenes animate for the first few seconds and then hold like static slides for
@@ -96,6 +96,10 @@ Verified facts:
 - MOTION-2 added required per-scene `motionProgression` to content planning,
   keeps it in `contentPlanForAuthoring(...)`, and rejects only generic weak
   motion intents such as "text appears" through the local quality check.
+- MOTION-3 updated authoring/reauthor prompt text and current docs to use
+  top-level `durationInFrames`, clamped scene progress, and content-plan
+  `motionProgression`; removed the short `[0, 18]` entrance example from
+  current prompt/docs; and kept static statement beats valid.
 
 ## Attachment Review Notes
 
@@ -377,7 +381,7 @@ feat: plan motion progression before authoring
 
 ### MOTION-3: Tighten Code-Authoring Motion Prompt And Docs
 
-Status: pending.
+Status: completed on 2026-07-04.
 
 Purpose: change code-authoring behavior from short entrance-only animation
 toward bounded, duration-aware staged scene progression.
@@ -392,22 +396,22 @@ Touch:
 
 Actions:
 
-- update code-authoring examples to destructure `durationInFrames` and compute
+- updated code-authoring examples to destructure `durationInFrames` and compute
   clamped scene progress;
-- replace the short-only example with a multi-phase bounded example that still
+- replaced the short-only example with a multi-phase bounded example that still
   settles cleanly;
-- consume the content-plan `motionProgression` field explicitly when present;
-- keep "not every scene must move" language, but make "do not animate only the
+- consumed the content-plan `motionProgression` field explicitly when present;
+- kept "not every scene must move" language, but made "do not animate only the
   first 1-3 seconds of a long scene" explicit;
-- teach acceptable patterns:
+- taught acceptable patterns:
   - staged reveals tied to `progress`;
   - line/chart/path draw across a scene;
   - focus shifts between elements;
   - slow bounded background depth;
   - final hold only after the main beat has completed;
-- keep bans on meaningless perpetual loops, `Math.sin(frame)` loops,
+- kept bans on meaningless perpetual loops, `Math.sin(frame)` loops,
   `frame % n` loops, and non-deterministic APIs;
-- add semantic prompt tests using the current stable shape/semantic assertion
+- added semantic prompt tests using the current stable shape/semantic assertion
   style, not exact character-count snapshots.
 
 Checks:
@@ -425,6 +429,19 @@ Stop point:
 
 - Do not make prompt language demand constant motion in every scene. The goal is
   purposeful progression, not decorative jitter.
+
+Result:
+
+- `apps/desktop/src/main/authoring/prompt.test.ts` passed with 29 tests;
+- `apps/desktop/src/main/authoring/content-plan.test.ts` passed with 18 tests;
+- `packages/pipeline/src/safety/typecheck-authored.test.ts` passed with 12
+  tests;
+- `apps/desktop/src/main/authoring/agent-guidance.test.ts` passed with 3 tests
+  after docs were synced to say motion should settle or resolve cleanly;
+- `npm.cmd run typecheck` passed;
+- `npm.cmd test` passed with 91 main-shard test files plus the N10 shard, 906
+  tests total;
+- `npm.cmd run build` passed; Remotion webpack bundle succeeded.
 
 Commit suggestion:
 

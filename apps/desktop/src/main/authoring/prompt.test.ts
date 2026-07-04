@@ -183,6 +183,8 @@ describe("buildAuthorMessages", () => {
     expect(text).toContain("Reveal scarcity before specs");
     expect(text).toContain("motionProgression");
     expect(text).toContain("gate closes");
+    expect(text).toContain("durationInFrames + useCurrentFrame");
+    expect(text).toContain("1–3 giây đầu");
     expect(text).not.toContain("Unsupported $999 launch price");
     expect(text).not.toContain("claim-02");
   });
@@ -241,8 +243,14 @@ describe("buildAuthorMessages", () => {
     const [sys] = buildAuthorMessages({ text: "Chủ đề bất kỳ", urls: [] });
     const text = sys!.content;
     expect(text).toMatch(/DIỄN TIẾN qua phần lớn thời lượng/);
+    expect(text).toMatch(/durationInFrames/);
+    expect(text).toMatch(/frame \/ \(durationInFrames - 1\)/);
+    expect(text).toMatch(/motionProgression/);
+    expect(text).toMatch(/1–3 giây đầu/);
+    expect(text).toMatch(/final hold.*beat chính/is);
     expect(text).toMatch(/KHÔNG phải luật bắt buộc/);
     expect(text).toMatch(/cảnh tĩnh có chủ đích vẫn hoàn toàn hợp lệ/);
+    expect(text).not.toMatch(/\[0,\s*18\]/);
     expect(text).not.toMatch(/ANIMATION PHẢI|mọi cảnh phải chuyển động/);
   });
 
@@ -444,6 +452,8 @@ describe("buildReauthorMessages", () => {
     const msgs = buildReauthorMessages({ ...base, intent: "chỉnh lại cảnh theo ý người dùng" });
     const system = msgs[0]!.content as string;
     expect(system).toMatch(/DIỄN TIẾN qua phần lớn thời lượng/);
+    expect(system).toMatch(/durationInFrames/);
+    expect(system).toMatch(/motionProgression/);
     expect(system).toMatch(/KHÔNG phải luật bắt buộc/);
     expect(system).toMatch(/cảnh tĩnh có chủ đích vẫn hoàn toàn hợp lệ/);
   });

@@ -138,14 +138,18 @@ import { useCurrentFrame, interpolate } from "remotion";
 import { registerComponent, type SceneComponentProps } from "@motionreal/compositions";
 export const schema = z.object({ /* props */ });
 type Props = z.infer<typeof schema>;
-const Scene: React.FC<SceneComponentProps<Props>> = ({ headline, eyebrow }) => {
+const Scene: React.FC<SceneComponentProps<Props>> = ({ headline, eyebrow, durationInFrames }) => {
   const frame = useCurrentFrame();
-  const enter = interpolate(frame, [0, 18], [0, 1], { extrapolateRight: "clamp" });
+  const progress = durationInFrames > 1 ? Math.min(1, Math.max(0, frame / (durationInFrames - 1))) : 1;
+  const enter = interpolate(progress, [0, 0.16], [0, 1], { extrapolateRight: "clamp" });
+  const lineDraw = interpolate(progress, [0.2, 0.72], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
   return (
-    <div style={{ position: "absolute", inset: 0, background: "transparent", display: "flex", flexDirection: "column", justifyContent: "center", padding: 80, opacity: enter }}>
+    <div style={{ position: "absolute", inset: 0, background: "transparent", display: "flex", flexDirection: "column", justifyContent: "center", padding: 80, opacity: enter, transform: \`translateY(\${interpolate(progress, [0, 0.16], [24, 0], { extrapolateRight: "clamp" })}px)\` }}>
       <span style={{ fontSize: 28, letterSpacing: 4, color: "#7dd3fc" }}>{eyebrow ?? "TIN"}</span>
       <h1 style={{ fontSize: 96, lineHeight: 1.05, color: "#fff", margin: 0, fontWeight: 800 }}>{headline}</h1>
-      {/* đồ hoạ SVG/CSS bespoke riêng cho cảnh này ở đây */}
+      <svg width="720" height="160" viewBox="0 0 720 160" style={{ marginTop: 40 }}>
+        <path d="M24 120 C180 20 360 20 696 88" stroke="#7dd3fc" strokeWidth="12" fill="none" strokeLinecap="round" pathLength={1} strokeDasharray={1} strokeDashoffset={1 - lineDraw} />
+      </svg>
     </div>
   );
 };
@@ -212,7 +216,8 @@ ${JSON.stringify(plan, null, 2)}
 
 LUẬT DÙNG CONTENT PLAN:
 - Giữ đúng title, viewerPromise, hook/openLoop/payoff và thứ tự sceneId/purpose/beat trừ khi cần sửa rất nhỏ để hợp TSX.
-- Mỗi cảnh phải hiện thực hóa đúng beat/narration/onScreenText/visualMetaphor/layoutFamily đã được lập kế hoạch.
+- Mỗi cảnh phải hiện thực hóa đúng beat/narration/onScreenText/visualMetaphor/layoutFamily/motionProgression đã được lập kế hoạch.
+- Nếu scene có motionProgression, chuyển nó thành staged motion theo progress cục bộ của cảnh (durationInFrames + useCurrentFrame), không chỉ animate 1–3 giây đầu rồi để phần đuôi đứng yên. Final hold chỉ nên đến sau khi beat chính đã hoàn tất; statement beat tĩnh có chủ đích vẫn hợp lệ.
 - Chỉ dùng các claims còn xuất hiện trong JSON trên. Nếu một claim không có ở đây, coi như đã bị loại vì thiếu căn cứ và KHÔNG được đưa vào narration, text, props hoặc code.
 - Không thêm số liệu/ngày/giá/phần trăm mới ngoài claim ledger đã duyệt; thiếu căn cứ thì viết lại theo hướng không cần chi tiết đó.
 - Vẫn phải tuân thủ toàn bộ AUTHORING_CONTRACT và AI_Output_Contract bên dưới.`;
