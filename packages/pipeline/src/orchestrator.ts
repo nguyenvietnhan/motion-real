@@ -158,6 +158,8 @@ const DRAFT_FPS = 10;
 const FULL_FPS = 30;
 const VALID_OPEN_GL_RENDERERS = new Set<RenderOpenGlRenderer>(["angle", "egl", "swiftshader", "swangle", "vulkan", "angle-egl"]);
 const VALID_CHROME_MODES = new Set<RenderChromeMode>(["headless-shell", "chrome-for-testing"]);
+type LayoutMeasureMode = "auto" | "force" | "off";
+const VALID_LAYOUT_MEASURE_MODES = new Set<LayoutMeasureMode>(["auto", "force", "off"]);
 
 export type RenderProjectDeps = {
   synthesize?: (spec: VideoSpec, opts: SynthesizeOptions) => Promise<TtsManifest | null>;
@@ -206,6 +208,12 @@ export type RenderProjectOptions = {
    * and no authored scenes. Defaults to false (full AUTHOR path).
    */
   skipAuthoring?: boolean;
+  /**
+   * Diagnostic layout measuring for legacy tagged block layouts. Default "auto"
+   * measures only scenes whose authored source contains `data-nrt-block`.
+   * "force" measures every scene; "off" disables the N15/N17 manual lane.
+   */
+  layoutMeasureMode?: LayoutMeasureMode;
   /**
    * User-cancel signal ("Dừng render"). When it fires, the in-flight render is
    * aborted and `renderProject` throws a `RenderCancelledError` — which is NOT
@@ -676,10 +684,12 @@ async function renderProjectUnlocked(projectId: string, opts: RenderProjectOptio
     // Eased in as WARNINGS (not a hard gate) while we observe false-positive rate;
     // a measurement failure must never fail the render, so it's fully guarded.
     const overlapIssues: SafetyIssue[] = [];
-    const layoutSceneIds = layoutMeasureSceneIds(locked, authoredSources, authoredSceneFiles);
+    const layoutMode = opts.layoutMeasureMode ?? envLayoutMeasureMode() ?? "auto";
+    const layoutSceneIds = layoutMeasureSceneIds(locked, authoredSources, authoredSceneFiles, layoutMode);
     if (layoutSceneIds.length === 0) {
-      await appendEvent(projectId, { type: "render.overlap.skipped", cause: "no tagged layout blocks" });
-      await appendTimingEvent("stage.layout_measure.skipped", 0, { cause: "no tagged layout blocks" });
+      const cause = layoutMode === "off" ? "layout measure disabled" : "no tagged layout blocks";
+      await appendEvent(projectId, { type: "render.overlap.skipped", cause, layoutMeasureMode: layoutMode });
+      await appendTimingEvent("stage.layout_measure.skipped", 0, { cause, layoutMeasureMode: layoutMode });
     } else {
       try {
         const layouts = await timedPipelineStage(
@@ -693,7 +703,7 @@ async function renderProjectUnlocked(projectId: string, opts: RenderProjectOptio
               sceneIds: layoutSceneIds,
               ...(opts.signal ? { signal: opts.signal } : {}),
             }),
-          { scenes: layoutSceneIds.length },
+          { scenes: layoutSceneIds.length, layoutMeasureMode: layoutMode },
         );
         await timedPipelineStage(
           "stage.layout_oracles",
@@ -805,12 +815,12 @@ function layoutMeasureSceneIds(
   locked: LockedVideoSpec,
   authoredSources: readonly string[],
   authoredSceneFiles: readonly ManifestSceneFile[],
+  mode: LayoutMeasureMode = "auto",
 ): string[] {
-  const ids = new Set<string>();
-  for (const scene of locked.scenes) {
-    if (scene.image) ids.add(scene.id);
-  }
+  if (mode === "off") return [];
+  if (mode === "force") return locked.scenes.map((scene) => scene.id);
 
+  const ids = new Set<string>();
   for (const [index, source] of authoredSources.entries()) {
     if (!source.includes("data-nrt-block")) continue;
     const sceneId = authoredSceneFiles[index]?.sceneId;
@@ -847,6 +857,11 @@ function envChromeMode(): RenderChromeMode | undefined {
   if (!raw) return undefined;
   const normalized = raw.toLowerCase();
   return VALID_CHROME_MODES.has(normalized as RenderChromeMode) ? (normalized as RenderChromeMode) : undefined;
+}
+
+function envLayoutMeasureMode(): LayoutMeasureMode | undefined {
+  const raw = process.env.MOTIONREAL_LAYOUT_MEASURE?.trim().toLowerCase();
+  return raw && VALID_LAYOUT_MEASURE_MODES.has(raw as LayoutMeasureMode) ? (raw as LayoutMeasureMode) : undefined;
 }
 
 function defaultDraftRenderConcurrency(): number {

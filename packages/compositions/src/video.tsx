@@ -139,9 +139,9 @@ export const VideoComposition: React.FC<VideoCompositionProps> = ({ spec, measur
         </TransitionSeries>
 
         {spec.audio.narrationSrc ? <Audio src={resolveAudio(spec.audio.narrationSrc)} /> : null}
-        {/* Caption band + divider are a TikTok (9:16) concern only (freeform-engine
+        {/* Caption band is a TikTok (9:16) concern only (freeform-engine
             D8): YouTube ships its own native captions, so a 16:9 video mounts
-            neither the burned karaoke track nor the content/caption divider — it
+            neither the burned karaoke track nor the optional content divider. It
             uses the full frame. `format` defaults to "tiktok" for any spec authored
             before the field existed, so vertical videos are unchanged. */}
         {spec.format !== "youtube" ? (
@@ -176,20 +176,16 @@ export const CompositionBackdrop: React.FC<{ theme: Theme; children: React.React
  * by the composition (not per scene), so when a language draws it, it appears on
  * EVERY video regardless of what the authored scenes draw.
  *
- * Whether the LINE is painted is a per-language CHROME choice (`backdrop.divider`):
- * the editorial print look draws a solid rule; the galaxy look keeps the same
- * clearance but no visible bar (its content already floats over the night). The
- * N14 above/below-divider oracles scan `CONTENT_ZONE.bottom` UNCONDITIONALLY —
- * they enforce the clearance gap whether or not the line is drawn — so hiding the
- * bar changes only the pixels, never the layout rule authored content must obey.
+ * Whether the LINE is painted is a per-language CHROME choice (`backdrop.divider`).
+ * The current production theme turns it off. The old above-divider N14 oracle is
+ * now opt-in/manual, so this toggle is paint only and must not imply a production
+ * gate by itself.
  */
 const CaptionDivider: React.FC<{ color: string }> = ({ color }) => {
   const theme = useTheme();
   // Chrome-only: a language may keep the clearance but not paint the bar.
   if (!theme.backdrop.divider) return null;
-  // Drawn at the ONE shared content-zone bottom — the SAME constant the N14
-  // above/below-divider oracles scan, so the divider is drawn exactly where the
-  // oracles expect, never a drifting hard-coded y.
+  // Drawn at the ONE shared content-zone bottom, never a drifting hard-coded y.
   return (
     <AbsoluteFill>
       <div

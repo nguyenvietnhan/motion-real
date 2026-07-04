@@ -38,7 +38,7 @@ import {
  *
  * Limitations are honest and documented: from a single midpoint still some
  * defects can only be approximated. `runRenderGrid` auto-runs the format-aware
- * frame edge check for every format, the 9:16 zone/caption/divider checks only
+ * frame edge check for every format, the 9:16 zone/caption checks only
  * for TikTok, the general frame checks (N18, N19, N30), the pure spec-level
  * oracles (N20, N22, N28, N29), and a coarse adjacent-still transition check
  * (N21). Three oracles are exported + self-tested but are NOT auto-run, because
@@ -83,17 +83,16 @@ export type RenderGridOptions = {
   richnessMinSeconds?: number;
   /** Below this inter-frame diff fraction a long scene is a static hold (N23). */
   staticDiffFraction?: number;
-  /** Max fraction of the caption-clearance gap that may be content before N14 fires (HARD). */
+  /** Max fraction of the caption-clearance gap that may be content before N14 fires. */
   captionClearanceTolerance?: number;
   /**
    * Whether to enforce a clearance gap ABOVE the divider (content must not sit
-   * flush on the divider from above). Default on. A future layout grammar that
-   * doesn't draw a divider at CONTENT_ZONE.bottom can turn this off — the oracle
-   * reads the same zone the composition draws from, so it never asserts a rule
-   * the layout itself doesn't hold.
+   * flush on the divider from above). Default off because the current production
+   * theme does not draw a divider at CONTENT_ZONE.bottom. Enable this only for a
+   * runtime profile that actually paints that line.
    */
   dividerClearanceAbove?: boolean;
-  /** Max fraction of the above-divider clearance band that may be content before N14 fires (HARD). */
+  /** Max fraction of the above-divider clearance band that may be content before N14 fires. */
   dividerClearanceAboveTolerance?: number;
   /** Above this content-zone fill fraction, a scene reads as overcrowded (N30, advisory). */
   densityFraction?: number;
@@ -113,7 +112,7 @@ const DEFAULTS: Required<RenderGridOptions> = {
   richnessMinSeconds: 4,
   staticDiffFraction: 0.005,
   captionClearanceTolerance: 0.01,
-  dividerClearanceAbove: true,
+  dividerClearanceAbove: false,
   dividerClearanceAboveTolerance: 0.01,
   densityFraction: 0.6,
 };
@@ -295,14 +294,13 @@ export function checkContentZone(frame: Frame, sceneId?: string, options?: Rende
   return [];
 }
 
-// --- N14 (caption clearance): authored content must keep clear of captions (HARD) ---
+// --- N14 (caption clearance): authored content must keep clear of captions ---
 
 /**
  * Authored content must NOT creep down toward the caption band — there must be a
- * visible gap (the global divider line sits at the content-zone bottom, above
- * this gap). We scan ONLY the clearance gap between the content zone and the
- * caption band: captions never render there, so ANY meaningful content in this
- * band is authored overflow drifting into the captions, and is a hard error.
+ * visible gap between authored content and subtitles. We scan ONLY the clearance
+ * gap between the content zone and the caption band: captions never render there,
+ * so meaningful content in this band is authored overflow drifting into captions.
  * (Scanning the caption band itself would false-positive on the burned-in
  * captions, so we deliberately scan the gap above it.)
  */
@@ -337,14 +335,14 @@ export function checkCaptionClearance(frame: Frame, sceneId?: string, options?: 
         // Freeform pivot: advisory, not a hard gate (see checkSafeArea).
         severity: "warning",
         sceneId,
-        message: `Content reaches into the caption clearance gap (${(fraction * 100).toFixed(2)}% of the gap band); keep authored content above the divider, clear of the caption band.`,
+        message: `Content reaches into the caption clearance gap (${(fraction * 100).toFixed(2)}% of the gap band); keep authored content clear of the caption band.`,
       },
     ];
   }
   return [];
 }
 
-// --- N14 (above-divider clearance): content must keep a gap ABOVE the divider (HARD) ---
+// --- N14 (above-divider clearance): manual profile for themes with a divider ---
 
 /**
  * Symmetric partner to `checkCaptionClearance`: that one scans BELOW the divider
@@ -354,11 +352,11 @@ export function checkCaptionClearance(frame: Frame, sceneId?: string, options?: 
  * `<Story>`), this oracle works on the rendered pixels and so guards EVERY scene
  * — including ones authored directly with `<Frame>` that bypass `Story`.
  *
- * It reads the SAME `CONTENT_ZONE.bottom` the composition's `CaptionDivider` is
- * drawn from, so it asserts exactly "don't touch the divider that is actually
- * drawn" — never a hard-coded y. A future layout grammar that draws no divider
- * there sets `dividerClearanceAbove: false` and this becomes a no-op, so the
- * oracle never outlives the rule it enforces.
+ * It reads the SAME `CONTENT_ZONE.bottom` a divider profile draws from, so it
+ * asserts exactly "don't touch the divider that is actually drawn" — never a
+ * hard-coded y. The current production theme draws no divider and leaves
+ * `dividerClearanceAbove` false, so this stays manual/diagnostic until a real
+ * divider profile comes back.
  *
  * The scanned band (`ABOVE_DIVIDER_BAND` px, in canvas space) is deliberately
  * thinner than `Story`'s 24px clearance, so content that correctly clears the

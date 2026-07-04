@@ -155,20 +155,20 @@ describe("N14 caption clearance", () => {
 describe("N14 above-divider clearance", () => {
   // The divider is drawn at CONTENT_ZONE.bottom (1350); the oracle scans the thin
   // band just above it (1334..1348).
-  it("fires when content sits flush on the divider from above", () => {
+  it("fires when content sits flush on the divider from above and the divider profile is enabled", () => {
     const f = makeFrame(1080, 1920);
     paint(f, { x: 120, y: 1338, width: 500, height: 10 }, WHITE); // flush above the divider
-    expect(checkDividerClearanceAbove(f).some((i) => i.check === "N14")).toBe(true);
+    expect(checkDividerClearanceAbove(f, undefined, { dividerClearanceAbove: true }).some((i) => i.check === "N14")).toBe(true);
   });
-  it("passes when content keeps a clear gap above the divider", () => {
+  it("passes when content keeps a clear gap above the divider and the divider profile is enabled", () => {
     const f = makeFrame(1080, 1920);
     paint(f, { x: 120, y: 400, width: 500, height: 300 }, WHITE); // up in the content zone
-    expect(checkDividerClearanceAbove(f)).toEqual([]);
+    expect(checkDividerClearanceAbove(f, undefined, { dividerClearanceAbove: true })).toEqual([]);
   });
-  it("is a no-op when divider-clearance enforcement is turned off (future layout)", () => {
+  it("is a no-op by default because the production theme does not draw a divider", () => {
     const f = makeFrame(1080, 1920);
     paint(f, { x: 120, y: 1338, width: 500, height: 10 }, WHITE); // would otherwise fire
-    expect(checkDividerClearanceAbove(f, undefined, { dividerClearanceAbove: false })).toEqual([]);
+    expect(checkDividerClearanceAbove(f)).toEqual([]);
   });
   it("does NOT fire on a sparse galaxy starfield in the band (decorative speckle, not overflow)", () => {
     // The bug this guards: a galaxy backdrop paints isolated 1–4px stars (+ a
@@ -185,7 +185,7 @@ describe("N14 above-divider clearance", () => {
       const sy = 1335 + Math.floor(rnd() * 12);
       paint(f, { x: sx, y: sy, width: 2 + Math.floor(rnd() * 2), height: 2 }, WHITE);
     }
-    expect(checkDividerClearanceAbove(f)).toEqual([]);
+    expect(checkDividerClearanceAbove(f, undefined, { dividerClearanceAbove: true })).toEqual([]);
   });
 });
 
@@ -206,7 +206,7 @@ describe("N14 late-sample (post-midpoint drift)", () => {
   it("fires as a WARNING when late content sits flush on the divider from above", () => {
     const f = makeFrame(1080, 1920);
     paint(f, { x: 120, y: 1338, width: 500, height: 10 }, WHITE); // flush above the divider
-    const issues = checkLateSafeArea(f);
+    const issues = checkLateSafeArea(f, undefined, { dividerClearanceAbove: true });
     expect(issues.some((i) => i.check === "N14" && i.severity === "warning")).toBe(true);
   });
   it("passes (no issues) on a clean late still", () => {
@@ -571,6 +571,28 @@ describe("runRenderGrid aggregator", () => {
 
     expect(report.issues.filter((i) => i.check === "N14")).toEqual([]);
     expect(report.ok).toBe(true);
+  });
+
+  it("does not auto-run above-divider clearance when the production divider is absent", async () => {
+    await writeFile(join(dir, "scene-01.png"), fullFrame("tiktok", { x: 120, y: 1338, width: 500, height: 10 }));
+    const locked = lockedFixture({
+      scenes: [scene("scene-01", 0, 600, "tu mot hai ba bon")],
+    });
+
+    const report = await runRenderGrid(locked, { framesDir: dir });
+
+    expect(report.issues.some((i) => /flush on the divider/i.test(i.message))).toBe(false);
+  });
+
+  it("can still run above-divider clearance when a divider profile opts in", async () => {
+    await writeFile(join(dir, "scene-01.png"), fullFrame("tiktok", { x: 120, y: 1338, width: 500, height: 10 }));
+    const locked = lockedFixture({
+      scenes: [scene("scene-01", 0, 600, "tu mot hai ba bon")],
+    });
+
+    const report = await runRenderGrid(locked, { framesDir: dir }, { dividerClearanceAbove: true });
+
+    expect(report.issues.some((i) => /flush on the divider/i.test(i.message))).toBe(true);
   });
 
 });

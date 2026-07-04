@@ -44,6 +44,7 @@ let prevRenderConcurrency: string | undefined;
 let prevDraftRenderConcurrency: string | undefined;
 let prevRenderGl: string | undefined;
 let prevRenderChromeMode: string | undefined;
+let prevLayoutMeasure: string | undefined;
 
 beforeEach(async () => {
   tempRoot = await mkdtemp(join(tmpdir(), "news-orchestrator-"));
@@ -52,11 +53,13 @@ beforeEach(async () => {
   prevDraftRenderConcurrency = process.env.NEWS_DRAFT_RENDER_CONCURRENCY;
   prevRenderGl = process.env.NEWS_RENDER_GL;
   prevRenderChromeMode = process.env.NEWS_RENDER_CHROME_MODE;
+  prevLayoutMeasure = process.env.MOTIONREAL_LAYOUT_MEASURE;
   process.env.VIDEO_TOOL_HOME = tempRoot;
   delete process.env.NEWS_RENDER_CONCURRENCY;
   delete process.env.NEWS_DRAFT_RENDER_CONCURRENCY;
   delete process.env.NEWS_RENDER_GL;
   delete process.env.NEWS_RENDER_CHROME_MODE;
+  delete process.env.MOTIONREAL_LAYOUT_MEASURE;
   stillBytes = "identical-frame-bytes";
 
   mocks.bundle.mockResolvedValue("http://localhost:3000/bundle");
@@ -93,6 +96,8 @@ afterEach(async () => {
   else process.env.NEWS_RENDER_GL = prevRenderGl;
   if (prevRenderChromeMode === undefined) delete process.env.NEWS_RENDER_CHROME_MODE;
   else process.env.NEWS_RENDER_CHROME_MODE = prevRenderChromeMode;
+  if (prevLayoutMeasure === undefined) delete process.env.MOTIONREAL_LAYOUT_MEASURE;
+  else process.env.MOTIONREAL_LAYOUT_MEASURE = prevLayoutMeasure;
   await rm(tempRoot, { recursive: true, force: true });
 });
 
@@ -170,10 +175,10 @@ const SAMPLE_SPEC: VideoSpec = {
   ],
 };
 
-async function readyProject(): Promise<string> {
+async function readyProject(spec: VideoSpec = SAMPLE_SPEC): Promise<string> {
   const { projectId } = await scaffoldVideoProject({ prompt: "Author render test", tts: { provider: "mock" } });
   // Pre-write the resolved spec so renderProject can skip authoring/admission.
-  await writeJson(projectPaths(projectId).spec, SAMPLE_SPEC);
+  await writeJson(projectPaths(projectId).spec, spec);
   // Satisfy the draft-first gate: pretend a draft was already rendered/reviewed.
   const paths = projectPaths(projectId);
   await mkdir(paths.rendersDir, { recursive: true });
@@ -452,6 +457,58 @@ describe("renderProject — render pipeline (skipAuthoring)", () => {
     expect(existsSync(result.mp4Path)).toBe(true);
     expect(result.report.ok).toBe(false);
     expect(await readBriefState(projectId)).toBe("reviewing");
+  });
+
+  it("skips N15/N17 layout measuring for SceneImage-only specs by default", async () => {
+    const projectId = await readyProject({
+      ...SAMPLE_SPEC,
+      scenes: [
+        { ...SAMPLE_SPEC.scenes[0]!, image: { ref: "assets/photo.png", alt: "photo" } },
+        SAMPLE_SPEC.scenes[1]!,
+      ],
+    });
+    await writeFile(join(projectPaths(projectId).assetsDir, "photo.png"), Buffer.from("fake-image"));
+
+    await renderProject(projectId, {
+      skipAuthoring: true,
+      ttsProvider: "none",
+      forceFull: true,
+      checklist: FULL_CHECKLIST,
+      composeContactSheet: fakeCompositor(),
+    });
+
+    const events = (await readFile(projectPaths(projectId).events, "utf8"))
+      .trim()
+      .split("\n")
+      .map((l) => JSON.parse(l));
+    const timingNames = events.filter((e) => e.type === "render.timing").map((e) => e.name);
+    expect(timingNames).toContain("stage.layout_measure.skipped");
+    expect(timingNames).not.toContain("stage.layout_measure");
+    expect(events.find((e) => e.type === "render.overlap.skipped")).toMatchObject({
+      cause: "no tagged layout blocks",
+      layoutMeasureMode: "auto",
+    });
+  });
+
+  it("can force N15/N17 layout measuring for diagnostics", async () => {
+    const projectId = await readyProject();
+
+    await renderProject(projectId, {
+      skipAuthoring: true,
+      ttsProvider: "none",
+      forceFull: true,
+      checklist: FULL_CHECKLIST,
+      composeContactSheet: fakeCompositor(),
+      layoutMeasureMode: "force",
+    });
+
+    const events = (await readFile(projectPaths(projectId).events, "utf8"))
+      .trim()
+      .split("\n")
+      .map((l) => JSON.parse(l));
+    const timingNames = events.filter((e) => e.type === "render.timing").map((e) => e.name);
+    expect(timingNames).toContain("stage.layout_measure");
+    expect(events.find((e) => e.type === "render.overlap")).toMatchObject({ scenes: SAMPLE_SPEC.scenes.length });
   });
 
   it("surfaces late-sample N14 drift as a non-gating WARNING (lands in the report, project still 'done')", async () => {
