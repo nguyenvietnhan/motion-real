@@ -8,6 +8,7 @@ import {
   geometry,
   type FormatGeometry,
   type LockedVideoSpec,
+  type VideoFormat,
 } from "@motionreal/schema";
 import { makeReport, type SafetyIssue, type SafetyReport } from "../types.js";
 import { MAX_CAPTION_LINE_CHARS } from "../audio/captions.js";
@@ -36,11 +37,12 @@ import {
  * proving it fires on a known-bad input and passes on a clean one.
  *
  * Limitations are honest and documented: from a single midpoint still some
- * defects can only be approximated. `runRenderGrid` auto-runs the frame-only
- * oracles (N14 content-zone + caption-clearance, N18, N19, N30), the pure
- * spec-level oracles (N20, N22, N28, N29), and a coarse adjacent-still
- * transition check (N21). Three oracles are exported + self-tested but are NOT
- * auto-run, because a flat midpoint still lacks the inputs they need:
+ * defects can only be approximated. `runRenderGrid` auto-runs the format-aware
+ * frame edge check for every format, the 9:16 zone/caption/divider checks only
+ * for TikTok, the general frame checks (N18, N19, N30), the pure spec-level
+ * oracles (N20, N22, N28, N29), and a coarse adjacent-still transition check
+ * (N21). Three oracles are exported + self-tested but are NOT auto-run, because
+ * a flat midpoint still lacks the inputs they need:
  *   - N15 (overlap) and N17 (truncation) need per-block layout rects / a content
  *     box, which a flat raster does not carry — feed them those hints to use them.
  *   - N23 (richness) needs several frames per scene; and because the always-on
@@ -900,7 +902,14 @@ type SpecOracle = BaseOracle & {
 /** Single-frame oracle: runs once per decoded scene still. */
 type FrameOracle = BaseOracle & {
   phase: "frame";
+  /** Omit to run on every format. */
+  formats?: readonly VideoFormat[];
   run: (frame: Frame, sceneId?: string, options?: RenderGridOptions) => SafetyIssue[];
+};
+/** Single-frame oracle that needs resolved format geometry. */
+type GeometryFrameOracle = BaseOracle & {
+  phase: "geometry-frame";
+  run: (frame: Frame, geom: FormatGeometry, sceneId?: string, options?: RenderGridOptions) => SafetyIssue[];
 };
 /** Pairwise oracle: runs between consecutive scene stills. */
 type TransitionOracle = BaseOracle & {
@@ -915,13 +924,13 @@ type TransitionOracle = BaseOracle & {
  */
 type ManualOracle = BaseOracle & { phase: "manual" };
 
-export type RenderOracle = SpecOracle | FrameOracle | TransitionOracle | ManualOracle;
+export type RenderOracle = SpecOracle | FrameOracle | GeometryFrameOracle | TransitionOracle | ManualOracle;
 
 /**
  * The single source of truth for WHICH oracles run, in WHAT order. `runRenderGrid`
  * iterates this list (it does not hold its own parallel call sequence), so the
  * registry can never drift from what actually executes — the order here IS the
- * emission order, preserved byte-for-byte from the prior hand-rolled aggregator.
+ * emission order.
  */
 export const RENDER_ORACLES: readonly RenderOracle[] = [
   // Spec-level (run first, in this order).
@@ -931,9 +940,10 @@ export const RENDER_ORACLES: readonly RenderOracle[] = [
   // checkCaptions takes (locked, maxLineChars); auto-run uses its default.
   { id: "captions", check: "N29", phase: "spec", run: (locked) => checkCaptions(locked) },
   // Single-frame, per scene (in this order).
-  { id: "content-zone", check: "N14", phase: "frame", run: checkContentZone },
-  { id: "caption-clearance", check: "N14", phase: "frame", run: checkCaptionClearance },
-  { id: "divider-clearance-above", check: "N14", phase: "frame", run: checkDividerClearanceAbove },
+  { id: "in-frame", check: "N14", phase: "geometry-frame", run: checkInFrame },
+  { id: "content-zone", check: "N14", phase: "frame", formats: ["tiktok"], run: checkContentZone },
+  { id: "caption-clearance", check: "N14", phase: "frame", formats: ["tiktok"], run: checkCaptionClearance },
+  { id: "divider-clearance-above", check: "N14", phase: "frame", formats: ["tiktok"], run: checkDividerClearanceAbove },
   { id: "density", check: "N30", phase: "frame", run: checkDensity },
   { id: "dead-air", check: "N19", phase: "frame", run: checkDeadAir },
   { id: "contrast", check: "N18", phase: "frame", run: checkContrast },
@@ -941,11 +951,6 @@ export const RENDER_ORACLES: readonly RenderOracle[] = [
   { id: "transition", check: "N21", phase: "transition", run: checkTransition },
   // Exported + self-tested, not auto-run (need inputs a flat still lacks).
   { id: "safe-area", check: "N14", phase: "manual" },
-  // Format-aware "don't fly off the frame" (D7/O5): needs a FormatGeometry, not
-  // the (frame, sceneId, options) shape — so it's manual, wired by the YouTube
-  // path (group J) which knows the spec format. The four variants above stay the
-  // 9:16 layout law; this is the one that also covers 16:9.
-  { id: "in-frame", check: "N14", phase: "manual" },
   { id: "late-safe-area", check: "N14", phase: "manual" },
   { id: "overlap", check: "N15", phase: "manual" },
   { id: "truncation", check: "N17", phase: "manual" },
@@ -963,13 +968,13 @@ export type RenderGridArtifacts = {
 
 /**
  * Run the deterministic-render grid over a locked spec + its per-scene stills.
- * Spec-level oracles (N20/N22/N28/N29) always run; frame oracles
- * (N14/N18/N19/N30) run per decoded still; a coarse adjacent-still transition
- * check (N21) runs between consecutive scenes. Missing/undecodable stills become
- * non-blocking warnings so the grid never crashes. N15/N17 (need layout hints)
- * and N23 (needs tilt-free multi-frame samples) are exported separately for
- * callers that have those inputs — see the file header for why they don't
- * auto-run.
+ * Spec-level oracles (N20/N22/N28/N29) always run; frame oracles run per decoded
+ * still, with format-scoped checks skipped when they do not apply; a coarse
+ * adjacent-still transition check (N21) runs between consecutive scenes.
+ * Missing/undecodable stills become non-blocking warnings so the grid never
+ * crashes. N15/N17 (need layout hints) and N23 (needs tilt-free multi-frame
+ * samples) are exported separately for callers that have those inputs — see the
+ * file header for why they don't auto-run.
  */
 export async function runRenderGrid(
   locked: LockedVideoSpec,
@@ -979,11 +984,12 @@ export async function runRenderGrid(
   const issues: SafetyIssue[] = [];
 
   // The registry is the single source of truth for which oracles run and in what
-  // order; we select by `phase` but never re-order within a phase, so emission is
-  // byte-identical to the prior hand-rolled sequence.
+  // order; we select by `phase` but never re-order within a phase.
   const specOracles = RENDER_ORACLES.filter((o): o is SpecOracle => o.phase === "spec");
+  const geometryFrameOracles = RENDER_ORACLES.filter((o): o is GeometryFrameOracle => o.phase === "geometry-frame");
   const frameOracles = RENDER_ORACLES.filter((o): o is FrameOracle => o.phase === "frame");
   const transitionOracles = RENDER_ORACLES.filter((o): o is TransitionOracle => o.phase === "transition");
+  const geom = geometry(locked.format);
 
   // Spec-level oracles (no pixels needed).
   for (const oracle of specOracles) {
@@ -1012,7 +1018,11 @@ export async function runRenderGrid(
   locked.scenes.forEach((scene, i) => {
     const frame = frames[i];
     if (!frame) return;
+    for (const oracle of geometryFrameOracles) {
+      issues.push(...oracle.run(frame, geom, scene.id, options));
+    }
     for (const oracle of frameOracles) {
+      if (oracle.formats && !oracle.formats.includes(locked.format)) continue;
       issues.push(...oracle.run(frame, scene.id, options));
     }
   });

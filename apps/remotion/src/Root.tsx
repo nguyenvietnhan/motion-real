@@ -7,12 +7,13 @@ import { theme } from "@motionreal/theme";
 import "./demo-scenes.js"; // side-effect: registers demo scene components for the sample
 import { sampleSpec } from "./fixtures/sample-spec.js";
 
-const { width, height } = theme.canvas;
+const defaultCanvas = geometry("tiktok").canvas;
+const { width, height } = defaultCanvas;
 
 const propsSchema = z.object({ spec: LockedVideoSpecSchema, measure: z.boolean().optional() });
 
 /** Frames the 1-frame thumbnail still renders within; the still is taken at the
- *  LAST frame so `TitleBlock`'s entrance reveal has fully settled (= 1). */
+ *  LAST frame so the cover title's entrance reveal has fully settled (= 1). */
 const THUMBNAIL_DURATION = 60;
 
 /**
@@ -34,18 +35,19 @@ export const RemotionRoot: React.FC = () => {
         durationInFrames={sampleSpec.durationInFrames}
         calculateMetadata={({ props }) => {
           const spec = props.spec;
+          const g = geometry(spec.format);
           return {
             durationInFrames: spec.durationInFrames,
             fps: spec.fps ?? FPS,
-            width,
-            height,
+            width: g.canvas.width,
+            height: g.canvas.height,
           };
         }}
       />
       {/* Thumbnail/cover (R12, I3) — a single format-aware still. The canvas is
-          sized off `geometry(props.format)` HERE (1080×1920 for tiktok, 1920×1080
-          for youtube), the one place format drives dimensions; the still is taken
-          at the last frame so the title's entrance reveal has settled. */}
+          sized off `geometry(props.format)` (1080×1920 for tiktok, 1920×1080 for
+          youtube), matching the video composition's format-aware dimensions; the
+          still is taken at the last frame so the title's entrance reveal has settled. */}
       <Composition
         id="Thumbnail"
         component={ThumbnailComposition}

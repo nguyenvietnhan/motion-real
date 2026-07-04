@@ -44,14 +44,13 @@ export function buildAuthoredEntrySource(opts: AuthoredEntryOptions): string {
 import React from "react";
 import { Composition, registerRoot } from "remotion";
 import { z } from "zod";
-import { FPS, LockedVideoSpecSchema } from "@motionreal/schema";
+import { FPS, LockedVideoSpecSchema, geometry } from "@motionreal/schema";
 import { VideoComposition } from "@motionreal/compositions";
-import { theme } from "@motionreal/theme";
 ${importLines}
 import lockedSpec from ${JSON.stringify(lockRel)};
 
-const { width, height } = theme.canvas;
 const spec = lockedSpec as unknown as import("@motionreal/schema").LockedVideoSpec;
+const initialGeometry = geometry(spec.format);
 
 const Root: React.FC = () =>
   React.createElement(Composition, {
@@ -59,16 +58,19 @@ const Root: React.FC = () =>
     component: VideoComposition,
     schema: z.object({ spec: LockedVideoSpecSchema }),
     defaultProps: { spec },
-    width,
-    height,
+    width: initialGeometry.canvas.width,
+    height: initialGeometry.canvas.height,
     fps: spec.fps ?? FPS,
     durationInFrames: spec.durationInFrames,
-    calculateMetadata: ({ props }: { props: { spec: typeof spec } }) => ({
-      durationInFrames: props.spec.durationInFrames,
-      fps: props.spec.fps ?? FPS,
-      width,
-      height,
-    }),
+    calculateMetadata: ({ props }: { props: { spec: typeof spec } }) => {
+      const g = geometry(props.spec.format);
+      return {
+        durationInFrames: props.spec.durationInFrames,
+        fps: props.spec.fps ?? FPS,
+        width: g.canvas.width,
+        height: g.canvas.height,
+      };
+    },
   });
 
 registerRoot(Root);

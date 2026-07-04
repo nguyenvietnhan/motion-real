@@ -166,8 +166,7 @@ export const HomeView: React.FC<{
   const notify = useNotifications();
   // The three delivery knobs the user picks at create time (freeform-engine
   // R7/R9). The backend threads these into the prompt + spec — the model never
-  // chooses them. Defaults: TikTok / tier 1 / Vietnamese video. (Crude temporary
-  // UI per D-UI; not styled.)
+  // chooses them. Defaults: TikTok / tier 1 / Vietnamese video.
   const [format, setFormat] = useState<VideoFormatChoice>("tiktok");
   const [durationTier, setDurationTier] = useState<DurationTierChoice>(1);
   const [videoLanguage, setVideoLanguage] = useState<VideoLanguageChoice>("vi");

@@ -513,9 +513,10 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
   /**
    * Read each provided image (already imported into the project `assetsDir` as
    * `assets/<sha>.<ext>`) into a data URL so the model can SEE it and decide
-   * placement (Phase 2 Block A). A ref we can't read on disk is skipped (never
-   * blocks authoring) and is thereby also excluded from the allowed-ref set, so a
-   * scene the model pins to a missing image gets stripped downstream.
+   * placement (Phase 2 Block A). A ref we can't read on disk is skipped from the
+   * vision parts only; image authorization is based on the user-approved refs
+   * captured earlier, so a transient preview read failure never strips an
+   * approved image from the final manifest.
    */
   private buildAuthorImages(projectId: string, refs: AuthorImageRef[]): AuthorImageInput[] {
     const root = projectPaths(projectId).root;

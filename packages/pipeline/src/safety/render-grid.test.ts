@@ -488,6 +488,13 @@ describe("runRenderGrid aggregator", () => {
     return encodePngRGBA(f.width, f.height, f.data);
   }
 
+  function fullFrame(format: "tiktok" | "youtube", rect: Rect): Buffer {
+    const g = geometry(format);
+    const f = makeFrame(g.canvas.width, g.canvas.height);
+    paint(f, rect, WHITE);
+    return encodePngRGBA(f.width, f.height, f.data);
+  }
+
   it("runs spec + frame oracles over decoded stills and reports no errors on clean input", async () => {
     await writeFile(join(dir, "scene-01.png"), cleanFrame({ x: 30, y: 30, width: 40, height: 40 }));
     await writeFile(join(dir, "scene-02.png"), cleanFrame({ x: 30, y: 20, width: 40, height: 40 }));
@@ -509,6 +516,36 @@ describe("runRenderGrid aggregator", () => {
 
     const report = await runRenderGrid(locked, { framesDir: dir });
     expect(report.issues.some((i) => i.sceneId === "scene-02" && /could not load still/i.test(i.message))).toBe(true);
+  });
+
+  it("runs the format-aware in-frame oracle for YouTube stills", async () => {
+    const g = geometry("youtube");
+    await writeFile(join(dir, "scene-01.png"), fullFrame("youtube", { x: g.canvas.width - 8, y: 0, width: 8, height: g.canvas.height }));
+    const locked = lockedFixture({
+      format: "youtube",
+      ratio: "16:9",
+      language: "en",
+      scenes: [scene("scene-01", 0, 600, "one short line")],
+    });
+
+    const report = await runRenderGrid(locked, { framesDir: dir });
+
+    expect(report.issues.some((i) => i.check === "N14" && /youtube frame edge ring/.test(i.message))).toBe(true);
+  });
+
+  it("does not run TikTok caption/divider zone oracles for YouTube stills", async () => {
+    await writeFile(join(dir, "scene-01.png"), fullFrame("youtube", { x: 220, y: 768, width: 1000, height: 10 }));
+    const locked = lockedFixture({
+      format: "youtube",
+      ratio: "16:9",
+      language: "en",
+      scenes: [scene("scene-01", 0, 600, "one short line")],
+    });
+
+    const report = await runRenderGrid(locked, { framesDir: dir });
+
+    expect(report.issues.filter((i) => i.check === "N14")).toEqual([]);
+    expect(report.ok).toBe(true);
   });
 
 });

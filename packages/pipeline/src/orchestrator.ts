@@ -689,28 +689,32 @@ async function renderProjectUnlocked(projectId: string, opts: RenderProjectOptio
     // The midpoint still never sees content that drifts out of the safe zone after
     // entrances settle (tilt near its extreme, a counter/bar still growing, a block
     // creeping toward the caption band). This re-runs the SAME N14 pixel oracles on
-    // a late still per scene. Eased in as WARNINGS (chosen posture) — they land in
-    // the aggregate report (visible in desktop/MCP) but never flip the "done" gate.
-    // Best-effort: a missing/undecodable late still is silently skipped.
-    const lateIssues = await timedPipelineStage(
-      "stage.late_safe_area",
-      async () => {
-        const issues: SafetyIssue[] = [];
-        for (const scene of locked.scenes) {
-          for (const fraction of LATE_SAFE_AREA_FRACTIONS) {
-            const latePath = join(paths.reviewDir, `${scene.id}.f${Math.round(fraction * 100)}.png`);
-            try {
-              const frame = decodePng(await readFile(latePath));
-              issues.push(...checkLateSafeArea(frame, scene.id, renderGridOptions));
-            } catch {
-              /* no late still for this scene/fraction → nothing to scan */
+    // a late still per scene for TikTok, where the caption/divider bands exist.
+    // YouTube has no burned caption band, so it relies on the format-aware
+    // in-frame oracle instead. Eased in as WARNINGS (chosen posture) — they land
+    // in the aggregate report (visible in desktop/MCP) but never flip the "done"
+    // gate. Best-effort: a missing/undecodable late still is silently skipped.
+    const lateIssues = spec.format === "youtube"
+      ? []
+      : await timedPipelineStage(
+          "stage.late_safe_area",
+          async () => {
+            const issues: SafetyIssue[] = [];
+            for (const scene of locked.scenes) {
+              for (const fraction of LATE_SAFE_AREA_FRACTIONS) {
+                const latePath = join(paths.reviewDir, `${scene.id}.f${Math.round(fraction * 100)}.png`);
+                try {
+                  const frame = decodePng(await readFile(latePath));
+                  issues.push(...checkLateSafeArea(frame, scene.id, renderGridOptions));
+                } catch {
+                  /* no late still for this scene/fraction → nothing to scan */
+                }
+              }
             }
-          }
-        }
-        return issues;
-      },
-      { fractions: LATE_SAFE_AREA_FRACTIONS.length },
-    );
+            return issues;
+          },
+          { fractions: LATE_SAFE_AREA_FRACTIONS.length },
+        );
     await appendEvent(projectId, { type: "render.latesafearea", issues: lateIssues.length });
 
     const report = makeReport(

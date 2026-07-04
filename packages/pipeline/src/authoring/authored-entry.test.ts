@@ -29,6 +29,11 @@ describe("authored-entry generation", () => {
       cacheToken: "token-1",
     });
     expect(source).toContain("SOURCE-FINGERPRINT: token-1");
+    expect(source).toContain('import { FPS, LockedVideoSpecSchema, geometry } from "@motionreal/schema";');
+    expect(source).toContain("const initialGeometry = geometry(spec.format);");
+    expect(source).toContain("const g = geometry(props.spec.format);");
+    expect(source).not.toContain("@motionreal/theme");
+    expect(source).not.toContain("theme.canvas");
 
     await generateAuthoredEntry({ entryPath, authoredFiles: [scenePath], lockJsonPath: lockPath });
     const first = await readFile(entryPath, "utf8");
