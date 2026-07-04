@@ -1,9 +1,10 @@
 # Temporary Task - Test And Surface Cleanup Plan
 
 Status: CLEANUP-0 baseline, CLEANUP-1 stale S0 baseline deletion, CLEANUP-2
-authored composition surface sealing, and CLEANUP-3 authored-theme fixture
-removal, CLEANUP-4 prompt shape baseline cleanup, and CLEANUP-5 legacy language
-payload retirement completed; CLEANUP-6 pending.
+authored composition surface sealing, CLEANUP-3 authored-theme fixture removal,
+CLEANUP-4 prompt shape baseline cleanup, CLEANUP-5 legacy language payload
+retirement, and CLEANUP-6 unsupported new-video helper removal completed;
+CLEANUP-7 pending.
 
 This is a temporary working note for pruning stale tests, stale authored-facing
 surfaces, and compatibility paths that no longer serve MotionReal's current
@@ -97,8 +98,9 @@ Verified facts:
 - Before CLEANUP-5, legacy `titleLanguage` / `mix` support was still present in
   schema, desktop shared types, IPC payload conversion, create controller
   normalization, manifest conversion, and tests.
-- `scripts/new-video.ts` plus `scripts/templates/video-template.txt` are tested
-  by `tests/script-template.test.ts`, but this helper is not referenced by
+- Before CLEANUP-6, `scripts/new-video.ts` plus
+  `scripts/templates/video-template.txt` were tested by
+  `tests/script-template.test.ts`, but this helper was not referenced by
   README, `docs/current`, or package scripts.
 
 ## Coordination Guard
@@ -498,7 +500,7 @@ refactor: retire legacy title language payloads
 
 ### CLEANUP-6: Remove The Unadvertised `scripts/new-video` Helper
 
-Status: pending.
+Status: completed on 2026-07-04.
 
 Purpose: reduce unsupported script/template surface that is not documented in
 current docs, README, or package scripts.
@@ -512,8 +514,11 @@ Touch:
 
 Actions:
 
-- remove the helper and its template test together;
-- keep the supported pipeline CLI tests under `packages/pipeline/src/cli`.
+- confirmed the helper/template/test were only self-referenced and were not
+  called from README, `docs/current`, or package scripts;
+- removed the helper and its template test together;
+- removed the now-empty `scripts/templates/` directory;
+- kept the supported pipeline CLI tests under `packages/pipeline/src/cli`.
 
 Checks:
 
@@ -522,7 +527,20 @@ npm.cmd test -- packages/pipeline/src/cli/cli.test.ts
 npm.cmd test -- packages/pipeline/src/cli/doctor.test.ts
 npm.cmd run typecheck
 npm.cmd test
+npm.cmd run build
 ```
+
+Result:
+
+- reference audit had no remaining hits for `scripts/new-video`,
+  `new-video`, `video-template`, `script-template`, `build-<project-id>`, or
+  `vt-statement` under `scripts`, `tests`, README, `docs/current`, or
+  `package.json`;
+- focused CLI test passed with 13 tests;
+- focused CLI doctor test passed with 3 tests;
+- `npm.cmd run typecheck` passed;
+- `npm.cmd test` passed with 91 test files and 892 tests;
+- `npm.cmd run build` passed.
 
 Stop point:
 
