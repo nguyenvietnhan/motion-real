@@ -1,8 +1,8 @@
-import { tierSeconds, titleMaxChars, type DurationTier, type VideoFormat, type VideoLanguage } from "@motionreal/schema";
+import { titleMaxChars, type DurationTier, type VideoFormat, type VideoLanguage } from "@motionreal/schema";
 import { z } from "zod";
 import type { AuthorInput } from "../agent/agent-worker.js";
-import { DEFAULT_ENGLISH_WORDS_PER_SECOND, DEFAULT_WORDS_PER_SECOND } from "../../shared/settings-model.js";
 import type { AuthorImageInput, ContentPart, VisionMessage } from "./prompt.js";
+import { computePacingBudget, countWords, type PacingBudget } from "./pacing-policy.js";
 
 const HookTypeSchema = z.enum(["surprise", "number", "contradiction", "question", "visual-shock", "stakes"]);
 const ClaimSupportSchema = z.enum(["user_brief", "source_material", "common_knowledge"]);
@@ -113,9 +113,21 @@ export type ContentPlanQualityCheck =
   | "viewer-promise"
   | "payoff"
   | "claim-ledger"
+  | "pacing"
   | "layout-diversity"
   | "motion-progression";
-export type ContentPlanQualityIssue = { check: ContentPlanQualityCheck; message: string; sceneId?: string };
+export type ContentPlanQualitySeverity = "blocking" | "advisory";
+export type ContentPlanQualityIssue = {
+  check: ContentPlanQualityCheck;
+  severity: ContentPlanQualitySeverity;
+  message: string;
+  sceneId?: string;
+};
+export type ContentPlanQualityResult = {
+  issues: ContentPlanQualityIssue[];
+  blockingIssues: ContentPlanQualityIssue[];
+  advisoryIssues: ContentPlanQualityIssue[];
+};
 
 const CONCRETE_FACT_PATTERN = /(?:\d|%|\$|€|£|\bUSD\b|\bVND\b|\bEUR\b|\bGBP\b|triệu|tỷ|million|billion|20\d{2}|19\d{2})/i;
 const GENERIC_MOTION_PATTERN =
@@ -130,33 +142,41 @@ function hasGenericMotionIntent(value: string): boolean {
   return normalized.length <= 80 && GENERIC_MOTION_PATTERN.test(normalized);
 }
 
+function contentPlanQualitySeverity(check: ContentPlanQualityCheck): ContentPlanQualitySeverity {
+  return check === "layout-diversity" || check === "motion-progression" ? "advisory" : "blocking";
+}
+
 /**
- * Deterministic local quality gate for content planning. Fresh authoring uses it
- * before the TSX authoring call so a weak plan cannot bypass the claim ledger.
+ * Deterministic local review for content planning. Blocking issues protect
+ * factual safety and pacing; advisory issues are fed into TSX authoring instead
+ * of stopping creative plans before visual code exists.
  */
-export function evaluateContentPlanQuality(plan: ContentPlan): ContentPlanQualityIssue[] {
+export function evaluateContentPlanQuality(plan: ContentPlan, pacing?: PacingBudget): ContentPlanQualityResult {
   const issues: ContentPlanQualityIssue[] = [];
+  const addIssue = (issue: Omit<ContentPlanQualityIssue, "severity">) => {
+    issues.push({ ...issue, severity: contentPlanQualitySeverity(issue.check) });
+  };
   if (plan.scenes[0]?.purpose !== "hook") {
-    issues.push({ check: "hook", sceneId: plan.scenes[0]?.sceneId, message: "scene-01 must be the hook beat" });
+    addIssue({ check: "hook", sceneId: plan.scenes[0]?.sceneId, message: "scene-01 must be the hook beat" });
   }
   if (plan.viewerPromise.trim().length === 0) {
-    issues.push({ check: "viewer-promise", message: "viewerPromise is required" });
+    addIssue({ check: "viewer-promise", message: "viewerPromise is required" });
   }
   if (plan.payoff.trim().length === 0) {
-    issues.push({ check: "payoff", message: "payoff is required" });
+    addIssue({ check: "payoff", message: "payoff is required" });
   }
 
   for (const scene of plan.scenes) {
     const sceneText = `${scene.beat}\n${scene.narration}\n${scene.onScreenText}`;
     if (hasConcreteFact(sceneText) && scene.evidenceClaimIds.length === 0) {
-      issues.push({
+      addIssue({
         check: "claim-ledger",
         sceneId: scene.sceneId,
         message: "number/date/price/source-like claims must reference usable evidenceClaimIds",
       });
     }
     if (hasGenericMotionIntent(scene.motionProgression)) {
-      issues.push({
+      addIssue({
         check: "motion-progression",
         sceneId: scene.sceneId,
         message: "motionProgression must describe a purposeful temporal beat, not generic text/card appearance",
@@ -164,11 +184,43 @@ export function evaluateContentPlanQuality(plan: ContentPlan): ContentPlanQualit
     }
   }
 
+  if (pacing?.enforceScenePacing && plan.scenes.length > 0) {
+    const narrationWords = plan.scenes.map((scene) => ({ sceneId: scene.sceneId, words: countWords(scene.narration) }));
+    const totalNarrationWords = narrationWords.reduce((sum, scene) => sum + scene.words, 0);
+    const avgNarrationWords = totalNarrationWords / plan.scenes.length;
+
+    if (plan.scenes.length < pacing.minScenes) {
+      addIssue({
+        check: "pacing",
+        message: `${pacing.targetSeconds}s/${pacing.targetWords} words needs at least ${pacing.minScenes} scenes; got ${plan.scenes.length}`,
+      });
+    }
+    if (avgNarrationWords > pacing.maxAvgWordsPerScene) {
+      addIssue({
+        check: "pacing",
+        message: `average narration is ${Math.round(avgNarrationWords)} words/scene; keep it at or below ${pacing.maxAvgWordsPerScene} by splitting beats`,
+      });
+    }
+    for (const scene of narrationWords) {
+      if (scene.words > pacing.maxSceneNarrationWords) {
+        addIssue({
+          check: "pacing",
+          sceneId: scene.sceneId,
+          message: `scene narration is ${scene.words} words; split or tighten scenes above ${pacing.maxSceneNarrationWords} words`,
+        });
+      }
+    }
+  }
+
   const layoutFamilies = new Set(plan.scenes.map((scene) => scene.layoutFamily));
   if (plan.scenes.length >= 3 && layoutFamilies.size < 2) {
-    issues.push({ check: "layout-diversity", message: "plans with 3+ scenes need at least 2 layout families" });
+    addIssue({ check: "layout-diversity", message: "plans with 3+ scenes should use at least 2 layout families unless intentionally formal" });
   }
-  return issues;
+  return {
+    issues,
+    blockingIssues: issues.filter((issue) => issue.severity === "blocking"),
+    advisoryIssues: issues.filter((issue) => issue.severity === "advisory"),
+  };
 }
 
 function extractJsonObject(text: string): string | null {
@@ -287,8 +339,7 @@ Strong:
   motionProgression: "Early: morning energy fills the left half; mid: a thin debt line grows on the right; late: both halves balance into one visible tradeoff."`;
 
 function systemPrompt(format: VideoFormat, tier: DurationTier, language: VideoLanguage, wordsPerSecond: number): string {
-  const seconds = tierSeconds(format, tier);
-  const words = Math.round(seconds * wordsPerSecond);
+  const pacing = computePacingBudget({ format, durationTier: tier, videoLanguage: language }, wordsPerSecond);
   const titleCap = titleMaxChars(format);
   return `You are MotionReal's CONTENT PLANNER, not the Remotion code author.
 Plan a short-form video before any TSX is written. Return only valid JSON. Do not include markdown fences, commentary, JSX, imports, or component code.
@@ -303,7 +354,8 @@ TASK:
 
 DELIVERY LOCKS (already chosen by the app; do not change them):
 - Format: ${geometryLabel(format)}.
-- Duration tier: ${seconds} seconds target, around ${words} spoken words at ~${roundRate(wordsPerSecond)} words/second.
+- Duration tier: ${pacing.targetSeconds} seconds target, around ${pacing.targetWords} spoken words at ~${roundRate(wordsPerSecond)} words/second.
+- Pacing: plan ${pacing.minScenes}-${pacing.maxScenes} scenes, aim around ${pacing.targetScenes}; keep average narration at or below ${pacing.maxAvgWordsPerScene} words/scene and split any scene that grows past ${pacing.maxSceneNarrationWords} words.
 - Video language: ${languageLabel(language)} for title, narration, on-screen text, and final viewer-facing wording.
 - Publish title cap: under ${titleCap} characters.
 
@@ -328,10 +380,11 @@ STORY RUBRIC:
   or a deliberate static hold after the main beat lands. Bad: "text appears",
   "title fades in", or generic card movement.
 
-QUALITY GATE BEFORE FINAL JSON:
+QUALITY SELF-CHECK BEFORE FINAL JSON:
 - scene-01 purpose must be "hook", and first3SecondsLine must make the viewer promise or tension concrete.
 - viewerPromise and payoff are mandatory; payoff must answer or resolve the openLoop.
-- For 3+ scenes, use at least 2 distinct layoutFamily values unless the whole video is intentionally one formal statement.
+- The plan must satisfy the pacing line above; do not collapse a long target into a few long narration blocks.
+- For 3+ scenes, prefer at least 2 distinct layoutFamily values unless the whole video is intentionally one formal statement.
 - Any scene with a number/date/price/source-like factual detail must include evidenceClaimIds pointing only to supported/use claims.
 - Every scene must have a specific motionProgression. It may describe an
   intentional mostly-static statement beat, but it must not be generic "text appears".
@@ -369,8 +422,7 @@ export function buildContentPlanMessages(
   const format = input.format ?? "tiktok";
   const tier = input.durationTier ?? 1;
   const language = input.videoLanguage ?? "vi";
-  const effectiveWordsPerSecond = wordsPerSecond
-    ?? (language === "en" ? DEFAULT_ENGLISH_WORDS_PER_SECOND : DEFAULT_WORDS_PER_SECOND);
+  const effectiveWordsPerSecond = computePacingBudget({ format, durationTier: tier, videoLanguage: language }, wordsPerSecond).wordsPerSecond;
   const imageList = images ?? [];
   const system = systemPrompt(format, tier, language, effectiveWordsPerSecond);
   const text = `${userBriefBlock(input, research)}${imageInstruction(imageList)}\n\nReturn only the content-plan JSON object.`;

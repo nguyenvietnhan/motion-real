@@ -125,6 +125,18 @@ function weakContentPlanReply(): string {
   return JSON.stringify(plan);
 }
 
+function advisoryContentPlanReply(): string {
+  const plan = JSON.parse(validContentPlanReply()) as {
+    scenes: Array<{ motionProgression: string; layoutFamily: string }>;
+  };
+  plan.scenes = plan.scenes.map((scene, index) => ({
+    ...scene,
+    motionProgression: index === 0 ? "Text appears." : scene.motionProgression,
+    layoutFamily: "statement",
+  }));
+  return JSON.stringify(plan);
+}
+
 function chatReplies(...replies: string[]) {
   const queue = [...replies];
   const fallback = replies.at(-1) ?? validReply();
@@ -256,6 +268,24 @@ describe("authorScenes (pure-author)", () => {
     expect(chat).toHaveBeenCalledTimes(1);
     expect(admit).not.toHaveBeenCalled();
     expect(existsSync(authoredDir(projectId))).toBe(false);
+  });
+
+  it("passes advisory-only content plan issues into authoring instead of blocking", async () => {
+    const projectId = "pa-advisory-plan";
+    const admit = vi.fn(async () => ({ ok: true as const, componentIds: ["alpha", "beta"], files: [] }));
+    const { backend, chat } = makeBackend(validReply(), admit, advisoryContentPlanReply());
+    const job: AuthorJob = { projectId, input: { text: "chủ đề", urls: [] }, scriptGate: false };
+
+    const out = await backend.authorScenes(job);
+
+    expect(out.scenes.map((scene) => scene.sceneId)).toEqual(["scene-01", "scene-02", "scene-03"]);
+    expect(chat).toHaveBeenCalledTimes(2);
+    expect(admit).toHaveBeenCalledTimes(1);
+    const authorMessages = chat.mock.calls[1]![1] as ChatMessage[];
+    const authorText = authorMessages.map((message) => message.content).join("\n");
+    expect(authorText).toContain("CONTENT PLAN ADVISORIES TO RESOLVE IN TSX");
+    expect(authorText).toContain("motion-progression @scene-01");
+    expect(authorText).toContain("layout-diversity");
   });
 
   it("no model ⇒ guarded with a message", async () => {

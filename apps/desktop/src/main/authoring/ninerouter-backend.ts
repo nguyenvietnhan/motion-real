@@ -27,6 +27,8 @@ import type { AuthorJob, VisualDefect, SceneSnapshot, AuthorImageRef } from "../
 import { GatewayChatError, type NineRouterClient, type ChatMessage } from "../gateway/ninerouter-client.js";
 import { buildAuthorMessages, buildReauthorMessages, buildVisualQaMessages, buildImageFilterMessages, type AuthorImageInput } from "./prompt.js";
 import { buildContentPlanMessages, contentPlanForAuthoring, evaluateContentPlanQuality, parseContentPlan } from "./content-plan.js";
+import type { ContentPlanQualityIssue } from "./content-plan.js";
+import { computePacingBudget } from "./pacing-policy.js";
 import { parseAuthorReply } from "./reply-parser.js";
 import { parseReauthorReply } from "./reply-parser.js";
 import type { AuthorManifest } from "./manifest-schema.js";
@@ -81,7 +83,7 @@ const CONTENT_PLAN_PARSE_FAILURE =
   "AI chưa lập được kế hoạch nội dung hợp lệ. Hãy thử lại hoặc mô tả rõ nguồn/ý chính hơn.";
 
 const CONTENT_PLAN_QUALITY_FAILURE =
-  "AI lập kế hoạch nội dung chưa đủ hook/căn cứ/bố cục. Hãy thử lại hoặc mô tả rõ nguồn/ý chính hơn.";
+  "AI lập kế hoạch nội dung chưa đủ hook/căn cứ/nhịp cảnh. Hãy thử lại hoặc mô tả rõ nguồn/ý chính hơn.";
 
 export type NineRouterBackendDeps = {
   client: NineRouterClient;
@@ -113,10 +115,8 @@ function manifestPathOf(projectId: string): string {
 }
 
 /**
- * Vision-guided repair applies to the layout pixel oracle (N14 content-zone /
- * caption-clearance) — the only HARD pixel error that reaches the repair loop.
- * Contrast (N18) is advisory (warning severity) and never arrives as a hard
- * error here, so it does not drive vision repair.
+ * Vision-guided repair applies to objective visual layout defects represented by
+ * N14. Advisory contrast/style feedback stays outside this automatic repair path.
  */
 function needsVision(issues?: SafetyIssue[]): boolean {
   return (issues ?? []).some((i) => i.check === "N14");
@@ -269,6 +269,7 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
 
     const contentPlanMessages = buildContentPlanMessages(job.input, research, offeredImages, wordsPerSecond);
     let plannedContent: ReturnType<typeof contentPlanForAuthoring>;
+    let contentPlanAdvisories: ContentPlanQualityIssue[] = [];
     try {
       log.info({ model, projectId: job.projectId }, "calling AI model for content planning");
       const planReply = await this.chatWithVisionFallback(model, contentPlanMessages);
@@ -281,21 +282,28 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
         );
         return { scenes: [], message: CONTENT_PLAN_PARSE_FAILURE, ...(unreadableUrls.length > 0 ? { unreadableUrls } : {}) };
       }
-      const qualityIssues = evaluateContentPlanQuality(parsedPlan.plan);
-      if (qualityIssues.length > 0) {
+      const quality = evaluateContentPlanQuality(parsedPlan.plan, computePacingBudget(job.input, wordsPerSecond));
+      if (quality.blockingIssues.length > 0) {
         log.error(
-          { projectId: job.projectId, qualityIssues },
-          "content-plan quality checks failed",
+          { projectId: job.projectId, qualityIssues: quality.blockingIssues },
+          "content-plan blocking quality checks failed",
         );
         return { scenes: [], message: CONTENT_PLAN_QUALITY_FAILURE, ...(unreadableUrls.length > 0 ? { unreadableUrls } : {}) };
       }
+      if (quality.advisoryIssues.length > 0) {
+        log.warn(
+          { projectId: job.projectId, qualityIssues: quality.advisoryIssues },
+          "content-plan advisories passed to authoring",
+        );
+      }
       plannedContent = contentPlanForAuthoring(parsedPlan.plan);
+      contentPlanAdvisories = quality.advisoryIssues;
     } catch (e) {
       log.error({ err: e, projectId: job.projectId }, "AI content-plan call failed");
       return { scenes: [], message: authorCallErrorMessage(e), ...(unreadableUrls.length > 0 ? { unreadableUrls } : {}) };
     }
 
-    const messages = buildAuthorMessages(job.input, research, offeredImages, wordsPerSecond, plannedContent);
+    const messages = buildAuthorMessages(job.input, research, offeredImages, wordsPerSecond, plannedContent, contentPlanAdvisories);
     let reply: string;
     try {
       log.info({ model, projectId: job.projectId }, "calling AI model for authoring");

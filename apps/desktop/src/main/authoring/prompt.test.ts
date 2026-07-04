@@ -189,6 +189,52 @@ describe("buildAuthorMessages", () => {
     expect(text).not.toContain("claim-02");
   });
 
+  it("passes content-plan advisories into authoring without turning them into blockers", () => {
+    const plan: ContentPlan = {
+      title: "Một thông điệp rõ",
+      viewerPromise: "Người xem hiểu thông điệp chính qua một mạch kể gọn.",
+      hookType: "stakes",
+      first3SecondsLine: "Một câu đúng có thể đổi hướng cả quyết định.",
+      openLoop: "Điều làm câu đó thuyết phục nằm ở cách nó được dựng lên.",
+      payoff: "Thông điệp mạnh khi hình ảnh và nhịp chuyển động cùng phục vụ một ý.",
+      claims: [],
+      scenes: [
+        {
+          sceneId: "scene-01",
+          purpose: "hook",
+          beat: "Open with the stakes.",
+          narration: "Một câu đúng có thể đổi hướng cả quyết định.",
+          onScreenText: "Một câu đủ lực",
+          visualMetaphor: "A statement pressing a switch on a dark control panel.",
+          motionProgression: "Text appears.",
+          layoutFamily: "statement",
+          evidenceClaimIds: [],
+        },
+      ],
+    };
+    const [, user] = buildAuthorMessages(
+      { text: "Làm video về thông điệp", urls: [] },
+      undefined,
+      undefined,
+      undefined,
+      contentPlanForAuthoring(plan),
+      [
+        {
+          check: "motion-progression",
+          severity: "advisory",
+          sceneId: "scene-01",
+          message: "motionProgression must describe a purposeful temporal beat, not generic text/card appearance",
+        },
+      ],
+    );
+    const text = user!.content as string;
+
+    expect(text).toContain("CONTENT PLAN ADVISORIES TO RESOLVE IN TSX");
+    expect(text).toContain("motion-progression @scene-01");
+    expect(text).toContain("không phải lý do xoá ý tưởng");
+    expect(text).toContain("staged motion");
+  });
+
   it("carries a duration→word-budget instruction using the MEASURED speech rate", () => {
     // The user's requested length lives in the free-text brief; the system prompt
     // must tell the model how to turn seconds into a total word budget. The rate
@@ -198,6 +244,16 @@ describe("buildAuthorMessages", () => {
     expect(sys!.content).toContain("4.7");
     expect(sys!.content).not.toMatch(/× 2\.7 từ/);
     expect(sys!.content).toMatch(/TỔNG lời đọc/i);
+  });
+
+  it("uses the 90s short-form anchor as 10-12 scenes", () => {
+    const [sys] = buildAuthorMessages({ text: "Làm video về chủ đề X", urls: [], format: "tiktok", durationTier: 2 });
+    const text = sys!.content;
+
+    expect(text).toContain("90 giây");
+    expect(text).toContain("Nhịp cảnh nên khoảng 10–12 cảnh");
+    expect(text).toMatch(/90 giây[\s\S]*thường 10–12 cảnh/);
+    expect(text).not.toContain("12–16 cảnh");
   });
 
   it("uses the CALIBRATED rate when one is injected (overrides the baked default)", () => {

@@ -1,9 +1,9 @@
 import type { AuthorInput } from "../agent/agent-worker.js";
 import type { SafetyIssue } from "@motionreal/pipeline";
-import { tierSeconds, titleMaxChars, type DurationTier, type VideoFormat, type VideoLanguage } from "@motionreal/schema";
+import { titleMaxChars, type DurationTier, type VideoFormat, type VideoLanguage } from "@motionreal/schema";
 import { AUTHORING_CONTRACT } from "./contract-text.js";
-import { DEFAULT_ENGLISH_WORDS_PER_SECOND, DEFAULT_WORDS_PER_SECOND } from "../../shared/settings-model.js";
-import type { ContentPlan } from "./content-plan.js";
+import type { ContentPlan, ContentPlanQualityIssue } from "./content-plan.js";
+import { computePacingBudget, resolvedWordsPerSecond, SHORTFORM_90S_SCENE_RANGE } from "./pacing-policy.js";
 
 /**
  * Narration rate (words/second) used by the word-budget math. Vietnamese defaults
@@ -39,13 +39,14 @@ function formatBlock(format: VideoFormat): string {
  * than under" — the pacing aim allows ±20s, never a hard cut.
  */
 function tierBudgetBlock(format: VideoFormat, tier: DurationTier, language: VideoLanguage, wps: number): string {
-  const seconds = tierSeconds(format, tier);
+  const pacing = computePacingBudget({ format, durationTier: tier, videoLanguage: language }, wps);
+  const seconds = pacing.targetSeconds;
   const rate = roundRate(wps);
-  const words = Math.round(seconds * wps);
+  const words = pacing.targetWords;
   const low = Math.round((seconds - 20) * wps);
   const high = Math.round((seconds + 20) * wps);
   const languageLabel = language === "en" ? "tiếng Anh" : "tiếng Việt";
-  return `MỤC TIÊU THỜI LƯỢNG: video nhắm khoảng ${seconds} giây. Giọng đọc ${languageLabel} ~${rate} từ/giây, nên hãy viết TỔNG lời đọc toàn video khoảng ${words} từ (chấp nhận ${low}–${high} từ — thà hơi DƯ còn hơn hụt), chia thành đủ số cảnh để đạt tổng đó. KHÔNG cắt câu để ép đúng giây.`;
+  return `MỤC TIÊU THỜI LƯỢNG: video nhắm khoảng ${seconds} giây. Giọng đọc ${languageLabel} ~${rate} từ/giây, nên hãy viết TỔNG lời đọc toàn video khoảng ${words} từ (chấp nhận ${low}–${high} từ — thà hơi DƯ còn hơn hụt), chia thành đủ số cảnh để đạt tổng đó. Nhịp cảnh nên khoảng ${pacing.minScenes}–${pacing.maxScenes} cảnh, nhắm ${pacing.targetScenes}; đừng nhồi quá nhiều lời vào vài cảnh dài. KHÔNG cắt câu để ép đúng giây.`;
 }
 
 /**
@@ -113,7 +114,7 @@ ${languageRule}
 - Mỗi cảnh MỘT ý; narration 1–3 câu cô đọng (khoảng 18–40 từ). Đa dạng form.
 ${narrationRule}
 - TÁO BẠO NGAY TỪ BẢN ĐẦU (đừng "chơi an toàn" rồi đợi sửa): bản nháp ĐẦU TIÊN đã phải hấp dẫn, KHÔNG được để mọi cảnh chỉ là "một tiêu đề + một khối chữ ở giữa". Mỗi video PHẢI có: ≥1 cảnh số liệu RẤT lớn (số tự dựng bằng <div> chữ 80–160px) nếu có số thật; ≥1 cảnh bố cục khác thường (HAI CỘT so sánh tự dựng, danh sách tự dựng, hoặc biểu đồ tự vẽ bằng SVG); ≥1 "beat chữ ký" có đồ hoạ SVG/CSS bespoke tự vẽ (không chỉ card chữ). Hình dung cụ thể cho cảnh mở đầu + cảnh điểm nhấn TRƯỚC khi viết — coi như bản cuối, không phải bản tạm.
-- THỜI LƯỢNG: nếu yêu cầu nêu thời lượng (vd "90 giây", "1p30s", "1 phút rưỡi"), hãy ước TỔNG lời đọc toàn video ≈ thời_lượng_giây × ${rate} từ (giọng đọc ${languageLabel} ~${rate} từ/giây) và viết ĐỦ số cảnh để đạt tổng đó — thà hơi DƯ còn hơn hụt (vd 90 giây → khoảng ${w90} từ tổng, thường 12–16 cảnh; 60 giây → khoảng ${w60} từ, thường 9–11 cảnh). Không nêu thời lượng thì 8–12 cảnh.`;
+- THỜI LƯỢNG: nếu yêu cầu nêu thời lượng (vd "90 giây", "1p30s", "1 phút rưỡi"), hãy ước TỔNG lời đọc toàn video ≈ thời_lượng_giây × ${rate} từ (giọng đọc ${languageLabel} ~${rate} từ/giây) và viết ĐỦ số cảnh để đạt tổng đó — thà hơi DƯ còn hơn hụt (vd 90 giây → khoảng ${w90} từ tổng, thường ${SHORTFORM_90S_SCENE_RANGE.min}–${SHORTFORM_90S_SCENE_RANGE.max} cảnh; 60 giây → khoảng ${w60} từ, thường 9–11 cảnh). Không nêu thời lượng thì 8–12 cảnh.`;
 }
 
 const OUTPUT_FORMAT = `ĐỊNH DẠNG TRẢ VỀ (AI_Output_Contract) — trả về TRONG MỘT REPLY:
@@ -223,12 +224,29 @@ LUẬT DÙNG CONTENT PLAN:
 - Vẫn phải tuân thủ toàn bộ AUTHORING_CONTRACT và AI_Output_Contract bên dưới.`;
 }
 
+function contentPlanAdvisoryBlock(advisories?: readonly ContentPlanQualityIssue[]): string {
+  if (!advisories || advisories.length === 0) return "";
+  const lines = advisories.map((issue) => {
+    const scene = issue.sceneId ? ` @${issue.sceneId}` : "";
+    return `- ${issue.check}${scene}: ${issue.message}`;
+  });
+  return `
+
+CONTENT PLAN ADVISORIES TO RESOLVE IN TSX:
+${lines.join("\n")}
+
+LUẬT DÙNG ADVISORY:
+- Đây là hướng sửa mềm cho authoring, không phải lý do xoá ý tưởng hoặc thay video bằng title-card an toàn.
+- Giải quyết bằng lựa chọn visual/motion cụ thể trong TSX: bố cục, hierarchy, staged motion, SVG/CSS bespoke, hoặc deliberate static hold khi hợp nội dung.`;
+}
+
 export function buildAuthorMessages(
   input: AuthorInput,
   research?: string,
   images?: AuthorImageInput[],
   wordsPerSecond?: number,
   contentPlan?: ContentPlan,
+  contentPlanAdvisories?: readonly ContentPlanQualityIssue[],
 ): VisionMessage[] {
   const links = input.urls.length > 0 ? `\n\nLink trong yêu cầu: ${input.urls.join(", ")}` : "";
   const grounding = research
@@ -237,14 +255,13 @@ export function buildAuthorMessages(
       ? "\n\n(Không đọc được nội dung link. Chỉ dùng thông tin trong yêu cầu + kiến thức chắc chắn về chủ đề. KHÔNG bịa số liệu, ngày tháng, giá, phần trăm hay tên sản phẩm/phiên bản mới — thiếu căn cứ thì đừng nêu.)"
       : "";
   const source = `Yêu cầu của người dùng:\n${input.text}${links}${grounding}`;
-  const instruction = `${source}${contentPlanBlock(contentPlan)}\n\nHãy soạn kịch bản + VIẾT MÃ .tsx cho từng cảnh, trả về đúng định dạng AI_Output_Contract.`;
+  const instruction = `${source}${contentPlanBlock(contentPlan)}${contentPlanAdvisoryBlock(contentPlanAdvisories)}\n\nHãy soạn kịch bản + VIẾT MÃ .tsx cho từng cảnh, trả về đúng định dạng AI_Output_Contract.`;
   // System prompt is driven by the chosen DELIVERY FORMAT (canvas + caption
   // presence), the duration tier (word budget), and the full video language — the
   // backend injects these from the user's create-screen choice; the model never
   // picks them. Absent ⇒ the historical defaults (tiktok / tier 1 / vi).
   const videoLanguage = input.videoLanguage ?? "vi";
-  const effectiveWordsPerSecond = wordsPerSecond
-    ?? (videoLanguage === "en" ? DEFAULT_ENGLISH_WORDS_PER_SECOND : DEFAULT_WORDS_PER_SECOND);
+  const effectiveWordsPerSecond = resolvedWordsPerSecond(videoLanguage, wordsPerSecond);
   const system = authorSystem(input.format ?? "tiktok", input.durationTier ?? 1, videoLanguage, effectiveWordsPerSecond);
 
   // No images → keep the exact text-only shape.

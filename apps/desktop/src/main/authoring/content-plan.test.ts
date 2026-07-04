@@ -9,6 +9,7 @@ import {
   type ContentPlan,
 } from "./content-plan.js";
 import type { ContentPart } from "./prompt.js";
+import { computePacingBudget } from "./pacing-policy.js";
 
 const image = { ref: "assets/product.png", width: 1200, height: 800, dataUrl: "data:image/png;base64,AAA" };
 
@@ -67,6 +68,23 @@ function validPlan(overrides: Partial<ContentPlan> = {}): ContentPlan {
 function textOf(content: string | ContentPart[]): string {
   if (typeof content === "string") return content;
   return content.filter((part): part is { type: "text"; text: string } => part.type === "text").map((part) => part.text).join("\n");
+}
+
+function words(n: number): string {
+  return Array.from({ length: n }, () => "nhịp").join(" ");
+}
+
+function pacingScene(index: number, total: number, narrationWords: number): ContentPlan["scenes"][number] {
+  const base = index === 1 ? validPlan().scenes[0]! : validPlan().scenes[1]!;
+  const sceneId = `scene-${String(index).padStart(2, "0")}`;
+  return {
+    ...base,
+    sceneId,
+    purpose: index === 1 ? "hook" : index === total ? "payoff" : "context",
+    narration: words(narrationWords),
+    onScreenText: `Ý ${index}`,
+    layoutFamily: index % 2 === 0 ? "diagram" : "timeline",
+  };
 }
 
 describe("ContentPlanSchema", () => {
@@ -200,11 +218,14 @@ describe("content quality eval fixtures", () => {
     const parsed = parseContentPlan(JSON.stringify(plan));
     expect(parsed.ok).toBe(true);
     if (parsed.ok) {
-      expect(evaluateContentPlanQuality(parsed.plan)).toEqual([]);
+      const quality = evaluateContentPlanQuality(parsed.plan);
+      expect(quality.issues).toEqual([]);
+      expect(quality.blockingIssues).toEqual([]);
+      expect(quality.advisoryIssues).toEqual([]);
     }
   });
 
-  it("flags schema-valid but weak plans missing hook, evidence, and layout diversity", () => {
+  it("splits schema-valid weak plans into blocking and advisory issues", () => {
     const weak = validPlan({
       scenes: [
         {
@@ -231,10 +252,29 @@ describe("content quality eval fixtures", () => {
     });
     const parsed = ContentPlanSchema.safeParse(weak);
     expect(parsed.success).toBe(true);
-    const checks = evaluateContentPlanQuality(weak).map((issue) => issue.check);
-    expect(checks).toContain("hook");
-    expect(checks).toContain("claim-ledger");
-    expect(checks).toContain("layout-diversity");
+    const quality = evaluateContentPlanQuality(weak);
+    const blockingChecks = quality.blockingIssues.map((issue) => issue.check);
+    const advisoryChecks = quality.advisoryIssues.map((issue) => issue.check);
+
+    expect(blockingChecks).toContain("hook");
+    expect(blockingChecks).toContain("claim-ledger");
+    expect(blockingChecks).not.toContain("layout-diversity");
+    expect(advisoryChecks).toContain("layout-diversity");
+    expect(quality.issues.every((issue) => issue.severity === "blocking" || issue.severity === "advisory")).toBe(true);
+  });
+
+  it("treats layout diversity as authoring guidance, not a blocking plan failure", () => {
+    const plan = validPlan({
+      scenes: [
+        { ...validPlan().scenes[0]!, layoutFamily: "statement" },
+        { ...validPlan().scenes[1]!, layoutFamily: "statement" },
+        { ...validPlan().scenes[1]!, sceneId: "scene-03", purpose: "payoff", layoutFamily: "statement" },
+      ],
+    });
+    const quality = evaluateContentPlanQuality(plan);
+
+    expect(quality.blockingIssues).toEqual([]);
+    expect(quality.advisoryIssues).toContainEqual(expect.objectContaining({ check: "layout-diversity", severity: "advisory" }));
   });
 
   it("flags generic motion intent that would become an intro-only text reveal", () => {
@@ -247,9 +287,24 @@ describe("content quality eval fixtures", () => {
       ],
     });
     expect(ContentPlanSchema.safeParse(weak).success).toBe(true);
-    expect(evaluateContentPlanQuality(weak)).toContainEqual(
-      expect.objectContaining({ check: "motion-progression", sceneId: "scene-01" }),
+    expect(evaluateContentPlanQuality(weak).advisoryIssues).toContainEqual(
+      expect.objectContaining({ check: "motion-progression", severity: "advisory", sceneId: "scene-01" }),
     );
+  });
+
+  it("flags a tier-3 TikTok plan that collapses 2m30s into six long scenes", () => {
+    const plan = validPlan({
+      scenes: Array.from({ length: 6 }, (_, index) => pacingScene(index + 1, 6, 110)),
+    });
+    const issues = evaluateContentPlanQuality(
+      plan,
+      computePacingBudget({ format: "tiktok", durationTier: 3, videoLanguage: "vi" }),
+    );
+    const pacingIssues = issues.blockingIssues.filter((issue) => issue.check === "pacing");
+
+    expect(pacingIssues.map((issue) => issue.message).join(" ")).toMatch(/at least 10 scenes/);
+    expect(pacingIssues.map((issue) => issue.message).join(" ")).toMatch(/average narration/);
+    expect(pacingIssues).toContainEqual(expect.objectContaining({ sceneId: "scene-01" }));
   });
 });
 
@@ -274,7 +329,7 @@ describe("buildContentPlanMessages", () => {
     expect(system).toMatch(/motionProgression/);
     expect(system).toMatch(/early\/mid\/late/);
     expect(system).toMatch(/not be generic "text appears"/);
-    expect(system).toMatch(/QUALITY GATE BEFORE FINAL JSON/);
+    expect(system).toMatch(/QUALITY SELF-CHECK BEFORE FINAL JSON/);
     expect(system).toMatch(/at least 2 distinct layoutFamily/);
     expect(system).toMatch(/action:"omit" claims are safety notes only/);
     expect(system).not.toMatch(/registerComponent|@motionreal\/compositions|```tsx/);
@@ -330,5 +385,7 @@ describe("buildContentPlanMessages", () => {
     expect(system).toContain("150 seconds");
     expect(system).toContain("480 spoken words");
     expect(system).toContain("~3.2 words/second");
+    expect(system).toContain("10-14 scenes");
+    expect(system).toContain("average narration at or below 75 words/scene");
   });
 });
