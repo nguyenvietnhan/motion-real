@@ -3,7 +3,7 @@ import type { AiAccountState, GatewayState } from "../../shared/types.js";
 import { Icon } from "../icons.js";
 import { activeAccount } from "../../shared/active-account.js";
 import { aiStatus, type Screen } from "../primitives.js";
-import logoUrl from "../../../assets/brand/logo.png";
+import logoUrl from "../../../assets/brand/taskbar-logo.png";
 
 /** Left navigation rail + AI status card. */
 export const Sidebar: React.FC<{
@@ -27,7 +27,7 @@ export const Sidebar: React.FC<{
   return (
     <aside className="ns-sidebar">
       <div className="ns-brand" style={{ display: "flex", alignItems: "center", gap: "12px", padding: "0 4px 10px" }}>
-        <img src={logoUrl} alt="Motion Real Logo" style={{ height: "42px", width: "42px", objectFit: "contain" }} />
+        <img src={logoUrl} alt="Motion Real Logo" style={{ height: "52px", width: "52px", objectFit: "contain" }} />
         <div>
           <div style={{ fontWeight: 700, fontSize: 17, letterSpacing: "-0.01em" }}>Motion Real</div>
           <div style={{ fontSize: 11, color: "var(--muted-foreground)" }}>Xưởng video ngắn</div>
