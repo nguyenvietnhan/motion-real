@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildAuthorMessages, buildImageFilterMessages, buildReauthorMessages, buildVisualQaMessages, type ContentPart } from "./prompt.js";
+import { contentPlanForAuthoring, type ContentPlan } from "./content-plan.js";
 
 /**
  * Feature: desktop-author-mode — prompt builders carry the full Authoring_Contract
@@ -94,6 +95,59 @@ describe("buildAuthorMessages", () => {
     for (const token of required) expect(sys!.content).toContain(token);
     expect(user!.content).toContain("https://example.com/x");
     expect(user!.content).toContain("tư liệu ABC");
+  });
+
+  it("can receive a filtered content plan and excludes omitted claims from code-authoring input", () => {
+    const plan: ContentPlan = {
+      title: "Vì sao chip AI đắt",
+      viewerPromise: "Người xem hiểu nút thắt sản xuất phía sau giá chip.",
+      hookType: "contradiction",
+      first3SecondsLine: "Con chip không đắt vì nó nhỏ. Nó đắt vì gần như không ai làm nổi.",
+      openLoop: "Điểm nghẽn thật sự nằm sau cánh cửa nhà máy.",
+      payoff: "Giá nằm ở năng lực sản xuất khan hiếm, không phải kích thước con chip.",
+      claims: [
+        {
+          id: "claim-01",
+          text: "Năng lực sản xuất chip tiên tiến tập trung vào rất ít nhà máy.",
+          support: "source_material",
+          confidence: "supported",
+          action: "use",
+        },
+        {
+          id: "claim-02",
+          text: "Unsupported $999 launch price.",
+          support: "source_material",
+          confidence: "uncertain",
+          action: "omit",
+        },
+      ],
+      scenes: [
+        {
+          sceneId: "scene-01",
+          purpose: "hook",
+          beat: "Reveal scarcity before specs.",
+          narration: "Con chip không đắt vì nó nhỏ. Nó đắt vì gần như không ai làm nổi.",
+          onScreenText: "Đắt vì khan hiếm",
+          visualMetaphor: "A tiny glowing chip behind a locked factory gate.",
+          layoutFamily: "signature-visual",
+          evidenceClaimIds: ["claim-01"],
+        },
+      ],
+    };
+    const [, user] = buildAuthorMessages(
+      { text: "Làm video về chip AI", urls: [] },
+      undefined,
+      undefined,
+      undefined,
+      contentPlanForAuthoring(plan),
+    );
+    const text = user!.content as string;
+    expect(text).toContain("CONTENT PLAN ĐÃ DUYỆT");
+    expect(text).toContain("viewerPromise");
+    expect(text).toContain("claim-01");
+    expect(text).toContain("Reveal scarcity before specs");
+    expect(text).not.toContain("Unsupported $999 launch price");
+    expect(text).not.toContain("claim-02");
   });
 
   it("carries a duration→word-budget instruction using the MEASURED speech rate", () => {

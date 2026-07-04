@@ -3,6 +3,7 @@ import type { SafetyIssue } from "@motionreal/pipeline";
 import { tierSeconds, titleMaxChars, type DurationTier, type VideoFormat, type VideoLanguage } from "@motionreal/schema";
 import { AUTHORING_CONTRACT } from "./contract-text.js";
 import { DEFAULT_ENGLISH_WORDS_PER_SECOND, DEFAULT_WORDS_PER_SECOND } from "../../shared/settings-model.js";
+import type { ContentPlan } from "./content-plan.js";
 
 /**
  * Narration rate (words/second) used by the word-budget math. Vietnamese defaults
@@ -202,11 +203,27 @@ QUAN TRỌNG VỀ KÍCH THƯỚC: <SceneImage> TỰ canh theo đúng tỉ lệ t
 CHỈ dùng ref đã được cung cấp, TUYỆT ĐỐI KHÔNG bịa đường dẫn/URL ảnh. Viết nội dung sao cho ảnh khớp tổng thể.
 BẮT BUỘC DÙNG ẢNH: những ảnh này do NGƯỜI DÙNG chủ động chọn/đính kèm, nên PHẢI được đưa vào video — KHÔNG được bỏ hết. Hãy đặt MỖI ảnh đã cho vào một cảnh phù hợp (mỗi cảnh tối đa 1 ảnh, nên trải ảnh ra nhiều cảnh); nếu có nhiều ảnh hơn số cảnh hợp, hãy ưu tiên những ảnh khớp nội dung nhất, nhưng TỐI THIỂU phải dùng một ảnh. Soạn nội dung/kịch bản bám theo ảnh để chúng khớp tự nhiên.`;
 
+function contentPlanBlock(plan?: ContentPlan): string {
+  if (!plan) return "";
+  return `
+
+CONTENT PLAN ĐÃ DUYỆT (bắt buộc bám theo):
+${JSON.stringify(plan, null, 2)}
+
+LUẬT DÙNG CONTENT PLAN:
+- Giữ đúng title, viewerPromise, hook/openLoop/payoff và thứ tự sceneId/purpose/beat trừ khi cần sửa rất nhỏ để hợp TSX.
+- Mỗi cảnh phải hiện thực hóa đúng beat/narration/onScreenText/visualMetaphor/layoutFamily đã được lập kế hoạch.
+- Chỉ dùng các claims còn xuất hiện trong JSON trên. Nếu một claim không có ở đây, coi như đã bị loại vì thiếu căn cứ và KHÔNG được đưa vào narration, text, props hoặc code.
+- Không thêm số liệu/ngày/giá/phần trăm mới ngoài claim ledger đã duyệt; thiếu căn cứ thì viết lại theo hướng không cần chi tiết đó.
+- Vẫn phải tuân thủ toàn bộ AUTHORING_CONTRACT và AI_Output_Contract bên dưới.`;
+}
+
 export function buildAuthorMessages(
   input: AuthorInput,
   research?: string,
   images?: AuthorImageInput[],
   wordsPerSecond?: number,
+  contentPlan?: ContentPlan,
 ): VisionMessage[] {
   const links = input.urls.length > 0 ? `\n\nLink trong yêu cầu: ${input.urls.join(", ")}` : "";
   const grounding = research
@@ -215,7 +232,7 @@ export function buildAuthorMessages(
       ? "\n\n(Không đọc được nội dung link. Chỉ dùng thông tin trong yêu cầu + kiến thức chắc chắn về chủ đề. KHÔNG bịa số liệu, ngày tháng, giá, phần trăm hay tên sản phẩm/phiên bản mới — thiếu căn cứ thì đừng nêu.)"
       : "";
   const source = `Yêu cầu của người dùng:\n${input.text}${links}${grounding}`;
-  const instruction = `${source}\n\nHãy soạn kịch bản + VIẾT MÃ .tsx cho từng cảnh, trả về đúng định dạng AI_Output_Contract.`;
+  const instruction = `${source}${contentPlanBlock(contentPlan)}\n\nHãy soạn kịch bản + VIẾT MÃ .tsx cho từng cảnh, trả về đúng định dạng AI_Output_Contract.`;
   // System prompt is driven by the chosen DELIVERY FORMAT (canvas + caption
   // presence), the duration tier (word budget), and the full video language — the
   // backend injects these from the user's create-screen choice; the model never

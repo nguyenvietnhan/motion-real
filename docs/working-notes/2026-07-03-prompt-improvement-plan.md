@@ -1,8 +1,9 @@
 # Temporary Task - Prompt Improvement Plan
 
 Status: PROMPT-0 baseline, PROMPT-1 stale prompt wording cleanup, PROMPT-2
-content-plan schema/builder, and PROMPT-3 content quality eval fixtures
-completed; two-step authoring wire-up still pending owner approval.
+content-plan schema/builder, PROMPT-3 content quality eval fixtures, and
+PROMPT-4 two-step authoring wire-up completed; repair/user-edit prompt cleanup
+still pending.
 
 This is a temporary working note for improving MotionReal's runtime AI prompts.
 It is not project contract. Current contract remains `AI_CONTRACT.md` plus
@@ -22,8 +23,8 @@ Improve the quality and reliability of AI-authored video content, especially:
 - fewer hallucinated facts or unsupported numbers;
 - more reliable output shape without overloading one prompt.
 
-Do not change prompt code until the owner approves the proposed implementation
-slice.
+Further behavior-bearing prompt changes should remain slice-gated and covered by
+focused tests before broad checks.
 
 ## Review Verification
 
@@ -87,7 +88,8 @@ Main LLM and vision calls:
   - continuation prompt when `finish_reason` is `length`
   - final dispatch to `/v1/chat/completions`
 
-Planning-only prompt contract added in PROMPT-2, not wired to live gateway yet:
+Content-plan prompt contract added in PROMPT-2 and wired into fresh authoring in
+PROMPT-4:
 
 - `apps/desktop/src/main/authoring/content-plan.ts`
   - `ContentPlanSchema`
@@ -100,7 +102,15 @@ Current flow:
 
 ```text
 desktop/user input
--> authoring or edit worker
+-> fresh authoring: content-plan prompt builder
+-> NineRouterClient.chat(...)
+-> parse/filter/quality-check content plan
+-> authoring prompt builder with validated content plan
+-> NineRouterClient.chat(...)
+-> /v1/chat/completions
+
+desktop/user edit/refine
+-> edit worker
 -> prompt builder or intent builder
 -> NineRouterClient.chat(...)
 -> /v1/chat/completions
@@ -196,6 +206,10 @@ Fallback policy must be explicit before PROMPT-4 starts:
 If an extra API call is considered too expensive, pause before PROMPT-4 and make
 an owner decision. Do not implement a hidden cost-saving branch that keeps old
 fact-grounding risk alive.
+
+PROMPT-4 implemented the default two-step path for fresh authoring. Content-plan
+parse or quality failures now fail cleanly before TSX authoring; there is no
+silent fallback to the old one-step authoring path.
 
 ## Proposed Content Plan Shape
 
@@ -417,7 +431,7 @@ Completed. No live gateway behavior yet.
 Completed actions:
 
 - added deterministic local tests for prompt text and parsed plan examples;
-- added a local `evaluateContentPlanQuality(...)` helper for fixtures/future
+- added a local `evaluateContentPlanQuality(...)` helper for fixtures/live
   wire-up;
 - tested that hook, viewer promise, payoff, claim ledger, and layout diversity
   are required by schema, prompt text, or local quality evaluation;
@@ -440,17 +454,18 @@ test: add content prompt quality fixtures
 
 ### PROMPT-4: Wire Two-Step Authoring
 
-Behavior change. Requires owner approval for the extra API call and failure
-policy before starting.
+Completed. Behavior change.
 
-Actions:
+Completed actions:
 
-- call content-plan prompt before TSX authoring;
-- validate/filter the plan before code authoring;
+- call content-plan prompt before TSX authoring in fresh authoring;
+- parse, filter, and quality-check the plan before code authoring;
 - feed only usable claims and scene plan data into the code-authoring prompt;
-- fail cleanly or retry Content Plan on planning failure;
+- fail cleanly on content-plan parse or quality failure;
 - do not silently fall back to legacy one-step authoring by default;
-- preserve image and source safeguards.
+- preserve image, unreadable URL, delivery-knob, and vision fallback safeguards;
+- added tests that prove invalid/weak plans stop before authoring/admission and
+  omitted claims do not reach the code-authoring prompt.
 
 Checks:
 
@@ -544,8 +559,7 @@ chore: finish prompt cleanup audit
 
 ## Recommended Next Step
 
-Start with PROMPT-4 only after owner approval for the extra API call and failure
-policy.
+Start with PROMPT-5.
 
 Reason:
 
@@ -556,8 +570,6 @@ Reason:
   focused fixtures exist without any live gateway behavior change;
 - PROMPT-3 is complete, so deterministic quality/eval fixtures exist before
   live two-step authoring;
-- PROMPT-4 is the first behavior change that will call the model twice during
-  fresh authoring.
-
-Do not start PROMPT-4 until the owner approves the extra API-call behavior and
-the no-silent-one-step-fallback policy.
+- PROMPT-4 is complete, so fresh authoring now calls the model twice and blocks
+  weak plans before TSX authoring;
+- the remaining prompt work is repair/user-edit/bootstrap/visual-QA wording.

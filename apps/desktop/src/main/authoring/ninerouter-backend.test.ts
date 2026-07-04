@@ -47,8 +47,93 @@ function validReply(): string {
   return "```json\n" + JSON.stringify(manifest) + "\n```\n\n" + block("alpha") + "\n\n" + block("beta");
 }
 
-function makeBackend(reply: string, admit = vi.fn(async () => ({ ok: true as const, componentIds: ["alpha", "beta"], files: [] }))) {
-  const chat = vi.fn(async (_model: string, _messages: ChatMessage[]) => reply);
+function validContentPlanReply(): string {
+  const plan = {
+    title: "Vì sao chip AI đắt",
+    viewerPromise: "Người xem hiểu nút thắt khiến phần cứng AI trở nên đắt đỏ.",
+    hookType: "contradiction",
+    first3SecondsLine: "Con chip không đắt vì nó nhỏ. Nó đắt vì gần như không ai làm nổi.",
+    openLoop: "Điểm nghẽn thật sự nằm ở cánh cửa sản xuất.",
+    payoff: "Giá trị nằm ở năng lực sản xuất khan hiếm, không phải kích thước con chip.",
+    claims: [
+      {
+        id: "claim-01",
+        text: "Năng lực sản xuất chip tiên tiến tập trung vào rất ít nhà máy.",
+        support: "source_material",
+        confidence: "supported",
+        action: "use",
+      },
+      {
+        id: "claim-02",
+        text: "Unsupported $999 launch price.",
+        support: "source_material",
+        confidence: "uncertain",
+        action: "omit",
+      },
+    ],
+    scenes: [
+      {
+        sceneId: "scene-01",
+        purpose: "hook",
+        beat: "Reveal scarcity before specs.",
+        narration: "Con chip không đắt vì nó nhỏ. Nó đắt vì gần như không ai làm nổi.",
+        onScreenText: "Đắt vì khan hiếm",
+        visualMetaphor: "A tiny glowing chip behind a locked factory gate.",
+        layoutFamily: "signature-visual",
+        evidenceClaimIds: ["claim-01"],
+      },
+      {
+        sceneId: "scene-02",
+        purpose: "context",
+        beat: "Show why capacity, not hype, is the bottleneck.",
+        narration: "Khi chỉ vài nơi làm được, mỗi đơn hàng phải xếp hàng trước một cánh cửa hẹp.",
+        onScreenText: "Cổ chai là nhà máy",
+        visualMetaphor: "A narrowing production timeline.",
+        layoutFamily: "timeline",
+        evidenceClaimIds: ["claim-01"],
+      },
+      {
+        sceneId: "scene-03",
+        purpose: "payoff",
+        beat: "Resolve the open loop with the scarcity takeaway.",
+        narration: "Thứ được định giá không phải vật liệu, mà là quyền bước qua cánh cổng sản xuất.",
+        onScreenText: "Giá nằm ở năng lực biến thiết kế thành hàng thật",
+        visualMetaphor: "Blueprint lines turning into one finished glowing chip.",
+        layoutFamily: "diagram",
+        evidenceClaimIds: ["claim-01"],
+      },
+    ],
+  };
+  return JSON.stringify(plan);
+}
+
+function weakContentPlanReply(): string {
+  const plan = JSON.parse(validContentPlanReply()) as {
+    scenes: Array<{ purpose: string; narration: string; onScreenText: string; layoutFamily: string; evidenceClaimIds: string[] }>;
+  };
+  plan.scenes = plan.scenes.map((scene, index) => ({
+    ...scene,
+    purpose: index === 0 ? "context" : scene.purpose,
+    narration: index === 0 ? "The prototype reached 500 cycles without a source." : scene.narration,
+    onScreenText: index === 0 ? "500 cycles" : scene.onScreenText,
+    layoutFamily: "statement",
+    evidenceClaimIds: index === 0 ? [] : scene.evidenceClaimIds,
+  }));
+  return JSON.stringify(plan);
+}
+
+function chatReplies(...replies: string[]) {
+  const queue = [...replies];
+  const fallback = replies.at(-1) ?? validReply();
+  return vi.fn(async (_model: string, _messages: ChatMessage[]) => queue.shift() ?? fallback);
+}
+
+function makeBackend(
+  authorReply = validReply(),
+  admit = vi.fn(async () => ({ ok: true as const, componentIds: ["alpha", "beta"], files: [] })),
+  planReply = validContentPlanReply(),
+) {
+  const chat = chatReplies(planReply, authorReply);
   const client = { chat } as unknown as NineRouterClient;
   const deps: NineRouterBackendDeps = {
     client,
@@ -65,19 +150,29 @@ function authoredDir(projectId: string): string {
 }
 
 describe("authorScenes (pure-author)", () => {
-  it("baseline: one successful text-only authoring run makes one chat call with the current prompt surface", async () => {
+  it("baseline: one successful text-only authoring run plans content before authoring", async () => {
     const projectId = "pa-chat-baseline";
     const { backend, chat } = makeBackend(validReply());
     const job: AuthorJob = { projectId, input: { text: "chủ đề baseline", urls: [] }, scriptGate: false };
 
     await backend.authorScenes(job);
 
-    expect(chat).toHaveBeenCalledTimes(1);
-    const [model, messages] = chat.mock.calls[0]!;
+    expect(chat).toHaveBeenCalledTimes(2);
+    const [model, planMessages] = chat.mock.calls[0]!;
     expect(model).toBe("test-model");
-    expect(messages).toHaveLength(2);
-    expect(messages.map((m) => m.role)).toEqual(["system", "user"]);
-    expect(messages.every((m) => typeof m.content === "string")).toBe(true);
+    expect(planMessages).toHaveLength(2);
+    expect(planMessages.map((m) => m.role)).toEqual(["system", "user"]);
+    expect(planMessages.every((m) => typeof m.content === "string")).toBe(true);
+    expect(planMessages[0]!.content).toContain("CONTENT PLANNER");
+
+    const [, authorMessages] = chat.mock.calls[1]!;
+    expect(authorMessages).toHaveLength(2);
+    expect(authorMessages.map((m) => m.role)).toEqual(["system", "user"]);
+    expect(authorMessages.every((m) => typeof m.content === "string")).toBe(true);
+    const authorUserText = authorMessages[1]!.content as string;
+    expect(authorUserText).toContain("CONTENT PLAN ĐÃ DUYỆT");
+    expect(authorUserText).toContain("claim-01");
+    expect(authorUserText).not.toContain("Unsupported $999 launch price");
   });
 
   it("valid reply ⇒ writes one .tsx per unique id + open-id manifest + admits + returns scenes", async () => {
@@ -129,6 +224,36 @@ describe("authorScenes (pure-author)", () => {
     expect(existsSync(authoredDir(projectId))).toBe(false);
   });
 
+  it("invalid content plan stops before authoring and does not fall back to one-step authoring", async () => {
+    const projectId = "pa-invalid-plan";
+    const admit = vi.fn(async () => ({ ok: true as const, componentIds: ["alpha", "beta"], files: [] }));
+    const { backend, chat } = makeBackend(validReply(), admit, "not a json plan");
+    const job: AuthorJob = { projectId, input: { text: "chủ đề", urls: [] }, scriptGate: false };
+
+    const out = await backend.authorScenes(job);
+
+    expect(out.scenes).toEqual([]);
+    expect(out.message).toMatch(/kế hoạch nội dung/i);
+    expect(chat).toHaveBeenCalledTimes(1);
+    expect(admit).not.toHaveBeenCalled();
+    expect(existsSync(authoredDir(projectId))).toBe(false);
+  });
+
+  it("weak content plans fail the local quality gate before code authoring", async () => {
+    const projectId = "pa-weak-plan";
+    const admit = vi.fn(async () => ({ ok: true as const, componentIds: ["alpha", "beta"], files: [] }));
+    const { backend, chat } = makeBackend(validReply(), admit, weakContentPlanReply());
+    const job: AuthorJob = { projectId, input: { text: "chủ đề", urls: [] }, scriptGate: false };
+
+    const out = await backend.authorScenes(job);
+
+    expect(out.scenes).toEqual([]);
+    expect(out.message).toMatch(/kế hoạch nội dung/i);
+    expect(chat).toHaveBeenCalledTimes(1);
+    expect(admit).not.toHaveBeenCalled();
+    expect(existsSync(authoredDir(projectId))).toBe(false);
+  });
+
   it("no model ⇒ guarded with a message", async () => {
     const { backend } = makeBackend(validReply());
     (backend as unknown as { deps: NineRouterBackendDeps }).deps.model = () => undefined;
@@ -139,7 +264,7 @@ describe("authorScenes (pure-author)", () => {
 
   it("continues authoring when URL ingest throws and reports the URL as unreadable", async () => {
     const projectId = "pa-ingest-fallback";
-    const client = { chat: vi.fn(async () => validReply()) } as unknown as NineRouterClient;
+    const client = { chat: chatReplies(validContentPlanReply(), validReply()) } as unknown as NineRouterClient;
     const ingestUrl = vi.fn(async () => { throw new Error("ingest offline"); });
     const backend = new NineRouterAuthoringBackend({
       client,
@@ -481,9 +606,10 @@ describe("vision-incapable model hardening", () => {
   it("authorScenes: a 400 on the image call falls back to text-only and still authors", async () => {
     const projectId = "hard-fallback";
     writeAsset(projectId, "assets/img.png");
+    const textReplies = [validContentPlanReply(), validReply()];
     const chat = vi.fn(async (_model: string, messages: ChatMessage[]) => {
       if (listHasImage(messages)) throw new GatewayChatError("http", "HTTP 400 improperly formed", { status: 400 });
-      return validReply();
+      return textReplies.shift() ?? validReply();
     });
     const deps: NineRouterBackendDeps = {
       client: { chat } as unknown as NineRouterClient,
@@ -499,17 +625,19 @@ describe("vision-incapable model hardening", () => {
       scriptGate: false,
     });
     expect(out.scenes.length).toBeGreaterThan(0); // authored via the text-only retry
-    expect(chat).toHaveBeenCalledTimes(2); // image attempt (400) + text-only retry
+    expect(chat).toHaveBeenCalledTimes(3); // image plan attempt (400) + text-only plan retry + text-only authoring
     expect(listHasImage(chat.mock.calls[0]![1] as ChatMessage[])).toBe(true);
     expect(listHasImage(chat.mock.calls[1]![1] as ChatMessage[])).toBe(false);
+    expect(listHasImage(chat.mock.calls[2]![1] as ChatMessage[])).toBe(false);
   });
 
   it("once a model rejects an image, filterCrawledImages short-circuits to [] (no call, no breaker)", async () => {
     const projectId = "hard-filter";
     writeAsset(projectId, "assets/a.png");
+    const textReplies = [validContentPlanReply(), validReply()];
     const chat = vi.fn(async (_model: string, messages: ChatMessage[]) => {
       if (listHasImage(messages)) throw new GatewayChatError("http", "HTTP 400 improperly formed", { status: 400 });
-      return validReply();
+      return textReplies.shift() ?? validReply();
     });
     const deps: NineRouterBackendDeps = {
       client: { chat } as unknown as NineRouterClient,

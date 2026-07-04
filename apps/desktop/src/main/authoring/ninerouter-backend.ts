@@ -26,6 +26,7 @@ import type { SafetyReportView } from "../agent/repair-loop.js";
 import type { AuthorJob, VisualDefect, SceneSnapshot, AuthorImageRef } from "../agent/agent-worker.js";
 import { GatewayChatError, type NineRouterClient, type ChatMessage } from "../gateway/ninerouter-client.js";
 import { buildAuthorMessages, buildReauthorMessages, buildVisualQaMessages, buildImageFilterMessages, type AuthorImageInput } from "./prompt.js";
+import { buildContentPlanMessages, contentPlanForAuthoring, evaluateContentPlanQuality, parseContentPlan } from "./content-plan.js";
 import { parseAuthorReply } from "./reply-parser.js";
 import { parseReauthorReply } from "./reply-parser.js";
 import type { AuthorManifest } from "./manifest-schema.js";
@@ -75,6 +76,12 @@ export function authorCallErrorMessage(e: unknown): string {
   }
   return "Không nhận được phản hồi từ AI (quá thời gian chờ hoặc mất kết nối). Hãy kiểm tra 9Router/model rồi thử lại.";
 }
+
+const CONTENT_PLAN_PARSE_FAILURE =
+  "AI chưa lập được kế hoạch nội dung hợp lệ. Hãy thử lại hoặc mô tả rõ nguồn/ý chính hơn.";
+
+const CONTENT_PLAN_QUALITY_FAILURE =
+  "AI lập kế hoạch nội dung chưa đủ hook/căn cứ/bố cục. Hãy thử lại hoặc mô tả rõ nguồn/ý chính hơn.";
 
 export type NineRouterBackendDeps = {
   client: NineRouterClient;
@@ -258,7 +265,37 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
     const allowedRefs = new Set((job.input.images ?? []).map((i) => i.ref));
 
     const wordsPerSecond = await this.deps.wordsPerSecond?.(job.projectId);
-    const messages = buildAuthorMessages(job.input, research, images.length > 0 ? images : undefined, wordsPerSecond);
+    const offeredImages = images.length > 0 ? images : undefined;
+
+    const contentPlanMessages = buildContentPlanMessages(job.input, research, offeredImages, wordsPerSecond);
+    let plannedContent: ReturnType<typeof contentPlanForAuthoring>;
+    try {
+      log.info({ model, projectId: job.projectId }, "calling AI model for content planning");
+      const planReply = await this.chatWithVisionFallback(model, contentPlanMessages);
+      log.info({ projectId: job.projectId, replyChars: planReply.length }, "AI content plan replied");
+      const parsedPlan = parseContentPlan(planReply);
+      if (!parsedPlan.ok) {
+        log.error(
+          { projectId: job.projectId, reason: parsedPlan.reason, detail: parsedPlan.detail, rawReply: planReply.slice(0, 2000) },
+          "content-plan parse failed",
+        );
+        return { scenes: [], message: CONTENT_PLAN_PARSE_FAILURE, ...(unreadableUrls.length > 0 ? { unreadableUrls } : {}) };
+      }
+      const qualityIssues = evaluateContentPlanQuality(parsedPlan.plan);
+      if (qualityIssues.length > 0) {
+        log.error(
+          { projectId: job.projectId, qualityIssues },
+          "content-plan quality checks failed",
+        );
+        return { scenes: [], message: CONTENT_PLAN_QUALITY_FAILURE, ...(unreadableUrls.length > 0 ? { unreadableUrls } : {}) };
+      }
+      plannedContent = contentPlanForAuthoring(parsedPlan.plan);
+    } catch (e) {
+      log.error({ err: e, projectId: job.projectId }, "AI content-plan call failed");
+      return { scenes: [], message: authorCallErrorMessage(e), ...(unreadableUrls.length > 0 ? { unreadableUrls } : {}) };
+    }
+
+    const messages = buildAuthorMessages(job.input, research, offeredImages, wordsPerSecond, plannedContent);
     let reply: string;
     try {
       log.info({ model, projectId: job.projectId }, "calling AI model for authoring");

@@ -117,9 +117,8 @@ function hasConcreteFact(value: string): boolean {
 }
 
 /**
- * Deterministic local quality gate for prompt/eval fixtures. It is not wired into
- * authoring yet; PROMPT-4 can reuse or tighten it once the content-plan call is
- * live.
+ * Deterministic local quality gate for content planning. Fresh authoring uses it
+ * before the TSX authoring call so a weak plan cannot bypass the claim ledger.
  */
 export function evaluateContentPlanQuality(plan: ContentPlan): ContentPlanQualityIssue[] {
   const issues: ContentPlanQualityIssue[] = [];
