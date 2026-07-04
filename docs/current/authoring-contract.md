@@ -146,6 +146,11 @@ Forbidden:
 Use Remotion frame hooks, `interpolate`, `spring`, and `random(seed)` when
 needed.
 
+For `interpolate`, the input range must be strictly increasing. Do not pass a
+circular range like `[340, 360, 60]`; split it into separate clamped
+interpolations such as `340 to 360` and `0 to 60`, or normalize the value before
+interpolating.
+
 ## Captions
 
 Do not render subtitles or captions in authored scenes. Captions are generated

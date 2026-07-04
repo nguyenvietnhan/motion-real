@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { mkdtempSync, rmSync, statSync, utimesSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, statSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { __directoryFingerprint, __resetTypecheckAuthoredCache, __typecheckAuthoredCacheStats, typecheckAuthoredScenes } from "./typecheck-authored.js";
 
@@ -40,6 +40,18 @@ describe("typecheckAuthoredScenes (N10)", () => {
   it("exposes durationInFrames as top-level authored scene context", () => {
     const issues = typecheckAuthoredScenes([fixture("typecheck-duration-in-frames.tsx")], root);
     expect(issues).toEqual([]);
+  }, TS_PROGRAM_TIMEOUT);
+
+  it("resolves allowed bare imports for authored files outside the workspace", () => {
+    const dir = mkdtempSync(join(tmpdir(), "n10-outside-workspace-"));
+    try {
+      const file = join(dir, "scene-01.tsx");
+      writeFileSync(file, readFileSync(fixture("typecheck-clean.tsx"), "utf8"), "utf8");
+      const issues = typecheckAuthoredScenes([file], root);
+      expect(issues).toEqual([]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   }, TS_PROGRAM_TIMEOUT);
 
   // A render fallback is not an acceptable clean draft: SceneErrorBoundary keeps

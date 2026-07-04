@@ -56,7 +56,16 @@ const typecheckCacheStats = { hits: 0, misses: 0 };
  */
 function authoredPaths(workspaceRoot: string): Record<string, string[]> {
   const src = (name: string) => [resolve(workspaceRoot, "packages", name, "src", "index.ts")];
+  const nodeModule = (...parts: string[]) => [resolve(workspaceRoot, "node_modules", ...parts)];
   return {
+    // Authored files usually live under VIDEO_TOOL_HOME, which may be outside
+    // the repo. Point bare allowed imports at the workspace dependency graph so
+    // TypeScript does not search upward from the project folder and false-block
+    // with "Cannot find module 'react'".
+    react: nodeModule("@types", "react", "index.d.ts"),
+    "react/jsx-runtime": nodeModule("@types", "react", "jsx-runtime.d.ts"),
+    remotion: nodeModule("remotion", "dist", "cjs", "index.d.ts"),
+    zod: nodeModule("zod", "index.d.cts"),
     "@motionreal/schema": src("schema"),
     "@motionreal/theme": src("theme"),
     "@motionreal/blocks": src("blocks"),

@@ -9,10 +9,11 @@ import { admitAuthoredComponent, admitAuthoredSceneFile } from "./index.js";
 /**
  * AI AUTHOR admission-gate self-tests (Requirement 13). Non-vacuous: a clean
  * authored module is admitted without host import/registration, while
- * each policy violation class — banned import (N4), banned API (N5), missing
- * required export (N4), and a non-literal registerComponent id (N4) — is rejected
- * with the matching violation. The bad modules are NEVER imported (admission is
- * a pure static gate), proving banned code never executes in the host.
+ * each policy violation class — banned import (N4), banned/crash-prone construct
+ * (N5), missing required export (N4), and a non-literal registerComponent id
+ * (N4) — is rejected with the matching violation. The bad modules are NEVER
+ * imported (admission is a pure static gate), proving banned code never executes
+ * in the host.
  */
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -87,6 +88,47 @@ export default registerComponent({
     expect(result.admitted).toBe(false);
     if (!result.admitted) {
       expect(result.violations.some((v) => v.check === "N5" && /Math\.random/.test(v.message))).toBe(true);
+    }
+  });
+
+  it("rejects literal interpolate input ranges that are not strictly increasing", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "motionreal-admission-interpolate-"));
+    try {
+      const template = (range: string, id: string) => `
+import React from "react";
+import { interpolate } from "remotion";
+import { registerComponent } from "@motionreal/compositions";
+import { z } from "zod";
+export const schema = z.object({});
+export const example = {};
+const Comp: React.FC = () => {
+  const progress = 0.5;
+  const x = interpolate(progress, ${range}, [0, 1, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+  return <div style={{ opacity: x }}>ok</div>;
+};
+export default registerComponent({
+  id: "${id}",
+  displayName: "Test",
+  promptGuide: "Test",
+  schema,
+  Component: Comp,
+  example,
+});
+`;
+      const invalid = join(dir, "invalid.tsx");
+      await writeFile(invalid, template("[340, 360, 60]", "authored-invalid-interpolate"));
+      const invalidResult = admitAuthoredComponent(invalid);
+      expect(invalidResult.admitted).toBe(false);
+      if (!invalidResult.admitted) {
+        expect(invalidResult.violations.some((v) => v.check === "N5" && /strictly increasing/.test(v.message))).toBe(true);
+      }
+
+      const valid = join(dir, "valid.tsx");
+      await writeFile(valid, template("[0, 0.5, 1]", "authored-valid-interpolate"));
+      const validResult = admitAuthoredComponent(valid);
+      expect(validResult.admitted).toBe(true);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
     }
   });
 

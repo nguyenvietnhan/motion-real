@@ -11,10 +11,12 @@ import type { SafetyIssue } from "../types.js";
  *   - N4: only whitelisted modules may be imported, and the module MUST export a
  *     default (the registerComponent result), a named `schema`, and a named
  *     `example`; it must register exactly one component with a literal id.
- *   - N5: banned, nondeterministic, or unsafe APIs (Math.random, Date/Date.now,
+ *   - N5: banned, nondeterministic, unsafe, or known crash-prone authored
+ *     constructs may not appear anywhere in the AST: Math.random, Date/Date.now,
  *     fetch/XMLHttpRequest, eval/Function, require/dynamic import, fs/
  *     child_process/process, window.location/document.cookie,
- *     dangerouslySetInnerHTML) may not appear anywhere in the AST.
+ *     dangerouslySetInnerHTML, and invalid Remotion helper arguments that would
+ *     crash during render.
  * Authored code reaches typecheck → bundle only after it passes this static
  * gate; its registerComponent side effect runs later inside the Remotion render
  * entry, never in the Node host.
@@ -135,6 +137,14 @@ export function admitAuthoredComponent(
       severity: "error",
       path: at(node),
       message: `Authored scene code uses forbidden API "${token}"; scene visuals must be pure functions of the frame (use Remotion's random(seed)).`,
+    });
+  };
+  const addN5Message = (node: ts.Node, message: string): void => {
+    violations.push({
+      check: "N5",
+      severity: "error",
+      path: at(node),
+      message,
     });
   };
 
@@ -279,6 +289,16 @@ export function admitAuthoredComponent(
       const name = node.expression.text;
       if (banned.has(name) && name !== "Function") addN5(node, name);
       if (name === "Function" && banned.has("Function")) addN5(node, "Function");
+      if (name === "interpolate") {
+        const range = node.arguments[1] ? literalNumberArray(node.arguments[1]) : null;
+        if (range && !isStrictlyIncreasing(range)) {
+          addN5Message(
+            node.arguments[1]!,
+            `Remotion interpolate inputRange must be strictly increasing; got [${range.join(", ")}]. ` +
+              "Split circular ranges such as [340, 360, 60] into separate clamped interpolations or normalize the value first.",
+          );
+        }
+      }
       collectRegisterId(node);
     }
 
@@ -419,6 +439,51 @@ function isCreateElementCall(expr: ts.LeftHandSideExpression): boolean {
 
 function truncate(value: string): string {
   return value.length > 80 ? `${value.slice(0, 77)}...` : value;
+}
+
+function literalNumberArray(expr: ts.Expression): number[] | null {
+  const unwrapped = unwrapExpression(expr);
+  if (!ts.isArrayLiteralExpression(unwrapped)) return null;
+  const values: number[] = [];
+  for (const element of unwrapped.elements) {
+    const value = literalNumber(element);
+    if (value === null) return null;
+    values.push(value);
+  }
+  return values.length >= 2 ? values : null;
+}
+
+function unwrapExpression(expr: ts.Expression): ts.Expression {
+  let current = expr;
+  for (;;) {
+    if (ts.isParenthesizedExpression(current)) {
+      current = current.expression;
+      continue;
+    }
+    if (ts.isAsExpression(current) || ts.isSatisfiesExpression(current) || ts.isNonNullExpression(current)) {
+      current = current.expression;
+      continue;
+    }
+    return current;
+  }
+}
+
+function literalNumber(expr: ts.Expression): number | null {
+  const unwrapped = unwrapExpression(expr);
+  if (ts.isNumericLiteral(unwrapped)) return Number(unwrapped.text);
+  if (ts.isPrefixUnaryExpression(unwrapped) && ts.isNumericLiteral(unwrapped.operand)) {
+    const value = Number(unwrapped.operand.text);
+    if (unwrapped.operator === ts.SyntaxKind.MinusToken) return -value;
+    if (unwrapped.operator === ts.SyntaxKind.PlusToken) return value;
+  }
+  return null;
+}
+
+function isStrictlyIncreasing(values: readonly number[]): boolean {
+  for (let i = 1; i < values.length; i += 1) {
+    if (values[i]! <= values[i - 1]!) return false;
+  }
+  return true;
 }
 
 function collectConstantStrings(src: ts.SourceFile): ReadonlyMap<string, string> {

@@ -94,4 +94,9 @@ describe("AUTHORING_CONTRACT — no-block / raw-JSX invariants", () => {
     expect(AUTHORING_CONTRACT).toMatch(/không cần làm mọi phần tử chuyển động/);
     expect(AUTHORING_CONTRACT).not.toMatch(/ANIMATION PHẢI|mọi cảnh phải chuyển động/);
   });
+
+  it("warns that Remotion interpolate inputRange must be strictly increasing", () => {
+    expect(AUTHORING_CONTRACT).toMatch(/inputRange PHẢI tăng dần nghiêm ngặt/);
+    expect(AUTHORING_CONTRACT).toMatch(/\[340, 360, 60\]/);
+  });
 });
