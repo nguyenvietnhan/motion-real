@@ -1,6 +1,7 @@
 # Temporary Task - Test And Surface Cleanup Plan
 
-Status: CLEANUP-0 baseline completed; CLEANUP-1 pending.
+Status: CLEANUP-0 baseline and CLEANUP-1 stale S0 baseline deletion
+completed; CLEANUP-2 pending.
 
 This is a temporary working note for pruning stale tests, stale authored-facing
 surfaces, and compatibility paths that no longer serve MotionReal's current
@@ -56,11 +57,11 @@ Verified facts:
   names referenced by the attachment review are not present under
   `docs/working-notes/`; treat them as coordination risks if recreated, not as
   active repo files.
-- `apps/desktop/src/main/characterization-baseline.test.ts` still contains the
-  old S0 characterization baseline and local replica functions:
+- Before CLEANUP-1, `apps/desktop/src/main/characterization-baseline.test.ts`
+  contained the old S0 characterization baseline and local replica functions:
   `activateBaseline`, `loadBaseline`, `updateBaseline`,
   `stageRecoveryBaseline`.
-- The same S0 file also imports production `computeScriptEdits` and tests three
+- That S0 file also imported production `computeScriptEdits` and tested three
   cases: reject empty narration, apply valid edits without mutating input, and
   ignore edits for unknown scenes.
 - Current production behavior covered by that S0 file is now covered directly by
@@ -68,8 +69,8 @@ Verified facts:
   `license/lifecycle`, `license/manager`, `settings/settings-store`,
   `workspace/workspace-controller`, and `script/script-gate-apply`.
 - Current `script-gate-apply.test.ts` covers empty-narration behavior and write
-  failure via property tests; before deleting S0, it should explicitly cover
-  the unknown-scene no-op case if no equivalent focused test already exists.
+  failure via property tests. CLEANUP-1 added explicit unknown-scene no-op
+  coverage before deleting S0.
 - `packages/pipeline/src/safety/typecheck-authored.test.ts` still has two N10
   tests for authored scenes reading `useTheme` from
   `@motionreal/compositions`.
@@ -183,7 +184,7 @@ Stop point:
 
 ### CLEANUP-1: Delete The Old S0 Characterization Baseline
 
-Status: pending.
+Status: completed on 2026-07-04.
 
 Purpose: remove tests that preserve refactor history and local replicas instead
 of current production behavior.
@@ -196,10 +197,10 @@ Touch:
 
 Actions:
 
-- before deleting S0, ensure focused production tests cover all behavior it
-  still uniquely names;
-- add a focused `computeScriptEdits` test for edits to unknown scene ids if no
-  equivalent test exists.
+- confirmed focused production tests cover the behavior S0 still uniquely
+  named;
+- added a focused `computeScriptEdits` test for edits to unknown scene ids;
+- deleted `apps/desktop/src/main/characterization-baseline.test.ts`.
 
 Rationale:
 
@@ -217,6 +218,14 @@ npm.cmd test -- apps/desktop/src/main/script/script-gate-apply.test.ts
 npm.cmd run typecheck
 npm.cmd test
 ```
+
+Result:
+
+- focused replacement tests passed;
+- `apps/desktop/src/main/script/script-gate-apply.test.ts` now has 3 tests,
+  including unknown-scene no-op coverage;
+- `npm.cmd run typecheck` passed;
+- `npm.cmd test` passed with 93 test files and 909 tests.
 
 Stop point:
 

@@ -79,6 +79,23 @@ describe("Property 4: script edits never write an empty narration", () => {
     );
   });
 
+  it("computeScriptEdits ignores edits for unknown scenes", () => {
+    const scenes: ManifestScene[] = [
+      { sceneId: "scene-01", narration: "a" },
+      { sceneId: "scene-02", narration: "b" },
+    ];
+
+    const result = computeScriptEdits(scenes, [
+      { sceneId: "scene-99", narration: "z", headline: "Ignored" },
+    ]);
+
+    expect(result).toEqual({ ok: true, scenes });
+    expect(scenes).toEqual([
+      { sceneId: "scene-01", narration: "a" },
+      { sceneId: "scene-02", narration: "b" },
+    ]);
+  });
+
   it("a write failure leaves the result as write-failed (manifest unchanged)", async () => {
     await fc.assert(
       fc.asyncProperty(scenesArb, async (scenes) => {
