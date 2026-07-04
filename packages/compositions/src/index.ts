@@ -25,9 +25,6 @@ export {
   type PropValidationIssue,
 } from "./registry.js";
 
-// Per-project theme propagation for the master composition/runtime layer:
-export { ThemeProvider, useTheme } from "./theme-context.js";
-
 // The single sanctioned image block, re-exported so an authored scene can reach
 // it WITHOUT importing @motionreal/blocks (which is no longer on the authored-import
 // whitelist — the layout blocks were deleted, but the user/crawled-image feature

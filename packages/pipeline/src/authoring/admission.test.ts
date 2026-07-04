@@ -33,6 +33,55 @@ describe("admitAuthoredComponent (static AST gate)", () => {
     }
   });
 
+  it("rejects whitelisted package subpath imports (N4)", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "motionreal-admission-subpath-"));
+    try {
+      const template = (importLine: string, id: string) => `
+import React from "react";
+${importLine}
+import { registerComponent } from "@motionreal/compositions";
+import { z } from "zod";
+export const schema = z.object({});
+export const example = {};
+const Comp: React.FC = () => <div>ok</div>;
+export default registerComponent({
+  id: "${id}",
+  displayName: "Test",
+  promptGuide: "Test",
+  schema,
+  Component: Comp,
+  example,
+});
+`;
+      const cases = [
+        {
+          file: "theme-context.tsx",
+          id: "authored-subpath-theme-context",
+          importLine: 'import { ThemeProvider } from "@motionreal/compositions/theme-context";',
+          spec: "@motionreal/compositions/theme-context",
+        },
+        {
+          file: "scene-image-subpath.tsx",
+          id: "authored-subpath-scene-image",
+          importLine: 'import { SceneImage } from "@motionreal/compositions/scene-image";',
+          spec: "@motionreal/compositions/scene-image",
+        },
+      ];
+
+      for (const c of cases) {
+        const path = join(dir, c.file);
+        await writeFile(path, template(c.importLine, c.id));
+        const result = admitAuthoredComponent(path);
+        expect(result.admitted).toBe(false);
+        if (!result.admitted) {
+          expect(result.violations.some((v) => v.check === "N4" && v.message.includes(c.spec))).toBe(true);
+        }
+      }
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
   it("rejects a banned API (N5: Math.random)", () => {
     const result = admitAuthoredComponent(fixture("banned-api.tsx"));
     expect(result.admitted).toBe(false);

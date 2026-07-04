@@ -21,7 +21,7 @@ import type { SafetyIssue } from "../types.js";
  */
 
 export type AdmissionPolicy = {
-  /** Only these module specifiers (exact, or a subpath under one) may be imported. */
+  /** Only these exact module specifiers may be imported. */
   allowedImports: readonly string[];
   /** Identifiers / member expressions that are hard-banned anywhere in the AST. */
   bannedApis: readonly string[];
@@ -151,11 +151,10 @@ export function admitAuthoredComponent(
   }
 
   const importAllowed = (spec: string): boolean => {
-    // A `..` segment escapes the whitelisted package root (e.g.
-    // "@motionreal/blocks/../../node:fs" passes a naive startsWith), so reject any
-    // specifier containing a parent-dir traversal outright.
+    // A `..` segment is never meaningful in the exact authored import allowlist;
+    // reject it explicitly so a future policy change cannot reopen traversal.
     if (spec.split(/[\\/]/).includes("..")) return false;
-    return allowed.some((a) => spec === a || spec.startsWith(`${a}/`));
+    return allowed.includes(spec);
   };
 
   const visit = (node: ts.Node): void => {

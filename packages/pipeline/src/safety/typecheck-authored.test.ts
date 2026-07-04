@@ -56,15 +56,6 @@ describe("typecheckAuthoredScenes (N10)", () => {
     expect(issues.every((i) => i.sceneId === "scene-05")).toBe(true);
   }, TS_PROGRAM_TIMEOUT);
 
-  it("flags an un-aliased color token as a WARNING (not a hard error), since the runtime Proxy makes it safe", () => {
-    const issues = typecheckAuthoredScenes([fixture("typecheck-missing-color.tsx")], root);
-    expect(issues.length).toBeGreaterThan(0);
-    // Every diagnostic here is a missing ThemeColors token → all warnings, no errors.
-    expect(issues.every((i) => i.check === "N10")).toBe(true);
-    expect(issues.every((i) => i.severity === "warning")).toBe(true);
-    expect(issues.some((i) => /does not exist on type 'ThemeColors'/.test(i.message))).toBe(true);
-  }, TS_PROGRAM_TIMEOUT);
-
   it("hard-fails an undefined identifier because it would render SceneFallback", () => {
     const issues = typecheckAuthoredScenes([fixture("typecheck-missing-identifier.tsx")], root);
     expect(issues.length).toBeGreaterThan(0);
@@ -87,16 +78,6 @@ describe("typecheckAuthoredScenes (N10)", () => {
       }),
     );
     expect(issues.some((i) => i.severity === "error")).toBe(false);
-  }, TS_PROGRAM_TIMEOUT);
-
-  it("flags a FLAT theme.* color read (type 'Theme') as a WARNING too, not a hard error", () => {
-    // The gizmodo 591bfd84 habit: `theme.accent` / `theme.someUnknown` straight
-    // off the theme. The theme Proxy resolves both safely, so an un-aliased flat
-    // token must be a warning (never block), exactly like theme.colors.*.
-    const issues = typecheckAuthoredScenes([fixture("typecheck-flat-theme.tsx")], root);
-    expect(issues.length).toBeGreaterThan(0);
-    expect(issues.every((i) => i.severity === "warning")).toBe(true);
-    expect(issues.every((i) => /does not exist on type 'Theme'/.test(i.message))).toBe(true);
   }, TS_PROGRAM_TIMEOUT);
 
   it("flags an EXCESS component prop (<Frame style={…}>) as a WARNING, not a hard error", () => {

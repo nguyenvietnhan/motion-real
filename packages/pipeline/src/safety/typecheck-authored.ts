@@ -59,7 +59,6 @@ function authoredPaths(workspaceRoot: string): Record<string, string[]> {
     "@motionreal/blocks": src("blocks"),
     "@motionreal/tts": src("tts"),
     "@motionreal/compositions": src("compositions"),
-    "@motionreal/compositions/*": [resolve(workspaceRoot, "packages", "compositions", "src", "*")],
     "@motionreal/pipeline": src("pipeline"),
     "@motionreal/pipeline/*": [resolve(workspaceRoot, "packages", "pipeline", "src", "*")],
   };

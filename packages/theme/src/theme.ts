@@ -10,10 +10,10 @@
  * render in this neutral grammar; an authored scene may ignore them entirely.
  *
  * This module keeps the runtime `Theme` shape and the proven 2-layer cross-model
- * defense (typed alias keys + a Proxy fallback) for `colors` and `radius`, so an
- * AI-authored token name can never break a render. There is no selectable style
- * identity here: `makeTheme` derives one neutral runtime theme from the dominant
- * hue.
+ * defense (typed alias keys + a Proxy fallback) for `colors` and `radius`, so a
+ * stale or generated runtime token read can never break a render. There is no
+ * selectable style identity here: `makeTheme` derives one neutral runtime theme
+ * from the dominant hue.
  *
  * Pure + deterministic (no Math.random / Date / IO): a theme is a stable function
  * of its dominant hue.
@@ -184,11 +184,11 @@ export const springs = {
 export type RadiusScale = { sm: number; md: number; lg: number };
 
 /**
- * The resolved radius scale authored scenes read off `theme.radius`. Canonical is
- * `sm/md/lg`; the extra keys are cross-model ALIASES (Layer 1) so a scene written
- * by any model — reaching for the Tailwind vocabulary — both typechecks (N10) and
- * renders a real radius instead of a TS2339 / `undefined`. Any UNFORESEEN key is
- * caught at runtime by the Proxy fallback (`wrapRadius`).
+ * The resolved radius scale runtime helpers read off `theme.radius`. Canonical is
+ * `sm/md/lg`; the extra keys are cross-model ALIASES (Layer 1) so stale/generated
+ * code reaching for the Tailwind vocabulary both typechecks (N10) and renders a
+ * real radius instead of a TS2339 / `undefined`. Any UNFORESEEN key is caught at
+ * runtime by the Proxy fallback (`wrapRadius`).
  */
 export type ThemeRadius = RadiusScale & {
   none: number; xs: number; s: number; small: number; tiny: number; zero: number; flat: number; square: number;
@@ -264,7 +264,7 @@ export type ThemeColors = CoreColors & {
 };
 
 /**
- * The resolved theme object blocks + authored scenes consume. `surface` is omitted
+ * The resolved theme object blocks and composition runtime consume. `surface` is omitted
  * from the color spread because `ThemeColors` carries a `surface: string` alias
  * (→ panel) that would otherwise intersect with the structured `surface:
  * SurfaceTokens`; the structured shape is the truth, the color alias stays
@@ -406,7 +406,7 @@ function wrapColors(colors: ThemeColors): ThemeColors {
       if (!loggedUnknownColors.has(key)) {
         loggedUnknownColors.add(key);
         // eslint-disable-next-line no-console
-        console.warn(`[theme] authored scene read unknown color token "colors.${key}" — falling back to colors.fg.`);
+        console.warn(`[theme] runtime read unknown color token "colors.${key}" — falling back to colors.fg.`);
       }
       return target.fg;
     },
@@ -423,7 +423,7 @@ function wrapRadius(radius: ThemeRadius): ThemeRadius {
       if (!loggedUnknownRadius.has(key)) {
         loggedUnknownRadius.add(key);
         // eslint-disable-next-line no-console
-        console.warn(`[theme] authored scene read unknown radius token "radius.${key}" — falling back to radius.md.`);
+        console.warn(`[theme] runtime read unknown radius token "radius.${key}" — falling back to radius.md.`);
       }
       return target.md;
     },
@@ -441,7 +441,7 @@ function wrapTheme(base: Omit<Theme, keyof ThemeColors>, colors: ThemeColors): T
         if (!loggedFlatColorReads.has(key)) {
           loggedFlatColorReads.add(key);
           // eslint-disable-next-line no-console
-          console.warn(`[theme] authored scene read color token "theme.${key}" directly — resolving via theme.colors.${key}.`);
+          console.warn(`[theme] runtime read color token "theme.${key}" directly — resolving via theme.colors.${key}.`);
         }
         return (colors as unknown as Record<string, string>)[key];
       }

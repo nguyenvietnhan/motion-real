@@ -1,7 +1,8 @@
 # Temporary Task - Test And Surface Cleanup Plan
 
-Status: CLEANUP-0 baseline and CLEANUP-1 stale S0 baseline deletion
-completed; CLEANUP-2 pending.
+Status: CLEANUP-0 baseline, CLEANUP-1 stale S0 baseline deletion, CLEANUP-2
+authored composition surface sealing, and CLEANUP-3 authored-theme fixture
+removal completed; CLEANUP-4 pending.
 
 This is a temporary working note for pruning stale tests, stale authored-facing
 surfaces, and compatibility paths that no longer serve MotionReal's current
@@ -71,18 +72,19 @@ Verified facts:
 - Current `script-gate-apply.test.ts` covers empty-narration behavior and write
   failure via property tests. CLEANUP-1 added explicit unknown-scene no-op
   coverage before deleting S0.
-- `packages/pipeline/src/safety/typecheck-authored.test.ts` still has two N10
+- Before CLEANUP-3,
+  `packages/pipeline/src/safety/typecheck-authored.test.ts` still had two N10
   tests for authored scenes reading `useTheme` from
   `@motionreal/compositions`.
-- The corresponding fixtures
-  `typecheck-missing-color.tsx` and `typecheck-flat-theme.tsx` explicitly say an
-  authored scene may still read theme via `useTheme`.
-- `packages/compositions/src/index.ts` still publicly re-exports
-  `ThemeProvider` and `useTheme`.
+- Before CLEANUP-3, the corresponding fixtures
+  `typecheck-missing-color.tsx` and `typecheck-flat-theme.tsx` explicitly said
+  an authored scene may still read theme via `useTheme`.
+- Before CLEANUP-2, `packages/compositions/src/index.ts` still publicly
+  re-exported `ThemeProvider` and `useTheme`.
 - `packages/compositions/src/theme-context.tsx` exists as an internal
   composition-runtime re-export used by `video.tsx`.
-- `packages/pipeline/src/authoring/admission.ts` allows exact allowed imports
-  and any subpath under them via `spec.startsWith(...)`.
+- Before CLEANUP-2, `packages/pipeline/src/authoring/admission.ts` allowed exact
+  allowed imports and any subpath under them via `spec.startsWith(...)`.
 - No non-test production source currently needs an authored import from
   `@motionreal/compositions/*`.
 - A local scan of `.video-tool` found no saved project source or metadata using
@@ -241,7 +243,7 @@ test: remove stale controller characterization baseline
 
 ### CLEANUP-2: Seal The Authored Composition Surface
 
-Status: pending.
+Status: completed on 2026-07-04.
 
 Purpose: make the code match the contract that authored scenes may import only
 the public package entry points, and may not read theme via `useTheme`.
@@ -259,23 +261,23 @@ Touch:
 
 Actions:
 
-- re-run the local saved-project scan before changing admission:
+- re-ran the local saved-project scan before changing admission:
   `rg -n --hidden --no-ignore -g "*.ts" -g "*.tsx" -g "*.json" -g "*.md" "useTheme|ThemeProvider|@motionreal/compositions/theme-context|@motionreal/compositions/" .video-tool`;
-- if saved projects contain authored scenes using the old theme surface, pause
-  for an owner-approved migration/repair/compatibility decision before sealing
-  the import path;
-- change admission import matching from "exact or any subpath" to exact package
+- found no local `.video-tool` saved-project source or metadata using the old
+  authored theme/subpath surface;
+- changed admission import matching from "exact or any subpath" to exact package
   specifiers only for the default authored policy;
-- add/adjust admission tests proving
+- added admission tests proving
   `@motionreal/compositions/theme-context` and any other
   `@motionreal/compositions/*` authored import are rejected;
-- keep exact `@motionreal/compositions` import admitted so
+- kept exact `@motionreal/compositions` import admitted so
   `registerComponent`, `SceneComponentProps`, and `SceneImage` still work;
-- remove `ThemeProvider` and `useTheme` from the public
+- removed `ThemeProvider` and `useTheme` from the public
   `@motionreal/compositions` package index;
-- keep `theme-context.tsx` as an internal composition-runtime file if
-  `video.tsx` still imports it relatively;
-- update stale comments that say authored scenes may read theme tokens.
+- kept `theme-context.tsx` as an internal composition-runtime bridge used by
+  `video.tsx` through a relative import;
+- updated stale composition/blocks/theme comments and theme fallback log text
+  that said authored scenes could read theme tokens.
 
 Checks:
 
@@ -283,10 +285,23 @@ Checks:
 npm.cmd test -- packages/pipeline/src/authoring/admission.test.ts
 npm.cmd test -- packages/compositions/src/video.test.ts
 npm.cmd test -- packages/compositions/src/registry.test.ts
+npm.cmd test -- packages/pipeline/src/safety/typecheck-authored.test.ts
+npm.cmd test -- packages/theme/src/theme.test.ts
 npm.cmd run typecheck
 npm.cmd test
 npm.cmd run build
 ```
+
+Result:
+
+- local saved-project scan had no hits;
+- admission focused test passed with 19 tests;
+- composition video and registry focused tests passed;
+- N10 focused test passed with 11 tests after removing stale theme fixtures;
+- theme focused test passed with 15 tests;
+- `npm.cmd run typecheck` passed;
+- `npm.cmd test` passed with 92 test files and 897 tests;
+- `npm.cmd run build` passed.
 
 Stop point:
 
@@ -306,7 +321,7 @@ fix: close authored theme import surface
 
 ### CLEANUP-3: Remove Theme-Based N10 Fixtures
 
-Status: pending.
+Status: completed on 2026-07-04.
 
 Purpose: remove N10 tests that bless authored-scene `useTheme` access after
 that access is no longer part of the authored contract.
@@ -321,13 +336,16 @@ Touch:
 
 Actions:
 
-- remove the "ThemeColors warning" and "flat Theme warning" N10 tests;
-- delete the two fixtures;
-- keep N10 tests for current authored-surface errors:
+- removed the "ThemeColors warning" and "flat Theme warning" N10 tests in the
+  same green slice as CLEANUP-2, because removing the public theme re-export
+  would otherwise make the full suite red between commits;
+- deleted the two fixtures;
+- kept N10 tests for current authored-surface errors:
   `SceneImage` wrong prop, excess prop, local union tone, undefined identifier,
   implicit any, cache, empty list, degraded setup;
-- review `severityFor(...)` and remove theme-specific softening only if no
-  current allowed authored import can produce those diagnostics.
+- left `severityFor(...)` unchanged for now; it still classifies runtime-safe
+  diagnostics from any current or future allowed type surface, and no remaining
+  test blesses authored theme access.
 
 Checks:
 
@@ -337,6 +355,13 @@ npm.cmd test -- packages/pipeline/src/authoring/admission.test.ts
 npm.cmd run typecheck
 npm.cmd test
 ```
+
+Result:
+
+- `packages/pipeline/src/safety/typecheck-authored.test.ts` passed with 11
+  tests;
+- `npm.cmd run typecheck` passed;
+- `npm.cmd test` passed with 92 test files and 897 tests.
 
 Stop point:
 

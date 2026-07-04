@@ -14,7 +14,7 @@
  * re-exports it), since `@motionreal/blocks` itself is no longer importable by a scene.
  */
 
-// Theme context (the single shared instance; re-exported by @motionreal/compositions):
+// Theme context (the single shared runtime instance; consumed by compositions internally):
 export { ThemeProvider, useTheme } from "./theme-context.js";
 
 // Per-scene timing context (wraps each scene so effects can sync to scene end):
@@ -45,8 +45,8 @@ export { SceneImage } from "./scene-image.js";
 // Caption track (used by the master composition, not authored scenes):
 export { Captions, CAPTION_RENDER_BAND, CAPTION_CANVAS } from "./captions.js";
 
-// Surface-kit: language-driven chrome helpers (blocks + authored scenes read
-// border/radius/fill/shadow/chip from the resolved theme tokens):
+// Surface-kit: runtime chrome helpers read border/radius/fill/shadow/chip from
+// the resolved theme tokens:
 export {
   surfaceBorder,
   surfaceBorderWidth,
