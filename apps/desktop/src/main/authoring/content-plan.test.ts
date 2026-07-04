@@ -44,6 +44,7 @@ function validPlan(overrides: Partial<ContentPlan> = {}): ContentPlan {
         narration: "Con chip nhỏ xíu không đắt vì nó nhỏ. Nó đắt vì gần như không ai làm nổi.",
         onScreenText: "Đắt vì khan hiếm",
         visualMetaphor: "A tiny glowing chip behind a locked factory gate.",
+        motionProgression: "Early: the chip glows alone; mid: the factory gate closes; late: the queue compresses toward the bottleneck.",
         layoutFamily: "signature-visual",
         evidenceClaimIds: ["claim-01"],
       },
@@ -54,6 +55,7 @@ function validPlan(overrides: Partial<ContentPlan> = {}): ContentPlan {
         narration: "Khi năng lực sản xuất là cổ chai, thứ được định giá không phải vật liệu mà là quyền bước qua cánh cổng.",
         onScreenText: "Cổ chai là nhà máy",
         visualMetaphor: "A queue of chips waiting outside one narrow production door.",
+        motionProgression: "Early: chips line up outside the door; mid: the doorway narrows; late: one finished chip exits as the takeaway lands.",
         layoutFamily: "diagram",
         evidenceClaimIds: ["claim-01"],
       },
@@ -78,6 +80,16 @@ describe("ContentPlanSchema", () => {
     const withoutPayoff = { ...validPlan(), payoff: undefined };
     expect(ContentPlanSchema.safeParse(withoutPromise).success).toBe(false);
     expect(ContentPlanSchema.safeParse(withoutPayoff).success).toBe(false);
+  });
+
+  it("requires each scene to carry a motion progression intent", () => {
+    const base = validPlan();
+    const parsed = ContentPlanSchema.safeParse({
+      ...base,
+      scenes: [{ ...base.scenes[0]!, motionProgression: undefined }],
+    });
+    expect(parsed.success).toBe(false);
+    expect(parsed.error?.issues.map((issue) => issue.path.join(".")).join(" ")).toMatch(/motionProgression/);
   });
 
   it("rejects scenes that reference omitted or uncertain claims", () => {
@@ -150,6 +162,7 @@ describe("content-plan helpers", () => {
     expect(usableClaims(plan).map((claim) => claim.id)).toEqual(["claim-01"]);
     const filtered = contentPlanForAuthoring(plan);
     expect(filtered.claims.map((claim) => claim.id)).toEqual(["claim-01"]);
+    expect(filtered.scenes[0]!.motionProgression).toContain("factory gate closes");
     expect(JSON.stringify(filtered)).not.toContain("claim-02");
     expect(JSON.stringify(filtered)).not.toContain("500-cycle");
   });
@@ -167,6 +180,7 @@ describe("content quality eval fixtures", () => {
           narration: "Khi chỉ vài nơi có thể sản xuất ở cấp này, mỗi đơn hàng phải xếp hàng trước một cánh cửa hẹp.",
           onScreenText: "Năng lực mới là cổ chai",
           visualMetaphor: "A narrowing timeline of chips waiting at one production gate.",
+          motionProgression: "Early: one chip enters the timeline; mid: the path narrows into a gate; late: the queue stalls at the narrowest point.",
           layoutFamily: "timeline",
           evidenceClaimIds: ["claim-01"],
         },
@@ -177,6 +191,7 @@ describe("content quality eval fixtures", () => {
           narration: "Vì vậy thứ đắt nhất không phải miếng silicon, mà là năng lực biến thiết kế thành hàng thật.",
           onScreenText: "Đắt vì biến ý tưởng thành hàng thật",
           visualMetaphor: "Blueprint lines turning into one finished glowing chip.",
+          motionProgression: "Early: blueprint lines sketch the chip; mid: traces brighten; late: the finished chip locks into the final payoff.",
           layoutFamily: "diagram",
           evidenceClaimIds: ["claim-01"],
         },
@@ -221,6 +236,21 @@ describe("content quality eval fixtures", () => {
     expect(checks).toContain("claim-ledger");
     expect(checks).toContain("layout-diversity");
   });
+
+  it("flags generic motion intent that would become an intro-only text reveal", () => {
+    const weak = validPlan({
+      scenes: [
+        {
+          ...validPlan().scenes[0]!,
+          motionProgression: "Text appears.",
+        },
+      ],
+    });
+    expect(ContentPlanSchema.safeParse(weak).success).toBe(true);
+    expect(evaluateContentPlanQuality(weak)).toContainEqual(
+      expect.objectContaining({ check: "motion-progression", sceneId: "scene-01" }),
+    );
+  });
 });
 
 describe("buildContentPlanMessages", () => {
@@ -241,6 +271,9 @@ describe("buildContentPlanMessages", () => {
     expect(system).toMatch(/Claim|CLAIM LEDGER/);
     expect(system).toMatch(/Weak:[\s\S]*Strong:/);
     expect(system).toMatch(/visualMetaphor/);
+    expect(system).toMatch(/motionProgression/);
+    expect(system).toMatch(/early\/mid\/late/);
+    expect(system).toMatch(/not be generic "text appears"/);
     expect(system).toMatch(/QUALITY GATE BEFORE FINAL JSON/);
     expect(system).toMatch(/at least 2 distinct layoutFamily/);
     expect(system).toMatch(/action:"omit" claims are safety notes only/);

@@ -163,6 +163,7 @@ describe("buildAuthorMessages", () => {
           narration: "Con chip không đắt vì nó nhỏ. Nó đắt vì gần như không ai làm nổi.",
           onScreenText: "Đắt vì khan hiếm",
           visualMetaphor: "A tiny glowing chip behind a locked factory gate.",
+          motionProgression: "Early: the chip glows alone; mid: the gate closes; late: the bottleneck compresses around the takeaway.",
           layoutFamily: "signature-visual",
           evidenceClaimIds: ["claim-01"],
         },
@@ -180,6 +181,8 @@ describe("buildAuthorMessages", () => {
     expect(text).toContain("viewerPromise");
     expect(text).toContain("claim-01");
     expect(text).toContain("Reveal scarcity before specs");
+    expect(text).toContain("motionProgression");
+    expect(text).toContain("gate closes");
     expect(text).not.toContain("Unsupported $999 launch price");
     expect(text).not.toContain("claim-02");
   });

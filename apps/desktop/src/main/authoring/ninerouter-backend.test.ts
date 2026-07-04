@@ -79,6 +79,7 @@ function validContentPlanReply(): string {
         narration: "Con chip không đắt vì nó nhỏ. Nó đắt vì gần như không ai làm nổi.",
         onScreenText: "Đắt vì khan hiếm",
         visualMetaphor: "A tiny glowing chip behind a locked factory gate.",
+        motionProgression: "Early: the chip glows alone; mid: the gate closes; late: the queue compresses toward the bottleneck.",
         layoutFamily: "signature-visual",
         evidenceClaimIds: ["claim-01"],
       },
@@ -89,6 +90,7 @@ function validContentPlanReply(): string {
         narration: "Khi chỉ vài nơi làm được, mỗi đơn hàng phải xếp hàng trước một cánh cửa hẹp.",
         onScreenText: "Cổ chai là nhà máy",
         visualMetaphor: "A narrowing production timeline.",
+        motionProgression: "Early: chips enter the timeline; mid: the path narrows into one gate; late: the queue pauses at the bottleneck.",
         layoutFamily: "timeline",
         evidenceClaimIds: ["claim-01"],
       },
@@ -99,6 +101,7 @@ function validContentPlanReply(): string {
         narration: "Thứ được định giá không phải vật liệu, mà là quyền bước qua cánh cổng sản xuất.",
         onScreenText: "Giá nằm ở năng lực biến thiết kế thành hàng thật",
         visualMetaphor: "Blueprint lines turning into one finished glowing chip.",
+        motionProgression: "Early: blueprint lines draw in; mid: traces brighten; late: the finished chip holds as the payoff lands.",
         layoutFamily: "diagram",
         evidenceClaimIds: ["claim-01"],
       },
@@ -172,6 +175,7 @@ describe("authorScenes (pure-author)", () => {
     const authorUserText = authorMessages[1]!.content as string;
     expect(authorUserText).toContain("CONTENT PLAN ĐÃ DUYỆT");
     expect(authorUserText).toContain("claim-01");
+    expect(authorUserText).toContain("motionProgression");
     expect(authorUserText).not.toContain("Unsupported $999 launch price");
   });
 

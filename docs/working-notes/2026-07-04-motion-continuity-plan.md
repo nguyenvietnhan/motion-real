@@ -1,7 +1,8 @@
 # Temporary Task - Motion Continuity Plan
 
-Status: MOTION-0 baseline and reproduction audit and MOTION-1 scene-duration
-authored context completed; MOTION-2 pending.
+Status: MOTION-0 baseline and reproduction audit, MOTION-1 scene-duration
+authored context, and MOTION-2 content-plan motion intent completed; MOTION-3
+pending.
 
 This is a temporary working note for fixing the observed issue where generated
 scenes animate for the first few seconds and then hold like static slides for
@@ -92,6 +93,9 @@ Verified facts:
 - MOTION-1 added top-level `durationInFrames` to `SceneComponentProps` and
   passes it from `SceneContent` using `scene.durationInFrames`. It is authored
   scene context only; it was not added to manifest/schema `props`.
+- MOTION-2 added required per-scene `motionProgression` to content planning,
+  keeps it in `contentPlanForAuthoring(...)`, and rejects only generic weak
+  motion intents such as "text appears" through the local quality check.
 
 ## Attachment Review Notes
 
@@ -310,7 +314,7 @@ feat: expose scene duration to authored components
 
 ### MOTION-2: Add Motion Intent To Content Planning
 
-Status: pending.
+Status: completed on 2026-07-04.
 
 Purpose: make Call A plan temporal visual progression before Call B writes TSX.
 
@@ -320,17 +324,20 @@ Touch:
 - `apps/desktop/src/main/authoring/content-plan.test.ts`
 - `apps/desktop/src/main/authoring/prompt.test.ts` only if authoring prompt
   tests need to assert the new field is passed through in `CONTENT PLAN ĐÃ DUYỆT`
+- `apps/desktop/src/main/authoring/ninerouter-backend.test.ts` for deterministic
+  content-plan fixtures.
 
 Actions:
 
-- add a compact per-scene motion intent to the content-plan schema, preferably a
-  required string field such as `motionProgression`;
-- keep it non-code: describe the intended temporal beat, not Remotion APIs;
-- update content-plan prompt examples to show motion that supports the beat
+- added a compact per-scene motion intent to the content-plan schema as required
+  `motionProgression`;
+- kept it non-code: describe the intended temporal beat, not Remotion APIs;
+- updated content-plan prompt examples to show motion that supports the beat
   across early/mid/late moments;
-- update `contentPlanForAuthoring(...)` tests so the field survives filtering
+- updated `contentPlanForAuthoring(...)` tests so the field survives filtering
   while omitted claims remain filtered;
-- add quality/prompt tests that prevent generic "text appears" motion language.
+- added quality/prompt tests that prevent generic "text appears" motion
+  language.
 
 Checks:
 
@@ -342,6 +349,17 @@ npm.cmd run typecheck
 npm.cmd test
 npm.cmd run build
 ```
+
+Result:
+
+- `apps/desktop/src/main/authoring/content-plan.test.ts` passed with 18 tests;
+- `apps/desktop/src/main/authoring/prompt.test.ts` passed with 29 tests;
+- `apps/desktop/src/main/authoring/ninerouter-backend.test.ts` passed with 30
+  tests;
+- `npm.cmd run typecheck` passed;
+- `npm.cmd test` passed with 91 test files in the main shard plus the N10 shard,
+  906 tests total;
+- `npm.cmd run build` passed; Remotion webpack bundle succeeded.
 
 Stop point:
 

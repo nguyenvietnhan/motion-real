@@ -29,6 +29,7 @@ export const ContentPlanSceneSchema = z
     narration: z.string().min(1),
     onScreenText: z.string().min(1),
     visualMetaphor: z.string().min(1),
+    motionProgression: z.string().min(1),
     layoutFamily: LayoutFamilySchema,
     evidenceClaimIds: z.array(z.string()),
   })
@@ -107,13 +108,26 @@ export function contentPlanForAuthoring(plan: ContentPlan): ContentPlan {
   };
 }
 
-export type ContentPlanQualityCheck = "hook" | "viewer-promise" | "payoff" | "claim-ledger" | "layout-diversity";
+export type ContentPlanQualityCheck =
+  | "hook"
+  | "viewer-promise"
+  | "payoff"
+  | "claim-ledger"
+  | "layout-diversity"
+  | "motion-progression";
 export type ContentPlanQualityIssue = { check: ContentPlanQualityCheck; message: string; sceneId?: string };
 
 const CONCRETE_FACT_PATTERN = /(?:\d|%|\$|€|£|\bUSD\b|\bVND\b|\bEUR\b|\bGBP\b|triệu|tỷ|million|billion|20\d{2}|19\d{2})/i;
+const GENERIC_MOTION_PATTERN =
+  /\b(?:text|title|headline|copy|content|card|words?)\s+(?:appears?|fades?\s+in|shows?\s+up|is\s+shown)\b|\b(?:chữ|tiêu đề|nội dung|thẻ)\s+(?:hiện ra|xuất hiện|fade\s+in)\b/i;
 
 function hasConcreteFact(value: string): boolean {
   return CONCRETE_FACT_PATTERN.test(value);
+}
+
+function hasGenericMotionIntent(value: string): boolean {
+  const normalized = value.trim();
+  return normalized.length <= 80 && GENERIC_MOTION_PATTERN.test(normalized);
 }
 
 /**
@@ -139,6 +153,13 @@ export function evaluateContentPlanQuality(plan: ContentPlan): ContentPlanQualit
         check: "claim-ledger",
         sceneId: scene.sceneId,
         message: "number/date/price/source-like claims must reference usable evidenceClaimIds",
+      });
+    }
+    if (hasGenericMotionIntent(scene.motionProgression)) {
+      issues.push({
+        check: "motion-progression",
+        sceneId: scene.sceneId,
+        message: "motionProgression must describe a purposeful temporal beat, not generic text/card appearance",
       });
     }
   }
@@ -232,6 +253,7 @@ function outputShape(): string {
       "narration": "...",
       "onScreenText": "...",
       "visualMetaphor": "...",
+      "motionProgression": "...",
       "layoutFamily": "big-number|two-column|timeline|diagram|list|signature-visual|statement",
       "evidenceClaimIds": ["claim-01"]
     }
@@ -244,21 +266,25 @@ Weak:
   beat: "Explain why AI chips are expensive."
   narration: "AI chips are becoming more expensive and important."
   visualMetaphor: "A card with text."
+  motionProgression: "Text appears."
 Strong:
   viewerPromise: "By the end, the viewer understands the one bottleneck making AI hardware feel impossibly expensive."
   first3SecondsLine: "The chip is not expensive because it is small. It is expensive because almost nobody can make it."
   beat: "Reveal scarcity before specs."
   visualMetaphor: "A tiny glowing chip behind a huge locked factory gate."
+  motionProgression: "Early: the tiny chip glows alone; mid: the factory gate closes around it; late: the queue compresses toward the bottleneck."
 
 Weak:
   beat: "Talk about coffee productivity."
   onScreenText: "Coffee helps people work."
   visualMetaphor: "Text on a background."
+  motionProgression: "Title fades in."
 Strong:
   viewerPromise: "The viewer learns the exact tradeoff hidden inside a second cup of coffee."
   first3SecondsLine: "The second cup does not give you more focus. It borrows focus from later."
   beat: "Turn a familiar habit into a visible tradeoff."
-  visualMetaphor: "A glowing battery split into morning gain and afternoon debt."`;
+  visualMetaphor: "A glowing battery split into morning gain and afternoon debt."
+  motionProgression: "Early: morning energy fills the left half; mid: a thin debt line grows on the right; late: both halves balance into one visible tradeoff."`;
 
 function systemPrompt(format: VideoFormat, tier: DurationTier, language: VideoLanguage, wordsPerSecond: number): string {
   const seconds = tierSeconds(format, tier);
@@ -272,6 +298,7 @@ TASK:
 - Make Scene 1 deliver a concrete content proposition in the first 3 seconds.
 - Keep the opening aligned with the title and the payoff.
 - Use specific visual metaphors and layout families so later code authoring does not collapse into generic title cards.
+- For each scene, write motionProgression as a non-code early/mid/late temporal intent that supports the beat.
 - Every scene advances exactly one viewer-facing idea.
 
 DELIVERY LOCKS (already chosen by the app; do not change them):
@@ -296,12 +323,18 @@ STORY RUBRIC:
 - On-screen text must be short enough to scan quickly.
 - Avoid scenes that are only "headline + body text" unless purpose is deliberately "statement".
 - Vary layoutFamily across scenes when the story needs contrast.
+- motionProgression must describe what changes over time inside the scene.
+  Good: staged reveals, line/path drawing, focus shifts, bounded background depth,
+  or a deliberate static hold after the main beat lands. Bad: "text appears",
+  "title fades in", or generic card movement.
 
 QUALITY GATE BEFORE FINAL JSON:
 - scene-01 purpose must be "hook", and first3SecondsLine must make the viewer promise or tension concrete.
 - viewerPromise and payoff are mandatory; payoff must answer or resolve the openLoop.
 - For 3+ scenes, use at least 2 distinct layoutFamily values unless the whole video is intentionally one formal statement.
 - Any scene with a number/date/price/source-like factual detail must include evidenceClaimIds pointing only to supported/use claims.
+- Every scene must have a specific motionProgression. It may describe an
+  intentional mostly-static statement beat, but it must not be generic "text appears".
 - action:"omit" claims are safety notes only; never use them in title, narration, on-screen text, payoff, or evidenceClaimIds.
 
 ${POSITIVE_BEAT_EXAMPLES}
