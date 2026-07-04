@@ -37,9 +37,11 @@ export const schema = z.object({
 
 type Props = z.infer<typeof schema>;
 
-const Scene: React.FC<SceneComponentProps<Props>> = ({ headline, props }) => {
+const Scene: React.FC<SceneComponentProps<Props>> = ({ headline, props, durationInFrames }) => {
   const frame = useCurrentFrame();
-  const enter = interpolate(frame, [0, 12], [0, 1], { extrapolateRight: "clamp" });
+  const progress =
+    durationInFrames > 1 ? Math.min(1, Math.max(0, frame / (durationInFrames - 1))) : 1;
+  const enter = interpolate(progress, [0, 0.18], [0, 1], { extrapolateRight: "clamp" });
 
   return (
     <div style={{ position: "absolute", inset: 0, background: "#0B0E14", color: "#F4F7FB" }}>
@@ -105,6 +107,16 @@ raw JSX/SVG/CSS.
 ## Determinism
 
 Scene visuals must be pure functions of the frame.
+
+`SceneComponentProps` includes top-level `durationInFrames`, provided by the
+locked timeline. It is scene context, not schema `props`. Use it with
+`useCurrentFrame()` to derive clamped scene progress:
+
+```tsx
+const frame = useCurrentFrame();
+const progress =
+  durationInFrames > 1 ? Math.min(1, Math.max(0, frame / (durationInFrames - 1))) : 1;
+```
 
 Forbidden:
 

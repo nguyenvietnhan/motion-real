@@ -203,7 +203,14 @@ const CaptionDivider: React.FC<{ color: string }> = ({ color }) => {
 export const SceneContent: React.FC<{ scene: LockedSceneSpec }> = ({ scene }) => {
   const def = getComponent(scene.component);
   const content = def ? (
-    <def.Component headline={scene.headline} body={scene.body} eyebrow={scene.eyebrow} props={scene.props} image={scene.image} />
+    <def.Component
+      headline={scene.headline}
+      body={scene.body}
+      eyebrow={scene.eyebrow}
+      durationInFrames={scene.durationInFrames}
+      props={scene.props}
+      image={scene.image}
+    />
   ) : (
     <MissingComponent component={scene.component} sceneId={scene.id} />
   );

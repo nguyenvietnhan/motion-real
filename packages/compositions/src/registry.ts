@@ -14,6 +14,12 @@ export type SceneComponentProps<P = Record<string, unknown>> = {
   headline: string;
   body?: string;
   eyebrow?: string;
+  /**
+   * Scene-local duration from the locked timeline. This is top-level runtime
+   * context, not user-authored `props`; pair it with `useCurrentFrame()` for
+   * clamped scene progress.
+   */
+  durationInFrames: number;
   props: P;
   /**
    * The scene's single optional LOCAL image (≤1 per scene; see

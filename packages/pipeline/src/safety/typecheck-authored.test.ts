@@ -37,6 +37,11 @@ describe("typecheckAuthoredScenes (N10)", () => {
     expect(issues).toEqual([]);
   }, TS_PROGRAM_TIMEOUT);
 
+  it("exposes durationInFrames as top-level authored scene context", () => {
+    const issues = typecheckAuthoredScenes([fixture("typecheck-duration-in-frames.tsx")], root);
+    expect(issues).toEqual([]);
+  }, TS_PROGRAM_TIMEOUT);
+
   // A render fallback is not an acceptable clean draft: SceneErrorBoundary keeps
   // the MP4 alive, but it replaces the authored design with a bland headline-only
   // frame. Crash/fallback-prone type errors must therefore be hard N10 errors so

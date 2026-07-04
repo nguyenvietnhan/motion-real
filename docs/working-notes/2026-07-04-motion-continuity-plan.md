@@ -1,6 +1,7 @@
 # Temporary Task - Motion Continuity Plan
 
-Status: MOTION-0 baseline and reproduction audit completed; MOTION-1 pending.
+Status: MOTION-0 baseline and reproduction audit and MOTION-1 scene-duration
+authored context completed; MOTION-2 pending.
 
 This is a temporary working note for fixing the observed issue where generated
 scenes animate for the first few seconds and then hold like static slides for
@@ -88,6 +89,9 @@ Verified facts:
   `.video-tool/projects/`: many authored scenes use fixed-frame,
   clamp-settled entrances such as `[0, 12]`, `[10, 45]`, `[30, 65]`, and
   `spring({ frame: frame - ... })`, with only occasional longer bounded ranges.
+- MOTION-1 added top-level `durationInFrames` to `SceneComponentProps` and
+  passes it from `SceneContent` using `scene.durationInFrames`. It is authored
+  scene context only; it was not added to manifest/schema `props`.
 
 ## Attachment Review Notes
 
@@ -243,7 +247,7 @@ Result:
 
 ### MOTION-1: Expose Safe Scene Duration To Authored Scenes
 
-Status: pending.
+Status: completed on 2026-07-04.
 
 Purpose: let AI-authored code stage motion relative to the actual scene length
 without importing runtime internals.
@@ -259,11 +263,11 @@ Touch:
 
 Actions:
 
-- add `durationInFrames: number` as a top-level `SceneComponentProps` field;
-- pass `scene.durationInFrames` from `SceneContent` into authored components;
-- add a focused authored typecheck fixture proving `durationInFrames` is
+- added `durationInFrames: number` as a top-level `SceneComponentProps` field;
+- passed `scene.durationInFrames` from `SceneContent` into authored components;
+- added a focused authored typecheck fixture proving `durationInFrames` is
   available from `@motionreal/compositions`'s current authored surface;
-- document how to derive a clamped scene progress value:
+- documented how to derive a clamped scene progress value:
 
 ```tsx
 const frame = useCurrentFrame();
@@ -281,6 +285,16 @@ npm.cmd run typecheck
 npm.cmd test
 npm.cmd run build
 ```
+
+Result:
+
+- `packages/pipeline/src/safety/typecheck-authored.test.ts` passed with 12
+  tests, including duration-aware authored context coverage;
+- `packages/compositions/src/video.test.ts` passed with 3 tests;
+- `npm.cmd run typecheck` passed;
+- `npm.cmd test` passed with 91 test files in the main shard plus the N10 shard,
+  904 tests total;
+- `npm.cmd run build` passed; Remotion webpack bundle succeeded.
 
 Stop point:
 
