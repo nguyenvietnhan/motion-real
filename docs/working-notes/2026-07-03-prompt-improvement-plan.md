@@ -1,7 +1,8 @@
 # Temporary Task - Prompt Improvement Plan
 
-Status: PROMPT-0 baseline and PROMPT-1 stale prompt wording cleanup completed;
-content-plan schema/builder still pending.
+Status: PROMPT-0 baseline, PROMPT-1 stale prompt wording cleanup, and PROMPT-2
+content-plan schema/builder completed; content quality eval fixtures still
+pending.
 
 This is a temporary working note for improving MotionReal's runtime AI prompts.
 It is not project contract. Current contract remains `AI_CONTRACT.md` plus
@@ -85,6 +86,14 @@ Main LLM and vision calls:
 - `apps/desktop/src/main/gateway/ninerouter-client.ts`
   - continuation prompt when `finish_reason` is `length`
   - final dispatch to `/v1/chat/completions`
+
+Planning-only prompt contract added in PROMPT-2, not wired to live gateway yet:
+
+- `apps/desktop/src/main/authoring/content-plan.ts`
+  - `ContentPlanSchema`
+  - `parseContentPlan(...)`
+  - `buildContentPlanMessages(...)`
+  - `contentPlanForAuthoring(...)`
 
 Current flow:
 
@@ -365,18 +374,20 @@ chore: remove stale prompt wording
 
 ### PROMPT-2: Add Content Plan Schema And Builder
 
-No live gateway behavior yet.
+Completed. No live gateway behavior yet.
 
-Actions:
+Completed actions:
 
-- add `apps/desktop/src/main/authoring/content-plan.ts`;
-- add `apps/desktop/src/main/authoring/content-plan.test.ts`;
-- add a content plan schema/parser;
-- add a prompt builder for content planning;
-- add fixtures for TikTok Vietnamese, YouTube English, with-source, no-source,
-  and with-images cases;
-- include source/confidence/action claim ledger rules;
-- include positive good-beat examples.
+- added `apps/desktop/src/main/authoring/content-plan.ts`;
+- added `apps/desktop/src/main/authoring/content-plan.test.ts`;
+- added a strict content plan schema/parser;
+- added a prompt builder for content planning;
+- covered TikTok Vietnamese, YouTube English, with-source, no-source, unreadable
+  URL, injected-rate, and with-images cases;
+- included source/confidence/action claim ledger rules;
+- included positive good-beat examples;
+- added helper filtering so later code-authoring input receives only
+  `supported` + `use` claims.
 
 Do not put the new content-plan schema tests in `manifest-schema.test.ts`; that
 name belongs to the existing authored manifest concept and would blur two
@@ -530,15 +541,17 @@ chore: finish prompt cleanup audit
 
 ## Recommended Next Step
 
-Start with PROMPT-2.
+Start with PROMPT-3.
 
 Reason:
 
 - PROMPT-0 is complete, so later prompt edits have a baseline;
 - PROMPT-1 is complete, so stale "news" wording is no longer blocking the prompt
   migration;
-- PROMPT-2 is the next no-live-gateway behavior slice: add the content-plan
-  schema, parser, builder, and tests before any two-step authoring wire-up.
+- PROMPT-2 is complete, so the content-plan schema, parser, builder, and
+  focused fixtures exist without any live gateway behavior change;
+- PROMPT-3 should add deterministic quality/eval fixtures around the content
+  plan contract before any two-step authoring wire-up.
 
 Do not start PROMPT-4 until the owner approves the extra API-call behavior and
 the no-silent-one-step-fallback policy.
