@@ -10,7 +10,7 @@ instance.
 | --- | --- |
 | `@motionreal/schema` | Renderer-agnostic specs, locked specs, timing constants, format geometry, caption cues, validation helpers. |
 | `@motionreal/theme` | One neutral runtime theme used by render internals. It is not authored-facing. |
-| `@motionreal/blocks` | Render runtime internals: captions, scene timing, motion helpers, layout probe, fonts, chrome helpers, and `SceneImage`. Authored scenes do not import this package. |
+| `@motionreal/blocks` | Small render-runtime surface: captions, scene timing, runtime motion hooks, diagnostic layout probe, fonts, minimal chrome helpers, and `SceneImage`. Authored scenes do not import this package. |
 | `@motionreal/compositions` | Registry, master `VideoComposition`, `ThumbnailComposition`, and the authored-facing re-export of `SceneImage`. |
 | `@motionreal/tts` | Vivibe/LucyLab and ElevenLabs clients, audio measurement, concat/mix helpers, SRT/timestamp support. |
 | `@motionreal/pipeline` | Authoring/admission, manifest conversion, ingest, TTS orchestration, lock, render, cache, review, safety grid, store, CLI, and the in-process `createTools` facade. |
@@ -97,6 +97,7 @@ cancellation between stages is not treated as project failure.
 ```text
 Topic / URL / images
 -> AI plans story beats and usable claims
+-> validate content plan pacing/claims
 -> AI authors .tsx scene modules and manifest
 -> optional hidden stills/refine in desktop
 -> admission gate
@@ -105,6 +106,8 @@ Topic / URL / images
 -> TTS
 -> lockSpec -> LockedVideoSpec
 -> build safety grid
+-> authored scene typecheck
+-> strict N31 runtime probe
 -> determinism guard
 -> Remotion render stills
 -> draft MP4

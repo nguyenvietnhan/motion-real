@@ -4,14 +4,14 @@
  * The "thay máu" overhaul deletes the multi-language design system and its
  * editorial/galaxy `StyleLanguage` registry. Authored scenes now decide
  * ALL of their own visuals in code; the engine no longer imposes a look. But
- * `@motionreal/blocks` still reads a resolved `Theme` off `useTheme()` everywhere, so we
- * keep ONE neutral theme: a dark near-black base, near-white ink, one accent,
- * medium corners, render-safe fonts. Blocks become OPTIONAL primitives (D2) that
- * render in this neutral grammar; an authored scene may ignore them entirely.
+ * `@motionreal/blocks` still reads a resolved `Theme` off `useTheme()` in render
+ * internals, so we keep ONE neutral theme: a dark near-black base, near-white
+ * ink, one accent, medium corners, render-safe fonts. Authored scenes do not
+ * read this theme or import blocks.
  *
  * This module keeps the runtime `Theme` shape and the proven 2-layer cross-model
  * defense (typed alias keys + a Proxy fallback) for `colors` and `radius`, so a
- * stale or generated runtime token read can never break a render. There is no
+ * stale runtime/fixture token read can never break a render. There is no
  * selectable style identity here: `makeTheme` derives one neutral runtime theme
  * from the dominant hue.
  *
@@ -347,9 +347,8 @@ const NEUTRAL_BACKDROP: BackdropTokens = {
   starfield: false,
   frameBorder: false,
   // The horizontal caption divider line is OFF (project owner: drop the visible
-  // rule). The N14 above/below clearance gap is unaffected — those oracles scan
-  // CONTENT_ZONE.bottom unconditionally, so hiding the bar changes pixels only,
-  // never the layout rule authored content must obey.
+  // rule). The old above-divider N14 profile is opt-in/manual and is not part of
+  // the production default while this stays false.
   divider: false,
 };
 
@@ -501,5 +500,6 @@ export const designNotes = `## Neutral theme (freeform)
 
 Một theme trung tính DUY NHẤT cho video 9:16/16:9: nền tối gần đen, chữ gần trắng,
 một màu nhấn theo dominant, bo góc vừa, font render-safe (Inter + Cascadia Mono).
-A.I tự quyết toàn bộ màu/bố cục trong code cảnh; \`@motionreal/blocks\` chỉ là primitive
-trung tính tùy chọn đọc theme tokens (theme.colors.*, theme.radius.*, theme.surface).`;
+A.I tự quyết toàn bộ màu/bố cục trong code cảnh. Theme này chỉ phục vụ runtime
+internals như captions, thumbnail, backdrop và SceneImage; authored scenes không
+đọc theme tokens và không import \`@motionreal/theme\`.`;

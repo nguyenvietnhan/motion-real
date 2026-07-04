@@ -7,7 +7,7 @@ import { readTracker, writeTracker, upsertItem, type TrackerItem, type TrackerSt
  * only the bookkeeping: item selection, status transitions, resumability,
  * graceful usage-limit pause, per-item isolation, and outcome recording. Each
  * worker reuses the single-process orchestrator (ingest → scaffold → author →
- * draft → full), so the full `N1–N30` grid, the draft-first gate, determinism,
+ * draft → full), so the full `N1–N31` grid, the draft-first gate, determinism,
  * the Vivibe voice, and the shared TTS/render caches apply per item (R5.2, R5.3,
  * R5.8).
  */

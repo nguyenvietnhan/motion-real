@@ -125,7 +125,7 @@ function opt(options: RenderGridOptions | undefined): Required<RenderGridOptions
   return { ...DEFAULTS, ...(options ?? {}) };
 }
 
-// --- N14: safe-area / overflow (HARD) -------------------------------------
+// --- N14: safe-area / overflow (advisory) ----------------------------------
 
 export function checkSafeArea(frame: Frame, sceneId?: string, options?: RenderGridOptions): SafetyIssue[] {
   const o = opt(options);
@@ -433,7 +433,7 @@ export function checkLateSafeArea(frame: Frame, sceneId?: string, options?: Rend
   }));
 }
 
-// --- N15: block overlap (HARD) --------------------------------------------
+// --- N15: block overlap (manual warning) -----------------------------------
 
 /**
  * Overlap area of two rects, 0 when disjoint. Used (not a boolean intersect) so
@@ -480,7 +480,7 @@ export function checkOverlap(
   return issues;
 }
 
-// --- N17: text truncation / clipping (HARD) -------------------------------
+// --- N17: text truncation / clipping (manual warning) ----------------------
 
 /**
  * Heuristic: dense content flush against the right or bottom edge of its content

@@ -733,7 +733,7 @@ async function renderProjectUnlocked(projectId: string, opts: RenderProjectOptio
     // The midpoint still never sees content that drifts out of the safe zone after
     // entrances settle (tilt near its extreme, a counter/bar still growing, a block
     // creeping toward the caption band). This re-runs the SAME N14 pixel oracles on
-    // a late still per scene for TikTok, where the caption/divider bands exist.
+    // a late still per scene for TikTok, where the caption band exists.
     // YouTube has no burned caption band, so it relies on the format-aware
     // in-frame oracle instead. Eased in as WARNINGS (chosen posture) — they land
     // in the aggregate report (visible in desktop/MCP) but never flip the "done"

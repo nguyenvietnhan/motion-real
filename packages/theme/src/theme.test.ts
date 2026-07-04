@@ -3,10 +3,10 @@ import { makeTheme, DEFAULT_DOMINANT, PRINT, NEUTRAL_THEME_ID } from "./index.js
 
 /**
  * @motionreal/theme self-tests — the single neutral theme + the proven 2-layer
- * cross-model defense. A token name an AI-authored scene reaches for must never
- * break a render: Layer 1 declares the cross-model alias vocabulary as real
- * keys; Layer 2 (Proxy) catches anything unforeseen. The neutral theme is dark
- * (near-black base, near-white ink) with medium (never-zero) corners.
+ * cross-model defense. A stale runtime/helper token read must never break a
+ * render: Layer 1 declares the alias vocabulary as real keys; Layer 2 (Proxy)
+ * catches anything unforeseen. Authored scenes do not read theme tokens. The
+ * neutral theme is dark (near-black base, near-white ink) with medium corners.
  */
 
 describe("neutral theme — shape + polarity", () => {

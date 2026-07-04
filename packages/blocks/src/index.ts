@@ -6,12 +6,12 @@
  * made every video look the same. Authored scenes now write 100% bespoke JSX/SVG
  * and `@motionreal/blocks` is NO LONGER on the authored-import whitelist (admission N4).
  *
- * What survives is the render runtime that `@motionreal/compositions` (the render layer,
- * not authored scenes) consumes — theme context, scene-timing, motion hooks, the
- * caption track, fonts, the N15/N17 layout probe — PLUS `SceneImage`, the one
- * authored-facing export (the only sanctioned way a scene shows a user/crawled
- * image). Authored code reaches `SceneImage` via `@motionreal/compositions` (which
- * re-exports it), since `@motionreal/blocks` itself is no longer importable by a scene.
+ * What survives in this barrel is the small render runtime that
+ * `@motionreal/compositions` consumes — theme context, scene timing, the motion
+ * hooks still used by runtime compositions, captions, fonts, the diagnostic
+ * layout probe — plus `SceneImage`, which authored code reaches only through
+ * `@motionreal/compositions` (that package re-exports it). Helper modules may
+ * keep private/tested utilities, but they are not part of the public barrel.
  */
 
 // Theme context (the single shared runtime instance; consumed by compositions internally):
@@ -26,15 +26,11 @@ export {
   easeOut,
   frameRamp,
   useReveal,
-  useRamp,
   useFrameScale,
   useSceneProgress,
   useApproxSceneProgress,
   useExactSceneProgress,
-  useTilt,
-  useKenBurnsScale,
   useIntroZoom,
-  usePop,
 } from "./motion.js";
 
 // Single sanctioned image block (the ONLY way an authored scene shows an image;
@@ -49,14 +45,7 @@ export { Captions, CAPTION_RENDER_BAND, CAPTION_CANVAS } from "./captions.js";
 // the resolved theme tokens:
 export {
   surfaceBorder,
-  surfaceBorderWidth,
-  innerDivider,
   surfaceRadius,
-  surfaceShadow,
-  blockSurface,
-  topRuleStyle,
-  chipStyle,
-  labelStyle,
 } from "./chrome.js";
 
 // Render-safe font loading + Vietnamese-coverage report (for the doctor check):
