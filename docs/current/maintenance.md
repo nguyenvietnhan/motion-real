@@ -83,6 +83,34 @@ AI guidance must stay vendor-neutral. `AI_CONTRACT.md` is the only contract and
 contract files unless the owner explicitly accepts the tool adapter and it does
 not duplicate project rules.
 
+For stale AUTHOR-surface audits, prefer narrow scans that avoid generated
+payloads, temporary working notes, tests, and fixture code. Do not expect zero
+hits: classify each hit as a canonical prohibition, compatibility alias,
+runtime-only package wiring, or actionable stale surface.
+
+```powershell
+rg -n "@motionreal/(blocks|theme)|<(/?)(Frame|Story|TitleBlock|KeyPoints|Panel|CountUp)\b" `
+  AI_CONTRACT.md README.md docs/current apps/desktop/src/main/authoring packages/pipeline/src/authoring packages/pipeline/src/safety/typecheck-authored.ts `
+  --glob '!**/node_modules/**' `
+  --glob '!**/dist/**' `
+  --glob '!**/*.test.ts' `
+  --glob '!**/*.test.tsx' `
+  --glob '!packages/pipeline/src/authoring/__fixtures__/**'
+
+rg -n "kit-based|NewsVideo|news-studio-settings" `
+  AI_CONTRACT.md README.md docs/current docs/providers apps packages scripts `
+  --glob '!**/node_modules/**' `
+  --glob '!.video-tool/**' `
+  --glob '!**/dist/**' `
+  --glob '!apps/desktop/dist-electron/**' `
+  --glob '!**/vendor-fonts.generated.ts' `
+  --glob '!**/*.test.ts' `
+  --glob '!**/*.test.tsx' `
+  --glob '!packages/pipeline/src/authoring/__fixtures__/**' `
+  --glob '!packages/pipeline/src/safety/__fixtures__/**' `
+  --glob '!docs/working-notes/**'
+```
+
 Bundled media should not be copied into runtime libraries just to make it
 selectable. Prefer virtual built-in entries that point to their app asset, while
 user-added media is copied into the canonical `.video-tool` library.
