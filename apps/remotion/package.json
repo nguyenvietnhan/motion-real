@@ -6,7 +6,7 @@
   "scripts": {
     "studio": "remotion studio",
     "render": "remotion render",
-    "render:sample": "remotion render NewsVideo out/sample.mp4",
+    "render:sample": "remotion render MotionRealVideo out/sample.mp4",
     "upgrade": "remotion upgrade"
   },
   "dependencies": {

@@ -30,6 +30,10 @@ describe("authored-entry generation", () => {
     });
     expect(source).toContain("SOURCE-FINGERPRINT: token-1");
     expect(source).toContain('import { FPS, LockedVideoSpecSchema, geometry } from "@motionreal/schema";');
+    expect(source).toContain('const VIDEO_COMPOSITION_IDS = ["MotionRealVideo", "NewsVideo"] as const;');
+    expect(source).toContain("VIDEO_COMPOSITION_IDS.map");
+    expect(source).toContain("id,");
+    expect(source).toContain("schema: videoSchema");
     expect(source).toContain("measure: z.boolean().optional()");
     expect(source).toContain("strictSceneErrors: z.boolean().optional()");
     expect(source).toContain("const initialGeometry = geometry(spec.format);");

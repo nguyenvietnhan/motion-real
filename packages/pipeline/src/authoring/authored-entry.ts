@@ -12,7 +12,8 @@ import { dirname, relative } from "node:path";
  *   1. imports every (already admitted) authored scene module, whose
  *      `registerComponent(...)` side effect puts it in the SAME registry the
  *      master `VideoComposition` reads from, and
- *   2. registers the `NewsVideo` composition driven by the project's locked spec.
+ *   2. registers the MotionReal video composition ids driven by the project's
+ *      locked spec.
  *
  * The renderer then bundles THIS entry (with the workspace webpack override that
  * aliases `@motionreal/*` to their TS sources), so authored scenes render exactly like
@@ -51,31 +52,40 @@ import lockedSpec from ${JSON.stringify(lockRel)};
 
 const spec = lockedSpec as unknown as import("@motionreal/schema").LockedVideoSpec;
 const initialGeometry = geometry(spec.format);
+const VIDEO_COMPOSITION_IDS = ["MotionRealVideo", "NewsVideo"] as const;
+const videoSchema = z.object({
+  spec: LockedVideoSpecSchema,
+  measure: z.boolean().optional(),
+  strictSceneErrors: z.boolean().optional(),
+});
 
 const Root: React.FC = () =>
-  React.createElement(Composition, {
-    id: "NewsVideo",
-    component: VideoComposition,
-    schema: z.object({
-      spec: LockedVideoSpecSchema,
-      measure: z.boolean().optional(),
-      strictSceneErrors: z.boolean().optional(),
-    }),
-    defaultProps: { spec },
-    width: initialGeometry.canvas.width,
-    height: initialGeometry.canvas.height,
-    fps: spec.fps ?? FPS,
-    durationInFrames: spec.durationInFrames,
-    calculateMetadata: ({ props }: { props: { spec: typeof spec; measure?: boolean; strictSceneErrors?: boolean } }) => {
-      const g = geometry(props.spec.format);
-      return {
-        durationInFrames: props.spec.durationInFrames,
-        fps: props.spec.fps ?? FPS,
-        width: g.canvas.width,
-        height: g.canvas.height,
-      };
-    },
-  });
+  React.createElement(
+    React.Fragment,
+    null,
+    VIDEO_COMPOSITION_IDS.map((id) =>
+      React.createElement(Composition, {
+        key: id,
+        id,
+        component: VideoComposition,
+        schema: videoSchema,
+        defaultProps: { spec },
+        width: initialGeometry.canvas.width,
+        height: initialGeometry.canvas.height,
+        fps: spec.fps ?? FPS,
+        durationInFrames: spec.durationInFrames,
+        calculateMetadata: ({ props }: { props: { spec: typeof spec; measure?: boolean; strictSceneErrors?: boolean } }) => {
+          const g = geometry(props.spec.format);
+          return {
+            durationInFrames: props.spec.durationInFrames,
+            fps: props.spec.fps ?? FPS,
+            width: g.canvas.width,
+            height: g.canvas.height,
+          };
+        },
+      }),
+    ),
+  );
 
 registerRoot(Root);
 `;

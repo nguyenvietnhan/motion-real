@@ -33,8 +33,8 @@ beforeEach(async () => {
   tempRoot = await mkdtemp(join(tmpdir(), "news-renderer-"));
   mocks.bundle.mockResolvedValue("http://localhost:3000/bundle");
   mocks.ensureBrowser.mockResolvedValue({ type: "local-puppeteer-browser", path: "chrome" });
-  mocks.selectComposition.mockImplementation(async ({ inputProps }) => ({
-    id: "NewsVideo",
+  mocks.selectComposition.mockImplementation(async ({ id, inputProps }) => ({
+    id,
     width: 1080,
     height: 1920,
     fps: inputProps.spec.fps,
@@ -122,7 +122,7 @@ describe("renderVideo", () => {
     );
     expect(mocks.selectComposition).toHaveBeenCalledWith(
       expect.objectContaining({
-        id: "NewsVideo",
+        id: "MotionRealVideo",
         inputProps: { spec },
         serveUrl: "http://localhost:3000/bundle",
       }),

@@ -12,7 +12,7 @@ import { transitionFrames } from "@motionreal/schema";
 import { createLogger } from "../log/logger.js";
 import { stableStringify } from "./cache.js";
 
-const DEFAULT_COMPOSITION_ID = "NewsVideo";
+const DEFAULT_COMPOSITION_ID = "MotionRealVideo";
 
 const log = createLogger("render");
 
@@ -446,7 +446,7 @@ export type MeasuredBlock = { kind: string; x: number; y: number; width: number;
  *
  * It renders the SAME frames as `renderSceneStills` but discards the image
  * (output: null) — only the artifact matters — so it never touches the real
- * `NewsVideo` render path and production pixels stay byte-identical.
+ * video render path and production pixels stay byte-identical.
  */
 export async function measureSceneLayouts(
   spec: LockedVideoSpec,

@@ -16,9 +16,9 @@ import { AbsoluteFill, Artifact, continueRender, delayRender } from "remotion";
  * already-written N15 (overlap among sibling blocks) and N17 (per-block edge
  * clipping) oracles — vision-independent, deterministic.
  *
- * This only renders inside the dedicated MEASURE composition; the real
- * `NewsVideo` render never mounts it, so production pixels are byte-identical
- * and the N16 determinism guard is unaffected.
+ * This only renders inside the dedicated MEASURE composition; the production
+ * video render never mounts it, so production pixels are byte-identical and the
+ * N16 determinism guard is unaffected.
  */
 
 /** Data attribute marking a composed block's outer boundary, read by the probe. */

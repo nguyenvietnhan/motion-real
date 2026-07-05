@@ -15,6 +15,8 @@ const propsSchema = z.object({
   measure: z.boolean().optional(),
   strictSceneErrors: z.boolean().optional(),
 });
+const VIDEO_COMPOSITION_IDS = ["MotionRealVideo", "NewsVideo"] as const;
+const defaultVideoProps = { spec: sampleSpec } as { spec: LockedVideoSpec };
 
 /** Frames the 1-frame thumbnail still renders within; the still is taken at the
  *  LAST frame so the cover title's entrance reveal has fully settled (= 1). */
@@ -28,26 +30,29 @@ const THUMBNAIL_DURATION = 60;
 export const RemotionRoot: React.FC = () => {
   return (
     <>
-      <Composition
-        id="NewsVideo"
-        component={VideoComposition}
-        schema={propsSchema}
-        defaultProps={{ spec: sampleSpec } as { spec: LockedVideoSpec }}
-        width={width}
-        height={height}
-        fps={FPS}
-        durationInFrames={sampleSpec.durationInFrames}
-        calculateMetadata={({ props }) => {
-          const spec = props.spec;
-          const g = geometry(spec.format);
-          return {
-            durationInFrames: spec.durationInFrames,
-            fps: spec.fps ?? FPS,
-            width: g.canvas.width,
-            height: g.canvas.height,
-          };
-        }}
-      />
+      {VIDEO_COMPOSITION_IDS.map((id) => (
+        <Composition
+          key={id}
+          id={id}
+          component={VideoComposition}
+          schema={propsSchema}
+          defaultProps={defaultVideoProps}
+          width={width}
+          height={height}
+          fps={FPS}
+          durationInFrames={sampleSpec.durationInFrames}
+          calculateMetadata={({ props }) => {
+            const spec = props.spec;
+            const g = geometry(spec.format);
+            return {
+              durationInFrames: spec.durationInFrames,
+              fps: spec.fps ?? FPS,
+              width: g.canvas.width,
+              height: g.canvas.height,
+            };
+          }}
+        />
+      ))}
       {/* Thumbnail/cover (R12, I3) — a single format-aware still. The canvas is
           sized off `geometry(props.format)` (1080×1920 for tiktok, 1920×1080 for
           youtube), matching the video composition's format-aware dimensions; the
