@@ -23,11 +23,13 @@ const cwd = process.cwd().replace(/^([a-z]):/, (_m, d: string) => `${d.toUpperCa
 const require = createRequire(import.meta.url);
 const vitestBin = join(dirname(require.resolve("vitest/package.json")), "vitest.mjs");
 const heavyTest = "packages/pipeline/src/safety/typecheck-authored.test.ts";
+const testEnv = { ...process.env, LOG_LEVEL: process.env.LOG_LEVEL ?? "fatal" };
 
 function runVitest(runArgs: string[]): Promise<number> {
   return new Promise((resolveCode) => {
     const child = spawn(process.execPath, [vitestBin, "run", ...runArgs], {
       cwd,
+      env: testEnv,
       stdio: "inherit",
       shell: false,
     });

@@ -348,9 +348,9 @@ export function checkCaptionClearance(frame: Frame, sceneId?: string, options?: 
  * Symmetric partner to `checkCaptionClearance`: that one scans BELOW the divider
  * (content drifting down into the caption gap); this scans a thin band JUST ABOVE
  * the divider, so content that sits flush ON the divider from above is caught
- * too. Unlike the `Story`-layout fix (which only constrains scenes built with
- * `<Story>`), this oracle works on the rendered pixels and so guards EVERY scene
- * — including ones authored directly with `<Frame>` that bypass `Story`.
+ * too. Unlike old component-level layout fixes, this oracle works on the
+ * rendered pixels and so guards EVERY scene, including raw authored scenes that
+ * bypass composed layout helpers.
  *
  * It reads the SAME `CONTENT_ZONE.bottom` a divider profile draws from, so it
  * asserts exactly "don't touch the divider that is actually drawn" — never a
@@ -359,8 +359,9 @@ export function checkCaptionClearance(frame: Frame, sceneId?: string, options?: 
  * divider profile comes back.
  *
  * The scanned band (`ABOVE_DIVIDER_BAND` px, in canvas space) is deliberately
- * thinner than `Story`'s 24px clearance, so content that correctly clears the
- * divider never lands in it — only genuinely-flush content fires.
+ * thinner than the old component-level 24px clearance, so content that
+ * correctly clears the divider never lands in it — only genuinely-flush content
+ * fires.
  */
 const ABOVE_DIVIDER_BAND = 16;
 

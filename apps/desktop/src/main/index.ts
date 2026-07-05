@@ -109,8 +109,9 @@ const gateway = new ModelGatewayManager(
   buildNineRouterGatewayDeps({ client: nrClient, openExternal: (url) => void shell.openExternal(url) }),
 );
 
-// The authoring brain: AI writes a kit-based manifest; we admit + render. Drives
-// the SAME tools / one registry; render progress is forwarded to the UI.
+// The authoring brain: AI writes an open AUTHOR manifest and fresh scene
+// modules; we admit + render. Drives the SAME tools / one registry; render
+// progress is forwarded to the UI.
 // `reportProgress` is a forwarder set once the WorkspaceController exists (below),
 // so the renderer's real per-frame progress drives the staged rendering bar.
 let reportProgress: (projectId: string, ratio: number) => void = () => {};

@@ -210,7 +210,7 @@ export type SurfaceTokens = {
   labelUppercase: boolean;
 };
 
-/** The full-frame backdrop a language paints behind content (the `Frame`). */
+/** Full-canvas backdrop tokens a language paints behind content. */
 export type BackdropTokens = {
   fill: "flat" | "radial";
   grid: boolean;
@@ -337,10 +337,10 @@ const NEUTRAL_SURFACE: SurfaceTokens = {
 const NEUTRAL_RADIUS: RadiusScale = { sm: 8, md: 14, lg: 22 };
 
 const NEUTRAL_BACKDROP: BackdropTokens = {
-  // A radial fill so `Frame` paints the depth wash (accent/signal glows over the
-  // base gradient) instead of a dead flat near-black — the same look the
-  // composition backdrop paints, so a scene that wraps in `<Frame>` matches the
-  // global wash rather than covering it with a flat fill.
+  // A radial fill so the backdrop paints the depth wash (accent/signal glows
+  // over the base gradient) instead of a dead flat near-black — the same look
+  // the composition backdrop paints, so scene content matches the global wash
+  // rather than covering it with a flat fill.
   fill: "radial",
   grid: false,
   registrationTicks: false,
