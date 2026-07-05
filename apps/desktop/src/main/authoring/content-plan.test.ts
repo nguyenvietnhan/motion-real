@@ -263,6 +263,67 @@ describe("content quality eval fixtures", () => {
     expect(quality.issues.every((issue) => issue.severity === "blocking" || issue.severity === "advisory")).toBe(true);
   });
 
+  it("does not block concept-explainer structural numbers that are not source-like measurements", () => {
+    const plan = validPlan({
+      claims: [],
+      scenes: [
+        {
+          ...validPlan().scenes[0]!,
+          narration: "Một cây có thể học vẹt; 100 cây cùng bỏ phiếu thì ổn định hơn.",
+          onScreenText: "100 cây bỏ phiếu",
+          visualMetaphor: "A forest of simple decision trees casting small votes.",
+          layoutFamily: "signature-visual",
+          evidenceClaimIds: [],
+        },
+        {
+          ...validPlan().scenes[1]!,
+          sceneId: "scene-02",
+          purpose: "context",
+          narration: "Mỗi cây học theo 2 lát cắt ngẫu nhiên: một phần dữ liệu và một phần đặc trưng.",
+          onScreenText: "2 lát cắt",
+          visualMetaphor: "Two shuffled decks feeding different trees.",
+          layoutFamily: "diagram",
+          evidenceClaimIds: [],
+        },
+        {
+          ...validPlan().scenes[1]!,
+          sceneId: "scene-03",
+          purpose: "payoff",
+          narration: "Khi các cây không giống hệt nhau, lá phiếu chung thường bớt lệch hơn một cây đơn lẻ.",
+          onScreenText: "Đa số làm mượt sai lệch",
+          visualMetaphor: "Votes collecting into one calmer final answer.",
+          layoutFamily: "timeline",
+          evidenceClaimIds: [],
+        },
+      ],
+    });
+
+    const quality = evaluateContentPlanQuality(plan);
+
+    expect(quality.blockingIssues).toEqual([]);
+    expect(quality.issues).not.toContainEqual(expect.objectContaining({ check: "claim-ledger" }));
+  });
+
+  it("still blocks benchmark/source-like measurements without evidence", () => {
+    const plan = validPlan({
+      scenes: [
+        {
+          ...validPlan().scenes[0]!,
+          narration: "The prototype reached 500 cycles, according to early lab notes.",
+          onScreenText: "500 cycles",
+          evidenceClaimIds: [],
+        },
+        validPlan().scenes[1]!,
+      ],
+    });
+
+    const quality = evaluateContentPlanQuality(plan);
+
+    expect(quality.blockingIssues).toContainEqual(
+      expect.objectContaining({ check: "claim-ledger", severity: "blocking", sceneId: "scene-01" }),
+    );
+  });
+
   it("treats layout diversity as authoring guidance, not a blocking plan failure", () => {
     const plan = validPlan({
       scenes: [
@@ -341,6 +402,7 @@ describe("buildContentPlanMessages", () => {
     expect(system).toMatch(/viewerPromise/);
     expect(system).toMatch(/first3SecondsLine/);
     expect(system).toMatch(/Claim|CLAIM LEDGER/);
+    expect(system).toMatch(/Small structural\/example counts/);
     expect(system).toMatch(/Weak:[\s\S]*Strong:/);
     expect(system).toMatch(/visualMetaphor/);
     expect(system).toMatch(/motionProgression/);

@@ -129,12 +129,21 @@ export type ContentPlanQualityResult = {
   advisoryIssues: ContentPlanQualityIssue[];
 };
 
-const CONCRETE_FACT_PATTERN = /(?:\d|%|\$|€|£|\bUSD\b|\bVND\b|\bEUR\b|\bGBP\b|triệu|tỷ|million|billion|20\d{2}|19\d{2})/i;
+const HIGH_RISK_FACT_PATTERNS = [
+  /\b(?:19|20)\d{2}\b/,
+  /\b\d{1,2}[/-]\d{1,2}(?:[/-]\d{2,4})?\b/,
+  /\b\d+(?:[.,]\d+)?\s*%/,
+  /(?:\$|€|£|₫|\bUSD\b|\bVND\b|\bEUR\b|\bGBP\b|\bdollars?\b|\bđồng\b)/i,
+  /\b\d+(?:[.,]\d+)?\s*(?:nghìn|triệu|tỷ|million|billion|trillion|bn)\b/i,
+  /\b\d+(?:[.,]\d+)?\s*(?:cycles?|chu\s*kỳ|lần\s*sạc|fps|tokens?|parameters?|tham\s*số|users?|người\s*dùng|customers?|khách\s*hàng|orders?|đơn\s*hàng|requests?|GB|MB|TB|kWh|mAh|km|kg)\b/i,
+  /\b(?:according\s+to|study|studies|survey|report|research|benchmark|data\s+shows)\b/i,
+  /\b(?:theo\s+(?:báo\s+cáo|nghiên\s+cứu|khảo\s+sát|dữ\s+liệu|thống\s+kê|nguồn)|nghiên\s+cứu|khảo\s+sát|báo\s+cáo|dữ\s+liệu\s+cho\s+thấy|thống\s+kê|benchmark)\b/i,
+] as const;
 const GENERIC_MOTION_PATTERN =
   /\b(?:text|title|headline|copy|content|card|words?)\s+(?:appears?|fades?\s+in|shows?\s+up|is\s+shown)\b|\b(?:chữ|tiêu đề|nội dung|thẻ)\s+(?:hiện ra|xuất hiện|fade\s+in)\b/i;
 
 function hasConcreteFact(value: string): boolean {
-  return CONCRETE_FACT_PATTERN.test(value);
+  return HIGH_RISK_FACT_PATTERNS.some((pattern) => pattern.test(value));
 }
 
 function hasGenericMotionIntent(value: string): boolean {
@@ -360,14 +369,15 @@ DELIVERY LOCKS (already chosen by the app; do not change them):
 - Publish title cap: under ${titleCap} characters.
 
 CLAIM LEDGER RULES:
-- Any number, date, price, benchmark, quote, source claim, or factual comparison must appear in "claims".
+- Any statistical number, date, price, benchmark, quote, source claim, or factual comparison must appear in "claims".
+- Small structural/example counts used to explain a concept (for example "2 bước", "3 yếu tố", or "100 cây" in a Random Forest metaphor) do not need a claim unless they present a real-world measurement, benchmark, date, price, or sourced claim.
 - "support" is only one of: user_brief, source_material, common_knowledge.
 - "confidence" is only supported or uncertain.
 - "action" is only use or omit.
 - If a claim is uncertain, unsupported, or merely tempting, set confidence:"uncertain" and action:"omit".
 - Scenes may reference only claims with confidence:"supported" and action:"use".
 - Omitted claims are notes for safety only; do not rely on them in narration, on-screen text, title, open loop, payoff, or evidenceClaimIds.
-- If no reliable claim supports a number/date/price, rewrite the beat without that detail.
+- If no reliable claim supports a statistical number/date/price/benchmark, rewrite the beat without that detail.
 
 STORY RUBRIC:
 - Prefer a sharp hook, concrete viewer promise, and resolved payoff over a flat topic summary.
@@ -385,7 +395,7 @@ QUALITY SELF-CHECK BEFORE FINAL JSON:
 - viewerPromise and payoff are mandatory; payoff must answer or resolve the openLoop.
 - The plan must satisfy the pacing line above; do not collapse a long target into a few long narration blocks.
 - For 3+ scenes, prefer at least 2 distinct layoutFamily values unless the whole video is intentionally one formal statement.
-- Any scene with a number/date/price/source-like factual detail must include evidenceClaimIds pointing only to supported/use claims.
+- Any scene with a statistical number/date/price/benchmark/source-like factual detail must include evidenceClaimIds pointing only to supported/use claims.
 - Every scene must have a specific motionProgression. It may describe a quick
   reveal + hold, semantic progression, living motion, or an intentional
   mostly-static statement beat, but it must not be generic "text appears".
