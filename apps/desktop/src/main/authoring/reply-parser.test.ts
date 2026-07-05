@@ -137,6 +137,36 @@ describe("Property 1: author-reply parse roundtrip", () => {
   });
 });
 
+describe("sceneId manifest recovery", () => {
+  function sceneIdReply(codeIds: string[] = ["scene-01", "scene-02", "scene-03"]): string {
+    const manifest = {
+      title: "Random Forest dễ hiểu",
+      theme: { dominant: "#10b981", mood: "giải thích trực quan" },
+      scenes: [
+        { sceneId: "scene-01", eyebrow: "KHÁI NIỆM", headline: "Một khu rừng biết bỏ phiếu", narration: "Random Forest là nhiều cây quyết định cùng dự đoán." },
+        { sceneId: "scene-02", eyebrow: "CÁCH LÀM", headline: "Mỗi cây nhìn một lát cắt", narration: "Mỗi cây học trên một mẫu dữ liệu và nhóm đặc trưng khác nhau." },
+        { sceneId: "scene-03", eyebrow: "KẾT QUẢ", headline: "Đa số thắng", narration: "Kết quả cuối cùng đến từ bỏ phiếu hoặc lấy trung bình." },
+      ],
+    };
+    return "```json\n" + JSON.stringify(manifest) + "\n```\n\n" + codeIds.map((id) => codeBlock(id)).join("\n\n");
+  }
+
+  it("recovers scenes that used content-plan sceneId instead of manifest component when matching modules exist", () => {
+    const parsed = parseAuthorReply(sceneIdReply());
+    expect(parsed.ok).toBe(true);
+    if (parsed.ok) {
+      expect(parsed.manifest.scenes.map((scene) => scene.component)).toEqual(["scene-01", "scene-02", "scene-03"]);
+      expect(parsed.modules.map((module) => module.id)).toEqual(["scene-01", "scene-02", "scene-03"]);
+    }
+  });
+
+  it("does not invent component ids from sceneId without matching authored code", () => {
+    const parsed = parseAuthorReply(sceneIdReply(["other-scene"]));
+    expect(parsed.ok).toBe(false);
+    if (!parsed.ok) expect(parsed.reason).toBe("manifest-invalid");
+  });
+});
+
 describe("robust manifest coercion (one bad field no longer nukes the whole reply)", () => {
   // The bug this guards: a single over-cap or out-of-enum field in ONE scene made
   // the strict schema fail safeParse, discarding the manifest + every authored

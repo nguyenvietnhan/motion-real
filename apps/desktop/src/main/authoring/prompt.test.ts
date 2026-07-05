@@ -121,6 +121,7 @@ describe("buildAuthorMessages", () => {
     const [sys, user] = buildAuthorMessages({ text: "Chủ đề thử", urls: [] });
     expect(sys!.role).toBe("system");
     for (const token of required) expect(sys!.content).toContain(token);
+    expect(sys!.content).toContain('KHÔNG dùng "sceneId" thay cho "component"');
     expect(user!.content).toContain("Chủ đề thử");
   });
 

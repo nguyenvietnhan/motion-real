@@ -1,4 +1,4 @@
-import { authorManifestSchema, extractJsonObject, type AuthorManifest } from "./manifest-schema.js";
+import { authorManifestSchema, componentId, extractJsonObject, type AuthorManifest } from "./manifest-schema.js";
 
 /**
  * AI_Output_Contract parser (desktop-author-mode, pure AUTHOR). In a SINGLE
@@ -192,9 +192,41 @@ function parseJsonProbe(s: string): JsonParseProbe {
   }
 }
 
+/**
+ * Some authoring replies leak the content-plan shape into the manifest: scenes
+ * carry `sceneId` but omit the required authored `component`. Recover only when
+ * the same id is also present as an authored module, so we never invent a
+ * component that has no code coverage.
+ */
+function recoverComponentsFromSceneIds(raw: unknown, moduleIds: ReadonlySet<string>): unknown {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return raw;
+  const manifest = raw as Record<string, unknown>;
+  if (!Array.isArray(manifest.scenes)) return raw;
+
+  let changed = false;
+  const scenes = manifest.scenes.map((scene) => {
+    if (!scene || typeof scene !== "object" || Array.isArray(scene)) return scene;
+    const s = scene as Record<string, unknown>;
+    if (s.component !== undefined) return scene;
+    if (typeof s.sceneId !== "string") return scene;
+    if (!componentId.safeParse(s.sceneId).success) return scene;
+    if (!moduleIds.has(s.sceneId)) return scene;
+    changed = true;
+    return { ...s, component: s.sceneId };
+  });
+
+  return changed ? { ...manifest, scenes } : raw;
+}
+
 /** Parse a full author reply (manifest + per-scene .tsx) per AI_Output_Contract. */
 export function parseAuthorReply(text: string): ParsedAuthorReply {
   const fences = extractFences(text);
+  const codeFences = codeBlocks(text, fences);
+  const moduleIds = new Set<string>();
+  for (const f of codeFences) {
+    const r = resolveModuleId(f.body);
+    if ("id" in r) moduleIds.add(r.id);
+  }
 
   // --- (1) manifest ---
   const json = manifestJson(text, fences);
@@ -206,17 +238,21 @@ export function parseAuthorReply(text: string): ParsedAuthorReply {
     return { ok: false, reason: "no-manifest", detail: e instanceof Error ? e.message : String(e) };
   }
   const parsed = authorManifestSchema.safeParse(raw);
+  const recovered = parsed.success ? parsed : authorManifestSchema.safeParse(recoverComponentsFromSceneIds(raw, moduleIds));
   if (!parsed.success) {
-    return {
-      ok: false,
-      reason: "manifest-invalid",
-      detail: parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; "),
-    };
+    if (recovered.success) {
+      raw = recovered.data;
+    } else {
+      return {
+        ok: false,
+        reason: "manifest-invalid",
+        detail: parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; "),
+      };
+    }
   }
-  const manifest = parsed.data;
+  const manifest = parsed.success ? parsed.data : (raw as AuthorManifest);
 
   // --- (2) code blocks ---
-  const codeFences = codeBlocks(text, fences);
   if (codeFences.length === 0) return { ok: false, reason: "no-code", detail: "không có khối .tsx nào trong reply" };
 
   const byId = new Map<string, string>();

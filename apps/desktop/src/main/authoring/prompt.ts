@@ -129,6 +129,7 @@ const OUTPUT_FORMAT = `ĐỊNH DẠNG TRẢ VỀ (AI_Output_Contract) — trả 
   ]
 }
 \`\`\`
+Mỗi scene trong manifest BẮT BUỘC có field "component". KHÔNG dùng "sceneId" thay cho "component"; nếu bám content plan có sceneId thì đặt component id trùng sceneId, ví dụ { "component": "scene-01", ... }.
 2) Với MỖI component id duy nhất, MỘT khối \`\`\`tsx, DÒNG ĐẦU là marker "// component: <id>", thân là module .tsx đầy đủ theo hợp đồng.
    ⚠ Khối mẫu DƯỚI ĐÂY chỉ minh hoạ CẤU TRÚC export bắt buộc + cách tự dựng bằng JSX/SVG trần — KHÔNG phải mẫu thẩm mỹ để chép cho mọi cảnh. KHÔNG còn thư viện block: mỗi cảnh TỰ DỰNG nền + bố cục + đồ hoạ bằng <div>/<svg> theo nội dung (xem QUY TẮC NỘI DUNG về sự táo bạo). KHÔNG import "@motionreal/blocks"/"@motionreal/theme":
 \`\`\`tsx
