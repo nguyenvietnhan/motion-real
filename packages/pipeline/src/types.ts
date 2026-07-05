@@ -1,4 +1,4 @@
-import type { DurationPreset, VideoSpec, LockedVideoSpec } from "@motionreal/schema";
+import type { DurationPreset, DurationTier, VideoFormat, VideoSpec, LockedVideoSpec } from "@motionreal/schema";
 
 /**
  * Pipeline-level data models. The contract types (VideoSpec / LockedVideoSpec)
@@ -28,7 +28,11 @@ export type ProjectBrief = {
   projectId: string;
   prompt: string;
   duration: DurationPreset;
-  ratio: "9:16";
+  /** Delivery format selected at create time, persisted so retry after restart keeps the same prompt budget/geometry. */
+  format?: VideoFormat;
+  /** User-selected duration bucket; authoring retries use this to avoid falling back to tier 1 after restart. */
+  durationTier?: DurationTier;
+  ratio: "9:16" | "16:9";
   language: VideoLanguage;
   aiProvider: AiProvider;
   tts: {

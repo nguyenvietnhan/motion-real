@@ -4,7 +4,15 @@ import { cpus } from "node:os";
 import { join, resolve } from "node:path";
 import { performance } from "node:perf_hooks";
 import { createHash } from "node:crypto";
-import { DEFAULT_TTS_SPEED, type DurationPreset, type LockedVideoSpec, type VideoLanguage, type VideoSpec } from "@motionreal/schema";
+import {
+  DEFAULT_TTS_SPEED,
+  type DurationPreset,
+  type DurationTier,
+  type LockedVideoSpec,
+  type VideoFormat,
+  type VideoLanguage,
+  type VideoSpec,
+} from "@motionreal/schema";
 import {
   appendEvent,
   createProjectId,
@@ -100,6 +108,10 @@ export type ScaffoldVideoProjectOptions = {
   projectId?: string;
   /** Soft target duration in seconds (drives the N28 duration check); defaults to 60. */
   duration?: DurationPreset;
+  /** Delivery format selected at create time; defaults to the historical vertical path. */
+  format?: VideoFormat;
+  /** User-selected duration bucket used by authoring word budgets. */
+  durationTier?: DurationTier;
   /** Authored video language; defaults to Vietnamese for older callers. */
   language?: VideoLanguage;
   tts?: { provider?: TtsProvider; voiceId?: string; modelId?: string; speed?: number };
@@ -123,11 +135,14 @@ export async function scaffoldVideoProject(opts: ScaffoldVideoProjectOptions): P
   await ensureProject(projectId);
 
   const now = new Date().toISOString();
+  const format = opts.format ?? "tiktok";
   const brief: ProjectBrief = {
     projectId,
     prompt: opts.prompt,
     duration: opts.duration ?? parseDurationFromPrompt(opts.prompt) ?? 60,
-    ratio: "9:16",
+    ...(opts.format ? { format: opts.format } : {}),
+    ...(opts.durationTier ? { durationTier: opts.durationTier } : {}),
+    ratio: format === "youtube" ? "16:9" : "9:16",
     language: opts.language ?? "vi",
     aiProvider: "mock" as AiProvider,
     tts: {

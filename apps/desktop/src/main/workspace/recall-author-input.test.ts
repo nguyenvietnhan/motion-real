@@ -1,0 +1,44 @@
+import { describe, expect, it } from "vitest";
+import type { ProjectBrief } from "@motionreal/pipeline";
+import { authorInputFromBrief } from "./recall-author-input.js";
+
+function brief(overrides: Partial<ProjectBrief> = {}): ProjectBrief {
+  return {
+    projectId: "p1",
+    prompt: "Giải thích Random Forest https://a.example/source",
+    duration: 60,
+    ratio: "9:16",
+    language: "vi",
+    aiProvider: "mock",
+    tts: { provider: "none", speed: 1 },
+    state: "scaffolded",
+    currentStep: "scaffolded",
+    error: null,
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z",
+    ...overrides,
+  };
+}
+
+describe("authorInputFromBrief", () => {
+  it("rehydrates persisted delivery choices for retry after restart", () => {
+    expect(authorInputFromBrief(brief({ format: "tiktok", durationTier: 3, language: "vi" }))).toEqual({
+      text: "Giải thích Random Forest https://a.example/source",
+      urls: ["https://a.example/source"],
+      format: "tiktok",
+      durationTier: 3,
+      videoLanguage: "vi",
+    });
+  });
+
+  it("keeps older landscape briefs on the YouTube format when no explicit format exists", () => {
+    expect(authorInputFromBrief(brief({ ratio: "16:9", language: "en" }))).toMatchObject({
+      format: "youtube",
+      videoLanguage: "en",
+    });
+  });
+
+  it("returns null for an empty prompt", () => {
+    expect(authorInputFromBrief(brief({ prompt: "   " }))).toBeNull();
+  });
+});

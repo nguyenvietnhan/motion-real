@@ -214,6 +214,25 @@ describe("scaffoldVideoProject — R8/R10", () => {
       speed: 1,
     });
   });
+
+  it("persists selected format and duration tier for restart-safe authoring retry", async () => {
+    const result = await scaffoldVideoProject({
+      prompt: "Random Forest",
+      format: "tiktok",
+      durationTier: 3,
+    });
+    expect(result.brief).toMatchObject({
+      format: "tiktok",
+      durationTier: 3,
+      ratio: "9:16",
+    });
+    const persisted = JSON.parse(await readFile(projectPaths(result.projectId).brief, "utf8"));
+    expect(persisted).toMatchObject({
+      format: "tiktok",
+      durationTier: 3,
+      ratio: "9:16",
+    });
+  });
 });
 
 describe("renderProject — render pipeline (skipAuthoring)", () => {

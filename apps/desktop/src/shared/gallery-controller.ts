@@ -46,11 +46,11 @@ function thumbnailOf(summary: ProjectSummary): string | null {
 }
 
 function formatOf(summary: ProjectSummary): ProjectCardVM["format"] {
-  // `ProjectBrief.ratio` is still typed as TikTok-only in the current pipeline,
-  // but older/future project folders can already carry a landscape ratio. Read it
-  // defensively so the gallery card is ready for YouTube renders without adding a
-  // visible format badge or changing the rest of the card contract.
-  const ratio = (summary.brief as { ratio?: unknown } | undefined)?.ratio;
+  const format = summary.brief?.format;
+  if (format === "tiktok" || format === "youtube") return format;
+  // Older project folders may only carry the derived ratio. Keep reading it
+  // defensively so the gallery card remains correct across persisted versions.
+  const ratio = summary.brief?.ratio;
   return ratio === "16:9" ? "youtube" : "tiktok";
 }
 

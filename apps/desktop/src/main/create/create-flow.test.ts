@@ -72,9 +72,10 @@ describe("CreateController.create", () => {
   });
 
   it("threads format/tier/videoLanguage into the author input", async () => {
-    const { deps: d, began } = deps();
+    const { deps: d, scaffold, began } = deps();
     const ctrl = new CreateController(d);
     await ctrl.create("chủ đề", [], { format: "youtube", durationTier: 2, videoLanguage: "en", voiceProvider: "elevenlabs" });
+    expect(scaffold).toHaveBeenCalledWith("chủ đề", "elevenlabs", "en", { format: "youtube", durationTier: 2 });
     expect(began[0]!.input.format).toBe("youtube");
     expect(began[0]!.input.durationTier).toBe(2);
     expect(began[0]!.input.videoLanguage).toBe("en");

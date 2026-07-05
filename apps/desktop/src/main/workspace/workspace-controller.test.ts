@@ -630,14 +630,29 @@ describe("retry() rehydrates the author input from disk when not in memory", () 
       publish: async () => ({ ok: true, outputPath: "out.mp4" }),
       generateValidateRepair: async (): Promise<RepairOutcome> => ({ kind: "passed", attempts: 1 }),
     };
-    const recallInput = vi.fn(async () => ({ text: "chủ đề đã lưu", urls: ["https://a.example/x"] }));
+    const recallInput = vi.fn(async () => ({
+      text: "chủ đề đã lưu",
+      urls: ["https://a.example/x"],
+      format: "tiktok" as const,
+      durationTier: 3 as const,
+      videoLanguage: "vi" as const,
+    }));
     // Fresh controller (nothing in the in-memory inputs map) ⇒ simulates a restart.
     const ctrl = new WorkspaceController(baseDeps({ worker, recallInput, settings: { scriptGateEnabled: false, maxRepairAttempts: 3, refinePasses: 0, refineEarlyStop: true, imageCrawlAiFilter: false, imageCrawlHumanReview: false } }));
     await ctrl.retry("p-restart");
     await flush();
     expect(recallInput).toHaveBeenCalledWith("p-restart");
     expect(author).toHaveBeenCalledTimes(1);
-    expect(author.mock.calls[0]![0]).toMatchObject({ projectId: "p-restart", input: { text: "chủ đề đã lưu", urls: ["https://a.example/x"] } });
+    expect(author.mock.calls[0]![0]).toMatchObject({
+      projectId: "p-restart",
+      input: {
+        text: "chủ đề đã lưu",
+        urls: ["https://a.example/x"],
+        format: "tiktok",
+        durationTier: 3,
+        videoLanguage: "vi",
+      },
+    });
   });
 
   it("is a no-op (no throw) when the input can't be recalled either", async () => {

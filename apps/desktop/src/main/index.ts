@@ -37,7 +37,7 @@ import { events, setEventTarget } from "./event-bus.js";
 import { existsSync, statSync } from "node:fs";
 import { copyFile, readFile, readdir, rm, stat } from "node:fs/promises";
 import type { DroppedImage, ModelInfo, PickImagesResult, ScriptEdit, SettingsModel } from "../shared/types.js";
-import { extractUrls } from "../shared/create-validation.js";
+import { authorInputFromBrief } from "./workspace/recall-author-input.js";
 import {
   applyNonSensitiveEnvironment,
   detectProcessPrivilege,
@@ -186,15 +186,13 @@ const workspace = new WorkspaceController({
   // Rehydrate a project's AuthorInput from the persisted brief when the in-memory
   // input is gone (after an app restart), so the error screen's "Thử lại" can
   // recover a project stranded across a restart instead of no-op'ing. The brief
-  // stores only the prompt; urls are re-extracted from it. Create-time images
-  // aren't persisted → a rehydrated retry re-authors from
-  // text + links only (a degraded but functional recovery).
+  // stores delivery knobs (format/duration tier/language) plus the prompt; urls
+  // are re-extracted from it. Create-time images aren't persisted → a rehydrated
+  // retry re-authors from text + links only (a degraded but functional recovery).
   recallInput: async (id) => {
     try {
       const brief = await readBrief(id);
-      const text = brief.prompt?.trim();
-      if (!text) return null;
-      return { text, urls: extractUrls(text) };
+      return authorInputFromBrief(brief);
     } catch (error) {
       log.warn({ err: error, projectId: id }, "project brief unreadable; retry remains in-session only");
       return null; // no readable brief → in-session retry only
@@ -210,11 +208,13 @@ reportProgress = (projectId, ratio) => workspace.reportRenderProgress(projectId,
 // Create flow (validate → scaffold via the ONE registry → hand off to the
 // staged workspace) lives in the tested CreateController (reconcile S5).
 const create = new CreateController({
-  scaffold: async (prompt, voiceProvider, videoLanguage) => {
+  scaffold: async (prompt, voiceProvider, videoLanguage, delivery) => {
     const config = settingsStore.voiceConfig(voiceProvider);
     const res = await tools.scaffold_project({
       prompt,
       language: videoLanguage,
+      ...(delivery?.format ? { format: delivery.format } : {}),
+      ...(delivery?.durationTier ? { durationTier: delivery.durationTier } : {}),
       ttsProvider: voiceProvider,
       voiceId: config.voiceId,
       ...(config.modelId ? { modelId: config.modelId } : {}),

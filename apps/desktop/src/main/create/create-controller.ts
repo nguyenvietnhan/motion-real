@@ -51,6 +51,7 @@ export interface CreateDeps {
     prompt: string,
     voiceProvider: VoiceProviderChoice,
     videoLanguage: VideoLanguageChoice,
+    delivery?: { format?: VideoFormatChoice; durationTier?: DurationTierChoice },
   ) => Promise<{ ok: true; projectId: string } | { ok: false; error: SerializedPipelineError }>;
   /**
    * Hand the brief off to the WorkspaceController. With a link this runs the
@@ -103,7 +104,13 @@ export class CreateController {
     }
     const block = this.deps.preflight?.(voiceProvider, videoLanguage);
     if (block) throw new Error(block);
-    const res = await this.deps.scaffold(v.brief.text, voiceProvider, videoLanguage);
+    const delivery = {
+      ...(choices.format ? { format: choices.format } : {}),
+      ...(choices.durationTier ? { durationTier: choices.durationTier } : {}),
+    };
+    const res = choices.format || choices.durationTier
+      ? await this.deps.scaffold(v.brief.text, voiceProvider, videoLanguage, delivery)
+      : await this.deps.scaffold(v.brief.text, voiceProvider, videoLanguage);
     if (!res.ok) throw new Error(toFriendlyError(res.error).message); // redacted (R8.5)
     // Promote staged images into the project before authoring so the first draft
     // can place them. A promote failure never blocks create — the brief still

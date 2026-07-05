@@ -317,7 +317,7 @@ export class WorkspaceController {
   /**
    * Re-run authoring for a project from its remembered input (the "Thử lại"
    * action). The in-memory input is gone after an app restart, so fall back to
-   * rehydrating it from the persisted brief (prompt → text + extracted urls).
+   * rehydrating it from the persisted brief (prompt + delivery metadata).
    * Without this, a project stranded across a restart shows an error screen
    * whose "Thử lại" calls retry() → empty inputs → silent no-op → the poll
    * re-derives the same error (an error↔writing flicker). Create-time images

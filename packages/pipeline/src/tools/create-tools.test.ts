@@ -245,11 +245,31 @@ describe("tool input schemas + result shapes — 7.12", () => {
     expect(ingestUrlInput.safeParse({ url: "https://a.test/x" }).success).toBe(true);
     expect(ingestUrlInput.safeParse({ url: "not-a-url" }).success).toBe(false);
     expect(scaffoldProjectInput.safeParse({ prompt: "hi" }).success).toBe(true);
+    expect(scaffoldProjectInput.safeParse({ prompt: "hi", format: "youtube", durationTier: 3 }).success).toBe(true);
     expect(scaffoldProjectInput.safeParse({ prompt: "" }).success).toBe(false);
     expect(scaffoldProjectInput.safeParse({ prompt: "x", duration: 75 }).success).toBe(false);
+    expect(scaffoldProjectInput.safeParse({ prompt: "x", durationTier: 4 }).success).toBe(false);
     expect(renderFullInput.safeParse({ projectId: "p", forceFull: true }).success).toBe(true);
     expect(trackerAddInput.safeParse({ url: "https://a.test" }).success).toBe(true);
     expect(trackerAddInput.safeParse({ url: "x" }).success).toBe(false);
+  });
+
+  it("scaffold_project passes persisted delivery choices to the orchestrator", async () => {
+    let received: Parameters<ToolDeps["scaffoldVideoProject"]>[0] | undefined;
+    const tools = createTools({
+      scaffoldVideoProject: async (opts) => {
+        received = opts;
+        return {
+          projectId: "p1",
+          brief: {} as never,
+          manifestPath: "manifest.json",
+          authoredDir: "authored",
+        };
+      },
+    });
+    const res = await tools.scaffold_project({ prompt: "Random Forest", format: "tiktok", durationTier: 3 });
+    expect(res.ok).toBe(true);
+    expect(received).toMatchObject({ prompt: "Random Forest", format: "tiktok", durationTier: 3 });
   });
 
   it("ingest_url failure carries a structured error (ok:false + serialized error)", async () => {
