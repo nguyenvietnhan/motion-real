@@ -47,6 +47,27 @@ The root `.mcp.json` is local-only and ignored. Keep `.mcp.example.json` as a
 template without absolute machine paths; do not reintroduce a repo-provided
 MCP server without a focused owner-approved slice.
 
+## Motion Tempo Validation
+
+Motion tempo is authoring guidance, not a hard render oracle. Automated tests
+should lock the contract/prompt/planner/bootstrap wording and the
+content-plan advisory behavior, but they cannot prove whether a generated
+animation feels natural.
+
+Do not add a regex or visual hard gate for "slow entrance" or "too much living
+motion" without owner-approved fixtures and a low false-positive criterion.
+These problems are context-sensitive: a chart draw can legitimately span most
+of a scene, while a title pop usually should not.
+
+Manual E2E validation for motion-tempo slices needs a real provider-connected
+desktop run. Use a prompt that asks for all three cases in one video:
+quick title/card reveal, continuous wave/pulse/flow or walking motion, and a
+semantic path/chart/process progression. Inspect the authored TSX and draft:
+simple entrances should settle quickly, living motion should continue with a
+bounded deterministic phase/period, and semantic progress should only span the
+scene when the beat truly changes over time. Existing generated projects are not
+migrated by prompt-only slices; reauthor/refine them separately if needed.
+
 ## Repository Hygiene
 
 Prefer descriptive, domain-owned paths over loose root files:

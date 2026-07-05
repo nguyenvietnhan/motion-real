@@ -123,13 +123,42 @@ const progress =
   durationInFrames > 1 ? Math.min(1, Math.max(0, frame / (durationInFrames - 1))) : 1;
 ```
 
-Use that `progress` value for bounded scene-local motion. When the approved
-content plan includes `motionProgression`, implement that intent in TSX. Prefer
-staged motion that supports the beat across early/mid/late moments: reveals,
-line/path/chart draws, focus shifts, bounded background depth, or a final hold
-only after the main beat lands. Do not animate only the first 1-3 seconds of a
-long scene and then leave the rest static unless the scene is intentionally a
-mostly-static statement beat.
+Use that `progress` value for semantic scene-local motion, not for every
+transition by default. When the approved content plan includes
+`motionProgression`, implement the intent by choosing the right motion tempo:
+
+- Quick entrance/reveal/pop: for titles, labels, cards, markers, or icons
+  appearing. These should usually settle in about 0.2-0.8 seconds, or a small
+  early part of the scene, using `frame`, `spring`, or clamped `interpolate`.
+  Do not stretch a simple opacity/translate reveal across full scene progress.
+- Semantic progression: use scene `progress` when the content itself changes
+  over time, such as a line/path/chart draw, process, timeline, before/after,
+  map movement, focus shift, or cause/effect beat. A final hold after the main
+  beat lands is valid and often desirable.
+- Continuous living motion: for purposeful wave, shimmer, pulse, signal flow,
+  walking cycle, orbit, or light ambient depth. Use a deterministic phase/period
+  after the entrance has settled, keep it small and bounded, and avoid motion
+  that hurts text readability.
+
+For time-based examples, compute from the current fps instead of assuming one
+global frame rate:
+
+```tsx
+const frame = useCurrentFrame();
+const { fps } = useVideoConfig();
+const enterEnd = Math.max(1, Math.round(fps * 0.45));
+const enter = interpolate(frame, [0, enterEnd], [0, 1], {
+  extrapolateRight: "clamp",
+});
+
+const periodFrames = Math.max(1, Math.round(fps * 1.2));
+const phase =
+  ((Math.max(0, frame - enterEnd)) % periodFrames) / periodFrames;
+const pulse = 0.96 + Math.sin(phase * Math.PI * 2) * 0.04;
+```
+
+Do not animate only the first tiny entrance of a long scene and then leave the
+rest static unless the scene is intentionally a mostly-static statement beat.
 
 Forbidden:
 

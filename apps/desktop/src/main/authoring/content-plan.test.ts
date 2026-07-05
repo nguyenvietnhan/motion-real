@@ -45,7 +45,7 @@ function validPlan(overrides: Partial<ContentPlan> = {}): ContentPlan {
         narration: "Con chip nhỏ xíu không đắt vì nó nhỏ. Nó đắt vì gần như không ai làm nổi.",
         onScreenText: "Đắt vì khan hiếm",
         visualMetaphor: "A tiny glowing chip behind a locked factory gate.",
-        motionProgression: "Early: the chip glows alone; mid: the factory gate closes; late: the queue compresses toward the bottleneck.",
+        motionProgression: "Quick entrance: chip pops in under a second; semantic: the factory gate closes around it; living: the lock keeps a small warning pulse; final hold on the bottleneck.",
         layoutFamily: "signature-visual",
         evidenceClaimIds: ["claim-01"],
       },
@@ -56,7 +56,7 @@ function validPlan(overrides: Partial<ContentPlan> = {}): ContentPlan {
         narration: "Khi năng lực sản xuất là cổ chai, thứ được định giá không phải vật liệu mà là quyền bước qua cánh cổng.",
         onScreenText: "Cổ chai là nhà máy",
         visualMetaphor: "A queue of chips waiting outside one narrow production door.",
-        motionProgression: "Early: chips line up outside the door; mid: the doorway narrows; late: one finished chip exits as the takeaway lands.",
+        motionProgression: "Quick entrance: the chip queue slides in; semantic: the doorway narrows as one finished chip exits; final hold as the takeaway lands.",
         layoutFamily: "diagram",
         evidenceClaimIds: ["claim-01"],
       },
@@ -198,7 +198,7 @@ describe("content quality eval fixtures", () => {
           narration: "Khi chỉ vài nơi có thể sản xuất ở cấp này, mỗi đơn hàng phải xếp hàng trước một cánh cửa hẹp.",
           onScreenText: "Năng lực mới là cổ chai",
           visualMetaphor: "A narrowing timeline of chips waiting at one production gate.",
-          motionProgression: "Early: one chip enters the timeline; mid: the path narrows into a gate; late: the queue stalls at the narrowest point.",
+          motionProgression: "Quick entrance: one chip enters the timeline; semantic: the path narrows into a gate; final hold when the queue stalls at the narrowest point.",
           layoutFamily: "timeline",
           evidenceClaimIds: ["claim-01"],
         },
@@ -209,7 +209,7 @@ describe("content quality eval fixtures", () => {
           narration: "Vì vậy thứ đắt nhất không phải miếng silicon, mà là năng lực biến thiết kế thành hàng thật.",
           onScreenText: "Đắt vì biến ý tưởng thành hàng thật",
           visualMetaphor: "Blueprint lines turning into one finished glowing chip.",
-          motionProgression: "Early: blueprint lines sketch the chip; mid: traces brighten; late: the finished chip locks into the final payoff.",
+          motionProgression: "Quick entrance: blueprint frame appears; semantic: traces brighten into one finished chip; living: a small glow pulse continues through the payoff.",
           layoutFamily: "diagram",
           evidenceClaimIds: ["claim-01"],
         },
@@ -292,6 +292,23 @@ describe("content quality eval fixtures", () => {
     );
   });
 
+  it("accepts quick reveal, living motion, and final hold as specific motion intent", () => {
+    const plan = validPlan({
+      scenes: [
+        {
+          ...validPlan().scenes[0]!,
+          motionProgression:
+            "Quick entrance: title pops in under half a second; living: a small signal pulse continues behind the icon; final hold once the claim lands.",
+        },
+      ],
+    });
+
+    const quality = evaluateContentPlanQuality(plan);
+
+    expect(quality.advisoryIssues).not.toContainEqual(expect.objectContaining({ check: "motion-progression" }));
+    expect(quality.blockingIssues).toEqual([]);
+  });
+
   it("flags a tier-3 TikTok plan that collapses 2m30s into six long scenes", () => {
     const plan = validPlan({
       scenes: Array.from({ length: 6 }, (_, index) => pacingScene(index + 1, 6, 110)),
@@ -327,7 +344,11 @@ describe("buildContentPlanMessages", () => {
     expect(system).toMatch(/Weak:[\s\S]*Strong:/);
     expect(system).toMatch(/visualMetaphor/);
     expect(system).toMatch(/motionProgression/);
-    expect(system).toMatch(/early\/mid\/late/);
+    expect(system).toMatch(/motion intent/);
+    expect(system).toMatch(/quick entrance tempo/);
+    expect(system).toMatch(/semantic progression/);
+    expect(system).toMatch(/living motion/);
+    expect(system).not.toMatch(/early\/mid\/late/);
     expect(system).toMatch(/not be generic "text appears"/);
     expect(system).toMatch(/QUALITY SELF-CHECK BEFORE FINAL JSON/);
     expect(system).toMatch(/at least 2 distinct layoutFamily/);

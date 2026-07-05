@@ -86,26 +86,38 @@ not the default fallback for every scene.
 ## Motion
 
 Motion should help the idea. Each content plan scene should name a
-`motionProgression`: a short non-code intent for what changes across early,
-middle, and late moments of the scene.
+`motionProgression`: a short non-code motion intent. It should distinguish the
+tempo of the motion instead of forcing every element to move for the whole
+scene.
 
-Prefer bounded, frame-derived motion that supports the beat across useful scene
-duration and then settles or resolves cleanly:
+Use three motion types:
 
-- staged reveals tied to scene progress;
-- line, chart, path, or relationship drawing across the scene;
-- focus shifts between important elements;
-- slow bounded background depth;
-- a final hold only after the main beat has landed.
+- Quick entrance/reveal/pop: titles, labels, cards, markers, icons, or callouts
+  enter quickly and naturally, usually settling in about 0.2-0.8 seconds or a
+  small early part of the scene. They may then hold still for readability.
+- Semantic progression: line, chart, path, relationship, timeline, process,
+  before/after, map, focus-shift, or cause/effect visuals can use full scene
+  progress when the beat itself develops over time. Give these beats a clear
+  final hold once the idea lands.
+- Continuous living motion: wave, shimmer, pulse, signal flow, walking cycle,
+  orbit, vibration, or subtle ambient depth can continue after the entrance by
+  using deterministic phase/period motion. Keep it small, bounded, purposeful,
+  and away from text readability.
 
-Do not animate only the first 1-3 seconds of a long scene and then leave the
-rest as a static slide. Deliberately static statement beats remain valid when
-stillness is the point.
+Do not animate only a tiny entrance of a long scene and then leave the rest as a
+static slide unless stillness is the deliberate statement. Also do not stretch a
+simple text/card reveal across the whole scene just to avoid stillness.
+Deliberately static statement beats remain valid when stillness is the point.
 
 Avoid:
 
-- perpetual oscillation;
-- `Math.sin(frame)` loops;
-- `frame % n` loops;
+- meaningless perpetual oscillation;
+- unbounded `Math.sin(frame)` or `frame % n` loops with no phase/period intent;
 - non-clamped endless interpolation;
+- random or non-deterministic motion;
+- large layout-shifting motion that covers or shakes readable text;
 - motion added only to keep pixels moving.
+
+Deterministic periodic motion is allowed when it is bounded and meaningful, for
+example `phase = (frame % periodFrames) / periodFrames` followed by a small
+`Math.sin(phase * Math.PI * 2)` pulse.

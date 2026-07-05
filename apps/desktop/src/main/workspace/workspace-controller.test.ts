@@ -305,11 +305,15 @@ describe("fixWithAi + fixable flag", () => {
     };
     expect(job.sceneIds).toEqual(["scene-01", "scene-02"]); // EVERY scene
     const bootstrapIntent = job.preprompt.perSceneIntent["scene-01"] ?? "";
-    expect(bootstrapIntent).toMatch(/ĐANG DIỄN TIẾN qua phần lớn thời lượng/);
+    expect(bootstrapIntent).toMatch(/quick entrance\/reveal\/pop/);
+    expect(bootstrapIntent).toMatch(/semantic progression/);
+    expect(bootstrapIntent).toMatch(/continuous living motion/);
     expect(bootstrapIntent).toMatch(/khuyến khích sáng tạo, KHÔNG bắt buộc/);
     expect(bootstrapIntent).toMatch(/cảnh tĩnh có chủ đích vẫn hợp lệ/);
-    expect(bootstrapIntent).toMatch(/interpolate có clamp hoặc spring/);
-    expect(bootstrapIntent).toMatch(/KHÔNG dùng Math\.sin\(frame\)/);
+    expect(bootstrapIntent).toMatch(/frame\/spring\/interpolate có clamp hoặc phase\/period bounded/);
+    expect(bootstrapIntent).toMatch(/KHÔNG kéo một reveal đơn giản ra hết cảnh/);
+    expect(bootstrapIntent).not.toMatch(/ĐANG DIỄN TIẾN qua phần lớn thời lượng/);
+    expect(bootstrapIntent).not.toMatch(/KHÔNG dùng Math\.sin\(frame\)/);
     expect(bootstrapIntent).not.toMatch(/ANIMATION PHẢI|NHIỀU PHA|chuyển động LIÊN TỤC|mạch đập|nhịp thở chậm/);
     expect(renderStills).toHaveBeenCalledWith("p1", ["scene-01", "scene-02"], expect.any(AbortSignal)); // re-render all after the bold rewrite
     expect(renders).toBe(1); // draft MP4 once, after refine

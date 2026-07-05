@@ -179,7 +179,7 @@ export function evaluateContentPlanQuality(plan: ContentPlan, pacing?: PacingBud
       addIssue({
         check: "motion-progression",
         sceneId: scene.sceneId,
-        message: "motionProgression must describe a purposeful temporal beat, not generic text/card appearance",
+        message: "motionProgression must describe a specific motion intent, not generic text/card appearance",
       });
     }
   }
@@ -324,7 +324,7 @@ Strong:
   first3SecondsLine: "The chip is not expensive because it is small. It is expensive because almost nobody can make it."
   beat: "Reveal scarcity before specs."
   visualMetaphor: "A tiny glowing chip behind a huge locked factory gate."
-  motionProgression: "Early: the tiny chip glows alone; mid: the factory gate closes around it; late: the queue compresses toward the bottleneck."
+  motionProgression: "Quick entrance: chip pops in under a second; semantic: the factory gate closes around it; living: a small warning pulse continues on the lock; final hold on the bottleneck."
 
 Weak:
   beat: "Talk about coffee productivity."
@@ -336,7 +336,7 @@ Strong:
   first3SecondsLine: "The second cup does not give you more focus. It borrows focus from later."
   beat: "Turn a familiar habit into a visible tradeoff."
   visualMetaphor: "A glowing battery split into morning gain and afternoon debt."
-  motionProgression: "Early: morning energy fills the left half; mid: a thin debt line grows on the right; late: both halves balance into one visible tradeoff."`;
+  motionProgression: "Quick entrance: the split battery snaps into view; semantic: morning gain fills while an afternoon debt line grows; final hold once the tradeoff balances."`;
 
 function systemPrompt(format: VideoFormat, tier: DurationTier, language: VideoLanguage, wordsPerSecond: number): string {
   const pacing = computePacingBudget({ format, durationTier: tier, videoLanguage: language }, wordsPerSecond);
@@ -349,7 +349,7 @@ TASK:
 - Make Scene 1 deliver a concrete content proposition in the first 3 seconds.
 - Keep the opening aligned with the title and the payoff.
 - Use specific visual metaphors and layout families so later code authoring does not collapse into generic title cards.
-- For each scene, write motionProgression as a non-code early/mid/late temporal intent that supports the beat.
+- For each scene, write motionProgression as a non-code motion intent: quick entrance tempo, semantic progression if the beat changes over time, living motion if the visual should keep breathing, and final hold when appropriate.
 - Every scene advances exactly one viewer-facing idea.
 
 DELIVERY LOCKS (already chosen by the app; do not change them):
@@ -375,10 +375,10 @@ STORY RUBRIC:
 - On-screen text must be short enough to scan quickly.
 - Avoid scenes that are only "headline + body text" unless purpose is deliberately "statement".
 - Vary layoutFamily across scenes when the story needs contrast.
-- motionProgression must describe what changes over time inside the scene.
-  Good: staged reveals, line/path drawing, focus shifts, bounded background depth,
-  or a deliberate static hold after the main beat lands. Bad: "text appears",
-  "title fades in", or generic card movement.
+- motionProgression must describe how motion should serve the beat without stretching every transition.
+  Good: quick title/card entrance, line/path/chart drawing when the content evolves,
+  focus shifts, small bounded wave/pulse/signal loops, or a deliberate static hold
+  after the main beat lands. Bad: "text appears", "title fades in", or generic card movement.
 
 QUALITY SELF-CHECK BEFORE FINAL JSON:
 - scene-01 purpose must be "hook", and first3SecondsLine must make the viewer promise or tension concrete.
@@ -386,8 +386,9 @@ QUALITY SELF-CHECK BEFORE FINAL JSON:
 - The plan must satisfy the pacing line above; do not collapse a long target into a few long narration blocks.
 - For 3+ scenes, prefer at least 2 distinct layoutFamily values unless the whole video is intentionally one formal statement.
 - Any scene with a number/date/price/source-like factual detail must include evidenceClaimIds pointing only to supported/use claims.
-- Every scene must have a specific motionProgression. It may describe an
-  intentional mostly-static statement beat, but it must not be generic "text appears".
+- Every scene must have a specific motionProgression. It may describe a quick
+  reveal + hold, semantic progression, living motion, or an intentional
+  mostly-static statement beat, but it must not be generic "text appears".
 - action:"omit" claims are safety notes only; never use them in title, narration, on-screen text, payoff, or evidenceClaimIds.
 
 ${POSITIVE_BEAT_EXAMPLES}

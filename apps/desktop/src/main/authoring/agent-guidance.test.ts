@@ -16,11 +16,14 @@ describe("AI video-authoring guidance", () => {
     expect(text).not.toMatch(/bold-editorial|galaxy look|never hard-code/i);
   });
 
-  it("keeps the canonical content guidance aligned with settling motion guidance", () => {
+  it("keeps the canonical content guidance aligned with motion tempo guidance", () => {
     const text = `${rootFile("AI_CONTRACT.md")}\n${rootFile("docs/current/content-guide.md")}`;
 
-    expect(text).toMatch(/clamped `interpolate`\/`spring`|bounded, frame-derived motion/);
-    expect(text).toMatch(/resolve|settle/);
+    expect(text).toMatch(/Quick entrance\/reveal\/pop/);
+    expect(text).toMatch(/Semantic progression/);
+    expect(text).toMatch(/Continuous living motion/);
+    expect(text).toMatch(/deterministic phase\/period motion/);
+    expect(text).toMatch(/settling|final hold|idea lands/);
     expect(text).not.toMatch(/use Math\.sin|interpolate \+ Math\.sin/i);
   });
 

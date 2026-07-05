@@ -135,21 +135,27 @@ const OUTPUT_FORMAT = `ĐỊNH DẠNG TRẢ VỀ (AI_Output_Contract) — trả 
 // component: id-canh
 import React from "react";
 import { z } from "zod";
-import { useCurrentFrame, interpolate } from "remotion";
+import { useCurrentFrame, interpolate, useVideoConfig } from "remotion";
 import { registerComponent, type SceneComponentProps } from "@motionreal/compositions";
 export const schema = z.object({ /* props */ });
 type Props = z.infer<typeof schema>;
 const Scene: React.FC<SceneComponentProps<Props>> = ({ headline, eyebrow, durationInFrames }) => {
   const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();
   const progress = durationInFrames > 1 ? Math.min(1, Math.max(0, frame / (durationInFrames - 1))) : 1;
-  const enter = interpolate(progress, [0, 0.16], [0, 1], { extrapolateRight: "clamp" });
+  const enterEnd = Math.max(1, Math.round(fps * 0.45));
+  const enter = interpolate(frame, [0, enterEnd], [0, 1], { extrapolateRight: "clamp" });
   const lineDraw = interpolate(progress, [0.2, 0.72], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+  const periodFrames = Math.max(1, Math.round(fps * 1.2));
+  const phase = ((Math.max(0, frame - enterEnd)) % periodFrames) / periodFrames;
+  const pulse = 0.96 + Math.sin(phase * Math.PI * 2) * 0.04;
   return (
-    <div style={{ position: "absolute", inset: 0, background: "transparent", display: "flex", flexDirection: "column", justifyContent: "center", padding: 80, opacity: enter, transform: \`translateY(\${interpolate(progress, [0, 0.16], [24, 0], { extrapolateRight: "clamp" })}px)\` }}>
+    <div style={{ position: "absolute", inset: 0, background: "transparent", display: "flex", flexDirection: "column", justifyContent: "center", padding: 80, opacity: enter, transform: \`translateY(\${interpolate(frame, [0, enterEnd], [24, 0], { extrapolateRight: "clamp" })}px)\` }}>
       <span style={{ fontSize: 28, letterSpacing: 4, color: "#7dd3fc" }}>{eyebrow ?? "TIN"}</span>
       <h1 style={{ fontSize: 96, lineHeight: 1.05, color: "#fff", margin: 0, fontWeight: 800 }}>{headline}</h1>
       <svg width="720" height="160" viewBox="0 0 720 160" style={{ marginTop: 40 }}>
         <path d="M24 120 C180 20 360 20 696 88" stroke="#7dd3fc" strokeWidth="12" fill="none" strokeLinecap="round" pathLength={1} strokeDasharray={1} strokeDashoffset={1 - lineDraw} />
+        <circle cx="696" cy="88" r="18" fill="#7dd3fc" opacity="0.35" style={{ transform: \`scale(\${pulse})\`, transformOrigin: "696px 88px" }} />
       </svg>
     </div>
   );
@@ -218,7 +224,11 @@ ${JSON.stringify(plan, null, 2)}
 LUẬT DÙNG CONTENT PLAN:
 - Giữ đúng title, viewerPromise, hook/openLoop/payoff và thứ tự sceneId/purpose/beat trừ khi cần sửa rất nhỏ để hợp TSX.
 - Mỗi cảnh phải hiện thực hóa đúng beat/narration/onScreenText/visualMetaphor/layoutFamily/motionProgression đã được lập kế hoạch.
-- Nếu scene có motionProgression, chuyển nó thành staged motion theo progress cục bộ của cảnh (durationInFrames + useCurrentFrame), không chỉ animate 1–3 giây đầu rồi để phần đuôi đứng yên. Final hold chỉ nên đến sau khi beat chính đã hoàn tất; statement beat tĩnh có chủ đích vẫn hợp lệ.
+- Đọc motionProgression như motion intent, KHÔNG như lệnh kéo mọi animation ra hết cảnh:
+  quick entrance/reveal/pop vào nhanh tự nhiên (thường settle 0.2–0.8 giây bằng frame/spring);
+  semantic progression chỉ dùng progress dài khi beat thật sự có quá trình như path/chart/timeline/focus shift;
+  continuous living motion dùng phase/period deterministic cho wave/pulse/signal/walking sau khi entrance đã settle.
+  Final hold sau khi beat chính land là hợp lệ; statement beat tĩnh có chủ đích vẫn hợp lệ.
 - Chỉ dùng các claims còn xuất hiện trong JSON trên. Nếu một claim không có ở đây, coi như đã bị loại vì thiếu căn cứ và KHÔNG được đưa vào narration, text, props hoặc code.
 - Không thêm số liệu/ngày/giá/phần trăm mới ngoài claim ledger đã duyệt; thiếu căn cứ thì viết lại theo hướng không cần chi tiết đó.
 - Vẫn phải tuân thủ toàn bộ AUTHORING_CONTRACT và AI_Output_Contract bên dưới.`;
@@ -237,7 +247,7 @@ ${lines.join("\n")}
 
 LUẬT DÙNG ADVISORY:
 - Đây là hướng sửa mềm cho authoring, không phải lý do xoá ý tưởng hoặc thay video bằng title-card an toàn.
-- Giải quyết bằng lựa chọn visual/motion cụ thể trong TSX: bố cục, hierarchy, staged motion, SVG/CSS bespoke, hoặc deliberate static hold khi hợp nội dung.`;
+- Giải quyết bằng lựa chọn visual/motion cụ thể trong TSX: bố cục, hierarchy, quick entrance đúng nhịp, semantic progression, continuous living motion, SVG/CSS bespoke, hoặc deliberate static hold khi hợp nội dung.`;
 }
 
 export function buildAuthorMessages(

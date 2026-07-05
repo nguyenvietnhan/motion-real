@@ -163,7 +163,7 @@ describe("buildAuthorMessages", () => {
           narration: "Con chip không đắt vì nó nhỏ. Nó đắt vì gần như không ai làm nổi.",
           onScreenText: "Đắt vì khan hiếm",
           visualMetaphor: "A tiny glowing chip behind a locked factory gate.",
-          motionProgression: "Early: the chip glows alone; mid: the gate closes; late: the bottleneck compresses around the takeaway.",
+          motionProgression: "Quick entrance: chip pops in under a second; semantic: the gate closes; living: the lock keeps a small warning pulse.",
           layoutFamily: "signature-visual",
           evidenceClaimIds: ["claim-01"],
         },
@@ -183,8 +183,12 @@ describe("buildAuthorMessages", () => {
     expect(text).toContain("Reveal scarcity before specs");
     expect(text).toContain("motionProgression");
     expect(text).toContain("gate closes");
-    expect(text).toContain("durationInFrames + useCurrentFrame");
-    expect(text).toContain("1–3 giây đầu");
+    expect(text).toContain("motion intent");
+    expect(text).toContain("quick entrance/reveal/pop");
+    expect(text).toContain("0.2–0.8 giây");
+    expect(text).toContain("semantic progression");
+    expect(text).toContain("continuous living motion");
+    expect(text).toContain("phase/period deterministic");
     expect(text).not.toContain("Unsupported $999 launch price");
     expect(text).not.toContain("claim-02");
   });
@@ -223,7 +227,7 @@ describe("buildAuthorMessages", () => {
           check: "motion-progression",
           severity: "advisory",
           sceneId: "scene-01",
-          message: "motionProgression must describe a purposeful temporal beat, not generic text/card appearance",
+          message: "motionProgression must describe a specific motion intent, not generic text/card appearance",
         },
       ],
     );
@@ -232,7 +236,9 @@ describe("buildAuthorMessages", () => {
     expect(text).toContain("CONTENT PLAN ADVISORIES TO RESOLVE IN TSX");
     expect(text).toContain("motion-progression @scene-01");
     expect(text).toContain("không phải lý do xoá ý tưởng");
-    expect(text).toContain("staged motion");
+    expect(text).toContain("quick entrance");
+    expect(text).toContain("semantic progression");
+    expect(text).toContain("continuous living motion");
   });
 
   it("carries a duration→word-budget instruction using the MEASURED speech rate", () => {
@@ -295,17 +301,23 @@ describe("buildAuthorMessages", () => {
     expect(text).toMatch(/beat chữ ký|bespoke/i);
   });
 
-  it("encourages visual progression across a scene without forcing motion everywhere", () => {
+  it("separates quick entrances, semantic progression, and living motion without forcing motion everywhere", () => {
     const [sys] = buildAuthorMessages({ text: "Chủ đề bất kỳ", urls: [] });
     const text = sys!.content;
-    expect(text).toMatch(/DIỄN TIẾN qua phần lớn thời lượng/);
+    expect(text).toMatch(/quick entrance\/reveal\/pop/);
+    expect(text).toMatch(/0\.2–0\.8 giây/);
+    expect(text).toMatch(/semantic progression/);
+    expect(text).toMatch(/continuous living motion/);
+    expect(text).toMatch(/phase = \(\(frame - startFrame\) % periodFrames\) \/ periodFrames/);
+    expect(text).toMatch(/useVideoConfig/);
     expect(text).toMatch(/durationInFrames/);
     expect(text).toMatch(/frame \/ \(durationInFrames - 1\)/);
     expect(text).toMatch(/motionProgression/);
-    expect(text).toMatch(/1–3 giây đầu/);
     expect(text).toMatch(/final hold.*beat chính/is);
     expect(text).toMatch(/KHÔNG phải luật bắt buộc/);
-    expect(text).toMatch(/cảnh tĩnh có chủ đích vẫn hoàn toàn hợp lệ/);
+    expect(text).toMatch(/statement beat tĩnh có chủ đích vẫn hợp lệ/);
+    expect(text).not.toMatch(/DIỄN TIẾN qua phần lớn thời lượng/);
+    expect(text).not.toMatch(/đừng dùng Math\.sin\(frame\), frame%n/);
     expect(text).not.toMatch(/\[0,\s*18\]/);
     expect(text).not.toMatch(/ANIMATION PHẢI|mọi cảnh phải chuyển động/);
   });
@@ -507,11 +519,13 @@ describe("buildReauthorMessages", () => {
   it("carries the same soft motion direction into user-requested scene rewrites", () => {
     const msgs = buildReauthorMessages({ ...base, intent: "chỉnh lại cảnh theo ý người dùng" });
     const system = msgs[0]!.content as string;
-    expect(system).toMatch(/DIỄN TIẾN qua phần lớn thời lượng/);
+    expect(system).toMatch(/quick entrance\/reveal\/pop/);
+    expect(system).toMatch(/semantic progression/);
+    expect(system).toMatch(/continuous living motion/);
     expect(system).toMatch(/durationInFrames/);
     expect(system).toMatch(/motionProgression/);
     expect(system).toMatch(/KHÔNG phải luật bắt buộc/);
-    expect(system).toMatch(/cảnh tĩnh có chủ đích vẫn hoàn toàn hợp lệ/);
+    expect(system).toMatch(/statement beat tĩnh có chủ đích vẫn hợp lệ/);
   });
 
   it("includes an image_url part when a still data URL is provided", () => {

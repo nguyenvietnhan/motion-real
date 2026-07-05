@@ -17,7 +17,7 @@ describe("workspace render-flow helpers", () => {
       creativeBootstrapChars: CREATIVE_BOOTSTRAP_INTENT.length,
       visionRepairChars: visionRepairIntent("chữ đè lên nhau").length,
     }).toEqual({
-      creativeBootstrapChars: 1032,
+      creativeBootstrapChars: 1074,
       visionRepairChars: 571,
     });
   });
@@ -26,14 +26,19 @@ describe("workspace render-flow helpers", () => {
     expect(CREATIVE_BOOTSTRAP_INTENT).toMatch(/3 việc cụ thể/);
     expect(CREATIVE_BOOTSTRAP_INTENT).toMatch(/visual anchor riêng/);
     expect(CREATIVE_BOOTSTRAP_INTENT).toMatch(/không chỉ làm đẹp mơ hồ/);
-    expect(CREATIVE_BOOTSTRAP_INTENT).toMatch(/ĐANG DIỄN TIẾN qua phần lớn thời lượng/);
+    expect(CREATIVE_BOOTSTRAP_INTENT).toMatch(/quick entrance\/reveal\/pop/);
+    expect(CREATIVE_BOOTSTRAP_INTENT).toMatch(/semantic progression/);
+    expect(CREATIVE_BOOTSTRAP_INTENT).toMatch(/continuous living motion/);
+    expect(CREATIVE_BOOTSTRAP_INTENT).toMatch(/phase\/period deterministic/);
     expect(CREATIVE_BOOTSTRAP_INTENT).toMatch(/không bịa thêm số liệu/);
     expect(CREATIVE_BOOTSTRAP_INTENT).toMatch(/không đổi scene id\/component id/);
     expect(CREATIVE_BOOTSTRAP_INTENT).toMatch(/khuyến khích sáng tạo, KHÔNG bắt buộc/);
     expect(CREATIVE_BOOTSTRAP_INTENT).toMatch(/cảnh tĩnh có chủ đích vẫn hợp lệ/);
     expect(CREATIVE_BOOTSTRAP_INTENT).toMatch(/KHÔNG được biến cảnh thành title-card/);
-    expect(CREATIVE_BOOTSTRAP_INTENT).toMatch(/interpolate có clamp hoặc spring/);
-    expect(CREATIVE_BOOTSTRAP_INTENT).toMatch(/KHÔNG dùng Math\.sin\(frame\)/);
+    expect(CREATIVE_BOOTSTRAP_INTENT).toMatch(/frame\/spring\/interpolate có clamp hoặc phase\/period bounded/);
+    expect(CREATIVE_BOOTSTRAP_INTENT).toMatch(/KHÔNG kéo một reveal đơn giản ra hết cảnh/);
+    expect(CREATIVE_BOOTSTRAP_INTENT).not.toMatch(/ĐANG DIỄN TIẾN qua phần lớn thời lượng/);
+    expect(CREATIVE_BOOTSTRAP_INTENT).not.toMatch(/KHÔNG dùng Math\.sin\(frame\)/);
     expect(CREATIVE_BOOTSTRAP_INTENT).not.toMatch(/ANIMATION PHẢI|NHIỀU PHA|chuyển động LIÊN TỤC|mạch đập|nhịp thở chậm/);
   });
 
