@@ -269,7 +269,6 @@ export const StoryboardView: React.FC<{
       <div className="ns-story-title">
         <strong style={{ fontSize: 16 }}>Duyệt cảnh</strong>
         {scenes.length > 0 && <span style={{ color: "var(--muted-foreground)", fontSize: 13 }}>Cảnh {idx + 1}/{scenes.length}</span>}
-        {editedCount > 0 && <span style={{ color: "var(--brand)", fontSize: 13, fontWeight: 700 }}>· đã ghi {editedCount} cảnh</span>}
       </div>
       {scenes.length > 0 && (
         <>
@@ -325,8 +324,11 @@ export const StoryboardView: React.FC<{
                 background: "rgba(0,0,0,0.6)", borderRadius: 5, padding: "0 5px", lineHeight: "15px" }}>{i + 1}</span>
               {hasEdit(s.sceneId) && (
                 <span title="Đã ghi yêu cầu chỉnh sửa" style={{ position: "absolute", right: 4, top: 4, width: 15, height: 15,
-                  display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, color: "#fff",
-                  background: "var(--brand)", borderRadius: 999, lineHeight: 1 }}>✎</span>
+                  color: "#fff", background: "var(--brand)", borderRadius: 999 }}>
+                  <svg viewBox="0 0 512 512" width="9" height="9" fill="currentColor" style={{ position: "absolute", left: "50%", top: "50%", transform: "translate(-50%, -50%)", display: "block" }}>
+                    <path d="M362.7 19.3L314.3 67.7 444.3 197.7l48.4-48.4c25-25 25-65.5 0-90.5L453.3 19.3c-25-25-65.5-25-90.5 0zm-71 71L58.6 323.5c-10.4 10.4-18 23.3-22.2 37.4L1 490.7c-3.9 13 8.4 25.3 21.4 21.4l129.8-35.4c14.1-4.2 27-11.8 37.4-22.2L422.3 221.7 291.7 90.3z" />
+                  </svg>
+                </span>
               )}
             </button>
           ))}

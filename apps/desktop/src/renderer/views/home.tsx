@@ -161,6 +161,14 @@ export const HomeView: React.FC<{
   onRetry?: () => void;
 }> = ({ aiReady, load, cards, onCreate, onOpen, onConnectPrompt, defaultVoiceProvider, onPickImages, onImportImageBytes, onUnstageImage, onDelete, onReveal, onRename, onRetry }) => {
   const [raw, setRaw] = useState("");
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  }, [raw]);
   const [images, setImages] = useState<StagedImage[]>([]);
   const [dragOver, setDragOver] = useState(false);
   const notify = useNotifications();
@@ -398,6 +406,7 @@ export const HomeView: React.FC<{
           {/* Top: Composer */}
           <div className="ns-composer">
             <textarea
+              ref={textareaRef}
               aria-label="Mô tả video hoặc đường dẫn bài báo"
               className="ns-composer-input"
               value={raw}
@@ -434,11 +443,6 @@ export const HomeView: React.FC<{
             </div>
           </div>
           
-          {hasLink && (
-            <p className="ns-create-hint">
-              {Icon.globe({ size: 14 })} Phát hiện {linkCount} link: app sẽ đọc nội dung và cào ảnh từ bài báo; ảnh bạn tự đính kèm vẫn được đưa cho AI.
-            </p>
-          )}
           {!aiReady && <p className="ns-create-hint warning">Chưa sẵn sàng AI. Bấm “Tạo bản nháp” để mở Cài đặt.</p>}
 
           {/* Bottom: Settings Grid */}

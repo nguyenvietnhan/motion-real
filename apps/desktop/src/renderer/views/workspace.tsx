@@ -87,7 +87,7 @@ const ScriptReview: React.FC<{
   return (
     <>
       <div className="ns-card" style={{ padding: 16, marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
-        <span style={{ color: "var(--muted-foreground)" }}>AI đã soạn kịch bản. Sửa lời đọc nếu cần, rồi duyệt để dựng video.</span>
+        <span style={{ color: "var(--muted-foreground)" }}>Kịch bản đã sẵn sàng. Vui lòng tinh chỉnh lời thoại (nếu cần) và duyệt dựng video.</span>
         <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
           <button className="ns-btn" onClick={() => onApply(edits)}>Lưu</button>
           <button className="ns-btn ns-btn-primary" onClick={() => { onApply(edits); onApprove(); }}>Duyệt và dựng</button>
@@ -109,7 +109,7 @@ const ScriptReview: React.FC<{
               
               <textarea className="ns-input" value={draft[l.sceneId]?.narration ?? ""} rows={2} placeholder="Lời đọc"
                 onChange={(e) => setDraft((d) => ({ ...d, [l.sceneId]: { ...d[l.sceneId]!, narration: e.target.value } }))}
-                style={{ width: "100%", padding: "8px 12px", resize: "vertical" }} />
+                style={{ width: "100%", padding: "8px 12px", resize: "vertical", minHeight: 64 }} />
             </div>
 
             {/* Right: Media preview thumbnail slot (fixed-width, keeps text inputs perfectly aligned across all cards) */}

@@ -45,7 +45,6 @@ export const Sidebar: React.FC<{
         </span>
         <span className="ns-account-info">
           <span className="ns-account-name">{s.text}</span>
-          {s.sub && <span className="ns-account-sub">{s.sub}</span>}
         </span>
       </button>
     </aside>

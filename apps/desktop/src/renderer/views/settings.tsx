@@ -208,7 +208,6 @@ export const SettingsView: React.FC<{
                     </span>
                     <span className="ns-acct-main">
                       <span className="ns-acct-label" title={currentAccount?.label}>{currentAccount?.label ?? "Đã kết nối"}</span>
-                      {selectedModelId && <span className="ns-acct-model">{selectedModelId}</span>}
                     </span>
                     <button className="ns-btn ns-acct-manage" onClick={onManageAccounts}>Quản lý</button>
                   </div>

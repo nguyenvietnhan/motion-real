@@ -136,6 +136,9 @@ button {
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.15);
 }
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
 
 /* Native form controls inherit the dark theme. */
 input,
@@ -415,6 +418,7 @@ textarea.ns-input {
   resize: vertical;
   max-width: 100%;
   max-height: 40vh;
+  min-height: 64px;
 }
 select.ns-input {
   appearance: none;
@@ -499,9 +503,10 @@ select.ns-input option {
   line-height: 1.6;
   font-family: inherit;
   outline: none;
-  resize: vertical;
+  resize: none;
   max-height: 40vh;
   box-sizing: border-box;
+  overflow-y: auto;
 }
 .ns-composer-bar {
   display: flex;
@@ -1063,32 +1068,7 @@ select.ns-input option {
   overflow: hidden;
   transition: all 0.3s ease;
 }
-.ns-project-thumb::after {
-  content: "▶";
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%) scale(0.85);
-  width: 36px;
-  height: 36px;
-  border-radius: 999px;
-  background: rgba(9, 9, 11, 0.7);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  color: #ffffff;
-  font-size: 11px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding-left: 2px;
-  opacity: 0;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  pointer-events: none;
-  z-index: 5;
-}
-.ns-project:hover .ns-project-thumb::after {
-  opacity: 1;
-  transform: translate(-50%, -50%) scale(1);
-}
+
 .ns-project-media {
   display: block;
   width: 100%;
@@ -2323,4 +2303,9 @@ select.ns-input option {
   background: rgba(59, 130, 246, 0.08);
   color: var(--brand);
   font-weight: 600;
+}
+
+/* Hide the ugly native WebKit resize gripper on textareas to match the dark theme */
+textarea::-webkit-resizer {
+  display: none;
 }
