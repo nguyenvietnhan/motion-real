@@ -67,18 +67,31 @@ type DesktopSettings = {
 };
 
 function settingsFilePath(): string {
+  return join(videoToolHome(), "motionreal-settings.json");
+}
+
+function legacySettingsFilePath(): string {
   return join(videoToolHome(), "news-studio-settings.json");
 }
 
-/** Read the desktop settings JSON (or {} when absent/unreadable). */
-function readSettings(path: string): DesktopSettings {
-  if (!existsSync(path)) return {};
+/** Read one existing desktop settings JSON, warning clearly when unreadable. */
+function readSettingsCandidate(path: string): { settings: DesktopSettings; ok: boolean } | null {
+  if (!existsSync(path)) return null;
   try {
-    return JSON.parse(readFileSync(path, "utf8")) as DesktopSettings;
+    return { settings: JSON.parse(readFileSync(path, "utf8")) as DesktopSettings, ok: true };
   } catch (e) {
-    console.warn(`[calibrate] could not parse ${path}, treating as empty:`, e);
-    return {};
+    console.warn(`[calibrate] could not parse ${path}, trying next/defaults:`, e);
+    return { settings: {}, ok: false };
   }
+}
+
+function readSettingsWithLegacy(canonicalPath: string, legacyPath: string): DesktopSettings {
+  const paths = canonicalPath === legacyPath ? [canonicalPath] : [canonicalPath, legacyPath];
+  for (const path of paths) {
+    const candidate = readSettingsCandidate(path);
+    if (candidate?.ok) return candidate.settings;
+  }
+  return {};
 }
 
 /** Atomic write so a crash mid-write never truncates the real settings file. */
@@ -90,7 +103,7 @@ function writeSettings(path: string, settings: DesktopSettings): void {
 
 async function main(): Promise<void> {
   const settingsPath = settingsFilePath();
-  const settings = readSettings(settingsPath);
+  const settings = readSettingsWithLegacy(settingsPath, legacySettingsFilePath());
 
   const providerArg = process.argv.find((arg) => arg.startsWith("--provider="))?.split("=")[1]
     ?? (process.argv.includes("--provider") ? process.argv[process.argv.indexOf("--provider") + 1] : undefined);

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import fc from "fast-check";
 import { SettingsStore, type SettingsStoreDeps } from "./settings-store.js";
 import { defaultSettings } from "../../shared/settings-model.js";
@@ -38,6 +38,30 @@ function memStore(seed?: string, env?: { apiKey?: string; voiceId?: string }, ci
   return { store: new SettingsStore(deps), readFile: () => file };
 }
 
+function migrationStore(seed: Record<string, string | undefined>) {
+  const files = { ...seed };
+  const deps: SettingsStoreDeps = {
+    filePath: "motionreal-settings.json",
+    legacyFilePath: "news-studio-settings.json",
+    defaults,
+    envApiKey: () => undefined,
+    envVoiceId: () => undefined,
+    exists: (path) => files[path] !== undefined,
+    readText: (path) => {
+      const value = files[path];
+      if (value === undefined) throw new Error(`missing ${path}`);
+      return value;
+    },
+    writeText: (path, text) => {
+      files[path] = text;
+    },
+  };
+  return {
+    store: new SettingsStore(deps),
+    readFile: (path: string) => files[path],
+  };
+}
+
 const aiAccountArb: fc.Arbitrary<AiAccountState> = fc.constantFrom<AiAccountState>(
   { kind: "disconnected" },
   { kind: "connected", accounts: [{ provider: "kiro", label: "Kiro" }] },
@@ -71,6 +95,63 @@ describe("Property 2: Settings load merge precedence", () => {
       }),
       { numRuns: 100 },
     );
+  });
+});
+
+describe("settings filename migration", () => {
+  it("prefers canonical settings over legacy settings when both exist", () => {
+    const { store } = migrationStore({
+      "motionreal-settings.json": JSON.stringify({ outputDir: "canonical" }),
+      "news-studio-settings.json": JSON.stringify({ outputDir: "legacy" }),
+    });
+
+    expect(store.current().outputDir).toBe("canonical");
+  });
+
+  it("reads legacy settings when canonical settings are absent, then saves canonical", () => {
+    const { store, readFile } = migrationStore({
+      "news-studio-settings.json": JSON.stringify({ outputDir: "legacy", scriptGateEnabled: true }),
+    });
+
+    expect(store.current().outputDir).toBe("legacy");
+    store.update({ scriptGateEnabled: false });
+
+    expect(JSON.parse(readFile("motionreal-settings.json")!).scriptGateEnabled).toBe(false);
+    expect(JSON.parse(readFile("motionreal-settings.json")!).outputDir).toBe("legacy");
+    expect(JSON.parse(readFile("news-studio-settings.json")!).scriptGateEnabled).toBe(true);
+  });
+
+  it("warns and falls through to legacy when canonical settings are unreadable", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    try {
+      const { store } = migrationStore({
+        "motionreal-settings.json": "{broken",
+        "news-studio-settings.json": JSON.stringify({ outputDir: "legacy" }),
+      });
+
+      expect(store.current().outputDir).toBe("legacy");
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining("motionreal-settings.json"),
+        expect.any(SyntaxError),
+      );
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it("warns and falls back to defaults when only legacy settings are unreadable", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    try {
+      const { store } = migrationStore({ "news-studio-settings.json": "{broken" });
+
+      expect(store.current().outputDir).toBe(defaults().outputDir);
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining("news-studio-settings.json"),
+        expect.any(SyntaxError),
+      );
+    } finally {
+      warn.mockRestore();
+    }
   });
 });
 

@@ -73,13 +73,15 @@ scrubSensitiveEnvironment(process.env);
  * launchable for review without a live License_Service.
  */
 
-const SETTINGS_FILE = join(videoToolHome(), "news-studio-settings.json");
+const SETTINGS_FILE = join(videoToolHome(), "motionreal-settings.json");
+const LEGACY_SETTINGS_FILE = join(videoToolHome(), "news-studio-settings.json");
 
 // Settings persistence lives in the tested SettingsStore (reconcile S2): load
 // merged over defaults (aiAccount forced from default), update/save excluding
 // aiAccount, voiceConfig with .env fallback.
 const settingsStore = new SettingsStore({
   filePath: SETTINGS_FILE,
+  legacyFilePath: LEGACY_SETTINGS_FILE,
   defaults: () => defaultSettings(videoToolHome()),
   envApiKey: () => bootVoiceEnv.vivibeApiKey,
   envVoiceId: () => bootVoiceEnv.vivibeVoiceId,

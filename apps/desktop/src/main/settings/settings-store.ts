@@ -25,6 +25,7 @@ export type ResolvedVoiceConfig = {
 
 export type SettingsStoreDeps = {
   filePath: string;
+  legacyFilePath?: string;
   defaults: () => SettingsModel;
   envApiKey: () => string | undefined;
   envVoiceId: () => string | undefined;
@@ -57,47 +58,58 @@ export class SettingsStore {
 
   private load(): SettingsModel {
     const base = this.deps.defaults();
-    try {
-      const exists = this.deps.exists ?? defaultExists;
-      if (!exists(this.deps.filePath)) return this.withCredentialStates(base);
-      const read = this.deps.readText ?? defaultReadText;
-      const saved = JSON.parse(read(this.deps.filePath)) as PersistedSettings;
-      this.encryptedKeys = { ...(saved.encryptedVoiceApiKeys ?? {}) };
-      this.legacyVivibeApiKey = saved.voiceApiKey?.trim() || undefined;
-      const provider: VoiceProviderChoice = saved.voiceProvider === "elevenlabs" ? "elevenlabs" : "vivibe";
-      const merged: SettingsModel = {
-        ...base,
-        ...saved,
-        voiceProvider: provider,
-        vivibeVoiceId: saved.vivibeVoiceId ?? saved.voiceId ?? base.vivibeVoiceId,
-        elevenLabsVoiceId: saved.elevenLabsVoiceId ?? base.elevenLabsVoiceId,
-        elevenLabsModelId: saved.elevenLabsModelId || ELEVENLABS_DEFAULT_MODEL_ID,
-        voiceCalibrations: { ...(saved.voiceCalibrations ?? {}) },
-        voiceCredentials: base.voiceCredentials,
-        aiAccount: base.aiAccount,
-      };
-      const legacyCarrier = merged as unknown as Record<string, unknown>;
-      for (const key of [
-        "voiceApiKey",
-        "voiceId",
-        "voiceWordsPerSecond",
-        "voiceWpsCalibratedFor",
-        "encryptedVoiceApiKeys",
-        "visualQaEnabled",
-      ]) delete legacyCarrier[key];
-      if (saved.voiceWordsPerSecond !== undefined && saved.voiceWpsCalibratedFor) {
-        const key = voiceCalibrationKey({ provider: "vivibe", voiceId: saved.voiceWpsCalibratedFor, speed: 1 });
-        if (merged.voiceCalibrations[key] === undefined) merged.voiceCalibrations[key] = saved.voiceWordsPerSecond;
+    const exists = this.deps.exists ?? defaultExists;
+    const read = this.deps.readText ?? defaultReadText;
+    for (const path of this.settingsReadPaths()) {
+      if (!exists(path)) continue;
+      try {
+        const saved = JSON.parse(read(path)) as PersistedSettings;
+        return this.withCredentialStates(this.mergeSavedSettings(base, saved));
+      } catch (error) {
+        console.warn(`[settings] failed to read settings file ${path}, trying next/defaults:`, error);
       }
-      if (saved.refinePasses === undefined && saved.visualQaEnabled !== undefined) {
-        merged.refinePasses = saved.visualQaEnabled ? DEFAULT_REFINE_PASSES : 0;
-      }
-      merged.refinePasses = clampRefinePasses(merged.refinePasses);
-      return this.withCredentialStates(merged);
-    } catch (error) {
-      console.warn("[settings] failed to read settings file, using defaults:", error);
-      return this.withCredentialStates(base);
     }
+    return this.withCredentialStates(base);
+  }
+
+  private settingsReadPaths(): string[] {
+    const paths = [this.deps.filePath, this.deps.legacyFilePath].filter((path): path is string => Boolean(path));
+    return [...new Set(paths)];
+  }
+
+  private mergeSavedSettings(base: SettingsModel, saved: PersistedSettings): SettingsModel {
+    this.encryptedKeys = { ...(saved.encryptedVoiceApiKeys ?? {}) };
+    this.legacyVivibeApiKey = saved.voiceApiKey?.trim() || undefined;
+    const provider: VoiceProviderChoice = saved.voiceProvider === "elevenlabs" ? "elevenlabs" : "vivibe";
+    const merged: SettingsModel = {
+      ...base,
+      ...saved,
+      voiceProvider: provider,
+      vivibeVoiceId: saved.vivibeVoiceId ?? saved.voiceId ?? base.vivibeVoiceId,
+      elevenLabsVoiceId: saved.elevenLabsVoiceId ?? base.elevenLabsVoiceId,
+      elevenLabsModelId: saved.elevenLabsModelId || ELEVENLABS_DEFAULT_MODEL_ID,
+      voiceCalibrations: { ...(saved.voiceCalibrations ?? {}) },
+      voiceCredentials: base.voiceCredentials,
+      aiAccount: base.aiAccount,
+    };
+    const legacyCarrier = merged as unknown as Record<string, unknown>;
+    for (const key of [
+      "voiceApiKey",
+      "voiceId",
+      "voiceWordsPerSecond",
+      "voiceWpsCalibratedFor",
+      "encryptedVoiceApiKeys",
+      "visualQaEnabled",
+    ]) delete legacyCarrier[key];
+    if (saved.voiceWordsPerSecond !== undefined && saved.voiceWpsCalibratedFor) {
+      const key = voiceCalibrationKey({ provider: "vivibe", voiceId: saved.voiceWpsCalibratedFor, speed: 1 });
+      if (merged.voiceCalibrations[key] === undefined) merged.voiceCalibrations[key] = saved.voiceWordsPerSecond;
+    }
+    if (saved.refinePasses === undefined && saved.visualQaEnabled !== undefined) {
+      merged.refinePasses = saved.visualQaEnabled ? DEFAULT_REFINE_PASSES : 0;
+    }
+    merged.refinePasses = clampRefinePasses(merged.refinePasses);
+    return merged;
   }
 
   /** Encrypt and remove a legacy plaintext Vivibe key after Electron is ready. */
