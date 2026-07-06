@@ -899,6 +899,21 @@ Phase 5 exit criteria:
   wiring.
 - Full gate passes.
 
+Status: done on 2026-07-06. Phase 5 inventoried IPC ownership, extracted
+settings/TTS and thumbnail handler groups into focused tested factories, and
+updated `docs/current/architecture.md` and `docs/current/maintenance.md` to
+reflect the new desktop-main shape. `index.ts` remains the Electron composition
+root for lifecycle, media scheme/protocol ordering, controller construction,
+native dialog adapters, and explicit dependency wiring. Phase close verification
+passed:
+
+```powershell
+npm.cmd run typecheck
+npm.cmd test
+npm.cmd run build
+git diff --check
+```
+
 ## Phase 6 - Renderer And TTS Domain Split
 
 Goal: prepare the media pipeline for future speech-synced visuals and SFX without
@@ -1311,7 +1326,7 @@ work.
 | Phase 2 - Authoring Backend Seam Split | done | Full gate passed on 2026-07-06. |
 | Phase 3 - Render Oracle Posture Clarity | done | Full gate passed on 2026-07-06. |
 | Phase 4 - Workspace State Machine Hardening | done | Full gate passed on 2026-07-06. |
-| Phase 5 - Desktop Main Root Containment | active | Phase close verification. |
+| Phase 5 - Desktop Main Root Containment | done | Full gate passed on 2026-07-06. |
 | Phase 6 - Renderer And TTS Domain Split | pending | Step 6.1 SRT helper split. |
 | Phase 7 - Renderer CSS Maintainability | pending | Step 7.1 CSS section inventory. |
 | Phase 8 - Small Operational Debt | pending | Step 8.1 repair budget effective value. |

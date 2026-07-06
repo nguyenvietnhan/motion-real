@@ -46,7 +46,9 @@ tested seam; do not keep thinning the facade just to reduce line count.
 The desktop-main thinning pass is complete for now. `index.ts` remains the
 Electron composition root, while local tested helpers own runtime env parsing,
 create-time image staging, BGM handlers, native save/export helpers, and
-`projects:create` IPC payload coercion. Keep Electron lifecycle, media
+`projects:create` IPC payload coercion. Settings/TTS and thumbnail IPC handlers
+also now live in focused handler factories with explicit root wiring. Keep
+Electron lifecycle, media
 scheme/protocol ordering, controller construction, and broad handler composition
 root-owned unless a future slice has a narrower reason than line count.
 

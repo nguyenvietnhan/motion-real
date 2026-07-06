@@ -35,6 +35,12 @@ directly:
   create-controller dependency wiring.
 - `bgm/bgm-handlers.ts` owns BGM view-model/list behavior and the contained BGM
   IPC handler group. The native picker adapter stays in `index.ts`.
+- `settings/settings-handlers.ts` owns the settings/TTS IPC handler group while
+  `index.ts` keeps the `SettingsStore` construction and voice-provider parser
+  wiring explicit.
+- `thumbnail/thumbnail-handlers.ts` owns the thumbnail IPC handler group while
+  thumbnail generation stays with `WorkspaceController` and thumbnail export
+  stays with `export/native-save.ts`.
 - `export/native-save.ts` owns video/thumbnail save helper behavior. The
   Electron dialog/window adapter stays in `index.ts`.
 - `create/create-ipc.ts` owns `projects:create` payload coercion and voice
