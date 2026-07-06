@@ -52,6 +52,139 @@ function card(over: Partial<ProjectCardVM> = {}): ProjectCardVM {
   };
 }
 
+type WorkspaceTransitionRow = {
+  workflow: string;
+  trigger: string;
+  from: string;
+  to: ProjectStage["kind"] | "deleted";
+  persisted: "disk" | "memory" | "both";
+  note: string;
+};
+
+const WORKSPACE_TRANSITION_MATRIX: readonly WorkspaceTransitionRow[] = [
+  {
+    workflow: "create",
+    trigger: "beginScript starts a create job without image review",
+    from: "new request",
+    to: "writing",
+    persisted: "memory",
+    note: "Live stage, input, aborter, and in-flight guard are memory-owned while authoring writes project files.",
+  },
+  {
+    workflow: "image review",
+    trigger: "beginCreate crawls link images with human review enabled",
+    from: "writing",
+    to: "image-review",
+    persisted: "both",
+    note: "pendingReview is memory-owned; imported crawled assets live on disk.",
+  },
+  {
+    workflow: "script gate",
+    trigger: "authoring succeeds while scriptGateEnabled is true",
+    from: "writing",
+    to: "script",
+    persisted: "disk",
+    note: "The manifest/authored scenes are disk-owned and can recover to script when no stills exist.",
+  },
+  {
+    workflow: "draft render",
+    trigger: "approve or script-gate-off authoring starts the draft repair loop",
+    from: "script",
+    to: "rendering",
+    persisted: "memory",
+    note: "Render progress and phase are live-only; the draft artifact is persisted only after the render passes.",
+  },
+  {
+    workflow: "ready",
+    trigger: "draft render passes",
+    from: "rendering",
+    to: "ready",
+    persisted: "both",
+    note: "The ready stage is live, while stills/draft MP4 on disk allow later recovery to ready.",
+  },
+  {
+    workflow: "edit",
+    trigger: "submitEdits reauthors selected scenes and renders one draft",
+    from: "ready",
+    to: "rendering",
+    persisted: "both",
+    note: "Edit/refine progress is live; scene rewrites, rollback snapshots, stills, and the draft are disk effects.",
+  },
+  {
+    workflow: "cancel",
+    trigger: "cancel aborts an in-flight create, render, edit, or publish job",
+    from: "writing/rendering",
+    to: "ready",
+    persisted: "memory",
+    note: "Abort state is live-only; recovery re-derives the prior reviewable stage from disk-backed artifacts.",
+  },
+  {
+    workflow: "publish",
+    trigger: "publish starts from a ready draft or full-render retry error",
+    from: "ready",
+    to: "published",
+    persisted: "both",
+    note: "The published stage is live, while the full MP4 and manifest metadata drive disk recovery.",
+  },
+  {
+    workflow: "recover",
+    trigger: "stage(projectId) has no live stage",
+    from: "none",
+    to: "ready",
+    persisted: "disk",
+    note: "Full output, draft output/stills, or manifest state chooses recovered published, ready, script, or error.",
+  },
+  {
+    workflow: "delete",
+    trigger: "delete(projectId)",
+    from: "any",
+    to: "deleted",
+    persisted: "both",
+    note: "The controller drops all per-project maps and asks the project store to remove disk state.",
+  },
+  {
+    workflow: "thumbnail",
+    trigger: "generateThumbnail runs while the project is not busy",
+    from: "published",
+    to: "published",
+    persisted: "both",
+    note: "The thumbnail render is guarded in memory; the thumbnail file is persisted and published stage is refreshed.",
+  },
+] as const;
+
+describe("workspace state transition matrix", () => {
+  it("covers the major Phase 4 workflows", () => {
+    expect(WORKSPACE_TRANSITION_MATRIX.map((row) => row.workflow)).toEqual([
+      "create",
+      "image review",
+      "script gate",
+      "draft render",
+      "ready",
+      "edit",
+      "cancel",
+      "publish",
+      "recover",
+      "delete",
+      "thumbnail",
+    ]);
+    expect(new Set(WORKSPACE_TRANSITION_MATRIX.map((row) => row.workflow)).size).toBe(WORKSPACE_TRANSITION_MATRIX.length);
+    expect(WORKSPACE_TRANSITION_MATRIX.every((row) => row.trigger && row.from && row.note)).toBe(true);
+  });
+
+  it("names which transitions are live-only versus disk-recoverable", () => {
+    const byWorkflow = new Map(WORKSPACE_TRANSITION_MATRIX.map((row) => [row.workflow, row]));
+
+    expect(byWorkflow.get("create")).toMatchObject({ persisted: "memory", to: "writing" });
+    expect(byWorkflow.get("image review")).toMatchObject({ persisted: "both", to: "image-review" });
+    expect(byWorkflow.get("script gate")).toMatchObject({ persisted: "disk", to: "script" });
+    expect(byWorkflow.get("draft render")).toMatchObject({ persisted: "memory", to: "rendering" });
+    expect(byWorkflow.get("ready")).toMatchObject({ persisted: "both", to: "ready" });
+    expect(byWorkflow.get("cancel")?.note).toMatch(/prior reviewable stage/);
+    expect(byWorkflow.get("delete")).toMatchObject({ persisted: "both", to: "deleted" });
+    expect(byWorkflow.get("thumbnail")).toMatchObject({ persisted: "both", to: "published" });
+  });
+});
+
 describe("projects:list status recovery", () => {
   it("uses the full MP4 on disk as done when the brief/card status is stale", async () => {
     const ctrl = new WorkspaceController(baseDeps({

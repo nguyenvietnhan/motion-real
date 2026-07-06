@@ -661,6 +661,17 @@ npm.cmd test -- --run apps/desktop/src/main/workspace/workspace-controller.test.
 npm.cmd run typecheck
 ```
 
+Status: done on 2026-07-06. Added a test-owned transition matrix covering
+create, image review, script gate, draft render, ready, edit, cancel, publish,
+recover, delete, and thumbnail, including disk/memory ownership. Focused
+verification passed:
+
+```powershell
+npm.cmd test -- --run apps/desktop/src/main/workspace/workspace-controller.test.ts apps/desktop/src/main/workspace/workspace-view-model.test.ts
+git diff --check
+npm.cmd run typecheck
+```
+
 ### Step 4.2 - Extract Pure Workspace Policies Only
 
 Scope:
@@ -1213,7 +1224,7 @@ work.
 | Phase 1 - Low-Risk Truth And Observability | done | Full gate passed on 2026-07-06. |
 | Phase 2 - Authoring Backend Seam Split | done | Full gate passed on 2026-07-06. |
 | Phase 3 - Render Oracle Posture Clarity | done | Full gate passed on 2026-07-06. |
-| Phase 4 - Workspace State Machine Hardening | active | Step 4.1 state transition matrix. |
+| Phase 4 - Workspace State Machine Hardening | active | Step 4.2 pure workspace policies. |
 | Phase 5 - Desktop Main Root Containment | pending | Step 5.1 IPC ownership inventory. |
 | Phase 6 - Renderer And TTS Domain Split | pending | Step 6.1 SRT helper split. |
 | Phase 7 - Renderer CSS Maintainability | pending | Step 7.1 CSS section inventory. |
