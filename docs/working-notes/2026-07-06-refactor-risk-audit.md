@@ -730,6 +730,16 @@ Focused verification:
 npm.cmd test -- --run apps/desktop/src/main/workspace/workspace-controller.test.ts apps/desktop/src/main/agent/repair-loop.test.ts
 ```
 
+Status: done on 2026-07-06. Added a cancel-during-edit regression proving that
+an aborted reauthor returns to the prior ready draft, skips edited-scene stills,
+and does not render a draft MP4 after cancel. Focused verification passed:
+
+```powershell
+npm.cmd test -- --run apps/desktop/src/main/workspace/workspace-controller.test.ts apps/desktop/src/main/agent/repair-loop.test.ts
+git diff --check
+npm.cmd run typecheck
+```
+
 ### Step 4.4 - Consider One Workflow Extraction Only After Tests
 
 Scope:
@@ -1235,7 +1245,7 @@ work.
 | Phase 1 - Low-Risk Truth And Observability | done | Full gate passed on 2026-07-06. |
 | Phase 2 - Authoring Backend Seam Split | done | Full gate passed on 2026-07-06. |
 | Phase 3 - Render Oracle Posture Clarity | done | Full gate passed on 2026-07-06. |
-| Phase 4 - Workspace State Machine Hardening | active | Step 4.3 edit/refine/cancel regressions. |
+| Phase 4 - Workspace State Machine Hardening | active | Step 4.4 workflow extraction decision. |
 | Phase 5 - Desktop Main Root Containment | pending | Step 5.1 IPC ownership inventory. |
 | Phase 6 - Renderer And TTS Domain Split | pending | Step 6.1 SRT helper split. |
 | Phase 7 - Renderer CSS Maintainability | pending | Step 7.1 CSS section inventory. |

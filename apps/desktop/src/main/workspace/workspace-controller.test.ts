@@ -974,6 +974,52 @@ describe("submitEdits (per-scene free-form edit)", () => {
     expect(job.preprompt.perSceneIntent["scene-01"]).toContain("tông màu ấm");
   });
 
+  it("cancel during edit reauthor recovers the prior ready draft and skips stills/draft render", async () => {
+    let seenSignal: AbortSignal | undefined;
+    let releaseReauthor: (() => void) | undefined;
+    const reauthorScenes = vi.fn(async (_job: unknown, _hooks: AgentHooks, signal?: AbortSignal): Promise<AuthorOutcome> => {
+      seenSignal = signal;
+      await new Promise<void>((resolve) => { releaseReauthor = resolve; });
+      return { kind: "authored", sceneIds: ["scene-01"] };
+    });
+    const renderStills = vi.fn(async () => ({ stills: ["media://still/scene-01.png"] }));
+    const generateValidateRepair = vi.fn(async (): Promise<RepairOutcome> => ({ kind: "passed", attempts: 1 }));
+    const worker: AgentWorker = {
+      author: async (): Promise<AuthorOutcome> => ({ kind: "authored", sceneIds: [] }),
+      reauthorScenes,
+      publish: async () => ({ ok: true, outputPath: "out.mp4" }),
+      generateValidateRepair,
+      renderStills,
+      visualQa: async () => [],
+    };
+    const ctrl = new WorkspaceController(
+      baseDeps({
+        worker,
+        settings: { scriptGateEnabled: false, maxRepairAttempts: 3, refinePasses: 1, refineEarlyStop: true, imageCrawlAiFilter: false, imageCrawlHumanReview: false },
+        loadManifest: async () => ({ scenes: [{ id: "scene-01" }] }),
+        hasStill: () => true,
+        hasDraft: () => true,
+        draftMedia: () => "media://p1.draft.mp4",
+      }),
+    );
+    ctrl.setStage("p1", { kind: "ready", scenes: [] });
+    ctrl.submitEdits("p1", [{ sceneId: "scene-01", text: "make title larger" }], "");
+    await flush();
+
+    expect(seenSignal).toBeDefined();
+    expect((await ctrl.stage("p1")).kind).toBe("rendering");
+    ctrl.cancel("p1");
+    expect(seenSignal!.aborted).toBe(true);
+    releaseReauthor?.();
+    await flush();
+
+    expect(renderStills).not.toHaveBeenCalled();
+    expect(generateValidateRepair).not.toHaveBeenCalled();
+    const st = await ctrl.stage("p1");
+    expect(st.kind).toBe("ready");
+    if (st.kind === "ready") expect(st.draftPath).toBe("media://p1.draft.mp4");
+  });
+
   it("when EVERY rewrite fails admission (none applied), returns to ready with a notice and does NOT re-render", async () => {
     const reauthorScenes = vi.fn(async () => ({ kind: "authored", sceneIds: [] }) as AuthorOutcome); // zero applied
     const generateValidateRepair = vi.fn(async () => ({ kind: "passed", attempts: 1 }) as RepairOutcome);
