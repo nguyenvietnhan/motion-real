@@ -1071,6 +1071,19 @@ npm.cmd test -- --run packages/pipeline/src/render/cache.test.ts packages/pipeli
 npm.cmd run typecheck
 ```
 
+Status: done on 2026-07-06. Extracted render bundle/composition preparation
+support to `packages/pipeline/src/render/composition-prep.ts`, including timing
+helpers, Remotion root helpers, bundle/composition LRU caches, public-dir
+resolution, static-audio validation, and workspace webpack override. Render
+primitives remain in `renderer.ts`, and the old public exports are re-exported
+from `renderer.ts` for compatibility. Focused verification passed:
+
+```powershell
+npm.cmd test -- --run packages/pipeline/src/render/cache.test.ts packages/pipeline/src/render/renderer.test.ts packages/pipeline/src/orchestrator.test.ts
+git diff --check
+npm.cmd run typecheck
+```
+
 ### Step 6.5 - Design Speech-Timing Scene API Before Feature Work
 
 Scope:
@@ -1380,7 +1393,7 @@ work.
 | Phase 3 - Render Oracle Posture Clarity | done | Full gate passed on 2026-07-06. |
 | Phase 4 - Workspace State Machine Hardening | done | Full gate passed on 2026-07-06. |
 | Phase 5 - Desktop Main Root Containment | done | Full gate passed on 2026-07-06. |
-| Phase 6 - Renderer And TTS Domain Split | active | Step 6.4 renderer cache/preparation helpers. |
+| Phase 6 - Renderer And TTS Domain Split | active | Step 6.5 speech-timing scene API design. |
 | Phase 7 - Renderer CSS Maintainability | pending | Step 7.1 CSS section inventory. |
 | Phase 8 - Small Operational Debt | pending | Step 8.1 repair budget effective value. |
 | Phase 9 - Feature Readiness | pending | Step 9.1 SFX architecture decision. |
