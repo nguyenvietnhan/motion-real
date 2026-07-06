@@ -232,6 +232,17 @@ controllers. Inline handler groups still remain for license, gateway, projects,
 thumbnail, script, review, settings, and TTS, so Phase 5 starts with ownership
 inventory before any extraction.
 
+Status: done for Phase 6 start on 2026-07-06. Baseline reconfirmed from
+commit `3fd782e`; working tree was clean, contract/docs anchors were present,
+and the renderer/TTS hub targets still matched the Phase 6 scope:
+
+- `packages/tts/src/index.ts` remained 898 lines and still owned provider
+  clients, SRT/timestamp helpers, audio duration/concat/mix helpers, and
+  ffmpeg/ffprobe process execution.
+- `packages/pipeline/src/render/renderer.ts` remained 828 lines and still owned
+  render primitives, Remotion bundle/composition cache, cancel bridging, timing
+  instrumentation, and composition preparation.
+
 ## Phase 1 - Low-Risk Truth And Observability
 
 Goal: fix documented drift and make existing safety degradation visible before
@@ -1327,7 +1338,7 @@ work.
 | Phase 3 - Render Oracle Posture Clarity | done | Full gate passed on 2026-07-06. |
 | Phase 4 - Workspace State Machine Hardening | done | Full gate passed on 2026-07-06. |
 | Phase 5 - Desktop Main Root Containment | done | Full gate passed on 2026-07-06. |
-| Phase 6 - Renderer And TTS Domain Split | pending | Step 6.1 SRT helper split. |
+| Phase 6 - Renderer And TTS Domain Split | active | Step 6.1 SRT helper split. |
 | Phase 7 - Renderer CSS Maintainability | pending | Step 7.1 CSS section inventory. |
 | Phase 8 - Small Operational Debt | pending | Step 8.1 repair budget effective value. |
 | Phase 9 - Feature Readiness | pending | Step 9.1 SFX architecture decision. |
