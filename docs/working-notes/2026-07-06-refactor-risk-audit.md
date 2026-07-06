@@ -243,6 +243,13 @@ and the renderer/TTS hub targets still matched the Phase 6 scope:
   render primitives, Remotion bundle/composition cache, cancel bridging, timing
   instrumentation, and composition preparation.
 
+Status: done for Phase 7 start on 2026-07-07. Baseline reconfirmed from
+commit `1c45a25`; working tree was clean, contract/docs anchors were present,
+and `apps/desktop/src/renderer/theme.css` remained the global renderer CSS
+target at 2,311 lines. The renderer imports the stylesheet from `main.tsx`
+and the dev UI audit only, so Phase 7 starts with a CSS section inventory
+before any move-only split.
+
 ## Phase 1 - Low-Risk Truth And Observability
 
 Goal: fix documented drift and make existing safety degradation visible before
@@ -1419,7 +1426,7 @@ work.
 | Phase 4 - Workspace State Machine Hardening | done | Full gate passed on 2026-07-06. |
 | Phase 5 - Desktop Main Root Containment | done | Full gate passed on 2026-07-06. |
 | Phase 6 - Renderer And TTS Domain Split | done | Full gate passed on 2026-07-06. |
-| Phase 7 - Renderer CSS Maintainability | pending | Step 7.1 CSS section inventory. |
+| Phase 7 - Renderer CSS Maintainability | active | Step 7.1 CSS section inventory. |
 | Phase 8 - Small Operational Debt | pending | Step 8.1 repair budget effective value. |
 | Phase 9 - Feature Readiness | pending | Step 9.1 SFX architecture decision. |
 
