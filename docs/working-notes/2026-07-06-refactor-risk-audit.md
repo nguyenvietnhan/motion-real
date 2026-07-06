@@ -274,7 +274,7 @@ Acceptance:
 Focused verification:
 
 ```powershell
-npm.cmd test -- --run packages/pipeline/src/safety/typecheck-authored.test.ts
+npm.cmd test -- --run packages/pipeline/src/safety/typecheck-authored.test.ts packages/pipeline/src/cli/doctor.test.ts
 npm.cmd run typecheck
 ```
 
@@ -705,7 +705,7 @@ Acceptance:
 Focused verification:
 
 ```powershell
-npm.cmd test -- --run packages/tts/src/index.test.ts packages/pipeline/src/audio/captions.test.ts
+npm.cmd test -- --run packages/tts/src/elevenlabs.test.ts packages/pipeline/src/audio/captions.test.ts
 npm.cmd run typecheck
 ```
 
@@ -725,11 +725,13 @@ Acceptance:
 
 - Retry behavior and error wording preserved.
 - TTS cache identity is unchanged.
+- If Vivibe extraction lacks direct existing coverage, add a focused provider
+  test in the same step before moving behavior.
 
 Focused verification:
 
 ```powershell
-npm.cmd test -- --run packages/tts/src/index.test.ts packages/pipeline/src/audio/tts.test.ts
+npm.cmd test -- --run packages/tts/src/elevenlabs.test.ts packages/pipeline/src/audio/tts-config.test.ts packages/pipeline/src/tools/create-tools.test.ts
 npm.cmd run typecheck
 ```
 
@@ -748,11 +750,13 @@ Acceptance:
 
 - ffmpeg/ffprobe fallbacks unchanged.
 - Output audio paths and durations stay compatible with lock/caption code.
+- Add or keep focused tests for any audio operation moved out of
+  `packages/tts/src/index.ts`.
 
 Focused verification:
 
 ```powershell
-npm.cmd test -- --run packages/tts/src/index.test.ts packages/pipeline/src/audio/lock.test.ts packages/pipeline/src/audio/captions.test.ts
+npm.cmd test -- --run packages/tts/src/elevenlabs.test.ts packages/pipeline/src/audio/lock.test.ts packages/pipeline/src/audio/captions.test.ts
 npm.cmd run typecheck
 ```
 
