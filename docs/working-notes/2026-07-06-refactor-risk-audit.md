@@ -1413,6 +1413,19 @@ Phase 8 exit criteria:
 - Known small debt is either fixed or explicitly deferred with rationale.
 - Full gate passes if code changed.
 
+Status: done on 2026-07-07. Phase 8 clamped repair budget at the settings
+boundary so persisted/UI/effective values match the repair-loop cap, hardened
+the thumbnail lock private boundary with a concurrency regression, and
+documented the serial-render assumptions that must change before parallel
+rendering is enabled. Phase close verification passed:
+
+```powershell
+npm.cmd run typecheck
+npm.cmd test
+npm.cmd run build
+git diff --check
+```
+
 ## Phase 9 - Feature Readiness For SFX And Speech-Synced Visuals
 
 Goal: only start new video features after the supporting surfaces are clear.
@@ -1531,7 +1544,7 @@ work.
 | Phase 5 - Desktop Main Root Containment | done | Full gate passed on 2026-07-06. |
 | Phase 6 - Renderer And TTS Domain Split | done | Full gate passed on 2026-07-06. |
 | Phase 7 - Renderer CSS Maintainability | done | Full gate passed on 2026-07-07. |
-| Phase 8 - Small Operational Debt | active | Step 8.1 repair budget effective value. |
+| Phase 8 - Small Operational Debt | done | Full gate passed on 2026-07-07. |
 | Phase 9 - Feature Readiness | pending | Step 9.1 SFX architecture decision. |
 
 ## Global Exit Criteria
