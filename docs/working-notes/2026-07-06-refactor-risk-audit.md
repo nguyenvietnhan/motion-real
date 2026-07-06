@@ -879,6 +879,20 @@ Acceptance:
 - `index.ts` remains understandable as app composition root.
 - No lifecycle/window/media protocol code moved for cosmetic reasons.
 
+Status: done on 2026-07-06. Repeated the proven handler-factory pattern for
+the thumbnail IPC group in `thumbnail/thumbnail-handlers.ts`. The factory keeps
+thumbnail generation delegated to `WorkspaceController` and thumbnail export
+delegated to `native-save`; `index.ts` still owns dependency wiring. No further
+handler groups were extracted in this phase because license/gateway/projects/
+script/review now cross broader lifecycle, workspace, or manager boundaries.
+Focused verification passed:
+
+```powershell
+npm.cmd test -- --run apps/desktop/src/main/thumbnail/thumbnail-handlers.test.ts apps/desktop/src/main/export/native-save.test.ts apps/desktop/src/main/workspace/workspace-controller.test.ts apps/desktop/src/preload/client.test.ts
+git diff --check
+npm.cmd run typecheck
+```
+
 Phase 5 exit criteria:
 
 - New features have a clear pattern: domain handler factory plus explicit root
@@ -1297,7 +1311,7 @@ work.
 | Phase 2 - Authoring Backend Seam Split | done | Full gate passed on 2026-07-06. |
 | Phase 3 - Render Oracle Posture Clarity | done | Full gate passed on 2026-07-06. |
 | Phase 4 - Workspace State Machine Hardening | done | Full gate passed on 2026-07-06. |
-| Phase 5 - Desktop Main Root Containment | active | Step 5.3 proven handler group follow-up. |
+| Phase 5 - Desktop Main Root Containment | active | Phase close verification. |
 | Phase 6 - Renderer And TTS Domain Split | pending | Step 6.1 SRT helper split. |
 | Phase 7 - Renderer CSS Maintainability | pending | Step 7.1 CSS section inventory. |
 | Phase 8 - Small Operational Debt | pending | Step 8.1 repair budget effective value. |

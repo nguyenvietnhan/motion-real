@@ -18,6 +18,7 @@ import { toCards } from "../shared/gallery-controller.js";
 import { defaultSettings } from "../shared/settings-model.js";
 import { SettingsStore } from "./settings/settings-store.js";
 import { createSettingsHandlers } from "./settings/settings-handlers.js";
+import { createThumbnailHandlers } from "./thumbnail/thumbnail-handlers.js";
 import {
   importDroppedImages,
   importPickedImageFiles,
@@ -355,6 +356,11 @@ const settingsHandlers = createSettingsHandlers({
   parseVoiceProvider,
 });
 
+const thumbnailHandlers = createThumbnailHandlers({
+  generateThumbnail: (projectId) => workspace.generateThumbnail(projectId),
+  saveThumbnail: (projectId) => saveProjectThumbnail(projectId, nativeSaveDeps),
+});
+
 // IPC ownership inventory (Phase 5): keep Electron lifecycle and dependency
 // wiring here, but route contained behavior to focused owners when a seam exists.
 // - license: inline thin wrapper over LicenseManager.
@@ -363,7 +369,7 @@ const settingsHandlers = createSettingsHandlers({
 //   create behavior in CreateController, image staging in image-staging.ts,
 //   workspace behavior in WorkspaceController, and native save in native-save.ts.
 // - BGM: grouped factory in bgm/bgm-handlers.ts.
-// - thumbnail: inline thin wrapper over WorkspaceController/native-save.
+// - thumbnail: grouped factory in thumbnail/thumbnail-handlers.ts.
 // - script/review: inline thin wrappers over WorkspaceController/settingsStore.
 // - settings/TTS: grouped factory in settings/settings-handlers.ts.
 const handlers: InvokeHandlers = {
@@ -413,9 +419,7 @@ const handlers: InvokeHandlers = {
   },
 
   ...bgmHandlers,
-
-  "thumbnail:generate": (projectId) => workspace.generateThumbnail(String(projectId)),
-  "thumbnail:save": (projectId) => saveProjectThumbnail(projectId, nativeSaveDeps),
+  ...thumbnailHandlers,
 
   "script:get": (projectId) => workspace.scriptGate(String(projectId)),
   "script:applyEdits": (projectId, edits) => workspace.applyEdits(String(projectId), edits as ScriptEdit[]),
