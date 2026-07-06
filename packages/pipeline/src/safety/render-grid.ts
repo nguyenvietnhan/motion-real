@@ -903,6 +903,31 @@ export function checkDensity(frame: Frame, sceneId?: string, options?: RenderGri
 
 // --- oracle registry -------------------------------------------------------
 
+/**
+ * Oracle posture map (Phase 3 refactor guard). Keep this table in sync with
+ * RENDER_ORACLES and the external orchestrator passes before changing severity.
+ *
+ * | id | auto-run in runRenderGrid | external orchestrator pass | exported/manual only | effective severity | posture reason |
+ * | --- | --- | --- | --- | --- | --- |
+ * | pacing (N20) | yes, spec | no | no | warning | pacing is editorial and recoverable |
+ * | audio-sync (N22) | yes, spec | no | no | warning | reports drift after lock without failing render |
+ * | duration (N28) | yes, spec | no | no | warning | soft brief target, not render integrity |
+ * | captions (N29) | yes, spec | no | no | warning | caption coverage/line-length advisory |
+ * | in-frame (N14) | yes, format geometry | no | no | warning | catches off-canvas pixels while visual layout matures |
+ * | content-zone (N14) | yes, TikTok frame | no | no | warning | TikTok content-zone/caption reserve is advisory |
+ * | caption-clearance (N14) | yes, TikTok frame | no | no | warning | caption-band clearance is advisory |
+ * | divider-clearance-above (N14) | yes, TikTok frame when enabled | no | no | warning | only meaningful for divider-rendering profiles |
+ * | density (N30) | yes, frame | no | no | warning | overcrowding heuristic can false-positive |
+ * | dead-air (N19) | yes, frame | no | no | warning | blank/near-empty stills need human/editorial review |
+ * | contrast (N18) | yes, frame | no | no | warning | raster contrast estimate is approximate |
+ * | transition (N21) | yes, adjacent frames | no | no | warning | coarse still-to-still flicker heuristic |
+ * | safe-area (N14) | no | no | yes | warning | legacy/manual pixel probe, superseded by active N14 scans |
+ * | late-safe-area (N14) | no | yes | no | warning | late stills are sampled by orchestrator and never gate |
+ * | overlap (N15) | no | yes | no | warning at orchestrator | needs measured layout rects |
+ * | truncation (N17) | no | yes | no | warning at orchestrator | needs measured rects plus a still |
+ * | richness (N23) | no | no | yes | warning | needs chronological multi-frame samples |
+ */
+
 type BaseOracle = {
   /** Stable registry key (kebab-case), distinct from the N-number. */
   id: string;
