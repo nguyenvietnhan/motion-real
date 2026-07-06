@@ -344,6 +344,8 @@ npm.cmd test -- --run apps/desktop/src/main/authoring/content-plan.test.ts apps/
 npm.cmd run typecheck
 ```
 
+Status: done in commit `0117ee2`.
+
 ### Step 2.2 - Extract Author Reply Runner
 
 Scope:
@@ -366,6 +368,14 @@ Focused verification:
 
 ```powershell
 npm.cmd test -- --run apps/desktop/src/main/authoring/ninerouter-backend.test.ts apps/desktop/src/main/authoring/reply-parser.test.ts
+npm.cmd run typecheck
+```
+
+Status: done on 2026-07-06. Focused verification passed:
+
+```powershell
+npm.cmd test -- --run apps/desktop/src/main/authoring/ninerouter-backend.test.ts apps/desktop/src/main/authoring/reply-parser.test.ts
+git diff --check
 npm.cmd run typecheck
 ```
 
@@ -1116,7 +1126,7 @@ work.
 | --- | --- | --- |
 | Phase 0 - Plan Control And Baseline | done | Reconfirm Step 0.2 again before any later phase. |
 | Phase 1 - Low-Risk Truth And Observability | done | Full gate passed on 2026-07-06. |
-| Phase 2 - Authoring Backend Seam Split | active | Step 2.1 content-plan runner. |
+| Phase 2 - Authoring Backend Seam Split | active | Step 2.3 reauthor runner. |
 | Phase 3 - Render Oracle Posture Clarity | pending | Step 3.1 posture table. |
 | Phase 4 - Workspace State Machine Hardening | pending | Step 4.1 state transition matrix. |
 | Phase 5 - Desktop Main Root Containment | pending | Step 5.1 IPC ownership inventory. |
