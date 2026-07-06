@@ -90,14 +90,15 @@ const LATE_SAFE_AREA_FRACTIONS = [0.82];
  *   scaffoldVideoProject : create a self-contained project + empty manifest +
  *                          authored/ dir for the AI to fill.
  *   renderProject        : admit authored scenes → manifest→spec → static grid →
- *                          TTS → lock → build gate → determinism → render
- *                          (per-project authored entry) → render oracles →
- *                          review → clean scratch.
+ *                          N10 authored typecheck → TTS → lock → build gate →
+ *                          authored entry → N31 runtime probe → determinism →
+ *                          render → review → render oracles → layout N15/N17 →
+ *                          late safe-area → aggregate report → clean scratch.
  *
- * Every render operation (determinism, render, review stills) bundles the
- * PER-PROJECT authored entry, so AI-written scenes render exactly like the old
- * built-ins — but the code lives in the project folder, keeping each video
- * self-contained. Every error path records `state: "failed"` before rethrowing.
+ * Every runtime/render operation below bundles the PER-PROJECT authored entry,
+ * so AI-written scenes render exactly like the old built-ins — but the code
+ * lives in the project folder, keeping each video self-contained. Every error
+ * path records `state: "failed"` before rethrowing.
  */
 
 // --- scaffoldVideoProject --------------------------------------------------
@@ -257,9 +258,9 @@ export type RenderProjectResult = {
 
 /**
  * Render a scaffolded project end-to-end. Admits + registers every authored
- * scene, converts the manifest to a spec, runs the Tier-1 static grid as the
- * gate, then TTS → lock → build gate → determinism → render → render oracles →
- * review, finally cleaning up the generated entry/scratch.
+ * scene, converts the manifest to a spec, runs static grid + N10, then TTS →
+ * lock → build gate → authored entry → N31 → determinism → render → review →
+ * render/layout/late-sample oracles, finally cleaning up generated scratch.
  */
 export async function renderProject(projectId: string, opts: RenderProjectOptions = {}): Promise<RenderProjectResult> {
   await ensureProject(projectId);
