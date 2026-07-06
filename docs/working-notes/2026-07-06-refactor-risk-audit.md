@@ -853,6 +853,17 @@ npm.cmd test -- --run apps/desktop/src/main/create/create-ipc.test.ts apps/deskt
 npm.cmd run typecheck
 ```
 
+Status: done on 2026-07-06. Extracted the settings/TTS IPC group to
+`settings/settings-handlers.ts` with explicit dependencies over `SettingsStore`
+and voice-provider parsing; `index.ts` now spreads `settingsHandlers` while
+keeping dependency wiring root-owned. Focused verification passed:
+
+```powershell
+npm.cmd test -- --run apps/desktop/src/main/settings/settings-handlers.test.ts apps/desktop/src/main/create/create-ipc.test.ts apps/desktop/src/main/settings/settings-store.test.ts apps/desktop/src/preload/client.test.ts
+git diff --check
+npm.cmd run typecheck
+```
+
 ### Step 5.3 - Repeat Only For Proven Handler Groups
 
 Scope:
@@ -1286,7 +1297,7 @@ work.
 | Phase 2 - Authoring Backend Seam Split | done | Full gate passed on 2026-07-06. |
 | Phase 3 - Render Oracle Posture Clarity | done | Full gate passed on 2026-07-06. |
 | Phase 4 - Workspace State Machine Hardening | done | Full gate passed on 2026-07-06. |
-| Phase 5 - Desktop Main Root Containment | active | Step 5.2 extract one inline handler group. |
+| Phase 5 - Desktop Main Root Containment | active | Step 5.3 proven handler group follow-up. |
 | Phase 6 - Renderer And TTS Domain Split | pending | Step 6.1 SRT helper split. |
 | Phase 7 - Renderer CSS Maintainability | pending | Step 7.1 CSS section inventory. |
 | Phase 8 - Small Operational Debt | pending | Step 8.1 repair budget effective value. |

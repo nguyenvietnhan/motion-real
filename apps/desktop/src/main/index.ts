@@ -17,6 +17,7 @@ import { stripL0Tokens } from "./redact/friendly.js";
 import { toCards } from "../shared/gallery-controller.js";
 import { defaultSettings } from "../shared/settings-model.js";
 import { SettingsStore } from "./settings/settings-store.js";
+import { createSettingsHandlers } from "./settings/settings-handlers.js";
 import {
   importDroppedImages,
   importPickedImageFiles,
@@ -36,7 +37,7 @@ import { registerMediaScheme, handleMediaProtocol, mediaUrl } from "./media-prot
 import { events, setEventTarget } from "./event-bus.js";
 import { existsSync, statSync } from "node:fs";
 import { copyFile, readFile, readdir, rm, stat } from "node:fs/promises";
-import type { DroppedImage, ModelInfo, PickImagesResult, ScriptEdit, SettingsModel } from "../shared/types.js";
+import type { DroppedImage, ModelInfo, PickImagesResult, ScriptEdit } from "../shared/types.js";
 import { authorInputFromBrief } from "./workspace/recall-author-input.js";
 import {
   applyNonSensitiveEnvironment,
@@ -346,6 +347,14 @@ const nativeSaveDeps: NativeSaveDeps = {
   warn: (details, message) => log.warn(details, message),
 };
 
+const settingsHandlers = createSettingsHandlers({
+  current: () => settingsStore.current(),
+  update: (patch) => settingsStore.update(patch),
+  setApiKey: (provider, apiKey) => settingsStore.setApiKey(provider, apiKey),
+  clearApiKey: (provider) => settingsStore.clearApiKey(provider),
+  parseVoiceProvider,
+});
+
 // IPC ownership inventory (Phase 5): keep Electron lifecycle and dependency
 // wiring here, but route contained behavior to focused owners when a seam exists.
 // - license: inline thin wrapper over LicenseManager.
@@ -356,7 +365,7 @@ const nativeSaveDeps: NativeSaveDeps = {
 // - BGM: grouped factory in bgm/bgm-handlers.ts.
 // - thumbnail: inline thin wrapper over WorkspaceController/native-save.
 // - script/review: inline thin wrappers over WorkspaceController/settingsStore.
-// - settings/TTS: inline thin wrappers over SettingsStore and voice parsing.
+// - settings/TTS: grouped factory in settings/settings-handlers.ts.
 const handlers: InvokeHandlers = {
   "license:get": () => licenseManager.current(),
   "license:activate": (key) => licenseManager.activate(String(key)),
@@ -429,12 +438,7 @@ const handlers: InvokeHandlers = {
     return { ok: true, outputPath: "" };
   },
 
-  "settings:get": () => settingsStore.current(),
-  "settings:update": (patch) => {
-    return settingsStore.update(patch as Partial<SettingsModel>);
-  },
-  "tts:setApiKey": (providerRaw, apiKey) => settingsStore.setApiKey(parseVoiceProvider(providerRaw), String(apiKey)),
-  "tts:clearApiKey": (providerRaw) => settingsStore.clearApiKey(parseVoiceProvider(providerRaw)),
+  ...settingsHandlers,
 };
 
 registerIpcRouter(ipcMain, handlers);
