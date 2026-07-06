@@ -196,6 +196,11 @@ and Phase 1 target evidence still matched the code:
 - `typecheck-authored.ts` still degraded N10 to a no-op with console-only
   visibility, matching the Step 1.2/1.3 problem statement.
 
+Status: done for Phase 2 start on 2026-07-06. Baseline reconfirmed from
+commit `e9b58ae`; working tree was clean, contract/docs anchors were present,
+and `ninerouter-backend.ts` still matched the Phase 2 split target at 1,232
+lines.
+
 ## Phase 1 - Low-Risk Truth And Observability
 
 Goal: fix documented drift and make existing safety degradation visible before
@@ -1111,7 +1116,7 @@ work.
 | --- | --- | --- |
 | Phase 0 - Plan Control And Baseline | done | Reconfirm Step 0.2 again before any later phase. |
 | Phase 1 - Low-Risk Truth And Observability | done | Full gate passed on 2026-07-06. |
-| Phase 2 - Authoring Backend Seam Split | pending | Step 2.1 content-plan runner. |
+| Phase 2 - Authoring Backend Seam Split | active | Step 2.1 content-plan runner. |
 | Phase 3 - Render Oracle Posture Clarity | pending | Step 3.1 posture table. |
 | Phase 4 - Workspace State Machine Hardening | pending | Step 4.1 state transition matrix. |
 | Phase 5 - Desktop Main Root Containment | pending | Step 5.1 IPC ownership inventory. |
