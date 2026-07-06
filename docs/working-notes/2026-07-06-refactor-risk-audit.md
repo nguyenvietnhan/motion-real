@@ -819,6 +819,16 @@ git diff --check
 npm.cmd run typecheck
 ```
 
+Status: done on 2026-07-06. Added an IPC ownership inventory beside handler
+registration in `index.ts`, classifying license, gateway, projects, thumbnail,
+script, review, settings/TTS, BGM, and export/native-save ownership. Verification
+passed:
+
+```powershell
+git diff --check
+npm.cmd run typecheck
+```
+
 ### Step 5.2 - Extract One Inline Handler Group
 
 Scope:
@@ -1276,7 +1286,7 @@ work.
 | Phase 2 - Authoring Backend Seam Split | done | Full gate passed on 2026-07-06. |
 | Phase 3 - Render Oracle Posture Clarity | done | Full gate passed on 2026-07-06. |
 | Phase 4 - Workspace State Machine Hardening | done | Full gate passed on 2026-07-06. |
-| Phase 5 - Desktop Main Root Containment | active | Step 5.1 IPC ownership inventory. |
+| Phase 5 - Desktop Main Root Containment | active | Step 5.2 extract one inline handler group. |
 | Phase 6 - Renderer And TTS Domain Split | pending | Step 6.1 SRT helper split. |
 | Phase 7 - Renderer CSS Maintainability | pending | Step 7.1 CSS section inventory. |
 | Phase 8 - Small Operational Debt | pending | Step 8.1 repair budget effective value. |

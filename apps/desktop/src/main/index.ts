@@ -346,6 +346,17 @@ const nativeSaveDeps: NativeSaveDeps = {
   warn: (details, message) => log.warn(details, message),
 };
 
+// IPC ownership inventory (Phase 5): keep Electron lifecycle and dependency
+// wiring here, but route contained behavior to focused owners when a seam exists.
+// - license: inline thin wrapper over LicenseManager.
+// - gateway: inline thin wrapper over ModelGatewayManager.
+// - projects: mixed root wiring; create payload coercion lives in create-ipc.ts,
+//   create behavior in CreateController, image staging in image-staging.ts,
+//   workspace behavior in WorkspaceController, and native save in native-save.ts.
+// - BGM: grouped factory in bgm/bgm-handlers.ts.
+// - thumbnail: inline thin wrapper over WorkspaceController/native-save.
+// - script/review: inline thin wrappers over WorkspaceController/settingsStore.
+// - settings/TTS: inline thin wrappers over SettingsStore and voice parsing.
 const handlers: InvokeHandlers = {
   "license:get": () => licenseManager.current(),
   "license:activate": (key) => licenseManager.activate(String(key)),
