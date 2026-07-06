@@ -20,6 +20,10 @@ import { withProjectRenderLock } from "./project-lock.js";
 
 const THUMBNAIL_FILENAME = "thumbnail.png";
 
+type LockSnapshot =
+  | { kind: "present"; contents: Buffer }
+  | { kind: "missing" };
+
 export type RenderThumbnailResult = {
   projectId: string;
   /** Absolute path to the written thumbnail PNG. */
@@ -32,6 +36,9 @@ export async function renderThumbnail(projectId: string): Promise<RenderThumbnai
   return withProjectRenderLock(projectId, "thumbnail", () => renderThumbnailUnlocked(projectId));
 }
 
+// Private by design: renderProjectStillsUnlocked writes a temporary no-audio
+// lock to the normal project lock path, so callers must enter through
+// renderThumbnail(...) and hold the project render lock before this path runs.
 async function renderThumbnailUnlocked(projectId: string): Promise<RenderThumbnailResult> {
   const paths = projectPaths(projectId);
   const manifest = await loadManifest(projectId);
@@ -39,15 +46,7 @@ async function renderThumbnailUnlocked(projectId: string): Promise<RenderThumbna
   if (!firstScene) throw new Error(`Project ${projectId} has no scene to use as its cover.`);
 
   const format: VideoFormat = manifest.format ?? "tiktok";
-  let previousLock: Buffer | null = null;
-  let hadPreviousLock = false;
-
-  try {
-    previousLock = await readFile(paths.lock);
-    hadPreviousLock = true;
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
-  }
+  const lockSnapshot = await snapshotProjectLock(paths.lock);
 
   try {
     const { stills } = await renderProjectStillsUnlocked(projectId, { sceneIds: [firstScene.id] });
@@ -59,7 +58,20 @@ async function renderThumbnailUnlocked(projectId: string): Promise<RenderThumbna
     await copyFile(firstSceneStill, output);
     return { projectId, path: output, format };
   } finally {
-    if (hadPreviousLock && previousLock) await writeFile(paths.lock, previousLock);
-    else await rm(paths.lock, { force: true });
+    await restoreProjectLock(paths.lock, lockSnapshot);
   }
+}
+
+async function snapshotProjectLock(lockPath: string): Promise<LockSnapshot> {
+  try {
+    return { kind: "present", contents: await readFile(lockPath) };
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+    return { kind: "missing" };
+  }
+}
+
+async function restoreProjectLock(lockPath: string, snapshot: LockSnapshot): Promise<void> {
+  if (snapshot.kind === "present") await writeFile(lockPath, snapshot.contents);
+  else await rm(lockPath, { force: true });
 }

@@ -1362,6 +1362,20 @@ npm.cmd test -- --run packages/pipeline/src/render/render-thumbnail.test.ts pack
 npm.cmd run typecheck
 ```
 
+Status: done on 2026-07-07. Kept the current thumbnail lock
+snapshot/restore behavior, but made the private lock boundary explicit by
+moving snapshot/restore into focused helpers and documenting why
+`renderThumbnailUnlocked` stays private. Added a concurrency regression proving
+that a second thumbnail render fails at the project render lock instead of
+entering the private stills path while a temporary no-audio lock is active.
+Focused verification passed:
+
+```powershell
+npm.cmd test -- --run packages/pipeline/src/render/render-thumbnail.test.ts packages/pipeline/src/render/render-stills.test.ts
+git diff --check
+npm.cmd run typecheck
+```
+
 ### Step 8.3 - Parallel Render Assumption Audit
 
 Scope:

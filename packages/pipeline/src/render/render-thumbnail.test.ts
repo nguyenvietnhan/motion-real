@@ -100,4 +100,31 @@ describe("renderThumbnail", () => {
     await renderThumbnail("p1");
     await expect(access(paths.lock)).rejects.toMatchObject({ code: "ENOENT" });
   });
+
+  it("keeps concurrent thumbnail renders out of the private stills path", async () => {
+    const paths = projectPaths("p1");
+    let release!: () => void;
+    const entered = new Promise<void>((resolveEntered) => {
+      mocks.renderProjectStillsUnlocked.mockImplementationOnce(async (projectId: string, opts: { sceneIds?: string[] }) => {
+        const sceneId = opts.sceneIds?.[0] ?? "scene-01";
+        const still = join(paths.reviewDir, `${sceneId}.png`);
+        await mkdir(paths.reviewDir, { recursive: true });
+        await writeFile(still, Buffer.from("caption-free-first-scene"));
+        await writeFile(paths.lock, Buffer.from("temporary-no-tts-lock"));
+        resolveEntered();
+        return new Promise<{ projectId: string; stills: string[] }>((resolveRender) => {
+          release = () => resolveRender({ projectId, stills: [still] });
+        });
+      });
+    });
+
+    const first = renderThumbnail("p1");
+    await entered;
+
+    await expect(renderThumbnail("p1")).rejects.toMatchObject({ stage: "render-lock" });
+    expect(mocks.renderProjectStillsUnlocked).toHaveBeenCalledTimes(1);
+
+    release();
+    await expect(first).resolves.toMatchObject({ projectId: "p1" });
+  });
 });
