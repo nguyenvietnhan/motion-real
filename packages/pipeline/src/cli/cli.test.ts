@@ -37,6 +37,7 @@ describe("runDoctor", () => {
       checkFfmpeg: async () => PASS("ffmpeg"),
       checkBrowser: async () => PASS("browser"),
       checkTheme: () => PASS("theme"),
+      checkN10Typecheck: () => PASS("N10 authored typecheck layout"),
       checkFonts: () => PASS("fonts (vietnamese coverage)"),
     });
     expect(report.ok).toBe(true);
@@ -51,6 +52,7 @@ describe("runDoctor", () => {
       checkFfmpeg: async () => PASS("ffmpeg"),
       checkBrowser: async () => PASS("browser"),
       checkRegistry: () => PASS("registry"),
+      checkN10Typecheck: () => PASS("N10 authored typecheck layout"),
       checkTheme: () => PASS("theme"),
       checkFonts: () => PASS("fonts (vietnamese coverage)"),
     });
@@ -64,6 +66,7 @@ describe("runDoctor", () => {
       checkFfmpeg: async () => PASS("ffmpeg"),
       checkBrowser: async () => PASS("browser"),
       checkRegistry: () => PASS("registry"),
+      checkN10Typecheck: () => PASS("N10 authored typecheck layout"),
       checkTheme: () => FAIL("theme"),
       checkFonts: () => PASS("fonts (vietnamese coverage)"),
     });
@@ -71,8 +74,8 @@ describe("runDoctor", () => {
     expect(report.checks.filter((c) => !c.ok).map((c) => c.name).sort()).toEqual(
       ["Vivibe .env", "theme"].sort(),
     );
-    // All six checks are present even though several failed.
-    expect(report.checks).toHaveLength(6);
+    // All seven checks are present even though several failed.
+    expect(report.checks).toHaveLength(7);
   });
 });
 

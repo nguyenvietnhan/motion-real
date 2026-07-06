@@ -17,6 +17,8 @@ import { projectPaths, trackerPath as defaultTrackerPath } from "../store/store.
 import { ingestUrl } from "../ingest/url-ingest.js";
 import { readTracker, writeTracker, upsertItem, type TrackerItem, type TrackerStatus } from "../tracker/tracker.js";
 import { runBulkLoop, type BulkWorker } from "../bulk/bulk.js";
+import { workspaceRoot } from "../render/renderer.js";
+import { checkTypecheckAuthoredReadiness, describeTypecheckAuthoredReadiness } from "../safety/typecheck-authored.js";
 import {
   scaffoldVideoProject,
   renderProject,
@@ -219,9 +221,9 @@ async function runDoctorVerb(emit: Emit, lines: string[]): Promise<CliResult> {
   const report = await runDoctor();
   emit("Doctor — environment readiness");
   for (const check of report.checks) {
-    emit(`  [${check.ok ? "PASS" : "FAIL"}] ${check.name}: ${check.detail}`);
+    emit(`  [${doctorCheckLabel(check)}] ${check.name}: ${check.detail}`);
   }
-  emit(report.ok ? "All checks passed." : "One or more checks failed; see items above.");
+  emit(doctorSummary(report));
   return { exitCode: report.ok ? 0 : 1, lines };
 }
 
@@ -348,7 +350,7 @@ function slugFromUrl(url: string): string {
   }
 }
 
-export type DoctorCheck = { name: string; ok: boolean; detail: string };
+export type DoctorCheck = { name: string; ok: boolean; detail: string; severity?: "error" | "warning" };
 export type DoctorReport = { ok: boolean; checks: DoctorCheck[] };
 
 export type DoctorDeps = {
@@ -356,6 +358,7 @@ export type DoctorDeps = {
   checkFfmpeg?: () => Promise<DoctorCheck>;
   checkBrowser?: () => Promise<DoctorCheck>;
   checkRegistry?: () => DoctorCheck;
+  checkN10Typecheck?: () => DoctorCheck;
   checkTheme?: () => DoctorCheck;
   checkFonts?: () => DoctorCheck;
 };
@@ -363,12 +366,13 @@ export type DoctorDeps = {
 /**
  * Verify environment readiness: Vivibe `.env` config, ffmpeg, a usable headless
  * browser, registry health, neutral theme resolution, Vietnamese font
- * coverage, and bundled font readiness. Each probe is injectable so tests never
- * spawn ffmpeg or download Chromium. ALL checks run (never
- * short-circuit) so a single report lists every failure (R6.4); overall ready
- * only when every check passes (R6.3). In pure AUTHOR mode the registry is empty
- * until a project's authored scenes are admitted, so the registry check reports
- * the count without failing on zero.
+ * coverage, authored N10 source/type-map visibility, and bundled font readiness.
+ * Each probe is injectable so tests never spawn ffmpeg or download Chromium. ALL
+ * checks run (never short-circuit) so a single report lists every failure (R6.4);
+ * overall ready only fails on hard checks. Warning checks are diagnostics that do
+ * not block normal startup. In pure AUTHOR mode the registry is empty until a
+ * project's authored scenes are admitted, so the registry check reports the count
+ * without failing on zero.
  */
 export async function runDoctor(deps: DoctorDeps = {}): Promise<DoctorReport> {
   const checks: DoctorCheck[] = [
@@ -376,10 +380,27 @@ export async function runDoctor(deps: DoctorDeps = {}): Promise<DoctorReport> {
     await (deps.checkFfmpeg ?? defaultCheckFfmpeg)(),
     await (deps.checkBrowser ?? defaultCheckBrowser)(),
     (deps.checkRegistry ?? defaultCheckRegistry)(),
+    (deps.checkN10Typecheck ?? defaultCheckN10Typecheck)(),
     (deps.checkTheme ?? defaultCheckTheme)(),
     (deps.checkFonts ?? defaultCheckFonts)(),
   ];
-  return { ok: checks.every((check) => check.ok), checks };
+  return { ok: !checks.some(isBlockingDoctorFailure), checks };
+}
+
+function isBlockingDoctorFailure(check: DoctorCheck): boolean {
+  return !check.ok && (check.severity ?? "error") === "error";
+}
+
+function doctorCheckLabel(check: DoctorCheck): "PASS" | "WARN" | "FAIL" {
+  if (check.ok) return "PASS";
+  return check.severity === "warning" ? "WARN" : "FAIL";
+}
+
+function doctorSummary(report: DoctorReport): string {
+  if (!report.ok) return "One or more checks failed; see items above.";
+  return report.checks.some((check) => !check.ok && check.severity === "warning")
+    ? "Required checks passed with warnings."
+    : "All checks passed.";
 }
 
 function defaultCheckEnv(): DoctorCheck {
@@ -427,6 +448,18 @@ function defaultCheckRegistry(): DoctorCheck {
       count > 0
         ? `${count} component(s) registered`
         : "0 components (pure AUTHOR mode: scenes register per project at render time)",
+  };
+}
+
+export function defaultCheckN10Typecheck(root = workspaceRoot()): DoctorCheck {
+  const readiness = checkTypecheckAuthoredReadiness(root);
+  return {
+    name: "N10 authored typecheck layout",
+    ok: readiness.ok,
+    ...(readiness.ok ? {} : { severity: "warning" as const }),
+    detail: readiness.ok
+      ? describeTypecheckAuthoredReadiness(readiness)
+      : `${describeTypecheckAuthoredReadiness(readiness)}; renders continue with an N10 warning diagnostic`,
   };
 }
 
@@ -529,7 +562,7 @@ function usage(): string {
     "  ingest <url> [--id <id>]            Fetch an article into planning/<id>.md (text + metadata only)",
     "  tracker list | add <url> ... | update <id> ...   Manage the bulk work queue (--tracker <path>)",
     "  bulk [--tracker <path>] [--limit N]  Resumable bulk loop over the tracker (finishes authored projects)",
-    "  doctor | probe                      Check .env (Vivibe), ffmpeg, browser, registry, theme, and fonts",
+    "  doctor | probe                      Check .env, ffmpeg, browser, registry, N10 layout, theme, and fonts",
   ].join("\n");
 }
 

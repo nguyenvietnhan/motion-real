@@ -4,6 +4,17 @@ import { extname, resolve } from "node:path";
 import ts from "typescript";
 import type { SafetyIssue } from "../types.js";
 
+type RequiredTypecheckPath = {
+  label: string;
+  path: string;
+};
+
+export type TypecheckAuthoredReadiness = {
+  ok: boolean;
+  workspaceRoot: string;
+  missing: RequiredTypecheckPath[];
+};
+
 /**
  * Warn ONCE that N10 has degraded to a no-op (sources missing / setup failed),
  * while also returning a structured warning issue for the report path. Deduped
@@ -86,6 +97,39 @@ function authoredPaths(workspaceRoot: string): Record<string, string[]> {
   };
 }
 
+function requiredTypecheckPaths(workspaceRoot: string): RequiredTypecheckPath[] {
+  const paths = authoredPaths(workspaceRoot);
+  const required = [
+    "react",
+    "react/jsx-runtime",
+    "remotion",
+    "zod",
+    "@motionreal/schema",
+    "@motionreal/theme",
+    "@motionreal/blocks",
+    "@motionreal/tts",
+    "@motionreal/compositions",
+    "@motionreal/pipeline",
+  ];
+  return required.flatMap((label) => (paths[label] ?? []).map((path) => ({ label, path })));
+}
+
+export function checkTypecheckAuthoredReadiness(workspaceRoot: string): TypecheckAuthoredReadiness {
+  const root = resolve(workspaceRoot);
+  const missing = requiredTypecheckPaths(root).filter((entry) => !existsSync(entry.path));
+  return { ok: missing.length === 0, workspaceRoot: root, missing };
+}
+
+export function describeTypecheckAuthoredReadiness(readiness: TypecheckAuthoredReadiness): string {
+  if (readiness.ok) return `required source/type paths resolved under ${readiness.workspaceRoot}`;
+  const shown = readiness.missing
+    .slice(0, 3)
+    .map((entry) => `${entry.label} at ${entry.path}`)
+    .join("; ");
+  const extra = readiness.missing.length > 3 ? `; +${readiness.missing.length - 3} more` : "";
+  return `missing ${readiness.missing.length} required source/type path(s): ${shown}${extra}`;
+}
+
 function authoredCompilerOptions(workspaceRoot: string): ts.CompilerOptions {
   return {
     target: ts.ScriptTarget.ES2022,
@@ -136,8 +180,9 @@ export function typecheckAuthoredScenes(
   // (once) when it degrades: in dev the sources are present and this never fires,
   // but a packaged build that lost N10 will say so in the logs instead of going
   // quiet. (Warn-once: this runs per render, not per frame, but no need to spam.)
-  if (!existsSync(resolve(workspaceRoot, "packages", "blocks", "src", "index.ts"))) {
-    return [n10DegradedIssue(workspaceRoot, `MotionReal sources not found under ${workspaceRoot}`)];
+  const readiness = checkTypecheckAuthoredReadiness(workspaceRoot);
+  if (!readiness.ok) {
+    return [n10DegradedIssue(readiness.workspaceRoot, describeTypecheckAuthoredReadiness(readiness))];
   }
 
   const cacheKey = typecheckCacheKey(files, workspaceRoot, sceneIdByFile);
