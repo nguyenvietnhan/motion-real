@@ -1219,6 +1219,32 @@ Manual verification:
 - Check Home create flow, Settings, Workspace storyboard/review, Publish view.
 - Specifically inspect long Vietnamese text, buttons, and thumbnail aspect modes.
 
+Status: done on 2026-07-07. Split `theme.css` into a stable import entry plus
+move-only partials under `apps/desktop/src/renderer/theme/`:
+
+- `base.css`
+- `shell.css`
+- `components.css`
+- `home-create.css`
+- `settings.css`
+- `projects.css`
+- `workspace.css`
+- `publish.css`
+- `create-layout.css`
+- `custom-select.css`
+
+Each section move was committed separately and passed:
+
+```powershell
+git diff --check
+npm.cmd run typecheck
+npm.cmd run build
+```
+
+Additional safety check: inlining the new local imports matched the Step 7.1
+`theme.css` from commit `2d5ac63` after line-ending normalization, proving the
+split was move-only.
+
 ### Step 7.3 - Add UI Regression Checklist
 
 Scope:
