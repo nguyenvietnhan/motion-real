@@ -1,0 +1,407 @@
+/* --- 7. Workspace storyboard/review toolbar, BGM picker, edit panel ----- */
+
+/* Storyboard toolbar: keep the current minimal controls, but prevent the header
+ * from degrading into wrapped button labels when the desktop window is narrow. */
+.ns-story-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.ns-story-header .ns-btn,
+.ns-story-header select {
+  white-space: nowrap;
+}
+.ns-story-title {
+  margin-right: auto;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+}
+.ns-story-edit-toggle.is-active {
+  border-color: color-mix(in srgb, var(--brand) 58%, var(--border));
+  background: color-mix(in srgb, var(--brand) 14%, transparent);
+  color: color-mix(in srgb, var(--brand) 78%, white);
+}
+
+/* Background music is one compact compound control: selection opens downward;
+ * the attached + is the only library action that stays in the toolbar. */
+.ns-bgm-picker {
+  position: relative;
+  flex-shrink: 0;
+}
+.ns-bgm-picker audio {
+  display: none;
+}
+.ns-bgm-control {
+  display: inline-flex;
+  height: 36px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+}
+.ns-bgm-trigger,
+.ns-bgm-add {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  background: transparent;
+  color: var(--foreground);
+  cursor: pointer;
+  font: inherit;
+}
+.ns-bgm-trigger {
+  min-width: 0;
+  gap: 8px;
+  padding: 0 10px;
+  font-size: 13px;
+}
+.ns-bgm-add {
+  width: 35px;
+  flex-shrink: 0;
+  border-left: 1px solid var(--border);
+  color: var(--muted-foreground);
+}
+.ns-bgm-trigger:hover,
+.ns-bgm-add:hover,
+.ns-bgm-trigger[aria-expanded="true"] {
+  background: var(--card-hover);
+  color: var(--foreground);
+}
+.ns-bgm-trigger:disabled,
+.ns-bgm-add:disabled,
+.ns-bgm-preview:disabled,
+.ns-bgm-choice:disabled,
+.ns-bgm-remove:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+.ns-bgm-trigger:focus-visible,
+.ns-bgm-add:focus-visible,
+.ns-bgm-preview:focus-visible,
+.ns-bgm-choice:focus-visible,
+.ns-bgm-remove:focus-visible {
+  position: relative;
+  z-index: 1;
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+.ns-bgm-leading,
+.ns-bgm-chevron {
+  display: inline-flex;
+  flex-shrink: 0;
+  color: var(--muted-foreground);
+}
+.ns-bgm-current {
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ns-bgm-menu {
+  position: absolute;
+  z-index: 40;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 268px;
+  max-height: min(360px, calc(100vh - 96px));
+  overflow-y: auto;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--popover);
+  box-shadow: 0 16px 42px rgba(0, 0, 0, 0.46);
+}
+.ns-bgm-row {
+  display: flex;
+  align-items: center;
+  min-height: 36px;
+  border-radius: 6px;
+}
+.ns-bgm-row:hover,
+.ns-bgm-row:focus-within {
+  background: var(--card-hover);
+}
+.ns-bgm-preview,
+.ns-bgm-remove,
+.ns-bgm-choice {
+  border: 0;
+  background: transparent;
+  color: var(--foreground);
+  cursor: pointer;
+  font: inherit;
+}
+.ns-bgm-preview,
+.ns-bgm-preview-spacer {
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+}
+.ns-bgm-preview {
+  display: grid;
+  place-items: center;
+  margin-left: 1px;
+  border-radius: 999px;
+  color: var(--muted-foreground);
+}
+.ns-bgm-preview:hover {
+  color: var(--foreground);
+}
+.ns-bgm-choice {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+  align-self: stretch;
+  padding: 4px 6px;
+  text-align: left;
+}
+.ns-bgm-track-copy {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  gap: 1px;
+}
+.ns-bgm-name {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--foreground);
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ns-bgm-size,
+.ns-bgm-missing,
+.ns-bgm-empty {
+  color: var(--muted-foreground);
+  font-size: 11px;
+}
+.ns-bgm-check {
+  display: inline-flex;
+  flex-shrink: 0;
+  color: var(--brand);
+}
+.ns-bgm-remove {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  margin-right: 1px;
+  place-items: center;
+  flex-shrink: 0;
+  border-radius: 6px;
+  color: var(--muted-foreground);
+  opacity: 0;
+}
+.ns-bgm-row:hover .ns-bgm-remove,
+.ns-bgm-row:focus-within .ns-bgm-remove {
+  opacity: 1;
+}
+.ns-bgm-remove:hover {
+  color: var(--danger);
+}
+.ns-bgm-missing,
+.ns-bgm-empty {
+  padding: 6px 8px;
+  line-height: 1.4;
+}
+
+/* Edit requests are grouped by scope instead of explained in prose. The
+ * accent card follows the selected scene; the neutral card applies globally. */
+.ns-story-edit-panel {
+  width: 344px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+  overflow-y: auto;
+}
+.ns-story-edit-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 2px 2px 4px;
+}
+.ns-story-edit-heading > div {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.ns-story-edit-heading strong {
+  font-size: 15px;
+}
+.ns-story-edit-heading span {
+  color: var(--muted-foreground);
+  font-size: 11px;
+}
+.ns-story-edit-close {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted-foreground);
+  cursor: pointer;
+}
+.ns-story-edit-close:hover,
+.ns-story-edit-close:focus-visible {
+  border-color: color-mix(in srgb, var(--brand) 42%, var(--border));
+  background: var(--card-hover);
+  color: var(--foreground);
+}
+.ns-story-edit-close:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+.ns-edit-scope {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--input) 72%, transparent);
+}
+.ns-edit-scope.is-scene {
+  border-color: color-mix(in srgb, var(--brand) 38%, var(--border));
+  background: var(--input);
+}
+.ns-edit-scope-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.ns-edit-scope-heading strong {
+  font-size: 13px;
+}
+.ns-edit-scope-icon {
+  display: grid;
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+  place-items: center;
+  border-radius: 7px;
+  background: var(--card-hover);
+  color: var(--muted-foreground);
+}
+.ns-edit-scope.is-scene .ns-edit-scope-icon {
+  background: color-mix(in srgb, var(--brand) 20%, transparent);
+  color: color-mix(in srgb, var(--brand) 72%, white);
+}
+.ns-edit-scope-badge {
+  margin-left: auto;
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: var(--card-hover);
+  color: var(--muted-foreground);
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.ns-edit-scope.is-scene .ns-edit-scope-badge {
+  background: color-mix(in srgb, var(--brand) 17%, transparent);
+  color: color-mix(in srgb, var(--brand) 72%, white);
+}
+.ns-edit-textarea {
+  width: 100%;
+  resize: none;
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--input) 88%, black);
+  line-height: 1.5;
+}
+.ns-edit-scope.is-scene .ns-edit-textarea {
+  min-height: 132px;
+}
+.ns-edit-scope.is-global .ns-edit-textarea {
+  min-height: 88px;
+}
+@media (max-width: 1120px) {
+  .ns-story-header {
+    gap: 8px;
+    padding: 10px 12px;
+  }
+  .ns-story-header .ns-btn {
+    padding: 8px 10px;
+    font-size: 13px;
+  }
+  .ns-story-title {
+    gap: 7px;
+  }
+  .ns-bgm-current {
+    max-width: 105px;
+  }
+}
+
+/* Shared info hint used by workspace/review controls. */
+/* --- (i) info hint: a glyph with a hover/focus tooltip ------------------ */
+.ns-info {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  margin-left: 6px;
+  border-radius: 999px;
+  color: var(--muted-foreground);
+  cursor: help;
+  vertical-align: middle;
+}
+.ns-info:hover,
+.ns-info:focus-visible {
+  color: var(--foreground);
+  outline: none;
+}
+/* Render the glyph as a block so it has no inline-baseline descender gap that
+ * would push it visually off-centre inside the flex row. */
+.ns-info svg {
+  display: block;
+}
+.ns-info-tip {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%) translateY(4px);
+  width: max-content;
+  max-width: 260px;
+  background: var(--popover);
+  color: var(--foreground);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 8px 11px;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.5;
+  text-align: left;
+  white-space: normal;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s, transform 0.12s;
+  z-index: 30;
+}
+.ns-info:hover .ns-info-tip,
+.ns-info:focus-visible .ns-info-tip {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+.ns-info-tip::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-top-color: var(--popover);
+}
