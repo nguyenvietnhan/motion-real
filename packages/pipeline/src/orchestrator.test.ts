@@ -567,10 +567,25 @@ describe("renderProject — render pipeline (skipAuthoring)", () => {
     });
   });
 
-  it("can force N15/N17 layout measuring for diagnostics", async () => {
+  it("surfaces N15/N17 layout warnings as non-gating diagnostics", async () => {
     const projectId = await readyProject();
+    mocks.renderStill.mockImplementation(async ({ output, onArtifact }) => {
+      if (output === null) {
+        onArtifact?.({
+          content: JSON.stringify({
+            blocks: [
+              { kind: "headline", x: 100, y: 100, width: 200, height: 160 },
+              { kind: "body", x: 150, y: 130, width: 200, height: 160 },
+            ],
+          }),
+        });
+      } else if (typeof output === "string") {
+        await writeFile(output, layoutWarningStillPng());
+      }
+      return { buffer: null, contentType: "image/png" };
+    });
 
-    await renderProject(projectId, {
+    const result = await renderProject(projectId, {
       skipAuthoring: true,
       ttsProvider: "none",
       forceFull: true,
@@ -586,6 +601,13 @@ describe("renderProject — render pipeline (skipAuthoring)", () => {
     const timingNames = events.filter((e) => e.type === "render.timing").map((e) => e.name);
     expect(timingNames).toContain("stage.layout_measure");
     expect(events.find((e) => e.type === "render.overlap")).toMatchObject({ scenes: SAMPLE_SPEC.scenes.length });
+    const layoutWarnings = result.report.issues.filter((i) => i.check === "N15" || i.check === "N17");
+    expect(layoutWarnings.some((i) => i.check === "N15")).toBe(true);
+    expect(layoutWarnings.some((i) => i.check === "N17")).toBe(true);
+    expect(layoutWarnings.every((i) => i.severity === "warning")).toBe(true);
+    expect(result.report.issues.some((i) => i.severity === "error")).toBe(false);
+    expect(result.report.ok).toBe(true);
+    expect(await readBriefState(projectId)).toBe("done");
   });
 
   it("surfaces late-sample N14 drift as a non-gating WARNING (lands in the report, project still 'done')", async () => {
@@ -750,6 +772,37 @@ function dirtyLateStillPng(): Buffer {
       rgba[i + 2] = 255;
       rgba[i + 3] = 255;
     }
+  }
+  return encodePngRGBA(width, height, rgba);
+}
+
+/**
+ * A 1080x1920 PNG with white content exactly on the right/bottom edge of the
+ * synthetic measured block used by the layout-warning test, so N17 fires.
+ */
+function layoutWarningStillPng(): Buffer {
+  const width = 1080;
+  const height = 1920;
+  const rgba = new Uint8Array(width * height * 4);
+  for (let p = 0; p < width * height; p += 1) {
+    rgba[p * 4] = 10;
+    rgba[p * 4 + 1] = 12;
+    rgba[p * 4 + 2] = 18;
+    rgba[p * 4 + 3] = 255;
+  }
+  for (let y = 100; y < 260; y += 1) {
+    const i = (y * width + 299) * 4;
+    rgba[i] = 255;
+    rgba[i + 1] = 255;
+    rgba[i + 2] = 255;
+    rgba[i + 3] = 255;
+  }
+  for (let x = 100; x < 300; x += 1) {
+    const i = (259 * width + x) * 4;
+    rgba[i] = 255;
+    rgba[i + 1] = 255;
+    rgba[i + 2] = 255;
+    rgba[i + 3] = 255;
   }
   return encodePngRGBA(width, height, rgba);
 }
