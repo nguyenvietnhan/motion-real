@@ -211,6 +211,17 @@ and render-oracle posture still matched the Phase 3 target:
 - `orchestrator.ts` still owns external layout N15/N17 warning measurement and
   late safe-area warning aggregation.
 
+Status: done for Phase 4 start on 2026-07-06. Baseline reconfirmed from
+commit `23969b3`; working tree was clean, contract/docs anchors were present,
+and workspace ownership still matched the Phase 4 target:
+
+- `workspace-controller.ts` remains the owner of live stage maps, in-flight jobs,
+  cancellation, retry, snapshot/restore, async render/refine/publish ordering,
+  publish state, and event emission.
+- Existing workspace helper modules cover pure/view-model/create/script/render
+  seams, so Phase 4 starts from tests and pure policy seams rather than line
+  count.
+
 ## Phase 1 - Low-Risk Truth And Observability
 
 Goal: fix documented drift and make existing safety degradation visible before
@@ -1202,7 +1213,7 @@ work.
 | Phase 1 - Low-Risk Truth And Observability | done | Full gate passed on 2026-07-06. |
 | Phase 2 - Authoring Backend Seam Split | done | Full gate passed on 2026-07-06. |
 | Phase 3 - Render Oracle Posture Clarity | done | Full gate passed on 2026-07-06. |
-| Phase 4 - Workspace State Machine Hardening | pending | Step 4.1 state transition matrix. |
+| Phase 4 - Workspace State Machine Hardening | active | Step 4.1 state transition matrix. |
 | Phase 5 - Desktop Main Root Containment | pending | Step 5.1 IPC ownership inventory. |
 | Phase 6 - Renderer And TTS Domain Split | pending | Step 6.1 SRT helper split. |
 | Phase 7 - Renderer CSS Maintainability | pending | Step 7.1 CSS section inventory. |
