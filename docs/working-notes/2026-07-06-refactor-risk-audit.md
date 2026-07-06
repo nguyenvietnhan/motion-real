@@ -32,34 +32,35 @@ Loai tru khi do metric: `node_modules`, `dist`, `.video-tool`,
 Lenh metric chinh:
 
 ```powershell
-rg --files --glob '!**/node_modules/**' --glob '!**/dist/**' --glob '!**/.video-tool/**' --glob '!apps/desktop/dist-electron/**' --glob '!**/vendor-fonts.generated.ts'
+$files = rg --files --glob '!**/node_modules/**' --glob '!**/dist/**' --glob '!**/.video-tool/**' --glob '!apps/desktop/dist-electron/**' --glob '!**/vendor-fonts.generated.ts'
+# Count lines with `(Get-Content <file>).Count`, including blank lines.
 ```
 
 Snapshot metric:
 
 | Loai | So file | So dong |
 | --- | ---: | ---: |
-| Source `.ts/.tsx/.css`, khong tinh test | 175 | 28,237 |
-| Test `.test.ts/.test.tsx` | 95 | 15,451 |
+| Source `.ts/.tsx/.css`, khong tinh test | 175 | 30,662 |
+| Test `.test.ts/.test.tsx` | 95 | 17,155 |
 
 Top file lon nhat:
 
 | Dong | File |
 | ---: | --- |
-| 2,223 | `apps/desktop/src/renderer/theme.css` |
-| 1,203 | `apps/desktop/src/main/workspace/workspace-controller.test.ts` |
-| 1,150 | `apps/desktop/src/main/authoring/ninerouter-backend.ts` |
-| 1,014 | `apps/desktop/src/main/authoring/ninerouter-backend.test.ts` |
-| 993 | `packages/pipeline/src/safety/render-grid.ts` |
-| 982 | `apps/desktop/src/main/workspace/workspace-controller.ts` |
-| 945 | `packages/pipeline/src/orchestrator.ts` |
-| 809 | `packages/tts/src/index.ts` |
-| 763 | `packages/pipeline/src/render/renderer.ts` |
-| 542 | `apps/desktop/src/renderer/views/home.tsx` |
-| 509 | `packages/pipeline/src/authoring/admission.ts` |
-| 502 | `packages/pipeline/src/cli/cli.ts` |
-| 493 | `apps/desktop/src/main/authoring/prompt.ts` |
-| 484 | `apps/desktop/src/main/index.ts` |
+| 2,311 | `apps/desktop/src/renderer/theme.css` |
+| 1,292 | `apps/desktop/src/main/workspace/workspace-controller.test.ts` |
+| 1,232 | `apps/desktop/src/main/authoring/ninerouter-backend.ts` |
+| 1,145 | `apps/desktop/src/main/authoring/ninerouter-backend.test.ts` |
+| 1,061 | `packages/pipeline/src/safety/render-grid.ts` |
+| 1,044 | `apps/desktop/src/main/workspace/workspace-controller.ts` |
+| 1,013 | `packages/pipeline/src/orchestrator.ts` |
+| 898 | `packages/tts/src/index.ts` |
+| 828 | `packages/pipeline/src/render/renderer.ts` |
+| 575 | `apps/desktop/src/renderer/views/home.tsx` |
+| 563 | `apps/desktop/src/main/authoring/prompt.ts` |
+| 558 | `packages/pipeline/src/cli/cli.ts` |
+| 556 | `packages/pipeline/src/authoring/admission.ts` |
+| 519 | `apps/desktop/src/main/index.ts` |
 
 ## Contract/Huong Dan Hien Tai
 
@@ -89,7 +90,7 @@ Doc sync nhin chung dang dung. Diem drift ro nhat nam trong comment dau file cua
 
 Muc do: Cao  
 File: `apps/desktop/src/main/authoring/ninerouter-backend.ts`  
-Metric: 1,150 dong, 20 import, 28 `catch`, test rieng 1,014 dong.
+Metric: 1,232 dong, 20 import, 28 `catch`, test rieng 1,145 dong.
 
 Bang chung:
 
@@ -130,7 +131,7 @@ Huong don dep an toan:
 
 Muc do: Cao  
 File: `packages/pipeline/src/orchestrator.ts`  
-Metric: 945 dong, 28 import, 9 `catch`.
+Metric: 1,013 dong, 28 import, 9 `catch`.
 
 Bang chung:
 
@@ -174,7 +175,7 @@ Huong don dep an toan:
 
 Muc do: Cao  
 File: `apps/desktop/src/main/workspace/workspace-controller.ts`  
-Metric: 982 dong, test rieng 1,203 dong.
+Metric: 1,044 dong, test rieng 1,292 dong.
 
 Bang chung:
 
@@ -234,6 +235,9 @@ Bang chung:
   la warning va best-effort.
 - `render-grid.ts:810-850` N23 richness co implementation, nhung van can
   chronological multi-frame samples.
+- `render-grid.test.ts:618-683` da co drift-guard cho registry/manual oracle
+  entries. Vi vay day khong phai bug hien tai; rui ro nam o viec posture live
+  pass/manual pass nam rai giua `render-grid.ts` va `orchestrator.ts`.
 
 Vi sao kho kiem soat:
 
@@ -272,6 +276,9 @@ Bang chung:
   `return []`.
 - `orchestrator.ts:409-417` N10 duoc dat truoc TTS de tranh ton tien khi scene
   sai prop type.
+- `typecheck-authored.test.ts:142-144` da cover behavior degrade-to-no-op khi
+  MotionReal sources khong resolve duoc. Khoang trong con lai la observability
+  trong app/report, khong phai behavior chua test.
 
 Vi sao kho kiem soat:
 
@@ -283,7 +290,7 @@ Vi sao kho kiem soat:
 
 Huong don dep an toan:
 
-1. Khong bien degrade thanh hard fail ngay lap tuc, vi comment giai thich ly do
+1. Khong bien degrade thanh hard fail ngay lap tuc, vi comment/test giai thich ly do
    khong block render.
 2. Nen surface degrade thanh diagnostic co cau truc: doctor/startup warning,
    settings/debug panel, hoac safety warning non-blocking.
@@ -294,7 +301,7 @@ Huong don dep an toan:
 
 Muc do: Trung binh  
 File: `apps/desktop/src/main/index.ts`  
-Metric: 484 dong, 31 import.
+Metric: 519 dong, 31 import.
 
 Bang chung:
 
@@ -330,7 +337,7 @@ Huong don dep an toan:
 
 Muc do: Trung binh  
 File: `apps/desktop/src/renderer/theme.css`  
-Metric: 2,223 dong.
+Metric: 2,311 dong.
 
 Bang chung:
 
@@ -366,8 +373,8 @@ Huong don dep an toan:
 Muc do: Trung binh/Thap  
 Files:
 
-- `packages/pipeline/src/render/renderer.ts` - 763 dong.
-- `packages/tts/src/index.ts` - 809 dong.
+- `packages/pipeline/src/render/renderer.ts` - 828 dong.
+- `packages/tts/src/index.ts` - 898 dong.
 
 Bang chung renderer:
 
@@ -463,9 +470,10 @@ Vi sao kho kiem soat:
 Huong don dep an toan:
 
 1. Giu `renderThumbnailUnlocked` private.
-2. Neu sau nay cham vao stills/thumbnail, can uu tien cho stills path ghi lock
+2. Guard hien tai da co test restore lock khi still render fail
+   (`render-thumbnail.test.ts:85-95`), nen khong can them test trung lap.
+3. Neu sau nay cham vao stills/thumbnail, can uu tien cho stills path ghi lock
    tam rieng thay vi normal `video-spec.lock.json`.
-3. Test nen cover lock restore khi `renderProjectStillsUnlocked` throw.
 
 ## Non-Findings / Hit Can Khong Don Nham
 
