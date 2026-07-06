@@ -187,7 +187,14 @@ git status --short
 rg -n "Pure AUTHOR|Sensitive Files|Cleanup Order|still owns orchestration" AI_CONTRACT.md docs/current/maintenance.md docs/current/architecture.md
 ```
 
-Status: pending per future phase.
+Status: done for Phase 1 start on 2026-07-06. Baseline reconfirmed from
+commit `d6d7860`; working tree was clean, contract/docs anchors were present,
+and Phase 1 target evidence still matched the code:
+
+- `orchestrator.ts` header still drifted from the real render flow and needs
+  Step 1.1.
+- `typecheck-authored.ts` still degraded N10 to a no-op with console-only
+  visibility, matching the Step 1.2/1.3 problem statement.
 
 ## Phase 1 - Low-Risk Truth And Observability
 
@@ -1087,8 +1094,8 @@ work.
 
 | Phase | Status | Next step |
 | --- | --- | --- |
-| Phase 0 - Plan Control And Baseline | active | Step 0.2 before starting Phase 1. |
-| Phase 1 - Low-Risk Truth And Observability | pending | Step 1.1 orchestrator header sync. |
+| Phase 0 - Plan Control And Baseline | done | Reconfirm Step 0.2 again before any later phase. |
+| Phase 1 - Low-Risk Truth And Observability | active | Step 1.1 orchestrator header sync. |
 | Phase 2 - Authoring Backend Seam Split | pending | Step 2.1 content-plan runner. |
 | Phase 3 - Render Oracle Posture Clarity | pending | Step 3.1 posture table. |
 | Phase 4 - Workspace State Machine Hardening | pending | Step 4.1 state transition matrix. |
