@@ -76,6 +76,15 @@ facts and scene-plan data into the scene-code authoring prompt built from the
 current authoring contract. Edit/refine flows use scoped repair prompts instead
 of rerunning the full fresh-authoring chain.
 
+Fresh authoring has bounded stabilization before admission. A claim-ledger-only
+content-plan failure may get one repair call. Long no-image plans are authored
+from a deterministic manifest in TSX batches of at most four component ids, with
+at most four batches; plans beyond that budget fail instead of looping. Short
+plans and image-placement plans keep the single-reply authoring path, where a
+valid manifest with missing TSX modules may get one targeted missing-module
+recovery call. None of these paths accept partial output or weaken admission,
+N10 typecheck, or render safety.
+
 Before the user sees a first draft, the desktop flow may run a hidden sequence:
 
 ```text
@@ -98,7 +107,10 @@ cancellation between stages is not treated as project failure.
 Topic / URL / images
 -> AI plans story beats and usable claims
 -> validate content plan pacing/claims
--> AI authors .tsx scene modules and manifest
+-> optional one-shot claim-ledger repair
+-> AI authors manifest + TSX in one reply,
+   or deterministic manifest + bounded TSX batches for long no-image plans
+-> optional one-shot missing-TSX module recovery on the single-reply path
 -> optional hidden stills/refine in desktop
 -> admission gate
 -> manifest -> VideoSpec

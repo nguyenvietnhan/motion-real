@@ -6,6 +6,7 @@ import { performance } from "node:perf_hooks";
 import { createHash } from "node:crypto";
 import {
   DEFAULT_TTS_SPEED,
+  tierSeconds,
   type DurationPreset,
   type DurationTier,
   type LockedVideoSpec,
@@ -136,10 +137,11 @@ export async function scaffoldVideoProject(opts: ScaffoldVideoProjectOptions): P
 
   const now = new Date().toISOString();
   const format = opts.format ?? "tiktok";
+  const duration = resolveBriefDuration(opts, format);
   const brief: ProjectBrief = {
     projectId,
     prompt: opts.prompt,
-    duration: opts.duration ?? parseDurationFromPrompt(opts.prompt) ?? 60,
+    duration,
     ...(opts.format ? { format: opts.format } : {}),
     ...(opts.durationTier ? { durationTier: opts.durationTier } : {}),
     ratio: format === "youtube" ? "16:9" : "9:16",
@@ -162,6 +164,12 @@ export async function scaffoldVideoProject(opts: ScaffoldVideoProjectOptions): P
   await appendEvent(projectId, { type: "project.scaffolded", prompt: opts.prompt });
 
   return { projectId, brief, manifestPath, authoredDir };
+}
+
+function resolveBriefDuration(opts: Pick<ScaffoldVideoProjectOptions, "duration" | "durationTier" | "prompt">, format: VideoFormat): number {
+  if (opts.duration !== undefined) return opts.duration;
+  if (opts.durationTier !== undefined) return tierSeconds(format, opts.durationTier);
+  return parseDurationFromPrompt(opts.prompt) ?? 60;
 }
 
 // --- renderProject ---------------------------------------------------------

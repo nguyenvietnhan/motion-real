@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildContentPlanMessages,
+  buildContentPlanRepairMessages,
   ContentPlanSchema,
   contentPlanForAuthoring,
   evaluateContentPlanQuality,
@@ -10,6 +11,10 @@ import {
 } from "./content-plan.js";
 import type { ContentPart } from "./prompt.js";
 import { computePacingBudget } from "./pacing-policy.js";
+import {
+  ANTHROPIC_FABLE_SAFEGUARDS_SNAPSHOT,
+  CLAIM_LEDGER_MISSING_EVIDENCE_PLAN,
+} from "./__fixtures__/authoring-failure-incidents.js";
 
 const image = { ref: "assets/product.png", width: 1200, height: 800, dataUrl: "data:image/png;base64,AAA" };
 
@@ -187,6 +192,17 @@ describe("content-plan helpers", () => {
 });
 
 describe("content quality eval fixtures", () => {
+  it("incident fixture: concrete facts without usable evidence claim ids stay claim-ledger blocking", () => {
+    const parsed = ContentPlanSchema.safeParse(CLAIM_LEDGER_MISSING_EVIDENCE_PLAN);
+    expect(parsed.success).toBe(true);
+
+    const quality = evaluateContentPlanQuality(CLAIM_LEDGER_MISSING_EVIDENCE_PLAN);
+
+    expect(quality.blockingIssues).toContainEqual(
+      expect.objectContaining({ check: "claim-ledger", severity: "blocking", sceneId: "scene-01" }),
+    );
+  });
+
   it("accepts a parsed strong plan with hook, payoff, evidence, and layout variety", () => {
     const plan = validPlan({
       scenes: [
@@ -436,6 +452,25 @@ describe("buildContentPlanMessages", () => {
     expect(user).toContain("500 cycles");
   });
 
+  it("uses the local Anthropic article snapshot as repeatable source material", () => {
+    const messages = buildContentPlanMessages(
+      {
+        text: "Summarize the Anthropic Fable safeguards article",
+        urls: ["https://www.anthropic.com/news/fable-safeguards-jailbreak-framework"],
+        format: "tiktok",
+        durationTier: 3,
+        videoLanguage: "en",
+      },
+      ANTHROPIC_FABLE_SAFEGUARDS_SNAPSHOT,
+    );
+
+    const user = messages[1]!.content as string;
+    expect(user).toContain("Readable source material");
+    expect(user).toContain("source_url: https://www.anthropic.com/news/fable-safeguards-jailbreak-framework");
+    expect(user).toContain("Cyber Jailbreak Severity");
+    expect(user).toContain("Return only the content-plan JSON object");
+  });
+
   it("warns when URLs exist but no source material was readable", () => {
     const messages = buildContentPlanMessages({ text: "Summarize this", urls: ["https://example.com/missing"], videoLanguage: "en" });
     const user = messages[1]!.content as string;
@@ -470,5 +505,27 @@ describe("buildContentPlanMessages", () => {
     expect(system).toContain("~3.2 words/second");
     expect(system).toContain("10-14 scenes");
     expect(system).toContain("average narration at or below 75 words/scene");
+  });
+});
+
+describe("buildContentPlanRepairMessages", () => {
+  it("targets claim-ledger repair without weakening evidence rules", () => {
+    const messages = buildContentPlanRepairMessages(CLAIM_LEDGER_MISSING_EVIDENCE_PLAN, [
+      {
+        check: "claim-ledger",
+        severity: "blocking",
+        sceneId: "scene-01",
+        message: "number/date/price/source-like claims must reference usable evidenceClaimIds",
+      },
+    ]);
+    const text = messages.map((message) => message.content).join("\n");
+
+    expect(text).toContain("CONTENT PLAN REPAIR");
+    expect(text).toContain("claim-ledger @scene-01");
+    expect(text).toContain("confidence:\"supported\" and action:\"use\"");
+    expect(text).toContain("remove the concrete detail");
+    expect(text).toContain("Do not make uncertain/omit claims supported");
+    expect(text).toContain(JSON.stringify(CLAIM_LEDGER_MISSING_EVIDENCE_PLAN, null, 2));
+    expect(text).toContain("Return the full repaired content-plan JSON object only");
   });
 });

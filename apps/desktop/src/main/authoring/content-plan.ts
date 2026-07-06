@@ -455,3 +455,33 @@ export function buildContentPlanMessages(
     { role: "user", content: parts },
   ];
 }
+
+export function buildContentPlanRepairMessages(plan: ContentPlan, issues: readonly ContentPlanQualityIssue[]): VisionMessage[] {
+  const issueLines = issues
+    .map((issue) => `- ${issue.check}${issue.sceneId ? ` @${issue.sceneId}` : ""}: ${issue.message}`)
+    .join("\n");
+  return [
+    {
+      role: "system",
+      content: `You are MotionReal's CONTENT PLAN REPAIR pass. Return only the full repaired content-plan JSON object.
+
+Keep the existing schema and story. Do not write TSX, markdown, commentary, or partial JSON.
+
+For claim-ledger failures:
+- A scene may reference only claims that already have confidence:"supported" and action:"use".
+- If a concrete number/date/price/benchmark/source-like detail has no usable claim id, rewrite that scene to remove the concrete detail.
+- Do not make uncertain/omit claims supported just to pass the gate.
+- Do not invent new facts, sources, dates, prices, percentages, benchmarks, or quotes.`,
+    },
+    {
+      role: "user",
+      content: `Blocking content-plan issues:
+${issueLines}
+
+Original content plan:
+${JSON.stringify(plan, null, 2)}
+
+Return the full repaired content-plan JSON object only.`,
+    },
+  ];
+}

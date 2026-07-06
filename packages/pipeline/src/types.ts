@@ -27,7 +27,7 @@ export type VideoLanguage = "vi" | "en";
 export type ProjectBrief = {
   projectId: string;
   prompt: string;
-  duration: DurationPreset;
+  duration: number;
   /** Delivery format selected at create time, persisted so retry after restart keeps the same prompt budget/geometry. */
   format?: VideoFormat;
   /** User-selected duration bucket; authoring retries use this to avoid falling back to tier 1 after restart. */

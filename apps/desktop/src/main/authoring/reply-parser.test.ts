@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import fc from "fast-check";
-import { parseAuthorReply, parseReauthorReply } from "./reply-parser.js";
+import { authorReplyParseSummary, inspectAuthorReply, parseAuthorModuleBatchReply, parseAuthorReply, parseReauthorReply } from "./reply-parser.js";
+import { JSON_ONLY_AUTHOR_REPLY } from "./__fixtures__/authoring-failure-incidents.js";
 
 /**
  * Property tests for the AI_Output_Contract parser (desktop-author-mode).
@@ -134,6 +135,139 @@ describe("Property 1: author-reply parse roundtrip", () => {
       }),
       { numRuns: 200 },
     );
+  });
+});
+
+describe("incident fixtures", () => {
+  it("JSON-only author reply with a valid manifest is still no-code", () => {
+    const inspected = inspectAuthorReply(JSON_ONLY_AUTHOR_REPLY);
+    const parsed = parseAuthorReply(JSON_ONLY_AUTHOR_REPLY);
+
+    expect(inspected.manifest.ok).toBe(true);
+    if (inspected.manifest.ok) {
+      expect(inspected.manifest.sceneCount).toBe(3);
+      expect(inspected.manifest.componentIds).toEqual(["scene-01", "scene-02", "scene-03"]);
+    }
+    expect(inspected.codeBlockCount).toBe(0);
+    expect(inspected.validModuleIds).toEqual([]);
+    expect(inspected.missingComponentIds).toEqual(["scene-01", "scene-02", "scene-03"]);
+    expect(inspected.complete).toBe(false);
+
+    expect(parsed.ok).toBe(false);
+    if (!parsed.ok) {
+      expect(parsed.reason).toBe("no-code");
+      expect(parsed.detail).toMatch(/tsx/i);
+    }
+  });
+
+  it("inspection exposes a valid manifest plus only the missing component ids", () => {
+    const scenes = [
+      { component: "alpha", eyebrow: "A", headline: "One", narration: "First narration." },
+      { component: "beta", eyebrow: "B", headline: "Two", narration: "Second narration." },
+      { component: "gamma", eyebrow: "C", headline: "Three", narration: "Third narration." },
+    ];
+    const reply = manifestBlock(["alpha", "beta", "gamma"], scenes) + "\n\n" + codeBlock("alpha") + "\n\n" + codeBlock("gamma");
+
+    const inspected = inspectAuthorReply(reply);
+    const parsed = parseAuthorReply(reply);
+
+    expect(inspected.manifest.ok).toBe(true);
+    expect(inspected.validModuleIds).toEqual(["alpha", "gamma"]);
+    expect(inspected.missingComponentIds).toEqual(["beta"]);
+    expect(inspected.idMismatchDetails).toEqual([]);
+    expect(inspected.complete).toBe(false);
+    expect(parsed.ok).toBe(false);
+    if (!parsed.ok) expect(parsed.reason).toBe("missing-code");
+  });
+
+  it("inspection marks a complete reply without changing strict parse success", () => {
+    const scenes = [
+      { component: "alpha", eyebrow: "A", headline: "One", narration: "First narration." },
+      { component: "beta", eyebrow: "B", headline: "Two", narration: "Second narration." },
+      { component: "alpha", eyebrow: "C", headline: "Three", narration: "Third narration." },
+    ];
+    const reply = manifestBlock(["alpha", "beta"], scenes) + "\n\n" + codeBlock("alpha") + "\n\n" + codeBlock("beta");
+
+    const inspected = inspectAuthorReply(reply);
+    const parsed = parseAuthorReply(reply);
+
+    expect(inspected.manifest.ok).toBe(true);
+    expect(inspected.codeBlockCount).toBe(2);
+    expect(inspected.validModuleIds).toEqual(["alpha", "beta"]);
+    expect(inspected.missingComponentIds).toEqual([]);
+    expect(inspected.complete).toBe(true);
+    expect(parsed.ok).toBe(true);
+  });
+
+  it("inspection reports id mismatch details while strict parse still fails", () => {
+    const scenes = [
+      { component: "alpha", eyebrow: "A", headline: "One", narration: "First narration." },
+      { component: "beta", eyebrow: "B", headline: "Two", narration: "Second narration." },
+      { component: "alpha", eyebrow: "C", headline: "Three", narration: "Third narration." },
+    ];
+    const reply = manifestBlock(["alpha", "beta"], scenes) + "\n\n" + codeBlock("alpha", { marker: "beta" }) + "\n\n" + codeBlock("beta");
+
+    const inspected = inspectAuthorReply(reply);
+    const parsed = parseAuthorReply(reply);
+
+    expect(inspected.idMismatchDetails.join(" ")).toContain("beta");
+    expect(inspected.missingComponentIds).toEqual(["alpha"]);
+    expect(inspected.complete).toBe(false);
+    expect(parsed.ok).toBe(false);
+    if (!parsed.ok) expect(parsed.reason).toBe("id-mismatch");
+  });
+
+  it("builds a compact parse summary from the same inspection facts", () => {
+    const summary = authorReplyParseSummary(JSON_ONLY_AUTHOR_REPLY, { recoveryAttempted: true });
+
+    expect(summary).toEqual({
+      manifestFound: true,
+      manifestValid: true,
+      sceneCount: 3,
+      tsxModuleCount: 0,
+      missingComponentIdsCount: 3,
+      idMismatchCount: 0,
+      complete: false,
+      recoveryAttempted: true,
+    });
+  });
+});
+
+describe("parseAuthorModuleBatchReply", () => {
+  it("accepts only the expected TSX modules and returns them in expected order", () => {
+    const parsed = parseAuthorModuleBatchReply(codeBlock("gamma") + "\n\n" + codeBlock("beta"), ["beta", "gamma"]);
+
+    expect(parsed.ok).toBe(true);
+    if (parsed.ok) {
+      expect(parsed.modules.map((module) => module.id)).toEqual(["beta", "gamma"]);
+    }
+  });
+
+  it("fails when a batch omits an expected id", () => {
+    const parsed = parseAuthorModuleBatchReply(codeBlock("beta"), ["beta", "gamma"]);
+
+    expect(parsed.ok).toBe(false);
+    if (!parsed.ok) {
+      expect(parsed.reason).toBe("missing-code");
+      expect(parsed.detail).toContain("gamma");
+    }
+  });
+
+  it("fails when a batch returns a component outside the requested ids", () => {
+    const parsed = parseAuthorModuleBatchReply(codeBlock("beta") + "\n\n" + codeBlock("outside"), ["beta"]);
+
+    expect(parsed.ok).toBe(false);
+    if (!parsed.ok) {
+      expect(parsed.reason).toBe("id-mismatch");
+      expect(parsed.detail).toContain("outside");
+    }
+  });
+
+  it("fails on marker/registerComponent mismatch inside a batch", () => {
+    const parsed = parseAuthorModuleBatchReply(codeBlock("beta", { marker: "gamma" }), ["beta"]);
+
+    expect(parsed.ok).toBe(false);
+    if (!parsed.ok) expect(parsed.reason).toBe("id-mismatch");
   });
 });
 

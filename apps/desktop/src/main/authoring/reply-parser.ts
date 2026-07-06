@@ -29,6 +29,35 @@ export type ParsedReauthorReply =
   | { ok: true; module: AuthoredModule }
   | { ok: false; reason: ParseReason; detail: string };
 
+export type ParsedAuthorModuleBatchReply =
+  | { ok: true; modules: AuthoredModule[] }
+  | { ok: false; reason: "no-code" | "missing-code" | "id-mismatch"; detail: string };
+
+export type AuthorReplyManifestInspection =
+  | { ok: true; manifest: AuthorManifest; sceneCount: number; componentIds: string[] }
+  | { ok: false; reason: "no-manifest" | "manifest-invalid"; detail: string };
+
+export type AuthorReplyInspection = {
+  manifest: AuthorReplyManifestInspection;
+  codeBlockCount: number;
+  validModules: AuthoredModule[];
+  validModuleIds: string[];
+  missingComponentIds: string[];
+  idMismatchDetails: string[];
+  complete: boolean;
+};
+
+export type AuthorReplyParseSummary = {
+  manifestFound: boolean;
+  manifestValid: boolean;
+  sceneCount: number;
+  tsxModuleCount: number;
+  missingComponentIdsCount: number;
+  idMismatchCount: number;
+  complete: boolean;
+  recoveryAttempted: boolean;
+};
+
 type Fence = { lang: string; body: string };
 
 /** Pull every fenced code block (```lang\n…\n```), with its lowercased lang tag. */
@@ -218,24 +247,48 @@ function recoverComponentsFromSceneIds(raw: unknown, moduleIds: ReadonlySet<stri
   return changed ? { ...manifest, scenes } : raw;
 }
 
-/** Parse a full author reply (manifest + per-scene .tsx) per AI_Output_Contract. */
-export function parseAuthorReply(text: string): ParsedAuthorReply {
+export function inspectAuthorReply(text: string): AuthorReplyInspection {
   const fences = extractFences(text);
   const codeFences = codeBlocks(text, fences);
-  const moduleIds = new Set<string>();
+  const byId = new Map<string, string>();
+  const idMismatchDetails: string[] = [];
   for (const f of codeFences) {
     const r = resolveModuleId(f.body);
-    if ("id" in r) moduleIds.add(r.id);
+    if ("id" in r) {
+      if (!byId.has(r.id)) byId.set(r.id, f.body);
+    } else {
+      idMismatchDetails.push(r.error);
+    }
   }
+  const moduleIds = new Set(byId.keys());
+  const validModules: AuthoredModule[] = [...byId.entries()].map(([id, code]) => ({ id, code }));
 
   // --- (1) manifest ---
   const json = manifestJson(text, fences);
-  if (!json) return { ok: false, reason: "no-manifest", detail: "không tìm thấy manifest JSON trong reply" };
+  if (!json) {
+    return {
+      manifest: { ok: false, reason: "no-manifest", detail: "không tìm thấy manifest JSON trong reply" },
+      codeBlockCount: codeFences.length,
+      validModules,
+      validModuleIds: [...moduleIds],
+      missingComponentIds: [],
+      idMismatchDetails,
+      complete: false,
+    };
+  }
   let raw: unknown;
   try {
     raw = JSON.parse(json);
   } catch (e) {
-    return { ok: false, reason: "no-manifest", detail: e instanceof Error ? e.message : String(e) };
+    return {
+      manifest: { ok: false, reason: "no-manifest", detail: e instanceof Error ? e.message : String(e) },
+      codeBlockCount: codeFences.length,
+      validModules,
+      validModuleIds: [...moduleIds],
+      missingComponentIds: [],
+      idMismatchDetails,
+      complete: false,
+    };
   }
   const parsed = authorManifestSchema.safeParse(raw);
   const recovered = parsed.success ? parsed : authorManifestSchema.safeParse(recoverComponentsFromSceneIds(raw, moduleIds));
@@ -244,34 +297,107 @@ export function parseAuthorReply(text: string): ParsedAuthorReply {
       raw = recovered.data;
     } else {
       return {
-        ok: false,
-        reason: "manifest-invalid",
-        detail: parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; "),
+        manifest: {
+          ok: false,
+          reason: "manifest-invalid",
+          detail: parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; "),
+        },
+        codeBlockCount: codeFences.length,
+        validModules,
+        validModuleIds: [...moduleIds],
+        missingComponentIds: [],
+        idMismatchDetails,
+        complete: false,
       };
     }
   }
   const manifest = parsed.success ? parsed.data : (raw as AuthorManifest);
+  const needed = new Set(manifest.scenes.map((s) => s.component));
+  const missingComponentIds = [...needed].filter((id) => !byId.has(id));
+
+  return {
+    manifest: {
+      ok: true,
+      manifest,
+      sceneCount: manifest.scenes.length,
+      componentIds: [...needed],
+    },
+    codeBlockCount: codeFences.length,
+    validModules,
+    validModuleIds: [...moduleIds],
+    missingComponentIds,
+    idMismatchDetails,
+    complete: codeFences.length > 0 && idMismatchDetails.length === 0 && missingComponentIds.length === 0,
+  };
+}
+
+export function summarizeAuthorReplyInspection(
+  inspection: AuthorReplyInspection,
+  options: { recoveryAttempted?: boolean } = {},
+): AuthorReplyParseSummary {
+  return {
+    manifestFound: inspection.manifest.ok || inspection.manifest.reason === "manifest-invalid",
+    manifestValid: inspection.manifest.ok,
+    sceneCount: inspection.manifest.ok ? inspection.manifest.sceneCount : 0,
+    tsxModuleCount: inspection.validModuleIds.length,
+    missingComponentIdsCount: inspection.missingComponentIds.length,
+    idMismatchCount: inspection.idMismatchDetails.length,
+    complete: inspection.complete,
+    recoveryAttempted: options.recoveryAttempted ?? false,
+  };
+}
+
+export function authorReplyParseSummary(
+  text: string,
+  options: { recoveryAttempted?: boolean } = {},
+): AuthorReplyParseSummary {
+  return summarizeAuthorReplyInspection(inspectAuthorReply(text), options);
+}
+
+/** Parse a full author reply (manifest + per-scene .tsx) per AI_Output_Contract. */
+export function parseAuthorReply(text: string): ParsedAuthorReply {
+  const inspected = inspectAuthorReply(text);
+
+  if (!inspected.manifest.ok) {
+    return { ok: false, reason: inspected.manifest.reason, detail: inspected.manifest.detail };
+  }
 
   // --- (2) code blocks ---
-  if (codeFences.length === 0) return { ok: false, reason: "no-code", detail: "không có khối .tsx nào trong reply" };
+  if (inspected.codeBlockCount === 0) return { ok: false, reason: "no-code", detail: "không có khối .tsx nào trong reply" };
+  if (inspected.idMismatchDetails.length > 0) {
+    return { ok: false, reason: "id-mismatch", detail: inspected.idMismatchDetails[0]! };
+  }
+
+  // --- (3) coverage: every scene's component must have a code block ---
+  if (inspected.missingComponentIds.length > 0) {
+    return { ok: false, reason: "missing-code", detail: `thiếu code cho: ${inspected.missingComponentIds.join(", ")}` };
+  }
+
+  return { ok: true, manifest: inspected.manifest.manifest, modules: inspected.validModules };
+}
+
+/** Parse one batched authoring reply: TSX modules only, all ids must be expected. */
+export function parseAuthorModuleBatchReply(text: string, expectedIds: readonly string[]): ParsedAuthorModuleBatchReply {
+  const expected = new Set(expectedIds);
+  const codeFences = codeBlocks(text, extractFences(text));
+  if (codeFences.length === 0) return { ok: false, reason: "no-code", detail: "reply không có khối .tsx" };
 
   const byId = new Map<string, string>();
   for (const f of codeFences) {
     const r = resolveModuleId(f.body);
     if ("error" in r) return { ok: false, reason: "id-mismatch", detail: r.error };
-    // Reuse the same module if an id repeats (one visual used by several beats).
+    if (!expected.has(r.id)) {
+      return { ok: false, reason: "id-mismatch", detail: `component id ngoài batch: ${r.id}` };
+    }
     if (!byId.has(r.id)) byId.set(r.id, f.body);
   }
 
-  // --- (3) coverage: every scene's component must have a code block ---
-  const needed = new Set(manifest.scenes.map((s) => s.component));
-  const missing = [...needed].filter((id) => !byId.has(id));
+  const missing = expectedIds.filter((id) => !byId.has(id));
   if (missing.length > 0) {
     return { ok: false, reason: "missing-code", detail: `thiếu code cho: ${missing.join(", ")}` };
   }
 
-  const modules: AuthoredModule[] = [...byId.entries()].map(([id, code]) => ({ id, code }));
-  return { ok: true, manifest, modules };
+  return { ok: true, modules: expectedIds.map((id) => ({ id, code: byId.get(id)! })) };
 }
 
 /** Parse a reauthor reply: exactly one .tsx block whose id literal === expectId. */

@@ -3,6 +3,7 @@ import type { SafetyIssue } from "@motionreal/pipeline";
 import { titleMaxChars, type DurationTier, type VideoFormat, type VideoLanguage } from "@motionreal/schema";
 import { AUTHORING_CONTRACT } from "./contract-text.js";
 import type { ContentPlan, ContentPlanQualityIssue } from "./content-plan.js";
+import type { AuthorManifest } from "./manifest-schema.js";
 import { computePacingBudget, resolvedWordsPerSecond, SHORTFORM_90S_SCENE_RANGE } from "./pacing-policy.js";
 
 /**
@@ -194,6 +195,49 @@ ${AUTHORING_CONTRACT}
 ${OUTPUT_FORMAT}`;
 }
 
+const TSX_BATCH_OUTPUT_FORMAT = `ĐỊNH DẠNG TRẢ VỀ CHO TSX BATCH:
+- KHÔNG trả manifest JSON. Manifest đã được hệ thống chốt.
+- KHÔNG thêm văn bản ngoài code fences.
+- Trả đúng các khối \`\`\`tsx được yêu cầu trong batch, mỗi component id đúng MỘT khối.
+- Mỗi khối có dòng đầu "// component: <id>" và registerComponent id khớp chính xác.
+- Module phải đầy đủ, tự render raw JSX/SVG/CSS theo AUTHORING_CONTRACT, không import block/theme.
+
+Khung module tối thiểu:
+\`\`\`tsx
+// component: id-canh
+import React from "react";
+import { z } from "zod";
+import { useCurrentFrame, interpolate, useVideoConfig } from "remotion";
+import { registerComponent, type SceneComponentProps } from "@motionreal/compositions";
+export const schema = z.object({});
+type Props = z.infer<typeof schema>;
+const Scene: React.FC<SceneComponentProps<Props>> = ({ headline, eyebrow, durationInFrames }) => {
+  const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();
+  const enter = interpolate(frame, [0, Math.max(1, Math.round(fps * 0.45))], [0, 1], { extrapolateRight: "clamp" });
+  return <div style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", opacity: enter }}><h1>{headline}</h1><p>{eyebrow}</p></div>;
+};
+export const example: Props = {};
+export default registerComponent<Props>({ id: "id-canh", displayName: "Scene", promptGuide: "Fresh authored scene", schema, Component: Scene, example });
+\`\`\``;
+
+function authorModuleBatchSystem(format: VideoFormat, tier: DurationTier, videoLanguage: VideoLanguage, wps: number): string {
+  const frame = format === "youtube" ? "16:9" : "9:16";
+  return `Bạn là tác giả video ngắn ${frame} kiêm lập trình viên Remotion. Hệ thống đã chốt manifest; bạn chỉ viết một batch module .tsx mới cho các component id được chỉ định.
+
+${formatBlock(format)}
+
+${tierBudgetBlock(format, tier, videoLanguage, wps)}
+
+${languageBlock(format, videoLanguage)}
+
+${contentRules(wps, videoLanguage)}
+
+${AUTHORING_CONTRACT}
+
+${TSX_BATCH_OUTPUT_FORMAT}`;
+}
+
 /** One provided image the AI may place: a fixed local `ref`, its pixel size, and a data URL to "see" it. */
 export type AuthorImageInput = { ref: string; width: number; height: number; dataUrl: string };
 
@@ -251,6 +295,16 @@ LUẬT DÙNG ADVISORY:
 - Giải quyết bằng lựa chọn visual/motion cụ thể trong TSX: bố cục, hierarchy, quick entrance đúng nhịp, semantic progression, continuous living motion, SVG/CSS bespoke, hoặc deliberate static hold khi hợp nội dung.`;
 }
 
+function sourceBlock(input: AuthorInput, research?: string): string {
+  const links = input.urls.length > 0 ? `\n\nLink trong yêu cầu: ${input.urls.join(", ")}` : "";
+  const grounding = research
+    ? `\n\nTư liệu đã đọc từ link (dùng làm căn cứ, không bịa thêm):\n${research}`
+    : input.urls.length > 0
+      ? "\n\n(Không đọc được nội dung link. Chỉ dùng thông tin trong yêu cầu + kiến thức chắc chắn về chủ đề. KHÔNG bịa số liệu, ngày tháng, giá, phần trăm hay tên sản phẩm/phiên bản mới — thiếu căn cứ thì đừng nêu.)"
+      : "";
+  return `Yêu cầu của người dùng:\n${input.text}${links}${grounding}`;
+}
+
 export function buildAuthorMessages(
   input: AuthorInput,
   research?: string,
@@ -259,13 +313,7 @@ export function buildAuthorMessages(
   contentPlan?: ContentPlan,
   contentPlanAdvisories?: readonly ContentPlanQualityIssue[],
 ): VisionMessage[] {
-  const links = input.urls.length > 0 ? `\n\nLink trong yêu cầu: ${input.urls.join(", ")}` : "";
-  const grounding = research
-    ? `\n\nTư liệu đã đọc từ link (dùng làm căn cứ, không bịa thêm):\n${research}`
-    : input.urls.length > 0
-      ? "\n\n(Không đọc được nội dung link. Chỉ dùng thông tin trong yêu cầu + kiến thức chắc chắn về chủ đề. KHÔNG bịa số liệu, ngày tháng, giá, phần trăm hay tên sản phẩm/phiên bản mới — thiếu căn cứ thì đừng nêu.)"
-      : "";
-  const source = `Yêu cầu của người dùng:\n${input.text}${links}${grounding}`;
+  const source = sourceBlock(input, research);
   const instruction = `${source}${contentPlanBlock(contentPlan)}${contentPlanAdvisoryBlock(contentPlanAdvisories)}\n\nHãy soạn kịch bản + VIẾT MÃ .tsx cho từng cảnh, trả về đúng định dạng AI_Output_Contract.`;
   // System prompt is driven by the chosen DELIVERY FORMAT (canvas + caption
   // presence), the duration tier (word budget), and the full video language — the
@@ -293,6 +341,83 @@ export function buildAuthorMessages(
   return [
     { role: "system", content: `${system}${IMAGE_RULE}` },
     { role: "user", content: parts },
+  ];
+}
+
+export type AuthorModuleBatchMessagesInput = {
+  input: AuthorInput;
+  manifest: AuthorManifest;
+  componentIds: string[];
+  batchIndex: number;
+  batchCount: number;
+  contentPlan: ContentPlan;
+  contentPlanAdvisories?: readonly ContentPlanQualityIssue[];
+  research?: string;
+  wordsPerSecond?: number;
+};
+
+export function buildAuthorModuleBatchMessages(batch: AuthorModuleBatchMessagesInput): VisionMessage[] {
+  const videoLanguage = batch.input.videoLanguage ?? "vi";
+  const effectiveWordsPerSecond = resolvedWordsPerSecond(videoLanguage, batch.wordsPerSecond);
+  const system = authorModuleBatchSystem(batch.input.format ?? "tiktok", batch.input.durationTier ?? 1, videoLanguage, effectiveWordsPerSecond);
+  const wanted = new Set(batch.componentIds);
+  const selectedScenes = batch.manifest.scenes.filter((scene) => wanted.has(scene.component));
+  const instruction = `${sourceBlock(batch.input, batch.research)}
+
+MANIFEST ĐÃ CHỐT - KHÔNG ĐƯỢC THAY ĐỔI:
+\`\`\`json
+${JSON.stringify(batch.manifest, null, 2)}
+\`\`\`
+
+CONTENT PLAN ĐÃ DUYỆT:
+${JSON.stringify(batch.contentPlan, null, 2)}
+${contentPlanAdvisoryBlock(batch.contentPlanAdvisories)}
+
+Batch ${batch.batchIndex}/${batch.batchCount}. Component ids cần viết trong batch này, CHỈ các id này:
+${batch.componentIds.join("\n")}
+
+Scene metadata tương ứng với batch:
+${JSON.stringify(selectedScenes, null, 2)}
+
+Các component khác sẽ được viết ở batch khác. KHÔNG viết lại chúng. KHÔNG trả manifest JSON.
+Trả về đúng ${batch.componentIds.length} khối \`\`\`tsx, mỗi id đúng một khối.`;
+
+  return [
+    { role: "system", content: system },
+    { role: "user", content: instruction },
+  ];
+}
+
+export type MissingTsxRecoveryInput = {
+  manifest: unknown;
+  missingComponentIds: string[];
+  existingComponentIds?: string[];
+};
+
+function missingTsxRecoverySystem(): string {
+  return `Bạn đang sửa một reply authoring bị thiếu module .tsx. Manifest đã hợp lệ và KHÔNG được thay đổi.
+
+${AUTHORING_CONTRACT}
+
+TRẢ VỀ: chỉ các khối \`\`\`tsx còn thiếu, mỗi khối có dòng đầu "// component: <id>" và registerComponent id khớp. KHÔNG trả lại manifest JSON, KHÔNG thêm văn bản ngoài code fences.`;
+}
+
+export function buildMissingTsxRecoveryMessages(input: MissingTsxRecoveryInput): VisionMessage[] {
+  const existing = input.existingComponentIds && input.existingComponentIds.length > 0
+    ? `\n\nComponent ids đã có code hợp lệ, KHÔNG viết lại:\n${input.existingComponentIds.join("\n")}`
+    : "";
+  const text = `Dùng CHÍNH XÁC manifest này làm ngữ cảnh, không sửa manifest:
+\`\`\`json
+${JSON.stringify(input.manifest, null, 2)}
+\`\`\`
+
+Component ids còn thiếu code .tsx, CHỈ viết các id này:
+${input.missingComponentIds.join("\n")}${existing}
+
+Trả về đúng ${input.missingComponentIds.length} khối \`\`\`tsx cho các component id còn thiếu.`;
+  return [
+    { role: "system", content: missingTsxRecoverySystem() },
+    { role: "user", content: text },
   ];
 }
 

@@ -107,6 +107,19 @@ describe("Property 3: error classification total & stable", () => {
       classifyError({ message: "", stage: "build-gate", cause: "authored scene typecheck reported 1 error(s)", check: "N10", severity: "error" }),
     ).toBe("content");
   });
+  it("self-test: N10 Remotion spring config TS2353 tension failure → content", () => {
+    expect(
+      classifyError({
+        message: "",
+        stage: "build-gate",
+        cause:
+          "authored scene typecheck reported 1 error(s): N10 (scene-09): TS2353: Object literal may only specify known properties, and 'tension' does not exist in type 'Partial<SpringConfig>'.",
+        check: "N10",
+        sceneId: "scene-09",
+        severity: "error",
+      }),
+    ).toBe("content");
+  });
   it("self-test: N31 tagged render failure → content", () => {
     expect(
       classifyError({ message: "", stage: "render", cause: "authored scene runtime probe failed", check: "N31", sceneId: "scene-03", severity: "error" }),

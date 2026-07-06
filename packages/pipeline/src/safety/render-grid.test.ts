@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { geometry, type LockedVideoSpec } from "@motionreal/schema";
+import { geometry, tierSeconds, type LockedVideoSpec } from "@motionreal/schema";
 import {
   checkAudioSync,
   checkCaptions,
@@ -28,6 +28,7 @@ import {
 } from "./render-grid.js";
 import * as renderGridModule from "./render-grid.js";
 import { encodePngRGBA } from "./png.js";
+import { STALE_TIER3_BRIEF_SHAPE } from "../__fixtures__/authoring-failure-incidents.js";
 
 /**
  * Render-oracle self-tests (Requirement 9.3). Every oracle (N14, N15, N17, N18,
@@ -449,6 +450,23 @@ describe("N28 duration target (soft)", () => {
   });
   it("passes within the tolerance band", () => {
     const issues = checkDuration(narrated(125 * 30), { targetDurationSeconds: 120 });
+    expect(issues).toEqual([]);
+  });
+
+  it("incident fixture: stale tier-3 brief shape judges 142s against the stored 60s target", () => {
+    expect(STALE_TIER3_BRIEF_SHAPE).toMatchObject({ format: "tiktok", durationTier: 3, duration: 60 });
+
+    const issues = checkDuration(narrated(142 * 30), { targetDurationSeconds: STALE_TIER3_BRIEF_SHAPE.duration });
+
+    expect(issues).toContainEqual(expect.objectContaining({ check: "N28", severity: "warning" }));
+    expect(issues.map((issue) => issue.message).join(" ")).toMatch(/over the 60s target/);
+  });
+
+  it("does not warn a 142s TikTok tier-3 render when evaluated against the resolved tier target", () => {
+    const issues = checkDuration(narrated(142 * 30), {
+      targetDurationSeconds: tierSeconds("tiktok", 3),
+    });
+
     expect(issues).toEqual([]);
   });
 });

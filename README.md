@@ -12,6 +12,10 @@ true long-form YouTube author-by-segment path is not a stable workflow.
 - Runtime AI authors fresh Remotion scene modules for each video.
 - Scenes are raw JSX/SVG/CSS, admitted through the AUTHOR gate before render.
 - There is no template catalog and no authored-facing layout-block toolkit.
+- The pipeline persists the resolved duration target used by authoring and
+  safety checks.
+- Long no-image authoring plans use bounded TSX batches instead of one giant
+  code reply.
 - Captions, TTS, timing lock, safety checks, and render orchestration are owned
   by the pipeline.
 

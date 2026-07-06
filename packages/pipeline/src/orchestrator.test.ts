@@ -3,7 +3,7 @@ import { existsSync } from "node:fs";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { cpus, tmpdir } from "node:os";
 import { join } from "node:path";
-import type { LockedVideoSpec, VideoSpec } from "@motionreal/schema";
+import { tierSeconds, type DurationTier, type VideoFormat, type LockedVideoSpec, type VideoSpec } from "@motionreal/schema";
 
 /**
  * Orchestrator tests (pure AUTHOR mode). @remotion/bundler + @remotion/renderer
@@ -232,6 +232,64 @@ describe("scaffoldVideoProject — R8/R10", () => {
       durationTier: 3,
       ratio: "9:16",
     });
+  });
+
+  it("resolves duration tier targets into the persisted brief duration", async () => {
+    const cases: Array<{ format: VideoFormat; durationTier: DurationTier; seconds: number }> = [
+      { format: "tiktok", durationTier: 1, seconds: 45 },
+      { format: "tiktok", durationTier: 2, seconds: 90 },
+      { format: "tiktok", durationTier: 3, seconds: 150 },
+      { format: "youtube", durationTier: 1, seconds: 300 },
+      { format: "youtube", durationTier: 2, seconds: 450 },
+      { format: "youtube", durationTier: 3, seconds: 600 },
+    ];
+
+    for (const item of cases) {
+      const result = await scaffoldVideoProject({
+        projectId: `duration-${item.format}-${item.durationTier}`,
+        prompt: "Duration tier mapping",
+        format: item.format,
+        durationTier: item.durationTier,
+      });
+
+      expect(result.brief.duration).toBe(item.seconds);
+      expect(result.brief.duration).toBe(tierSeconds(item.format, item.durationTier));
+      const persisted = JSON.parse(await readFile(projectPaths(result.projectId).brief, "utf8"));
+      expect(persisted.duration).toBe(item.seconds);
+    }
+  });
+
+  it("resolves scaffold duration by explicit override, then duration tier, then prompt, then default", async () => {
+    const explicit = await scaffoldVideoProject({
+      projectId: "duration-explicit",
+      prompt: "Make this 1p30s, but caller overrides",
+      format: "tiktok",
+      durationTier: 3,
+      duration: 120,
+    });
+    expect(explicit.brief.duration).toBe(120);
+
+    const tierBeatsPrompt = await scaffoldVideoProject({
+      projectId: "duration-tier-beats-prompt",
+      prompt: "Make this a quick 60s video",
+      format: "tiktok",
+      durationTier: 3,
+    });
+    expect(tierBeatsPrompt.brief.duration).toBe(150);
+
+    const promptOnly = await scaffoldVideoProject({
+      projectId: "duration-prompt-only",
+      prompt: "Make a 1p30s video",
+      format: "tiktok",
+    });
+    expect(promptOnly.brief.duration).toBe(90);
+
+    const fallback = await scaffoldVideoProject({
+      projectId: "duration-default",
+      prompt: "Make a video about bottlenecks",
+      format: "tiktok",
+    });
+    expect(fallback.brief.duration).toBe(60);
   });
 });
 

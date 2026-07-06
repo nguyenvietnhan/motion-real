@@ -34,8 +34,16 @@ function block(id: string): string {
   ].join("\n");
 }
 
-function validReply(): string {
-  const manifest = {
+function ids(count: number): string[] {
+  return Array.from({ length: count }, (_, index) => `scene-${String(index + 1).padStart(2, "0")}`);
+}
+
+function blocksFor(componentIds: readonly string[]): string {
+  return componentIds.map((id) => block(id)).join("\n\n");
+}
+
+function validAuthorManifest() {
+  return {
     title: "Video kiểm thử pure-author",
     theme: { dominant: "#1E9CB0", mood: "thử" },
     scenes: [
@@ -44,7 +52,19 @@ function validReply(): string {
       { component: "alpha", eyebrow: "C", headline: "Ba", narration: "Câu ba." },
     ],
   };
+}
+
+function manifestOnlyReply(): string {
+  return "```json\n" + JSON.stringify(validAuthorManifest()) + "\n```";
+}
+
+function validReply(): string {
+  const manifest = validAuthorManifest();
   return "```json\n" + JSON.stringify(manifest) + "\n```\n\n" + block("alpha") + "\n\n" + block("beta");
+}
+
+function partialReply(): string {
+  return manifestOnlyReply() + "\n\n" + block("alpha");
 }
 
 function validContentPlanReply(): string {
@@ -110,6 +130,58 @@ function validContentPlanReply(): string {
   return JSON.stringify(plan);
 }
 
+function longContentPlanReply(count: number, overrides: { unsupportedFirstScene?: boolean } = {}): string {
+  const purposes = ["context", "turn", "proof", "contrast"] as const;
+  const layouts = ["signature-visual", "timeline", "diagram", "list"] as const;
+  const scenes = ids(count).map((sceneId, index) => {
+    const first = index === 0;
+    const last = index === count - 1;
+    return {
+      sceneId,
+      purpose: first ? "hook" : last ? "payoff" : purposes[(index - 1) % purposes.length],
+      beat: first ? "Open with the bottleneck." : last ? "Resolve the open loop." : `Advance beat ${index + 1}.`,
+      narration:
+        first && overrides.unsupportedFirstScene
+          ? "The prototype reached 500 cycles in 2026 without usable evidence."
+          : first
+            ? "The bottleneck appears before the viewer sees any specification."
+            : last
+              ? "The story resolves by showing why the bottleneck matters."
+              : `This beat adds one concrete step in the explanation without inventing measurements.`,
+      onScreenText: first && overrides.unsupportedFirstScene ? "500 cycles in 2026" : first ? "The bottleneck first" : last ? "The bottleneck decides" : `Step ${index + 1}`,
+      visualMetaphor: first ? "A small chip behind a locked gate." : last ? "A gate opening to a finished product." : `A visual station for beat ${index + 1}.`,
+      motionProgression: "Quick entrance: the visual lands fast; semantic: one shape moves through the scene; living: a small signal pulse continues; final hold.",
+      layoutFamily: layouts[index % layouts.length],
+      evidenceClaimIds: [],
+    };
+  });
+  return JSON.stringify({
+    title: `Long plan ${count}`,
+    viewerPromise: "The viewer follows the bottleneck without a giant monolithic code reply.",
+    hookType: "surprise",
+    first3SecondsLine: "The bottleneck shows up before the specs.",
+    openLoop: "The viewer wants to see where the bottleneck lives.",
+    payoff: "The bottleneck explains the whole system.",
+    claims: [],
+    scenes,
+  });
+}
+
+function authorReplyForIds(componentIds: readonly string[], imageRef?: string): string {
+  const manifest = {
+    title: "Long monolithic with images",
+    theme: { dominant: "#1E9CB0", mood: "image" },
+    scenes: componentIds.map((component, index) => ({
+      component,
+      eyebrow: index === 0 ? "HOOK" : "BEAT",
+      headline: `Scene ${index + 1}`,
+      narration: `Narration ${index + 1}.`,
+      ...(index === 0 && imageRef ? { image: { ref: imageRef } } : {}),
+    })),
+  };
+  return "```json\n" + JSON.stringify(manifest) + "\n```\n\n" + blocksFor(componentIds);
+}
+
 function weakContentPlanReply(): string {
   const plan = JSON.parse(validContentPlanReply()) as {
     scenes: Array<{ purpose: string; narration: string; onScreenText: string; layoutFamily: string; evidenceClaimIds: string[] }>;
@@ -122,6 +194,32 @@ function weakContentPlanReply(): string {
     layoutFamily: "statement",
     evidenceClaimIds: index === 0 ? [] : scene.evidenceClaimIds,
   }));
+  return JSON.stringify(plan);
+}
+
+function claimLedgerContentPlanReply(): string {
+  const plan = JSON.parse(validContentPlanReply()) as {
+    scenes: Array<{ narration: string; onScreenText: string; evidenceClaimIds: string[] }>;
+  };
+  plan.scenes[0] = {
+    ...plan.scenes[0]!,
+    narration: "The lab report says the prototype reached 500 cycles in 2026, but no usable claim id is attached.",
+    onScreenText: "500 cycles in 2026",
+    evidenceClaimIds: [],
+  };
+  return JSON.stringify(plan);
+}
+
+function repairedClaimLedgerContentPlanReply(): string {
+  const plan = JSON.parse(validContentPlanReply()) as {
+    scenes: Array<{ narration: string; onScreenText: string; evidenceClaimIds: string[] }>;
+  };
+  plan.scenes[0] = {
+    ...plan.scenes[0]!,
+    narration: "A safety plan should keep concrete measurements out until a usable claim id supports them.",
+    onScreenText: "Evidence first",
+    evidenceClaimIds: [],
+  };
   return JSON.stringify(plan);
 }
 
@@ -141,6 +239,25 @@ function chatReplies(...replies: string[]) {
   const queue = [...replies];
   const fallback = replies.at(-1) ?? validReply();
   return vi.fn(async (_model: string, _messages: ChatMessage[]) => queue.shift() ?? fallback);
+}
+
+function messageText(messages: ChatMessage[]): string {
+  return messages
+    .map((message) =>
+      Array.isArray(message.content)
+        ? message.content.filter((part): part is { type: "text"; text: string } => part.type === "text").map((part) => part.text).join("\n")
+        : message.content,
+    )
+    .join("\n");
+}
+
+function fakeLogger() {
+  return {
+    debug: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+  };
 }
 
 function makeBackend(
@@ -191,6 +308,154 @@ describe("authorScenes (pure-author)", () => {
     expect(authorUserText).not.toContain("Unsupported $999 launch price");
   });
 
+  it("authors long content plans as bounded TSX batches from a deterministic manifest", async () => {
+    const projectId = "pa-batched-long";
+    const componentIds = ids(10);
+    const admit = vi.fn(async () => ({ ok: true as const, componentIds, files: [] }));
+    const chat = chatReplies(
+      longContentPlanReply(10),
+      blocksFor(componentIds.slice(0, 4)),
+      blocksFor(componentIds.slice(4, 8)),
+      blocksFor(componentIds.slice(8)),
+    );
+    const backend = new NineRouterAuthoringBackend({
+      client: { chat } as unknown as NineRouterClient,
+      tools: {} as never,
+      model: () => "test-model",
+      apiKey: () => undefined,
+      admit,
+    });
+
+    const out = await backend.authorScenes({ projectId, input: { text: "long topic", urls: [], format: "tiktok", durationTier: 3 }, scriptGate: false });
+
+    expect(out.scenes).toHaveLength(10);
+    expect(chat).toHaveBeenCalledTimes(4);
+    const batch1Text = messageText(chat.mock.calls[1]![1] as ChatMessage[]);
+    const batch2Text = messageText(chat.mock.calls[2]![1] as ChatMessage[]);
+    const batch3Text = messageText(chat.mock.calls[3]![1] as ChatMessage[]);
+    expect(batch1Text).toContain("Batch 1/3");
+    expect(batch1Text).toContain("scene-01\nscene-02\nscene-03\nscene-04");
+    expect(batch2Text).toContain("Batch 2/3");
+    expect(batch2Text).toContain("scene-05\nscene-06\nscene-07\nscene-08");
+    expect(batch3Text).toContain("Batch 3/3");
+    expect(batch3Text).toContain("scene-09\nscene-10");
+    expect(batch1Text).toContain("KHÔNG trả manifest JSON");
+    expect(admit).toHaveBeenCalledTimes(1);
+
+    const dir = authoredDir(projectId);
+    expect(existsSync(join(dir, "scene-01.tsx"))).toBe(true);
+    expect(existsSync(join(dir, "scene-10.tsx"))).toBe(true);
+    const manifest = JSON.parse(readFileSync(join(home, ".video-tool", "projects", projectId, "manifest.json"), "utf8"));
+    expect(manifest.title).toBe("Long plan 10");
+    expect(manifest.scenes.map((scene: { component: string }) => scene.component)).toEqual(componentIds);
+  });
+
+  it("keeps the claim-ledger repair plus TSX batches inside the bounded call budget", async () => {
+    const projectId = "pa-batched-after-plan-repair";
+    const componentIds = ids(10);
+    const admit = vi.fn(async () => ({ ok: true as const, componentIds, files: [] }));
+    const chat = chatReplies(
+      longContentPlanReply(10, { unsupportedFirstScene: true }),
+      longContentPlanReply(10),
+      blocksFor(componentIds.slice(0, 4)),
+      blocksFor(componentIds.slice(4, 8)),
+      blocksFor(componentIds.slice(8)),
+    );
+    const backend = new NineRouterAuthoringBackend({
+      client: { chat } as unknown as NineRouterClient,
+      tools: {} as never,
+      model: () => "test-model",
+      apiKey: () => undefined,
+      admit,
+    });
+
+    const out = await backend.authorScenes({ projectId, input: { text: "long repaired topic", urls: [], format: "tiktok", durationTier: 3 }, scriptGate: false });
+
+    expect(out.scenes).toHaveLength(10);
+    expect(chat).toHaveBeenCalledTimes(5);
+    expect(messageText(chat.mock.calls[1]![1] as ChatMessage[])).toContain("CONTENT PLAN REPAIR");
+    expect(messageText(chat.mock.calls[2]![1] as ChatMessage[])).toContain("Batch 1/3");
+    expect(admit).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not write partial files when a TSX batch is incomplete", async () => {
+    const projectId = "pa-batched-missing";
+    const componentIds = ids(5);
+    const admit = vi.fn(async () => ({ ok: true as const, componentIds, files: [] }));
+    const chat = chatReplies(
+      longContentPlanReply(5),
+      blocksFor(componentIds.slice(0, 4)),
+      "I cannot provide that module.",
+    );
+    const backend = new NineRouterAuthoringBackend({
+      client: { chat } as unknown as NineRouterClient,
+      tools: {} as never,
+      model: () => "test-model",
+      apiKey: () => undefined,
+      admit,
+    });
+
+    const out = await backend.authorScenes({ projectId, input: { text: "long topic", urls: [], format: "tiktok", durationTier: 1 }, scriptGate: false });
+
+    expect(out.scenes).toEqual([]);
+    expect(out.message).toMatch(/hợp lệ/i);
+    expect(chat).toHaveBeenCalledTimes(3);
+    expect(admit).not.toHaveBeenCalled();
+    expect(existsSync(authoredDir(projectId))).toBe(false);
+  });
+
+  it("fails before TSX calls when a plan would exceed the four-batch authoring budget", async () => {
+    const projectId = "pa-batched-too-large";
+    const admit = vi.fn(async () => ({ ok: true as const, componentIds: [], files: [] }));
+    const chat = chatReplies(longContentPlanReply(17), blocksFor(ids(4)));
+    const backend = new NineRouterAuthoringBackend({
+      client: { chat } as unknown as NineRouterClient,
+      tools: {} as never,
+      model: () => "test-model",
+      apiKey: () => undefined,
+      admit,
+    });
+
+    const out = await backend.authorScenes({ projectId, input: { text: "too many scenes", urls: [], format: "tiktok", durationTier: 3 }, scriptGate: false });
+
+    expect(out.scenes).toEqual([]);
+    expect(out.message).toMatch(/quá nhiều cảnh/i);
+    expect(out.message).toContain("16 component");
+    expect(chat).toHaveBeenCalledTimes(1);
+    expect(admit).not.toHaveBeenCalled();
+    expect(existsSync(authoredDir(projectId))).toBe(false);
+  });
+
+  it("keeps monolithic authoring for long plans with user images so image placement stays model-authored", async () => {
+    const projectId = "pa-long-image-monolithic";
+    const componentIds = ids(6);
+    const providedRef = "assets/long-image.png";
+    const assetsDir = join(home, ".video-tool", "projects", projectId, "assets");
+    mkdirSync(assetsDir, { recursive: true });
+    writeFileSync(join(home, ".video-tool", "projects", projectId, providedRef), Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
+    const admit = vi.fn(async () => ({ ok: true as const, componentIds, files: [] }));
+    const chat = chatReplies(longContentPlanReply(6), authorReplyForIds(componentIds, providedRef));
+    const backend = new NineRouterAuthoringBackend({
+      client: { chat } as unknown as NineRouterClient,
+      tools: {} as never,
+      model: () => "test-model",
+      apiKey: () => undefined,
+      admit,
+    });
+
+    await backend.authorScenes({
+      projectId,
+      input: { text: "long image topic", urls: [], images: [{ ref: providedRef, width: 800, height: 600 }], format: "tiktok", durationTier: 1 },
+      scriptGate: false,
+    });
+
+    expect(chat).toHaveBeenCalledTimes(2);
+    expect(messageText(chat.mock.calls[1]![1] as ChatMessage[])).toContain("AI_Output_Contract");
+    expect(messageText(chat.mock.calls[1]![1] as ChatMessage[])).not.toContain("Batch 1/");
+    const manifest = JSON.parse(readFileSync(join(home, ".video-tool", "projects", projectId, "manifest.json"), "utf8"));
+    expect(manifest.scenes[0].image).toEqual({ ref: providedRef });
+  });
+
   it("valid reply ⇒ writes one .tsx per unique id + open-id manifest + admits + returns scenes", async () => {
     const projectId = "pa-valid";
     const { backend, admit } = makeBackend(validReply());
@@ -207,6 +472,78 @@ describe("authorScenes (pure-author)", () => {
 
     const manifest = JSON.parse(readFileSync(join(home, ".video-tool", "projects", projectId, "manifest.json"), "utf8"));
     expect(manifest.scenes.map((s: { component: string }) => s.component)).toEqual(["alpha", "beta", "alpha"]);
+  });
+
+  it("recovers a manifest-only author reply with one bounded missing-TSX call", async () => {
+    const projectId = "pa-recover-json-only";
+    const admit = vi.fn(async () => ({ ok: true as const, componentIds: ["alpha", "beta"], files: [] }));
+    const chat = chatReplies(validContentPlanReply(), manifestOnlyReply(), block("alpha") + "\n\n" + block("beta"));
+    const backend = new NineRouterAuthoringBackend({
+      client: { chat } as unknown as NineRouterClient,
+      tools: {} as never,
+      model: () => "test-model",
+      apiKey: () => undefined,
+      admit,
+    });
+
+    const out = await backend.authorScenes({ projectId, input: { text: "chủ đề", urls: [] }, scriptGate: false });
+
+    expect(out.scenes.map((scene) => scene.sceneId)).toEqual(["scene-01", "scene-02", "scene-03"]);
+    expect(chat).toHaveBeenCalledTimes(3);
+    const recoveryText = messageText(chat.mock.calls[2]![1] as ChatMessage[]);
+    expect(recoveryText).toContain("Manifest đã hợp lệ");
+    expect(recoveryText).toContain("CHỈ viết các id này");
+    expect(recoveryText).toContain("alpha\nbeta");
+    expect(admit).toHaveBeenCalledTimes(1);
+    expect(existsSync(join(authoredDir(projectId), "alpha.tsx"))).toBe(true);
+    expect(existsSync(join(authoredDir(projectId), "beta.tsx"))).toBe(true);
+  });
+
+  it("recovers only the missing component id and preserves valid first-pass modules", async () => {
+    const projectId = "pa-recover-partial";
+    const admit = vi.fn(async () => ({ ok: true as const, componentIds: ["alpha", "beta"], files: [] }));
+    const chat = chatReplies(validContentPlanReply(), partialReply(), block("beta"));
+    const backend = new NineRouterAuthoringBackend({
+      client: { chat } as unknown as NineRouterClient,
+      tools: {} as never,
+      model: () => "test-model",
+      apiKey: () => undefined,
+      admit,
+    });
+
+    const out = await backend.authorScenes({ projectId, input: { text: "chủ đề", urls: [] }, scriptGate: false });
+
+    expect(out.scenes.map((scene) => scene.sceneId)).toEqual(["scene-01", "scene-02", "scene-03"]);
+    expect(chat).toHaveBeenCalledTimes(3);
+    const recoveryText = messageText(chat.mock.calls[2]![1] as ChatMessage[]);
+    const missingSection = /Component ids còn thiếu code \.tsx, CHỈ viết các id này:\n([\s\S]*?)\n\nComponent ids đã có code/.exec(recoveryText)?.[1];
+    expect(missingSection?.trim()).toBe("beta");
+    expect(recoveryText).toContain("Component ids đã có code hợp lệ, KHÔNG viết lại:\nalpha");
+
+    const dir = authoredDir(projectId);
+    expect(readFileSync(join(dir, "alpha.tsx"), "utf8")).toContain('id: "alpha"');
+    expect(readFileSync(join(dir, "beta.tsx"), "utf8")).toContain('id: "beta"');
+  });
+
+  it("does not accept partial code when the bounded missing-TSX recovery is still invalid", async () => {
+    const projectId = "pa-recover-negative";
+    const admit = vi.fn(async () => ({ ok: true as const, componentIds: ["alpha", "beta"], files: [] }));
+    const chat = chatReplies(validContentPlanReply(), partialReply(), "I cannot provide TSX.");
+    const backend = new NineRouterAuthoringBackend({
+      client: { chat } as unknown as NineRouterClient,
+      tools: {} as never,
+      model: () => "test-model",
+      apiKey: () => undefined,
+      admit,
+    });
+
+    const out = await backend.authorScenes({ projectId, input: { text: "chủ đề", urls: [] }, scriptGate: false });
+
+    expect(out.scenes).toEqual([]);
+    expect(out.message).toMatch(/hợp lệ/i);
+    expect(chat).toHaveBeenCalledTimes(3);
+    expect(admit).not.toHaveBeenCalled();
+    expect(existsSync(authoredDir(projectId))).toBe(false);
   });
 
   it("clears stale authored .tsx files before writing a fresh authoring batch", async () => {
@@ -240,6 +577,54 @@ describe("authorScenes (pure-author)", () => {
     expect(existsSync(authoredDir(projectId))).toBe(false);
   });
 
+  it("logs a compact author-reply parse summary while keeping raw replies capped", async () => {
+    const projectId = "pa-invalid-logged";
+    const logger = fakeLogger();
+    const longInvalidReply = "x".repeat(3000);
+    const admit = vi.fn(async () => ({ ok: true as const, componentIds: ["alpha", "beta"], files: [] }));
+    const chat = chatReplies(validContentPlanReply(), longInvalidReply);
+    const backend = new NineRouterAuthoringBackend({
+      client: { chat } as unknown as NineRouterClient,
+      tools: {} as never,
+      model: () => "test-model",
+      apiKey: () => undefined,
+      admit,
+      logger,
+    });
+
+    const out = await backend.authorScenes({ projectId, input: { text: "chủ đề", urls: [] }, scriptGate: false });
+
+    expect(out.scenes).toEqual([]);
+    const infoCall = logger.info.mock.calls.find((call) => call[1] === "AI replied");
+    expect(infoCall?.[0]).toMatchObject({
+      projectId,
+      replyChars: 3000,
+      parseSummary: {
+        manifestFound: false,
+        manifestValid: false,
+        sceneCount: 0,
+        tsxModuleCount: 0,
+        missingComponentIdsCount: 0,
+        idMismatchCount: 0,
+        complete: false,
+        recoveryAttempted: false,
+      },
+    });
+    const errorCall = logger.error.mock.calls.find((call) => call[1] === "author-reply parse failed");
+    expect(errorCall?.[0]).toMatchObject({
+      projectId,
+      reason: "no-manifest",
+      parseSummary: {
+        manifestFound: false,
+        manifestValid: false,
+        recoveryAttempted: false,
+      },
+    });
+    expect((errorCall?.[0] as { rawReply?: string }).rawReply).toHaveLength(2000);
+    expect(JSON.stringify(errorCall?.[0])).not.toContain("x".repeat(2001));
+    expect(admit).not.toHaveBeenCalled();
+  });
+
   it("invalid content plan stops before authoring and does not fall back to one-step authoring", async () => {
     const projectId = "pa-invalid-plan";
     const admit = vi.fn(async () => ({ ok: true as const, componentIds: ["alpha", "beta"], files: [] }));
@@ -266,6 +651,50 @@ describe("authorScenes (pure-author)", () => {
     expect(out.scenes).toEqual([]);
     expect(out.message).toMatch(/kế hoạch nội dung/i);
     expect(chat).toHaveBeenCalledTimes(1);
+    expect(admit).not.toHaveBeenCalled();
+    expect(existsSync(authoredDir(projectId))).toBe(false);
+  });
+
+  it("repairs a claim-ledger-only content-plan failure once, then proceeds to authoring", async () => {
+    const projectId = "pa-plan-repair-ok";
+    const admit = vi.fn(async () => ({ ok: true as const, componentIds: ["alpha", "beta"], files: [] }));
+    const chat = chatReplies(claimLedgerContentPlanReply(), repairedClaimLedgerContentPlanReply(), validReply());
+    const backend = new NineRouterAuthoringBackend({
+      client: { chat } as unknown as NineRouterClient,
+      tools: {} as never,
+      model: () => "test-model",
+      apiKey: () => undefined,
+      admit,
+    });
+
+    const out = await backend.authorScenes({ projectId, input: { text: "chủ đề", urls: [] }, scriptGate: false });
+
+    expect(out.scenes.map((scene) => scene.sceneId)).toEqual(["scene-01", "scene-02", "scene-03"]);
+    expect(chat).toHaveBeenCalledTimes(3);
+    const repairText = messageText(chat.mock.calls[1]![1] as ChatMessage[]);
+    expect(repairText).toContain("CONTENT PLAN REPAIR");
+    expect(repairText).toContain("claim-ledger @scene-01");
+    expect(repairText).toContain("Do not make uncertain/omit claims supported");
+    expect(admit).toHaveBeenCalledTimes(1);
+  });
+
+  it("stops with CONTENT_PLAN_QUALITY_FAILURE when claim-ledger repair still fails", async () => {
+    const projectId = "pa-plan-repair-fails";
+    const admit = vi.fn(async () => ({ ok: true as const, componentIds: ["alpha", "beta"], files: [] }));
+    const chat = chatReplies(claimLedgerContentPlanReply(), claimLedgerContentPlanReply(), validReply());
+    const backend = new NineRouterAuthoringBackend({
+      client: { chat } as unknown as NineRouterClient,
+      tools: {} as never,
+      model: () => "test-model",
+      apiKey: () => undefined,
+      admit,
+    });
+
+    const out = await backend.authorScenes({ projectId, input: { text: "chủ đề", urls: [] }, scriptGate: false });
+
+    expect(out.scenes).toEqual([]);
+    expect(out.message).toMatch(/kế hoạch nội dung/i);
+    expect(chat).toHaveBeenCalledTimes(2);
     expect(admit).not.toHaveBeenCalled();
     expect(existsSync(authoredDir(projectId))).toBe(false);
   });

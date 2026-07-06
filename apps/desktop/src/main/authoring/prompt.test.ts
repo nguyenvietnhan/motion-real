@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { buildAuthorMessages, buildImageFilterMessages, buildReauthorMessages, buildVisualQaMessages, type ContentPart } from "./prompt.js";
+import {
+  buildAuthorMessages,
+  buildAuthorModuleBatchMessages,
+  buildImageFilterMessages,
+  buildMissingTsxRecoveryMessages,
+  buildReauthorMessages,
+  buildVisualQaMessages,
+  type ContentPart,
+} from "./prompt.js";
 import { contentPlanForAuthoring, type ContentPlan } from "./content-plan.js";
 
 /**
@@ -53,6 +61,58 @@ describe("prompt surface baseline", () => {
       issues: [{ check: "N14", severity: "error", message: "tràn chữ" }],
       stillDataUrl: "data:image/png;base64,AAA",
     });
+    const missingTsxRecovery = buildMissingTsxRecoveryMessages({
+      manifest: { title: "T", theme: { dominant: "#1E9CB0" }, scenes: [{ component: "beta", headline: "B", narration: "N" }] },
+      missingComponentIds: ["beta"],
+      existingComponentIds: ["alpha"],
+    });
+    const moduleBatch = buildAuthorModuleBatchMessages({
+      input: { text: "Chủ đề batch", urls: [], format: "tiktok", durationTier: 3 },
+      manifest: {
+        title: "Batch",
+        theme: { dominant: "#1E9CB0", mood: "test" },
+        scenes: [
+          { component: "scene-01", eyebrow: "HOOK", headline: "Một", narration: "Câu một.", props: {} },
+          { component: "scene-02", eyebrow: "PAYOFF", headline: "Hai", narration: "Câu hai.", props: {} },
+        ],
+      },
+      componentIds: ["scene-02"],
+      batchIndex: 1,
+      batchCount: 2,
+      contentPlan: {
+        title: "Batch",
+        viewerPromise: "Promise",
+        hookType: "surprise",
+        first3SecondsLine: "Hook",
+        openLoop: "Loop",
+        payoff: "Payoff",
+        claims: [],
+        scenes: [
+          {
+            sceneId: "scene-01",
+            purpose: "hook",
+            beat: "Beat one",
+            narration: "Câu một.",
+            onScreenText: "Một",
+            visualMetaphor: "Signal",
+            motionProgression: "Quick entrance then hold.",
+            layoutFamily: "statement",
+            evidenceClaimIds: [],
+          },
+          {
+            sceneId: "scene-02",
+            purpose: "payoff",
+            beat: "Beat two",
+            narration: "Câu hai.",
+            onScreenText: "Hai",
+            visualMetaphor: "Gate",
+            motionProgression: "Quick entrance then hold.",
+            layoutFamily: "diagram",
+            evidenceClaimIds: [],
+          },
+        ],
+      },
+    });
     const visualQa = buildVisualQaMessages(stills);
     const imageFilter = buildImageFilterMessages("Bài nói về sự kiện X", [image]);
 
@@ -62,6 +122,8 @@ describe("prompt surface baseline", () => {
       authorWithImages: promptShape(authorWithImages),
       reauthorTextOnly: promptShape(reauthorTextOnly),
       reauthorWithStill: promptShape(reauthorWithStill),
+      missingTsxRecovery: promptShape(missingTsxRecovery),
+      moduleBatch: promptShape(moduleBatch),
       visualQa: promptShape(visualQa),
       imageFilter: promptShape(imageFilter),
     }).toEqual({
@@ -85,6 +147,14 @@ describe("prompt surface baseline", () => {
         { role: "system", kind: "text", textParts: 0, imageParts: 0 },
         { role: "user", kind: "parts", textParts: 1, imageParts: 1 },
       ],
+      missingTsxRecovery: [
+        { role: "system", kind: "text", textParts: 0, imageParts: 0 },
+        { role: "user", kind: "text", textParts: 0, imageParts: 0 },
+      ],
+      moduleBatch: [
+        { role: "system", kind: "text", textParts: 0, imageParts: 0 },
+        { role: "user", kind: "text", textParts: 0, imageParts: 0 },
+      ],
       visualQa: [
         { role: "system", kind: "text", textParts: 0, imageParts: 0 },
         { role: "user", kind: "parts", textParts: 4, imageParts: 2 },
@@ -103,11 +173,122 @@ describe("prompt surface baseline", () => {
     expect(promptText(reauthorTextOnly)).toEqual(expect.stringContaining("sửa nhẹ"));
     expect(promptText(reauthorWithStill)).toEqual(expect.stringContaining("tràn chữ"));
     expect(promptText(reauthorWithStill)).toEqual(expect.stringContaining("Ảnh render hiện tại"));
+    expect(promptText(missingTsxRecovery)).toEqual(expect.stringContaining("Manifest đã hợp lệ"));
+    expect(promptText(missingTsxRecovery)).toEqual(expect.stringContaining("CHỈ viết các id này"));
+    expect(promptText(moduleBatch)).toEqual(expect.stringContaining("MANIFEST ĐÃ CHỐT"));
+    expect(promptText(moduleBatch)).toEqual(expect.stringContaining("Batch 1/2"));
     expect(promptText(visualQa)).toEqual(expect.stringContaining("LỖI BỐ CỤC RÕ RÀNG"));
     expect(promptText(visualQa)).toEqual(expect.stringContaining('Cảnh "scene-02"'));
     expect(promptText(imageFilter)).toEqual(expect.stringContaining("video ngắn đa chủ đề"));
     expect(promptText(imageFilter)).toEqual(expect.stringContaining("assets/a.png"));
     expect(promptText(imageFilter)).toEqual(expect.stringContaining('"keep"'));
+  });
+});
+
+describe("buildAuthorModuleBatchMessages", () => {
+  it("asks for only the requested TSX batch against a fixed manifest", () => {
+    const manifest = {
+      title: "Video batch",
+      theme: { dominant: "#1E9CB0", mood: "test" },
+      scenes: [
+        { component: "scene-01", eyebrow: "HOOK", headline: "One", narration: "First.", props: {} },
+        { component: "scene-02", eyebrow: "TURN", headline: "Two", narration: "Second.", props: {} },
+        { component: "scene-03", eyebrow: "PAYOFF", headline: "Three", narration: "Third.", props: {} },
+      ],
+    };
+    const plan: ContentPlan = {
+      title: "Video batch",
+      viewerPromise: "Promise",
+      hookType: "surprise",
+      first3SecondsLine: "Hook",
+      openLoop: "Loop",
+      payoff: "Payoff",
+      claims: [],
+      scenes: [
+        {
+          sceneId: "scene-01",
+          purpose: "hook",
+          beat: "Beat one",
+          narration: "First.",
+          onScreenText: "One",
+          visualMetaphor: "One visual",
+          motionProgression: "Quick entrance then hold.",
+          layoutFamily: "statement",
+          evidenceClaimIds: [],
+        },
+        {
+          sceneId: "scene-02",
+          purpose: "turn",
+          beat: "Beat two",
+          narration: "Second.",
+          onScreenText: "Two",
+          visualMetaphor: "Two visual",
+          motionProgression: "Quick entrance then hold.",
+          layoutFamily: "diagram",
+          evidenceClaimIds: [],
+        },
+        {
+          sceneId: "scene-03",
+          purpose: "payoff",
+          beat: "Beat three",
+          narration: "Third.",
+          onScreenText: "Three",
+          visualMetaphor: "Three visual",
+          motionProgression: "Quick entrance then hold.",
+          layoutFamily: "timeline",
+          evidenceClaimIds: [],
+        },
+      ],
+    };
+
+    const messages = buildAuthorModuleBatchMessages({
+      input: { text: "Topic", urls: [], format: "tiktok", durationTier: 3, videoLanguage: "en" },
+      manifest,
+      componentIds: ["scene-02", "scene-03"],
+      batchIndex: 2,
+      batchCount: 3,
+      contentPlan: plan,
+      contentPlanAdvisories: [{ check: "layout-diversity", severity: "advisory", message: "vary layouts" }],
+      research: "source text",
+    });
+    const text = promptText(messages);
+
+    expect(text).toContain("KHÔNG trả manifest JSON");
+    expect(text).toContain(JSON.stringify(manifest, null, 2));
+    expect(text).toContain("Batch 2/3");
+    expect(text).toContain("scene-02\nscene-03");
+    expect(text).toContain("Các component khác sẽ được viết ở batch khác");
+    expect(text).toContain("CONTENT PLAN ADVISORIES TO RESOLVE IN TSX");
+    expect(text).toContain("source text");
+  });
+});
+
+describe("buildMissingTsxRecoveryMessages", () => {
+  it("asks for only the missing TSX modules while preserving the exact manifest", () => {
+    const manifest = {
+      title: "Video kiểm thử",
+      theme: { dominant: "#1E9CB0", mood: "test" },
+      scenes: [
+        { component: "alpha", eyebrow: "A", headline: "One", narration: "First." },
+        { component: "beta", eyebrow: "B", headline: "Two", narration: "Second." },
+        { component: "gamma", eyebrow: "C", headline: "Three", narration: "Third." },
+      ],
+    };
+
+    const messages = buildMissingTsxRecoveryMessages({
+      manifest,
+      missingComponentIds: ["beta", "gamma"],
+      existingComponentIds: ["alpha"],
+    });
+    const text = promptText(messages);
+
+    expect(text).toContain("KHÔNG được thay đổi");
+    expect(text).toContain(JSON.stringify(manifest, null, 2));
+    expect(text).toContain("beta\ngamma");
+    expect(text).toContain("alpha");
+    expect(text).toContain("KHÔNG viết lại");
+    expect(text).toContain("KHÔNG trả lại manifest JSON");
+    expect(text).toContain("registerComponent id khớp");
   });
 });
 

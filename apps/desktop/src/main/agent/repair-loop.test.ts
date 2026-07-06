@@ -177,6 +177,12 @@ describe("Property 4: repair budget and routing", () => {
   // Feature: desktop-author-mode, Property 4: repair budget and routing
   const infraIssue = (sceneId?: string): SafetyIssue => ({ check: "N13", severity: "error", message: "infra", ...(sceneId ? { sceneId } : {}) });
   const contentIssue = (sceneId: string): SafetyIssue => ({ check: "N14", severity: "error", sceneId, message: "content" });
+  const n10SpringIssue = (sceneId: string): SafetyIssue => ({
+    check: "N10",
+    severity: "error",
+    sceneId,
+    message: "TS2353: Object literal may only specify known properties, and 'tension' does not exist in type 'Partial<SpringConfig>'.",
+  });
   const n31Issue = (sceneId: string): SafetyIssue => ({ check: "N31", severity: "error", sceneId, message: "runtime fallback" });
 
   it("an infra hard error stops with kind 'infra' and never calls reauthor", async () => {
@@ -237,6 +243,43 @@ describe("Property 4: repair budget and routing", () => {
     const outcome = await generateValidateRepair(deps, { maxAttempts: 3 });
     expect(outcome).toEqual({ kind: "passed", attempts: 2 });
     expect(received).toEqual([{ sceneId: "scene-04", issues: [n31Issue("scene-04")] }]);
+  });
+
+  it("N10 spring-config typecheck failures are targetable content defects", async () => {
+    let renders = 0;
+    let received: { sceneId: string; issues?: SafetyIssue[] }[] | null = null;
+    const issue = n10SpringIssue("scene-09");
+    const deps: RepairLoopDeps = {
+      renderDraft: async () => {
+        renders++;
+        return renders === 1
+          ? {
+              ok: false,
+              error: {
+                message: "",
+                stage: "build-gate",
+                cause: "authored scene typecheck reported 1 error(s)",
+                check: "N10",
+                sceneId: "scene-09",
+                severity: "error",
+              },
+            }
+          : { ok: true };
+      },
+      getSafetyReport: async () =>
+        renders === 1
+          ? { ok: false, hardErrors: [issue], warnings: [] }
+          : { ok: true, hardErrors: [], warnings: [] },
+      reauthor: async (targets) => {
+        received = targets;
+      },
+      hooks: noopHooks,
+    };
+
+    const outcome = await generateValidateRepair(deps, { maxAttempts: 3 });
+
+    expect(outcome).toEqual({ kind: "passed", attempts: 2 });
+    expect(received).toEqual([{ sceneId: "scene-09", issues: [issue] }]);
   });
 
   it("content errors with no scene to target ⇒ exhausted without looping forever", async () => {

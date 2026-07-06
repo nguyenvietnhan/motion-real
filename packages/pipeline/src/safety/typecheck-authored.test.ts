@@ -66,6 +66,21 @@ describe("typecheckAuthoredScenes (N10)", () => {
     expect(issues.every((i) => /typecheck-wrong-prop\.tsx/.test(i.path ?? ""))).toBe(true);
   }, TS_PROGRAM_TIMEOUT);
 
+  it("incident fixture: invalid Remotion spring config field tension is a hard N10 error", () => {
+    const file = fixture("typecheck-spring-tension.tsx");
+    const issues = typecheckAuthoredScenes([file], root, new Map([[resolve(file), "scene-09"]]));
+
+    expect(issues).toContainEqual(
+      expect.objectContaining({
+        check: "N10",
+        severity: "error",
+        sceneId: "scene-09",
+        message: expect.stringContaining("tension"),
+      }),
+    );
+    expect(issues.some((issue) => /TS2353/.test(issue.message))).toBe(true);
+  }, TS_PROGRAM_TIMEOUT);
+
   it("stamps each issue with the manifest sceneId so the repair loop can target it", () => {
     const file = fixture("typecheck-wrong-prop.tsx");
     const sceneIdByFile = new Map([[resolve(file), "scene-05"]]);

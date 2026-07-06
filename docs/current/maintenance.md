@@ -47,6 +47,24 @@ The root `.mcp.json` is local-only and ignored. Keep `.mcp.example.json` as a
 template without absolute machine paths; do not reintroduce a repo-provided
 MCP server without a focused owner-approved slice.
 
+## Duration Targets
+
+New scaffolded projects persist one resolved duration target in `brief.duration`.
+The pipeline resolves it in this order: explicit tool duration, selected
+duration tier, duration parsed from the prompt, then the 60 second default.
+Existing project briefs are not silently migrated; stale targets such as an old
+`duration: 60` paired with a longer `durationTier` need an explicit owner
+requested repair or reauthoring pass.
+
+## Authoring Output Size
+
+Fresh authoring should stay bounded before the first draft. The current budget is
+one content-plan call, at most one claim-ledger repair call, and then either one
+single authoring reply plus at most one missing-TSX recovery, or up to four TSX
+batch calls for long no-image plans. Each TSX batch is limited to four component
+ids. Do not add unbounded retries, extra manifest-only model calls, or provider
+`max_tokens` overrides without a new owner-approved slice and tests.
+
 ## Motion Tempo Validation
 
 Motion tempo is authoring guidance, not a hard render oracle. Automated tests

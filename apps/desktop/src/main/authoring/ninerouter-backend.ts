@@ -25,12 +25,27 @@ import type { AuthoringBackend, AuthoredScene, ReauthorTarget } from "../agent/c
 import type { SafetyReportView } from "../agent/repair-loop.js";
 import type { AuthorJob, VisualDefect, SceneSnapshot, AuthorImageRef } from "../agent/agent-worker.js";
 import { GatewayChatError, type NineRouterClient, type ChatMessage } from "../gateway/ninerouter-client.js";
-import { buildAuthorMessages, buildReauthorMessages, buildVisualQaMessages, buildImageFilterMessages, type AuthorImageInput } from "./prompt.js";
-import { buildContentPlanMessages, contentPlanForAuthoring, evaluateContentPlanQuality, parseContentPlan } from "./content-plan.js";
-import type { ContentPlanQualityIssue } from "./content-plan.js";
-import { computePacingBudget } from "./pacing-policy.js";
-import { parseAuthorReply } from "./reply-parser.js";
-import { parseReauthorReply } from "./reply-parser.js";
+import {
+  buildAuthorMessages,
+  buildAuthorModuleBatchMessages,
+  buildMissingTsxRecoveryMessages,
+  buildReauthorMessages,
+  buildVisualQaMessages,
+  buildImageFilterMessages,
+  type AuthorImageInput,
+} from "./prompt.js";
+import { buildContentPlanMessages, buildContentPlanRepairMessages, contentPlanForAuthoring, evaluateContentPlanQuality, parseContentPlan, type ContentPlan } from "./content-plan.js";
+import type { ContentPlanQualityIssue, ContentPlanQualityResult } from "./content-plan.js";
+import { computePacingBudget, type PacingBudget } from "./pacing-policy.js";
+import {
+  authorReplyParseSummary,
+  inspectAuthorReply,
+  parseAuthorModuleBatchReply,
+  parseAuthorReply,
+  parseReauthorReply,
+  type AuthoredModule,
+  type ParsedAuthorReply,
+} from "./reply-parser.js";
 import type { AuthorManifest } from "./manifest-schema.js";
 import { extractJsonObject } from "./manifest-schema.js";
 import { sceneFileName, resolveSceneFile } from "./scene-files.js";
@@ -46,6 +61,7 @@ import type { VideoFormat, DurationTier, VideoLanguage } from "@motionreal/schem
  */
 
 type Tools = ReturnType<typeof createTools>;
+type AuthoringLogger = Pick<typeof log, "debug" | "info" | "warn" | "error">;
 
 /** Scope-tagged structured logger for the authoring backend (library-adoption pilot). */
 const log = createLogger("authoring");
@@ -85,6 +101,17 @@ const CONTENT_PLAN_PARSE_FAILURE =
 const CONTENT_PLAN_QUALITY_FAILURE =
   "AI lập kế hoạch nội dung chưa đủ hook/căn cứ/nhịp cảnh. Hãy thử lại hoặc mô tả rõ nguồn/ý chính hơn.";
 
+const AUTHOR_REPLY_PARSE_FAILURE =
+  "AI chưa trả về kịch bản hợp lệ. Hãy thử lại hoặc mô tả rõ hơn.";
+
+const AUTHOR_BATCH_BUDGET_FAILURE =
+  "AI lập kế hoạch quá nhiều cảnh cho lượt authoring an toàn (tối đa 16 component trong 4 batch). Hãy thử lại với phạm vi hẹp hơn hoặc thời lượng ngắn hơn.";
+
+const AUTHOR_BATCH_SIZE = 4;
+const MAX_AUTHOR_BATCHES = 4;
+const AUTHOR_BATCH_THRESHOLD = 4;
+const MAX_BATCHED_COMPONENTS = AUTHOR_BATCH_SIZE * MAX_AUTHOR_BATCHES;
+
 export type NineRouterBackendDeps = {
   client: NineRouterClient;
   tools: Tools;
@@ -108,6 +135,8 @@ export type NineRouterBackendDeps = {
   admit?: (projectId: string) => Promise<AdmitProjectResult>;
   /** Admit ONE authored module (injectable for tests; reauthor path). */
   admitOne?: (tsxPath: string) => Promise<AuthoredRegistration>;
+  /** Optional structured logger override for focused backend observability tests. */
+  logger?: AuthoringLogger;
 };
 
 function manifestPathOf(projectId: string): string {
@@ -197,6 +226,10 @@ function toEngineManifest(
 export class NineRouterAuthoringBackend implements AuthoringBackend {
   constructor(private readonly deps: NineRouterBackendDeps) {}
 
+  private logger(): AuthoringLogger {
+    return this.deps.logger ?? log;
+  }
+
   /**
    * Model ids that rejected an INLINE image this session (Phase 2 Block B
    * hardening). Some providers behind 9router (e.g. `kr/auto` routing to Kiro)
@@ -282,7 +315,15 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
         );
         return { scenes: [], message: CONTENT_PLAN_PARSE_FAILURE, ...(unreadableUrls.length > 0 ? { unreadableUrls } : {}) };
       }
-      const quality = evaluateContentPlanQuality(parsedPlan.plan, computePacingBudget(job.input, wordsPerSecond));
+      let planned = parsedPlan.plan;
+      let quality = evaluateContentPlanQuality(planned, computePacingBudget(job.input, wordsPerSecond));
+      if (quality.blockingIssues.length > 0) {
+        const repaired = await this.repairContentPlanIfPossible(model, job.projectId, planned, quality.blockingIssues, computePacingBudget(job.input, wordsPerSecond));
+        if (repaired) {
+          planned = repaired.plan;
+          quality = repaired.quality;
+        }
+      }
       if (quality.blockingIssues.length > 0) {
         log.error(
           { projectId: job.projectId, qualityIssues: quality.blockingIssues },
@@ -296,31 +337,55 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
           "content-plan advisories passed to authoring",
         );
       }
-      plannedContent = contentPlanForAuthoring(parsedPlan.plan);
+      plannedContent = contentPlanForAuthoring(planned);
       contentPlanAdvisories = quality.advisoryIssues;
     } catch (e) {
       log.error({ err: e, projectId: job.projectId }, "AI content-plan call failed");
       return { scenes: [], message: authorCallErrorMessage(e), ...(unreadableUrls.length > 0 ? { unreadableUrls } : {}) };
     }
 
-    const messages = buildAuthorMessages(job.input, research, offeredImages, wordsPerSecond, plannedContent, contentPlanAdvisories);
-    let reply: string;
-    try {
-      log.info({ model, projectId: job.projectId }, "calling AI model for authoring");
-      reply = await this.chatWithVisionFallback(model, messages);
-      log.info({ projectId: job.projectId, replyChars: reply.length }, "AI replied");
-    } catch (e) {
-      log.error({ err: e, projectId: job.projectId }, "AI call failed");
-      return { scenes: [], message: authorCallErrorMessage(e) };
+    const batchDecision = planAuthorBatching(plannedContent, job.input.images ?? []);
+    if (batchDecision.mode === "too-large") {
+      this.logger().error(
+        {
+          projectId: job.projectId,
+          componentCount: batchDecision.componentIds.length,
+          maxComponents: MAX_BATCHED_COMPONENTS,
+          batchSize: AUTHOR_BATCH_SIZE,
+          maxBatches: MAX_AUTHOR_BATCHES,
+        },
+        "content plan exceeds bounded authoring batch budget",
+      );
+      return { scenes: [], message: AUTHOR_BATCH_BUDGET_FAILURE, ...(unreadableUrls.length > 0 ? { unreadableUrls } : {}) };
     }
 
-    const parsed = parseAuthorReply(reply);
-    if (!parsed.ok) {
-      log.error(
-        { projectId: job.projectId, reason: parsed.reason, detail: parsed.detail, rawReply: reply.slice(0, 2000) },
-        "author-reply parse failed",
-      );
-      return { scenes: [], message: "AI chưa trả về kịch bản hợp lệ. Hãy thử lại hoặc mô tả rõ hơn." };
+    let parsed: Extract<ParsedAuthorReply, { ok: true }>;
+    if (batchDecision.mode === "batched") {
+      const batched = await this.authorScenesInBatches({
+        model,
+        projectId: job.projectId,
+        input: job.input,
+        research,
+        wordsPerSecond,
+        contentPlan: plannedContent,
+        contentPlanAdvisories,
+        batches: batchDecision.batches,
+      });
+      if (!batched.ok) return { scenes: [], message: batched.message, ...(unreadableUrls.length > 0 ? { unreadableUrls } : {}) };
+      parsed = batched.parsed;
+    } else {
+      const authored = await this.authorScenesInSingleReply({
+        model,
+        projectId: job.projectId,
+        input: job.input,
+        research,
+        offeredImages,
+        wordsPerSecond,
+        contentPlan: plannedContent,
+        contentPlanAdvisories,
+      });
+      if (!authored.ok) return { scenes: [], message: authored.message, ...(unreadableUrls.length > 0 ? { unreadableUrls } : {}) };
+      parsed = authored.parsed;
     }
 
     // Write each AI-authored module. Unregister first so a re-authored id (or a
@@ -355,6 +420,268 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
       stillPath: join(reviewDir, `${s.id}.png`),
     }));
     return { scenes, ...(unreadableUrls.length > 0 ? { unreadableUrls } : {}) };
+  }
+
+  private async repairContentPlanIfPossible(
+    model: string,
+    projectId: string,
+    plan: ContentPlan,
+    blockingIssues: readonly ContentPlanQualityIssue[],
+    pacing: PacingBudget,
+  ): Promise<{ plan: ContentPlan; quality: ContentPlanQualityResult } | null> {
+    if (blockingIssues.length === 0 || !blockingIssues.every((issue) => issue.check === "claim-ledger")) return null;
+
+    log.warn(
+      {
+        projectId,
+        qualityIssues: blockingIssues,
+        repairAttempt: 1,
+      },
+      "content-plan claim-ledger repair requested",
+    );
+
+    const reply = await this.chatWithVisionFallback(model, buildContentPlanRepairMessages(plan, blockingIssues));
+    log.info({ projectId, replyChars: reply.length, repairAttempt: 1 }, "AI content-plan repair replied");
+    const parsed = parseContentPlan(reply);
+    if (!parsed.ok) {
+      log.error(
+        { projectId, reason: parsed.reason, detail: parsed.detail, rawReply: reply.slice(0, 2000) },
+        "content-plan repair parse failed",
+      );
+      return null;
+    }
+
+    const quality = evaluateContentPlanQuality(parsed.plan, pacing);
+    if (quality.blockingIssues.length > 0) {
+      log.error(
+        { projectId, qualityIssues: quality.blockingIssues },
+        "content-plan repair still has blocking quality checks",
+      );
+      return null;
+    }
+    return { plan: parsed.plan, quality };
+  }
+
+  private async authorScenesInSingleReply(args: {
+    model: string;
+    projectId: string;
+    input: AuthorJob["input"];
+    research?: string;
+    offeredImages?: AuthorImageInput[];
+    wordsPerSecond?: number;
+    contentPlan: ContentPlan;
+    contentPlanAdvisories: readonly ContentPlanQualityIssue[];
+  }): Promise<{ ok: true; parsed: Extract<ParsedAuthorReply, { ok: true }> } | { ok: false; message: string }> {
+    const messages = buildAuthorMessages(
+      args.input,
+      args.research,
+      args.offeredImages,
+      args.wordsPerSecond,
+      args.contentPlan,
+      args.contentPlanAdvisories,
+    );
+    let reply: string;
+    try {
+      log.info({ model: args.model, projectId: args.projectId }, "calling AI model for authoring");
+      reply = await this.chatWithVisionFallback(args.model, messages);
+      this.logger().info(
+        { projectId: args.projectId, replyChars: reply.length, parseSummary: authorReplyParseSummary(reply) },
+        "AI replied",
+      );
+    } catch (e) {
+      log.error({ err: e, projectId: args.projectId }, "AI call failed");
+      return { ok: false, message: authorCallErrorMessage(e) };
+    }
+
+    let parsed = parseAuthorReply(reply);
+    let recoveryAttempted = false;
+    if (!parsed.ok) {
+      const recovery = await this.recoverMissingTsxIfPossible(args.model, args.projectId, parsed, reply);
+      parsed = recovery.parsed;
+      recoveryAttempted = recovery.attempted;
+    }
+    if (!parsed.ok) {
+      this.logger().error(
+        {
+          projectId: args.projectId,
+          reason: parsed.reason,
+          detail: parsed.detail,
+          parseSummary: authorReplyParseSummary(reply, { recoveryAttempted }),
+          rawReply: reply.slice(0, 2000),
+        },
+        "author-reply parse failed",
+      );
+      return { ok: false, message: AUTHOR_REPLY_PARSE_FAILURE };
+    }
+    return { ok: true, parsed };
+  }
+
+  private async authorScenesInBatches(args: {
+    model: string;
+    projectId: string;
+    input: AuthorJob["input"];
+    research?: string;
+    wordsPerSecond?: number;
+    contentPlan: ContentPlan;
+    contentPlanAdvisories: readonly ContentPlanQualityIssue[];
+    batches: string[][];
+  }): Promise<{ ok: true; parsed: Extract<ParsedAuthorReply, { ok: true }> } | { ok: false; message: string }> {
+    const manifest = authorManifestFromContentPlan(args.contentPlan);
+    const modules: AuthoredModule[] = [];
+    this.logger().info(
+      {
+        projectId: args.projectId,
+        batchCount: args.batches.length,
+        batchSize: AUTHOR_BATCH_SIZE,
+        componentCount: args.batches.reduce((sum, batch) => sum + batch.length, 0),
+      },
+      "authoring will use bounded TSX batches",
+    );
+
+    for (const [index, componentIds] of args.batches.entries()) {
+      let reply: string;
+      try {
+        log.info(
+          { model: args.model, projectId: args.projectId, batchIndex: index + 1, batchCount: args.batches.length, componentIds },
+          "calling AI model for authoring batch",
+        );
+        reply = await this.chatWithVisionFallback(
+          args.model,
+          buildAuthorModuleBatchMessages({
+            input: args.input,
+            manifest,
+            componentIds,
+            batchIndex: index + 1,
+            batchCount: args.batches.length,
+            contentPlan: args.contentPlan,
+            contentPlanAdvisories: args.contentPlanAdvisories,
+            research: args.research,
+            wordsPerSecond: args.wordsPerSecond,
+          }),
+        );
+      } catch (e) {
+        log.error({ err: e, projectId: args.projectId, batchIndex: index + 1 }, "AI authoring batch call failed");
+        return { ok: false, message: authorCallErrorMessage(e) };
+      }
+
+      const parsedBatch = parseAuthorModuleBatchReply(reply, componentIds);
+      if (!parsedBatch.ok) {
+        this.logger().error(
+          {
+            projectId: args.projectId,
+            batchIndex: index + 1,
+            batchCount: args.batches.length,
+            componentIds,
+            reason: parsedBatch.reason,
+            detail: parsedBatch.detail,
+            rawReply: reply.slice(0, 2000),
+          },
+          "authoring batch parse failed",
+        );
+        return { ok: false, message: AUTHOR_REPLY_PARSE_FAILURE };
+      }
+
+      modules.push(...parsedBatch.modules);
+      this.logger().info(
+        {
+          projectId: args.projectId,
+          batchIndex: index + 1,
+          batchCount: args.batches.length,
+          replyChars: reply.length,
+          tsxModuleCount: parsedBatch.modules.length,
+          componentIds: parsedBatch.modules.map((module) => module.id),
+        },
+        "AI authoring batch replied",
+      );
+    }
+
+    const combinedReply = authorReplyFromParts(manifest, modules);
+    const strict = parseAuthorReply(combinedReply);
+    if (!strict.ok) {
+      this.logger().error(
+        {
+          projectId: args.projectId,
+          reason: strict.reason,
+          detail: strict.detail,
+          parseSummary: authorReplyParseSummary(combinedReply),
+        },
+        "batched author reply failed final strict parse",
+      );
+      return { ok: false, message: AUTHOR_REPLY_PARSE_FAILURE };
+    }
+    return { ok: true, parsed: strict };
+  }
+
+  private async recoverMissingTsxIfPossible(
+    model: string,
+    projectId: string,
+    initialFailure: Extract<ParsedAuthorReply, { ok: false }>,
+    initialReply: string,
+  ): Promise<{ parsed: ParsedAuthorReply; attempted: boolean }> {
+    if (initialFailure.reason !== "no-code" && initialFailure.reason !== "missing-code") return { parsed: initialFailure, attempted: false };
+
+    const inspected = inspectAuthorReply(initialReply);
+    if (!inspected.manifest.ok || inspected.missingComponentIds.length === 0) return { parsed: initialFailure, attempted: false };
+
+    this.logger().warn(
+      {
+        projectId,
+        missingComponentIds: inspected.missingComponentIds,
+        existingComponentIds: inspected.validModuleIds,
+        parseSummary: authorReplyParseSummary(initialReply),
+        recoveryAttempt: 1,
+      },
+      "author-reply missing TSX modules; requesting bounded recovery",
+    );
+
+    let recoveryReply: string;
+    try {
+      recoveryReply = await this.chatWithVisionFallback(
+        model,
+        buildMissingTsxRecoveryMessages({
+          manifest: inspected.manifest.manifest,
+          missingComponentIds: inspected.missingComponentIds,
+          existingComponentIds: inspected.validModuleIds,
+        }),
+      );
+    } catch (error) {
+      this.logger().error({ err: error, projectId }, "author-reply missing TSX recovery call failed");
+      return { parsed: initialFailure, attempted: true };
+    }
+
+    const missing = new Set(inspected.missingComponentIds);
+    const recoveredInspection = inspectAuthorReply(recoveryReply);
+    const recoveredModules = recoveredInspection.validModules.filter((module) => missing.has(module.id));
+    const combinedReply = authorReplyFromParts(inspected.manifest.manifest, [...inspected.validModules, ...recoveredModules]);
+    const strict = parseAuthorReply(combinedReply);
+
+    if (strict.ok) {
+      this.logger().info(
+        {
+          projectId,
+          recoveredComponentIds: recoveredModules.map((module) => module.id),
+          parseSummary: authorReplyParseSummary(combinedReply, { recoveryAttempted: true }),
+          recoveryAttempt: 1,
+        },
+        "author-reply missing TSX recovery succeeded",
+      );
+      return { parsed: strict, attempted: true };
+    }
+
+    this.logger().error(
+      {
+        projectId,
+        reason: strict.reason,
+        detail: strict.detail,
+        missingComponentIds: inspected.missingComponentIds,
+        recoveredComponentIds: recoveredModules.map((module) => module.id),
+        idMismatchDetails: recoveredInspection.idMismatchDetails,
+        parseSummary: authorReplyParseSummary(combinedReply, { recoveryAttempted: true }),
+        rawReply: recoveryReply.slice(0, 2000),
+      },
+      "author-reply missing TSX recovery failed",
+    );
+    return { parsed: strict, attempted: true };
   }
 
   private async clearAuthoredSceneFiles(projectId: string): Promise<void> {
@@ -811,6 +1138,61 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
       }
     }
   }
+}
+
+function authorReplyFromParts(manifest: AuthorManifest, modules: readonly AuthoredModule[]): string {
+  return [
+    "```json",
+    JSON.stringify(manifest, null, 2),
+    "```",
+    "",
+    ...modules.map((module) => ["```tsx", module.code.trim(), "```", ""].join("\n")),
+  ].join("\n");
+}
+
+type AuthorBatchDecision =
+  | { mode: "single"; componentIds: string[]; reason: "short-plan" | "user-images" }
+  | { mode: "batched"; componentIds: string[]; batches: string[][] }
+  | { mode: "too-large"; componentIds: string[] };
+
+function planAuthorBatching(plan: ContentPlan, images: readonly AuthorImageRef[]): AuthorBatchDecision {
+  const componentIds = [...new Set(plan.scenes.map((scene) => scene.sceneId))];
+  if (images.length > 0) return { mode: "single", componentIds, reason: "user-images" };
+  if (componentIds.length <= AUTHOR_BATCH_THRESHOLD) return { mode: "single", componentIds, reason: "short-plan" };
+  if (componentIds.length > MAX_BATCHED_COMPONENTS) return { mode: "too-large", componentIds };
+  return { mode: "batched", componentIds, batches: chunk(componentIds, AUTHOR_BATCH_SIZE) };
+}
+
+function chunk<T>(items: readonly T[], size: number): T[][] {
+  const out: T[][] = [];
+  for (let index = 0; index < items.length; index += size) {
+    out.push(items.slice(index, index + size));
+  }
+  return out;
+}
+
+function clipNonEmpty(value: string, max: number, fallback: string): string {
+  const trimmed = value.trim();
+  const safe = trimmed.length > 0 ? trimmed : fallback;
+  return safe.length > max ? safe.slice(0, max) : safe;
+}
+
+function authorManifestFromContentPlan(plan: ContentPlan): AuthorManifest {
+  return {
+    title: clipNonEmpty(plan.title, 160, "MotionReal draft"),
+    theme: {
+      dominant: "#1E9CB0",
+      mood: clipNonEmpty(plan.hookType.replace(/-/g, " "), 200, "authored"),
+    },
+    scenes: plan.scenes.map((scene) => ({
+      component: scene.sceneId,
+      eyebrow: clipNonEmpty(scene.purpose.toUpperCase(), 24, "BEAT"),
+      headline: clipNonEmpty(scene.onScreenText, 120, scene.beat),
+      narration: clipNonEmpty(scene.narration, 600, scene.beat),
+      body: clipNonEmpty(scene.beat, 200, scene.onScreenText),
+      props: {},
+    })),
+  };
 }
 
 /** Parse the visual-QA JSON reply into high-severity, known-scene defects (tolerant). */
