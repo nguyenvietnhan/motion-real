@@ -1,10 +1,10 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
+import { measureAudioDuration } from "./audio-ops.js";
 import { alignmentToSrt, type ElevenLabsAlignment } from "./caption-timing.js";
 import {
   ensureAudioExtension,
   fetchWithRetry,
-  measureAudioDurationFromTtsIndex,
   stripDataPrefix,
 } from "./provider-http.js";
 import type { TTSRequest, TTSResult, TTSVoice, TtsClient } from "./types.js";
@@ -49,7 +49,7 @@ export class ElevenLabsClient implements TtsClient {
     this.apiKey = options.apiKey ?? elevenLabsApiKey();
     this.baseUrl = (options.baseUrl ?? elevenLabsBaseUrl()).replace(/\/$/, "");
     this.fetchImpl = options.fetch ?? fetch;
-    this.measureDuration = options.measureDuration ?? measureAudioDurationFromTtsIndex;
+    this.measureDuration = options.measureDuration ?? measureAudioDuration;
   }
 
   isConfigured(): boolean {

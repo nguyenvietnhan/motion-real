@@ -1034,6 +1034,19 @@ npm.cmd test -- --run packages/tts/src/elevenlabs.test.ts packages/pipeline/src/
 npm.cmd run typecheck
 ```
 
+Status: done on 2026-07-06. Extracted audio operations to
+`packages/tts/src/audio-ops.ts`: duration measurement, mock WAV generation,
+plain concat, breath-gap concat, duration normalization, BGM mix, and
+ffmpeg/ffprobe process execution. `packages/tts/src/index.ts` remains the public
+barrel/cache-key surface. Added direct audio-ops coverage for mock audio
+measurement and empty concat rejection. Focused verification passed:
+
+```powershell
+npm.cmd test -- --run packages/tts/src/elevenlabs.test.ts packages/tts/src/audio-ops.test.ts packages/pipeline/src/audio/lock.test.ts packages/pipeline/src/audio/captions.test.ts
+git diff --check
+npm.cmd run typecheck
+```
+
 ### Step 6.4 - Extract Renderer Cache/Preparation Helpers
 
 Scope:
@@ -1367,7 +1380,7 @@ work.
 | Phase 3 - Render Oracle Posture Clarity | done | Full gate passed on 2026-07-06. |
 | Phase 4 - Workspace State Machine Hardening | done | Full gate passed on 2026-07-06. |
 | Phase 5 - Desktop Main Root Containment | done | Full gate passed on 2026-07-06. |
-| Phase 6 - Renderer And TTS Domain Split | active | Step 6.3 audio ops. |
+| Phase 6 - Renderer And TTS Domain Split | active | Step 6.4 renderer cache/preparation helpers. |
 | Phase 7 - Renderer CSS Maintainability | pending | Step 7.1 CSS section inventory. |
 | Phase 8 - Small Operational Debt | pending | Step 8.1 repair budget effective value. |
 | Phase 9 - Feature Readiness | pending | Step 9.1 SFX architecture decision. |

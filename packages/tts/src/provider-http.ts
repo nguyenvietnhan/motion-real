@@ -186,8 +186,3 @@ export function stripDataPrefix(value: string): string {
   const comma = value.indexOf(",");
   return value.startsWith("data:") && comma !== -1 ? value.slice(comma + 1) : value;
 }
-
-export async function measureAudioDurationFromTtsIndex(audioPath: string): Promise<number> {
-  const { measureAudioDuration } = await import("./index.js");
-  return measureAudioDuration(audioPath);
-}

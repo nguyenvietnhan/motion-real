@@ -1,6 +1,7 @@
 import { existsSync } from "node:fs";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
+import { measureAudioDuration } from "./audio-ops.js";
 import {
   downloadAudio,
   downloadText,
@@ -9,7 +10,6 @@ import {
   fetchWithRetry,
   findSrtUrl,
   integerEnv,
-  measureAudioDurationFromTtsIndex,
   normalizeAudioResponse,
   readState,
   retrySuffix,
@@ -53,7 +53,7 @@ export class VivibeClient implements TtsClient {
     this.retryAttempts = options.retryAttempts ?? vivibeRetryAttempts();
     this.retryBaseDelayMs = options.retryBaseDelayMs ?? vivibeRetryBaseDelayMs();
     this.fetchImpl = options.fetch ?? fetch;
-    this.measureDuration = options.measureDuration ?? measureAudioDurationFromTtsIndex;
+    this.measureDuration = options.measureDuration ?? measureAudioDuration;
   }
 
   isConfigured(): boolean {
