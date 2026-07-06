@@ -1,553 +1,1117 @@
-# Refactor Risk Audit - 2026-07-06
+# MotionReal Long-Term Refactor And Stabilization Plan - 2026-07-06
 
 ## Muc Dich
 
-Bao cao nay quet lai MotionReal theo huong refactor/don dep: tim nhung diem dang
-lam du an kho kiem soat, de vo tinh lam hong pipeline, hoac lam cac lan them tinh
-nang moi de bi phinh ra. Day khong phai la ke hoach big-bang rewrite. Pipeline
-hien tai dang co contract ro, test kha day, va nhieu guard duoc them co chu dich.
+File nay la ke hoach sua chua/refactor dai han cho MotionReal, duoc lap tu dot
+audit da kiem chung ngay 2026-07-06. Muc tieu khong phai big-bang rewrite, ma la
+giam dan cac diem kho kiem soat bang nhung phase nho, moi phase co output ro,
+co dieu kien dat chuan, va co lenh kiem dinh cu the.
 
-Ket luan ngan: du an khong co dau hieu "vo kien truc", nhung rui ro chinh nam o
-mot so file dieu phoi rat lon, noi nhieu vong lap AI/render/safety/UI state dang
-song chung. Nhung diem nay nen duoc tach bang cac slice nho, co test, va khong
-nen refactor chi vi so dong.
+Ket luan nen giu lam nguyen tac: du an hien khong "vo kien truc". Rui ro chinh
+nam o cac file dieu phoi lon, noi AI authoring, render, safety oracle, TTS, va UI
+state gap nhau. Vi vay moi buoc sua phai nho, co test canh, co rollback tinh than:
+neu mot buoc khong chung minh duoc an toan thi dung lai, khong tiep tuc mo rong.
 
-## Pham Vi Va Cach Quet
+## Nguyen Tac Thuc Hien
 
-Nguon doc/contract da doi chieu:
+Moi step trong ke hoach nay phai thoa cac nguyen tac sau:
 
-- `AI_CONTRACT.md`
-- `README.md`
-- `docs/current/architecture.md`
-- `docs/current/maintenance.md`
-- `docs/current/authoring-contract.md`
-- `docs/current/content-guide.md`
-- `docs/current/youtube-mode-deferred.md`
-- `docs/providers/vivibe.md`
-- `docs/providers/elevenlabs.md`
+1. Mot step chi sua mot boundary chinh.
+2. Khong doi prompt/output contract trong cung step voi tach file, tru khi step
+   do chi ro la contract step.
+3. Khong refactor `orchestrator.ts`, `render-grid.ts`, hoac workspace flow theo
+   line count. Chi sua khi co workflow/bug/boundary ro.
+4. Moi step phai co test focused truoc khi full gate.
+5. Sau moi step hoan tat: cap nhat docs/plan neu co drift, chay gate, commit
+   rieng.
+6. Khong xoa legacy compatibility hit neu no da duoc phan loai la migration/alias.
+7. Neu gap fail moi, phai phan loai: fail do test flaky, fail do behavior bi doi,
+   hay fail do ke hoach sai. Khong tiep tuc phase khi chua phan loai.
 
-Loai tru khi do metric: `node_modules`, `dist`, `.video-tool`,
+## Baseline Da Kiem Chung
+
+Ngay kiem chung gan nhat: 2026-07-06.
+
+Scope metric loai tru: `node_modules`, `dist`, `.video-tool`,
 `apps/desktop/dist-electron`, `vendor-fonts.generated.ts`.
 
-Lenh metric chinh:
+Lenh metric:
 
 ```powershell
 $files = rg --files --glob '!**/node_modules/**' --glob '!**/dist/**' --glob '!**/.video-tool/**' --glob '!apps/desktop/dist-electron/**' --glob '!**/vendor-fonts.generated.ts'
 # Count lines with `(Get-Content <file>).Count`, including blank lines.
 ```
 
-Snapshot metric:
+Snapshot:
 
 | Loai | So file | So dong |
 | --- | ---: | ---: |
 | Source `.ts/.tsx/.css`, khong tinh test | 175 | 30,662 |
 | Test `.test.ts/.test.tsx` | 95 | 17,155 |
 
-Top file lon nhat:
-
-| Dong | File |
-| ---: | --- |
-| 2,311 | `apps/desktop/src/renderer/theme.css` |
-| 1,292 | `apps/desktop/src/main/workspace/workspace-controller.test.ts` |
-| 1,232 | `apps/desktop/src/main/authoring/ninerouter-backend.ts` |
-| 1,145 | `apps/desktop/src/main/authoring/ninerouter-backend.test.ts` |
-| 1,061 | `packages/pipeline/src/safety/render-grid.ts` |
-| 1,044 | `apps/desktop/src/main/workspace/workspace-controller.ts` |
-| 1,013 | `packages/pipeline/src/orchestrator.ts` |
-| 898 | `packages/tts/src/index.ts` |
-| 828 | `packages/pipeline/src/render/renderer.ts` |
-| 575 | `apps/desktop/src/renderer/views/home.tsx` |
-| 563 | `apps/desktop/src/main/authoring/prompt.ts` |
-| 558 | `packages/pipeline/src/cli/cli.ts` |
-| 556 | `packages/pipeline/src/authoring/admission.ts` |
-| 519 | `apps/desktop/src/main/index.ts` |
-
-## Contract/Huong Dan Hien Tai
-
-Nhung diem quan trong da duoc docs hien tai phan anh dung:
-
-- `AI_CONTRACT.md:16-18` xac nhan pure AUTHOR mode: moi video dung scene `.tsx`
-  moi, khong co template catalog/layout-block toolkit/theme system cho authored
-  scenes.
-- `AI_CONTRACT.md:99-100` canh bao khong refactor tuy tien `orchestrator.ts`,
-  `render-grid.ts`, hoac desktop workspace flow.
-- `docs/current/maintenance.md:12-22` liet ke sensitive files: `orchestrator.ts`,
-  `render-grid.ts`, `workspace-controller.ts`, `ninerouter-backend.ts`,
-  `apps/desktop/src/main/index.ts`.
-- `docs/current/maintenance.md:24-35` da co cleanup order: docs truoc, tach
-  authoring backend, roi moi quay lai workspace state machine, sau cung moi
-  chia render-grid/orchestrator.
-- `docs/current/architecture.md:22-48` noi ro `index.ts` la Electron composition
-  root, khong nen tao broad handler builder chi de giam line count.
-- `docs/current/architecture.md:62-64` noi ro `workspace-controller.ts` van so huu
-  orchestration: live stage maps, in-flight jobs, cancellation, retry,
-  snapshot/restore, render/refine/publish ordering, events.
-
-Doc sync nhin chung dang dung. Diem drift ro nhat nam trong comment dau file cua
-`packages/pipeline/src/orchestrator.ts`, chi tiet o Finding 2.
-
-## Finding 1 - Authoring Backend La Godfile Rui Ro Cao
-
-Muc do: Cao  
-File: `apps/desktop/src/main/authoring/ninerouter-backend.ts`  
-Metric: 1,232 dong, 20 import, 28 `catch`, test rieng 1,145 dong.
-
-Bang chung:
-
-- `ninerouter-backend.ts:250-404` ham `authorScenes` lam lien tiep nhieu viec:
-  chon model, ingest URL, doc file research, doc image thanh data URL, goi content
-  planning, parse/repair plan, quyet dinh batching, goi authoring, ghi `.tsx`,
-  ghi manifest, chay admission.
-- `ninerouter-backend.ts:425-684` tiep tuc nam trong cung file cac path recover:
-  repair content plan, author single reply, author batched reply, recover missing
-  TSX.
-- `ninerouter-backend.ts:705-830` `reauthor` doc manifest, resolve scene file,
-  goi AI, parse response, ghi file, chay admission, retry, rollback.
-- `ninerouter-backend.ts:919-990` file nay con boc `renderDraft`,
-  `renderStills`, `renderFull`, va `getSafetyReport`.
-- `ninerouter-backend.ts:1003-1065` con gom AI image filter va crawl image.
-- `ninerouter-backend.ts:1075+` con gom visual-QA.
-
-Vi sao kho kiem soat:
-
-- Mot thay doi nho trong authoring co the cham vao gateway, URL ingest, image
-  authority, content plan, parse/repair, file IO, manifest, admission, render
-  wrapper, va visual-QA.
-- Public seam `NineRouterAuthoringBackend` dang dung nhu "bo nao authoring", "bo
-  noi voi render tools", va "bo tien xu ly media" cung luc.
-- Test nhieu la tot, nhung test lon cung la dau hieu behavior dang bi dong goi
-  quanh mot object qua rong.
-
-Huong don dep an toan:
-
-1. Tach truoc cac unit it rui ro, van giu public class hien tai:
-   `content-plan-runner`, `author-batch-runner`, `reauthor-runner`,
-   `image-filter-runner`, `article-image-crawler`.
-2. Uu tien tach code da co input/output ro va dang co test parse/quality rieng.
-3. Khong doi prompt/output contract trong cung slice voi tach file.
-4. Sau moi slice, chay focused test cua backend truoc khi full gate.
-
-## Finding 2 - Render Orchestrator Qua Nhieu Trach Nhiem Va Co Comment Drift
-
-Muc do: Cao  
-File: `packages/pipeline/src/orchestrator.ts`  
-Metric: 1,013 dong, 28 import, 9 `catch`.
-
-Bang chung:
-
-- Comment dau file `orchestrator.ts:92-95` mo ta flow:
-  `admit authored scenes -> manifest/spec -> static grid -> TTS -> lock -> build
-  gate -> determinism -> render -> render oracles -> review -> clean scratch`.
-- Flow thuc te da khac va phong phu hon:
-  - `orchestrator.ts:368-452`: admission, manifest/spec, static grid, N10 authored
-    typecheck truoc TTS.
-  - `orchestrator.ts:462-598`: TTS, lock, build gate, generated authored entry,
-    N31 runtime probe, determinism.
-  - `orchestrator.ts:670-833`: review artifacts, render oracles, layout measure,
-    N15/N17, late safe-area, aggregate report, done/review pending, cleanup.
-  - `orchestrator.ts:953-966`: pre-render failure report persistence rieng cho
-    N10/static/runtime failures.
-- `orchestrator.ts:419-424` noi thang N10 la synchronous CPU-heavy, mat 5-8s va
-  block Electron main event loop; trong thoi gian do IPC "Dung render" khong xu
-  ly duoc.
-
-Vi sao kho kiem soat:
-
-- Mot ham pipeline dai dang so huu ca cost gates, cancellation, TTS spending,
-  generated entry, safety report, render cache path, review state, va cleanup.
-- Comment flow da lech voi flow that. Voi file nhay cam nhu orchestrator, drift
-  kieu nay lam nguoi sua sau de bo qua N10/N31 hoac dat stage sai thu tu.
-- Cancellation da duoc thread vao Remotion render ops, nhung N10 typecheck sync
-  van la khoang "khong phan hoi" co chu dich.
-
-Huong don dep an toan:
-
-1. Slice dau tien nen chi sua comment/header cho dung flow hien tai.
-2. Sau do moi tach cac stage local, vi du `runAuthoringGates`,
-   `runTtsAndLock`, `runPreRenderGates`, `runReviewAndRenderOracles`, neu test
-   hien co bao phu du.
-3. Dung tach kieu doi data-flow lon. Orchestrator la sensitive file da duoc
-   contract canh bao.
-4. Can co mot huong xu ly cho N10 sync block: worker thread, child process, hoac
-   it nhat UI message "dang typecheck, nut dung se co hieu luc sau buoc nay".
-
-## Finding 3 - WorkspaceController Van La State-Machine Godfile
-
-Muc do: Cao  
-File: `apps/desktop/src/main/workspace/workspace-controller.ts`  
-Metric: 1,044 dong, test rieng 1,292 dong.
-
-Bang chung:
-
-- `workspace-controller.ts:114-151` khai bao nhieu state map trong bo nho:
-  stages, inputs, pending review, render versions, in-flight jobs, aborters.
-- `workspace-controller.ts:266-325` nam flow create/crawl/image-review/script
-  handoff.
-- `workspace-controller.ts:372-393` nam publish/full render.
-- `workspace-controller.ts:406-534` nam user edit -> snapshot -> reauthor ->
-  stills-first refine -> draft re-render -> rollback khi loi.
-- `workspace-controller.ts:619-759` nam vision pass/refine loop va rollback
-  policy.
-- `workspace-controller.ts:791-836` nam draft render voi pre-refine va fallback.
-- `workspace-controller.ts:917-942` recover stage tu disk sau restart/failure.
-- `workspace-controller.ts:961-1017` delete/thumbnail path cung phai don cac map
-  in-memory.
-
-Vi sao kho kiem soat:
-
-- Day la mot state machine song trong mot class dai. Tinh nang moi nhu SFX,
-  speech-synced visuals, advanced settings, hoac queue/bulk render rat de them
-  state map moi roi quen cleanup/recover.
-- Cac recovery path co chu dich degrade: vi du retry sau restart co the rehydrate
-  text/link tu brief nhung khong giu create-time images. Dieu nay dung hien tai,
-  nhung can duoc ton trong khi sua.
-- Docs hien tai dung khi noi khong nen tiep tuc extract chi de giam line count;
-  phan con lai chu yeu la async orchestration that.
-
-Huong don dep an toan:
-
-1. Khong big-bang tach controller.
-2. Neu refactor, tach cac "policy/pure mapper" truoc: stage transition helpers,
-   retry eligibility, cleanup list, thumbnail state shaping.
-3. Neu cham vao edit/refine/publish, viet test theo workflow truoc, vi do la
-   noi co nhieu rollback va cancel nhat.
-4. Can mot state transition table nho trong docs hoac test fixture de giam viec
-   phai doc ca file moi hieu stage nao di den stage nao.
-
-## Finding 4 - Render Oracle Posture De Gay Hieu Nhau
-
-Muc do: Trung binh/Cao  
-File: `packages/pipeline/src/safety/render-grid.ts` va wiring trong
-`packages/pipeline/src/orchestrator.ts`.
-
-Bang chung:
-
-- `render-grid.ts:39-51` noi `runRenderGrid` auto-run mot so oracle, trong khi
-  N15/N17/N23 can input khac nen khong auto-run tu midpoint still.
-- `render-grid.ts:951-974` `RENDER_ORACLES` la registry cho `runRenderGrid`, gom
-  ca manual entries `safe-area`, `late-safe-area`, `overlap`, `truncation`,
-  `richness`.
-- `render-grid.ts:491-548` `checkTruncation` mac dinh severity `"error"` nhung
-  `runTruncationForScene` mac dinh `"warning"`.
-- `orchestrator.ts:704-749` lai wire N15 overlap va N17 truncation ben ngoai
-  `runRenderGrid`, voi posture warning.
-- `orchestrator.ts:755-785` wire late safe-area ben ngoai `runRenderGrid`, cung
-  la warning va best-effort.
-- `render-grid.ts:810-850` N23 richness co implementation, nhung van can
-  chronological multi-frame samples.
-- `render-grid.test.ts:618-683` da co drift-guard cho registry/manual oracle
-  entries. Vi vay day khong phai bug hien tai; rui ro nam o viec posture live
-  pass/manual pass nam rai giua `render-grid.ts` va `orchestrator.ts`.
-
-Vi sao kho kiem soat:
-
-- Mot nguoi doc "registry is single source of truth" co the hieu nham la tat ca
-  oracle live deu nam trong `runRenderGrid`, trong khi mot so pass live nam trong
-  orchestrator.
-- Severity cua cung mot check co the khac nhau tuy caller. Day la dung co chu
-  dich, nhung neu khong ro posture thi rat de nang warning thanh error hoac
-  nguoc lai o sai layer.
-- N14/N15/N17/N23 hien co nhieu trang thai: auto midpoint, live external pass,
-  manual/exported, warning/advisory, hard error historical default.
-
-Huong don dep an toan:
-
-1. Tach khai niem thanh 3 nhom ro: `autoMidpointOracles`,
-   `externalRenderPasses`, `manualOracleDefinitions`.
-2. Hoac giu file nhung them bang posture gan dau file: check nao auto-run, check
-   nao orchestrator-run, check nao exported-only, severity mac dinh/effective.
-3. Neu thay doi severity, test phai assert effective severity o caller, khong chi
-   test helper rieng.
-
-## Finding 5 - N10 Typecheck Co Safety-Hole Co Chu Dich Khi Degrade
-
-Muc do: Trung binh/Cao  
-File: `packages/pipeline/src/safety/typecheck-authored.ts`.
-
-Bang chung:
-
-- `typecheck-authored.ts:46-49` noi neu khong resolve duoc MotionReal sources,
-  check degrade thanh no-op va chi chay khi co the chay dung.
-- `typecheck-authored.ts:117-129` neu thieu `packages/blocks/src/index.ts`,
-  code log warning va `return []`.
-- `typecheck-authored.ts:120-123` comment goi day la "SILENT SAFETY HOLE" trong
-  packaged app: wrong-shape prop co the lot qua den render va crash Chromium.
-- `typecheck-authored.ts:145-149` neu setup typecheck fail, code cung warn va
-  `return []`.
-- `orchestrator.ts:409-417` N10 duoc dat truoc TTS de tranh ton tien khi scene
-  sai prop type.
-- `typecheck-authored.test.ts:142-144` da cover behavior degrade-to-no-op khi
-  MotionReal sources khong resolve duoc. Khoang trong con lai la observability
-  trong app/report, khong phai behavior chua test.
-
-Vi sao kho kiem soat:
-
-- Hanh vi degrade la co chu dich de tranh block render boi false module
-  resolution, nhung no cung co nghia la mot packaged layout sai co the mat mot
-  guard quan trong ma UI/safety report khong nhin thay, ngoai log.
-- Neu nguoi dung gap crash render, bao cao safety co the khong noi "N10 da bi
-  skip" vi function tra `[]`.
-
-Huong don dep an toan:
-
-1. Khong bien degrade thanh hard fail ngay lap tuc, vi comment/test giai thich ly do
-   khong block render.
-2. Nen surface degrade thanh diagnostic co cau truc: doctor/startup warning,
-   settings/debug panel, hoac safety warning non-blocking.
-3. Packaged build nen co test/doctor xac minh N10 source map hoac bundled d.ts
-   co the resolve.
-
-## Finding 6 - Electron Main Index Van La High Fan-In Root
-
-Muc do: Trung binh  
-File: `apps/desktop/src/main/index.ts`  
-Metric: 519 dong, 31 import.
-
-Bang chung:
-
-- `index.ts:1-47` import rat nhieu domain: Electron, pipeline, gateway,
-  authoring backend, worker, license, workspace, create, settings, staging, BGM,
-  export, media protocol, security.
-- `index.ts:76-95` construct settings store va legacy settings path.
-- `index.ts:99-148` tao tools va authoring backend.
-- `index.ts:154-202` construct `WorkspaceController` voi nhieu dependency
-  adapters.
-- `index.ts:210-250+` construct create controller va asset promotion.
-- `index.ts:350-427` dang ky IPC handlers cho license, AI, project, thumbnail,
-  script, review, settings, TTS.
-- `index.ts:468-519` van giu Electron lifecycle/startup.
-
-Vi sao kho kiem soat:
-
-- File nay khong phai bug hien tai. Docs dung khi noi no la composition root.
-  Nhung moi tinh nang moi neu cu them direct import + handler vao day thi root se
-  phinh nhanh.
-- Da co helper domain nhu `bgm-handlers`, `native-save`, `create-ipc`,
-  `startup-sequence`; huong do la tot va nen tiep tuc.
-
-Huong don dep an toan:
-
-1. Khong move Electron lifecycle ra ngoai chi de giam dong.
-2. Moi feature moi nen uu tien them handler factory/domain adapter rieng roi
-   spread vao `handlers`, giong BGM/export da lam.
-3. Settings moi nen di qua `SettingsStore`/shared model, tranh them state global
-   moi trong index.
-
-## Finding 7 - CSS Renderer La Monolith Lon Nhat Repo
-
-Muc do: Trung binh  
-File: `apps/desktop/src/renderer/theme.css`  
-Metric: 2,311 dong.
-
-Bang chung:
-
-- `theme.css:9+` chua token/root theme.
-- `theme.css:151+` bat dau layout/component classes.
-- `theme.css:300+` buttons, cards, inputs.
-- `theme.css:449+` create hero/composer.
-- `theme.css:667+` style modal.
-- `theme.css:762+` settings tabs/toggles/account UI.
-- `theme.css:1058+` project card/thumbnail.
-- Sau do tiep tuc workspace/storyboard/BGM/publish/review styles trong cung file.
-
-Vi sao kho kiem soat:
-
-- Day la file lon nhat repo va la global CSS namespace. Thay doi UI cuc bo de
-  anh huong ngoai y muon den view khac.
-- Khi them setting moi, project card moi, workspace stage moi, kha nang cao la se
-  tiep tuc day them selector vao file nay.
-- Khong co dau hieu CSS "sai" ngay, nhung day la debt ve maintainability va UI
-  regression risk.
-
-Huong don dep an toan:
-
-1. Tach theo layer/view nhung giu mot entry import: `base.css`, `shell.css`,
-   `home.css`, `workspace.css`, `settings.css`, `components.css`.
-2. Khong doi class names trong slice dau; chi move nguyen khoi section de giam
-   rui ro.
-3. Sau split, dung screenshot/manual UI check cho Home, Workspace, Settings,
-   Storyboard/Review.
-
-## Finding 8 - Renderer Va TTS La Domain Hubs Lon, Nen Tach Sau Cac File Cao Hon
-
-Muc do: Trung binh/Thap  
-Files:
-
-- `packages/pipeline/src/render/renderer.ts` - 828 dong.
-- `packages/tts/src/index.ts` - 898 dong.
-
-Bang chung renderer:
-
-- `renderer.ts:183-229` render MP4.
-- `renderer.ts:260-336` render per-scene stills va late samples.
-- `renderer.ts:360-413` strict runtime probe.
-- `renderer.ts:451-523` layout measure probe.
-- `renderer.ts:535-575` render same frame twice cho determinism.
-- `renderer.ts:591-620` bundle-cache comment va assumption render serial.
-- `renderer.ts:671-749` prepare composition, ensure browser, bundle/select cache.
-
-Bang chung TTS:
-
-- `tts/index.ts` gom ca type, Vivibe/ElevenLabs config, ElevenLabs alignment to
-  SRT, audio duration, mock audio, concat, normalize duration, BGM mix, HTTP
-  retry, SRT URL discovery, ffprobe/ffmpeg helpers.
-- `tts/index.ts:442-485` alignment/SRT timestamp handling.
-- `tts/index.ts:496-631` audio duration/concat/normalize/mix.
-- `tts/index.ts:669-740` normalize audio response, download audio/text, SRT URL.
-- `tts/index.ts:742-778` retry/backoff.
-
-Vi sao kho kiem soat:
-
-- Renderer co nhieu cache/module-root assumptions. Day la tot cho performance,
-  nhung neu sau nay co parallel render, queue, hoac packaged path moi thi can
-  doc rat ky.
-- TTS dang la diem lien quan truc tiep den future speech-synced visuals/caption
-  timing. Neu them word/phoneme timing ma tiep tuc chen vao `index.ts`, file se
-  thanh mot godfile thu hai cua media pipeline.
-
-Huong don dep an toan:
-
-1. De sau `ninerouter-backend` va docs/comment drift.
-2. Renderer: tach cache/preparation helpers truoc, khong doi render behavior.
-3. TTS: tach provider clients (`vivibe-client`, `elevenlabs-client`), audio ops
-   (`audio-ops`), caption/SRT helpers (`srt`).
-4. Bat buoc giu cache key va output artifact contract khong doi trong slice dau.
-
-## Finding 9 - Repair Budget Clamp Bi Chia Giua Settings Va Engine
-
-Muc do: Thap/Trung binh  
-Files:
-
-- `apps/desktop/src/shared/settings-model.ts`
-- `apps/desktop/src/main/settings/settings-store.ts`
-- `apps/desktop/src/main/agent/repair-loop.ts`
-
-Bang chung:
-
-- `settings-model.ts:103-106` noi `normalizeSettings` da bi remove va production
-  path khong clamp `maxRepairAttempts`; clamp cu la divergence.
-- `settings-store.ts:185-199` `update` merge patch, clamp `refinePasses`, nhung
-  khong clamp `maxRepairAttempts`.
-- `settings-store.test.ts:158-171` test co chu dich: "maxRepairAttempts NOT
-  clamped".
-- `repair-loop.ts:15-23` engine clamp `maxAttempts` vao `[1,10]`, non-finite ve 3.
-
-Vi sao kho kiem soat:
-
-- Hanh vi engine an toan vi repair loop co clamp. Tuy nhien settings persisted
-  co the hien/luu mot gia tri khac voi gia tri engine thuc su dung.
-- Neu UI sau nay hien "99 attempts" trong khi engine chi dung 10, nguoi dung va
-  dev co the debug sai.
-
-Huong don dep an toan:
-
-1. Neu muon giu behavior hien tai, expose "effective repair attempts" trong UI
-   hoac helper shared.
-2. Neu muon product don gian hon, chuyen clamp vao SettingsStore va update test
-   co chu dich. Khong sua ngam vi test hien dang khoa behavior cu.
-
-## Finding 10 - Thumbnail Render Tam Ghi Lock That, Nhung Da Co Guard
-
-Muc do: Thap/Trung binh  
-File: `packages/pipeline/src/render/render-thumbnail.ts`.
-
-Bang chung:
-
-- `render-thumbnail.ts:14-18` comment noi `renderProjectStills` ghi temporary
-  no-audio lock vao normal lock path, nen wrapper snapshot/restore lock va dua
-  vao workspace serialization de khong render khac thay lock tam.
-- `render-thumbnail.ts:30-33` public `renderThumbnail` boc bang
-  `withProjectRenderLock(projectId, "thumbnail", ...)`.
-- `render-thumbnail.ts:52-64` `finally` restore lock cu hoac xoa lock tam.
-
-Vi sao kho kiem soat:
-
-- Mau "tam ghi vao artifact canonical roi restore" la mau nguy hiem neu caller
-  nao bypass wrapper hoac neu sau nay co parallel project work khong cung lock.
-- Hien tai khong phai bug ro rang vi da co project lock va restore trong
-  `finally`.
-
-Huong don dep an toan:
-
-1. Giu `renderThumbnailUnlocked` private.
-2. Guard hien tai da co test restore lock khi still render fail
-   (`render-thumbnail.test.ts:85-95`), nen khong can them test trung lap.
-3. Neu sau nay cham vao stills/thumbnail, can uu tien cho stills path ghi lock
-   tam rieng thay vi normal `video-spec.lock.json`.
-
-## Non-Findings / Hit Can Khong Don Nham
-
-Nhung hit sau co ve la legacy/compat co chu dich, khong nen xoa trong dot cleanup
-chung:
-
-- `NewsVideo`:
-  - `apps/remotion/src/Root.tsx:18`
-  - `packages/pipeline/src/authoring/authored-entry.ts:55`
-  Day co ve la composition id compatibility alias.
-- `news-studio-settings.json`:
-  - `apps/desktop/src/main/index.ts:77`
-  - `apps/desktop/src/main/settings/settings-store.test.ts`
-  Day la legacy settings migration path.
-- `youtube`:
-  - `AI_CONTRACT.md:12-14` noi YouTube 16:9 plumbing co ton tai, nhung long-form
-    workflow chua on dinh.
-  - `docs/current/youtube-mode-deferred.md` la roadmap deferred, khong phai active
-    scope.
-- "template catalog":
-  - Hit trong `AI_CONTRACT.md` va `README.md` la prohibition/canonical contract,
-    khong phai stale implementation.
-
-## Thu Tu Refactor De Xuat
-
-1. Sua drift comment trong `orchestrator.ts` de flow doc trong code khop voi N10,
-   N31, review/oracle order hien tai. Slice nho, rui ro thap.
-2. Them diagnostic cho N10 degraded no-op. Muc tieu la nhin thay trong safety
-   report/doctor/startup, khong can hard-fail.
-3. Tach `ninerouter-backend.ts` theo runner/service nho, giu public class va
-   tests. Day la loi ich lon nhat tren rui ro vua phai.
-4. Lam ro posture cua `render-grid.ts` va external oracle passes. Co the la doc
-   table truoc, code split sau.
-5. Chi quay lai `workspace-controller.ts` khi co slice workflow ro, vi phan con
-   lai chu yeu la orchestration that.
-6. Tiep tuc rut `index.ts` bang feature handler factories khi them tinh nang moi,
-   khong move lifecycle root.
-7. CSS split co the lam rieng sau, theo move-only section va screenshot check.
-8. Renderer/TTS split de sau, nhat la truoc khi lam speech-synced visuals thi nen
-   tach TTS provider/audio/SRT helpers de tranh phinh `tts/index.ts`.
-
-## Rui Ro Neu Them Tinh Nang Moi Ngay
-
-Neu tiep tuc lam SFX hoac speech-synced visuals truoc cleanup, nhung diem can
-canh giac:
-
-- SFX co kha nang cham `SettingsStore`, renderer spec/lock, composition runtime,
-  TTS/audio mix, va workspace stage. Neu khong tach scope, no de chen them vao
-  `orchestrator.ts`, `workspace-controller.ts`, `tts/index.ts`.
-- Speech-synced visuals co kha nang cham caption timing, lock spec, authored scene
-  props, prompt, admission/typecheck, va visual rendering. Day la ly do nen tach
-  TTS/SRT helpers va thiet ke scene timing API truoc khi code.
-- Moi setting moi nen vao shared settings model + SettingsStore + handler/view,
-  tranh them global state trong `index.ts`.
-
-## Trang Thai Docs Sau Audit
-
-- `AI_CONTRACT.md`, `docs/current/architecture.md`, va
-  `docs/current/maintenance.md` dang phan anh dung ban chat du an: pure AUTHOR,
-  no template catalog, YouTube deferred, sensitive files.
-- Drift chinh can sua nam trong comment cua `orchestrator.ts`, khong phai docs
-  current.
-- Khong thay doc nao dang mo duong sai cho template catalog/theme/block authored
-  mode.
-
-## Kiem Tra Can Chay Sau Bao Cao
-
-Bao cao nay la docs-only. Kiem tra toi thieu sau khi tao file:
+Top file can kiem soat:
+
+| Dong | File | Vai tro |
+| ---: | --- | --- |
+| 2,311 | `apps/desktop/src/renderer/theme.css` | Global renderer CSS |
+| 1,292 | `apps/desktop/src/main/workspace/workspace-controller.test.ts` | Workspace regression coverage |
+| 1,232 | `apps/desktop/src/main/authoring/ninerouter-backend.ts` | Authoring backend facade/godfile |
+| 1,145 | `apps/desktop/src/main/authoring/ninerouter-backend.test.ts` | Authoring backend coverage |
+| 1,061 | `packages/pipeline/src/safety/render-grid.ts` | Render oracle registry/implementations |
+| 1,044 | `apps/desktop/src/main/workspace/workspace-controller.ts` | Workspace state machine |
+| 1,013 | `packages/pipeline/src/orchestrator.ts` | Render pipeline orchestrator |
+| 898 | `packages/tts/src/index.ts` | TTS provider/audio utility hub |
+| 828 | `packages/pipeline/src/render/renderer.ts` | Remotion render primitive/cache hub |
+| 519 | `apps/desktop/src/main/index.ts` | Electron composition root |
+
+Contract/doc facts that must stay true:
+
+- Pure AUTHOR mode only; authored scenes import only `react`, `remotion`,
+  `@motionreal/compositions`, and `zod`.
+- No authored-facing template catalog, layout-block toolkit, or theme-token leash.
+- Draft before full.
+- Layout/aesthetic checks remain advisory unless live code explicitly makes them
+  hard gates and owner approves.
+- YouTube 16:9 plumbing exists, but true long-form YouTube author-by-segment mode
+  is deferred.
+
+## Evidence Map
+
+Use this map before starting a phase. Re-check line numbers if code changed since
+the last commit.
+
+| Id | Area | Current evidence | Planning meaning |
+| --- | --- | --- | --- |
+| F1 | Authoring backend | `ninerouter-backend.ts:250-404`, `425-684`, `705-830`, `919-990`, `1003-1075+` | Highest payoff split target, but keep public facade stable. |
+| F2 | Orchestrator | `orchestrator.ts:92-95`, `368-452`, `462-598`, `670-833`, `953-966` | Header/comment drift first, stage extraction later. |
+| F3 | Workspace controller | `workspace-controller.ts:114-151`, `266-325`, `372-534`, `619-836`, `917-1017` | State machine remains; do not extract by size alone. |
+| F4 | Render-grid posture | `render-grid.ts:39-51`, `491-548`, `810-850`, `951-974`; `orchestrator.ts:704-785` | Clarify auto/manual/external pass posture before changing severity. |
+| F5 | N10 degrade | `typecheck-authored.ts:46-49`, `117-129`, `145-149`; `typecheck-authored.test.ts:142-144` | Behavior is tested; missing piece is app/report observability. |
+| F6 | Desktop main root | `index.ts:1-47`, `76-148`, `154-250+`, `350-427`, `468-519` | Keep lifecycle root; extract only focused handler groups/adapters. |
+| F7 | Renderer CSS | `theme.css:9+`, `151+`, `300+`, `449+`, `667+`, `762+`, `1058+` | Split move-only by view/layer after riskier backend work. |
+| F8 | Renderer/TTS hubs | `renderer.ts:183-229`, `260-336`, `360-413`, `451-523`, `591-749`; `tts/index.ts:442-778` | Split later, especially before speech-sync feature work. |
+| F9 | Repair budget clamp | `settings-store.ts:185-199`, `settings-store.test.ts:158-171`, `repair-loop.ts:15-23` | Settings display/effective value can drift; not a crash bug. |
+| F10 | Thumbnail lock pattern | `render-thumbnail.ts:14-18`, `30-33`, `52-64`; `render-thumbnail.test.ts:85-95` | Guard exists; avoid bypassing private unlocked path. |
+
+## Standard Step Template
+
+Every step below uses this definition unless a stricter one is stated.
+
+Start condition:
+
+- Working tree is clean or unrelated dirty files are explicitly ignored.
+- `AI_CONTRACT.md` and this plan were read.
+- The step target files were opened fresh.
+- The step has a focused test lane chosen before edits.
+
+Output:
+
+- One small behavior-preserving refactor, diagnostic, or doc sync.
+- Tests or fixtures updated when behavior/contract changes.
+- This plan or `docs/current/*` updated if the real boundary changes.
+
+Acceptance:
+
+- No unrelated refactor.
+- No prompt/contract drift.
+- No regression in focused tests.
+- Full gate passes before phase close.
+
+Minimum verification:
+
+```powershell
+git diff --check
+npm.cmd run typecheck
+```
+
+Phase close verification:
 
 ```powershell
 npm.cmd run typecheck
 npm.cmd test
+npm.cmd run build
+```
+
+If the default parallel test lane flakes in `packages/pipeline/src/safety/typecheck-authored.test.ts`,
+rerun the focused file and then rerun full suite with a stable worker lane before
+calling the repo green.
+
+## Phase 0 - Plan Control And Baseline
+
+Goal: make the refactor program measurable before touching code.
+
+### Step 0.1 - Keep The Plan As Source Of Truth
+
+Scope:
+
+- This file only.
+- No runtime code.
+
+Output:
+
+- Phase list, step list, and gate policy are committed.
+- Each step has status: `pending`, `active`, `done`, or `blocked`.
+
+Acceptance:
+
+- A future session can identify the next step without reading chat history.
+- The plan distinguishes bug, debt, and already-tested guard.
+
+Verification:
+
+```powershell
 git diff --check
 ```
 
-Neu full test lane flake o heavy N10 test, theo maintenance/memory truoc day nen
-rerun focused file roi rerun full suite voi `--maxWorkers=1`.
+Status: done by this document rewrite.
+
+### Step 0.2 - Reconfirm Baseline Before Each Phase
+
+Scope:
+
+- Contract/docs and target files only.
+
+Output:
+
+- A short phase-start note in commit message or plan section.
+- Updated evidence lines if code moved.
+
+Acceptance:
+
+- No phase starts from stale line numbers or stale assumptions.
+
+Verification:
+
+```powershell
+git status --short
+rg -n "Pure AUTHOR|Sensitive Files|Cleanup Order|still owns orchestration" AI_CONTRACT.md docs/current/maintenance.md docs/current/architecture.md
+```
+
+Status: pending per future phase.
+
+## Phase 1 - Low-Risk Truth And Observability
+
+Goal: fix documented drift and make existing safety degradation visible before
+moving code around.
+
+### Step 1.1 - Sync Orchestrator Header With Real Flow
+
+Scope:
+
+- `packages/pipeline/src/orchestrator.ts` comment/header only.
+- No behavior change.
+
+Output:
+
+- Header describes current sequence including static grid, N10, TTS/lock, build
+  gate, authored entry, N31 runtime probe, determinism, render, review,
+  render-grid, layout N15/N17, late safe-area, report, cleanup.
+
+Acceptance:
+
+- The header no longer implies N10/N31 are absent.
+- No import/code diff except comments.
+
+Focused verification:
+
+```powershell
+git diff --check
+npm.cmd run typecheck
+```
+
+Phase gate contribution:
+
+- Full gate at end of Phase 1.
+
+### Step 1.2 - Surface N10 Degraded-To-No-Op As A Diagnostic
+
+Scope:
+
+- `packages/pipeline/src/safety/typecheck-authored.ts`
+- The narrow caller/reporting seam that can carry a non-blocking diagnostic.
+- Tests for the degraded path.
+
+Output:
+
+- When N10 skips because sources/setup are unavailable, the app/report path can
+  show a structured non-blocking diagnostic.
+- The diagnostic must not hard-fail render unless owner explicitly changes
+  safety posture.
+
+Acceptance:
+
+- Existing test "degrades to a no-op" still passes or is updated to assert the
+  new diagnostic.
+- A renderable project is not blocked only because N10 cannot resolve workspace
+  sources.
+- Logs alone are not the only signal in app/report/doctor context.
+
+Focused verification:
+
+```powershell
+npm.cmd test -- --run packages/pipeline/src/safety/typecheck-authored.test.ts packages/pipeline/src/orchestrator.test.ts
+npm.cmd run typecheck
+```
+
+### Step 1.3 - Add A Packaged-Layout N10 Doctor Check
+
+Scope:
+
+- A doctor/startup diagnostic seam, if one exists; otherwise a small tested helper
+  near safety/typecheck.
+- No render behavior change.
+
+Output:
+
+- A command/test/helper can answer: "Can authored N10 resolve the required
+  MotionReal source or type map in this runtime layout?"
+
+Acceptance:
+
+- The check can fail as warning/diagnostic without blocking normal app startup.
+- The check has a test for missing source path and valid source path.
+
+Focused verification:
+
+```powershell
+npm.cmd test -- --run packages/pipeline/src/safety/typecheck-authored.test.ts
+npm.cmd run typecheck
+```
+
+Phase 1 exit criteria:
+
+- Orchestrator comments are true.
+- N10 degraded state is observable outside raw console logs.
+- No render gate became stricter accidentally.
+- Full gate passes.
+
+## Phase 2 - Authoring Backend Seam Split
+
+Goal: reduce the biggest active godfile without changing authoring behavior.
+This phase is the highest payoff and should be done as several commits, not one.
+
+### Step 2.1 - Extract Content-Plan Runner
+
+Scope:
+
+- Move content-plan call/parse/quality/repair flow out of
+  `ninerouter-backend.ts`.
+- Keep `NineRouterAuthoringBackend.authorScenes(...)` public behavior unchanged.
+
+Output:
+
+- New focused module, for example `content-plan-runner.ts`.
+- Inputs: job input, research/images, model/chat function, pacing/wordsPerSecond.
+- Output: planned authoring content, advisories, user-facing failure message.
+
+Acceptance:
+
+- No prompt text changes except imports if unavoidable.
+- Existing content-plan quality behavior preserved.
+- Error messages remain the same unless tests explicitly approve wording.
+
+Focused verification:
+
+```powershell
+npm.cmd test -- --run apps/desktop/src/main/authoring/content-plan.test.ts apps/desktop/src/main/authoring/ninerouter-backend.test.ts
+npm.cmd run typecheck
+```
+
+### Step 2.2 - Extract Author Reply Runner
+
+Scope:
+
+- Single-reply authoring, batched authoring, and missing-TSX recovery.
+- Do not change content-plan logic in this step.
+
+Output:
+
+- New module, for example `author-reply-runner.ts`.
+- `ninerouter-backend.ts` delegates author reply generation/parsing/recovery.
+
+Acceptance:
+
+- Batch budget behavior unchanged.
+- Recovery for missing TSX remains covered.
+- File writing/admission can stay in backend if that keeps the slice smaller.
+
+Focused verification:
+
+```powershell
+npm.cmd test -- --run apps/desktop/src/main/authoring/ninerouter-backend.test.ts apps/desktop/src/main/authoring/reply-parser.test.ts
+npm.cmd run typecheck
+```
+
+### Step 2.3 - Extract Reauthor Runner
+
+Scope:
+
+- Reauthor loop: resolve file, read current code, call AI, parse, admit, retry,
+  fake-fix guard, rollback.
+
+Output:
+
+- New module, for example `reauthor-runner.ts`.
+- Backend supplies dependencies: chat, admitOne, manifest loader, project paths,
+  logger.
+
+Acceptance:
+
+- Failed reauthor still restores original code.
+- Image-preservation hints still thread into prompts.
+- Cancel behavior still stops before the next scene AI call.
+
+Focused verification:
+
+```powershell
+npm.cmd test -- --run apps/desktop/src/main/authoring/ninerouter-backend.test.ts apps/desktop/src/main/agent/repair-loop.test.ts
+npm.cmd run typecheck
+```
+
+### Step 2.4 - Extract Image Filter And Crawl Helpers
+
+Scope:
+
+- `filterCrawledImages`
+- `crawlImages`
+- ImageUnsupported model fallback/cache can remain in backend if moving it would
+  enlarge the step.
+
+Output:
+
+- New module(s), for example `image-filter-runner.ts` and
+  `article-image-crawler-runner.ts`.
+
+Acceptance:
+
+- Best-effort behavior remains: no model, no readable images, vision failure, or
+  unparseable reply yields no preselection instead of blocking authoring.
+- SSRF-safe fetch path remains intact.
+
+Focused verification:
+
+```powershell
+npm.cmd test -- --run apps/desktop/src/main/authoring/ninerouter-backend.test.ts
+npm.cmd run typecheck
+```
+
+### Step 2.5 - Slim Backend Facade And Update Docs
+
+Scope:
+
+- `ninerouter-backend.ts`
+- `docs/current/architecture.md`
+- `docs/current/maintenance.md`
+- This plan.
+
+Output:
+
+- Backend class reads as a coordinator over extracted runners.
+- Maintenance docs no longer describe outdated backend shape.
+
+Acceptance:
+
+- Public `AuthoringBackend` behavior unchanged.
+- No runner owns Electron/global state.
+- Docs identify new modules and their responsibility.
+
+Phase 2 exit criteria:
+
+- `ninerouter-backend.ts` is materially smaller and has narrower local
+  responsibility.
+- Existing tests pass.
+- Full gate passes.
+
+## Phase 3 - Render Oracle Posture Clarity
+
+Goal: make safety oracle behavior obvious before changing any severity or adding
+new visual checks.
+
+### Step 3.1 - Add Oracle Posture Table
+
+Scope:
+
+- `packages/pipeline/src/safety/render-grid.ts` header or nearby doc block.
+- No behavior change.
+
+Output:
+
+- A table/list classifying each oracle:
+  - auto-run inside `runRenderGrid`
+  - external orchestrator pass
+  - exported/manual only
+  - effective severity
+  - reason for warning/error posture
+
+Acceptance:
+
+- N14/N15/N17/N23 posture can be understood without reading both files end to
+  end.
+- Existing registry drift-guard tests remain valid.
+
+Focused verification:
+
+```powershell
+npm.cmd test -- --run packages/pipeline/src/safety/render-grid.test.ts
+npm.cmd run typecheck
+```
+
+### Step 3.2 - Extract External Render Pass Helpers
+
+Scope:
+
+- Helpers for layout measure N15/N17 and late safe-area inside orchestrator.
+- No severity change.
+
+Output:
+
+- Small helper module or local functions with explicit names, for example:
+  `runLayoutWarningPass`, `runLateSafeAreaWarningPass`.
+
+Acceptance:
+
+- `orchestrator.ts` still owns stage ordering.
+- Helpers receive all inputs explicitly; no hidden global state.
+- Warnings remain warnings.
+
+Focused verification:
+
+```powershell
+npm.cmd test -- --run packages/pipeline/src/orchestrator.test.ts packages/pipeline/src/safety/render-grid.test.ts
+npm.cmd run typecheck
+```
+
+### Step 3.3 - Assert Effective Severity At Caller Level
+
+Scope:
+
+- Tests only unless helper extraction needs tiny test hooks.
+
+Output:
+
+- Tests prove overlap/truncation/late-safe-area warnings remain non-blocking at
+  orchestrator level.
+
+Acceptance:
+
+- A future change that accidentally hard-blocks advisory layout passes fails a
+  test.
+
+Focused verification:
+
+```powershell
+npm.cmd test -- --run packages/pipeline/src/orchestrator.test.ts packages/pipeline/src/safety/render-grid.test.ts
+```
+
+Phase 3 exit criteria:
+
+- Oracle posture is documented where code lives.
+- External passes are easier to find.
+- No advisory check became hard gate.
+- Full gate passes.
+
+## Phase 4 - Workspace State Machine Hardening
+
+Goal: make workspace flow easier to change without moving orchestration too
+early.
+
+### Step 4.1 - Add A State Transition Matrix
+
+Scope:
+
+- Tests and/or docs.
+- Prefer a test fixture/table before code extraction.
+
+Output:
+
+- A table showing major transitions: create, image review, script gate, draft,
+  ready, edit, cancel, publish, recover, delete, thumbnail.
+
+Acceptance:
+
+- The table matches current behavior.
+- It names which transitions are persisted on disk and which are in-memory only.
+
+Focused verification:
+
+```powershell
+npm.cmd test -- --run apps/desktop/src/main/workspace/workspace-controller.test.ts apps/desktop/src/main/workspace/workspace-view-model.test.ts
+npm.cmd run typecheck
+```
+
+### Step 4.2 - Extract Pure Workspace Policies Only
+
+Scope:
+
+- Pure helpers such as retry eligibility, delete cleanup key list, thumbnail
+  eligibility, or stage label mapping.
+- Do not move async render/refine/publish orchestration.
+
+Output:
+
+- One small helper module or additions to existing workspace helper modules.
+- Helper-level tests.
+
+Acceptance:
+
+- No helper reaches into mutable maps directly unless passed data explicitly.
+- Controller remains owner of live maps, aborters, and stage mutation.
+
+Focused verification:
+
+```powershell
+npm.cmd test -- --run apps/desktop/src/main/workspace/workspace-controller.test.ts apps/desktop/src/main/workspace/workspace-view-model.test.ts
+npm.cmd run typecheck
+```
+
+### Step 4.3 - Strengthen Edit/Refine/Cancel Regression Tests
+
+Scope:
+
+- Tests around `submitEdits`, `refineEditedScenes`, restore to prior draft,
+  cancel during edit/refine/draft.
+
+Output:
+
+- Tests describe expected rollback and no-TTS/no-MP4 stills path.
+
+Acceptance:
+
+- A failed edit/refine cannot silently leave half-applied broken scenes.
+- Cancel still recovers to prior reviewable stage.
+
+Focused verification:
+
+```powershell
+npm.cmd test -- --run apps/desktop/src/main/workspace/workspace-controller.test.ts apps/desktop/src/main/agent/repair-loop.test.ts
+```
+
+### Step 4.4 - Consider One Workflow Extraction Only After Tests
+
+Scope:
+
+- Only if Steps 4.1-4.3 show a clear seam.
+- Candidate: thumbnail flow or script-gate flow, not full render/refine loop.
+
+Output:
+
+- A narrow workflow helper with injected effects.
+
+Acceptance:
+
+- Controller line count is not the justification; behavior boundary is.
+- No change to cancel/recover semantics.
+
+Phase 4 exit criteria:
+
+- Workspace behavior is easier to reason about from tests.
+- No broad stateful helper extraction.
+- Full gate passes.
+
+## Phase 5 - Desktop Main Root Containment
+
+Goal: keep `apps/desktop/src/main/index.ts` as a composition root, but stop it
+from absorbing every new feature directly.
+
+### Step 5.1 - Inventory IPC Handler Ownership
+
+Scope:
+
+- Docs/test note only, or a local comment/table near handler registration.
+
+Output:
+
+- Handler groups are classified: license, gateway, projects, thumbnail, script,
+  review, settings/TTS, BGM, export.
+
+Acceptance:
+
+- It is clear which groups already have factories and which are still inline.
+
+Verification:
+
+```powershell
+git diff --check
+npm.cmd run typecheck
+```
+
+### Step 5.2 - Extract One Inline Handler Group
+
+Scope:
+
+- Pick one low-risk group, for example thumbnail or settings/TTS handlers.
+- Do not move Electron lifecycle.
+
+Output:
+
+- New handler factory with typed dependencies.
+- `index.ts` spreads handler group like existing BGM handlers.
+
+Acceptance:
+
+- Handler behavior unchanged.
+- Dependency wiring remains explicit in `index.ts`.
+
+Focused verification:
+
+```powershell
+npm.cmd test -- --run apps/desktop/src/main/create/create-ipc.test.ts apps/desktop/src/main/settings/settings-store.test.ts apps/desktop/src/preload/client.test.ts
+npm.cmd run typecheck
+```
+
+### Step 5.3 - Repeat Only For Proven Handler Groups
+
+Scope:
+
+- One handler group per commit.
+
+Output:
+
+- A sequence of small handler factories, not a broad handler builder.
+
+Acceptance:
+
+- `index.ts` remains understandable as app composition root.
+- No lifecycle/window/media protocol code moved for cosmetic reasons.
+
+Phase 5 exit criteria:
+
+- New features have a clear pattern: domain handler factory plus explicit root
+  wiring.
+- Full gate passes.
+
+## Phase 6 - Renderer And TTS Domain Split
+
+Goal: prepare the media pipeline for future speech-synced visuals and SFX without
+stuffing more behavior into `tts/index.ts` or `renderer.ts`.
+
+### Step 6.1 - Extract SRT/Caption Timing Helpers From TTS
+
+Scope:
+
+- `packages/tts/src/index.ts`
+- New `srt` or `caption-timing` helper module.
+
+Output:
+
+- `alignmentToSrt`, timestamp formatting, and related parsing helpers live in a
+  focused module.
+
+Acceptance:
+
+- Public exports remain compatible.
+- ElevenLabs/Vivibe behavior unchanged.
+
+Focused verification:
+
+```powershell
+npm.cmd test -- --run packages/tts/src/index.test.ts packages/pipeline/src/audio/captions.test.ts
+npm.cmd run typecheck
+```
+
+### Step 6.2 - Extract Provider Clients
+
+Scope:
+
+- Vivibe client logic.
+- ElevenLabs client logic.
+- No audio ops move in same step.
+
+Output:
+
+- Provider modules such as `vivibe-client.ts` and `elevenlabs-client.ts`.
+
+Acceptance:
+
+- Retry behavior and error wording preserved.
+- TTS cache identity is unchanged.
+
+Focused verification:
+
+```powershell
+npm.cmd test -- --run packages/tts/src/index.test.ts packages/pipeline/src/audio/tts.test.ts
+npm.cmd run typecheck
+```
+
+### Step 6.3 - Extract Audio Ops
+
+Scope:
+
+- `measureAudioDuration`, concat, gap concat, normalize duration, BGM mix,
+  ffmpeg/ffprobe process runner.
+
+Output:
+
+- `audio-ops.ts` or equivalent.
+
+Acceptance:
+
+- ffmpeg/ffprobe fallbacks unchanged.
+- Output audio paths and durations stay compatible with lock/caption code.
+
+Focused verification:
+
+```powershell
+npm.cmd test -- --run packages/tts/src/index.test.ts packages/pipeline/src/audio/lock.test.ts packages/pipeline/src/audio/captions.test.ts
+npm.cmd run typecheck
+```
+
+### Step 6.4 - Extract Renderer Cache/Preparation Helpers
+
+Scope:
+
+- `packages/pipeline/src/render/renderer.ts`
+- Bundle/composition cache and `prepareComposition` support code.
+
+Output:
+
+- Smaller renderer file with render primitives still easy to inspect.
+
+Acceptance:
+
+- Cache key behavior unchanged.
+- Serial-render assumption remains documented.
+- No change to Remotion render options.
+
+Focused verification:
+
+```powershell
+npm.cmd test -- --run packages/pipeline/src/render/cache.test.ts packages/pipeline/src/render/renderer.test.ts packages/pipeline/src/orchestrator.test.ts
+npm.cmd run typecheck
+```
+
+### Step 6.5 - Design Speech-Timing Scene API Before Feature Work
+
+Scope:
+
+- Design doc or typed schema only.
+- No UI feature yet.
+
+Output:
+
+- A proposal for how locked caption/word timing can be exposed to authored scene
+  components without overloading prompts or leaking TTS internals.
+
+Acceptance:
+
+- It answers what data is available, frame units, scene-relative vs absolute
+  timing, and fallback when provider has approximate SRT.
+- It includes performance and AI-prompt complexity risks.
+
+Verification:
+
+```powershell
+git diff --check
+npm.cmd run typecheck
+```
+
+Phase 6 exit criteria:
+
+- TTS and renderer hubs are narrower.
+- Future speech-sync/SFX features have a clean target surface.
+- Full gate passes.
+
+## Phase 7 - Renderer CSS Maintainability
+
+Goal: reduce UI regression risk from the largest global file, using move-only
+splits before style changes.
+
+### Step 7.1 - Add CSS Section Inventory
+
+Scope:
+
+- `apps/desktop/src/renderer/theme.css`
+- No style behavior change.
+
+Output:
+
+- Clear section map for base tokens, shell, buttons/components, home/create,
+  settings, project cards, workspace/storyboard, publish/review, responsive.
+
+Acceptance:
+
+- A future move-only split has unambiguous cut points.
+
+Verification:
+
+```powershell
+git diff --check
+npm.cmd run typecheck
+npm.cmd run build
+```
+
+### Step 7.2 - Move-Only CSS Split
+
+Scope:
+
+- Split one section group per commit.
+- Keep same selectors and declaration order unless tested otherwise.
+
+Output:
+
+- CSS files such as `base.css`, `components.css`, `home.css`, `workspace.css`,
+  `settings.css`, imported by one stable entry.
+
+Acceptance:
+
+- No selector rename.
+- No visual redesign.
+- Build output succeeds.
+
+Focused verification:
+
+```powershell
+npm.cmd run typecheck
+npm.cmd run build
+```
+
+Manual verification:
+
+- Launch desktop app.
+- Check Home create flow, Settings, Workspace storyboard/review, Publish view.
+- Specifically inspect long Vietnamese text, buttons, and thumbnail aspect modes.
+
+### Step 7.3 - Add UI Regression Checklist
+
+Scope:
+
+- Docs or developer checklist.
+
+Output:
+
+- Repeatable manual UI checklist for CSS-only edits.
+
+Acceptance:
+
+- Future CSS changes know which screens to inspect.
+
+Phase 7 exit criteria:
+
+- CSS is split by domain/layer.
+- Visual behavior is unchanged.
+- Full gate passes.
+
+## Phase 8 - Small Operational Debt
+
+Goal: clean low/medium debt that is real but not urgent enough to block higher
+payoff phases.
+
+### Step 8.1 - Repair Budget Effective Value
+
+Scope:
+
+- Settings model/store/UI or a shared helper.
+
+Output:
+
+- User/dev can see the effective repair budget after engine clamp, or settings
+  store clamps it intentionally with updated tests.
+
+Acceptance:
+
+- No mismatch like UI/persisted value `99` while engine silently uses `10`,
+  unless UI clearly labels effective cap.
+- `settings-store.test.ts` and `repair-loop.test.ts` agree.
+
+Focused verification:
+
+```powershell
+npm.cmd test -- --run apps/desktop/src/main/settings/settings-store.test.ts apps/desktop/src/main/agent/repair-loop.test.ts apps/desktop/src/preload/client.test.ts
+npm.cmd run typecheck
+```
+
+### Step 8.2 - Thumbnail Lock Pattern Hardening
+
+Scope:
+
+- `packages/pipeline/src/render/render-thumbnail.ts`
+- `packages/pipeline/src/render/render-stills.ts` only if needed.
+
+Output:
+
+- Either keep current lock snapshot/restore with clear private seam, or move
+  stills thumbnail path to a separate temporary lock artifact.
+
+Acceptance:
+
+- Existing tests for successful restore, failed restore, and no prior lock still
+  pass.
+- `renderThumbnailUnlocked` remains private.
+
+Focused verification:
+
+```powershell
+npm.cmd test -- --run packages/pipeline/src/render/render-thumbnail.test.ts packages/pipeline/src/render/render-stills.test.ts
+npm.cmd run typecheck
+```
+
+### Step 8.3 - Parallel Render Assumption Audit
+
+Scope:
+
+- Renderer cache comments/docs.
+- No code unless a concrete future parallel render path is planned.
+
+Output:
+
+- A documented answer: what must change before parallel project rendering is
+  allowed?
+
+Acceptance:
+
+- The answer covers bundle cache, composition cache, project render lock, and
+  thumbnail/stills lock behavior.
+
+Verification:
+
+```powershell
+git diff --check
+```
+
+Phase 8 exit criteria:
+
+- Known small debt is either fixed or explicitly deferred with rationale.
+- Full gate passes if code changed.
+
+## Phase 9 - Feature Readiness For SFX And Speech-Synced Visuals
+
+Goal: only start new video features after the supporting surfaces are clear.
+
+### Step 9.1 - SFX Architecture Decision
+
+Scope:
+
+- Design doc and type sketch only.
+- No production feature yet.
+
+Output:
+
+- Decision on SFX toggle location: main Settings.
+- Decision on SFX behavior: on/off only, no multi-level complexity.
+- Candidate data model: scene transition/animation event, SFX asset identity,
+  mix timing, volume default, cache behavior.
+
+Acceptance:
+
+- The design states how SFX avoids overuse.
+- The design states which layer owns mixing: TTS/audio ops vs render lock vs
+  composition.
+- No prompt-only control for core safety behavior.
+
+Verification:
+
+```powershell
+git diff --check
+npm.cmd run typecheck
+```
+
+### Step 9.2 - Speech-Synced Visual API Decision
+
+Scope:
+
+- Design doc and typed schema only.
+- No prompt overhaul yet.
+
+Output:
+
+- Decision on whether scenes receive:
+  - scene-local `speechProgress`
+  - phrase/word timing windows
+  - active caption cue data
+  - or a simpler beat map derived from captions.
+
+Acceptance:
+
+- Uses existing caption/TTS timing where available.
+- Has fallback for approximate SRT.
+- Does not force AI to author a large prompt/output schema in one jump.
+
+Verification:
+
+```powershell
+git diff --check
+npm.cmd run typecheck
+```
+
+### Step 9.3 - Prototype Behind Internal Flag
+
+Scope:
+
+- One feature surface at a time: either SFX or speech progress, not both.
+- Internal/dev flag only.
+
+Output:
+
+- Minimal prototype with focused tests.
+
+Acceptance:
+
+- Default user behavior unchanged.
+- Toggle off means no output/audio/timing change.
+- Prototype has a rollback path.
+
+Focused verification:
+
+```powershell
+npm.cmd run typecheck
+npm.cmd test
+npm.cmd run build
+```
+
+Phase 9 exit criteria:
+
+- Feature implementation can proceed without adding more weight to existing
+  godfiles.
+
+## Suggested Execution Order
+
+1. Phase 1: low-risk truth/diagnostic fixes.
+2. Phase 2: authoring backend split.
+3. Phase 3: render oracle posture clarity.
+4. Phase 4: workspace state-machine hardening.
+5. Phase 5: desktop main root containment.
+6. Phase 6: renderer/TTS split.
+7. Phase 7: CSS split.
+8. Phase 8: operational debt.
+9. Phase 9: feature readiness for SFX/speech-sync.
+
+Do not run phases in parallel. If a later phase becomes urgent because of a real
+feature, do only its design step first, then return to the earlier safety/order
+work.
+
+## Phase Status
+
+| Phase | Status | Next step |
+| --- | --- | --- |
+| Phase 0 - Plan Control And Baseline | active | Step 0.2 before starting Phase 1. |
+| Phase 1 - Low-Risk Truth And Observability | pending | Step 1.1 orchestrator header sync. |
+| Phase 2 - Authoring Backend Seam Split | pending | Step 2.1 content-plan runner. |
+| Phase 3 - Render Oracle Posture Clarity | pending | Step 3.1 posture table. |
+| Phase 4 - Workspace State Machine Hardening | pending | Step 4.1 state transition matrix. |
+| Phase 5 - Desktop Main Root Containment | pending | Step 5.1 IPC ownership inventory. |
+| Phase 6 - Renderer And TTS Domain Split | pending | Step 6.1 SRT helper split. |
+| Phase 7 - Renderer CSS Maintainability | pending | Step 7.1 CSS section inventory. |
+| Phase 8 - Small Operational Debt | pending | Step 8.1 repair budget effective value. |
+| Phase 9 - Feature Readiness | pending | Step 9.1 SFX architecture decision. |
+
+## Global Exit Criteria
+
+The long-term repair program is considered complete when:
+
+- `ninerouter-backend.ts`, `orchestrator.ts`, `workspace-controller.ts`,
+  `render-grid.ts`, `renderer.ts`, and `tts/index.ts` each have clear local
+  ownership boundaries.
+- New features have obvious entry points and do not require touching every
+  godfile.
+- Docs/current remain accurate and do not duplicate `AI_CONTRACT.md`.
+- Full gate passes:
+
+```powershell
+npm.cmd run typecheck
+npm.cmd test
+npm.cmd run build
+git diff --check
+```
+
+- Manual app validation has been run for at least one real provider-connected
+  draft/full workflow before calling user-facing feature work ready.
