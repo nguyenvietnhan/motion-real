@@ -1,0 +1,305 @@
+/* --- 9. Create-page layout integration, sidebar settings, attachments ---- */
+
+/* ==========================================================================
+   New Premium Layout & Video Creation Dashboard (2-Column Grid)
+   ========================================================================== */
+
+/* Create Layout Grid */
+.ns-create-layout {
+  display: grid;
+  grid-template-columns: 1fr 300px;
+  gap: 28px;
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .ns-create-layout {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+}
+
+.ns-create-main {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ns-create-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  background: rgba(255, 255, 255, 0.015);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  border-radius: var(--radius-sm);
+  padding: 20px;
+}
+
+.ns-settings-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.ns-settings-panel-title {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted-foreground);
+  margin-bottom: 4px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.ns-setting-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ns-setting-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted-foreground);
+}
+
+.ns-setting-item .ns-knob-chip {
+  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  position: relative;
+  padding-right: 28px;
+}
+
+.ns-setting-item .ns-knob-chip::after {
+  content: "";
+  position: absolute;
+  right: 14px;
+  top: calc(50% - 2.5px);
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  border-right: 1.5px solid var(--muted-foreground);
+  border-bottom: 1.5px solid var(--muted-foreground);
+  transform: rotate(45deg);
+  transition: transform 0.2s ease;
+}
+
+.ns-setting-item .ns-knob-chip.is-open::after {
+  transform: rotate(-135deg) translateY(-0.5px);
+}
+
+.ns-setting-item .ns-knob-pop {
+  width: 100%;
+}
+
+/* Composer tweaks for layout integration */
+.ns-composer-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.03);
+}
+
+/* Attach button in composer */
+.ns-btn-attach {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+  padding: 0 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--foreground);
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.ns-btn-attach:hover {
+  border-color: rgba(99, 102, 241, 0.4);
+  background: rgba(255, 255, 255, 0.06);
+  transform: translateY(-0.5px);
+}
+
+/* Badges and info text */
+.ns-link-detected-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #6366f1;
+  background: rgba(99, 102, 241, 0.08);
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-weight: 500;
+}
+
+.ns-create-hint {
+  font-size: 12px;
+  color: var(--muted-foreground);
+  margin: 4px 0 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ns-create-hint.warning {
+  color: var(--warn);
+}
+
+.ns-validation-warning {
+  font-size: 12px;
+  color: var(--warn);
+  margin-bottom: 8px;
+  display: block;
+}
+
+/* Image strip */
+.ns-attached-images-strip {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.03);
+  background: rgba(0, 0, 0, 0.1);
+}
+
+.ns-attached-image-thumb {
+  position: relative;
+  width: 56px;
+  height: 74px;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.25);
+  transition: all 0.2s ease;
+}
+
+.ns-attached-image-thumb:hover {
+  transform: scale(1.03);
+}
+
+.ns-attached-image-remove {
+  position: absolute;
+  right: 4px;
+  top: 4px;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0,0,0,0.65);
+  color: #fff;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.ns-attached-image-remove:hover {
+  background: var(--danger);
+}
+
+/* ==========================================================================
+   Horizontal Creator Flow & Balanced Spacing Layout
+   ========================================================================== */
+
+.ns-create-flow {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.ns-settings-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.ns-settings-section-title {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted-foreground);
+  padding-bottom: 4px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.ns-settings-horizontal-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
+
+@media (max-width: 900px) {
+  .ns-settings-horizontal-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 480px) {
+  .ns-settings-horizontal-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.ns-setting-column {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ns-setting-column .ns-knob-chip {
+  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  position: relative;
+  padding-right: 28px;
+}
+
+.ns-setting-column .ns-knob-chip::after {
+  content: "";
+  position: absolute;
+  right: 14px;
+  top: calc(50% - 2.5px);
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  border-right: 1.5px solid var(--muted-foreground);
+  border-bottom: 1.5px solid var(--muted-foreground);
+  transform: rotate(45deg);
+  transition: transform 0.2s ease;
+}
+
+.ns-setting-column .ns-knob-chip.is-open::after {
+  transform: rotate(-135deg) translateY(-0.5px);
+}
+
+.ns-setting-column .ns-knob-pop {
+  width: 100%;
+}
+
+.ns-create-action-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 16px;
+  margin-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.04);
+  padding-top: 16px;
+}
