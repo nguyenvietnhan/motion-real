@@ -612,6 +612,15 @@ Phase 3 exit criteria:
 - No advisory check became hard gate.
 - Full gate passes.
 
+Status: done on 2026-07-06. Phase close verification passed:
+
+```powershell
+npm.cmd run typecheck
+npm.cmd test
+npm.cmd run build
+git diff --check
+```
+
 ## Phase 4 - Workspace State Machine Hardening
 
 Goal: make workspace flow easier to change without moving orchestration too
@@ -1192,7 +1201,7 @@ work.
 | Phase 0 - Plan Control And Baseline | done | Reconfirm Step 0.2 again before any later phase. |
 | Phase 1 - Low-Risk Truth And Observability | done | Full gate passed on 2026-07-06. |
 | Phase 2 - Authoring Backend Seam Split | done | Full gate passed on 2026-07-06. |
-| Phase 3 - Render Oracle Posture Clarity | active | Phase close full gate. |
+| Phase 3 - Render Oracle Posture Clarity | done | Full gate passed on 2026-07-06. |
 | Phase 4 - Workspace State Machine Hardening | pending | Step 4.1 state transition matrix. |
 | Phase 5 - Desktop Main Root Containment | pending | Step 5.1 IPC ownership inventory. |
 | Phase 6 - Renderer And TTS Domain Split | pending | Step 6.1 SRT helper split. |
