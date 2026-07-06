@@ -17,7 +17,6 @@ import {
   type ManifestScene,
   type AdmitProjectResult,
   type AuthoredRegistration,
-  type SafetyIssue,
   type SerializedPipelineError,
 } from "@motionreal/pipeline";
 import type { createTools } from "@motionreal/pipeline";
@@ -26,7 +25,6 @@ import type { SafetyReportView } from "../agent/repair-loop.js";
 import type { AuthorJob, VisualDefect, SceneSnapshot, AuthorImageRef } from "../agent/agent-worker.js";
 import { GatewayChatError, type NineRouterClient, type ChatMessage } from "../gateway/ninerouter-client.js";
 import {
-  buildReauthorMessages,
   buildVisualQaMessages,
   buildImageFilterMessages,
   type AuthorImageInput,
@@ -34,13 +32,15 @@ import {
 import type { ContentPlan } from "./content-plan.js";
 import { runContentPlan } from "./content-plan-runner.js";
 import { runBatchedAuthorReply, runSingleAuthorReply, type SuccessfulAuthorReply } from "./author-reply-runner.js";
-import { parseReauthorReply } from "./reply-parser.js";
+import { runReauthor } from "./reauthor-runner.js";
 import type { AuthorManifest } from "./manifest-schema.js";
 import { extractJsonObject } from "./manifest-schema.js";
 import { sceneFileName, resolveSceneFile } from "./scene-files.js";
 import { normalizeAuthoredImports } from "./normalize-imports.js";
 import { normalizeAuthoredFontSizes } from "./normalize-fontsize.js";
 import type { VideoFormat, DurationTier, VideoLanguage } from "@motionreal/schema";
+
+export { isLogicChanged } from "./reauthor-runner.js";
 
 /**
  * Pure-AUTHOR authoring backend (desktop-author-mode). The AI writes FRESH `.tsx`
@@ -121,14 +121,6 @@ export type NineRouterBackendDeps = {
 
 function manifestPathOf(projectId: string): string {
   return projectPaths(projectId).manifest;
-}
-
-/**
- * Vision-guided repair applies to objective visual layout defects represented by
- * N14. Advisory contrast/style feedback stays outside this automatic repair path.
- */
-function needsVision(issues?: SafetyIssue[]): boolean {
-  return (issues ?? []).some((i) => i.check === "N14");
 }
 
 /** Read a rendered still into a PNG data URL, or undefined if missing/unreadable. */
@@ -407,127 +399,22 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
     if (!model) return { scenes: [] };
     const reviewDir = projectPaths(projectId).reviewDir;
     const admitOne = this.deps.admitOne ?? ((p: string) => admitAuthoredSceneFile(p));
-    const done: AuthoredScene[] = [];
-
-    // Read the manifest once to find which scenes carry an image, so the reauthor
-    // prompt can hard-require keeping <SceneImage> (a free rewrite otherwise drops
-    // it on a vague "make it nicer" edit while the manifest still references the
-    // image). The multi-style concept is gone (one neutral theme — D1), so there is
-    // no per-project style to thread into the repair prompt anymore.
-    const manifestForReauthor = await loadManifest(projectId).catch((error) => {
-      log.warn({ err: error, projectId }, "reauthor manifest unreadable; image-preservation hints unavailable");
-      return undefined;
+    return runReauthor({
+      model,
+      projectId,
+      targets,
+      reviewDir,
+      ...(signal ? { signal } : {}),
+      loadManifest: (id) => loadManifest(id),
+      resolveSceneFile,
+      readText: (path) => readFile(path, "utf8"),
+      writeText: (path, source) => writeFile(path, source, "utf8"),
+      readStillDataUrl,
+      chat: (selectedModel, messages, currentSignal) => this.chatWithVisionFallback(selectedModel, messages, currentSignal),
+      admitOne,
+      unregisterComponent,
+      logger: log,
     });
-    const imageSceneIds = new Set(
-      (manifestForReauthor?.scenes ?? [])
-        .filter((s: { image?: { ref?: string } }) => !!s.image?.ref)
-        .map((s: { id: string }) => s.id),
-    );
-
-    for (const t of targets) {
-      // A user "Dừng render" mid-reauthor stops before the next scene's AI call
-      // (the in-flight chat is aborted via the signal). Already-rewritten scenes
-      // stay applied; the controller restores the prior reviewable stage.
-      if (signal?.aborted) break;
-      const resolved = await resolveSceneFile(projectId, t.sceneId, (id) => loadManifest(id).catch((error) => {
-        log.warn({ err: error, projectId: id, sceneId: t.sceneId }, "scene manifest unreadable during reauthor resolution");
-        return { scenes: [] };
-      }));
-      if (!resolved) {
-        log.error({ sceneId: t.sceneId }, "[reauthor] cannot resolve authored file; skipping");
-        continue;
-      }
-      const { componentId, path } = resolved;
-
-      let originalCode: string;
-      try {
-        originalCode = await readFile(path, "utf8");
-      } catch (e) {
-        log.error({ err: e, sceneId: t.sceneId, componentId }, "[reauthor] cannot read scene file");
-        continue;
-      }
-
-      // Up to 2 attempts: a first rewrite, then — if it fails the admission gate
-      // (for example with a wrong import or invalid syntax) — ONE corrective retry
-      // that feeds the exact violations back so the model self-fixes the
-      // deterministic error. On final failure the original code is restored
-      // (atomic per scene), so the project always stays renderable.
-      const MAX_REAUTHOR_ATTEMPTS = 2;
-      let applied = false;
-      let feedback: string | undefined;
-      let lastGeneratedCode: string | undefined;
-      for (let attempt = 0; attempt < MAX_REAUTHOR_ATTEMPTS && !applied; attempt++) {
-        const stillDataUrl = needsVision(t.issues) || t.visual ? readStillDataUrl(join(reviewDir, `${t.sceneId}.png`)) : undefined;
-        const intent = [t.intent, feedback].filter((s) => s && s.trim()).join("\n\n") || undefined;
-        const messages = buildReauthorMessages({
-          sceneId: t.sceneId,
-          componentId,
-          currentCode: lastGeneratedCode ?? originalCode,
-          ...(t.issues ? { issues: t.issues } : {}),
-          ...(intent ? { intent } : {}),
-          ...(stillDataUrl ? { stillDataUrl } : {}),
-          ...(imageSceneIds.has(t.sceneId) ? { hasImage: true } : {}),
-        });
-
-        let reply: string;
-        try {
-          reply = await this.chatWithVisionFallback(model, messages, signal);
-        } catch (e) {
-          log.error({ err: e, sceneId: t.sceneId }, "[reauthor] AI call failed");
-          break; // give up this scene; original is restored below
-        }
-
-        const parsed = parseReauthorReply(reply, componentId);
-        if (!parsed.ok) {
-          // Log the raw reply (capped) like the author path does — a `no-code`
-          // reauthor failure is otherwise undiagnosable (we can't tell prose from
-          // a code block that just lacks the fence / `registerComponent`).
-          log.error(
-            { sceneId: t.sceneId, reason: parsed.reason, detail: parsed.detail, rawReply: reply.slice(0, 2000) },
-            "[reauthor] parse failed",
-          );
-          continue; // retry if attempts remain
-        }
-
-        // If this is a retry attempt (attempt > 0), verify that the model did not just bypass checks with a fake comment fix.
-        if (attempt > 0 && !isLogicChanged(lastGeneratedCode ?? originalCode, parsed.module.code)) {
-          log.error({ sceneId: t.sceneId, attempt: attempt + 1 }, "[reauthor] reject fake fix: no logic change detected");
-          feedback = `Lần trước bạn không thay đổi bất kỳ logic cốt lõi nào của mã nguồn mà chỉ thay đổi khoảng trắng hoặc chú thích (comment). Bạn bắt buộc phải thay đổi mã nguồn thực tế để sửa lỗi đã nêu!`;
-          continue;
-        }
-
-        lastGeneratedCode = parsed.module.code;
-
-        // Overwrite + re-admit; on admission failure, capture the violations as
-        // corrective feedback for the next attempt (or roll back if exhausted).
-        await writeFile(path, normalizeAuthoredFontSizes(normalizeAuthoredImports(parsed.module.code)), "utf8");
-        unregisterComponent(componentId);
-        const re = await admitOne(path);
-        if (re.ok) {
-          applied = true;
-          break;
-        }
-        const violationText = re.violations.map((v) => `  ${v.check} ${v.path}: ${v.message}`).join("\n");
-        const last = attempt + 1 >= MAX_REAUTHOR_ATTEMPTS;
-        log.error(
-          { sceneId: t.sceneId, attempt: attempt + 1, action: last ? "rolling-back" : "retrying-with-feedback", violations: violationText },
-          "[reauthor] re-admit failed",
-        );
-        feedback =
-          `Lần trước mã bị TỪ CHỐI khi nạp:\n${violationText}\n\n` +
-          `Sửa theo AUTHOR mode hiện tại: chỉ import react, remotion, zod, @motionreal/compositions; KHÔNG import @motionreal/blocks, @motionreal/theme, hay bất kỳ design/theme package nào; ` +
-          `mã phải là TSX parse được, giữ nguyên id "${componentId}", chỉ dùng API được phép. Trả về lại đúng một khối tsx.`;
-      }
-
-      if (!applied) {
-        await writeFile(path, originalCode, "utf8");
-        unregisterComponent(componentId);
-        await admitOne(path).catch((e) => log.debug({ err: e, sceneId: t.sceneId, componentId }, "[reauthor] re-admit of restored original failed"));
-        continue;
-      }
-      done.push({ sceneId: t.sceneId, stillPath: join(reviewDir, `${t.sceneId}.png`) });
-    }
-    return { scenes: done };
   }
 
   /**
@@ -860,7 +747,6 @@ function chunk<T>(items: readonly T[], size: number): T[][] {
   }
   return out;
 }
-
 /** Parse the visual-QA JSON reply into high-severity, known-scene defects (tolerant). */
 function parseVisualDefects(reply: string, knownScenes: Set<string>): VisualDefect[] {
   const json = extractJsonObject(reply);
@@ -887,12 +773,4 @@ function parseVisualDefects(reply: string, knownScenes: Set<string>): VisualDefe
     out.push({ sceneId, issue });
   }
   return out;
-}
-
-export function isLogicChanged(oldCode: string, newCode: string): boolean {
-  const clean = (s: string) => {
-    const noComments = s.replace(/\/\*[\s\S]*?\*\/|([^\\:]|^)\/\/.*$/gm, "$1");
-    return noComments.replace(/\s+/g, "");
-  };
-  return clean(oldCode) !== clean(newCode);
 }
