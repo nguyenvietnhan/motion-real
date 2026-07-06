@@ -52,6 +52,13 @@ Electron lifecycle, media
 scheme/protocol ordering, controller construction, and broad handler composition
 root-owned unless a future slice has a narrower reason than line count.
 
+The media-pipeline split is complete for the current Phase 6 scope. TTS provider
+clients, provider HTTP helpers, caption timing, and audio operations now live in
+focused modules under `packages/tts/src/`; keep `index.ts` as the public barrel
+and cache-key surface. Renderer bundle/composition preparation now lives in
+`packages/pipeline/src/render/composition-prep.ts`; keep render primitives in
+`renderer.ts` unless a future slice proves a narrower behavior boundary.
+
 The internal `createTools` facade is pipeline-owned.
 The root `.mcp.json` is local-only and ignored. Keep `.mcp.example.json` as a
 template without absolute machine paths; do not reintroduce a repo-provided

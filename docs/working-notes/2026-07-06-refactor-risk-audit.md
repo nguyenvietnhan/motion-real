@@ -1127,6 +1127,19 @@ Phase 6 exit criteria:
 - Future speech-sync/SFX features have a clean target surface.
 - Full gate passes.
 
+Status: done on 2026-07-06. Phase 6 split TTS caption timing, provider
+clients, provider HTTP helpers, and audio ops into focused modules; extracted
+renderer bundle/composition preparation into `composition-prep.ts`; added the
+speech-timing scene API design note; and synced `docs/current/architecture.md`
+plus `docs/current/maintenance.md`. Phase close verification passed:
+
+```powershell
+npm.cmd run typecheck
+npm.cmd test
+npm.cmd run build
+git diff --check
+```
+
 ## Phase 7 - Renderer CSS Maintainability
 
 Goal: reduce UI regression risk from the largest global file, using move-only
@@ -1405,7 +1418,7 @@ work.
 | Phase 3 - Render Oracle Posture Clarity | done | Full gate passed on 2026-07-06. |
 | Phase 4 - Workspace State Machine Hardening | done | Full gate passed on 2026-07-06. |
 | Phase 5 - Desktop Main Root Containment | done | Full gate passed on 2026-07-06. |
-| Phase 6 - Renderer And TTS Domain Split | active | Phase 6 full gate and closeout. |
+| Phase 6 - Renderer And TTS Domain Split | done | Full gate passed on 2026-07-06. |
 | Phase 7 - Renderer CSS Maintainability | pending | Step 7.1 CSS section inventory. |
 | Phase 8 - Small Operational Debt | pending | Step 8.1 repair budget effective value. |
 | Phase 9 - Feature Readiness | pending | Step 9.1 SFX architecture decision. |

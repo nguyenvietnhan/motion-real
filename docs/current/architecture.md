@@ -53,6 +53,28 @@ Avoid creating a broad desktop handler builder or moving Electron lifecycle code
 just to reduce line count; those pieces are clearer at the composition root
 unless a future focused slice proves otherwise.
 
+## Media Pipeline Internals
+
+`@motionreal/tts` keeps its public surface in `packages/tts/src/index.ts`, but
+implementation is split by media responsibility:
+
+- `caption-timing.ts` owns ElevenLabs alignment-to-SRT timing helpers.
+- `vivibe-client.ts` and `elevenlabs-client.ts` own provider clients and
+  provider-specific configuration helpers.
+- `provider-http.ts` owns shared provider HTTP retry, download, and response
+  normalization helpers.
+- `audio-ops.ts` owns duration measurement, mock WAV generation, concat,
+  breath-gap concat, duration normalization, BGM mix, and ffmpeg/ffprobe process
+  execution.
+
+`packages/pipeline/src/render/renderer.ts` remains the render primitive surface:
+video render, scene stills, runtime probe, layout measurement, and determinism
+frames. Bundle/composition preparation now lives in
+`render/composition-prep.ts`, including Remotion root helpers, timing
+instrumentation, bundle/composition cache, public-dir inference, static-audio
+validation, and the workspace webpack override. `renderer.ts` re-exports the old
+public helpers so callers keep importing from the same surface.
+
 ## Desktop Workspace Internals
 
 The workspace controller has been split only along narrow local seams:
