@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import fc from "fast-check";
 import { SettingsStore, type SettingsStoreDeps } from "./settings-store.js";
-import { defaultSettings } from "../../shared/settings-model.js";
+import { clampMaxRepairAttempts, defaultSettings } from "../../shared/settings-model.js";
 import type { AiAccountState, SettingsModel } from "../../shared/types.js";
 
 /**
@@ -86,10 +86,12 @@ describe("Property 2: Settings load merge precedence", () => {
         const { store } = memStore(JSON.stringify(saved));
         const out = store.current();
         const base = defaults();
-        for (const k of ["vivibeVoiceId", "outputDir", "maxRepairAttempts", "scriptGateEnabled"] as const) {
+        for (const k of ["vivibeVoiceId", "outputDir", "scriptGateEnabled"] as const) {
           const expected = k in saved ? (saved as Record<string, unknown>)[k] : (base as Record<string, unknown>)[k];
           expect((out as Record<string, unknown>)[k]).toEqual(expected);
         }
+        const rawBudget = saved.maxRepairAttempts ?? base.maxRepairAttempts;
+        expect(out.maxRepairAttempts).toBe(clampMaxRepairAttempts(rawBudget));
         expect(out.voiceProvider).toBe("vivibe");
         expect(out.aiAccount).toEqual(base.aiAccount);
       }),
@@ -155,20 +157,23 @@ describe("settings filename migration", () => {
   });
 });
 
-// Property 3: Settings update merge precedence (no clamp) + persisted matches return
-describe("Property 3: Settings update merge precedence (no clamp)", () => {
-  it("patch wins, voiceProvider forced, maxRepairAttempts NOT clamped, disk matches return", () => {
+// Property 3: Settings update merge precedence + persisted effective repair budget
+describe("Property 3: Settings update merge precedence", () => {
+  it("patch wins, voiceProvider forced, maxRepairAttempts clamped, disk matches return", () => {
     fc.assert(
       fc.property(savedArb, (patch) => {
         const { store, readFile } = memStore();
         const before = store.current();
         const out = store.update(patch);
         for (const k of Object.keys(patch) as (keyof SettingsModel)[]) {
+          if (k === "maxRepairAttempts") continue;
           expect(out[k]).toEqual((patch as Record<string, unknown>)[k]);
         }
         expect(out.voiceProvider).toBe(before.voiceProvider);
-        if ("maxRepairAttempts" in patch) expect(out.maxRepairAttempts).toBe(patch.maxRepairAttempts);
-        else expect(out.maxRepairAttempts).toBe(before.maxRepairAttempts);
+        if ("maxRepairAttempts" in patch) {
+          const rawBudget = (patch as { maxRepairAttempts: number }).maxRepairAttempts;
+          expect(out.maxRepairAttempts).toBe(clampMaxRepairAttempts(rawBudget));
+        } else expect(out.maxRepairAttempts).toBe(before.maxRepairAttempts);
         // persisted (minus aiAccount) equals the returned settings
         const persisted = JSON.parse(readFile()!) as Partial<SettingsModel>;
         const { aiAccount: _a, voiceCredentials: _c, ...expected } = out;

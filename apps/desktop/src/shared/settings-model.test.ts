@@ -1,8 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
   defaultSettings,
+  clampMaxRepairAttempts,
   clampWordsPerSecond,
   computeWordsPerSecond,
+  DEFAULT_MAX_REPAIR_ATTEMPTS,
+  MIN_REPAIR_ATTEMPTS,
+  MAX_REPAIR_ATTEMPTS,
   DEFAULT_WORDS_PER_SECOND,
   MIN_WORDS_PER_SECOND,
   MAX_WORDS_PER_SECOND,
@@ -25,6 +29,19 @@ describe("defaultSettings", () => {
     expect(s.maxRepairAttempts).toBe(3);
     expect(s.scriptGateEnabled).toBe(true);
     expect(s.aiAccount).toEqual({ kind: "disconnected" });
+  });
+});
+
+describe("clampMaxRepairAttempts", () => {
+  it("keeps the settings-visible repair budget in the engine's effective range", () => {
+    expect(clampMaxRepairAttempts(0)).toBe(MIN_REPAIR_ATTEMPTS);
+    expect(clampMaxRepairAttempts(99)).toBe(MAX_REPAIR_ATTEMPTS);
+    expect(clampMaxRepairAttempts(4.9)).toBe(4);
+  });
+
+  it("falls back to the default for a non-finite budget", () => {
+    expect(clampMaxRepairAttempts(NaN)).toBe(DEFAULT_MAX_REPAIR_ATTEMPTS);
+    expect(clampMaxRepairAttempts(Infinity)).toBe(DEFAULT_MAX_REPAIR_ATTEMPTS);
   });
 });
 

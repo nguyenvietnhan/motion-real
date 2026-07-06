@@ -2,6 +2,7 @@ import type { SettingsModel, VoiceProviderChoice } from "../../shared/types.js";
 import {
   DEFAULT_REFINE_PASSES,
   ELEVENLABS_DEFAULT_MODEL_ID,
+  clampMaxRepairAttempts,
   clampRefinePasses,
   clampWordsPerSecond,
   voiceCalibrationKey,
@@ -108,6 +109,7 @@ export class SettingsStore {
     if (saved.refinePasses === undefined && saved.visualQaEnabled !== undefined) {
       merged.refinePasses = saved.visualQaEnabled ? DEFAULT_REFINE_PASSES : 0;
     }
+    merged.maxRepairAttempts = clampMaxRepairAttempts(merged.maxRepairAttempts);
     merged.refinePasses = clampRefinePasses(merged.refinePasses);
     return merged;
   }
@@ -193,6 +195,7 @@ export class SettingsStore {
       voiceCredentials: this.settings.voiceCredentials,
       voiceCalibrations: patch.voiceCalibrations ?? this.settings.voiceCalibrations,
     };
+    this.settings.maxRepairAttempts = clampMaxRepairAttempts(this.settings.maxRepairAttempts);
     this.settings.refinePasses = clampRefinePasses(this.settings.refinePasses);
     this.settings = this.withCredentialStates(this.settings);
     this.save();

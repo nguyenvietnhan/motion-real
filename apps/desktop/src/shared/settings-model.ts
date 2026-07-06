@@ -11,8 +11,20 @@ export function voiceCalibrationKey(input: {
   return [input.provider, input.modelId ?? "default", input.voiceId, String(input.speed ?? 1)].join(":");
 }
 
-/** Default repair budget (mirrors the engine clamp lower bound in repair-loop). */
-const DEFAULT_MAX_REPAIR_ATTEMPTS = 3;
+/** Repair budget shared by Settings and the engine loop. */
+export const DEFAULT_MAX_REPAIR_ATTEMPTS = 3;
+export const MIN_REPAIR_ATTEMPTS = 1;
+export const MAX_REPAIR_ATTEMPTS = 10;
+
+/**
+ * Clamp the repair budget into [1,10]; a non-finite value falls back to 3.
+ * Settings persistence and the engine loop share this helper so the displayed
+ * value is the effective value.
+ */
+export function clampMaxRepairAttempts(n: number): number {
+  if (!Number.isFinite(n)) return DEFAULT_MAX_REPAIR_ATTEMPTS;
+  return Math.min(MAX_REPAIR_ATTEMPTS, Math.max(MIN_REPAIR_ATTEMPTS, Math.floor(n)));
+}
 
 /** Default silent refine passes over the stills before the first draft (D6/R4.4). */
 export const DEFAULT_REFINE_PASSES = 2;
@@ -100,10 +112,10 @@ export function computeWordsPerSecond(samples: CalibrationSample[]): number | un
  * dir, repair budget 3, and the script gate ON. `outputDir` is supplied by the
  * main process (the `.video-tool` home) to keep this module pure.
  *
- * NOTE (reconcile-main-controllers S2): `normalizeSettings` was removed. It was
- * never on the production path — `index.ts` merged settings inline WITHOUT
- * clamping `maxRepairAttempts`, so the clamp was a divergence (R4.4). The real
- * persistence/merge now lives in the tested `SettingsStore` (main/settings).
+ * NOTE (reconcile-main-controllers S2): `normalizeSettings` was removed. The
+ * real persistence/merge now lives in the tested `SettingsStore`
+ * (main/settings), which clamps `maxRepairAttempts` with the same helper the
+ * engine loop uses.
  */
 
 export function defaultSettings(outputDir: string): SettingsModel {

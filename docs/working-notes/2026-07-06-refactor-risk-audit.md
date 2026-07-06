@@ -1327,6 +1327,16 @@ npm.cmd test -- --run apps/desktop/src/main/settings/settings-store.test.ts apps
 npm.cmd run typecheck
 ```
 
+Status: done on 2026-07-07. Added a shared `clampMaxRepairAttempts` helper in
+`settings-model.ts`; `SettingsStore` now clamps `maxRepairAttempts` on load and
+update, persists that effective value, and `repair-loop.ts` uses the same helper
+through its existing `clampAttempts` surface. Focused verification passed:
+
+```powershell
+npm.cmd test -- --run apps/desktop/src/main/settings/settings-store.test.ts apps/desktop/src/main/agent/repair-loop.test.ts apps/desktop/src/preload/client.test.ts apps/desktop/src/shared/settings-model.test.ts
+npm.cmd run typecheck
+```
+
 ### Step 8.2 - Thumbnail Lock Pattern Hardening
 
 Scope:

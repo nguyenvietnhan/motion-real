@@ -1,6 +1,12 @@
 import type { SafetyIssue, SerializedPipelineError } from "@motionreal/pipeline";
 import type { AgentHooks, RepairLoopOptions, RepairOutcome } from "./agent-worker.js";
 import type { ReauthorTarget } from "./custom-loop-worker.js";
+import {
+  DEFAULT_MAX_REPAIR_ATTEMPTS,
+  MAX_REPAIR_ATTEMPTS,
+  MIN_REPAIR_ATTEMPTS,
+  clampMaxRepairAttempts,
+} from "../../shared/settings-model.js";
 import { toFriendlyFix } from "../redact/friendly.js";
 import { classifyIssue, classifyError } from "./error-classifier.js";
 
@@ -12,14 +18,13 @@ import { classifyIssue, classifyError } from "./error-classifier.js";
  * next render. Stops on the first zero-hard-error report (Property 4).
  */
 
-export const DEFAULT_MAX_ATTEMPTS = 3;
-export const MIN_ATTEMPTS = 1;
-export const MAX_ATTEMPTS = 10;
+export const DEFAULT_MAX_ATTEMPTS = DEFAULT_MAX_REPAIR_ATTEMPTS;
+export const MIN_ATTEMPTS = MIN_REPAIR_ATTEMPTS;
+export const MAX_ATTEMPTS = MAX_REPAIR_ATTEMPTS;
 
 /** Clamp the attempt budget into [1,10]; a non-finite value falls back to 3. */
 export function clampAttempts(n: number): number {
-  if (!Number.isFinite(n)) return DEFAULT_MAX_ATTEMPTS;
-  return Math.min(MAX_ATTEMPTS, Math.max(MIN_ATTEMPTS, Math.floor(n)));
+  return clampMaxRepairAttempts(n);
 }
 
 /** The hard-error subset split the loop reads after each draft. */
