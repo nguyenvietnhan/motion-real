@@ -25,6 +25,7 @@ Current docs live under `docs/current/`:
 - `authoring-contract.md` — scene module requirements and import rules.
 - `content-guide.md` — story, language, evidence, and visual guidance.
 - `maintenance.md` — cleanup/refactor rules and known sensitive areas.
+- `youtube-mode-deferred.md` — deferred roadmap note only; not active scope.
 
 Provider setup lives in `docs/providers/`.
 

@@ -88,7 +88,7 @@ N10 typecheck, or render safety.
 Before the user sees a first draft, the desktop flow may run a hidden sequence:
 
 ```text
-author blind draft
+author initial TSX/manifest
 -> render stills
 -> creative bootstrap pass
 -> render stills again
@@ -115,14 +115,16 @@ Topic / URL / images
 -> admission gate
 -> manifest -> VideoSpec
 -> static safety grid
+-> authored scene typecheck
 -> TTS
 -> lockSpec -> LockedVideoSpec
 -> build safety grid
--> authored scene typecheck
+-> generated authored entry
 -> strict N31 runtime probe
 -> determinism guard
--> Remotion render stills
--> draft MP4
+-> render draft MP4
+-> review stills/contact sheet
+-> render oracles
 -> user review
 -> approved full MP4
 ```
