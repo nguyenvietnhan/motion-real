@@ -26,13 +26,14 @@ import type { AuthorJob, VisualDefect, SceneSnapshot, AuthorImageRef } from "../
 import { GatewayChatError, type NineRouterClient, type ChatMessage } from "../gateway/ninerouter-client.js";
 import {
   buildVisualQaMessages,
-  buildImageFilterMessages,
   type AuthorImageInput,
 } from "./prompt.js";
 import type { ContentPlan } from "./content-plan.js";
 import { runContentPlan } from "./content-plan-runner.js";
 import { runBatchedAuthorReply, runSingleAuthorReply, type SuccessfulAuthorReply } from "./author-reply-runner.js";
 import { runReauthor } from "./reauthor-runner.js";
+import { runImageFilter } from "./image-filter-runner.js";
+import { runArticleImageCrawler } from "./article-image-crawler-runner.js";
 import type { AuthorManifest } from "./manifest-schema.js";
 import { extractJsonObject } from "./manifest-schema.js";
 import { sceneFileName, resolveSceneFile } from "./scene-files.js";
@@ -594,33 +595,17 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
     signal?: AbortSignal,
   ): Promise<string[]> {
     const model = this.deps.model();
-    if (!model || refs.length === 0) return [];
-    // This call is image-ONLY (no meaningful text-only form), so if the model is
-    // already known to reject inline images, don't even try — calling would just
-    // 400 and trip 9router's circuit breaker, which would then fail the authoring
-    // call that follows. No pre-selection; the review screen still works.
-    if (this.imageUnsupportedModels.has(model)) return [];
-    const images = this.buildAuthorImages(projectId, refs);
-    if (images.length === 0) return [];
-    const allowed = new Set(images.map((i) => i.ref));
-    let reply: string;
-    try {
-      reply = await this.chatWithVisionFallback(model, buildImageFilterMessages(articleText, images), signal);
-    } catch (e) {
-      log.warn({ err: e, projectId }, "[image-filter] vision call failed; no pre-selection");
-      return [];
-    }
-    const json = extractJsonObject(reply);
-    if (!json) return [];
-    try {
-      const keep = (JSON.parse(json) as { keep?: unknown }).keep;
-      if (!Array.isArray(keep)) return [];
-      // Intersect with the provided refs so a hallucinated path can't slip in.
-      return keep.filter((r): r is string => typeof r === "string" && allowed.has(r));
-    } catch (error) {
-      log.warn({ err: error, projectId }, "image-filter JSON parse failed; using no preselection");
-      return [];
-    }
+    return runImageFilter({
+      ...(model ? { model } : {}),
+      projectId,
+      articleText,
+      refs,
+      ...(signal ? { signal } : {}),
+      isImageUnsupported: (selectedModel) => this.imageUnsupportedModels.has(selectedModel),
+      buildAuthorImages: (id, imageRefs) => this.buildAuthorImages(id, imageRefs),
+      chat: (selectedModel, messages, currentSignal) => this.chatWithVisionFallback(selectedModel, messages, currentSignal),
+      logger: log,
+    });
   }
 
   /**
@@ -633,22 +618,14 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
    */
   async crawlImages(projectId: string, url: string, signal?: AbortSignal): Promise<CrawledImage[]> {
     const destDir = projectPaths(projectId).assetsDir;
-    let html: string;
-    try {
-      const res = await makeSafeFetch()(url);
-      if (!res.ok) return [];
-      html = await res.text();
-    } catch (e) {
-      log.warn({ err: e, url }, "[crawl] page fetch failed; no images crawled");
-      return [];
-    }
-    if (signal?.aborted) return [];
-    try {
-      return await crawlArticleImages(html, url, destDir);
-    } catch (e) {
-      log.warn({ err: e, url }, "[crawl] image crawl failed");
-      return [];
-    }
+    return runArticleImageCrawler({
+      url,
+      destDir,
+      ...(signal ? { signal } : {}),
+      fetchPage: makeSafeFetch(),
+      crawlArticleImages,
+      logger: log,
+    });
   }
 
   /**
