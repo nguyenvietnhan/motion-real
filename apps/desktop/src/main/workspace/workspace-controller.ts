@@ -1,5 +1,5 @@
 import { authorInputWithCrawledImages, runCreateCrawlThenAuthor } from "./workspace-create-flow.js";
-import { combineIntent, stageToFriendlyStatus } from "./workspace-helpers.js";
+import { canStartThumbnailRender, combineIntent, stageToFriendlyStatus } from "./workspace-helpers.js";
 import { clampRenderRatio, creativeBootstrapPreprompt, renderProgressEventOf, renderingStageOf, visionRepairPreprompt } from "./workspace-render-flow.js";
 import { applyScriptEditsToManifest, runScriptAuthoring, scriptGateModelFromLines } from "./workspace-script-flow.js";
 import { publishedStageOf, readyStageOf, scriptLinesFromScenes, storyboardScenesFromScenes } from "./workspace-view-model.js";
@@ -995,11 +995,14 @@ export class WorkspaceController {
    * than crashing the published screen.
    */
   async generateThumbnail(projectId: string): Promise<{ thumbnailUrl: string } | null> {
-    if (this.inFlight.has(projectId)) return null;
-    if (!this.deps.renderThumbnail) return null;
+    const renderThumbnail = this.deps.renderThumbnail;
+    if (!canStartThumbnailRender({
+      isInFlight: this.inFlight.has(projectId),
+      hasRenderer: Boolean(renderThumbnail),
+    }) || !renderThumbnail) return null;
     this.inFlight.add(projectId);
     try {
-      const { path } = await this.deps.renderThumbnail(projectId);
+      const { path } = await renderThumbnail(projectId);
       // Re-emit the published stage so the freshly-rendered thumbnail surfaces in
       // the UI on the next poll (the stage carries thumbnailPath via publishedStage).
       const stage = this.stages.get(projectId);

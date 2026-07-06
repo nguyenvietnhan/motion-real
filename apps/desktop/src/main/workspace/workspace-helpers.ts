@@ -14,6 +14,11 @@ export function stageToFriendlyStatus(kind: ProjectStage["kind"]): FriendlyStatu
   }
 }
 
+/** Whether the thumbnail render can take the project's exclusive render slot. */
+export function canStartThumbnailRender(input: { isInFlight: boolean; hasRenderer: boolean }): boolean {
+  return !input.isInFlight && input.hasRenderer;
+}
+
 /**
  * Combine a per-scene edit instruction with the video-wide note into one intent
  * the AI receives for that scene. Either part may be empty; a scene targeted by
