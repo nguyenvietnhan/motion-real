@@ -222,6 +222,16 @@ and workspace ownership still matched the Phase 4 target:
   seams, so Phase 4 starts from tests and pure policy seams rather than line
   count.
 
+Status: done for Phase 5 start on 2026-07-06. Baseline reconfirmed from
+commit `5a6b403`; working tree was clean, contract/docs anchors were present,
+and `apps/desktop/src/main/index.ts` remained a 519-line Electron composition
+root. Existing focused seams still include runtime env/security helpers,
+create-time image staging, BGM handlers, native save/export helpers,
+`projects:create` IPC payload coercion, startup sequencing, and workspace
+controllers. Inline handler groups still remain for license, gateway, projects,
+thumbnail, script, review, settings, and TTS, so Phase 5 starts with ownership
+inventory before any extraction.
+
 ## Phase 1 - Low-Risk Truth And Observability
 
 Goal: fix documented drift and make existing safety degradation visible before
@@ -1266,7 +1276,7 @@ work.
 | Phase 2 - Authoring Backend Seam Split | done | Full gate passed on 2026-07-06. |
 | Phase 3 - Render Oracle Posture Clarity | done | Full gate passed on 2026-07-06. |
 | Phase 4 - Workspace State Machine Hardening | done | Full gate passed on 2026-07-06. |
-| Phase 5 - Desktop Main Root Containment | pending | Step 5.1 IPC ownership inventory. |
+| Phase 5 - Desktop Main Root Containment | active | Step 5.1 IPC ownership inventory. |
 | Phase 6 - Renderer And TTS Domain Split | pending | Step 6.1 SRT helper split. |
 | Phase 7 - Renderer CSS Maintainability | pending | Step 7.1 CSS section inventory. |
 | Phase 8 - Small Operational Debt | pending | Step 8.1 repair budget effective value. |
