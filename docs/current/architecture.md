@@ -53,6 +53,25 @@ Avoid creating a broad desktop handler builder or moving Electron lifecycle code
 just to reduce line count; those pieces are clearer at the composition root
 unless a future focused slice proves otherwise.
 
+## Desktop Renderer UI
+
+The renderer stylesheet entry is `apps/desktop/src/renderer/theme.css`. It is a
+stable import map plus section inventory only; domain CSS lives under
+`apps/desktop/src/renderer/theme/`:
+
+- `base.css` for tokens, fonts, resets, focus, scrollbars, and native controls.
+- `shell.css` for app shell, sidebar, nav, and account affordances.
+- `components.css` for shared buttons, cards, inputs, and numeric controls.
+- `home-create.css` and `create-layout.css` for the create/home experience,
+  kept separate to preserve the original cascade order.
+- `settings.css`, `projects.css`, `workspace.css`, and `publish.css` for their
+  matching app surfaces.
+- `custom-select.css` for custom dropdowns and final native-control polish.
+
+Keep `theme.css` as the only renderer CSS import from TypeScript. New renderer
+styles should land in the owning partial, and import order changes should be
+treated as visual behavior changes because they can alter cascade priority.
+
 ## Media Pipeline Internals
 
 `@motionreal/tts` keeps its public surface in `packages/tts/src/index.ts`, but

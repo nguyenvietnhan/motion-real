@@ -1259,6 +1259,12 @@ Acceptance:
 
 - Future CSS changes know which screens to inspect.
 
+Status: done on 2026-07-07. Added the durable renderer CSS checklist to
+`docs/current/maintenance.md` and documented the new renderer stylesheet entry
+and partial ownership in `docs/current/architecture.md`. The checklist names the
+CSS-only gate, the move-only inline-import comparison, the desktop launcher, and
+the UI surfaces to inspect manually.
+
 Phase 7 exit criteria:
 
 - CSS is split by domain/layer.

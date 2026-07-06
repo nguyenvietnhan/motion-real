@@ -59,6 +59,12 @@ and cache-key surface. Renderer bundle/composition preparation now lives in
 `packages/pipeline/src/render/composition-prep.ts`; keep render primitives in
 `renderer.ts` unless a future slice proves a narrower behavior boundary.
 
+The renderer CSS split is complete for the current Phase 7 scope.
+`apps/desktop/src/renderer/theme.css` is the stable import entry and section
+inventory; domain/layer partials live under `apps/desktop/src/renderer/theme/`.
+Do not put new rules back into the entry file. Add them to the owning partial,
+or add a new partial only when it represents a real UI domain or layer.
+
 The internal `createTools` facade is pipeline-owned.
 The root `.mcp.json` is local-only and ignored. Keep `.mcp.example.json` as a
 template without absolute machine paths; do not reintroduce a repo-provided
@@ -102,6 +108,34 @@ simple entrances should settle quickly, living motion should continue with a
 bounded deterministic phase/period, and semantic progress should only span the
 scene when the beat truly changes over time. Existing generated projects are not
 migrated by prompt-only slices; reauthor/refine them separately if needed.
+
+## Renderer CSS Checklist
+
+For CSS-only edits:
+
+- Keep `theme.css` as the import map and preserve partial import order unless
+  the change intentionally changes cascade behavior.
+- Keep responsive rules beside the partial that owns the surface.
+- For move-only edits, do not rename selectors, do not change declarations, and
+  verify the inlined import output still matches the previous CSS.
+- Run:
+
+```powershell
+git diff --check
+npm.cmd run typecheck
+npm.cmd run build
+```
+
+Manual UI inspection should use:
+
+```powershell
+npm.cmd --workspace @motionreal/desktop run app
+```
+
+Check Home/create flow, Settings, Workspace storyboard/review, and Publish.
+Specifically inspect long Vietnamese text, button labels/icons, dropdowns,
+modals, toasts, cover lightbox, thumbnail aspect modes, and narrow-window
+responsive wrapping.
 
 ## Repository Hygiene
 
