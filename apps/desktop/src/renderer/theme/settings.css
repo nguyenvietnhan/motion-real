@@ -1,0 +1,205 @@
+/* --- 5. Settings view, secrets, switches, account/model badges ---------- */
+
+/* Settings: left-rail tabs + enterprise toggle switch */
+.ns-settings {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  gap: 24px;
+  align-items: stretch;
+}
+.ns-settings-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  position: sticky;
+  top: 0;
+}
+.ns-settings-tab {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  border: none;
+  background: transparent;
+  color: var(--muted-foreground);
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.12s, color 0.12s;
+}
+.ns-settings-tab:hover {
+  background: var(--card);
+  color: var(--foreground);
+}
+.ns-settings-tab.active {
+  background: var(--card);
+  color: var(--foreground);
+  font-weight: 600;
+}
+.ns-settings-save {
+  align-self: center;
+  color: var(--muted-foreground);
+  font-size: 12px;
+}
+.ns-secret-field {
+  position: relative;
+  width: 100%;
+  max-width: 480px;
+}
+.ns-secret-field .ns-input {
+  width: 100%;
+  padding-right: 58px;
+}
+.ns-secret-toggle {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  border: 0;
+  background: transparent;
+  color: var(--muted-foreground);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.ns-secret-toggle:hover,
+.ns-secret-toggle:focus-visible {
+  color: var(--foreground);
+}
+.ns-switch {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+.ns-switch input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+.ns-switch-track {
+  /* Render as a block so the track has no inline-baseline descender gap that
+   * would nudge the whole switch (and its knob) a couple of px below the row
+   * centre inside a flex label. */
+  display: block;
+  position: relative;
+  width: 40px;
+  height: 22px;
+  border-radius: 999px;
+  background: var(--muted);
+  border: 1px solid var(--border);
+  transition: background 0.15s;
+}
+.ns-switch-track::after {
+  content: "";
+  position: absolute;
+  left: 2px;
+  top: 50%;
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  background: #fff;
+  transform: translateY(-50%);
+  transition: transform 0.15s;
+}
+.ns-switch input:checked + .ns-switch-track {
+  background: var(--brand);
+  border-color: transparent;
+}
+.ns-switch input:checked + .ns-switch-track::after {
+  transform: translateY(-50%) translateX(18px);
+}
+.ns-switch input:focus-visible + .ns-switch-track {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+/* Settings → AI tab: account card + 9router route badge. The account reads as a
+ * single object (avatar + email + live status), and each model's route prefix
+ * (ag/kr/cx…) is surfaced as a small badge so the picker's shape mirrors how
+ * 9router actually routes. */
+.ns-acct {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--input);
+}
+.ns-acct-avatar {
+  position: relative;
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  font-size: 17px;
+  font-weight: 600;
+  color: #fff;
+  background: linear-gradient(135deg, var(--brand), #7c5cff);
+  box-shadow: 0 2px 8px rgba(59, 111, 224, 0.32);
+}
+/* Facebook-style presence dot anchored to the avatar's bottom-right: red by
+ * default (inactive), green when 9router is routing through this account. The
+ * ring matches the card background so the dot reads as cut into the avatar. */
+.ns-acct-status {
+  position: absolute;
+  right: -1px;
+  bottom: -1px;
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  background: var(--danger);
+  border: 2.5px solid var(--input);
+}
+.ns-acct-status.is-live {
+  background: var(--good);
+}
+/* The AppSans ascent-override reserves Vietnamese diacritic headroom, so a bare
+ * capital sits ~1px high of the avatar's optical centre. Nudge the glyph down to
+ * re-centre it (used by BOTH avatars — settings card + sidebar — so they match). */
+.ns-avatar-initial {
+  display: block;
+  line-height: 1;
+  transform: translateY(1px);
+}
+.ns-acct-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.ns-acct-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--foreground);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* The model id reads as a route badge: the `route/` part is implicit context,
+ * shown monospaced + tinted so it's distinct from the email above it. */
+.ns-acct-model {
+  align-self: flex-start;
+  max-width: 100%;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--brand);
+  background: color-mix(in srgb, transparent 86%, var(--brand));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ns-acct-manage {
+  flex-shrink: 0;
+  padding: 7px 14px;
+  font-size: 13px;
+}
