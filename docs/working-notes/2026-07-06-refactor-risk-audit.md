@@ -756,6 +756,14 @@ Acceptance:
 - Controller line count is not the justification; behavior boundary is.
 - No change to cancel/recover semantics.
 
+Status: done on 2026-07-06. No workflow extraction was performed in Phase 4.
+Steps 4.1-4.3 showed that thumbnail eligibility is a safe pure policy seam, but
+edit/refine/cancel/publish workflows still depend on live maps, abort signals,
+disk recovery, worker effects, and stage ordering owned by
+`WorkspaceController`. Extracting thumbnail or script-gate workflow now would be
+cosmetic rather than boundary-driven, so it is deferred until a feature or bug
+creates a narrower workflow seam.
+
 Phase 4 exit criteria:
 
 - Workspace behavior is easier to reason about from tests.
@@ -1245,7 +1253,7 @@ work.
 | Phase 1 - Low-Risk Truth And Observability | done | Full gate passed on 2026-07-06. |
 | Phase 2 - Authoring Backend Seam Split | done | Full gate passed on 2026-07-06. |
 | Phase 3 - Render Oracle Posture Clarity | done | Full gate passed on 2026-07-06. |
-| Phase 4 - Workspace State Machine Hardening | active | Step 4.4 workflow extraction decision. |
+| Phase 4 - Workspace State Machine Hardening | active | Phase close verification. |
 | Phase 5 - Desktop Main Root Containment | pending | Step 5.1 IPC ownership inventory. |
 | Phase 6 - Renderer And TTS Domain Split | pending | Step 6.1 SRT helper split. |
 | Phase 7 - Renderer CSS Maintainability | pending | Step 7.1 CSS section inventory. |
