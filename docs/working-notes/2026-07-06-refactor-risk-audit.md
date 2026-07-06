@@ -1271,6 +1271,21 @@ Phase 7 exit criteria:
 - Visual behavior is unchanged.
 - Full gate passes.
 
+Status: done on 2026-07-07. Phase 7 added the CSS section inventory, split
+`theme.css` into a stable import entry plus domain/layer partials, documented
+the renderer CSS ownership/checklist in durable docs, and verified that the
+split was move-only by inlining the new imports and comparing against commit
+`2d5ac63`. Manual UI inspection was documented as the future CSS checklist;
+this phase did not require a visual redesign check beyond the move-only
+comparison. Phase close verification passed:
+
+```powershell
+npm.cmd run typecheck
+npm.cmd test
+npm.cmd run build
+git diff --check
+```
+
 ## Phase 8 - Small Operational Debt
 
 Goal: clean low/medium debt that is real but not urgent enough to block higher
@@ -1470,7 +1485,7 @@ work.
 | Phase 4 - Workspace State Machine Hardening | done | Full gate passed on 2026-07-06. |
 | Phase 5 - Desktop Main Root Containment | done | Full gate passed on 2026-07-06. |
 | Phase 6 - Renderer And TTS Domain Split | done | Full gate passed on 2026-07-06. |
-| Phase 7 - Renderer CSS Maintainability | active | Step 7.1 CSS section inventory. |
+| Phase 7 - Renderer CSS Maintainability | done | Full gate passed on 2026-07-07. |
 | Phase 8 - Small Operational Debt | pending | Step 8.1 repair budget effective value. |
 | Phase 9 - Feature Readiness | pending | Step 9.1 SFX architecture decision. |
 
