@@ -1109,6 +1109,18 @@ git diff --check
 npm.cmd run typecheck
 ```
 
+Status: done on 2026-07-06. Added
+`docs/working-notes/2026-07-06-speech-timing-scene-api.md` as a design-only
+decision note. The first future authored-facing API should expose scene-local
+`speechProgress` plus a compact beat map derived from existing caption cue
+timing, not raw TTS/SRT data, caption text, or full word windows. Verification
+passed:
+
+```powershell
+git diff --check
+npm.cmd run typecheck
+```
+
 Phase 6 exit criteria:
 
 - TTS and renderer hubs are narrower.
@@ -1393,7 +1405,7 @@ work.
 | Phase 3 - Render Oracle Posture Clarity | done | Full gate passed on 2026-07-06. |
 | Phase 4 - Workspace State Machine Hardening | done | Full gate passed on 2026-07-06. |
 | Phase 5 - Desktop Main Root Containment | done | Full gate passed on 2026-07-06. |
-| Phase 6 - Renderer And TTS Domain Split | active | Step 6.5 speech-timing scene API design. |
+| Phase 6 - Renderer And TTS Domain Split | active | Phase 6 full gate and closeout. |
 | Phase 7 - Renderer CSS Maintainability | pending | Step 7.1 CSS section inventory. |
 | Phase 8 - Small Operational Debt | pending | Step 8.1 repair budget effective value. |
 | Phase 9 - Feature Readiness | pending | Step 9.1 SFX architecture decision. |
