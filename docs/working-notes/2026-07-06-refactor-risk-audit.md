@@ -1399,6 +1399,15 @@ Verification:
 git diff --check
 ```
 
+Status: done on 2026-07-07. Documented the current serial-render assumption in
+`docs/current/maintenance.md` and added a local warning in
+`composition-prep.ts` near the module-level bundle/composition caches. The audit
+states that parallel rendering must address bundle cache lifetime/reference
+counting, composition cache eviction tied to `serveUrl`, same-project
+`withProjectRenderLock` semantics, and thumbnail/stills temporary no-audio lock
+behavior before any project-level or cross-project parallel render path is
+enabled.
+
 Phase 8 exit criteria:
 
 - Known small debt is either fixed or explicitly deferred with rationale.

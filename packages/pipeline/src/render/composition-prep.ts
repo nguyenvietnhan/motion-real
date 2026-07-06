@@ -132,6 +132,8 @@ export function workspaceRoot(): string {
  * Safe as a module-level Map because renders are strictly SERIAL (bulk is a
  * for-await loop; desktop guards per-project via `inFlight`; no worker-thread
  * render), so an evicted serveUrl is never one a concurrent render is using.
+ * If future work enables parallel renders, revisit this cache first: eviction
+ * removes bundle dirs without reference counts.
  */
 const bundleCache = new Map<string, string>();
 /** LRU cap. 2 keeps both live keys warm in one render: the project entry

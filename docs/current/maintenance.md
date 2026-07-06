@@ -59,6 +59,32 @@ and cache-key surface. Renderer bundle/composition preparation now lives in
 `packages/pipeline/src/render/composition-prep.ts`; keep render primitives in
 `renderer.ts` unless a future slice proves a narrower behavior boundary.
 
+## Parallel Render Assumption
+
+Current render code assumes one render workflow uses the in-memory
+bundle/composition caches at a time. Do not enable project-level or
+cross-project parallel rendering until these points have an owner-approved design
+and focused tests:
+
+- Bundle cache: `composition-prep.ts` evicts Remotion bundle directories
+  best-effort and has no active-user reference count. Parallel rendering needs a
+  per-render bundle lifetime, a reference-counted cache, or a no-delete eviction
+  policy so one render cannot remove another render's `serveUrl`.
+- Composition cache: selected compositions are keyed by bundle key,
+  composition id, and input props, but their lifetime is still tied to the
+  bundle `serveUrl`. Parallel rendering needs cache mutation and eviction to be
+  concurrency-safe with the bundle lifecycle.
+- Project render lock: `withProjectRenderLock` is still the required boundary
+  for draft, full, stills, and thumbnail jobs. Any parallel path must keep the
+  in-process and file lock semantics for the same project, and must explicitly
+  decide whether different projects may render concurrently in one process.
+- Thumbnail/stills lock behavior: `renderProjectStillsUnlocked` writes a
+  temporary no-audio locked spec to the normal project lock path, and
+  `renderThumbnail` snapshots/restores that path around the private stills call.
+  Parallel rendering cannot bypass the public `renderThumbnail`/
+  `renderProjectStills` wrappers or another job could observe the temporary
+  no-audio lock.
+
 The renderer CSS split is complete for the current Phase 7 scope.
 `apps/desktop/src/renderer/theme.css` is the stable import entry and section
 inventory; domain/layer partials live under `apps/desktop/src/renderer/theme/`.
