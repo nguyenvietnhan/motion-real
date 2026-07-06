@@ -1,0 +1,150 @@
+/* --- 3. Shared primitives: buttons, cards, inputs ----------------------- */
+
+/* Buttons */
+.ns-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 18px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--foreground);
+  font-size: 13.5px;
+  font-weight: 500;
+  cursor: pointer;
+  letter-spacing: -0.01em;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.ns-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.15);
+}
+.ns-btn:active {
+  background: rgba(255, 255, 255, 0.12);
+}
+.ns-btn-primary {
+  background: var(--brand);
+  border-color: transparent;
+  color: var(--brand-foreground);
+  box-shadow: var(--shadow-sm);
+  font-weight: 600;
+  position: relative;
+  overflow: hidden;
+}
+.ns-btn-primary:hover {
+  background: var(--brand-hover);
+  box-shadow: var(--shadow-sm);
+}
+.ns-btn-primary:active {
+  background: var(--brand-hover);
+}
+.ns-btn-primary::after {
+  content: "";
+  position: absolute;
+  top: -50%;
+  left: -60%;
+  width: 30%;
+  height: 200%;
+  background: linear-gradient(
+    to right,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.15) 50%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  transform: rotate(25deg);
+  animation: ns-shimmer 4s infinite ease-in-out;
+}
+@keyframes ns-shimmer {
+  0% {
+    left: -60%;
+  }
+  15%, 100% {
+    left: 140%;
+  }
+}
+.ns-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none !important;
+  box-shadow: none !important;
+}
+.ns-btn:disabled:hover {
+  background: rgba(255, 255, 255, 0.03);
+  border-color: var(--border);
+}
+.ns-btn-primary:disabled:hover {
+  background: var(--brand);
+}
+
+/* Cards */
+.ns-card {
+  background: var(--card);
+  backdrop-filter: var(--backdrop);
+  -webkit-backdrop-filter: var(--backdrop);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), 
+              border-color 0.25s cubic-bezier(0.4, 0, 0.2, 1), 
+              background 0.25s cubic-bezier(0.4, 0, 0.2, 1),
+              box-shadow 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.ns-project {
+  position: relative;
+  text-align: left;
+  cursor: pointer;
+  padding: 0;
+  overflow: hidden;
+  color: var(--foreground);
+}
+.ns-project:hover,
+.ns-project:focus-within {
+  border-color: var(--brand);
+  background: var(--card-hover);
+  box-shadow: var(--shadow-md);
+}
+
+/* Inputs */
+.ns-input {
+  background: var(--input);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--foreground);
+  padding: 12px 14px;
+  font-size: 14px;
+  outline: none;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+textarea.ns-input {
+  resize: vertical;
+  max-width: 100%;
+  max-height: 40vh;
+  min-height: 64px;
+}
+select.ns-input {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23a1a1aa' stroke-width='2'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M19 9l-7 7-7-7'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  background-size: 16px;
+  padding-right: 40px;
+}
+select.ns-input option {
+  background-color: var(--card);
+  color: var(--foreground);
+}
+.ns-input:focus {
+  border-color: var(--brand);
+  background: var(--input);
+  box-shadow: 0 0 0 2px var(--ring);
+}
+.ns-num {
+  -moz-appearance: textfield;
+}
+.ns-num::-webkit-outer-spin-button,
+.ns-num::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
