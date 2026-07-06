@@ -76,6 +76,21 @@ facts and scene-plan data into the scene-code authoring prompt built from the
 current authoring contract. Edit/refine flows use scoped repair prompts instead
 of rerunning the full fresh-authoring chain.
 
+`apps/desktop/src/main/authoring/ninerouter-backend.ts` is the public desktop
+authoring facade. It keeps provider wiring, image-capability cache, project
+paths, file writing/admission, and the `AuthoringBackend` contract, while focused
+runner modules own bounded model-call workflows:
+
+- `content-plan-runner.ts` owns content-plan call, parse, quality check, and
+  one-shot claim-ledger repair.
+- `author-reply-runner.ts` owns single-reply authoring, bounded TSX batches, and
+  missing-TSX recovery.
+- `reauthor-runner.ts` owns per-scene repair retry, parse, fake-fix guard, and
+  rollback policy.
+- `image-filter-runner.ts` and `article-image-crawler-runner.ts` own best-effort
+  crawled-image preselection and crawling. The backend still supplies the
+  SSRF-safe fetcher, chat fallback, and image-capability cache.
+
 Fresh authoring has bounded stabilization before admission. A claim-ledger-only
 content-plan failure may get one repair call. Long no-image plans are authored
 from a deterministic manifest in TSX batches of at most four component ids, with

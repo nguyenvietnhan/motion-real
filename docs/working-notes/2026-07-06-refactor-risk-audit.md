@@ -468,12 +468,27 @@ Acceptance:
 - No runner owns Electron/global state.
 - Docs identify new modules and their responsibility.
 
+Status: done on 2026-07-06. `ninerouter-backend.ts` was reduced from the
+1,232-line Phase 2 baseline to 753 lines and now delegates content planning,
+author reply generation/recovery, reauthor retry/rollback, image filtering, and
+article image crawling to focused runner modules. Docs updated in
+`docs/current/architecture.md` and `docs/current/maintenance.md`.
+
 Phase 2 exit criteria:
 
 - `ninerouter-backend.ts` is materially smaller and has narrower local
   responsibility.
 - Existing tests pass.
 - Full gate passes.
+
+Status: done on 2026-07-06. Phase close verification passed:
+
+```powershell
+npm.cmd run typecheck
+npm.cmd test
+npm.cmd run build
+git diff --check
+```
 
 ## Phase 3 - Render Oracle Posture Clarity
 
@@ -1142,7 +1157,7 @@ work.
 | --- | --- | --- |
 | Phase 0 - Plan Control And Baseline | done | Reconfirm Step 0.2 again before any later phase. |
 | Phase 1 - Low-Risk Truth And Observability | done | Full gate passed on 2026-07-06. |
-| Phase 2 - Authoring Backend Seam Split | active | Step 2.5 slim backend facade and docs. |
+| Phase 2 - Authoring Backend Seam Split | done | Full gate passed on 2026-07-06. |
 | Phase 3 - Render Oracle Posture Clarity | pending | Step 3.1 posture table. |
 | Phase 4 - Workspace State Machine Hardening | pending | Step 4.1 state transition matrix. |
 | Phase 5 - Desktop Main Root Containment | pending | Step 5.1 IPC ownership inventory. |

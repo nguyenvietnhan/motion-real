@@ -35,6 +35,14 @@ script/render helpers exist, while async render/refine/publish orchestration
 stays in `WorkspaceController`. Do not force that extraction just to reduce line
 count.
 
+The authoring-backend seam split is complete for the current Phase 2 scope.
+`ninerouter-backend.ts` remains the stable `AuthoringBackend` facade and owns
+provider wiring, project paths, image-capability cache, file write/admission, and
+desktop-facing methods. Focused runner modules now own content planning, author
+reply generation/recovery, reauthor retry/rollback, image filtering, and article
+image crawling. Future work should add behavior to the relevant runner or a new
+tested seam; do not keep thinning the facade just to reduce line count.
+
 The desktop-main thinning pass is complete for now. `index.ts` remains the
 Electron composition root, while local tested helpers own runtime env parsing,
 create-time image staging, BGM handlers, native save/export helpers, and
