@@ -991,6 +991,24 @@ npm.cmd test -- --run packages/tts/src/elevenlabs.test.ts packages/pipeline/src/
 npm.cmd run typecheck
 ```
 
+Status: done on 2026-07-06. Extracted provider contracts and HTTP/response
+helpers to focused TTS modules:
+
+- `packages/tts/src/types.ts`
+- `packages/tts/src/provider-http.ts`
+- `packages/tts/src/vivibe-client.ts`
+- `packages/tts/src/elevenlabs-client.ts`
+
+`packages/tts/src/index.ts` now re-exports the public provider surface while
+keeping cache identity and audio ops for later Step 6.3. Added direct Vivibe
+client coverage before moving the behavior. Focused verification passed:
+
+```powershell
+npm.cmd test -- --run packages/tts/src/elevenlabs.test.ts packages/tts/src/vivibe-client.test.ts packages/pipeline/src/audio/tts-config.test.ts packages/pipeline/src/tools/create-tools.test.ts
+git diff --check
+npm.cmd run typecheck
+```
+
 ### Step 6.3 - Extract Audio Ops
 
 Scope:
@@ -1349,7 +1367,7 @@ work.
 | Phase 3 - Render Oracle Posture Clarity | done | Full gate passed on 2026-07-06. |
 | Phase 4 - Workspace State Machine Hardening | done | Full gate passed on 2026-07-06. |
 | Phase 5 - Desktop Main Root Containment | done | Full gate passed on 2026-07-06. |
-| Phase 6 - Renderer And TTS Domain Split | active | Step 6.2 provider clients. |
+| Phase 6 - Renderer And TTS Domain Split | active | Step 6.3 audio ops. |
 | Phase 7 - Renderer CSS Maintainability | pending | Step 7.1 CSS section inventory. |
 | Phase 8 - Small Operational Debt | pending | Step 8.1 repair budget effective value. |
 | Phase 9 - Feature Readiness | pending | Step 9.1 SFX architecture decision. |
