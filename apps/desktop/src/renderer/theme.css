@@ -3,6 +3,21 @@
  * design-system default (New York / Neutral) tokens, plus a brand accent for
  * primary actions. The app chrome is its OWN system — the cream/squared video
  * design-language is NOT used here.
+ *
+ * Section map for move-only splits:
+ * 1. Base tokens, fonts, resets, focus, scrollbars, native controls.
+ * 2. App shell, content frame, sidebar, navigation, account affordances.
+ * 3. Shared primitives: buttons, cards, inputs, number controls.
+ * 4. Home/create composer, delivery knobs, warnings, style modal.
+ * 5. Settings view, secrets, switches, account/model badges.
+ * 6. Status/progress affordances and project-card grid/body/thumbnail.
+ * 7. Workspace storyboard/review toolbar, BGM picker, edit panel, info hints.
+ * 8. Publish/export view, cover preview, toasts, lightbox, metadata copy.
+ * 9. Create-page layout integration, sidebar settings, attachments.
+ * 10. Custom selects and final native-control polish.
+ *
+ * Responsive rules stay beside their owning section until a later split moves
+ * that whole section together.
  */
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
 
@@ -148,7 +163,7 @@ select {
   color-scheme: dark;
 }
 
-/* --- Layout + component classes ---------------------------------------- */
+/* --- 2. App shell, sidebar, navigation, account affordances ------------- */
 
 .ns-shell {
   display: flex;
@@ -296,6 +311,8 @@ select {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+/* --- 3. Shared primitives: buttons, cards, inputs ----------------------- */
 
 /* Buttons */
 .ns-btn {
@@ -445,6 +462,8 @@ select.ns-input option {
   -webkit-appearance: none;
   margin: 0;
 }
+
+/* --- 4. Home/create composer, delivery knobs, style modal --------------- */
 
 /* AI-first create hero */
 .ns-create-card {
@@ -759,6 +778,8 @@ select.ns-input option {
   line-height: 1.5;
 }
 
+/* --- 5. Settings view, secrets, switches, account/model badges ---------- */
+
 /* Settings: left-rail tabs + enterprise toggle switch */
 .ns-settings {
   display: grid;
@@ -962,6 +983,8 @@ select.ns-input option {
   padding: 7px 14px;
   font-size: 13px;
 }
+
+/* --- 6. Status/progress affordances and project cards ------------------- */
 
 /* Status pill */
 .ns-pill {
@@ -1177,6 +1200,8 @@ select.ns-input option {
   color: var(--muted-foreground);
   font-size: 12px;
 }
+
+/* --- 7. Workspace storyboard/review toolbar, BGM picker, edit panel ----- */
 
 /* Storyboard toolbar: keep the current minimal controls, but prevent the header
  * from degrading into wrapped button labels when the desktop window is narrow. */
@@ -1521,6 +1546,7 @@ select.ns-input option {
   }
 }
 
+/* Shared info hint used by workspace/review controls. */
 /* --- (i) info hint: a glyph with a hover/focus tooltip ------------------ */
 .ns-info {
   position: relative;
@@ -1582,6 +1608,8 @@ select.ns-input option {
   border: 5px solid transparent;
   border-top-color: var(--popover);
 }
+
+/* --- 8. Publish/export view, cover preview, toasts, metadata copy ------- */
 
 /* --- Published screen: two-column export layout (CapCut/Opus-style) -------
  * The finished video reads as a deliverable: a fixed-size preview on the LEFT,
@@ -1935,6 +1963,8 @@ select.ns-input option {
   border-color: var(--good);
 }
 
+/* --- 9. Create-page layout integration, sidebar settings, attachments ---- */
+
 /* ==========================================================================
    New Premium Layout & Video Creation Dashboard (2-Column Grid)
    ========================================================================== */
@@ -2238,6 +2268,8 @@ select.ns-input option {
   border-top: 1px solid rgba(255, 255, 255, 0.04);
   padding-top: 16px;
 }
+
+/* --- 10. Custom selects and final native-control polish ------------------ */
 
 /* Custom Select Dropdowns */
 .ns-custom-select-container {

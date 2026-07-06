@@ -1176,6 +1176,18 @@ npm.cmd run typecheck
 npm.cmd run build
 ```
 
+Status: done on 2026-07-07. Added a comment-only CSS section map and section
+markers in `theme.css`, covering base tokens, shell, shared primitives,
+home/create, settings, project cards, workspace/storyboard, publish/export,
+responsive-by-owner placement, custom selects, and native-control polish.
+Verification passed:
+
+```powershell
+git diff --check
+npm.cmd run typecheck
+npm.cmd run build
+```
+
 ### Step 7.2 - Move-Only CSS Split
 
 Scope:
