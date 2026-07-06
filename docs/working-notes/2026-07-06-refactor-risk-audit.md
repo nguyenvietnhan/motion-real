@@ -954,6 +954,17 @@ npm.cmd test -- --run packages/tts/src/elevenlabs.test.ts packages/pipeline/src/
 npm.cmd run typecheck
 ```
 
+Status: done on 2026-07-06. Extracted ElevenLabs alignment-to-SRT timing and
+timestamp formatting to `packages/tts/src/caption-timing.ts`, while
+`packages/tts/src/index.ts` keeps the public `alignmentToSrt` export by
+re-exporting the helper. Focused verification passed:
+
+```powershell
+npm.cmd test -- --run packages/tts/src/elevenlabs.test.ts packages/pipeline/src/audio/captions.test.ts
+git diff --check
+npm.cmd run typecheck
+```
+
 ### Step 6.2 - Extract Provider Clients
 
 Scope:
@@ -1338,7 +1349,7 @@ work.
 | Phase 3 - Render Oracle Posture Clarity | done | Full gate passed on 2026-07-06. |
 | Phase 4 - Workspace State Machine Hardening | done | Full gate passed on 2026-07-06. |
 | Phase 5 - Desktop Main Root Containment | done | Full gate passed on 2026-07-06. |
-| Phase 6 - Renderer And TTS Domain Split | active | Step 6.1 SRT helper split. |
+| Phase 6 - Renderer And TTS Domain Split | active | Step 6.2 provider clients. |
 | Phase 7 - Renderer CSS Maintainability | pending | Step 7.1 CSS section inventory. |
 | Phase 8 - Small Operational Debt | pending | Step 8.1 repair budget effective value. |
 | Phase 9 - Feature Readiness | pending | Step 9.1 SFX architecture decision. |
