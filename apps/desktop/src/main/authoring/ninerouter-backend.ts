@@ -34,9 +34,8 @@ import {
   buildImageFilterMessages,
   type AuthorImageInput,
 } from "./prompt.js";
-import { buildContentPlanMessages, buildContentPlanRepairMessages, contentPlanForAuthoring, evaluateContentPlanQuality, parseContentPlan, type ContentPlan } from "./content-plan.js";
-import type { ContentPlanQualityIssue, ContentPlanQualityResult } from "./content-plan.js";
-import { computePacingBudget, type PacingBudget } from "./pacing-policy.js";
+import type { ContentPlan, ContentPlanQualityIssue } from "./content-plan.js";
+import { runContentPlan } from "./content-plan-runner.js";
 import {
   authorReplyParseSummary,
   inspectAuthorReply,
@@ -94,12 +93,6 @@ export function authorCallErrorMessage(e: unknown): string {
   }
   return "Không nhận được phản hồi từ AI (quá thời gian chờ hoặc mất kết nối). Hãy kiểm tra 9Router/model rồi thử lại.";
 }
-
-const CONTENT_PLAN_PARSE_FAILURE =
-  "AI chưa lập được kế hoạch nội dung hợp lệ. Hãy thử lại hoặc mô tả rõ nguồn/ý chính hơn.";
-
-const CONTENT_PLAN_QUALITY_FAILURE =
-  "AI lập kế hoạch nội dung chưa đủ hook/căn cứ/nhịp cảnh. Hãy thử lại hoặc mô tả rõ nguồn/ý chính hơn.";
 
 const AUTHOR_REPLY_PARSE_FAILURE =
   "AI chưa trả về kịch bản hợp lệ. Hãy thử lại hoặc mô tả rõ hơn.";
@@ -300,49 +293,22 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
     const wordsPerSecond = await this.deps.wordsPerSecond?.(job.projectId);
     const offeredImages = images.length > 0 ? images : undefined;
 
-    const contentPlanMessages = buildContentPlanMessages(job.input, research, offeredImages, wordsPerSecond);
-    let plannedContent: ReturnType<typeof contentPlanForAuthoring>;
-    let contentPlanAdvisories: ContentPlanQualityIssue[] = [];
-    try {
-      log.info({ model, projectId: job.projectId }, "calling AI model for content planning");
-      const planReply = await this.chatWithVisionFallback(model, contentPlanMessages);
-      log.info({ projectId: job.projectId, replyChars: planReply.length }, "AI content plan replied");
-      const parsedPlan = parseContentPlan(planReply);
-      if (!parsedPlan.ok) {
-        log.error(
-          { projectId: job.projectId, reason: parsedPlan.reason, detail: parsedPlan.detail, rawReply: planReply.slice(0, 2000) },
-          "content-plan parse failed",
-        );
-        return { scenes: [], message: CONTENT_PLAN_PARSE_FAILURE, ...(unreadableUrls.length > 0 ? { unreadableUrls } : {}) };
-      }
-      let planned = parsedPlan.plan;
-      let quality = evaluateContentPlanQuality(planned, computePacingBudget(job.input, wordsPerSecond));
-      if (quality.blockingIssues.length > 0) {
-        const repaired = await this.repairContentPlanIfPossible(model, job.projectId, planned, quality.blockingIssues, computePacingBudget(job.input, wordsPerSecond));
-        if (repaired) {
-          planned = repaired.plan;
-          quality = repaired.quality;
-        }
-      }
-      if (quality.blockingIssues.length > 0) {
-        log.error(
-          { projectId: job.projectId, qualityIssues: quality.blockingIssues },
-          "content-plan blocking quality checks failed",
-        );
-        return { scenes: [], message: CONTENT_PLAN_QUALITY_FAILURE, ...(unreadableUrls.length > 0 ? { unreadableUrls } : {}) };
-      }
-      if (quality.advisoryIssues.length > 0) {
-        log.warn(
-          { projectId: job.projectId, qualityIssues: quality.advisoryIssues },
-          "content-plan advisories passed to authoring",
-        );
-      }
-      plannedContent = contentPlanForAuthoring(planned);
-      contentPlanAdvisories = quality.advisoryIssues;
-    } catch (e) {
-      log.error({ err: e, projectId: job.projectId }, "AI content-plan call failed");
-      return { scenes: [], message: authorCallErrorMessage(e), ...(unreadableUrls.length > 0 ? { unreadableUrls } : {}) };
+    const contentPlan = await runContentPlan({
+      model,
+      projectId: job.projectId,
+      input: job.input,
+      research,
+      offeredImages,
+      wordsPerSecond,
+      chat: (selectedModel, messages) => this.chatWithVisionFallback(selectedModel, messages),
+      callErrorMessage: authorCallErrorMessage,
+      logger: log,
+    });
+    if (!contentPlan.ok) {
+      return { scenes: [], message: contentPlan.message, ...(unreadableUrls.length > 0 ? { unreadableUrls } : {}) };
     }
+    const plannedContent = contentPlan.contentPlan;
+    const contentPlanAdvisories = contentPlan.advisories;
 
     const batchDecision = planAuthorBatching(plannedContent, job.input.images ?? []);
     if (batchDecision.mode === "too-large") {
@@ -420,46 +386,6 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
       stillPath: join(reviewDir, `${s.id}.png`),
     }));
     return { scenes, ...(unreadableUrls.length > 0 ? { unreadableUrls } : {}) };
-  }
-
-  private async repairContentPlanIfPossible(
-    model: string,
-    projectId: string,
-    plan: ContentPlan,
-    blockingIssues: readonly ContentPlanQualityIssue[],
-    pacing: PacingBudget,
-  ): Promise<{ plan: ContentPlan; quality: ContentPlanQualityResult } | null> {
-    if (blockingIssues.length === 0 || !blockingIssues.every((issue) => issue.check === "claim-ledger")) return null;
-
-    log.warn(
-      {
-        projectId,
-        qualityIssues: blockingIssues,
-        repairAttempt: 1,
-      },
-      "content-plan claim-ledger repair requested",
-    );
-
-    const reply = await this.chatWithVisionFallback(model, buildContentPlanRepairMessages(plan, blockingIssues));
-    log.info({ projectId, replyChars: reply.length, repairAttempt: 1 }, "AI content-plan repair replied");
-    const parsed = parseContentPlan(reply);
-    if (!parsed.ok) {
-      log.error(
-        { projectId, reason: parsed.reason, detail: parsed.detail, rawReply: reply.slice(0, 2000) },
-        "content-plan repair parse failed",
-      );
-      return null;
-    }
-
-    const quality = evaluateContentPlanQuality(parsed.plan, pacing);
-    if (quality.blockingIssues.length > 0) {
-      log.error(
-        { projectId, qualityIssues: quality.blockingIssues },
-        "content-plan repair still has blocking quality checks",
-      );
-      return null;
-    }
-    return { plan: parsed.plan, quality };
   }
 
   private async authorScenesInSingleReply(args: {
