@@ -770,6 +770,18 @@ Phase 4 exit criteria:
 - No broad stateful helper extraction.
 - Full gate passes.
 
+Status: done on 2026-07-06. Phase 4 added a workspace transition matrix,
+extracted only a pure thumbnail eligibility policy, strengthened cancel/edit
+regression coverage, and explicitly deferred workflow extraction because no
+boundary-driven seam was proven. Phase close verification passed:
+
+```powershell
+npm.cmd run typecheck
+npm.cmd test
+npm.cmd run build
+git diff --check
+```
+
 ## Phase 5 - Desktop Main Root Containment
 
 Goal: keep `apps/desktop/src/main/index.ts` as a composition root, but stop it
@@ -1253,7 +1265,7 @@ work.
 | Phase 1 - Low-Risk Truth And Observability | done | Full gate passed on 2026-07-06. |
 | Phase 2 - Authoring Backend Seam Split | done | Full gate passed on 2026-07-06. |
 | Phase 3 - Render Oracle Posture Clarity | done | Full gate passed on 2026-07-06. |
-| Phase 4 - Workspace State Machine Hardening | active | Phase close verification. |
+| Phase 4 - Workspace State Machine Hardening | done | Full gate passed on 2026-07-06. |
 | Phase 5 - Desktop Main Root Containment | pending | Step 5.1 IPC ownership inventory. |
 | Phase 6 - Renderer And TTS Domain Split | pending | Step 6.1 SRT helper split. |
 | Phase 7 - Renderer CSS Maintainability | pending | Step 7.1 CSS section inventory. |
