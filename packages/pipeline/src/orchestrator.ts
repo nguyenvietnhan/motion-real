@@ -706,88 +706,31 @@ async function renderProjectUnlocked(projectId: string, opts: RenderProjectOptio
     );
     await appendEvent(projectId, { type: "render.oracles", ok: renderGrid.ok, issues: renderGrid.issues.length });
 
-    // N15 (block overlap) over the measured composed-block rects. Best-effort and
-    // vision-independent: a dedicated measure-mode still emits each tagged
-    // @motionreal/blocks unit's getBoundingClientRect, which a flat raster can't carry.
-    // Eased in as WARNINGS (not a hard gate) while we observe false-positive rate;
-    // a measurement failure must never fail the render, so it's fully guarded.
-    const overlapIssues: SafetyIssue[] = [];
     const layoutMode = opts.layoutMeasureMode ?? envLayoutMeasureMode() ?? "auto";
-    const layoutSceneIds = layoutMeasureSceneIds(locked, authoredSources, authoredSceneFiles, layoutMode);
-    if (layoutSceneIds.length === 0) {
-      const cause = layoutMode === "off" ? "layout measure disabled" : "no tagged layout blocks";
-      await appendEvent(projectId, { type: "render.overlap.skipped", cause, layoutMeasureMode: layoutMode });
-      await appendTimingEvent("stage.layout_measure.skipped", 0, { cause, layoutMeasureMode: layoutMode });
-    } else {
-      try {
-        const layouts = await timedPipelineStage(
-          "stage.layout_measure",
-          () =>
-            measureSceneLayouts(locked, {
-              projectRoot: paths.root,
-              logLevel: "error",
-              onTiming: recordRenderTiming,
-              timingScope: "layout-measure",
-              sceneIds: layoutSceneIds,
-              ...(opts.signal ? { signal: opts.signal } : {}),
-            }),
-          { scenes: layoutSceneIds.length, layoutMeasureMode: layoutMode },
-        );
-        await timedPipelineStage(
-          "stage.layout_oracles",
-          async () => {
-            for (const scene of locked.scenes) {
-              const blocks = layouts[scene.id];
-              if (blocks && blocks.length > 1) overlapIssues.push(...checkOverlap(blocks, scene.id, "warning"));
-              // N17 (text truncation/clipping): run the per-block probe over each
-              // measured rect against this scene's rendered still. Same measure pass +
-              // same warning posture as overlap; finally wires N17 onto real renders
-              // (it needs a content box a flat raster can't carry, so it was never run).
-              if (blocks && blocks.length > 0) {
-                const stillPath = join(paths.reviewDir, `${scene.id}.png`);
-                overlapIssues.push(...(await runTruncationForScene(stillPath, blocks, scene.id, renderGridOptions)));
-              }
-            }
-          },
-          { scenes: Object.keys(layouts).length },
-        );
-        await appendEvent(projectId, { type: "render.overlap", scenes: Object.keys(layouts).length, issues: overlapIssues.length });
-      } catch (error) {
-        await appendEvent(projectId, { type: "render.overlap.skipped", cause: errMessage(error) });
-      }
-    }
+    const overlapIssues = await runLayoutWarningPass({
+      locked,
+      authoredSources,
+      authoredSceneFiles,
+      layoutMode,
+      projectRoot: paths.root,
+      reviewDir: paths.reviewDir,
+      renderGridOptions,
+      ...(opts.signal ? { signal: opts.signal } : {}),
+      recordRenderTiming,
+      timedPipelineStage,
+      appendProjectEvent: (event) => appendEvent(projectId, event),
+      appendTimingEvent,
+    });
 
-    // N14 (late-sample) over the post-midpoint stills written by the review pass.
-    // The midpoint still never sees content that drifts out of the safe zone after
-    // entrances settle (tilt near its extreme, a counter/bar still growing, a block
-    // creeping toward the caption band). This re-runs the SAME N14 pixel oracles on
-    // a late still per scene for TikTok, where the caption band exists.
-    // YouTube has no burned caption band, so it relies on the format-aware
-    // in-frame oracle instead. Eased in as WARNINGS (chosen posture) — they land
-    // in the aggregate report (visible in desktop/MCP) but never flip the "done"
-    // gate. Best-effort: a missing/undecodable late still is silently skipped.
-    const lateIssues = spec.format === "youtube"
-      ? []
-      : await timedPipelineStage(
-          "stage.late_safe_area",
-          async () => {
-            const issues: SafetyIssue[] = [];
-            for (const scene of locked.scenes) {
-              for (const fraction of LATE_SAFE_AREA_FRACTIONS) {
-                const latePath = join(paths.reviewDir, `${scene.id}.f${Math.round(fraction * 100)}.png`);
-                try {
-                  const frame = decodePng(await readFile(latePath));
-                  issues.push(...checkLateSafeArea(frame, scene.id, renderGridOptions));
-                } catch {
-                  /* no late still for this scene/fraction → nothing to scan */
-                }
-              }
-            }
-            return issues;
-          },
-          { fractions: LATE_SAFE_AREA_FRACTIONS.length },
-        );
-    await appendEvent(projectId, { type: "render.latesafearea", issues: lateIssues.length });
+    const lateIssues = await runLateSafeAreaWarningPass({
+      locked,
+      format: spec.format,
+      reviewDir: paths.reviewDir,
+      renderGridOptions,
+      fractions: LATE_SAFE_AREA_FRACTIONS,
+      timedPipelineStage,
+      appendProjectEvent: (event) => appendEvent(projectId, event),
+    });
 
     const report = makeReport(
       [
@@ -838,6 +781,119 @@ async function renderProjectUnlocked(projectId: string, opts: RenderProjectOptio
       }
     }
   }
+}
+
+type TimedPipelineStage = <T>(
+  name: string,
+  fn: () => T | Promise<T>,
+  meta?: Record<string, unknown>,
+) => Promise<T>;
+
+type AppendTimingEvent = (name: string, ms: number, meta?: Record<string, unknown>) => Promise<void>;
+type AppendProjectEvent = (event: { type: string } & Record<string, unknown>) => Promise<void>;
+
+type LayoutWarningPassArgs = {
+  locked: LockedVideoSpec;
+  authoredSources: readonly string[];
+  authoredSceneFiles: readonly ManifestSceneFile[];
+  layoutMode: LayoutMeasureMode;
+  projectRoot: string;
+  reviewDir: string;
+  renderGridOptions: RenderGridOptions;
+  signal?: AbortSignal;
+  recordRenderTiming: (timing: RenderTiming) => void;
+  timedPipelineStage: TimedPipelineStage;
+  appendProjectEvent: AppendProjectEvent;
+  appendTimingEvent: AppendTimingEvent;
+};
+
+/**
+ * External N15/N17 warning pass. The main orchestrator still owns when this pass
+ * runs; this helper owns the explicit best-effort measure/oracle sequence.
+ */
+async function runLayoutWarningPass(args: LayoutWarningPassArgs): Promise<SafetyIssue[]> {
+  const layoutSceneIds = layoutMeasureSceneIds(args.locked, args.authoredSources, args.authoredSceneFiles, args.layoutMode);
+  if (layoutSceneIds.length === 0) {
+    const cause = args.layoutMode === "off" ? "layout measure disabled" : "no tagged layout blocks";
+    await args.appendProjectEvent({ type: "render.overlap.skipped", cause, layoutMeasureMode: args.layoutMode });
+    await args.appendTimingEvent("stage.layout_measure.skipped", 0, { cause, layoutMeasureMode: args.layoutMode });
+    return [];
+  }
+
+  const issues: SafetyIssue[] = [];
+  try {
+    const layouts = await args.timedPipelineStage(
+      "stage.layout_measure",
+      () =>
+        measureSceneLayouts(args.locked, {
+          projectRoot: args.projectRoot,
+          logLevel: "error",
+          onTiming: args.recordRenderTiming,
+          timingScope: "layout-measure",
+          sceneIds: layoutSceneIds,
+          ...(args.signal ? { signal: args.signal } : {}),
+        }),
+      { scenes: layoutSceneIds.length, layoutMeasureMode: args.layoutMode },
+    );
+    await args.timedPipelineStage(
+      "stage.layout_oracles",
+      async () => {
+        for (const scene of args.locked.scenes) {
+          const blocks = layouts[scene.id];
+          if (blocks && blocks.length > 1) issues.push(...checkOverlap(blocks, scene.id, "warning"));
+          if (blocks && blocks.length > 0) {
+            const stillPath = join(args.reviewDir, `${scene.id}.png`);
+            issues.push(...(await runTruncationForScene(stillPath, blocks, scene.id, args.renderGridOptions)));
+          }
+        }
+      },
+      { scenes: Object.keys(layouts).length },
+    );
+    await args.appendProjectEvent({ type: "render.overlap", scenes: Object.keys(layouts).length, issues: issues.length });
+  } catch (error) {
+    await args.appendProjectEvent({ type: "render.overlap.skipped", cause: errMessage(error) });
+  }
+  return issues;
+}
+
+type LateSafeAreaWarningPassArgs = {
+  locked: LockedVideoSpec;
+  format: VideoFormat;
+  reviewDir: string;
+  renderGridOptions: RenderGridOptions;
+  fractions: readonly number[];
+  timedPipelineStage: TimedPipelineStage;
+  appendProjectEvent: AppendProjectEvent;
+};
+
+/**
+ * External late-sample N14 warning pass. YouTube skips this TikTok caption-band
+ * scan; TikTok issues are warnings and only land in the aggregate report.
+ */
+async function runLateSafeAreaWarningPass(args: LateSafeAreaWarningPassArgs): Promise<SafetyIssue[]> {
+  const issues = args.format === "youtube"
+    ? []
+    : await args.timedPipelineStage(
+        "stage.late_safe_area",
+        async () => {
+          const out: SafetyIssue[] = [];
+          for (const scene of args.locked.scenes) {
+            for (const fraction of args.fractions) {
+              const latePath = join(args.reviewDir, `${scene.id}.f${Math.round(fraction * 100)}.png`);
+              try {
+                const frame = decodePng(await readFile(latePath));
+                out.push(...checkLateSafeArea(frame, scene.id, args.renderGridOptions));
+              } catch {
+                /* no late still for this scene/fraction -> nothing to scan */
+              }
+            }
+          }
+          return out;
+        },
+        { fractions: args.fractions.length },
+      );
+  await args.appendProjectEvent({ type: "render.latesafearea", issues: issues.length });
+  return issues;
 }
 
 function layoutMeasureSceneIds(
