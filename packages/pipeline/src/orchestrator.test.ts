@@ -630,6 +630,50 @@ describe("renderProject — render pipeline (skipAuthoring)", () => {
     expect(events.map((e) => e.type)).toContain("render.latesafearea");
   });
 
+  it("surfaces N10 degraded diagnostics as non-gating report warnings", async () => {
+    const { projectId } = await scaffoldVideoProject({
+      prompt: "N10 degraded diagnostic project",
+      tts: { provider: "none" },
+    });
+    const paths = projectPaths(projectId);
+    await writeFile(join(paths.authoredDir, "scene-01.tsx"), authoredProbeSceneSource(), "utf8");
+    await writeJson(paths.manifest, {
+      title: "N10 degraded diagnostic project",
+      scenes: [
+        {
+          id: "scene-01",
+          component: "authored-runtime-probe",
+          headline: "Probe",
+          narration: "Một câu đọc thử cho cảnh N10 diagnostic.",
+          props: { label: "Demo" },
+          durationInSeconds: 4,
+        },
+      ],
+    });
+    const n10Warning = {
+      check: "N10",
+      severity: "warning" as const,
+      path: "packaged-app",
+      message: "Authored typecheck skipped: packaged layout. N10 degraded to a no-op; authored prop-shape errors were not checked before render.",
+    };
+    const typecheckAuthored = vi.fn<NonNullable<RenderProjectDeps["typecheckAuthored"]>>(() => [n10Warning]);
+    const sceneRuntimeProbe: RenderProjectDeps["sceneRuntimeProbe"] = vi.fn(async () => makeReport([], ["render"]));
+    const determinism: RenderProjectDeps["determinism"] = vi.fn(async () => makeReport([], ["render"]));
+
+    const result = await renderProject(projectId, {
+      forceFull: true,
+      ttsProvider: "none",
+      checklist: FULL_CHECKLIST,
+      composeContactSheet: fakeCompositor(),
+      deps: { typecheckAuthored, sceneRuntimeProbe, determinism },
+    });
+
+    expect(typecheckAuthored).toHaveBeenCalled();
+    expect(result.report.issues).toContainEqual(n10Warning);
+    expect(result.report.ok).toBe(true);
+    expect(await readBriefState(projectId)).toBe("done");
+  });
+
   it("blocks authored renders when the strict scene runtime probe reports a fallback-hidden crash", async () => {
     const { projectId } = await scaffoldVideoProject({
       prompt: "Runtime probe authored project",

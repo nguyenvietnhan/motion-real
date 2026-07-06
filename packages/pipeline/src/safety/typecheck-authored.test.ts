@@ -139,9 +139,17 @@ describe("typecheckAuthoredScenes (N10)", () => {
     expect(typecheckAuthoredScenes([], root)).toEqual([]);
   });
 
-  it("degrades to a no-op (never blocks) when the MotionReal sources can't be resolved", () => {
-    const issues = typecheckAuthoredScenes([fixture("typecheck-wrong-prop.tsx")], resolve(here, "no-such-workspace"));
-    expect(issues).toEqual([]);
+  it("degrades to a non-blocking diagnostic when the MotionReal sources can't be resolved", () => {
+    const missingRoot = resolve(here, "no-such-workspace");
+    const issues = typecheckAuthoredScenes([fixture("typecheck-wrong-prop.tsx")], missingRoot);
+    expect(issues).toEqual([
+      expect.objectContaining({
+        check: "N10",
+        severity: "warning",
+        path: missingRoot,
+        message: expect.stringContaining("N10 degraded to a no-op"),
+      }),
+    ]);
   });
 
   it("reuses the cached diagnostics when the authored files and contracts are unchanged", () => {

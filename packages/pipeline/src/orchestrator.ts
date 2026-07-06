@@ -188,6 +188,7 @@ const VALID_LAYOUT_MEASURE_MODES = new Set<LayoutMeasureMode>(["auto", "force", 
 export type RenderProjectDeps = {
   synthesize?: (spec: VideoSpec, opts: SynthesizeOptions) => Promise<TtsManifest | null>;
   render?: (opts: RenderVideoOptions) => Promise<RenderVideoResult>;
+  typecheckAuthored?: typeof typecheckAuthoredScenes;
   determinism?: (spec: LockedVideoSpec, opts?: DeterminismOptions) => Promise<SafetyReport>;
   sceneRuntimeProbe?: (spec: LockedVideoSpec, opts?: SceneRuntimeProbeOptions) => Promise<SafetyReport>;
   review?: (spec: LockedVideoSpec, opts: BuildReviewOptions) => Promise<ReviewArtifacts>;
@@ -365,6 +366,7 @@ async function renderProjectUnlocked(projectId: string, opts: RenderProjectOptio
     // --- (0) Admit authored scenes + resolve the spec (manifest → VideoSpec). ---
     let authoredFiles: string[] = [];
     let authoredSceneFiles: ManifestSceneFile[] = [];
+    let authoredTypeIssues: SafetyIssue[] = [];
     if (!opts.skipAuthoring) {
       throwIfCancelled(); // before the admission/bundle work begins
       const admitted = await timedPipelineStage("stage.authoring.admission", () => admitProjectScenes(projectId));
@@ -424,11 +426,13 @@ async function renderProjectUnlocked(projectId: string, opts: RenderProjectOptio
       // admission/bundle above skips the typecheck entirely instead of forcing
       // the user to wait out a block they already asked to stop.
       throwIfCancelled();
+      const typecheckAuthored = deps.typecheckAuthored ?? typecheckAuthoredScenes;
       const typeIssues = await timedPipelineStage(
         "stage.authored_typecheck",
-        () => typecheckAuthoredScenes(authoredFiles, workspaceRoot(), sceneIdByFile),
+        () => typecheckAuthored(authoredFiles, workspaceRoot(), sceneIdByFile),
         { files: authoredFiles.length },
       );
+      authoredTypeIssues = typeIssues;
       // Only crash-class diagnostics (severity "error") gate the render — a
       // wrong-shape prop that would crash Chromium at runtime. A missing color
       // token is emitted as a WARNING (the design Proxy already resolves it to a
@@ -788,6 +792,7 @@ async function renderProjectUnlocked(projectId: string, opts: RenderProjectOptio
     const report = makeReport(
       [
         ...buildGate.issues,
+        ...authoredTypeIssues,
         ...runtimeProbeReport.issues,
         ...detReport.issues,
         ...renderGrid.issues,

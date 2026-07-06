@@ -5,16 +5,26 @@ import ts from "typescript";
 import type { SafetyIssue } from "../types.js";
 
 /**
- * Warn ONCE that N10 has degraded to a no-op (sources missing / setup failed), so
- * a packaged build that silently lost the typecheck says so in the logs instead
- * of letting wrong-shape props crash render with no trace. Deduped on the reason
- * so a per-render call doesn't spam, but a different cause still surfaces.
+ * Warn ONCE that N10 has degraded to a no-op (sources missing / setup failed),
+ * while also returning a structured warning issue for the report path. Deduped
+ * on the reason so a per-render call doesn't spam, but a different cause still
+ * surfaces.
  */
 const warnedN10Reasons = new Set<string>();
 function warnN10Degraded(reason: string): void {
   if (warnedN10Reasons.has(reason)) return;
   warnedN10Reasons.add(reason);
   console.warn(`[N10] authored typecheck degraded to a no-op: ${reason}. Authored prop-shape errors will NOT be caught before render.`);
+}
+
+function n10DegradedIssue(workspaceRoot: string, reason: string): SafetyIssue {
+  warnN10Degraded(reason);
+  return {
+    check: "N10",
+    severity: "warning",
+    path: resolve(workspaceRoot),
+    message: `Authored typecheck skipped: ${reason}. N10 degraded to a no-op; authored prop-shape errors were not checked before render.`,
+  };
 }
 
 const TYPECHECK_CACHE_CAP = 12;
@@ -100,8 +110,10 @@ function authoredCompilerOptions(workspaceRoot: string): ts.CompilerOptions {
 /**
  * Typecheck the given authored `.tsx` files against the workspace block/
  * composition types. Returns one N10 SafetyIssue per diagnostic located in an
- * authored file (path is `file:line:col`). Returns `[]` — never throws and never
- * blocks — when there are no files or the workspace sources can't be resolved.
+ * authored file (path is `file:line:col`). Returns `[]` when there are no files.
+ * Returns a non-blocking N10 warning when the workspace sources can't be resolved
+ * or typecheck setup fails; it never throws and never hard-blocks a render it
+ * cannot check correctly.
  *
  * `sceneIdByFile` maps each absolute file path → its manifest scene id so every
  * emitted issue carries a `sceneId`; this is what lets the generate-validate-
@@ -125,8 +137,7 @@ export function typecheckAuthoredScenes(
   // but a packaged build that lost N10 will say so in the logs instead of going
   // quiet. (Warn-once: this runs per render, not per frame, but no need to spam.)
   if (!existsSync(resolve(workspaceRoot, "packages", "blocks", "src", "index.ts"))) {
-    warnN10Degraded(`MotionReal sources not found under ${workspaceRoot} — N10 typecheck SKIPPED`);
-    return [];
+    return [n10DegradedIssue(workspaceRoot, `MotionReal sources not found under ${workspaceRoot}`)];
   }
 
   const cacheKey = typecheckCacheKey(files, workspaceRoot, sceneIdByFile);
@@ -145,8 +156,7 @@ export function typecheckAuthoredScenes(
   } catch (e) {
     // A typecheck SETUP failure must never block a render — but, like the missing
     // sources above, a silent skip hides that N10 isn't actually guarding anything.
-    warnN10Degraded(`typecheck setup failed (${e instanceof Error ? e.message : String(e)}) — N10 typecheck SKIPPED`);
-    return [];
+    return [n10DegradedIssue(workspaceRoot, `typecheck setup failed (${e instanceof Error ? e.message : String(e)})`)];
   }
 
   const authored = new Set(files.map((f) => resolve(f)));
