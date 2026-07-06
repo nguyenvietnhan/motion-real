@@ -1,0 +1,314 @@
+/* --- 4. Home/create composer, delivery knobs, style modal --------------- */
+
+/* AI-first create hero */
+.ns-create-card {
+  position: relative;
+  overflow: visible;
+  margin-bottom: 32px;
+  padding: 28px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-md);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.ns-create-card:focus-within {
+  border-color: var(--border);
+  box-shadow: var(--shadow-lg);
+}
+.ns-create-card.is-dragging {
+  outline: 2px dashed var(--brand);
+  outline-offset: -7px;
+  border-color: var(--brand);
+}
+.ns-create-heading {
+  margin-bottom: 18px;
+}
+.ns-create-heading h2 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.35;
+  letter-spacing: normal;
+}
+
+/* Unified composer */
+.ns-composer {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--input);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.01), 0 8px 24px rgba(0, 0, 0, 0.2);
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.ns-composer:focus-within {
+  border-color: var(--brand);
+  background: var(--input);
+  box-shadow: 0 0 0 1px var(--brand), 0 0 20px rgba(59, 130, 246, 0.15), 0 12px 30px rgba(0, 0, 0, 0.3);
+}
+.ns-composer-input {
+  display: block;
+  width: 100%;
+  border: none;
+  background: transparent;
+  color: var(--foreground);
+  min-height: 112px;
+  padding: 18px 20px 10px;
+  font-size: 15px;
+  line-height: 1.6;
+  font-family: inherit;
+  outline: none;
+  resize: none;
+  max-height: 40vh;
+  box-sizing: border-box;
+  overflow-y: auto;
+}
+.ns-composer-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px 16px;
+}
+.ns-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--foreground);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.ns-icon-btn:hover {
+  border-color: var(--brand);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+/* Delivery-knob chips */
+.ns-knob-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.ns-knob-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 14px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--foreground);
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.ns-knob-chip:hover {
+  border-color: var(--brand);
+  background: rgba(255, 255, 255, 0.08);
+}
+.ns-knob-chip.is-open {
+  border-color: var(--brand);
+  background: rgba(59, 130, 246, 0.15);
+  box-shadow: none;
+}
+.ns-knob-pop {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 190px;
+  padding: 6px;
+  background: var(--popover);
+  backdrop-filter: var(--backdrop);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-lg), 0 0 20px rgba(0, 0, 0, 0.2);
+}
+.ns-knob-pop-label {
+  padding: 6px 10px 6px;
+  font-size: 10px;
+  text-transform: uppercase;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--muted-foreground);
+}
+.ns-knob-opt {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--foreground);
+  font-size: 13px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.ns-knob-opt:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+.ns-knob-opt.is-active {
+  color: var(--brand);
+  background: rgba(59, 130, 246, 0.08);
+  font-weight: 600;
+}
+.ns-knob-opt-tick {
+  display: inline-flex;
+  width: 14px;
+  justify-content: center;
+  color: var(--brand);
+}
+/* Inline warning glyph inside a knob option (e.g. YouTube format): a yellow icon
+   that reveals a styled tooltip to its RIGHT on hover/focus — same mechanism as
+   InfoHint (.ns-info) so it matches the rest of the app, but warn-coloured. */
+.ns-warn-hint {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--warn);
+  cursor: help;
+  flex: none;
+}
+.ns-warn-hint svg {
+  display: block;
+}
+.ns-warn-tip {
+  position: absolute;
+  top: 50%;
+  right: calc(100% + 8px);
+  left: auto;
+  width: max-content;
+  max-width: 240px;
+  background: var(--popover);
+  color: var(--foreground);
+  border: 1px solid var(--warn);
+  border-radius: var(--radius-sm);
+  padding: 8px 11px;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.5;
+  text-align: left;
+  white-space: normal;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-50%) translateX(4px);
+  transition: opacity 0.12s, transform 0.12s;
+  z-index: 40;
+}
+.ns-warn-hint:hover .ns-warn-tip,
+.ns-warn-hint:focus-visible .ns-warn-tip {
+  opacity: 1;
+  transform: translateY(-50%) translateX(0);
+}
+.ns-warn-hint:focus-visible {
+  outline: none;
+}
+
+/* Style picker: a star icon-button next to "+" opens a CENTERED modal (Canva /
+   YouTube template-chooser style) — a dimmed full-screen overlay behind a card
+   of large preview tiles. Click the dimmed area or the X to dismiss. */
+.ns-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+  background: rgba(0, 0, 0, 0.62);
+  backdrop-filter: blur(2px);
+  animation: ns-modal-fade 0.14s ease-out;
+}
+.ns-modal {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
+  max-height: 88vh;
+  overflow: hidden;
+  animation: ns-modal-rise 0.16s ease-out;
+}
+.ns-style-modal {
+  width: min(880px, 100%);
+}
+@keyframes ns-modal-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes ns-modal-rise {
+  from { opacity: 0; transform: translateY(8px) scale(0.99); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.ns-modal-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 20px 22px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.ns-modal-title {
+  margin: 0;
+  font-size: 17px;
+}
+.ns-modal-sub {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--muted-foreground);
+  line-height: 1.5;
+}
+/* Scrollable grid of large preview tiles, like a video template gallery. */
+.ns-style-modal-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 16px;
+  padding: 20px 22px 24px;
+  overflow-y: auto;
+}
+.ns-style-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 14px 14px;
+  border-radius: 10px;
+  border: 2px solid transparent;
+  background: var(--card-hover);
+  color: var(--foreground);
+  cursor: pointer;
+  text-align: center;
+  transition: border-color 0.12s, transform 0.12s;
+}
+.ns-style-tile:hover {
+  transform: translateY(-2px);
+  border-color: var(--border);
+}
+.ns-style-tile.is-active {
+  border-color: var(--brand);
+}
+.ns-style-tile-name {
+  font-size: 14px;
+  font-weight: 600;
+}
+.ns-style-tile-desc {
+  font-size: 12px;
+  color: var(--muted-foreground);
+  line-height: 1.5;
+}
