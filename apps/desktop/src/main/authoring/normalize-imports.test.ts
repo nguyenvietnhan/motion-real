@@ -72,6 +72,38 @@ describe("normalizeAuthoredImports — SceneImage re-home", () => {
     const code = `const a = cfg.Extrapolate.CLAMP;`;
     expect(normalizeAuthoredImports(code)).toBe(code);
   });
+
+  it("strips markdown fence delimiters left at the boundary of a recovered module", () => {
+    const code = [
+      "```tsx",
+      "// component: scene-07",
+      'import { z } from "zod";',
+      'import { registerComponent } from "@motionreal/compositions";',
+      "export const schema = z.object({});",
+      "export const example = {};",
+      'export default registerComponent({ id: "scene-07" });',
+      "```",
+      "",
+      "```tsx",
+    ].join("\n");
+
+    const out = normalizeAuthoredImports(code);
+
+    expect(out).toContain("// component: scene-07");
+    expect(out).not.toMatch(/^```/m);
+    expect(out).toContain('export default registerComponent({ id: "scene-07" });');
+  });
+
+  it("rewrites the exact zod typo import from zx to zod", () => {
+    const out = normalizeAuthoredImports(`import { z } from "zx";\nexport const schema = z.object({});`);
+    expect(out).toContain(`import { z } from "zod";`);
+    expect(out).not.toContain(`from "zx"`);
+  });
+
+  it("leaves non-zod zx imports untouched so admission still blocks them", () => {
+    const code = `import { $, fs } from "zx";`;
+    expect(normalizeAuthoredImports(code)).toBe(code);
+  });
 });
 
 describe("normalizeAuthoredImports — color interpolation", () => {

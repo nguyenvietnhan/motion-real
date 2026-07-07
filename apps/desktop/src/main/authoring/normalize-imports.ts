@@ -32,7 +32,8 @@ function baseName(clause: string): string {
  * authored code). Returns the code unchanged when there's nothing to re-home.
  */
 export function normalizeAuthoredImports(code: string): string {
-  const moved = code.replace(
+  const fenceCleaned = stripBoundaryMarkdownFences(code);
+  const moved = normalizeZodImportTypos(fenceCleaned).replace(
     /import\s*\{([^}]*)\}\s*from\s*["']@motionreal\/(?:blocks|theme)["'];?/g,
     (full, inner: string) => {
       const clauses = inner.split(",").map((s) => s.trim()).filter(Boolean);
@@ -47,6 +48,41 @@ export function normalizeAuthoredImports(code: string): string {
     },
   );
   return normalizeColorInterpolation(normalizeRemotionImports(moved));
+}
+
+/**
+ * Some weaker providers return a bare module body that still carries markdown
+ * fence delimiters at the edges after parser recovery, e.g. a trailing ``` or
+ * ```tsx line after registerComponent. Strip only boundary fence lines; do not
+ * touch code or strings in the module body.
+ */
+function stripBoundaryMarkdownFences(code: string): string {
+  const lines = code.replace(/\r\n/g, "\n").split("\n");
+  while (lines.length > 0 && lines[0]!.trim() === "") lines.shift();
+  while (lines.length > 0 && /^```[a-zA-Z0-9_-]*$/.test(lines[0]!.trim())) lines.shift();
+  while (lines.length > 0 && lines.at(-1)!.trim() === "") lines.pop();
+  while (lines.length > 0 && /^```[a-zA-Z0-9_-]*$/.test(lines.at(-1)!.trim())) {
+    lines.pop();
+    while (lines.length > 0 && lines.at(-1)!.trim() === "") lines.pop();
+  }
+  return lines.join("\n");
+}
+
+/**
+ * Provider typo observed in real authoring: `import { z } from "zx";`. Rewrite
+ * only the exact zod-shape import. Any other `zx` import remains an N4 failure.
+ */
+function normalizeZodImportTypos(code: string): string {
+  return code.replace(
+    /import\s*\{([^}]*)\}\s*from\s*["']zx["'];?/g,
+    (full, inner: string) => {
+      const clauses = inner.split(",").map((s) => s.trim()).filter(Boolean);
+      if (clauses.length === 1 && baseName(clauses[0]!) === "z") {
+        return `import { ${clauses[0]} } from "zod";`;
+      }
+      return full;
+    },
+  );
 }
 
 /**
