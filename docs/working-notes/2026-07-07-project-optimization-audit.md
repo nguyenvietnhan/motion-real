@@ -1291,10 +1291,36 @@ git status --short
 | --- | --- | --- |
 | Phase 0 Step 0.1 - Confirm Checkpoint | Kiem tra -> docs update -> kiem tra -> xac nhan complete | Latest commit `af68f52`; dirty tree only this working note; `git diff --check` clean. |
 | Phase 0 Step 0.2 - Local Gate Before Implementation | Kiem tra -> docs update -> kiem tra -> xac nhan complete | `npm.cmd run typecheck` passed; `npm.cmd test` passed 98 files/986 tests plus 1 heavy lane/14 tests; `npm.cmd run build` passed; `git diff --check` clean. |
+| Phase 0 Step 0.3 - Prompt/Authoring Metrics Baseline | Kiem tra -> docs update -> kiem tra -> xac nhan complete | No runtime/provider log files found in repo; baseline is static source/fixture anchors plus current prompt file sizes below. |
+
+### Phase 0 Metrics Baseline
+
+This is not a provider health result. It is the initial static baseline for
+future log searches and prompt-size comparisons until Phase 4 counters or manual
+provider smoke notes add real runtime data.
+
+| Metric anchor | Static hits excluding this plan note |
+| --- | ---: |
+| `content-plan parse failed` | 1 |
+| `content-plan tolerant normalizations applied` | 2 |
+| `purpose-normalized` | 5 |
+| `motion-defaulted` | 6 |
+| `author-reply parse failed` | 2 |
+| `authoring batch parse failed` | 1 |
+| `authoring will use compact TSX batches` | 1 |
+| `author-reply missing TSX recovery` | 3 |
+| `admission failed` | 1 |
+| `missing-code` | 11 |
+
+| Prompt/codegen file | Size |
+| --- | ---: |
+| `apps/desktop/src/main/authoring/prompt.ts` | 40,921 bytes |
+| `apps/desktop/src/main/authoring/contract-text.ts` | 14,185 bytes |
+| `apps/desktop/src/main/authoring/content-plan.ts` | 25,650 bytes |
 
 | Phase | Status | Owner gate | Effort band | Next step |
 | --- | --- | --- | --- | --- |
-| Phase 0 - Baseline Checkpoint And Re-Entry | partial | Engineering executor reports; owner reviews failures only | S | Commit `af68f52` exists; run full local gate before implementation. |
+| Phase 0 - Baseline Checkpoint And Re-Entry | done | Engineering executor reports; owner reviews failures only | S | Baseline checkpoint, full local gate, and static metrics baseline recorded. |
 | Phase 1 - Prompt Contract Boundary | pending | Owner reviews hard/quality/advisory boundary before runtime edits | S | Start with Step 1.1 prompt source map. |
 | Phase 2 - Prompt Module Split Without Behavior Change | pending | Engineering can execute after Phase 1 owner review | M | Split prompt modules without behavior change. |
 | Phase 3 - Prompt Fragility Reduction | pending | Owner approval required before and after prompt behavior changes | M-L | Build canary set, then edit prompt sections. |
