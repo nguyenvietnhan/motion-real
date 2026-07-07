@@ -1311,13 +1311,15 @@ git status --short
 | Phase 4 local closeout | Kiem tra -> xac nhan -> phase commit | Focused Phase 4 local gate passed: `npm.cmd test -- --run apps/desktop/src/main/authoring/content-plan.test.ts apps/desktop/src/main/authoring/ninerouter-backend.test.ts` passed 2 files/76 tests; `npm.cmd run typecheck` passed; `git diff --check` clean. Phase 4 remains provider-pending until Step 4.3 smoke attempts are recorded. |
 | Provider smoke incident 2026-07-08 - P3-C1/phase4-smoke-1 | Provider run failed -> inspect project/log -> code/tests -> pending rerun | Project `tao-video-tiktok-tieng-viet-giai-t-529f8fa5` failed on first create and retry. Both runs planned 13 scenes, selected compact 2-scene batches, and each batch replied with the expected TSX module count, but the final batched strict parse reported `missing-code` before any authored files were written. Fix changed batched final coverage validation to use already parsed `AuthoredModule[]` plus manifest coverage instead of rebuilding Markdown and reparsing it. `npm.cmd test -- --run apps/desktop/src/main/authoring/ninerouter-backend.test.ts apps/desktop/src/main/authoring/reply-parser.test.ts` passed 2 files/76 tests; `npm.cmd run typecheck` passed. Rerun provider smoke before marking Phase 3/4 provider gates complete. |
 | Provider smoke incident 2026-07-08 - P3-C1/phase4-smoke-2 | Provider rerun failed -> inspect authored files -> code/tests/temp admission -> pending rerun | Same project after app reset got past batch coverage and wrote 13 authored modules, then admission failed with N4: two modules had trailing Markdown fence delimiters in saved TSX and two modules imported `z` from typo package `"zx"`. Added narrow authored-source normalizers for boundary fence delimiters and exact `import { z } from "zx"` -> `"zod"` only. `npm.cmd test -- --run apps/desktop/src/main/authoring/normalize-imports.test.ts apps/desktop/src/main/authoring/ninerouter-backend.test.ts apps/desktop/src/main/authoring/reply-parser.test.ts` passed 3 files/94 tests; `npm.cmd run typecheck` passed; temp-copy admission of the failed project after normalization passed for all 13 scenes. Rerun provider smoke before marking gates complete. |
+| Provider smoke result 2026-07-08 - P3-C1/phase4-smoke-3 | Provider rerun -> draft OK -> docs update -> continue smoke | New project `tao-video-tiktok-tieng-viet-giai-t-a2a25995` on `ag/gemini-3-flash-agent` passed content planning, used the normal single-authoring path with 12 scenes, parsed a complete author reply with 12/12 TSX modules, and rendered draft OK at `renders/tao-video-tiktok-tieng-viet-giai-t-a2a25995.draft.mp4`. One `scene-12` reauthor feedback attempt failed N4 with an SVG closing-tag syntax error, but the pipeline recovered/continued and the draft render completed. Treat as refine noise to track, not as a failed smoke attempt. |
 
 ### Phase 4 Step 4.3 Provider Smoke Status
 
-Status: provider pending.
+Status: provider smoke in progress.
 
-This automated pass did not launch the desktop app because Step 4.3 requires a
-manual provider-connected workflow. Do not mark Phase 4 fully done from local
+The automated Phase 4 pass did not launch the desktop app because Step 4.3
+requires a manual provider-connected workflow. Provider smoke is now being
+recorded from owner-run app sessions. Do not mark Phase 4 fully done from local
 tests alone. Run:
 
 ```powershell
@@ -1347,6 +1349,7 @@ Recorded attempts:
 | --- | --- | --- | --- | --- |
 | `phase4-smoke-20260708-1` | `4d25de3` | `ag/gemini-3-flash-agent` | P3-C1-VI-RAG / logistics AI assistant source notes | fail: both initial create and retry stopped before stills with `missing-code` at final batched parse. Content-plan parse passed, scene count was 13, compact batch path selected, all 7 batch calls returned expected `tsxModuleCount`, no authored files were written. Local fix applied afterward; provider rerun pending. |
 | `phase4-smoke-20260708-2` | `e3a3807` | `ag/gemini-3-flash-agent` | P3-C1-VI-RAG / same project retry after app reset | fail: batch coverage fix worked; 13 authored files were written. Admission then failed with N4 counts: trailing Markdown fence delimiters in `scene-07`/`scene-08`, and typo import `from "zx"` in `scene-11`/`scene-12`. Local normalizer fix applied afterward; provider rerun pending. |
+| `phase4-smoke-20260708-3` | `66eeba4` | `ag/gemini-3-flash-agent` | P3-C1-VI-RAG / new project after fixes | success: content-plan pass, single authoring path with sceneCount 12, author reply parse complete with 12/12 TSX modules, no missing components, no recovery needed, and draft render OK. A `scene-12` reauthor feedback attempt failed N4 once, but the pipeline continued and produced the draft MP4. |
 
 ### Phase 0 Metrics Baseline
 
@@ -1516,8 +1519,8 @@ Implementation rule:
 | Phase 0 - Baseline Checkpoint And Re-Entry | done | Engineering executor reports; owner reviews failures only | S | Baseline checkpoint, full local gate, and static metrics baseline recorded. |
 | Phase 1 - Prompt Contract Boundary | done | Owner reviews hard/quality/advisory boundary before runtime edits | S | Prompt source map, boundary, and durable checklist recorded. |
 | Phase 2 - Prompt Module Split Without Behavior Change | done | Engineering can execute after Phase 1 owner review | M | Prompt modules split, section markers locked, and prompt size guard added without intentional behavior change. |
-| Phase 3 - Prompt Fragility Reduction | local complete / provider pending | Owner approval required before accepting prompt behavior changes | M-L | Local Step 3.0-3.5 changes are implemented and verified; run the full P3-C1..P3-C6 provider canary set before marking Phase 3 done. |
-| Phase 4 - Authoring Observability And Log Hygiene | local complete / provider pending | Engineering can execute; owner reviews raw-log policy | S-M | Steps 4.1-4.2 are implemented and locally verified; Step 4.3 protocol is recorded. Run 3-5 provider-connected smoke attempts before marking Phase 4 done. |
+| Phase 3 - Prompt Fragility Reduction | provider canary in progress | Owner approval required before accepting prompt behavior changes | M-L | Local Step 3.0-3.5 changes are implemented and verified. P3-C1 has one successful post-fix provider run; run P3-C2..P3-C6 before marking Phase 3 done. |
+| Phase 4 - Authoring Observability And Log Hygiene | provider smoke in progress | Engineering can execute; owner reviews raw-log policy | S-M | Steps 4.1-4.2 are implemented and locally verified; Step 4.3 protocol is recorded. One provider-connected attempt has succeeded through draft after fixes; run more smoke attempts before marking Phase 4 done. |
 | Phase 5 - Parser, Normalizer, And Recovery Debt | pending | Owner approval required for any new source mutation | S-M | Inventory first, no new regex by default. |
 | Phase 6 - Repo Hygiene And Reserved Surfaces | pending | Owner/product decisions for SFX/image defaults | M | Low-risk cleanup after prompt boundary is clear. |
 | Phase 7 - Sensitive File Refactors And UI Style Cleanup | pending | Owner approval for sensitive-file extractions | M-L | Behavior-led only, no big-bang rewrite. |
@@ -1526,13 +1529,16 @@ Implementation rule:
 
 ## Next Real Execution Step
 
-Phase 4 local implementation is complete. Two provider-connected gates remain
-pending before marking the prompt/logging work fully done:
+Phase 4 local implementation is complete, and provider smoke has started. Two
+provider-connected gates remain before marking the prompt/logging work fully
+done:
 
-- Phase 3: run the full provider-connected canary set P3-C1..P3-C6 on the same
-  provider/model lane and record results against the template above.
-- Phase 4: run 3-5 provider-connected smoke attempts on the same provider/model
-  lane and record results in the Step 4.3 template.
+- Phase 3: P3-C1 has one successful post-fix provider run; run the remaining
+  P3-C2..P3-C6 canaries on the same provider/model lane and record results
+  against the template above.
+- Phase 4: one provider-connected attempt has succeeded through draft; run more
+  attempts on the same provider/model lane until the 3-5 attempt smoke window is
+  recorded.
 
 ```powershell
 git log -1 --oneline
