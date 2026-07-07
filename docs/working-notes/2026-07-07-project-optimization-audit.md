@@ -1294,6 +1294,7 @@ git status --short
 | Phase 0 Step 0.3 - Prompt/Authoring Metrics Baseline | Kiem tra -> docs update -> kiem tra -> xac nhan complete | No runtime/provider log files found in repo; baseline is static source/fixture anchors plus current prompt file sizes below. |
 | Phase 1 Step 1.1 - Map Prompt Sources | Kiem tra -> docs update -> kiem tra -> xac nhan complete | Prompt/runtime/docs sources mapped by hard output, security, TSX contract, story, narration, visual ambition, motion, image, batch/recovery, and QA/refine categories. |
 | Phase 1 Step 1.2 - Define Hard Contract Vs Quality Guidance | Kiem tra -> docs update -> kiem tra -> xac nhan complete | Hard contract, quality guidance, and advisory-only boundaries recorded before runtime prompt edits. |
+| Phase 1 Step 1.3 - Add Prompt Change Checklist | Kiem tra -> docs update -> kiem tra -> xac nhan complete | `docs/current/maintenance.md` now requires prompt changes to classify boundary, metric, tests, smoke/canary need, and rollback path. |
 
 ### Phase 0 Metrics Baseline
 
@@ -1386,8 +1387,8 @@ Implementation rule:
 | Phase | Status | Owner gate | Effort band | Next step |
 | --- | --- | --- | --- | --- |
 | Phase 0 - Baseline Checkpoint And Re-Entry | done | Engineering executor reports; owner reviews failures only | S | Baseline checkpoint, full local gate, and static metrics baseline recorded. |
-| Phase 1 - Prompt Contract Boundary | pending | Owner reviews hard/quality/advisory boundary before runtime edits | S | Start with Step 1.1 prompt source map. |
-| Phase 2 - Prompt Module Split Without Behavior Change | pending | Engineering can execute after Phase 1 owner review | M | Split prompt modules without behavior change. |
+| Phase 1 - Prompt Contract Boundary | done | Owner reviews hard/quality/advisory boundary before runtime edits | S | Prompt source map, boundary, and durable checklist recorded. |
+| Phase 2 - Prompt Module Split Without Behavior Change | pending | Engineering can execute after Phase 1 owner review | M | Start Step 2.1 prompt section extraction without behavior change. |
 | Phase 3 - Prompt Fragility Reduction | pending | Owner approval required before and after prompt behavior changes | M-L | Build canary set, then edit prompt sections. |
 | Phase 4 - Authoring Observability And Log Hygiene | pending | Engineering can execute; owner reviews raw-log policy | S-M | Gate raw reply snippets and stabilize counters. |
 | Phase 5 - Parser, Normalizer, And Recovery Debt | pending | Owner approval required for any new source mutation | S-M | Inventory first, no new regex by default. |

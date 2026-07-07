@@ -122,6 +122,21 @@ with diagnostics so their frequency remains observable. Claim-ledger/evidence
 violations, duplicate ids, invalid JSON shape, unsafe authored code, and render
 integrity failures remain hard blockers.
 
+## Prompt Change Checklist
+
+Treat runtime prompt text as production behavior. Before changing authoring,
+content-plan, batch, recovery, visual-QA, image-filter, or reauthor prompts:
+
+- classify the change as hard contract, quality guidance, or advisory guidance;
+- name the expected metric or evidence it should improve, such as parse failure,
+  normalization count, missing TSX, N5/N10 admission, reply size, provider
+  truncation, or debuggability;
+- identify the focused tests that cover the touched prompt section;
+- decide whether provider smoke or a fixed canary subset is required;
+- write the rollback path, usually a commit revert or a narrow internal flag;
+- do not turn visual taste, layout preference, or motion feel into a hard gate
+  without owner approval and fixtures.
+
 ## Motion Tempo Validation
 
 Motion tempo is authoring guidance, not a hard render oracle. Automated tests
