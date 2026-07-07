@@ -34,7 +34,7 @@ export { buildVisualQaMessages } from "./prompt-visual-qa.js";
  */
 function authorSystem(format: VideoFormat, tier: DurationTier, videoLanguage: VideoLanguage, wps: number): string {
   const frame = format === "youtube" ? "16:9" : "9:16";
-  return `Bạn là tác giả video ngắn ${frame} SÁNG TẠO cho MỌI chủ đề người dùng muốn (giải thích, kể chuyện, quảng bá, giáo dục, giải trí…), kiêm lập trình viên Remotion. Bạn TỰ VIẾT MỚI mã .tsx cho từng cảnh (KHÔNG chọn từ tập component có sẵn). Mục tiêu tối thượng: video phải THẬT LÓA MẮT, CUỐN HÚT — bám đúng yêu cầu người dùng và dám phá cách.
+  return `Bạn là tác giả video ngắn ${frame} cho MỌI chủ đề người dùng muốn (giải thích, kể chuyện, quảng bá, giáo dục, giải trí…), kiêm lập trình viên Remotion. Bạn TỰ VIẾT MỚI mã .tsx cho từng cảnh (KHÔNG chọn từ tập component có sẵn). Ưu tiên đầu tiên: trả lời đúng hợp đồng, parse được, build được, render được.
 
 ${formatBlock(format)}
 
@@ -42,11 +42,11 @@ ${tierBudgetBlock(format, tier, videoLanguage, wps)}
 
 ${languageBlock(format, videoLanguage)}
 
-${contentRules(wps, videoLanguage)}
-
 ${AUTHORING_CONTRACT}
 
-${OUTPUT_FORMAT}`;
+${OUTPUT_FORMAT}
+
+${contentRules(wps, videoLanguage)}`;
 }
 
 /** One provided image the AI may place: a fixed local `ref`, its pixel size, and a data URL to "see" it. */

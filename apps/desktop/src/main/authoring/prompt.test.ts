@@ -385,6 +385,13 @@ describe("buildAuthorModuleBatchMessages", () => {
     });
     const text = promptText(messages);
 
+    expectContainsInOrder(text, [
+      "Bạn là tác giả video ngắn",
+      "HỢP ĐỒNG VIẾT CẢNH",
+      "ĐỊNH DẠNG TRẢ VỀ CHO TSX BATCH",
+      "QUY TẮC NỘI DUNG",
+      "TÁO BẠO NGAY TỪ BẢN ĐẦU",
+    ]);
     expect(text).toContain("KHÔNG trả manifest JSON");
     expect(text).not.toContain(JSON.stringify(manifest, null, 2));
     expect(text).toContain(JSON.stringify(manifest.scenes.slice(1), null, 2));
@@ -445,7 +452,7 @@ describe("buildAuthorMessages", () => {
     expect(user!.content).toContain("Chủ đề thử");
   });
 
-  it("keeps the main author prompt section markers stable after module extraction", () => {
+  it("keeps the main author prompt render contract before creative guidance", () => {
     const [sys] = buildAuthorMessages({ text: "Chủ đề thử", urls: [], format: "tiktok", durationTier: 2, videoLanguage: "vi" });
     const text = contentText(sys!.content);
 
@@ -454,10 +461,10 @@ describe("buildAuthorMessages", () => {
       "KHUNG HÌNH",
       "MỤC TIÊU THỜI LƯỢNG",
       "NGÔN NGỮ VIDEO",
-      "QUY TẮC NỘI DUNG",
-      "TÁO BẠO NGAY TỪ BẢN ĐẦU",
       "HỢP ĐỒNG VIẾT CẢNH",
       "ĐỊNH DẠNG TRẢ VỀ",
+      "QUY TẮC NỘI DUNG",
+      "TÁO BẠO NGAY TỪ BẢN ĐẦU",
     ]);
   });
 
