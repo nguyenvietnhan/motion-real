@@ -1298,6 +1298,7 @@ git status --short
 | Phase 2 Step 2.1 - Extract Prompt Sections | Kiem tra -> code -> kiem tra -> xac nhan complete | `prompt.ts` is now an orchestrator/re-export surface; extracted message types, content rules, output format, content-plan blocks, batch/recovery, visual-QA, and image-filter modules. `npm.cmd test -- --run apps/desktop/src/main/authoring/prompt.test.ts apps/desktop/src/main/authoring/ninerouter-backend.test.ts` passed 2 files/77 tests; `npm.cmd run typecheck` passed; `git diff --check` has no whitespace errors. |
 | Phase 2 Step 2.2 - Lock Section Markers In Tests | Kiem tra -> tests -> kiem tra -> xac nhan complete | Added prompt section-marker order test, batch selected-claim/no-full-context assertions, recovery compactness assertions, and AUTHORING_CONTRACT hard-before-visual-ambition ordering test. `npm.cmd test -- --run apps/desktop/src/main/authoring/prompt.test.ts apps/desktop/src/main/authoring/contract-text.test.ts` passed 2 files/44 tests; `npm.cmd run typecheck` passed. |
 | Phase 2 Step 2.3 - Prompt Size Snapshot | Kiem tra -> tests -> kiem tra -> xac nhan complete | Added prompt text-size baselines for main author, TSX batch, missing-TSX recovery, reauthor, and visual-QA prompt builders with a 10% growth guard. `npm.cmd test -- --run apps/desktop/src/main/authoring/prompt.test.ts` passed 1 file/35 tests; `npm.cmd run typecheck` passed. |
+| Phase 3 Step 3.0 - Fixed Before/After Canary Set | Kiem tra -> docs update -> kiem tra -> xac nhan complete | Fixed 6-prompt canary set, per-step subset map, and provider result template recorded below. No runtime prompt wording changed. Provider baseline runs are pending because this step is docs/protocol only. |
 
 ### Phase 0 Metrics Baseline
 
@@ -1339,6 +1340,65 @@ why that growth is intentional.
 | Missing-TSX recovery prompt | 12,201 |
 | Reauthor prompt | 12,482 |
 | Visual QA prompt | 1,305 |
+
+### Phase 3 Step 3.0 Fixed Canary Set
+
+Purpose: compare Phase 3 prompt behavior changes against the same inputs,
+instead of ad-hoc "looks better" smoke attempts. These canaries are stable by
+design: most use embedded source notes rather than live URLs, so a future run
+does not depend on a news page changing.
+
+Run rules:
+
+- Use the same provider/model family, voice config, format, duration tier, and
+  language setting for before/after comparisons.
+- Do not edit runtime prompt/code during a canary run.
+- Record failures by class: content-plan parse, purpose/motion normalization,
+  author reply parse, missing TSX/truncation, batch selection, admission N5/N10,
+  still/draft readiness, or unrelated provider/runtime config.
+- Quality note is coarse only: `bland`, `acceptable`, `strong`, or `broken`.
+- Provider-connected baseline is pending until a manual/provider run is
+  available. If prompt behavior changes proceed before provider access is
+  available, Phase 3 remains partial until the canary set is run.
+
+Canaries:
+
+| Id | Settings | Fixed input prompt | Covers |
+| --- | --- | --- | --- |
+| P3-C1-VI-RAG | format `tiktok`, duration tier `2`, language `vi`, no images | `Tao video TikTok tieng Viet giai thich vi sao mot cong ty logistics thu nghiem tro ly AI noi bo cho nhan vien van hanh. Chi dung source notes sau, khong them so lieu ngoai: Source notes: 2026-06-20 bat dau pilot voi 500 nhan vien; muc tieu la giam thoi gian tim SOP; 3 nhom tham gia la kho, dieu phoi, cham soc khach hang; rui ro noi bo duoc neu la tra loi sai quy trinh va lo du lieu khach hang; ket qua chua duoc cong bo.` | RAG/news explainer, Vietnamese, cited facts, schema-sensitive content plan, main author path. |
+| P3-C2-EN-CONCEPT | format `tiktok`, duration tier `1`, language `en`, no images | `Create a short English explainer about why teams confuse automation with leverage. No external facts or numbers. Make it concrete for a small operations team, with a clear hook, one tension, and a practical ending question.` | English, no-URL conceptual explainer, narration voice, output-format discipline. |
+| P3-C3-VI-NUMERIC | format `tiktok`, duration tier `2`, language `vi`, no images | `Tao video TikTok tieng Viet ve mot case onboarding noi bo. Chi dung cac so lieu nay: truoc day mat 14 ngay de nhan vien moi tu lam duoc viec; sau khi sua checklist con 9 ngay; ticket hoi lai quy trinh giam 23%; nhom thu nghiem co 36 nguoi; chi phi cong cu la 4,8 trieu VND/thang. Giai thich y nghia, khong phong dai thanh loi hua ROI.` | Numeric/evidence-heavy topic, anti-fabrication, visual recipe pressure, admission safety. |
+| P3-C4-VI-90S-T2 | format `tiktok`, duration tier `2`, language `vi`, no images | `Lam video TikTok khoang 90 giay tieng Viet ve chu de: nguoi quan ly nho nen dung AI de viet SOP nhu the nao ma khong lam quy trinh tro nen mong manh. Khong can so lieu. Can co hook manh, 3 y chinh, va ket thuc bang cau hoi quyet dinh.` | 90s short-form tier 2, expected 10-12 scene pressure, motion/default readability, normal single authoring path. |
+| P3-C5-EN-90S-T3 | format `tiktok`, duration tier `3`, language `en`, no images | `Create a 90-second English TikTok about the hidden cost of "quick AI automation" when no one owns the workflow. No made-up metrics. Use a clear arc: seductive shortcut, first crack, operational consequence, safer habit, final decision question.` | English long short-form tier 3, 13-16 scene pressure if planner chooses it, batch budget boundary, motion-heavy prompts. |
+| P3-C6-VI-IMAGE-OPTIONAL | format `tiktok`, duration tier `1`, language `vi`, image-assisted if provider/manual run supports images | `Dung cac anh dinh kem lam ngu canh san pham. Tao video TikTok tieng Viet ngan giai thich 3 diem nguoi dung nen nhin vao khi danh gia man hinh dashboard nay. Khong doan thuong hieu, khong them so lieu ngoai anh.` | Optional image-assisted request, SceneImage/media rules, visual ambition without invented facts. |
+
+Per-step canary subsets:
+
+| Phase 3 step | Required subset before accepting the step |
+| --- | --- |
+| Step 3.1 render-pass contract before ambition | P3-C1-VI-RAG, P3-C2-EN-CONCEPT, P3-C4-VI-90S-T2 |
+| Step 3.2 safe visual/story recipes | P3-C1-VI-RAG, P3-C3-VI-NUMERIC, P3-C6-VI-IMAGE-OPTIONAL if images are available |
+| Step 3.3 motion safe defaults | P3-C3-VI-NUMERIC, P3-C4-VI-90S-T2, P3-C5-EN-90S-T3 |
+| Step 3.4 content-plan prompt/tolerance boundary | P3-C1-VI-RAG, P3-C3-VI-NUMERIC, P3-C5-EN-90S-T3 |
+| Step 3.5 batch prompt budget guard | P3-C4-VI-90S-T2, P3-C5-EN-90S-T3, then full P3-C1..P3-C6 if this is the last Phase 3 prompt/batching change |
+
+Recording template:
+
+| Field | Value |
+| --- | --- |
+| Run id | `phase3-before-YYYYMMDD-N` or `phase3-after-step3.x-YYYYMMDD-N` |
+| Commit | Git hash before the run |
+| Provider/model | Provider and model family |
+| Canary id | P3-C1..P3-C6 |
+| Settings | format, duration tier, language, images yes/no |
+| Content-plan parse | pass/fail and failure class |
+| Normalizations | purpose-normalized count, motion-defaulted count |
+| Scene count/path | scene count, single authoring or compact batch |
+| Author reply parse | pass/fail; missing TSX recovery attempted/succeeded/failed |
+| Admission | pass/fail; include N5/N10 if present |
+| Still/draft readiness | still review ready, draft ready, or stopped earlier |
+| Quality note | bland, acceptable, strong, or broken |
+| Notes/log anchors | Relevant log anchors only; do not paste raw private/source data |
 
 ### Phase 1 Step 1.1 Prompt Source Map
 
@@ -1408,7 +1468,7 @@ Implementation rule:
 | Phase 0 - Baseline Checkpoint And Re-Entry | done | Engineering executor reports; owner reviews failures only | S | Baseline checkpoint, full local gate, and static metrics baseline recorded. |
 | Phase 1 - Prompt Contract Boundary | done | Owner reviews hard/quality/advisory boundary before runtime edits | S | Prompt source map, boundary, and durable checklist recorded. |
 | Phase 2 - Prompt Module Split Without Behavior Change | done | Engineering can execute after Phase 1 owner review | M | Prompt modules split, section markers locked, and prompt size guard added without intentional behavior change. |
-| Phase 3 - Prompt Fragility Reduction | pending | Owner approval required before and after prompt behavior changes | M-L | Start Step 3.0 fixed before/after canary set before runtime prompt behavior edits. |
+| Phase 3 - Prompt Fragility Reduction | partial | Owner approval required before and after prompt behavior changes | M-L | Step 3.0 canary set is recorded; run before-baseline canaries if provider access is available, then owner reviews before Step 3.1 runtime prompt ordering changes. |
 | Phase 4 - Authoring Observability And Log Hygiene | pending | Engineering can execute; owner reviews raw-log policy | S-M | Gate raw reply snippets and stabilize counters. |
 | Phase 5 - Parser, Normalizer, And Recovery Debt | pending | Owner approval required for any new source mutation | S-M | Inventory first, no new regex by default. |
 | Phase 6 - Repo Hygiene And Reserved Surfaces | pending | Owner/product decisions for SFX/image defaults | M | Low-risk cleanup after prompt boundary is clear. |
@@ -1418,8 +1478,9 @@ Implementation rule:
 
 ## Next Real Execution Step
 
-Phase 2 is complete. If the owner approves continuing into prompt behavior
-optimization, start with Phase 3 Step 3.0 before editing runtime prompt wording:
+Phase 3 Step 3.0 is recorded. Before editing runtime prompt wording in Step
+3.1, run the before-baseline canary subset if provider access is available, then
+get owner review/approval for the prompt-ordering change.
 
 ```powershell
 git log -1 --oneline
@@ -1427,5 +1488,5 @@ git status --short
 git diff --check
 ```
 
-Then create the fixed before/after canary set and stop for review before Step
-3.1 changes runtime prompt behavior.
+If provider access is not available, record that exception and keep Phase 3 in
+partial status until the full canary set can be run.
