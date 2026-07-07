@@ -1296,6 +1296,7 @@ git status --short
 | Phase 1 Step 1.2 - Define Hard Contract Vs Quality Guidance | Kiem tra -> docs update -> kiem tra -> xac nhan complete | Hard contract, quality guidance, and advisory-only boundaries recorded before runtime prompt edits. |
 | Phase 1 Step 1.3 - Add Prompt Change Checklist | Kiem tra -> docs update -> kiem tra -> xac nhan complete | `docs/current/maintenance.md` now requires prompt changes to classify boundary, metric, tests, smoke/canary need, and rollback path. |
 | Phase 2 Step 2.1 - Extract Prompt Sections | Kiem tra -> code -> kiem tra -> xac nhan complete | `prompt.ts` is now an orchestrator/re-export surface; extracted message types, content rules, output format, content-plan blocks, batch/recovery, visual-QA, and image-filter modules. `npm.cmd test -- --run apps/desktop/src/main/authoring/prompt.test.ts apps/desktop/src/main/authoring/ninerouter-backend.test.ts` passed 2 files/77 tests; `npm.cmd run typecheck` passed; `git diff --check` has no whitespace errors. |
+| Phase 2 Step 2.2 - Lock Section Markers In Tests | Kiem tra -> tests -> kiem tra -> xac nhan complete | Added prompt section-marker order test, batch selected-claim/no-full-context assertions, recovery compactness assertions, and AUTHORING_CONTRACT hard-before-visual-ambition ordering test. `npm.cmd test -- --run apps/desktop/src/main/authoring/prompt.test.ts apps/desktop/src/main/authoring/contract-text.test.ts` passed 2 files/44 tests; `npm.cmd run typecheck` passed. |
 
 ### Phase 0 Metrics Baseline
 
@@ -1389,7 +1390,7 @@ Implementation rule:
 | --- | --- | --- | --- | --- |
 | Phase 0 - Baseline Checkpoint And Re-Entry | done | Engineering executor reports; owner reviews failures only | S | Baseline checkpoint, full local gate, and static metrics baseline recorded. |
 | Phase 1 - Prompt Contract Boundary | done | Owner reviews hard/quality/advisory boundary before runtime edits | S | Prompt source map, boundary, and durable checklist recorded. |
-| Phase 2 - Prompt Module Split Without Behavior Change | partial | Engineering can execute after Phase 1 owner review | M | Step 2.1 extracted prompt modules; next Step 2.2 locks section markers in tests. |
+| Phase 2 - Prompt Module Split Without Behavior Change | partial | Engineering can execute after Phase 1 owner review | M | Step 2.1 extracted prompt modules and Step 2.2 locked section markers; next Step 2.3 adds prompt size snapshot guard. |
 | Phase 3 - Prompt Fragility Reduction | pending | Owner approval required before and after prompt behavior changes | M-L | Build canary set, then edit prompt sections. |
 | Phase 4 - Authoring Observability And Log Hygiene | pending | Engineering can execute; owner reviews raw-log policy | S-M | Gate raw reply snippets and stabilize counters. |
 | Phase 5 - Parser, Normalizer, And Recovery Debt | pending | Owner approval required for any new source mutation | S-M | Inventory first, no new regex by default. |

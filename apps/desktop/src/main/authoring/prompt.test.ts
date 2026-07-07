@@ -38,6 +38,16 @@ function promptText(messages: { content: string | ContentPart[] }[]): string {
   return messages.map((m) => contentText(m.content)).join("\n");
 }
 
+function expectContainsInOrder(text: string, anchors: string[]): void {
+  let previous = -1;
+  for (const anchor of anchors) {
+    const current = text.indexOf(anchor);
+    expect(current, `Expected prompt to contain "${anchor}"`).toBeGreaterThanOrEqual(0);
+    expect(current, `Expected "${anchor}" to appear after the previous section marker`).toBeGreaterThan(previous);
+    previous = current;
+  }
+}
+
 describe("prompt surface baseline", () => {
   it("records stable message/part shapes and semantic anchors for every prompt builder", () => {
     const image = { ref: "assets/a.png", width: 800, height: 600, dataUrl: "data:image/png;base64,AAA" };
@@ -203,7 +213,11 @@ describe("buildAuthorModuleBatchMessages", () => {
       first3SecondsLine: "Hook",
       openLoop: "Loop",
       payoff: "Payoff",
-      claims: [],
+      claims: [
+        { id: "claim-01", text: "Claim for scene one only.", support: "source_material", confidence: "supported", action: "use" },
+        { id: "claim-02", text: "Claim for selected scene two.", support: "source_material", confidence: "supported", action: "use" },
+        { id: "claim-03", text: "Claim for selected scene three.", support: "source_material", confidence: "supported", action: "use" },
+      ],
       scenes: [
         {
           sceneId: "scene-01",
@@ -214,7 +228,7 @@ describe("buildAuthorModuleBatchMessages", () => {
           visualMetaphor: "One visual",
           motionProgression: "Quick entrance then hold.",
           layoutFamily: "statement",
-          evidenceClaimIds: [],
+          evidenceClaimIds: ["claim-01"],
         },
         {
           sceneId: "scene-02",
@@ -225,7 +239,7 @@ describe("buildAuthorModuleBatchMessages", () => {
           visualMetaphor: "Two visual",
           motionProgression: "Quick entrance then hold.",
           layoutFamily: "diagram",
-          evidenceClaimIds: [],
+          evidenceClaimIds: ["claim-02"],
         },
         {
           sceneId: "scene-03",
@@ -236,7 +250,7 @@ describe("buildAuthorModuleBatchMessages", () => {
           visualMetaphor: "Three visual",
           motionProgression: "Quick entrance then hold.",
           layoutFamily: "timeline",
-          evidenceClaimIds: [],
+          evidenceClaimIds: ["claim-03"],
         },
       ],
     };
@@ -259,6 +273,9 @@ describe("buildAuthorModuleBatchMessages", () => {
     expect(text).toContain("Batch 2/3");
     expect(text).toContain("scene-02\nscene-03");
     expect(text).not.toContain('"component": "scene-01"');
+    expect(text).not.toContain("Claim for scene one only.");
+    expect(text).toContain("Claim for selected scene two.");
+    expect(text).toContain("Claim for selected scene three.");
     expect(text).toContain("Các component khác sẽ được viết ở batch khác");
     expect(text).toContain("CONTENT PLAN ADVISORIES TO RESOLVE IN TSX");
     expect(text).not.toContain("source text");
@@ -291,6 +308,8 @@ describe("buildMissingTsxRecoveryMessages", () => {
     expect(text).toContain("KHÔNG viết lại");
     expect(text).toContain("KHÔNG trả lại manifest JSON");
     expect(text).toContain("registerComponent id khớp");
+    expect(text).not.toContain("CONTENT PLAN ĐÃ DUYỆT");
+    expect(text).not.toContain("Yêu cầu gốc của người dùng");
   });
 });
 
@@ -306,6 +325,22 @@ describe("buildAuthorMessages", () => {
     for (const token of required) expect(sys!.content).toContain(token);
     expect(sys!.content).toContain('KHÔNG dùng "sceneId" thay cho "component"');
     expect(user!.content).toContain("Chủ đề thử");
+  });
+
+  it("keeps the main author prompt section markers stable after module extraction", () => {
+    const [sys] = buildAuthorMessages({ text: "Chủ đề thử", urls: [], format: "tiktok", durationTier: 2, videoLanguage: "vi" });
+    const text = contentText(sys!.content);
+
+    expectContainsInOrder(text, [
+      "Bạn là tác giả video ngắn",
+      "KHUNG HÌNH",
+      "MỤC TIÊU THỜI LƯỢNG",
+      "NGÔN NGỮ VIDEO",
+      "QUY TẮC NỘI DUNG",
+      "TÁO BẠO NGAY TỪ BẢN ĐẦU",
+      "HỢP ĐỒNG VIẾT CẢNH",
+      "ĐỊNH DẠNG TRẢ VỀ",
+    ]);
   });
 
   it("embeds research + links for a brief with a link", () => {

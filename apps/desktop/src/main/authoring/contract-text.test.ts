@@ -10,6 +10,21 @@ import { AUTHORING_CONTRACT } from "./contract-text.js";
  * contract IN so a future edit can't silently re-introduce the block crutch.
  */
 describe("AUTHORING_CONTRACT — no-block / raw-JSX invariants", () => {
+  it("keeps hard safety/module sections before visual ambition guidance", () => {
+    const importIndex = AUTHORING_CONTRACT.indexOf("IMPORT WHITELIST");
+    const syntaxIndex = AUTHORING_CONTRACT.indexOf("CÚ PHÁP TSX BẮT BUỘC");
+    const determinismIndex = AUTHORING_CONTRACT.indexOf("DETERMINISM + MOTION");
+    const visualIndex = AUTHORING_CONTRACT.indexOf("VISUALIZE SÁNG TẠO");
+
+    expect(importIndex).toBeGreaterThanOrEqual(0);
+    expect(syntaxIndex).toBeGreaterThanOrEqual(0);
+    expect(determinismIndex).toBeGreaterThanOrEqual(0);
+    expect(visualIndex).toBeGreaterThanOrEqual(0);
+    expect(importIndex).toBeLessThan(visualIndex);
+    expect(syntaxIndex).toBeLessThan(visualIndex);
+    expect(determinismIndex).toBeLessThan(visualIndex);
+  });
+
   it("whitelists ONLY react/remotion/@motionreal/compositions/zod — never @motionreal/blocks or @motionreal/theme", () => {
     // The structural lever against monotony: a scene literally cannot import a
     // layout block, so the model must author raw JSX. The contract must say so.
