@@ -623,7 +623,7 @@ describe("authorScenes (pure-author)", () => {
     expect(existsSync(authoredDir(projectId))).toBe(false);
   });
 
-  it("logs a compact author-reply parse summary while keeping raw replies capped", async () => {
+  it("logs a compact author-reply parse summary without raw replies by default", async () => {
     const projectId = "pa-invalid-logged";
     const logger = fakeLogger();
     const longInvalidReply = "x".repeat(3000);
@@ -666,9 +666,38 @@ describe("authorScenes (pure-author)", () => {
         recoveryAttempted: false,
       },
     });
-    expect((errorCall?.[0] as { rawReply?: string }).rawReply).toHaveLength(2000);
-    expect(JSON.stringify(errorCall?.[0])).not.toContain("x".repeat(2001));
+    expect((errorCall?.[0] as { rawReply?: string }).rawReply).toBeUndefined();
+    expect(JSON.stringify(errorCall?.[0])).not.toContain("x".repeat(100));
     expect(admit).not.toHaveBeenCalled();
+  });
+
+  it("logs capped raw author replies only when the diagnostic flag is enabled", async () => {
+    const previousFlag = process.env.MOTIONREAL_AUTHORING_RAW_LOGS;
+    process.env.MOTIONREAL_AUTHORING_RAW_LOGS = "1";
+    try {
+      const projectId = "pa-invalid-raw-logged";
+      const logger = fakeLogger();
+      const longInvalidReply = "x".repeat(3000);
+      const admit = vi.fn(async () => ({ ok: true as const, componentIds: ["alpha", "beta"], files: [] }));
+      const chat = chatReplies(validContentPlanReply(), longInvalidReply);
+      const backend = new NineRouterAuthoringBackend({
+        client: { chat } as unknown as NineRouterClient,
+        tools: {} as never,
+        model: () => "test-model",
+        apiKey: () => undefined,
+        admit,
+        logger,
+      });
+
+      await backend.authorScenes({ projectId, input: { text: "chủ đề", urls: [] }, scriptGate: false });
+
+      const errorCall = logger.error.mock.calls.find((call) => call[1] === "author-reply parse failed");
+      expect((errorCall?.[0] as { rawReply?: string }).rawReply).toHaveLength(2000);
+      expect(JSON.stringify(errorCall?.[0])).not.toContain("x".repeat(2001));
+    } finally {
+      if (previousFlag === undefined) delete process.env.MOTIONREAL_AUTHORING_RAW_LOGS;
+      else process.env.MOTIONREAL_AUTHORING_RAW_LOGS = previousFlag;
+    }
   });
 
   it("invalid content plan stops before authoring and does not fall back to one-step authoring", async () => {

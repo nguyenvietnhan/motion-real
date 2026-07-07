@@ -10,6 +10,7 @@ import {
   type ContentPlanQualityIssue,
   type ContentPlanQualityResult,
 } from "./content-plan.js";
+import { rawAiReplyLogFields } from "./authoring-log-policy.js";
 import { computePacingBudget, type PacingBudget } from "./pacing-policy.js";
 import type { AuthorImageInput } from "./prompt.js";
 
@@ -51,7 +52,7 @@ export async function runContentPlan(args: RunContentPlanInput): Promise<RunCont
     const parsedPlan = parseContentPlan(planReply);
     if (!parsedPlan.ok) {
       args.logger.error(
-        { projectId: args.projectId, reason: parsedPlan.reason, detail: parsedPlan.detail, rawReply: planReply.slice(0, 2000) },
+        { projectId: args.projectId, reason: parsedPlan.reason, detail: parsedPlan.detail, ...rawAiReplyLogFields(planReply) },
         "content-plan parse failed",
       );
       return { ok: false, message: CONTENT_PLAN_PARSE_FAILURE };
@@ -120,7 +121,7 @@ async function repairContentPlanIfPossible(args: {
   const parsed = parseContentPlan(reply);
   if (!parsed.ok) {
     args.logger.error(
-      { projectId: args.projectId, reason: parsed.reason, detail: parsed.detail, rawReply: reply.slice(0, 2000) },
+      { projectId: args.projectId, reason: parsed.reason, detail: parsed.detail, ...rawAiReplyLogFields(reply) },
       "content-plan repair parse failed",
     );
     return null;

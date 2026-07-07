@@ -1,6 +1,7 @@
 import type { AuthorInput } from "../agent/agent-worker.js";
 import type { ChatMessage } from "../gateway/ninerouter-client.js";
 import type { ContentPlan, ContentPlanQualityIssue } from "./content-plan.js";
+import { rawAiReplyLogFields } from "./authoring-log-policy.js";
 import type { AuthorManifest } from "./manifest-schema.js";
 import {
   buildAuthorMessages,
@@ -91,7 +92,7 @@ export async function runSingleAuthorReply(
         reason: parsed.reason,
         detail: parsed.detail,
         parseSummary: authorReplyParseSummary(reply, { recoveryAttempted }),
-        rawReply: reply.slice(0, 2000),
+        ...rawAiReplyLogFields(reply),
       },
       "author-reply parse failed",
     );
@@ -151,7 +152,7 @@ export async function runBatchedAuthorReply(
           componentIds,
           reason: parsedBatch.reason,
           detail: parsedBatch.detail,
-          rawReply: reply.slice(0, 2000),
+          ...rawAiReplyLogFields(reply),
         },
         "authoring batch parse failed",
       );
@@ -258,7 +259,7 @@ async function recoverMissingTsxIfPossible(args: {
       recoveredComponentIds: recoveredModules.map((module) => module.id),
       idMismatchDetails: recoveredInspection.idMismatchDetails,
       parseSummary: authorReplyParseSummary(combinedReply, { recoveryAttempted: true }),
-      rawReply: recoveryReply.slice(0, 2000),
+      ...rawAiReplyLogFields(recoveryReply),
     },
     "author-reply missing TSX recovery failed",
   );
