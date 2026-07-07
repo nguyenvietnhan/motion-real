@@ -1,439 +1,1318 @@
-# MotionReal Project Optimization Audit - 2026-07-07
-
-## Scope
-
-Temporary audit note after deleting the older working notes. This is not a
-feature plan. It lists static-scan findings across docs, prompt, code, tests,
-config, and repo hygiene that are not urgent blockers today but can create
-noise, drift, or scaling friction later.
-
-Second-pass check: this note was re-audited after the first write specifically
-for the prompt/code-generation risk surface. The project can be operating
-stably today while still having prompt debt. Stable operation means the current
-pipeline is usable; it does not prove that the prompt is minimal, resilient, or
-optimized against future provider drift.
-
-Working notes deleted before this audit:
-
-- `docs/working-notes/2026-07-07-authoring-reliability-regression-plan.md`
-- `docs/working-notes/2026-07-07-media-feature-readiness-plan.md`
-
-Local code edits from the authoring reliability work are still present in the
-working tree. This note does not revert them.
-
-## Overall Verdict
-
-No P0 blocker found in the static audit. The project is in a generally good
-state, but "good and stable" should not be read as "fully optimized."
-
-The most sensitive optimization surface is the authoring prompt. It directly
-controls AI-generated story structure, narration, manifest shape, and Remotion
-TSX code. Small wording changes can alter scene count, code length, creative
-pressure, parseability, admission failures, and provider truncation behavior.
-Prompt changes should therefore be treated like production code changes: narrow
-scope, focused tests, and real-provider smoke before declaring success.
-
-The biggest risks are concentrated in:
-
-- prompt density, creative-pressure balance, and prompt/docs drift;
-- legacy/spec-name noise;
-- large sensitive files that remain expensive to reason about;
-- reserved feature surfaces that look more "live" than the current product
-  intent;
-- scaling assumptions around render/cache concurrency.
-
-## Findings
-
-### P1 - Stable Runtime Does Not Prove Prompt Optimization
-
-Evidence:
-
-- `AI_CONTRACT.md:57-58` says repeated AI-output defects should become schema
-  checks, normalizers, admission rules, or render oracles, not just prompt wishes.
-- `apps/desktop/src/main/authoring/prompt.ts:117` intentionally demands a bold
-  first draft with concrete visual must-haves.
-- `apps/desktop/src/main/authoring/prompt.ts:183` frames the author as a highly
-  creative Remotion programmer and asks for dazzling output.
-- `apps/desktop/src/main/authoring/prompt.test.ts:477-501` locks that bold-first
-  prompt behavior in tests.
-- `apps/desktop/src/main/authoring/contract-text.ts:58-65` carries safer motion
-  guidance, but it still sits inside a long contract embedded into multiple
-  authoring prompts.
-
-Risk:
-
-- Current authoring may pass local gates while still being too prompt-heavy for
-  long-term reliability.
-- The prompt is balancing several competing goals in one surface: valid TSX,
-  fresh visuals, strong narration, factual safety, motion quality, image rules,
-  output format, batching, and repair behavior.
-- Creative pressure is useful because prior weak prompts produced bland scenes,
-  but if it is not isolated from the hard output contract it can raise the chance
-  of invalid TSX, missing modules, overlong replies, or fragile animation math.
-- A few passing attempts are not enough to prove provider robustness; model
-  behavior can drift without any repository change.
-
-Suggested cleanup:
-
-- Treat prompt optimization as its own stabilization slice before feature work,
-  not as incidental wording cleanup.
-- Keep the hard "must pass and render" contract visually and structurally above
-  aspirational style guidance.
-- Split prompt pressure into smaller named sections with tests: output format,
-  safety/import contract, story/narration, visual ambition, motion recipes,
-  image placement, batch/recovery.
-- For each prompt change, define the expected metric to improve: content-plan
-  parse failures, purpose/motion normalization counts, missing TSX, admission
-  N5/N10 failures, response size, or provider truncation.
-- Do not remove the bold-first requirement blindly; first separate it from the
-  code-validity contract so quality stays high without increasing TSX fragility.
-
-### P1 - Prompt And Durable Docs Still Have Two Sources Of Truth
-
-Evidence:
-
-- `apps/desktop/src/main/authoring/contract-text.ts:2-6` says the prompt
-  contract is a condensed copy of `docs/current/authoring-contract.md`.
-- `apps/desktop/src/main/authoring/prompt.ts:96`,
-  `181`, `224`, `313`, `364`, `524`, and `558` hold large policy/prompt
-  builders.
-- `apps/desktop/src/main/authoring/content-plan.ts:40`, `420`, and `498`
-  combine schema, validation, normalization, and prompt generation.
+# MotionReal Project Optimization Plan - 2026-07-07
+
+## Muc Dich
+
+File nay thay cho audit note tam thoi truoc do. Muc tieu la bien cac diem da
+quet duoc thanh mot plan toi uu hoa co the thuc thi theo tung phase nho, co dau
+ra mong muon, co dieu kien chap nhan, va co lenh kiem chung rieng.
+
+Trang thai hien tai cua du an: hoat dong on dinh hon sau checkpoint
+`af68f52 Stabilize authoring reliability and audit optimization`. Tuy nhien,
+"on dinh hien tai" khong dong nghia la "da toi uu". Vung nhay cam nhat la
+prompt/authoring, vi no dieu khien story, narration, manifest va TSX code do AI
+sinh ra. Mot thay doi nho trong prompt co the lam thay doi scene count, reply
+size, parseability, admission errors, batching behavior, va chat luong video.
+
+Plan nay khong them feature moi. Day la plan giam no ky thuat, giam nhieu,
+giam drift, va lam prompt/codegen de kiem soat hon truoc khi tiep tuc SFX,
+speech-sync, YouTube long-form, hay render parallelism.
+
+## Nguyen Tac
+
+1. Doc `AI_CONTRACT.md` truoc moi lan bat dau.
+2. Prompt la production surface, khong phai copywriting tuy y.
+3. Hard safety gates khong duoc yeu di: import/API cam, host access, remote/file
+   media, invalid TSX, build/runtime crash, determinism, invalid timing/audio,
+   duplicate scene ids, empty specs, va admission/range blockers.
+4. Chat luong visual van quan trong. Khong xoa "bold first draft" mot cach mu
+   quang; hay tach no khoi hard output contract de giam fragility.
+5. Moi prompt change phai co metric ky vong: parse fail giam, normalization count
+   giam, missing TSX giam, N5/N10 giam, reply size giam, provider truncation giam,
+   hoac log/debug de hon.
+6. Khong them broad retry de che prompt/pipeline debt.
+7. Refactor file nhay cam theo hanh vi va test, khong theo line count.
+8. Moi policy change rong phai co rollback path ro: revert commit hoac internal
+   flag neu can.
+9. Feature moi dung lai cho den khi plan prompt/cleanup nay co checkpoint ro.
+
+## Evidence Map
+
+Re-check line numbers truoc khi sua code.
+
+| Id | Evidence | Tai sao quan trong |
+| --- | --- | --- |
+| E1 | `AI_CONTRACT.md:57-58`, `101-102` | Safety grid la contract; repeated AI defects nen thanh schema/normalizer/admission/oracle voi tests, khong chi them prompt rules. |
+| E2 | `apps/desktop/src/main/authoring/prompt.ts:117` | Prompt dang ep "TAO BAO NGAY TU BAN DAU" voi visual must-haves. Tot cho chat luong, nhung la fragility lever. |
+| E3 | `apps/desktop/src/main/authoring/prompt.ts:183` | Main author system prompt dat muc tieu "THAT LOA MAT, CUON HUT"; creative pressure dang nam cung hard contract. |
+| E4 | `apps/desktop/src/main/authoring/prompt.test.ts:477-501` | Test dang bao ve bold-first behavior vi prompt yeu truoc day sinh canh nhat. Khong duoc xoa yeu cau nay tuy tien. |
+| E5 | `apps/desktop/src/main/authoring/contract-text.ts:58-65` | Motion guidance da an toan hon, nhung van la mot contract dai nhung vao nhieu prompt. |
+| E6 | `apps/desktop/src/main/authoring/contract-text.ts:2-6`; `docs/current/authoring-contract.md` | Runtime prompt contract la ban condensed copy cua durable doc, co nguy co drift. |
+| E7 | `apps/desktop/src/main/authoring/prompt.ts:96`, `181`, `224`, `313`, `364`, `524`, `558` | `prompt.ts` gom nhieu policy: content, author, batch, recovery, QA, image filter. |
+| E8 | `apps/desktop/src/main/authoring/content-plan.ts:40`, `420`, `498` | Content-plan schema/validation/normalization/prompt generation dang nam chung file. |
+| E9 | `apps/desktop/src/main/authoring/content-plan-runner.ts:54`, `123`; `author-reply-runner.ts:94`, `154`, `261`; `reauthor-runner.ts:130` | Raw AI replies duoc log 2000 chars khi parse fail; huu ich debug nhung nhay cam/noisy. |
+| E10 | `apps/desktop/src/main/authoring/reply-parser.ts`; `manifest-schema.ts`; `content-plan.ts:310-345`; `normalize-imports.ts` | Recovery/normalization bang string la hotspot; them regex de tang edge cases. |
+| E11 | `apps/remotion/src/Root.tsx:18`; `packages/pipeline/src/authoring/authored-entry.ts:55` | `NewsVideo` alias con ton tai ben canh `MotionRealVideo`; can co ly do/sunset de giam noise. |
+| E12 | `apps/desktop/src/main/index.ts:79`; `scripts/calibrate-voice.ts:74` | `news-studio-settings.json` legacy settings con duoc doc cho compat. |
+| E13 | `packages/schema/src/index.ts:117`; `packages/pipeline/src/audio/sfx.ts`; `packages/pipeline/src/index.ts:33` | SFX visible trong schema/export nhung chua phai feature hoan chinh. |
+| E14 | `apps/desktop/src/shared/settings-model.ts:133-134`; `workspace-create-flow.ts:95`, `111` | Image crawl/filter/review defaults co the tao them provider/vision cost trong stable path. |
+| E15 | Largest files: `workspace-controller.ts` ~57 KB, `render-grid.ts` ~48 KB, `orchestrator.ts` ~47 KB, `prompt.ts` ~40 KB, `ninerouter-backend.ts` ~35 KB, `content-plan.ts` ~25 KB | File nhay cam lon lam audit/merge/refactor kho hon. |
+| E16 | `docs/current/maintenance.md:65-76`; `composition-prep.ts:135-143`; `project-lock.ts:7` | Render/cache hien thien ve single workflow, chua thiet ke cho cross-project parallelism. |
+| E17 | `packages/pipeline/src/store/store.ts:457-459` | Cache prune theo tuoi file, khong phai true LRU. |
+| E18 | `packages/pipeline/src/types.ts:22`; `packages/pipeline/src/cli/cli.ts:122`, `558`; `AI_CONTRACT.md:50-51` | `mock`/`none` hop le cho dev/CLI nhung khong duoc thanh fallback am tham trong production. |
+| E19 | `apps/desktop/src/main/authoring/ninerouter-backend.ts:91-94`, `713-717`; `docs/current/maintenance.md:113-115` | Authoring capacity hien tai la single path den 12 component, batch size 2, cap 16 component; 10-12/13-16 khong phai magic number. |
+| E20 | `apps/desktop/src/main/authoring/pacing-policy.ts:25`; `pacing-policy.test.ts:5-12`; `prompt.test.ts:439-447` | 90s TikTok anchor la 10-12 scenes, nen normal single path phai phu hop scene-count guidance. |
+| E21 | `package.json:scripts`; current environment `V:\MotionReal` PowerShell | Plan dung `npm.cmd` cho local Windows lane; npm scripts ben trong van la workspace scripts co the chay bang `npm` tren POSIX neu can. |
+| E22 | `AI_CONTRACT.md:10`; `packages/schema/src/index.ts:179-184`; `docs/current/content-guide.md:11`, `56-58`; `apps/desktop/src/main/authoring/prompt.ts:57-69`, `102-109` | Vietnamese and English are real product axes, not edge cases; canary coverage must include both. |
+| E23 | Extension of E7/E15: `apps/desktop/src/main/authoring/prompt.ts` is both dense and roughly 40 KB today | Prompt size/density is a real optimization target, not only a growth-control concern; do not add another broad prompt section without removing or extracting lower-value wording. |
+
+## External Review Verification - 2026-07-07
+
+An external AI review was treated as a signal to verify, not as default truth.
+After checking the repo, the following points were accepted into this plan:
+
+- Ownership needed clearer wording. The repo already uses owner-approved slices
+  in durable docs, but this plan now defines who approves which kind of step.
+- Rough effort bands were missing. They are added as planning estimates, not
+  commitments.
+- Thresholds for prompt size and metadata drift were too vague. They are now
+  bounded by initial numeric rules and still require evidence before broadening
+  normalizers.
+- Scene thresholds needed evidence. They are now tied to E19/E20.
+- Product-facing choices such as SFX visibility and image-crawl defaults are
+  explicitly marked as owner/product decisions.
+- Phase 3 prompt edits need a before/after canary set, not only a loose smoke
+  run.
+- Some work can run in parallel after Phase 0/1, but prompt-contract phases
+  remain sequential.
+- The plan now says `npm.cmd` is the Windows local lane and how to translate it
+  for POSIX.
+- Archive/delete criteria for this temporary note are more concrete.
+
+The review request for SLA was not adopted as a hard rule because this checkout
+does not show a ticket-based multi-owner process. Approval means explicit owner
+approval in the chat or handoff before behavior/policy changes.
+
+Second external review follow-up:
+
+- The 30+ attempt drift threshold now says where data comes from: accumulated
+  Phase 4 log counters plus provider smoke notes, not one small smoke run.
+- Prompt-size controls now include an optimization target, not only growth
+  prevention.
+- Phase 3 canary coverage now requires at least one Vietnamese and one English
+  request because VI/EN are supported product axes.
+- Reviewer is now tied to concrete gates instead of being only a named role.
+- Durable-doc closeout now includes threshold rationale and canary protocol so
+  the reasoning does not disappear when this temporary note is archived.
+
+Final external review follow-up:
+
+- Accepted: Step 3.0 canary coverage was not wired tightly enough into Step
+  3.1-3.5 verification. Phase 3 now requires relevant per-step canary subsets
+  plus a full Phase 3 canary rerun before accepting prompt behavior changes.
+- Accepted: the 30+ attempt drift window needed a reset/baseline rule. The
+  window now starts at the recorded Phase 0.3/Step 3.0 baseline and resets after
+  an accepted prompt-policy checkpoint or rollback.
+- Accepted as clarification: E23 overlapped with E7/E15. It is now marked as an
+  extension of those evidence points instead of a separate root cause.
+- Accepted as operating caution: this working note is temporary and should not
+  become a new durable source of truth. New broad sections should replace stale
+  detail or be synced into `docs/current/*` before archive.
+
+Current repo self-review after final follow-up:
+
+- Latest committed checkpoint is still `af68f52 Stabilize authoring reliability
+  and audit optimization`; this edit only changes this working note.
+- The plan still reflects the real stability state: runtime code is not being
+  changed here, but Phase 0.2 full local gate remains the first execution step
+  before any runtime prompt/code behavior change.
+- Referenced focused test paths were checked and exist in this checkout.
+- Current size check: `prompt.ts` is about 40.9 KB and this temporary note is
+  about 41.9 KB. That is acceptable for a handoff plan, but future updates
+  should replace stale sections or move accepted policy into durable docs instead
+  of appending more review history.
+
+## Roles, Approval, Effort
+
+Roles:
+
+- Owner/product owner: the project owner/user. Approves product-facing choices,
+  prompt-quality tradeoffs, feature-surface decisions, render parallelism, and
+  any rollback.
+- Engineering executor: Codex/agent/engineer implementing the approved step.
+  May gather evidence, write docs/tests/code, and run verification within scope.
+- Reviewer: owner or a fresh agent reading the plan. Checks that evidence,
+  output, acceptance, and verification match before commit.
 
-Risk:
+Approval model:
 
-- A future small wording change can update docs but not the runtime prompt, or
-  update the prompt but leave docs stale.
-- The runtime prompt carries product policy, creative taste, output contract,
-  safety hints, visual QA rules, and image-filter policy in one place.
+- Docs-only mapping/inventory may be done directly and reported.
+- Runtime prompt/code behavior changes use: check evidence -> report -> owner
+  approval -> implement -> verify -> owner approval -> commit.
+- Product decisions in Phase 6 and Phase 8 require owner approval before code
+  changes.
 
-Suggested cleanup:
+Reviewer gates:
 
-- Make `AI_CONTRACT.md` and `docs/current/*` the durable policy source, and
-  make prompt text either generated from a smaller checked-in prompt module set
-  or covered by explicit sync tests.
-- Split prompt builders by responsibility: output format, authoring contract,
-  content rules, image rules, batch rules, visual QA, image filter.
-- Add a small prompt-change checklist to durable docs: what changed, which hard
-  contract it touches, which focused tests cover it, and what provider smoke will
-  validate it.
+- Required for Phase 1 hard/quality/advisory boundary before runtime prompt
+  edits.
+- Required for Phase 3 prompt behavior changes before commit.
+- Required for Phase 8 render/cache design before implementation.
+- Required for Phase 9 closeout before archiving/deleting this note.
+- Optional for docs-only inventory steps; the executor may self-review and
+  report if no behavior/policy change is made.
 
-### P1 - Prompt Creative Pressure Is Useful But Still A Fragility Lever
+Effort bands are rough single-engineer estimates and must be recalibrated after
+Phase 0 local gate:
 
-Evidence:
+- XS: less than half a day, docs/tests/localized edit.
+- S: about half to one day, focused code/doc slice.
+- M: one to two days, behavior-preserving refactor or prompt slice with tests.
+- L: three to five days, provider smoke or cross-module cleanup.
+- XL: more than one week; split before implementation.
 
-- `apps/desktop/src/main/authoring/prompt.ts:181` builds the main author system
-  prompt.
-- `apps/desktop/src/main/authoring/contract-text.ts:39` and later sections tell
-  the model to hardcode all visuals and push bold bespoke visuals.
-- `apps/desktop/src/main/authoring/prompt.test.ts:477` explicitly protects the
-  bold-first behavior because previous drafts were too timid.
+Command environment:
 
-Risk:
+- Verification commands are written for the current Windows/PowerShell local
+  environment and use `npm.cmd`.
+- On POSIX shells, use the same npm scripts with `npm` instead of `npm.cmd`
+  unless a workspace script says otherwise.
 
-- Recent reliability work lowered motion complexity, but the broad prompt still
-  strongly pushes "loá mắt", bespoke SVG/CSS, multiple layout forms, and
-- mandatory visual ambition. That is good for quality, but it remains a
-  reliability lever, not a free improvement knob.
-- If future edits add more style or narration pressure without reducing contract
-  density elsewhere, the prompt can become harder for weaker providers to obey.
+## Priority
 
-Suggested cleanup:
+- P0: Khong thay blocker khan cap.
+- P1: Prompt/codegen contract, prompt-doc drift, provider-validation discipline.
+- P2: Raw AI logging, string recovery debt, reserved feature surfaces, legacy
+  naming/comment noise, content-plan tolerance boundary.
+- P3: UI inline style cleanup, YouTube deferred doc placement, cache LRU decision,
+  render parallelism design.
 
-- Keep the creative ambition, but separate "must pass and render" from
-  "aspirational visual richness" in the prompt structure.
-- Track provider failure classes before adding more creative rules.
-- Prefer replacing vague creative pressure with a small number of safe recipes
-  and examples that are known to pass admission.
+## Dependency And Parallelization Notes
 
-### P1 - Existing Dirty Authoring Changes Need A Checkpoint Decision
+- Phase 0 is mandatory before any implementation.
+- Phase 1 must happen before Phase 2 and Phase 3 because prompt boundaries must
+  be known before splitting or rewriting prompt sections.
+- Phase 2 should precede Phase 3 so prompt edits are made inside smaller modules
+  with tests.
+- Phase 4 can start after Phase 1, and can run beside Phase 3 if it does not
+  touch the same files.
+- Phase 5 and Phase 6 can run after Phase 0 if the owner wants parallel cleanup,
+  but should not modify prompt behavior while Phase 3 is active.
+- Phase 8 is design-only until owner approval; no render parallelism code before
+  the design is accepted.
 
-Evidence:
+## Phase 0 - Baseline Checkpoint And Re-Entry
 
-- `git status --short` shows many modified authoring/docs/test files plus the
-  tracked deletion of the old media working note.
+Goal: bao dam moi nguoi bat dau tu cung mot checkpoint, khong lam feature moi
+tren mot workspace mo ho.
 
-Risk:
+### Step 0.1 - Confirm Checkpoint
 
-- The repo can be "good" but still operationally noisy if a future agent cannot
-  tell whether the authoring reliability changes are accepted, pending review,
-  or meant to be reverted.
+Scope:
 
-Suggested cleanup:
+- Git only.
+- No source changes.
 
-- After owner review, either commit the accepted authoring reliability changes
-  or explicitly revert only the unwanted slice.
-- Do not mix this audit cleanup with behavior changes.
+Output:
 
-### P2 - Legacy Names And Historical Requirement Codes Are Still Noisy
+- Ghi nhan latest commit hash.
+- Ghi nhan working tree co sach hay chi co plan note dang sua.
 
-Evidence:
+Acceptance:
 
-- `apps/remotion/src/Root.tsx:18` and
-  `packages/pipeline/src/authoring/authored-entry.ts:55` still register
-  `NewsVideo` beside `MotionRealVideo`.
-- `apps/desktop/src/main/index.ts:79` and `scripts/calibrate-voice.ts:74`
-  still reference `news-studio-settings.json`.
-- Many comments still reference historical names/codes such as
-  `freeform-engine`, `author-mode-v2`, `desktop-author-mode`, `Req`, `R`, `D`,
-  `Path-X`, `math_video_tool`, and `mvlib`.
+- `git log -1 --oneline` hien checkpoint gan nhat.
+- `git status --short` khong co dirty runtime code ngoai plan note neu dang
+  thuc thi plan.
 
-Risk:
+Verification:
 
-- Compatibility aliases may be intentional, but without a sunset note they look
-  like competing product identities.
-- Old requirement codes make comments feel like another contract beside
-  `AI_CONTRACT.md`.
+```powershell
+git log -1 --oneline
+git status --short
+git diff --check
+```
 
-Suggested cleanup:
+### Step 0.2 - Local Gate Before Implementation
 
-- Keep required compatibility aliases, but document why and when they can be
-  removed.
-- Gradually rewrite comments to describe live behavior instead of old task IDs.
+Scope:
 
-### P2 - Reserved Feature Surfaces Look More Live Than The Current Intent
+- Verify checkpoint da commit, chua sua them behavior.
 
-Evidence:
+Output:
 
-- `packages/schema/src/index.ts:117` includes `SceneSpec.sfx`.
-- `packages/pipeline/src/audio/sfx.ts:4-23` defines SFX cue mapping.
-- `packages/pipeline/src/index.ts:33` exports SFX helpers.
-- `apps/desktop/src/shared/settings-model.ts:133-134` defaults article image
-  AI filtering and human review to `true`.
-- `apps/desktop/src/main/workspace/workspace-create-flow.ts:95` and `111`
-  execute those image-crawl settings.
+- Baseline gate result.
+- Neu fail, classify fail la pre-existing, plan-change, env/provider, hay flaky.
 
-Risk:
+Acceptance:
 
-- SFX is schema/export-visible but not a complete user feature.
-- Image crawl/filter/review may be an accepted current feature, but its defaults
-  mean URL-based creates can spend extra model/vision work even when the owner
-  wants no new feature expansion.
+- Typecheck/test/build green truoc khi sua prompt/code.
+- Neu test flaky, rerun focused file va ghi ro.
 
-Suggested cleanup:
+Verification:
 
-- Either mark SFX as reserved/internal in durable docs, or remove/export-hide it
-  until it becomes a real feature.
-- Confirm image-crawl defaults are still desired for the stable product path.
+```powershell
+npm.cmd run typecheck
+npm.cmd test
+npm.cmd run build
+git diff --check
+```
 
-### P2 - Large Sensitive Files Still Carry High Cognitive Load
+### Step 0.3 - Prompt/Authoring Metrics Baseline
 
-Largest non-test files from the scan:
+Scope:
 
-- `apps/desktop/src/main/workspace/workspace-controller.ts` ~57 KB.
-- `packages/pipeline/src/safety/render-grid.ts` ~48 KB.
-- `packages/pipeline/src/orchestrator.ts` ~47 KB.
-- `apps/desktop/src/main/authoring/prompt.ts` ~40 KB.
-- `apps/desktop/src/main/authoring/ninerouter-backend.ts` ~35 KB.
-- `apps/desktop/src/main/authoring/content-plan.ts` ~25 KB.
+- Logs/fixtures/docs only.
+- No runtime change.
 
-Risk:
+Output:
 
-- These files are documented as sensitive, so drive-by refactors are risky.
-  But their size still makes audits slower and increases merge/conflict cost.
+- Bang baseline gom:
+  - content-plan parse fail count;
+  - `content-plan tolerant normalizations applied`;
+  - `motion-defaulted`;
+  - `author-reply parse failed`;
+  - `authoring batch parse failed`;
+  - `authoring will use compact TSX batches`;
+  - `admission failed`, nhat la N5/N10;
+  - response truncation/missing TSX class;
+  - average/large prompt/reply size neu co log.
 
-Suggested cleanup:
+Acceptance:
 
-- Do not big-bang rewrite.
-- Prefer very narrow extractions only when a behavior slice already needs them:
-  prompt modules, content-plan parser/normalizer vs prompt, render-grid oracle
-  groups, and workspace orchestration helpers.
+- Co metric de biet prompt optimization co that su cai thien hay chi "nghe hay".
+- Neu khong co log that, tao mot manual baseline note tu 3-5 provider smoke.
 
-### P2 - Render Scaling Is Explicitly Single-Workflow-Oriented
+Verification:
 
-Evidence:
+```powershell
+rg -n "content-plan parse failed|content-plan tolerant normalizations applied|author-reply parse failed|authoring batch parse failed|authoring will use compact TSX batches|admission failed" .
+git diff --check
+```
 
-- `docs/current/maintenance.md:65-76` says bundle/composition caches are not
-  designed for project-level or cross-project parallel rendering.
-- `packages/pipeline/src/render/composition-prep.ts:141-143` has small in-memory
-  cache caps.
-- `packages/pipeline/src/render/project-lock.ts:7` uses a 6-hour stale lock
-  threshold.
+## Phase 1 - Prompt Contract Boundary
 
-Risk:
+Goal: tach ro cai gi la hard contract phai pass render, cai gi la creative
+quality guidance. Chua toi uu wording o phase nay.
 
-- Current desktop use is fine, but scaling to multiple simultaneous renders
-  needs a design first.
-- Cache eviction and bundle lifetime are not ref-counted.
+### Step 1.1 - Map Prompt Sources
 
-Suggested cleanup:
+Scope:
 
-- Leave current single-workflow assumption intact.
-- If scaling becomes a real goal, start with render cache/bundle lifetime design
-  before UI concurrency.
+- `apps/desktop/src/main/authoring/prompt.ts`
+- `apps/desktop/src/main/authoring/contract-text.ts`
+- `apps/desktop/src/main/authoring/content-plan.ts`
+- `docs/current/authoring-contract.md`
+- `docs/current/content-guide.md`
+- `docs/current/maintenance.md`
 
-### P2 - Cache Pruning Is Age-Based, Not True LRU
+Output:
 
-Evidence:
+- Mot table trong working note/durable doc phan loai:
+  - hard output format;
+  - import/security contract;
+  - TSX module contract;
+  - factual/story rules;
+  - narration quality;
+  - visual ambition;
+  - motion recipes;
+  - image rules;
+  - batch/recovery rules;
+  - visual QA/refine rules.
 
-- `packages/pipeline/src/store/store.ts:457-459` notes that cache hits copy out
-  cached files but do not touch cached file mtime.
+Acceptance:
 
-Risk:
+- Biet chinh xac mot rule nam o runtime prompt, durable docs, tests, hay ca ba.
+- Khong con noi chung "prompt dang dai" ma khong biet dai o phan nao.
 
-- Frequently reused cache entries can still look old and be evicted before less
-  useful entries.
+Verification:
 
-Suggested cleanup:
+```powershell
+npm.cmd test -- --run apps/desktop/src/main/authoring/prompt.test.ts apps/desktop/src/main/authoring/contract-text.test.ts
+git diff --check
+```
 
-- Either accept this as age-based pruning and document it that way, or touch
-  cache mtime on hit if true LRU matters.
+### Step 1.2 - Define Hard Contract Vs Quality Guidance
 
-### P2 - Raw AI Replies Are Logged On Parse Failures
+Scope:
 
-Evidence:
+- Docs/working note first.
+- Runtime prompt only after owner approval.
 
-- `apps/desktop/src/main/authoring/content-plan-runner.ts:54` and `123`.
-- `apps/desktop/src/main/authoring/author-reply-runner.ts:94`, `154`, and
-  `261`.
-- `apps/desktop/src/main/authoring/reauthor-runner.ts:130`.
+Output:
 
-Risk:
+- Danh sach "hard": output fences, manifest fields, component id matching,
+  import whitelist, deterministic frame logic, SceneImage rule, example/schema,
+  forbidden host APIs.
+- Danh sach "quality": bold-first, bespoke SVG/CSS, layout variety, narration
+  voice, motion richness.
+- Danh sach "advisory": style/layout aesthetics that should not gate unless
+  owner approves.
 
-- The first 2000 chars of model output can include user prompt details, source
-  snippets, generated code, or sensitive facts. It is useful for debugging, but
-  noisy and potentially sensitive if logs are shared.
+Acceptance:
 
-Suggested cleanup:
+- Hard contract co the test bang parser/admission/build.
+- Quality guidance khong bi tron voi safety gate.
+- Bold-first van duoc giu, nhung khong lam model nghi phai viet TSX phuc tap hon
+  kha nang pass render.
 
-- Keep detailed logs behind debug/dev mode, or log structured parse summaries by
-  default and raw snippets only under an explicit diagnostic flag.
+Verification:
 
-### P2 - String-Based TSX/JSON Recovery Is A Maintenance Hotspot
+```powershell
+git diff --check
+```
 
-Evidence:
+### Step 1.3 - Add Prompt Change Checklist
 
-- `apps/desktop/src/main/authoring/reply-parser.ts` performs code fence and JSON
-  recovery.
-- `apps/desktop/src/main/authoring/manifest-schema.ts` extracts JSON from mixed
-  replies.
-- `apps/desktop/src/main/authoring/content-plan.ts:310-345` performs balanced
-  JSON extraction.
-- `apps/desktop/src/main/authoring/normalize-imports.ts` performs string-based
-  TSX import/API normalization.
+Scope:
 
-Risk:
+- `docs/current/maintenance.md`
+- Tests only if docs assertions exist.
 
-- These are justified because AI output is messy, and tests exist. But every new
-  transform added here increases parser edge cases.
+Output:
 
-Suggested cleanup:
+- Checklist ngan cho moi prompt change:
+  - rule thuoc hard contract hay quality guidance?
+  - metric nao ky vong cai thien?
+  - focused tests nao can chay?
+  - provider smoke nao can chay?
+  - rollback path la gi?
 
-- Keep current tested transforms.
-- For future code mutation beyond simple import rehousing, prefer AST-backed
-  transforms or admission errors over more regex/string rewrites.
+Acceptance:
 
-### P2 - Content Plan Tolerance Is Purpose-Specific
+- Future prompt edits khong con la wording cleanup cam tinh.
+- Checklist khong bien thanh bureaucratic gate dai dong; chi du de chan drift.
 
-Evidence:
+Verification:
 
-- `apps/desktop/src/main/authoring/content-plan.ts:8-11` keeps strict enums for
-  purpose/layout family.
-- `apps/desktop/src/main/authoring/content-plan.ts:179-194` normalizes purpose
-  values.
-- `apps/desktop/src/main/authoring/content-plan.ts:197-220` normalizes purpose
-  and motion intent only.
+```powershell
+git diff --check
+```
 
-Risk:
+## Phase 2 - Prompt Module Split Without Behavior Change
 
-- The recent failure class was purpose/motion, but similar non-safety metadata
-  drift could happen in `layoutFamily` or `hookType`.
+Goal: giam rui ro khi toi uu prompt bang cach chia file/section truoc, nhung
+giu output prompt gan nhu khong doi.
 
-Suggested cleanup:
+### Step 2.1 - Extract Prompt Sections
 
-- Do not broaden tolerance preemptively.
-- If logs show layout-family drift, add the same style of diagnostic
-  normalization instead of a broad retry.
+Scope:
 
-### P3 - Renderer Still Has Many Inline Styles Despite CSS Split
+- `apps/desktop/src/main/authoring/prompt.ts`
+- New local prompt modules if needed, for example:
+  - `prompt-content-rules.ts`
+  - `prompt-output-format.ts`
+  - `prompt-batch.ts`
+  - `prompt-visual-qa.ts`
+  - `prompt-image-filter.ts`
 
-Evidence:
+Output:
 
-- `apps/desktop/src/renderer/primitives.tsx` contains many repeated inline style
-  objects.
-- `apps/desktop/src/renderer/views/workspace.tsx` and
-  `apps/desktop/src/renderer/views/storyboard.tsx` mix class-based layout with
-  inline layout/styling.
-- `docs/current/maintenance.md:146` documents a CSS-partial workflow.
+- `prompt.ts` thanh orchestrator nho hon.
+- Moi module co mot responsibility ro.
+- Khong doi wording co y nghia o phase nay.
 
-Risk:
+Acceptance:
 
-- Inline styles are fine for small primitives, but repeated layout constants make
-  responsive fixes and visual consistency harder over time.
+- Prompt tests pass without changing behavior assertions except import paths.
+- Diff wording duoc review de dam bao day la structural refactor.
 
-Suggested cleanup:
+Verification:
 
-- Leave dynamic sizing inline.
-- Move stable repeated layout/style clusters into the owning CSS partial during
-  the next UI polish slice.
+```powershell
+npm.cmd test -- --run apps/desktop/src/main/authoring/prompt.test.ts apps/desktop/src/main/authoring/ninerouter-backend.test.ts
+npm.cmd run typecheck
+git diff --check
+```
 
-### P3 - Deferred YouTube Note Is Durable But Not Active
+### Step 2.2 - Lock Section Markers In Tests
 
-Evidence:
+Scope:
 
-- `AI_CONTRACT.md:28`, `README.md:59`, and
-  `docs/current/youtube-mode-deferred.md` keep YouTube deferred docs visible.
+- `apps/desktop/src/main/authoring/prompt.test.ts`
+- `apps/desktop/src/main/authoring/contract-text.test.ts`
 
-Risk:
+Output:
 
-- It is correctly labeled deferred, but if the owner wants no feature expansion,
-  this can still add planning noise.
+- Tests kiem tra hard contract section xuat hien truoc creative guidance.
+- Tests kiem tra batch/recovery prompt khong vo tinh nhan full context qua lon.
+- Tests giu `Quick entrance + readable final hold` va bold-first requirement.
 
-Suggested cleanup:
+Acceptance:
 
-- Keep it if it prevents accidental YouTube scope creep.
-- Otherwise archive it outside `docs/current/` so current docs stay operational.
+- Neu sau nay ai them rule prompt moi sai cho, test se fail som.
+- Tests khong lock tung cau qua muc gay kho sua wording.
 
-### P3 - Dev/Test Providers Need Clear Scope
+Verification:
 
-Evidence:
+```powershell
+npm.cmd test -- --run apps/desktop/src/main/authoring/prompt.test.ts apps/desktop/src/main/authoring/contract-text.test.ts
+npm.cmd run typecheck
+```
 
-- `packages/pipeline/src/types.ts:22` includes `mock` and `none`.
-- `packages/pipeline/src/cli/cli.ts:46`, `122`, and `558` expose
-  `--tts mock|none`.
-- `apps/desktop/src/main/index.ts:105` handles `mock`/`none` provider values.
-- `AI_CONTRACT.md:50-51` forbids silently falling back to `mock` or `none`.
+### Step 2.3 - Prompt Size Snapshot
 
-Risk:
+Scope:
 
-- This is not a direct contradiction if `mock`/`none` are explicit dev choices,
-  but it should stay clearly scoped so nobody treats them as runtime fallback.
+- `prompt.test.ts` or a small helper test.
 
-Suggested cleanup:
+Output:
 
-- Durable docs should say `mock`/`none` are explicit CLI/dev modes only.
-- Desktop production paths should keep blocking missing real voice config.
+- Approximate character/token budget snapshots for:
+  - main author prompt;
+  - TSX batch prompt;
+  - missing-TSX recovery prompt;
+  - reauthor prompt;
+  - visual QA prompt.
 
-## Suggested Optimization Order
+Acceptance:
 
-1. Checkpoint the current dirty authoring reliability changes: commit accepted
-   changes or explicitly revert only the unwanted slice.
-2. Run a prompt-specific stabilization pass before new feature work:
-   isolate hard contract vs creative ambition, split prompt builders, keep the
-   bold-first quality requirement, and validate with focused tests plus provider
-   smoke.
-3. Remove historical task-code/comment noise where it no longer explains live
-   behavior.
-4. Make prompt/docs sync safer: split prompt modules and add sync/snapshot tests.
-5. Decide reserved surfaces: SFX export/schema, image-crawl defaults, and
-   dev-only TTS modes.
-6. Keep sensitive-file refactors opportunistic and behavior-led, not size-led.
-7. Do not start render parallelism until bundle/cache lifetime has an approved
-   design.
+- Prompt size changes become visible.
+- Snapshot co tolerance/threshold, khong brittle tung ky tu:
+  - first implementation records current baseline only;
+  - Phase 3 should aim to reduce main author, batch, or recovery prompt size by
+    roughly 5-15% where duplicate/low-value wording can be removed without
+    lowering quality; if no reduction is safe, record why;
+  - later prompt-size growth above 10% in any section needs an inline reason in
+    the test/doc diff;
+  - growth above 20% in main author, batch, or recovery prompt needs owner
+    approval and provider smoke before commit;
+  - batch/recovery prompts should not grow above baseline unless the added text
+    directly reduces a measured failure class.
 
-## Verification Performed
+Verification:
 
-Static scans only:
+```powershell
+npm.cmd test -- --run apps/desktop/src/main/authoring/prompt.test.ts
+```
 
-- `rg --files`
-- `rg` scans for working notes, legacy names, prompt/code surfaces, TTS fallback
-  terms, batching/retry/concurrency, cache/render terms, inline styles, and raw
-  logging.
-- `git status --short --ignored`
-- targeted file reads for current docs, prompt, content plan, settings, root
-  scripts, package metadata, SFX, and Remotion root.
-- second-pass focused scans for prompt pressure, prompt tests, durable-doc
-  prompt wording, raw AI reply logging, normalization diagnostics, and batching
-  logs.
+## Phase 3 - Prompt Fragility Reduction
 
-No full test/typecheck/build run was performed for this audit note.
+Goal: toi uu prompt nhay cam nhat ma khong lam video nhat di.
+
+### Step 3.0 - Fixed Before/After Canary Set
+
+Scope:
+
+- Test fixtures/docs only.
+- Provider smoke protocol only; no runtime prompt change in this step.
+
+Output:
+
+- A fixed canary set of 5-7 prompts that cover:
+  - RAG/news explainer with cited facts;
+  - no-URL conceptual explainer;
+  - numeric/evidence-heavy topic;
+  - 90s TikTok tier 2/tier 3 duration;
+  - optional image-assisted request if provider supports images;
+  - at least one Vietnamese request and at least one English request.
+- A before/after recording template:
+  - content-plan parse result;
+  - purpose/motion normalizations;
+  - scene count and authoring path;
+  - reply parse result;
+  - admission result;
+  - still/draft readiness;
+  - subjective quality note: bland, acceptable, strong, or broken.
+
+Acceptance:
+
+- Phase 3 prompt edits are compared against the same input set, not just ad-hoc
+  smoke attempts.
+- A prompt change is not accepted if reliability improves only by making every
+  output visibly bland or generic.
+- Step 3.0 records the before baseline. Each runtime prompt-change step in
+  3.1-3.5 must run a relevant 2-3 prompt subset against that baseline before
+  the step is accepted. After Step 3.5, run the full 5-7 prompt set once before
+  Phase 3 is marked done.
+- If provider cost/access blocks per-step canaries, record the exception and
+  keep Phase 3 in partial status until the full canary set is run.
+
+Verification:
+
+```powershell
+git diff --check
+```
+
+### Step 3.1 - Put Render-Pass Contract Before Ambition
+
+Scope:
+
+- Prompt modules from Phase 2.
+- `prompt.test.ts`.
+
+Output:
+
+- System prompt order ro:
+  1. role and target format;
+  2. hard output/render contract;
+  3. factual/content rules;
+  4. creative ambition/quality guidance;
+  5. examples.
+
+Acceptance:
+
+- Model doc prompt thay "pass and render" truoc "dazzle".
+- Bold-first van ton tai, nhung nam trong quality section.
+- Output format rules khong bi chen sau visual ambition.
+
+Verification:
+
+- Canary: run the Step 3.0 subset that covers main author prompt ordering and
+  compare output format, parse result, admission result, and quality note
+  against baseline.
+
+```powershell
+npm.cmd test -- --run apps/desktop/src/main/authoring/prompt.test.ts apps/desktop/src/main/authoring/ninerouter-backend.test.ts
+npm.cmd run typecheck
+```
+
+### Step 3.2 - Replace Vague Creative Pressure With Safe Recipes
+
+Scope:
+
+- Content/visual guidance in prompt.
+- `docs/current/content-guide.md` only if durable wording changes.
+
+Output:
+
+- Giu yeu cau "first draft phai co visual anchor", nhung noi bang recipe ngan:
+  - big number only when number is supported;
+  - two-column compare only when beat is compare/tradeoff;
+  - SVG diagram only when the idea has structure/process;
+  - statement beat can be strong typography + quick entrance + hold.
+- Giam cac cum nhu "muc tieu toi thuong" neu chung tao ap luc qua lon ma khong
+  giup pass contract.
+
+Acceptance:
+
+- Prompt van chan title-card blandness.
+- Prompt khong khuyen khich model biet them number/fact hay animation phuc tap.
+- Tests update de bao ve "bold but safe".
+
+Verification:
+
+- Canary: run the Step 3.0 subset that covers visual ambition/story guidance,
+  including at least one evidence-heavy prompt, and compare quality plus
+  parse/admission results against baseline.
+
+```powershell
+npm.cmd test -- --run apps/desktop/src/main/authoring/prompt.test.ts apps/desktop/src/main/authoring/contract-text.test.ts
+npm.cmd run typecheck
+```
+
+### Step 3.3 - Tighten Motion Guidance Around Safe Defaults
+
+Scope:
+
+- `contract-text.ts`
+- `prompt.ts` modules
+- `contract-text.test.ts`
+
+Output:
+
+- Motion guidance van gom:
+  - quick entrance 0.2-0.8s;
+  - semantic progression only when content changes over time;
+  - deterministic living motion only when bounded/purposeful;
+  - readable final hold always valid.
+- Khong them auto-fix TSX motion source.
+
+Acceptance:
+
+- No regression ve N5: invalid interpolate literal ranges van bi reject.
+- Prompt khong day model viet multi-stage animation cho moi scene.
+
+Verification:
+
+- Canary: run the Step 3.0 subset that covers motion-heavy or long-duration
+  prompts and check N5/admission result plus visible quality against baseline.
+
+```powershell
+npm.cmd test -- --run apps/desktop/src/main/authoring/contract-text.test.ts apps/desktop/src/main/authoring/prompt.test.ts packages/pipeline/src/authoring/admission.test.ts
+npm.cmd run typecheck
+```
+
+### Step 3.4 - Content-Plan Prompt And Tolerance Boundary
+
+Scope:
+
+- `content-plan.ts`
+- `content-plan.test.ts`
+- `docs/current/content-guide.md` if needed.
+
+Output:
+
+- Content-plan prompt nhan manh allowed literal enum values cho schema-critical
+  fields, nhung khong them rubric dai.
+- Khong broaden tolerance truoc. Neu log cho thay `layoutFamily` hoac `hookType`
+  drift, them normalizer cuc hep voi diagnostic nhu purpose/motion.
+- Initial threshold for considering a new non-safety normalizer:
+  - at least 3 occurrences of the same field drift in real logs/smoke, or
+  - at least 10% over an observed window of 30+ attempts,
+  - and the drift is clearly non-safety metadata.
+- The 30+ attempt window is cumulative: Phase 4 log counters plus provider smoke
+  notes over time. It is not a requirement to run 30 attempts in one smoke
+  session.
+- The observed window starts at the Phase 0.3 metrics baseline or Step 3.0
+  canary baseline, whichever exists for that provider/model lane. It resets
+  after an accepted prompt-policy checkpoint or rollback. Do not combine stale
+  drift from unrelated prompt checkpoints to justify a new normalizer.
+
+Acceptance:
+
+- Non-safety metadata drift khong gay broad retry.
+- Evidence/claims safety van hard.
+- Diagnostics khong che mat model drift.
+- Small smoke samples can trigger investigation, but not automatic broad
+  normalization.
+
+Verification:
+
+- Canary: run the Step 3.0 subset that covers content-plan/schema-sensitive
+  prompts and compare scene count, normalizations, and authoring path against
+  baseline.
+
+```powershell
+npm.cmd test -- --run apps/desktop/src/main/authoring/content-plan.test.ts apps/desktop/src/main/authoring/ninerouter-backend.test.ts
+npm.cmd run typecheck
+```
+
+### Step 3.5 - Batch Prompt Budget Guard
+
+Scope:
+
+- `prompt.ts` batch modules.
+- `ninerouter-backend.ts` only if policy needs tiny guard.
+
+Output:
+
+- Batch prompt tiep tuc compact:
+  - selected manifest scenes;
+  - selected plan scenes;
+  - selected usable claims;
+  - global title/promise/payoff only.
+- Add/confirm test that batch prompt does not include full research/full content
+  plan/full manifest for every batch.
+
+Acceptance:
+
+- 10-12 scenes normal path khong vao 4-scene batch; this is tied to E19/E20.
+- 13-16 scenes neu batch thi batch size compact va prompt size duoc kiem soat;
+  this is tied to E19/E20, not a new magic threshold.
+- Missing-TSX recovery van bounded.
+
+Verification:
+
+- Canary: run the full Step 3.0 set once after this step if it is the last
+  Phase 3 prompt/batching change; otherwise run the subset that crosses the
+  10-12 and 13-16 scene authoring paths.
+
+```powershell
+npm.cmd test -- --run apps/desktop/src/main/authoring/prompt.test.ts apps/desktop/src/main/authoring/ninerouter-backend.test.ts apps/desktop/src/main/authoring/reply-parser.test.ts
+npm.cmd run typecheck
+```
+
+## Phase 4 - Authoring Observability And Log Hygiene
+
+Goal: do duoc prompt/pipeline health ma khong log raw data qua nhieu.
+
+### Step 4.1 - Gate Raw AI Reply Snippets
+
+Scope:
+
+- `content-plan-runner.ts`
+- `author-reply-runner.ts`
+- `reauthor-runner.ts`
+- Tests around logging if present.
+
+Output:
+
+- Default logs giu structured reason/detail/counts.
+- Raw reply snippets chi log khi explicit debug/diagnostic flag bat.
+
+Acceptance:
+
+- Parse failures van debuggable.
+- Default logs khong de lo 2000 chars user/source/generated code mot cach mac
+  dinh.
+
+Verification:
+
+```powershell
+npm.cmd test -- --run apps/desktop/src/main/authoring/ninerouter-backend.test.ts
+npm.cmd run typecheck
+```
+
+### Step 4.2 - Stable Failure Counters
+
+Scope:
+
+- Logging only.
+- No UI feature.
+
+Output:
+
+- Stable log anchors cho:
+  - content-plan parse invalid;
+  - purpose normalized;
+  - motion defaulted;
+  - author reply parse failed;
+  - batch selected;
+  - batch parse failed;
+  - missing TSX recovery attempted/succeeded/failed;
+  - admission failed N5/N10.
+
+Acceptance:
+
+- Co the `rg` logs de xem prompt optimization co tac dung.
+- Logging khong block authoring.
+
+Verification:
+
+```powershell
+npm.cmd test -- --run apps/desktop/src/main/authoring/content-plan.test.ts apps/desktop/src/main/authoring/ninerouter-backend.test.ts
+npm.cmd run typecheck
+```
+
+### Step 4.3 - Provider Smoke Protocol
+
+Scope:
+
+- Manual/provider-connected validation.
+- No code change during smoke.
+
+Output:
+
+- Short note recording 3-5 attempts on same model family:
+  - success/fail;
+  - failure class if any;
+  - normalization counts;
+  - batch selected or not;
+  - admission rejects.
+
+Acceptance:
+
+- At least one real RAG/explainer flow succeeds end-to-end through draft/stills
+  review path.
+- Do not declare "closed" from one lucky pass.
+
+Manual command:
+
+```powershell
+npm.cmd --workspace @motionreal/desktop run app
+```
+
+## Phase 5 - Parser, Normalizer, And Recovery Debt
+
+Goal: giu cac transform hien co vi chung da duoc test, nhung chan viec them
+regex/string recovery vo toi va.
+
+### Step 5.1 - Recovery Inventory
+
+Scope:
+
+- `reply-parser.ts`
+- `manifest-schema.ts`
+- `content-plan.ts`
+- `normalize-imports.ts`
+- tests tuong ung.
+
+Output:
+
+- Table: transform nao dang co, vi sao ton tai, test nao bao ve.
+
+Acceptance:
+
+- Future bug khong tu dong duoc fix bang mot regex moi trong parser.
+- Biet transform nao la compatibility, transform nao la safety, transform nao la
+  provider-output tolerance.
+
+Verification:
+
+```powershell
+npm.cmd test -- --run apps/desktop/src/main/authoring/reply-parser.test.ts apps/desktop/src/main/authoring/content-plan.test.ts
+npm.cmd run typecheck
+git diff --check
+```
+
+### Step 5.2 - Define AST Transform Threshold
+
+Scope:
+
+- Docs/test policy first.
+- No production AST transform unless a repeated failure proves need.
+
+Output:
+
+- Rule: only add source mutation when pattern is mechanical, AST-safe, tested
+  before/after, and less risky than retry.
+
+Acceptance:
+
+- No hidden source mutation just to pass admission.
+- N5/N10 remain hard where appropriate.
+
+Verification:
+
+```powershell
+git diff --check
+```
+
+## Phase 6 - Repo Hygiene And Reserved Surfaces
+
+Goal: giam nhieu doc/code de future agent khong nham scope, khong lam feature
+moi.
+
+### Step 6.1 - Legacy Naming/Sunset Notes
+
+Scope:
+
+- `apps/remotion/src/Root.tsx`
+- `packages/pipeline/src/authoring/authored-entry.ts`
+- `apps/desktop/src/main/index.ts`
+- `scripts/calibrate-voice.ts`
+- durable docs if needed.
+
+Output:
+
+- Neu `NewsVideo` va `news-studio-settings.json` can compat, them note ngan:
+  why kept, when removable.
+- Rewrite old task-code comments only where they no longer explain live behavior.
+
+Acceptance:
+
+- Compatibility aliases van hoat dong.
+- Khong con cam giac co hai product identity/canonical contracts.
+
+Verification:
+
+```powershell
+npm.cmd test -- --run packages/pipeline/src/authoring/authored-entry.test.ts apps/desktop/src/main/settings/settings-store.test.ts apps/desktop/src/main/startup-sequence.test.ts
+npm.cmd run typecheck
+git diff --check
+```
+
+If exact tests do not exist, run the nearest focused package tests and record
+that gap.
+
+### Step 6.2 - SFX Surface Decision
+
+Scope:
+
+- `packages/schema/src/index.ts`
+- `packages/pipeline/src/audio/sfx.ts`
+- `packages/pipeline/src/index.ts`
+- docs only unless owner approves code change.
+
+Decision type:
+
+- Product owner decision, because this changes what looks feature-ready to users
+  and integrators.
+
+Output:
+
+- Decision:
+  - keep SFX as reserved/internal with docs; or
+  - hide export/schema surface until feature work resumes.
+
+Acceptance:
+
+- Repo khong gui tin hieu rang SFX la feature ready neu no chua ready.
+- Khong break existing schema consumers without explicit migration.
+
+Verification:
+
+```powershell
+npm.cmd test -- --run packages/schema/src/schema.test.ts
+npm.cmd run typecheck
+git diff --check
+```
+
+If SFX logic changes instead of docs-only policy, add a focused SFX test first
+instead of relying only on schema/typecheck.
+
+### Step 6.3 - Image Crawl Defaults Decision
+
+Scope:
+
+- `apps/desktop/src/shared/settings-model.ts`
+- `apps/desktop/src/main/workspace/workspace-create-flow.ts`
+- docs/settings tests.
+
+Decision type:
+
+- Product owner decision, because defaults affect UX, provider/vision cost, and
+  whether URL-based create feels like the stable product path or a feature
+  expansion.
+
+Output:
+
+- Confirm whether article image AI filtering and human review default true are
+  still desired for stable product path.
+- If not, change defaults behind explicit owner decision and tests.
+
+Acceptance:
+
+- URL-based create flow khong ton provider/vision work bat ngo neu owner khong
+  muon feature expansion.
+- Existing image safety/media rules khong bi yeu di.
+
+Verification:
+
+```powershell
+npm.cmd test -- --run apps/desktop/src/shared/settings-model.test.ts apps/desktop/src/main/workspace/workspace-create-flow.test.ts
+npm.cmd run typecheck
+```
+
+### Step 6.4 - Dev/Test TTS Scope
+
+Scope:
+
+- `docs/current/maintenance.md`
+- `packages/pipeline/src/cli/cli.ts` only if CLI help needs wording.
+- Desktop config tests if changed.
+
+Output:
+
+- Durable docs say `mock`/`none` are explicit CLI/dev modes only.
+- Desktop production path still blocks missing real voice config.
+
+Acceptance:
+
+- No contradiction with `AI_CONTRACT.md`.
+- No silent fallback.
+
+Verification:
+
+```powershell
+npm.cmd test -- --run packages/pipeline/src/cli/cli.test.ts packages/pipeline/src/audio/tts-config.test.ts apps/desktop/src/main/settings/settings-store.test.ts
+npm.cmd run typecheck
+git diff --check
+```
+
+## Phase 7 - Sensitive File Refactors And UI Style Cleanup
+
+Goal: giam cognitive load nhung khong refactor lung tung cac file nhay cam.
+
+### Step 7.1 - Content Plan File Split
+
+Scope:
+
+- `content-plan.ts`
+- possible new files:
+  - `content-plan-schema.ts`
+  - `content-plan-normalize.ts`
+  - `content-plan-prompt.ts`
+
+Output:
+
+- Parser/schema/normalizer/prompt builder tach ro.
+- Public API cua content-plan giu nguyen neu co the.
+
+Acceptance:
+
+- Behavior tests pass unchanged.
+- Diff mainly move/extract, not policy change.
+
+Verification:
+
+```powershell
+npm.cmd test -- --run apps/desktop/src/main/authoring/content-plan.test.ts apps/desktop/src/main/authoring/ninerouter-backend.test.ts
+npm.cmd run typecheck
+git diff --check
+```
+
+### Step 7.2 - Ninerouter Backend Runner Boundaries
+
+Scope:
+
+- `ninerouter-backend.ts`
+- existing runner modules.
+
+Output:
+
+- Only extract if a behavior slice needs it.
+- Candidate helpers: capacity policy, batch selection, logging summary.
+
+Acceptance:
+
+- No broad orchestration rewrite.
+- Tests prove partial-write safety and missing-TSX recovery unchanged.
+
+Verification:
+
+```powershell
+npm.cmd test -- --run apps/desktop/src/main/authoring/ninerouter-backend.test.ts
+npm.cmd run typecheck
+```
+
+### Step 7.3 - Renderer Inline Style Cleanup
+
+Scope:
+
+- `apps/desktop/src/renderer/primitives.tsx`
+- `apps/desktop/src/renderer/views/workspace.tsx`
+- `apps/desktop/src/renderer/views/storyboard.tsx`
+- owning CSS partials.
+
+Output:
+
+- Move stable repeated layout/style clusters to CSS.
+- Keep dynamic sizing/measurement inline.
+
+Acceptance:
+
+- UI appearance remains equivalent.
+- No overlap/clipping/layout shift introduced.
+
+Verification:
+
+```powershell
+npm.cmd run typecheck
+npm.cmd test
+git diff --check
+```
+
+Manual visual check if desktop UI changed:
+
+```powershell
+npm.cmd --workspace @motionreal/desktop run app
+```
+
+### Step 7.4 - Do Not Big-Bang Render/Grid/Orchestrator
+
+Scope:
+
+- `render-grid.ts`
+- `orchestrator.ts`
+- `workspace-controller.ts`
+
+Output:
+
+- Written decision for any proposed extraction before code change.
+
+Acceptance:
+
+- No refactor solely because a file is large.
+- Every extraction has a behavior boundary and focused tests.
+
+Verification:
+
+```powershell
+git diff --check
+```
+
+## Phase 8 - Render/Cache Scaling Design
+
+Goal: khong mo parallelism truoc khi cache/bundle lifetime duoc thiet ke.
+
+### Step 8.1 - Document Current Single-Workflow Assumption
+
+Scope:
+
+- `docs/current/maintenance.md`
+- maybe `docs/current/architecture.md`.
+
+Output:
+
+- Current rendering assumption documented:
+  - per-project lock;
+  - small in-memory bundle/composition cache;
+  - not cross-project parallel-safe by design.
+
+Acceptance:
+
+- Future UI concurrency work khong bat dau tu button/queue truoc khi cache design
+  xong.
+
+Verification:
+
+```powershell
+git diff --check
+```
+
+### Step 8.2 - Cache Pruning Decision
+
+Scope:
+
+- `packages/pipeline/src/store/store.ts`
+- docs/tests if behavior changes.
+
+Output:
+
+- Decision:
+  - accept age-based pruning and document it; or
+  - touch cache mtime on hit to approximate LRU.
+
+Acceptance:
+
+- If behavior changes, tests cover reused cache staying fresh.
+- If not changing, docs stop calling it LRU.
+
+Verification:
+
+```powershell
+npm.cmd test -- --run packages/pipeline/src/render/cache.test.ts packages/pipeline/src/store/store.test.ts
+npm.cmd run typecheck
+git diff --check
+```
+
+### Step 8.3 - Bundle Lifetime Design Before Parallelism
+
+Scope:
+
+- Design note only unless owner approves implementation.
+
+Decision type:
+
+- Product owner plus engineering decision, because concurrency changes product
+  behavior, runtime cost, cache semantics, and failure recovery.
+
+Output:
+
+- Proposed model for:
+  - ref-counted bundle cache;
+  - eviction policy;
+  - per-project vs global concurrency;
+  - stale lock threshold;
+  - cleanup on crash.
+
+Acceptance:
+
+- No code change to enable cross-project parallel rendering before design is
+  accepted.
+
+Verification:
+
+```powershell
+git diff --check
+```
+
+## Phase 9 - Final Validation And Closeout
+
+Goal: chi goi plan xong khi behavior, docs, va provider smoke deu co bang chung.
+
+### Step 9.1 - Full Local Gate
+
+Scope:
+
+- Whole repo.
+
+Output:
+
+- Gate result.
+- Classify any failure.
+
+Acceptance:
+
+- Full gate green, or documented known flaky with focused rerun evidence.
+
+Verification:
+
+```powershell
+npm.cmd run typecheck
+npm.cmd test
+npm.cmd run build
+git diff --check
+```
+
+### Step 9.2 - Provider-Connected Authoring Smoke
+
+Scope:
+
+- Manual.
+- Same provider/model family as normal desktop authoring.
+
+Output:
+
+- 3 attempts minimum, 5 preferred.
+- Record:
+  - content-plan parse result;
+  - normalization counts;
+  - TSX authoring parse result;
+  - batch path selected or not;
+  - admission result;
+  - still/draft readiness.
+
+Acceptance:
+
+- At least one real flow succeeds through still/draft review.
+- No recurrence of target failure classes without classification.
+
+Manual command:
+
+```powershell
+npm.cmd --workspace @motionreal/desktop run app
+```
+
+### Step 9.3 - Rollback And Archive
+
+Scope:
+
+- Docs/git only.
+
+Output:
+
+- Rollback note:
+  - which commit(s) to revert if prompt optimization hurts reliability;
+  - which safety gates must not be weakened during rollback.
+- Archive or delete this temporary working note only after durable docs carry the
+  final accepted decisions.
+
+Acceptance:
+
+- Future owner/agent can undo policy/prompt changes quickly.
+- Temporary note does not become stale durable contract.
+- While this note is active, keep the Phase Status and First Real Execution Step
+  as the resume surface. Do not add broad new analysis sections unless they
+  replace stale detail or are destined for `docs/current/*`.
+- Durable docs synced before archive/delete:
+  - `docs/current/maintenance.md` has prompt-change checklist, log/counter
+    policy, threshold rationale, canary protocol, and render/cache decisions;
+  - `docs/current/architecture.md` reflects any changed authoring/prompt module
+    boundaries;
+  - `docs/current/authoring-contract.md` reflects any hard contract wording
+    changes;
+  - `docs/current/content-guide.md` reflects any changed story/visual/motion
+    guidance;
+  - provider docs are updated only if provider smoke/setup instructions changed.
+
+Verification:
+
+```powershell
+git diff --check
+git status --short
+```
+
+## Phase Status
+
+## Execution Log - 2026-07-07
+
+| Step | Workflow status | Evidence |
+| --- | --- | --- |
+| Phase 0 Step 0.1 - Confirm Checkpoint | Kiem tra -> docs update -> kiem tra -> xac nhan complete | Latest commit `af68f52`; dirty tree only this working note; `git diff --check` clean. |
+
+| Phase | Status | Owner gate | Effort band | Next step |
+| --- | --- | --- | --- | --- |
+| Phase 0 - Baseline Checkpoint And Re-Entry | partial | Engineering executor reports; owner reviews failures only | S | Commit `af68f52` exists; run full local gate before implementation. |
+| Phase 1 - Prompt Contract Boundary | pending | Owner reviews hard/quality/advisory boundary before runtime edits | S | Start with Step 1.1 prompt source map. |
+| Phase 2 - Prompt Module Split Without Behavior Change | pending | Engineering can execute after Phase 1 owner review | M | Split prompt modules without behavior change. |
+| Phase 3 - Prompt Fragility Reduction | pending | Owner approval required before and after prompt behavior changes | M-L | Build canary set, then edit prompt sections. |
+| Phase 4 - Authoring Observability And Log Hygiene | pending | Engineering can execute; owner reviews raw-log policy | S-M | Gate raw reply snippets and stabilize counters. |
+| Phase 5 - Parser, Normalizer, And Recovery Debt | pending | Owner approval required for any new source mutation | S-M | Inventory first, no new regex by default. |
+| Phase 6 - Repo Hygiene And Reserved Surfaces | pending | Owner/product decisions for SFX/image defaults | M | Low-risk cleanup after prompt boundary is clear. |
+| Phase 7 - Sensitive File Refactors And UI Style Cleanup | pending | Owner approval for sensitive-file extractions | M-L | Behavior-led only, no big-bang rewrite. |
+| Phase 8 - Render/Cache Scaling Design | pending | Owner/product plus engineering decision | S for design, XL if implemented | Design before concurrency implementation. |
+| Phase 9 - Final Validation And Closeout | pending | Owner accepts final gate/provider smoke/rollback | S-L | Full gate + provider smoke + rollback/archive. |
+
+## First Real Execution Step
+
+If this plan is approved, start with Phase 0 Step 0.2:
+
+```powershell
+npm.cmd run typecheck
+npm.cmd test
+npm.cmd run build
+git diff --check
+```
+
+Then do Phase 1 Step 1.1 and stop for review before editing runtime prompt.
