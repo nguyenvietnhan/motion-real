@@ -1,73 +1,20 @@
 import type { AuthorInput } from "../agent/agent-worker.js";
 import type { SafetyIssue } from "@motionreal/pipeline";
-import { titleMaxChars, type DurationTier, type VideoFormat, type VideoLanguage } from "@motionreal/schema";
+import type { DurationTier, VideoFormat, VideoLanguage } from "@motionreal/schema";
 import { AUTHORING_CONTRACT } from "./contract-text.js";
 import type { ContentPlan, ContentPlanQualityIssue } from "./content-plan.js";
-import type { AuthorManifest } from "./manifest-schema.js";
-import { computePacingBudget, resolvedWordsPerSecond, SHORTFORM_90S_SCENE_RANGE } from "./pacing-policy.js";
+import { resolvedWordsPerSecond } from "./pacing-policy.js";
+import { contentRules, formatBlock, languageBlock, tierBudgetBlock } from "./prompt-content-rules.js";
+import type { ContentPart, VisionMessage } from "./prompt-message-types.js";
+import { OUTPUT_FORMAT } from "./prompt-output-format.js";
+import { contentPlanAdvisoryBlock, contentPlanBlock, sourceBlock } from "./prompt-plan-blocks.js";
 
-/**
- * Narration rate (words/second) used by the word-budget math. Vietnamese defaults
- * to the measured baseline; English uses a conservative provider baseline until
- * calibrations become language-aware.
- */
-function roundRate(wps: number): number {
-  // One decimal in the prompt copy — the model reads "≈4.7 từ/giây", not "4.7039".
-  return Math.round(wps * 10) / 10;
-}
-
-/**
- * Format-specific framing the model must author to (freeform-engine R7/D8). This
- * REPLACES the deleted per-style "design language" slice: there is no style to
- * read anymore, only the delivery format's hard geometry + caption presence.
- *  - TikTok: vertical 9:16, a burned karaoke caption band lives at the bottom, so
- *    authored content must keep clear of the bottom strip.
- *  - YouTube: horizontal 16:9, NO burned caption (the platform supplies captions),
- *    so the scene uses the full frame with a landscape composition.
- */
-function formatBlock(format: VideoFormat): string {
-  if (format === "youtube") {
-    return `KHUNG HÌNH (YouTube): NGANG 16:9 (1920×1080). KHÔNG có dải phụ đề cháy-chữ (nền tảng tự hiển thị phụ đề) — KHÔNG tự vẽ băng phụ đề ở đáy. Bố cục theo chiều NGANG, tận dụng cả bề ngang khung; tránh dồn mọi thứ vào một cột hẹp giữa màn hình.`;
-  }
-  return `KHUNG HÌNH (TikTok): DỌC 9:16 (1080×1920). Có dải phụ đề cháy-chữ (karaoke) ở ĐÁY khung do hệ thống tự chèn — CHỪA vùng đáy cho phụ đề, KHÔNG đặt nội dung quan trọng sát đáy. Bố cục theo chiều DỌC.`;
-}
-
-/**
- * Word-budget instruction from the user-chosen duration tier (R7.3/R7.4). The tier
- * maps to a per-format second target (`tierSeconds`); we turn that into a total
- * word budget at the selected language's rate so the model writes enough scenes to
- * hit the length (rather than guessing from the free-text brief). "Rather over
- * than under" — the pacing aim allows ±20s, never a hard cut.
- */
-function tierBudgetBlock(format: VideoFormat, tier: DurationTier, language: VideoLanguage, wps: number): string {
-  const pacing = computePacingBudget({ format, durationTier: tier, videoLanguage: language }, wps);
-  const seconds = pacing.targetSeconds;
-  const rate = roundRate(wps);
-  const words = pacing.targetWords;
-  const low = Math.round((seconds - 20) * wps);
-  const high = Math.round((seconds + 20) * wps);
-  const languageLabel = language === "en" ? "tiếng Anh" : "tiếng Việt";
-  return `MỤC TIÊU THỜI LƯỢNG: video nhắm khoảng ${seconds} giây. Giọng đọc ${languageLabel} ~${rate} từ/giây, nên hãy viết TỔNG lời đọc toàn video khoảng ${words} từ (chấp nhận ${low}–${high} từ — thà hơi DƯ còn hơn hụt), chia thành đủ số cảnh để đạt tổng đó. Nhịp cảnh nên khoảng ${pacing.minScenes}–${pacing.maxScenes} cảnh, nhắm ${pacing.targetScenes}; đừng nhồi quá nhiều lời vào vài cảnh dài. KHÔNG cắt câu để ép đúng giây.`;
-}
-
-/**
- * Video-language rule. The user's choice governs all viewer-facing content:
- * title, hashtags, authored display text, narration, and central captions.
- */
-function languageBlock(format: VideoFormat, videoLanguage: VideoLanguage): string {
-  const cap = titleMaxChars(format);
-  const lang = videoLanguage === "en" ? "TIẾNG ANH" : "TIẾNG VIỆT";
-  const contentRule = videoLanguage === "en"
-    ? `TOÀN BỘ nội dung người xem đọc/nghe phải là TIẾNG ANH tự nhiên: "title", "hashtags", eyebrow/headline/body, narration, CTA và mọi chuỗi chữ tự viết trong JSX/SVG. Chỉ giữ nguyên tên riêng/thương hiệu. KHÔNG xen câu tiếng Việt.`
-    : `TOÀN BỘ nội dung người xem đọc/nghe phải là TIẾNG VIỆT tự nhiên: "title", "hashtags", eyebrow/headline/body, narration, CTA và mọi chuỗi chữ tự viết trong JSX/SVG. Giữ tên riêng/thương hiệu/model bằng tiếng Anh khi cần.`;
-  const hashtag =
-    format === "tiktok"
-      ? ` KÈM 3–6 hashtag phù hợp ở field RIÊNG "hashtags" (mảng, mỗi tag bắt đầu bằng "#") — KHÔNG nhồi hashtag vào trong "title" (title là tên dự án nên phải sạch). Hashtag bám ĐÚNG chủ đề (tên riêng, lĩnh vực, từ khoá thật), KHÔNG nhồi tag chung chung "#fyp #viral #xuhuong".`
-      : ` KHÔNG cần hashtags (để mảng rỗng hoặc bỏ qua).`;
-  return `NGÔN NGỮ VIDEO: ${contentRule}
-TIÊU ĐỀ ĐĂNG TẢI ("title" trong manifest): viết bằng ${lang}, DƯỚI ${cap} ký tự, KHÔNG kèm hashtag trong title.${hashtag}
-SỨC HÚT TIÊU ĐỀ (title là thứ quyết định người ta CÓ BẤM VÀO hay không — đừng viết mô tả phẳng): (a) phải có MÓC — một con số cụ thể, một nghịch lý, hoặc một khoảng-trống-tò-mò khiến người xem muốn biết tiếp; KHÔNG mô tả chung chung kiểu "Tìm hiểu về X" / "Những điều cần biết về Y" / "X là gì". (b) CỤ THỂ + động từ mạnh, không sáo rỗng. (c) CẤM clickbait rỗng: tiêu đề phải đúng với nội dung video, KHÔNG hứa điều video không trả lời, KHÔNG bịa số/chi tiết để câu view. Ví dụ — NHẠT: "Tìm hiểu về trí tuệ nhân tạo trong năm 2026." → SẮC: "AI vẽ xong trong 4 giây thứ hoạ sĩ mất cả tuần — và đây là cách."`;
-}
+export type { ContentPart, ChatMessage, VisionMessage } from "./prompt-message-types.js";
+export { buildAuthorModuleBatchMessages, buildMissingTsxRecoveryMessages } from "./prompt-batch.js";
+export type { AuthorModuleBatchMessagesInput, MissingTsxRecoveryInput } from "./prompt-batch.js";
+export { buildImageFilterMessages } from "./prompt-image-filter.js";
+export type { ImageFilterInput } from "./prompt-image-filter.js";
+export { buildVisualQaMessages } from "./prompt-visual-qa.js";
 
 /**
  * Author + reauthor prompt builders (desktop-author-mode, pure AUTHOR). The
@@ -77,99 +24,6 @@ SỨC HÚT TIÊU ĐỀ (title là thứ quyết định người ta CÓ BẤM V�
  * current code + the issue (and, for layout/contrast defects, its rendered still
  * as an image part) and asks for a single corrected ```tsx block.
  */
-
-/** A text part or an inline image (data URL) — OpenAI multimodal content shape. */
-export type ContentPart = { type: "text"; text: string } | { type: "image_url"; image_url: { url: string } };
-
-/** Plain author message (text-only content) — compatible with the gateway today. */
-export type ChatMessage = { role: "system" | "user" | "assistant"; content: string };
-
-/** Reauthor message: content may carry image parts (vision-guided repair). */
-export type VisionMessage = { role: "system" | "user" | "assistant"; content: string | ContentPart[] };
-
-/**
- * Content rules (the bulk are rate-independent; only the THỜI LƯỢNG line scales
- * with the measured words/second). Built as a function so the rate the model is
- * told matches the calibrated/measured rate the tier word-budget uses — a single
- * source of truth, never a stale baked "4.7" diverging from a recalibrated voice.
- */
-function contentRules(wps: number, language: VideoLanguage): string {
-  const rate = roundRate(wps);
-  // Worked examples in the prompt, computed at the live rate (90s and 60s), so a
-  // recalibrated voice shows consistent numbers instead of the old baked band.
-  const w90 = Math.round(90 * wps);
-  const w60 = Math.round(60 * wps);
-  const languageRule = language === "en"
-    ? `- Hiển thị + lời đọc: TIẾNG ANH tự nhiên. Không để sót câu tiếng Việt trong props hoặc JSX/SVG.
-- Viết SỐ bằng CHỮ SỐ ở cả headline lẫn narration (vd 92%, 2026, 110,000, $920 million). KHÔNG đánh vần số thành chữ.`
-    : `- Hiển thị + lời đọc: tiếng Việt. Giữ tên thương hiệu/model bằng tiếng Anh.
-- Viết SỐ bằng CHỮ SỐ ở cả headline lẫn narration (vd 92%, 2026, 110.000, 920 triệu). KHÔNG đánh vần số, KHÔNG ghép năm kiểu tiếng Anh.`;
-  const narrationRule = language === "en"
-    ? `- GIỌNG VĂN LỜI ĐỌC: viết tiếng Anh sắc, tự nhiên, có chính kiến; KHÔNG phải giọng bách khoa trung tính. Câu đầu mỗi cảnh phải có móc cụ thể. CẤM mở đầu sáo rỗng như "In today's world…", "As we all know…", "Let's explore…", "It is undeniable that…". Dùng động từ mạnh, câu ngắn có nhịp. Ví dụ nhạt: "Artificial intelligence is developing rapidly and has many applications." → sắc: "AI just finished in 4 seconds what took an artist all week." Chỉ dùng số liệu khi có căn cứ.`
-    : `- GIỌNG VĂN LỜI ĐỌC (narration phải SẮC — đừng viết "nhạt như nước ốc"): kể như một người có chính kiến, KHÔNG phải giọng bách khoa trung tính. (a) Câu ĐẦU mỗi cảnh phải có MÓC cụ thể — một con số gây sốc, một nghịch lý, một mệnh đề bất ngờ, hoặc một câu hỏi cứa — TUYỆT ĐỐI KHÔNG mở bằng định nghĩa/khái quát. (b) CẤM các mở đầu sáo rỗng: "Trong thời đại ngày nay…", "Như chúng ta đã biết…", "Hãy cùng tìm hiểu…", "Không thể phủ nhận rằng…", "Ngày nay,…", "Có thể nói…". (c) CỤ THỂ thắng chung chung: thay "rất nhiều người" bằng con số/tên thật (nếu có căn cứ), thay "công nghệ phát triển" bằng CÁI GÌ làm ĐƯỢC GÌ. (d) Động từ MẠNH, câu NGẮN có nhịp; cắt trạng từ rỗng ("rất", "vô cùng", "đáng kể"). Một ý đắt hơn ba ý loãng. Ví dụ — NHẠT: "Trí tuệ nhân tạo đang ngày càng phát triển và có nhiều ứng dụng trong đời sống." → SẮC: "AI vừa làm xong trong 4 giây thứ một hoạ sĩ mất cả tuần." (số liệu chỉ nêu khi có căn cứ thật — không bịa để cho kêu).`;
-  const languageLabel = language === "en" ? "tiếng Anh" : "tiếng Việt";
-  return `QUY TẮC NỘI DUNG (bắt buộc):
-${languageRule}
-- KHÔNG bịa số liệu/nguồn/ngày/giá/phần trăm. Không chắc một con số thì đừng nêu.
-- scene-01 mở bằng HOOK trực diện kéo người xem ở lại (không chào hỏi/định nghĩa lề mề). Cảnh CUỐI chốt lại gắn chủ đề (không "like/share/subscribe" chung chung) — tuỳ chủ đề mà chốt bằng câu hỏi, lời mời hành động, hay điểm nhấn đọng lại.
-- Mỗi cảnh MỘT ý; narration 1–3 câu cô đọng (khoảng 18–40 từ). Đa dạng form.
-${narrationRule}
-- TÁO BẠO NGAY TỪ BẢN ĐẦU (đừng "chơi an toàn" rồi đợi sửa): bản nháp ĐẦU TIÊN đã phải hấp dẫn, KHÔNG được để mọi cảnh chỉ là "một tiêu đề + một khối chữ ở giữa". Mỗi video PHẢI có: ≥1 cảnh số liệu RẤT lớn (số tự dựng bằng <div> chữ 80–160px) nếu có số thật; ≥1 cảnh bố cục khác thường (HAI CỘT so sánh tự dựng, danh sách tự dựng, hoặc biểu đồ tự vẽ bằng SVG); ≥1 "beat chữ ký" có đồ hoạ SVG/CSS bespoke tự vẽ (không chỉ card chữ). Hình dung cụ thể cho cảnh mở đầu + cảnh điểm nhấn TRƯỚC khi viết — coi như bản cuối, không phải bản tạm.
-- THỜI LƯỢNG: nếu yêu cầu nêu thời lượng (vd "90 giây", "1p30s", "1 phút rưỡi"), hãy ước TỔNG lời đọc toàn video ≈ thời_lượng_giây × ${rate} từ (giọng đọc ${languageLabel} ~${rate} từ/giây) và viết ĐỦ số cảnh để đạt tổng đó — thà hơi DƯ còn hơn hụt (vd 90 giây → khoảng ${w90} từ tổng, thường ${SHORTFORM_90S_SCENE_RANGE.min}–${SHORTFORM_90S_SCENE_RANGE.max} cảnh; 60 giây → khoảng ${w60} từ, thường 9–11 cảnh). Không nêu thời lượng thì 8–12 cảnh.`;
-}
-
-const OUTPUT_FORMAT = `ĐỊNH DẠNG TRẢ VỀ (AI_Output_Contract) — trả về TRONG MỘT REPLY:
-1) Đúng MỘT khối \`\`\`json là manifest (KHÔNG chứa code):
-\`\`\`json
-{
-  "title": "tiêu đề video (KHÔNG chứa hashtag)",
-  "hashtags": ["#chu_de", "#tu_khoa"],
-  "theme": { "dominant": "#RRGGBB", "mood": "mô tả ngắn tông màu" },
-  "scenes": [
-    { "component": "id-canh", "eyebrow": "NHÃN", "headline": "tiêu đề cảnh", "narration": "lời đọc", "props": { }, "transitionToNext": "slide|fade|wipe|clockWipe|zoom" }
-  ]
-}
-\`\`\`
-Mỗi scene trong manifest BẮT BUỘC có field "component". KHÔNG dùng "sceneId" thay cho "component"; nếu bám content plan có sceneId thì đặt component id trùng sceneId, ví dụ { "component": "scene-01", ... }.
-2) Với MỖI component id duy nhất, MỘT khối \`\`\`tsx, DÒNG ĐẦU là marker "// component: <id>", thân là module .tsx đầy đủ theo hợp đồng.
-   ⚠ Khối mẫu DƯỚI ĐÂY chỉ minh hoạ CẤU TRÚC export bắt buộc + cách tự dựng bằng JSX/SVG trần — KHÔNG phải mẫu thẩm mỹ để chép cho mọi cảnh. KHÔNG còn thư viện block: mỗi cảnh TỰ DỰNG nền + bố cục + đồ hoạ bằng <div>/<svg> theo nội dung (xem QUY TẮC NỘI DUNG về sự táo bạo). KHÔNG import "@motionreal/blocks"/"@motionreal/theme":
-\`\`\`tsx
-// component: id-canh
-import React from "react";
-import { z } from "zod";
-import { useCurrentFrame, interpolate, useVideoConfig } from "remotion";
-import { registerComponent, type SceneComponentProps } from "@motionreal/compositions";
-export const schema = z.object({ /* props */ });
-type Props = z.infer<typeof schema>;
-const Scene: React.FC<SceneComponentProps<Props>> = ({ headline, eyebrow, durationInFrames }) => {
-  const frame = useCurrentFrame();
-  const { fps } = useVideoConfig();
-  const progress = durationInFrames > 1 ? Math.min(1, Math.max(0, frame / (durationInFrames - 1))) : 1;
-  const enterEnd = Math.max(1, Math.round(fps * 0.45));
-  const enter = interpolate(frame, [0, enterEnd], [0, 1], { extrapolateRight: "clamp" });
-  const lineDraw = interpolate(progress, [0.2, 0.72], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
-  const periodFrames = Math.max(1, Math.round(fps * 1.2));
-  const phase = ((Math.max(0, frame - enterEnd)) % periodFrames) / periodFrames;
-  const pulse = 0.96 + Math.sin(phase * Math.PI * 2) * 0.04;
-  return (
-    <div style={{ position: "absolute", inset: 0, background: "transparent", display: "flex", flexDirection: "column", justifyContent: "center", padding: 80, opacity: enter, transform: \`translateY(\${interpolate(frame, [0, enterEnd], [24, 0], { extrapolateRight: "clamp" })}px)\` }}>
-      <span style={{ fontSize: 28, letterSpacing: 4, color: "#7dd3fc" }}>{eyebrow ?? "TIN"}</span>
-      <h1 style={{ fontSize: 96, lineHeight: 1.05, color: "#fff", margin: 0, fontWeight: 800 }}>{headline}</h1>
-      <svg width="720" height="160" viewBox="0 0 720 160" style={{ marginTop: 40 }}>
-        <path d="M24 120 C180 20 360 20 696 88" stroke="#7dd3fc" strokeWidth="12" fill="none" strokeLinecap="round" pathLength={1} strokeDasharray={1} strokeDashoffset={1 - lineDraw} />
-        <circle cx="696" cy="88" r="18" fill="#7dd3fc" opacity="0.35" style={{ transform: \`scale(\${pulse})\`, transformOrigin: "696px 88px" }} />
-      </svg>
-    </div>
-  );
-};
-// CỰC KỲ QUAN TRỌNG: example PHẢI chứa dữ liệu mẫu khớp hoàn toàn với định nghĩa schema ở trên.
-// Ví dụ nếu ở trên schema có trường percentage thì ở đây example bắt buộc phải có percentage.
-export const example: Props = {
-  // Điền các trường dữ liệu mẫu hợp lệ ở đây
-};
-export default registerComponent<Props>({ id: "id-canh", displayName: "...", promptGuide: "...", schema, Component: Scene, example });
-\`\`\`
-id trong manifest phải KHỚP id literal trong registerComponent. KHÔNG kèm văn bản thừa ngoài các khối trên.`;
 
 /**
  * Build the AUTHOR system prompt for the chosen DELIVERY FORMAT (no design style
@@ -195,49 +49,6 @@ ${AUTHORING_CONTRACT}
 ${OUTPUT_FORMAT}`;
 }
 
-const TSX_BATCH_OUTPUT_FORMAT = `ĐỊNH DẠNG TRẢ VỀ CHO TSX BATCH:
-- KHÔNG trả manifest JSON. Manifest đã được hệ thống chốt.
-- KHÔNG thêm văn bản ngoài code fences.
-- Trả đúng các khối \`\`\`tsx được yêu cầu trong batch, mỗi component id đúng MỘT khối.
-- Mỗi khối có dòng đầu "// component: <id>" và registerComponent id khớp chính xác.
-- Module phải đầy đủ, tự render raw JSX/SVG/CSS theo AUTHORING_CONTRACT, không import block/theme.
-
-Khung module tối thiểu:
-\`\`\`tsx
-// component: id-canh
-import React from "react";
-import { z } from "zod";
-import { useCurrentFrame, interpolate, useVideoConfig } from "remotion";
-import { registerComponent, type SceneComponentProps } from "@motionreal/compositions";
-export const schema = z.object({});
-type Props = z.infer<typeof schema>;
-const Scene: React.FC<SceneComponentProps<Props>> = ({ headline, eyebrow, durationInFrames }) => {
-  const frame = useCurrentFrame();
-  const { fps } = useVideoConfig();
-  const enter = interpolate(frame, [0, Math.max(1, Math.round(fps * 0.45))], [0, 1], { extrapolateRight: "clamp" });
-  return <div style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", opacity: enter }}><h1>{headline}</h1><p>{eyebrow}</p></div>;
-};
-export const example: Props = {};
-export default registerComponent<Props>({ id: "id-canh", displayName: "Scene", promptGuide: "Fresh authored scene", schema, Component: Scene, example });
-\`\`\``;
-
-function authorModuleBatchSystem(format: VideoFormat, tier: DurationTier, videoLanguage: VideoLanguage, wps: number): string {
-  const frame = format === "youtube" ? "16:9" : "9:16";
-  return `Bạn là tác giả video ngắn ${frame} kiêm lập trình viên Remotion. Hệ thống đã chốt manifest; bạn chỉ viết một batch module .tsx mới cho các component id được chỉ định.
-
-${formatBlock(format)}
-
-${tierBudgetBlock(format, tier, videoLanguage, wps)}
-
-${languageBlock(format, videoLanguage)}
-
-${contentRules(wps, videoLanguage)}
-
-${AUTHORING_CONTRACT}
-
-${TSX_BATCH_OUTPUT_FORMAT}`;
-}
-
 /** One provided image the AI may place: a fixed local `ref`, its pixel size, and a data URL to "see" it. */
 export type AuthorImageInput = { ref: string; width: number; height: number; dataUrl: string };
 
@@ -258,57 +69,6 @@ const IMAGE_RULE = `
 QUAN TRỌNG VỀ KÍCH THƯỚC: <SceneImage> TỰ canh theo đúng tỉ lệ thật của ảnh (khung ôm khít ảnh). TUYỆT ĐỐI KHÔNG bọc nó trong khung có chiều cao/rộng cố định, không dùng overflow:"hidden", height:"...px", aspectRatio hay objectFit ép quanh nó — làm vậy sẽ CẮT hoặc BÓP MÉO ảnh. Cứ đặt <SceneImage> trực tiếp trong cột nội dung; muốn giới hạn chiều cao thì truyền prop maxHeight (số px), đừng tự dựng khung.
 CHỈ dùng ref đã được cung cấp, TUYỆT ĐỐI KHÔNG bịa đường dẫn/URL ảnh. Viết nội dung sao cho ảnh khớp tổng thể.
 BẮT BUỘC DÙNG ẢNH: những ảnh này do NGƯỜI DÙNG chủ động chọn/đính kèm, nên PHẢI được đưa vào video — KHÔNG được bỏ hết. Hãy đặt MỖI ảnh đã cho vào một cảnh phù hợp (mỗi cảnh tối đa 1 ảnh, nên trải ảnh ra nhiều cảnh); nếu có nhiều ảnh hơn số cảnh hợp, hãy ưu tiên những ảnh khớp nội dung nhất, nhưng TỐI THIỂU phải dùng một ảnh. Soạn nội dung/kịch bản bám theo ảnh để chúng khớp tự nhiên.`;
-
-function contentPlanBlock(plan?: ContentPlan): string {
-  if (!plan) return "";
-  return `
-
-CONTENT PLAN ĐÃ DUYỆT (bắt buộc bám theo):
-${JSON.stringify(plan, null, 2)}
-
-LUẬT DÙNG CONTENT PLAN:
-- Giữ đúng title, viewerPromise, hook/openLoop/payoff và thứ tự sceneId/purpose/beat trừ khi cần sửa rất nhỏ để hợp TSX.
-- Mỗi cảnh phải hiện thực hóa đúng beat/narration/onScreenText/visualMetaphor/layoutFamily đã được lập kế hoạch.
-- Đọc motionProgression như motion intent, KHÔNG như lệnh kéo mọi animation ra hết cảnh:
-  quick entrance/reveal/pop vào nhanh tự nhiên (thường settle 0.2–0.8 giây bằng frame/spring);
-  semantic progression chỉ dùng progress dài khi beat thật sự có quá trình như path/chart/timeline/focus shift;
-  continuous living motion dùng phase/period deterministic cho wave/pulse/signal/walking sau khi entrance đã settle.
-  Final hold sau khi beat chính land là hợp lệ; quick entrance + readable final hold luôn hợp lệ cho statement beat.
-- Chỉ dùng các claims còn xuất hiện trong JSON trên. Nếu một claim không có ở đây, coi như đã bị loại vì thiếu căn cứ và KHÔNG được đưa vào narration, text, props hoặc code.
-- Không thêm số liệu/ngày/giá/phần trăm mới ngoài claim ledger đã duyệt; thiếu căn cứ thì viết lại theo hướng không cần chi tiết đó.
-- Vẫn phải tuân thủ toàn bộ AUTHORING_CONTRACT và AI_Output_Contract bên dưới.`;
-}
-
-function contentPlanAdvisoryBlock(advisories?: readonly ContentPlanQualityIssue[]): string {
-  if (!advisories || advisories.length === 0) return "";
-  const lines = advisories.map((issue) => {
-    const scene = issue.sceneId ? ` @${issue.sceneId}` : "";
-    return `- ${issue.check}${scene}: ${issue.message}`;
-  });
-  return `
-
-CONTENT PLAN ADVISORIES TO RESOLVE IN TSX:
-${lines.join("\n")}
-
-LUẬT DÙNG ADVISORY:
-- Đây là hướng sửa mềm cho authoring, không phải lý do xoá ý tưởng hoặc thay video bằng title-card an toàn.
-- Giải quyết bằng lựa chọn visual/motion cụ thể trong TSX: bố cục, hierarchy, quick entrance đúng nhịp, semantic progression, continuous living motion, SVG/CSS bespoke, hoặc deliberate static hold khi hợp nội dung.`;
-}
-
-function sourceBlock(input: AuthorInput, research?: string): string {
-  const links = input.urls.length > 0 ? `\n\nLink trong yêu cầu: ${input.urls.join(", ")}` : "";
-  const grounding = research
-    ? `\n\nTư liệu đã đọc từ link (dùng làm căn cứ, không bịa thêm):\n${research}`
-    : input.urls.length > 0
-      ? "\n\n(Không đọc được nội dung link. Chỉ dùng thông tin trong yêu cầu + kiến thức chắc chắn về chủ đề. KHÔNG bịa số liệu, ngày tháng, giá, phần trăm hay tên sản phẩm/phiên bản mới — thiếu căn cứ thì đừng nêu.)"
-      : "";
-  return `Yêu cầu của người dùng:\n${input.text}${links}${grounding}`;
-}
-
-function batchBriefBlock(input: AuthorInput): string {
-  const links = input.urls.length > 0 ? `\n\nLink trong yêu cầu: ${input.urls.join(", ")}` : "";
-  return `Yêu cầu gốc của người dùng:\n${input.text}${links}`;
-}
 
 export function buildAuthorMessages(
   input: AuthorInput,
@@ -346,106 +106,6 @@ export function buildAuthorMessages(
   return [
     { role: "system", content: `${system}${IMAGE_RULE}` },
     { role: "user", content: parts },
-  ];
-}
-
-export type AuthorModuleBatchMessagesInput = {
-  input: AuthorInput;
-  manifest: AuthorManifest;
-  componentIds: string[];
-  batchIndex: number;
-  batchCount: number;
-  contentPlan: ContentPlan;
-  contentPlanAdvisories?: readonly ContentPlanQualityIssue[];
-  research?: string;
-  wordsPerSecond?: number;
-};
-
-export function buildAuthorModuleBatchMessages(batch: AuthorModuleBatchMessagesInput): VisionMessage[] {
-  const videoLanguage = batch.input.videoLanguage ?? "vi";
-  const effectiveWordsPerSecond = resolvedWordsPerSecond(videoLanguage, batch.wordsPerSecond);
-  const system = authorModuleBatchSystem(batch.input.format ?? "tiktok", batch.input.durationTier ?? 1, videoLanguage, effectiveWordsPerSecond);
-  const wanted = new Set(batch.componentIds);
-  const selectedScenes = batch.manifest.scenes.filter((scene) => wanted.has(scene.component));
-  const selectedPlanScenes = batch.contentPlan.scenes.filter((scene) => wanted.has(scene.sceneId));
-  const selectedClaimIds = new Set(selectedPlanScenes.flatMap((scene) => scene.evidenceClaimIds));
-  const selectedClaims = batch.contentPlan.claims.filter((claim) => selectedClaimIds.has(claim.id));
-  const globalPlan = {
-    title: batch.contentPlan.title,
-    viewerPromise: batch.contentPlan.viewerPromise,
-    hookType: batch.contentPlan.hookType,
-    first3SecondsLine: batch.contentPlan.first3SecondsLine,
-    openLoop: batch.contentPlan.openLoop,
-    payoff: batch.contentPlan.payoff,
-  };
-  const instruction = `${batchBriefBlock(batch.input)}
-
-GLOBAL CONTENT PLAN:
-\`\`\`json
-${JSON.stringify(globalPlan, null, 2)}
-\`\`\`
-
-MANIFEST SCENES CỦA BATCH NÀY - KHÔNG ĐƯỢC THAY ĐỔI:
-\`\`\`json
-${JSON.stringify(selectedScenes, null, 2)}
-\`\`\`
-
-CONTENT PLAN SCENES CỦA BATCH NÀY:
-\`\`\`json
-${JSON.stringify(selectedPlanScenes, null, 2)}
-\`\`\`
-
-USABLE CLAIMS CẦN CHO BATCH NÀY:
-\`\`\`json
-${JSON.stringify(selectedClaims, null, 2)}
-\`\`\`
-${contentPlanAdvisoryBlock(batch.contentPlanAdvisories)}
-
-Batch ${batch.batchIndex}/${batch.batchCount}. Component ids cần viết trong batch này, CHỈ các id này:
-${batch.componentIds.join("\n")}
-
-Scene metadata tương ứng với batch:
-${JSON.stringify(selectedScenes, null, 2)}
-
-Các component khác sẽ được viết ở batch khác. KHÔNG viết lại chúng. KHÔNG trả manifest JSON.
-Trả về đúng ${batch.componentIds.length} khối \`\`\`tsx, mỗi id đúng một khối.`;
-
-  return [
-    { role: "system", content: system },
-    { role: "user", content: instruction },
-  ];
-}
-
-export type MissingTsxRecoveryInput = {
-  manifest: unknown;
-  missingComponentIds: string[];
-  existingComponentIds?: string[];
-};
-
-function missingTsxRecoverySystem(): string {
-  return `Bạn đang sửa một reply authoring bị thiếu module .tsx. Manifest đã hợp lệ và KHÔNG được thay đổi.
-
-${AUTHORING_CONTRACT}
-
-TRẢ VỀ: chỉ các khối \`\`\`tsx còn thiếu, mỗi khối có dòng đầu "// component: <id>" và registerComponent id khớp. KHÔNG trả lại manifest JSON, KHÔNG thêm văn bản ngoài code fences.`;
-}
-
-export function buildMissingTsxRecoveryMessages(input: MissingTsxRecoveryInput): VisionMessage[] {
-  const existing = input.existingComponentIds && input.existingComponentIds.length > 0
-    ? `\n\nComponent ids đã có code hợp lệ, KHÔNG viết lại:\n${input.existingComponentIds.join("\n")}`
-    : "";
-  const text = `Dùng CHÍNH XÁC manifest này làm ngữ cảnh, không sửa manifest:
-\`\`\`json
-${JSON.stringify(input.manifest, null, 2)}
-\`\`\`
-
-Component ids còn thiếu code .tsx, CHỈ viết các id này:
-${input.missingComponentIds.join("\n")}${existing}
-
-Trả về đúng ${input.missingComponentIds.length} khối \`\`\`tsx cho các component id còn thiếu.`;
-  return [
-    { role: "system", content: missingTsxRecoverySystem() },
-    { role: "user", content: text },
   ];
 }
 
@@ -516,76 +176,5 @@ export function buildReauthorMessages(input: ReauthorPromptInput): VisionMessage
   return [
     { role: "system", content: system },
     { role: "user", content: text },
-  ];
-}
-
-// --- AI visual-QA (vision critique over rendered stills) --------------------
-
-const VISUAL_QA_SYSTEM = `Bạn là QA BỐ CỤC cho video dọc 9:16 (bất kỳ chủ đề nào). Video có thể theo BẤT KỲ ngôn ngữ thiết kế nào (nền sáng hoặc tối, vuông hoặc bo tròn) — ĐỪNG giả định một look cố định.
-Bạn được xem ảnh render (khung giữa) của từng cảnh và chỉ tìm LỖI BỐ CỤC RÕ RÀNG — KHÔNG nhận xét về "gu"/thẩm mỹ/màu sắc/phong cách:
-- chữ/khối ĐÈ LÊN NHAU hoặc chồng chéo;
-- chữ bị CẮT/tràn ra ngoài khung hoặc ra mép;
-- nội dung tràn xuống đáy (vùng phụ đề) hoặc lố vùng an toàn;
-- phần tử lệch hẳn/mất cân đối nặng, hoặc khoảng trống lớn bất thường;
-- chữ quá nhỏ/khó đọc rõ rệt.
-KHÔNG báo lỗi nếu cảnh trông ổn. KHÔNG bịa. Bỏ qua khác biệt phong cách/màu sắc/sở thích.
-KHÔNG biến nhận xét gu như "chưa đẹp", "màu chưa hợp", "ít sáng tạo", "thiếu cao cấp" thành defect. Chỉ báo khi có lỗi bố cục khách quan nhìn thấy trong ảnh. Nếu không chắc, bỏ qua hoặc dùng severity "low".
-
-TRẢ VỀ DUY NHẤT một khối JSON, không kèm văn bản khác:
-\`\`\`json
-{ "issues": [ { "sceneId": "scene-03", "issue": "mô tả ngắn lỗi bố cục", "severity": "high" } ] }
-\`\`\`
-severity = "high" chỉ khi lỗi rõ ràng cần sửa; "low" cho nghi ngờ nhẹ và low sẽ không tự kích hoạt sửa. Cảnh không lỗi thì KHÔNG liệt kê.`;
-
-/** Build a multimodal visual-QA request: each scene's still + its id, one batched call. */
-export function buildVisualQaMessages(scenes: { sceneId: string; stillDataUrl: string }[]): VisionMessage[] {
-  const parts: ContentPart[] = [
-    { type: "text", text: `Soát ${scenes.length} cảnh dưới đây. Mỗi ảnh kèm id của cảnh ngay trước nó.` },
-  ];
-  for (const s of scenes) {
-    parts.push({ type: "text", text: `Cảnh "${s.sceneId}":` });
-    parts.push({ type: "image_url", image_url: { url: s.stillDataUrl } });
-  }
-  parts.push({ type: "text", text: "Trả về đúng một khối JSON theo định dạng đã nêu." });
-  return [
-    { role: "system", content: VISUAL_QA_SYSTEM },
-    { role: "user", content: parts },
-  ];
-}
-
-// --- AI image-filter (pre-select crawled source images that fit) -----------
-
-const IMAGE_FILTER_SYSTEM = `Bạn là biên tập ảnh cho video ngắn đa chủ đề. Bạn được xem các ẢNH thu thập từ một nguồn nội dung, mỗi ảnh có một "ref" cố định, kèm tóm tắt nội dung nguồn. Nhiệm vụ: chọn các ảnh THỰC SỰ minh hoạ nội dung (ảnh chụp sự kiện/nhân vật/sản phẩm/biểu đồ/địa điểm/đối tượng liên quan).
-LOẠI BỎ: logo, banner/quảng cáo, avatar tác giả, icon mạng xã hội, ảnh trang trí chung chung, ảnh không liên quan nội dung.
-KHÔNG bịa ref. Chỉ trả ref có trong danh sách được cung cấp. Không có ảnh nào phù hợp thì trả mảng rỗng.
-
-TRẢ VỀ DUY NHẤT một khối JSON, không kèm văn bản khác:
-\`\`\`json
-{ "keep": ["assets/<hash>.jpg", "assets/<hash>.png"] }
-\`\`\``;
-
-/** One crawled image offered to the AI-filter: its fixed local ref + a data URL to "see" it. */
-export type ImageFilterInput = { ref: string; width: number; height: number; dataUrl: string };
-
-/**
- * Build a multimodal image-filter request (Phase 2 Block B): the source summary
- * + each crawled image (its ref label, then the image) so the model can keep only
- * the ones that fit the content. Mirrors the visual-QA builder's one-batched-call
- * shape. The returned `keep` refs are intersected with the provided set by the
- * caller (defense-in-depth, same spirit as the manifest `allowedRefs` strip).
- */
-export function buildImageFilterMessages(sourceText: string, images: ImageFilterInput[]): VisionMessage[] {
-  const summary = sourceText.trim().slice(0, 4000);
-  const parts: ContentPart[] = [
-    { type: "text", text: `Tóm tắt nội dung nguồn:\n${summary || "(không có tóm tắt)"}\n\nDưới đây là ${images.length} ảnh thu thập từ nguồn. Mỗi ảnh kèm "ref" ngay trước nó. Chọn ảnh phù hợp nội dung.` },
-  ];
-  for (const img of images) {
-    parts.push({ type: "text", text: `ref="${img.ref}" (${img.width}x${img.height}):` });
-    parts.push({ type: "image_url", image_url: { url: img.dataUrl } });
-  }
-  parts.push({ type: "text", text: "Trả về đúng một khối JSON { \"keep\": [...] } theo định dạng đã nêu." });
-  return [
-    { role: "system", content: IMAGE_FILTER_SYSTEM },
-    { role: "user", content: parts },
   ];
 }
