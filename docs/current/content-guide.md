@@ -66,22 +66,26 @@ have data.
 
 Every scene should have one main idea.
 
-Choose the visual form from the content shape:
+Choose the visual form from the content shape. Strong first drafts need a visual
+anchor, but the anchor should come from the beat instead of forcing unsupported
+numbers or diagrams:
 
-- single number -> large type, bar, gauge, unit grid;
-- comparison -> split frame, scorecard, balance metaphor;
+- supported number -> large type, bar, gauge, unit grid;
+- comparison or tradeoff -> split frame, scorecard, balance metaphor;
 - change over time -> diff, rewrite, moving marker, before/after;
-- process -> pipeline, steps, branch, loop;
+- structure or process -> pipeline, steps, branch, loop;
 - list -> hand-built rows or tiles;
 - relationship -> nodes, stack, matrix, hub;
-- sharp statement -> strong headline or one bespoke metaphor.
+- sharp statement -> strong headline, one bespoke metaphor, quick entrance, then
+  readable hold.
 
 Avoid repeating the same centered text card across the whole video. Signature
 beats should include bespoke SVG/CSS imagery that only makes sense for that
 topic.
 
 Clean text/list scenes are valid when they fit the idea. They should be a choice,
-not the default fallback for every scene.
+not the default fallback for every scene. Do not invent numbers, facts, or
+motion complexity just to make a scene look more ambitious.
 
 ## Motion
 

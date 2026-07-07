@@ -637,12 +637,16 @@ describe("buildAuthorMessages", () => {
   it("demands a bold FIRST draft (not 'play safe then wait for the user to ask')", () => {
     // The observed behavior: the first draft came out timid (every scene a plain
     // title card); only a manual "be more creative" reauthor produced something
-    // engaging. The contract must require boldness on the FIRST pass — concrete
-    // must-haves (a big stat, an unusual layout, a bespoke signature beat).
+    // engaging. The contract must require boldness on the FIRST pass, but it
+    // should route the model into safe recipes instead of invented stats.
     const [sys] = buildAuthorMessages({ text: "Chủ đề bất kỳ", urls: [] });
     const text = sys!.content;
     expect(text).toMatch(/TÁO BẠO NGAY TỪ BẢN ĐẦU/);
     expect(text).toMatch(/beat chữ ký|bespoke/i);
+    expect(text).toMatch(/số lớn.*CHỈ khi số đó có trong tư liệu/);
+    expect(text).toMatch(/HAI CỘT.*so sánh\/tradeoff/);
+    expect(text).toMatch(/statement beat.*typography mạnh.*readable hold/);
+    expect(text).toMatch(/KHÔNG bịa số\/fact/);
   });
 
   it("separates quick entrances, semantic progression, and living motion without forcing motion everywhere", () => {
