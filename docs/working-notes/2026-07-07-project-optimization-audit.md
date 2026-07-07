@@ -1314,6 +1314,9 @@ git status --short
 | Provider smoke result 2026-07-08 - P3-C1/phase4-smoke-3 | Provider rerun -> draft OK -> docs update -> continue smoke | New project `tao-video-tiktok-tieng-viet-giai-t-a2a25995` on `ag/gemini-3-flash-agent` passed content planning, used the normal single-authoring path with 12 scenes, parsed a complete author reply with 12/12 TSX modules, and rendered draft OK at `renders/tao-video-tiktok-tieng-viet-giai-t-a2a25995.draft.mp4`. One `scene-12` reauthor feedback attempt failed N4 with an SVG closing-tag syntax error, but the pipeline recovered/continued and the draft render completed. Treat as refine noise to track, not as a failed smoke attempt. |
 | Provider smoke result 2026-07-08 - Reuters URL fallback/phase4-smoke-4 | Provider URL run -> fetch 401 -> claim repair -> authoring complete -> draft OK -> docs update | Project `https-www-reuters-com-world-asia-p-ddc2c03c` on `ag/gemini-3-flash-agent` could not ingest the Reuters URL because fetch returned HTTP 401, then continued under unreadable-link safeguards. Content planning returned, claim-ledger caught one blocking source-like claim in `scene-10`, one repair pass returned, authoring parsed complete with 11 scenes and 11/11 TSX modules, no missing components, no missing-TSX recovery, and draft render completed at `renders/https-www-reuters-com-world-asia-p-ddc2c03c.draft.mp4`. Treat as authoring/render success for URL-fallback behavior, not as proof that Reuters source reading succeeded. |
 | Provider smoke result 2026-07-08 - TaipeiTimes image URL/phase4-smoke-5 | Image URL run -> first admission N4 -> retry authoring complete -> owner skipped draft | Project `https-www-taipeitimes-com-news-biz-ed0d4841` on `ag/gemini-3-flash-agent` used a readable/image-assisted URL path with crawled assets and an image reference in the manifest. First attempt passed content planning and parsed 10/10 TSX modules, then admission failed with N4 count 9, all in `scene-10.tsx`, due to invalid TSX syntax. Retry passed content planning and parsed complete with 11 scenes and 11/11 TSX modules, no missing components, no id mismatch, and no missing-TSX recovery. The owner chose not to render a draft for this run, so record it as image-assisted authoring/admission evidence, not as a draft-success smoke. |
+| Phase 5 Step 5.1 - Recovery Inventory | Kiem tra -> docs inventory -> kiem tra -> xac nhan complete | Existing parser/schema/content-plan/source normalizers were mapped by purpose, class, and test coverage. No runtime transform was added. The TaipeiTimes first-attempt N4 is tracked as a single-scene provider syntax failure recovered by retry, not enough evidence for another normalizer. |
+| Phase 5 Step 5.2 - Define AST Transform Threshold | Kiem tra -> durable docs -> xac nhan complete | `docs/current/maintenance.md` now records parser/normalizer policy: new source mutation requires repeated or reproducible evidence, a mechanical before/after fixture, focused parser/admission tests, owner approval for broad rewrites, and no weakening of N4/N5/N10 or render-safety blockers. |
+| Phase 5 local closeout / temporary plan pause | Kiem tra -> xac nhan -> phase commit | `npm.cmd test -- --run apps/desktop/src/main/authoring/reply-parser.test.ts apps/desktop/src/main/authoring/content-plan.test.ts apps/desktop/src/main/authoring/normalize-imports.test.ts apps/desktop/src/main/authoring/manifest-schema.test.ts apps/desktop/src/main/authoring/manifest-schema.coercion.test.ts` passed 5 files/102 tests; `npm.cmd run typecheck` passed; `git diff --check` clean. Plan paused at owner request before Phase 6. |
 
 ### Phase 4 Step 4.3 Provider Smoke Status
 
@@ -1354,6 +1357,34 @@ Recorded attempts:
 | `phase4-smoke-20260708-3` | `66eeba4` | `ag/gemini-3-flash-agent` | P3-C1-VI-RAG / new project after fixes | success: content-plan pass, single authoring path with sceneCount 12, author reply parse complete with 12/12 TSX modules, no missing components, no recovery needed, and draft render OK. A `scene-12` reauthor feedback attempt failed N4 once, but the pipeline continued and produced the draft MP4. |
 | `phase4-smoke-20260708-4` | `6d2c124` | `ag/gemini-3-flash-agent` | Reuters URL / Samsung Q2 operating profit article | success for URL fallback: Reuters fetch failed with HTTP 401, so this is not a clean source-read/RAG success. Content-plan parse passed after one claim-ledger repair for `scene-10`; author reply parse complete with sceneCount 11 and 11/11 TSX modules; no missing components or missing-TSX recovery; draft render OK. |
 | `phase4-smoke-20260708-5` | `0a788f3` | `ag/gemini-3-flash-agent` | TaipeiTimes URL / image-assisted business article | authoring retry success, draft intentionally skipped: first attempt parsed 10/10 TSX modules then failed admission with N4 count 9 in `scene-10.tsx`; retry parsed complete with sceneCount 11 and 11/11 TSX modules, no missing components or recovery. Image assets were present and manifest referenced a local asset. |
+
+### Phase 5 Recovery Inventory
+
+Phase 5 was executed as a docs/policy slice. No new runtime parser or source
+normalizer was added. The latest TaipeiTimes image-assisted N4 was one invalid
+TSX scene on the first attempt and recovered on retry, so it is a signal to
+track, not enough evidence for another mutation rule.
+
+| Surface | Existing transform/recovery | Why it exists | Class | Tests/gates |
+| --- | --- | --- | --- | --- |
+| `reply-parser.ts` | Fenced TSX extraction, including an unclosed final fence only when a valid `registerComponent` literal survived | Provider replies can truncate after useful code; accepting only modules with ids avoids half-module saves | Provider-output tolerance | `reply-parser.test.ts` truncated reply recovery tests |
+| `reply-parser.ts` | Bare module fallback only when no TSX fences exist and modules carry `// component:` plus matching `registerComponent` | Some reauthor replies return raw code without fences | Provider-output tolerance | `reply-parser.test.ts` bare module recovery tests |
+| `reply-parser.ts` | Manifest JSON scan is string-aware and can recover `sceneId` -> `component` only when matching authored modules exist | Keeps parse robust without inventing component ids | Compatibility tolerance | `reply-parser.test.ts` manifest scan and sceneId recovery tests |
+| `manifest-schema.ts` | Clamp overlong soft strings; coerce image aliases, hashtags, and bad transition hints to safe values/undefined | One soft manifest field should not discard a complete authored reply | Compatibility tolerance | `manifest-schema.test.ts`, `manifest-schema.coercion.test.ts`, reply-parser manifest coercion tests |
+| `content-plan.ts` | Normalize `purpose` drift and default missing/generic `motionProgression` with diagnostics | Non-safety metadata drift should remain observable but not block authoring | Non-safety metadata tolerance | `content-plan.test.ts` purpose/motion diagnostics and enum-drift rejection tests |
+| `content-plan.ts` | Claim-ledger/evidence validation, duplicate id checks, usable-claim filtering, and one targeted claim-ledger repair prompt | Factual safety is hard; repair is bounded and evidence-specific | Safety gate and bounded recovery | `content-plan.test.ts` claim-ledger, evidence, and repair tests |
+| `normalize-imports.ts` | `SceneImage` re-home, Remotion `Extrapolate`, color-valued `interpolate` -> `interpolateColors`, boundary fence stripping, exact `"zx"` -> `"zod"` import typo | Mechanical compatibility fixes backed by observed incidents; unrelated forbidden imports still fail admission | Authored-source compatibility normalization | `normalize-imports.test.ts` plus admission/typecheck gates |
+
+Phase 5 policy:
+
+- New parser recovery or source mutation requires a repeated/reproducible
+  pattern, a mechanical before/after fixture, and focused parser/admission tests.
+- Prefer schema validation, admission, or a narrow prompt fix before source
+  mutation.
+- A string/regex transform must be exact enough that unrelated unsafe code still
+  reaches N4/N5/N10 instead of being hidden.
+- Broad AST/source rewrites need owner approval, rollback path, and evidence
+  that they are safer than retry.
 
 ### Phase 0 Metrics Baseline
 
@@ -1525,7 +1556,7 @@ Implementation rule:
 | Phase 2 - Prompt Module Split Without Behavior Change | done | Engineering can execute after Phase 1 owner review | M | Prompt modules split, section markers locked, and prompt size guard added without intentional behavior change. |
 | Phase 3 - Prompt Fragility Reduction | provider canary in progress | Owner approval required before accepting prompt behavior changes | M-L | Local Step 3.0-3.5 changes are implemented and verified. P3-C1 has one successful post-fix provider run; run P3-C2..P3-C6 before marking Phase 3 done. |
 | Phase 4 - Authoring Observability And Log Hygiene | provider smoke in progress | Engineering can execute; owner reviews raw-log policy | S-M | Steps 4.1-4.2 are implemented and locally verified; Step 4.3 protocol is recorded. Two provider-connected attempts have succeeded through draft after fixes, one clean source-notes run and one unreadable-URL fallback run. One image-assisted URL run reached complete authoring on retry, and the owner intentionally skipped draft for that run. |
-| Phase 5 - Parser, Normalizer, And Recovery Debt | pending | Owner approval required for any new source mutation | S-M | Inventory first, no new regex by default. |
+| Phase 5 - Parser, Normalizer, And Recovery Debt | done | Owner approval required for any new source mutation | S-M | Recovery inventory and durable parser/normalizer policy recorded; no new runtime transform added. |
 | Phase 6 - Repo Hygiene And Reserved Surfaces | pending | Owner/product decisions for SFX/image defaults | M | Low-risk cleanup after prompt boundary is clear. |
 | Phase 7 - Sensitive File Refactors And UI Style Cleanup | pending | Owner approval for sensitive-file extractions | M-L | Behavior-led only, no big-bang rewrite. |
 | Phase 8 - Render/Cache Scaling Design | pending | Owner/product plus engineering decision | S for design, XL if implemented | Design before concurrency implementation. |
@@ -1533,18 +1564,9 @@ Implementation rule:
 
 ## Next Real Execution Step
 
-Phase 4 local implementation is complete, and provider smoke has started. Two
-provider-connected gates remain before marking the prompt/logging work fully
-done:
-
-- Phase 3: P3-C1 has one successful post-fix provider run; run the remaining
-  P3-C2..P3-C6 canaries on the same provider/model lane and record results
-  against the template above.
-- Phase 4: two provider-connected attempts have succeeded through draft after
-  fixes. The TaipeiTimes image-assisted URL run reached complete authoring on
-  retry, and draft was intentionally skipped. If closing Phase 4 requires the
-  minimum 3-attempt draft/still window, run one more provider attempt on the same
-  provider/model lane.
+Phase 5 is complete, and the owner chose to pause / temporarily close this
+optimization plan here because the current provider results are trusted enough
+for now. Do not start Phase 6, Phase 7, or Phase 8 without a fresh owner request.
 
 ```powershell
 git log -1 --oneline
@@ -1552,8 +1574,11 @@ git status --short
 git diff --check
 ```
 
-If provider access is not available, keep Phase 3 and Phase 4 at
-`local complete / provider pending` and do not use local tests alone as proof
-that prompt quality or provider smoke is accepted. If the owner approves
-continuing local debt work while provider gates wait, the next local phase is
-Phase 5 Step 5.1 recovery inventory.
+If the plan is resumed later, choose one explicit route:
+
+- Phase 9 closeout/archive if the temporary note should be finalized and durable
+  docs are already synced enough.
+- Phase 6 owner/product decisions if cleanup continues.
+- Phase 3/4 provider canary closure only if the owner wants formal provider
+  acceptance beyond the successful source-notes draft, URL-fallback draft, and
+  image-assisted authoring retry evidence already recorded.

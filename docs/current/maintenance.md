@@ -122,6 +122,36 @@ with diagnostics so their frequency remains observable. Claim-ledger/evidence
 violations, duplicate ids, invalid JSON shape, unsafe authored code, and render
 integrity failures remain hard blockers.
 
+## Parser And Normalizer Policy
+
+Parser recovery and authored-source normalization are compatibility tools, not a
+general retry substitute. Existing transforms should stay narrow, named, and
+covered by focused regression tests:
+
+- `reply-parser.ts` may recover only parseable authored modules: fenced TSX,
+  a truncated final fence whose `registerComponent` survived, bare modules with
+  `// component:` plus a matching `registerComponent`, and manifest
+  `sceneId` -> `component` only when matching authored code exists.
+- `manifest-schema.ts` may coerce soft manifest metadata that does not affect
+  code safety, such as overlong strings, image ref aliases, hashtags, and bad
+  transition hints. Empty required content and invalid component ids still fail.
+- `content-plan.ts` may normalize non-safety metadata with diagnostics, currently
+  `purpose` and missing/generic `motionProgression`. Evidence, duplicate ids,
+  schema-critical enum drift, and claim-ledger issues stay hard unless a
+  documented owner-approved policy changes them.
+- `normalize-imports.ts` may fix mechanical authored-source compatibility issues
+  already proven by incidents, such as `SceneImage` re-home, old Remotion
+  `Extrapolate`, color-valued `interpolate`, boundary markdown fences, and the
+  exact `import { z } from "zx"` typo. It must leave unrelated forbidden imports
+  or unsafe code for admission to reject.
+
+Do not add a new regex/string recovery because one provider attempt failed.
+Investigate first. Add a new source mutation only when the pattern is repeated
+or clearly reproducible, mechanical, safer than a retry, and locked by before/
+after fixtures plus the relevant parser/admission tests. Broad AST or source
+rewrites need owner approval, a rollback path, and must not weaken N4/N5/N10 or
+render-safety blockers.
+
 ## Prompt Change Checklist
 
 Treat runtime prompt text as production behavior. Before changing authoring,
