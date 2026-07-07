@@ -53,7 +53,7 @@ export async function runContentPlan(args: RunContentPlanInput): Promise<RunCont
     if (!parsedPlan.ok) {
       args.logger.error(
         { projectId: args.projectId, reason: parsedPlan.reason, detail: parsedPlan.detail, ...rawAiReplyLogFields(planReply) },
-        "content-plan parse failed",
+        "content-plan parse invalid; content-plan parse failed",
       );
       return { ok: false, message: CONTENT_PLAN_PARSE_FAILURE };
     }
@@ -122,7 +122,7 @@ async function repairContentPlanIfPossible(args: {
   if (!parsed.ok) {
     args.logger.error(
       { projectId: args.projectId, reason: parsed.reason, detail: parsed.detail, ...rawAiReplyLogFields(reply) },
-      "content-plan repair parse failed",
+      "content-plan repair parse invalid; content-plan repair parse failed",
     );
     return null;
   }
@@ -145,8 +145,23 @@ function logContentPlanNormalizations(
   diagnostics: readonly { kind: string }[],
 ): void {
   if (diagnostics.length === 0) return;
+  const counts = countByKind(diagnostics);
   logger.warn(
-    { projectId, diagnostics },
+    { projectId, diagnostics, counts },
     "content-plan tolerant normalizations applied",
   );
+  if (counts["purpose-normalized"]) {
+    logger.warn({ projectId, count: counts["purpose-normalized"] }, "content-plan purpose normalized");
+  }
+  if (counts["motion-defaulted"]) {
+    logger.warn({ projectId, count: counts["motion-defaulted"] }, "content-plan motion defaulted");
+  }
+}
+
+function countByKind(items: readonly { kind: string }[]): Record<string, number> {
+  const counts: Record<string, number> = {};
+  for (const item of items) {
+    counts[item.kind] = (counts[item.kind] ?? 0) + 1;
+  }
+  return counts;
 }

@@ -265,6 +265,7 @@ function makeBackend(
   authorReply = validReply(),
   admit = vi.fn(async () => ({ ok: true as const, componentIds: ["alpha", "beta"], files: [] })),
   planReply = validContentPlanReply(),
+  logger?: ReturnType<typeof fakeLogger>,
 ) {
   const chat = chatReplies(planReply, authorReply);
   const client = { chat } as unknown as NineRouterClient;
@@ -274,6 +275,7 @@ function makeBackend(
     model: () => "test-model",
     apiKey: () => undefined,
     admit,
+    ...(logger ? { logger } : {}),
   };
   return { backend: new NineRouterAuthoringBackend(deps), admit, client, chat };
 }
@@ -330,11 +332,23 @@ describe("authorScenes (pure-author)", () => {
     const normalizationLog = logger.warn.mock.calls.find((call) => call[1] === "content-plan tolerant normalizations applied");
     expect(normalizationLog?.[0]).toMatchObject({
       projectId,
+      counts: {
+        "purpose-normalized": 2,
+        "motion-defaulted": 2,
+      },
       diagnostics: expect.arrayContaining([
         expect.objectContaining({ kind: "purpose-normalized", sceneId: "scene-02", original: "definition", normalized: "context" }),
         expect.objectContaining({ kind: "motion-defaulted", sceneId: "scene-03", reason: "missing" }),
       ]),
     });
+    expect(logger.warn.mock.calls).toContainEqual([
+      expect.objectContaining({ projectId, count: 2 }),
+      "content-plan purpose normalized",
+    ]);
+    expect(logger.warn.mock.calls).toContainEqual([
+      expect.objectContaining({ projectId, count: 2 }),
+      "content-plan motion defaulted",
+    ]);
   });
 
   it("keeps normal 12-scene no-image plans on the single authoring path", async () => {
@@ -368,6 +382,7 @@ describe("authorScenes (pure-author)", () => {
 
   it("uses compact two-scene TSX batches only beyond the normal single-reply capacity", async () => {
     const projectId = "pa-batched-compact";
+    const logger = fakeLogger();
     const componentIds = ids(13);
     const admit = vi.fn(async () => ({ ok: true as const, componentIds, files: [] }));
     const chat = chatReplies(
@@ -380,6 +395,7 @@ describe("authorScenes (pure-author)", () => {
       model: () => "test-model",
       apiKey: () => undefined,
       admit,
+      logger,
     });
 
     const out = await backend.authorScenes({ projectId, input: { text: "long topic", urls: [], format: "tiktok", durationTier: 3 }, scriptGate: false });
@@ -395,6 +411,8 @@ describe("authorScenes (pure-author)", () => {
     expect(batch2Text).toContain("scene-03\nscene-04");
     expect(batch1Text).toContain("MANIFEST SCENES CỦA BATCH NÀY");
     expect(batch1Text).not.toContain('"sceneId": "scene-13"');
+    const batchSelectedLog = logger.info.mock.calls.find((call) => call[1] === "authoring batch selected; authoring will use compact TSX batches");
+    expect(batchSelectedLog?.[0]).toMatchObject({ projectId, batchCount: 7, batchSize: 2, componentCount: 13 });
     expect(admit).toHaveBeenCalledTimes(1);
   });
 
@@ -520,8 +538,40 @@ describe("authorScenes (pure-author)", () => {
     expect(manifest.scenes.map((s: { component: string }) => s.component)).toEqual(["alpha", "beta", "alpha"]);
   });
 
+  it("logs admission failure counts by safety check", async () => {
+    const projectId = "pa-admission-counts";
+    const logger = fakeLogger();
+    const admit = vi.fn(async () => ({
+      ok: false as const,
+      violations: [
+        { check: "N5", severity: "error" as const, path: "alpha.tsx:1", message: "forbidden API" },
+        { check: "N5", severity: "error" as const, path: "beta.tsx:1", message: "forbidden API" },
+        { check: "N10", severity: "error" as const, path: "manifest.json", message: "invalid timing" },
+      ],
+    }));
+    const backend = new NineRouterAuthoringBackend({
+      client: { chat: chatReplies(validContentPlanReply(), validReply()) } as unknown as NineRouterClient,
+      tools: {} as never,
+      model: () => "test-model",
+      apiKey: () => undefined,
+      admit,
+      logger,
+    });
+
+    const out = await backend.authorScenes({ projectId, input: { text: "chủ đề", urls: [] }, scriptGate: false });
+
+    expect(out.scenes).toEqual([]);
+    expect(out.message).toMatch(/chưa hợp lệ/i);
+    const admissionLog = logger.error.mock.calls.find((call) => call[1] === "admission failed");
+    expect(admissionLog?.[0]).toMatchObject({
+      projectId,
+      violationCounts: { N5: 2, N10: 1 },
+    });
+  });
+
   it("recovers a manifest-only author reply with one bounded missing-TSX call", async () => {
     const projectId = "pa-recover-json-only";
+    const logger = fakeLogger();
     const admit = vi.fn(async () => ({ ok: true as const, componentIds: ["alpha", "beta"], files: [] }));
     const chat = chatReplies(validContentPlanReply(), manifestOnlyReply(), block("alpha") + "\n\n" + block("beta"));
     const backend = new NineRouterAuthoringBackend({
@@ -530,6 +580,7 @@ describe("authorScenes (pure-author)", () => {
       model: () => "test-model",
       apiKey: () => undefined,
       admit,
+      logger,
     });
 
     const out = await backend.authorScenes({ projectId, input: { text: "chủ đề", urls: [] }, scriptGate: false });
@@ -540,6 +591,14 @@ describe("authorScenes (pure-author)", () => {
     expect(recoveryText).toContain("Manifest đã hợp lệ");
     expect(recoveryText).toContain("CHỈ viết các id này");
     expect(recoveryText).toContain("alpha\nbeta");
+    expect(logger.warn.mock.calls).toContainEqual([
+      expect.objectContaining({ projectId, recoveryAttempt: 1, missingComponentIds: ["alpha", "beta"] }),
+      "author-reply missing TSX recovery attempted; author-reply missing TSX modules; requesting bounded recovery",
+    ]);
+    expect(logger.info.mock.calls).toContainEqual([
+      expect.objectContaining({ projectId, recoveryAttempt: 1, recoveredComponentIds: ["alpha", "beta"] }),
+      "author-reply missing TSX recovery succeeded",
+    ]);
     expect(admit).toHaveBeenCalledTimes(1);
     expect(existsSync(join(authoredDir(projectId), "alpha.tsx"))).toBe(true);
     expect(existsSync(join(authoredDir(projectId), "beta.tsx"))).toBe(true);
@@ -573,6 +632,7 @@ describe("authorScenes (pure-author)", () => {
 
   it("does not accept partial code when the bounded missing-TSX recovery is still invalid", async () => {
     const projectId = "pa-recover-negative";
+    const logger = fakeLogger();
     const admit = vi.fn(async () => ({ ok: true as const, componentIds: ["alpha", "beta"], files: [] }));
     const chat = chatReplies(validContentPlanReply(), partialReply(), "I cannot provide TSX.");
     const backend = new NineRouterAuthoringBackend({
@@ -581,6 +641,7 @@ describe("authorScenes (pure-author)", () => {
       model: () => "test-model",
       apiKey: () => undefined,
       admit,
+      logger,
     });
 
     const out = await backend.authorScenes({ projectId, input: { text: "chủ đề", urls: [] }, scriptGate: false });
@@ -588,6 +649,14 @@ describe("authorScenes (pure-author)", () => {
     expect(out.scenes).toEqual([]);
     expect(out.message).toMatch(/hợp lệ/i);
     expect(chat).toHaveBeenCalledTimes(3);
+    expect(logger.warn.mock.calls).toContainEqual([
+      expect.objectContaining({ projectId, recoveryAttempt: 1, missingComponentIds: ["beta"] }),
+      "author-reply missing TSX recovery attempted; author-reply missing TSX modules; requesting bounded recovery",
+    ]);
+    expect(logger.error.mock.calls).toContainEqual([
+      expect.objectContaining({ projectId, missingComponentIds: ["beta"], recoveredComponentIds: [] }),
+      "author-reply missing TSX recovery failed",
+    ]);
     expect(admit).not.toHaveBeenCalled();
     expect(existsSync(authoredDir(projectId))).toBe(false);
   });
@@ -702,8 +771,9 @@ describe("authorScenes (pure-author)", () => {
 
   it("invalid content plan stops before authoring and does not fall back to one-step authoring", async () => {
     const projectId = "pa-invalid-plan";
+    const logger = fakeLogger();
     const admit = vi.fn(async () => ({ ok: true as const, componentIds: ["alpha", "beta"], files: [] }));
-    const { backend, chat } = makeBackend(validReply(), admit, "not a json plan");
+    const { backend, chat } = makeBackend(validReply(), admit, "not a json plan", logger);
     const job: AuthorJob = { projectId, input: { text: "chủ đề", urls: [] }, scriptGate: false };
 
     const out = await backend.authorScenes(job);
@@ -711,6 +781,8 @@ describe("authorScenes (pure-author)", () => {
     expect(out.scenes).toEqual([]);
     expect(out.message).toMatch(/kế hoạch nội dung/i);
     expect(chat).toHaveBeenCalledTimes(1);
+    const parseLog = logger.error.mock.calls.find((call) => call[1] === "content-plan parse invalid; content-plan parse failed");
+    expect(parseLog?.[0]).toMatchObject({ projectId, reason: "no-json" });
     expect(admit).not.toHaveBeenCalled();
     expect(existsSync(authoredDir(projectId))).toBe(false);
   });

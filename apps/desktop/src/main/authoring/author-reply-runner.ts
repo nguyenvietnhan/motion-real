@@ -113,7 +113,7 @@ export async function runBatchedAuthorReply(
       batchSize: args.batchSize,
       componentCount: args.batches.reduce((sum, batch) => sum + batch.length, 0),
     },
-    "authoring will use compact TSX batches",
+    "authoring batch selected; authoring will use compact TSX batches",
   );
 
   for (const [index, componentIds] of args.batches.entries()) {
@@ -213,7 +213,7 @@ async function recoverMissingTsxIfPossible(args: {
       parseSummary: authorReplyParseSummary(args.initialReply),
       recoveryAttempt: 1,
     },
-    "author-reply missing TSX modules; requesting bounded recovery",
+    "author-reply missing TSX recovery attempted; author-reply missing TSX modules; requesting bounded recovery",
   );
 
   let recoveryReply: string;

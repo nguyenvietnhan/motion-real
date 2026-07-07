@@ -361,8 +361,12 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
     const admit = this.deps.admit ?? ((id: string) => admitProjectScenes(id));
     const admitted = await admit(job.projectId);
     if (!admitted.ok) {
-      log.error(
-        { projectId: job.projectId, violations: admitted.violations.map((v) => `${v.check} ${v.path}: ${v.message}`) },
+      this.logger().error(
+        {
+          projectId: job.projectId,
+          violationCounts: countSafetyChecks(admitted.violations),
+          violations: admitted.violations.map((v) => `${v.check} ${v.path}: ${v.message}`),
+        },
         "admission failed",
       );
       // NO kit fallback — pure-author surfaces the failure for retry / AI-fix.
@@ -724,6 +728,15 @@ function chunk<T>(items: readonly T[], size: number): T[][] {
   }
   return out;
 }
+
+function countSafetyChecks(violations: readonly { check: string }[]): Record<string, number> {
+  const counts: Record<string, number> = {};
+  for (const violation of violations) {
+    counts[violation.check] = (counts[violation.check] ?? 0) + 1;
+  }
+  return counts;
+}
+
 /** Parse the visual-QA JSON reply into high-severity, known-scene defects (tolerant). */
 function parseVisualDefects(reply: string, knownScenes: Set<string>): VisualDefect[] {
   const json = extractJsonObject(reply);
