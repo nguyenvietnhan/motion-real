@@ -1290,6 +1290,7 @@ git status --short
 | Step | Workflow status | Evidence |
 | --- | --- | --- |
 | Phase 0 Step 0.1 - Confirm Checkpoint | Kiem tra -> docs update -> kiem tra -> xac nhan complete | Latest commit `af68f52`; dirty tree only this working note; `git diff --check` clean. |
+| Phase 0 Step 0.2 - Local Gate Before Implementation | Kiem tra -> docs update -> kiem tra -> xac nhan complete | `npm.cmd run typecheck` passed; `npm.cmd test` passed 98 files/986 tests plus 1 heavy lane/14 tests; `npm.cmd run build` passed; `git diff --check` clean. |
 
 | Phase | Status | Owner gate | Effort band | Next step |
 | --- | --- | --- | --- | --- |
