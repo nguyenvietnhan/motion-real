@@ -1293,6 +1293,7 @@ git status --short
 | Phase 0 Step 0.2 - Local Gate Before Implementation | Kiem tra -> docs update -> kiem tra -> xac nhan complete | `npm.cmd run typecheck` passed; `npm.cmd test` passed 98 files/986 tests plus 1 heavy lane/14 tests; `npm.cmd run build` passed; `git diff --check` clean. |
 | Phase 0 Step 0.3 - Prompt/Authoring Metrics Baseline | Kiem tra -> docs update -> kiem tra -> xac nhan complete | No runtime/provider log files found in repo; baseline is static source/fixture anchors plus current prompt file sizes below. |
 | Phase 1 Step 1.1 - Map Prompt Sources | Kiem tra -> docs update -> kiem tra -> xac nhan complete | Prompt/runtime/docs sources mapped by hard output, security, TSX contract, story, narration, visual ambition, motion, image, batch/recovery, and QA/refine categories. |
+| Phase 1 Step 1.2 - Define Hard Contract Vs Quality Guidance | Kiem tra -> docs update -> kiem tra -> xac nhan complete | Hard contract, quality guidance, and advisory-only boundaries recorded before runtime prompt edits. |
 
 ### Phase 0 Metrics Baseline
 
@@ -1336,6 +1337,51 @@ re-checked before editing runtime prompt files.
 | Image rules | `prompt.ts` image instruction block; `contract-text.ts` `SceneImage` exception; schema `SceneImage` local-only rules | `AI_CONTRACT.md`; `docs/current/authoring-contract.md`; schema/admission tests | Hard for media safety; layout/placement quality remains advisory unless live code hard-blocks it. |
 | Batch/recovery rules | `prompt.ts` `authorModuleBatchSystem()`, `buildAuthorModuleBatchMessages()`, `missingTsxRecoverySystem()` | `docs/current/maintenance.md` authoring output size; ninerouter/reply-parser tests | Stability policy. Keep compact and bounded; no broad retry. |
 | Visual QA/refine rules | `prompt.ts` `reauthorSystem()` and `VISUAL_QA_SYSTEM` | `AI_CONTRACT.md` layout advisory rule; maintenance motion-tempo notes; visual QA/refine tests if changed | Advisory unless tied to safety/build/runtime failure. |
+
+### Phase 1 Step 1.2 Hard Contract Vs Quality Guidance
+
+Hard contract:
+
+- Output fences and exact parse shape: one manifest JSON where required, exact
+  component ids, one TSX block per requested component, no extra prose.
+- Import/security contract: authored scene imports limited to `react`,
+  `remotion`, `zod`, and `@motionreal/compositions`; no block/theme, Node,
+  browser host APIs, dynamic import, eval, network, filesystem, or remote media.
+- TSX module shape: exported `schema`, exported `example`, literal
+  `registerComponent` id, default registered component, deterministic frame
+  logic, no authored captions.
+- Manifest/spec integrity: duplicate ids, unknown components, empty specs,
+  invalid locked timing/audio, unsafe media, build/runtime crash, and admission
+  blockers stay hard.
+- Factual safety: no invented facts, numbers, dates, quotes, prices,
+  benchmarks, release claims, or sources; claim/evidence references remain hard
+  where content-plan validation marks them hard.
+- Provider/voice safety: never silently fall back to `mock`, `none`, or another
+  provider when real voice configuration is missing.
+
+Quality guidance:
+
+- Bold-first visual ambition, bespoke SVG/CSS, layout variety, strong visual
+  anchors, and anti-title-card guidance.
+- Narration voice, hook sharpness, CTA flavor, and topic-specific editorial
+  tension.
+- Motion richness, semantic progression, continuous living motion, and visual
+  tempo when they are not required for safety or valid TSX.
+- Prompt-size optimization targets and canary quality notes.
+
+Advisory unless owner approves a hard gate:
+
+- General layout/aesthetic warnings, visual taste, color/style preference,
+  "too bland" feedback, motion-tempo feel, and image placement refinements that
+  do not violate import/media/build/runtime safety.
+- Visual QA/refine findings that improve the draft but are not backed by a
+  parser, admission rule, render oracle, or schema validation.
+
+Implementation rule:
+
+- Phase 2 may split prompt sections without changing this boundary. Phase 3 may
+  move or rewrite quality wording, but it must not weaken any hard contract above
+  and must not turn advisory style checks into hard gates without owner approval.
 
 | Phase | Status | Owner gate | Effort band | Next step |
 | --- | --- | --- | --- | --- |
