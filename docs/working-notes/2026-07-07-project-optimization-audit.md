@@ -1307,6 +1307,36 @@ git status --short
 | Phase 3 local closeout | Kiem tra -> xac nhan -> phase commit | Focused Phase 3 local gate passed: `npm.cmd test -- --run apps/desktop/src/main/authoring/prompt.test.ts apps/desktop/src/main/authoring/contract-text.test.ts apps/desktop/src/main/authoring/content-plan.test.ts apps/desktop/src/main/authoring/ninerouter-backend.test.ts apps/desktop/src/main/authoring/reply-parser.test.ts packages/pipeline/src/authoring/admission.test.ts` passed 6 files/169 tests; `npm.cmd run typecheck` passed; `git diff --check` clean. Phase 3 remains provider-pending until full canary set P3-C1..P3-C6 is recorded. |
 | Phase 4 Step 4.1 - Gate Raw AI Reply Snippets | Kiem tra -> code/tests -> kiem tra -> xac nhan complete | Default parse-failure logs now keep structured reason/detail/parse summaries without raw AI reply text. Raw snippets are emitted only when `MOTIONREAL_AUTHORING_RAW_LOGS=1`, still capped at 2000 chars. Applied to content-plan, author reply/batch/recovery, and reauthor parse failures. `npm.cmd test -- --run apps/desktop/src/main/authoring/ninerouter-backend.test.ts` passed 1 file/45 tests; `npm.cmd run typecheck` passed; `git diff --check` clean. |
 | Phase 4 Step 4.2 - Stable Failure Counters | Kiem tra -> code/tests -> kiem tra -> xac nhan complete | Stable log anchors now cover `content-plan parse invalid`, `content-plan purpose normalized`, `content-plan motion defaulted`, `author-reply parse failed`, `authoring batch selected`, `authoring batch parse failed`, missing-TSX recovery attempted/succeeded/failed, and `admission failed` with `violationCounts` by N-code. Existing baseline strings such as `content-plan parse failed` and `authoring will use compact TSX batches` remain present for continuity. `npm.cmd test -- --run apps/desktop/src/main/authoring/content-plan.test.ts apps/desktop/src/main/authoring/ninerouter-backend.test.ts` passed 2 files/76 tests; `npm.cmd run typecheck` passed; `git diff --check` clean. |
+| Phase 4 Step 4.3 - Provider Smoke Protocol | Kiem tra -> docs/status update -> kiem tra -> xac nhan provider pending | Provider-connected smoke is manual and was not launched in this automated pass. The exact command remains `npm.cmd --workspace @motionreal/desktop run app`; record 3-5 attempts on the same provider/model lane with success/fail, failure class, normalization counts, batch selection, admission rejects, and still/draft readiness. No runtime code changed. |
+
+### Phase 4 Step 4.3 Provider Smoke Status
+
+Status: provider pending.
+
+This automated pass did not launch the desktop app because Step 4.3 requires a
+manual provider-connected workflow. Do not mark Phase 4 fully done from local
+tests alone. Run:
+
+```powershell
+npm.cmd --workspace @motionreal/desktop run app
+```
+
+Record 3-5 attempts on the same provider/model lane. Keep notes structured and
+do not paste raw private/source/generated reply text.
+
+| Field | Value |
+| --- | --- |
+| Run id | `phase4-smoke-YYYYMMDD-N` |
+| Commit | Git hash before the run |
+| Provider/model | Provider and model family |
+| Prompt class | RAG/news, no-URL explainer, numeric/evidence-heavy, or long short-form |
+| Content-plan parse | pass/fail and failure class |
+| Normalizations | purpose-normalized count, motion-defaulted count, other diagnostics |
+| Batch selected | yes/no, scene count, batch size if selected |
+| Author reply parse | pass/fail; missing TSX recovery attempted/succeeded/failed |
+| Admission | pass/fail; include N5/N10 counts if present |
+| Still/draft readiness | still review ready, draft ready, or stopped earlier |
+| Result | success/fail and concise failure class |
 
 ### Phase 0 Metrics Baseline
 
