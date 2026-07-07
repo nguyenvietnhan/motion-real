@@ -462,6 +462,7 @@ STORY RUBRIC:
 
 QUALITY SELF-CHECK BEFORE FINAL JSON:
 - scene-01 purpose must be "hook", and first3SecondsLine must make the viewer promise or tension concrete.
+- For schema-critical enum fields, copy exactly one literal value from the output shape. Do not invent synonyms for hookType, purpose, support, confidence, action, or layoutFamily.
 - For "purpose", use exactly one literal value: hook, context, turn, proof, contrast, payoff, cta. If unsure after scene-01, use "context" or "turn".
 - viewerPromise and payoff are mandatory; payoff must answer or resolve the openLoop.
 - The plan must satisfy the pacing line above; do not collapse a long target into a few long narration blocks.

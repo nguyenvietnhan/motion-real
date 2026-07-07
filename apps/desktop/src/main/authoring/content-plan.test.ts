@@ -168,6 +168,23 @@ describe("parseContentPlan", () => {
     expect(result).toMatchObject({ ok: false, reason: "invalid" });
   });
 
+  it("does not normalize hookType or layoutFamily drift without evidence", () => {
+    const base = validPlan();
+    const result = parseContentPlan(
+      JSON.stringify({
+        ...base,
+        hookType: "statement",
+        scenes: [{ ...base.scenes[0]!, layoutFamily: "split-screen" }],
+      }),
+    );
+
+    expect(result).toMatchObject({ ok: false, reason: "invalid" });
+    if (!result.ok) {
+      expect(result.detail).toMatch(/hookType/);
+      expect(result.detail).toMatch(/layoutFamily/);
+    }
+  });
+
   it("normalizes non-safety purpose drift instead of failing the content plan", () => {
     const result = parseContentPlan(INVALID_PURPOSE_CONTENT_PLAN_REPLY);
     expect(result.ok).toBe(true);
@@ -472,6 +489,8 @@ describe("buildContentPlanMessages", () => {
     expect(system).toMatch(/quick entrance/);
     expect(system).toMatch(/semantic progression/);
     expect(system).toMatch(/living motion/);
+    expect(system).toMatch(/schema-critical enum fields/);
+    expect(system).toMatch(/Do not invent synonyms for hookType, purpose, support, confidence, action, or layoutFamily/);
     expect(system).toMatch(/use exactly one literal value/);
     expect(system).toMatch(/If unsure after scene-01/);
     expect(system).not.toMatch(/early\/mid\/late/);
