@@ -1308,6 +1308,7 @@ git status --short
 | Phase 4 Step 4.1 - Gate Raw AI Reply Snippets | Kiem tra -> code/tests -> kiem tra -> xac nhan complete | Default parse-failure logs now keep structured reason/detail/parse summaries without raw AI reply text. Raw snippets are emitted only when `MOTIONREAL_AUTHORING_RAW_LOGS=1`, still capped at 2000 chars. Applied to content-plan, author reply/batch/recovery, and reauthor parse failures. `npm.cmd test -- --run apps/desktop/src/main/authoring/ninerouter-backend.test.ts` passed 1 file/45 tests; `npm.cmd run typecheck` passed; `git diff --check` clean. |
 | Phase 4 Step 4.2 - Stable Failure Counters | Kiem tra -> code/tests -> kiem tra -> xac nhan complete | Stable log anchors now cover `content-plan parse invalid`, `content-plan purpose normalized`, `content-plan motion defaulted`, `author-reply parse failed`, `authoring batch selected`, `authoring batch parse failed`, missing-TSX recovery attempted/succeeded/failed, and `admission failed` with `violationCounts` by N-code. Existing baseline strings such as `content-plan parse failed` and `authoring will use compact TSX batches` remain present for continuity. `npm.cmd test -- --run apps/desktop/src/main/authoring/content-plan.test.ts apps/desktop/src/main/authoring/ninerouter-backend.test.ts` passed 2 files/76 tests; `npm.cmd run typecheck` passed; `git diff --check` clean. |
 | Phase 4 Step 4.3 - Provider Smoke Protocol | Kiem tra -> docs/status update -> kiem tra -> xac nhan provider pending | Provider-connected smoke is manual and was not launched in this automated pass. The exact command remains `npm.cmd --workspace @motionreal/desktop run app`; record 3-5 attempts on the same provider/model lane with success/fail, failure class, normalization counts, batch selection, admission rejects, and still/draft readiness. No runtime code changed. |
+| Phase 4 local closeout | Kiem tra -> xac nhan -> phase commit | Focused Phase 4 local gate passed: `npm.cmd test -- --run apps/desktop/src/main/authoring/content-plan.test.ts apps/desktop/src/main/authoring/ninerouter-backend.test.ts` passed 2 files/76 tests; `npm.cmd run typecheck` passed; `git diff --check` clean. Phase 4 remains provider-pending until Step 4.3 smoke attempts are recorded. |
 
 ### Phase 4 Step 4.3 Provider Smoke Status
 
@@ -1507,7 +1508,7 @@ Implementation rule:
 | Phase 1 - Prompt Contract Boundary | done | Owner reviews hard/quality/advisory boundary before runtime edits | S | Prompt source map, boundary, and durable checklist recorded. |
 | Phase 2 - Prompt Module Split Without Behavior Change | done | Engineering can execute after Phase 1 owner review | M | Prompt modules split, section markers locked, and prompt size guard added without intentional behavior change. |
 | Phase 3 - Prompt Fragility Reduction | local complete / provider pending | Owner approval required before accepting prompt behavior changes | M-L | Local Step 3.0-3.5 changes are implemented and verified; run the full P3-C1..P3-C6 provider canary set before marking Phase 3 done. |
-| Phase 4 - Authoring Observability And Log Hygiene | pending | Engineering can execute; owner reviews raw-log policy | S-M | Gate raw reply snippets and stabilize counters. |
+| Phase 4 - Authoring Observability And Log Hygiene | local complete / provider pending | Engineering can execute; owner reviews raw-log policy | S-M | Steps 4.1-4.2 are implemented and locally verified; Step 4.3 protocol is recorded. Run 3-5 provider-connected smoke attempts before marking Phase 4 done. |
 | Phase 5 - Parser, Normalizer, And Recovery Debt | pending | Owner approval required for any new source mutation | S-M | Inventory first, no new regex by default. |
 | Phase 6 - Repo Hygiene And Reserved Surfaces | pending | Owner/product decisions for SFX/image defaults | M | Low-risk cleanup after prompt boundary is clear. |
 | Phase 7 - Sensitive File Refactors And UI Style Cleanup | pending | Owner approval for sensitive-file extractions | M-L | Behavior-led only, no big-bang rewrite. |
@@ -1516,9 +1517,13 @@ Implementation rule:
 
 ## Next Real Execution Step
 
-Phase 3 local implementation is complete. Before marking Phase 3 fully done,
-run the full provider-connected canary set P3-C1..P3-C6 on the same
-provider/model lane and record results against the template above.
+Phase 4 local implementation is complete. Two provider-connected gates remain
+pending before marking the prompt/logging work fully done:
+
+- Phase 3: run the full provider-connected canary set P3-C1..P3-C6 on the same
+  provider/model lane and record results against the template above.
+- Phase 4: run 3-5 provider-connected smoke attempts on the same provider/model
+  lane and record results in the Step 4.3 template.
 
 ```powershell
 git log -1 --oneline
@@ -1526,6 +1531,8 @@ git status --short
 git diff --check
 ```
 
-If provider access is not available, keep Phase 3 at `local complete / provider
-pending` and do not use the local tests alone as proof that prompt quality is
-accepted.
+If provider access is not available, keep Phase 3 and Phase 4 at
+`local complete / provider pending` and do not use local tests alone as proof
+that prompt quality or provider smoke is accepted. If the owner approves
+continuing local debt work while provider gates wait, the next local phase is
+Phase 5 Step 5.1 recovery inventory.
