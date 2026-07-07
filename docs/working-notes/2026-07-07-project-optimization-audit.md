@@ -1292,6 +1292,7 @@ git status --short
 | Phase 0 Step 0.1 - Confirm Checkpoint | Kiem tra -> docs update -> kiem tra -> xac nhan complete | Latest commit `af68f52`; dirty tree only this working note; `git diff --check` clean. |
 | Phase 0 Step 0.2 - Local Gate Before Implementation | Kiem tra -> docs update -> kiem tra -> xac nhan complete | `npm.cmd run typecheck` passed; `npm.cmd test` passed 98 files/986 tests plus 1 heavy lane/14 tests; `npm.cmd run build` passed; `git diff --check` clean. |
 | Phase 0 Step 0.3 - Prompt/Authoring Metrics Baseline | Kiem tra -> docs update -> kiem tra -> xac nhan complete | No runtime/provider log files found in repo; baseline is static source/fixture anchors plus current prompt file sizes below. |
+| Phase 1 Step 1.1 - Map Prompt Sources | Kiem tra -> docs update -> kiem tra -> xac nhan complete | Prompt/runtime/docs sources mapped by hard output, security, TSX contract, story, narration, visual ambition, motion, image, batch/recovery, and QA/refine categories. |
 
 ### Phase 0 Metrics Baseline
 
@@ -1317,6 +1318,24 @@ provider smoke notes add real runtime data.
 | `apps/desktop/src/main/authoring/prompt.ts` | 40,921 bytes |
 | `apps/desktop/src/main/authoring/contract-text.ts` | 14,185 bytes |
 | `apps/desktop/src/main/authoring/content-plan.ts` | 25,650 bytes |
+
+### Phase 1 Step 1.1 Prompt Source Map
+
+This map is the baseline before Phase 2 extraction. Line numbers must still be
+re-checked before editing runtime prompt files.
+
+| Rule category | Runtime prompt/source | Durable docs/tests | Boundary note |
+| --- | --- | --- | --- |
+| Hard output format | `prompt.ts` `outputFormatContract()` around manifest JSON, one TSX fence per component, `component`/`registerComponent` id match; batch/recovery variants at `authorModuleBatchSystem()` and `missingTsxRecoverySystem()` | `prompt.test.ts` locks manifest/code-fence and batch/recovery behavior | Parser/build/admission enforce this; keep before creative guidance. |
+| Import/security contract | `contract-text.ts` `AUTHORING_CONTRACT` import whitelist and forbidden block/theme/host APIs | `AI_CONTRACT.md`; `docs/current/authoring-contract.md`; admission/typecheck-authored tests | Hard blocker. Do not relax for prompt optimization. |
+| TSX module contract | `contract-text.ts` module shape, schema/example/default `registerComponent`; `prompt.ts` example structure | `docs/current/authoring-contract.md`; prompt/contract tests | Hard render contract. Extractable as a stable prompt section. |
+| Factual/story rules | `content-plan.ts` planner prompt and quality checks; `prompt.ts` `contentRules()` evidence/language/story constraints | `docs/current/content-guide.md`; content-plan tests | Evidence/claim safety is hard; story pacing and arc are guidance unless schema/admission says otherwise. |
+| Narration quality | `prompt.ts` `languageBlock()` and `contentRules()` narration voice; content-plan prompt language guidance | `docs/current/content-guide.md` audience/language sections; prompt tests | Quality guidance. Keep strong voice, but do not mix with output-fence contract. |
+| Visual ambition | `prompt.ts` `contentRules()` bold-first requirement and `authorSystem()` creative role | `docs/current/content-guide.md` visual guidance; prompt tests around bold-first | Quality guidance. Preserve anti-blandness while reducing vague pressure in Phase 3. |
+| Motion recipes | `contract-text.ts` determinism/motion section; `content-plan.ts` `motionProgression` prompt/normalizer; `prompt.ts` content-plan advisory block | `docs/current/authoring-contract.md`; `docs/current/content-guide.md`; contract/content-plan/admission tests | Mixed: deterministic frame logic and valid interpolate ranges are hard; richness/tempo is guidance. |
+| Image rules | `prompt.ts` image instruction block; `contract-text.ts` `SceneImage` exception; schema `SceneImage` local-only rules | `AI_CONTRACT.md`; `docs/current/authoring-contract.md`; schema/admission tests | Hard for media safety; layout/placement quality remains advisory unless live code hard-blocks it. |
+| Batch/recovery rules | `prompt.ts` `authorModuleBatchSystem()`, `buildAuthorModuleBatchMessages()`, `missingTsxRecoverySystem()` | `docs/current/maintenance.md` authoring output size; ninerouter/reply-parser tests | Stability policy. Keep compact and bounded; no broad retry. |
+| Visual QA/refine rules | `prompt.ts` `reauthorSystem()` and `VISUAL_QA_SYSTEM` | `AI_CONTRACT.md` layout advisory rule; maintenance motion-tempo notes; visual QA/refine tests if changed | Advisory unless tied to safety/build/runtime failure. |
 
 | Phase | Status | Owner gate | Effort band | Next step |
 | --- | --- | --- | --- | --- |
