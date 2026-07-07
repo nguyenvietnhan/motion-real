@@ -106,7 +106,9 @@ describe("AUTHORING_CONTRACT — no-block / raw-JSX invariants", () => {
     expect(AUTHORING_CONTRACT).toMatch(/quick entrance\/reveal\/pop/);
     expect(AUTHORING_CONTRACT).toMatch(/0\.2–0\.8 giây/);
     expect(AUTHORING_CONTRACT).toMatch(/semantic progression/);
+    expect(AUTHORING_CONTRACT).toMatch(/chỉ dùng progress dài khi NỘI DUNG thật sự tiến triển/);
     expect(AUTHORING_CONTRACT).toMatch(/continuous living motion/);
+    expect(AUTHORING_CONTRACT).toMatch(/Chuyển động phải nhỏ, bounded, có chủ đích/);
     expect(AUTHORING_CONTRACT).toMatch(/phase = \(\(Math\.max\(0, frame - enterEnd\)\) % periodFrames\) \/ periodFrames/);
     expect(AUTHORING_CONTRACT).toMatch(/Quick entrance \+ readable final hold luôn hợp lệ/);
     expect(AUTHORING_CONTRACT).not.toMatch(/DIỄN TIẾN qua phần lớn thời lượng/);
@@ -116,6 +118,8 @@ describe("AUTHORING_CONTRACT — no-block / raw-JSX invariants", () => {
 
   it("warns that Remotion interpolate inputRange must be strictly increasing", () => {
     expect(AUTHORING_CONTRACT).toMatch(/inputRange PHẢI tăng dần nghiêm ngặt/);
+    expect(AUTHORING_CONTRACT).toMatch(/KHÔNG dùng durationInFrames - N làm mốc cuối/);
+    expect(AUTHORING_CONTRACT).toMatch(/Math\.max\(1, durationInFrames - N\)/);
     expect(AUTHORING_CONTRACT).toMatch(/\[340, 360, 60\]/);
   });
 });

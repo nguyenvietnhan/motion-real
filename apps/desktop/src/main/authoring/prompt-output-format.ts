@@ -24,20 +24,16 @@ type Props = z.infer<typeof schema>;
 const Scene: React.FC<SceneComponentProps<Props>> = ({ headline, eyebrow, durationInFrames }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
-  const progress = durationInFrames > 1 ? Math.min(1, Math.max(0, frame / (durationInFrames - 1))) : 1;
   const enterEnd = Math.max(1, Math.round(fps * 0.45));
   const enter = interpolate(frame, [0, enterEnd], [0, 1], { extrapolateRight: "clamp" });
-  const lineDraw = interpolate(progress, [0.2, 0.72], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
-  const periodFrames = Math.max(1, Math.round(fps * 1.2));
-  const phase = ((Math.max(0, frame - enterEnd)) % periodFrames) / periodFrames;
-  const pulse = 0.96 + Math.sin(phase * Math.PI * 2) * 0.04;
+  const y = interpolate(frame, [0, enterEnd], [24, 0], { extrapolateRight: "clamp" });
   return (
-    <div style={{ position: "absolute", inset: 0, background: "transparent", display: "flex", flexDirection: "column", justifyContent: "center", padding: 80, opacity: enter, transform: \`translateY(\${interpolate(frame, [0, enterEnd], [24, 0], { extrapolateRight: "clamp" })}px)\` }}>
+    <div style={{ position: "absolute", inset: 0, background: "transparent", display: "flex", flexDirection: "column", justifyContent: "center", padding: 80, opacity: enter, transform: \`translateY(\${y}px)\` }}>
       <span style={{ fontSize: 28, letterSpacing: 4, color: "#7dd3fc" }}>{eyebrow ?? "TIN"}</span>
       <h1 style={{ fontSize: 96, lineHeight: 1.05, color: "#fff", margin: 0, fontWeight: 800 }}>{headline}</h1>
       <svg width="720" height="160" viewBox="0 0 720 160" style={{ marginTop: 40 }}>
-        <path d="M24 120 C180 20 360 20 696 88" stroke="#7dd3fc" strokeWidth="12" fill="none" strokeLinecap="round" pathLength={1} strokeDasharray={1} strokeDashoffset={1 - lineDraw} />
-        <circle cx="696" cy="88" r="18" fill="#7dd3fc" opacity="0.35" style={{ transform: \`scale(\${pulse})\`, transformOrigin: "696px 88px" }} />
+        <path d="M24 120 C180 20 360 20 696 88" stroke="#7dd3fc" strokeWidth="12" fill="none" strokeLinecap="round" />
+        <circle cx="696" cy="88" r="18" fill="#7dd3fc" opacity="0.45" />
       </svg>
     </div>
   );

@@ -695,6 +695,16 @@ describe("buildAuthorMessages", () => {
     expect(text).toMatch(/chỉ minh hoạ CẤU TRÚC|KHÔNG phải mẫu thẩm mỹ/);
   });
 
+  it("keeps the main TSX example on the safe quick-entrance default", () => {
+    const [sys] = buildAuthorMessages({ text: "Chủ đề bất kỳ", urls: [] });
+    const text = sys!.content;
+
+    expect(text).toMatch(/const enterEnd = Math\.max\(1, Math\.round\(fps \* 0\.45\)\)/);
+    expect(text).toMatch(/const y = interpolate\(frame, \[0, enterEnd\], \[24, 0\]/);
+    expect(text).not.toMatch(/const lineDraw =/);
+    expect(text).not.toMatch(/const pulse =/);
+  });
+
   it("carries a general parseable-TSX rule, including object-literal style syntax", () => {
     // A real model reply produced `justify("flex-start")` inside a style object.
     // The fix is a general syntax contract: parseable TSX + valid object-literal
