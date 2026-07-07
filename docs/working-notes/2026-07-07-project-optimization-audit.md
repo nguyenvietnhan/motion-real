@@ -1309,6 +1309,7 @@ git status --short
 | Phase 4 Step 4.2 - Stable Failure Counters | Kiem tra -> code/tests -> kiem tra -> xac nhan complete | Stable log anchors now cover `content-plan parse invalid`, `content-plan purpose normalized`, `content-plan motion defaulted`, `author-reply parse failed`, `authoring batch selected`, `authoring batch parse failed`, missing-TSX recovery attempted/succeeded/failed, and `admission failed` with `violationCounts` by N-code. Existing baseline strings such as `content-plan parse failed` and `authoring will use compact TSX batches` remain present for continuity. `npm.cmd test -- --run apps/desktop/src/main/authoring/content-plan.test.ts apps/desktop/src/main/authoring/ninerouter-backend.test.ts` passed 2 files/76 tests; `npm.cmd run typecheck` passed; `git diff --check` clean. |
 | Phase 4 Step 4.3 - Provider Smoke Protocol | Kiem tra -> docs/status update -> kiem tra -> xac nhan provider pending | Provider-connected smoke is manual and was not launched in this automated pass. The exact command remains `npm.cmd --workspace @motionreal/desktop run app`; record 3-5 attempts on the same provider/model lane with success/fail, failure class, normalization counts, batch selection, admission rejects, and still/draft readiness. No runtime code changed. |
 | Phase 4 local closeout | Kiem tra -> xac nhan -> phase commit | Focused Phase 4 local gate passed: `npm.cmd test -- --run apps/desktop/src/main/authoring/content-plan.test.ts apps/desktop/src/main/authoring/ninerouter-backend.test.ts` passed 2 files/76 tests; `npm.cmd run typecheck` passed; `git diff --check` clean. Phase 4 remains provider-pending until Step 4.3 smoke attempts are recorded. |
+| Provider smoke incident 2026-07-08 - P3-C1/phase4-smoke-1 | Provider run failed -> inspect project/log -> code/tests -> pending rerun | Project `tao-video-tiktok-tieng-viet-giai-t-529f8fa5` failed on first create and retry. Both runs planned 13 scenes, selected compact 2-scene batches, and each batch replied with the expected TSX module count, but the final batched strict parse reported `missing-code` before any authored files were written. Fix changed batched final coverage validation to use already parsed `AuthoredModule[]` plus manifest coverage instead of rebuilding Markdown and reparsing it. `npm.cmd test -- --run apps/desktop/src/main/authoring/ninerouter-backend.test.ts apps/desktop/src/main/authoring/reply-parser.test.ts` passed 2 files/76 tests; `npm.cmd run typecheck` passed. Rerun provider smoke before marking Phase 3/4 provider gates complete. |
 
 ### Phase 4 Step 4.3 Provider Smoke Status
 
@@ -1338,6 +1339,12 @@ do not paste raw private/source/generated reply text.
 | Admission | pass/fail; include N5/N10 counts if present |
 | Still/draft readiness | still review ready, draft ready, or stopped earlier |
 | Result | success/fail and concise failure class |
+
+Recorded attempts:
+
+| Run id | Commit | Provider/model | Prompt/canary | Result |
+| --- | --- | --- | --- | --- |
+| `phase4-smoke-20260708-1` | `4d25de3` | `ag/gemini-3-flash-agent` | P3-C1-VI-RAG / logistics AI assistant source notes | fail: both initial create and retry stopped before stills with `missing-code` at final batched parse. Content-plan parse passed, scene count was 13, compact batch path selected, all 7 batch calls returned expected `tsxModuleCount`, no authored files were written. Local fix applied afterward; provider rerun pending. |
 
 ### Phase 0 Metrics Baseline
 

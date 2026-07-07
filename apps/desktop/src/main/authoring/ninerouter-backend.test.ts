@@ -43,6 +43,20 @@ function blocksFor(componentIds: readonly string[]): string {
   return componentIds.map((id) => block(id)).join("\n\n");
 }
 
+function bareBlock(id: string): string {
+  return [
+    `// component: ${id}`,
+    'import { registerComponent } from "@motionreal/compositions";',
+    "export const schema = {};",
+    "export const example = {};",
+    `export default registerComponent({ id: "${id}" });`,
+  ].join("\n");
+}
+
+function bareBatchWithTrailingFence(componentIds: readonly string[]): string {
+  return `${componentIds.map((id) => bareBlock(id)).join("\n\n")}\n\`\`\`\n`;
+}
+
 function validAuthorManifest() {
   return {
     title: "Video kiểm thử pure-author",
@@ -414,6 +428,34 @@ describe("authorScenes (pure-author)", () => {
     const batchSelectedLog = logger.info.mock.calls.find((call) => call[1] === "authoring batch selected; authoring will use compact TSX batches");
     expect(batchSelectedLog?.[0]).toMatchObject({ projectId, batchCount: 7, batchSize: 2, componentCount: 13 });
     expect(admit).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not lose already parsed TSX batch modules during final coverage validation", async () => {
+    const projectId = "pa-batched-structured-coverage";
+    const logger = fakeLogger();
+    const componentIds = ids(13);
+    const batches = Array.from({ length: 7 }, (_, index) => componentIds.slice(index * 2, index * 2 + 2));
+    const admit = vi.fn(async () => ({ ok: true as const, componentIds, files: [] }));
+    const chat = chatReplies(
+      longContentPlanReply(13),
+      ...batches.map((batch) => bareBatchWithTrailingFence(batch)),
+    );
+    const backend = new NineRouterAuthoringBackend({
+      client: { chat } as unknown as NineRouterClient,
+      tools: {} as never,
+      model: () => "test-model",
+      apiKey: () => undefined,
+      admit,
+      logger,
+    });
+
+    const out = await backend.authorScenes({ projectId, input: { text: "long topic", urls: [], format: "tiktok", durationTier: 3 }, scriptGate: false });
+
+    expect(out.scenes).toHaveLength(13);
+    expect(chat).toHaveBeenCalledTimes(8);
+    expect(admit).toHaveBeenCalledTimes(1);
+    expect(existsSync(join(authoredDir(projectId), "scene-13.tsx"))).toBe(true);
+    expect(logger.error.mock.calls.some((call) => call[1] === "batched author reply failed final structured validation")).toBe(false);
   });
 
   it("keeps claim-ledger repair plus normal single authoring inside the bounded call budget", async () => {

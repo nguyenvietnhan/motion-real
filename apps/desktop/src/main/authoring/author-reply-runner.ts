@@ -10,6 +10,7 @@ import {
   type AuthorImageInput,
 } from "./prompt.js";
 import {
+  type AuthorReplyParseSummary,
   authorReplyParseSummary,
   inspectAuthorReply,
   parseAuthorModuleBatchReply,
@@ -173,21 +174,20 @@ export async function runBatchedAuthorReply(
     );
   }
 
-  const combinedReply = authorReplyFromParts(manifest, modules);
-  const strict = parseAuthorReply(combinedReply);
-  if (!strict.ok) {
+  const structured = parseStructuredAuthorParts(manifest, modules);
+  if (!structured.ok) {
     args.logger.error(
       {
         projectId: args.projectId,
-        reason: strict.reason,
-        detail: strict.detail,
-        parseSummary: authorReplyParseSummary(combinedReply),
+        reason: structured.reason,
+        detail: structured.detail,
+        parseSummary: authorReplyParseSummaryFromParts(manifest, modules),
       },
-      "batched author reply failed final strict parse",
+      "batched author reply failed final structured validation",
     );
     return { ok: false, message: AUTHOR_REPLY_PARSE_FAILURE };
   }
-  return { ok: true, parsed: strict };
+  return { ok: true, parsed: structured };
 }
 
 async function recoverMissingTsxIfPossible(args: {
@@ -234,15 +234,15 @@ async function recoverMissingTsxIfPossible(args: {
   const missing = new Set(inspected.missingComponentIds);
   const recoveredInspection = inspectAuthorReply(recoveryReply);
   const recoveredModules = recoveredInspection.validModules.filter((module) => missing.has(module.id));
-  const combinedReply = authorReplyFromParts(inspected.manifest.manifest, [...inspected.validModules, ...recoveredModules]);
-  const strict = parseAuthorReply(combinedReply);
+  const combinedModules = [...inspected.validModules, ...recoveredModules];
+  const strict = parseStructuredAuthorParts(inspected.manifest.manifest, combinedModules);
 
   if (strict.ok) {
     args.logger.info(
       {
         projectId: args.projectId,
         recoveredComponentIds: recoveredModules.map((module) => module.id),
-        parseSummary: authorReplyParseSummary(combinedReply, { recoveryAttempted: true }),
+        parseSummary: authorReplyParseSummaryFromParts(inspected.manifest.manifest, combinedModules, { recoveryAttempted: true }),
         recoveryAttempt: 1,
       },
       "author-reply missing TSX recovery succeeded",
@@ -258,7 +258,7 @@ async function recoverMissingTsxIfPossible(args: {
       missingComponentIds: inspected.missingComponentIds,
       recoveredComponentIds: recoveredModules.map((module) => module.id),
       idMismatchDetails: recoveredInspection.idMismatchDetails,
-      parseSummary: authorReplyParseSummary(combinedReply, { recoveryAttempted: true }),
+      parseSummary: authorReplyParseSummaryFromParts(inspected.manifest.manifest, combinedModules, { recoveryAttempted: true }),
       ...rawAiReplyLogFields(recoveryReply),
     },
     "author-reply missing TSX recovery failed",
@@ -266,14 +266,40 @@ async function recoverMissingTsxIfPossible(args: {
   return { parsed: strict, attempted: true };
 }
 
-function authorReplyFromParts(manifest: AuthorManifest, modules: readonly AuthoredModule[]): string {
-  return [
-    "```json",
-    JSON.stringify(manifest, null, 2),
-    "```",
-    "",
-    ...modules.map((module) => ["```tsx", module.code.trim(), "```", ""].join("\n")),
-  ].join("\n");
+function parseStructuredAuthorParts(manifest: AuthorManifest, modules: readonly AuthoredModule[]): ParsedAuthorReply {
+  const byId = new Map<string, AuthoredModule>();
+  for (const module of modules) {
+    if (!byId.has(module.id)) byId.set(module.id, module);
+  }
+  if (byId.size === 0) return { ok: false, reason: "no-code", detail: "không có khối .tsx nào trong reply" };
+
+  const needed = [...new Set(manifest.scenes.map((scene) => scene.component))];
+  const missing = needed.filter((id) => !byId.has(id));
+  if (missing.length > 0) {
+    return { ok: false, reason: "missing-code", detail: `thiếu code cho: ${missing.join(", ")}` };
+  }
+
+  return { ok: true, manifest, modules: [...byId.values()] };
+}
+
+function authorReplyParseSummaryFromParts(
+  manifest: AuthorManifest,
+  modules: readonly AuthoredModule[],
+  options: { recoveryAttempted?: boolean } = {},
+): AuthorReplyParseSummary {
+  const moduleIds = new Set(modules.map((module) => module.id));
+  const needed = [...new Set(manifest.scenes.map((scene) => scene.component))];
+  const missing = needed.filter((id) => !moduleIds.has(id));
+  return {
+    manifestFound: true,
+    manifestValid: true,
+    sceneCount: manifest.scenes.length,
+    tsxModuleCount: moduleIds.size,
+    missingComponentIdsCount: missing.length,
+    idMismatchCount: 0,
+    complete: moduleIds.size > 0 && missing.length === 0,
+    recoveryAttempted: options.recoveryAttempted ?? false,
+  };
 }
 
 function clipNonEmpty(value: string, max: number, fallback: string): string {
