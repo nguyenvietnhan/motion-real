@@ -1303,6 +1303,7 @@ git status --short
 | Phase 3 Step 3.2 - Replace Vague Creative Pressure With Safe Recipes | Kiem tra -> code/docs/tests -> kiem tra -> xac nhan complete | Runtime content rules and durable content guide now keep bold-first visual anchors while routing to safe recipes: supported numbers only, compare/tradeoff two-column only, structure/process SVG only, statement beats can use strong typography + quick entrance + readable hold. `npm.cmd test -- --run apps/desktop/src/main/authoring/prompt.test.ts apps/desktop/src/main/authoring/contract-text.test.ts` passed 2 files/45 tests; `npm.cmd run typecheck` passed. Provider canary subset P3-C1/P3-C3/P3-C6 not run in this automated pass and remains pending. |
 | Phase 3 Step 3.3 - Tighten Motion Guidance Around Safe Defaults | Kiem tra -> code/tests -> kiem tra -> xac nhan complete | Main TSX output example now demonstrates quick entrance + readable hold instead of line-draw/pulse multi-stage motion. Contract tests lock semantic progression only when content truly progresses, bounded living motion, and the `durationInFrames - N` warning. `npm.cmd test -- --run apps/desktop/src/main/authoring/contract-text.test.ts apps/desktop/src/main/authoring/prompt.test.ts packages/pipeline/src/authoring/admission.test.ts` passed 3 files/66 tests; `npm.cmd run typecheck` passed. Provider canary subset P3-C3/P3-C4/P3-C5 not run in this automated pass and remains pending. |
 | Phase 3 Step 3.4 - Content-Plan Prompt And Tolerance Boundary | Kiem tra -> code/tests -> kiem tra -> xac nhan complete | Content-plan prompt now tells the model to copy exact schema-critical enum literals without adding a long rubric. No new normalizer was added; tests keep `hookType` and `layoutFamily` drift invalid while existing purpose/motion tolerance remains narrow and diagnostic. `npm.cmd test -- --run apps/desktop/src/main/authoring/content-plan.test.ts apps/desktop/src/main/authoring/ninerouter-backend.test.ts` passed 2 files/74 tests; `npm.cmd run typecheck` passed. Provider canary subset P3-C1/P3-C3/P3-C5 not run in this automated pass and remains pending. |
+| Phase 3 Step 3.5 - Batch Prompt Budget Guard | Kiem tra -> tests -> kiem tra -> xac nhan complete | Batch prompt tests now explicitly reject full manifest, full content plan, unselected plan scenes, unselected claims, and raw research in each TSX batch. Ninerouter test now locks the 12-scene no-image path as single authoring and 13-scene path as compact 2-scene batches, tied to the current capacity policy. `npm.cmd test -- --run apps/desktop/src/main/authoring/prompt.test.ts apps/desktop/src/main/authoring/ninerouter-backend.test.ts apps/desktop/src/main/authoring/reply-parser.test.ts` passed 3 files/109 tests; `npm.cmd run typecheck` passed. Full provider canary set P3-C1..P3-C6 not run in this automated pass and remains pending before Phase 3 can be closed. |
 
 ### Phase 0 Metrics Baseline
 
@@ -1472,7 +1473,7 @@ Implementation rule:
 | Phase 0 - Baseline Checkpoint And Re-Entry | done | Engineering executor reports; owner reviews failures only | S | Baseline checkpoint, full local gate, and static metrics baseline recorded. |
 | Phase 1 - Prompt Contract Boundary | done | Owner reviews hard/quality/advisory boundary before runtime edits | S | Prompt source map, boundary, and durable checklist recorded. |
 | Phase 2 - Prompt Module Split Without Behavior Change | done | Engineering can execute after Phase 1 owner review | M | Prompt modules split, section markers locked, and prompt size guard added without intentional behavior change. |
-| Phase 3 - Prompt Fragility Reduction | partial | Owner approval required before and after prompt behavior changes | M-L | Step 3.0 canary set is recorded; run before-baseline canaries if provider access is available, then owner reviews before Step 3.1 runtime prompt ordering changes. |
+| Phase 3 - Prompt Fragility Reduction | local complete / provider pending | Owner approval required before accepting prompt behavior changes | M-L | Local Step 3.0-3.5 changes are implemented and verified; run the full P3-C1..P3-C6 provider canary set before marking Phase 3 done. |
 | Phase 4 - Authoring Observability And Log Hygiene | pending | Engineering can execute; owner reviews raw-log policy | S-M | Gate raw reply snippets and stabilize counters. |
 | Phase 5 - Parser, Normalizer, And Recovery Debt | pending | Owner approval required for any new source mutation | S-M | Inventory first, no new regex by default. |
 | Phase 6 - Repo Hygiene And Reserved Surfaces | pending | Owner/product decisions for SFX/image defaults | M | Low-risk cleanup after prompt boundary is clear. |
@@ -1482,9 +1483,9 @@ Implementation rule:
 
 ## Next Real Execution Step
 
-Phase 3 Step 3.0 is recorded. Before editing runtime prompt wording in Step
-3.1, run the before-baseline canary subset if provider access is available, then
-get owner review/approval for the prompt-ordering change.
+Phase 3 local implementation is complete. Before marking Phase 3 fully done,
+run the full provider-connected canary set P3-C1..P3-C6 on the same
+provider/model lane and record results against the template above.
 
 ```powershell
 git log -1 --oneline
@@ -1492,5 +1493,6 @@ git status --short
 git diff --check
 ```
 
-If provider access is not available, record that exception and keep Phase 3 in
-partial status until the full canary set can be run.
+If provider access is not available, keep Phase 3 at `local complete / provider
+pending` and do not use the local tests alone as proof that prompt quality is
+accepted.

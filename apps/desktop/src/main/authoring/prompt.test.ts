@@ -395,9 +395,15 @@ describe("buildAuthorModuleBatchMessages", () => {
     expect(text).toContain("KHÔNG trả manifest JSON");
     expect(text).not.toContain(JSON.stringify(manifest, null, 2));
     expect(text).toContain(JSON.stringify(manifest.scenes.slice(1), null, 2));
+    expect(text).toContain("CONTENT PLAN SCENES CỦA BATCH NÀY");
+    expect(text).not.toContain(JSON.stringify(plan, null, 2));
+    expect(text).toContain(JSON.stringify(plan.scenes.slice(1), null, 2));
     expect(text).toContain("Batch 2/3");
     expect(text).toContain("scene-02\nscene-03");
     expect(text).not.toContain('"component": "scene-01"');
+    expect(text).not.toContain('"sceneId": "scene-01"');
+    expect(text).not.toContain("Beat one");
+    expect(text).not.toContain("One visual");
     expect(text).not.toContain("Claim for scene one only.");
     expect(text).toContain("Claim for selected scene two.");
     expect(text).toContain("Claim for selected scene three.");

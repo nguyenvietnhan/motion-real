@@ -337,11 +337,11 @@ describe("authorScenes (pure-author)", () => {
     });
   });
 
-  it("keeps normal 10-scene no-image plans on the single authoring path", async () => {
+  it("keeps normal 12-scene no-image plans on the single authoring path", async () => {
     const projectId = "pa-single-normal-long";
-    const componentIds = ids(10);
+    const componentIds = ids(12);
     const admit = vi.fn(async () => ({ ok: true as const, componentIds, files: [] }));
-    const chat = chatReplies(longContentPlanReply(10), authorReplyForIds(componentIds));
+    const chat = chatReplies(longContentPlanReply(12), authorReplyForIds(componentIds));
     const backend = new NineRouterAuthoringBackend({
       client: { chat } as unknown as NineRouterClient,
       tools: {} as never,
@@ -352,7 +352,7 @@ describe("authorScenes (pure-author)", () => {
 
     const out = await backend.authorScenes({ projectId, input: { text: "long topic", urls: [], format: "tiktok", durationTier: 3 }, scriptGate: false });
 
-    expect(out.scenes).toHaveLength(10);
+    expect(out.scenes).toHaveLength(12);
     expect(chat).toHaveBeenCalledTimes(2);
     const authorText = messageText(chat.mock.calls[1]![1] as ChatMessage[]);
     expect(authorText).toContain("AI_Output_Contract");
@@ -361,7 +361,7 @@ describe("authorScenes (pure-author)", () => {
 
     const dir = authoredDir(projectId);
     expect(existsSync(join(dir, "scene-01.tsx"))).toBe(true);
-    expect(existsSync(join(dir, "scene-10.tsx"))).toBe(true);
+    expect(existsSync(join(dir, "scene-12.tsx"))).toBe(true);
     const manifest = JSON.parse(readFileSync(join(home, ".video-tool", "projects", projectId, "manifest.json"), "utf8"));
     expect(manifest.scenes.map((scene: { component: string }) => scene.component)).toEqual(componentIds);
   });
