@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { NineRouterAuthoringBackend, authorCallErrorMessage, isLogicChanged, type NineRouterBackendDeps } from "./ninerouter-backend.js";
 import { GatewayChatError, type NineRouterClient, type ChatMessage, type ContentPart } from "../gateway/ninerouter-client.js";
 import type { AuthorJob } from "../agent/agent-worker.js";
+import { INVALID_PURPOSE_CONTENT_PLAN_REPLY } from "./__fixtures__/authoring-failure-incidents.js";
 
 /**
  * Feature: desktop-author-mode — authorScenes writes AI-authored `.tsx` modules
@@ -308,16 +309,39 @@ describe("authorScenes (pure-author)", () => {
     expect(authorUserText).not.toContain("Unsupported $999 launch price");
   });
 
-  it("authors long content plans as bounded TSX batches from a deterministic manifest", async () => {
-    const projectId = "pa-batched-long";
+  it("logs tolerant content-plan normalizations without blocking safe authoring", async () => {
+    const projectId = "pa-content-plan-normalized";
+    const logger = fakeLogger();
+    const componentIds = ids(3);
+    const admit = vi.fn(async () => ({ ok: true as const, componentIds, files: [] }));
+    const chat = chatReplies(INVALID_PURPOSE_CONTENT_PLAN_REPLY, authorReplyForIds(componentIds));
+    const backend = new NineRouterAuthoringBackend({
+      client: { chat } as unknown as NineRouterClient,
+      tools: {} as never,
+      model: () => "test-model",
+      apiKey: () => undefined,
+      admit,
+      logger,
+    });
+
+    const out = await backend.authorScenes({ projectId, input: { text: "random forest", urls: [] }, scriptGate: false });
+
+    expect(out.scenes).toHaveLength(3);
+    const normalizationLog = logger.warn.mock.calls.find((call) => call[1] === "content-plan tolerant normalizations applied");
+    expect(normalizationLog?.[0]).toMatchObject({
+      projectId,
+      diagnostics: expect.arrayContaining([
+        expect.objectContaining({ kind: "purpose-normalized", sceneId: "scene-02", original: "definition", normalized: "context" }),
+        expect.objectContaining({ kind: "motion-defaulted", sceneId: "scene-03", reason: "missing" }),
+      ]),
+    });
+  });
+
+  it("keeps normal 10-scene no-image plans on the single authoring path", async () => {
+    const projectId = "pa-single-normal-long";
     const componentIds = ids(10);
     const admit = vi.fn(async () => ({ ok: true as const, componentIds, files: [] }));
-    const chat = chatReplies(
-      longContentPlanReply(10),
-      blocksFor(componentIds.slice(0, 4)),
-      blocksFor(componentIds.slice(4, 8)),
-      blocksFor(componentIds.slice(8)),
-    );
+    const chat = chatReplies(longContentPlanReply(10), authorReplyForIds(componentIds));
     const backend = new NineRouterAuthoringBackend({
       client: { chat } as unknown as NineRouterClient,
       tools: {} as never,
@@ -329,37 +353,59 @@ describe("authorScenes (pure-author)", () => {
     const out = await backend.authorScenes({ projectId, input: { text: "long topic", urls: [], format: "tiktok", durationTier: 3 }, scriptGate: false });
 
     expect(out.scenes).toHaveLength(10);
-    expect(chat).toHaveBeenCalledTimes(4);
-    const batch1Text = messageText(chat.mock.calls[1]![1] as ChatMessage[]);
-    const batch2Text = messageText(chat.mock.calls[2]![1] as ChatMessage[]);
-    const batch3Text = messageText(chat.mock.calls[3]![1] as ChatMessage[]);
-    expect(batch1Text).toContain("Batch 1/3");
-    expect(batch1Text).toContain("scene-01\nscene-02\nscene-03\nscene-04");
-    expect(batch2Text).toContain("Batch 2/3");
-    expect(batch2Text).toContain("scene-05\nscene-06\nscene-07\nscene-08");
-    expect(batch3Text).toContain("Batch 3/3");
-    expect(batch3Text).toContain("scene-09\nscene-10");
-    expect(batch1Text).toContain("KHÔNG trả manifest JSON");
+    expect(chat).toHaveBeenCalledTimes(2);
+    const authorText = messageText(chat.mock.calls[1]![1] as ChatMessage[]);
+    expect(authorText).toContain("AI_Output_Contract");
+    expect(authorText).not.toContain("Batch 1/");
     expect(admit).toHaveBeenCalledTimes(1);
 
     const dir = authoredDir(projectId);
     expect(existsSync(join(dir, "scene-01.tsx"))).toBe(true);
     expect(existsSync(join(dir, "scene-10.tsx"))).toBe(true);
     const manifest = JSON.parse(readFileSync(join(home, ".video-tool", "projects", projectId, "manifest.json"), "utf8"));
-    expect(manifest.title).toBe("Long plan 10");
     expect(manifest.scenes.map((scene: { component: string }) => scene.component)).toEqual(componentIds);
   });
 
-  it("keeps the claim-ledger repair plus TSX batches inside the bounded call budget", async () => {
-    const projectId = "pa-batched-after-plan-repair";
+  it("uses compact two-scene TSX batches only beyond the normal single-reply capacity", async () => {
+    const projectId = "pa-batched-compact";
+    const componentIds = ids(13);
+    const admit = vi.fn(async () => ({ ok: true as const, componentIds, files: [] }));
+    const chat = chatReplies(
+      longContentPlanReply(13),
+      ...Array.from({ length: 7 }, (_, index) => blocksFor(componentIds.slice(index * 2, index * 2 + 2))),
+    );
+    const backend = new NineRouterAuthoringBackend({
+      client: { chat } as unknown as NineRouterClient,
+      tools: {} as never,
+      model: () => "test-model",
+      apiKey: () => undefined,
+      admit,
+    });
+
+    const out = await backend.authorScenes({ projectId, input: { text: "long topic", urls: [], format: "tiktok", durationTier: 3 }, scriptGate: false });
+
+    expect(out.scenes).toHaveLength(13);
+    expect(chat).toHaveBeenCalledTimes(8);
+    const batch1Text = messageText(chat.mock.calls[1]![1] as ChatMessage[]);
+    const batch2Text = messageText(chat.mock.calls[2]![1] as ChatMessage[]);
+    expect(batch1Text).toContain("Batch 1/7");
+    expect(batch1Text).toContain("scene-01\nscene-02");
+    expect(batch1Text).not.toContain("scene-03\nscene-04");
+    expect(batch2Text).toContain("Batch 2/7");
+    expect(batch2Text).toContain("scene-03\nscene-04");
+    expect(batch1Text).toContain("MANIFEST SCENES CỦA BATCH NÀY");
+    expect(batch1Text).not.toContain('"sceneId": "scene-13"');
+    expect(admit).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps claim-ledger repair plus normal single authoring inside the bounded call budget", async () => {
+    const projectId = "pa-single-after-plan-repair";
     const componentIds = ids(10);
     const admit = vi.fn(async () => ({ ok: true as const, componentIds, files: [] }));
     const chat = chatReplies(
       longContentPlanReply(10, { unsupportedFirstScene: true }),
       longContentPlanReply(10),
-      blocksFor(componentIds.slice(0, 4)),
-      blocksFor(componentIds.slice(4, 8)),
-      blocksFor(componentIds.slice(8)),
+      authorReplyForIds(componentIds),
     );
     const backend = new NineRouterAuthoringBackend({
       client: { chat } as unknown as NineRouterClient,
@@ -372,19 +418,19 @@ describe("authorScenes (pure-author)", () => {
     const out = await backend.authorScenes({ projectId, input: { text: "long repaired topic", urls: [], format: "tiktok", durationTier: 3 }, scriptGate: false });
 
     expect(out.scenes).toHaveLength(10);
-    expect(chat).toHaveBeenCalledTimes(5);
+    expect(chat).toHaveBeenCalledTimes(3);
     expect(messageText(chat.mock.calls[1]![1] as ChatMessage[])).toContain("CONTENT PLAN REPAIR");
-    expect(messageText(chat.mock.calls[2]![1] as ChatMessage[])).toContain("Batch 1/3");
+    expect(messageText(chat.mock.calls[2]![1] as ChatMessage[])).toContain("AI_Output_Contract");
+    expect(messageText(chat.mock.calls[2]![1] as ChatMessage[])).not.toContain("Batch 1/");
     expect(admit).toHaveBeenCalledTimes(1);
   });
 
   it("does not write partial files when a TSX batch is incomplete", async () => {
     const projectId = "pa-batched-missing";
-    const componentIds = ids(5);
+    const componentIds = ids(13);
     const admit = vi.fn(async () => ({ ok: true as const, componentIds, files: [] }));
     const chat = chatReplies(
-      longContentPlanReply(5),
-      blocksFor(componentIds.slice(0, 4)),
+      longContentPlanReply(13),
       "I cannot provide that module.",
     );
     const backend = new NineRouterAuthoringBackend({
@@ -399,12 +445,12 @@ describe("authorScenes (pure-author)", () => {
 
     expect(out.scenes).toEqual([]);
     expect(out.message).toMatch(/hợp lệ/i);
-    expect(chat).toHaveBeenCalledTimes(3);
+    expect(chat).toHaveBeenCalledTimes(2);
     expect(admit).not.toHaveBeenCalled();
     expect(existsSync(authoredDir(projectId))).toBe(false);
   });
 
-  it("fails before TSX calls when a plan would exceed the four-batch authoring budget", async () => {
+  it("fails before TSX calls when a plan would exceed the eight-batch authoring budget", async () => {
     const projectId = "pa-batched-too-large";
     const admit = vi.fn(async () => ({ ok: true as const, componentIds: [], files: [] }));
     const chat = chatReplies(longContentPlanReply(17), blocksFor(ids(4)));
@@ -713,7 +759,7 @@ describe("authorScenes (pure-author)", () => {
     const authorMessages = chat.mock.calls[1]![1] as ChatMessage[];
     const authorText = authorMessages.map((message) => message.content).join("\n");
     expect(authorText).toContain("CONTENT PLAN ADVISORIES TO RESOLVE IN TSX");
-    expect(authorText).toContain("motion-progression @scene-01");
+    expect(authorText).not.toContain("motion-progression @scene-01");
     expect(authorText).toContain("layout-diversity");
   });
 

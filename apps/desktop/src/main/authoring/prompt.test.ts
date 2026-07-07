@@ -175,7 +175,7 @@ describe("prompt surface baseline", () => {
     expect(promptText(reauthorWithStill)).toEqual(expect.stringContaining("Ảnh render hiện tại"));
     expect(promptText(missingTsxRecovery)).toEqual(expect.stringContaining("Manifest đã hợp lệ"));
     expect(promptText(missingTsxRecovery)).toEqual(expect.stringContaining("CHỈ viết các id này"));
-    expect(promptText(moduleBatch)).toEqual(expect.stringContaining("MANIFEST ĐÃ CHỐT"));
+    expect(promptText(moduleBatch)).toEqual(expect.stringContaining("MANIFEST SCENES CỦA BATCH NÀY"));
     expect(promptText(moduleBatch)).toEqual(expect.stringContaining("Batch 1/2"));
     expect(promptText(visualQa)).toEqual(expect.stringContaining("LỖI BỐ CỤC RÕ RÀNG"));
     expect(promptText(visualQa)).toEqual(expect.stringContaining('Cảnh "scene-02"'));
@@ -254,12 +254,14 @@ describe("buildAuthorModuleBatchMessages", () => {
     const text = promptText(messages);
 
     expect(text).toContain("KHÔNG trả manifest JSON");
-    expect(text).toContain(JSON.stringify(manifest, null, 2));
+    expect(text).not.toContain(JSON.stringify(manifest, null, 2));
+    expect(text).toContain(JSON.stringify(manifest.scenes.slice(1), null, 2));
     expect(text).toContain("Batch 2/3");
     expect(text).toContain("scene-02\nscene-03");
+    expect(text).not.toContain('"component": "scene-01"');
     expect(text).toContain("Các component khác sẽ được viết ở batch khác");
     expect(text).toContain("CONTENT PLAN ADVISORIES TO RESOLVE IN TSX");
-    expect(text).toContain("source text");
+    expect(text).not.toContain("source text");
   });
 });
 
@@ -490,14 +492,13 @@ describe("buildAuthorMessages", () => {
     expect(text).toMatch(/0\.2–0\.8 giây/);
     expect(text).toMatch(/semantic progression/);
     expect(text).toMatch(/continuous living motion/);
-    expect(text).toMatch(/phase = \(\(frame - startFrame\) % periodFrames\) \/ periodFrames/);
+    expect(text).toMatch(/phase = \(\(Math\.max\(0, frame - enterEnd\)\) % periodFrames\) \/ periodFrames/);
     expect(text).toMatch(/useVideoConfig/);
     expect(text).toMatch(/durationInFrames/);
     expect(text).toMatch(/frame \/ \(durationInFrames - 1\)/);
     expect(text).toMatch(/motionProgression/);
     expect(text).toMatch(/final hold.*beat chính/is);
-    expect(text).toMatch(/KHÔNG phải luật bắt buộc/);
-    expect(text).toMatch(/statement beat tĩnh có chủ đích vẫn hợp lệ/);
+    expect(text).toMatch(/Quick entrance \+ readable final hold luôn hợp lệ|readable final hold/);
     expect(text).not.toMatch(/DIỄN TIẾN qua phần lớn thời lượng/);
     expect(text).not.toMatch(/đừng dùng Math\.sin\(frame\), frame%n/);
     expect(text).not.toMatch(/\[0,\s*18\]/);
@@ -706,8 +707,7 @@ describe("buildReauthorMessages", () => {
     expect(system).toMatch(/continuous living motion/);
     expect(system).toMatch(/durationInFrames/);
     expect(system).toMatch(/motionProgression/);
-    expect(system).toMatch(/KHÔNG phải luật bắt buộc/);
-    expect(system).toMatch(/statement beat tĩnh có chủ đích vẫn hợp lệ/);
+    expect(system).toMatch(/Quick entrance \+ readable final hold luôn hợp lệ|readable final hold/);
   });
 
   it("includes an image_url part when a still data URL is provided", () => {

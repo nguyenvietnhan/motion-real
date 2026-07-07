@@ -13,6 +13,7 @@ import type { ContentPart } from "./prompt.js";
 import { computePacingBudget } from "./pacing-policy.js";
 import {
   ANTHROPIC_FABLE_SAFEGUARDS_SNAPSHOT,
+  INVALID_PURPOSE_CONTENT_PLAN_REPLY,
   CLAIM_LEDGER_MISSING_EVIDENCE_PLAN,
 } from "./__fixtures__/authoring-failure-incidents.js";
 
@@ -165,6 +166,51 @@ describe("parseContentPlan", () => {
   it("returns an invalid error for malformed content plans", () => {
     const result = parseContentPlan(JSON.stringify({ ...validPlan(), hookType: "generic" }));
     expect(result).toMatchObject({ ok: false, reason: "invalid" });
+  });
+
+  it("normalizes non-safety purpose drift instead of failing the content plan", () => {
+    const result = parseContentPlan(INVALID_PURPOSE_CONTENT_PLAN_REPLY);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    expect(result.plan.scenes.map((scene) => scene.purpose)).toEqual(["hook", "context", "turn"]);
+    expect(result.diagnostics).toContainEqual(
+      expect.objectContaining({ kind: "purpose-normalized", sceneId: "scene-02", original: "definition", normalized: "context" }),
+    );
+    expect(result.diagnostics).toContainEqual(
+      expect.objectContaining({ kind: "purpose-normalized", sceneId: "scene-03", original: "mechanism", normalized: "turn" }),
+    );
+  });
+
+  it("defaults missing or generic motion intent with non-blocking diagnostics", () => {
+    const result = parseContentPlan(INVALID_PURPOSE_CONTENT_PLAN_REPLY);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    expect(result.plan.scenes[1]!.motionProgression).toBe("Quick entrance, then readable hold.");
+    expect(result.plan.scenes[2]!.motionProgression).toBe("Quick entrance, then readable hold.");
+    expect(result.diagnostics).toContainEqual(
+      expect.objectContaining({ kind: "motion-defaulted", sceneId: "scene-02", reason: "generic", original: "Text appears." }),
+    );
+    expect(result.diagnostics).toContainEqual(expect.objectContaining({ kind: "motion-defaulted", sceneId: "scene-03", reason: "missing" }));
+  });
+
+  it("still rejects content plans that violate evidence safety after normalization", () => {
+    const unsafe = JSON.parse(INVALID_PURPOSE_CONTENT_PLAN_REPLY) as Record<string, unknown>;
+    unsafe.claims = [{ id: "claim-01", text: "Unsupported 500-cycle claim.", support: "source_material", confidence: "uncertain", action: "omit" }];
+    unsafe.scenes = [
+      {
+        ...((unsafe.scenes as Record<string, unknown>[])[0] ?? {}),
+        narration: "The prototype reached 500 cycles in 2026.",
+        onScreenText: "500 cycles",
+        evidenceClaimIds: ["claim-01"],
+      },
+    ];
+
+    const result = parseContentPlan(JSON.stringify(unsafe));
+
+    expect(result).toMatchObject({ ok: false, reason: "invalid" });
+    if (!result.ok) expect(result.detail).toMatch(/supported\/use claims/);
   });
 });
 
@@ -423,11 +469,13 @@ describe("buildContentPlanMessages", () => {
     expect(system).toMatch(/visualMetaphor/);
     expect(system).toMatch(/motionProgression/);
     expect(system).toMatch(/motion intent/);
-    expect(system).toMatch(/quick entrance tempo/);
+    expect(system).toMatch(/quick entrance/);
     expect(system).toMatch(/semantic progression/);
     expect(system).toMatch(/living motion/);
+    expect(system).toMatch(/use exactly one literal value/);
+    expect(system).toMatch(/If unsure after scene-01/);
     expect(system).not.toMatch(/early\/mid\/late/);
-    expect(system).toMatch(/not be generic "text appears"/);
+    expect(system).toMatch(/Avoid generic "text appears"/);
     expect(system).toMatch(/QUALITY SELF-CHECK BEFORE FINAL JSON/);
     expect(system).toMatch(/at least 2 distinct layoutFamily/);
     expect(system).toMatch(/action:"omit" claims are safety notes only/);

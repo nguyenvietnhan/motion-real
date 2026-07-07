@@ -85,10 +85,11 @@ not the default fallback for every scene.
 
 ## Motion
 
-Motion should help the idea. Each content plan scene should name a
+Motion should help the idea. A content plan scene may name a
 `motionProgression`: a short non-code motion intent. It should distinguish the
 tempo of the motion instead of forcing every element to move for the whole
-scene.
+scene. Missing or generic motion intent is treated as authoring guidance debt,
+not as a reason to fail an otherwise safe story plan.
 
 Use three motion types:
 
@@ -104,9 +105,8 @@ Use three motion types:
   using deterministic phase/period motion. Keep it small, bounded, purposeful,
   and away from text readability.
 
-Do not animate only a tiny entrance of a long scene and then leave the rest as a
-static slide unless stillness is the deliberate statement. Also do not stretch a
-simple text/card reveal across the whole scene just to avoid stillness.
+The safest default is a quick entrance followed by a readable final hold. Do not
+stretch a simple text/card reveal across the whole scene just to avoid stillness.
 Deliberately static statement beats remain valid when stillness is the point.
 
 Avoid:

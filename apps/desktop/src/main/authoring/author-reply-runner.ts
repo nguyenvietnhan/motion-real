@@ -112,7 +112,7 @@ export async function runBatchedAuthorReply(
       batchSize: args.batchSize,
       componentCount: args.batches.reduce((sum, batch) => sum + batch.length, 0),
     },
-    "authoring will use bounded TSX batches",
+    "authoring will use compact TSX batches",
   );
 
   for (const [index, componentIds] of args.batches.entries()) {

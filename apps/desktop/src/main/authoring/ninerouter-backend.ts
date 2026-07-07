@@ -86,11 +86,11 @@ export function authorCallErrorMessage(e: unknown): string {
 }
 
 const AUTHOR_BATCH_BUDGET_FAILURE =
-  "AI lập kế hoạch quá nhiều cảnh cho lượt authoring an toàn (tối đa 16 component trong 4 batch). Hãy thử lại với phạm vi hẹp hơn hoặc thời lượng ngắn hơn.";
+  "AI lập kế hoạch quá nhiều cảnh cho lượt authoring an toàn (tối đa 16 component trong 8 batch nhỏ). Hãy thử lại với phạm vi hẹp hơn hoặc thời lượng ngắn hơn.";
 
-const AUTHOR_BATCH_SIZE = 4;
-const MAX_AUTHOR_BATCHES = 4;
-const AUTHOR_BATCH_THRESHOLD = 4;
+const AUTHOR_BATCH_SIZE = 2;
+const MAX_AUTHOR_BATCHES = 8;
+const AUTHOR_BATCH_THRESHOLD = 12;
 const MAX_BATCHED_COMPONENTS = AUTHOR_BATCH_SIZE * MAX_AUTHOR_BATCHES;
 
 export type NineRouterBackendDeps = {
@@ -282,7 +282,7 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
       wordsPerSecond,
       chat: (selectedModel, messages) => this.chatWithVisionFallback(selectedModel, messages),
       callErrorMessage: authorCallErrorMessage,
-      logger: log,
+      logger: this.logger(),
     });
     if (!contentPlan.ok) {
       return { scenes: [], message: contentPlan.message, ...(unreadableUrls.length > 0 ? { unreadableUrls } : {}) };

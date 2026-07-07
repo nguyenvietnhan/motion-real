@@ -125,7 +125,9 @@ const progress =
 
 Use that `progress` value for semantic scene-local motion, not for every
 transition by default. When the approved content plan includes
-`motionProgression`, implement the intent by choosing the right motion tempo:
+`motionProgression`, treat it as creative intent, not as a command that every
+scene needs multi-stage motion. The safe default is a quick entrance followed by
+a readable hold.
 
 - Quick entrance/reveal/pop: for titles, labels, cards, markers, or icons
   appearing. These should usually settle in about 0.2-0.8 seconds, or a small
@@ -178,7 +180,10 @@ needed.
 For `interpolate`, the input range must be strictly increasing. Do not pass a
 circular range like `[340, 360, 60]`; split it into separate clamped
 interpolations such as `340 to 360` and `0 to 60`, or normalize the value before
-interpolating.
+interpolating. Do not use `durationInFrames - N` as an end bound unless it is
+clamped with something like `Math.max(1, durationInFrames - N)`; for semantic
+progress, prefer the normalized `progress` value with input ranges inside
+`[0, 1]`.
 
 ## Captions
 

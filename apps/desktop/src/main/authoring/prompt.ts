@@ -268,12 +268,12 @@ ${JSON.stringify(plan, null, 2)}
 
 LUẬT DÙNG CONTENT PLAN:
 - Giữ đúng title, viewerPromise, hook/openLoop/payoff và thứ tự sceneId/purpose/beat trừ khi cần sửa rất nhỏ để hợp TSX.
-- Mỗi cảnh phải hiện thực hóa đúng beat/narration/onScreenText/visualMetaphor/layoutFamily/motionProgression đã được lập kế hoạch.
+- Mỗi cảnh phải hiện thực hóa đúng beat/narration/onScreenText/visualMetaphor/layoutFamily đã được lập kế hoạch.
 - Đọc motionProgression như motion intent, KHÔNG như lệnh kéo mọi animation ra hết cảnh:
   quick entrance/reveal/pop vào nhanh tự nhiên (thường settle 0.2–0.8 giây bằng frame/spring);
   semantic progression chỉ dùng progress dài khi beat thật sự có quá trình như path/chart/timeline/focus shift;
   continuous living motion dùng phase/period deterministic cho wave/pulse/signal/walking sau khi entrance đã settle.
-  Final hold sau khi beat chính land là hợp lệ; statement beat tĩnh có chủ đích vẫn hợp lệ.
+  Final hold sau khi beat chính land là hợp lệ; quick entrance + readable final hold luôn hợp lệ cho statement beat.
 - Chỉ dùng các claims còn xuất hiện trong JSON trên. Nếu một claim không có ở đây, coi như đã bị loại vì thiếu căn cứ và KHÔNG được đưa vào narration, text, props hoặc code.
 - Không thêm số liệu/ngày/giá/phần trăm mới ngoài claim ledger đã duyệt; thiếu căn cứ thì viết lại theo hướng không cần chi tiết đó.
 - Vẫn phải tuân thủ toàn bộ AUTHORING_CONTRACT và AI_Output_Contract bên dưới.`;
@@ -303,6 +303,11 @@ function sourceBlock(input: AuthorInput, research?: string): string {
       ? "\n\n(Không đọc được nội dung link. Chỉ dùng thông tin trong yêu cầu + kiến thức chắc chắn về chủ đề. KHÔNG bịa số liệu, ngày tháng, giá, phần trăm hay tên sản phẩm/phiên bản mới — thiếu căn cứ thì đừng nêu.)"
       : "";
   return `Yêu cầu của người dùng:\n${input.text}${links}${grounding}`;
+}
+
+function batchBriefBlock(input: AuthorInput): string {
+  const links = input.urls.length > 0 ? `\n\nLink trong yêu cầu: ${input.urls.join(", ")}` : "";
+  return `Yêu cầu gốc của người dùng:\n${input.text}${links}`;
 }
 
 export function buildAuthorMessages(
@@ -362,15 +367,38 @@ export function buildAuthorModuleBatchMessages(batch: AuthorModuleBatchMessagesI
   const system = authorModuleBatchSystem(batch.input.format ?? "tiktok", batch.input.durationTier ?? 1, videoLanguage, effectiveWordsPerSecond);
   const wanted = new Set(batch.componentIds);
   const selectedScenes = batch.manifest.scenes.filter((scene) => wanted.has(scene.component));
-  const instruction = `${sourceBlock(batch.input, batch.research)}
+  const selectedPlanScenes = batch.contentPlan.scenes.filter((scene) => wanted.has(scene.sceneId));
+  const selectedClaimIds = new Set(selectedPlanScenes.flatMap((scene) => scene.evidenceClaimIds));
+  const selectedClaims = batch.contentPlan.claims.filter((claim) => selectedClaimIds.has(claim.id));
+  const globalPlan = {
+    title: batch.contentPlan.title,
+    viewerPromise: batch.contentPlan.viewerPromise,
+    hookType: batch.contentPlan.hookType,
+    first3SecondsLine: batch.contentPlan.first3SecondsLine,
+    openLoop: batch.contentPlan.openLoop,
+    payoff: batch.contentPlan.payoff,
+  };
+  const instruction = `${batchBriefBlock(batch.input)}
 
-MANIFEST ĐÃ CHỐT - KHÔNG ĐƯỢC THAY ĐỔI:
+GLOBAL CONTENT PLAN:
 \`\`\`json
-${JSON.stringify(batch.manifest, null, 2)}
+${JSON.stringify(globalPlan, null, 2)}
 \`\`\`
 
-CONTENT PLAN ĐÃ DUYỆT:
-${JSON.stringify(batch.contentPlan, null, 2)}
+MANIFEST SCENES CỦA BATCH NÀY - KHÔNG ĐƯỢC THAY ĐỔI:
+\`\`\`json
+${JSON.stringify(selectedScenes, null, 2)}
+\`\`\`
+
+CONTENT PLAN SCENES CỦA BATCH NÀY:
+\`\`\`json
+${JSON.stringify(selectedPlanScenes, null, 2)}
+\`\`\`
+
+USABLE CLAIMS CẦN CHO BATCH NÀY:
+\`\`\`json
+${JSON.stringify(selectedClaims, null, 2)}
+\`\`\`
 ${contentPlanAdvisoryBlock(batch.contentPlanAdvisories)}
 
 Batch ${batch.batchIndex}/${batch.batchCount}. Component ids cần viết trong batch này, CHỈ các id này:

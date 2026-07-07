@@ -56,6 +56,7 @@ export async function runContentPlan(args: RunContentPlanInput): Promise<RunCont
       );
       return { ok: false, message: CONTENT_PLAN_PARSE_FAILURE };
     }
+    logContentPlanNormalizations(args.logger, args.projectId, parsedPlan.diagnostics);
 
     let planned = parsedPlan.plan;
     let quality = evaluateContentPlanQuality(planned, pacing);
@@ -124,6 +125,7 @@ async function repairContentPlanIfPossible(args: {
     );
     return null;
   }
+  logContentPlanNormalizations(args.logger, args.projectId, parsed.diagnostics);
 
   const quality = evaluateContentPlanQuality(parsed.plan, args.pacing);
   if (quality.blockingIssues.length > 0) {
@@ -134,4 +136,16 @@ async function repairContentPlanIfPossible(args: {
     return null;
   }
   return { plan: parsed.plan, quality };
+}
+
+function logContentPlanNormalizations(
+  logger: ContentPlanRunnerLogger,
+  projectId: string,
+  diagnostics: readonly { kind: string }[],
+): void {
+  if (diagnostics.length === 0) return;
+  logger.warn(
+    { projectId, diagnostics },
+    "content-plan tolerant normalizations applied",
+  );
 }

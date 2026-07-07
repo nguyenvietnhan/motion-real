@@ -8,8 +8,10 @@ const HookTypeSchema = z.enum(["surprise", "number", "contradiction", "question"
 const ClaimSupportSchema = z.enum(["user_brief", "source_material", "common_knowledge"]);
 const ClaimConfidenceSchema = z.enum(["supported", "uncertain"]);
 const ClaimActionSchema = z.enum(["use", "omit"]);
-const ScenePurposeSchema = z.enum(["hook", "context", "turn", "proof", "contrast", "payoff", "cta"]);
+const SCENE_PURPOSE_VALUES = ["hook", "context", "turn", "proof", "contrast", "payoff", "cta"] as const;
+const ScenePurposeSchema = z.enum(SCENE_PURPOSE_VALUES);
 const LayoutFamilySchema = z.enum(["big-number", "two-column", "timeline", "diagram", "list", "signature-visual", "statement"]);
+const DEFAULT_MOTION_PROGRESSION = "Quick entrance, then readable hold.";
 
 export const ContentPlanClaimSchema = z
   .object({
@@ -87,9 +89,24 @@ export const ContentPlanSchema = z
 export type ContentPlanClaim = z.infer<typeof ContentPlanClaimSchema>;
 export type ContentPlanScene = z.infer<typeof ContentPlanSceneSchema>;
 export type ContentPlan = z.infer<typeof ContentPlanSchema>;
+export type ScenePurpose = z.infer<typeof ScenePurposeSchema>;
+
+export type ContentPlanNormalizationDiagnostic =
+  | {
+    kind: "purpose-normalized";
+    sceneId?: string;
+    original: string;
+    normalized: ScenePurpose;
+  }
+  | {
+    kind: "motion-defaulted";
+    sceneId?: string;
+    reason: "missing" | "generic";
+    original?: string;
+  };
 
 export type ContentPlanParseResult =
-  | { ok: true; plan: ContentPlan }
+  | { ok: true; plan: ContentPlan; diagnostics: ContentPlanNormalizationDiagnostic[] }
   | { ok: false; reason: "no-json" | "invalid"; detail: string };
 
 export function usableClaims(plan: ContentPlan): ContentPlanClaim[] {
@@ -149,6 +166,58 @@ function hasConcreteFact(value: string): boolean {
 function hasGenericMotionIntent(value: string): boolean {
   const normalized = value.trim();
   return normalized.length <= 80 && GENERIC_MOTION_PATTERN.test(normalized);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isScenePurpose(value: string): value is ScenePurpose {
+  return (SCENE_PURPOSE_VALUES as readonly string[]).includes(value);
+}
+
+function normalizedScenePurpose(value: unknown, sceneId: string | undefined, index: number): { purpose: ScenePurpose; original: string } | null {
+  if (typeof value !== "string") return null;
+  const original = value.trim();
+  const normalized = original.toLowerCase().replace(/[_\s]+/g, "-");
+  if (isScenePurpose(normalized)) return null;
+
+  if (index === 0 || sceneId === "scene-01") return { original, purpose: "hook" };
+  if (/^(setup|background|definition|define|intro|explain|overview|problem)$/.test(normalized)) return { original, purpose: "context" };
+  if (/^(mechanism|how|how-it-works|process|step|bridge|development|turning-point|example|demo)$/.test(normalized)) {
+    return { original, purpose: "turn" };
+  }
+  if (/^(evidence|data|source|fact|validation)$/.test(normalized)) return { original, purpose: "proof" };
+  if (/^(compare|comparison|before-after|tradeoff|risk|tension)$/.test(normalized)) return { original, purpose: "contrast" };
+  if (/^(conclusion|resolution|takeaway|answer|ending)$/.test(normalized)) return { original, purpose: "payoff" };
+  if (/^(action|next-step|subscribe|follow)$/.test(normalized)) return { original, purpose: "cta" };
+  return { original, purpose: "turn" };
+}
+
+function normalizeContentPlanCandidate(raw: unknown): { value: unknown; diagnostics: ContentPlanNormalizationDiagnostic[] } {
+  if (!isRecord(raw) || !Array.isArray(raw.scenes)) return { value: raw, diagnostics: [] };
+  const diagnostics: ContentPlanNormalizationDiagnostic[] = [];
+  const scenes = raw.scenes.map((scene, index) => {
+    if (!isRecord(scene)) return scene;
+    const next: Record<string, unknown> = { ...scene };
+    const sceneId = typeof next.sceneId === "string" ? next.sceneId : undefined;
+    const purpose = normalizedScenePurpose(next.purpose, sceneId, index);
+    if (purpose) {
+      next.purpose = purpose.purpose;
+      diagnostics.push({ kind: "purpose-normalized", ...(sceneId ? { sceneId } : {}), original: purpose.original, normalized: purpose.purpose });
+    }
+
+    const motion = typeof next.motionProgression === "string" ? next.motionProgression.trim() : "";
+    if (!motion) {
+      next.motionProgression = DEFAULT_MOTION_PROGRESSION;
+      diagnostics.push({ kind: "motion-defaulted", ...(sceneId ? { sceneId } : {}), reason: "missing" });
+    } else if (hasGenericMotionIntent(motion)) {
+      next.motionProgression = DEFAULT_MOTION_PROGRESSION;
+      diagnostics.push({ kind: "motion-defaulted", ...(sceneId ? { sceneId } : {}), reason: "generic", original: motion });
+    }
+    return next;
+  });
+  return { value: { ...raw, scenes }, diagnostics };
 }
 
 function contentPlanQualitySeverity(check: ContentPlanQualityCheck): ContentPlanQualitySeverity {
@@ -268,11 +337,12 @@ export function parseContentPlan(text: string): ContentPlanParseResult {
     return { ok: false, reason: "no-json", detail: error instanceof Error ? error.message : String(error) };
   }
 
-  const parsed = ContentPlanSchema.safeParse(raw);
+  const normalized = normalizeContentPlanCandidate(raw);
+  const parsed = ContentPlanSchema.safeParse(normalized.value);
   if (!parsed.success) {
     return { ok: false, reason: "invalid", detail: parsed.error.issues.map((issue) => `${issue.path.join(".")}: ${issue.message}`).join("; ") };
   }
-  return { ok: true, plan: parsed.data };
+  return { ok: true, plan: parsed.data, diagnostics: normalized.diagnostics };
 }
 
 function roundRate(wordsPerSecond: number): number {
@@ -309,7 +379,7 @@ function outputShape(): string {
   "scenes": [
     {
       "sceneId": "scene-01",
-      "purpose": "hook|context|turn|proof|contrast|payoff|cta",
+      "purpose": "hook",
       "beat": "...",
       "narration": "...",
       "onScreenText": "...",
@@ -358,7 +428,7 @@ TASK:
 - Make Scene 1 deliver a concrete content proposition in the first 3 seconds.
 - Keep the opening aligned with the title and the payoff.
 - Use specific visual metaphors and layout families so later code authoring does not collapse into generic title cards.
-- For each scene, write motionProgression as a non-code motion intent: quick entrance tempo, semantic progression if the beat changes over time, living motion if the visual should keep breathing, and final hold when appropriate.
+- For each scene, prefer a short motionProgression as non-code motion intent. A simple "quick entrance, then readable hold" is valid when the beat is mostly a statement; use semantic progression only when the idea truly changes over time.
 - Every scene advances exactly one viewer-facing idea.
 
 DELIVERY LOCKS (already chosen by the app; do not change them):
@@ -392,13 +462,14 @@ STORY RUBRIC:
 
 QUALITY SELF-CHECK BEFORE FINAL JSON:
 - scene-01 purpose must be "hook", and first3SecondsLine must make the viewer promise or tension concrete.
+- For "purpose", use exactly one literal value: hook, context, turn, proof, contrast, payoff, cta. If unsure after scene-01, use "context" or "turn".
 - viewerPromise and payoff are mandatory; payoff must answer or resolve the openLoop.
 - The plan must satisfy the pacing line above; do not collapse a long target into a few long narration blocks.
 - For 3+ scenes, prefer at least 2 distinct layoutFamily values unless the whole video is intentionally one formal statement.
 - Any scene with a statistical number/date/price/benchmark/source-like factual detail must include evidenceClaimIds pointing only to supported/use claims.
-- Every scene must have a specific motionProgression. It may describe a quick
-  reveal + hold, semantic progression, living motion, or an intentional
-  mostly-static statement beat, but it must not be generic "text appears".
+- Every scene should have a useful motionProgression. It may be a quick reveal
+  + readable hold, semantic progression, living motion, or an intentional
+  mostly-static statement beat. Avoid generic "text appears".
 - action:"omit" claims are safety notes only; never use them in title, narration, on-screen text, payoff, or evidenceClaimIds.
 
 ${POSITIVE_BEAT_EXAMPLES}

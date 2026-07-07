@@ -94,7 +94,7 @@ export default registerComponent({
   it("rejects literal interpolate input ranges that are not strictly increasing", async () => {
     const dir = await mkdtemp(join(tmpdir(), "motionreal-admission-interpolate-"));
     try {
-      const template = (range: string, id: string) => `
+      const template = (range: string, outputRange: string, id: string) => `
 import React from "react";
 import { interpolate } from "remotion";
 import { registerComponent } from "@motionreal/compositions";
@@ -103,7 +103,7 @@ export const schema = z.object({});
 export const example = {};
 const Comp: React.FC = () => {
   const progress = 0.5;
-  const x = interpolate(progress, ${range}, [0, 1, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+  const x = interpolate(progress, ${range}, ${outputRange}, { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
   return <div style={{ opacity: x }}>ok</div>;
 };
 export default registerComponent({
@@ -116,15 +116,23 @@ export default registerComponent({
 });
 `;
       const invalid = join(dir, "invalid.tsx");
-      await writeFile(invalid, template("[340, 360, 60]", "authored-invalid-interpolate"));
+      await writeFile(invalid, template("[340, 360, 60]", "[0, 1, 0]", "authored-invalid-interpolate"));
       const invalidResult = admitAuthoredComponent(invalid);
       expect(invalidResult.admitted).toBe(false);
       if (!invalidResult.admitted) {
         expect(invalidResult.violations.some((v) => v.check === "N5" && /strictly increasing/.test(v.message))).toBe(true);
       }
 
+      const negative = join(dir, "negative.tsx");
+      await writeFile(negative, template("[0, -18]", "[0, 1]", "authored-negative-interpolate"));
+      const negativeResult = admitAuthoredComponent(negative);
+      expect(negativeResult.admitted).toBe(false);
+      if (!negativeResult.admitted) {
+        expect(negativeResult.violations.some((v) => v.check === "N5" && /\[0, -18\]|strictly increasing/.test(v.message))).toBe(true);
+      }
+
       const valid = join(dir, "valid.tsx");
-      await writeFile(valid, template("[0, 0.5, 1]", "authored-valid-interpolate"));
+      await writeFile(valid, template("[0, 0.5, 1]", "[0, 1, 0]", "authored-valid-interpolate"));
       const validResult = admitAuthoredComponent(valid);
       expect(validResult.admitted).toBe(true);
     } finally {

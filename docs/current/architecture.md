@@ -130,7 +130,7 @@ runner modules own bounded model-call workflows:
 
 - `content-plan-runner.ts` owns content-plan call, parse, quality check, and
   one-shot claim-ledger repair.
-- `author-reply-runner.ts` owns single-reply authoring, bounded TSX batches, and
+- `author-reply-runner.ts` owns single-reply authoring, compact TSX batches, and
   missing-TSX recovery.
 - `reauthor-runner.ts` owns per-scene repair retry, parse, fake-fix guard, and
   rollback policy.
@@ -139,13 +139,16 @@ runner modules own bounded model-call workflows:
   SSRF-safe fetcher, chat fallback, and image-capability cache.
 
 Fresh authoring has bounded stabilization before admission. A claim-ledger-only
-content-plan failure may get one repair call. Long no-image plans are authored
-from a deterministic manifest in TSX batches of at most four component ids, with
-at most four batches; plans beyond that budget fail instead of looping. Short
-plans and image-placement plans keep the single-reply authoring path, where a
-valid manifest with missing TSX modules may get one targeted missing-module
-recovery call. None of these paths accept partial output or weaken admission,
-N10 typecheck, or render safety.
+content-plan failure may get one repair call. Content-plan purpose drift and
+missing/generic motion intent are normalized with diagnostics, because they are
+metadata guidance rather than safety blockers. Normal no-image plans up to the
+single-reply capacity use one authoring reply, where a valid manifest with
+missing TSX modules may get one targeted missing-module recovery call. Larger
+no-image plans use a deterministic manifest plus compact TSX batches of at most
+two component ids, capped at 16 components total; plans beyond that budget fail
+instead of looping. Image-placement plans keep the single-reply authoring path.
+None of these paths accept partial output or weaken admission, N10 typecheck, or
+render safety.
 
 Before the user sees a first draft, the desktop flow may run a hidden sequence:
 
@@ -171,7 +174,7 @@ Topic / URL / images
 -> validate content plan pacing/claims
 -> optional one-shot claim-ledger repair
 -> AI authors manifest + TSX in one reply,
-   or deterministic manifest + bounded TSX batches for long no-image plans
+   or deterministic manifest + compact TSX batches for larger no-image plans
 -> optional one-shot missing-TSX module recovery on the single-reply path
 -> optional hidden stills/refine in desktop
 -> admission gate

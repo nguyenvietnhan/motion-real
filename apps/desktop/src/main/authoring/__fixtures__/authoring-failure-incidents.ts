@@ -91,6 +91,73 @@ export const CLAIM_LEDGER_MISSING_EVIDENCE_PLAN: ContentPlan = {
   ],
 };
 
+export const AUTHORING_RELIABILITY_REGRESSION_FIXTURE = {
+  capturedAt: "2026-07-06",
+  classification: "prompt/pipeline fragility, not provider-only failure",
+  failures: [
+    {
+      kind: "content-plan-invalid-purpose",
+      detail: "Non-hook scene purpose used values outside the content-plan enum.",
+      invalidPurposeValues: ["definition", "example", "mechanism"],
+    },
+    {
+      kind: "admission-invalid-interpolate-range",
+      detail: "N5 rejected a literal non-increasing Remotion interpolate inputRange.",
+      inputRange: [0, -18],
+    },
+    {
+      kind: "batched-author-reply-incomplete",
+      detail: "A four-scene TSX batch returned only the first requested component.",
+      expectedComponentIds: ["scene-05", "scene-06", "scene-07", "scene-08"],
+      returnedComponentIds: ["scene-05"],
+    },
+  ],
+} as const;
+
+export const INVALID_PURPOSE_CONTENT_PLAN_REPLY = JSON.stringify({
+  title: "Random Forest không phải một cây",
+  viewerPromise: "Người xem hiểu vì sao nhiều cây bỏ phiếu ổn định hơn một cây.",
+  hookType: "contradiction",
+  first3SecondsLine: "Một cây quyết định dễ học vẹt. Cả rừng thì khó lệch hơn.",
+  openLoop: "Sức mạnh không nằm ở từng cây, mà ở cách chúng bất đồng với nhau.",
+  payoff: "Random Forest làm mượt sai lệch bằng nhiều quyết định độc lập rồi lấy đa số.",
+  claims: [],
+  scenes: [
+    {
+      sceneId: "scene-01",
+      purpose: "hook",
+      beat: "Open with the forest metaphor.",
+      narration: "Một cây quyết định dễ học vẹt. Cả rừng thì khó lệch hơn.",
+      onScreenText: "Một cây vs cả rừng",
+      visualMetaphor: "One shaky tree next to a calm forest.",
+      motionProgression: "Quick entrance: one tree appears; semantic: the forest fills in behind it; final hold on the contrast.",
+      layoutFamily: "signature-visual",
+      evidenceClaimIds: [],
+    },
+    {
+      sceneId: "scene-02",
+      purpose: "definition",
+      beat: "Define the vote.",
+      narration: "Mỗi cây nhìn dữ liệu hơi khác nhau, rồi cả rừng bỏ phiếu.",
+      onScreenText: "Nhiều góc nhìn",
+      visualMetaphor: "Small trees casting ballots.",
+      motionProgression: "Text appears.",
+      layoutFamily: "diagram",
+      evidenceClaimIds: [],
+    },
+    {
+      sceneId: "scene-03",
+      purpose: "mechanism",
+      beat: "Show the mechanism.",
+      narration: "Khi một cây đoán lệch, các cây còn lại kéo kết quả về hướng ổn định hơn.",
+      onScreenText: "Đa số làm mượt",
+      visualMetaphor: "Votes collecting into one calmer answer.",
+      layoutFamily: "timeline",
+      evidenceClaimIds: [],
+    },
+  ],
+});
+
 export const ANTHROPIC_FABLE_SAFEGUARDS_SNAPSHOT = [
   "---",
   "source_url: https://www.anthropic.com/news/fable-safeguards-jailbreak-framework",
