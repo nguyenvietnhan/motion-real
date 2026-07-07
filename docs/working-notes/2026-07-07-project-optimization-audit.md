@@ -1297,6 +1297,7 @@ git status --short
 | Phase 1 Step 1.3 - Add Prompt Change Checklist | Kiem tra -> docs update -> kiem tra -> xac nhan complete | `docs/current/maintenance.md` now requires prompt changes to classify boundary, metric, tests, smoke/canary need, and rollback path. |
 | Phase 2 Step 2.1 - Extract Prompt Sections | Kiem tra -> code -> kiem tra -> xac nhan complete | `prompt.ts` is now an orchestrator/re-export surface; extracted message types, content rules, output format, content-plan blocks, batch/recovery, visual-QA, and image-filter modules. `npm.cmd test -- --run apps/desktop/src/main/authoring/prompt.test.ts apps/desktop/src/main/authoring/ninerouter-backend.test.ts` passed 2 files/77 tests; `npm.cmd run typecheck` passed; `git diff --check` has no whitespace errors. |
 | Phase 2 Step 2.2 - Lock Section Markers In Tests | Kiem tra -> tests -> kiem tra -> xac nhan complete | Added prompt section-marker order test, batch selected-claim/no-full-context assertions, recovery compactness assertions, and AUTHORING_CONTRACT hard-before-visual-ambition ordering test. `npm.cmd test -- --run apps/desktop/src/main/authoring/prompt.test.ts apps/desktop/src/main/authoring/contract-text.test.ts` passed 2 files/44 tests; `npm.cmd run typecheck` passed. |
+| Phase 2 Step 2.3 - Prompt Size Snapshot | Kiem tra -> tests -> kiem tra -> xac nhan complete | Added prompt text-size baselines for main author, TSX batch, missing-TSX recovery, reauthor, and visual-QA prompt builders with a 10% growth guard. `npm.cmd test -- --run apps/desktop/src/main/authoring/prompt.test.ts` passed 1 file/35 tests; `npm.cmd run typecheck` passed. |
 
 ### Phase 0 Metrics Baseline
 
@@ -1322,6 +1323,22 @@ provider smoke notes add real runtime data.
 | `apps/desktop/src/main/authoring/prompt.ts` | 40,921 bytes |
 | `apps/desktop/src/main/authoring/contract-text.ts` | 14,185 bytes |
 | `apps/desktop/src/main/authoring/content-plan.ts` | 25,650 bytes |
+
+### Phase 2 Step 2.3 Prompt Builder Size Snapshot
+
+Measured from the runtime prompt builders after Phase 2 extraction. The test
+counts text prompt content and excludes image data URLs, because multimodal
+image payload size is not prompt wording. The first guard allows Phase 3 to
+reduce prompt size, but flags growth over 10% unless the test/doc diff explains
+why that growth is intentional.
+
+| Prompt builder | Baseline text chars |
+| --- | ---: |
+| Main author prompt | 19,539 |
+| TSX batch prompt | 19,056 |
+| Missing-TSX recovery prompt | 12,201 |
+| Reauthor prompt | 12,482 |
+| Visual QA prompt | 1,305 |
 
 ### Phase 1 Step 1.1 Prompt Source Map
 
@@ -1390,8 +1407,8 @@ Implementation rule:
 | --- | --- | --- | --- | --- |
 | Phase 0 - Baseline Checkpoint And Re-Entry | done | Engineering executor reports; owner reviews failures only | S | Baseline checkpoint, full local gate, and static metrics baseline recorded. |
 | Phase 1 - Prompt Contract Boundary | done | Owner reviews hard/quality/advisory boundary before runtime edits | S | Prompt source map, boundary, and durable checklist recorded. |
-| Phase 2 - Prompt Module Split Without Behavior Change | partial | Engineering can execute after Phase 1 owner review | M | Step 2.1 extracted prompt modules and Step 2.2 locked section markers; next Step 2.3 adds prompt size snapshot guard. |
-| Phase 3 - Prompt Fragility Reduction | pending | Owner approval required before and after prompt behavior changes | M-L | Build canary set, then edit prompt sections. |
+| Phase 2 - Prompt Module Split Without Behavior Change | done | Engineering can execute after Phase 1 owner review | M | Prompt modules split, section markers locked, and prompt size guard added without intentional behavior change. |
+| Phase 3 - Prompt Fragility Reduction | pending | Owner approval required before and after prompt behavior changes | M-L | Start Step 3.0 fixed before/after canary set before runtime prompt behavior edits. |
 | Phase 4 - Authoring Observability And Log Hygiene | pending | Engineering can execute; owner reviews raw-log policy | S-M | Gate raw reply snippets and stabilize counters. |
 | Phase 5 - Parser, Normalizer, And Recovery Debt | pending | Owner approval required for any new source mutation | S-M | Inventory first, no new regex by default. |
 | Phase 6 - Repo Hygiene And Reserved Surfaces | pending | Owner/product decisions for SFX/image defaults | M | Low-risk cleanup after prompt boundary is clear. |
@@ -1399,15 +1416,16 @@ Implementation rule:
 | Phase 8 - Render/Cache Scaling Design | pending | Owner/product plus engineering decision | S for design, XL if implemented | Design before concurrency implementation. |
 | Phase 9 - Final Validation And Closeout | pending | Owner accepts final gate/provider smoke/rollback | S-L | Full gate + provider smoke + rollback/archive. |
 
-## First Real Execution Step
+## Next Real Execution Step
 
-If this plan is approved, start with Phase 0 Step 0.2:
+Phase 2 is complete. If the owner approves continuing into prompt behavior
+optimization, start with Phase 3 Step 3.0 before editing runtime prompt wording:
 
 ```powershell
-npm.cmd run typecheck
-npm.cmd test
-npm.cmd run build
+git log -1 --oneline
+git status --short
 git diff --check
 ```
 
-Then do Phase 1 Step 1.1 and stop for review before editing runtime prompt.
+Then create the fixed before/after canary set and stop for review before Step
+3.1 changes runtime prompt behavior.

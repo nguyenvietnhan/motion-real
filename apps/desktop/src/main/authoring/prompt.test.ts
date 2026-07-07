@@ -48,6 +48,22 @@ function expectContainsInOrder(text: string, anchors: string[]): void {
   }
 }
 
+const PROMPT_SIZE_BASELINES = {
+  mainAuthor: 19539,
+  tsxBatch: 19056,
+  missingTsxRecovery: 12201,
+  reauthor: 12482,
+  visualQa: 1305,
+} as const;
+
+function expectPromptSizeNearBaseline(name: keyof typeof PROMPT_SIZE_BASELINES, messages: { content: string | ContentPart[] }[]): void {
+  const actual = promptText(messages).length;
+  const baseline = PROMPT_SIZE_BASELINES[name];
+
+  expect(actual, `${name} prompt should not accidentally disappear`).toBeGreaterThanOrEqual(Math.floor(baseline * 0.5));
+  expect(actual, `${name} prompt grew more than 10% from the recorded baseline`).toBeLessThanOrEqual(Math.ceil(baseline * 1.1));
+}
+
 describe("prompt surface baseline", () => {
   it("records stable message/part shapes and semantic anchors for every prompt builder", () => {
     const image = { ref: "assets/a.png", width: 800, height: 600, dataUrl: "data:image/png;base64,AAA" };
@@ -192,6 +208,108 @@ describe("prompt surface baseline", () => {
     expect(promptText(imageFilter)).toEqual(expect.stringContaining("video ngắn đa chủ đề"));
     expect(promptText(imageFilter)).toEqual(expect.stringContaining("assets/a.png"));
     expect(promptText(imageFilter)).toEqual(expect.stringContaining('"keep"'));
+  });
+});
+
+describe("prompt size budget snapshots", () => {
+  it("records approximate text budgets for authoring prompt builders", () => {
+    const manifest = {
+      title: "Batch",
+      theme: { dominant: "#1E9CB0", mood: "test" },
+      scenes: [
+        { component: "scene-01", eyebrow: "HOOK", headline: "Một", narration: "Câu một.", props: {} },
+        { component: "scene-02", eyebrow: "POINT", headline: "Hai", narration: "Câu hai.", props: {} },
+        { component: "scene-03", eyebrow: "PAYOFF", headline: "Ba", narration: "Câu ba.", props: {} },
+      ],
+    };
+    const contentPlan: ContentPlan = {
+      title: "Batch",
+      viewerPromise: "Promise",
+      hookType: "surprise",
+      first3SecondsLine: "Hook",
+      openLoop: "Loop",
+      payoff: "Payoff",
+      claims: [
+        { id: "claim-01", text: "Claim for scene one only.", support: "source_material", confidence: "supported", action: "use" },
+        { id: "claim-02", text: "Claim for selected scene two.", support: "source_material", confidence: "supported", action: "use" },
+        { id: "claim-03", text: "Claim for selected scene three.", support: "source_material", confidence: "supported", action: "use" },
+      ],
+      scenes: [
+        {
+          sceneId: "scene-01",
+          purpose: "hook",
+          beat: "Beat one",
+          narration: "Câu một.",
+          onScreenText: "Một",
+          visualMetaphor: "One visual",
+          motionProgression: "Quick entrance then hold.",
+          layoutFamily: "statement",
+          evidenceClaimIds: ["claim-01"],
+        },
+        {
+          sceneId: "scene-02",
+          purpose: "context",
+          beat: "Beat two",
+          narration: "Câu hai.",
+          onScreenText: "Hai",
+          visualMetaphor: "Two visual",
+          motionProgression: "Quick entrance then hold.",
+          layoutFamily: "diagram",
+          evidenceClaimIds: ["claim-02"],
+        },
+        {
+          sceneId: "scene-03",
+          purpose: "payoff",
+          beat: "Beat three",
+          narration: "Câu ba.",
+          onScreenText: "Ba",
+          visualMetaphor: "Three visual",
+          motionProgression: "Quick entrance then hold.",
+          layoutFamily: "timeline",
+          evidenceClaimIds: ["claim-03"],
+        },
+      ],
+    };
+
+    expectPromptSizeNearBaseline(
+      "mainAuthor",
+      buildAuthorMessages({ text: "Chủ đề baseline", urls: [], format: "tiktok", durationTier: 2, videoLanguage: "vi" }),
+    );
+    expectPromptSizeNearBaseline(
+      "tsxBatch",
+      buildAuthorModuleBatchMessages({
+        input: { text: "Chủ đề batch", urls: [], format: "tiktok", durationTier: 3, videoLanguage: "vi" },
+        manifest,
+        componentIds: ["scene-02", "scene-03"],
+        batchIndex: 2,
+        batchCount: 3,
+        contentPlan,
+      }),
+    );
+    expectPromptSizeNearBaseline(
+      "missingTsxRecovery",
+      buildMissingTsxRecoveryMessages({
+        manifest,
+        missingComponentIds: ["scene-02", "scene-03"],
+        existingComponentIds: ["scene-01"],
+      }),
+    );
+    expectPromptSizeNearBaseline(
+      "reauthor",
+      buildReauthorMessages({
+        sceneId: "scene-01",
+        componentId: "scene-01",
+        currentCode: "// component: scene-01\nexport default function Scene() { return null; }",
+        issues: [{ check: "N14", severity: "error", message: "tràn vùng" }],
+      }),
+    );
+    expectPromptSizeNearBaseline(
+      "visualQa",
+      buildVisualQaMessages([
+        { sceneId: "scene-01", stillDataUrl: "data:image/png;base64,AAA" },
+        { sceneId: "scene-02", stillDataUrl: "data:image/png;base64,BBB" },
+      ]),
+    );
   });
 });
 
