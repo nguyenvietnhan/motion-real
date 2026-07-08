@@ -30,46 +30,40 @@ Preferred order:
 3. revisit workspace state machine only after a new narrow slice is proven;
 4. split render-grid/orchestrator only after safer outer cleanup.
 
-The first workspace-controller pass is complete: local pure/view-model/create/
-script/render helpers exist, while async render/refine/publish orchestration
-stays in `WorkspaceController`. Do not force that extraction just to reduce line
-count.
+Current workspace layout: local pure/view-model/create/script/render helpers
+exist, while async render/refine/publish orchestration stays in
+`WorkspaceController`. Do not force further extraction just to reduce line count.
 
-Phase 7 intentionally did not split `workspace-controller.ts`,
-`packages/pipeline/src/orchestrator.ts`, or
-`packages/pipeline/src/safety/render-grid.ts` further. These files are still
-large, but they currently own real behavior boundaries: desktop stage
-orchestration, render pipeline sequencing/locks, and deterministic render
-oracles. Future extraction needs a written behavior boundary plus focused tests
-before code changes; do not move code out of these files for size alone.
+`workspace-controller.ts`, `packages/pipeline/src/orchestrator.ts`, and
+`packages/pipeline/src/safety/render-grid.ts` remain large on purpose. They own
+real behavior boundaries: desktop stage orchestration, render pipeline
+sequencing/locks, and deterministic render oracles. Future extraction needs a
+written behavior boundary plus focused tests before code changes; do not move
+code out of these files for size alone.
 
-The authoring-backend seam split is complete for the current Phase 2 scope.
-`ninerouter-backend.ts` remains the stable `AuthoringBackend` facade and owns
-provider wiring, project paths, image-capability cache, file write/admission, and
-desktop-facing methods. Focused runner modules now own content planning, author
+`ninerouter-backend.ts` is the stable `AuthoringBackend` facade and owns provider
+wiring, project paths, image-capability cache, file write/admission, and
+desktop-facing methods. Focused runner modules own content planning, author
 reply generation/recovery, reauthor retry/rollback, image filtering, and article
-image crawling. Future work should add behavior to the relevant runner or a new
-tested seam; do not keep thinning the facade just to reduce line count.
+image crawling. Add behavior on the relevant runner or a new tested seam; do not
+keep thinning the facade just to reduce line count.
 
-The content-plan split is complete for the current Phase 7 scope.
-`content-plan.ts` remains the public facade, while schema/types, normalization,
-parser, quality checks, and prompt builders live in focused `content-plan-*`
-modules. Keep imports pointed at the facade unless a local module needs an
-internal helper.
+`content-plan.ts` is the public facade; schema/types, normalization, parser,
+quality checks, and prompt builders live in focused `content-plan-*` modules.
+Keep imports pointed at the facade unless a local module needs an internal
+helper.
 
-The desktop-main thinning pass is complete for now. `index.ts` remains the
-Electron composition root, while local tested helpers own runtime env parsing,
-create-time image staging, BGM handlers, native save/export helpers, and
-`projects:create` IPC payload coercion. Settings/TTS and thumbnail IPC handlers
-also now live in focused handler factories with explicit root wiring. Keep
-Electron lifecycle, media
-scheme/protocol ordering, controller construction, and broad handler composition
-root-owned unless a future slice has a narrower reason than line count.
+`apps/desktop/src/main/index.ts` is the Electron composition root. Local tested
+helpers own runtime env parsing, create-time image staging, BGM handlers, native
+save/export helpers, and `projects:create` IPC payload coercion. Settings/TTS
+and thumbnail IPC handlers live in focused handler factories with explicit root
+wiring. Keep Electron lifecycle, media scheme/protocol ordering, controller
+construction, and broad handler composition root-owned unless a future slice has
+a narrower reason than line count.
 
-The media-pipeline split is complete for the current Phase 6 scope. TTS provider
-clients, provider HTTP helpers, caption timing, and audio operations now live in
-focused modules under `packages/tts/src/`; keep `index.ts` as the public barrel
-and cache-key surface. Renderer bundle/composition preparation now lives in
+TTS provider clients, provider HTTP helpers, caption timing, and audio operations
+live under `packages/tts/src/`; keep `index.ts` as the public barrel and
+cache-key surface. Renderer bundle/composition preparation lives in
 `packages/pipeline/src/render/composition-prep.ts`; keep render primitives in
 `renderer.ts` unless a future slice proves a narrower behavior boundary.
 
@@ -137,14 +131,14 @@ the cached file mtime. Keep docs and tests using "oldest mtime" or "age-based"
 wording unless a later owner-approved cache design changes hit behavior and
 adds focused tests for refreshed cache entries staying warm.
 
-The renderer CSS split is complete for the current Phase 7 scope.
-`apps/desktop/src/renderer/theme.css` is the stable import entry and section
-inventory; domain/layer partials live under `apps/desktop/src/renderer/theme/`.
-Do not put new rules back into the entry file. Add them to the owning partial,
-or add a new partial only when it represents a real UI domain or layer. Stable
-renderer shell/review/empty-state layout belongs in these CSS partials; keep
-runtime values such as dynamic media backgrounds, selected-scene borders, and
-progress width inline in the owning TSX.
+Renderer CSS is split by surface. `apps/desktop/src/renderer/theme.css` is the
+stable import entry and section inventory; domain/layer partials live under
+`apps/desktop/src/renderer/theme/`. Do not put new rules back into the entry
+file. Add them to the owning partial, or add a new partial only when it
+represents a real UI domain or layer. Stable renderer shell/review/empty-state
+layout belongs in these CSS partials; keep runtime values such as dynamic media
+backgrounds, selected-scene borders, and progress width inline in the owning
+TSX.
 
 The internal `createTools` facade is pipeline-owned.
 The root `.mcp.json` is local-only and ignored. Keep `.mcp.example.json` as a
