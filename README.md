@@ -55,10 +55,14 @@ that ignored file.
 - `docs/current/architecture.md` — current package map and data flow.
 - `docs/current/authoring-contract.md` — authored scene rules.
 - `docs/current/content-guide.md` — story, evidence, language, and visuals.
-- `docs/current/maintenance.md` — cleanup and refactor guardrails.
+- `docs/current/maintenance.md` — cleanup, residual risks, and refactor guardrails.
 - `docs/current/youtube-mode-deferred.md` — deferred roadmap note; not active scope.
 
 Provider setup lives in `docs/providers/`.
+
+Optional `docs/working-notes/` files are temporary execution notes only. They are
+not part of the contract. Durable policy belongs in `AI_CONTRACT.md` or
+`docs/current/`.
 
 ## Health Checks
 
