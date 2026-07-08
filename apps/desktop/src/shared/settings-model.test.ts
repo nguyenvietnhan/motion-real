@@ -13,10 +13,10 @@ import {
 } from "./settings-model.js";
 
 /**
- * Feature: web-dashboard, Task 10.2 — settings defaults (Req 11.7, 11.8). Every
+ * settings defaults. Every
  * L3 setting is pre-populated so the flow runs without opening Settings.
  *
- * NOTE (reconcile-main-controllers S2): the `normalizeSettings` tests were
+ * the `normalizeSettings` tests were
  * removed with the function (it was off the production path; merge/persist is
  * now covered by SettingsStore property tests P2–P6).
  */
@@ -46,7 +46,7 @@ describe("clampMaxRepairAttempts", () => {
 });
 
 /**
- * freeform-engine K1/R5.4/D13 — Vivibe read-rate calibration math. The author
+ * Vivibe read-rate calibration math. The author
  * prompt turns a duration target into a word budget at this rate; a bad rate
  * makes a "90s" request render short. These cover the PURE helpers the
  * calibration script + the settings store rely on (the live Vivibe measurement

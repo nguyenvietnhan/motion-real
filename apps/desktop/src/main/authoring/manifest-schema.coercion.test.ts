@@ -9,9 +9,9 @@ import { parseAuthorManifest } from "./manifest-schema.js";
  * and throw away the manifest + every authored .tsx, forcing a full re-author.
  *
  * Covered historical fixes:
- *  - 75f21c6 clamp/coerce manifest fields (over-long title/eyebrow/narration/mood)
- *  - e73fb0d coerce bare-string / aliased image field ({url}/{src}/{path})
- *  - the per-field `.catch()` degradations (bad transition enum, malformed image)
+ * - 75f21c6 clamp/coerce manifest fields (over-long title/eyebrow/narration/mood)
+ * - e73fb0d coerce bare-string / aliased image field ({url}/{src}/{path})
+ * - the per-field `.catch` degradations (bad transition enum, malformed image)
  */
 
 /** A minimal valid manifest (3 scenes = the schema floor) we mutate per case. */

@@ -4,7 +4,7 @@ import { LicenseManager } from "./license-manager.js";
 import { DevLicenseService } from "./dev-license-service.js";
 
 /**
- * Feature: reconcile-main-controllers — DevLicenseService + LicenseManager.
+ * — DevLicenseService + LicenseManager.
  * Reproduces the inline Current_Behavior of index.ts license:activate (R3.2/R3.3).
  */
 

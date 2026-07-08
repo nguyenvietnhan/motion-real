@@ -4,9 +4,9 @@ import { canCreate } from "./license-manager.js";
 import type { LicenseState } from "../../shared/types.js";
 
 /**
- * Feature: web-dashboard, Property 2: License gates new creation iff active.
+ * Property 2: License gates new creation iff active.
  * canCreate(state) is true if and only if state.kind === "active"; in
- * particular a lapsed (revoked/expired) state returns false. (Req 1.7, 1.9)
+ * particular a lapsed (revoked/expired) state returns false.
  */
 
 const licenseStateArb: fc.Arbitrary<LicenseState> = fc.oneof(

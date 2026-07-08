@@ -1,7 +1,7 @@
 import type { CreateInput } from "./types.js";
 
 /**
- * Create-input validation (desktop-author-mode, free-form brief). The Create box
+ * Create-input validation (free-form brief). The Create box
  * behaves like a chat prompt: the user types a natural-language brief that MAY
  * contain one or more links. We never force an either/or "URL vs topic" split —
  * the whole text is the brief, and any links found in it are extracted so the
@@ -9,9 +9,9 @@ import type { CreateInput } from "./types.js";
  * arbitrary strings (shared by the renderer's live validation and the main
  * create controller, so it stays in `shared/`).
  *
- *   - empty / whitespace-only       ⇒ { ok:false, reason:"empty" }
- *   - over 20000 chars              ⇒ { ok:false, reason:"too-long" }
- *   - otherwise                     ⇒ { ok:true, brief:{ text, urls } }
+ * - empty / whitespace-only ⇒ { ok:false, reason:"empty" }
+ * - over 20000 chars ⇒ { ok:false, reason:"too-long" }
+ * - otherwise ⇒ { ok:true, brief:{ text, urls } }
  */
 
 export const MAX_TOPIC_LEN = 20000;

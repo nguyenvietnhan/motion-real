@@ -121,7 +121,7 @@ export function workspaceRoot(): string {
 }
 
 /**
- * Bundle-cache (Phase A render optimization). A serveUrl from `bundle()` does
+ * Bundle-cache (Phase A render optimization). A serveUrl from `bundle` does
  * NOT depend on the spec -- the spec enters at `selectComposition`/`renderStill`
  * via `inputProps`, never at bundle time. So within ONE `renderProject` the
  * determinism/encode/review passes all bundle the SAME source + publicDir and

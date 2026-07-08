@@ -5,7 +5,7 @@ import { join, resolve } from "node:path";
 import type { VideoSpec } from "@motionreal/schema";
 
 /**
- * `renderProjectStills` self-tests (freeform-engine D1). The authoring admission
+ * `renderProjectStills` self-tests . The authoring admission
  * path is a pure AST admission, while Remotion would download/launch Chromium —
  * so we mock the authoring module (admission + manifest reads) and the renderer's
  * `renderSceneStills`. What we actually assert is the WIRING: admit gates the

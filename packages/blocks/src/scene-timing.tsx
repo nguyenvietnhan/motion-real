@@ -3,7 +3,7 @@ import { useVideoConfig } from "remotion";
 
 /**
  * Per-scene timing context. Inside a `TransitionSeries.Sequence`,
- * `useCurrentFrame()` is sequence-relative but `useVideoConfig().durationInFrames`
+ * `useCurrentFrame` is sequence-relative but `useVideoConfig.durationInFrames`
  * is the WHOLE composition — so a block can't know its own scene's length. The
  * master composition wraps each scene in `<SceneTimingProvider>` carrying the
  * scene's `durationInFrames`, letting effects (e.g. the per-scene tilt) sync

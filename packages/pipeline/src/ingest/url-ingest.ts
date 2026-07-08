@@ -7,7 +7,7 @@ import { planningDir } from "../store/store.js";
 import { makeSafeFetch } from "./safe-fetch.js";
 
 /**
- * URL ingest into grounded research files (tool-productization R2).
+ * URL ingest into grounded research files (R2).
  *
  * Fetches an article, extracts its main readable TEXT + METADATA only (via
  * `@mozilla/readability` over a `linkedom` DOM), and writes a grounded research

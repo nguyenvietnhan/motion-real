@@ -1,5 +1,5 @@
 /**
- * The complete allow-list of IPC channels (web-dashboard Task 1.2). The preload
+ * The complete allow-list of IPC channels . The preload
  * bridge exposes ONLY these; anything not listed here cannot cross the boundary.
  * Request/response channels use `invoke`; streaming uses `on` event channels.
  */

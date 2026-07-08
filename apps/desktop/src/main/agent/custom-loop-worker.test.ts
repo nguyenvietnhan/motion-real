@@ -3,7 +3,7 @@ import { CustomLoopAgentWorker, type AuthoringBackend, type AuthoredScene } from
 import type { AgentHooks } from "./agent-worker.js";
 
 /**
- * Feature: web-dashboard, Task 5.1 — path-X custom-loop adapter orchestration.
+ * path-X custom-loop adapter orchestration.
  * Verifies ordering + scene hooks, ingest/no-source failure mapping, and that
  * the repair delegation drives the backend's render/report.
  */

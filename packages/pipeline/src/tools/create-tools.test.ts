@@ -23,7 +23,7 @@ import {
   type ToolDeps,
 } from "./create-tools.js";
 
-// Feature: tool-productization — internal tools over the orchestrator (R3).
+// internal tools over the orchestrator (R3).
 
 let home: string;
 const prevHome = process.env.VIDEO_TOOL_HOME;
@@ -313,7 +313,7 @@ describe("single-process orchestrator path — 7.13", () => {
   });
 });
 
-describe("get_safety_report — 7.x (web-dashboard Task 2.1)", () => {
+describe("get_safety_report", () => {
   const reportWith = (issues: Array<{ check: string; severity: "error" | "warning"; message: string }>): RenderProjectResult =>
     ({
       projectId: "p",

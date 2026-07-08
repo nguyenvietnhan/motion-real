@@ -45,7 +45,7 @@ export function clampRefinePasses(n: number): number {
 
 /**
  * Default Vietnamese narration rate (words/second) used to turn a duration tier
- * into a total word budget in the author prompt (freeform-engine K1/R5.4/D13).
+ * into a total word budget in the author prompt .
  * 4.7 was MEASURED from real Vivibe audio (the earlier 2.7 guess rendered a "90s"
  * request as ~60s). The calibration script (`scripts/calibrate-voice.ts`) can
  * re-measure the configured voice and persist `voiceWordsPerSecond`; this is the
@@ -106,16 +106,13 @@ export function computeWordsPerSecond(samples: CalibrationSample[]): number | un
 }
 
 /**
- * Settings defaults (web-dashboard Task 10.1, design §Settings,
- * Req 11.3/11.4/11.7/11.8). Every L3 setting is PRE-POPULATED so a user can run
- * the whole flow with Vivibe as the default provider, a default output
- * dir, repair budget 3, and the script gate ON. `outputDir` is supplied by the
- * main process (the `.video-tool` home) to keep this module pure.
+ * Settings defaults. Every setting is PRE-POPULATED so a user can run the whole
+ * flow with Vivibe as the default provider, a default output dir, repair budget
+ * 3, and the script gate ON. `outputDir` is supplied by the main process (the
+ * `.video-tool` home) to keep this module pure.
  *
- * NOTE (reconcile-main-controllers S2): `normalizeSettings` was removed. The
- * real persistence/merge now lives in the tested `SettingsStore`
- * (main/settings), which clamps `maxRepairAttempts` with the same helper the
- * engine loop uses.
+ * Persistence/merge lives in the tested `SettingsStore` (main/settings), which
+ * clamps `maxRepairAttempts` with the same helper the engine loop uses.
  */
 
 export function defaultSettings(outputDir: string): SettingsModel {

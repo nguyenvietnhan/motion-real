@@ -4,7 +4,7 @@ import { authorReplyParseSummary, inspectAuthorReply, parseAuthorModuleBatchRepl
 import { JSON_ONLY_AUTHOR_REPLY } from "./__fixtures__/authoring-failure-incidents.js";
 
 /**
- * Property tests for the AI_Output_Contract parser (desktop-author-mode).
+ * Property tests for the author-reply contract parser .
  * Generators build well-formed replies (manifest JSON + per-id ```tsx blocks)
  * and adversarial variants (missing a block, marker≠literal) to prove the parser
  * is total and correct.
@@ -18,7 +18,7 @@ const idArb = fc
   .tuple(fc.constantFrom(...HEAD), fc.array(fc.constantFrom(...TAIL), { minLength: 1, maxLength: 12 }))
   .map(([h, rest]) => h + rest.join(""));
 
-// Manifest metadata is PROSE per the AI_Output_Contract — code (and thus the
+// Manifest metadata is PROSE per the author-reply contract — code (and thus the
 // ``` fence delimiter) only ever appears in the separate ```tsx blocks. So the
 // generator excludes backticks from manifest strings: a ``` embedded in metadata
 // would be a contract violation that corrupts fence boundaries for the WHOLE
@@ -68,7 +68,7 @@ const replyShapeArb = fc
   );
 
 describe("Property 1: author-reply parse roundtrip", () => {
-  // Feature: desktop-author-mode, Property 1: author-reply parse roundtrip
+  // Property 1: author-reply parse roundtrip
   it("valid manifest + full code coverage ⇒ ok and modules cover every used id", () => {
     fc.assert(
       fc.property(replyShapeArb, ({ ids, scenes }) => {

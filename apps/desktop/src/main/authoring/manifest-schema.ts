@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 /**
- * The manifest the authoring model must emit (desktop-author-mode, pure AUTHOR).
+ * The manifest the authoring model must emit (pure AUTHOR).
  * The AI does the JOURNALISM — Vietnamese script + structure — AND authors fresh
  * `.tsx` per scene; this manifest only carries the per-scene metadata. `component`
  * is an OPEN, AI-chosen id (no fixed kit enum); the actual `.tsx` code is parsed
@@ -19,11 +19,11 @@ const transition = z.enum(["slide", "fade", "wipe", "clockWipe", "zoom"]);
 /**
  * Truncate an over-long string BEFORE validation instead of rejecting it. The
  * model occasionally overshoots a length cap on ONE field of ONE scene (a 601-char
- * narration, a 25-char eyebrow); without this, Zod's strict `.max()` fails the
+ * narration, a 25-char eyebrow); without this, Zod's strict `.max` fails the
  * whole `safeParse` and the ENTIRE reply — manifest + every authored .tsx, up to
  * 14 scenes — is discarded, forcing a full re-author. Clamping the offending field
  * to its cap keeps the other 13 scenes (and the just-written code) alive. Pairs
- * with the per-field `.catch()` on enums below: a single bad field degrades to a
+ * with the per-field `.catch` on enums below: a single bad field degrades to a
  * safe default rather than nuking the batch.
  */
 const clampStr = (max: number) => (v: unknown) => (typeof v === "string" && v.length > max ? v.slice(0, max) : v);
@@ -40,7 +40,7 @@ const clampStr = (max: number) => (v: unknown) => (typeof v === "string" && v.le
  * object, received string" fails the whole `safeParse` and the ENTIRE reply —
  * manifest + every authored .tsx — is discarded, forcing a full re-author. Also
  * accept the common `{ url }`/`{ src }` aliases for the path key. Same wholesale-
- * discard family as the clampStr/`.catch()` coercions above.
+ * discard family as the clampStr/`.catch` coercions above.
  */
 const coerceImage = (v: unknown): unknown => {
   if (typeof v === "string") return { ref: v };
@@ -58,15 +58,15 @@ const authorImageSchema = z.object({
 });
 
 /**
- * Coerce the publish `hashtags` field into a clean `string[]` (D9/design §7.3).
+ * Coerce the publish `hashtags` field into a clean `string[]` (D9/
  * The model emits this in many shapes: a real array `["#ai","#tech"]`, a bare
  * array without leading `#`, or a single string `"#ai #tech, #news"`. Normalize
  * ALL of them to `["#ai", "#tech", ...]` so the Copy panel always has ready-to-
  * paste tags. Each tag is stripped of leading `#`s + inner whitespace and gets
- * exactly one `#`; empties drop; capped at 6 (design §261: 3–6). Returns
- * undefined for an unusable value so `.optional().catch(undefined)` keeps the
- * reply alive (a bad hashtags field must NOT discard the manifest + every .tsx —
- * same wholesale-discard family as the clampStr/image coercions above).
+ * exactly one `#`; empties drop; capped at 6. Returns undefined for an unusable
+ * value so `.optional.catch(undefined)` keeps the reply alive (a bad hashtags
+ * field must NOT discard the manifest + every .tsx — same wholesale-discard
+ * family as the clampStr/image coercions above).
  */
 const coerceHashtags = (v: unknown): unknown => {
   const raw = typeof v === "string" ? v.split(/[\s,]+/) : Array.isArray(v) ? v : undefined;

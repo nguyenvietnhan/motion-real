@@ -17,10 +17,10 @@ export type { ImageFilterInput } from "./prompt-image-filter.js";
 export { buildVisualQaMessages } from "./prompt-visual-qa.js";
 
 /**
- * Author + reauthor prompt builders (desktop-author-mode, pure AUTHOR). The
+ * Author + reauthor prompt builders (pure AUTHOR). The
  * model acts as a short-form author for any supported topic and WRITES fresh
  * `.tsx` per scene per the Authoring_Contract, returning a manifest JSON + one
- * ```tsx block per component id (the AI_Output_Contract). Reauthor sends ONE flagged scene's
+ * ```tsx block per component id (the author-reply contract). Reauthor sends ONE flagged scene's
  * current code + the issue (and, for layout/contrast defects, its rendered still
  * as an image part) and asks for a single corrected ```tsx block.
  */

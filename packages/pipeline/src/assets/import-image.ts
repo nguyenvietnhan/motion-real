@@ -45,7 +45,7 @@ type Sniffed = { ext: ImageExt; dims: { width: number; height: number } | null }
  * Import raw bytes into `destDir` as `<sha>.<ext>`. Idempotent: identical bytes
  * map to the identical path and the existing file is left untouched. Returns the
  * project-relative `ref` (`assets/<sha>.<ext>`) — relative to the project root,
- * the same shape the schema `ref` refinement + `staticFile()` expect — using
+ * the same shape the schema `ref` refinement + `staticFile` expect — using
  * `refPrefix` (default "assets") so a staging import can return `staging/...`.
  */
 export async function importImageBytes(

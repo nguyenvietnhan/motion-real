@@ -5,7 +5,7 @@ import { videoToolHome } from "../store/store.js";
 import { BUNDLED_DEFAULT_BGM_TRACK_NAME, bundledDefaultBgmPath } from "../assets/bundled-media.js";
 
 /**
- * Background-music library (freeform-engine I2/O4). BGM lives ONCE per machine
+ * Background-music library . BGM lives ONCE per machine
  * under `VIDEO_TOOL_HOME/.video-tool/bgm/` and is shared by every project; a
  * project stores only the chosen track's filename (the `bgm` field on its
  * manifest), resolved back to an absolute path at render time and mixed under

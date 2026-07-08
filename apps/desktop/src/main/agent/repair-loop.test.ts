@@ -12,12 +12,12 @@ import {
 import type { AgentHooks } from "./agent-worker.js";
 
 /**
- * Feature: web-dashboard, Property 5: The generate-validate-repair loop respects
+ * Property 5: The generate-validate-repair loop respects
  * its budget. For any maxAttempts (clamped to 1–10) and any sequence of safety
  * reports, the loop performs at most maxAttempts draft renders, stops on the
  * first zero-hard-error report, counts a failed render toward the budget, and
  * returns `exhausted` if the budget is reached with hard errors remaining.
- * (Req 6.3, 6.4, 6.6, 6.7)
+ *
  */
 
 type Attempt = { render: boolean; hardErrors: number };
@@ -174,7 +174,7 @@ describe("Property 5: repair-loop budget", () => {
 });
 
 describe("Property 4: repair budget and routing", () => {
-  // Feature: desktop-author-mode, Property 4: repair budget and routing
+  // Property 4: repair budget and routing
   const infraIssue = (sceneId?: string): SafetyIssue => ({ check: "N13", severity: "error", message: "infra", ...(sceneId ? { sceneId } : {}) });
   const contentIssue = (sceneId: string): SafetyIssue => ({ check: "N14", severity: "error", sceneId, message: "content" });
   const n10SpringIssue = (sceneId: string): SafetyIssue => ({

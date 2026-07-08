@@ -27,7 +27,7 @@ const arbInit = fc.record(
   { requiredKeys: ["stage", "cause"] },
 );
 
-// Feature: tool-productization, Property 18: Structured error fidelity across surfaces
+// Property 18: Structured error fidelity across surfaces
 describe("PipelineError — Property 18: structured error fidelity", () => {
   it("toSerialized preserves stage/cause/check/sceneId/severity/remediation", () => {
     fc.assert(

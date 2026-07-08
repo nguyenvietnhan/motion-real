@@ -3,8 +3,8 @@ import { ModelGatewayManager, GATEWAY_BASE_URL, type GatewayDeps } from "./model
 import type { ConnectedAccount, ModelInfo, ProviderInfo } from "../../shared/types.js";
 
 /**
- * Feature: web-dashboard, Task 6.5 — gateway start retry + dynamic provider /
- * connect / model lifecycle (Req 2.2, 2.4, 2.6, 2.7, 2.8, 2.11), with stubbed
+ * gateway start retry + dynamic provider /
+ * connect / model lifecycle, with stubbed
  * 9router effects.
  */
 

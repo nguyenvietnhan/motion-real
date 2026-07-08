@@ -4,11 +4,11 @@ import { FRIENDLY_STATUSES, toFriendlyStatus } from "./friendly-status.js";
 import type { ProjectState } from "./types.js";
 
 /**
- * Feature: web-dashboard, Property 10: Friendly-status mapping is total and
+ * Property 10: Friendly-status mapping is total and
  * leaks no internal state name. For every ProjectState plus arbitrary unknown
  * strings, toFriendlyStatus returns one of the four friendly statuses, maps any
  * unknown value to "building", and never returns an internal state name.
- * (Req 10.2, 10.3, 10.4)
+ *
  */
 
 const ALL_STATES: ProjectState[] = [

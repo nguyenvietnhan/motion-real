@@ -11,7 +11,7 @@ import {
   type DoctorDeps,
 } from "./cli.js";
 
-// Feature: tool-productization — doctor readiness checks (R6).
+// doctor readiness checks (R6).
 
 const PASS = (name: string): DoctorCheck => ({ name, ok: true, detail: "ok" });
 const FAIL = (name: string): DoctorCheck => ({ name, ok: false, detail: "missing" });

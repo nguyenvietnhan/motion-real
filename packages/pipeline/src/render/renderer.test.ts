@@ -184,10 +184,10 @@ describe("renderSceneStills", () => {
 
   it("renders an extra late still per scene inside the clean speech window (N14 late pass)", async () => {
     // n=2 → T = transitionFrames(30) = 15.
-    //   scene-01: start 0, dur 90, headT 0 (first), tailT 15 → speech window [0, 75)
-    //             midpoint 45; late = 0 + round(0.82*75) = 61 (0.82 is 0.8199…, so 61.49→61)
-    //   scene-02: start 90, dur 30, headT 15, tailT 0 (last) → speech window [105, 15)
-    //             midpoint 105; late = 105 + round(0.82*15) = 117
+    // scene-01: start 0, dur 90, headT 0 (first), tailT 15 → speech window [0, 75)
+    // midpoint 45; late = 0 + round(0.82*75) = 61 (0.82 is 0.8199…, so 61.49→61)
+    // scene-02: start 90, dur 30, headT 15, tailT 0 (last) → speech window [105, 15)
+    // midpoint 105; late = 105 + round(0.82*15) = 117
     const spec = lockedSpec();
     const outDir = join(tempRoot, "projects", "demo-12345678", "review");
 

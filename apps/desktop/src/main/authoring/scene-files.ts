@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { projectPaths } from "@motionreal/pipeline";
 
 /**
- * Authored scene file naming + resolution (desktop-author-mode, Req 3.3/3.8).
+ * Authored scene file naming + resolution.
  * Pure helpers (manifest + exists predicate injected) so they are unit/property
  * testable without a real project on disk.
  */

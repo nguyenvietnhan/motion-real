@@ -354,7 +354,7 @@ export type MeasuredBlock = { kind: string; x: number; y: number; width: number;
  * Measure the real DOM layout of COMPOSED `@motionreal/blocks` units, per scene,
  * by rendering each scene's midpoint frame in the dedicated MEASURE mode
  * (`measure: true` mounts the `LayoutProbe`, which emits the tagged blocks'
- * `getBoundingClientRect()` as a `layout.json` artifact). This is the
+ * `getBoundingClientRect` as a `layout.json` artifact). This is the
  * vision-independent input the N15 (overlap) / N17 (clipping) oracles need but
  * a flat raster can't carry. Best-effort per scene: a scene whose probe emits
  * nothing (or fails) yields an empty block list and is simply not flagged.

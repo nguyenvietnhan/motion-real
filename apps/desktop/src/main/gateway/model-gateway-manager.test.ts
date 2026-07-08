@@ -4,10 +4,10 @@ import { aiReady, ModelGatewayManager, type GatewayDeps } from "./model-gateway-
 import type { AiAccountState, AiProviderId, GatewayState, ModelInfo } from "../../shared/types.js";
 
 /**
- * Feature: web-dashboard, Property 3: AI generation is gated by gateway-ready,
+ * Property 3: AI generation is gated by gateway-ready,
  * account-connected, AND a selected model. aiReady(gw, acc) is true iff the
  * gateway is ready, at least one account is connected, and a model is selected.
- * (Req 2.12, 2.13)
+ *
  */
 
 const providerArb = fc.constantFrom<AiProviderId>("kiro", "codex", "gemini", "antigravity", "openrouter");

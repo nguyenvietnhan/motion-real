@@ -9,12 +9,12 @@ import { Config } from "@remotion/cli/config";
 
 /**
  * Resolve this config file's directory robustly in BOTH module contexts:
- *  - native ESM, where `import.meta.url` is a valid file URL, and
- *  - the Remotion CLI, which transpiles the config to CJS and evaluates it with
- *    `import.meta` empty (so `import.meta.url` is `undefined`). Calling
- *    `fileURLToPath(undefined)` there throws ERR_INVALID_ARG_TYPE, which is the
- *    crash this guards against. The CLI runs with cwd = apps/remotion (the
- *    config dir), so `process.cwd()` is the correct fallback.
+ * - native ESM, where `import.meta.url` is a valid file URL, and
+ * - the Remotion CLI, which transpiles the config to CJS and evaluates it with
+ * `import.meta` empty (so `import.meta.url` is `undefined`). Calling
+ * `fileURLToPath(undefined)` there throws ERR_INVALID_ARG_TYPE, which is the
+ * crash this guards against. The CLI runs with cwd = apps/remotion (the
+ * config dir), so `process.cwd` is the correct fallback.
  */
 function configDir(): string {
   try {

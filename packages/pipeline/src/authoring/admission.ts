@@ -7,15 +7,15 @@ import type { SafetyIssue } from "../types.js";
  * AI AUTHOR mode admission gate (N4/N5). BEFORE an AI-authored scene module is
  * ever imported, bundled, or executed, its TSX is parsed to an AST and checked
  * against a strict policy —
- *   - N4: only whitelisted modules may be imported, and the module MUST export a
- *     default (the registerComponent result), a named `schema`, and a named
- *     `example`; it must register exactly one component with a literal id.
- *   - N5: banned, nondeterministic, unsafe, or known crash-prone authored
- *     constructs may not appear anywhere in the AST: Math.random, Date/Date.now,
- *     fetch/XMLHttpRequest, eval/Function, require/dynamic import, fs/
- *     child_process/process, window.location/document.cookie,
- *     dangerouslySetInnerHTML, and invalid Remotion helper arguments that would
- *     crash during render.
+ * - N4: only whitelisted modules may be imported, and the module MUST export a
+ * default (the registerComponent result), a named `schema`, and a named
+ * `example`; it must register exactly one component with a literal id.
+ * - N5: banned, nondeterministic, unsafe, or known crash-prone authored
+ * constructs may not appear anywhere in the AST: Math.random, Date/Date.now,
+ * fetch/XMLHttpRequest, eval/Function, require/dynamic import, fs/
+ * child_process/process, window.location/document.cookie,
+ * dangerouslySetInnerHTML, and invalid Remotion helper arguments that would
+ * crash during render.
  * Authored code reaches typecheck → bundle only after it passes this static
  * gate; its registerComponent side effect runs later inside the Remotion render
  * entry, never in the Node host.
@@ -181,7 +181,7 @@ export function admitAuthoredComponent(
       }
     }
 
-    // --- dynamic import() (N5) ---
+    // --- dynamic import (N5) ---
     if (ts.isCallExpression(node) && node.expression.kind === ts.SyntaxKind.ImportKeyword) {
       if (banned.has("import(")) addN5(node, "import(");
     }
@@ -193,7 +193,7 @@ export function admitAuthoredComponent(
     }
 
     // --- prototype-chain escape: any `.constructor` access (e.g. [].constructor.
-    // constructor("…")()) is a classic Function-constructor RCE vector (N5). ---
+    // constructor("…")) is a classic Function-constructor RCE vector (N5). ---
     if (ts.isPropertyAccessExpression(node) && node.name.text === "constructor") {
       addN5(node, "constructor");
     }
@@ -243,13 +243,13 @@ export function admitAuthoredComponent(
     }
 
     // --- import.meta (MetaProperty) leaks the host path / `import.meta.resolve`
-    // exists on recent Node; the dynamic-import() check above only sees a call. ---
+    // exists on recent Node; the dynamic-import check above only sees a call. ---
     if (node.kind === ts.SyntaxKind.MetaProperty) {
       addN5(node, "import.meta");
     }
 
     // --- dangerous global identifier referenced ANYWHERE (N5). Catches the bare
-    // reference, aliasing (`const p = process; p.exit()`), and indirection
+    // reference, aliasing (`const p = process; p.exit`), and indirection
     // (`globalThis.process`, `process["env"]`) that the dotted/callee checks miss.
     // Skipped in safe positions: a property NAME (`foo.process`), an object-literal
     // key, a declaration/binding name, an import/export specifier, a type position,
@@ -283,7 +283,7 @@ export function admitAuthoredComponent(
       if (banned.has(name)) addN5(node, name);
     }
 
-    // --- call callees: fetch(), eval(), Function(), require(), Date() (N5) ---
+    // --- call callees: fetch, eval, Function, require, Date (N5) ---
     if (ts.isCallExpression(node) && ts.isIdentifier(node.expression)) {
       const name = node.expression.text;
       if (banned.has(name) && name !== "Function") addN5(node, name);
@@ -380,9 +380,9 @@ export function admitAuthoredComponent(
  * vector `x["con"+"structor"]` / `` x[`construct${""}or`] `` / `x[atob(...)]`)?
  * Distinguished from ordinary data indexing (`arr[i]`, `arr[i+1]`, `m[k]`), which
  * scene dataviz uses heavily and must stay admitted:
- *  - a string literal anywhere in a `+` chain ⇒ name-building (numeric `i+1` is not);
- *  - a template expression with substitutions, or any string-ish template ⇒ name-building;
- *  - a call expression ⇒ name-building (e.g. a decoder); a bare identifier/index is not.
+ * - a string literal anywhere in a `+` chain ⇒ name-building (numeric `i+1` is not);
+ * - a template expression with substitutions, or any string-ish template ⇒ name-building;
+ * - a call expression ⇒ name-building (e.g. a decoder); a bare identifier/index is not.
  */
 function isNameBuildingKey(expr: ts.Expression): boolean {
   if (ts.isParenthesizedExpression(expr)) return isNameBuildingKey(expr.expression);

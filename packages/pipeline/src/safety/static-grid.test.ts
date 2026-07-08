@@ -173,7 +173,7 @@ describe("static grid — N3 prop validation", () => {
 
   // Regression (Working Agreement #1): models recurrently declare the FRAMEWORK
   // top-level fields (`headline`/`eyebrow`/`body`/`image`) INSIDE the authored
-  // `schema` (`schema: z.object({ headline: z.string(), … })`). Those fields are
+  // `schema` (`schema: z.object({ headline: z.string, … })`). Those fields are
   // passed to the scene top-level (`SceneComponentProps`, beside `props`), NOT in
   // `props` — so validating `scene.props` alone reported a phantom "headline:
   // expected string, received undefined" and hard-blocked 12 scenes of a video

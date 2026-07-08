@@ -15,13 +15,13 @@ import { buildSceneCaptionCues } from "./captions.js";
 /**
  * Convert a validated VideoSpec into a frame-accurate LockedVideoSpec by
  * resolving each scene's duration from MEASURED TTS audio, then laying scenes on
- * a TRANSITION-AWARE timeline (author-mode-v2 R5): adjacent scene sequences
+ * a TRANSITION-AWARE timeline (R5): adjacent scene sequences
  * overlap by `T = T_TRANSITION`, and the overlap lands on the silent breath gap
  * between narration clips, so no speech is clipped.
  *
  * For `n` scenes with measured speech frames `s_i`:
- *   d_1 = s_1 + T,  d_i = s_i + 2T (middle),  d_n = s_n + T,  (n = 1 → d_1 = s_1)
- *   total video frames = Σ d_i − (n−1)·T = Σ s_i + (n−1)·T = assembled audio.
+ * d_1 = s_1 + T, d_i = s_i + 2T (middle), d_n = s_n + T, (n = 1 → d_1 = s_1)
+ * total video frames = Σ d_i − (n−1)·T = Σ s_i + (n−1)·T = assembled audio.
  * Each scene's `startFrame` is its composition-timeline start (accounting for
  * the overlaps); the speech of scene i begins at `audioStart_i` (T after the
  * scene's sequence starts), which is where its caption cues are anchored.

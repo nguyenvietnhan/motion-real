@@ -7,7 +7,7 @@ import type { BgmTrackVM, LicenseState, ModelInfo, ProjectStage } from "../share
 import { compactNotificationMessage, errorDetails, NotificationProvider, useNotifications } from "./notifications.js";
 
 /**
- * Renderer root (web-dashboard) — enterprise shell: a left Sidebar + a content
+ * Renderer root — enterprise shell: a left Sidebar + a content
  * area, Home-first. AI status lives in the sidebar; login is delegated to
  * 9router via Settings; a default model auto-selects once connected. Gateway is
  * polled only until AI is ready.
@@ -171,7 +171,7 @@ const AppShell: React.FC = () => {
     };
   }, [dash, screen, openProjectId]);
 
-  // Poll the gallery while on the home/projects screens (freeform-engine L5), so a
+  // Poll the gallery while on the home/projects screens , so a
   // project's card appears + its status badge updates live without the user leaving
   // and re-entering. Without this, a just-created project (or one whose render
   // finished in the background) only showed up on the next mount/leaveWorkspace —

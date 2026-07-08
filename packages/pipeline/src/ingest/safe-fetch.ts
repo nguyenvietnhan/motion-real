@@ -8,12 +8,12 @@ import { PipelineError } from "../errors.js";
  * the bundled localhost gateway (127.0.0.1:20128), cloud metadata
  * (169.254.169.254), or LAN hosts, and capture the response into a file + the
  * authoring prompt — an exfiltration channel. This module:
- *   1. resolves the target host and REJECTS loopback / private / link-local /
- *      ULA / unspecified addresses (literal IPs are checked directly; hostnames
- *      via DNS so a public name that resolves inward is still blocked),
- *   2. follows redirects MANUALLY and re-validates every hop (a public URL that
- *      302-redirects to an internal target is blocked at the hop), and
- *   3. caps the response body so a huge response can't exhaust memory.
+ * 1. resolves the target host and REJECTS loopback / private / link-local /
+ * ULA / unspecified addresses (literal IPs are checked directly; hostnames
+ * via DNS so a public name that resolves inward is still blocked),
+ * 2. follows redirects MANUALLY and re-validates every hop (a public URL that
+ * 302-redirects to an internal target is blocked at the hop), and
+ * 3. caps the response body so a huge response can't exhaust memory.
  * The `fetchImpl`/`lookupImpl` seams keep it unit-testable with no live network.
  */
 

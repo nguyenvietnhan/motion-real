@@ -33,15 +33,15 @@ const VALIDATION_MESSAGE: Record<"empty" | "too-long", string> = {
 };
 
 /**
- * Create / ingest controller (reconcile-main-controllers S5). Reproduces the
+ * Create / ingest controller . Reproduces the
  * inline Current_Behavior of `index.ts` `projects:create` exactly (R1.3, R2.1,
  * R4.5, R4.6), with the error surface now REDACTED (R8.5):
- *   - validate the raw input; an invalid input THROWS a friendly Vietnamese
- *     message and does NOT scaffold (R1.3);
- *   - scaffold ONE project through the single registry (`scaffold` seam); a
- *     scaffold failure THROWS the REDACTED `toFriendlyError` message — never the
- *     raw engine `cause` (R8.5);
- *   - hand off to the staged workspace via `beginScript` (stage 1, R2.1).
+ * - validate the raw input; an invalid input THROWS a friendly Vietnamese
+ * message and does NOT scaffold (R1.3);
+ * - scaffold ONE project through the single registry (`scaffold` seam); a
+ * scaffold failure THROWS the REDACTED `toFriendlyError` message — never the
+ * raw engine `cause` (R8.5);
+ * - hand off to the staged workspace via `beginScript` (stage 1, R2.1).
  * The two throws map to the renderer's rejected `invoke` promise.
  */
 

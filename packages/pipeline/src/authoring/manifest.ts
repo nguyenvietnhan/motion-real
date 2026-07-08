@@ -7,7 +7,7 @@ import { ensureProject, projectPaths, readJson, writeJson } from "../store/store
 import { admitAuthoredSceneFile } from "./register.js";
 
 /**
- * Per-project manifest (author-mode-v2 R8/R10). A manifest is the AUTHOR-mode
+ * Per-project manifest (R8/R10). A manifest is the AUTHOR-mode
  * replacement for the PICK planner output: it lists the project's theme and its
  * ordered scenes, each referencing an AI-AUTHORED component id (defined by a
  * `.tsx` in the project's `authored/` dir) plus its props + narration. The
@@ -51,7 +51,7 @@ export type Manifest = {
    */
   hashtags?: string[];
   /**
-   * Delivery format (freeform-engine R7). The backend injects this from the
+   * Delivery format . The backend injects this from the
    * user's UI choice — the model does NOT pick it. Absent ⇒ "tiktok" (the
    * historical vertical default), so a manifest authored before format existed
    * still resolves to a valid spec.
@@ -60,7 +60,7 @@ export type Manifest = {
   /** User-chosen duration bucket (1|2|3); maps to seconds via `tierSeconds`. */
   durationTier?: DurationTier;
   /**
-   * User-chosen background-music track (freeform-engine I2/O4): the library
+   * User-chosen background-music track : the library
    * filename under `VIDEO_TOOL_HOME/.video-tool/bgm/`. Resolved to an absolute
    * path at the render boundary and mixed under the narration; an empty/absent
    * value (or a stale ref to a deleted track) ⇒ no music. The AI never sets it.

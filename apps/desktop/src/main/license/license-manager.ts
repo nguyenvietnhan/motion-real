@@ -4,14 +4,13 @@ import { createLogger } from "@motionreal/pipeline";
 const log = createLogger("license");
 
 /**
- * License manager (web-dashboard Task 4.1, design §License manager, Req 1).
+ * License manager.
  *
  * Runs ONLY in the main process; the renderer sees license STATE, never the key
- * or network details. This file owns the pure gate `canCreate` (Property 2) and
- * the pure `outcomeToState` mapping plus the `LicenseManager` lifecycle over an
- * INJECTED `LicenseService` (the concrete network client lands in task 6.1) and
- * an injected clock — so activation timeout/retry and the node-locked launch
- * skip are testable without any network.
+ * or network details. Owns the pure gate `canCreate`, the pure `outcomeToState`
+ * mapping, and the `LicenseManager` lifecycle over an injected `LicenseService`
+ * and clock — so activation timeout/retry and the node-locked launch skip are
+ * testable without any network.
  */
 
 export const ACTIVATION_TIMEOUT_MS = 30_000;
@@ -25,7 +24,7 @@ export interface LicenseService {
   verify(machineId: string, signal: AbortSignal): Promise<ActivationOutcome>;
 }
 
-/** A previously-persisted, node-locked activation read at launch (Req 1.8). */
+/** A previously-persisted, node-locked activation read at launch. */
 export type PersistedLicense = { nodeLocked: boolean; lastVerifiedAt: string } | null;
 
 export type LicenseManagerDeps = {
@@ -94,7 +93,7 @@ export class LicenseManager {
     return canCreate(this.state);
   }
 
-  /** Activate with a 30s timeout. Retains the key so a retry reuses it (Req 1.3). */
+  /** Activate with a 30s timeout. Retains the key so a retry reuses it. */
   async activate(key?: string): Promise<LicenseState> {
     if (key !== undefined) this.lastKey = key;
     const useKey = this.lastKey;
@@ -111,7 +110,7 @@ export class LicenseManager {
     return this.state;
   }
 
-  /** At launch a node-locked license skips re-entry and is trusted (Req 1.8). */
+  /** At launch a node-locked license skips re-entry and is trusted. */
   async verifyAtLaunch(): Promise<LicenseState> {
     const persisted = this.deps.loadPersisted();
     if (persisted?.nodeLocked) {

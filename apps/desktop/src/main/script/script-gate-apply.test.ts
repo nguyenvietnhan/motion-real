@@ -8,11 +8,11 @@ import {
 import type { ScriptEdit } from "../../shared/types.js";
 
 /**
- * Feature: web-dashboard, Property 4: Script edits never write an empty
+ * Property 4: Script edits never write an empty
  * narration. If any edit would leave a scene's narration with zero
  * non-whitespace characters, the batch is rejected, prior text retained, the
  * scene identified; and if the write fails the pre-edit manifest is unchanged.
- * (Req 4.3, 4.4, 4.5)
+ *
  */
 
 const sceneArb: fc.Arbitrary<ManifestScene> = fc

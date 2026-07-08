@@ -21,7 +21,7 @@ const VIDEO_COMPOSITION_IDS = ["MotionRealVideo", "NewsVideo"] as const;
 const defaultVideoProps = { spec: sampleSpec } as { spec: LockedVideoSpec };
 
 /** Frames the 1-frame thumbnail still renders within; the still is taken at the
- *  LAST frame so the cover title's entrance reveal has fully settled (= 1). */
+ * LAST frame so the cover title's entrance reveal has fully settled (= 1). */
 const THUMBNAIL_DURATION = 60;
 
 /**

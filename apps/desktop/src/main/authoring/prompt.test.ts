@@ -11,8 +11,8 @@ import {
 import { contentPlanForAuthoring, type ContentPlan } from "./content-plan.js";
 
 /**
- * Feature: desktop-author-mode — prompt builders carry the full Authoring_Contract
- * + AI_Output_Contract (author) and a single-scene repair request (reauthor,
+ * — prompt builders carry the full Authoring_Contract
+ * + author-reply contract (author) and a single-scene repair request (reauthor,
  * optionally multimodal).
  */
 
@@ -613,7 +613,7 @@ describe("buildAuthorMessages", () => {
   });
 
   it("uses the CALIBRATED rate when one is injected (overrides the baked default)", () => {
-    // freeform-engine K1/R5.4/D13: the backend reads a per-voice measured rate from
+    // the backend reads a per-voice measured rate from
     // settings and passes it in; the word budget + the prompt copy must reflect THAT
     // rate, not the baked ~4.7 (a slower/faster voice needs a different budget). The
     // tier-1 TikTok target is 45s, so a 6.0 w/s rate ⇒ ~270 words (45×6).

@@ -2,13 +2,12 @@ import type { PipelineStage, SerializedPipelineError, SafetyIssue } from "@motio
 import type { FriendlyError, FriendlyFix } from "../../shared/types.js";
 
 /**
- * The main-process redaction boundary (web-dashboard Task 4.17, design §Error
- * Handling). This is the ONLY place engine failures become user-facing, and the
- * ONLY error/fix shape allowed to cross IPC. Messages are built from a fixed
- * Vietnamese plain-language catalog keyed by stage/issue — engine text is NEVER
- * echoed — and the result is additionally swept for L0 tokens (N1–N31 codes,
- * `.tsx`, MCP, JSON braces, stack frames) so none can leak (Property 6,
- * Req 6.8/11.5/11.6/12.2).
+ * Main-process redaction boundary for user-facing errors.
+ * This is the ONLY place engine failures become user-facing, and the ONLY
+ * error/fix shape allowed to cross IPC. Messages come from a fixed Vietnamese
+ * plain-language catalog keyed by stage/issue — engine text is NEVER echoed —
+ * and the result is swept for L0 tokens (N1–N31 codes, `.tsx`, MCP, JSON
+ * braces, stack frames) so none can leak.
  */
 
 const GENERIC = "Đã xảy ra sự cố. Vui lòng thử lại.";

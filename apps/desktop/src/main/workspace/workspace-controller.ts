@@ -21,7 +21,7 @@ import type {
 const log = createLogger("workspace");
 
 /**
- * WorkspaceController (reconcile-main-controllers S4) — the tested home for the
+ * WorkspaceController  — the tested home for the
  * staged-workspace orchestration that was inline in `index.ts`
  * (`stages`/`setStage`/`runScript`/`runRender`/`scriptLinesOf`/
  * `storyboardScenesOf`) plus the project/script read handlers
@@ -142,7 +142,7 @@ export class WorkspaceController {
   /**
    * Per-project AbortController for the in-flight job, so "Dừng render" can
    * abort exactly the loop that's running. Created when a guarded job starts and
-   * cleared when it settles; `cancel()` fires it. The signal is threaded into the
+   * cleared when it settles; `cancel` fires it. The signal is threaded into the
    * worker (render + AI calls), which abort the Remotion encode (cancelSignal)
    * and the fetch chats, then report `cancelled` so we recover the prior stage.
    */
@@ -319,7 +319,7 @@ export class WorkspaceController {
    * action). The in-memory input is gone after an app restart, so fall back to
    * rehydrating it from the persisted brief (prompt + delivery metadata).
    * Without this, a project stranded across a restart shows an error screen
-   * whose "Thử lại" calls retry() → empty inputs → silent no-op → the poll
+   * whose "Thử lại" calls retry → empty inputs → silent no-op → the poll
    * re-derives the same error (an error↔writing flicker). Create-time images
    * aren't persisted, so a rehydrated retry re-authors from
    * text + links only — a degraded but functional recovery, not a dead button.
@@ -350,7 +350,7 @@ export class WorkspaceController {
     this.guarded(projectId, () => this.runRender(projectId));
   }
 
-  /** "Sửa bằng AI": re-run the repair loop on a Content_Error project (Req 5.2). */
+  /** "Sửa bằng AI": re-run the repair loop on a Content_Error project. */
   fixWithAi(projectId: string): void {
     if (this.stages.get(projectId)?.kind !== "error") return; // only from an error screen; no double-run
     this.guarded(projectId, () => this.runRender(projectId));
@@ -568,7 +568,7 @@ export class WorkspaceController {
   }
 
   /**
-   * One-shot CREATIVE bootstrap (freeform-engine L1, FIRST author only): reauthor
+   * One-shot CREATIVE bootstrap (, FIRST author only): reauthor
    * EVERY scene with a "be bolder" intent — WITHOUT waiting for a vision model to
    * flag a defect — so the first draft the user eventually sees is already
    * ambitious, not a safe "title + one panel" take. This is the explicit "render
@@ -604,7 +604,7 @@ export class WorkspaceController {
   }
 
   /**
-   * The DEFECT-fixing vision loop (freeform-engine R4.4/R4.5): up to
+   * The DEFECT-fixing vision loop : up to
    * `settings.refinePasses` rounds where a vision model flags CLEAR layout defects
    * on the rendered stills, the flagged scenes are re-authored, and ONLY those
    * scenes re-render through the cheap no-TTS/no-MP4 stills path so the next pass
@@ -677,7 +677,7 @@ export class WorkspaceController {
   }
 
   /**
-   * SILENT refine BEFORE the first real draft (freeform-engine R4.1/R6.1, L1):
+   * SILENT refine BEFORE the first real draft (, L1):
    * render cheap stills (bản-1) so there are frames to judge → ONE creative
    * bootstrap over every scene ("be bolder") → the defect-fixing vision loop — all
    * on the no-TTS/no-MP4 stills path, ENTIRELY HIDDEN from the user. The MP4 draft
@@ -710,7 +710,7 @@ export class WorkspaceController {
   }
 
   /**
-   * Edit-path refine (freeform-engine L1): mirrors {@link refineBeforeDraft} for a
+   * Edit-path refine : mirrors {@link refineBeforeDraft} for a
    * USER EDIT — render cheap stills for the edited scenes → the DEFECT-fixing
    * vision loop, all on the no-TTS/no-MP4 path, BEFORE any draft MP4. Unlike the
    * first-author path there is NO creative bootstrap (the user gave an explicit
@@ -792,7 +792,7 @@ export class WorkspaceController {
     const hooks = this.renderHooks(projectId, "draft");
     const signal = this.signalOf(projectId);
     try {
-      // SILENT refine FIRST (freeform-engine L1/R4.1/R6.1): render cheap stills,
+      // SILENT refine FIRST : render cheap stills,
       // do the one-shot creative bootstrap + the defect-fixing vision loop — all on
       // the no-TTS/no-MP4 path, hidden from the user — BEFORE the first real MP4
       // draft. So the draft the user eventually sees is already the refined take,
@@ -855,7 +855,7 @@ export class WorkspaceController {
         // Recover from disk too. A completed full MP4 (or an existing draft) is
         // more authoritative than a stale brief.state after an app restart or a
         // missed renderer status event; otherwise cards can stay red until the
-        // user opens the project, which calls stage() and memoizes the recovery.
+        // user opens the project, which calls stage and memoizes the recovery.
         if (this.deps.hasOutput(c.projectId)) return { ...c, status: "done" };
         if (this.deps.hasDraft(c.projectId)) return { ...c, status: "draft-ready" };
         return c;
@@ -919,7 +919,7 @@ export class WorkspaceController {
       const manifest = await this.deps.loadManifest(projectId);
       // 0 scenes here means NO live job: recoverStage is only reached when the
       // project has no in-memory stage (a running author/crawl job always holds a
-      // {kind:"writing"} stage in the map, which `stage()` returns first). So a
+      // {kind:"writing"} stage in the map, which `stage` returns first). So a
       // scaffolded-but-unauthored project at this point was stranded — a cancel
       // mid-crawl, or an app restart while authoring/at image-review (the pending
       // review lives in memory and is gone). Landing on "writing" spins forever
@@ -986,7 +986,7 @@ export class WorkspaceController {
   /**
    * Generate the project's thumbnail/cover PNG (R12, I3) and return its media URL.
    * Unlike publish (fire-and-forget, result via stage poll), this RETURNS the url
-   * the UI shows, so it awaits directly instead of going through `guarded()` (which
+   * the UI shows, so it awaits directly instead of going through `guarded` (which
    * is void + no-ops when busy). It still respects mutual exclusion: a thumbnail
    * render must not race a draft/full render over the same project's lock/bundle,
    * so we refuse (return null) when the project is in flight — the caller leaves the

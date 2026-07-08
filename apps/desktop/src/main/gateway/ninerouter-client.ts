@@ -8,7 +8,7 @@ import type { ConnectedAccount, ModelInfo, ProviderInfo } from "../../shared/typ
 const log = createLogger("gateway");
 
 /**
- * Real 9router HTTP client (web-dashboard — concrete Model_Gateway integration).
+ * Real 9router HTTP client (concrete 9router gateway integration).
  *
  * 9router runs on http://localhost:20128. The OpenAI-compatible surface is at
  * /v1/*; the management surface is at /api/* and is authenticated with the
@@ -61,13 +61,13 @@ function chatBackoffMs(attempt: number): number {
 /**
  * A typed chat failure so the UI can phrase the RIGHT message instead of one
  * generic "timeout or lost connection" line:
- *  - "timeout"   — the request ran past CHAT_TIMEOUT_MS (model too slow/overloaded);
- *                  NOT retried (retrying a full timeout would just multiply the wait).
- *  - "transient" — a gateway/upstream hiccup (HTTP 429/5xx, or a network drop) that
- *                  is usually self-healing; chat() retries these with backoff before
- *                  giving up, and only throws this after exhausting attempts.
- *  - "http"      — a non-retryable HTTP error (e.g. 4xx: model rejected / not found /
- *                  unauthorized) — retrying won't help; surfaced as-is.
+ * - "timeout" — the request ran past CHAT_TIMEOUT_MS (model too slow/overloaded);
+ * NOT retried (retrying a full timeout would just multiply the wait).
+ * - "transient" — a gateway/upstream hiccup (HTTP 429/5xx, or a network drop) that
+ * is usually self-healing; chat retries these with backoff before
+ * giving up, and only throws this after exhausting attempts.
+ * - "http" — a non-retryable HTTP error (e.g. 4xx: model rejected / not found /
+ * unauthorized) — retrying won't help; surfaced as-is.
  */
 export type GatewayChatErrorKind = "timeout" | "transient" | "http";
 
@@ -244,7 +244,7 @@ export class NineRouterClient {
     }
   }
 
-  /** Provider catalog merged with live connection counts (Req 2.4). */
+  /** Provider catalog merged with live connection counts. */
   async listProviders(): Promise<ProviderInfo[]> {
     const conns = await this.connections();
     const counts = new Map<string, number>();
@@ -260,7 +260,7 @@ export class NineRouterClient {
     }));
   }
 
-  /** Completed connections as account view-models (Req 2.7/2.8). */
+  /** Completed connections as account view-models. */
   async connectedAccounts(): Promise<ConnectedAccount[]> {
     const conns = await this.connections();
     return conns.map((c) => ({
@@ -273,7 +273,7 @@ export class NineRouterClient {
     }));
   }
 
-  /** Available models from the OpenAI-compatible surface (Req 2.11). */
+  /** Available models from the OpenAI-compatible surface. */
   async listModels(): Promise<ModelInfo[]> {
     try {
       const data = await this.api<{ data?: { id: string }[] }>("GET", "/v1/models");
@@ -284,7 +284,7 @@ export class NineRouterClient {
     }
   }
 
-  /** Create + return an OpenAI-compatible key for the Agent_Worker (internal). */
+  /** Create + return an OpenAI-compatible key for the AgentWorker (internal). */
   async createApiKey(name: string): Promise<string | null> {
     try {
       const data = await this.api<{ key?: string }>("POST", "/api/keys", { name });
@@ -384,7 +384,7 @@ export class NineRouterClient {
         headers,
         // No `max_tokens`: some providers (e.g. kr/* via Kiro) reject it with a
         // 400. A reply truncated at the provider's default cap is recovered by the
-        // finish_reason:"length" continuation loop in `chat()` instead.
+        // finish_reason:"length" continuation loop in `chat` instead.
         body: JSON.stringify({ model, messages, stream: false }),
       },
       CHAT_TIMEOUT_MS,

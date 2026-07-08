@@ -35,7 +35,7 @@ describe("unregisterComponent seam", () => {
     expect(getComponent(id)).toBeUndefined();
 
     // 3. after unregister, re-registering the same id does NOT throw
-    //    (registerComponent throws on duplicate id, so unregister-first avoids it).
+    // (registerComponent throws on duplicate id, so unregister-first avoids it).
     expect(() => registerComponent(makeDef(id))).not.toThrow();
 
     // Leave the registry clean.

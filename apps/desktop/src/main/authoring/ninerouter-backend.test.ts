@@ -8,7 +8,7 @@ import type { AuthorJob } from "../agent/agent-worker.js";
 import { INVALID_PURPOSE_CONTENT_PLAN_REPLY } from "./__fixtures__/authoring-failure-incidents.js";
 
 /**
- * Feature: desktop-author-mode — authorScenes writes AI-authored `.tsx` modules
+ * — authorScenes writes AI-authored `.tsx` modules
  * + an open-id manifest and admits them (no kit fallback). Admission is stubbed
  * (the real esbuild loader's repo-root resolution doesn't hold under vitest).
  */

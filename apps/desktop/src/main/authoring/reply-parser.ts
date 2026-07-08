@@ -1,11 +1,11 @@
 import { authorManifestSchema, componentId, extractJsonObject, type AuthorManifest } from "./manifest-schema.js";
 
 /**
- * AI_Output_Contract parser (desktop-author-mode, pure AUTHOR). In a SINGLE
+ * author-reply contract parser (pure AUTHOR). In a SINGLE
  * reply the model returns:
- *   1. exactly one ```json block — the manifest (metadata only, no code);
- *   2. one ```tsx block per UNIQUE component id, each starting with a marker
- *      comment `// component: <id>` and exporting a full authored module.
+ * 1. exactly one ```json block — the manifest (metadata only, no code);
+ * 2. one ```tsx block per UNIQUE component id, each starting with a marker
+ * comment `// component: <id>` and exporting a full authored module.
  *
  * `.tsx` code is kept OUT of the JSON (embedding multi-line code in a JSON
  * string is fragile to escape) so the two concerns parse independently. This
@@ -70,7 +70,7 @@ export function extractFences(text: string): Fence[] {
     out.push({ lang: (m[1] ?? "").toLowerCase(), body: m[2] ?? "" });
     lastIndex = re.lastIndex;
   }
-  // Recover a final UNCLOSED fence (freeform-engine R3.3). A reply truncated
+  // Recover a final UNCLOSED fence . A reply truncated
   // mid-code-block — the model hit the provider's output-token cap and the
   // gateway's finish_reason:"length" stitching couldn't fully close it (passes
   // exhausted, or the provider never reported "length") — leaves an opening ```
@@ -354,7 +354,7 @@ export function authorReplyParseSummary(
   return summarizeAuthorReplyInspection(inspectAuthorReply(text), options);
 }
 
-/** Parse a full author reply (manifest + per-scene .tsx) per AI_Output_Contract. */
+/** Parse a full author reply (manifest + per-scene .tsx) per author-reply contract. */
 export function parseAuthorReply(text: string): ParsedAuthorReply {
   const inspected = inspectAuthorReply(text);
 

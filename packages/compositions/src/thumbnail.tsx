@@ -11,7 +11,7 @@ import { makeTheme, sceneBackground } from "@motionreal/theme";
 import { ThemeProvider, useReveal } from "@motionreal/blocks";
 
 /**
- * Thumbnail / cover composition (freeform-engine R12, I3) — a CLEAN brand card
+ * Thumbnail / cover composition (, I3) — a CLEAN brand card
  * for both delivery formats: the theme's wash background with the publish title
  * centered in the format's content zone.
  *

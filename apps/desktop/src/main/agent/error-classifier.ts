@@ -1,12 +1,12 @@
 import type { SafetyIssue, SerializedPipelineError, PipelineStage } from "@motionreal/pipeline";
 
 /**
- * Error classification (desktop-author-mode, Req 4). Splits a failure into:
- *   - "content": a defect IN the AI-authored scene code (admission N4/N5,
- *     oracle N14/N17/N18..., N31 runtime probe) → the agent can self-repair it.
- *   - "infra": an environment/runtime failure (missing voice config, gateway/
- *     network, Chromium "target closed") → the agent CANNOT fix it; surface to
- *     the user instead of wasting reauthor attempts.
+ * Error classification. Splits a failure into:
+ * - "content": a defect IN the AI-authored scene code (admission N4/N5,
+ * oracle N14/N17/N18..., N31 runtime probe) → the agent can self-repair it.
+ * - "infra": an environment/runtime failure (missing voice config, gateway/
+ * network, Chromium "target closed") → the agent CANNOT fix it; surface to
+ * the user instead of wasting reauthor attempts.
  *
  * Pure + total: every input maps to exactly one class. Default is "infra" (the
  * safe choice — never spend an agent attempt on something it can't fix).

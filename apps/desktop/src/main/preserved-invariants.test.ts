@@ -36,7 +36,7 @@ const renderOk = (): RenderProjectResult =>
 const scaffoldOk = (projectId: string): ScaffoldVideoProjectResult =>
   ({ projectId, brief: {} as ProjectBrief, manifestPath: "m.json", authoredDir: "authored" });
 
-describe("Task 12.1: preserved engine invariants at the dashboard boundary", () => {
+describe("preserved engine invariants at the desktop boundary", () => {
   it("full render is refused without a reviewed draft and never delegates (R8.2)", async () => {
     let delegated = false;
     const tools = createTools({

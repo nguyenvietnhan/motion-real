@@ -64,8 +64,8 @@ const SPACED_ABBREV_PATTERNS: Array<[RegExp, string]> = [
 ];
 
 // --- N8: narration may use DIGITS (the TTS layer reads them as natural
-//        Vietnamese, hướng B); only flag forms the reader can't voice well.
-//        Display must still keep numbers compact.
+// Vietnamese, hướng B); only flag forms the reader can't voice well.
+// Display must still keep numbers compact.
 
 // Forms the Vietnamese number normalizer does NOT expand, so they'd be
 // mispronounced if left in narration: currency symbols and English magnitude
@@ -208,11 +208,11 @@ export function runContentRules(spec: VideoSpec): SafetyIssue[] {
     // via the first-class `image` field, but NEVER a remote image at render time
     // — a network-fetched `<Img>` would break the offline + determinism (N16)
     // invariant and can't be contained. So N9 bans remote refs, not all media.
-    //  (a) the structured `image.ref` must be a local path (the schema refinement
-    //      already enforces this; re-checked here as defense-in-depth so a spec
-    //      built bypassing schema parse can't smuggle a remote ref past the grid);
-    //  (b) any remote image URL hidden in free-form `props` (e.g. an authored
-    //      component reading `props.bg` and rendering it) is banned too.
+    // (a) the structured `image.ref` must be a local path (the schema refinement
+    // already enforces this; re-checked here as defense-in-depth so a spec
+    // built bypassing schema parse can't smuggle a remote ref past the grid);
+    // (b) any remote image URL hidden in free-form `props` (e.g. an authored
+    // component reading `props.bg` and rendering it) is banned too.
     const imageRef = scene.image?.ref;
     if (imageRef && (/^[a-z][a-z0-9+.-]*:/i.test(imageRef) || /^\/\//.test(imageRef))) {
       issues.push({

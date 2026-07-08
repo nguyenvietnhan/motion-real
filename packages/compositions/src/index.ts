@@ -35,5 +35,5 @@ export { SceneImage } from "@motionreal/blocks";
 // Master composition:
 export { VideoComposition, SceneContent, MissingComponent, type VideoCompositionProps } from "./video.js";
 
-// Thumbnail / cover composition (format-aware single still; freeform-engine R12, I3):
+// Thumbnail / cover composition (format-aware single still; , I3):
 export { ThumbnailComposition, ThumbnailPropsSchema, type ThumbnailProps } from "./thumbnail.js";

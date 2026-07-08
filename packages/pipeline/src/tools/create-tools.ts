@@ -45,7 +45,7 @@ import {
 import { ok, err, type ToolResult } from "./tool-result.js";
 
 /**
- * The internal engine tool facade (tool-productization R3). Each tool is a
+ * The internal engine tool facade (R3). Each tool is a
  * plain async function returning a `ToolResult` so it is unit-testable without a
  * transport. Every tool drives the single-process orchestrator, so the full
  * `N1-N31` grid, the draft-first gate, determinism, caches, and the Vivibe
@@ -182,7 +182,7 @@ export const trackerUpdateInput = z.object({
   projectId: z.string().optional(),
 });
 
-// --- safety-report persistence (web-dashboard Task 2.1, R6.1/R6.2) ---------
+// --- safety-report persistence (R6.1/R6.2) ---------
 
 /** Where the last render's safety report is persisted, per project. */
 function safetyReportPath(projectId: string): string {
@@ -199,7 +199,7 @@ async function persistSafetyReport(projectId: string, report: SafetyReport): Pro
 }
 
 /**
- * Resolve the project's chosen BGM (freeform-engine I2/O4) to an absolute path
+ * Resolve the project's chosen BGM  to an absolute path
  * for the mixer. The selection lives on the manifest's `bgm` field: a user
  * library filename or the virtual bundled-default name. Empty/stale/deleted
  * refs resolve to undefined. This boundary converts that result to null so a

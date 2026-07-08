@@ -42,12 +42,12 @@ import {
  * oracles (N20, N22, N28, N29), and a coarse adjacent-still transition check
  * (N21). Three oracles are exported + self-tested but are NOT auto-run, because
  * a flat midpoint still lacks the inputs they need:
- *   - N15 (overlap) and N17 (truncation) need per-block layout rects / a content
- *     box, which a flat raster does not carry — feed them those hints to use them.
- *   - N23 (richness) needs several chronological frames per scene, while the
- *     default review lane currently samples one still per scene. Richness is
- *     instead nudged by N30 + N19 + the visualization playbook guidance. The
- *     function stays for callers that provide multi-frame samples.
+ * - N15 (overlap) and N17 (truncation) need per-block layout rects / a content
+ * box, which a flat raster does not carry — feed them those hints to use them.
+ * - N23 (richness) needs several chronological frames per scene, while the
+ * default review lane currently samples one still per scene. Richness is
+ * instead nudged by N30 + N19 + the visualization playbook guidance. The
+ * function stays for callers that provide multi-frame samples.
  */
 
 export type { Frame };
@@ -228,7 +228,7 @@ export function checkInFrame(
 // --- N14 (zone-aware): content must live in the content zone / caption band ---
 
 /**
- * Zone-aware N14 (author-mode-v2 R15.4): authored content must stay inside the
+ * Zone-aware N14 (R15.4): authored content must stay inside the
  * CONTENT_ZONE and captions inside the CAPTION_BAND; nothing may paint into the
  * platform-UI reserve (bottom band / right action rail). We allow content in the
  * union of the content zone and the caption band (captions paint there), and
@@ -759,7 +759,7 @@ export function checkDuration(locked: LockedVideoSpec, options?: RenderGridOptio
 // --- N29: caption track (WARNING) -----------------------------------------
 
 /**
- * N29 caption oracle (author-mode-v2 R16): a scene that has narration should
+ * N29 caption oracle (R16): a scene that has narration should
  * carry a caption while it plays, every cue must fit within the video, and a
  * cue line should not be so long it overflows the caption band. Severity is
  * advisory (warning); contrast + in-band placement are guaranteed structurally

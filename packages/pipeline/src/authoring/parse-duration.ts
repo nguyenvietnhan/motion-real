@@ -15,10 +15,10 @@ import { DURATION_PRESETS, type DurationPreset } from "@motionreal/schema";
  * phút") are intentionally out of scope to stay unambiguous.
  *
  * Recognized (case-insensitive), checked most-specific first:
- *   - "1 phút rưỡi" / "1p rưỡi"            → 90  (minutes + a half)
- *   - "1p30s" / "1 phút 30 giây" / "1p30"  → minutes*60 + seconds
- *   - "2 phút" / "2p"                       → minutes*60
- *   - "90 giây" / "90 giay" / "90s"         → seconds
+ * - "1 phút rưỡi" / "1p rưỡi" → 90 (minutes + a half)
+ * - "1p30s" / "1 phút 30 giây" / "1p30" → minutes*60 + seconds
+ * - "2 phút" / "2p" → minutes*60
+ * - "90 giây" / "90 giay" / "90s" → seconds
  */
 export function parseDurationFromPrompt(prompt: string): DurationPreset | undefined {
   const t = prompt.toLowerCase();

@@ -16,8 +16,8 @@ import { renderSceneStills, type RenderSceneStillsOptions, type RenderTiming } f
  * sheet, (3) record a self-critique checklist, and (4) block on a hard process
  * gate until every checklist item is confirmed.
  *
- *  - N24 (hard, process gate): keyframes not extracted / contact sheet not built.
- *  - N25 (hard, process gate): self-critique checklist not completed.
+ * - N24 (hard, process gate): keyframes not extracted / contact sheet not built.
+ * - N25 (hard, process gate): self-critique checklist not completed.
  *
  * Heavy/native dependencies stay out of the hot path: keyframe extraction
  * reuses the Remotion renderer (`renderSceneStills`) and the contact-sheet
@@ -174,11 +174,11 @@ export function reviewGatePassed(checklist: ReviewChecklist): SafetyReport {
 
 /**
  * Build the perceptual-review artifacts for a rendered project:
- *   1. extract one keyframe per scene into `review/scene-NN.png` (N24);
- *   2. assemble `review/contact.jpg` (N24, injectable compositor);
- *   3. write `review/review.json` capturing paths + checklist state (N24/N25);
- *   4. return the artifacts + an aggregate SafetyReport. When the gate passes
- *      the reported MP4 path is returned so the caller can stop (Req 10.2/10.3).
+ * 1. extract one keyframe per scene into `review/scene-NN.png` (N24);
+ * 2. assemble `review/contact.jpg` (N24, injectable compositor);
+ * 3. write `review/review.json` capturing paths + checklist state (N24/N25);
+ * 4. return the artifacts + an aggregate SafetyReport. When the gate passes
+ * the reported MP4 path is returned so the caller can stop.
  *
  * Never throws on a missing tool: extraction/composition failures fail soft into
  * N24 error issues so the gate blocks "done" without crashing the pipeline.

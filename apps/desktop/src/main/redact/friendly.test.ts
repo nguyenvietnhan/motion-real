@@ -4,11 +4,11 @@ import type { PipelineStage, SerializedPipelineError, SafetyIssue, Severity } fr
 import { stripL0Tokens, toFriendlyError, toFriendlyFix } from "./friendly.js";
 
 /**
- * Feature: web-dashboard, Property 6: No engine internals leak into user-facing
+ * Property 6: No engine internals leak into user-facing
  * messages. For any engine error or safety issue (incl. N1–N31 codes, manifest
  * JSON, .tsx source, MCP references, stack traces), the FriendlyError/FriendlyFix
  * has a non-empty plain-language message and contains none of those L0 tokens.
- * (Req 6.8, 11.5, 11.6, 12.2)
+ *
  */
 
 const STAGES: PipelineStage[] = [

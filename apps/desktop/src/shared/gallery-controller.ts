@@ -3,11 +3,11 @@ import type { ProjectCardVM } from "./types.js";
 import { toFriendlyStatus } from "./friendly-status.js";
 
 /**
- * Gallery view-model builder (web-dashboard Task 9.3, design §gallery, Req 10).
+ * Gallery view-model builder.
  * Pure: turns engine `ProjectSummary[]` into `ProjectCardVM[]` newest-first,
  * each with a title, an aspect-aware thumbnail path or placeholder (null), a
- * friendly status, and a compact `DD/MM/YYYY` creation date (Property 11). The empty-state
- * is only reported AFTER a load completes (Req 10.8).
+ * friendly status, and a compact `DD/MM/YYYY` creation date. Empty-state is only
+ * reported AFTER a load completes.
  */
 
 export type GalleryLoad = "loading" | "empty" | "populated" | "error";
@@ -41,7 +41,7 @@ function titleOf(summary: ProjectSummary): string {
 
 function thumbnailOf(summary: ProjectSummary): string | null {
   // The first review keyframe is the natural thumbnail once a render exists;
-  // otherwise null ⇒ the UI shows a placeholder (Req 10.6).
+  // otherwise null ⇒ the UI shows a placeholder.
   return summary.hasRender ? `${summary.root}/review/scene-01.png` : null;
 }
 
@@ -71,7 +71,7 @@ export function toCards(summaries: ProjectSummary[]): ProjectCardVM[] {
     }));
 }
 
-/** Empty-state is reported ONLY after the load finishes (Req 10.8). */
+/** Empty-state is reported ONLY after the load finishes. */
 export function galleryLoadState(loaded: boolean, cardCount: number): GalleryLoad {
   if (!loaded) return "loading";
   return cardCount === 0 ? "empty" : "populated";

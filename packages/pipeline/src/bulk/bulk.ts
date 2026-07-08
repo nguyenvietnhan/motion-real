@@ -1,7 +1,7 @@
 import { readTracker, writeTracker, upsertItem, type TrackerItem, type TrackerStatus } from "../tracker/tracker.js";
 
 /**
- * Resumable bulk automation over the tracker (tool-productization R5). The loop
+ * Resumable bulk automation over the tracker (R5). The loop
  * reduces over non-`done` items, driving each through a per-item WORKER (the
  * driving agent supplies it — there is no in-tool planner, R4.5). The loop owns
  * only the bookkeeping: item selection, status transitions, resumability,
@@ -25,7 +25,7 @@ export function isUsageLimitError(value: unknown): value is UsageLimitError {
 }
 
 /** Per-item processor (agent-driven). Resolve with the produced project id on
- *  success; throw `UsageLimitError` to pause; throw anything else to fail the item. */
+ * success; throw `UsageLimitError` to pause; throw anything else to fail the item. */
 export type BulkWorker = (item: TrackerItem) => Promise<{ projectId?: string }>;
 
 export type BulkOutcome = { id: string; status: TrackerStatus; reason?: string; projectId?: string };

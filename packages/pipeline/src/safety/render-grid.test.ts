@@ -31,7 +31,7 @@ import { encodePngRGBA } from "./png.js";
 import { STALE_TIER3_BRIEF_SHAPE } from "../__fixtures__/authoring-failure-incidents.js";
 
 /**
- * Render-oracle self-tests (Requirement 9.3). Every oracle (N14, N15, N17, N18,
+ * Render-oracle self-tests. Every oracle (N14, N15, N17, N18,
  * N19, N20, N21, N22, N23) has a NON-VACUOUS test: a synthetic known-bad input
  * fires it, and a clean input passes. Frames are built directly in memory — no
  * Remotion render, no browser.

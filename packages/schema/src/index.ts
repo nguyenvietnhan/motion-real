@@ -21,7 +21,7 @@ import type { VideoFormat } from "./zones.js";
 export const FPS = 30 as const;
 
 /**
- * Shared timing constants (author-mode-v2 R3/R4/R5/R11.3) — the single source of
+ * Shared timing constants (R3/R4/R5/R11.3) — the single source of
  * truth reused by transitions, TTS breath gaps, the lock math, and the master
  * composition.
  *
@@ -61,14 +61,14 @@ export const DEFAULT_TTS_SPEED = 1.0;
  * collides with a component's own Zod schema.
  *
  * `ref` is a project-relative path to a LOCAL asset (resolved by the renderer
- * via Remotion `staticFile()` against the project root, exactly like narration
+ * via Remotion `staticFile` against the project root, exactly like narration
  * audio). The refinement rejects everything that would breach the offline /
  * determinism invariant (N16) or smuggle remote media past the new N9:
- *   - any URL scheme (`http(s)://`, `data:`, `blob:`) — remote media is banned
- *     at render time; only local assets are allowed;
- *   - absolute paths and `..` traversal — the ref must stay inside the project;
- *   - any non-raster / scriptable extension — only png/jpg/jpeg/webp/gif (SVG
- *     is rejected: it can carry script in a Chromium render context).
+ * - any URL scheme (`http(s)://`, `data:`, `blob:`) — remote media is banned
+ * at render time; only local assets are allowed;
+ * - absolute paths and `..` traversal — the ref must stay inside the project;
+ * - any non-raster / scriptable extension — only png/jpg/jpeg/webp/gif (SVG
+ * is rejected: it can carry script in a Chromium render context).
  * Later phases populate `ref` via crawl/upload writing content-addressed files
  * (`assets/<sha>.<ext>`); this schema only defines + guards the shape.
  */
@@ -153,15 +153,15 @@ export const ThemeSpecSchema = z.object({
 export type ThemeSpec = z.infer<typeof ThemeSpecSchema>;
 
 /**
- * Delivery format (freeform-engine R7/D3). The canvas, layout zones, and whether
- * a burned caption band exists are all a function of this — see `geometry()` in
+ * Delivery format . The canvas, layout zones, and whether
+ * a burned caption band exists are all a function of this — see `geometry` in
  * `./zones.ts`. REQUIRED on a spec (greenfield D0): a spec must declare what it
  * is, so the renderer/oracle can never silently treat a YouTube spec as vertical.
  */
 export const VideoFormatSchema = z.enum(["tiktok", "youtube"]);
 
 /**
- * Locked duration tier (freeform-engine R7.3/D4). Per format the three tiers map
+ * Locked duration tier . Per format the three tiers map
  * to different second targets — TikTok 45s/90s/150s, YouTube 300s/450s/600s — via
  * `tierSeconds(format, tier)`. Optional on the spec because the resolved pacing
  * already lives in `duration` (seconds); the tier is the user-chosen bucket the
@@ -234,7 +234,7 @@ export const LockedSceneSpecSchema = SceneSpecSchema.extend({
 export type LockedSceneSpec = z.infer<typeof LockedSceneSpecSchema>;
 
 /**
- * A single burned-in caption line (author-mode-v2 R16). Cues are derived from
+ * A single burned-in caption line (R16). Cues are derived from
  * narration (+ TTS timing), baked into the locked spec, and rendered in the
  * caption band — so caption rendering is a pure function of the frame
  * (deterministic, N16-safe), never a live transcript.
@@ -247,7 +247,7 @@ export const CaptionCueSchema = z.object({
   /** A single line that fits the caption band width at the caption font size. */
   text: z.string().min(1),
   /**
-   * Per-word timing for KARAOKE highlighting (author-mode-v2 R16). Word frames
+   * Per-word timing for KARAOKE highlighting (R16). Word frames
    * are derived (approximately) from the cue span — proportional to word length
    * — since the TTS SRT is sentence-level. Deterministic + frame-pure. Optional:
    * when absent the renderer shows the whole `text` line without highlighting.
@@ -313,7 +313,7 @@ function countWords(value: string): number {
  * component a scene uses. Component-specific prop validation happens in the
  * compositions package (each component owns its zod schema).
  *
- * Free pacing (author-mode-v2 R6): there are NO fixed scene-count bounds and NO
+ * Free pacing (R6): there are NO fixed scene-count bounds and NO
  * duration-preset equality. What stays enforced: sequential `scene-NN` ids,
  * single-paragraph narration, a scannable headline, a per-scene narration floor
  * (guards against too-fast cuts), and unknown-component detection.
@@ -363,13 +363,13 @@ export function validateVideoSpecStructure(
 }
 
 /**
- * Overlap-aware locked-timing validation (N12, author-mode-v2 R5.3). With
+ * Overlap-aware locked-timing validation (N12, R5.3). With
  * `TransitionSeries`, adjacent scene sequences OVERLAP by the transition frames,
  * so the timeline is no longer strictly contiguous. What must still hold:
- *  - the first scene starts at frame 0;
- *  - scenes are monotonic and leave NO gap (each scene starts at or before the
- *    previous scene's end — an overlap is fine, a gap is not);
- *  - the last scene ends exactly at `durationInFrames`.
+ * - the first scene starts at frame 0;
+ * - scenes are monotonic and leave NO gap (each scene starts at or before the
+ * previous scene's end — an overlap is fine, a gap is not);
+ * - the last scene ends exactly at `durationInFrames`.
  * This accepts both a contiguous timeline (overlap 0) and a transition-aware one
  * (overlap = T_TRANSITION), and still fires when scenes fail to tile the total.
  */

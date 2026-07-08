@@ -11,9 +11,9 @@ import type { AiAccountState, ConnectedAccount } from "./types.js";
  * and is authoritative for EVERY provider — no model-id→provider guessing table.
  *
  * Resolution order (each step a safe fallback for the next):
- *   1. the single `active` account, if exactly one is flagged;
- *   2. if none/many are flagged (older 9router, or a tie), the first account —
- *      i.e. the prior behavior, so we never show "nothing connected" by mistake.
+ * 1. the single `active` account, if exactly one is flagged;
+ * 2. if none/many are flagged (older 9router, or a tie), the first account —
+ * i.e. the prior behavior, so we never show "nothing connected" by mistake.
  *
  * Pure + total: lives in `shared/` so both the renderer and any main-side view
  * can use it without crossing the process boundary.

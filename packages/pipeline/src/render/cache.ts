@@ -18,7 +18,7 @@ import { renderCacheDir } from "../store/store.js";
  * layer keys each clip's path by `provider + model + text + voiceId + speed`, so changing any
  * narration text changes that scene's `audio.src` in the locked spec, which
  * changes `specHash`, which misses the render cache and forces a re-render
- * (Requirement 7.5). The cache.test.ts P4 / 7.5 tests prove this.
+ *. The cache.test.ts P4 / 7.5 tests prove this.
  *
  * The locked spec does NOT embed authored scene SOURCE or the bytes of an
  * externally mixed BGM track. The full key can fold both in so visual-only and

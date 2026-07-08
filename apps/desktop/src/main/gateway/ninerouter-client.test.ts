@@ -2,9 +2,9 @@ import { describe, expect, it, vi } from "vitest";
 import { GatewayChatError, NineRouterClient, type FetchImpl } from "./ninerouter-client.js";
 
 /**
- * chat() retry/backoff self-tests. The gateway talks to an upstream provider
+ * chat retry/backoff self-tests. The gateway talks to an upstream provider
  * (Codex/Gemini/Kiro/…) that can answer a TRANSIENT 502/503/504/429 or drop the
- * socket during a cold start; chat() must auto-retry those (with backoff) before
+ * socket during a cold start; chat must auto-retry those (with backoff) before
  * surfacing a typed GatewayChatError, while failing fast on a non-retryable HTTP
  * status (4xx) and on a hard timeout. `fetchImpl`/`sleep` are injected so these
  * run with no live network and no real wall-clock delay.

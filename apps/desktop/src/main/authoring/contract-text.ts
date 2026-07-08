@@ -1,5 +1,5 @@
 /**
- * The pure-AUTHOR contract, inlined (desktop-author-mode, Req 1.5). A condensed
+ * The pure-AUTHOR contract, inlined. A condensed
  * but faithful version of `docs/current/authoring-contract.md` — inlined as a
  * constant so the bundled Electron main never reads it from disk (deterministic,
  * no fs in the hot path). Embedded into the author + reauthor prompts so the AI

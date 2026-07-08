@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { AUTHORING_CONTRACT } from "./contract-text.js";
 
 /**
- * Feature: block removal — the inlined AUTHORING_CONTRACT is the text the model
+ * block removal — the inlined AUTHORING_CONTRACT is the text the model
  * actually reads (embedded into the author + reauthor prompts). Post-pivot the
  * layout blocks were DELETED and @motionreal/blocks/@motionreal/theme dropped from the
  * authored-import whitelist: a scene is 100% bespoke JSX/SVG. The ONE survivor is
@@ -59,21 +59,21 @@ describe("AUTHORING_CONTRACT — no-block / raw-JSX invariants", () => {
   });
 
   /**
-   * Feature: freeform pivot — three defects seen by eye on a real desktop render
+   * freeform pivot — three defects seen by eye on a real desktop render
    * (content, not code), fixed by sharpening the contract the model reads:
    *
-   *  1. On-screen text duplicated the full narration sentence. The burned karaoke
-   *     caption already carries the spoken line, so on-screen text should be the
-   *     condensed key phrase only. The contract never drew that distinction.
-   *  2. Presentation was monotonous — the model mostly DROPPED TEXT into the same
-   *     few blocks (TitleBlock + Panel/KeyPoints) instead of VISUALIZING the idea
-   *     as bespoke self-drawn SVG/CSS. The form map only pointed at finite stock
-   *     blocks, so the model read "variety = pick among my blocks" → low ceiling.
-   *     The fix turns self-drawn visualization into a general expectation (with
-   *     portable metaphor examples + a countable anti-repeat floor), not a leash.
-   *  3. The contract still asserted a system-drawn divider line and an N14 that
-   *     "chặn render" — both false post-pivot (theme `divider:false`; N14 is a
-   *     warning). A phantom hard-gate pushes the model to play safe → repetition.
+   * 1. On-screen text duplicated the full narration sentence. The burned karaoke
+   * caption already carries the spoken line, so on-screen text should be the
+   * condensed key phrase only. The contract never drew that distinction.
+   * 2. Presentation was monotonous — the model mostly DROPPED TEXT into the same
+   * few blocks (TitleBlock + Panel/KeyPoints) instead of VISUALIZING the idea
+   * as bespoke self-drawn SVG/CSS. The form map only pointed at finite stock
+   * blocks, so the model read "variety = pick among my blocks" → low ceiling.
+   * The fix turns self-drawn visualization into a general expectation (with
+   * portable metaphor examples + a countable anti-repeat floor), not a leash.
+   * 3. The contract still asserted a system-drawn divider line and an N14 that
+   * "chặn render" — both false post-pivot (theme `divider:false`; N14 is a
+   * warning). A phantom hard-gate pushes the model to play safe → repetition.
    */
   it("tells the model on-screen text is the condensed idea, NOT the full narration sentence", () => {
     // The caption already carries the spoken line, so the contract must say so and

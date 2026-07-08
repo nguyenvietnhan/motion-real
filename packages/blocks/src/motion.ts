@@ -88,7 +88,7 @@ export function useSceneProgress(): number {
 /**
  * Approximate 0..1 progress within a scene, based on the SEQUENCE-relative frame
  * over an assumed scene length. (Inside a `TransitionSeries.Sequence`,
- * `useCurrentFrame()` is sequence-relative but `useVideoConfig().durationInFrames`
+ * `useCurrentFrame` is sequence-relative but `useVideoConfig.durationInFrames`
  * is the whole composition — so true per-scene progress isn't available without
  * threading the scene duration. For slow ambient motion an assumed span is plenty.)
  */

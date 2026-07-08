@@ -3,7 +3,7 @@ import fc from "fast-check";
 import { MAX_TOPIC_LEN, validateCreateInput } from "./create-controller.js";
 
 /**
- * Feature: desktop-author-mode — Create input is a free-form brief. validateCreateInput
+ * — Create input is a free-form brief. validateCreateInput
  * is total over arbitrary strings: empty/whitespace and over-length are rejected;
  * everything else is a brief carrying the full text + any links found in it.
  */

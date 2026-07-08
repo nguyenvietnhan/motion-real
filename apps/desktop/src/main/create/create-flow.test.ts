@@ -5,11 +5,9 @@ import type { AuthorInput } from "../agent/agent-worker.js";
 import type { SerializedPipelineError } from "@motionreal/pipeline";
 
 /**
- * Feature: reconcile-main-controllers, S5 — create→scaffold→beginScript wiring.
- * Reproduces the inline Current_Behavior of index.ts `projects:create`: validate
- * → scaffold once through the single registry → hand off to the staged
- * workspace. Validation/scaffold failures throw and never start the workspace.
- * (R1.3, R2.1, R4.5, R4.6)
+ * Create→scaffold→beginScript wiring for `projects:create`: validate → scaffold
+ * once through the single registry → hand off to the staged workspace.
+ * Validation/scaffold failures throw and never start the workspace.
  */
 
 function deps(over: Partial<CreateDeps> = {}): { deps: CreateDeps; scaffold: CreateDeps["scaffold"]; began: { id: string; input: AuthorInput }[] } {

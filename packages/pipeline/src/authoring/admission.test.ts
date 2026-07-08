@@ -7,7 +7,7 @@ import { getComponent, unregisterComponent } from "@motionreal/compositions";
 import { admitAuthoredComponent, admitAuthoredSceneFile } from "./index.js";
 
 /**
- * AI AUTHOR admission-gate self-tests (Requirement 13). Non-vacuous: a clean
+ * AI AUTHOR admission-gate self-tests. Non-vacuous: a clean
  * authored module is admitted without host import/registration, while
  * each policy violation class — banned import (N4), banned/crash-prone construct
  * (N5), missing required export (N4), and a non-literal registerComponent id

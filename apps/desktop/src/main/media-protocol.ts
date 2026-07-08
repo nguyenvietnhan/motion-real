@@ -8,7 +8,7 @@ import { createLogger, videoToolHome, workspaceRoot } from "@motionreal/pipeline
 const log = createLogger("media");
 
 /**
- * Local-file protocol (web-dashboard B7). The renderer runs on an http(s)/file
+ * Local-file protocol (B7). The renderer runs on an http(s)/file
  * origin, so raw `file://` paths to stills/MP4s under `.video-tool` won't load.
  * We register a privileged `media://` scheme and serve files through it, so
  * `<img src>` / `<video src>` / `<audio src>` can show generated artifacts and

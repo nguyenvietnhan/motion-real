@@ -1,14 +1,13 @@
 import type { ActivationOutcome, LicenseService } from "./license-manager.js";
 
 /**
- * Concrete network License_Service client (web-dashboard Task 6.1, Req 1.1–1.6).
+ * Concrete network LicenseService client.
  *
  * The only code that talks to the external license provider (Gumroad / Lemon
- * Squeezy / Keygen). It speaks a small JSON contract and maps every response to
- * an `ActivationOutcome`; the 30s timeout + offline/timeout mapping is applied
- * by `LicenseManager` (which wraps these calls in an `AbortSignal` race), so a
- * thrown/aborted fetch propagates and is classified there. The activation key is
- * sent here and NEVER returned over IPC.
+ * Squeezy / Keygen). Speaks a small JSON contract and maps every response to an
+ * `ActivationOutcome`; the 30s timeout + offline/timeout mapping is applied by
+ * `LicenseManager` (which wraps these calls in an `AbortSignal` race). The
+ * activation key is sent here and NEVER returned over IPC.
  */
 
 type FetchLike = (url: string, init: { method: string; body: string; signal: AbortSignal; headers: Record<string, string> }) => Promise<{

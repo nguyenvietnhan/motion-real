@@ -1,11 +1,10 @@
 import type { FriendlyStatus, ProjectState } from "./types.js";
 
 /**
- * Friendly-status mapping (web-dashboard Task 4.13, design §friendly-status,
- * Req 10.2/10.3/10.4). TOTAL by construction: every engine `ProjectState` AND
- * any unknown string maps to exactly one of four user-facing statuses, with an
- * unmapped/unknown value defaulting to `building`. No internal technical state
- * name is ever returned (Property 10).
+ * Friendly-status mapping. TOTAL by construction: every engine `ProjectState`
+ * AND any unknown string maps to exactly one of four user-facing statuses, with
+ * an unmapped/unknown value defaulting to `building`. No internal technical
+ * state name is ever returned.
  */
 
 export const FRIENDLY_LABELS: Record<FriendlyStatus, string> = {
@@ -37,7 +36,7 @@ export function toFriendlyStatus(state: ProjectState | string): FriendlyStatus {
     case "failed":
       return "error";
     default:
-      // planning, planned, and any unmapped/unknown state (Req 10.3).
+      // planning, planned, and any unmapped/unknown state.
       return "building";
   }
 }

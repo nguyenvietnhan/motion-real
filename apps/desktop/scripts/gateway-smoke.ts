@@ -1,12 +1,12 @@
 /**
- * 9router gateway smoke test (web-dashboard). Exercises the REAL Model_Gateway
+ * 9router gateway smoke test. Exercises the REAL 9router gateway
  * integration end-to-end against a live 9router, with NO Electron:
- *   - start (reuse a running 9router, else spawn it headless and wait),
- *   - discover providers + their connected counts + login type,
- *   - list available models,
- *   - show currently connected accounts.
+ * - start (reuse a running 9router, else spawn it headless and wait),
+ * - discover providers + their connected counts + login type,
+ * - list available models,
+ * - show currently connected accounts.
  *
- * Run:  npx tsx apps/desktop/scripts/gateway-smoke.ts
+ * Run: npx tsx apps/desktop/scripts/gateway-smoke.ts
  */
 import { ModelGatewayManager } from "../src/main/gateway/model-gateway-manager.js";
 import { buildNineRouterGatewayDeps } from "../src/main/gateway/ninerouter-deps.js";

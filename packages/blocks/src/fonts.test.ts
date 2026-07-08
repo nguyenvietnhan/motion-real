@@ -11,7 +11,7 @@ function leading(stack: string): string {
   return (stack.split(",")[0] ?? "").trim().replace(/^["']|["']$/g, "");
 }
 
-// Feature: tool-productization, Property 19: render fonts cover Vietnamese and load safely
+// Property 19: render fonts cover Vietnamese and load safely
 describe("render fonts — Property 19: Vietnamese coverage + render-safe", () => {
   it("every loaded render font ships the vietnamese subset (no diacritic fallback)", () => {
     for (const info of [interInfo(), bvpInfo(), cascadiaInfo()]) {

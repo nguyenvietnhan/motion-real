@@ -11,7 +11,7 @@ import { AbsoluteFill, Artifact, continueRender, delayRender } from "remotion";
  *
  * Instead we measure the real DOM at render time. Every COMPOSED `@motionreal/blocks`
  * unit tags its outer boundary with `NRT_BLOCK_ATTR`; the `LayoutProbe` reads
- * each tagged element's `getBoundingClientRect()` once layout settles and emits
+ * each tagged element's `getBoundingClientRect` once layout settles and emits
  * them as a JSON Remotion `<Artifact>`. The renderer feeds those rects to the
  * already-written N15 (overlap among sibling blocks) and N17 (per-block edge
  * clipping) oracles — vision-independent, deterministic.

@@ -6,7 +6,7 @@ import type { AgentHooks, AgentWorker, AuthorImageRef, AuthorOutcome, RepairOutc
 import type { ProjectCardVM, ProjectStage, ScriptEdit } from "../../shared/types.js";
 
 /**
- * Feature: reconcile-main-controllers — WorkspaceController property tests (S4).
+ * — WorkspaceController property tests (S4).
  * Reproduces the inline staged-workspace Current_Behavior of index.ts
  * (R1.4, R2.5, R2.8, R2.9).
  */
@@ -279,7 +279,7 @@ describe("Property 8: project stage recovery rules", () => {
           const stage = await ctrl.stage("p1");
 
           // A stranded scaffold (0 scenes) or an unreadable manifest is NOT a live
-          // job here (a running job holds an in-memory "writing" stage that stage()
+          // job here (a running job holds an in-memory "writing" stage that stage
           // returns first), so it must land on a recoverable error — never a
           // permanent "writing" spinner with no affordance.
           let expected: ProjectStage["kind"];
@@ -361,7 +361,7 @@ describe("Property 9: render progress mapping", () => {
   });
 });
 
-// fixWithAi + fixable flag (desktop-author-mode, Req 5/7)
+// fixWithAi + fixable flag
 function workerWith(outcome: RepairOutcome | (() => Promise<RepairOutcome>)): AgentWorker {
   return {
     author: async (): Promise<AuthorOutcome> => ({ kind: "authored", sceneIds: [] }),
@@ -373,7 +373,7 @@ function workerWith(outcome: RepairOutcome | (() => Promise<RepairOutcome>)): Ag
 
 describe("fixWithAi + fixable flag", () => {
   it("silent refine BEFORE the draft: vision flags a scene, reauthors + re-renders stills, then the draft renders ONCE; stops early", async () => {
-    // freeform-engine L1: refine now runs on the cheap stills path BEFORE the first
+    // refine now runs on the cheap stills path BEFORE the first
     // MP4 draft (not after a 100%-complete draft). The manifest here has the flagged
     // scene, so the creative bootstrap reauthors it too; we assert the vision loop's
     // behavior + that the draft MP4 renders exactly ONCE (after refine).
@@ -410,7 +410,7 @@ describe("fixWithAi + fixable flag", () => {
   });
 
   it("first-author creative bootstrap reauthors EVERY scene once before the draft, even with no vision defects", async () => {
-    // freeform-engine L1: the "render lại cho sáng tạo hơn" pass — one bold rewrite
+    // the "render lại cho sáng tạo hơn" pass — one bold rewrite
     // over ALL scenes BEFORE any defect is flagged, so the first draft is already
     // ambitious. With visualQa returning no defects, the bootstrap is the ONLY
     // reauthor, and it covers every manifest scene.
@@ -618,7 +618,7 @@ describe("fixWithAi + fixable flag", () => {
   });
 
   it("non-regressive: if the post-refine draft can't be repaired, restore the blind pre-refine scenes (stays ready, not error)", async () => {
-    // freeform-engine L1: refine (bootstrap + vision) runs on stills BEFORE the
+    // refine (bootstrap + vision) runs on stills BEFORE the
     // draft MP4. If the refined draft then exhausts repairs, restore the blind
     // pre-refine source and re-render it — refine must never ship a draft worse
     // than the un-refined one. The draft MP4 renders at most twice (refined, then
@@ -750,8 +750,8 @@ describe("error stage carries the right retry hint", () => {
 });
 
 // A project stranded across an app restart (cancel mid-crawl / quit while
-// authoring) recovers to an error stage whose "Thử lại" calls retry(). After a
-// restart the in-memory input map is empty, so retry() must rehydrate the
+// authoring) recovers to an error stage whose "Thử lại" calls retry. After a
+// restart the in-memory input map is empty, so retry must rehydrate the
 // AuthorInput from the persisted brief via recallInput — otherwise the button is
 // a silent no-op and the poll re-derives the same error (error↔writing flicker).
 describe("retry() rehydrates the author input from disk when not in memory", () => {
@@ -905,7 +905,7 @@ describe("runScript link warning (unreadable brief links)", () => {
   });
 });
 
-// Per-scene free-form edit → reauthor + re-render (desktop-author-mode, Part B)
+// Per-scene free-form edit → reauthor + re-render (Part B)
 describe("submitEdits (per-scene free-form edit)", () => {
   it("from ready: re-authors the edited scene with its instruction, re-renders, returns to ready", async () => {
     const reauthorScenes = vi.fn(async () => ({ kind: "authored", sceneIds: ["scene-01"] }) as AuthorOutcome);
@@ -1145,7 +1145,7 @@ describe("publish (full render)", () => {
 });
 
 describe("Property 6: redaction holds for the new repair paths", () => {
-  // Feature: desktop-author-mode, Property 6: redaction holds for new paths
+  // Property 6: redaction holds for new paths
   it("a render throw carrying N-codes/.tsx surfaces a clean friendly message", async () => {
     const friendlyErrors: { message: string; fixable?: boolean }[] = [];
     const events = { ...noopEvents(), friendlyError: (e: { message: string; fixable?: boolean }) => friendlyErrors.push(e) };
@@ -1175,7 +1175,7 @@ describe("cancel (Dừng render) → recover prior stage", () => {
       author: async (): Promise<AuthorOutcome> => ({ kind: "authored", sceneIds: [] }),
       reauthorScenes: async (): Promise<AuthorOutcome> => ({ kind: "authored", sceneIds: [] }),
       publish: async () => ({ ok: true, outputPath: "out.mp4" }),
-      // Hold the render open until cancel() fires, then report `cancelled` exactly
+      // Hold the render open until cancel fires, then report `cancelled` exactly
       // as the real loop does once it observes the aborted signal.
       generateValidateRepair: async (_id, _opts, _hooks, signal): Promise<RepairOutcome> => {
         seenSignal = signal;
@@ -1222,7 +1222,7 @@ describe("cancel (Dừng render) → recover prior stage", () => {
 describe("crawled images: crawl → (AI-filter) → (review) → author", () => {
   type Captured = { images?: AuthorImageRef[] };
   /**
-   * A worker that records the `images` of the LAST author() call (so a test can
+   * A worker that records the `images` of the LAST author call (so a test can
    * assert which crawled refs reached authoring) plus configurable crawl/filter
    * doubles. scriptGate is forced ON by the controller's default settings, so a
    * successful author parks at `script` — a stable point to inspect `captured`.

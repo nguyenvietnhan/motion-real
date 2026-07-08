@@ -1,7 +1,7 @@
 import { type CaptionCue } from "@motionreal/schema";
 
 /**
- * Caption pipeline (author-mode-v2 R16). Pure + deterministic: turn a scene's
+ * Caption pipeline (R16). Pure + deterministic: turn a scene's
  * narration (+ optional TTS SRT timing) into word-paged caption cues, then the
  * lock offsets them onto the composition timeline. No fs / no network here — the
  * TTS layer parses the SRT file and hands us the parsed segments.
@@ -184,7 +184,7 @@ export function buildSceneCaptionCues(input: SceneCaptionInput): CaptionCue[] {
   if (sceneEnd <= input.audioStartFrame) return [];
 
   // 1) Word-level timings in RELATIVE frames [0, speechFrames). Use the clean
-  //    narration words, timed by the SRT spans when available, else even-split.
+  // narration words, timed by the SRT spans when available, else even-split.
   let words: WordTiming[] = [];
   if (input.srt && input.srt.length > 0) {
     words = narrationWordsOnSrtTiming(input.narration, input.srt, input.fps);

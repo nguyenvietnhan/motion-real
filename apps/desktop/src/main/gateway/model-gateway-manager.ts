@@ -16,13 +16,13 @@ const log = createLogger("gateway");
 export { aiReady } from "../../shared/ai-ready.js";
 
 /**
- * Model_Gateway (9router) manager module (web-dashboard design §Model_Gateway).
+ * 9router gateway manager.
  *
- * Owns the bundled 9router child + the AI-account connections (Req 2). Providers
- * are DISCOVERED dynamically; login is DELEGATED to the gateway's own UI (the
+ * Owns the bundled 9router child + the AI-account connections. Providers are
+ * DISCOVERED dynamically; login is DELEGATED to the gateway's own UI (the
  * dashboard never reimplements OAuth/device-code/api-key screens); multiple
- * connections may be active; the user selects a model. The `Local_Gateway_Key`
- * is generated + wired internally and never leaves the main process.
+ * connections may be active; the user selects a model. The local gateway key is
+ * generated + wired internally and never leaves the main process.
  */
 
 export const GATEWAY_BASE_URL = "http://localhost:20128/v1";
@@ -33,13 +33,13 @@ export const MAX_START_ATTEMPTS = 3;
 export type GatewayDeps = {
   /** Start ONE gateway child attempt on localhost (no window/console). */
   launch: () => Promise<boolean>;
-  /** Discover the provider catalog + connection counts from the gateway (Req 2.4). */
+  /** Discover the provider catalog + connection counts from the gateway. */
   listProviders: () => Promise<ProviderInfo[]>;
-  /** Delegate provider login to the gateway UI; report where it appears (Req 2.6). */
+  /** Delegate provider login to the gateway UI; report where it appears. */
   beginConnect: (providerId: AiProviderId) => Promise<{ loginSurface: "external-browser" | "in-app" }>;
-  /** Read the currently completed connections from the gateway (Req 2.7/2.8). */
+  /** Read the currently completed connections from the gateway. */
   pollConnections: () => Promise<ConnectedAccount[]>;
-  /** List models the gateway reports as available (Req 2.11). */
+  /** List models the gateway reports as available. */
   listModels: () => Promise<ModelInfo[]>;
   /** Generate the internal Local_Gateway_Key (never returned over IPC). */
   generateKey?: () => string;
@@ -49,7 +49,7 @@ export type GatewayDeps = {
 };
 
 /**
- * Owns the 9router child + AI-account connections (web-dashboard Task 6.3/6.4,
+ * Owns the 9router child + AI-account connections (/6.4,
  * Req 2). Concrete gateway is 9router on localhost:20128. Vivibe stays the
  * default voice — the gateway's TTS is unused.
  */
@@ -124,7 +124,7 @@ export class ModelGatewayManager {
    * away and, when NOT ready (and no start already running), kicks a background
    * (re)start. This lets a gateway that was down at app launch — or quit/
    * restarted by the user mid-session — recover to `ready` on its own, without
-   * needing an app restart. (`launch()` no-ops when 9router is already up, so
+   * needing an app restart. (`launch` no-ops when 9router is already up, so
    * this never spawns a duplicate.)
    */
   ensureReady(): GatewayState {
@@ -147,13 +147,13 @@ export class ModelGatewayManager {
     return this.deps.beginConnect(providerId);
   }
 
-  /** Poll the gateway for completed connections and refresh state (Req 2.7/2.8). */
+  /** Poll the gateway for completed connections and refresh state. */
   async refreshConnections(): Promise<AiAccountState> {
     this.accounts = await this.deps.pollConnections();
     return this.account();
   }
 
-  /** Select the model used for generation (Req 2.11). */
+  /** Select the model used for generation. */
   selectModel(model: ModelInfo): AiAccountState {
     this.selected = model;
     return this.account();

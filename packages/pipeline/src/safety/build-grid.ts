@@ -7,13 +7,13 @@ import { projectPaths } from "../store/store.js";
 /**
  * Tier-2 build / type checks (N10–N13), run after lock and before render.
  *
- *  - N10: TypeScript typecheck (tsc --noEmit) — provided by the caller as a
- *    boolean+message, since spawning tsc belongs to the orchestrator/CLI, not a
- *    pure check. `checkTypecheck` is the helper that runs it.
- *  - N11: Remotion bundle succeeds — likewise wrapped by `checkBundle`.
- *  - N12: locked timeline is contiguous and ends exactly at the total.
- *  - N13: every scene that declares narration has a present, non-empty audio
- *    file, and the mixed narration track exists.
+ * - N10: TypeScript typecheck (tsc --noEmit) — provided by the caller as a
+ * boolean+message, since spawning tsc belongs to the orchestrator/CLI, not a
+ * pure check. `checkTypecheck` is the helper that runs it.
+ * - N11: Remotion bundle succeeds — likewise wrapped by `checkBundle`.
+ * - N12: locked timeline is contiguous and ends exactly at the total.
+ * - N13: every scene that declares narration has a present, non-empty audio
+ * file, and the mixed narration track exists.
  *
  * The pure pieces (N12, N13) are unit-testable without a render; N10/N11 are
  * thin async wrappers the orchestrator composes in.

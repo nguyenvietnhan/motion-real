@@ -5,10 +5,10 @@ import { formatShortDate, galleryLoadState, paginate, PROJECTS_PER_PAGE, toCards
 import { FRIENDLY_STATUSES } from "./friendly-status.js";
 
 /**
- * Feature: web-dashboard, Property 11: Gallery cards are complete and ordered
+ * Property 11: Gallery cards are complete and ordered
  * newest-first. For any ProjectSummary[], toCards produces one card per project
  * with a title, a thumbnail path or placeholder, a friendly status, and a
- * `ngày D tháng M năm YYYY` date, ordered most-recent-first. (Req 10.1, 10.6)
+ * `ngày D tháng M năm YYYY` date, ordered most-recent-first.
  */
 
 const STATES: ProjectState[] = [

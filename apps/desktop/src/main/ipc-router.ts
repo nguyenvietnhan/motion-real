@@ -15,7 +15,7 @@ export type InvokeHandler = (...args: unknown[]) => unknown | Promise<unknown>;
 export type InvokeHandlers = Partial<Record<InvokeChannel, InvokeHandler>>;
 
 /**
- * Register every allow-listed invoke channel on `ipcMain` (web-dashboard Task
+ * Register every allow-listed invoke channel on `ipcMain` (Task
  * 1.2). Each channel dispatches to its handler; a channel with no handler yet
  * throws "No handler registered" so a missing wiring fails loud instead of
  * silently resolving `undefined`. Only `INVOKE_CHANNELS` are ever registered —

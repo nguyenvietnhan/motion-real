@@ -28,7 +28,7 @@ const MAX_CANDIDATES = 40;
 export type CrawledImage = { ref: string; width: number; height: number; sourceUrl: string };
 
 export type CrawlOptions = {
-  /** SSRF-guarded binary fetcher (test seam). Defaults to `makeSafeFetchBytes()`. */
+  /** SSRF-guarded binary fetcher (test seam). Defaults to `makeSafeFetchBytes`. */
   fetchBytesImpl?: (url: string) => Promise<SafeFetchBytesResult>;
   maxImages?: number;
   minEdge?: number;

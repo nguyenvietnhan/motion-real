@@ -4,9 +4,9 @@ import { registerIpcRouter, type IpcMainLike } from "../main/ipc-router.js";
 import { INVOKE_CHANNELS, EVENT_CHANNELS, isInvokeChannel } from "../shared/channels.js";
 
 /**
- * Feature: web-dashboard, Task 1.3 — unit tests for the IPC bridge allow-list
+ * unit tests for the IPC bridge allow-list
  * and event wiring. The preload client may reach ONLY the allow-listed channels
- * and event subscriptions must unsubscribe cleanly. (Req 11.5, 11.6)
+ * and event subscriptions must unsubscribe cleanly.
  */
 
 type OnCall = { channel: string; listener: (...args: unknown[]) => void };

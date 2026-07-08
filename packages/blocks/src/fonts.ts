@@ -8,25 +8,25 @@ import { getInfo as cascadiaInfo } from "@remotion/google-fonts/CascadiaMono";
 import { VENDORED_FONTS } from "./vendor-fonts.generated.js";
 
 /**
- * Render-safe font loading (tool-productization R1, Property 19).
+ * Render-safe font loading (R1, Property 19).
  *
  * Every render font must be present with the **vietnamese** subset so a
  * Vietnamese diacritic never falls back to a system face ("nét to nét nhỏ").
  *
  * STRATEGY — self-hosted first, never fatal:
- *  1. Primary path: fonts are VENDORED as base64 woff2 data URLs
- *     (`vendor-fonts.generated.ts`, produced by `scripts/vendor-fonts.ts`) and
- *     registered via `FontFace` with NO network. This removes the live
- *     `fonts.gstatic.com` fetch from the render hot path — the source of the
- *     intermittent "Timed out loading Google Font" render failures, which are a
- *     network problem unrelated to the video's content.
- *  2. The registration is wrapped in `delayRender`/`continueRender` but is
- *     NON-FATAL: if a face fails to parse/load we still `continueRender` (and
- *     swallow the error) so a cosmetic font issue can NEVER kill an otherwise
- *     valid render — at worst the text uses the next family in the CSS stack.
- *  3. Fallback: if the vendored manifest is empty (fonts were never vendored),
- *     fall back to the original `@remotion/google-fonts` network loads so the
- *     app still works — just with the old network dependency.
+ * 1. Primary path: fonts are VENDORED as base64 woff2 data URLs
+ * (`vendor-fonts.generated.ts`, produced by `scripts/vendor-fonts.ts`) and
+ * registered via `FontFace` with NO network. This removes the live
+ * `fonts.gstatic.com` fetch from the render hot path — the source of the
+ * intermittent "Timed out loading Google Font" render failures, which are a
+ * network problem unrelated to the video's content.
+ * 2. The registration is wrapped in `delayRender`/`continueRender` but is
+ * NON-FATAL: if a face fails to parse/load we still `continueRender` (and
+ * swallow the error) so a cosmetic font issue can NEVER kill an otherwise
+ * valid render — at worst the text uses the next family in the CSS stack.
+ * 3. Fallback: if the vendored manifest is empty (fonts were never vendored),
+ * fall back to the original `@remotion/google-fonts` network loads so the
+ * app still works — just with the old network dependency.
  *
  * `fonts.ts` runs in BOTH Node (vitest, via `@motionreal/blocks`) and the browser. A
  * data: URL is a plain string and `FontFace` is guarded on `typeof`, so this
@@ -104,7 +104,7 @@ export type FontCoverage = { family: string; hasVietnamese: boolean };
 /**
  * Report whether each loaded render font ships the `vietnamese` subset — the
  * coverage that prevents diacritic fallback ("nét to nét nhỏ"). Used by the
- * doctor font-coverage check (tool-productization R6 / design §6). When fonts are
+ * doctor font-coverage check (R6 / 
  * vendored, coverage is verified from the manifest; otherwise from the google-fonts
  * metadata. Both must report the vietnamese subset for the three families.
  */

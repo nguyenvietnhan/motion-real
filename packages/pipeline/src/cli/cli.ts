@@ -29,10 +29,10 @@ import {
 /**
  * @motionreal/pipeline CLI — pure AUTHOR mode. Verbs:
  *
- *   author scaffold <id-or-topic> [--tts ...]   Create a project skeleton + empty manifest + authored/ dir
- *   render <id> [--tts ...] [--concurrency N] [--no-cache] | render --sample
- *   preview <id>
- *   doctor | probe
+ * author scaffold <id-or-topic> [--tts ...] Create a project skeleton + empty manifest + authored/ dir
+ * render <id> [--tts ...] [--concurrency N] [--no-cache] | render --sample
+ * preview <id>
+ * doctor | probe
  *
  * `main(argv)` returns an exit code + the lines it would print (testable without
  * spawning processes); a thin runner wires it to process.argv/exit for real use.
@@ -482,7 +482,7 @@ export function defaultCheckTheme(): DoctorCheck {
   };
 }
 
-/** R6 / design §6: render font families cover the Vietnamese subset. */
+/** R6 / */
 export function defaultCheckFonts(): DoctorCheck {
   const coverage = new Map(fontCoverageReport().map((f) => [f.family, f.hasVietnamese]));
   const leading = (stack: string): string => (stack.split(",")[0] ?? "").trim().replace(/^["']|["']$/g, "");

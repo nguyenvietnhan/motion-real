@@ -44,10 +44,10 @@ export function surfaceRadius(theme: Theme, size: "sm" | "md" | "lg" = "md"): nu
 
 /**
  * CSS `boxShadow` for a floating block, per the language's shadow style:
- *  - "hard-offset" → editorial print drop (`10px 10px 0 accent`)
- *  - "glow"        → galaxy neon glow in the accent + a soft depth shadow
- *  - "soft"        → a gentle diffuse depth shadow
- *  - "none"        → no shadow
+ * - "hard-offset" → editorial print drop (`10px 10px 0 accent`)
+ * - "glow" → galaxy neon glow in the accent + a soft depth shadow
+ * - "soft" → a gentle diffuse depth shadow
+ * - "none" → no shadow
  * `accent` is the color the block wants to express (usually its tone color).
  */
 export function surfaceShadow(theme: Theme, accent: string): string {
@@ -108,8 +108,8 @@ export function topRuleStyle(theme: Theme, color: string): React.CSSProperties |
 
 /**
  * Style for a small label/eyebrow CHIP, per the language's chip style:
- *  - "solid"   → a solid accent fill with readable text on it (editorial)
- *  - "outline" → a translucent tinted pill with an accent border + accent text (galaxy)
+ * - "solid" → a solid accent fill with readable text on it (editorial)
+ * - "outline" → a translucent tinted pill with an accent border + accent text (galaxy)
  * `onColor` is the function that picks readable text on a solid fill (passed in
  * so blocks keep using the language-aware resolver).
  */

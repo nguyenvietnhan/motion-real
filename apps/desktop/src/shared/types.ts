@@ -2,12 +2,12 @@ import type { ProjectState } from "@motionreal/pipeline";
 
 /**
  * UI-side view-model types shared between the main (engine host) and renderer
- * (React) processes (web-dashboard design §Data Models). These are the ONLY
- * shapes that cross IPC — already-translated view-models, never engine internals
- * (no SafetyIssue check ids, manifest JSON, `.tsx`, or stack traces).
+ * (React) processes. These are the ONLY shapes that cross IPC — already-
+ * translated view-models, never engine internals (no SafetyIssue check ids,
+ * manifest JSON, `.tsx`, or stack traces).
  */
 
-// --- license (Req 1) -------------------------------------------------------
+// --- license -------------------------------------------------------
 
 export type LicenseState =
   | { kind: "unactivated" }
@@ -16,7 +16,7 @@ export type LicenseState =
   | { kind: "lapsed"; reason: "revoked" | "expired" }
   | { kind: "error"; reason: "timeout" | "offline" | "invalid" | "limit" | "revoked" };
 
-// --- AI gateway + account (Req 2) ------------------------------------------
+// --- AI gateway + account ------------------------------------------
 
 /** Open provider id discovered from the gateway (NOT a fixed union). */
 export type AiProviderId = string;
@@ -26,7 +26,7 @@ export type GatewayState =
   | { kind: "ready"; baseUrl: string }
   | { kind: "unavailable" };
 
-/** A provider discovered from the gateway's management API (Req 2.4). */
+/** A provider discovered from the gateway's management API. */
 export type ProviderInfo = {
   id: AiProviderId;
   name: string;
@@ -34,7 +34,7 @@ export type ProviderInfo = {
   connectedCount: number;
 };
 
-/** A model the gateway reports as available (Req 2.11), e.g. "kr/claude-sonnet-4.5". */
+/** A model the gateway reports as available, e.g. "kr/claude-sonnet-4.5". */
 export type ModelInfo = { id: string; label: string };
 
 /**
@@ -44,13 +44,13 @@ export type ModelInfo = { id: string; label: string };
  */
 export type ConnectedAccount = { provider: AiProviderId; label: string; active?: boolean };
 
-/** Many connections may be active at once (Req 2.10); a model may be unselected (Req 2.13). */
+/** Many connections may be active at once; a model may be unselected. */
 export type AiAccountState =
   | { kind: "disconnected" }
   | { kind: "connecting"; provider: AiProviderId }
   | { kind: "connected"; accounts: ConnectedAccount[]; selectedModel?: ModelInfo };
 
-// --- create (Req 3) --------------------------------------------------------
+// --- create --------------------------------------------------------
 
 /**
  * A local image the user picked at the create screen and that has been imported
@@ -99,7 +99,7 @@ export type CreateInput = {
   images?: StagedImageRef[];
 };
 
-// --- projects / gallery (Req 10) -------------------------------------------
+// --- projects / gallery -------------------------------------------
 
 export type FriendlyStatus = "building" | "draft-ready" | "done" | "error";
 
@@ -131,7 +131,7 @@ export type BgmTrackVM = {
   builtIn: boolean;
 };
 
-// --- script gate (Req 4) ---------------------------------------------------
+// --- script gate ---------------------------------------------------
 
 export type ScriptEdit = { sceneId: string; narration?: string; headline?: string };
 
@@ -146,7 +146,7 @@ export type ApplyResult =
   | { ok: false; reason: "empty-narration"; sceneId: string }
   | { ok: false; reason: "write-failed" };
 
-// --- storyboard review + edits (Req 8) -------------------------------------
+// --- storyboard review + edits -------------------------------------
 
 export type SceneCard = {
   sceneId: string;
@@ -160,7 +160,7 @@ export type SceneCard = {
 
 export type StoryboardModel = { projectId: string; scenes: SceneCard[]; globalNotes: string };
 
-/** A reviewable script line (narration + headline) before rendering (Req 4). */
+/** A reviewable script line (narration + headline) before rendering. */
 export type ScriptLine = { sceneId: string; order: number; headline: string; narration: string; imagePath?: string };
 
 /**
@@ -191,11 +191,11 @@ export type SubmitResult =
   | { ok: true; revision: number; warnings?: EvidenceWarning[] }
   | { ok: false; reason: "no-changes" | "last-scene" | "scene-render-failed"; sceneId?: string };
 
-// --- approve / full render (Req 9) -----------------------------------------
+// --- approve / full render -----------------------------------------
 
 export type ApproveResult = { ok: true; outputPath: string } | { ok: false; reason: "draft-first" };
 
-// --- settings (Req 11) -----------------------------------------------------
+// --- settings -----------------------------------------------------
 
 export type SettingsModel = {
   aiAccount: AiAccountState;
@@ -212,7 +212,7 @@ export type SettingsModel = {
   scriptGateEnabled: boolean;
   /**
    * How many SILENT refine passes run over the rendered stills before the user
-   * sees the first draft (freeform-engine D6/R4.4): an AI vision pass flags
+   * sees the first draft : an AI vision pass flags
    * layout defects, the flagged scenes are re-authored, and the stills re-render
    * — repeated up to this many times (stopping early when a pass finds nothing).
    * 0 disables refine entirely. Clamped to [0,5]; default 2. (Replaces the old
@@ -221,7 +221,7 @@ export type SettingsModel = {
   refinePasses: number;
   /**
    * Stop the silent refine loop early when TWO CONSECUTIVE vision passes find no
-   * defect (freeform-engine L4), instead of after a single clean pass. ON (default)
+   * defect , instead of after a single clean pass. ON (default)
    * trades a little quota for fewer missed defects — a lone clean pass can be a
    * vision miss, so we confirm with a second. OFF runs the full `refinePasses`
    * budget regardless (most thorough, most quota). When ON and a pass DOES flag a
@@ -234,7 +234,7 @@ export type SettingsModel = {
   imageCrawlHumanReview: boolean;
 };
 
-// --- streaming events (Req 5, 9, 10) ---------------------------------------
+// --- streaming events ---------------------------------------
 
 export type ProgressEvent = { projectId: string; ratio: number; phase: "draft" | "full" };
 export type SceneEvent = { projectId: string; sceneId: string; stillPath: string };
@@ -250,5 +250,5 @@ export type FriendlyError = {
 /** A plain-language auto-fix description that may cross IPC (never an N-code). */
 export type FriendlyFix = { sceneId?: string; message: string };
 
-/** Total mapping target reused by the gallery (Req 10.2/10.3). */
+/** Total mapping target reused by the gallery. */
 export type { ProjectState };

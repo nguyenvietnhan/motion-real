@@ -58,16 +58,16 @@ const typecheckCacheStats = { hits: 0, misses: 0 };
  * scene.
  *
  * Scope + safety (this gate must never block a renderable video):
- *  - Only diagnostics located IN the authored files are reported; errors inside
- *    the MotionReal sources themselves are filtered out (they pass their own tsc).
- *  - `noUncheckedIndexedAccess` is deliberately OFF here (it is ON repo-wide):
- *    arr[i] access is ubiquitous in authored scenes and almost always safe at
- *    runtime, so flagging it would block working videos. We keep the rest of
- *    `strict` (so a real wrong-shape prop or a null-deref still trips).
- *  - If the workspace MotionReal sources can't be resolved (an unexpected packaging
- *    layout), the check DEGRADES TO A NO-OP rather than blocking every render
- *    with bogus "cannot find module @motionreal/*" errors. It only ever runs
- *    when it can run correctly.
+ * - Only diagnostics located IN the authored files are reported; errors inside
+ * the MotionReal sources themselves are filtered out (they pass their own tsc).
+ * - `noUncheckedIndexedAccess` is deliberately OFF here (it is ON repo-wide):
+ * arr[i] access is ubiquitous in authored scenes and almost always safe at
+ * runtime, so flagging it would block working videos. We keep the rest of
+ * `strict` (so a real wrong-shape prop or a null-deref still trips).
+ * - If the workspace MotionReal sources can't be resolved (an unexpected packaging
+ * layout), the check DEGRADES TO A NO-OP rather than blocking every render
+ * with bogus "cannot find module @motionreal/*" errors. It only ever runs
+ * when it can run correctly.
  */
 
 /**

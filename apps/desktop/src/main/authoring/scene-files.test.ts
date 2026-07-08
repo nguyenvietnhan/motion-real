@@ -3,7 +3,7 @@ import fc from "fast-check";
 import { resolveSceneFile, sceneFileName, type ResolveManifest } from "./scene-files.js";
 
 /**
- * Feature: desktop-author-mode, Property 5: localized scene-file resolution.
+ * Property 5: localized scene-file resolution.
  * resolveSceneFile returns a path ONLY when the scene exists in the manifest AND
  * its file exists — never pointing at another scene's component.
  */
@@ -19,7 +19,7 @@ const manifestArb = fc
   }) satisfies ResolveManifest);
 
 describe("Property 5: localized scene-file resolution", () => {
-  // Feature: desktop-author-mode, Property 5: localized scene-file resolution
+  // Property 5: localized scene-file resolution
   it("resolves an existing scene's own component → path; missing scene/file ⇒ null", () => {
     fc.assert(
       fc.asyncProperty(manifestArb, fc.integer({ min: 0, max: 7 }), async (manifest, pick) => {

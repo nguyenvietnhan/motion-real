@@ -8,7 +8,7 @@ import { ingestUrl, type FetchLike, normalizePublishedDate } from "./url-ingest.
 import { isPipelineError } from "../errors.js";
 import { planningDir } from "../store/store.js";
 
-// Feature: tool-productization — URL ingest into grounded research files (R2).
+// URL ingest into grounded research files (R2).
 
 let home: string;
 const prevHome = process.env.VIDEO_TOOL_HOME;

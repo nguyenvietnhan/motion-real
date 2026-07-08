@@ -9,13 +9,13 @@ import { runContentRules } from "./content-rules.js";
 /**
  * Tier-1 static safety grid (N1–N9): runs on the spec BEFORE TTS/lock. Pure,
  * fast, no render. Combines:
- *  - N1: structural rules (free pacing: sequential ids, single-paragraph
- *        narration, scannable headline, per-scene narration floor)
- *  - N2: unknown component id
- *  - N3: per-component Zod prop validation
- *  - N6/N7: phonetic spellings / spaced abbreviations (hard)
- *  - N8: display/narration number rules (warning)
- *  - N9/N26/N27: media-ban (hard), weak hook & generic CTA (warning)
+ * - N1: structural rules (free pacing: sequential ids, single-paragraph
+ * narration, scannable headline, per-scene narration floor)
+ * - N2: unknown component id
+ * - N3: per-component Zod prop validation
+ * - N6/N7: phonetic spellings / spaced abbreviations (hard)
+ * - N8: display/narration number rules (warning)
+ * - N9/N26/N27: media-ban (hard), weak hook & generic CTA (warning)
  */
 export type StaticGridOptions = {
   /**
@@ -36,11 +36,11 @@ export function runStaticGrid(spec: VideoSpec, opts: StaticGridOptions = {}): Sa
   for (const message of structural.errors) {
     // Freeform pivot: only the CRASH / no-video class hard-blocks; everything
     // else is advisory (the video renders fine, so it must not be gated). Hard:
-    //  - unknown component (N2) — nothing to render for that scene;
-    //  - empty spec — there is no video at all;
-    //  - duplicate scene id — the per-scene still is written to `<id>.png` and the
-    //    scene's React key is its id, so a duplicate collides both (broken frame
-    //    extraction + caption routing); never a legitimate authored choice.
+    // - unknown component (N2) — nothing to render for that scene;
+    // - empty spec — there is no video at all;
+    // - duplicate scene id — the per-scene still is written to `<id>.png` and the
+    // scene's React key is its id, so a duplicate collides both (broken frame
+    // extraction + caption routing); never a legitimate authored choice.
     // Advisory (warnings): a non-sequential `scene-NN` id (a cosmetic convention —
     // the renderer keys by whatever id is given), a multiline narration (TTS +
     // captions tolerate it), and the headline/narration word-count floors (a long
@@ -61,7 +61,7 @@ export function runStaticGrid(spec: VideoSpec, opts: StaticGridOptions = {}): Sa
   // The framework passes `headline`/`eyebrow`/`body`/`image` to a scene as
   // TOP-LEVEL props (`SceneComponentProps`, beside `props`), NOT inside `props`.
   // But models recurrently declare them INSIDE the authored `schema` (`schema:
-  // z.object({ headline: z.string(), … })`) — then `validateProps(component,
+  // z.object({ headline: z.string, … })`) — then `validateProps(component,
   // scene.props)` sees `props={}` and reports a phantom "headline: expected
   // string, received undefined", a wall of hard errors that blocks a video which
   // would otherwise render fine (at render time `headline` arrives top-level). So

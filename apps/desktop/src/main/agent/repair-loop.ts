@@ -11,7 +11,7 @@ import { toFriendlyFix } from "../redact/friendly.js";
 import { classifyIssue, classifyError } from "./error-classifier.js";
 
 /**
- * The generate-validate-repair loop (desktop-author-mode, Req 3/4/7). Pure
+ * The generate-validate-repair loop. Pure
  * orchestration over injected effects: render a draft → read the safety report →
  * if hard errors remain, CLASSIFY them — an Infra_Error stops the loop (the agent
  * can't fix it), Content_Errors are grouped per scene and re-authored before the

@@ -1,14 +1,14 @@
 /**
- * The `AgentWorker` abstraction (web-dashboard Task 2.6, design §Agent_Worker).
+ * The `AgentWorker` abstraction.
  *
- * ONE interface, TWO swappable implementations decided by the POC_Spike (Req 7):
- *   (Y) headless agent-runtime adapter (auto-loads the shared contract/docs and MCP tools)
- *   (X) custom-loop adapter (assembles a Preprompt, drives the OpenAI-compatible
- *       gateway + MCP tools ourselves)
+ * ONE interface, TWO swappable implementations decided by the gateway choice:
+ * (Y) headless agent-runtime adapter (auto-loads the shared contract/docs and MCP tools)
+ * (X) custom-loop adapter (assembles a Preprompt, drives the OpenAI-compatible
+ * gateway + MCP tools ourselves)
  * Both drive the SAME pipeline tools / single-process orchestrator, so the
- * rest of the design depends only on this interface — never on the chosen path
- * (Req 7.5). No engine internals appear here; this is the authoring contract the
- * control plane sees.
+ * rest of the design depends only on this interface — never on the chosen path.
+ * No engine internals appear here; this is the authoring contract the control
+ * plane sees.
  */
 
 import type { SerializedPipelineError, CrawledImage } from "@motionreal/pipeline";
@@ -50,11 +50,11 @@ export type AuthorInput = {
 export type AuthorJob = {
   projectId: string;
   input: AuthorInput;
-  /** When true, hold the first draft until the user approves/disables the gate (Req 4). */
+  /** When true, hold the first draft until the user approves/disables the gate. */
   scriptGate: boolean;
 };
 
-/** Re-author ONLY the named scenes from a batch of visual edits (Req 8.7). */
+/** Re-author ONLY the named scenes from a batch of visual edits. */
 export type ReauthorJob = {
   projectId: string;
   sceneIds: string[];
@@ -74,7 +74,7 @@ export type PrepromptPayload = {
   globalNotes: string;
 };
 
-/** Budget for the generate-validate-repair loop; default 3, clamped to [1,10] (Req 6.4). */
+/** Budget for the generate-validate-repair loop; default 3, clamped to [1,10]. */
 export type RepairLoopOptions = { maxAttempts: number; signal?: AbortSignal };
 
 /** Outcome of a fresh-author or re-author job. */
@@ -109,22 +109,22 @@ import type { FriendlyFix } from "../../shared/types.js";
  * fixes — never raw grid issues or stack traces.
  */
 export interface AgentHooks {
-  /** Render/author progress in [0,1] → UI percentage (Req 5.2). */
+  /** Render/author progress in [0,1] → UI percentage. */
   onProgress(ratio: number): void;
-  /** A new scene still is ready; the Storyboard grows (Req 5.3). */
+  /** A new scene still is ready; the Storyboard grows. */
   onSceneProduced(sceneId: string, stillPath: string): void;
-  /** An auto-applied repair, described in plain language (Req 6.8). */
+  /** An auto-applied repair, described in plain language. */
   onRepair(fix: FriendlyFix): void;
 }
 
 export interface AgentWorker {
   /** Author scenes for a fresh project. */
   author(job: AuthorJob, hooks: AgentHooks): Promise<AuthorOutcome>;
-  /** Re-author ONLY the named scenes from batched visual edits (Req 8.7). */
+  /** Re-author ONLY the named scenes from batched visual edits. */
   reauthorScenes(job: ReauthorJob, hooks: AgentHooks, signal?: AbortSignal): Promise<AuthorOutcome>;
   /**
    * Optional fast per-scene STILLS render (no TTS/MP4/heavy-oracle) — the cheap
-   * inner loop the SILENT refine pass iterates on (freeform-engine R4.2/R4.3).
+   * inner loop the SILENT refine pass iterates on .
    * `sceneIds` scopes the render to the scenes a pass just rewrote; omit ⇒ all.
    * Returns the rendered still paths (empty on a render failure — refine is
    * best-effort and must never crash the author flow).
@@ -132,7 +132,7 @@ export interface AgentWorker {
   renderStills?(projectId: string, sceneIds?: string[], signal?: AbortSignal): Promise<{ stills: string[] }>;
   /** Render the final full-quality MP4 (draft-first gate already satisfied). */
   publish(projectId: string, signal?: AbortSignal): Promise<PublishResult>;
-  /** Run the generate-validate-repair loop to zero hard errors or budget (Req 6). */
+  /** Run the generate-validate-repair loop to zero hard errors or budget. */
   generateValidateRepair(
     projectId: string,
     opts: RepairLoopOptions,

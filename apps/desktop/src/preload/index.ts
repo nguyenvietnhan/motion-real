@@ -2,7 +2,7 @@ import { contextBridge, ipcRenderer } from "electron";
 import { createDashboardClient, type IpcLike } from "./client.js";
 
 /**
- * Preload bridge (web-dashboard Task 1.2).
+ * Preload bridge .
  *
  * Exposes a SINGLE allow-listed `window.dashboard` object to the renderer and
  * nothing else (no `ipcRenderer`, no Node). The full typed `DashboardApi`

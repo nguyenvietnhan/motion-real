@@ -174,7 +174,7 @@ describe("buildReview", () => {
       ok: true,
     });
 
-    // (4) gate passed → report ok and the MP4 path is reported back (Req 10.3).
+    // (4) gate passed → report ok and the MP4 path is reported back.
     expect(artifacts.report.ok).toBe(true);
     expect(artifacts.report.ranTiers).toEqual(["review"]);
     expect(artifacts.report.issues).toEqual([]);

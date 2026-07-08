@@ -15,7 +15,7 @@ import type { AuthorImageRef } from "./agent-worker.js";
 import { generateValidateRepair, type SafetyReportView, type RenderResult } from "./repair-loop.js";
 
 /**
- * Path-X custom-loop Agent_Worker adapter. It drives the Model_Gateway + MCP
+ * Path-X custom-loop AgentWorker adapter. It drives the 9router gateway + MCP
  * tools and orchestrates author / re-author / repair via the `AuthoringBackend`
  * seam, and is testable without a live model.
  */

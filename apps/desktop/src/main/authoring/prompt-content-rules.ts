@@ -12,13 +12,13 @@ function roundRate(wps: number): number {
 }
 
 /**
- * Format-specific framing the model must author to (freeform-engine R7/D8). This
+ * Format-specific framing the model must author to . This
  * REPLACES the deleted per-style "design language" slice: there is no style to
  * read anymore, only the delivery format's hard geometry + caption presence.
- *  - TikTok: vertical 9:16, a burned karaoke caption band lives at the bottom, so
- *    authored content must keep clear of the bottom strip.
- *  - YouTube: horizontal 16:9, NO burned caption (the platform supplies captions),
- *    so the scene uses the full frame with a landscape composition.
+ * - TikTok: vertical 9:16, a burned karaoke caption band lives at the bottom, so
+ * authored content must keep clear of the bottom strip.
+ * - YouTube: horizontal 16:9, NO burned caption (the platform supplies captions),
+ * so the scene uses the full frame with a landscape composition.
  */
 export function formatBlock(format: VideoFormat): string {
   if (format === "youtube") {

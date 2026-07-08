@@ -1,10 +1,10 @@
 /**
- * @motionreal/theme — the SINGLE neutral theme (freeform-engine R1/D1).
+ * @motionreal/theme — the SINGLE neutral theme .
  *
  * The "thay máu" overhaul deletes the multi-language design system and its
  * editorial/galaxy `StyleLanguage` registry. Authored scenes now decide
  * ALL of their own visuals in code; the engine no longer imposes a look. But
- * `@motionreal/blocks` still reads a resolved `Theme` off `useTheme()` in render
+ * `@motionreal/blocks` still reads a resolved `Theme` off `useTheme` in render
  * internals, so we keep ONE neutral theme: a dark near-black base, near-white
  * ink, one accent, medium corners, render-safe fonts. Authored scenes do not
  * read this theme or import blocks.
@@ -118,7 +118,7 @@ export function readableOn(fillHex: string, dark: string, light: string): string
 
 // --- Fixed constants ------------------------------------------------------
 
-/** The 9:16 canvas (TikTok). YouTube 16:9 geometry lives in `@motionreal/schema`'s `geometry()`. */
+/** The 9:16 canvas (TikTok). YouTube 16:9 geometry lives in `@motionreal/schema`'s `geometry`. */
 export const CANVAS = { width: 1080, height: 1920 } as const;
 
 /** Fallback dominant when a spec carries no palette (a punchy blue that reads on the dark base). */
@@ -172,7 +172,7 @@ export const easing = {
   inOut: [0.65, 0, 0.35, 1] as [number, number, number, number],
 };
 
-/** Spring config presets for Remotion's spring(). */
+/** Spring config presets for Remotion's spring. */
 export const springs = {
   gentle: { damping: 200, mass: 1, stiffness: 100 },
   snappy: { damping: 18, mass: 0.7, stiffness: 140 },
@@ -481,9 +481,9 @@ export const theme: Theme = makeTheme(DEFAULT_DOMINANT);
 /**
  * Shared background wash, derived from the active theme's accent/companion. A
  * flat near-black base reads "dead" on a phone screen, so this layers depth:
- *   - a soft ACCENT glow blooming from the top (where the title sits),
- *   - a cooler SIGNAL glow rising from the bottom-right corner,
- *   - over a vertical base gradient from the ELEVATED tone down to the deep base.
+ * - a soft ACCENT glow blooming from the top (where the title sits),
+ * - a cooler SIGNAL glow rising from the bottom-right corner,
+ * - over a vertical base gradient from the ELEVATED tone down to the deep base.
  * The glows use transparent outer stops so they fade into the base rather than
  * banding. Pure function of the theme tokens — deterministic (N16 holds).
  */

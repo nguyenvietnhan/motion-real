@@ -3,8 +3,8 @@ import { LicenseManager, outcomeToState, type ActivationOutcome, type LicenseSer
 import { HttpLicenseService } from "./license-service.js";
 
 /**
- * Feature: web-dashboard, Task 6.2 — activation outcome → state table + the
- * node-locked launch skip, with a stubbed LicenseService (Req 1.3, 1.5, 1.6, 1.8).
+ * activation outcome → state table + the
+ * node-locked launch skip, with a stubbed LicenseService.
  */
 
 function service(outcome: ActivationOutcome): LicenseService {

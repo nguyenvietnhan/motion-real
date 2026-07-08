@@ -27,7 +27,7 @@ export const MIN_READABLE_FONT_PX = 18;
  * expressions, and already-large sizes exactly as written.
  */
 export function normalizeAuthoredFontSizes(code: string): string {
-  // Bare numeric literal: fontSize: 12  /  fontSize:12.5
+  // Bare numeric literal: fontSize: 12 / fontSize:12.5
   let out = code.replace(/(\bfontSize\s*:\s*)(\d+(?:\.\d+)?)\b(?!\s*px)/g, (full, head: string, num: string) => {
     const v = Number(num);
     return v < MIN_READABLE_FONT_PX ? `${head}${MIN_READABLE_FONT_PX}` : full;

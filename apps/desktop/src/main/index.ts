@@ -68,11 +68,11 @@ scrubSensitiveEnvironment(fileEnv);
 scrubSensitiveEnvironment(process.env);
 
 /**
- * Electron main = the ENGINE HOST (web-dashboard). Imports the pipeline tools
+ * Electron main = the ENGINE HOST . Imports the pipeline tools
  * from source -> ONE `@motionreal/compositions` registry.
- * The bundled Model_Gateway is a real 9router on localhost:20128; login is
+ * The bundled 9router gateway is a real 9router on localhost:20128; login is
  * delegated to 9router's own UI. License is dev-bypassed here so the app is
- * launchable for review without a live License_Service.
+ * launchable for review without a live LicenseService.
  */
 
 const SETTINGS_FILE = join(videoToolHome(), "motionreal-settings.json");
@@ -181,7 +181,7 @@ const workspace = new WorkspaceController({
   hasThumbnail: (id) => existsSync(join(projectPaths(id).reviewDir, "thumbnail.png")),
   thumbnailMedia: (id) => mediaUrl(join(projectPaths(id).reviewDir, "thumbnail.png")) ?? "",
   // A crawled image's project-relative ref ("assets/<sha>.<ext>") → a media:// URL
-  // for the review screen preview. Resolved under videoToolHome() like every asset.
+  // for the review screen preview. Resolved under videoToolHome like every asset.
   assetMedia: (id, ref) => mediaUrl(join(projectPaths(id).root, ref)) ?? "",
   deleteProject: (id) => rm(projectPaths(id).root, { recursive: true, force: true }),
   revealProject: async (id) => {
@@ -368,8 +368,8 @@ const thumbnailHandlers = createThumbnailHandlers({
 // - license: inline thin wrapper over LicenseManager.
 // - gateway: inline thin wrapper over ModelGatewayManager.
 // - projects: mixed root wiring; create payload coercion lives in create-ipc.ts,
-//   create behavior in CreateController, image staging in image-staging.ts,
-//   workspace behavior in WorkspaceController, and native save in native-save.ts.
+// create behavior in CreateController, image staging in image-staging.ts,
+// workspace behavior in WorkspaceController, and native save in native-save.ts.
 // - BGM: grouped factory in bgm/bgm-handlers.ts.
 // - thumbnail: grouped factory in thumbnail/thumbnail-handlers.ts.
 // - script/review: inline thin wrappers over WorkspaceController/settingsStore.

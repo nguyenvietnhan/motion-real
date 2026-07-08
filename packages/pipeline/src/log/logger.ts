@@ -11,7 +11,7 @@ import pino, { type Logger } from "pino";
  * `pino/file`) can't be esbuild-bundled without shipping extra worker files —
  * and the Electron main IS bundled (`apps/desktop/build-electron.mjs`, esbuild
  * `packages: "external"`). So we DON'T use a transport: we log straight to a
- * `pino.destination()` on the MAIN thread (NDJSON to the chosen fd). No worker,
+ * `pino.destination` on the MAIN thread (NDJSON to the chosen fd). No worker,
  * no transport, nothing for the bundler to miss. Pretty rendering, if ever
  * wanted, is a downstream `| pino-pretty` on the terminal, never in-process.
  */

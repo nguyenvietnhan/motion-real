@@ -16,7 +16,7 @@ export type SceneComponentProps<P = Record<string, unknown>> = {
   eyebrow?: string;
   /**
    * Scene-local duration from the locked timeline. This is top-level runtime
-   * context, not user-authored `props`; pair it with `useCurrentFrame()` for
+   * context, not user-authored `props`; pair it with `useCurrentFrame` for
    * clamped scene progress.
    */
   durationInFrames: number;

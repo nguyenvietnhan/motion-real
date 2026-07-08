@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { extractJsonObject, parseAuthorManifest } from "./manifest-schema.js";
 
 /**
- * Feature: desktop-author-mode — author-manifest parsing. The model's reply is
+ * — author-manifest parsing. The model's reply is
  * parsed defensively (prose/code-fence wrapped) and validated against the
  * manifest schema. `component` is now an OPEN id (any valid format the AI
  * chooses); the actual `.tsx` code is matched separately by `reply-parser`.

@@ -1,5 +1,5 @@
 /**
- * Deterministic authored-import normalizer (desktop-author-mode hardening).
+ * Deterministic authored-import normalizer (hardening).
  *
  * Post-freeform-pivot the layout blocks were deleted and `@motionreal/blocks` /
  * `@motionreal/theme` were dropped from the authored-import whitelist (admission N4):

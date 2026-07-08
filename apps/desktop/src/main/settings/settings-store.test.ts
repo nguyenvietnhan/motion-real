@@ -5,7 +5,7 @@ import { clampMaxRepairAttempts, defaultSettings } from "../../shared/settings-m
 import type { AiAccountState, SettingsModel } from "../../shared/types.js";
 
 /**
- * Feature: reconcile-main-controllers — SettingsStore property tests (S2).
+ * — SettingsStore property tests (S2).
  * SettingsStore reproduces the inline Current_Behavior of index.ts settings
  * persistence exactly (R3.4–R3.9, R8.4).
  */
@@ -239,7 +239,7 @@ describe("Property 5: Voice config resolution", () => {
   });
 });
 
-// freeform-engine F2: refinePasses clamp + legacy visualQaEnabled migration
+// refinePasses clamp + legacy visualQaEnabled migration
 describe("freeform-engine F2: refinePasses clamp + legacy migration", () => {
   it("clamps a saved refinePasses into [0,5] on load", () => {
     for (const [saved, want] of [[-3, 0], [0, 0], [2, 2], [5, 5], [9, 5]] as const) {
@@ -274,7 +274,7 @@ describe("freeform-engine F2: refinePasses clamp + legacy migration", () => {
   });
 });
 
-// freeform-engine K1/R5.4/D13: per-voice calibrated narration rate
+// per-voice calibrated narration rate
 describe("freeform-engine K1: calibratedWordsPerSecond (per-voice, clamped)", () => {
   it("returns the saved rate when it was measured for the CURRENTLY configured voice", () => {
     const { store } = memStore(

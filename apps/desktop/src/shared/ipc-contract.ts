@@ -30,9 +30,9 @@ import type {
 export type Unsubscribe = () => void;
 
 /**
- * The one typed IPC contract shared by the preload bridge and the main router
- * (web-dashboard design §IPC API surface). The renderer reaches the engine ONLY
- * through `window.dashboard`, which implements this interface.
+ * The one typed IPC contract shared by the preload bridge and the main router.
+ * The renderer reaches the engine ONLY through `window.dashboard`, which
+ * implements this interface.
  */
 export interface DashboardApi {
   license: {

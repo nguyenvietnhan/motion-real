@@ -4,13 +4,12 @@ import { createLogger } from "@motionreal/pipeline";
 const log = createLogger("script");
 
 /**
- * Script-gate edit application (web-dashboard Task 4.7, design §script gate,
- * Req 4.3/4.4/4.5). Applying confirmed `ScriptEdit[]` to the manifest scenes:
- *   - any edit that would leave a scene's narration with zero non-whitespace
- *     characters is REJECTED, the prior text retained, and the scene identified
- *     (Property 4);
- *   - on write failure the pre-edit manifest is left unchanged.
- * The pure computation (`computeScriptEdits`) is separated from the write so the
+ * Script-gate edit application. Applying confirmed `ScriptEdit[]` to the
+ * manifest scenes:
+ * - any edit that would leave a scene's narration with zero non-whitespace
+ * characters is REJECTED, the prior text retained, and the scene identified;
+ * - on write failure the pre-edit manifest is left unchanged.
+ * Pure computation (`computeScriptEdits`) is separated from the write so the
  * empty-narration guard is testable without disk.
  */
 
@@ -33,7 +32,7 @@ export function computeScriptEdits(scenes: ManifestScene[], edits: ScriptEdit[])
 
   // Iterate in MANIFEST order (not edits order) so the first offending scene
   // reported matches the dashboard's Current_Behavior, which scans
-  // `manifest.scenes` rather than the edit list (reconcile-main-controllers R4.4).
+  // `manifest.scenes` rather than the edit list (R4.4).
   for (const scene of next) {
     const edit = editById.get(scene.sceneId);
     if (!edit) continue; // scenes without an edit are untouched
@@ -53,8 +52,8 @@ export function computeScriptEdits(scenes: ManifestScene[], edits: ScriptEdit[])
 /**
  * Apply + persist. `writeScenes` performs the manifest write (normalization +
  * disk) and may throw; on any throw the pre-edit manifest is left untouched and
- * `write-failed` is returned (Req 4.5). The empty-narration guard runs first so
- * the writer is never called with an emptied narration (Req 4.4).
+ * `write-failed` is returned. The empty-narration guard runs first so
+ * the writer is never called with an emptied narration.
  */
 export async function applyScriptEdits(
   scenes: ManifestScene[],

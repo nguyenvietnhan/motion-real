@@ -29,7 +29,7 @@ function rejectedImageDetails(rejected: PickImagesResult["rejected"]): string {
 }
 
 /**
- * A compact delivery-knob button (freeform-engine G3): a short pill showing an
+ * A compact delivery-knob button : a short pill showing an
  * icon + the current value, sitting inline next to the "+" attach button. Click
  * it to open a small popover of mutually-exclusive options; the choice closes the
  * popover. Generic over the option value so format / tier / video-language stay
@@ -303,7 +303,7 @@ export const HomeView: React.FC<{
 
   /**
    * Clipboard paste (Ctrl+V): a screenshot/copied bitmap shows up as a clipboard
-   * ITEM (not in `.files`), so read image items via `getAsFile()` and fall back
+   * ITEM (not in `.files`), so read image items via `getAsFile` and fall back
    * to `.files` for a copied image file.
    */
   const onPaste = (e: React.ClipboardEvent): void => {

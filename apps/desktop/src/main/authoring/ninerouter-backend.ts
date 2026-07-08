@@ -51,7 +51,7 @@ import type { VideoFormat, DurationTier, VideoLanguage } from "@motionreal/schem
 export { isLogicChanged } from "./reauthor-runner.js";
 
 /**
- * Pure-AUTHOR authoring backend (desktop-author-mode). The AI writes FRESH `.tsx`
+ * Pure-AUTHOR authoring backend . The AI writes FRESH `.tsx`
  * scene modules per topic (no fixed kit): it returns a manifest + one `.tsx` code
  * block per scene id; we write each module, admit them through the gate, and
  * render. Drives the SAME pipeline tools / single registry.
@@ -66,7 +66,7 @@ const log = createLogger("authoring");
 /**
  * Phrase an AI-call failure in plain Vietnamese, by KIND, so the user knows which
  * layer hiccuped and whether retrying helps — instead of one generic "timeout or
- * lost connection" line for every failure. Mirrors the gateway's `chat()` retry:
+ * lost connection" line for every failure. Mirrors the gateway's `chat` retry:
  * a "transient" error is only thrown AFTER auto-retries are exhausted, so its
  * message says "still failing after several tries".
  */
@@ -399,7 +399,7 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
    * AI to rewrite it (with the issue + current code, and — for layout/contrast
    * defects — the rendered still as an image), then overwrite + re-admit. If the
    * rewrite fails admission, the original code is restored so the project stays
-   * renderable (atomic per scene). (desktop-author-mode, Req 3.)
+   * renderable (atomic per scene). (Req 3.)
    */
   async reauthor(projectId: string, targets: ReauthorTarget[], signal?: AbortSignal): Promise<{ scenes: AuthoredScene[] }> {
     const model = this.deps.model();
@@ -479,12 +479,12 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
   /**
    * Call the model with vision parts, degrading to text-only safely (Req 3.7 +
    * crawled-image review hardening). Key behaviors:
-   *  - if the chosen model already rejected an inline image THIS session, skip
-   *    vision and send text-only DIRECTLY — never re-trip 9router's ~2-minute
-   *    circuit breaker (a 400 there fails every following call, even authoring);
-   *  - on a 400 "improperly formed" from a call that carried an image, remember
-   *    the model can't take images, then retry text-only;
-   *  - a non-image failure (or a text-only message) is rethrown unchanged.
+   * - if the chosen model already rejected an inline image THIS session, skip
+   * vision and send text-only DIRECTLY — never re-trip 9router's ~2-minute
+   * circuit breaker (a 400 there fails every following call, even authoring);
+   * - on a 400 "improperly formed" from a call that carried an image, remember
+   * the model can't take images, then retry text-only;
+   * - a non-image failure (or a text-only message) is rethrown unchanged.
    */
   private async chatWithVisionFallback(model: string, messages: ChatMessage[], signal?: AbortSignal): Promise<string> {
     const apiKey = this.deps.apiKey();

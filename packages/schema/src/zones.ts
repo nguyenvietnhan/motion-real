@@ -2,7 +2,7 @@
  * Layout zones for the 9:16 (1080×1920) canvas — the single source of truth for
  * WHERE content, captions, and platform UI live. Blocks (`@motionreal/blocks`), the
  * master composition, and the N14 oracles all read these so the rules never
- * drift between authoring and validation (author-mode-v2 R15).
+ * drift between authoring and validation (R15).
  *
  * ONE shared layout for every visual treatment. Chrome may differ (corners,
  * framing, fonts/colors) — NOT where content/captions sit. So these zones are
@@ -10,14 +10,14 @@
  * regardless of visual treatment.
  *
  * Rationale (short-platform friendly):
- *  - Primary content lives in an UPPER band (the content zone) so TikTok/Reels/
- *    Shorts UI and our own captions at the bottom never cover the message.
- *  - Captions get their own band below the content zone, sitting low (close to
- *    where viewers expect subtitles) while staying mostly above the host
- *    platform's own bottom UI.
- *  - The bottom + right "platform-UI reserve" is kept clear, because the host app
- *    overlays its caption/username (bottom) and action rail (right). It is a
- *    VALIDATION threshold only — nothing renders from it.
+ * - Primary content lives in an UPPER band (the content zone) so TikTok/Reels/
+ * Shorts UI and our own captions at the bottom never cover the message.
+ * - Captions get their own band below the content zone, sitting low (close to
+ * where viewers expect subtitles) while staying mostly above the host
+ * platform's own bottom UI.
+ * - The bottom + right "platform-UI reserve" is kept clear, because the host app
+ * overlays its caption/username (bottom) and action rail (right). It is a
+ * VALIDATION threshold only — nothing renders from it.
  *
  * Pure constants only (no IO / no design import): `@motionreal/schema` is the lowest
  * layer, so it cannot depend on any design system.
@@ -85,7 +85,7 @@ export function uiReserveTop(): number {
   return CANVAS.height - UI_RESERVE.bottom;
 }
 
-// --- Format-parameterized geometry (freeform-engine R7/D3) ------------------
+// --- Format-parameterized geometry  ------------------
 //
 // The constants above are the TikTok (9:16) layout — historically the ONLY
 // format, so they are plain globals. The engine now also targets YouTube

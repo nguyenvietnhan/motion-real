@@ -3,7 +3,7 @@ import type { EventChannel } from "../shared/channels.js";
 
 /**
  * The minimal IPC surface the preload client needs — an injectable seam so the
- * client builder is unit-testable with a fake (web-dashboard Task 1.3) instead
+ * client builder is unit-testable with a fake  instead
  * of the real Electron `ipcRenderer`.
  */
 export interface IpcLike {

@@ -4,7 +4,7 @@ import type { PipelineStage, SafetyIssue, SerializedPipelineError, Severity } fr
 import { classifyError, classifyIssue, CONTENT_CHECKS } from "./error-classifier.js";
 
 /**
- * Property + self-tests for the error classifier (desktop-author-mode, Req 4).
+ * Property + self-tests for the error classifier.
  */
 
 const ALL_CHECKS = ["N1", "N3", "N4", "N5", "N9", "N10", "N12", "N14", "N16", "N17", "N18", "N19", "N20", "N21", "N22", "N24", "N25", "N28", "N30", "N31"];
@@ -30,7 +30,7 @@ const errorArb: fc.Arbitrary<SerializedPipelineError> = fc.record({
 });
 
 describe("Property 3: error classification total & stable", () => {
-  // Feature: desktop-author-mode, Property 3: error classification total & stable
+  // Property 3: error classification total & stable
   it("classifyIssue is total and follows CONTENT_CHECKS membership; idempotent", () => {
     fc.assert(
       fc.property(issueArb, (issue) => {

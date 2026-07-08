@@ -5,11 +5,11 @@ import { PipelineError } from "../errors.js";
 import { trackerPath } from "../store/store.js";
 
 /**
- * Tracker work queue (tool-productization R5). A persisted list of items the
- * bulk loop reduces over; status transitions are the resume mechanism. Lives at
- * a stable location (VIDEO_TOOL_HOME/tracker.json by default, or a CSV the
- * operator points at) — never the repo root (R9.4). It is a queue, NOT a
- * planner: it only records items + status (design §5).
+ * Tracker work queue. A persisted list of items the bulk loop reduces over;
+ * status transitions are the resume mechanism. Lives at a stable location
+ * (VIDEO_TOOL_HOME/tracker.json by default, or a CSV the operator points at) —
+ * never the repo root. It is a queue, NOT a planner: it only records items +
+ * status.
  */
 
 export type TrackerStatus = "pending" | "in-progress" | "done" | "failed" | "paused-resumable";

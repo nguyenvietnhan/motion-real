@@ -9,11 +9,11 @@ import { dirname, relative } from "node:path";
  * `@motionreal/compositions`. AI-authored scenes live outside that barrel — in a
  * project's `authored/` dir — so they are not in the default bundle. This
  * generator writes a project-specific Remotion entry that:
- *   1. imports every (already admitted) authored scene module, whose
- *      `registerComponent(...)` side effect puts it in the SAME registry the
- *      master `VideoComposition` reads from, and
- *   2. registers the MotionReal video composition ids driven by the project's
- *      locked spec.
+ * 1. imports every (already admitted) authored scene module, whose
+ * `registerComponent(...)` side effect puts it in the SAME registry the
+ * master `VideoComposition` reads from, and
+ * 2. registers the MotionReal video composition ids driven by the project's
+ * locked spec.
  *
  * The renderer then bundles THIS entry (with the workspace webpack override that
  * aliases `@motionreal/*` to their TS sources), so authored scenes render exactly like

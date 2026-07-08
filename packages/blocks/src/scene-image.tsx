@@ -11,7 +11,7 @@ import { surfaceBorder, surfaceRadius } from "./chrome.js";
  * local-only ref guard.
  *
  * `imageRef` is a project-relative path to a LOCAL asset, resolved via Remotion
- * `staticFile()` against the project root (exactly like narration audio) — never
+ * `staticFile` against the project root (exactly like narration audio) — never
  * a remote URL — so re-renders stay offline and byte-stable (N16).
  *
  * SELF-FITTING (the block owns the image's size, not the author): the `<img>`

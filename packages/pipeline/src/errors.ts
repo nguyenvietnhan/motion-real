@@ -1,7 +1,7 @@
 import type { Severity } from "./types.js";
 
 /**
- * Structured, surface-agnostic pipeline errors (tool-productization R7).
+ * Structured, surface-agnostic pipeline errors.
  *
  * One error vocabulary shared by every surface — CLI, MCP, and the bulk loop —
  * so a failure reads the same whether a buyer sees CLI text or an MCP tool
@@ -9,7 +9,7 @@ import type { Severity } from "./types.js";
  * check tripped, the affected scene id when applicable, a hard-vs-advisory
  * SEVERITY, and a known REMEDIATION. The CLI formatter and the MCP serializer
  * are two renderings of one object — there is no second, surface-specific error
- * path (design §7 / Error Handling).
+ * path.
  */
 
 /** The pipeline stage a failure originates from. */

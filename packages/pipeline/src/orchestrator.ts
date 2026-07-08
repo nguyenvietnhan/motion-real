@@ -87,13 +87,13 @@ const LATE_SAFE_AREA_FRACTIONS = [0.82];
  * Orchestrator — the one front door for pure AUTHOR mode (author-mode-v2). Two
  * stages mirror the design data-flow:
  *
- *   scaffoldVideoProject : create a self-contained project + empty manifest +
- *                          authored/ dir for the AI to fill.
- *   renderProject        : admit authored scenes → manifest→spec → static grid →
- *                          N10 authored typecheck → TTS → lock → build gate →
- *                          authored entry → N31 runtime probe → determinism →
- *                          render → review → render oracles → layout N15/N17 →
- *                          late safe-area → aggregate report → clean scratch.
+ * scaffoldVideoProject : create a self-contained project + empty manifest +
+ * authored/ dir for the AI to fill.
+ * renderProject : admit authored scenes → manifest→spec → static grid →
+ * N10 authored typecheck → TTS → lock → build gate →
+ * authored entry → N31 runtime probe → determinism →
+ * render → review → render oracles → layout N15/N17 →
+ * late safe-area → aggregate report → clean scratch.
  *
  * Every runtime/render operation below bundles the PER-PROJECT authored entry,
  * so AI-written scenes render exactly like the old built-ins — but the code
@@ -178,7 +178,7 @@ function resolveBriefDuration(opts: Pick<ScaffoldVideoProjectOptions, "duration"
 /** Fast-draft render fps (fewer frames → faster preview; motion is fps-aware). */
 const DRAFT_FPS = 10;
 /** Final full-quality render fps. 30 is the deliverable default (60fps doubles
- *  the frame count for little gain on this editorial style). */
+ * the frame count for little gain on this editorial style). */
 const FULL_FPS = 30;
 const VALID_OPEN_GL_RENDERERS = new Set<RenderOpenGlRenderer>(["angle", "egl", "swiftshader", "swangle", "vulkan", "angle-egl"]);
 const VALID_CHROME_MODES = new Set<RenderChromeMode>(["headless-shell", "chrome-for-testing"]);
@@ -522,7 +522,7 @@ async function renderProjectUnlocked(projectId: string, opts: RenderProjectOptio
     await appendEvent(projectId, { type: "build.ok" });
 
     // --- Generate the per-project Remotion entry that imports the authored
-    //     scenes, so every render op below bundles THOSE scenes. ---
+    // scenes, so every render op below bundles THOSE scenes. ---
     // Thread the cancel signal into every render op below (determinism, review
     // stills, overlap measure) so a "Dừng render" tears down their in-flight
     // headless Chromium too — not just the main encode.

@@ -18,7 +18,7 @@ import { withProjectRenderLock } from "./project-lock.js";
 import type { SafetyIssue } from "../types.js";
 
 /**
- * Fast per-scene STILLS render (freeform-engine R4/R5) — the cheap inner loop the
+ * Fast per-scene STILLS render  — the cheap inner loop the
  * silent refine pass iterates on. It is the orchestrator's `renderProject` path
  * with everything expensive STRIPPED: no TTS (so no Vivibe key needed, no audio
  * spend), no MP4 encode, no determinism double-render, no review/contact-sheet,

@@ -7,8 +7,8 @@ import { sanitizedChildEnvironment } from "../security/runtime-security.js";
 const log = createLogger("gateway");
 
 /**
- * Build the REAL `GatewayDeps` backed by a live 9router (web-dashboard concrete
- * Model_Gateway). `launch` reuses an already-running 9router if reachable, else
+ * Build the REAL `GatewayDeps` backed by a live 9router (concrete
+ * 9router gateway). `launch` reuses an already-running 9router if reachable, else
  * spawns it headless in tray/background mode and polls until reachable. Login is
  * DELEGATED to 9router's own Web UI (opened in the external browser) — the
  * dashboard never reimplements the provider sign-in screens.
@@ -41,7 +41,7 @@ export function buildNineRouterGatewayDeps(opts: NineRouterDepsOptions): Gateway
         env: sanitizedChildEnvironment(),
       });
       // A missing/un-PATHed 9router emits 'error' asynchronously; swallow it so it
-      // never becomes an unhandled exception in the main process (launch() will
+      // never becomes an unhandled exception in the main process (launch will
       // just time out and the gateway reports unavailable, then self-heals).
       child.on("error", (error) => log.warn({ err: error }, "could not spawn 9router; readiness poll will continue"));
       child.unref();
