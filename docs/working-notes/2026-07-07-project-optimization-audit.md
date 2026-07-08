@@ -183,7 +183,7 @@ Command environment:
 - P1: Prompt/codegen contract, prompt-doc drift, provider-validation discipline.
 - P2: Raw AI logging, string recovery debt, reserved feature surfaces, legacy
   naming/comment noise, content-plan tolerance boundary.
-- P3: UI inline style cleanup, YouTube deferred doc placement, cache LRU decision,
+- P3: UI inline style cleanup, YouTube deferred doc placement, cache pruning decision,
   render parallelism design.
 
 ## Dependency And Parallelization Notes
