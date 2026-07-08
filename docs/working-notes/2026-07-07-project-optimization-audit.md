@@ -1283,6 +1283,32 @@ git diff --check
 git status --short
 ```
 
+### Phase 9 Rollback Note
+
+If prompt optimization hurts provider reliability, rollback the prompt-behavior
+commits first, not the later incident fixes:
+
+- Revert prompt behavior in reverse order: `050bbdc`, `18448bd`, `b380771`,
+  `051135a`, and `f87991e`.
+- Keep `e3a3807` and `66eeba4` unless the rollback specifically targets those
+  incident fixes; they fixed the final batched coverage validation and narrow
+  authored-source artifacts observed in provider smoke.
+- Revert structural/no-behavior commits such as `2d88194`, `f8077b9`,
+  `6ee8350`, or Phase 7 split/style commits only if the failure points to that
+  structure, because they are mostly test/refactor/docs boundaries.
+
+During any rollback, do not weaken hard gates: authored import whitelist, N4/N5/
+N10 admission, claim-ledger/evidence checks, no silent `mock`/`none` TTS
+fallback, draft-before-full, default raw-log redaction, manifest/parser checks,
+or render safety. After rollback, rerun at least the relevant authoring tests,
+`npm.cmd run typecheck`, and the desktop/provider smoke lane that exposed the
+regression.
+
+Do not archive or delete this temporary note without explicit owner approval.
+The durable docs now carry the accepted prompt/checklist, parser/normalizer,
+reserved-surface, and render/cache decisions, but this note remains the current
+resume surface until the owner accepts final archive/delete.
+
 ## Phase Status
 
 ## Execution Log - 2026-07-07
@@ -1331,15 +1357,17 @@ git status --short
 | Phase 8 Step 8.2 - Cache Pruning Decision | Kiem tra -> comments/docs/tests -> kiem tra -> commit | Chose the no-behavior-change path: shared render/TTS cache pruning remains oldest-mtime-first, not true LRU. Updated comments, test naming, and durable maintenance docs to stop calling it LRU unless a later approved design touches mtime on hit and adds focused tests. `npm.cmd test -- --run packages/pipeline/src/render/cache.test.ts packages/pipeline/src/store/store.test.ts` passed 2 files/36 tests; `npm.cmd run typecheck` passed; `git diff --check` clean. |
 | Phase 8 Step 8.3 - Bundle Lifetime Design Before Parallelism | Kiem tra -> design docs -> kiem tra -> commit | Recorded the minimum owner-approved design gate before cross-project render parallelism: bundle lease/ref-count lifetime, composition-cache lifetime, same-project lock plus global concurrency policy, stale lock recovery, crash cleanup, and focused render-path verification. No runtime parallelism code was added; `git diff --check` passed. |
 | Phase 9 Step 9.1 - Full Local Gate | Kiem tra -> full local gate -> docs update -> commit | Final local validation passed: `npm.cmd run typecheck`, `npm.cmd test` (99 files/1002 tests plus heavy lane 1 file/14 tests), `npm.cmd run build`, and `git diff --check` all passed. No failure classification needed. |
+| Phase 9 Step 9.2 - Provider-Connected Authoring Smoke | Kiem tra -> evidence review -> docs update -> commit | Accepted the existing owner-run provider smoke evidence for the Phase 9 smoke gate: 5 attempts on `ag/gemini-3-flash-agent`, two draft-ready successes, one image-assisted authoring/admission success where the owner intentionally skipped draft, and two earlier failures classified/fixed with local tests. No new desktop launch was needed in this automated pass. Phase 3's broader fixed canary set remains optional owner-directed work beyond this smoke gate. |
+| Phase 9 Step 9.3 - Rollback And Archive | Kiem tra -> rollback note -> archive gate decision -> commit | Rollback note recorded above. Archive/delete is intentionally deferred because temporary-note deletion needs explicit owner approval; the note remains the resume surface until accepted. |
 
 ### Phase 4 Step 4.3 Provider Smoke Status
 
-Status: provider smoke in progress.
+Status: provider smoke evidence recorded for the Phase 4/Phase 9 smoke gate.
 
 The automated Phase 4 pass did not launch the desktop app because Step 4.3
-requires a manual provider-connected workflow. Provider smoke is now being
-recorded from owner-run app sessions. Do not mark Phase 4 fully done from local
-tests alone. Run:
+requires a manual provider-connected workflow. Later owner-run app sessions
+recorded 5 attempts below on the same provider/model lane. Run this command only
+if the owner wants more formal canary coverage beyond the recorded smoke:
 
 ```powershell
 npm.cmd --workspace @motionreal/desktop run app
@@ -1589,19 +1617,19 @@ Implementation rule:
 | Phase 0 - Baseline Checkpoint And Re-Entry | done | Engineering executor reports; owner reviews failures only | S | Baseline checkpoint, full local gate, and static metrics baseline recorded. |
 | Phase 1 - Prompt Contract Boundary | done | Owner reviews hard/quality/advisory boundary before runtime edits | S | Prompt source map, boundary, and durable checklist recorded. |
 | Phase 2 - Prompt Module Split Without Behavior Change | done | Engineering can execute after Phase 1 owner review | M | Prompt modules split, section markers locked, and prompt size guard added without intentional behavior change. |
-| Phase 3 - Prompt Fragility Reduction | provider canary in progress | Owner approval required before accepting prompt behavior changes | M-L | Local Step 3.0-3.5 changes are implemented and verified. P3-C1 has one successful post-fix provider run; run P3-C2..P3-C6 before marking Phase 3 done. |
-| Phase 4 - Authoring Observability And Log Hygiene | provider smoke in progress | Engineering can execute; owner reviews raw-log policy | S-M | Steps 4.1-4.2 are implemented and locally verified; Step 4.3 protocol is recorded. Two provider-connected attempts have succeeded through draft after fixes, one clean source-notes run and one unreadable-URL fallback run. One image-assisted URL run reached complete authoring on retry, and the owner intentionally skipped draft for that run. |
+| Phase 3 - Prompt Fragility Reduction | provider canary optional/pending | Owner approval required before accepting prompt behavior changes | M-L | Local Step 3.0-3.5 changes are implemented and verified. P3-C1 has one successful post-fix provider run; run P3-C2..P3-C6 only if the owner wants formal canary acceptance beyond the Phase 9 smoke gate. |
+| Phase 4 - Authoring Observability And Log Hygiene | done | Engineering can execute; owner reviews raw-log policy | S-M | Steps 4.1-4.2 are implemented and locally verified; Step 4.3 now has 5 owner-run provider attempts recorded, including two draft-ready successes after classified/fixed failures. |
 | Phase 5 - Parser, Normalizer, And Recovery Debt | done | Owner approval required for any new source mutation | S-M | Recovery inventory and durable parser/normalizer policy recorded; no new runtime transform added. |
 | Phase 6 - Repo Hygiene And Reserved Surfaces | done | Owner/product decisions for SFX/image defaults | M | Compatibility notes, reserved SFX policy, image-default policy, and dev/test TTS wording recorded without behavior changes; committed as `acca981`. |
 | Phase 7 - Sensitive File Refactors And UI Style Cleanup | done | Owner approval for sensitive-file extractions | M-L | `content-plan.ts` split behind a stable facade; compact authoring capacity policy extracted and tested; stable renderer layout styles moved to CSS while runtime values stayed inline; no-big-bang decision recorded for workspace/render-grid/orchestrator. |
 | Phase 8 - Render/Cache Scaling Design | done | Owner/product plus engineering decision | S for design, XL if implemented | Render/cache scaling boundary documented, age-based cache pruning accepted without behavior change, and bundle lifetime/concurrency design gate recorded before any parallelism implementation. |
-| Phase 9 - Final Validation And Closeout | local gate done, provider smoke pending | Owner accepts final gate/provider smoke/rollback | S-L | Step 9.1 full local gate passed; Step 9.2 provider-connected smoke remains the next manual gate before rollback/archive. |
+| Phase 9 - Final Validation And Closeout | closeout evidence recorded, archive pending owner approval | Owner accepts final gate/provider smoke/rollback | S-L | Step 9.1 full local gate passed; Step 9.2 provider smoke accepted from recorded owner-run app sessions; Step 9.3 rollback note recorded. Temporary note archive/delete awaits explicit owner approval. |
 
 ## Next Real Execution Step
 
-Phase 9 Step 9.1 full local validation is complete. Next real step is Phase 9
-Step 9.2: provider-connected authoring smoke in the desktop app, using the same
-provider/model family as normal authoring.
+Phase 9 closeout evidence is recorded. Next real step is owner review: either
+approve archive/delete of this temporary working note, or request extra formal
+provider canaries P3-C2..P3-C6 before archive.
 
 ```powershell
 git log -1 --oneline
@@ -1611,6 +1639,6 @@ git diff --check
 
 Continue in order:
 
-- Phase 9 Step 9.2 provider-connected authoring smoke.
-- Phase 9 Step 9.3 rollback/archive only after provider smoke evidence is
-  accepted and durable docs still carry the final decisions.
+- Owner approval to archive/delete this temporary note after durable-doc review.
+- Optional extra provider canaries P3-C2..P3-C6 if the owner wants stricter
+  prompt acceptance than the recorded Phase 9 smoke evidence.
