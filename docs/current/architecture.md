@@ -138,6 +138,11 @@ runner modules own bounded model-call workflows:
   crawled-image preselection and crawling. The backend still supplies the
   SSRF-safe fetcher, chat fallback, and image-capability cache.
 
+The public `content-plan.ts` module stays as the import facade for content-plan
+types and helpers. Its internals are split into schema/types, normalization,
+parser, quality, and prompt-builder modules so policy changes stay local and
+testable.
+
 URL/image workflows currently default to AI image preselection plus blocking
 human review. Keep that default unless product explicitly accepts the cost,
 latency, and UX change.

@@ -43,6 +43,12 @@ reply generation/recovery, reauthor retry/rollback, image filtering, and article
 image crawling. Future work should add behavior to the relevant runner or a new
 tested seam; do not keep thinning the facade just to reduce line count.
 
+The content-plan split is complete for the current Phase 7 scope.
+`content-plan.ts` remains the public facade, while schema/types, normalization,
+parser, quality checks, and prompt builders live in focused `content-plan-*`
+modules. Keep imports pointed at the facade unless a local module needs an
+internal helper.
+
 The desktop-main thinning pass is complete for now. `index.ts` remains the
 Electron composition root, while local tested helpers own runtime env parsing,
 create-time image staging, BGM handlers, native save/export helpers, and
@@ -135,10 +141,10 @@ covered by focused regression tests:
 - `manifest-schema.ts` may coerce soft manifest metadata that does not affect
   code safety, such as overlong strings, image ref aliases, hashtags, and bad
   transition hints. Empty required content and invalid component ids still fail.
-- `content-plan.ts` may normalize non-safety metadata with diagnostics, currently
-  `purpose` and missing/generic `motionProgression`. Evidence, duplicate ids,
-  schema-critical enum drift, and claim-ledger issues stay hard unless a
-  documented owner-approved policy changes them.
+- `content-plan-normalize.ts` may normalize non-safety metadata with diagnostics,
+  currently `purpose` and missing/generic `motionProgression`. Evidence,
+  duplicate ids, schema-critical enum drift, and claim-ledger issues stay hard
+  unless a documented owner-approved policy changes them.
 - `normalize-imports.ts` may fix mechanical authored-source compatibility issues
   already proven by incidents, such as `SceneImage` re-home, old Remotion
   `Extrapolate`, color-valued `interpolate`, boundary markdown fences, and the
