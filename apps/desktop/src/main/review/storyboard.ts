@@ -1,15 +1,10 @@
 import type { SceneCard, StoryboardModel } from "../../shared/types.js";
 
 /**
- * Storyboard view-model (web-dashboard Task 9.1, design §Storyboard, Req 8). The
- * per-scene "slides" are the engine's existing review keyframes
- * (`review/<sceneId>.png`); the dashboard reads their paths, it does not render
- * stills itself.
- *
- * NOTE (reconcile-main-controllers S1): the batch-submit / edit-router /
- * re-author path that previously lived here served the Review_Edit_Loop, which
- * is intentionally deferred (kept as a stub). It was removed; only the live
- * `buildStoryboard` view-model builder remains.
+ * Storyboard view-model for desktop review. Per-scene slides are the pipeline's
+ * review keyframes (`review/<sceneId>.png`); the UI reads paths and does not
+ * render stills itself. Only `buildStoryboard` remains here — older batch-edit /
+ * re-author controllers were removed with the deferred Review_Edit_Loop.
  */
 
 /**

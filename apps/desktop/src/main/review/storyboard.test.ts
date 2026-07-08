@@ -2,11 +2,9 @@ import { describe, expect, it } from "vitest";
 import { buildStoryboard } from "./storyboard.js";
 
 /**
- * Feature: web-dashboard, Task 9.1 (storyboard view-model). Maps ordered scene
- * ids to the engine's review keyframes.
- *
- * NOTE (reconcile-main-controllers S1): the BatchSubmitController tests were
- * removed alongside the deferred Review_Edit_Loop; only buildStoryboard remains.
+ * Storyboard view-model tests: ordered scene ids map to review keyframe paths.
+ * Older batch-edit controller tests were removed with Review_Edit_Loop; only
+ * `buildStoryboard` remains.
  */
 
 describe("buildStoryboard", () => {

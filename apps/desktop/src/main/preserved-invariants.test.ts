@@ -12,24 +12,17 @@ import {
 import { CreateController } from "./create/create-controller.js";
 
 /**
- * Feature: web-dashboard, Task 12.1 — the dashboard never bypasses the engine's
- * preserved invariants. The control plane drives the SAME pipeline tools through
- * ONE `createTools` instance (one registry), so the draft-first gate, the
- * configured-provider voice guard and the no-downgrade rule hold at the boundary.
- * (Req 12.1, 12.5, 12.7, 12.8, 12.10)
- *
- * reconcile-main-controllers S1: these invariants are asserted DIRECTLY against
- * the engine tools (`tools.render_full`), not via the removed ApproveController
- * (which served the intentionally-deferred Review_Edit_Loop / full-render path).
- * Validates R8.2 (draft-first), R8.3/R8.4 (voice guard, no-downgrade), R4.6/R8.1
- * (single registry).
+ * Desktop must not bypass pipeline invariants. These tests drive the same
+ * `createTools` instance (one registry) and assert draft-before-full, configured
+ * provider/voice guard, and no silent TTS downgrade via `tools.render_full`
+ * directly — not through removed approve/Review_Edit_Loop controllers.
  */
 
 let home: string;
 const prevHome = process.env.VIDEO_TOOL_HOME;
 
 beforeEach(async () => {
-  home = await mkdtemp(join(tmpdir(), "news-dash-"));
+  home = await mkdtemp(join(tmpdir(), "motionreal-"));
   process.env.VIDEO_TOOL_HOME = join(home, ".video-tool");
 });
 afterEach(async () => {
