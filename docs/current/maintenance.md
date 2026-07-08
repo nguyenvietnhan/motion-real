@@ -75,10 +75,16 @@ and cache-key surface. Renderer bundle/composition preparation now lives in
 
 ## Parallel Render Assumption
 
-Current render code assumes one render workflow uses the in-memory
-bundle/composition caches at a time. Do not enable project-level or
-cross-project parallel rendering until these points have an owner-approved design
-and focused tests:
+Current render code assumes one render workflow uses the process-local
+bundle/composition caches at a time. The same project is protected by
+`withProjectRenderLock`, but different projects are not documented as safe to
+render concurrently in one desktop/main-process runtime because the shared
+bundle and composition caches are small mutable eviction caches (`bundleCache`
+cap 2, `compositionCache` cap 8), not leased resources.
+
+Treat this as a hard scaling boundary, not a missing UI button or queue. Do not
+enable project-level or cross-project parallel rendering until these points have
+an owner-approved design and focused tests:
 
 - Bundle cache: `composition-prep.ts` evicts Remotion bundle directories
   best-effort and has no active-user reference count. Parallel rendering needs a

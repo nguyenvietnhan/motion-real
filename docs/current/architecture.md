@@ -94,6 +94,12 @@ instrumentation, bundle/composition cache, public-dir inference, static-audio
 validation, and the workspace webpack override. `renderer.ts` re-exports the old
 public helpers so callers keep importing from the same surface.
 
+Render/cache scaling is currently a single-workflow process assumption. The
+same-project boundary is enforced by `withProjectRenderLock`, while the
+bundle/composition caches are small in-memory eviction caches without active
+render leases. Cross-project render parallelism needs an accepted cache lifetime
+design before any UI or queue work enables it.
+
 ## Desktop Workspace Internals
 
 The workspace controller has been split only along narrow local seams:
