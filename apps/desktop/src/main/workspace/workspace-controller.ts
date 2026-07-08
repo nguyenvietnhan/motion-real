@@ -2,6 +2,7 @@ import { authorInputWithCrawledImages, runCreateCrawlThenAuthor } from "./worksp
 import { canStartThumbnailRender, combineIntent, stageToFriendlyStatus } from "./workspace-helpers.js";
 import { clampRenderRatio, creativeBootstrapPreprompt, renderProgressEventOf, renderingStageOf, visionRepairPreprompt } from "./workspace-render-flow.js";
 import { applyScriptEditsToManifest, runScriptAuthoring, scriptGateModelFromLines } from "./workspace-script-flow.js";
+import { shouldLogStageTransition, stageFingerprint } from "./workspace-stage.js";
 import { publishedStageOf, readyStageOf, scriptLinesFromScenes, storyboardScenesFromScenes } from "./workspace-view-model.js";
 import { createLogger, serializeError, type CrawledImage } from "@motionreal/pipeline";
 import { classifyError } from "../agent/error-classifier.js";
@@ -191,8 +192,20 @@ export class WorkspaceController {
 
   /** Set + broadcast a stage (status mirrors the kind, as previous main-process behavior). */
   setStage(projectId: string, stage: ProjectStage): void {
+    const previous = this.stages.get(projectId);
     this.stages.set(projectId, stage);
     this.deps.events.status({ projectId, status: stageToFriendlyStatus(stage.kind) });
+    // Log kind/phase transitions only — percent ticks share a fingerprint and are skipped.
+    if (shouldLogStageTransition(previous, stage)) {
+      log.info(
+        {
+          projectId,
+          from: stageFingerprint(previous),
+          to: stageFingerprint(stage),
+        },
+        "workspace stage transition",
+      );
+    }
   }
 
   /** Bump the render version so the next storyboard's stills reload exactly once. */
