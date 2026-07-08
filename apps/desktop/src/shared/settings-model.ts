@@ -130,6 +130,8 @@ export function defaultSettings(outputDir: string): SettingsModel {
     scriptGateEnabled: true,
     refinePasses: DEFAULT_REFINE_PASSES,
     refineEarlyStop: true,
+    // URL/image workflows default to provider preselection plus human review.
+    // Changing either default is a product/cost decision, not repo hygiene.
     imageCrawlAiFilter: true,
     imageCrawlHumanReview: true,
   };

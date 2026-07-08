@@ -138,6 +138,10 @@ runner modules own bounded model-call workflows:
   crawled-image preselection and crawling. The backend still supplies the
   SSRF-safe fetcher, chat fallback, and image-capability cache.
 
+URL/image workflows currently default to AI image preselection plus blocking
+human review. Keep that default unless product explicitly accepts the cost,
+latency, and UX change.
+
 Fresh authoring has bounded stabilization before admission. A claim-ledger-only
 content-plan failure may get one repair call. Content-plan purpose drift and
 missing/generic motion intent are normalized with diagnostics, because they are
@@ -223,7 +227,8 @@ Stills are the cheap visual pass. Draft MP4s are lower quality previews that
 follow the same timing path as full renders. Full MP4 output is the deliverable
 and should run only after user approval. TTS provider and voice come from
 project/user settings; missing credentials stop render instead of silently
-falling back to another provider.
+falling back to another provider. `mock` and `none` are explicit CLI/dev/offline
+TTS modes; the desktop production path must not select them as a hidden fallback.
 
 ## Repository Layout
 

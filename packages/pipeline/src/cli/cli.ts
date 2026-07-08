@@ -44,6 +44,8 @@ export type CliResult = {
 };
 
 const TTS_PROVIDERS: ReadonlySet<string> = new Set<TtsProvider>(["vivibe", "elevenlabs", "mock", "none"]);
+const TTS_PROVIDER_USAGE = "vivibe|elevenlabs|mock|none";
+const DEV_TTS_NOTE = "mock/none are explicit CLI/dev/offline modes; production must use a real configured provider";
 
 const PARSE_OPTIONS = {
   tts: { type: "string" },
@@ -119,7 +121,7 @@ async function runAuthor(
 ): Promise<CliResult> {
   const sub = positionals[1];
   if (sub !== "scaffold") {
-    emit("Usage: author scaffold <id-or-topic> [--tts vivibe|elevenlabs|mock|none]");
+    emit(`Usage: author scaffold <id-or-topic> [--tts ${TTS_PROVIDER_USAGE}] (${DEV_TTS_NOTE})`);
     return { exitCode: 1, lines };
   }
   const topic = positionals.slice(2).join(" ").trim();
@@ -538,7 +540,7 @@ type Emit = (line?: string) => void;
 function resolveTts(value: string | undefined): { ok: true; value?: TtsProvider } | { ok: false; message: string } {
   if (value === undefined) return { ok: true, value: undefined };
   if (!TTS_PROVIDERS.has(value)) {
-    return { ok: false, message: `Unknown --tts "${value}". Use one of: vivibe, elevenlabs, mock, none.` };
+    return { ok: false, message: `Unknown --tts "${value}". Use one of: vivibe, elevenlabs, mock, none. ${DEV_TTS_NOTE}.` };
   }
   return { ok: true, value: value as TtsProvider };
 }
@@ -554,9 +556,10 @@ function usage(): string {
     "Usage: pipeline <command> [options]",
     "",
     "Commands:",
-    "  author scaffold <id-or-topic> [--tts vivibe|elevenlabs|mock|none]   Create a project skeleton + empty manifest + authored/ dir",
-    "  render <id> [--tts vivibe|elevenlabs|mock|none] [--concurrency N] [--no-cache] [--draft] [--force-full]",
+    `  author scaffold <id-or-topic> [--tts ${TTS_PROVIDER_USAGE}]   Create a project skeleton + empty manifest + authored/ dir`,
+    `  render <id> [--tts ${TTS_PROVIDER_USAGE}] [--concurrency N] [--no-cache] [--draft] [--force-full]`,
     "                                      Draft-first: render --draft for a preview, then full (gated on a prior draft; --force-full to override)",
+    `                                      ${DEV_TTS_NOTE}`,
     "  render --sample [--out <path>]      Render the bundled no-voice sample draft (no Vivibe needed)",
     "  preview <id>                        Print the Studio command for a project's locked spec",
     "  ingest <url> [--id <id>]            Fetch an article into planning/<id>.md (text + metadata only)",

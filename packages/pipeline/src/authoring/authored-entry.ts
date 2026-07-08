@@ -52,6 +52,8 @@ import lockedSpec from ${JSON.stringify(lockRel)};
 
 const spec = lockedSpec as unknown as import("@motionreal/schema").LockedVideoSpec;
 const initialGeometry = geometry(spec.format);
+// NewsVideo is a legacy alias for older saved render commands; new projects
+// should target MotionRealVideo until the alias has an owner-approved sunset.
 const VIDEO_COMPOSITION_IDS = ["MotionRealVideo", "NewsVideo"] as const;
 const videoSchema = z.object({
   spec: LockedVideoSpecSchema,

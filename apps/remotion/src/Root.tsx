@@ -15,6 +15,9 @@ const propsSchema = z.object({
   measure: z.boolean().optional(),
   strictSceneErrors: z.boolean().optional(),
 });
+// `NewsVideo` is a legacy composition id for old saved render commands.
+// New projects should target `MotionRealVideo`; keep the alias until old
+// project/render compatibility is explicitly sunset.
 const VIDEO_COMPOSITION_IDS = ["MotionRealVideo", "NewsVideo"] as const;
 const defaultVideoProps = { spec: sampleSpec } as { spec: LockedVideoSpec };
 

@@ -113,7 +113,7 @@ export const SceneSpecSchema = z.object({
    * refinement that protects the N16 offline invariant.
    */
   image: SceneImageSchema.optional(),
-  /** Optional sound-effect cue. */
+  /** Reserved/internal sound-effect metadata; not mixed by default yet. */
   sfx: z.enum(["none", "transition", "alert", "emphasis", "success"]).default("none").optional(),
   /**
    * Transition INTO the next scene. `slide` (default) and `fade` are the calm

@@ -120,6 +120,7 @@ describe("main — verbs", () => {
     const badTts = await main(["render", "some-id", "--tts", "robovoice"]);
     expect(badTts.exitCode).toBe(1);
     expect(badTts.lines.join("\n")).toMatch(/Unknown --tts/);
+    expect(badTts.lines.join("\n")).toMatch(/mock\/none.*CLI\/dev\/offline/);
   });
 });
 

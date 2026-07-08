@@ -1318,6 +1318,12 @@ git status --short
 | Phase 5 Step 5.2 - Define AST Transform Threshold | Kiem tra -> durable docs -> xac nhan complete | `docs/current/maintenance.md` now records parser/normalizer policy: new source mutation requires repeated or reproducible evidence, a mechanical before/after fixture, focused parser/admission tests, owner approval for broad rewrites, and no weakening of N4/N5/N10 or render-safety blockers. |
 | Phase 5 local closeout / temporary plan pause | Kiem tra -> xac nhan -> phase commit | `npm.cmd test -- --run apps/desktop/src/main/authoring/reply-parser.test.ts apps/desktop/src/main/authoring/content-plan.test.ts apps/desktop/src/main/authoring/normalize-imports.test.ts apps/desktop/src/main/authoring/manifest-schema.test.ts apps/desktop/src/main/authoring/manifest-schema.coercion.test.ts` passed 5 files/102 tests; `npm.cmd run typecheck` passed; `git diff --check` clean. Plan paused at owner request before Phase 6. |
 
+| Phase 6 Step 6.1 - Legacy Naming/Sunset Notes | Owner approved -> docs/code notes -> focused tests | `NewsVideo` and `news-studio-settings.json` were kept for compatibility and documented as legacy surfaces with owner-approved sunset required before removal. |
+| Phase 6 Step 6.2 - SFX Surface Decision | Owner approved -> keep reserved/internal -> focused tests | Scene `sfx`, `audio/sfx.ts`, and the pipeline barrel export were kept as reserved/internal metadata. No default audio-mix behavior was added or removed. |
+| Phase 6 Step 6.3 - Image Crawl Defaults Decision | Owner approved -> keep defaults -> focused tests | `imageCrawlAiFilter` and `imageCrawlHumanReview` remain `true`; docs now say changing them is product/cost/UX work. |
+| Phase 6 Step 6.4 - Dev/Test TTS Scope | Owner approved -> CLI/docs wording -> focused tests | CLI usage and invalid `--tts` output now state that `mock`/`none` are explicit CLI/dev/offline modes only; desktop production fallback remains forbidden. |
+| Phase 6 local closeout / commit pending | Kiem tra -> lam -> kiem tra -> awaiting owner commit approval | `npm.cmd test -- --run packages/pipeline/src/authoring/authored-entry.test.ts apps/desktop/src/main/settings/settings-store.test.ts apps/desktop/src/main/startup-sequence.test.ts packages/schema/src/schema.test.ts apps/desktop/src/shared/settings-model.test.ts apps/desktop/src/main/workspace/workspace-create-flow.test.ts packages/pipeline/src/cli/cli.test.ts packages/pipeline/src/audio/tts-config.test.ts packages/pipeline/src/audio/lock.test.ts packages/pipeline/src/authoring/manifest.test.ts` passed 10 files/101 tests; `npm.cmd run typecheck` passed; `git diff --check` passed with Git CRLF normalization warnings only. |
+
 ### Phase 4 Step 4.3 Provider Smoke Status
 
 Status: provider smoke in progress.
@@ -1385,6 +1391,27 @@ Phase 5 policy:
   reaches N4/N5/N10 instead of being hidden.
 - Broad AST/source rewrites need owner approval, rollback path, and evidence
   that they are safer than retry.
+
+### Phase 6 Reserved Surface Closeout
+
+Phase 6 was executed as a behavior-preserving repo-hygiene slice after owner
+approval to continue. No alias, default, SFX schema field, or TTS behavior was
+removed or changed.
+
+Decisions recorded:
+
+- `NewsVideo` remains a legacy Remotion composition alias for old saved render
+  commands and generated entries. New work targets `MotionRealVideo`.
+- `news-studio-settings.json` remains a read-only migration/compatibility input
+  for installs created before the rename. New writes use
+  `motionreal-settings.json`.
+- Scene `sfx` and `audio/sfx.ts` remain reserved/internal metadata surfaces, not
+  a default user-facing audio-mix feature.
+- URL/image creation keeps AI preselection and human review enabled by default.
+  Changing either default is product/cost/UX work, not cleanup.
+- `mock` and `none` remain explicit CLI/dev/offline TTS modes only. Desktop
+  production must block on missing real provider credentials instead of falling
+  back silently.
 
 ### Phase 0 Metrics Baseline
 
@@ -1557,16 +1584,15 @@ Implementation rule:
 | Phase 3 - Prompt Fragility Reduction | provider canary in progress | Owner approval required before accepting prompt behavior changes | M-L | Local Step 3.0-3.5 changes are implemented and verified. P3-C1 has one successful post-fix provider run; run P3-C2..P3-C6 before marking Phase 3 done. |
 | Phase 4 - Authoring Observability And Log Hygiene | provider smoke in progress | Engineering can execute; owner reviews raw-log policy | S-M | Steps 4.1-4.2 are implemented and locally verified; Step 4.3 protocol is recorded. Two provider-connected attempts have succeeded through draft after fixes, one clean source-notes run and one unreadable-URL fallback run. One image-assisted URL run reached complete authoring on retry, and the owner intentionally skipped draft for that run. |
 | Phase 5 - Parser, Normalizer, And Recovery Debt | done | Owner approval required for any new source mutation | S-M | Recovery inventory and durable parser/normalizer policy recorded; no new runtime transform added. |
-| Phase 6 - Repo Hygiene And Reserved Surfaces | pending | Owner/product decisions for SFX/image defaults | M | Low-risk cleanup after prompt boundary is clear. |
+| Phase 6 - Repo Hygiene And Reserved Surfaces | local verified / commit pending | Owner/product decisions for SFX/image defaults | M | Compatibility notes, reserved SFX policy, image-default policy, and dev/test TTS wording recorded without behavior changes. Awaiting owner approval to commit. |
 | Phase 7 - Sensitive File Refactors And UI Style Cleanup | pending | Owner approval for sensitive-file extractions | M-L | Behavior-led only, no big-bang rewrite. |
 | Phase 8 - Render/Cache Scaling Design | pending | Owner/product plus engineering decision | S for design, XL if implemented | Design before concurrency implementation. |
 | Phase 9 - Final Validation And Closeout | pending | Owner accepts final gate/provider smoke/rollback | S-L | Full gate + provider smoke + rollback/archive. |
 
 ## Next Real Execution Step
 
-Phase 5 is complete, and the owner chose to pause / temporarily close this
-optimization plan here because the current provider results are trusted enough
-for now. Do not start Phase 6, Phase 7, or Phase 8 without a fresh owner request.
+Phase 6 is locally implemented and verified, but not yet committed. Next step is
+owner review of the diff and explicit approval to commit.
 
 ```powershell
 git log -1 --oneline
@@ -1574,11 +1600,11 @@ git status --short
 git diff --check
 ```
 
-If the plan is resumed later, choose one explicit route:
+After Phase 6 commit, choose one explicit route:
 
-- Phase 9 closeout/archive if the temporary note should be finalized and durable
-  docs are already synced enough.
-- Phase 6 owner/product decisions if cleanup continues.
+- Phase 7 only if the owner approves sensitive-file extraction/refactor work.
+- Phase 9 closeout/archive if the temporary optimization note should be
+  finalized and durable docs are already synced enough.
 - Phase 3/4 provider canary closure only if the owner wants formal provider
   acceptance beyond the successful source-notes draft, URL-fallback draft, and
   image-assisted authoring retry evidence already recorded.

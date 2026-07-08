@@ -152,6 +152,36 @@ after fixtures plus the relevant parser/admission tests. Broad AST or source
 rewrites need owner approval, a rollback path, and must not weaken N4/N5/N10 or
 render-safety blockers.
 
+## Reserved Feature Surfaces
+
+Some compatibility and reserved surfaces are intentionally present and should not
+be deleted during hygiene passes:
+
+- `NewsVideo` is a legacy Remotion composition id kept for old saved render
+  commands and generated entries. New work should target `MotionRealVideo`.
+- `news-studio-settings.json` is the pre-rename desktop settings filename, read
+  only for migration/compatibility. New writes use `motionreal-settings.json`.
+- Scene `sfx` and `audio/sfx.ts` are reserved/internal sound-effect metadata.
+  They are schema/export compatible surfaces, not a user-facing default audio
+  mixing feature yet.
+
+Removing any of these needs an owner-approved sunset/migration path and focused
+tests for the affected alias or persisted data.
+
+## Image Crawl Defaults
+
+URL/image creation currently defaults to AI preselection plus human review. That
+keeps crawled images useful while still making the user approve media before
+authoring. Changing `imageCrawlAiFilter` or `imageCrawlHumanReview` defaults is
+a product/cost/UX decision, not a cleanup task.
+
+## Dev/Test TTS Modes
+
+`mock` and `none` are explicit CLI/dev/offline TTS modes. Desktop production
+uses real configured providers (`vivibe` or `elevenlabs`) and must block on
+missing credentials instead of silently falling back to `mock`, `none`, or a
+different provider.
+
 ## Prompt Change Checklist
 
 Treat runtime prompt text as production behavior. Before changing authoring,
