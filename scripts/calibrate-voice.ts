@@ -70,8 +70,8 @@ function settingsFilePath(): string {
   return join(videoToolHome(), "motionreal-settings.json");
 }
 
-// Keep reading the pre-rename desktop settings file so voice calibration can
-// migrate old installs without asking the user to copy settings by hand.
+// `news-studio-settings.json`: pre-rename settings path, read-only migration.
+// New writes use `motionreal-settings.json`. Removal needs owner-approved sunset.
 function legacySettingsFilePath(): string {
   return join(videoToolHome(), "news-studio-settings.json");
 }

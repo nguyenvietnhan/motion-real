@@ -76,8 +76,8 @@ scrubSensitiveEnvironment(process.env);
  */
 
 const SETTINGS_FILE = join(videoToolHome(), "motionreal-settings.json");
-// Legacy filename retained for one-way migration of installs created before
-// the MotionReal rename. New writes go to `motionreal-settings.json`.
+// `news-studio-settings.json`: pre-rename settings path, read-only migration.
+// New writes use `motionreal-settings.json`. Removal needs owner-approved sunset.
 const LEGACY_SETTINGS_FILE = join(videoToolHome(), "news-studio-settings.json");
 
 // Settings persistence lives in the tested SettingsStore (reconcile S2): load
