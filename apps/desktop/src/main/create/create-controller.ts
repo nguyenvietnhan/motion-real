@@ -55,13 +55,13 @@ export interface CreateDeps {
   ) => Promise<{ ok: true; projectId: string } | { ok: false; error: SerializedPipelineError }>;
   /**
    * Hand the brief off to the WorkspaceController. With a link this runs the
-   * crawl → (AI-filter) → (image-review) → author flow (Phase 2 Block B); with
+   * crawl → (AI-filter) → (image-review) → author flow (crawled-image review); with
    * no link it collapses to plain authoring — the controller decides.
    */
   beginCreate: (projectId: string, input: AuthorInput) => void;
   /**
    * Move staged create-time images into the new project's `assetsDir` and return
-   * their project-relative `assets/<sha>.<ext>` refs (Phase 2 Block A). Only the
+   * their project-relative `assets/<sha>.<ext>` refs (create-time image staging). Only the
    * images that promote successfully are returned, so a missing/failed staged
    * file simply drops out of the author pool. Optional: absent ⇒ no image
    * support (the create call behaves exactly as before).

@@ -54,7 +54,7 @@ export type AiAccountState =
 
 /**
  * A local image the user picked at the create screen and that has been imported
- * (content-addressed) into the staging dir (Phase 2 Block A). `ref` is the
+ * (content-addressed) into the staging dir (create-time image staging). `ref` is the
  * project-relative path it will live at once the project exists
  * (`assets/<sha>.<ext>`); `previewUrl` is a `media://` URL to the staged copy.
  */
@@ -164,7 +164,7 @@ export type StoryboardModel = { projectId: string; scenes: SceneCard[]; globalNo
 export type ScriptLine = { sceneId: string; order: number; headline: string; narration: string; imagePath?: string };
 
 /**
- * One crawled article image offered on the review screen (Phase 2 Block B).
+ * One crawled article image offered on the review screen (crawled-image review).
  * `previewUrl` is a `media://` URL to the already-imported local asset;
  * `suggested` = the AI-filter pre-tick (true ⇒ checkbox starts checked).
  */
@@ -173,7 +173,7 @@ export type CrawledImageVM = { ref: string; previewUrl: string; width: number; h
 /** The live stage of a project's workspace, driving the staged UI. */
 export type ProjectStage =
   | { kind: "writing"; phase?: "author" | "crawl" | "image-filter" } // AI is reading sources / drafting the script
-  | { kind: "image-review"; images: CrawledImageVM[] } // blocking: confirm which crawled article images to use before authoring (Phase 2 Block B)
+  | { kind: "image-review"; images: CrawledImageVM[] } // blocking: confirm which crawled article images to use before authoring (crawled-image review)
   | { kind: "script"; lines: ScriptLine[]; linkWarning?: string } // awaiting user review/approval (linkWarning = brief links that couldn't be read)
   | { kind: "rendering"; percent: number; phase?: "edit" | "draft" | "full" | "qa" | "prepare"; qaPass?: number; qaTotal?: number } // building (edit reauthor | draft | full | ai visual-qa | hidden prep). "prepare" is the NEUTRAL phase for the two hidden pre-draft renders (blind stills + creative bootstrap, freeform-engine L1/L3): the user sees a generic "Đang dựng bản nháp…" and never the raw bland take. qaPass/qaTotal annotate a "qa" phase with which vision round is running (e.g. 2/5) so the UI can say "Đang soát lỗi hình ảnh (lần 2/5)…"
   | { kind: "ready"; scenes: SceneCard[]; notice?: string; draftPath?: string } // draft ready, review scenes (notice = a transient message; draftPath = mediaUrl of the low-res draft MP4 for in-app preview, when it exists)
@@ -228,9 +228,9 @@ export type SettingsModel = {
    * defect, the consecutive-clean counter resets.
    */
   refineEarlyStop: boolean;
-  /** When a brief carries a link, let the AI pre-select which crawled article images fit (Phase 2 Block B). */
+  /** When a brief carries a link, let the AI pre-select which crawled article images fit (crawled-image review). */
   imageCrawlAiFilter: boolean;
-  /** Show a blocking review screen so the user confirms crawled images before authoring (Phase 2 Block B). */
+  /** Show a blocking review screen so the user confirms crawled images before authoring (crawled-image review). */
   imageCrawlHumanReview: boolean;
 };
 

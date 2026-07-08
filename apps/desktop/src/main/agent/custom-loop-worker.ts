@@ -53,9 +53,9 @@ export interface AuthoringBackend {
   snapshotScenes?(projectId: string, sceneIds: string[]): Promise<SceneSnapshot>;
   /** Optional: restore authored scene source from a snapshot (re-admits the components). */
   restoreScenes?(projectId: string, snapshot: SceneSnapshot): Promise<void>;
-  /** Optional (Phase 2 Block B): crawl an article URL's images into the project assetsDir. */
+  /** Optional (crawled-image review): crawl an article URL's images into the project assetsDir. */
   crawlImages?(projectId: string, url: string, signal?: AbortSignal): Promise<CrawledImage[]>;
-  /** Optional (Phase 2 Block B): AI pre-select which crawled refs fit the article. */
+  /** Optional (crawled-image review): AI pre-select which crawled refs fit the article. */
   filterCrawledImages?(projectId: string, articleText: string, refs: AuthorImageRef[], signal?: AbortSignal): Promise<string[]>;
 }
 

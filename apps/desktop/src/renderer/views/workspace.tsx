@@ -318,7 +318,7 @@ export const ProjectWorkspaceView: React.FC<{
   onSave: () => void;
   /** Stop the in-flight render/author/edit job ("Dừng render"). */
   onCancel: () => void;
-  /** Confirm the crawled-image selection (Phase 2 Block B); empty ⇒ author text-only. */
+  /** Confirm the crawled-image selection (crawled-image review); empty ⇒ author text-only. */
   onSubmitImageReview: (selectedRefs: string[]) => void;
   /** Per-machine BGM library (shared across projects); the picker in the storyboard lists these. */
   bgm: BgmTrackVM[];

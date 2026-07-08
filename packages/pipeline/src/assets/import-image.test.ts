@@ -7,7 +7,7 @@ import { importImageBytes, sniffImage, MAX_IMAGE_BYTES, MAX_IMAGE_DIM } from "./
 import { encodePngRGBA } from "../safety/png.js";
 
 /**
- * Importer self-tests (Phase 2 Block A). The importer is the trust boundary for
+ * Importer self-tests (create-time image staging). The importer is the trust boundary for
  * user-picked bytes: it must sniff the real format by magic bytes, enforce the
  * caps, write content-addressed, and NEVER throw (every failure is a typed
  * reason). Content-addressing is what keeps the render cache from serving a

@@ -3,9 +3,9 @@ import { importImageBytes } from "../assets/import-image.js";
 import { makeSafeFetchBytes, type SafeFetchBytesResult } from "./safe-fetch.js";
 
 /**
- * Article image crawl (Phase 2 Block B). Given a brief link, pull the page's
+ * Article image crawl (crawled-image review). Given a brief link, pull the page's
  * candidate images, download them through the SSRF-guarded binary fetcher, and
- * store each CONTENT-ADDRESSED into the project's `assetsDir` via the Block A
+ * store each CONTENT-ADDRESSED into the project's `assetsDir` via the create-time image
  * importer (magic-byte sniff + format allowlist + byte/dimension caps + dedupe).
  * The result is the LOCAL `assets/<sha>.<ext>` ref pool the AI-filter / review
  * screen / authoring path then consume — so a crawled image flows into the SAME

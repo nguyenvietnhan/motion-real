@@ -280,7 +280,7 @@ const imageStagingDeps: ImageStagingDeps = {
 };
 
 /**
- * Native image picker for the create screen (Phase 2 Block A). Opens a
+ * Native image picker for the create screen (create-time image staging). Opens a
  * multi-select file dialog, imports each pick into the home-level STAGING dir
  * (content-addressed, magic-byte sniffed, capped) so it can preview through the
  * `media://` protocol before a project exists, and returns the staged images +
@@ -363,7 +363,7 @@ const thumbnailHandlers = createThumbnailHandlers({
   saveThumbnail: (projectId) => saveProjectThumbnail(projectId, nativeSaveDeps),
 });
 
-// IPC ownership inventory (Phase 5): keep Electron lifecycle and dependency
+// IPC ownership inventory: keep Electron lifecycle and dependency
 // wiring here, but route contained behavior to focused owners when a seam exists.
 // - license: inline thin wrapper over LicenseManager.
 // - gateway: inline thin wrapper over ModelGatewayManager.

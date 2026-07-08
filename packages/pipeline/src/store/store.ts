@@ -77,7 +77,7 @@ export function trackerPath(): string {
 
 /**
  * Staging dir for images the user picks at the CREATE screen, BEFORE a project
- * exists (Phase 2 Block A). Lives under VIDEO_TOOL_HOME so the `media://`
+ * exists (create-time image staging). Lives under VIDEO_TOOL_HOME so the `media://`
  * protocol can preview the picks within its containment check, then the bytes
  * are moved into the new project's `assetsDir` on create. Swept of stale entries
  * on startup so picked-but-never-created images don't accumulate.

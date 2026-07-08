@@ -44,7 +44,7 @@ describe("CreateController.create", () => {
     expect(began).toEqual([{ id: "p1", input: { text: "https://news.example.com/a", urls: ["https://news.example.com/a"], videoLanguage: "vi" } }]);
   });
 
-  it("promotes staged images and threads the resulting refs into the author input (Phase 2 Block A)", async () => {
+  it("promotes staged images and threads the resulting refs into the author input (create-time image staging)", async () => {
     const promoteImages = vi.fn(async () => [{ ref: "assets/aa.png", width: 800, height: 600 }]);
     const { deps: d, began } = deps({ promoteImages });
     const ctrl = new CreateController(d);

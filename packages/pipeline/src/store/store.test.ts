@@ -72,7 +72,7 @@ describe("project store", () => {
     for (const dir of [p.root, p.audioDir, p.rendersDir, p.reviewDir, p.logsDir, p.assetsDir]) {
       expect(existsSync(dir)).toBe(true);
     }
-    // assetsDir is the project-relative image store (Phase 2 Block A).
+    // assetsDir is the project-relative image store (create-time image staging).
     expect(p.assetsDir).toBe(join(p.root, "assets"));
     // The project lives under projects/, which lives under the .video-tool home.
     expect(p.root.startsWith(projectsRoot())).toBe(true);

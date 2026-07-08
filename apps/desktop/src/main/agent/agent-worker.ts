@@ -15,7 +15,7 @@ import type { SerializedPipelineError, CrawledImage } from "@motionreal/pipeline
 import type { VideoFormat, DurationTier, VideoLanguage } from "@motionreal/schema";
 
 /**
- * A local image the user attached at create time (Phase 2 Block A). Carries only
+ * A local image the user attached at create time (create-time image staging). Carries only
  * the content-addressed `ref` (`assets/<sha>.<ext>`, already imported into the
  * project) + its pixel size — NOT the bytes. The backend reads the bytes from
  * disk to build the vision part, so this stays small + serializable across IPC.
@@ -27,7 +27,7 @@ export const AUTHORING_CONTRACT_REF = "AI_CONTRACT.md+docs/current" as const;
 /**
  * Input for a fresh authoring job: a free-form user brief (chat-style) plus any
  * links found in it to fetch for grounding (best-effort, never a hard gate), and
- * any local images the user attached for the AI to place (Phase 2 Block A).
+ * any local images the user attached for the AI to place (create-time image staging).
  *
  * The freeform-engine create screen (R7/R9/D10) picks three delivery knobs the
  * backend threads into the prompt + spec (it never lets the model choose them):
@@ -151,8 +151,8 @@ export interface AgentWorker {
   snapshotScenes?(projectId: string, sceneIds: string[]): Promise<SceneSnapshot>;
   /** Restore authored scene source from a snapshot (re-admits the components). */
   restoreScenes?(projectId: string, snapshot: SceneSnapshot): Promise<void>;
-  /** Crawl an article URL's images into the project assetsDir (Phase 2 Block B); [] when unsupported/failed. */
+  /** Crawl an article URL's images into the project assetsDir (crawled-image review); [] when unsupported/failed. */
   crawlImages?(projectId: string, url: string, signal?: AbortSignal): Promise<CrawledImage[]>;
-  /** AI pre-select which crawled refs fit the article (Phase 2 Block B); [] when unsupported/failed. */
+  /** AI pre-select which crawled refs fit the article (crawled-image review); [] when unsupported/failed. */
   filterCrawledImages?(projectId: string, articleText: string, refs: AuthorImageRef[], signal?: AbortSignal): Promise<string[]>;
 }

@@ -203,7 +203,7 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
   }
 
   /**
-   * Model ids that rejected an INLINE image this session (Phase 2 Block B
+   * Model ids that rejected an INLINE image this session (crawled-image review
    * hardening). Some providers behind 9router (e.g. `kr/auto` routing to Kiro)
    * answer an `image_url` data-URL part with HTTP 400 "Improperly formed
    * request" — and a 400 trips 9router's ~2-minute circuit breaker, which then
@@ -254,7 +254,7 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
     }
     const research = chunks.length > 0 ? chunks.join("\n\n---\n\n") : undefined;
 
-    // Provided images (Phase 2 Block A): read each already-imported asset into a
+    // Provided images (create-time image staging): read each already-imported asset into a
     // data URL so the model can SEE it and decide placement. A ref we can't read
     // is skipped from the VISION parts (never blocks authoring) — but it stays
     // authorized (see allowedRefs below).
@@ -442,7 +442,7 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
   /**
    * Read each provided image (already imported into the project `assetsDir` as
    * `assets/<sha>.<ext>`) into a data URL so the model can SEE it and decide
-   * placement (Phase 2 Block A). A ref we can't read on disk is skipped from the
+   * placement (create-time image staging). A ref we can't read on disk is skipped from the
    * vision parts only; image authorization is based on the user-approved refs
    * captured earlier, so a transient preview read failure never strips an
    * approved image from the final manifest.
@@ -478,7 +478,7 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
 
   /**
    * Call the model with vision parts, degrading to text-only safely (Req 3.7 +
-   * Phase 2 Block B hardening). Key behaviors:
+   * crawled-image review hardening). Key behaviors:
    *  - if the chosen model already rejected an inline image THIS session, skip
    *    vision and send text-only DIRECTLY — never re-trip 9router's ~2-minute
    *    circuit breaker (a 400 there fails every following call, even authoring);
@@ -585,7 +585,7 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
   }
 
   /**
-   * AI image-filter (Phase 2 Block B): ask the (vision) model which CRAWLED
+   * AI image-filter (crawled-image review): ask the (vision) model which CRAWLED
    * article images actually illustrate the content, so the review screen can
    * pre-tick them (or, with human-review off, author uses exactly this set).
    * Reuses `buildAuthorImages` to read each ref → data URL, then intersects the
@@ -615,7 +615,7 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
   }
 
   /**
-   * Crawl an article URL's images into the project `assetsDir` (Phase 2 Block B).
+   * Crawl an article URL's images into the project `assetsDir` (crawled-image review).
    * Fetches the page HTML through the SSRF-guarded TEXT fetcher, then hands it to
    * `crawlArticleImages` which downloads each candidate (binary SSRF fetcher),
    * imports content-addressed (caps + magic-byte sniff), and coarse-filters by

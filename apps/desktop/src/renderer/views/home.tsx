@@ -148,9 +148,9 @@ export const HomeView: React.FC<{
   onOpen: (projectId: string) => void;
   onConnectPrompt: () => void;
   defaultVoiceProvider: VoiceProviderChoice;
-  /** Open the native image picker (Phase 2 Block A); resolves staged images + rejections. */
+  /** Open the native image picker (create-time image staging); resolves staged images + rejections. */
   onPickImages?: () => Promise<PickImagesResult>;
-  /** Import raw bytes from a paste (Ctrl+V) or drag-drop (Phase 2 Block A); resolves staged images + rejections. */
+  /** Import raw bytes from a paste (Ctrl+V) or drag-drop (create-time image staging); resolves staged images + rejections. */
   onImportImageBytes?: (files: DroppedImage[]) => Promise<PickImagesResult>;
   /** Free a staged image's bytes on disk when the user removes it (best-effort; the 24h sweep is the backstop). */
   onUnstageImage?: (ref: string) => void;
@@ -390,7 +390,7 @@ export const HomeView: React.FC<{
         </div>
       )}
 
-      {/* Create hero — drag-drop an image anywhere onto this card (Phase 2 Block A). */}
+      {/* Create hero — drag-drop an image anywhere onto this card (create-time image staging). */}
       <div
         className={`ns-card ns-create-card${dragOver ? " is-dragging" : ""}`}
         onDragEnter={onDragEnter}

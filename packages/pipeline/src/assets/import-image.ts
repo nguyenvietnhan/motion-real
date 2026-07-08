@@ -4,7 +4,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 /**
- * Local image importer (Phase 2 Block A). Takes raw image bytes the user picked
+ * Local image importer (create-time image staging). Takes raw image bytes the user picked
  * and stores them CONTENT-ADDRESSED (`<destDir>/<sha256>.<ext>`), returning a
  * project-relative `ref` the AI may place on a scene's `image` field.
  *

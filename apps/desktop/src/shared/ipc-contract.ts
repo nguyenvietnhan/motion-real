@@ -49,9 +49,9 @@ export interface DashboardApi {
     selectedModel(): Promise<ModelInfo | undefined>;
   };
   projects: {
-    /** Open a native file picker, import the picked images (content-addressed) into staging, and return previews + per-file rejections (Phase 2 Block A). */
+    /** Open a native file picker, import the picked images (content-addressed) into staging, and return previews + per-file rejections (create-time image staging). */
     pickImages(): Promise<PickImagesResult>;
-    /** Import raw image bytes the renderer captured from a paste (Ctrl+V) or drag-drop — no file path — into staging (Phase 2 Block A). */
+    /** Import raw image bytes the renderer captured from a paste (Ctrl+V) or drag-drop — no file path — into staging (create-time image staging). */
     importImageBytes(files: DroppedImage[]): Promise<PickImagesResult>;
     /** Delete one staged create-time image by its `staging/<sha>.<ext>` ref when the user removes it from the attach strip, so unused bytes don't linger until the 24h sweep. Best-effort: an unknown/already-gone ref resolves cleanly. */
     removeStagedImage(ref: string): Promise<void>;
@@ -71,7 +71,7 @@ export interface DashboardApi {
     retry(projectId: string): Promise<void>;
     /** Ask the agent to fix Content_Errors and re-render ("Sửa bằng AI"). */
     fixWithAi(projectId: string): Promise<void>;
-    /** Confirm the crawled-image selection (Phase 2 Block B); authoring begins with these refs. Empty ⇒ author text-only. */
+    /** Confirm the crawled-image selection (crawled-image review); authoring begins with these refs. Empty ⇒ author text-only. */
     submitImageReview(projectId: string, selectedRefs: string[]): Promise<void>;
   };
   bgm: {

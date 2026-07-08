@@ -153,7 +153,7 @@ const WORKSPACE_TRANSITION_MATRIX: readonly WorkspaceTransitionRow[] = [
 ] as const;
 
 describe("workspace state transition matrix", () => {
-  it("covers the major Phase 4 workflows", () => {
+  it("covers the major workspace workflows", () => {
     expect(WORKSPACE_TRANSITION_MATRIX.map((row) => row.workflow)).toEqual([
       "create",
       "image review",
@@ -864,7 +864,7 @@ describe("runScript link warning (unreadable brief links)", () => {
     if (st.kind === "script") expect(st.linkWarning).toBeUndefined();
   });
 
-  it("script lines carry the AI-placed image as a previewable imagePath (Phase 2 Block B)", async () => {
+  it("script lines carry the AI-placed image as a previewable imagePath (crawled-image review)", async () => {
     // After authoring, the manifest holds the AI's per-scene image placement; the
     // script-review stage must surface it (mapped through the assetMedia seam) so
     // the user sees which image landed on which scene before approving.
@@ -1215,11 +1215,11 @@ describe("cancel (Dừng render) → recover prior stage", () => {
   });
 });
 
-// Phase 2 Block B — beginCreate crawls article images, optionally AI-pre-selects,
+// crawled-image review — beginCreate crawls article images, optionally AI-pre-selects,
 // optionally parks a blocking image-review, then authors with the approved set
 // folded into AuthorInput.images. These exercise the toggle matrix + the review
 // resolve path that the rest of the suite (all toggles off) never reaches.
-describe("Block B: crawl → (AI-filter) → (review) → author", () => {
+describe("crawled images: crawl → (AI-filter) → (review) → author", () => {
   type Captured = { images?: AuthorImageRef[] };
   /**
    * A worker that records the `images` of the LAST author() call (so a test can

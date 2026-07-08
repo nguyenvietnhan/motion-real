@@ -236,7 +236,7 @@ export type SafeFetchBytesOptions = {
 };
 
 /**
- * Build an SSRF-guarded BINARY fetcher for image downloads (Phase 2 Block B).
+ * Build an SSRF-guarded BINARY fetcher for image downloads (crawled-image review).
  * Same host/redirect-hop validation as `makeSafeFetch`, but reads the body into
  * a byte-capped Buffer instead of utf8 text — so an image's bytes are never
  * corrupted by a string decode. The body cap defaults to the importer's 10 MB.

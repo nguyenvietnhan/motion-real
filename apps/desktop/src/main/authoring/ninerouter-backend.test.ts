@@ -970,7 +970,7 @@ describe("authorScenes (pure-author)", () => {
     expect(manifest.videoLanguage).toBeUndefined();
   });
 
-  it("keeps a provided image.ref on a scene and STRIPS an invented one (Phase 2 Block A)", async () => {
+  it("keeps a provided image.ref on a scene and STRIPS an invented one (create-time image staging)", async () => {
     const projectId = "pa-image";
     // The provided image must exist on disk so buildAuthorImages can read it into
     // the vision part (and thus add its ref to the allowed set). Use a tiny PNG.
@@ -1240,7 +1240,7 @@ describe("authorCallErrorMessage (typed gateway failures → Vietnamese)", () =>
   });
 });
 
-// --- vision-incapable model hardening (Phase 2 Block B) ------------------
+// --- vision-incapable model hardening (crawled-image review) ------------------
 
 /** True when a chat message list carries at least one inline image part. */
 function listHasImage(messages: ChatMessage[]): boolean {

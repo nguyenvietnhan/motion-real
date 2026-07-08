@@ -3,7 +3,7 @@ import type { CrawledImageVM } from "../../shared/types.js";
 import { Icon } from "../icons.js";
 
 /**
- * Image review (Phase 2 Block B): a blocking screen shown BEFORE authoring when a
+ * Image review (crawled-image review): a blocking screen shown BEFORE authoring when a
  * brief link yielded crawled article images. The user confirms which images the
  * AI may place; AI-suggested ones are pre-ticked. Submitting the selection (even
  * empty — "Bỏ qua ảnh") resumes the flow: the AI writes the script around exactly

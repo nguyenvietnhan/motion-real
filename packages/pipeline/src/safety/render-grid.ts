@@ -904,7 +904,7 @@ export function checkDensity(frame: Frame, sceneId?: string, options?: RenderGri
 // --- oracle registry -------------------------------------------------------
 
 /**
- * Oracle posture map (Phase 3 refactor guard). Keep this table in sync with
+ * Oracle posture map. Keep this table in sync with
  * RENDER_ORACLES and the external orchestrator passes before changing severity.
  *
  * | id | auto-run in runRenderGrid | external orchestrator pass | exported/manual only | effective severity | posture reason |

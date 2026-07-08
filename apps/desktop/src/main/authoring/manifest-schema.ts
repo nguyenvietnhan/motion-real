@@ -29,7 +29,7 @@ const transition = z.enum(["slide", "fade", "wipe", "clockWipe", "zoom"]);
 const clampStr = (max: number) => (v: unknown) => (typeof v === "string" && v.length > max ? v.slice(0, max) : v);
 
 /**
- * Optional per-scene image the AI may place (Phase 2 Block A). `ref` is a fixed,
+ * Optional per-scene image the AI may place (create-time image staging). `ref` is a fixed,
  * provided project-relative local path (`assets/<sha>.<ext>`); the AI never
  * invents it (the backend strips any ref not in the provided pool). Singular by
  * schema ⇒ ≤1 image per scene. `alt` is optional accessibility/review text.
