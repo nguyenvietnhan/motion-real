@@ -224,6 +224,38 @@ be deleted during hygiene passes:
 Removing any of these needs an owner-approved sunset/migration path and focused
 tests for the affected alias or persisted data.
 
+### Legacy Sunset Checklist
+
+Do not remove these aliases until the owner confirms each gate:
+
+1. `NewsVideo`: no remaining user-saved render commands, generated Remotion
+   entries, or docs that depend on the id; then drop the alias from
+   `apps/remotion` and `authored-entry` with a focused test update.
+2. `news-studio-settings.json`: no installs that still need the pre-rename
+   settings file, or a one-time migrate-and-delete path has shipped; then remove
+   read-compat from desktop settings and calibrate-voice.
+3. Scene `sfx` / `audio/sfx.ts`: either productize default audio mix with tests,
+   or remove the schema field and helpers after confirming no persisted specs
+   rely on non-`none` values.
+
+## Known Residual Risks
+
+These are accepted residuals after the 2026-07 optimization closeout. They are
+not silent bugs to "fix in drive-by hygiene," but they should stay visible:
+
+- Compact TSX batch authoring (no-image plans above the single-reply capacity)
+  remains the higher-risk path versus normal single-reply authoring.
+- Reauthor/refine can still hit one-off N4 syntax failures on a single scene;
+  pipeline recovery or retry may continue, but that noise is not eliminated.
+- URL/RAG ingest can fail with HTTP errors (for example 401). Unreadable-link
+  fallback may still produce a draft; that is resilience, not proof that source
+  reading succeeded.
+- Provider smoke evidence is still thinner than a full multi-model canary set.
+  Local typecheck/test/build green does not replace provider-connected checks
+  after prompt or recovery changes.
+- Cross-project render parallelism and true LRU cache hits remain out of scope
+  until an owner-approved design lands (see render/cache sections above).
+
 ## Image Crawl Defaults
 
 URL/image creation currently defaults to AI preselection plus human review. That
@@ -310,7 +342,10 @@ Prefer descriptive, domain-owned paths over loose root files:
 - `apps/desktop/assets/<domain>/`: bundled desktop assets shipped with the app;
 - `VIDEO_TOOL_HOME/.video-tool/<domain>/`: generated runtime state and user-added
   media;
-- `docs/current/`: durable documentation.
+- `docs/current/`: durable documentation;
+- `docs/working-notes/`: optional temporary execution notes only. Never treat them
+  as contract; accepted policy must land in `docs/current/` or `AI_CONTRACT.md`
+  before a temporary note is deleted.
 
 AI guidance must stay vendor-neutral. `AI_CONTRACT.md` is the only contract and
 `AGENTS.md` is the generic entry-point pointer. Do not add assistant-specific
