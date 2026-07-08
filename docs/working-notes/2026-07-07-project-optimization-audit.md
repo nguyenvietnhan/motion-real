@@ -1330,6 +1330,7 @@ git status --short
 | Phase 8 Step 8.1 - Document Current Single-Workflow Assumption | Kiem tra -> docs update -> kiem tra -> commit | `docs/current/maintenance.md` and `docs/current/architecture.md` now spell out the render/cache scaling boundary: same-project render lock exists, but process-local bundle/composition caches are small mutable eviction caches without active render leases, so cross-project parallelism needs design before UI/queue work. |
 | Phase 8 Step 8.2 - Cache Pruning Decision | Kiem tra -> comments/docs/tests -> kiem tra -> commit | Chose the no-behavior-change path: shared render/TTS cache pruning remains oldest-mtime-first, not true LRU. Updated comments, test naming, and durable maintenance docs to stop calling it LRU unless a later approved design touches mtime on hit and adds focused tests. `npm.cmd test -- --run packages/pipeline/src/render/cache.test.ts packages/pipeline/src/store/store.test.ts` passed 2 files/36 tests; `npm.cmd run typecheck` passed; `git diff --check` clean. |
 | Phase 8 Step 8.3 - Bundle Lifetime Design Before Parallelism | Kiem tra -> design docs -> kiem tra -> commit | Recorded the minimum owner-approved design gate before cross-project render parallelism: bundle lease/ref-count lifetime, composition-cache lifetime, same-project lock plus global concurrency policy, stale lock recovery, crash cleanup, and focused render-path verification. No runtime parallelism code was added; `git diff --check` passed. |
+| Phase 9 Step 9.1 - Full Local Gate | Kiem tra -> full local gate -> docs update -> commit | Final local validation passed: `npm.cmd run typecheck`, `npm.cmd test` (99 files/1002 tests plus heavy lane 1 file/14 tests), `npm.cmd run build`, and `git diff --check` all passed. No failure classification needed. |
 
 ### Phase 4 Step 4.3 Provider Smoke Status
 
@@ -1594,13 +1595,13 @@ Implementation rule:
 | Phase 6 - Repo Hygiene And Reserved Surfaces | done | Owner/product decisions for SFX/image defaults | M | Compatibility notes, reserved SFX policy, image-default policy, and dev/test TTS wording recorded without behavior changes; committed as `acca981`. |
 | Phase 7 - Sensitive File Refactors And UI Style Cleanup | done | Owner approval for sensitive-file extractions | M-L | `content-plan.ts` split behind a stable facade; compact authoring capacity policy extracted and tested; stable renderer layout styles moved to CSS while runtime values stayed inline; no-big-bang decision recorded for workspace/render-grid/orchestrator. |
 | Phase 8 - Render/Cache Scaling Design | done | Owner/product plus engineering decision | S for design, XL if implemented | Render/cache scaling boundary documented, age-based cache pruning accepted without behavior change, and bundle lifetime/concurrency design gate recorded before any parallelism implementation. |
-| Phase 9 - Final Validation And Closeout | pending | Owner accepts final gate/provider smoke/rollback | S-L | Full gate + provider smoke + rollback/archive. |
+| Phase 9 - Final Validation And Closeout | local gate done, provider smoke pending | Owner accepts final gate/provider smoke/rollback | S-L | Step 9.1 full local gate passed; Step 9.2 provider-connected smoke remains the next manual gate before rollback/archive. |
 
 ## Next Real Execution Step
 
-Phase 8 is complete as a design-only phase. Next real phase is Phase 9 Step 9.1:
-run the final full local validation gate before any provider/manual closeout or
-archive decision.
+Phase 9 Step 9.1 full local validation is complete. Next real step is Phase 9
+Step 9.2: provider-connected authoring smoke in the desktop app, using the same
+provider/model family as normal authoring.
 
 ```powershell
 git log -1 --oneline
@@ -1610,9 +1611,6 @@ git diff --check
 
 Continue in order:
 
-- Phase 9 Step 9.1 final full local validation gate.
-- Phase 9 closeout/archive if the temporary optimization note should be
-  finalized and durable docs are already synced enough.
-- Phase 3/4 provider canary closure only if the owner wants formal provider
-  acceptance beyond the successful source-notes draft, URL-fallback draft, and
-  image-assisted authoring retry evidence already recorded.
+- Phase 9 Step 9.2 provider-connected authoring smoke.
+- Phase 9 Step 9.3 rollback/archive only after provider smoke evidence is
+  accepted and durable docs still carry the final decisions.
