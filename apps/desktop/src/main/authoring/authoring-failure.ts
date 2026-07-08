@@ -10,6 +10,7 @@ export type AuthoringFailureClass =
   | "content-plan-quality"
   | "content-plan-provider"
   | "author-reply-parse"
+  | "author-reply-provider"
   | "author-batch-parse"
   | "author-batch-provider"
   | "missing-tsx-recovery"

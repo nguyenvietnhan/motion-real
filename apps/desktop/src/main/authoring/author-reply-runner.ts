@@ -69,7 +69,11 @@ export async function runSingleAuthorReply(
       "AI replied",
     );
   } catch (error) {
-    args.callLogger.error({ err: error, projectId: args.projectId }, "AI call failed");
+    logAuthoringFailure(
+      args.callLogger,
+      { class: "author-reply-provider", projectId: args.projectId, err: error },
+      "AI call failed",
+    );
     return { ok: false, message: args.callErrorMessage(error) };
   }
 
@@ -142,7 +146,11 @@ export async function runBatchedAuthorReply(
         }),
       );
     } catch (error) {
-      args.callLogger.error({ err: error, projectId: args.projectId, batchIndex: index + 1 }, "AI authoring batch call failed");
+      logAuthoringFailure(
+        args.callLogger,
+        { class: "author-batch-provider", projectId: args.projectId, batchIndex: index + 1, err: error },
+        "AI authoring batch call failed",
+      );
       return { ok: false, message: args.callErrorMessage(error) };
     }
 
@@ -234,7 +242,11 @@ async function recoverMissingTsxIfPossible(args: {
       }),
     );
   } catch (error) {
-    args.logger.error({ err: error, projectId: args.projectId }, "author-reply missing TSX recovery call failed");
+    logAuthoringFailure(
+      args.logger,
+      { class: "missing-tsx-recovery", projectId: args.projectId, err: error },
+      "author-reply missing TSX recovery call failed",
+    );
     return { parsed: args.initialFailure, attempted: true };
   }
 

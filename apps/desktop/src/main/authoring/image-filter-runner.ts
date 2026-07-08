@@ -42,7 +42,12 @@ export async function runImageFilter(args: ImageFilterRunnerArgs): Promise<strin
   try {
     reply = await args.chat(args.model, buildImageFilterMessages(args.articleText, images), args.signal);
   } catch (error) {
-    args.logger.warn({ err: error, projectId: args.projectId }, "[image-filter] vision call failed; no pre-selection");
+    logAuthoringFailure(
+      args.logger,
+      { class: "image-filter-provider", projectId: args.projectId, err: error },
+      "[image-filter] vision call failed; no pre-selection",
+      "warn",
+    );
     return [];
   }
 

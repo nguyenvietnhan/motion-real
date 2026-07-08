@@ -31,4 +31,24 @@ describe("logAuthoringFailure", () => {
     expect(error).not.toHaveBeenCalled();
     expect(warn.mock.calls[0]![0]).toMatchObject({ failureClass: "image-filter-parse" });
   });
+
+  it("covers provider chat-throw anchors used by author/batch/reauthor/image-filter", () => {
+    const error = vi.fn();
+    const warn = vi.fn();
+    const cases: Array<{ class: Parameters<typeof logAuthoringFailure>[1]["class"]; message: string; level?: "error" | "warn" }> = [
+      { class: "author-reply-provider", message: "AI call failed" },
+      { class: "author-batch-provider", message: "AI authoring batch call failed" },
+      { class: "reauthor-provider", message: "[reauthor] AI call failed" },
+      { class: "missing-tsx-recovery", message: "author-reply missing TSX recovery call failed" },
+      { class: "image-filter-provider", message: "[image-filter] vision call failed; no pre-selection", level: "warn" },
+    ];
+    for (const row of cases) {
+      error.mockClear();
+      warn.mockClear();
+      logAuthoringFailure({ error, warn }, { class: row.class, projectId: "p1" }, row.message, row.level ?? "error");
+      const call = (row.level === "warn" ? warn : error).mock.calls[0]!;
+      expect(call[1]).toBe(row.message);
+      expect(call[0]).toMatchObject({ failureClass: row.class, projectId: "p1" });
+    }
+  });
 });

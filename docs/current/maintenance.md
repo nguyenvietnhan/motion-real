@@ -369,11 +369,15 @@ Authoring fail logs keep their legacy message strings for continuity and add a
 | `content-plan-quality` | `content-plan blocking quality checks failed` |
 | `content-plan-provider` | `AI content-plan call failed` |
 | `author-reply-parse` | `author-reply parse failed` |
+| `author-reply-provider` | `AI call failed` (main author chat throw) |
 | `author-batch-parse` | `authoring batch parse failed` |
-| `missing-tsx-recovery` | `author-reply missing TSX recovery failed` |
+| `author-batch-provider` | `AI authoring batch call failed` |
+| `missing-tsx-recovery` | missing-TSX recovery parse **or** chat throw |
 | `admission` | `admission failed` (+ `violationCounts`) |
 | `reauthor-parse` | `[reauthor] parse failed` |
-| `image-filter-parse` / `visual-qa-parse` | soft warn, non-blocking |
+| `reauthor-provider` | `[reauthor] AI call failed` |
+| `image-filter-parse` / `image-filter-provider` | soft warn, non-blocking |
+| `visual-qa-parse` | soft warn, non-blocking |
 
 Example filters:
 

@@ -122,7 +122,11 @@ async function reauthorOneScene(
     try {
       reply = await args.chat(args.model, messages, args.signal);
     } catch (error) {
-      args.logger.error({ err: error, sceneId: args.target.sceneId }, "[reauthor] AI call failed");
+      logAuthoringFailure(
+        args.logger,
+        { class: "reauthor-provider", sceneId: args.target.sceneId, err: error },
+        "[reauthor] AI call failed",
+      );
       break;
     }
 
