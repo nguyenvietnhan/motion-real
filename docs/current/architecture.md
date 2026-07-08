@@ -98,7 +98,9 @@ Render/cache scaling is currently a single-workflow process assumption. The
 same-project boundary is enforced by `withProjectRenderLock`, while the
 bundle/composition caches are small in-memory eviction caches without active
 render leases. Cross-project render parallelism needs an accepted cache lifetime
-design before any UI or queue work enables it.
+design before any UI or queue work enables it; that design must cover bundle
+leases/ref counts, composition-cache lifetime, concurrency limits, stale-lock
+recovery, crash cleanup, and focused render-path verification.
 
 ## Desktop Workspace Internals
 

@@ -105,6 +105,29 @@ an owner-approved design and focused tests:
   `renderProjectStills` wrappers or another job could observe the temporary
   no-audio lock.
 
+## Render Parallelism Design Gate
+
+Before enabling cross-project render parallelism, approve a design that covers
+these minimum points:
+
+- Bundle lifetime: `prepareComposition` or an adjacent wrapper needs a
+  per-render bundle lease/release boundary, or an equivalent reference-counted
+  bundle cache. Eviction must never remove a bundle directory while an active
+  render still owns its `serveUrl`.
+- Composition cache lifetime: selected composition entries must be scoped to an
+  active bundle lease or evicted only after the owning bundle is inactive.
+- Concurrency policy: same-project rendering stays serialized by
+  `withProjectRenderLock`; any cross-project rendering must declare a global
+  process limit, queue/cancel behavior, and how UI progress events are routed.
+- Stale lock policy: keep the current stale/dead-pid lock recovery semantics
+  unless a focused change updates `PROJECT_RENDER_LOCK_STALE_MS` with tests.
+- Crash cleanup: orphaned bundle/temp directories may be removed by startup or
+  idle cleanup only when they are old enough and not leased; project locks still
+  recover through the existing stale/dead-pid path.
+- Verification: add focused tests around bundle lease eviction,
+  project-lock serialization, cache pruning, and at least one render-path smoke
+  before exposing a UI queue or parallel desktop workflow.
+
 ## Cache Pruning Policy
 
 Shared render and TTS caches under `.video-tool/cache/` are capped by size and

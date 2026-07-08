@@ -1329,6 +1329,7 @@ git status --short
 | Phase 7 Step 7.4 - No Big-Bang Render/Grid/Orchestrator | Kiem tra -> owner approved Phase 7 -> decision -> kiem tra -> commit | Inspected `workspace-controller.ts`, `orchestrator.ts`, and `render-grid.ts` at the boundary level. No further extraction was accepted in Phase 7: those files still own desktop stage orchestration, render pipeline sequencing/locks, and deterministic render oracles. Future extraction requires a written behavior boundary plus focused tests before code changes. |
 | Phase 8 Step 8.1 - Document Current Single-Workflow Assumption | Kiem tra -> docs update -> kiem tra -> commit | `docs/current/maintenance.md` and `docs/current/architecture.md` now spell out the render/cache scaling boundary: same-project render lock exists, but process-local bundle/composition caches are small mutable eviction caches without active render leases, so cross-project parallelism needs design before UI/queue work. |
 | Phase 8 Step 8.2 - Cache Pruning Decision | Kiem tra -> comments/docs/tests -> kiem tra -> commit | Chose the no-behavior-change path: shared render/TTS cache pruning remains oldest-mtime-first, not true LRU. Updated comments, test naming, and durable maintenance docs to stop calling it LRU unless a later approved design touches mtime on hit and adds focused tests. `npm.cmd test -- --run packages/pipeline/src/render/cache.test.ts packages/pipeline/src/store/store.test.ts` passed 2 files/36 tests; `npm.cmd run typecheck` passed; `git diff --check` clean. |
+| Phase 8 Step 8.3 - Bundle Lifetime Design Before Parallelism | Kiem tra -> design docs -> kiem tra -> commit | Recorded the minimum owner-approved design gate before cross-project render parallelism: bundle lease/ref-count lifetime, composition-cache lifetime, same-project lock plus global concurrency policy, stale lock recovery, crash cleanup, and focused render-path verification. No runtime parallelism code was added; `git diff --check` passed. |
 
 ### Phase 4 Step 4.3 Provider Smoke Status
 
@@ -1592,15 +1593,14 @@ Implementation rule:
 | Phase 5 - Parser, Normalizer, And Recovery Debt | done | Owner approval required for any new source mutation | S-M | Recovery inventory and durable parser/normalizer policy recorded; no new runtime transform added. |
 | Phase 6 - Repo Hygiene And Reserved Surfaces | done | Owner/product decisions for SFX/image defaults | M | Compatibility notes, reserved SFX policy, image-default policy, and dev/test TTS wording recorded without behavior changes; committed as `acca981`. |
 | Phase 7 - Sensitive File Refactors And UI Style Cleanup | done | Owner approval for sensitive-file extractions | M-L | `content-plan.ts` split behind a stable facade; compact authoring capacity policy extracted and tested; stable renderer layout styles moved to CSS while runtime values stayed inline; no-big-bang decision recorded for workspace/render-grid/orchestrator. |
-| Phase 8 - Render/Cache Scaling Design | in progress | Owner/product plus engineering decision | S for design, XL if implemented | Step 8.1 documented the current single-workflow assumption; Step 8.2 accepted age-based cache pruning without behavior change; Step 8.3 records bundle lifetime design before parallelism. |
+| Phase 8 - Render/Cache Scaling Design | done | Owner/product plus engineering decision | S for design, XL if implemented | Render/cache scaling boundary documented, age-based cache pruning accepted without behavior change, and bundle lifetime/concurrency design gate recorded before any parallelism implementation. |
 | Phase 9 - Final Validation And Closeout | pending | Owner accepts final gate/provider smoke/rollback | S-L | Full gate + provider smoke + rollback/archive. |
 
 ## Next Real Execution Step
 
-Phase 7 is complete. Phase 8 Step 8.1 documented the current single-workflow
-render/cache assumption before any concurrency or render-scaling implementation.
-Next real step is Phase 8 Step 8.3: record the bundle lifetime/concurrency
-design gate before any render parallelism implementation.
+Phase 8 is complete as a design-only phase. Next real phase is Phase 9 Step 9.1:
+run the final full local validation gate before any provider/manual closeout or
+archive decision.
 
 ```powershell
 git log -1 --oneline
@@ -1610,7 +1610,7 @@ git diff --check
 
 Continue in order:
 
-- Phase 8 Step 8.3 bundle lifetime design gate.
+- Phase 9 Step 9.1 final full local validation gate.
 - Phase 9 closeout/archive if the temporary optimization note should be
   finalized and durable docs are already synced enough.
 - Phase 3/4 provider canary closure only if the owner wants formal provider
