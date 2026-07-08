@@ -1,10 +1,9 @@
 import type { DurationPreset, DurationTier, VideoFormat, VideoSpec, LockedVideoSpec } from "@motionreal/schema";
 
 /**
- * Pipeline-level data models. The contract types (VideoSpec / LockedVideoSpec)
- * live in @motionreal/schema; these are the orchestration/persistence/safety models
- * that wrap them, mirroring news_video_tool's project status + tts manifest and
- * math_video_tool's build report.
+ * Pipeline-level data models. Contract types (VideoSpec / LockedVideoSpec) live
+ * in @motionreal/schema; these are orchestration, persistence, and safety
+ * models that wrap them (project state, TTS manifests, safety reports).
  */
 
 export type ProjectState =

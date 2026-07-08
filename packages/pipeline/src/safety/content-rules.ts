@@ -2,9 +2,8 @@ import type { VideoSpec } from "@motionreal/schema";
 import type { SafetyIssue } from "../types.js";
 
 /**
- * Tier-1 content lint (N6–N9, plus hook/CTA/media rules). Ported and adapted
- * from news_video_tool's schema validators. These are renderer-independent
- * Vietnamese/TTS/evidence rules that protect on-screen and spoken text quality.
+ * Tier-1 content lint (N6–N9, plus hook/CTA/media rules). Renderer-independent
+ * language/TTS/evidence rules that protect on-screen and spoken text quality.
  */
 
 function normalizeVietnameseText(value: string): string {

@@ -10,18 +10,16 @@ import { appendEvent, ensureProject, projectPaths, writeJson } from "./store/sto
 import { renderSceneStills, type RenderSceneStillsOptions, type RenderTiming } from "./render/renderer.js";
 
 /**
- * Tier-4 perceptual review loop gate (N24, N25; Requirement 10). Mirrors
- * math_video_tool's mandatory review.py loop: the automated grid is blind to
- * "misaligned block / transition flash / cluttered layout / cut voice" — those
- * need eyes. So before a project may be declared "done" we (1) extract one
- * keyframe per scene, (2) assemble a contact sheet, (3) record a self-critique
- * checklist, and (4) block on a hard process gate until every checklist item is
- * confirmed.
+ * Tier-4 perceptual review loop gate (N24, N25). The automated grid is blind to
+ * some layout/audio defects that need human eyes. Before a project may be
+ * declared "done" we (1) extract one keyframe per scene, (2) assemble a contact
+ * sheet, (3) record a self-critique checklist, and (4) block on a hard process
+ * gate until every checklist item is confirmed.
  *
  *  - N24 (hard, process gate): keyframes not extracted / contact sheet not built.
  *  - N25 (hard, process gate): self-critique checklist not completed.
  *
- * Heavy/native dependencies are kept OUT of the hot path: keyframe extraction
+ * Heavy/native dependencies stay out of the hot path: keyframe extraction
  * reuses the Remotion renderer (`renderSceneStills`) and the contact-sheet
  * compositor is INJECTABLE (`opts.composeContactSheet`). The default compositor
  * shells out to ffmpeg and FAILS SOFT (surfaces an N24 issue, never throws)

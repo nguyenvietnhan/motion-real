@@ -5,16 +5,15 @@ import { makeReport, type SafetyIssue, type SafetyReport } from "../types.js";
 import { workspaceRoot } from "../render/renderer.js";
 
 /**
- * Forbidden-API guard for registered scene code (N5, Requirement 7.1).
+ * Forbidden-API guard for registered scene code (N5).
  *
  * Registered Remotion scene components must be pure functions of the frame, so
- * they may not reach for nondeterministic or unsafe APIs. This is the static,
- * source-text analogue of math_video_tool's F26/F27/F28 lint: scan the
- * compositions sources for banned constructs and flag each as a hard error.
- * Randomness must come only from Remotion's `random(seed)`.
+ * they may not reach for nondeterministic or unsafe APIs. Scan composition
+ * sources for banned constructs and flag each as a hard error. Randomness must
+ * come only from Remotion's `random(seed)`.
  *
- * The matchers are deliberately precise (word-ish boundaries, member-access /
- * call shapes, quoted module specifiers) so that legitimate identifiers do not
+ * Matchers are deliberately precise (word-ish boundaries, member-access / call
+ * shapes, quoted module specifiers) so legitimate identifiers do not
  * false-positive — e.g. `Math.abs` is fine while `Math.random` is not, and a
  * comment mentioning a "process" is fine while `process.env` is not.
  */

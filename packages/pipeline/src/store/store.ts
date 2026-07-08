@@ -9,10 +9,9 @@ const log = createLogger("store");
 
 /**
  * Project store + workspace hygiene. All generated artifacts live under
- * VIDEO_TOOL_HOME/.video-tool/ (default: repo root). Each video is a
- * self-contained project folder, mirroring news_video_tool's hygiene rules and
- * math_video_tool's projects/<slug>/ convention (delete the folder → delete the
- * whole video). Nothing is ever written to the repository root.
+ * VIDEO_TOOL_HOME/.video-tool/. Each video is a self-contained project folder
+ * (delete the folder → delete the whole video). Nothing is written to the
+ * repository root for project state.
  */
 
 /** Resolve the .video-tool home. VIDEO_TOOL_HOME may be relative or absolute. */

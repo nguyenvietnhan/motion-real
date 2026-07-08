@@ -1,8 +1,7 @@
 /**
- * @motionreal/pipeline — the orchestration brain (the analogue of math_video_tool's
- * mvlib.build). Wires authoring/admission + TTS + locking + safety grid +
- * renderer + review + project store together for pure AUTHOR mode. This barrel
- * re-exports the stable public surface.
+ * @motionreal/pipeline — orchestration for pure AUTHOR mode. Wires
+ * authoring/admission, TTS, locking, safety grid, renderer, review, and project
+ * store. This barrel re-exports the stable public surface.
  */
 
 export * from "./types.js";

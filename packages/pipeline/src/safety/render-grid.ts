@@ -26,11 +26,10 @@ import {
 } from "./frame-stats.js";
 
 /**
- * Tier-3 deterministic-render oracles (N14–N23; Requirement 9). These inspect
- * rendered frames (per-scene PNG stills) and the locked spec to catch layout,
- * legibility, pacing, transition, and richness defects that the static + build
- * tiers cannot see. They are the web analogue of math_video_tool's post-render
- * oracle suite (F4/F5/F15/F18/F20/F21/F24/F29).
+ * Tier-3 deterministic-render oracles (N14–N23). These inspect rendered frames
+ * (per-scene PNG stills) and the locked spec to catch layout, legibility,
+ * pacing, transition, and richness defects that the static + build tiers cannot
+ * see.
  *
  * N16 (determinism) lives in determinism.ts and is intentionally NOT duplicated
  * here. Every oracle below ships with a non-vacuous self-test (render-grid.test)

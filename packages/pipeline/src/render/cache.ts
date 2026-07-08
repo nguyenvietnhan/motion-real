@@ -6,7 +6,7 @@ import type { LockedVideoSpec } from "@motionreal/schema";
 import { renderCacheDir } from "../store/store.js";
 
 /**
- * Determinism + render caching (design B.4, Requirements 7.4 / 7.5).
+ * Determinism + render caching.
  *
  * A render is keyed by a stable hash of its LockedVideoSpec. Because the locked
  * spec already embeds every frame-affecting input — scene count, per-scene

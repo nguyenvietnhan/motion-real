@@ -4,10 +4,9 @@ import ts from "typescript";
 import type { SafetyIssue } from "../types.js";
 
 /**
- * AI AUTHOR mode admission gate (N4/N5; Requirement 13). This is the web analogue
- * of math_video_tool's mvlib.lint for free-authored code: BEFORE an AI-authored
- * scene module is ever imported, bundled, or executed, its TSX is parsed to an
- * AST and checked against a strict policy —
+ * AI AUTHOR mode admission gate (N4/N5). BEFORE an AI-authored scene module is
+ * ever imported, bundled, or executed, its TSX is parsed to an AST and checked
+ * against a strict policy —
  *   - N4: only whitelisted modules may be imported, and the module MUST export a
  *     default (the registerComponent result), a named `schema`, and a named
  *     `example`; it must register exactly one component with a literal id.

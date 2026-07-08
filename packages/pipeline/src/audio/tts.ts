@@ -25,16 +25,16 @@ import { parseSrt, type SrtSegment } from "./captions.js";
 import { normalizeVietnameseNumbers } from "./vi-number.js";
 
 /**
- * TTS synthesis + audio assembly (design B.5). Per-scene narration is
- * synthesized via @motionreal/tts (Vivibe), cached by text+voiceId+speed, measured,
- * concatenated into one track, and optionally BGM-mixed. Locked timing is then
- * derived from the MEASURED durations (see lock.ts).
+ * TTS synthesis + audio assembly. Per-scene narration is synthesized via
+ * @motionreal/tts, cached by text+voiceId+speed, measured, concatenated into one
+ * track, and optionally BGM-mixed. Locked timing is derived from MEASURED
+ * durations (see lock.ts).
  *
- * Provider contract (preserved from news_video_tool / math_video_tool):
- *  - "vivibe": real voice; STOP AND REPORT if key/voice missing — never silently
- *    downgrade to mock.
- *  - "mock": offline silent clips sized from text length (for smoke/visual draft).
- *  - "none": no audio at all (visual-draft path); returns null.
+ * Provider contract:
+ *  - "vivibe" / "elevenlabs": real voice; STOP AND REPORT if key/voice missing —
+ *    never silently downgrade to mock.
+ *  - "mock": offline silent clips sized from text length (smoke/visual draft).
+ *  - "none": no audio (visual-draft path); returns null.
  */
 
 export type SynthesizeOptions = {
