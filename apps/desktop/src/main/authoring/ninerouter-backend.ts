@@ -203,7 +203,7 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
   }
 
   /**
-   * Model ids that rejected an INLINE image this session (crawled-image review
+   * Model ids that rejected an INLINE image this session (vision-capable model
    * hardening). Some providers behind 9router (e.g. `kr/auto` routing to Kiro)
    * answer an `image_url` data-URL part with HTTP 400 "Improperly formed
    * request" — and a 400 trips 9router's ~2-minute circuit breaker, which then
@@ -477,8 +477,8 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
   }
 
   /**
-   * Call the model with vision parts, degrading to text-only safely (Req 3.7 +
-   * crawled-image review hardening). Key behaviors:
+   * Call the model with vision parts, degrading to text-only safely
+   * (vision-capable model hardening). Key behaviors:
    * - if the chosen model already rejected an inline image THIS session, skip
    * vision and send text-only DIRECTLY — never re-trip 9router's ~2-minute
    * circuit breaker (a 400 there fails every following call, even authoring);
@@ -585,9 +585,9 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
   }
 
   /**
-   * AI image-filter (crawled-image review): ask the (vision) model which CRAWLED
-   * article images actually illustrate the content, so the review screen can
-   * pre-tick them (or, with human-review off, author uses exactly this set).
+   * AI image preselection: ask the (vision) model which CRAWLED article images
+   * actually illustrate the content, so the review screen can pre-tick them
+   * (or, with human-review off, author uses exactly this set).
    * Reuses `buildAuthorImages` to read each ref → data URL, then intersects the
    * model's `keep` list with the provided refs (defense-in-depth, same spirit as
    * the manifest `allowedRefs` strip). Best-effort + model-dependent: no model,
@@ -615,7 +615,7 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
   }
 
   /**
-   * Crawl an article URL's images into the project `assetsDir` (crawled-image review).
+   * Crawl an article URL's images into the project `assetsDir` (article image crawl).
    * Fetches the page HTML through the SSRF-guarded TEXT fetcher, then hands it to
    * `crawlArticleImages` which downloads each candidate (binary SSRF fetcher),
    * imports content-addressed (caps + magic-byte sniff), and coarse-filters by

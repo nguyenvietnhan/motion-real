@@ -116,11 +116,11 @@ export class WorkspaceController {
   /** Remember each project's author input so the error screen can re-run it. */
   private readonly inputs = new Map<string, AuthorInput>();
   /**
-   * Crawled-image pool awaiting the user's review (crawled-image review). Set when a
-   * brief-link crawl yields images and human-review is ON; the `image-review`
-   * stage shows it, and `submitImageReview` consumes it (folding the chosen refs
-   * into `AuthorInput.images`) then deletes the entry. Holds the base `AuthorInput`
-   * too so authoring can begin with the user's selection.
+   * Crawled-image pool awaiting the user's review (crawled-image review stage).
+   * Set when a brief-link crawl yields images and human-review is ON; the
+   * `image-review` stage shows it, and `submitImageReview` consumes it (folding
+   * the chosen refs into `AuthorInput.images`) then deletes the entry. Holds the
+   * base `AuthorInput` too so authoring can begin with the user's selection.
    */
   private readonly pendingReview = new Map<string, { input: AuthorInput; pool: CrawledImage[] }>();
   /**
@@ -256,12 +256,11 @@ export class WorkspaceController {
   }
 
   /**
-   * Create entry (crawled-image review). When the brief carries a link, crawl the
-   * article's images first, optionally let the AI pre-select the fitting ones,
-   * and — when human-review is on — park a blocking `image-review` stage so the
-   * user confirms the set BEFORE a word is authored (so the AI fits content to
-   * the approved images). No link, no crawled image, or human-review off all
-   * collapse to the existing `beginScript` path (identical to today).
+   * Create entry for linked briefs: article image crawl, optional AI image
+   * preselection, then — when human-review is on — a blocking crawled-image
+   * review stage so the user confirms the set BEFORE a word is authored (so the
+   * AI fits content to the approved images). No link, no crawled image, or
+   * human-review off all collapse to the existing `beginScript` path.
    */
   beginCreate(projectId: string, input: AuthorInput): void {
     if (this.inFlight.has(projectId)) return;
@@ -292,9 +291,9 @@ export class WorkspaceController {
   }
 
   /**
-   * Resolve a blocking image-review (crawled-image review): author with the user's
-   * selected crawled refs folded into the author input. An empty selection is
-   * valid → author text-only. No-op when nothing is parked (stale/double submit).
+   * Resolve a blocking crawled-image review: author with the user's selected
+   * crawled refs folded into the author input. An empty selection is valid →
+   * author text-only. No-op when nothing is parked (stale/double submit).
    */
   submitImageReview(projectId: string, selectedRefs: string[]): void {
     const parked = this.pendingReview.get(projectId);

@@ -7,7 +7,7 @@ import { encodePngRGBA } from "../safety/png.js";
 import type { SafeFetchBytesResult } from "./safe-fetch.js";
 
 /**
- * Crawl self-tests (crawled-image review). `extractImageCandidates` is PURE over the
+ * Crawl self-tests (article image crawl). `extractImageCandidates` is PURE over the
  * HTML string (no network), so it carries the bulk of the coverage; the
  * `crawlArticleImages` integration uses an injected byte-fetcher seam so it never
  * touches the network. The crawl must reuse the create-time image importer (content-

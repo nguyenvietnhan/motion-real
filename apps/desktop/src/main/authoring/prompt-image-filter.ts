@@ -13,11 +13,12 @@ TRẢ VỀ DUY NHẤT một khối JSON, không kèm văn bản khác:
 export type ImageFilterInput = { ref: string; width: number; height: number; dataUrl: string };
 
 /**
- * Build a multimodal image-filter request (crawled-image review): the source summary
- * + each crawled image (its ref label, then the image) so the model can keep only
- * the ones that fit the content. Mirrors the visual-QA builder's one-batched-call
- * shape. The returned `keep` refs are intersected with the provided set by the
- * caller (defense-in-depth, same spirit as the manifest `allowedRefs` strip).
+ * Build a multimodal image-filter request (AI image preselection): the source
+ * summary + each crawled image (its ref label, then the image) so the model can
+ * keep only the ones that fit the content. Mirrors the visual-QA builder's
+ * one-batched-call shape. The returned `keep` refs are intersected with the
+ * provided set by the caller (defense-in-depth, same spirit as the manifest
+ * `allowedRefs` strip).
  */
 export function buildImageFilterMessages(sourceText: string, images: ImageFilterInput[]): VisionMessage[] {
   const summary = sourceText.trim().slice(0, 4000);

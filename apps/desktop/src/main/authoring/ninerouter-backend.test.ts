@@ -1240,7 +1240,7 @@ describe("authorCallErrorMessage (typed gateway failures → Vietnamese)", () =>
   });
 });
 
-// --- vision-incapable model hardening (crawled-image review) ------------------
+// --- vision-incapable model hardening ----------------------------------------
 
 /** True when a chat message list carries at least one inline image part. */
 function listHasImage(messages: ChatMessage[]): boolean {

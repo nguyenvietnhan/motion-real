@@ -55,8 +55,9 @@ export interface CreateDeps {
   ) => Promise<{ ok: true; projectId: string } | { ok: false; error: SerializedPipelineError }>;
   /**
    * Hand the brief off to the WorkspaceController. With a link this runs the
-   * crawl → (AI-filter) → (image-review) → author flow (crawled-image review); with
-   * no link it collapses to plain authoring — the controller decides.
+   * article image crawl → (AI image preselection) → (crawled-image review) →
+   * author flow; with no link it collapses to plain authoring — the controller
+   * decides.
    */
   beginCreate: (projectId: string, input: AuthorInput) => void;
   /**

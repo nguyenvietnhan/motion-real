@@ -328,6 +328,18 @@ Specifically inspect long Vietnamese text, button labels/icons, dropdowns,
 modals, toasts, cover lightbox, thumbnail aspect modes, and narrow-window
 responsive wrapping.
 
+## Comment Hygiene
+
+When renaming or cleaning comments only:
+
+- Edit by allowlist / file, not a repo-wide string rewrite.
+- Never strip empty `()` or collapse indentation across whole files; that
+  corrupts code and JSDoc (for example `res.text().catch` or `staticFile()`).
+- Prefer product stage names over plan labels: article image crawl, AI image
+  preselection, crawled-image review (user confirm only).
+- After comment-only edits: `git diff` must show comment/docs lines only, then
+  `npm.cmd run typecheck`. Run focused tests if `describe`/`it` titles changed.
+
 ## Repository Hygiene
 
 Prefer descriptive, domain-owned paths over loose root files:

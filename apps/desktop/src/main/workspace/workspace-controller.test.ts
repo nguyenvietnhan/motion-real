@@ -864,7 +864,7 @@ describe("runScript link warning (unreadable brief links)", () => {
     if (st.kind === "script") expect(st.linkWarning).toBeUndefined();
   });
 
-  it("script lines carry the AI-placed image as a previewable imagePath (crawled-image review)", async () => {
+  it("script lines carry the AI-placed image as a previewable imagePath", async () => {
     // After authoring, the manifest holds the AI's per-scene image placement; the
     // script-review stage must surface it (mapped through the assetMedia seam) so
     // the user sees which image landed on which scene before approving.
@@ -1215,10 +1215,10 @@ describe("cancel (Dừng render) → recover prior stage", () => {
   });
 });
 
-// crawled-image review — beginCreate crawls article images, optionally AI-pre-selects,
-// optionally parks a blocking image-review, then authors with the approved set
-// folded into AuthorInput.images. These exercise the toggle matrix + the review
-// resolve path that the rest of the suite (all toggles off) never reaches.
+// beginCreate: article image crawl, optional AI preselection, optional blocking
+// crawled-image review, then author with the approved set folded into
+// AuthorInput.images. Exercises the toggle matrix + the review resolve path
+// that the rest of the suite (all toggles off) never reaches.
 describe("crawled images: crawl → (AI-filter) → (review) → author", () => {
   type Captured = { images?: AuthorImageRef[] };
   /**

@@ -124,7 +124,7 @@ export interface AgentWorker {
   reauthorScenes(job: ReauthorJob, hooks: AgentHooks, signal?: AbortSignal): Promise<AuthorOutcome>;
   /**
    * Optional fast per-scene STILLS render (no TTS/MP4/heavy-oracle) — the cheap
-   * inner loop the SILENT refine pass iterates on .
+   * inner loop the SILENT refine pass iterates on.
    * `sceneIds` scopes the render to the scenes a pass just rewrote; omit ⇒ all.
    * Returns the rendered still paths (empty on a render failure — refine is
    * best-effort and must never crash the author flow).
@@ -151,8 +151,8 @@ export interface AgentWorker {
   snapshotScenes?(projectId: string, sceneIds: string[]): Promise<SceneSnapshot>;
   /** Restore authored scene source from a snapshot (re-admits the components). */
   restoreScenes?(projectId: string, snapshot: SceneSnapshot): Promise<void>;
-  /** Crawl an article URL's images into the project assetsDir (crawled-image review); [] when unsupported/failed. */
+  /** Crawl an article URL's images into the project assetsDir (article image crawl); [] when unsupported/failed. */
   crawlImages?(projectId: string, url: string, signal?: AbortSignal): Promise<CrawledImage[]>;
-  /** AI pre-select which crawled refs fit the article (crawled-image review); [] when unsupported/failed. */
+  /** AI pre-select which crawled refs fit the article (AI image preselection); [] when unsupported/failed. */
   filterCrawledImages?(projectId: string, articleText: string, refs: AuthorImageRef[], signal?: AbortSignal): Promise<string[]>;
 }

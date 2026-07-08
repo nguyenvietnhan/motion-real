@@ -61,15 +61,15 @@ export const DEFAULT_TTS_SPEED = 1.0;
  * collides with a component's own Zod schema.
  *
  * `ref` is a project-relative path to a LOCAL asset (resolved by the renderer
- * via Remotion `staticFile` against the project root, exactly like narration
+ * via Remotion `staticFile()` against the project root, exactly like narration
  * audio). The refinement rejects everything that would breach the offline /
  * determinism invariant (N16) or smuggle remote media past the new N9:
- * - any URL scheme (`http(s)://`, `data:`, `blob:`) — remote media is banned
- * at render time; only local assets are allowed;
- * - absolute paths and `..` traversal — the ref must stay inside the project;
- * - any non-raster / scriptable extension — only png/jpg/jpeg/webp/gif (SVG
- * is rejected: it can carry script in a Chromium render context).
- * Later phases populate `ref` via crawl/upload writing content-addressed files
+ *   - any URL scheme (`http(s)://`, `data:`, `blob:`) — remote media is banned
+ *     at render time; only local assets are allowed;
+ *   - absolute paths and `..` traversal — the ref must stay inside the project;
+ *   - any non-raster / scriptable extension — only png/jpg/jpeg/webp/gif (SVG
+ *     is rejected: it can carry script in a Chromium render context).
+ * Create/crawl/upload flows populate `ref` via content-addressed files
  * (`assets/<sha>.<ext>`); this schema only defines + guards the shape.
  */
 const IMAGE_REF_EXT = /\.(png|jpe?g|webp|gif)$/i;

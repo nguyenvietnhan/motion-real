@@ -228,7 +228,7 @@ export type SettingsModel = {
    * defect, the consecutive-clean counter resets.
    */
   refineEarlyStop: boolean;
-  /** When a brief carries a link, let the AI pre-select which crawled article images fit (crawled-image review). */
+  /** When a brief carries a link, let the AI pre-select which crawled article images fit (AI image preselection). */
   imageCrawlAiFilter: boolean;
   /** Show a blocking review screen so the user confirms crawled images before authoring (crawled-image review). */
   imageCrawlHumanReview: boolean;
