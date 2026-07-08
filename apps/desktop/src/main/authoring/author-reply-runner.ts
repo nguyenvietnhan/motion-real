@@ -1,6 +1,7 @@
 import type { AuthorInput } from "../agent/agent-worker.js";
 import type { ChatMessage } from "../gateway/ninerouter-client.js";
 import type { ContentPlan, ContentPlanQualityIssue } from "./content-plan.js";
+import { logAuthoringFailure } from "./authoring-failure.js";
 import { rawAiReplyLogFields } from "./authoring-log-policy.js";
 import type { AuthorManifest } from "./manifest-schema.js";
 import {
@@ -87,8 +88,10 @@ export async function runSingleAuthorReply(
     recoveryAttempted = recovery.attempted;
   }
   if (!parsed.ok) {
-    args.logger.error(
+    logAuthoringFailure(
+      args.logger,
       {
+        class: "author-reply-parse",
         projectId: args.projectId,
         reason: parsed.reason,
         detail: parsed.detail,
@@ -145,8 +148,10 @@ export async function runBatchedAuthorReply(
 
     const parsedBatch = parseAuthorModuleBatchReply(reply, componentIds);
     if (!parsedBatch.ok) {
-      args.logger.error(
+      logAuthoringFailure(
+        args.logger,
         {
+          class: "author-batch-parse",
           projectId: args.projectId,
           batchIndex: index + 1,
           batchCount: args.batches.length,
@@ -176,8 +181,10 @@ export async function runBatchedAuthorReply(
 
   const structured = parseStructuredAuthorParts(manifest, modules);
   if (!structured.ok) {
-    args.logger.error(
+    logAuthoringFailure(
+      args.logger,
       {
+        class: "author-batch-parse",
         projectId: args.projectId,
         reason: structured.reason,
         detail: structured.detail,
@@ -250,8 +257,10 @@ async function recoverMissingTsxIfPossible(args: {
     return { parsed: strict, attempted: true };
   }
 
-  args.logger.error(
+  logAuthoringFailure(
+    args.logger,
     {
+      class: "missing-tsx-recovery",
       projectId: args.projectId,
       reason: strict.reason,
       detail: strict.detail,

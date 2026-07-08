@@ -606,6 +606,7 @@ describe("authorScenes (pure-author)", () => {
     expect(out.message).toMatch(/chưa hợp lệ/i);
     const admissionLog = logger.error.mock.calls.find((call) => call[1] === "admission failed");
     expect(admissionLog?.[0]).toMatchObject({
+      failureClass: "admission",
       projectId,
       violationCounts: { N5: 2, N10: 1 },
     });
@@ -769,6 +770,7 @@ describe("authorScenes (pure-author)", () => {
     });
     const errorCall = logger.error.mock.calls.find((call) => call[1] === "author-reply parse failed");
     expect(errorCall?.[0]).toMatchObject({
+      failureClass: "author-reply-parse",
       projectId,
       reason: "no-manifest",
       parseSummary: {

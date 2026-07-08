@@ -24,6 +24,7 @@ import type { AuthoringBackend, AuthoredScene, ReauthorTarget } from "../agent/c
 import type { SafetyReportView } from "../agent/repair-loop.js";
 import type { AuthorJob, VisualDefect, SceneSnapshot, AuthorImageRef } from "../agent/agent-worker.js";
 import { GatewayChatError, type NineRouterClient, type ChatMessage } from "../gateway/ninerouter-client.js";
+import { logAuthoringFailure } from "./authoring-failure.js";
 import {
   buildVisualQaMessages,
   type AuthorImageInput,
@@ -363,8 +364,10 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
     const admit = this.deps.admit ?? ((id: string) => admitProjectScenes(id));
     const admitted = await admit(job.projectId);
     if (!admitted.ok) {
-      this.logger().error(
+      logAuthoringFailure(
+        this.logger(),
         {
+          class: "admission",
           projectId: job.projectId,
           violationCounts: countSafetyChecks(admitted.violations),
           violations: admitted.violations.map((v) => `${v.check} ${v.path}: ${v.message}`),
@@ -726,7 +729,12 @@ function parseVisualDefects(reply: string, knownScenes: Set<string>): VisualDefe
   try {
     raw = JSON.parse(json);
   } catch (error) {
-    log.warn({ err: error }, "visual-QA JSON parse failed; treating reply as no defects");
+    logAuthoringFailure(
+      log,
+      { class: "visual-qa-parse", err: error },
+      "visual-QA JSON parse failed; treating reply as no defects",
+      "warn",
+    );
     return [];
   }
   const issues = (raw as { issues?: unknown })?.issues;

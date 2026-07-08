@@ -2,6 +2,7 @@ import { join } from "node:path";
 import type { AuthoredRegistration } from "@motionreal/pipeline";
 import type { AuthoredScene, ReauthorTarget } from "../agent/custom-loop-worker.js";
 import type { ChatMessage } from "../gateway/ninerouter-client.js";
+import { logAuthoringFailure } from "./authoring-failure.js";
 import { rawAiReplyLogFields } from "./authoring-log-policy.js";
 import { normalizeAuthoredFontSizes } from "./normalize-fontsize.js";
 import { normalizeAuthoredImports } from "./normalize-imports.js";
@@ -127,8 +128,15 @@ async function reauthorOneScene(
 
     const parsed = parseReauthorReply(reply, componentId);
     if (!parsed.ok) {
-      args.logger.error(
-        { sceneId: args.target.sceneId, reason: parsed.reason, detail: parsed.detail, ...rawAiReplyLogFields(reply) },
+      logAuthoringFailure(
+        args.logger,
+        {
+          class: "reauthor-parse",
+          sceneId: args.target.sceneId,
+          reason: parsed.reason,
+          detail: parsed.detail,
+          ...rawAiReplyLogFields(reply),
+        },
         "[reauthor] parse failed",
       );
       continue;

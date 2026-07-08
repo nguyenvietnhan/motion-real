@@ -1,9 +1,11 @@
 import type { AuthorImageRef } from "../agent/agent-worker.js";
 import type { ChatMessage } from "../gateway/ninerouter-client.js";
+import { logAuthoringFailure } from "./authoring-failure.js";
 import { extractJsonObject } from "./manifest-schema.js";
 import { buildImageFilterMessages, type AuthorImageInput } from "./prompt.js";
 
 type ImageFilterLogger = {
+  error: (meta: unknown, message: string) => void;
   warn: (meta: unknown, message: string) => void;
 };
 
@@ -51,7 +53,12 @@ export async function runImageFilter(args: ImageFilterRunnerArgs): Promise<strin
     if (!Array.isArray(keep)) return [];
     return keep.filter((ref): ref is string => typeof ref === "string" && allowed.has(ref));
   } catch (error) {
-    args.logger.warn({ err: error, projectId: args.projectId }, "image-filter JSON parse failed; using no preselection");
+    logAuthoringFailure(
+      args.logger,
+      { class: "image-filter-parse", projectId: args.projectId, err: error },
+      "image-filter JSON parse failed; using no preselection",
+      "warn",
+    );
     return [];
   }
 }

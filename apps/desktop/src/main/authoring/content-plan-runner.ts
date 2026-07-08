@@ -10,6 +10,7 @@ import {
   type ContentPlanQualityIssue,
   type ContentPlanQualityResult,
 } from "./content-plan.js";
+import { logAuthoringFailure } from "./authoring-failure.js";
 import { rawAiReplyLogFields } from "./authoring-log-policy.js";
 import { computePacingBudget, type PacingBudget } from "./pacing-policy.js";
 import type { AuthorImageInput } from "./prompt.js";
@@ -51,8 +52,15 @@ export async function runContentPlan(args: RunContentPlanInput): Promise<RunCont
     args.logger.info({ projectId: args.projectId, replyChars: planReply.length }, "AI content plan replied");
     const parsedPlan = parseContentPlan(planReply);
     if (!parsedPlan.ok) {
-      args.logger.error(
-        { projectId: args.projectId, reason: parsedPlan.reason, detail: parsedPlan.detail, ...rawAiReplyLogFields(planReply) },
+      logAuthoringFailure(
+        args.logger,
+        {
+          class: "content-plan-parse",
+          projectId: args.projectId,
+          reason: parsedPlan.reason,
+          detail: parsedPlan.detail,
+          ...rawAiReplyLogFields(planReply),
+        },
         "content-plan parse invalid; content-plan parse failed",
       );
       return { ok: false, message: CONTENT_PLAN_PARSE_FAILURE };
@@ -77,8 +85,9 @@ export async function runContentPlan(args: RunContentPlanInput): Promise<RunCont
       }
     }
     if (quality.blockingIssues.length > 0) {
-      args.logger.error(
-        { projectId: args.projectId, qualityIssues: quality.blockingIssues },
+      logAuthoringFailure(
+        args.logger,
+        { class: "content-plan-quality", projectId: args.projectId, qualityIssues: quality.blockingIssues },
         "content-plan blocking quality checks failed",
       );
       return { ok: false, message: CONTENT_PLAN_QUALITY_FAILURE };
@@ -91,7 +100,11 @@ export async function runContentPlan(args: RunContentPlanInput): Promise<RunCont
     }
     return { ok: true, contentPlan: contentPlanForAuthoring(planned), advisories: quality.advisoryIssues };
   } catch (error) {
-    args.logger.error({ err: error, projectId: args.projectId }, "AI content-plan call failed");
+    logAuthoringFailure(
+      args.logger,
+      { class: "content-plan-provider", projectId: args.projectId, err: error },
+      "AI content-plan call failed",
+    );
     return { ok: false, message: args.callErrorMessage(error) };
   }
 }
@@ -120,8 +133,15 @@ async function repairContentPlanIfPossible(args: {
   args.logger.info({ projectId: args.projectId, replyChars: reply.length, repairAttempt: 1 }, "AI content-plan repair replied");
   const parsed = parseContentPlan(reply);
   if (!parsed.ok) {
-    args.logger.error(
-      { projectId: args.projectId, reason: parsed.reason, detail: parsed.detail, ...rawAiReplyLogFields(reply) },
+    logAuthoringFailure(
+      args.logger,
+      {
+        class: "content-plan-repair",
+        projectId: args.projectId,
+        reason: parsed.reason,
+        detail: parsed.detail,
+        ...rawAiReplyLogFields(reply),
+      },
       "content-plan repair parse invalid; content-plan repair parse failed",
     );
     return null;
