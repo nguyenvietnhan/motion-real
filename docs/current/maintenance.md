@@ -118,9 +118,10 @@ one content-plan call, at most one claim-ledger repair call, and then either one
 single authoring reply plus at most one missing-TSX recovery, or compact TSX
 batch calls only when a no-image plan exceeds the normal single-reply capacity.
 The current compact batch path starts after 12 components, uses two component
-ids per batch, and still caps total authoring at 16 components. Do not add
-unbounded retries, extra manifest-only model calls, or provider `max_tokens`
-overrides without a new owner-approved slice and tests.
+ids per batch, and still caps total authoring at 16 components. That capacity
+policy lives in `author-batch-policy.ts`; keep changes there focused and tested.
+Do not add unbounded retries, extra manifest-only model calls, or provider
+`max_tokens` overrides without a new owner-approved slice and tests.
 
 Content-plan metadata that is not safety-critical should not hard-fail authoring
 by itself. Purpose drift and missing/generic `motionProgression` are normalized

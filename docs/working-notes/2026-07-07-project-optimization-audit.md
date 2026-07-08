@@ -1324,6 +1324,7 @@ git status --short
 | Phase 6 Step 6.4 - Dev/Test TTS Scope | Owner approved -> CLI/docs wording -> focused tests | CLI usage and invalid `--tts` output now state that `mock`/`none` are explicit CLI/dev/offline modes only; desktop production fallback remains forbidden. |
 | Phase 6 local closeout / committed | Kiem tra -> lam -> kiem tra -> commit | `npm.cmd test -- --run packages/pipeline/src/authoring/authored-entry.test.ts apps/desktop/src/main/settings/settings-store.test.ts apps/desktop/src/main/startup-sequence.test.ts packages/schema/src/schema.test.ts apps/desktop/src/shared/settings-model.test.ts apps/desktop/src/main/workspace/workspace-create-flow.test.ts packages/pipeline/src/cli/cli.test.ts packages/pipeline/src/audio/tts-config.test.ts packages/pipeline/src/audio/lock.test.ts packages/pipeline/src/authoring/manifest.test.ts` passed 10 files/101 tests; `npm.cmd run typecheck` passed; `git diff --check` passed with Git CRLF normalization warnings only; committed as `acca981 Document phase 6 reserved surfaces`. |
 | Phase 7 Step 7.1 - Content Plan File Split | Kiem tra -> owner approved Phase 7 -> lam -> kiem tra -> commit | `content-plan.ts` remains the public facade. Schema/types, normalization, parser, quality checks, and prompt builders moved to focused `content-plan-*` modules with no intended behavior or prompt wording change. Baseline and post-change `npm.cmd test -- --run apps/desktop/src/main/authoring/content-plan.test.ts apps/desktop/src/main/authoring/ninerouter-backend.test.ts` passed 2 files/77 tests; `npm.cmd run typecheck` passed; `git diff --check` clean. |
+| Phase 7 Step 7.2 - Ninerouter Backend Runner Boundaries | Kiem tra -> owner approved Phase 7 -> lam -> kiem tra -> commit | Extracted only the pure compact-authoring capacity policy from `ninerouter-backend.ts` to `author-batch-policy.ts`. Added direct unit coverage for short-plan, image-assisted, batched, too-large, and duplicate-id decisions. `npm.cmd test -- --run apps/desktop/src/main/authoring/author-batch-policy.test.ts apps/desktop/src/main/authoring/ninerouter-backend.test.ts` passed 2 files/52 tests. |
 
 ### Phase 4 Step 4.3 Provider Smoke Status
 
@@ -1586,15 +1587,15 @@ Implementation rule:
 | Phase 4 - Authoring Observability And Log Hygiene | provider smoke in progress | Engineering can execute; owner reviews raw-log policy | S-M | Steps 4.1-4.2 are implemented and locally verified; Step 4.3 protocol is recorded. Two provider-connected attempts have succeeded through draft after fixes, one clean source-notes run and one unreadable-URL fallback run. One image-assisted URL run reached complete authoring on retry, and the owner intentionally skipped draft for that run. |
 | Phase 5 - Parser, Normalizer, And Recovery Debt | done | Owner approval required for any new source mutation | S-M | Recovery inventory and durable parser/normalizer policy recorded; no new runtime transform added. |
 | Phase 6 - Repo Hygiene And Reserved Surfaces | done | Owner/product decisions for SFX/image defaults | M | Compatibility notes, reserved SFX policy, image-default policy, and dev/test TTS wording recorded without behavior changes; committed as `acca981`. |
-| Phase 7 - Sensitive File Refactors And UI Style Cleanup | step 7.1 complete / step 7.2 next | Owner approval for sensitive-file extractions | M-L | `content-plan.ts` split behind a stable facade. Next inspect whether `ninerouter-backend.ts` has a small behavior-boundary extraction worth doing. |
+| Phase 7 - Sensitive File Refactors And UI Style Cleanup | step 7.2 complete / step 7.3 next | Owner approval for sensitive-file extractions | M-L | `content-plan.ts` split behind a stable facade; compact authoring capacity policy extracted and tested. Next inspect renderer inline style cleanup. |
 | Phase 8 - Render/Cache Scaling Design | pending | Owner/product plus engineering decision | S for design, XL if implemented | Design before concurrency implementation. |
 | Phase 9 - Final Validation And Closeout | pending | Owner accepts final gate/provider smoke/rollback | S-L | Full gate + provider smoke + rollback/archive. |
 
 ## Next Real Execution Step
 
-Phase 7 Step 7.1 is complete. Next step is Step 7.2 inspection: only extract a
-`ninerouter-backend.ts` helper if the boundary is narrow, behavior-preserving,
-and covered by focused tests.
+Phase 7 Step 7.2 is complete. Next step is Step 7.3 inspection: only move inline
+renderer styles if the cluster is stable, repeated, and belongs in an existing
+CSS partial.
 
 ```powershell
 git log -1 --oneline
@@ -1604,7 +1605,6 @@ git diff --check
 
 Continue Phase 7 in order:
 
-- Step 7.2 ninerouter backend runner boundary only if the helper is truly local.
 - Step 7.3 renderer style cleanup only for repeated stable CSS clusters.
 - Step 7.4 written no-big-bang decision for render/grid/orchestrator.
 - Phase 9 closeout/archive if the temporary optimization note should be

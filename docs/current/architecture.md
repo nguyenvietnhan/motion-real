@@ -132,6 +132,8 @@ runner modules own bounded model-call workflows:
   one-shot claim-ledger repair.
 - `author-reply-runner.ts` owns single-reply authoring, compact TSX batches, and
   missing-TSX recovery.
+- `author-batch-policy.ts` owns the no-image compact batching threshold and
+  safety budget used before `author-reply-runner.ts` is called.
 - `reauthor-runner.ts` owns per-scene repair retry, parse, fake-fix guard, and
   rollback policy.
 - `image-filter-runner.ts` and `article-image-crawler-runner.ts` own best-effort

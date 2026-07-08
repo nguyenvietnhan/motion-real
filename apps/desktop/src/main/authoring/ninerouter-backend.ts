@@ -34,6 +34,13 @@ import { runBatchedAuthorReply, runSingleAuthorReply, type SuccessfulAuthorReply
 import { runReauthor } from "./reauthor-runner.js";
 import { runImageFilter } from "./image-filter-runner.js";
 import { runArticleImageCrawler } from "./article-image-crawler-runner.js";
+import {
+  AUTHOR_BATCH_BUDGET_FAILURE,
+  AUTHOR_BATCH_SIZE,
+  MAX_AUTHOR_BATCHES,
+  MAX_BATCHED_COMPONENTS,
+  planAuthorBatching,
+} from "./author-batch-policy.js";
 import type { AuthorManifest } from "./manifest-schema.js";
 import { extractJsonObject } from "./manifest-schema.js";
 import { sceneFileName, resolveSceneFile } from "./scene-files.js";
@@ -84,14 +91,6 @@ export function authorCallErrorMessage(e: unknown): string {
   }
   return "Không nhận được phản hồi từ AI (quá thời gian chờ hoặc mất kết nối). Hãy kiểm tra 9Router/model rồi thử lại.";
 }
-
-const AUTHOR_BATCH_BUDGET_FAILURE =
-  "AI lập kế hoạch quá nhiều cảnh cho lượt authoring an toàn (tối đa 16 component trong 8 batch nhỏ). Hãy thử lại với phạm vi hẹp hơn hoặc thời lượng ngắn hơn.";
-
-const AUTHOR_BATCH_SIZE = 2;
-const MAX_AUTHOR_BATCHES = 8;
-const AUTHOR_BATCH_THRESHOLD = 12;
-const MAX_BATCHED_COMPONENTS = AUTHOR_BATCH_SIZE * MAX_AUTHOR_BATCHES;
 
 export type NineRouterBackendDeps = {
   client: NineRouterClient;
@@ -290,7 +289,10 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
     const plannedContent = contentPlan.contentPlan;
     const contentPlanAdvisories = contentPlan.advisories;
 
-    const batchDecision = planAuthorBatching(plannedContent, job.input.images ?? []);
+    const batchDecision = planAuthorBatching({
+      sceneIds: plannedContent.scenes.map((scene) => scene.sceneId),
+      imageCount: job.input.images?.length ?? 0,
+    });
     if (batchDecision.mode === "too-large") {
       this.logger().error(
         {
@@ -706,27 +708,6 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
       }
     }
   }
-}
-
-type AuthorBatchDecision =
-  | { mode: "single"; componentIds: string[]; reason: "short-plan" | "user-images" }
-  | { mode: "batched"; componentIds: string[]; batches: string[][] }
-  | { mode: "too-large"; componentIds: string[] };
-
-function planAuthorBatching(plan: ContentPlan, images: readonly AuthorImageRef[]): AuthorBatchDecision {
-  const componentIds = [...new Set(plan.scenes.map((scene) => scene.sceneId))];
-  if (images.length > 0) return { mode: "single", componentIds, reason: "user-images" };
-  if (componentIds.length <= AUTHOR_BATCH_THRESHOLD) return { mode: "single", componentIds, reason: "short-plan" };
-  if (componentIds.length > MAX_BATCHED_COMPONENTS) return { mode: "too-large", componentIds };
-  return { mode: "batched", componentIds, batches: chunk(componentIds, AUTHOR_BATCH_SIZE) };
-}
-
-function chunk<T>(items: readonly T[], size: number): T[][] {
-  const out: T[][] = [];
-  for (let index = 0; index < items.length; index += size) {
-    out.push(items.slice(index, index + size));
-  }
-  return out;
 }
 
 function countSafetyChecks(violations: readonly { check: string }[]): Record<string, number> {
