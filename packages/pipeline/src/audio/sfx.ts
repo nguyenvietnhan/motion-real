@@ -1,11 +1,11 @@
 import type { LockedVideoSpec } from "@motionreal/schema";
 
 /**
- * SFX cue mapping (design B.5). Mirrors math_video_tool's
- * self.sfx("whoosh"/"thud"/"ting"/"success"). Pure + deterministic: given a
- * locked spec it returns where each cue would play. This is a reserved/internal
- * metadata helper for future audio mixing, not a default render-stage feature;
- * a scene with sfx "none" yields no cue.
+ * Reserved/internal SFX cue mapping for future audio mixing.
+ * Pure and deterministic: given a locked spec it returns where each cue would
+ * play. Not a default render-stage feature; scene sfx `"none"` (or omit) yields
+ * no cue. Exporting helpers from the pipeline barrel does not mean SFX mix is
+ * product-ready.
  */
 
 export type SfxTag = NonNullable<LockedVideoSpec["scenes"][number]["sfx"]>;
