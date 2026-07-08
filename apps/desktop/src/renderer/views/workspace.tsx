@@ -1,5 +1,11 @@
 import React, { useEffect, useRef, useState } from "react";
 import type { BgmTrackVM, ProjectStage, ScriptLine, VideoFormatChoice } from "../../shared/types.js";
+import {
+  renderingPhaseIndeterminate,
+  renderingPhaseLabel,
+  workspaceStageTitle,
+  writingPhaseCopy,
+} from "../../shared/stage-labels.js";
 import { Icon } from "../icons.js";
 import { EmptyState, PageHeader, Spinner } from "../primitives.js";
 import { StoryboardView } from "./storyboard.js";
@@ -148,20 +154,11 @@ const ScriptReview: React.FC<{
  */
 const RenderingPanel: React.FC<{ stage: Extract<ProjectStage, { kind: "rendering" }>; onCancel: () => void }> = ({ stage, onCancel }) => {
   const [stopping, setStopping] = useState(false);
-  const phase = stage.phase ?? "draft";
-  // The QA phase carries the current vision pass (qaPass/qaTotal) so the user
-  // sees progress through the refine loop instead of an opaque, seemingly-stuck
-  // spinner — "(lần 2/5)" tells them how many rounds remain.
-  const qaSuffix = phase === "qa" && stage.qaPass && stage.qaTotal ? ` (lần ${stage.qaPass}/${stage.qaTotal})` : "";
-  const label =
-    phase === "edit" ? "AI đang chỉnh sửa các cảnh theo yêu cầu…"
-      : phase === "qa" ? `AI đang soát lỗi hình ảnh${qaSuffix}…`
-        : phase === "prepare" ? "Đang dựng bản nháp…"
-          : phase === "full" ? "Đang dựng video bản đầy đủ (chất lượng cao)…"
-            : "Đang dựng giọng đọc + bản nháp…";
+  // Shared label map keeps render-phase copy total and identical to main-side docs.
+  const label = renderingPhaseLabel(stage.phase, { qaPass: stage.qaPass, qaTotal: stage.qaTotal });
   // "prepare" (the two hidden pre-draft renders) shows a neutral indeterminate
   // bar — no raw percent — so the user never sees the bland/bootstrap takes.
-  const indeterminate = phase === "edit" || phase === "qa" || phase === "prepare" || stage.percent <= 0;
+  const indeterminate = renderingPhaseIndeterminate(stage.phase, stage.percent);
   return (
     <div className="ns-card ns-render-card">
       <div className="ns-render-status-line">
@@ -335,15 +332,7 @@ export const ProjectWorkspaceView: React.FC<{
   /** Copy the generated cover PNG through a native Save dialog. */
   onSaveThumbnail: () => Promise<{ saved: boolean; error?: string }>;
 }> = ({ stage, onBack, onRetry, onFixWithAi, onApplyScript, onApproveScript, onSubmitEdits, onApproveDraft, onReveal, onSave, onCancel, onSubmitImageReview, bgm, bgmSelected, onBgmAdd, onBgmRemove, onBgmSelect, onGenerateThumbnail, onSaveThumbnail }) => {
-  const title: Record<ProjectStage["kind"], string> = {
-    writing: "Đang viết kịch bản",
-    script: "Duyệt kịch bản",
-    "image-review": "Duyệt ảnh",
-    rendering: "Đang dựng video",
-    ready: "Duyệt cảnh",
-    published: "Đã xuất bản",
-    error: "Gặp lỗi",
-  };
+  const title = workspaceStageTitle;
   if (stage.kind === "ready") {
     return (
       <StoryboardView
@@ -363,27 +352,11 @@ export const ProjectWorkspaceView: React.FC<{
     );
   }
 
-  const writingCopy =
-    stage.kind === "writing"
-      ? stage.phase === "crawl"
-        ? {
-            title: "Đang đọc link và cào ảnh từ bài báo…",
-            detail: "Nếu trang chặn đọc nội dung hoặc ảnh, app sẽ bỏ qua phần đó và tiếp tục dựng từ phần đọc được.",
-          }
-        : stage.phase === "image-filter"
-          ? {
-              title: "AI đang chọn ảnh phù hợp từ bài báo…",
-              detail: "Ảnh quảng cáo, logo hoặc ảnh không liên quan sẽ bị lọc trước khi bạn duyệt.",
-            }
-          : {
-              title: "AI đang viết kịch bản từ nội dung của bạn…",
-              detail: "Quá trình này có thể mất vài phút. Ứng dụng sẽ tự tiếp tục khi hoàn tất.",
-            }
-      : null;
+  const writingCopy = stage.kind === "writing" ? writingPhaseCopy(stage.phase) : null;
 
   return (
     <div className="ns-content">
-      <PageHeader title={title[stage.kind]} action={<button className="ns-btn" onClick={onBack}>Quay lại</button>} />
+      <PageHeader title={title(stage.kind)} action={<button className="ns-btn" onClick={onBack}>Quay lại</button>} />
       {stage.kind === "writing" && (
         <div className="ns-card ns-writing-card">
           <Spinner />
