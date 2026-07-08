@@ -36,7 +36,7 @@ export default defineConfig({
   test: {
     globals: true,
     environment: "node",
-    include: ["packages/**/*.test.ts", "tests/**/*.test.ts", "apps/**/*.test.ts"],
+    include: ["packages/**/*.test.ts", "apps/**/*.test.ts"],
     exclude: ["**/node_modules/**", "**/dist/**"],
     // The suite has several CPU/FS-heavy orchestration and property tests. On
     // Windows, running them at unrestricted parallelism creates false timeouts;

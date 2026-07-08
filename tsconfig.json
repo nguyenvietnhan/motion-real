@@ -24,6 +24,6 @@
       "@motionreal/pipeline/*": ["./packages/pipeline/src/*"]
     }
   },
-  "include": ["apps/**/*", "packages/**/*", "tests/**/*", "scripts/**/*"],
+  "include": ["apps/**/*", "packages/**/*", "scripts/**/*"],
   "exclude": ["**/__fixtures__/**"]
 }

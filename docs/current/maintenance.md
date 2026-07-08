@@ -337,9 +337,10 @@ Prefer descriptive, domain-owned paths over loose root files:
 - `VIDEO_TOOL_HOME/.video-tool/<domain>/`: generated runtime state and user-added
   media;
 - `docs/current/`: durable documentation;
-- `docs/working-notes/`: optional temporary execution notes only. Never treat them
-  as contract; accepted policy must land in `docs/current/` or `AI_CONTRACT.md`
-  before a temporary note is deleted.
+- `docs/working-notes/`: optional temporary execution notes only (create the
+  folder when needed; it need not exist empty). Never treat them as contract;
+  accepted policy must land in `docs/current/` or `AI_CONTRACT.md` before a
+  temporary note is deleted.
 
 AI guidance must stay vendor-neutral. `AI_CONTRACT.md` is the only contract and
 `AGENTS.md` is the generic entry-point pointer. Do not add assistant-specific
