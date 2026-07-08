@@ -4,7 +4,7 @@ import { authorReplyParseSummary, inspectAuthorReply, parseAuthorModuleBatchRepl
 import { JSON_ONLY_AUTHOR_REPLY } from "./__fixtures__/authoring-failure-incidents.js";
 
 /**
- * Property tests for the author-reply contract parser .
+ * Property tests for the author-reply contract parser.
  * Generators build well-formed replies (manifest JSON + per-id ```tsx blocks)
  * and adversarial variants (missing a block, marker≠literal) to prove the parser
  * is total and correct.
@@ -304,7 +304,7 @@ describe("sceneId manifest recovery", () => {
 describe("robust manifest coercion (one bad field no longer nukes the whole reply)", () => {
   // The bug this guards: a single over-cap or out-of-enum field in ONE scene made
   // the strict schema fail safeParse, discarding the manifest + every authored
-  // .tsx (up to 14 scenes) and forcing a full re-author. Clamp/coerce keeps them.
+  //.tsx (up to 14 scenes) and forcing a full re-author. Clamp/coerce keeps them.
   function rawReply(scenes: unknown[]): string {
     const manifest = { title: "Tiêu đề kiểm thử", theme: { dominant: "#1E9CB0", mood: "tông" }, scenes };
     return (
@@ -424,7 +424,7 @@ describe("Property 2: reauthor single-module", () => {
   });
 });
 
-describe("truncated reply recovery (unclosed final fence) — freeform-engine R3.3", () => {
+describe("truncated reply recovery (unclosed final fence)", () => {
   // Regression: a reauthor reply cut mid-code-block (provider token cap, gateway
   // stitching couldn't close it) had an opening ```tsx with NO closing ```. The
   // closed-fence regex saw zero blocks → "no-code" → the reauthor SILENTLY kept

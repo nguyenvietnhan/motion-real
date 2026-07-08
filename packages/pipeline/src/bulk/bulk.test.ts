@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { runBulkLoop, UsageLimitError, type BulkWorker } from "./bulk.js";
 import { readTracker, writeTracker, type TrackerItem, type TrackerStatus } from "../tracker/tracker.js";
 
-// resumable bulk automation over the tracker (R5).
+// resumable bulk automation over the tracker.
 
 let dir: string;
 let trackerPath: string;

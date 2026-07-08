@@ -84,7 +84,7 @@ import { bundledDefaultBgmPath } from "./assets/bundled-media.js";
 const LATE_SAFE_AREA_FRACTIONS = [0.82];
 
 /**
- * Orchestrator — the one front door for pure AUTHOR mode (author-mode-v2). Two
+ * Orchestrator — the one front door for pure AUTHOR mode (). Two
  * stages mirror the design data-flow:
  *
  * scaffoldVideoProject : create a self-contained project + empty manifest +
@@ -376,7 +376,7 @@ async function renderProjectUnlocked(projectId: string, opts: RenderProjectOptio
       }
       // Scope the bundle to exactly the files the manifest references. admitted
       // returns componentIds ↔ files 1:1 in the same order; pair them so a stale
-      // orphan .tsx (an earlier authoring batch left behind after a reauthor
+      // orphan.tsx (an earlier authoring batch left behind after a reauthor
       // rewrote the manifest with new ids) is neither bundled nor typechecked —
       // it must not crash or block a render it is no longer part of.
       const componentToFile = new Map<string, string>();
@@ -772,7 +772,7 @@ async function renderProjectUnlocked(projectId: string, opts: RenderProjectOptio
     throw error;
   } finally {
     await flushRenderTimings();
-    // Clean process scratch (R8.3): the generated entry is regenerated each run.
+    // Clean process scratch: the generated entry is regenerated each run.
     if (generatedEntry) {
       try {
         await rm(generatedEntry, { force: true });

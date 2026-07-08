@@ -45,7 +45,7 @@ export function clampRefinePasses(n: number): number {
 
 /**
  * Default Vietnamese narration rate (words/second) used to turn a duration tier
- * into a total word budget in the author prompt .
+ * into a total word budget in the author prompt.
  * 4.7 was MEASURED from real Vivibe audio (the earlier 2.7 guess rendered a "90s"
  * request as ~60s). The calibration script (`scripts/calibrate-voice.ts`) can
  * re-measure the configured voice and persist `voiceWordsPerSecond`; this is the
@@ -82,8 +82,8 @@ export function countWords(text: string): number {
 export type CalibrationSample = { text: string; seconds: number };
 
 /**
- * Compute the calibrated words/second from measured samples (freeform-engine
- * K1/R5.4/D13). Uses a TOTAL-weighted average (Σ words / Σ seconds), not a mean
+ * Compute the calibrated words/second from measured samples. Uses a
+ * TOTAL-weighted average (Σ words / Σ seconds), not a mean
  * of per-sample ratios, so a longer passage counts proportionally more and a
  * short passage's measurement jitter doesn't dominate. Samples with a
  * non-positive/non-finite duration or zero words are skipped (a failed/empty

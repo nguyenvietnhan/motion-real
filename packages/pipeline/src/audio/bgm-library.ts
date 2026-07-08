@@ -5,11 +5,11 @@ import { videoToolHome } from "../store/store.js";
 import { BUNDLED_DEFAULT_BGM_TRACK_NAME, bundledDefaultBgmPath } from "../assets/bundled-media.js";
 
 /**
- * Background-music library . BGM lives ONCE per machine
+ * Background-music library. BGM lives ONCE per machine
  * under `VIDEO_TOOL_HOME/.video-tool/bgm/` and is shared by every project; a
  * project stores only the chosen track's filename (the `bgm` field on its
  * manifest), resolved back to an absolute path at render time and mixed under
- * the narration by the existing `mixBgm` path. Supported formats: .mp3/.m4a/.wav.
+ * the narration by the existing `mixBgm` path. Supported formats:.mp3/.m4a/.wav.
  * The bundled default track is virtual: its manifest ref resolves directly to
  * the app asset instead of being copied into this user library.
  *
@@ -22,7 +22,7 @@ import { BUNDLED_DEFAULT_BGM_TRACK_NAME, bundledDefaultBgmPath } from "../assets
 
 const BGM_EXTENSIONS = new Set([".mp3", ".m4a", ".wav"]);
 
-/** The per-machine BGM library directory (under the .video-tool home). */
+/** The per-machine BGM library directory (under the.video-tool home). */
 export function bgmLibraryDir(): string {
   return join(videoToolHome(), "bgm");
 }

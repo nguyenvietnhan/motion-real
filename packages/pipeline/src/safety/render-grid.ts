@@ -228,7 +228,7 @@ export function checkInFrame(
 // --- N14 (zone-aware): content must live in the content zone / caption band ---
 
 /**
- * Zone-aware N14 (R15.4): authored content must stay inside the
+ * Zone-aware N14: authored content must stay inside the
  * CONTENT_ZONE and captions inside the CAPTION_BAND; nothing may paint into the
  * platform-UI reserve (bottom band / right action rail). We allow content in the
  * union of the content zone and the caption band (captions paint there), and
@@ -759,7 +759,7 @@ export function checkDuration(locked: LockedVideoSpec, options?: RenderGridOptio
 // --- N29: caption track (WARNING) -----------------------------------------
 
 /**
- * N29 caption oracle (R16): a scene that has narration should
+ * N29 caption oracle: a scene that has narration should
  * carry a caption while it plays, every cue must fit within the video, and a
  * cue line should not be so long it overflows the caption band. Severity is
  * advisory (warning); contrast + in-band placement are guaranteed structurally

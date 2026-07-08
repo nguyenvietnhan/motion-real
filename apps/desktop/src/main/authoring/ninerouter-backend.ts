@@ -51,7 +51,7 @@ import type { VideoFormat, DurationTier, VideoLanguage } from "@motionreal/schem
 export { isLogicChanged } from "./reauthor-runner.js";
 
 /**
- * Pure-AUTHOR authoring backend . The AI writes FRESH `.tsx`
+ * Pure-AUTHOR authoring backend. The AI writes FRESH `.tsx`
  * scene modules per topic (no fixed kit): it returns a manifest + one `.tsx` code
  * block per scene id; we write each module, admit them through the gate, and
  * render. Drives the SAME pipeline tools / single registry.
@@ -399,7 +399,7 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
    * AI to rewrite it (with the issue + current code, and — for layout/contrast
    * defects — the rendered still as an image), then overwrite + re-admit. If the
    * rewrite fails admission, the original code is restored so the project stays
-   * renderable (atomic per scene). (Req 3.)
+   * renderable (atomic per scene).
    */
   async reauthor(projectId: string, targets: ReauthorTarget[], signal?: AbortSignal): Promise<{ scenes: AuthoredScene[] }> {
     const model = this.deps.model();

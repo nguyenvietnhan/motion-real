@@ -35,7 +35,7 @@ const CHAT_RETRY_BASE_MS = 1_000;
 /**
  * Extra continuation passes when a reply stops because it hit the provider's
  * output-token cap (`finish_reason: "length"`), not because it finished. A full
- * AUTHOR reply (manifest + one .tsx module per scene, often 10+ scenes) is large
+ * AUTHOR reply (manifest + one.tsx module per scene, often 10+ scenes) is large
  * and routinely exceeds a provider's default cap, so the reply truncates mid-
  * output — the manifest lists every scene but the trailing scenes' code is cut,
  * and the author parse fails with "missing-code". Rather than send an explicit
@@ -319,7 +319,7 @@ export class NineRouterClient {
     if (first.finishReason !== "length") return first.content;
 
     // The reply hit max_tokens mid-output (e.g. a long author reply: full manifest
-    // but the trailing scenes' .tsx is cut). Feed the partial text back as an
+    // but the trailing scenes'.tsx is cut). Feed the partial text back as an
     // assistant turn and ask the model to continue EXACTLY where it stopped, then
     // concatenate. Bounded by MAX_CONTINUATION_PASSES so a looping reply can't run
     // forever; we stop as soon as a pass finishes for a reason other than "length".

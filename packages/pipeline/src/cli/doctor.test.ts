@@ -11,7 +11,7 @@ import {
   type DoctorDeps,
 } from "./cli.js";
 
-// doctor readiness checks (R6).
+// doctor readiness checks.
 
 const PASS = (name: string): DoctorCheck => ({ name, ok: true, detail: "ok" });
 const FAIL = (name: string): DoctorCheck => ({ name, ok: false, detail: "missing" });
@@ -41,9 +41,9 @@ describe("doctor — Property 16: reports every failure (never short-circuits)",
         const report = await runDoctor(deps);
         // Every check ran — the report always has all seven, regardless of failures.
         expect(report.checks).toHaveLength(7);
-        // overall ready iff no failures (R6.3)
+        // overall ready iff no failures
         expect(report.ok).toBe(expectedFailures.length === 0);
-        // Every failure is listed (R6.2/R6.4) — none swallowed by short-circuit.
+        // Every failure is listed — none swallowed by short-circuit.
         const reportedFailures = report.checks.filter((c) => !c.ok).map((c) => c.name).sort();
         expect(reportedFailures).toEqual(expectedFailures.sort());
       }),
@@ -67,7 +67,7 @@ describe("doctor — Property 16: reports every failure (never short-circuits)",
   });
 });
 
-describe("doctor — per-check defaults (R6.1, R6.2)", () => {
+describe("doctor — per-check defaults", () => {
   it("N10 authored typecheck layout passes when the workspace source/type paths resolve", () => {
     const check = defaultCheckN10Typecheck(root);
     expect(check.name).toBe("N10 authored typecheck layout");

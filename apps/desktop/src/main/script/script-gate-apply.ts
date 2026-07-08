@@ -31,8 +31,8 @@ export function computeScriptEdits(scenes: ManifestScene[], edits: ScriptEdit[])
   const editById = new Map(edits.map((e) => [e.sceneId, e]));
 
   // Iterate in MANIFEST order (not edits order) so the first offending scene
-  // reported matches the dashboard's Current_Behavior, which scans
-  // `manifest.scenes` rather than the edit list (R4.4).
+  // reported matches the dashboard's previous main-process behavior, which scans
+  // `manifest.scenes` rather than the edit list.
   for (const scene of next) {
     const edit = editById.get(scene.sceneId);
     if (!edit) continue; // scenes without an edit are untouched

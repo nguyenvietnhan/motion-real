@@ -12,7 +12,7 @@ function roundRate(wps: number): number {
 }
 
 /**
- * Format-specific framing the model must author to . This
+ * Format-specific framing the model must author to. This
  * REPLACES the deleted per-style "design language" slice: there is no style to
  * read anymore, only the delivery format's hard geometry + caption presence.
  * - TikTok: vertical 9:16, a burned karaoke caption band lives at the bottom, so
@@ -28,7 +28,7 @@ export function formatBlock(format: VideoFormat): string {
 }
 
 /**
- * Word-budget instruction from the user-chosen duration tier (R7.3/R7.4). The tier
+ * Word-budget instruction from the user-chosen duration tier. The tier
  * maps to a per-format second target (`tierSeconds`); we turn that into a total
  * word budget at the selected language's rate so the model writes enough scenes to
  * hit the length (rather than guessing from the free-text brief). "Rather over

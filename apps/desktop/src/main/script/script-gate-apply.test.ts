@@ -51,7 +51,7 @@ describe("Property 4: script edits never write an empty narration", () => {
         ),
         ([scenes, edits]) => {
           const result = computeScriptEdits(scenes, edits);
-          // Current_Behavior semantics: edits collapse into a per-scene map where
+          // previous main-process behavior semantics: edits collapse into a per-scene map where
           // the LAST edit per sceneId wins (mirrors `new Map(edits.map(...))` in
           // index.ts), and scenes are scanned in MANIFEST order.
           const effective = new Map<string, ScriptEdit>();

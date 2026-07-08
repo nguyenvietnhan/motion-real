@@ -14,12 +14,12 @@ const log = createLogger("store");
  * repository root for project state.
  */
 
-/** Resolve the .video-tool home. VIDEO_TOOL_HOME may be relative or absolute. */
+/** Resolve the.video-tool home. VIDEO_TOOL_HOME may be relative or absolute. */
 export function videoToolHome(): string {
   const configured = process.env.VIDEO_TOOL_HOME?.trim();
   const base = configured && configured.length > 0 ? configured : ".video-tool";
   const abs = isAbsolute(base) ? base : resolve(process.cwd(), base);
-  // If the configured path does not already end in .video-tool, nest it so we
+  // If the configured path does not already end in.video-tool, nest it so we
   // never scatter artifacts directly in an arbitrary cwd.
   return abs.endsWith(".video-tool") ? abs : join(abs, ".video-tool");
 }
@@ -511,7 +511,7 @@ export async function pruneRenderCache(maxBytes = DEFAULT_RENDER_CACHE_MAX_BYTES
   return pruneCacheDir(renderCacheDir(), maxBytes);
 }
 
-/** Prune the shared TTS cache (audio + .srt sidecars) to its size cap. Best-effort. */
+/** Prune the shared TTS cache (audio +.srt sidecars) to its size cap. Best-effort. */
 export async function pruneTtsCache(maxBytes = DEFAULT_TTS_CACHE_MAX_BYTES): Promise<number> {
   return pruneCacheDir(ttsCacheDir(), maxBytes);
 }

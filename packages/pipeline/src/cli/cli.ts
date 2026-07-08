@@ -29,8 +29,8 @@ import {
 /**
  * @motionreal/pipeline CLI — pure AUTHOR mode. Verbs:
  *
- * author scaffold <id-or-topic> [--tts ...] Create a project skeleton + empty manifest + authored/ dir
- * render <id> [--tts ...] [--concurrency N] [--no-cache] | render --sample
+ * author scaffold <id-or-topic> [--tts...] Create a project skeleton + empty manifest + authored/ dir
+ * render <id> [--tts...] [--concurrency N] [--no-cache] | render --sample
  * preview <id>
  * doctor | probe
  *
@@ -370,7 +370,7 @@ export type DoctorDeps = {
  * browser, registry health, neutral theme resolution, Vietnamese font
  * coverage, authored N10 source/type-map visibility, and bundled font readiness.
  * Each probe is injectable so tests never spawn ffmpeg or download Chromium. ALL
- * checks run (never short-circuit) so a single report lists every failure (R6.4);
+ * checks run (never short-circuit) so a single report lists every failure;
  * overall ready only fails on hard checks. Warning checks are diagnostics that do
  * not block normal startup. In pure AUTHOR mode the registry is empty until a
  * project's authored scenes are admitted, so the registry check reports the count

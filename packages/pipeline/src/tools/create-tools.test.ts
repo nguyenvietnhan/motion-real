@@ -23,7 +23,7 @@ import {
   type ToolDeps,
 } from "./create-tools.js";
 
-// internal tools over the orchestrator (R3).
+// internal tools over the orchestrator.
 
 let home: string;
 const prevHome = process.env.VIDEO_TOOL_HOME;

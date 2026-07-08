@@ -30,7 +30,7 @@ export type TrackerItem = {
 /** Column order for CSV serialization (stable). */
 const CSV_COLUMNS = ["id", "url", "title", "source", "status", "reason", "projectId", "updatedAt"] as const;
 
-/** A field is treated as CSV iff the path ends in .csv (case-insensitive). */
+/** A field is treated as CSV iff the path ends in.csv (case-insensitive). */
 function isCsvPath(path: string): boolean {
   return /\.csv$/i.test(path);
 }

@@ -13,7 +13,7 @@ import { compactNotificationMessage, errorDetails, useNotifications } from "../n
  */
 
 /**
- * Final-screen Copy panel (R9.5/H3): shows the AI-generated publish title and
+ * Final-screen Copy panel: shows the AI-generated publish title and
  * hashtags with one-click copy each, so the user can paste them straight into
  * TikTok/YouTube. Title doubles as the project name (clean, no inline hashtags);
  * hashtags are the separate publish tags. Renders nothing when neither exists

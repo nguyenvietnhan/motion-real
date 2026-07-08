@@ -8,7 +8,7 @@ import { tierSeconds, type DurationTier, type VideoFormat, type LockedVideoSpec,
 /**
  * Orchestrator tests (pure AUTHOR mode). @remotion/bundler + @remotion/renderer
  * are mocked so NO Chromium is downloaded and NO real render happens. The
- * authored-admission path (dynamic .tsx import) is covered by admission tests;
+ * authored-admission path (dynamic.tsx import) is covered by admission tests;
  * here we exercise the render orchestration via `skipAuthoring` with a
  * pre-written spec, plus the scaffold step. VIDEO_TOOL_HOME → temp dir.
  */

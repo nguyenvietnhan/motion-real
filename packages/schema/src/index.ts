@@ -21,7 +21,7 @@ import type { VideoFormat } from "./zones.js";
 export const FPS = 30 as const;
 
 /**
- * Shared timing constants (R3/R4/R5/R11.3) — the single source of
+ * Shared timing constants — the single source of
  * truth reused by transitions, TTS breath gaps, the lock math, and the master
  * composition.
  *
@@ -64,11 +64,11 @@ export const DEFAULT_TTS_SPEED = 1.0;
  * via Remotion `staticFile()` against the project root, exactly like narration
  * audio). The refinement rejects everything that would breach the offline /
  * determinism invariant (N16) or smuggle remote media past the new N9:
- *   - any URL scheme (`http(s)://`, `data:`, `blob:`) — remote media is banned
- *     at render time; only local assets are allowed;
- *   - absolute paths and `..` traversal — the ref must stay inside the project;
- *   - any non-raster / scriptable extension — only png/jpg/jpeg/webp/gif (SVG
- *     is rejected: it can carry script in a Chromium render context).
+ * - any URL scheme (`http(s)://`, `data:`, `blob:`) — remote media is banned
+ * at render time; only local assets are allowed;
+ * - absolute paths and `..` traversal — the ref must stay inside the project;
+ * - any non-raster / scriptable extension — only png/jpg/jpeg/webp/gif (SVG
+ * is rejected: it can carry script in a Chromium render context).
  * Create/crawl/upload flows populate `ref` via content-addressed files
  * (`assets/<sha>.<ext>`); this schema only defines + guards the shape.
  */
@@ -91,7 +91,7 @@ export const SceneImageSchema = z.object({
 export type SceneImage = z.infer<typeof SceneImageSchema>;
 
 export const SceneSpecSchema = z.object({
-  /** Sequential id: scene-01, scene-02, ... */
+  /** Sequential id: scene-01, scene-02,... */
   id: z.string().regex(/^scene-[0-9]{2}$/),
   /** Registry component id (open, extensible). */
   component: z.string().min(1),
@@ -153,7 +153,7 @@ export const ThemeSpecSchema = z.object({
 export type ThemeSpec = z.infer<typeof ThemeSpecSchema>;
 
 /**
- * Delivery format . The canvas, layout zones, and whether
+ * Delivery format. The canvas, layout zones, and whether
  * a burned caption band exists are all a function of this — see `geometry` in
  * `./zones.ts`. REQUIRED on a spec (greenfield D0): a spec must declare what it
  * is, so the renderer/oracle can never silently treat a YouTube spec as vertical.
@@ -161,7 +161,7 @@ export type ThemeSpec = z.infer<typeof ThemeSpecSchema>;
 export const VideoFormatSchema = z.enum(["tiktok", "youtube"]);
 
 /**
- * Locked duration tier . Per format the three tiers map
+ * Locked duration tier. Per format the three tiers map
  * to different second targets — TikTok 45s/90s/150s, YouTube 300s/450s/600s — via
  * `tierSeconds(format, tier)`. Optional on the spec because the resolved pacing
  * already lives in `duration` (seconds); the tier is the user-chosen bucket the
@@ -170,7 +170,7 @@ export const VideoFormatSchema = z.enum(["tiktok", "youtube"]);
 export const DurationTierSchema = z.union([z.literal(1), z.literal(2), z.literal(3)]);
 export type DurationTier = z.infer<typeof DurationTierSchema>;
 
-/** Target seconds for a (format, tier) pair (R7.3). The pacing AIM, not a hard cut. */
+/** Target seconds for a (format, tier) pair. The pacing AIM, not a hard cut. */
 export function tierSeconds(format: VideoFormat, tier: DurationTier): number {
   const table: Record<VideoFormat, Record<DurationTier, number>> = {
     tiktok: { 1: 45, 2: 90, 3: 150 },
@@ -187,7 +187,7 @@ export function tierSeconds(format: VideoFormat, tier: DurationTier): number {
 export const VideoLanguageSchema = z.enum(["vi", "en"]);
 export type VideoLanguage = z.infer<typeof VideoLanguageSchema>;
 
-/** Max publish-title length per format (R9.1): TikTok is tweet-short + hashtag, YouTube longer. */
+/** Max publish-title length per format: TikTok is tweet-short + hashtag, YouTube longer. */
 export function titleMaxChars(format: VideoFormat): number {
   return format === "tiktok" ? 100 : 200;
 }
@@ -234,7 +234,7 @@ export const LockedSceneSpecSchema = SceneSpecSchema.extend({
 export type LockedSceneSpec = z.infer<typeof LockedSceneSpecSchema>;
 
 /**
- * A single burned-in caption line (R16). Cues are derived from
+ * A single burned-in caption line. Cues are derived from
  * narration (+ TTS timing), baked into the locked spec, and rendered in the
  * caption band — so caption rendering is a pure function of the frame
  * (deterministic, N16-safe), never a live transcript.
@@ -247,7 +247,7 @@ export const CaptionCueSchema = z.object({
   /** A single line that fits the caption band width at the caption font size. */
   text: z.string().min(1),
   /**
-   * Per-word timing for KARAOKE highlighting (R16). Word frames
+   * Per-word timing for KARAOKE highlighting. Word frames
    * are derived (approximately) from the cue span — proportional to word length
    * — since the TTS SRT is sentence-level. Deterministic + frame-pure. Optional:
    * when absent the renderer shows the whole `text` line without highlighting.
@@ -313,7 +313,7 @@ function countWords(value: string): number {
  * component a scene uses. Component-specific prop validation happens in the
  * compositions package (each component owns its zod schema).
  *
- * Free pacing (R6): there are NO fixed scene-count bounds and NO
+ * Free pacing: there are NO fixed scene-count bounds and NO
  * duration-preset equality. What stays enforced: sequential `scene-NN` ids,
  * single-paragraph narration, a scannable headline, a per-scene narration floor
  * (guards against too-fast cuts), and unknown-component detection.

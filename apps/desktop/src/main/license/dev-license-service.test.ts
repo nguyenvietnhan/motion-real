@@ -5,7 +5,7 @@ import { DevLicenseService } from "./dev-license-service.js";
 
 /**
  * — DevLicenseService + LicenseManager.
- * Reproduces the inline Current_Behavior of index.ts license:activate (R3.2/R3.3).
+ * Reproduces the inline previous main-process behavior of index.ts license:activate.
  */
 
 function manager(now = "2026-01-01T00:00:00.000Z") {

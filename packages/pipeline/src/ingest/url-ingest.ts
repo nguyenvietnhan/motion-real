@@ -7,7 +7,7 @@ import { planningDir } from "../store/store.js";
 import { makeSafeFetch } from "./safe-fetch.js";
 
 /**
- * URL ingest into grounded research files (R2).
+ * URL ingest into grounded research files.
  *
  * Fetches an article, extracts its main readable TEXT + METADATA only (via
  * `@mozilla/readability` over a `linkedom` DOM), and writes a grounded research
@@ -18,7 +18,7 @@ import { makeSafeFetch } from "./safe-fetch.js";
  *
  * Hard rule: NO media. No image/video URLs, logos, or asset references are
  * downloaded, embedded, or referenced — the media ban is never breached through
- * ingest (R2.3, R10.4). Body is extracted as plain text (no HTML), so img/video
+ * ingest. Body is extracted as plain text (no HTML), so img/video
  * markup and their src URLs cannot leak into the research file.
  */
 

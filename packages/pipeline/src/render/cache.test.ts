@@ -350,7 +350,7 @@ describe("lintSceneSources — N5 forbidden-API guard", () => {
     expect(compositionsSrcDir().endsWith(join("packages", "compositions", "src"))).toBe(true);
   });
 
-  it("passes on the @motionreal/blocks sources (R2.3 deterministic blocks)", () => {
+  it("passes on the @motionreal/blocks sources (deterministic blocks)", () => {
     const report = lintSceneSources(blocksSrcDir());
     if (!report.ok) {
       console.error(report.issues);

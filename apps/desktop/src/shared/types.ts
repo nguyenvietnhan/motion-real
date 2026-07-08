@@ -81,7 +81,7 @@ export type PickImagesResult = {
 
 /** Delivery format the user picks at the create screen (drives canvas + zones + caption presence). */
 export type VideoFormatChoice = "tiktok" | "youtube";
-/** Duration tier (1/2/3) the user picks; maps to per-format second targets (R7.3). */
+/** Duration tier (1/2/3) the user picks; maps to per-format second targets. */
 export type DurationTierChoice = 1 | 2 | 3;
 /** Authored video language the user picks: content, narration, captions, title, hashtags. */
 export type VideoLanguageChoice = "vi" | "en";
@@ -115,7 +115,7 @@ export type ProjectCardVM = {
 
 export type VoiceProviderChoice = "vivibe" | "elevenlabs";
 export type CredentialState = "saved" | "environment" | "missing";
-// --- background music library (Req 11 / I2) --------------------------------
+// --- background music library --------------------------------
 
 /** One track in the per-machine BGM library (shared across projects). */
 export type BgmTrackVM = {
@@ -175,9 +175,9 @@ export type ProjectStage =
   | { kind: "writing"; phase?: "author" | "crawl" | "image-filter" } // AI is reading sources / drafting the script
   | { kind: "image-review"; images: CrawledImageVM[] } // blocking: confirm which crawled article images to use before authoring (crawled-image review)
   | { kind: "script"; lines: ScriptLine[]; linkWarning?: string } // awaiting user review/approval (linkWarning = brief links that couldn't be read)
-  | { kind: "rendering"; percent: number; phase?: "edit" | "draft" | "full" | "qa" | "prepare"; qaPass?: number; qaTotal?: number } // building (edit reauthor | draft | full | ai visual-qa | hidden prep). "prepare" is the NEUTRAL phase for the two hidden pre-draft renders (blind stills + creative bootstrap, freeform-engine L1/L3): the user sees a generic "Đang dựng bản nháp…" and never the raw bland take. qaPass/qaTotal annotate a "qa" phase with which vision round is running (e.g. 2/5) so the UI can say "Đang soát lỗi hình ảnh (lần 2/5)…"
+  | { kind: "rendering"; percent: number; phase?: "edit" | "draft" | "full" | "qa" | "prepare"; qaPass?: number; qaTotal?: number } // building (edit reauthor | draft | full | ai visual-qa | hidden prep). "prepare" is the NEUTRAL phase for the two hidden pre-draft renders (blind stills + creative bootstrap): the user sees a generic "Đang dựng bản nháp…" and never the raw bland take. qaPass/qaTotal annotate a "qa" phase with which vision round is running (e.g. 2/5) so the UI can say "Đang soát lỗi hình ảnh (lần 2/5)…"
   | { kind: "ready"; scenes: SceneCard[]; notice?: string; draftPath?: string } // draft ready, review scenes (notice = a transient message; draftPath = mediaUrl of the low-res draft MP4 for in-app preview, when it exists)
-  | { kind: "published"; outputPath: string; title?: string; hashtags?: string[]; thumbnailPath?: string; format?: VideoFormatChoice } // full MP4 rendered (title+hashtags for Copy; thumbnailPath = caption-free first-scene cover; format drives preview/cover aspect, I3/R12)
+  | { kind: "published"; outputPath: string; title?: string; hashtags?: string[]; thumbnailPath?: string; format?: VideoFormatChoice } // full MP4 rendered (title+hashtags for Copy; thumbnailPath = caption-free first-scene cover; format drives preview/cover aspect)
   | { kind: "error"; message: string; fixable: boolean; retry?: "create" | "draft" | "full" }; // retry = which loop "Thử lại" re-runs (re-author | re-render draft | re-publish), so it doesn't re-author on a render failure
 
 export type EditBatch = {
@@ -221,7 +221,7 @@ export type SettingsModel = {
   refinePasses: number;
   /**
    * Stop the silent refine loop early when TWO CONSECUTIVE vision passes find no
-   * defect , instead of after a single clean pass. ON (default)
+   * defect, instead of after a single clean pass. ON (default)
    * trades a little quota for fewer missed defects — a lone clean pass can be a
    * vision miss, so we confirm with a second. OFF runs the full `refinePasses`
    * budget regardless (most thorough, most quota). When ON and a pass DOES flag a

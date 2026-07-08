@@ -111,7 +111,7 @@ export function prepareTtsText(text: string, provider: TtsProvider, language: Vi
       out = out.replace(pattern, replacement);
     }
   }
-  // Preserve sentence-final intonation (R4.2): do NOT convert a
+  // Preserve sentence-final intonation: do NOT convert a
   // trailing period into a comma. The silent breath gap between clips (inserted
   // structurally during assembly) provides the pause between scenes. Only add a
   // gentle terminal mark when the text has none, so the voice resolves cleanly.

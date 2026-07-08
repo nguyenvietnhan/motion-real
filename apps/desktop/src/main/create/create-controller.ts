@@ -33,20 +33,19 @@ const VALIDATION_MESSAGE: Record<"empty" | "too-long", string> = {
 };
 
 /**
- * Create / ingest controller . Reproduces the
- * inline Current_Behavior of `index.ts` `projects:create` exactly (R1.3, R2.1,
- * R4.5, R4.6), with the error surface now REDACTED (R8.5):
+ * Create / ingest controller. Reproduces the previous main-process behavior of
+ * `index.ts` `projects:create`, with the error surface now REDACTED:
  * - validate the raw input; an invalid input THROWS a friendly Vietnamese
- * message and does NOT scaffold (R1.3);
+ * message and does NOT scaffold;
  * - scaffold ONE project through the single registry (`scaffold` seam); a
  * scaffold failure THROWS the REDACTED `toFriendlyError` message — never the
- * raw engine `cause` (R8.5);
- * - hand off to the staged workspace via `beginScript` (stage 1, R2.1).
+ * raw engine `cause`;
+ * - hand off to the staged workspace via `beginScript` (stage 1).
  * The two throws map to the renderer's rejected `invoke` promise.
  */
 
 export interface CreateDeps {
-  /** Scaffold through the ONE `createTools` registry (R4.6). */
+  /** Scaffold through the ONE `createTools` registry. */
   scaffold: (
     prompt: string,
     voiceProvider: VoiceProviderChoice,
@@ -129,7 +128,7 @@ export class CreateController {
       text: v.brief.text,
       urls: v.brief.urls,
       ...(promoted.length > 0 ? { images: promoted } : {}),
-      // The three delivery knobs the user picked at the create screen (R7/R9/D10):
+      // The three delivery knobs the user picked at the create screen:
       // format + duration tier + video language. Folded into the AuthorInput so they
       // survive an in-session "retry" (which re-runs from the remembered input); the
       // backend threads them into the prompt + spec (the model never chooses them).

@@ -40,7 +40,7 @@ import { type CaptionCue } from "@motionreal/schema";
 const html = (el: React.ReactElement): string => renderToStaticMarkup(el);
 
 describe("@motionreal/blocks — surviving render surface", () => {
-  it("Captions shows the active cue and hides when none is active (R16.1)", () => {
+  it("Captions shows the active cue and hides when none is active", () => {
     const cues: CaptionCue[] = [
       { startFrame: 0, endFrame: 60, text: "Dòng caption đang chạy", sceneId: "scene-01" },
       { startFrame: 90, endFrame: 150, text: "Dòng sau", sceneId: "scene-02" },

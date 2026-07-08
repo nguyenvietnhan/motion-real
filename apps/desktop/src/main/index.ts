@@ -68,7 +68,7 @@ scrubSensitiveEnvironment(fileEnv);
 scrubSensitiveEnvironment(process.env);
 
 /**
- * Electron main = the ENGINE HOST . Imports the pipeline tools
+ * Electron main = the ENGINE HOST. Imports the pipeline tools
  * from source -> ONE `@motionreal/compositions` registry.
  * The bundled 9router gateway is a real 9router on localhost:20128; login is
  * delegated to 9router's own UI. License is dev-bypassed here so the app is
@@ -82,7 +82,7 @@ const LEGACY_SETTINGS_FILE = join(videoToolHome(), "news-studio-settings.json");
 
 // Settings persistence lives in the tested SettingsStore (reconcile S2): load
 // merged over defaults (aiAccount forced from default), update/save excluding
-// aiAccount, voiceConfig with .env fallback.
+// aiAccount, voiceConfig with.env fallback.
 const settingsStore = new SettingsStore({
   filePath: SETTINGS_FILE,
   legacyFilePath: LEGACY_SETTINGS_FILE,
@@ -99,7 +99,7 @@ const settingsStore = new SettingsStore({
 });
 let selectedModel: ModelInfo | undefined;
 
-// TTS config: a user-entered voice key/id (Settings) overrides the .env fallback.
+// TTS config: a user-entered voice key/id (Settings) overrides the.env fallback.
 const tools = createTools({
   ttsConfig: async (projectId) => {
     const brief = await readBrief(projectId);

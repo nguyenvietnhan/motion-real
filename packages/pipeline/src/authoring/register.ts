@@ -4,7 +4,7 @@ import { admitAuthoredComponent, DEFAULT_ADMISSION_POLICY, type AdmissionPolicy 
 /**
  * Authored admission handshake without host execution.
  *
- * SECURITY boundary: authored .tsx is untrusted model output. It must be parsed
+ * SECURITY boundary: authored.tsx is untrusted model output. It must be parsed
  * and admitted before bundling, but it must NOT be imported into the Electron /
  * Node host process. The Remotion render entry imports admitted authored scenes
  * later inside the browser render context so their registerComponent side effect

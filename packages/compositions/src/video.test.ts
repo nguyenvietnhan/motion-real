@@ -26,7 +26,7 @@ describe("VideoComposition missing-component fallback", () => {
   });
 });
 
-describe("CompositionBackdrop default background wash (freeform-engine L2)", () => {
+describe("CompositionBackdrop default background wash", () => {
   // The composition's top-level backdrop must paint a gradient WASH, never the
   // flat near-black `colors.bg` (which looked dead on both formats). The backdrop
   // is format-agnostic — the same wash backs TikTok and YouTube — so one theme

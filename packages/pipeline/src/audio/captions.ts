@@ -1,7 +1,7 @@
 import { type CaptionCue } from "@motionreal/schema";
 
 /**
- * Caption pipeline (R16). Pure + deterministic: turn a scene's
+ * Caption pipeline. Pure + deterministic: turn a scene's
  * narration (+ optional TTS SRT timing) into word-paged caption cues, then the
  * lock offsets them onto the composition timeline. No fs / no network here — the
  * TTS layer parses the SRT file and hands us the parsed segments.

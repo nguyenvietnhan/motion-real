@@ -5,7 +5,7 @@ import { join, resolve } from "node:path";
 import type { VideoSpec } from "@motionreal/schema";
 
 /**
- * `renderProjectStills` self-tests . The authoring admission
+ * `renderProjectStills` self-tests. The authoring admission
  * path is a pure AST admission, while Remotion would download/launch Chromium —
  * so we mock the authoring module (admission + manifest reads) and the renderer's
  * `renderSceneStills`. What we actually assert is the WIRING: admit gates the
@@ -153,7 +153,7 @@ describe("renderProjectStills", () => {
     expect(timingEvents.map((event) => event.name)).toEqual(expect.arrayContaining(timings.map((timing) => timing.name)));
   });
 
-  it("is format-agnostic: a 16:9 (YouTube) spec renders stills the same way as 9:16 (freeform-engine L6)", async () => {
+  it("is format-agnostic: a 16:9 (YouTube) spec renders stills the same way as 9:16", async () => {
     // L6: the stills path is ONE code path for both formats — it reads the spec's
     // own `format` via loadManifestAsSpec (the composition sizes itself off it), so
     // a YouTube project produces review PNGs exactly like a TikTok one. No separate

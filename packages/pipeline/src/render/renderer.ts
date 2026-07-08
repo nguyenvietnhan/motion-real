@@ -86,7 +86,7 @@ export type RenderSceneStillsOptions = RenderBaseOptions & {
   extraFractions?: number[];
   /**
    * Render stills for ONLY these scene ids (the fast refine loop re-renders just
-   * the scenes it edited — R4.3/R5.3). The composition still bundles + lays out
+   * the scenes it edited). The composition still bundles + lays out
    * the WHOLE video (so each scene's frame math is unchanged), we just skip
    * writing a PNG for scenes not in the set. Absent/empty ⇒ every scene (the
    * historical behavior). An id not in the spec is ignored.

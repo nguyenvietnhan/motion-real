@@ -103,7 +103,7 @@ export type BuildReviewOptions = {
   extractKeyframes?: ExtractKeyframes;
   /** Override contact-sheet composition (default: ffmpeg tile, fail-soft). */
   composeContactSheet?: ComposeContactSheet;
-  /** Forwarded to the default `renderSceneStills` extractor (project root, log level, ...). */
+  /** Forwarded to the default `renderSceneStills` extractor (project root, log level,...). */
   renderOptions?: RenderSceneStillsOptions;
 };
 

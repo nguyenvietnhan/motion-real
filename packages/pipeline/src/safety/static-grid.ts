@@ -19,7 +19,7 @@ import { runContentRules } from "./content-rules.js";
  */
 export type StaticGridOptions = {
   /**
-   * AI-authored component ids admitted from project .tsx files. They are known
+   * AI-authored component ids admitted from project.tsx files. They are known
    * to the eventual Remotion bundle, but are intentionally not imported into the
    * Node host registry during admission.
    */

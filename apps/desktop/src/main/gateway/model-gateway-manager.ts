@@ -49,8 +49,8 @@ export type GatewayDeps = {
 };
 
 /**
- * Owns the 9router child + AI-account connections (/6.4,
- * Req 2). Concrete gateway is 9router on localhost:20128. Vivibe stays the
+ * Owns the 9router child + AI-account connections 
+ *. Concrete gateway is 9router on localhost:20128. Vivibe stays the
  * default voice — the gateway's TTS is unused.
  */
 export class ModelGatewayManager {

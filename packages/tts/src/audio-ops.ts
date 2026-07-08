@@ -41,7 +41,7 @@ export async function concatAudio(inputs: string[], outputPath: string): Promise
 
 /**
  * Concatenate narration clips with a SILENT BREATH GAP between consecutive
- * clips (R4). Re-encodes through a filtergraph so the inserted
+ * clips. Re-encodes through a filtergraph so the inserted
  * `anullsrc` silence and the (possibly mixed-codec) clips share one sample
  * format. The total length is `Σ clip_i + (n−1)·gap`, which the lock mirrors so
  * each transition overlap lands on a gap. `gapSeconds <= 0` or a single clip

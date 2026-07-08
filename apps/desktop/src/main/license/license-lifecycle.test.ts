@@ -83,7 +83,7 @@ describe("LicenseManager.activate", () => {
 });
 
 describe("LicenseManager.verifyAtLaunch", () => {
-  it("trusts a persisted node-locked license and skips re-entry (Req 1.8)", async () => {
+  it("trusts a persisted node-locked license and skips re-entry", async () => {
     const mgr = new LicenseManager({
       service: service({ ok: false, reason: "offline" }),
       machineId: "m",

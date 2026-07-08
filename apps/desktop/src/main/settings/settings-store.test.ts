@@ -6,8 +6,8 @@ import type { AiAccountState, SettingsModel } from "../../shared/types.js";
 
 /**
  * — SettingsStore property tests (S2).
- * SettingsStore reproduces the inline Current_Behavior of index.ts settings
- * persistence exactly (R3.4–R3.9, R8.4).
+ * SettingsStore reproduces the inline previous main-process behavior of index.ts settings
+ * persistence exactly.
  */
 
 const HOME = "/home/.video-tool";
@@ -240,7 +240,7 @@ describe("Property 5: Voice config resolution", () => {
 });
 
 // refinePasses clamp + legacy visualQaEnabled migration
-describe("freeform-engine F2: refinePasses clamp + legacy migration", () => {
+describe("refinePasses clamp + legacy migration", () => {
   it("clamps a saved refinePasses into [0,5] on load", () => {
     for (const [saved, want] of [[-3, 0], [0, 0], [2, 2], [5, 5], [9, 5]] as const) {
       const { store } = memStore(JSON.stringify({ refinePasses: saved }));
@@ -275,7 +275,7 @@ describe("freeform-engine F2: refinePasses clamp + legacy migration", () => {
 });
 
 // per-voice calibrated narration rate
-describe("freeform-engine K1: calibratedWordsPerSecond (per-voice, clamped)", () => {
+describe("calibratedWordsPerSecond (per-voice, clamped)", () => {
   it("returns the saved rate when it was measured for the CURRENTLY configured voice", () => {
     const { store } = memStore(
       JSON.stringify({ voiceId: "v-abc", voiceWordsPerSecond: 5.1, voiceWpsCalibratedFor: "v-abc" }),

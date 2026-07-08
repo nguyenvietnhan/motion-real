@@ -1,18 +1,17 @@
 import { readTracker, writeTracker, upsertItem, type TrackerItem, type TrackerStatus } from "../tracker/tracker.js";
 
 /**
- * Resumable bulk automation over the tracker (R5). The loop
+ * Resumable bulk automation over the tracker. The loop
  * reduces over non-`done` items, driving each through a per-item WORKER (the
- * driving agent supplies it — there is no in-tool planner, R4.5). The loop owns
- * only the bookkeeping: item selection, status transitions, resumability,
- * graceful usage-limit pause, per-item isolation, and outcome recording. Each
- * worker reuses the single-process orchestrator (ingest → scaffold → author →
- * draft → full), so the full `N1–N31` grid, the draft-first gate, determinism,
- * the Vivibe voice, and the shared TTS/render caches apply per item (R5.2, R5.3,
- * R5.8).
+ * driving agent supplies it — there is no in-tool planner). The loop owns only
+ * the bookkeeping: item selection, status transitions, resumability, graceful
+ * usage-limit pause, per-item isolation, and outcome recording. Each worker
+ * reuses the single-process orchestrator (ingest → scaffold → author → draft →
+ * full), so the full `N1–N31` grid, the draft-first gate, determinism, the
+ * Vivibe voice, and the shared TTS/render caches apply per item.
  */
 
-/** Signal a usage/API limit from a worker so the loop pauses gracefully (R5.5). */
+/** Signal a usage/API limit from a worker so the loop pauses gracefully. */
 export class UsageLimitError extends Error {
   constructor(message = "usage limit reached") {
     super(message);
@@ -40,7 +39,7 @@ export type RunBulkLoopOptions = {
   now?: () => string;
 };
 
-/** Items the loop will (re)process — pending / in-progress / paused-resumable (R5.4). */
+/** Items the loop will (re)process — pending / in-progress / paused-resumable. */
 const RESUMABLE: ReadonlySet<TrackerStatus> = new Set<TrackerStatus>([
   "pending",
   "in-progress",
@@ -49,10 +48,10 @@ const RESUMABLE: ReadonlySet<TrackerStatus> = new Set<TrackerStatus>([
 
 /**
  * Run the bulk loop once. Processes eligible (non-`done`) items in order, up to
- * `limit`. `done` items are never reprocessed (R5.4). On a usage limit the
+ * `limit`. `done` items are never reprocessed. On a usage limit the
  * current item is marked `paused-resumable` and the loop STOPS gracefully
- * without corrupting the tracker (R5.5). A single item failure marks it
- * `failed`+reason and the loop CONTINUES (R5.6). Every transition is persisted
+ * without corrupting the tracker. A single item failure marks it
+ * `failed`+reason and the loop CONTINUES. Every transition is persisted
  * immediately so a crash/restart resumes from the recorded point.
  */
 export async function runBulkLoop(opts: RunBulkLoopOptions): Promise<{ outcomes: BulkOutcome[] }> {

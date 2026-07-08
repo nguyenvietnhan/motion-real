@@ -124,7 +124,7 @@ describe("CreateController.create", () => {
     expect(began).toHaveLength(1);
   });
 
-  it("throws a REDACTED friendly message on scaffold failure and never starts the workspace (R8.5)", async () => {
+  it("throws a REDACTED friendly message on scaffold failure and never starts the workspace", async () => {
     const leaky: SerializedPipelineError = {
       message: "[render] N14 leaked from /proj/scene-01.tsx",
       stage: "render",
@@ -139,7 +139,7 @@ describe("CreateController.create", () => {
     } catch (e) {
       message = (e as Error).message;
     }
-    // No raw engine tokens leak (no N-code, no .tsx, no raw cause).
+    // No raw engine tokens leak (no N-code, no.tsx, no raw cause).
     expect(message).not.toMatch(/N14|\.tsx|overflow/);
     expect(message.length).toBeGreaterThan(0);
     expect(began).toEqual([]);

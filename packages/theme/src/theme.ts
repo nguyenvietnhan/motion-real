@@ -1,5 +1,5 @@
 /**
- * @motionreal/theme — the SINGLE neutral theme .
+ * @motionreal/theme — the SINGLE neutral theme.
  *
  * The "thay máu" overhaul deletes the multi-language design system and its
  * editorial/galaxy `StyleLanguage` registry. Authored scenes now decide

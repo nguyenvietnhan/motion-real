@@ -74,7 +74,7 @@ describe("project store", () => {
     }
     // assetsDir is the project-relative image store (create-time image staging).
     expect(p.assetsDir).toBe(join(p.root, "assets"));
-    // The project lives under projects/, which lives under the .video-tool home.
+    // The project lives under projects/, which lives under the.video-tool home.
     expect(p.root.startsWith(projectsRoot())).toBe(true);
     expect(projectsRoot().startsWith(videoToolHome())).toBe(true);
   });

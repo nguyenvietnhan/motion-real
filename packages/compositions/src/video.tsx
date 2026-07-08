@@ -99,7 +99,7 @@ function presentationFor(
  * Master composition. Scenes are laid out with `TransitionSeries` so adjacent
  * scenes transition instead of hard-cutting; the locked timing sizes each
  * sequence so the transition overlap lands on the silent breath gap and no
- * speech is clipped (R3/R5). Transitions use `springTiming`
+ * speech is clipped. Transitions use `springTiming`
  * (smooth, premium) pinned to the lock's overlap length, with per-scene
  * presentations (slide/fade/wipe/clockWipe/zoom) for variety. The narration is
  * ONE continuous top-level `<Audio>`, and the burned-in karaoke captions are a
@@ -139,11 +139,11 @@ export const VideoComposition: React.FC<VideoCompositionProps> = ({ spec, measur
         </TransitionSeries>
 
         {spec.audio.narrationSrc ? <Audio src={resolveAudio(spec.audio.narrationSrc)} /> : null}
-        {/* Caption band is a TikTok (9:16) concern only (freeform-engine
-            D8): YouTube ships its own native captions, so a 16:9 video mounts
-            neither the burned karaoke track nor the optional content divider. It
-            uses the full frame. `format` defaults to "tiktok" for any spec authored
-            before the field existed, so vertical videos are unchanged. */}
+        {/* Caption band is a TikTok (9:16) concern only: YouTube ships its own
+            native captions, so a 16:9 video mounts neither the burned karaoke
+            track nor the optional content divider. It uses the full frame.
+            `format` defaults to "tiktok" for any spec authored before the field
+            existed, so vertical videos are unchanged. */}
         {spec.format !== "youtube" ? (
           <>
             <CaptionDivider color={theme.colors.fg} />
@@ -157,7 +157,7 @@ export const VideoComposition: React.FC<VideoCompositionProps> = ({ spec, measur
 };
 
 /**
- * The top-level background WASH . The composition used to
+ * The top-level background WASH. The composition used to
  * paint a flat near-black `colors.bg`, which looked dead on both formats; this
  * paints the theme's radial-gradient wash instead. Extracted as its own pure
  * component (single responsibility) so it can be tested without a Remotion

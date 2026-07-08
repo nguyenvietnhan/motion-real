@@ -105,7 +105,7 @@ export async function generateAuthoredEntry(opts: AuthoredEntryOptions): Promise
   return opts.entryPath;
 }
 
-/** Relative module specifier for an authored scene (extension stripped; webpack resolves .tsx). */
+/** Relative module specifier for an authored scene (extension stripped; webpack resolves.tsx). */
 function toModuleSpecifier(fromDir: string, file: string): string {
   return toRelImport(fromDir, file).replace(/\.(tsx|ts|jsx|js)$/i, "");
 }

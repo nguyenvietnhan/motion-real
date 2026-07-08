@@ -7,7 +7,7 @@ import { ensureProject, projectPaths, readJson, writeJson } from "../store/store
 import { admitAuthoredSceneFile } from "./register.js";
 
 /**
- * Per-project manifest (R8/R10). A manifest is the AUTHOR-mode
+ * Per-project manifest. A manifest is the AUTHOR-mode
  * replacement for the PICK planner output: it lists the project's theme and its
  * ordered scenes, each referencing an AI-AUTHORED component id (defined by a
  * `.tsx` in the project's `authored/` dir) plus its props + narration. The
@@ -46,12 +46,12 @@ export type Manifest = {
    * Publish hashtags (TikTok), kept SEPARATE from the title so the project
    * display name (D9) stays clean ("Gemma 3 chạy trên máy nhà", not "… #ai #llm").
    * The published screen surfaces them next to the title with a Copy button
-   * (R9.5). Each entry already carries its leading `#` (normalized at parse).
+   *. Each entry already carries its leading `#` (normalized at parse).
    * Absent for YouTube (no hashtag requirement) or an older manifest.
    */
   hashtags?: string[];
   /**
-   * Delivery format . The backend injects this from the
+   * Delivery format. The backend injects this from the
    * user's UI choice — the model does NOT pick it. Absent ⇒ "tiktok" (the
    * historical vertical default), so a manifest authored before format existed
    * still resolves to a valid spec.
@@ -190,7 +190,7 @@ export type AdmitProjectResult =
   | { ok: false; violations: SafetyIssue[] };
 
 /**
- * Admit every authored scene in a project (R1.3/R10.2). Each `.tsx` must pass
+ * Admit every authored scene in a project. Each `.tsx` must pass
  * the static AST gate (N4/N5) and declare exactly one literal component id.
  * Returns the admitted ids on success, or the blocking violations. Authored code
  * is never imported into the Node host; render-time registration happens inside

@@ -99,7 +99,7 @@ export class LicenseManager {
     const useKey = this.lastKey;
     // Only short-circuit when NO key has ever been provided. An explicit key —
     // including an empty string — must go through the service so it maps to the
-    // same outcome as the dashboard's Current_Behavior (empty ⇒ error invalid).
+    // same outcome as the dashboard's previous main-process behavior (empty ⇒ error invalid).
     if (useKey == null) return this.state;
     this.state = { kind: "activating" };
     const outcome = await withTimeout(

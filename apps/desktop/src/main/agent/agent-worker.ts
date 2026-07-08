@@ -29,7 +29,7 @@ export const AUTHORING_CONTRACT_REF = "AI_CONTRACT.md+docs/current" as const;
  * links found in it to fetch for grounding (best-effort, never a hard gate), and
  * any local images the user attached for the AI to place (create-time image staging).
  *
- * The freeform-engine create screen (R7/R9/D10) picks three delivery knobs the
+ * The create screen picks three delivery knobs the
  * backend threads into the prompt + spec (it never lets the model choose them):
  * `format` (TikTok 9:16 / YouTube 16:9 → canvas + caption presence), `durationTier`
  * (the word-budget bucket, see `tierSeconds`), and `videoLanguage` (vi/en for the
@@ -82,7 +82,7 @@ export type AuthorOutcome =
   | { kind: "authored"; sceneIds: string[]; unreadableUrls?: string[] }
   | { kind: "no-source"; message: string };
 
-/** Outcome of the generate-validate-repair loop (Req 6.3/6.7; + infra, Req 4; + user cancel). */
+/** Outcome of the generate-validate-repair loop. */
 export type RepairOutcome =
   | { kind: "passed"; attempts: number }
   | { kind: "exhausted"; attempts: number; remainingHardErrors: number }
@@ -99,7 +99,7 @@ export type VisualDefect = { sceneId: string; issue: string };
 /** A snapshot of authored scene source, used to roll back a regressive QA round. */
 export type SceneSnapshot = { sceneId: string; code: string }[];
 
-/** A plain-language auto-fix description (NEVER an N-code / engine internal; Req 6.8). */
+/** A plain-language auto-fix description (NEVER an N-code / engine internal;. */
 export type { FriendlyFix } from "../../shared/types.js";
 import type { FriendlyFix } from "../../shared/types.js";
 

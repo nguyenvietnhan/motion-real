@@ -7,8 +7,8 @@ import type { ProjectCardVM, ProjectStage, ScriptEdit } from "../../shared/types
 
 /**
  * — WorkspaceController property tests (S4).
- * Reproduces the inline staged-workspace Current_Behavior of index.ts
- * (R1.4, R2.5, R2.8, R2.9).
+ * Reproduces the inline staged-workspace previous main-process behavior of index.ts
+ *.
  */
 
 const noopEvents = () => ({ progress: vi.fn(), scene: vi.fn(), status: vi.fn(), friendlyError: vi.fn() });
@@ -304,7 +304,7 @@ describe("Property 8: project stage recovery rules", () => {
   });
 });
 
-// Redaction at the workspace error boundary (R8.5)
+// Redaction at the workspace error boundary
 describe("error-stage messages are redacted", () => {
   it("strips L0 engine tokens (N-codes, .tsx) from the error message", async () => {
     const worker: AgentWorker = {
@@ -378,7 +378,7 @@ describe("fixWithAi + fixable flag", () => {
     // scene, so the creative bootstrap reauthors it too; we assert the vision loop's
     // behavior + that the draft MP4 renders exactly ONCE (after refine).
     const reauthorScenes = vi.fn(async () => ({ kind: "authored", sceneIds: ["scene-02"] }) as AuthorOutcome);
-    // refinePasses=2: pass 1 flags a defect, pass 2 finds none → early stop (R4.5).
+    // refinePasses=2: pass 1 flags a defect, pass 2 finds none → early stop.
     const visualQa = vi
       .fn<(p: string, s?: string[], sig?: AbortSignal) => Promise<{ sceneId: string; issue: string }[]>>()
       .mockResolvedValueOnce([{ sceneId: "scene-02", issue: "chữ đè lên nhau" }])
@@ -453,7 +453,7 @@ describe("fixWithAi + fixable flag", () => {
     expect((await ctrl.stage("p1")).kind).toBe("ready");
   });
 
-  it("loading status (freeform-engine L3): the two hidden pre-draft renders use the neutral 'prepare' phase; vision passes carry qaPass/qaTotal", async () => {
+  it("loading status: the two hidden pre-draft renders use the neutral 'prepare' phase; vision passes carry qaPass/qaTotal", async () => {
     // The bland bản-1 render + the creative bootstrap must NOT surface a detailed
     // render stage (the user never sees the raw/intermediate takes) — they show as
     // the neutral "prepare" phase. The DEFECT-fixing vision loop, by contrast,
@@ -493,7 +493,7 @@ describe("fixWithAi + fixable flag", () => {
     expect(qaWithPass).toMatchObject({ phase: "qa", qaPass: 1, qaTotal: 2 });
   });
 
-  it("early-stop (freeform-engine L4): ON needs TWO consecutive clean passes; OFF burns the full count", async () => {
+  it("early-stop: ON needs TWO consecutive clean passes; OFF burns the full count", async () => {
     // L4 strengthened the stop rule: a SINGLE clean vision pass no longer ends the
     // loop (the vision model is non-deterministic — it can miss a defect on one
     // glance then catch it next). With early-stop ON, two clean passes IN A ROW are

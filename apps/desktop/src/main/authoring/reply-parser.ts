@@ -70,7 +70,7 @@ export function extractFences(text: string): Fence[] {
     out.push({ lang: (m[1] ?? "").toLowerCase(), body: m[2] ?? "" });
     lastIndex = re.lastIndex;
   }
-  // Recover a final UNCLOSED fence . A reply truncated
+  // Recover a final UNCLOSED fence. A reply truncated
   // mid-code-block — the model hit the provider's output-token cap and the
   // gateway's finish_reason:"length" stitching couldn't fully close it (passes
   // exhausted, or the provider never reported "length") — leaves an opening ```
@@ -137,7 +137,7 @@ function markerId(code: string): string | null {
   return m ? m[1]! : null;
 }
 
-/** The literal id passed to `registerComponent({ ... id: "x" ... })`. */
+/** The literal id passed to `registerComponent({... id: "x"... })`. */
 function registeredId(code: string): string | null {
   const m = /registerComponent\s*(?:<[^>]*>)?\s*\(\s*\{[\s\S]*?\bid\s*:\s*["']([^"']+)["']/.exec(code);
   return m ? m[1]! : null;
@@ -354,7 +354,7 @@ export function authorReplyParseSummary(
   return summarizeAuthorReplyInspection(inspectAuthorReply(text), options);
 }
 
-/** Parse a full author reply (manifest + per-scene .tsx) per author-reply contract. */
+/** Parse a full author reply (manifest + per-scene.tsx) per author-reply contract. */
 export function parseAuthorReply(text: string): ParsedAuthorReply {
   const inspected = inspectAuthorReply(text);
 
@@ -400,7 +400,7 @@ export function parseAuthorModuleBatchReply(text: string, expectedIds: readonly 
   return { ok: true, modules: expectedIds.map((id) => ({ id, code: byId.get(id)! })) };
 }
 
-/** Parse a reauthor reply: exactly one .tsx block whose id literal === expectId. */
+/** Parse a reauthor reply: exactly one.tsx block whose id literal === expectId. */
 export function parseReauthorReply(text: string, expectId: string): ParsedReauthorReply {
   const codeFences = codeBlocks(text, extractFences(text));
   if (codeFences.length === 0) return { ok: false, reason: "no-code", detail: "reply không có khối .tsx" };

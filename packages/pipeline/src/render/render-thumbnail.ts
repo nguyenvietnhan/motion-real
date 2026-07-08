@@ -7,7 +7,7 @@ import { renderProjectStillsUnlocked } from "./render-stills.js";
 import { withProjectRenderLock } from "./project-lock.js";
 
 /**
- * Cover render (R12/I3): render the first authored scene through the existing
+ * Cover render: render the first authored scene through the existing
  * no-TTS stills path, then copy that caption-free PNG to the stable public
  * artifact `review/thumbnail.png`.
  *

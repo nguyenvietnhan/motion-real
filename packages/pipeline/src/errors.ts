@@ -33,13 +33,13 @@ export type SerializedPipelineError = {
   stage: PipelineStage;
   /** The specific cause of the failure. */
   cause: string;
-  /** Safety-check id when a grid check tripped, e.g. "N9", "N14" (R7.2). */
+  /** Safety-check id when a grid check tripped, e.g. "N9", "N14". */
   check?: string;
   /** Affected scene id when applicable. */
   sceneId?: string;
-  /** Known remediation step when one exists (R7.4). */
+  /** Known remediation step when one exists. */
   remediation?: string;
-  /** Hard error (blocks) vs advisory warning (R7.3). */
+  /** Hard error (blocks) vs advisory warning. */
   severity: Severity;
 };
 
@@ -64,7 +64,7 @@ function buildMessage(init: PipelineErrorInit): string {
  * A failure tagged with its pipeline stage and (when relevant) the safety-check
  * id + affected scene. Identified by the technical check id ONLY — it does not
  * embed a verbose description of the check's purpose; remediation, when known,
- * lives in the separate `remediation` field (R7.2, R7.4).
+ * lives in the separate `remediation` field.
  */
 export class PipelineError extends Error {
   readonly stage: PipelineStage;

@@ -6,7 +6,7 @@ import { stripL0Tokens, toFriendlyError, toFriendlyFix } from "./friendly.js";
 /**
  * Property 6: No engine internals leak into user-facing
  * messages. For any engine error or safety issue (incl. N1–N31 codes, manifest
- * JSON, .tsx source, MCP references, stack traces), the FriendlyError/FriendlyFix
+ * JSON,.tsx source, MCP references, stack traces), the FriendlyError/FriendlyFix
  * has a non-empty plain-language message and contains none of those L0 tokens.
  *
  */

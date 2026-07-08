@@ -2,7 +2,7 @@
  * Layout zones for the 9:16 (1080×1920) canvas — the single source of truth for
  * WHERE content, captions, and platform UI live. Blocks (`@motionreal/blocks`), the
  * master composition, and the N14 oracles all read these so the rules never
- * drift between authoring and validation (R15).
+ * drift between authoring and validation.
  *
  * ONE shared layout for every visual treatment. Chrome may differ (corners,
  * framing, fonts/colors) — NOT where content/captions sit. So these zones are
@@ -85,7 +85,7 @@ export function uiReserveTop(): number {
   return CANVAS.height - UI_RESERVE.bottom;
 }
 
-// --- Format-parameterized geometry  ------------------
+// --- Format-parameterized geometry ------------------
 //
 // The constants above are the TikTok (9:16) layout — historically the ONLY
 // format, so they are plain globals. The engine now also targets YouTube

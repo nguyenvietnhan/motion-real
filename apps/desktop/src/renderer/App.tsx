@@ -171,7 +171,7 @@ const AppShell: React.FC = () => {
     };
   }, [dash, screen, openProjectId]);
 
-  // Poll the gallery while on the home/projects screens , so a
+  // Poll the gallery while on the home/projects screens, so a
   // project's card appears + its status badge updates live without the user leaving
   // and re-entering. Without this, a just-created project (or one whose render
   // finished in the background) only showed up on the next mount/leaveWorkspace —

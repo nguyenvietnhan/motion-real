@@ -18,7 +18,7 @@ import { withProjectRenderLock } from "./project-lock.js";
 import type { SafetyIssue } from "../types.js";
 
 /**
- * Fast per-scene STILLS render  — the cheap inner loop the
+ * Fast per-scene STILLS render — the cheap inner loop the
  * silent refine pass iterates on. It is the orchestrator's `renderProject` path
  * with everything expensive STRIPPED: no TTS (so no Vivibe key needed, no audio
  * spend), no MP4 encode, no determinism double-render, no review/contact-sheet,
@@ -158,7 +158,7 @@ export async function renderProjectStillsUnlocked(
     }
 
     // Scope the bundle to exactly the files the manifest references (same 1:1
-    // pairing the orchestrator uses), so a stale orphan .tsx is not bundled.
+    // pairing the orchestrator uses), so a stale orphan.tsx is not bundled.
     const componentToFile = new Map<string, string>();
     admitted.componentIds.forEach((id, i) => {
       const file = admitted.files[i];

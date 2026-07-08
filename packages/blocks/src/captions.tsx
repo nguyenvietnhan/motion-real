@@ -6,7 +6,7 @@ import { useTheme } from "./theme-context.js";
 import { easeOut } from "./motion.js";
 
 /**
- * `Captions` — burned-in single-line KARAOKE caption track (R16), rendered
+ * `Captions` — burned-in single-line KARAOKE caption track, rendered
  * top-level by the composition (outside the transition series). Text only — NO
  * background box by default; bold ink text with a base-colored halo so it stays
  * legible on EITHER polarity (cream on editorial, deep night on galaxy). Each cue

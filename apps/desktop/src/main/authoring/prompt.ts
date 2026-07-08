@@ -121,7 +121,7 @@ export type ReauthorPromptInput = {
    * This scene carries an image (its manifest `image.ref` is set). The reauthor
    * is a free rewrite, so without this the model "creatively" drops the image on
    * a vague edit like "make it more creative" — the manifest still references it
-   * but the .tsx no longer renders it. When set, the prompt hard-requires keeping
+   * but the.tsx no longer renders it. When set, the prompt hard-requires keeping
    * the `<SceneImage imageRef={image.ref} />` block.
    */
   hasImage?: boolean;

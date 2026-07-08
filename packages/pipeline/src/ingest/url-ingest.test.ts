@@ -8,7 +8,7 @@ import { ingestUrl, type FetchLike, normalizePublishedDate } from "./url-ingest.
 import { isPipelineError } from "../errors.js";
 import { planningDir } from "../store/store.js";
 
-// URL ingest into grounded research files (R2).
+// URL ingest into grounded research files.
 
 let home: string;
 const prevHome = process.env.VIDEO_TOOL_HOME;
@@ -202,7 +202,7 @@ describe("ingestUrl — Property 7: failed ingest leaves no partial file", () =>
   }, 60_000);
 });
 
-describe("ingestUrl — evidence-gate interaction (R2.5)", () => {
+describe("ingestUrl — evidence-gate interaction", () => {
   it("writes research as an input artifact under planning/, not into any render path", async () => {
     const html = articleHtml({ title: "Hard facts", site: "Test Wire", paragraphs: longBody("evidence") });
     const result = await ingestUrl("https://example.com/facts", { id: "facts", fetchImpl: okFetch(html) });

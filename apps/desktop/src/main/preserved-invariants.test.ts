@@ -37,7 +37,7 @@ const scaffoldOk = (projectId: string): ScaffoldVideoProjectResult =>
   ({ projectId, brief: {} as ProjectBrief, manifestPath: "m.json", authoredDir: "authored" });
 
 describe("preserved engine invariants at the desktop boundary", () => {
-  it("full render is refused without a reviewed draft and never delegates (R8.2)", async () => {
+  it("full render is refused without a reviewed draft and never delegates", async () => {
     let delegated = false;
     const tools = createTools({
       draftExistsFor: () => false,
@@ -54,7 +54,7 @@ describe("preserved engine invariants at the desktop boundary", () => {
     expect(delegated).toBe(false);
   });
 
-  it("create routes scaffold through ONE createTools instance — no second registry (R4.6/R8.1)", async () => {
+  it("create routes scaffold through ONE createTools instance — no second registry", async () => {
     let scaffolds = 0;
     const tools = createTools({
       scaffoldVideoProject: async (input) => {
@@ -74,7 +74,7 @@ describe("preserved engine invariants at the desktop boundary", () => {
     expect(scaffolds).toBe(1);
   });
 
-  it("voice-config-incomplete surfaces the exact missing setting and never downgrades (R8.3/R8.4)", async () => {
+  it("voice-config-incomplete surfaces the exact missing setting and never downgrades", async () => {
     let delegated = false;
     const tools = createTools({
       draftExistsFor: () => true, // gate not the cause

@@ -6,7 +6,7 @@ import { join } from "node:path";
 import type { LockedVideoSpec } from "@motionreal/schema";
 
 /**
- * Review-loop gate tests (Requirement 10; N24/N25). @remotion/bundler +
+ * Review-loop gate tests. @remotion/bundler +
  * @remotion/renderer are mocked exactly like renderer.test.ts / cache.test.ts so
  * NO Chromium download or real render happens; the mocked renderStill writes a
  * tiny PNG so the keyframes exist on disk. The contact-sheet compositor is

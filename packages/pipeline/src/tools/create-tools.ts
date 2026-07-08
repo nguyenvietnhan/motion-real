@@ -45,11 +45,11 @@ import {
 import { ok, err, type ToolResult } from "./tool-result.js";
 
 /**
- * The internal engine tool facade (R3). Each tool is a
+ * The internal engine tool facade. Each tool is a
  * plain async function returning a `ToolResult` so it is unit-testable without a
  * transport. Every tool drives the single-process orchestrator, so the full
  * `N1-N31` grid, the draft-first gate, determinism, caches, and the Vivibe
- * provider rule apply identically to the CLI (R3.3, R3.5, R10.1).
+ * provider rule apply identically to the CLI.
  */
 
 // --- injectable deps (real pipeline by default) ---------------------------
@@ -81,7 +81,7 @@ export function draftExistsFor(projectId: string): boolean {
   return existsSync(join(projectPaths(projectId).rendersDir, `${projectId}.draft.mp4`));
 }
 
-/** Pure draft-first decision (R3.4, Property 8): allowed iff a draft exists OR forceFull. */
+/** Pure draft-first decision: allowed iff a draft exists OR forceFull. */
 export function fullRenderAllowed(draftExists: boolean, forceFull: boolean): boolean {
   return draftExists || forceFull;
 }
@@ -182,7 +182,7 @@ export const trackerUpdateInput = z.object({
   projectId: z.string().optional(),
 });
 
-// --- safety-report persistence (R6.1/R6.2) ---------
+// --- safety-report persistence ---------
 
 /** Where the last render's safety report is persisted, per project. */
 function safetyReportPath(projectId: string): string {
@@ -199,7 +199,7 @@ async function persistSafetyReport(projectId: string, report: SafetyReport): Pro
 }
 
 /**
- * Resolve the project's chosen BGM  to an absolute path
+ * Resolve the project's chosen BGM to an absolute path
  * for the mixer. The selection lives on the manifest's `bgm` field: a user
  * library filename or the virtual bundled-default name. Empty/stale/deleted
  * refs resolve to undefined. This boundary converts that result to null so a
@@ -218,7 +218,7 @@ async function resolveProjectBgm(projectId: string): Promise<string | null> {
 /** The shape `get_safety_report` returns: the hard-error subset split from warnings. */
 export type SafetyReportView = { ok: boolean; hardErrors: SafetyIssue[]; warnings: SafetyIssue[] };
 
-// --- TTS guard (R3.6, R10.9, Property 10) ----------------------------------
+// --- TTS guard ----------------------------------
 
 /**
  * Refuse a render when the selected provider config is incomplete, naming the
@@ -322,7 +322,7 @@ export function createTools(overrides: Partial<ToolDeps> = {}) {
       signal?: AbortSignal,
     ): Promise<ToolResult<RenderProjectResult>> {
       const forceFull = input.forceFull ?? false;
-      // Draft-first gate at the surface (R3.4): refuse a full render with no
+      // Draft-first gate at the surface: refuse a full render with no
       // prior draft unless forceFull — the orchestrator enforces it again.
       if (!fullRenderAllowed(deps.draftExistsFor(input.projectId), forceFull)) {
         return err(
@@ -381,7 +381,7 @@ export function createTools(overrides: Partial<ToolDeps> = {}) {
     ): Promise<ToolResult<SafetyReportView>> {
       // Read the report the orchestrator already produced for the last render of
       // this project; split hard errors from warnings for the repair loop
-      // (R6.1/R6.2). The grid is NOT re-run here — this only exposes the report.
+      //. The grid is NOT re-run here — this only exposes the report.
       try {
         const path = safetyReportPath(input.projectId);
         if (!existsSync(path)) {

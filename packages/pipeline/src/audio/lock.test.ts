@@ -48,7 +48,7 @@ function manifestFor(spec: VideoSpec, durations: number[]): TtsManifest {
   return { updatedAt: "t", provider: "mock", voiceId: "mock", speed: 1, byScene, mixedSrc: "audio/narration.mixed.wav" };
 }
 
-describe("lockSpec — Property 1: transition-aware timeline (R5)", () => {
+describe("lockSpec — Property 1: transition-aware timeline", () => {
   it("video frames == assembled audio frames; scenes overlap by exactly T with no gaps", () => {
     fc.assert(
       fc.property(

@@ -6,7 +6,7 @@ import { parseAuthorManifest } from "./manifest-schema.js";
  * every `fix(authoring)` class gets a fixture that locks the behavior). These
  * guard the "one bad field of one scene must NOT discard the whole reply"
  * invariant — without these coercions a single overshoot would fail `safeParse`
- * and throw away the manifest + every authored .tsx, forcing a full re-author.
+ * and throw away the manifest + every authored.tsx, forcing a full re-author.
  *
  * Covered historical fixes:
  * - 75f21c6 clamp/coerce manifest fields (over-long title/eyebrow/narration/mood)
@@ -120,8 +120,8 @@ describe("manifest coercion — one bad field degrades, never discards (per-fiel
 describe("manifest coercion — publish hashtags normalize to a clean #-prefixed array (H3/D9)", () => {
   // Hashtags are a SEPARATE publish field (the title stays clean — it doubles as
   // the project display name). The model emits them in many shapes; all must
-  // normalize to ["#ai", "#tech", ...] so the Copy panel always has ready tags,
-  // and a bad value must NEVER discard the manifest + every authored .tsx.
+  // normalize to ["#ai", "#tech",...] so the Copy panel always has ready tags,
+  // and a bad value must NEVER discard the manifest + every authored.tsx.
   const withHashtags = (h: unknown) => {
     const m = base() as unknown as { hashtags?: unknown };
     m.hashtags = h;

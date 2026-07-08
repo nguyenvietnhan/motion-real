@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { readTracker, writeTracker, upsertItem, type TrackerItem, type TrackerStatus } from "./tracker.js";
 import { isPipelineError } from "../errors.js";
 
-// tracker work queue (R5).
+// tracker work queue.
 
 let dir: string;
 

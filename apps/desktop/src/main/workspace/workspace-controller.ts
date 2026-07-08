@@ -21,15 +21,15 @@ import type {
 const log = createLogger("workspace");
 
 /**
- * WorkspaceController  — the tested home for the
+ * WorkspaceController — the tested home for the
  * staged-workspace orchestration that was inline in `index.ts`
  * (`stages`/`setStage`/`runScript`/`runRender`/`scriptLinesOf`/
  * `storyboardScenesOf`) plus the project/script read handlers
  * (`projects:list/stage/open/delete/reveal`, `script:get/applyEdits/approve`).
  *
- * It reproduces the EXACT Current_Behavior (authoritative, R4.4) and injects all
+ * It reproduces the EXACT previous main-process behavior (authoritative, R4.4) and injects all
  * Electron/engine/pipeline access through seams so it is testable without
- * Electron. Validates R2.1–R2.9, R1.4, R1.7, R5.6.
+ * Electron. Validates 
  */
 
 /** A manifest scene as the dashboard needs it (other fields preserved opaquely). */
@@ -37,7 +37,7 @@ export type WsScene = { id: string; narration?: string; headline?: string; eyebr
 /**
  * The manifest projection the dashboard reads. `title`/`hashtags` are the publish
  * metadata (the project display name + TikTok hashtags); rename patches `title`
- * and the published stage surfaces both for the Copy panel (R9.5). Other manifest
+ * and the published stage surfaces both for the Copy panel. Other manifest
  * fields (theme/format/scenes detail) are preserved opaquely across a write —
  * `loadManifest` returns the FULL on-disk object, so spreading it on write keeps
  * them intact.
@@ -72,7 +72,7 @@ export interface WorkspaceDeps {
     readonly imageCrawlAiFilter: boolean;
     readonly imageCrawlHumanReview: boolean;
   };
-  /** Gallery cards, already mediaUrl-wrapped + fallback-to-[] at the seam (R1.7). */
+  /** Gallery cards, already mediaUrl-wrapped + fallback-to-[] at the seam. */
   listProjects: () => Promise<ProjectCardVM[]>;
   loadManifest: (projectId: string) => Promise<WsManifest>;
   writeManifest: (projectId: string, manifest: WsManifest) => Promise<void>;
@@ -107,7 +107,7 @@ export interface WorkspaceDeps {
    * brief can't be read. Optional: absent ⇒ retry only works in-session.
    */
   recallInput?: (projectId: string) => Promise<AuthorInput | null>;
-  /** Redact L0 engine tokens from any message before it reaches the UI (R8.5). */
+  /** Redact L0 engine tokens from any message before it reaches the UI. */
   redact: (message: string) => string;
 }
 
@@ -189,7 +189,7 @@ export class WorkspaceController {
     this.setStage(projectId, await this.recoverStage(projectId));
   }
 
-  /** Set + broadcast a stage (status mirrors the kind, as Current_Behavior). */
+  /** Set + broadcast a stage (status mirrors the kind, as previous main-process behavior). */
   setStage(projectId: string, stage: ProjectStage): void {
     this.stages.set(projectId, stage);
     this.deps.events.status({ projectId, status: stageToFriendlyStatus(stage.kind) });
@@ -214,7 +214,7 @@ export class WorkspaceController {
 
   /**
    * Build the `published` stage, attaching the publish metadata (title +
-   * hashtags) the final-screen Copy panel shows (R9.5). The title/hashtags live
+   * hashtags) the final-screen Copy panel shows. The title/hashtags live
    * in the manifest (the single source of truth); a failed/absent read degrades
    * to just the video — the panel simply omits the copy affordances rather than
    * blocking the finished video from showing. Every site that lands on
@@ -305,7 +305,7 @@ export class WorkspaceController {
     this.beginScript(projectId, authorInputWithCrawledImages(parked.input, chosen));
   }
 
-  /** Stage 1: AI writes the script; then wait for approval unless the gate is off (R2.1–R2.3, R2.7). */
+  /** Stage 1: AI writes the script; then wait for approval unless the gate is off. */
   beginScript(projectId: string, input: AuthorInput): void {
     if (this.inFlight.has(projectId)) return; // a loop is already running for this project
     this.inputs.set(projectId, input);
@@ -344,7 +344,7 @@ export class WorkspaceController {
     });
   }
 
-  /** Stage 2: render voice + draft via generate-validate-repair (R2.4–R2.7, R2.9). */
+  /** Stage 2: render voice + draft via generate-validate-repair. */
   approve(projectId: string): void {
     this.guarded(projectId, () => this.runRender(projectId));
   }
@@ -572,7 +572,7 @@ export class WorkspaceController {
    * flag a defect — so the first draft the user eventually sees is already
    * ambitious, not a safe "title + one panel" take. This is the explicit "render
    * lại cho sáng tạo hơn" pass the project owner asked for, distinct from the
-   * defect-fixing vision loop. Accept-gate (R4.7): if the bold rewrite makes the
+   * defect-fixing vision loop. Accept-gate: if the bold rewrite makes the
    * project un-renderable (admission/render fails → no stills), restore the
    * pre-bootstrap source so the flow never ships a broken scene.
    */
@@ -609,7 +609,7 @@ export class WorkspaceController {
    * scenes re-render through the cheap no-TTS/no-MP4 stills path so the next pass
    * judges the updated frames. `scope` limits the loop to specific scenes (the
    * ones a user just edited). Stops EARLY the first time a pass finds no defect
-   * (R4.5). Snapshots each scene the first time it's touched (into the shared
+   *. Snapshots each scene the first time it's touched (into the shared
    * `preRefine`) and rolls the whole refine back if a rewrite stops rendering
    * (accept-gate, R4.7). Returns whether any scene was accepted (so the caller
    * knows to refresh the draft). Pure vision QA — the creative "be bolder" pass is
@@ -660,9 +660,9 @@ export class WorkspaceController {
       changedAny = true;
 
       // Re-render ONLY the touched scenes via the cheap stills path so the next
-      // pass's visualQa judges the updated frames (R4.2/R4.3).
+      // pass's visualQa judges the updated frames.
       const rendered = (await this.deps.worker.renderStills?.(projectId, sceneIds, signal)) ?? { stills: [] };
-      // Accept-gate (R4.7): a rewrite that no longer renders rolls the whole refine
+      // Accept-gate: a rewrite that no longer renders rolls the whole refine
       // back and stops. An aborted run lands here (empty stills) and restores too.
       if (rendered.stills.length === 0) {
         if (preRefine.length > 0 && this.deps.worker.restoreScenes) {
@@ -808,7 +808,7 @@ export class WorkspaceController {
       let outcome = await this.deps.worker.generateValidateRepair(projectId, { maxAttempts: this.deps.settings.maxRepairAttempts }, hooks, signal);
       // If the refined draft regresses (the bold/QA rewrites can't be repaired) but
       // the blind source was clean, restore it and re-render — refine must never
-      // ship a draft worse than the un-refined one (R3.2/R4.7).
+      // ship a draft worse than the un-refined one.
       if (outcome.kind === "exhausted" && preRefine.length > 0 && this.deps.worker.restoreScenes) {
         this.setStage(projectId, { kind: "rendering", percent: 0, phase: "prepare" });
         await this.deps.worker.restoreScenes(projectId, preRefine);
@@ -898,7 +898,7 @@ export class WorkspaceController {
     return title;
   }
 
-  /** Recover a stage for a project no longer in memory (R2.8). */
+  /** Recover a stage for a project no longer in memory. */
   async stage(projectId: string): Promise<ProjectStage> {
     const known = this.stages.get(projectId);
     if (known) return known;
@@ -983,7 +983,7 @@ export class WorkspaceController {
   }
 
   /**
-   * Generate the project's thumbnail/cover PNG (R12, I3) and return its media URL.
+   * Generate the project's thumbnail/cover PNG and return its media URL.
    * Unlike publish (fire-and-forget, result via stage poll), this RETURNS the url
    * the UI shows, so it awaits directly instead of going through `guarded` (which
    * is void + no-ops when busy). It still respects mutual exclusion: a thumbnail
@@ -1027,7 +1027,7 @@ export class WorkspaceController {
     }
   }
 
-  /** Apply confirmed script edits (empty-narration guard first, then write) (R1.4). */
+  /** Apply confirmed script edits (empty-narration guard first, then write). */
   async applyEdits(projectId: string, edits: ScriptEdit[]): Promise<ApplyResult> {
     try {
       const manifest = await this.deps.loadManifest(projectId);

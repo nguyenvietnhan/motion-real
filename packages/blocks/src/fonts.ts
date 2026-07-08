@@ -8,7 +8,7 @@ import { getInfo as cascadiaInfo } from "@remotion/google-fonts/CascadiaMono";
 import { VENDORED_FONTS } from "./vendor-fonts.generated.js";
 
 /**
- * Render-safe font loading (R1, Property 19).
+ * Render-safe font loading.
  *
  * Every render font must be present with the **vietnamese** subset so a
  * Vietnamese diacritic never falls back to a system face ("nét to nét nhỏ").
@@ -104,9 +104,9 @@ export type FontCoverage = { family: string; hasVietnamese: boolean };
 /**
  * Report whether each loaded render font ships the `vietnamese` subset — the
  * coverage that prevents diacritic fallback ("nét to nét nhỏ"). Used by the
- * doctor font-coverage check (R6 / 
- * vendored, coverage is verified from the manifest; otherwise from the google-fonts
- * metadata. Both must report the vietnamese subset for the three families.
+ * doctor font-coverage check. When fonts are vendored, coverage is verified from
+ * the manifest; otherwise from the google-fonts metadata. Both must report the
+ * vietnamese subset for the three families.
  */
 export function fontCoverageReport(): FontCoverage[] {
   if (VENDORED_FONTS.length > 0) {

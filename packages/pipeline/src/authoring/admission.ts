@@ -313,12 +313,12 @@ export function admitAuthoredComponent(
   };
 
   function collectExports(node: ts.Node): void {
-    // export default ...
+    // export default...
     if (ts.isExportAssignment(node) && !node.isExportEquals) {
       exportedNames.add("default");
       return;
     }
-    // export const schema = ... / export const example = ...
+    // export const schema =... / export const example =...
     if (ts.isVariableStatement(node) && hasExportModifier(node)) {
       for (const decl of node.declarationList.declarations) {
         if (ts.isIdentifier(decl.name)) exportedNames.add(decl.name.text);

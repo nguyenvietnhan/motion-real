@@ -15,7 +15,7 @@ import { buildSceneCaptionCues } from "./captions.js";
 /**
  * Convert a validated VideoSpec into a frame-accurate LockedVideoSpec by
  * resolving each scene's duration from MEASURED TTS audio, then laying scenes on
- * a TRANSITION-AWARE timeline (R5): adjacent scene sequences
+ * a TRANSITION-AWARE timeline: adjacent scene sequences
  * overlap by `T = T_TRANSITION`, and the overlap lands on the silent breath gap
  * between narration clips, so no speech is clipped.
  *
