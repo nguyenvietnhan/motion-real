@@ -105,6 +105,15 @@ an owner-approved design and focused tests:
   `renderProjectStills` wrappers or another job could observe the temporary
   no-audio lock.
 
+## Cache Pruning Policy
+
+Shared render and TTS caches under `.video-tool/cache/` are capped by size and
+pruned oldest mtime first. This is intentionally age-based pruning, not true
+LRU: cache hits copy the cached artifact back to the project but do not refresh
+the cached file mtime. Keep docs and tests using "oldest mtime" or "age-based"
+wording unless a later owner-approved cache design changes hit behavior and
+adds focused tests for refreshed cache entries staying warm.
+
 The renderer CSS split is complete for the current Phase 7 scope.
 `apps/desktop/src/renderer/theme.css` is the stable import entry and section
 inventory; domain/layer partials live under `apps/desktop/src/renderer/theme/`.

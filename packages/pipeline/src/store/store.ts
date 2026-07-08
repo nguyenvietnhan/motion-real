@@ -436,7 +436,7 @@ export async function reconcileStaleStates(): Promise<string[]> {
   return reset;
 }
 
-// --- cache pruning (bounded size, LRU by mtime) ----------------------------
+// --- cache pruning (bounded size, oldest mtime first) ----------------------
 
 /**
  * Default size caps for the shared caches. Both caches live OUTSIDE any project
@@ -454,11 +454,11 @@ export const DEFAULT_TTS_CACHE_MAX_BYTES = 512 * 1024 * 1024; // 512 MB
 type CacheEntry = { name: string; abs: string; size: number; mtimeMs: number };
 
 /**
- * Prune a flat cache directory down to `maxBytes`, evicting the LEAST-recently-
- * modified files first (mtime as a recency proxy — a cache hit copies the file
- * out but doesn't touch the cached file's mtime, so this is age-based LRU, good
- * enough for a disk-space ceiling). When a file is evicted, an adjacent sidecar
- * (`<file>.srt` for TTS) is removed with it so no orphan is left behind.
+ * Prune a flat cache directory down to `maxBytes`, evicting the oldest cached
+ * files by mtime first. This is age-based pruning, not true LRU: a cache hit
+ * copies the file out but intentionally does not touch the cached file's mtime.
+ * When a file is evicted, an adjacent sidecar (`<file>.srt` for TTS) is removed
+ * with it so no orphan is left behind.
  *
  * Best-effort + total: a missing dir is a no-op; a single unstattable/locked file
  * is skipped, never aborting the sweep. Returns the bytes reclaimed (0 if under

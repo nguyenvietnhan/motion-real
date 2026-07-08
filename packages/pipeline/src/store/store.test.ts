@@ -270,7 +270,7 @@ describe("project store", () => {
   });
 });
 
-describe("cache pruning (bounded size, LRU by mtime)", () => {
+describe("cache pruning (bounded size, oldest mtime first)", () => {
   /** Write a file of `size` bytes with a fixed mtime so age order is deterministic. */
   async function writeAged(dir: string, name: string, size: number, mtimeSec: number): Promise<string> {
     await mkdir(dir, { recursive: true });
