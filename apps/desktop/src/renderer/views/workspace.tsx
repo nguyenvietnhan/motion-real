@@ -86,51 +86,43 @@ const ScriptReview: React.FC<{
 
   return (
     <>
-      <div className="ns-card" style={{ padding: 16, marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
-        <span style={{ color: "var(--muted-foreground)" }}>Kịch bản đã sẵn sàng. Vui lòng tinh chỉnh lời thoại (nếu cần) và duyệt dựng video.</span>
-        <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+      <div className="ns-card ns-script-review-banner">
+        <span className="ns-script-review-message">Kịch bản đã sẵn sàng. Vui lòng tinh chỉnh lời thoại (nếu cần) và duyệt dựng video.</span>
+        <div className="ns-script-review-actions">
           <button className="ns-btn" onClick={() => onApply(edits)}>Lưu</button>
           <button className="ns-btn ns-btn-primary" onClick={() => { onApply(edits); onApprove(); }}>Duyệt và dựng</button>
         </div>
       </div>
-      <div style={{ display: "grid", gap: 12 }}>
+      <div className="ns-script-list">
         {lines.map((l, i) => (
-          <div key={l.sceneId} className="ns-card" style={{ padding: 16, display: "flex", gap: 16, alignItems: "stretch" }}>
+          <div key={l.sceneId} className="ns-card ns-script-card">
             {/* Left: Fixed-width scene index so numbers are perfectly aligned vertically */}
-            <div style={{ flexShrink: 0, display: "flex", flexDirection: "column", alignItems: "center", paddingTop: 8 }}>
-              <span style={{ color: "var(--brand)", fontWeight: 800, fontSize: 16, minWidth: 20, textAlign: "center" }}>{i + 1}</span>
+            <div className="ns-script-index-wrap">
+              <span className="ns-script-index">{i + 1}</span>
             </div>
 
             {/* Center: Input fields (Heading & Textarea) */}
-            <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 8 }}>
+            <div className="ns-script-fields">
               <input className="ns-input" value={draft[l.sceneId]?.headline ?? ""} placeholder="Tiêu đề cảnh"
-                onChange={(e) => setDraft((d) => ({ ...d, [l.sceneId]: { ...d[l.sceneId]!, headline: e.target.value } }))}
-                style={{ width: "100%", padding: "8px 12px" }} />
+                onChange={(e) => setDraft((d) => ({ ...d, [l.sceneId]: { ...d[l.sceneId]!, headline: e.target.value } }))} />
               
               <textarea className="ns-input" value={draft[l.sceneId]?.narration ?? ""} rows={2} placeholder="Lời đọc"
-                onChange={(e) => setDraft((d) => ({ ...d, [l.sceneId]: { ...d[l.sceneId]!, narration: e.target.value } }))}
-                style={{ width: "100%", padding: "8px 12px", resize: "vertical", minHeight: 64 }} />
+                onChange={(e) => setDraft((d) => ({ ...d, [l.sceneId]: { ...d[l.sceneId]!, narration: e.target.value } }))} />
             </div>
 
             {/* Right: Media preview thumbnail slot (fixed-width, keeps text inputs perfectly aligned across all cards) */}
-            <div style={{ flexShrink: 0, width: 80, display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <div className="ns-script-media-slot">
               {l.imagePath ? (
                 <div
+                  className="ns-script-media-thumb"
                   title="Ảnh AI gắn cho cảnh này"
                   style={{
-                    width: 72, height: 72, borderRadius: 8, overflow: "hidden",
-                    border: "1px solid var(--border)",
                     background: `center/cover no-repeat #0c0e12 url(${l.imagePath})`,
                   }}
                 />
               ) : (
                 <div
-                  style={{
-                    width: 72, height: 72, borderRadius: 8,
-                    border: "1px dashed rgba(255, 255, 255, 0.08)",
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    color: "rgba(255, 255, 255, 0.15)"
-                  }}
+                  className="ns-script-media-empty"
                   title="Cảnh này không dùng ảnh minh họa"
                 >
                   {Icon.film({ size: 16 })}
@@ -171,15 +163,15 @@ const RenderingPanel: React.FC<{ stage: Extract<ProjectStage, { kind: "rendering
   // bar — no raw percent — so the user never sees the bland/bootstrap takes.
   const indeterminate = phase === "edit" || phase === "qa" || phase === "prepare" || stage.percent <= 0;
   return (
-    <div className="ns-card" style={{ padding: 32 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+    <div className="ns-card ns-render-card">
+      <div className="ns-render-status-line">
         <Spinner /> <span>{stopping ? "Đang dừng…" : `${label}${indeterminate ? "" : ` ${stage.percent}%`}`}</span>
       </div>
-      <div style={{ height: 8, background: "var(--muted)", borderRadius: 999, overflow: "hidden" }}>
+      <div className="ns-progress-track">
         {indeterminate || stopping ? (
-          <div className="ns-indeterminate" style={{ height: "100%", borderRadius: 999 }} />
+          <div className="ns-indeterminate ns-progress-fill" />
         ) : (
-          <div style={{ width: `${stage.percent}%`, height: "100%", background: "var(--brand)", borderRadius: 999, transition: "width 0.3s" }} />
+          <div className="ns-progress-fill" style={{ width: `${stage.percent}%` }} />
         )}
       </div>
       {/* Stop the in-flight render. A cancel is not a failure: the project
@@ -187,7 +179,7 @@ const RenderingPanel: React.FC<{ stage: Extract<ProjectStage, { kind: "rendering
           never an error screen. One press is enough — disable + show "Đang
           dừng…" immediately so the brief engine-side lag never looks like a
           dead button. */}
-      <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 16 }}>
+      <div className="ns-render-actions">
         <button className="ns-btn" onClick={() => { setStopping(true); onCancel(); }} disabled={stopping}>
           {stopping ? "Đang dừng…" : "Dừng dựng"}
         </button>
@@ -393,10 +385,10 @@ export const ProjectWorkspaceView: React.FC<{
     <div className="ns-content">
       <PageHeader title={title[stage.kind]} action={<button className="ns-btn" onClick={onBack}>Quay lại</button>} />
       {stage.kind === "writing" && (
-        <div className="ns-card" style={{ padding: 48, display: "grid", placeItems: "center", gap: 12 }}>
+        <div className="ns-card ns-writing-card">
           <Spinner />
-          <p style={{ color: "var(--muted-foreground)", margin: 0 }}>{writingCopy?.title}</p>
-          <p style={{ color: "var(--muted-foreground)", margin: 0, fontSize: 13, textAlign: "center", maxWidth: 520 }}>
+          <p className="ns-writing-title">{writingCopy?.title}</p>
+          <p className="ns-writing-detail">
             {writingCopy?.detail}
           </p>
         </div>
@@ -438,7 +430,7 @@ export const ProjectWorkspaceView: React.FC<{
       {stage.kind === "error" && (
         <EmptyState icon={Icon.film({ size: 34 })} title="Gặp lỗi khi dựng" hint={stage.message}
           action={
-            <div style={{ display: "flex", gap: 10 }}>
+            <div className="ns-error-actions">
               {stage.fixable ? (
                 // A content render defect: the grid is deterministic, so re-rendering
                 // the SAME code would fail identically — only an AI rewrite can help.

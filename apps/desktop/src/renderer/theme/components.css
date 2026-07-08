@@ -106,6 +106,76 @@
   box-shadow: var(--shadow-md);
 }
 
+/* Shared primitive layouts */
+.ns-page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 24px;
+}
+.ns-page-header-copy {
+  min-width: 0;
+}
+.ns-page-title {
+  margin: 0;
+  font-size: 24px;
+}
+.ns-page-subtitle {
+  margin: 6px 0 0;
+  color: var(--muted-foreground);
+  font-size: 14px;
+}
+.ns-project-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(232px, 1fr));
+  gap: 16px;
+}
+.ns-empty-state {
+  display: grid;
+  gap: 8px;
+  padding: 48px;
+  place-items: center;
+  text-align: center;
+}
+.ns-empty-state-icon {
+  color: var(--muted-foreground);
+}
+.ns-empty-state-title,
+.ns-empty-state-hint {
+  margin: 0;
+}
+.ns-empty-state-hint {
+  max-width: 360px;
+  color: var(--muted-foreground);
+}
+.ns-empty-state-action {
+  margin-top: 8px;
+}
+.ns-spinner {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--muted);
+  border-top-color: var(--brand);
+  border-radius: 999px;
+  animation: ns-spin 0.8s linear infinite;
+}
+.ns-settings-card {
+  padding: 24px;
+}
+.ns-settings-card-head {
+  margin-bottom: 20px;
+}
+.ns-settings-card-title {
+  margin: 0;
+  font-size: 16px;
+}
+.ns-settings-card-desc {
+  margin: 4px 0 0;
+  color: var(--muted-foreground);
+  font-size: 13px;
+}
+
 /* Inputs */
 .ns-input {
   background: var(--input);

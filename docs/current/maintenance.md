@@ -95,7 +95,10 @@ The renderer CSS split is complete for the current Phase 7 scope.
 `apps/desktop/src/renderer/theme.css` is the stable import entry and section
 inventory; domain/layer partials live under `apps/desktop/src/renderer/theme/`.
 Do not put new rules back into the entry file. Add them to the owning partial,
-or add a new partial only when it represents a real UI domain or layer.
+or add a new partial only when it represents a real UI domain or layer. Stable
+renderer shell/review/empty-state layout belongs in these CSS partials; keep
+runtime values such as dynamic media backgrounds, selected-scene borders, and
+progress width inline in the owning TSX.
 
 The internal `createTools` facade is pipeline-owned.
 The root `.mcp.json` is local-only and ignored. Keep `.mcp.example.json` as a

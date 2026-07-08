@@ -267,8 +267,8 @@ export const StoryboardView: React.FC<{
     <div className="ns-story-header">
       <button className="ns-btn" onClick={onBack}>Quay lại</button>
       <div className="ns-story-title">
-        <strong style={{ fontSize: 16 }}>Duyệt cảnh</strong>
-        {scenes.length > 0 && <span style={{ color: "var(--muted-foreground)", fontSize: 13 }}>Cảnh {idx + 1}/{scenes.length}</span>}
+        <strong className="ns-story-heading">Duyệt cảnh</strong>
+        {scenes.length > 0 && <span className="ns-story-count">Cảnh {idx + 1}/{scenes.length}</span>}
       </div>
       {scenes.length > 0 && (
         <>
@@ -294,9 +294,9 @@ export const StoryboardView: React.FC<{
 
   if (scenes.length === 0) {
     return (
-      <div style={{ height: "100%", display: "flex", flexDirection: "column", overflow: "hidden" }}>
+      <div className="ns-story-shell">
         {Header}
-        <div style={{ flex: 1, display: "grid", placeItems: "center", padding: 16 }}>
+        <div className="ns-story-empty-body">
           <EmptyState icon={Icon.film({ size: 34 })} title="Chưa có cảnh nào" hint="Bản nháp chưa tạo cảnh nào." />
         </div>
       </div>
@@ -304,28 +304,23 @@ export const StoryboardView: React.FC<{
   }
 
   return (
-    <div style={{ height: "100%", display: "flex", flexDirection: "column", overflow: "hidden" }}>
+    <div className="ns-story-shell">
       {Header}
 
       {/* Body fills the viewport; rail + edit panel scroll internally (no page scroll). */}
-      <div style={{ flex: 1, minHeight: 0, display: "flex", gap: 14, padding: 14 }}>
+      <div className="ns-story-body">
         {/* Slide rail */}
-        <div style={{ width: 88, flexShrink: 0, display: "flex", flexDirection: "column", gap: 8, overflowY: "auto", paddingRight: 4 }}>
+        <div className="ns-story-rail">
           {scenes.map((s, i) => (
-            <button key={s.sceneId} onClick={() => { setSelected(i); setShowStill(true); }} title={`Cảnh ${i + 1}`} className="ns-thumb"
+            <button key={s.sceneId} onClick={() => { setSelected(i); setShowStill(true); }} title={`Cảnh ${i + 1}`} className="ns-thumb ns-story-thumb"
               style={{
-                position: "relative", flexShrink: 0, padding: 0, cursor: "pointer", borderRadius: 8, overflow: "hidden",
                 border: i === idx ? "2px solid var(--brand)" : "1px solid var(--border)",
                 background: s.stillPath ? `center/cover no-repeat #0c0e12 url(${s.stillPath})` : "#101216",
-                aspectRatio: "9 / 16", width: "100%",
-                transition: "border-color 0.15s ease",
               }}>
-              <span style={{ position: "absolute", left: 4, top: 4, fontSize: 10, fontWeight: 800, color: "#fff",
-                background: "rgba(0,0,0,0.6)", borderRadius: 5, padding: "0 5px", lineHeight: "15px" }}>{i + 1}</span>
+              <span className="ns-story-thumb-index">{i + 1}</span>
               {hasEdit(s.sceneId) && (
-                <span title="Đã ghi yêu cầu chỉnh sửa" style={{ position: "absolute", right: 4, top: 4, width: 15, height: 15,
-                  color: "#fff", background: "var(--brand)", borderRadius: 999 }}>
-                  <svg viewBox="0 0 512 512" width="9" height="9" fill="currentColor" style={{ position: "absolute", left: "50%", top: "50%", transform: "translate(-50%, -50%)", display: "block" }}>
+                <span className="ns-story-thumb-edit" title="Đã ghi yêu cầu chỉnh sửa">
+                  <svg className="ns-story-thumb-edit-icon" viewBox="0 0 512 512" width="9" height="9" fill="currentColor">
                     <path d="M362.7 19.3L314.3 67.7 444.3 197.7l48.4-48.4c25-25 25-65.5 0-90.5L453.3 19.3c-25-25-65.5-25-90.5 0zm-71 71L58.6 323.5c-10.4 10.4-18 23.3-22.2 37.4L1 490.7c-3.9 13 8.4 25.3 21.4 21.4l129.8-35.4c14.1-4.2 27-11.8 37.4-22.2L422.3 221.7 291.7 90.3z" />
                   </svg>
                 </span>
@@ -335,20 +330,15 @@ export const StoryboardView: React.FC<{
         </div>
 
         {/* Big preview */}
-        <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 8, minHeight: 0 }}>
+        <div className="ns-story-preview-pane">
           {draftPath && (
-            <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
-              <div style={{ display: "inline-flex", borderRadius: 10, border: "1px solid rgba(255, 255, 255, 0.08)", overflow: "hidden", background: "rgba(255, 255, 255, 0.03)", padding: 4 }}>
+            <div className="ns-story-preview-toolbar">
+              <div className="ns-story-segmented">
                 {[{ still: false, label: "Video nháp" }, { still: true, label: `Ảnh cảnh ${idx + 1}` }].map((seg) => {
                   const active = showStill === seg.still;
                   return (
                     <button key={seg.label} onClick={() => setShowStill(seg.still)}
-                      style={{ border: "none", padding: "6px 16px", fontSize: 13, cursor: "pointer", lineHeight: 1.4,
-                        borderRadius: 6,
-                        background: active ? "var(--brand)" : "transparent",
-                        color: active ? "#fff" : "var(--muted-foreground)", fontWeight: active ? 700 : 500,
-                        boxShadow: active ? "0 2px 8px rgba(59, 130, 246, 0.35)" : "none",
-                        transition: "all 0.15s ease" }}>
+                      className={`ns-story-segment${active ? " is-active" : ""}`}>
                       {seg.label}
                     </button>
                   );
@@ -358,17 +348,14 @@ export const StoryboardView: React.FC<{
             </div>
           )}
           
-          <div style={{ flex: 1, minHeight: 0, display: "grid", gridTemplateRows: "minmax(0, 1fr)", gridTemplateColumns: "minmax(0, 1fr)", placeItems: "center" }}>
+          <div className="ns-story-preview-stage">
             {draftPath && !showStill ? (
-              <video src={draftPath} controls style={{ height: "100%", maxHeight: "100%", aspectRatio: "9 / 16", maxWidth: "100%",
-                borderRadius: 12, border: "1px solid var(--border)", boxShadow: "0 12px 40px rgba(0,0,0,0.5)",
-                background: "#0c0e12", objectFit: "contain" }} />
+              <video src={draftPath} controls className="ns-story-preview-media" />
             ) : (
-              <div style={{ height: "100%", aspectRatio: "9 / 16", maxWidth: "100%",
-                borderRadius: 12, border: "1px solid var(--border)", overflow: "hidden",
-                boxShadow: "0 12px 40px rgba(0,0,0,0.5)",
-                background: current?.stillPath ? `center/contain no-repeat #0c0e12 url(${current.stillPath})` : "#101216",
-                display: "grid", placeItems: "center", color: "#3a3f49" }}>
+              <div
+                className="ns-story-preview-media ns-story-preview-still"
+                style={current?.stillPath ? { background: `center/contain no-repeat #0c0e12 url(${current.stillPath})` } : undefined}
+              >
                 {!current?.stillPath && Icon.film({ size: 30 })}
               </div>
             )}

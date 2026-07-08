@@ -34,10 +34,10 @@ export const STATUS_COLOR: Record<FriendlyStatus, string> = {
 };
 
 export const PageHeader: React.FC<{ title: string; subtitle?: string; action?: React.ReactNode }> = ({ title, subtitle, action }) => (
-  <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 24 }}>
-    <div>
-      <h1 style={{ margin: 0, fontSize: 24 }}>{title}</h1>
-      {subtitle && <p style={{ margin: "6px 0 0", color: "var(--muted-foreground)", fontSize: 14 }}>{subtitle}</p>}
+  <div className="ns-page-header">
+    <div className="ns-page-header-copy">
+      <h1 className="ns-page-title">{title}</h1>
+      {subtitle && <p className="ns-page-subtitle">{subtitle}</p>}
     </div>
     {action}
   </div>
@@ -76,7 +76,7 @@ export const ProjectGrid: React.FC<{
   };
 
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(232px, 1fr))", gap: 16 }}>
+    <div className="ns-project-grid">
       {cards.map((c) => {
         const editing = editingId === c.projectId;
         const statusLabel = FRIENDLY_LABELS[c.status];
@@ -142,16 +142,16 @@ export const ProjectGrid: React.FC<{
 };
 
 export const EmptyState: React.FC<{ icon: React.ReactNode; title: string; hint: string; action?: React.ReactNode }> = ({ icon, title, hint, action }) => (
-  <div className="ns-card" style={{ padding: 48, textAlign: "center", display: "grid", placeItems: "center", gap: 8 }}>
-    <div style={{ color: "var(--muted-foreground)" }}>{icon}</div>
-    <h3 style={{ margin: 0 }}>{title}</h3>
-    <p style={{ margin: 0, color: "var(--muted-foreground)", maxWidth: 360 }}>{hint}</p>
-    {action && <div style={{ marginTop: 8 }}>{action}</div>}
+  <div className="ns-card ns-empty-state">
+    <div className="ns-empty-state-icon">{icon}</div>
+    <h3 className="ns-empty-state-title">{title}</h3>
+    <p className="ns-empty-state-hint">{hint}</p>
+    {action && <div className="ns-empty-state-action">{action}</div>}
   </div>
 );
 
 export const Spinner: React.FC = () => (
-  <span style={{ display: "inline-block", width: 16, height: 16, border: "2px solid var(--muted)", borderTopColor: "var(--brand)", borderRadius: 999, animation: "ns-spin 0.8s linear infinite" }} />
+  <span className="ns-spinner" />
 );
 
 /** An (i) glyph that reveals a short explanation on hover/focus — keeps setting
@@ -294,10 +294,10 @@ export const InfoRow: React.FC<{ label: string; value: string; hint?: string; mo
 );
 
 export const SettingsCard: React.FC<{ title: string; desc?: string; children: React.ReactNode }> = ({ title, desc, children }) => (
-  <section className="ns-card" style={{ padding: 24 }}>
-    <div style={{ marginBottom: 20 }}>
-      <h3 style={{ margin: 0, fontSize: 16 }}>{title}</h3>
-      {desc && <p style={{ margin: "4px 0 0", fontSize: 13, color: "var(--muted-foreground)" }}>{desc}</p>}
+  <section className="ns-card ns-settings-card">
+    <div className="ns-settings-card-head">
+      <h3 className="ns-settings-card-title">{title}</h3>
+      {desc && <p className="ns-settings-card-desc">{desc}</p>}
     </div>
     {children}
   </section>
