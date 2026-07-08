@@ -55,7 +55,8 @@ that ignored file.
 - `docs/current/architecture.md` — current package map and data flow.
 - `docs/current/authoring-contract.md` — authored scene rules.
 - `docs/current/content-guide.md` — story, evidence, language, and visuals.
-- `docs/current/maintenance.md` — cleanup, residual risks, and refactor guardrails.
+- `docs/current/maintenance.md` — cleanup, residual risks, stage/failure log
+  reading notes, and refactor guardrails.
 - `docs/current/youtube-mode-deferred.md` — deferred roadmap note; not active scope.
 
 Provider setup lives in `docs/providers/`.

@@ -107,6 +107,8 @@ recovery, crash cleanup, and focused render-path verification.
 The workspace controller has been split only along narrow local seams:
 
 - `workspace-helpers.ts` owns pure status, intent, and link-warning helpers.
+- `workspace-stage.ts` owns stage fingerprints and “should log transition”
+  (percent ticks are ignored so draft progress stays quiet).
 - `workspace-view-model.ts` owns pure ready/published/script/storyboard shaping.
 - `workspace-create-flow.ts` owns create/crawl/image-review helpers and the
   callback-driven create runner.
@@ -114,9 +116,13 @@ The workspace controller has been split only along narrow local seams:
   authoring runner helpers.
 - `workspace-render-flow.ts` owns pure render/refine prompt and progress helpers.
 
+Renderer-safe Vietnamese stage/phase copy lives in
+`apps/desktop/src/shared/stage-labels.ts` (not under `main/`).
+
 `workspace-controller.ts` still owns orchestration: live stage maps, in-flight
 jobs, cancellation, retry, snapshot/restore, async render/refine/publish
-ordering, publish state, and event emission.
+ordering, publish state, and event emission. `setStage` is the single place that
+emits structured `workspace stage transition` logs (`from` / `to` fingerprints).
 
 ## Desktop Workflow
 
@@ -149,6 +155,8 @@ runner modules own bounded model-call workflows:
 - `image-filter-runner.ts` and `article-image-crawler-runner.ts` own best-effort
   crawled-image preselection and crawling. The backend still supplies the
   SSRF-safe fetcher, chat fallback, and image-capability cache.
+- `authoring-failure.ts` is the shared `failureClass` emitter for structured
+  authoring fail logs (preserves legacy message strings for continuity).
 
 The public `content-plan.ts` module stays as the import facade for content-plan
 types and helpers. Its internals are split into schema/types, normalization,

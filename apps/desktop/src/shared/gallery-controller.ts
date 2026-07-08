@@ -77,7 +77,7 @@ export function galleryLoadState(loaded: boolean, cardCount: number): GalleryLoa
   return cardCount === 0 ? "empty" : "populated";
 }
 
-/** Default page size for the projects gallery (I1/O3): a 3×4 grid. */
+/** Default page size for the projects gallery: a 3×4 grid. */
 export const PROJECTS_PER_PAGE = 12;
 
 export type Paged<T> = {
@@ -92,7 +92,7 @@ export type Paged<T> = {
 };
 
 /**
- * Slice a list into a clamped 1-based page (I1/O3). Pagination is done in the
+ * Slice a list into a clamped 1-based page. Pagination is done in the
  * renderer over the already-loaded cards — the store must read every brief to
  * sort newest-first anyway, so a backend `(page,pageSize)` query would add no
  * perf benefit while forcing page/total state through the 1.5s gallery poll

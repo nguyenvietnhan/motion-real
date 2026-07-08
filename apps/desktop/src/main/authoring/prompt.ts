@@ -27,7 +27,7 @@ export { buildVisualQaMessages } from "./prompt-visual-qa.js";
 
 /**
  * Build the AUTHOR system prompt for the chosen DELIVERY FORMAT (no design style
- * anymore — the multi-language system was deleted, D1). The format block fixes the
+ * anymore — the multi-language system was deleted). The format block fixes the
  * canvas + caption presence, the tier block sets the word budget, and the title
  * block steers ONLY the publish title's language; everything else is the invariant
  * content rules + authoring contract + output format.
@@ -128,7 +128,7 @@ export type ReauthorPromptInput = {
 };
 
 /**
- * Reauthor system prompt. The multi-language design system was deleted (D1), so a
+ * Reauthor system prompt. The multi-language design system was deleted, so a
  * repair carries only the invariant authoring contract — there is no per-style
  * slice to restore toward anymore.
  */

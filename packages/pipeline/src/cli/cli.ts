@@ -465,7 +465,7 @@ export function defaultCheckN10Typecheck(root = workspaceRoot()): DoctorCheck {
   };
 }
 
-/** R6.1: the neutral theme resolves. */
+/** Doctor check: the neutral theme resolves. */
 export function defaultCheckTheme(): DoctorCheck {
   const theme = makeTheme();
   const ok =

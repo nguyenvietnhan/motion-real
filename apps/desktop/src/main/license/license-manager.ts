@@ -35,7 +35,7 @@ export type LicenseManagerDeps = {
   timeoutMs?: number;
 };
 
-/** Single source of truth for Req 1.7/1.9/12: may the user create a NEW video? */
+/** Single source of truth: may the user create a NEW video? */
 export function canCreate(state: LicenseState): boolean {
   return state.kind === "active";
 }

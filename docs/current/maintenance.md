@@ -30,9 +30,12 @@ Preferred order:
 3. revisit workspace state machine only after a new narrow slice is proven;
 4. split render-grid/orchestrator only after safer outer cleanup.
 
-Current workspace layout: local pure/view-model/create/script/render helpers
-exist, while async render/refine/publish orchestration stays in
-`WorkspaceController`. Do not force further extraction just to reduce line count.
+Current workspace layout: local pure helpers exist for status/intent
+(`workspace-helpers`), stage fingerprints (`workspace-stage`), view-models,
+create/crawl, script gate, and render/refine prompts, while async
+render/refine/publish orchestration stays in `WorkspaceController`. Stage
+transitions log at `setStage` only. Do not force further extraction just to
+reduce line count.
 
 `workspace-controller.ts`, `packages/pipeline/src/orchestrator.ts`, and
 `packages/pipeline/src/safety/render-grid.ts` remain large on purpose. They own
@@ -45,8 +48,9 @@ code out of these files for size alone.
 wiring, project paths, image-capability cache, file write/admission, and
 desktop-facing methods. Focused runner modules own content planning, author
 reply generation/recovery, reauthor retry/rollback, image filtering, and article
-image crawling. Add behavior on the relevant runner or a new tested seam; do not
-keep thinning the facade just to reduce line count.
+image crawling. Structured fail logs use `authoring-failure.ts` (`failureClass`)
+on existing fail paths. Add behavior on the relevant runner or a new tested
+seam; do not keep thinning the facade just to reduce line count.
 
 `content-plan.ts` is the public facade; schema/types, normalization, parser,
 quality checks, and prompt builders live in focused `content-plan-*` modules.

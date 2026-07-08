@@ -164,10 +164,10 @@ export function checkSafeArea(frame: Frame, sceneId?: string, options?: RenderGr
   return [];
 }
 
-// --- N14 (format-aware "don't fly off the frame", D7/O5) -------------------
+// --- N14 (format-aware "don't fly off the frame") --------------------------
 
 /**
- * The ONE format-aware layout oracle the freeform engine keeps (D7): authored
+ * The ONE format-aware layout oracle for both canvases: authored
  * content must not bleed into the outer `safeMargin` ring at the very edge of the
  * frame — content flush on the canvas edge reads as "flew off the frame". Unlike
  * the four vertical-only N14 variants above (which encode the 9:16 news layout —

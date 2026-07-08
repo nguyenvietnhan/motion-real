@@ -86,7 +86,7 @@ export class PipelineError extends Error {
     this.severity = init.severity ?? "error";
   }
 
-  /** Structured form for transport (identical detail to the CLI text), R7.5. */
+  /** Structured form for transport (identical detail to the CLI text). */
   toSerialized(): SerializedPipelineError {
     return {
       message: this.message,

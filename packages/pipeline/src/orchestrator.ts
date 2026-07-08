@@ -213,7 +213,7 @@ export type RenderProjectOptions = {
   /** Lint the @motionreal/blocks + @motionreal/compositions sources for forbidden APIs (N5) in the build gate. Default on; pass `false` to skip. */
   lintSources?: boolean;
   composeContactSheet?: ComposeContactSheet;
-  /** Force a fresh render: bypass the render cache read (R9.4 `--no-cache`). */
+  /** Force a fresh render: bypass the render cache read (`--no-cache`). */
   noCache?: boolean;
   /**
    * Render quality. `draft` produces a fast low-res preview (and never reads or

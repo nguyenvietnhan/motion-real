@@ -28,9 +28,9 @@ const log = createLogger("workspace");
  * `storyboardScenesOf`) plus the project/script read handlers
  * (`projects:list/stage/open/delete/reveal`, `script:get/applyEdits/approve`).
  *
- * It reproduces the EXACT previous main-process behavior (authoritative, R4.4) and injects all
- * Electron/engine/pipeline access through seams so it is testable without
- * Electron. Validates 
+ * It reproduces the previous main-process staged-workspace behavior and injects
+ * all Electron/engine/pipeline access through seams so it is testable without
+ * Electron.
  */
 
 /** A manifest scene as the dashboard needs it (other fields preserved opaquely). */
@@ -68,7 +68,7 @@ export interface WorkspaceDeps {
     readonly scriptGateEnabled: boolean;
     readonly maxRepairAttempts: number;
     readonly refinePasses: number;
-    /** Require TWO consecutive clean vision passes (not one) before stopping early (L4). */
+    /** Require TWO consecutive clean vision passes (not one) before stopping early. */
     readonly refineEarlyStop: boolean;
     readonly imageCrawlAiFilter: boolean;
     readonly imageCrawlHumanReview: boolean;
@@ -599,7 +599,7 @@ export class WorkspaceController {
     if (sceneIds.length === 0) return;
 
     await this.snapshotFresh(projectId, sceneIds, preRefine, snapshotted);
-    // "prepare" (not "qa"): this is one of the two HIDDEN pre-draft renders (L3) —
+    // "prepare" (not "qa"): this is one of the two HIDDEN pre-draft renders —
     // the user sees a neutral "Đang dựng bản nháp…", never the bland/bootstrap take.
     this.setStage(projectId, { kind: "rendering", percent: 0, phase: "prepare" });
     await this.deps.worker.reauthorScenes(
@@ -608,7 +608,7 @@ export class WorkspaceController {
       signal,
     );
     // Re-render ALL scenes; an empty result means the bold rewrite broke admission
-    // for the project — roll back to the pre-bootstrap source (accept-gate, R4.7).
+    // for the project — roll back to the pre-bootstrap source (accept-gate).
     const rendered = (await this.deps.worker.renderStills?.(projectId, sceneIds, signal)) ?? { stills: [] };
     if (rendered.stills.length === 0 && preRefine.length > 0 && this.deps.worker.restoreScenes) {
       await this.deps.worker.restoreScenes(projectId, preRefine);
@@ -624,7 +624,7 @@ export class WorkspaceController {
    * ones a user just edited). Stops EARLY the first time a pass finds no defect
    *. Snapshots each scene the first time it's touched (into the shared
    * `preRefine`) and rolls the whole refine back if a rewrite stops rendering
-   * (accept-gate, R4.7). Returns whether any scene was accepted (so the caller
+   * (accept-gate). Returns whether any scene was accepted (so the caller
    * knows to refresh the draft). Pure vision QA — the creative "be bolder" pass is
    * a separate concern (`creativeBootstrapPass`).
    */
@@ -633,7 +633,7 @@ export class WorkspaceController {
     if (passes <= 0 || !this.deps.worker.visualQa) return false;
     const earlyStop = this.deps.settings.refineEarlyStop;
     let changedAny = false;
-    // Count CONSECUTIVE clean passes (L4): with early-stop ON, TWO in a row mean
+    // Count CONSECUTIVE clean passes: with early-stop ON, TWO in a row mean
     // the draft is settled — the extra look guards against the vision model's
     // non-determinism flagging nothing on a single glance then catching a defect
     // on the next. A flagged pass resets the streak. With early-stop OFF, the
@@ -654,7 +654,7 @@ export class WorkspaceController {
         });
       if (signal?.aborted) break;
       // A clean pass has nothing to re-author. Count it toward the early-stop
-      // streak and move on; never break on the FIRST clean pass alone (L4).
+      // streak and move on; never break on the FIRST clean pass alone.
       if (flagged.length === 0) {
         cleanStreak += 1;
         if (earlyStop && cleanStreak >= 2) break;
@@ -689,7 +689,7 @@ export class WorkspaceController {
   }
 
   /**
-   * SILENT refine BEFORE the first real draft (, L1):
+   * SILENT refine BEFORE the first real draft:
    * render cheap stills (bản-1) so there are frames to judge → ONE creative
    * bootstrap over every scene ("be bolder") → the defect-fixing vision loop — all
    * on the no-TTS/no-MP4 stills path, ENTIRELY HIDDEN from the user. The MP4 draft
@@ -706,7 +706,7 @@ export class WorkspaceController {
     // entirely (no hidden bootstrap either) and let the normal draft render.
     if (passes <= 0 || !this.deps.worker.renderStills || !this.deps.worker.visualQa) return preRefine;
 
-    // Bản-1 + the creative bootstrap are the two HIDDEN pre-draft renders (L3):
+    // Bản-1 + the creative bootstrap are the two HIDDEN pre-draft renders:
     // show a neutral "prepare" phase, never the raw bland/bootstrap frames, so the
     // user only ever sees the refined take. The vision loop below flips to "qa".
     this.setStage(projectId, { kind: "rendering", percent: 0, phase: "prepare" });
@@ -738,7 +738,7 @@ export class WorkspaceController {
     if (passes <= 0 || !this.deps.worker.renderStills || !this.deps.worker.visualQa) return true;
     if (sceneIds.length === 0) return true;
 
-    // Hidden pre-draft stills render (L3): a neutral "prepare" phase, never a raw
+    // Hidden pre-draft stills render: a neutral "prepare" phase, never a raw
     // "draft"/"qa" percent, so the user only sees the refined take.
     this.setStage(projectId, { kind: "rendering", percent: 0, phase: "prepare" });
     const first = await this.deps.worker.renderStills(projectId, sceneIds, signal).catch((error) => {
@@ -876,7 +876,7 @@ export class WorkspaceController {
   }
 
   /**
-   * Rename a project's display title (H2/R9.4). The manifest is the single source
+   * Rename a project's display title. The manifest is the single source
    * of truth for the title (no denormalized copy in the brief to drift), so we
    * load the FULL on-disk manifest, patch `title`, and write it back — spreading
    * keeps theme/format/scenes intact. The folder id is NEVER touched (renaming a

@@ -35,7 +35,7 @@ export const AUTHORING_CONTRACT_REF = "AI_CONTRACT.md+docs/current" as const;
  * (the word-budget bucket, see `tierSeconds`), and `videoLanguage` (vi/en for the
  * whole authored video: title, on-screen text, narration, captions). All optional: absent ⇒ the
  * backend's defaults (tiktok / tier 1 / vi). Style selection is not part of the
- * authoring input; the multi-style design system was removed (D1).
+ * authoring input; the multi-style design system was removed.
  */
 export type AuthorInput = {
   text: string;

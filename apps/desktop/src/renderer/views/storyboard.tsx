@@ -5,7 +5,7 @@ import { EmptyState, InfoHint } from "../primitives.js";
 import { compactNotificationMessage, errorDetails, useNotifications } from "../notifications.js";
 
 /**
- * Background-music picker (I2): a compact dropdown of the per-machine BGM
+ * Background-music picker: a compact dropdown of the per-machine BGM
  * library + add/remove, shown in the storyboard header so the user sets the
  * track BEFORE approving the full render (the choice is persisted to the
  * manifest; the MCP render tool resolves it to a real path and mixes it in).

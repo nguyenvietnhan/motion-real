@@ -126,7 +126,7 @@ const authoringBackend = new NineRouterAuthoringBackend({
   tools,
   model: () => selectedModel?.id,
   apiKey: () => undefined, // 9router /v1 is open on localhost
-  // Per-voice CALIBRATED narration rate for the author word-budget (K1/R5.4/D13);
+  // Per-voice CALIBRATED narration rate for the author word-budget;
   // undefined when uncalibrated/stale ⇒ the prompt uses its baked default (~4.7).
   wordsPerSecond: async (projectId) => {
     const brief = await readBrief(projectId);

@@ -55,7 +55,7 @@ export const ProjectGrid: React.FC<{
   onOpen: (id: string) => void;
   onDelete?: (id: string) => void;
   onReveal?: (id: string) => void;
-  /** Rename a project's display title (H2/R9.4). Absent ⇒ no rename affordance. */
+  /** Rename a project's display title. Absent ⇒ no rename affordance. */
   onRename?: (id: string, newTitle: string) => void;
 }> = ({ cards, onOpen, onDelete, onReveal, onRename }) => {
   const [editingId, setEditingId] = React.useState<string | null>(null);

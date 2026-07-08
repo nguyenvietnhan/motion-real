@@ -58,7 +58,7 @@ const authorImageSchema = z.object({
 });
 
 /**
- * Coerce the publish `hashtags` field into a clean `string[]` (D9/
+ * Coerce the publish `hashtags` field into a clean `string[]`.
  * The model emits this in many shapes: a real array `["#ai","#tech"]`, a bare
  * array without leading `#`, or a single string `"#ai #tech, #news"`. Normalize
  * ALL of them to `["#ai", "#tech",...]` so the Copy panel always has ready-to-
@@ -100,7 +100,7 @@ export type AuthorScene = z.infer<typeof authorSceneSchema>;
 export const authorManifestSchema = z.object({
   title: z.preprocess(clampStr(160), z.string().min(1).max(160)),
   // Publish hashtags (TikTok), separate from the title so the project display
-  // name stays clean (D9). Coerced from string/array shapes; a bad value degrades
+  // name stays clean. Coerced from string/array shapes; a bad value degrades
   // to undefined rather than discarding the reply (see coerceHashtags).
   hashtags: z.preprocess(coerceHashtags, z.array(z.string()).optional().catch(undefined)),
   // mood is advisory (clamped to 40 downstream); an empty/over-long mood must not

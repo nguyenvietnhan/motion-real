@@ -93,7 +93,7 @@ export class CreateController {
     } = {},
   ): Promise<{ projectId: string }> {
     const v = validateCreateInput({ raw });
-    if (!v.ok) throw new Error(VALIDATION_MESSAGE[v.reason]); // invalid ⇒ no scaffold (R1.3)
+    if (!v.ok) throw new Error(VALIDATION_MESSAGE[v.reason]); // invalid ⇒ no scaffold
     // Block on a guaranteed-fatal config gap BEFORE scaffolding/authoring, so the
     // user isn't told "ready" only to have the whole AI pass burn and then fail at
     // TTS. A clean (no-message) preflight — or no preflight dep — proceeds.
@@ -111,7 +111,7 @@ export class CreateController {
     const res = choices.format || choices.durationTier
       ? await this.deps.scaffold(v.brief.text, voiceProvider, videoLanguage, delivery)
       : await this.deps.scaffold(v.brief.text, voiceProvider, videoLanguage);
-    if (!res.ok) throw new Error(toFriendlyError(res.error).message); // redacted (R8.5)
+    if (!res.ok) throw new Error(toFriendlyError(res.error).message); // redacted friendly message
     // Promote staged images into the project before authoring so the first draft
     // can place them. A promote failure never blocks create — the brief still
     // authors (text-only), images just don't reach the AI.
@@ -135,7 +135,7 @@ export class CreateController {
       ...(choices.format ? { format: choices.format } : {}),
       ...(choices.durationTier ? { durationTier: choices.durationTier } : {}),
       videoLanguage,
-    }); // stage 1 (R2.1)
+    }); // hand off to workspace stage 1
     return { projectId: res.projectId };
   }
 }

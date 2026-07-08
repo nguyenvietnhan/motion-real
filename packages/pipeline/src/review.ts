@@ -299,7 +299,7 @@ export async function buildReview(
     contactSheetPath,
     reviewJsonPath,
     checklist,
-    // Req 10.3: only report the MP4 once the gate is green.
+    // Only report the MP4 once the review gate is green.
     mp4Path: report.ok ? mp4Abs : undefined,
     report,
   };

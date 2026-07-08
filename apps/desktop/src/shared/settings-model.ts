@@ -26,7 +26,7 @@ export function clampMaxRepairAttempts(n: number): number {
   return Math.min(MAX_REPAIR_ATTEMPTS, Math.max(MIN_REPAIR_ATTEMPTS, Math.floor(n)));
 }
 
-/** Default silent refine passes over the stills before the first draft (D6/R4.4). */
+/** Default silent refine passes over the stills before the first draft. */
 export const DEFAULT_REFINE_PASSES = 2;
 /** Refine passes are clamped to this inclusive range; 0 disables refine. */
 export const MIN_REFINE_PASSES = 0;

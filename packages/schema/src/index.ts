@@ -155,7 +155,7 @@ export type ThemeSpec = z.infer<typeof ThemeSpecSchema>;
 /**
  * Delivery format. The canvas, layout zones, and whether
  * a burned caption band exists are all a function of this — see `geometry` in
- * `./zones.ts`. REQUIRED on a spec (greenfield D0): a spec must declare what it
+ * `./zones.ts`. REQUIRED on a spec: a spec must declare what it
  * is, so the renderer/oracle can never silently treat a YouTube spec as vertical.
  */
 export const VideoFormatSchema = z.enum(["tiktok", "youtube"]);
@@ -363,7 +363,7 @@ export function validateVideoSpecStructure(
 }
 
 /**
- * Overlap-aware locked-timing validation (N12, R5.3). With
+ * Overlap-aware locked-timing validation (N12). With
  * `TransitionSeries`, adjacent scene sequences OVERLAP by the transition frames,
  * so the timeline is no longer strictly contiguous. What must still hold:
  * - the first scene starts at frame 0;

@@ -44,7 +44,7 @@ export type Manifest = {
   title?: string;
   /**
    * Publish hashtags (TikTok), kept SEPARATE from the title so the project
-   * display name (D9) stays clean ("Gemma 3 chạy trên máy nhà", not "… #ai #llm").
+   * display name stays clean ("Gemma 3 chạy trên máy nhà", not "… #ai #llm").
    * The published screen surfaces them next to the title with a Copy button
    *. Each entry already carries its leading `#` (normalized at parse).
    * Absent for YouTube (no hashtag requirement) or an older manifest.

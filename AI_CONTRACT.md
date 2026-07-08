@@ -24,7 +24,8 @@ Current docs live under `docs/current/`:
 - `architecture.md` — packages, data flow, persistence, and boundaries.
 - `authoring-contract.md` — scene module requirements and import rules.
 - `content-guide.md` — story, language, evidence, and visual guidance.
-- `maintenance.md` — cleanup/refactor rules and known sensitive areas.
+- `maintenance.md` — cleanup/refactor rules, residual risks, and how to read
+  workspace stage / authoring failure logs.
 - `youtube-mode-deferred.md` — deferred roadmap note only; not active scope.
 
 Provider setup lives in `docs/providers/`.
@@ -98,6 +99,8 @@ server exists.
   state unless explicitly asked.
 - Do not refactor `orchestrator.ts`, `render-grid.ts`, or desktop workspace flow
   casually. These are sensitive areas.
+- Prefer durable docs under `docs/current/` over temporary working notes. Keep
+  stage/failure log anchors stable when changing observability.
 - Before adding prompt rules, check whether schema validation, a normalizer,
   admission, or an oracle is the correct layer.
 - Fixes for repeated AI-output bugs need regression fixtures/tests.

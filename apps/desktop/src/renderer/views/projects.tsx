@@ -4,7 +4,7 @@ import { paginate, type GalleryLoad } from "../../shared/gallery-controller.js";
 import { Icon } from "../icons.js";
 import { EmptyState, PageHeader, ProjectGrid } from "../primitives.js";
 
-/** Projects: the full gallery of every video, paginated 12-per-page (I1/O3). */
+/** Projects: the full gallery of every video, paginated 12-per-page. */
 export const ProjectsView: React.FC<{
   load: GalleryLoad;
   cards: ProjectCardVM[];
@@ -12,7 +12,7 @@ export const ProjectsView: React.FC<{
   onNew: () => void;
   onDelete?: (id: string) => void;
   onReveal?: (id: string) => void;
-  /** Rename a project's display title (H2/R9.4). Absent ⇒ no rename affordance. */
+  /** Rename a project's display title. Absent ⇒ no rename affordance. */
   onRename?: (id: string, newTitle: string) => void;
   onRetry?: () => void;
 }> = ({ load, cards, onOpen, onNew, onDelete, onReveal, onRename, onRetry }) => {
