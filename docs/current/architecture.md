@@ -122,7 +122,9 @@ ordering, publish state, and event emission.
 
 The Electron app is the main user-facing workflow: create, gallery, settings,
 gateway connection, image review, optional script review, hidden stills/refine,
-draft review, full-render approval, BGM, thumbnail, and export.
+draft review, full-render approval, BGM, thumbnail, and export. Workspace stage
+kind/phase transitions are logged at `WorkspaceController.setStage` (see
+`docs/current/maintenance.md`).
 
 Runtime AI does not read repository docs directly. For fresh authoring, the
 desktop backend first asks the selected 9router-compatible model for a structured

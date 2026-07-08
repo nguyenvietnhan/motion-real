@@ -328,6 +328,63 @@ Specifically inspect long Vietnamese text, button labels/icons, dropdowns,
 modals, toasts, cover lightbox, thumbnail aspect modes, and narrow-window
 responsive wrapping.
 
+## Workspace Stages And Authoring Failure Logs
+
+Observability only — does not change hard safety gates, retry budgets, or TTS
+fallback rules.
+
+### Workspace stage transitions
+
+`WorkspaceController.setStage` logs kind/phase changes as:
+
+```text
+scope=workspace message="workspace stage transition"
+fields: projectId, from, to
+```
+
+Fingerprints ignore render `percent` so draft progress ticks stay quiet. Useful
+shapes:
+
+| Fingerprint | Meaning |
+| --- | --- |
+| `none` | first stage for a project |
+| `writing:crawl` / `writing:image-filter` / `writing:author` | create/author path |
+| `image-review` | user confirms crawled images |
+| `script` | optional script gate |
+| `rendering:prepare` / `rendering:draft` / `rendering:full` / `rendering:qa:N/M` | render/refine |
+| `ready` / `published` / `error:draft` | terminal review states |
+
+UI phase copy lives in `apps/desktop/src/shared/stage-labels.ts` (renderer-safe).
+Fingerprint helpers live in `apps/desktop/src/main/workspace/workspace-stage.ts`.
+
+### Authoring failure classes
+
+Authoring fail logs keep their legacy message strings for continuity and add a
+`failureClass` field (`apps/desktop/src/main/authoring/authoring-failure.ts`).
+
+| failureClass | Typical message anchor |
+| --- | --- |
+| `content-plan-parse` | `content-plan parse failed` |
+| `content-plan-repair` | `content-plan repair parse failed` |
+| `content-plan-quality` | `content-plan blocking quality checks failed` |
+| `content-plan-provider` | `AI content-plan call failed` |
+| `author-reply-parse` | `author-reply parse failed` |
+| `author-batch-parse` | `authoring batch parse failed` |
+| `missing-tsx-recovery` | `author-reply missing TSX recovery failed` |
+| `admission` | `admission failed` (+ `violationCounts`) |
+| `reauthor-parse` | `[reauthor] parse failed` |
+| `image-filter-parse` / `visual-qa-parse` | soft warn, non-blocking |
+
+Example filters:
+
+```powershell
+# Stage path for one project
+rg "workspace stage transition" path\to\app.log
+
+# All typed authoring failures
+rg "failureClass" path\to\app.log
+```
+
 ## Comment Hygiene
 
 When renaming or cleaning comments only:
