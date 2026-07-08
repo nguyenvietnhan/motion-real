@@ -35,6 +35,14 @@ script/render helpers exist, while async render/refine/publish orchestration
 stays in `WorkspaceController`. Do not force that extraction just to reduce line
 count.
 
+Phase 7 intentionally did not split `workspace-controller.ts`,
+`packages/pipeline/src/orchestrator.ts`, or
+`packages/pipeline/src/safety/render-grid.ts` further. These files are still
+large, but they currently own real behavior boundaries: desktop stage
+orchestration, render pipeline sequencing/locks, and deterministic render
+oracles. Future extraction needs a written behavior boundary plus focused tests
+before code changes; do not move code out of these files for size alone.
+
 The authoring-backend seam split is complete for the current Phase 2 scope.
 `ninerouter-backend.ts` remains the stable `AuthoringBackend` facade and owns
 provider wiring, project paths, image-capability cache, file write/admission, and

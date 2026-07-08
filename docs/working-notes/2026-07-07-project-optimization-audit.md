@@ -1326,6 +1326,7 @@ git status --short
 | Phase 7 Step 7.1 - Content Plan File Split | Kiem tra -> owner approved Phase 7 -> lam -> kiem tra -> commit | `content-plan.ts` remains the public facade. Schema/types, normalization, parser, quality checks, and prompt builders moved to focused `content-plan-*` modules with no intended behavior or prompt wording change. Baseline and post-change `npm.cmd test -- --run apps/desktop/src/main/authoring/content-plan.test.ts apps/desktop/src/main/authoring/ninerouter-backend.test.ts` passed 2 files/77 tests; `npm.cmd run typecheck` passed; `git diff --check` clean. |
 | Phase 7 Step 7.2 - Ninerouter Backend Runner Boundaries | Kiem tra -> owner approved Phase 7 -> lam -> kiem tra -> commit | Extracted only the pure compact-authoring capacity policy from `ninerouter-backend.ts` to `author-batch-policy.ts`. Added direct unit coverage for short-plan, image-assisted, batched, too-large, and duplicate-id decisions. `npm.cmd test -- --run apps/desktop/src/main/authoring/author-batch-policy.test.ts apps/desktop/src/main/authoring/ninerouter-backend.test.ts` passed 2 files/52 tests. |
 | Phase 7 Step 7.3 - Renderer Inline Style Cleanup | Kiem tra -> owner approved Phase 7 -> lam -> kiem tra -> commit | Moved stable primitive/workspace/storyboard layout styles into `components.css` and `workspace.css`: page header, project grid, empty state, spinner, settings card, script-review rows, render progress shell, storyboard rail, segmented preview control, and preview frame. Runtime values remain inline for media backgrounds, selected-scene borders, and progress width. `npm.cmd run typecheck` passed; `npm.cmd test` passed 99 files/1002 tests plus the heavy 1 file/14 tests lane. |
+| Phase 7 Step 7.4 - No Big-Bang Render/Grid/Orchestrator | Kiem tra -> owner approved Phase 7 -> decision -> kiem tra -> commit | Inspected `workspace-controller.ts`, `orchestrator.ts`, and `render-grid.ts` at the boundary level. No further extraction was accepted in Phase 7: those files still own desktop stage orchestration, render pipeline sequencing/locks, and deterministic render oracles. Future extraction requires a written behavior boundary plus focused tests before code changes. |
 
 ### Phase 4 Step 4.3 Provider Smoke Status
 
@@ -1588,15 +1589,15 @@ Implementation rule:
 | Phase 4 - Authoring Observability And Log Hygiene | provider smoke in progress | Engineering can execute; owner reviews raw-log policy | S-M | Steps 4.1-4.2 are implemented and locally verified; Step 4.3 protocol is recorded. Two provider-connected attempts have succeeded through draft after fixes, one clean source-notes run and one unreadable-URL fallback run. One image-assisted URL run reached complete authoring on retry, and the owner intentionally skipped draft for that run. |
 | Phase 5 - Parser, Normalizer, And Recovery Debt | done | Owner approval required for any new source mutation | S-M | Recovery inventory and durable parser/normalizer policy recorded; no new runtime transform added. |
 | Phase 6 - Repo Hygiene And Reserved Surfaces | done | Owner/product decisions for SFX/image defaults | M | Compatibility notes, reserved SFX policy, image-default policy, and dev/test TTS wording recorded without behavior changes; committed as `acca981`. |
-| Phase 7 - Sensitive File Refactors And UI Style Cleanup | step 7.3 complete / step 7.4 next | Owner approval for sensitive-file extractions | M-L | `content-plan.ts` split behind a stable facade; compact authoring capacity policy extracted and tested; stable renderer layout styles moved to CSS while runtime values stayed inline. Next record the no-big-bang decision for render/grid/orchestrator. |
-| Phase 8 - Render/Cache Scaling Design | pending | Owner/product plus engineering decision | S for design, XL if implemented | Design before concurrency implementation. |
+| Phase 7 - Sensitive File Refactors And UI Style Cleanup | done | Owner approval for sensitive-file extractions | M-L | `content-plan.ts` split behind a stable facade; compact authoring capacity policy extracted and tested; stable renderer layout styles moved to CSS while runtime values stayed inline; no-big-bang decision recorded for workspace/render-grid/orchestrator. |
+| Phase 8 - Render/Cache Scaling Design | next | Owner/product plus engineering decision | S for design, XL if implemented | Design before concurrency implementation. |
 | Phase 9 - Final Validation And Closeout | pending | Owner accepts final gate/provider smoke/rollback | S-L | Full gate + provider smoke + rollback/archive. |
 
 ## Next Real Execution Step
 
-Phase 7 Step 7.3 is complete. Next step is Step 7.4: record the no-big-bang
-decision for `render-grid.ts`, `orchestrator.ts`, and `workspace-controller.ts`
-before any further extraction.
+Phase 7 is complete. Next real phase is Phase 8 Step 8.1: document the current
+single-workflow render/cache assumption before any concurrency or render-scaling
+implementation.
 
 ```powershell
 git log -1 --oneline
@@ -1604,9 +1605,9 @@ git status --short
 git diff --check
 ```
 
-Continue Phase 7 in order:
+Continue in order:
 
-- Step 7.4 written no-big-bang decision for render/grid/orchestrator.
+- Phase 8 Step 8.1 render/cache single-workflow design note.
 - Phase 9 closeout/archive if the temporary optimization note should be
   finalized and durable docs are already synced enough.
 - Phase 3/4 provider canary closure only if the owner wants formal provider
