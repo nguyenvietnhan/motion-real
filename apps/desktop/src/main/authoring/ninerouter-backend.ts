@@ -24,10 +24,7 @@ import type { AuthorJob, VisualDefect, SceneSnapshot, AuthorImageRef } from "../
 import { GatewayChatError, type NineRouterClient, type ChatMessage } from "../gateway/ninerouter-client.js";
 import { logAuthoringFailure } from "./authoring-failure.js";
 import { countSafetyChecks, toEngineManifest } from "./author-manifest-convert.js";
-import {
-  buildVisualQaMessages,
-  type AuthorImageInput,
-} from "./prompt.js";
+import { type AuthorImageInput } from "./prompt.js";
 import type { ContentPlan } from "./content-plan.js";
 import { runContentPlan } from "./content-plan-runner.js";
 import { runBatchedAuthorReply, runSingleAuthorReply, type SuccessfulAuthorReply } from "./author-reply-runner.js";
@@ -41,10 +38,14 @@ import {
   MAX_BATCHED_COMPONENTS,
   planAuthorBatching,
 } from "./author-batch-policy.js";
-import { extractJsonObject } from "./manifest-schema.js";
 import { sceneFileName, resolveSceneFile } from "./scene-files.js";
 import { normalizeAuthoredImports } from "./normalize-imports.js";
 import { normalizeAuthoredFontSizes } from "./normalize-fontsize.js";
+import {
+  restoreAuthoredScenes,
+  runVisualQa,
+  snapshotAuthoredScenes,
+} from "./visual-qa-runner.js";
 
 export { isLogicChanged } from "./reauthor-runner.js";
 
@@ -583,106 +584,60 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
    */
   async visualQa(projectId: string, sceneIds?: string[], signal?: AbortSignal): Promise<VisualDefect[]> {
     const model = this.deps.model();
-    if (!model) return [];
-    const manifest = await loadManifest(projectId).catch((error) => {
-      log.warn({ err: error, projectId }, "visual-QA manifest unreadable; QA skipped");
-      return null;
+    return runVisualQa({
+      ...(model ? { model } : {}),
+      projectId,
+      ...(sceneIds ? { sceneIds } : {}),
+      ...(signal ? { signal } : {}),
+      reviewDir: projectPaths(projectId).reviewDir,
+      loadManifest: (id) =>
+        loadManifest(id).catch((error) => {
+          this.logger().warn({ err: error, projectId: id }, "visual-QA manifest unreadable; QA skipped");
+          return null;
+        }),
+      readStillDataUrl,
+      // Full multimodal chat only — do not route through chatWithVisionFallback.
+      chat: (selectedModel, messages, currentSignal) =>
+        this.deps.client.chat(selectedModel, messages, {
+          apiKey: this.deps.apiKey(),
+          ...(currentSignal ? { signal: currentSignal } : {}),
+        }),
+      logger: this.logger(),
     });
-    if (!manifest) return [];
-    const reviewDir = projectPaths(projectId).reviewDir;
-    const wanted = sceneIds && sceneIds.length > 0 ? new Set(sceneIds) : null;
-    const known = new Set<string>();
-    const scenes: { sceneId: string; stillDataUrl: string }[] = [];
-    for (const s of manifest.scenes) {
-      if (wanted && !wanted.has(s.id)) continue;
-      known.add(s.id);
-      const url = readStillDataUrl(join(reviewDir, `${s.id}.png`));
-      if (url) scenes.push({ sceneId: s.id, stillDataUrl: url });
-    }
-    if (scenes.length === 0) return [];
-
-    let reply: string;
-    try {
-      reply = await this.deps.client.chat(model, buildVisualQaMessages(scenes), { apiKey: this.deps.apiKey(), ...(signal ? { signal } : {}) });
-    } catch (e) {
-      logAuthoringFailure(
-        this.logger(),
-        { class: "visual-qa-provider", projectId, err: e },
-        "[visual-qa] vision call failed; skipping QA",
-        "warn",
-      );
-      return [];
-    }
-    return parseVisualDefects(reply, known);
   }
 
   /** Snapshot the current authored source of the named scenes (for QA rollback). */
   async snapshotScenes(projectId: string, sceneIds: string[]): Promise<SceneSnapshot> {
-    const snap: SceneSnapshot = [];
-    for (const sceneId of sceneIds) {
-      const resolved = await resolveSceneFile(projectId, sceneId, (id) => loadManifest(id).catch((error) => {
-        log.warn({ err: error, projectId: id, sceneId }, "scene manifest unreadable during snapshot resolution");
-        return { scenes: [] };
-      }));
-      if (!resolved) continue;
-      try {
-        snap.push({ sceneId, code: await readFile(resolved.path, "utf8") });
-      } catch (e) {
-        log.warn({ err: e, projectId, sceneId }, "[visual-qa] snapshot read failed");
-      }
-    }
-    return snap;
+    return snapshotAuthoredScenes({
+      projectId,
+      sceneIds,
+      loadManifest: (id) =>
+        loadManifest(id).catch((error) => {
+          this.logger().warn({ err: error, projectId: id }, "scene manifest unreadable during snapshot resolution");
+          return { scenes: [] };
+        }),
+      resolveSceneFile,
+      readText: (path) => readFile(path, "utf8"),
+      logger: this.logger(),
+    });
   }
 
   /** Restore authored source from a snapshot + re-admit so the next render uses it. */
   async restoreScenes(projectId: string, snapshot: SceneSnapshot): Promise<void> {
     const admitOne = this.deps.admitOne ?? ((p: string) => admitAuthoredSceneFile(p));
-    for (const { sceneId, code } of snapshot) {
-      const resolved = await resolveSceneFile(projectId, sceneId, (id) => loadManifest(id).catch((error) => {
-        log.warn({ err: error, projectId: id, sceneId }, "scene manifest unreadable during restore resolution");
-        return { scenes: [] };
-      }));
-      if (!resolved) continue;
-      try {
-        await writeFile(resolved.path, code, "utf8");
-        unregisterComponent(resolved.componentId);
-        await admitOne(resolved.path).catch((e) => log.debug({ err: e, projectId, sceneId }, "[visual-qa] re-admit after restore failed"));
-      } catch (e) {
-        log.warn({ err: e, projectId, sceneId }, "[visual-qa] restore failed");
-      }
-    }
+    return restoreAuthoredScenes({
+      projectId,
+      snapshot,
+      loadManifest: (id) =>
+        loadManifest(id).catch((error) => {
+          this.logger().warn({ err: error, projectId: id }, "scene manifest unreadable during restore resolution");
+          return { scenes: [] };
+        }),
+      resolveSceneFile,
+      writeText: (path, source) => writeFile(path, source, "utf8"),
+      unregisterComponent,
+      admitOne,
+      logger: this.logger(),
+    });
   }
-}
-
-/** Parse the visual-QA JSON reply into high-severity, known-scene defects (tolerant). */
-function parseVisualDefects(reply: string, knownScenes: Set<string>): VisualDefect[] {
-  const json = extractJsonObject(reply);
-  if (!json) return [];
-  let raw: unknown;
-  try {
-    raw = JSON.parse(json);
-  } catch (error) {
-    logAuthoringFailure(
-      log,
-      { class: "visual-qa-parse", err: error },
-      "visual-QA JSON parse failed; treating reply as no defects",
-      "warn",
-    );
-    return [];
-  }
-  const issues = (raw as { issues?: unknown })?.issues;
-  if (!Array.isArray(issues)) return [];
-  const out: VisualDefect[] = [];
-  const seen = new Set<string>();
-  for (const it of issues) {
-    const o = it as { sceneId?: unknown; issue?: unknown; severity?: unknown };
-    const sceneId = typeof o.sceneId === "string" ? o.sceneId : "";
-    const issue = typeof o.issue === "string" ? o.issue.trim() : "";
-    const severity = typeof o.severity === "string" ? o.severity.toLowerCase() : "high";
-    // Only act on clearly-flagged, known scenes; ignore "low" hunches + hallucinated ids.
-    if (severity !== "high" || !knownScenes.has(sceneId) || issue === "" || seen.has(sceneId)) continue;
-    seen.add(sceneId);
-    out.push({ sceneId, issue });
-  }
-  return out;
 }
