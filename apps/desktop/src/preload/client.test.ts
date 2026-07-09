@@ -70,6 +70,7 @@ describe("createDashboardClient — invoke channel mapping", () => {
     await api.projects.retry("p1");
     await api.projects.fixWithAi("p1");
     await api.projects.submitImageReview("p1", ["assets/aa.png"]);
+    await api.projects.diagnostics("p1");
     await api.bgm.list();
     await api.bgm.add();
     await api.bgm.remove("track.mp3");

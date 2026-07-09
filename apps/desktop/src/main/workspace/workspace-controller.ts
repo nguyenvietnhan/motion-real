@@ -22,6 +22,7 @@ import {
   scriptLinesFromScenes,
   storyboardScenesFromScenes,
 } from "./workspace-view-model.js";
+import { WorkspaceRepairTrace } from "./workspace-repair-trace.js";
 import { createLogger, serializeError, type CrawledImage } from "@motionreal/pipeline";
 import { classifyError } from "../agent/error-classifier.js";
 import { toFriendlyError } from "../redact/friendly.js";
@@ -140,6 +141,11 @@ export interface WorkspaceDeps {
   recallInput?: (projectId: string) => Promise<AuthorInput | null>;
   /** Redact L0 engine tokens from any message before it reaches the UI. */
   redact: (message: string) => string;
+  /**
+   * Best-effort project event append for diagnostics. Must never block or throw
+   * into render/authoring critical paths (callers fire-and-forget).
+   */
+  appendProjectEvent?: (projectId: string, event: { type: string } & Record<string, unknown>) => void;
 }
 
 export class WorkspaceController {
@@ -593,12 +599,22 @@ export class WorkspaceController {
     }
   }
 
+  private appendDiag(projectId: string, event: { type: string } & Record<string, unknown>): void {
+    try {
+      this.deps.appendProjectEvent?.(projectId, event);
+    } catch {
+      // diagnostics never block
+    }
+  }
+
   /** Hooks for a reauthor step that has no measurable progress (indeterminate). */
-  private editHooks(projectId: string): AgentHooks {
+  private editHooks(projectId: string, repairTrace?: WorkspaceRepairTrace): AgentHooks {
     return {
       onProgress: () => {},
       onSceneProduced: (sceneId, stillPath) => this.deps.events.scene({ projectId, sceneId, stillPath: this.deps.toMedia(stillPath) }),
-      onRepair: () => {},
+      onRepair: (fix) => {
+        repairTrace?.noteRepair(fix);
+      },
     };
   }
 
@@ -647,15 +663,27 @@ export class WorkspaceController {
     });
   }
 
-  private renderHooks(projectId: string, phase: "draft" | "full" = "draft"): AgentHooks {
+  private renderHooks(
+    projectId: string,
+    phase: "draft" | "full" = "draft",
+    repairTrace?: WorkspaceRepairTrace,
+  ): AgentHooks {
     return {
       onProgress: (ratio) => {
         this.setStage(projectId, renderingStageOf(phase, { ratio }));
         this.deps.events.progress(renderProgressEventOf(projectId, ratio, phase));
       },
       onSceneProduced: (sceneId, stillPath) => this.deps.events.scene({ projectId, sceneId, stillPath: this.deps.toMedia(stillPath) }),
-      onRepair: () => {},
+      onRepair: (fix) => {
+        repairTrace?.noteRepair(fix);
+      },
     };
+  }
+
+  private flushRepairTrace(projectId: string, trace: WorkspaceRepairTrace, outcome: "passed" | "reverted" | "exhausted" | "infra" | "cancelled"): void {
+    for (const event of trace.finalize(outcome)) {
+      this.appendDiag(projectId, event);
+    }
   }
 
   /**
@@ -670,7 +698,8 @@ export class WorkspaceController {
   }
 
   private async runRender(projectId: string, readyNotice?: string): Promise<void> {
-    const hooks = this.renderHooks(projectId, "draft");
+    const repairTrace = new WorkspaceRepairTrace();
+    const hooks = this.renderHooks(projectId, "draft", repairTrace);
     const signal = this.signalOf(projectId);
     try {
       // SILENT refine FIRST : render cheap stills,
@@ -682,6 +711,7 @@ export class WorkspaceController {
       // fall back to if the refined draft can't be repaired (never ship worse).
       const preRefine = await this.refineBeforeDraft(projectId, signal);
       if (signal?.aborted) {
+        this.flushRepairTrace(projectId, repairTrace, "cancelled");
         await this.recoverAfterCancel(projectId);
         return;
       }
@@ -691,29 +721,36 @@ export class WorkspaceController {
       // If the refined draft regresses (the bold/QA rewrites can't be repaired) but
       // the blind source was clean, restore it and re-render — refine must never
       // ship a draft worse than the un-refined one.
+      let restored = false;
       if (outcome.kind === "exhausted" && preRefine.length > 0 && this.deps.worker.restoreScenes) {
         this.setStage(projectId, { kind: "rendering", percent: 0, phase: "prepare" });
         await this.deps.worker.restoreScenes(projectId, preRefine);
+        restored = true;
         this.setStage(projectId, { kind: "rendering", percent: 0, phase: "draft" });
         outcome = await this.deps.worker.generateValidateRepair(projectId, { maxAttempts: this.deps.settings.maxRepairAttempts }, hooks, signal);
       }
       if (outcome.kind === "cancelled") {
+        this.flushRepairTrace(projectId, repairTrace, "cancelled");
         await this.recoverAfterCancel(projectId);
       } else if (outcome.kind === "passed") {
+        this.flushRepairTrace(projectId, repairTrace, restored ? "reverted" : "passed");
         this.bumpRenderVersion(projectId);
         this.setStage(projectId, this.readyStage(projectId, await this.storyboardScenesOf(projectId), readyNotice));
       } else if (outcome.kind === "infra") {
+        this.flushRepairTrace(projectId, repairTrace, "infra");
         // Not agent-fixable: tell the user to retry / check setup, no "Sửa bằng AI".
         const message = "Gặp trục trặc hạ tầng khi dựng (kết nối hoặc cấu hình). Hãy kiểm tra lại và thử lại.";
         this.setStage(projectId, { kind: "error", message, fixable: false, retry: "draft" });
         this.deps.events.friendlyError({ projectId, message, retry: "draft", fixable: false });
       } else {
+        this.flushRepairTrace(projectId, repairTrace, "exhausted");
         // exhausted: content defects remain → offer "Sửa bằng AI".
         const message = "Chưa hoàn tất được video sau nhiều lần thử. Bạn có thể thử lại hoặc để AI sửa.";
         this.setStage(projectId, { kind: "error", message, fixable: true, retry: "draft" });
         this.deps.events.friendlyError({ projectId, message, retry: "draft", fixable: true });
       }
     } catch (e) {
+      this.flushRepairTrace(projectId, repairTrace, "infra");
       const fixable = classifyError(serializeError(e, "render")) === "content";
       console.error(`[workspace] render failed for ${projectId}:`, e);
       const message = "Có lỗi khi dựng video. Hãy thử lại.";

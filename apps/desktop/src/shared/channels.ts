@@ -29,6 +29,7 @@ export const INVOKE_CHANNELS = [
   "projects:retry",
   "projects:fixWithAi",
   "projects:submitImageReview",
+  "projects:diagnostics",
   "bgm:list",
   "bgm:add",
   "bgm:remove",

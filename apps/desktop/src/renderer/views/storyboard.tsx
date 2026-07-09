@@ -178,7 +178,9 @@ export const StoryboardView: React.FC<{
   onBgmRemove?: (name: string) => Promise<void>;
   /** Set (or clear, with null) the open project's BGM track; persisted to its manifest before the full render. */
   onBgmSelect?: (name: string | null) => Promise<void>;
-}> = ({ model, canApprove, notice, draftPath, onBack, onSubmit, onApprove, bgm, bgmSelected, onBgmAdd, onBgmRemove, onBgmSelect }) => {
+  /** Optional diagnostics entry (ready-stage). */
+  diagnosticsSlot?: React.ReactNode;
+}> = ({ model, canApprove, notice, draftPath, onBack, onSubmit, onApprove, bgm, bgmSelected, onBgmAdd, onBgmRemove, onBgmSelect, diagnosticsSlot }) => {
   const [selected, setSelected] = useState(0);
   // Per-scene edit drafts keyed by sceneId, so switching slides KEEPS what you
   // typed. You gather edits across many scenes and send them in ONE pass.
@@ -296,6 +298,7 @@ export const StoryboardView: React.FC<{
       <div className="ns-story-title">
         <strong className="ns-story-heading">Duyệt cảnh</strong>
         {scenes.length > 0 && <span className="ns-story-count">Cảnh {idx + 1}/{scenes.length}</span>}
+        {diagnosticsSlot}
       </div>
       {scenes.length > 0 && (
         <>

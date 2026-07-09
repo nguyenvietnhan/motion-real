@@ -1,9 +1,10 @@
 import { app, BrowserWindow, dialog, ipcMain, safeStorage, shell } from "electron";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { createLogger, createTools, loadManifest, writeJson, projectPaths, videoToolHome, stagingDir, ensureProject, importImageBytes, reconcileStaleStates, pruneRenderCache, pruneTtsCache, readBrief, listBgmTracks, addBgmTrack, removeBgmTrack, renderThumbnail, workspaceRoot, ELEVENLABS_DEFAULT_MODEL_ID, runDoctor, type VoiceProvider } from "@motionreal/pipeline";
+import { appendEvent, createLogger, createTools, loadManifest, writeJson, projectPaths, videoToolHome, stagingDir, ensureProject, importImageBytes, reconcileStaleStates, pruneRenderCache, pruneTtsCache, readBrief, listBgmTracks, addBgmTrack, removeBgmTrack, renderThumbnail, workspaceRoot, ELEVENLABS_DEFAULT_MODEL_ID, runDoctor, readProjectDiagnostics, type VoiceProvider } from "@motionreal/pipeline";
 import { LockedVideoSpecSchema } from "@motionreal/schema";
 import { projectSceneTimelines } from "./workspace/workspace-view-model.js";
+import { setAuthoringDiagnosticObserver } from "./authoring/authoring-failure.js";
 import { registerIpcRouter, type InvokeHandlers } from "./ipc-router.js";
 import { ModelGatewayManager } from "./gateway/model-gateway-manager.js";
 import { createGatewayHandlers } from "./gateway/gateway-handlers.js";
@@ -233,6 +234,24 @@ const workspace = new WorkspaceController({
     }
   },
   redact: stripL0Tokens,
+  appendProjectEvent: (projectId, event) => {
+    void appendEvent(projectId, event).catch((error) => {
+      log.debug({ err: error, projectId, type: event.type }, "diagnostic event append failed");
+    });
+  },
+});
+
+// Fan out safe authoring failure metadata into the project event stream (best-effort).
+setAuthoringDiagnosticObserver((payload) => {
+  if (!payload.projectId) return;
+  void appendEvent(payload.projectId, {
+    type: payload.type,
+    failureClass: payload.failureClass,
+    level: payload.level,
+    projectId: payload.projectId,
+  }).catch((error) => {
+    log.debug({ err: error, projectId: payload.projectId }, "authoring diagnostic append failed");
+  });
 });
 
 // Now that the workspace exists, point the render-progress forwarder at it so
@@ -464,6 +483,7 @@ const handlers: InvokeHandlers = {
     workspace.submitImageReview(String(projectId), Array.isArray(selectedRefs) ? (selectedRefs as unknown[]).map(String) : []);
     return undefined;
   },
+  "projects:diagnostics": (projectId) => readProjectDiagnostics(String(projectId)),
 
   ...bgmHandlers,
   ...thumbnailHandlers,

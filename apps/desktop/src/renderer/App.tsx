@@ -401,6 +401,11 @@ const AppShell: React.FC = () => {
         {screen === "workspace" && openProjectId && (
           <ProjectWorkspaceView
             stage={stage}
+            projectId={openProjectId}
+            loadDiagnostics={(id) => {
+              if (!dash) return Promise.reject(new Error("Dashboard API is unavailable"));
+              return dash.projects.diagnostics(id);
+            }}
             onBack={leaveWorkspace}
             onRetry={() => {
               // "Thử lại" re-runs the SAME loop that failed, routed by where the

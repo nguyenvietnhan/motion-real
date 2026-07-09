@@ -76,6 +76,11 @@ gateway/account/model/voice presence checks only. It never calls an LLM or TTS,
 never auto-selects a model, and never ships secrets, raw doctor paths, or error
 stacks to the renderer — only fixed Vietnamese labels and remediations.
 
+**Chi tiết xử lý** (`projects:diagnostics`) projects a bounded, redacted view of
+`events.ndjson` (and safe authoring/repair appends). The renderer never receives
+raw Pino logs, prompts, TSX, paths, N-codes, or free-form repair text — only
+fixed-language lifecycle/authoring/repair states.
+
 `content-plan.ts` is the public facade; schema/types, normalization, parser,
 quality checks, and prompt builders live in focused `content-plan-*` modules.
 Keep imports pointed at the facade unless a local module needs an internal

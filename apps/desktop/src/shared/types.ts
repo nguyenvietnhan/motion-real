@@ -200,6 +200,22 @@ export type SubmitResult =
 
 export type ApproveResult = { ok: true; outputPath: string } | { ok: false; reason: "draft-first" };
 
+// --- project diagnostics (renderer-safe view model) ---------------
+
+export type ProjectDiagnosticEntryVM = {
+  at: string;
+  kind: "lifecycle" | "authoring" | "repair" | "warning" | "error";
+  state: "info" | "warning" | "error" | "resolved" | "reverted";
+  message: string;
+  sceneId?: string;
+};
+
+export type ProjectDiagnosticsVM = {
+  projectId: string;
+  entries: ProjectDiagnosticEntryVM[];
+  truncated: boolean;
+};
+
 // --- settings readiness (renderer-safe view model) ----------------
 
 export type DesktopReadinessCheck = {

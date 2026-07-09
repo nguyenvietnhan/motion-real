@@ -54,6 +54,21 @@ export type ProjectEvent = {
   [key: string]: unknown;
 };
 
+/** Renderer-safe diagnostic entry projected from project events (fixed language). */
+export type ProjectDiagnosticEntry = {
+  at: string;
+  kind: "lifecycle" | "authoring" | "repair" | "warning" | "error";
+  state: "info" | "warning" | "error" | "resolved" | "reverted";
+  message: string;
+  sceneId?: string;
+};
+
+export type ProjectDiagnostics = {
+  projectId: string;
+  entries: ProjectDiagnosticEntry[];
+  truncated: boolean;
+};
+
 /** Per-scene TTS synthesis record used for locking + caching. */
 export type TtsManifestScene = {
   text: string;

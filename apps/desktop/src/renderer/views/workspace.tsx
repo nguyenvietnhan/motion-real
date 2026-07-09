@@ -9,6 +9,8 @@ import {
 import { Icon } from "../icons.js";
 import { EmptyState, PageHeader, Spinner } from "../primitives.js";
 import { StoryboardView } from "./storyboard.js";
+import { ProjectDiagnosticsPanel } from "./project-diagnostics.js";
+import type { ProjectDiagnosticsVM } from "../../shared/types.js";
 import { ImageReviewView } from "./image-review.js";
 import { compactNotificationMessage, errorDetails, useNotifications } from "../notifications.js";
 
@@ -303,6 +305,7 @@ const ThumbnailPanel: React.FC<{
 
 export const ProjectWorkspaceView: React.FC<{
   stage: ProjectStage;
+  projectId?: string;
   onBack: () => void;
   onRetry: () => void;
   onFixWithAi: () => void;
@@ -331,12 +334,13 @@ export const ProjectWorkspaceView: React.FC<{
   onGenerateThumbnail: () => Promise<{ thumbnailUrl: string } | null>;
   /** Copy the generated cover PNG through a native Save dialog. */
   onSaveThumbnail: () => Promise<{ saved: boolean; error?: string }>;
-}> = ({ stage, onBack, onRetry, onFixWithAi, onApplyScript, onApproveScript, onSubmitEdits, onApproveDraft, onReveal, onSave, onCancel, onSubmitImageReview, bgm, bgmSelected, onBgmAdd, onBgmRemove, onBgmSelect, onGenerateThumbnail, onSaveThumbnail }) => {
+  loadDiagnostics?: (projectId: string) => Promise<ProjectDiagnosticsVM>;
+}> = ({ stage, projectId, onBack, onRetry, onFixWithAi, onApplyScript, onApproveScript, onSubmitEdits, onApproveDraft, onReveal, onSave, onCancel, onSubmitImageReview, bgm, bgmSelected, onBgmAdd, onBgmRemove, onBgmSelect, onGenerateThumbnail, onSaveThumbnail, loadDiagnostics }) => {
   const title = workspaceStageTitle;
   if (stage.kind === "ready") {
     return (
       <StoryboardView
-        model={{ projectId: "", scenes: stage.scenes, globalNotes: "" }}
+        model={{ projectId: projectId ?? "", scenes: stage.scenes, globalNotes: "" }}
         canApprove
         notice={stage.notice}
         draftPath={stage.draftPath}
@@ -348,6 +352,11 @@ export const ProjectWorkspaceView: React.FC<{
         onBgmAdd={onBgmAdd}
         onBgmRemove={onBgmRemove}
         onBgmSelect={onBgmSelect}
+        diagnosticsSlot={
+          projectId && loadDiagnostics ? (
+            <ProjectDiagnosticsPanel projectId={projectId} load={loadDiagnostics} />
+          ) : undefined
+        }
       />
     );
   }
@@ -401,22 +410,27 @@ export const ProjectWorkspaceView: React.FC<{
         </div>
       )}
       {stage.kind === "error" && (
-        <EmptyState icon={Icon.film({ size: 34 })} title="Gặp lỗi khi dựng" hint={stage.message}
-          action={
-            <div className="ns-error-actions">
-              {stage.fixable ? (
-                // A content render defect: the grid is deterministic, so re-rendering
-                // the SAME code would fail identically — only an AI rewrite can help.
-                // Show just "Sửa bằng AI" (a redundant "Thử lại" would mislead).
-                <button className="ns-btn ns-btn-primary" onClick={onFixWithAi}>Sửa bằng AI</button>
-              ) : (
-                // An author or infra error: re-running the failed loop is meaningful
-                // (infra blips self-heal; a fresh author attempt may succeed).
-                <button className="ns-btn ns-btn-primary" onClick={onRetry}>{Icon.refresh({ size: 14 })} Thử lại</button>
-              )}
-              <button className="ns-btn" onClick={onBack}>Quay lại Trang chủ</button>
-            </div>
-          } />
+        <>
+          <EmptyState icon={Icon.film({ size: 34 })} title="Gặp lỗi khi dựng" hint={stage.message}
+            action={
+              <div className="ns-error-actions">
+                {stage.fixable ? (
+                  // A content render defect: the grid is deterministic, so re-rendering
+                  // the SAME code would fail identically — only an AI rewrite can help.
+                  // Show just "Sửa bằng AI" (a redundant "Thử lại" would mislead).
+                  <button className="ns-btn ns-btn-primary" onClick={onFixWithAi}>Sửa bằng AI</button>
+                ) : (
+                  // An author or infra error: re-running the failed loop is meaningful
+                  // (infra blips self-heal; a fresh author attempt may succeed).
+                  <button className="ns-btn ns-btn-primary" onClick={onRetry}>{Icon.refresh({ size: 14 })} Thử lại</button>
+                )}
+                <button className="ns-btn" onClick={onBack}>Quay lại Trang chủ</button>
+              </div>
+            } />
+          {projectId && loadDiagnostics && (
+            <ProjectDiagnosticsPanel projectId={projectId} load={loadDiagnostics} />
+          )}
+        </>
       )}
     </div>
   );

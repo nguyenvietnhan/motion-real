@@ -56,6 +56,7 @@ export function createDashboardClient(ipc: IpcLike): DashboardApi {
       retry: (projectId) => inv("projects:retry", projectId),
       fixWithAi: (projectId) => inv("projects:fixWithAi", projectId),
       submitImageReview: (projectId, selectedRefs) => inv("projects:submitImageReview", projectId, selectedRefs),
+      diagnostics: (projectId) => inv("projects:diagnostics", projectId),
     },
     bgm: {
       list: () => inv("bgm:list"),
