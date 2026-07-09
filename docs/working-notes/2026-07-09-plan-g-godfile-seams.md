@@ -130,9 +130,9 @@ godfile further.
 
 | ID | Slice | Intent | Status |
 | --- | --- | --- | --- |
-| **G1a** | Stage transition policy | Pure policy on top of fingerprints: document/allowed edges, optional assert; tests for create/cancel/error paths | **pending** — next detailed plan |
-| **G1b** | Refine flow extract | Move silent pre-draft refine / vision loop body into `workspace-refine-flow.ts` (callback style like create-flow) | **pending** |
-| **G1c** | Publish / full-path helpers | Tighten pure helpers for full render → published stage / metadata (extend view-model or small flow module); controller keeps job/cancel | **pending** |
+| **G1a** | Stage transition policy | Pure policy on top of fingerprints: document/allowed edges, optional assert; tests for create/cancel/error paths | **planned** — see G1 detail note |
+| **G1b** | Refine flow extract | Move silent pre-draft refine / vision loop body into `workspace-refine-flow.ts` (callback style like create-flow) | **planned** — see G1 detail note |
+| **G1c** | Publish / full-path helpers | Tighten pure helpers for full render → published stage / metadata (extend view-model or small flow module); controller keeps job/cancel | **planned** — see G1 detail note |
 
 **G1 done when:**
 
@@ -144,8 +144,9 @@ godfile further.
 
 **G1 out of scope:** multi-project queue, parallel renders, prompt changes.
 
-**Resume rule:** implement G1 only via a **dedicated G1 plan** (owner will request
-after this note exists). Do not start G1 code from this note alone without that plan.
+**Detailed plan:** `docs/working-notes/2026-07-09-plan-g1-workspace-seams.md`  
+**Resume rule:** implement G1 only per that detailed plan after owner approval.
+Order: **G1a → G1b → G1c**.
 
 ### G2 — Authoring facade
 
@@ -210,10 +211,10 @@ Update this table after every Plan G commit or owner decision.
 | --- | --- | --- |
 | G0 baseline | done | Observability + hygiene + stable short-form |
 | Working note (this file) | **done** | 2026-07-09 |
-| G1 detailed plan | **next** | Owner: “lập Plan cho G1” after this note |
-| G1a | pending | |
-| G1b | pending | |
-| G1c | pending | |
+| G1 detailed plan | **done** | `2026-07-09-plan-g1-workspace-seams.md` — await owner approval to code |
+| G1a | planned | Stage kind policy |
+| G1b | planned | Refine flow extract (largest) |
+| G1c | planned | Publish pure helpers |
 | G2* | pending | After G1 complete unless owner reprioritizes |
 | G3* | pending | |
 | G4* | blocked on need | Do not start “for cleanliness” |
@@ -231,8 +232,8 @@ Update this table after every Plan G commit or owner decision.
 
 ### First concrete next step
 
-**Write detailed G1 plan** covering G1a + G1b + G1c: files, APIs, tests,
-verification, non-goals. Then implement after owner approval.
+**Owner approves** `2026-07-09-plan-g1-workspace-seams.md`, then implement
+**G1a** (stage kind policy + tests) first.
 
 ---
 
