@@ -21,11 +21,18 @@ import type { createTools } from "@motionreal/pipeline";
 import type { AuthoringBackend, AuthoredScene, ReauthorTarget } from "../agent/custom-loop-worker.js";
 import type { SafetyReportView } from "../agent/repair-loop.js";
 import type { AuthorJob, VisualDefect, SceneSnapshot, AuthorImageRef } from "../agent/agent-worker.js";
-import { GatewayChatError, type NineRouterClient, type ChatMessage } from "../gateway/ninerouter-client.js";
+import { GatewayChatError, type NineRouterClient } from "../gateway/ninerouter-client.js";
 import { logAuthoringFailure } from "./authoring-failure.js";
 import { countSafetyChecks, toEngineManifest } from "./author-manifest-convert.js";
+import {
+  getSafetyReportWithTools,
+  renderDraftWithTools,
+  renderFullWithTools,
+  renderStillsWithTools,
+  type AuthoringRenderToolsDeps,
+} from "./authoring-render-tools.js";
+import { VisionChatSession } from "./authoring-vision-chat.js";
 import { type AuthorImageInput } from "./prompt.js";
-import type { ContentPlan } from "./content-plan.js";
 import { runContentPlan } from "./content-plan-runner.js";
 import { runBatchedAuthorReply, runSingleAuthorReply, type SuccessfulAuthorReply } from "./author-reply-runner.js";
 import { runReauthor } from "./reauthor-runner.js";
@@ -134,27 +141,28 @@ function readStillDataUrl(path: string): string | undefined {
 }
 
 export class NineRouterAuthoringBackend implements AuthoringBackend {
-  constructor(private readonly deps: NineRouterBackendDeps) {}
+  private readonly vision: VisionChatSession;
+
+  constructor(private readonly deps: NineRouterBackendDeps) {
+    this.vision = new VisionChatSession({
+      client: deps.client,
+      apiKey: deps.apiKey,
+      logger: deps.logger ?? log,
+    });
+  }
 
   private logger(): AuthoringLogger {
     return this.deps.logger ?? log;
   }
 
-  /**
-   * Model ids that rejected an INLINE image this session (vision-capable model
-   * hardening). Some providers behind 9router (e.g. `kr/auto` routing to Kiro)
-   * answer an `image_url` data-URL part with HTTP 400 "Improperly formed
-   * request" — and a 400 trips 9router's ~2-minute circuit breaker, which then
-   * fails EVERY following call (even text-only authoring) until it resets. Once
-   * we see that, we remember the model can't take images and send text-only
-   * DIRECTLY from then on — so we never trip the breaker a second time. Per
-   * process (capabilities don't change mid-session); cleared on restart.
-   */
-  private readonly imageUnsupportedModels = new Set<string>();
-
-  /** A 400 that means "this provider can't take the inline image", not a transient blip. */
-  private isImageRejection(e: unknown): boolean {
-    return e instanceof GatewayChatError && e.kind === "http" && e.status === 400;
+  private renderTools(): AuthoringRenderToolsDeps {
+    return {
+      tools: this.deps.tools,
+      ...(this.deps.onRenderProgress ? { onRenderProgress: this.deps.onRenderProgress } : {}),
+      loadManifest: (id) => loadManifest(id),
+      unregisterComponent,
+      logger: this.logger(),
+    };
   }
 
   async authorScenes(job: AuthorJob): Promise<{ scenes: AuthoredScene[]; message?: string; unreadableUrls?: string[] }> {
@@ -217,7 +225,7 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
       research,
       offeredImages,
       wordsPerSecond,
-      chat: (selectedModel, messages) => this.chatWithVisionFallback(selectedModel, messages),
+      chat: (selectedModel, messages) => this.vision.chatWithVisionFallback(selectedModel, messages),
       callErrorMessage: authorCallErrorMessage,
       logger: this.logger(),
     });
@@ -257,7 +265,7 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
         contentPlanAdvisories,
         batches: batchDecision.batches,
         batchSize: AUTHOR_BATCH_SIZE,
-        chat: (selectedModel, messages) => this.chatWithVisionFallback(selectedModel, messages),
+        chat: (selectedModel, messages) => this.vision.chatWithVisionFallback(selectedModel, messages),
         callErrorMessage: authorCallErrorMessage,
         callLogger: log,
         logger: this.logger(),
@@ -274,7 +282,7 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
         wordsPerSecond,
         contentPlan: plannedContent,
         contentPlanAdvisories,
-        chat: (selectedModel, messages) => this.chatWithVisionFallback(selectedModel, messages),
+        chat: (selectedModel, messages) => this.vision.chatWithVisionFallback(selectedModel, messages),
         callErrorMessage: authorCallErrorMessage,
         callLogger: log,
         logger: this.logger(),
@@ -357,26 +365,12 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
       readText: (path) => readFile(path, "utf8"),
       writeText: (path, source) => writeFile(path, source, "utf8"),
       readStillDataUrl,
-      chat: (selectedModel, messages, currentSignal) => this.chatWithVisionFallback(selectedModel, messages, currentSignal),
+      chat: (selectedModel, messages, currentSignal) =>
+        this.vision.chatWithVisionFallback(selectedModel, messages, currentSignal),
       admitOne,
       unregisterComponent,
       logger: log,
     });
-  }
-
-  /**
-   * Clear any stale host-registry entries left by older sessions/tests. Current
-   * admission no longer imports authored code into the host; render-time
-   * registration happens inside the generated Remotion entry.
-   */
-  private async refreshRegistry(projectId: string): Promise<void> {
-    try {
-      const m = await loadManifest(projectId);
-      for (const s of m.scenes) unregisterComponent(s.component);
-    } catch (e) {
-      // best-effort: a missing/unreadable manifest just means nothing to clear
-      log.debug({ err: e, projectId }, "refreshRegistry: no manifest to clear");
-    }
   }
 
   /**
@@ -406,64 +400,8 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
     return out;
   }
 
-  /** Flatten any multimodal (vision) message to text-only (drop image parts). */
-  private toTextOnly(messages: ChatMessage[]): ChatMessage[] {
-    return messages.map((m) => ({
-      role: m.role,
-      content: Array.isArray(m.content)
-        ? m.content.filter((p) => p.type === "text").map((p) => (p as { text: string }).text).join("\n")
-        : m.content,
-    }));
-  }
-
-  /**
-   * Call the model with vision parts, degrading to text-only safely
-   * (vision-capable model hardening). Key behaviors:
-   * - if the chosen model already rejected an inline image THIS session, skip
-   * vision and send text-only DIRECTLY — never re-trip 9router's ~2-minute
-   * circuit breaker (a 400 there fails every following call, even authoring);
-   * - on a 400 "improperly formed" from a call that carried an image, remember
-   * the model can't take images, then retry text-only;
-   * - a non-image failure (or a text-only message) is rethrown unchanged.
-   */
-  private async chatWithVisionFallback(model: string, messages: ChatMessage[], signal?: AbortSignal): Promise<string> {
-    const apiKey = this.deps.apiKey();
-    const hasImage = messages.some((m) => Array.isArray(m.content) && m.content.some((p) => p.type === "image_url"));
-
-    // Known image-incapable model → don't even attempt vision (avoid the breaker).
-    if (hasImage && this.imageUnsupportedModels.has(model)) {
-      return this.deps.client.chat(model, this.toTextOnly(messages), { apiKey, ...(signal ? { signal } : {}) });
-    }
-    try {
-      return await this.deps.client.chat(model, messages, { apiKey, ...(signal ? { signal } : {}) });
-    } catch (e) {
-      if (!hasImage) throw e;
-      // The image part is what the provider choked on → remember it so future
-      // calls skip vision, then retry this one text-only.
-      if (this.isImageRejection(e)) {
-        this.imageUnsupportedModels.add(model);
-        log.warn({ model }, "model rejected an inline image (HTTP 400); using text-only for it this session");
-      } else {
-        log.warn({ err: e }, "vision chat failed; retrying text-only");
-      }
-      return this.deps.client.chat(model, this.toTextOnly(messages), { apiKey, ...(signal ? { signal } : {}) });
-    }
-  }
-
   async renderDraft(projectId: string, signal?: AbortSignal): Promise<{ ok: true } | { ok: false; error?: SerializedPipelineError }> {
-    await this.refreshRegistry(projectId);
-    const res = await this.deps.tools.render_draft(
-      { projectId },
-      this.deps.onRenderProgress ? (r) => this.deps.onRenderProgress!(r, projectId) : undefined,
-      signal,
-    );
-    if (!res.ok) {
-      log.error({ projectId, stage: res.error.stage, cause: res.error.cause }, "render_draft failed");
-      // Carry the engine error so the repair loop can route infra vs content.
-      return { ok: false, error: res.error };
-    }
-    log.info({ projectId, mp4Path: (res.data as { mp4Path?: string }).mp4Path ?? "(draft)" }, "render_draft OK");
-    return { ok: true };
+    return renderDraftWithTools(this.renderTools(), projectId, signal);
   }
 
   /**
@@ -473,55 +411,15 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
    * render to the scenes a refine pass just rewrote.
    */
   async renderStills(projectId: string, sceneIds?: string[], signal?: AbortSignal): Promise<{ stills: string[] }> {
-    await this.refreshRegistry(projectId);
-    const res = await this.deps.tools.render_stills(
-      { projectId, ...(sceneIds && sceneIds.length > 0 ? { sceneIds } : {}) },
-      undefined,
-      signal,
-    );
-    if (!res.ok) {
-      log.error({ projectId, stage: res.error.stage, cause: res.error.cause }, "render_stills failed");
-      return { stills: [] };
-    }
-    return { stills: res.data.stills };
+    return renderStillsWithTools(this.renderTools(), projectId, sceneIds, signal);
   }
 
   async renderFull(projectId: string, signal?: AbortSignal): Promise<{ ok: true; outputPath: string } | { ok: false; error?: SerializedPipelineError }> {
-    await this.refreshRegistry(projectId);
-    const res = await this.deps.tools.render_full(
-      { projectId },
-      this.deps.onRenderProgress ? (r) => this.deps.onRenderProgress!(r, projectId) : undefined,
-      signal,
-    );
-    if (!res.ok) {
-      log.error({ projectId, stage: res.error.stage, cause: res.error.cause }, "render_full failed");
-      return { ok: false, error: res.error };
-    }
-    const outputPath = (res.data as { mp4Path?: string }).mp4Path ?? "";
-    log.info({ projectId, outputPath }, "render_full OK");
-    return { ok: true, outputPath };
+    return renderFullWithTools(this.renderTools(), projectId, signal);
   }
 
   async getSafetyReport(projectId: string): Promise<SafetyReportView> {
-    const res = await this.deps.tools.get_safety_report({ projectId });
-    if (!res.ok) {
-      log.error({ projectId, cause: res.error.cause }, "get_safety_report failed");
-      return { ok: false, hardErrors: [], warnings: [] };
-    }
-    // N24/N25 are the REVIEW tier (human/agent self-critique + contact sheet),
-    // confirmed before final publish — NOT auto-detectable draft defects. They
-    // are unconfirmed by default, so they must not block the draft repair loop
-    // (which only gates on the auto-run render oracles). The draft is "passed"
-    // once the real oracles are clean; the checklist belongs to the approve step.
-    const reviewTier = new Set(["N24", "N25"]);
-    const hardErrors = res.data.hardErrors.filter((e) => !reviewTier.has(e.check));
-    if (hardErrors.length > 0) {
-      log.error(
-        { projectId, hardErrors: hardErrors.map((e) => `${e.check}${e.sceneId ? ` @${e.sceneId}` : ""}: ${e.message}`) },
-        "safety grid HARD errors",
-      );
-    }
-    return { ok: hardErrors.length === 0, hardErrors, warnings: res.data.warnings };
+    return getSafetyReportWithTools(this.renderTools(), projectId);
   }
 
   /**
@@ -547,9 +445,10 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
       articleText,
       refs,
       ...(signal ? { signal } : {}),
-      isImageUnsupported: (selectedModel) => this.imageUnsupportedModels.has(selectedModel),
+      isImageUnsupported: (selectedModel) => this.vision.isImageUnsupported(selectedModel),
       buildAuthorImages: (id, imageRefs) => this.buildAuthorImages(id, imageRefs),
-      chat: (selectedModel, messages, currentSignal) => this.chatWithVisionFallback(selectedModel, messages, currentSignal),
+      chat: (selectedModel, messages, currentSignal) =>
+        this.vision.chatWithVisionFallback(selectedModel, messages, currentSignal),
       logger: log,
     });
   }

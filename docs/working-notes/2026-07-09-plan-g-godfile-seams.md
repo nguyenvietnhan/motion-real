@@ -155,9 +155,9 @@ Order: **G1a → G1b → G1c**.
 
 | ID | Slice | Intent | Status |
 | --- | --- | --- | --- |
-| **G2a** | Pure helpers + failure re-audit | `toEngineManifest`/theme helpers out; re-audit `failureClass`; optional visual-qa-provider | **planned** — see G2 detail note |
-| **G2b** | Visual-QA + snapshot/restore | `visual-qa-runner.ts` (+ parse/snapshot/restore) | **planned** |
-| **G2c** | Vision chat + render adapters + charter | Session vision fallback, draft/stills/full/safety adapters, facade charter docs | **planned** |
+| **G2a** | Pure helpers + failure re-audit | `toEngineManifest`/theme helpers out; re-audit `failureClass`; optional visual-qa-provider | **done** |
+| **G2b** | Visual-QA + snapshot/restore | `visual-qa-runner.ts` (+ parse/snapshot/restore) | **done** |
+| **G2c** | Vision chat + render adapters + charter | Session vision fallback, draft/stills/full/safety adapters, facade charter docs | **done** |
 
 **Detailed plan:** `docs/working-notes/2026-07-09-plan-g2-authoring-facade.md`  
 **Order:** **G2a → G2b → G2c**.  
@@ -218,11 +218,11 @@ Update this table after every Plan G commit or owner decision.
 | G1b | **done** | `workspace-refine-flow.ts` + tests |
 | G1c | **done** | `fullRenderStageStart` / `publishErrorStageOf` |
 | G1 complete | **done** | |
-| G2 detailed plan | **done** | `2026-07-09-plan-g2-authoring-facade.md` — await owner approval to code |
-| G2a | planned | Pure helpers + failure re-audit |
-| G2b | planned | Visual-QA runner |
-| G2c | planned | Vision chat + render adapters + charter |
-| G2 complete | pending | |
+| G2 detailed plan | **done** | `2026-07-09-plan-g2-authoring-facade.md` |
+| G2a | **done** | `author-manifest-convert.ts` + `visual-qa-provider` |
+| G2b | **done** | `visual-qa-runner.ts` |
+| G2c | **done** | vision chat + render adapters + facade charter |
+| G2 complete | **done** | |
 | G3* | pending | After G2 unless owner reprioritizes |
 | G4* | blocked on need | Do not start “for cleanliness” |
 
@@ -231,15 +231,14 @@ Update this table after every Plan G commit or owner decision.
 ## Next action for AI sessions
 
 1. Read `AI_CONTRACT.md` then this note.
-2. **G1 complete** — do not re-open G1 unless regression.
-3. If task is G2 and plan not approved: only refine the G2 plan; **no G2 code**.
-4. If G2 plan approved: implement **G2a → G2b → G2c**, verify, commit, **update this board**.
-5. Do not start G3–G4 while G2 incomplete without explicit owner override.
+2. **G1 + G2 complete** — do not re-open unless regression.
+3. If task is G3: write/approve G3 detail plan first; **no G3 code** without approval.
+4. Do not start G4 without a feature-driven boundary + owner override.
 
 ### First concrete next step
 
-**Owner approves** `2026-07-09-plan-g2-authoring-facade.md`, then implement
-**G2a** first.
+**Owner decides** whether to start **G3** (desktop main composition root) or park
+Plan G. Default: only write G3 detail plan when owner asks.
 
 ---
 

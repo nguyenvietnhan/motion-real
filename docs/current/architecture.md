@@ -143,9 +143,13 @@ current authoring contract. Edit/refine flows use scoped repair prompts instead
 of rerunning the full fresh-authoring chain.
 
 `apps/desktop/src/main/authoring/ninerouter-backend.ts` is the public desktop
-authoring facade. It keeps provider wiring, image-capability cache, project
-paths, file writing/admission, and the `AuthoringBackend` contract, while focused
-runner modules own bounded model-call workflows:
+authoring facade (`AuthoringBackend`). It keeps deps construction, `authorScenes`
+orchestration (ingest → plan → author reply → write → admit), runner/vision/
+render wiring, and file write/admission. New AI capabilities should land as
+runners or helpers; do not thin the facade only for line count, and do not extract
+the full `authorScenes` spine without a dedicated orchestration test harness.
+
+Focused modules own bounded workflows:
 
 - `content-plan-runner.ts` owns content-plan call, parse, quality check, and
   one-shot claim-ledger repair.
@@ -157,7 +161,15 @@ runner modules own bounded model-call workflows:
   rollback policy.
 - `image-filter-runner.ts` and `article-image-crawler-runner.ts` own best-effort
   crawled-image preselection and crawling. The backend still supplies the
-  SSRF-safe fetcher, chat fallback, and image-capability cache.
+  SSRF-safe fetcher and image data-URL staging.
+- `visual-qa-runner.ts` owns visual layout QA parse/call plus authored scene
+  snapshot/restore (full multimodal chat; no vision text-only fallback).
+- `author-manifest-convert.ts` owns pure AuthorManifest → engine Manifest
+  conversion and admission violation check counts.
+- `authoring-vision-chat.ts` owns per-session image-capability cache and
+  chat-with-vision-fallback policy used by plan/author/reauthor/filter.
+- `authoring-render-tools.ts` owns draft/stills/full/safety-report adapters
+  (including N24/N25 strip for the draft repair loop).
 - `authoring-failure.ts` is the shared `failureClass` emitter for structured
   authoring fail logs (preserves legacy message strings for continuity).
 

@@ -1,10 +1,10 @@
 # Plan G2 — Authoring facade seams (detailed)
 
-**Status:** plan ready for owner approval → implement  
+**Status:** **implemented** (G2a–G2c) — keep for history until Plan G archives  
 **Parent:** `docs/working-notes/2026-07-09-plan-g-godfile-seams.md` (Plan G)  
 **Created:** 2026-07-09  
 **Depends on:** G1 complete  
-**Not durable contract.** Sync accepted module names into `docs/current/*` when G2 completes.
+**Not durable contract.** Module names synced into `docs/current/architecture.md` + `maintenance.md`.
 
 ---
 
@@ -112,10 +112,10 @@ npm.cmd run typecheck
 
 ### Acceptance G2a
 
-- [ ] Pure convert helpers extracted + tested
-- [ ] Failure audit recorded; visual-qa provider class optional but preferred
-- [ ] Facade still compiles as sole `AuthoringBackend` impl
-- [ ] Plan G board: G2a done
+- [x] Pure convert helpers extracted + tested
+- [x] Failure audit recorded; visual-qa provider class optional but preferred
+- [x] Facade still compiles as sole `AuthoringBackend` impl
+- [x] Plan G board: G2a done
 
 ### Commit message (suggested)
 
@@ -206,9 +206,9 @@ npm.cmd run typecheck
 
 ### Acceptance G2b
 
-- [ ] Visual QA + parse (+ snapshot/restore) live outside facade body
-- [ ] Refine flow still works via same `AuthoringBackend` methods
-- [ ] Plan G board: G2b done
+- [x] Visual QA + parse (+ snapshot/restore) live outside facade body
+- [x] Refine flow still works via same `AuthoringBackend` methods
+- [x] Plan G board: G2b done
 
 ### Commit message (suggested)
 
@@ -304,10 +304,10 @@ Optional owner smoke: create → draft (vision + stills path).
 
 ### Acceptance G2c
 
-- [ ] Vision session + render adapters extracted + tested
-- [ ] Facade methods are thin for QA/render/vision
-- [ ] Durable docs list new modules
-- [ ] Plan G board: G2c done; G2 complete checklist
+- [x] Vision session + render adapters extracted + tested
+- [x] Facade methods are thin for QA/render/vision
+- [x] Durable docs list new modules
+- [x] Plan G board: G2c done; G2 complete checklist
 
 ### Commit message (suggested)
 
@@ -379,17 +379,18 @@ Never weaken admission, draft-before-full, or TTS rules while fixing extract bug
 
 ## Done when (G2 complete)
 
-- [ ] G2a–G2c merged  
-- [ ] New AI features can land as runners without editing unrelated facade code  
-- [ ] Facade charter in durable docs  
-- [ ] Plan G board G2 rows done  
-- [ ] This note marked implemented  
+- [x] G2a–G2c merged  
+- [x] New AI features can land as runners without editing unrelated facade code  
+- [x] Facade charter in durable docs  
+- [x] Plan G board G2 rows done  
+- [x] This note marked implemented  
 
----
+### Failure re-audit (G2a execution log)
 
-## Owner decision before code
-
-Approve this G2 plan (especially: keep `authorScenes` orchestration on facade;
-visual-QA chat without vision-fallback change; N24/N25 filter stays).
-
-After approval, implement **G2a first**.
+| Path | Result |
+| --- | --- |
+| content-plan / author-reply / batch / missing-tsx / admission / reauthor / image-filter | already had `failureClass` |
+| visual-qa parse | already `visual-qa-parse` |
+| visual-qa provider (chat throw) | **added** `visual-qa-provider` (warn) |
+| URL ingest unreadable | soft warn — left unchanged |
+| render_draft/stills/full | out of G2a hard scope — unchanged |

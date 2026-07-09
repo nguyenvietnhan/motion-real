@@ -34,8 +34,8 @@ Active multi-slice godfile extraction progress (Plan G: G1 workspace → G2
 authoring facade → G3 desktop main → G4 pipeline when needed) is tracked in the
 temporary note `docs/working-notes/2026-07-09-plan-g-godfile-seams.md`. Phase
 detail notes: G1 `2026-07-09-plan-g1-workspace-seams.md` (**implemented**), G2
-`2026-07-09-plan-g2-authoring-facade.md` (plan). Those files are not contract;
-sync accepted module boundaries back here when a G phase completes.
+`2026-07-09-plan-g2-authoring-facade.md` (**implemented**). Those files are not
+contract; sync accepted module boundaries back here when a G phase completes.
 
 Current workspace layout: local pure helpers exist for status/intent
 (`workspace-helpers`), stage fingerprints and kind policy (`workspace-stage`),
@@ -52,13 +52,15 @@ sequencing/locks, and deterministic render oracles. Future extraction needs a
 written behavior boundary plus focused tests before code changes; do not move
 code out of these files for size alone.
 
-`ninerouter-backend.ts` is the stable `AuthoringBackend` facade and owns provider
-wiring, project paths, image-capability cache, file write/admission, and
-desktop-facing methods. Focused runner modules own content planning, author
-reply generation/recovery, reauthor retry/rollback, image filtering, and article
-image crawling. Structured fail logs use `authoring-failure.ts` (`failureClass`)
-on existing fail paths. Add behavior on the relevant runner or a new tested
-seam; do not keep thinning the facade just to reduce line count.
+`ninerouter-backend.ts` is the stable `AuthoringBackend` facade: deps wiring,
+`authorScenes` orchestration, file write/admission, and thin delegates. Focused
+modules own content planning, author reply generation/recovery, reauthor
+retry/rollback, image filtering, article crawl, visual-QA/snapshot, manifest
+convert, vision-session policy, and render tool adapters. Structured fail logs
+use `authoring-failure.ts` (`failureClass`) on existing fail paths. Add behavior
+on the relevant runner or a new tested seam; do not thin the facade only for
+line count, and keep `authorScenes` on the facade unless a future orchestration
+harness is planned.
 
 `content-plan.ts` is the public facade; schema/types, normalization, parser,
 quality checks, and prompt builders live in focused `content-plan-*` modules.
