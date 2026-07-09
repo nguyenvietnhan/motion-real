@@ -30,15 +30,10 @@ Preferred order:
 3. revisit workspace state machine only after a new narrow slice is proven;
 4. split render-grid/orchestrator only after safer outer cleanup.
 
-Active multi-slice godfile extraction progress (Plan G: G1 workspace → G2
-authoring facade → G3 desktop main → G4 pipeline when needed) is tracked in the
-temporary note `docs/working-notes/2026-07-09-plan-g-godfile-seams.md`. Phase
-detail notes: G1 `2026-07-09-plan-g1-workspace-seams.md` (**implemented**), G2
-`2026-07-09-plan-g2-authoring-facade.md` (**implemented**), G3
-`2026-07-09-plan-g3-desktop-main.md` (**implemented**), G4
-`2026-07-09-plan-g4-pipeline-core.md` (**parked** — feature-gated, no code until
-reopened). Plan G active extraction work closed after G3. Those files are not
-contract; sync accepted module boundaries back here when a G phase completes.
+Workspace / authoring / desktop-main seams already landed (narrow helpers +
+facade/composition-root charter). Pipeline-core godfile extraction stays
+parked: do not split `orchestrator.ts` or `render-grid.ts` without a written
+behavior boundary and focused tests.
 
 Current workspace layout: local pure helpers exist for status/intent
 (`workspace-helpers`), stage fingerprints and kind policy (`workspace-stage`),
@@ -71,10 +66,11 @@ response, unsupported). Only a **checked** pass with zero high-severity defects
 increments the consecutive-clean early-stop streak. A skipped pass consumes the
 configured refine pass but is never logged or treated as a clean QA result.
 
-Settings → **Kiểm tra sẵn sàng** (`settings:readiness`) runs local doctor +
-gateway/account/model/voice presence checks only. It never calls an LLM or TTS,
-never auto-selects a model, and never ships secrets, raw doctor paths, or error
-stacks to the renderer — only fixed Vietnamese labels and remediations.
+Settings → **Kiểm tra** (`settings:readiness`, under Tài khoản AI) runs local
+doctor + gateway/account/model/voice presence checks only. It never calls an
+LLM or TTS, never auto-selects a model, and never ships secrets, raw doctor
+paths, or error stacks to the renderer — only fixed Vietnamese labels (compact
+status icons in the UI).
 
 **Chi tiết xử lý** (`projects:diagnostics`) projects a bounded, redacted view of
 `events.ndjson` (and safe authoring/repair appends). The renderer never receives
