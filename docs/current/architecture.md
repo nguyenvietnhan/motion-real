@@ -173,7 +173,10 @@ Focused modules own bounded workflows:
   rollback policy.
 - `image-filter-runner.ts` and `article-image-crawler-runner.ts` own best-effort
   crawled-image preselection and crawling. The backend still supplies the
-  SSRF-safe fetcher and image data-URL staging.
+  SSRF-safe fetcher (timeout + AbortSignal) and image data-URL staging. Crawl
+  emits structured `"article image crawl report"` logs; extract prefers CMS lazy
+  attrs (`data-src`, etc.) over placeholder `src`. Relevance gates stay AI
+  filter + human review — not site-specific rank tables.
 - `visual-qa-runner.ts` owns visual layout QA parse/call plus authored scene
   snapshot/restore (full multimodal chat; no vision text-only fallback).
 - `author-manifest-convert.ts` owns pure AuthorManifest → engine Manifest
