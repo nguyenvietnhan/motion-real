@@ -150,17 +150,19 @@ Order: **G1a → G1b → G1c**.
 
 ### G2 — Authoring facade
 
-**Objective:** Keep `ninerouter-backend.ts` as wiring + admit/write only; new AI
-capabilities = new runners.
+**Objective:** Keep `ninerouter-backend.ts` as wiring + admit/write +
+`authorScenes` orchestration; new AI capabilities = new runners/helpers.
 
 | ID | Slice | Intent | Status |
 | --- | --- | --- | --- |
-| **G2a** | Failure taxonomy completeness | Ensure remaining structured fails use `authoring-failure` where appropriate | largely done (B+); re-audit when starting G2 |
-| **G2b** | Visual-QA / draft-error surfaces | Extract if backend methods keep growing | pending |
-| **G2c** | No facade thinning for line count | Policy | always |
+| **G2a** | Pure helpers + failure re-audit | `toEngineManifest`/theme helpers out; re-audit `failureClass`; optional visual-qa-provider | **planned** — see G2 detail note |
+| **G2b** | Visual-QA + snapshot/restore | `visual-qa-runner.ts` (+ parse/snapshot/restore) | **planned** |
+| **G2c** | Vision chat + render adapters + charter | Session vision fallback, draft/stills/full/safety adapters, facade charter docs | **planned** |
 
+**Detailed plan:** `docs/working-notes/2026-07-09-plan-g2-authoring-facade.md`  
+**Order:** **G2a → G2b → G2c**.  
 **G2 done when:** new authoring features can land as runners without editing
-unrelated backend methods; facade public surface documented.
+unrelated facade code; facade charter in durable docs.
 
 ### G3 — Desktop main composition root
 
@@ -215,9 +217,13 @@ Update this table after every Plan G commit or owner decision.
 | G1a | **done** | Stage kind policy + debug unknown hops |
 | G1b | **done** | `workspace-refine-flow.ts` + tests |
 | G1c | **done** | `fullRenderStageStart` / `publishErrorStageOf` |
-| G1 complete | **done** | Next optional: G2 plan when owner wants |
-| G2* | pending | After G1 complete unless owner reprioritizes |
-| G3* | pending | |
+| G1 complete | **done** | |
+| G2 detailed plan | **done** | `2026-07-09-plan-g2-authoring-facade.md` — await owner approval to code |
+| G2a | planned | Pure helpers + failure re-audit |
+| G2b | planned | Visual-QA runner |
+| G2c | planned | Vision chat + render adapters + charter |
+| G2 complete | pending | |
+| G3* | pending | After G2 unless owner reprioritizes |
 | G4* | blocked on need | Do not start “for cleanliness” |
 
 ---
@@ -225,16 +231,15 @@ Update this table after every Plan G commit or owner decision.
 ## Next action for AI sessions
 
 1. Read `AI_CONTRACT.md` then this note.
-2. If task is **Plan G progress** and G1 not planned yet: **only** help produce
-   the G1 detailed plan (no G1 code until owner approves that plan).
-3. If G1 plan exists and is approved: implement **one** G1 slice (a→b→c order
-   unless owner says otherwise), verify, commit, **update this board**.
-4. Do not start G2–G4 while G1 incomplete without explicit owner override.
+2. **G1 complete** — do not re-open G1 unless regression.
+3. If task is G2 and plan not approved: only refine the G2 plan; **no G2 code**.
+4. If G2 plan approved: implement **G2a → G2b → G2c**, verify, commit, **update this board**.
+5. Do not start G3–G4 while G2 incomplete without explicit owner override.
 
 ### First concrete next step
 
-**G1 complete.** Next: owner may request **Plan G2** (authoring facade) or park
-Plan G and ship features on existing seams.
+**Owner approves** `2026-07-09-plan-g2-authoring-facade.md`, then implement
+**G2a** first.
 
 ---
 

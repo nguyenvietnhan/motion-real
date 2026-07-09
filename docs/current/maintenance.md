@@ -32,9 +32,10 @@ Preferred order:
 
 Active multi-slice godfile extraction progress (Plan G: G1 workspace → G2
 authoring facade → G3 desktop main → G4 pipeline when needed) is tracked in the
-temporary note `docs/working-notes/2026-07-09-plan-g-godfile-seams.md`. That
-file is not contract; sync accepted module boundaries back here when a G phase
-completes.
+temporary note `docs/working-notes/2026-07-09-plan-g-godfile-seams.md`. Phase
+detail notes: G1 `2026-07-09-plan-g1-workspace-seams.md` (**implemented**), G2
+`2026-07-09-plan-g2-authoring-facade.md` (plan). Those files are not contract;
+sync accepted module boundaries back here when a G phase completes.
 
 Current workspace layout: local pure helpers exist for status/intent
 (`workspace-helpers`), stage fingerprints and kind policy (`workspace-stage`),
