@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { assertPublicUrl, isPrivateAddress, makeSafeFetch, makeSafeFetchBytes } from "./safe-fetch.js";
+import {
+  assertPublicUrl,
+  isFetchAbortError,
+  isPrivateAddress,
+  makeSafeFetch,
+  makeSafeFetchBytes,
+} from "./safe-fetch.js";
 import { isPipelineError } from "../errors.js";
 
 /**
@@ -92,6 +98,54 @@ describe("makeSafeFetch", () => {
       maxRedirects: 3,
     });
     await expect(fetcher("https://example.com/start")).rejects.toSatisfy(isPipelineError);
+  });
+
+  it("times out when fetch never resolves", async () => {
+    const fetcher = makeSafeFetch({
+      fetchImpl: async (_url, init) =>
+        new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener("abort", () => {
+            const err = new Error("aborted");
+            err.name = "AbortError";
+            reject(err);
+          });
+        }),
+      lookupImpl: async () => ["93.184.216.34"],
+      timeoutMs: 30,
+    });
+    await expect(fetcher("https://example.com/slow")).rejects.toSatisfy(
+      (e) => isPipelineError(e) && isFetchAbortError(e),
+    );
+  });
+
+  it("aborts when the caller signal fires", async () => {
+    const ac = new AbortController();
+    const fetcher = makeSafeFetch({
+      fetchImpl: async (_url, init) => {
+        if (init?.signal?.aborted) {
+          const err = new Error("aborted");
+          err.name = "AbortError";
+          throw err;
+        }
+        return new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener(
+            "abort",
+            () => {
+              const err = new Error("aborted");
+              err.name = "AbortError";
+              reject(err);
+            },
+            { once: true },
+          );
+        });
+      },
+      lookupImpl: async () => ["93.184.216.34"],
+      signal: ac.signal,
+      timeoutMs: 0,
+    });
+    // Abort before the fetch runs so the merged signal is already aborted.
+    ac.abort();
+    await expect(fetcher("https://example.com/x")).rejects.toSatisfy(isPipelineError);
   });
 
   it("sends browser-like headers on the default fetch (so CDN-fronted articles aren't 403'd)", async () => {

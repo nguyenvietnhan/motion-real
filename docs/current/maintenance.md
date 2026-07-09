@@ -281,6 +281,17 @@ keeps crawled images useful while still making the user approve media before
 authoring. Changing `imageCrawlAiFilter` or `imageCrawlHumanReview` defaults is
 a product/cost/UX decision, not a cleanup task.
 
+### Crawl reliability (timeout + report)
+
+- Page/image fetches support **timeout** (~15s page / ~10s image) and
+  **AbortSignal** so cancel can stop hung downloads.
+- Structured log: `"article image crawl report"` (per URL). Example:
+  `rg "article image crawl report" path\to\app.log`
+- Lazy CMS photos: prefer `data-src` (and similar) over placeholder `data:` GIF
+  `src` so body images are not dropped when only the lead `og:image` would remain.
+- Site-specific rank/demote / per-domain hardcoding is **not** in scope; soft AI
+  filter + human review remain the product gates for relevance.
+
 ## Dev/Test TTS Modes
 
 `mock` and `none` are explicit CLI/dev/offline TTS modes. Desktop production

@@ -12,13 +12,19 @@ import { PipelineError } from "../errors.js";
  * ULA / unspecified addresses (literal IPs are checked directly; hostnames
  * via DNS so a public name that resolves inward is still blocked),
  * 2. follows redirects MANUALLY and re-validates every hop (a public URL that
- * 302-redirects to an internal target is blocked at the hop), and
- * 3. caps the response body so a huge response can't exhaust memory.
+ * 302-redirects to an internal target is blocked at the hop),
+ * 3. caps the response body so a huge response can't exhaust memory, and
+ * 4. supports optional AbortSignal + timeout so hung CDNs cannot block create forever.
  * The `fetchImpl`/`lookupImpl` seams keep it unit-testable with no live network.
  */
 
 const MAX_REDIRECTS = 5;
 const MAX_BODY_BYTES = 5 * 1024 * 1024; // 5 MB — articles are text; this is generous.
+
+/** Default deadline for HTML page fetches (article text + crawl page). */
+export const DEFAULT_PAGE_FETCH_TIMEOUT_MS = 15_000;
+/** Default deadline for per-image binary downloads. */
+export const DEFAULT_IMAGE_FETCH_TIMEOUT_MS = 10_000;
 
 /**
  * Browser-like request headers. Without a real User-Agent, news sites behind a
@@ -38,13 +44,22 @@ const BROWSER_HEADERS: Record<string, string> = {
 /** The minimal result shape the ingest path consumes (matches `FetchLike`). */
 export type SafeFetchResult = { ok: boolean; status: number; text: () => Promise<string> };
 
+export type FetchImpl = (url: string, init?: { signal?: AbortSignal }) => Promise<Response>;
+
 export type SafeFetchOptions = {
   /** Underlying fetch (defaults to global fetch with manual redirects). Test seam. */
-  fetchImpl?: (url: string) => Promise<Response>;
+  fetchImpl?: FetchImpl;
   /** DNS resolver returning candidate addresses for a hostname. Test seam. */
   lookupImpl?: (host: string) => Promise<string[]>;
   maxRedirects?: number;
   maxBodyBytes?: number;
+  /** Caller cancel (e.g. workspace job abort). */
+  signal?: AbortSignal;
+  /**
+   * Hard deadline in ms. When set (including defaults at call sites), hung
+   * network cannot block forever. `0` / negative disables timeout.
+   */
+  timeoutMs?: number;
 };
 
 /** Default DNS lookup: every A/AAAA address for the host (so we check them all). */
@@ -139,6 +154,64 @@ export async function assertPublicUrl(
   }
 }
 
+/** True when fetch failed because the caller cancelled or the deadline elapsed. */
+export function isFetchAbortError(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const name = (error as { name?: string }).name;
+  if (name === "AbortError" || name === "TimeoutError") return true;
+  if (error instanceof PipelineError) {
+    return /timed out|aborted/i.test(error.cause);
+  }
+  return false;
+}
+
+/** True when the abort is from a deadline (vs user cancel). */
+export function isFetchTimeoutError(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const name = (error as { name?: string }).name;
+  if (name === "TimeoutError") return true;
+  if (error instanceof PipelineError) return /timed out/i.test(error.cause);
+  return false;
+}
+
+/** Combine optional user cancel + optional timeout into one signal. */
+export function mergeFetchSignals(user?: AbortSignal, timeoutMs?: number): AbortSignal | undefined {
+  const signals: AbortSignal[] = [];
+  if (user) signals.push(user);
+  if (typeof timeoutMs === "number" && timeoutMs > 0) {
+    signals.push(AbortSignal.timeout(timeoutMs));
+  }
+  if (signals.length === 0) return undefined;
+  if (signals.length === 1) return signals[0];
+  return AbortSignal.any(signals);
+}
+
+function abortPipelineError(url: string, timedOut: boolean, timeoutMs?: number): PipelineError {
+  return new PipelineError({
+    stage: "ingest",
+    cause: timedOut
+      ? `fetch timed out${timeoutMs ? ` after ${timeoutMs}ms` : ""} for ${url}`
+      : `fetch aborted for ${url}`,
+    remediation: timedOut
+      ? "The page or image took too long to respond; try again or use another URL."
+      : "The request was cancelled.",
+  });
+}
+
+function reasonLooksLikeTimeout(reason: unknown, error: unknown): boolean {
+  if (isFetchTimeoutError(error) || isFetchTimeoutError(reason)) return true;
+  if (reason instanceof Error && /timeout/i.test(reason.message)) return true;
+  return false;
+}
+
+function rethrowFetchFailure(error: unknown, url: string, signal: AbortSignal | undefined, timeoutMs?: number): never {
+  if (error instanceof PipelineError) throw error;
+  if (signal?.aborted || isFetchAbortError(error)) {
+    throw abortPipelineError(url, reasonLooksLikeTimeout(signal?.reason, error), timeoutMs);
+  }
+  throw error;
+}
+
 /** Read a response body, aborting if it exceeds `max` bytes. */
 async function readCapped(res: Response, max: number): Promise<string> {
   const reader = res.body?.getReader();
@@ -189,34 +262,51 @@ async function readCappedBytes(res: Response, max: number): Promise<Uint8Array> 
   return Buffer.concat(chunks);
 }
 
+function defaultFetchImpl(url: string, init?: { signal?: AbortSignal }): Promise<Response> {
+  return fetch(url, { redirect: "manual", headers: BROWSER_HEADERS, ...(init?.signal ? { signal: init.signal } : {}) });
+}
+
 /**
  * Build an SSRF-guarded fetcher: validates the host (and every redirect hop) and
  * caps the body. Returns a function compatible with the ingest `FetchLike`.
  */
 export function makeSafeFetch(opts: SafeFetchOptions = {}): (url: string) => Promise<SafeFetchResult> {
-  const fetchImpl = opts.fetchImpl ?? ((u: string) => fetch(u, { redirect: "manual", headers: BROWSER_HEADERS }));
+  const fetchImpl = opts.fetchImpl ?? defaultFetchImpl;
   const lookupImpl = opts.lookupImpl ?? defaultLookup;
   const maxRedirects = opts.maxRedirects ?? MAX_REDIRECTS;
   const maxBodyBytes = opts.maxBodyBytes ?? MAX_BODY_BYTES;
+  const timeoutMs = opts.timeoutMs;
 
   return async (url: string): Promise<SafeFetchResult> => {
+    const signal = mergeFetchSignals(opts.signal, timeoutMs);
     let current = url;
-    for (let hop = 0; hop <= maxRedirects; hop++) {
-      await assertPublicUrl(current, lookupImpl);
-      const res = await fetchImpl(current);
-      const location = res.status >= 300 && res.status < 400 ? res.headers.get("location") : null;
-      if (location) {
-        current = new URL(location, current).toString();
-        continue;
+    try {
+      for (let hop = 0; hop <= maxRedirects; hop++) {
+        if (signal?.aborted) {
+          throw new PipelineError({
+            stage: "ingest",
+            cause: `fetch aborted for ${url}`,
+            remediation: "The request was cancelled.",
+          });
+        }
+        await assertPublicUrl(current, lookupImpl);
+        const res = await fetchImpl(current, signal ? { signal } : undefined);
+        const location = res.status >= 300 && res.status < 400 ? res.headers.get("location") : null;
+        if (location) {
+          current = new URL(location, current).toString();
+          continue;
+        }
+        const text = await readCapped(res, maxBodyBytes);
+        return { ok: res.ok, status: res.status, text: async () => text };
       }
-      const text = await readCapped(res, maxBodyBytes);
-      return { ok: res.ok, status: res.status, text: async () => text };
+      throw new PipelineError({
+        stage: "ingest",
+        cause: `too many redirects (>${maxRedirects}) starting at ${url}`,
+        remediation: "The URL redirects too many times; try the final article URL directly.",
+      });
+    } catch (error) {
+      rethrowFetchFailure(error, url, signal, timeoutMs);
     }
-    throw new PipelineError({
-      stage: "ingest",
-      cause: `too many redirects (>${maxRedirects}) starting at ${url}`,
-      remediation: "The URL redirects too many times; try the final article URL directly.",
-    });
   };
 }
 
@@ -228,11 +318,13 @@ export type SafeFetchBytesResult = { ok: boolean; status: number; bytes: Uint8Ar
 
 export type SafeFetchBytesOptions = {
   /** Underlying fetch (defaults to global fetch with manual redirects). Test seam. */
-  fetchImpl?: (url: string) => Promise<Response>;
+  fetchImpl?: FetchImpl;
   /** DNS resolver returning candidate addresses for a hostname. Test seam. */
   lookupImpl?: (host: string) => Promise<string[]>;
   maxRedirects?: number;
   maxBodyBytes?: number;
+  signal?: AbortSignal;
+  timeoutMs?: number;
 };
 
 /**
@@ -242,28 +334,41 @@ export type SafeFetchBytesOptions = {
  * corrupted by a string decode. The body cap defaults to the importer's 10 MB.
  */
 export function makeSafeFetchBytes(opts: SafeFetchBytesOptions = {}): (url: string) => Promise<SafeFetchBytesResult> {
-  const fetchImpl = opts.fetchImpl ?? ((u: string) => fetch(u, { redirect: "manual", headers: BROWSER_HEADERS }));
+  const fetchImpl = opts.fetchImpl ?? defaultFetchImpl;
   const lookupImpl = opts.lookupImpl ?? defaultLookup;
   const maxRedirects = opts.maxRedirects ?? MAX_REDIRECTS;
   const maxBodyBytes = opts.maxBodyBytes ?? MAX_IMAGE_FETCH_BYTES;
+  const timeoutMs = opts.timeoutMs;
 
   return async (url: string): Promise<SafeFetchBytesResult> => {
+    const signal = mergeFetchSignals(opts.signal, timeoutMs);
     let current = url;
-    for (let hop = 0; hop <= maxRedirects; hop++) {
-      await assertPublicUrl(current, lookupImpl);
-      const res = await fetchImpl(current);
-      const location = res.status >= 300 && res.status < 400 ? res.headers.get("location") : null;
-      if (location) {
-        current = new URL(location, current).toString();
-        continue;
+    try {
+      for (let hop = 0; hop <= maxRedirects; hop++) {
+        if (signal?.aborted) {
+          throw new PipelineError({
+            stage: "ingest",
+            cause: `fetch aborted for ${url}`,
+            remediation: "The request was cancelled.",
+          });
+        }
+        await assertPublicUrl(current, lookupImpl);
+        const res = await fetchImpl(current, signal ? { signal } : undefined);
+        const location = res.status >= 300 && res.status < 400 ? res.headers.get("location") : null;
+        if (location) {
+          current = new URL(location, current).toString();
+          continue;
+        }
+        const bytes = await readCappedBytes(res, maxBodyBytes);
+        return { ok: res.ok, status: res.status, bytes };
       }
-      const bytes = await readCappedBytes(res, maxBodyBytes);
-      return { ok: res.ok, status: res.status, bytes };
+      throw new PipelineError({
+        stage: "ingest",
+        cause: `too many redirects (>${maxRedirects}) starting at ${url}`,
+        remediation: "The image URL redirects too many times; skip it.",
+      });
+    } catch (error) {
+      rethrowFetchFailure(error, url, signal, timeoutMs);
     }
-    throw new PipelineError({
-      stage: "ingest",
-      cause: `too many redirects (>${maxRedirects}) starting at ${url}`,
-      remediation: "The image URL redirects too many times; skip it.",
-    });
   };
 }

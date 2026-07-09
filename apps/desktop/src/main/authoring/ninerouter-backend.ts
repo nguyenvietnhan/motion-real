@@ -11,7 +11,8 @@ import {
   writeJson,
   unregisterComponent,
   makeSafeFetch,
-  crawlArticleImages,
+  crawlArticleImagesWithStats,
+  DEFAULT_PAGE_FETCH_TIMEOUT_MS,
   type CrawledImage,
   type AdmitProjectResult,
   type AuthoredRegistration,
@@ -467,8 +468,14 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
       url,
       destDir,
       ...(signal ? { signal } : {}),
-      fetchPage: makeSafeFetch(),
-      crawlArticleImages,
+      fetchPage: makeSafeFetch({
+        ...(signal ? { signal } : {}),
+        timeoutMs: DEFAULT_PAGE_FETCH_TIMEOUT_MS,
+      }),
+      crawlArticleImages: (html, pageUrl, outDir, opts) =>
+        crawlArticleImagesWithStats(html, pageUrl, outDir, {
+          ...(opts?.signal ? { signal: opts.signal } : signal ? { signal } : {}),
+        }),
       logger: log,
     });
   }

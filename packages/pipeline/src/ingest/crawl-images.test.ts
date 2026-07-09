@@ -74,6 +74,34 @@ describe("extractImageCandidates (pure)", () => {
     const out = extractImageCandidates(html, BASE);
     expect(out).toContain("https://news.example.com/big.jpg");
   });
+
+  it("prefers data-src over lazy data-GIF placeholder src (general CMS pattern)", () => {
+    const placeholder = "data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==";
+    const html = `<html><head>
+      <meta property="og:image" content="https://cdn.example.com/lead.jpg">
+    </head><body><article>
+      <img class="lazy" src="${placeholder}" data-src="https://cdn.example.com/body-1.jpg">
+      <img class="lazy" src="${placeholder}" data-src="https://cdn.example.com/body-2.jpg">
+      <img class="lazy" src="${placeholder}" data-src="https://cdn.example.com/body-3.jpg">
+    </article></body></html>`;
+    expect(extractImageCandidates(html, BASE)).toEqual([
+      "https://cdn.example.com/lead.jpg",
+      "https://cdn.example.com/body-1.jpg",
+      "https://cdn.example.com/body-2.jpg",
+      "https://cdn.example.com/body-3.jpg",
+    ]);
+  });
+
+  it("uses data-original and empty/about:blank src fallbacks", () => {
+    const html = `<article>
+      <img src="" data-original="https://cdn.example.com/orig.jpg">
+      <img src="about:blank" data-src="https://cdn.example.com/blank-src.jpg">
+    </article>`;
+    expect(extractImageCandidates(html, BASE)).toEqual([
+      "https://cdn.example.com/orig.jpg",
+      "https://cdn.example.com/blank-src.jpg",
+    ]);
+  });
 });
 
 describe("crawlArticleImages (injected byte-fetcher)", () => {

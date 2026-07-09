@@ -4,7 +4,7 @@ import { Readability } from "@mozilla/readability";
 import { parseHTML } from "linkedom";
 import { PipelineError } from "../errors.js";
 import { planningDir } from "../store/store.js";
-import { makeSafeFetch } from "./safe-fetch.js";
+import { DEFAULT_PAGE_FETCH_TIMEOUT_MS, makeSafeFetch } from "./safe-fetch.js";
 
 /**
  * URL ingest into grounded research files.
@@ -172,7 +172,7 @@ export async function ingestUrl(url: string, opts: IngestOptions = {}): Promise<
   // Default egress is SSRF-guarded (audit P1-2): rejects private/loopback/
   // link-local hosts, re-validates each redirect hop, and caps the body. Tests
   // inject `fetchImpl` and bypass the guard (they never touch the network).
-  const fetchImpl = opts.fetchImpl ?? makeSafeFetch();
+  const fetchImpl = opts.fetchImpl ?? makeSafeFetch({ timeoutMs: DEFAULT_PAGE_FETCH_TIMEOUT_MS });
   const fetchedAt = (opts.now ?? (() => new Date().toISOString()))();
 
   let html: string;

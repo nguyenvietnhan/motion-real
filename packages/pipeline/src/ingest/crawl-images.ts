@@ -1,6 +1,12 @@
 import { parseHTML } from "linkedom";
 import { importImageBytes } from "../assets/import-image.js";
-import { makeSafeFetchBytes, type SafeFetchBytesResult } from "./safe-fetch.js";
+import {
+  DEFAULT_IMAGE_FETCH_TIMEOUT_MS,
+  isFetchAbortError,
+  isFetchTimeoutError,
+  makeSafeFetchBytes,
+  type SafeFetchBytesResult,
+} from "./safe-fetch.js";
 
 /**
  * Article image crawl. Given a brief link, pull the page's
@@ -27,11 +33,26 @@ const MAX_CANDIDATES = 40;
 /** A crawled + imported local image the user/AI may place. */
 export type CrawledImage = { ref: string; width: number; height: number; sourceUrl: string };
 
+export type CrawlImageStats = {
+  candidatesFound: number;
+  downloadAttempts: number;
+  keptAfterDimFilter: number;
+  skippedTimeout: number;
+  skippedAbort: number;
+};
+
+export type CrawlArticleImagesResult = {
+  images: CrawledImage[];
+  stats: CrawlImageStats;
+};
+
 export type CrawlOptions = {
   /** SSRF-guarded binary fetcher (test seam). Defaults to `makeSafeFetchBytes`. */
   fetchBytesImpl?: (url: string) => Promise<SafeFetchBytesResult>;
   maxImages?: number;
   minEdge?: number;
+  signal?: AbortSignal;
+  timeoutMs?: number;
 };
 
 /** `<meta>` property/name keys that carry a lead/share image. */
@@ -40,10 +61,10 @@ const META_IMAGE_KEYS = ["og:image", "og:image:url", "og:image:secure_url", "twi
 /**
  * Extract candidate image URLs from article HTML (PURE — no network). Collects
  * `og:image`/`twitter:image` `<meta>` first (the editorial lead image), then
- * content `<img>` (src / data-src / the largest srcset entry), preferring the
- * `<article>`/`<main>` scope when present. Relative URLs resolve against
- * `baseUrl`; `data:`/`svg`/non-http and obvious tracking pixels are dropped;
- * deduped in first-seen order and capped at `MAX_CANDIDATES`.
+ * content `<img>` preferring real lazy attrs over placeholder `src` (data-GIF /
+ * empty). Relative URLs resolve against `baseUrl`; `data:`/`svg`/non-http and
+ * obvious tracking pixels are dropped; deduped in first-seen order and capped
+ * at `MAX_CANDIDATES`.
  */
 export function extractImageCandidates(html: string, baseUrl: string): string[] {
   const { document } = parseHTML(html);
@@ -69,11 +90,12 @@ export function extractImageCandidates(html: string, baseUrl: string): string[] 
   const scope = document.querySelector("article") ?? document.querySelector("main") ?? document;
   const imgs = Array.from(scope.querySelectorAll("img")) as Array<{
     getAttribute(name: string): string | null;
+    closest?: (sel: string) => unknown;
   }>;
   for (const img of imgs) {
     if (isTrackingPixel(img)) continue;
-    const src = img.getAttribute("src") ?? img.getAttribute("data-src") ?? largestSrcset(img.getAttribute("srcset"));
-    add(src);
+    // Prefer data-src (etc.) over placeholder data-GIF `src` — common CMS lazy pattern.
+    add(pickImgUrl(img));
     if (out.length >= MAX_CANDIDATES) break;
   }
   return out.slice(0, MAX_CANDIDATES);
@@ -92,14 +114,43 @@ export async function crawlArticleImages(
   destDir: string,
   opts: CrawlOptions = {},
 ): Promise<CrawledImage[]> {
-  const fetchBytes = opts.fetchBytesImpl ?? makeSafeFetchBytes();
+  const result = await crawlArticleImagesWithStats(html, pageUrl, destDir, opts);
+  return result.images;
+}
+
+export async function crawlArticleImagesWithStats(
+  html: string,
+  pageUrl: string,
+  destDir: string,
+  opts: CrawlOptions = {},
+): Promise<CrawlArticleImagesResult> {
+  const timeoutMs = opts.timeoutMs ?? DEFAULT_IMAGE_FETCH_TIMEOUT_MS;
+  const fetchBytes =
+    opts.fetchBytesImpl ??
+    makeSafeFetchBytes({
+      ...(opts.signal ? { signal: opts.signal } : {}),
+      timeoutMs,
+    });
   const maxImages = opts.maxImages ?? MAX_CRAWL_IMAGES;
   const minEdge = opts.minEdge ?? MIN_CRAWL_IMAGE_EDGE;
   const candidates = extractImageCandidates(html, pageUrl);
 
+  const stats: CrawlImageStats = {
+    candidatesFound: candidates.length,
+    downloadAttempts: 0,
+    keptAfterDimFilter: 0,
+    skippedTimeout: 0,
+    skippedAbort: 0,
+  };
+
   const out: CrawledImage[] = [];
   for (const url of candidates) {
     if (out.length >= maxImages) break;
+    if (opts.signal?.aborted) {
+      stats.skippedAbort += 1;
+      break;
+    }
+    stats.downloadAttempts += 1;
     try {
       const res = await fetchBytes(url);
       if (!res.ok || res.bytes.length === 0) continue;
@@ -107,21 +158,95 @@ export async function crawlArticleImages(
       if (!imported.ok) continue;
       // Coarse dimension filter: skip logos / icons / spacers below the min edge.
       if (imported.width < minEdge || imported.height < minEdge) continue;
+      stats.keptAfterDimFilter += 1;
       out.push({ ref: imported.ref, width: imported.width, height: imported.height, sourceUrl: url });
-    } catch {
+    } catch (error) {
+      if (isFetchTimeoutError(error)) {
+        stats.skippedTimeout += 1;
+        continue;
+      }
+      if (isFetchAbortError(error) || opts.signal?.aborted) {
+        stats.skippedAbort += 1;
+        break;
+      }
       /* one bad image URL never aborts the crawl */
     }
   }
-  return out;
+  return { images: out, stats };
 }
 
 // --- helpers ---------------------------------------------------------------
 
+const LAZY_URL_ATTRS = [
+  "data-src",
+  "data-original",
+  "data-lazy-src",
+  "data-lazy",
+  "data-url",
+  "data-actualsrc",
+  "data-hi-res-src",
+  "data-full-src",
+  "data-large_image",
+  "data-zoom-image",
+  "data-image",
+] as const;
+
+/** True for empty / data-URI / spacer values that are not real photo URLs. */
+export function isPlaceholderSrc(raw: string | null | undefined): boolean {
+  const t = (raw ?? "").trim();
+  if (!t) return true;
+  if (t.startsWith("data:")) return true;
+  if (t === "about:blank") return true;
+  if (t.startsWith("#")) return true;
+  if (/spacer|pixel\.|1x1|blank\.(gif|png|jpg)|transparent\.(gif|png)/i.test(t)) return true;
+  return false;
+}
+
+/**
+ * Pick the best raw URL from an `<img>`. Prefers CMS lazy attrs over placeholder
+ * `src` (data-GIF). General pattern — not site-specific.
+ */
+export function pickImgUrl(img: {
+  getAttribute(name: string): string | null;
+  closest?: (sel: string) => unknown;
+}): string | null {
+  for (const attr of LAZY_URL_ATTRS) {
+    const v = img.getAttribute(attr);
+    if (v && !isPlaceholderSrc(v)) return v.trim();
+  }
+  const dataSrcset = largestSrcset(img.getAttribute("data-srcset"));
+  if (dataSrcset && !isPlaceholderSrc(dataSrcset)) return dataSrcset;
+  const srcset = largestSrcset(img.getAttribute("srcset"));
+  if (srcset && !isPlaceholderSrc(srcset)) return srcset;
+  try {
+    if (typeof img.closest === "function") {
+      const picture = img.closest("picture") as {
+        querySelectorAll?: (s: string) => ArrayLike<{ getAttribute(n: string): string | null }>;
+      } | null;
+      const sources = picture?.querySelectorAll?.("source");
+      if (sources) {
+        for (let i = 0; i < sources.length; i++) {
+          const source = sources[i]!;
+          const fromSet =
+            largestSrcset(source.getAttribute("srcset") ?? source.getAttribute("data-srcset")) ??
+            source.getAttribute("src") ??
+            source.getAttribute("data-src");
+          if (fromSet && !isPlaceholderSrc(fromSet)) return fromSet.trim();
+        }
+      }
+    }
+  } catch {
+    /* ignore */
+  }
+  const src = img.getAttribute("src");
+  if (src && !isPlaceholderSrc(src)) return src.trim();
+  return null;
+}
+
 /** Resolve a possibly-relative URL against the page; keep only http(s). */
 function resolveUrl(raw: string | null | undefined, base: string): string | null {
   const trimmed = raw?.trim();
-  if (!trimmed) return null;
-  if (trimmed.startsWith("data:")) return null; // inline data URIs are not crawlable assets
+  if (!trimmed || isPlaceholderSrc(trimmed)) return null;
   let u: URL;
   try {
     u = new URL(trimmed, base);
@@ -139,7 +264,7 @@ function largestSrcset(srcset: string | null): string | null {
   let best: { url: string; w: number } | null = null;
   for (const part of srcset.split(",")) {
     const [url, descriptor] = part.trim().split(/\s+/, 2);
-    if (!url) continue;
+    if (!url || isPlaceholderSrc(url)) continue;
     const w = descriptor && descriptor.endsWith("w") ? Number(descriptor.slice(0, -1)) : 0;
     if (!best || w > best.w) best = { url, w };
   }
