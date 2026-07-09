@@ -254,6 +254,165 @@ describe("content-plan helpers", () => {
   });
 });
 
+describe("claim-provenance quality (evaluateContentPlanQuality + sources)", () => {
+  const sourceBody =
+    "The company reported revenue of twelve billion dollars last year according to its annual filing.";
+  const sources = [
+    {
+      id: "source-01",
+      metadata: { sourceUrl: "https://example.com/filing" },
+      body: sourceBody,
+    },
+  ] as const;
+
+  function provenancePlan(claimOverrides: Partial<ContentPlan["claims"][number]> = {}): ContentPlan {
+    return validPlan({
+      claims: [
+        {
+          id: "claim-01",
+          text: "Revenue was twelve billion dollars last year.",
+          support: "source_material",
+          confidence: "supported",
+          action: "use",
+          ...claimOverrides,
+        },
+      ],
+      scenes: validPlan().scenes.map((scene) => ({
+        ...scene,
+        // Avoid claim-ledger noise: no bare numbers/dates outside the claim ledger path.
+        narration: "A soft overview of capacity without inventing figures.",
+        onScreenText: "Overview",
+        beat: "context without concrete figures",
+        evidenceClaimIds: claimOverrides.action === "omit" ? [] : ["claim-01"],
+      })),
+    });
+  }
+
+  it("passes when usable source_material has matching source id and exact excerpt", () => {
+    const plan = provenancePlan({
+      sourceRef: {
+        sourceId: "source-01",
+        excerpt: "reported revenue of twelve billion dollars last year",
+      },
+    });
+    const quality = evaluateContentPlanQuality(plan, undefined, sources);
+    expect(quality.blockingIssues.filter((i) => i.check === "claim-provenance")).toEqual([]);
+  });
+
+  it("blocks usable source_material missing sourceRef when readable sources exist", () => {
+    const quality = evaluateContentPlanQuality(provenancePlan(), undefined, sources);
+    expect(quality.blockingIssues).toContainEqual(
+      expect.objectContaining({
+        check: "claim-provenance",
+        severity: "blocking",
+        message: expect.stringMatching(/requires sourceRef/i),
+      }),
+    );
+  });
+
+  it("blocks unknown source id and non-matching excerpt", () => {
+    const unknown = evaluateContentPlanQuality(
+      provenancePlan({
+        sourceRef: {
+          sourceId: "source-99",
+          excerpt: "reported revenue of twelve billion dollars last year",
+        },
+      }),
+      undefined,
+      sources,
+    );
+    expect(unknown.blockingIssues).toContainEqual(
+      expect.objectContaining({
+        check: "claim-provenance",
+        message: expect.stringMatching(/unknown source/i),
+      }),
+    );
+
+    const badExcerpt = evaluateContentPlanQuality(
+      provenancePlan({
+        sourceRef: {
+          sourceId: "source-01",
+          excerpt: "hallucinated fifty billion nonsense quote here",
+        },
+      }),
+      undefined,
+      sources,
+    );
+    expect(badExcerpt.blockingIssues).toContainEqual(
+      expect.objectContaining({
+        check: "claim-provenance",
+        message: expect.stringMatching(/does not match source/i),
+      }),
+    );
+  });
+
+  it("empty sources: sourceRef is blocked; missing sourceRef is not hard-blocked", () => {
+    const withCite = evaluateContentPlanQuality(
+      provenancePlan({
+        sourceRef: {
+          sourceId: "source-01",
+          excerpt: "reported revenue of twelve billion dollars last year",
+        },
+      }),
+      undefined,
+      [],
+    );
+    expect(withCite.blockingIssues).toContainEqual(
+      expect.objectContaining({
+        check: "claim-provenance",
+        message: expect.stringMatching(/no readable sources/i),
+      }),
+    );
+
+    const noCite = evaluateContentPlanQuality(provenancePlan(), undefined, []);
+    expect(noCite.blockingIssues.filter((i) => i.check === "claim-provenance")).toEqual([]);
+  });
+
+  it("blocks user_brief and common_knowledge claims that carry sourceRef", () => {
+    const brief = evaluateContentPlanQuality(
+      provenancePlan({
+        support: "user_brief",
+        sourceRef: {
+          sourceId: "source-01",
+          excerpt: "reported revenue of twelve billion dollars last year",
+        },
+      }),
+      undefined,
+      sources,
+    );
+    expect(brief.blockingIssues).toContainEqual(
+      expect.objectContaining({
+        check: "claim-provenance",
+        message: expect.stringMatching(/user_brief.*must not carry sourceRef/i),
+      }),
+    );
+
+    const common = evaluateContentPlanQuality(
+      provenancePlan({
+        support: "common_knowledge",
+        sourceRef: {
+          sourceId: "source-01",
+          excerpt: "reported revenue of twelve billion dollars last year",
+        },
+      }),
+      undefined,
+      sources,
+    );
+    expect(common.blockingIssues).toContainEqual(
+      expect.objectContaining({
+        check: "claim-provenance",
+        message: expect.stringMatching(/common_knowledge.*must not carry sourceRef/i),
+      }),
+    );
+  });
+
+  it("does not run claim-provenance when sources arg is omitted", () => {
+    // Backward-compatible path for text-only / non-URL authoring tests.
+    const quality = evaluateContentPlanQuality(provenancePlan());
+    expect(quality.blockingIssues.filter((i) => i.check === "claim-provenance")).toEqual([]);
+  });
+});
+
 describe("content quality eval fixtures", () => {
   it("incident fixture: concrete facts without usable evidence claim ids stay claim-ledger blocking", () => {
     const parsed = ContentPlanSchema.safeParse(CLAIM_LEDGER_MISSING_EVIDENCE_PLAN);
