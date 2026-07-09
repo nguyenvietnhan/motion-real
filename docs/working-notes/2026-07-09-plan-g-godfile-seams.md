@@ -185,9 +185,12 @@ image staging, runtime-env, native-save, startup-sequence, gateway AI IPC.
 
 | ID | Slice | Intent | Status |
 | --- | --- | --- | --- |
-| **G4a** | `orchestrator.ts` | Extract only with written sequencing/lock boundary + tests | not started |
-| **G4b** | `render-grid.ts` | Extract oracle groups with fixtures | not started |
-| **G4c** | Parallel render / LRU | Design in durable docs first | design exists; **no code** |
+| **G4a** | `orchestrator.ts` | Extract only with written sequencing/lock boundary + tests | **planned** — blocked on feature gate |
+| **G4b** | `render-grid.ts` | Extract oracle groups with fixtures | **planned** — blocked on feature gate |
+| **G4c** | Parallel render / LRU | Design in durable docs first; code only after design accept | design exists; **no code** |
+
+**Detailed plan:** `docs/working-notes/2026-07-09-plan-g4-pipeline-core.md`  
+**Default:** park until owner unlocks a slice with a concrete feature reason.
 
 ---
 
@@ -230,7 +233,11 @@ Update this table after every Plan G commit or owner decision.
 | G3a | **done** | `gateway/gateway-handlers.ts` |
 | G3b | **done** | composition-root charter in architecture + maintenance |
 | G3 complete | **done** | |
-| G4* | blocked on need | Do not start “for cleanliness” |
+| G4 detailed plan | **done** | `2026-07-09-plan-g4-pipeline-core.md` — feature-gated |
+| G4a | planned / blocked | orchestrator stage seams — need feature unlock |
+| G4b | planned / blocked | render-grid oracle groups — need feature unlock |
+| G4c | design exists; no code | parallel/LRU — see maintenance design gate |
+| G4 complete | n/a | not a “finish all rows” goal |
 
 ---
 
@@ -238,13 +245,13 @@ Update this table after every Plan G commit or owner decision.
 
 1. Read `AI_CONTRACT.md` then this note.
 2. **G1 + G2 + G3 complete** — do not re-open unless regression.
-3. **G4** only when a feature forces a pipeline/oracle boundary + owner approval.
+3. **G4:** plan ready; **no G4 code** without owner unlocking a slice + feature reason.
 4. Do not thin `index.ts` further without an explicit feature-driven seam.
 
 ### First concrete next step
 
-**Park Plan G** or start **G4 only with a concrete feature need** (orchestrator /
-render-grid / parallel render). Default: no G4 code for cleanliness.
+**Owner either parks Plan G** or unlocks **one** G4 slice (G4a stage / G4b oracles /
+G4c design-only) with a written feature reason. Default: **no G4 implementation**.
 
 ---
 
