@@ -36,9 +36,9 @@ temporary note `docs/working-notes/2026-07-09-plan-g-godfile-seams.md`. Phase
 detail notes: G1 `2026-07-09-plan-g1-workspace-seams.md` (**implemented**), G2
 `2026-07-09-plan-g2-authoring-facade.md` (**implemented**), G3
 `2026-07-09-plan-g3-desktop-main.md` (**implemented**), G4
-`2026-07-09-plan-g4-pipeline-core.md` (plan; **feature-gated**, no code by
-default). Those files are not contract; sync accepted module boundaries back
-here when a G phase completes.
+`2026-07-09-plan-g4-pipeline-core.md` (**parked** — feature-gated, no code until
+reopened). Plan G active extraction work closed after G3. Those files are not
+contract; sync accepted module boundaries back here when a G phase completes.
 
 Current workspace layout: local pure helpers exist for status/intent
 (`workspace-helpers`), stage fingerprints and kind policy (`workspace-stage`),

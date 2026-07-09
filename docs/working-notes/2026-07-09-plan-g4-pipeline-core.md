@@ -1,10 +1,14 @@
 # Plan G4 — Pipeline core seams (detailed, feature-driven)
 
-**Status:** plan ready for owner approval → implement **only when a feature gate unlocks a slice**  
+**Status:** **PARKED** (owner 2026-07-09) — plan kept for later; **no implementation**  
 **Parent:** `docs/working-notes/2026-07-09-plan-g-godfile-seams.md` (Plan G)  
 **Created:** 2026-07-09  
 **Depends on:** G1–G3 complete (desktop/authoring seams done; not a code prerequisite for pipeline)  
 **Not durable contract.** Sync accepted module names into `docs/current/*` only when a G4 slice ships.
+
+**Park reason:** owner does not yet have a concrete pipeline feature that forces
+orchestrator / render-grid / parallel-render seams. Reopen only with an explicit
+feature unlock (see Feature gates below).
 
 ---
 
@@ -357,10 +361,15 @@ Checklist when a slice ships:
 
 ---
 
-## Owner decision before code
+## Owner decision
 
-1. Confirm G4 remains **feature-driven** (default park).  
-2. If coding now: **pick which gate unlocks** (G4a stage? G4b oracles? G4c design only?).  
+**2026-07-09 — PARKED.** Do not implement G4a/G4b/G4c until owner reopens with a
+concrete feature reason. Plan text stays as the resume map.
+
+When reopening:
+
+1. Confirm G4 remains **feature-driven**.  
+2. **Pick which gate unlocks** (G4a stage? G4b oracles? G4c design only?).  
 3. Reject “split everything in orchestrator for line count.”
 
 After approval of a **specific unlocked slice**, implement that slice only.

@@ -179,18 +179,19 @@ image staging, runtime-env, native-save, startup-sequence, gateway AI IPC.
 **Detailed plan:** `docs/working-notes/2026-07-09-plan-g3-desktop-main.md`  
 **Order:** **G3a → G3b**.
 
-### G4 — Pipeline core (feature-driven only)
+### G4 — Pipeline core (feature-driven only) — **PARKED**
 
 **Objective:** Only split when a feature forces a clear boundary.
 
 | ID | Slice | Intent | Status |
 | --- | --- | --- | --- |
-| **G4a** | `orchestrator.ts` | Extract only with written sequencing/lock boundary + tests | **planned** — blocked on feature gate |
-| **G4b** | `render-grid.ts` | Extract oracle groups with fixtures | **planned** — blocked on feature gate |
-| **G4c** | Parallel render / LRU | Design in durable docs first; code only after design accept | design exists; **no code** |
+| **G4a** | `orchestrator.ts` | Extract only with written sequencing/lock boundary + tests | **parked** — no feature need |
+| **G4b** | `render-grid.ts` | Extract oracle groups with fixtures | **parked** — no feature need |
+| **G4c** | Parallel render / LRU | Design in durable docs first; code only after design accept | design exists; **parked / no code** |
 
-**Detailed plan:** `docs/working-notes/2026-07-09-plan-g4-pipeline-core.md`  
-**Default:** park until owner unlocks a slice with a concrete feature reason.
+**Detailed plan (resume later):** `docs/working-notes/2026-07-09-plan-g4-pipeline-core.md`  
+**Owner 2026-07-09:** close G4 for now — not needed until a concrete pipeline feature appears.  
+**Do not implement G4** unless owner explicitly reopens a slice.
 
 ---
 
@@ -233,11 +234,12 @@ Update this table after every Plan G commit or owner decision.
 | G3a | **done** | `gateway/gateway-handlers.ts` |
 | G3b | **done** | composition-root charter in architecture + maintenance |
 | G3 complete | **done** | |
-| G4 detailed plan | **done** | `2026-07-09-plan-g4-pipeline-core.md` — feature-gated |
-| G4a | planned / blocked | orchestrator stage seams — need feature unlock |
-| G4b | planned / blocked | render-grid oracle groups — need feature unlock |
-| G4c | design exists; no code | parallel/LRU — see maintenance design gate |
-| G4 complete | n/a | not a “finish all rows” goal |
+| G4 detailed plan | **done** (parked) | `2026-07-09-plan-g4-pipeline-core.md` — resume only if reopened |
+| G4a | **parked** | no feature need |
+| G4b | **parked** | no feature need |
+| G4c | **parked** | design in maintenance; no code |
+| G4 complete | n/a / parked | not a “finish all rows” goal |
+| **Plan G active work** | **closed after G3** | G1–G3 done; G4 parked |
 
 ---
 
@@ -245,13 +247,14 @@ Update this table after every Plan G commit or owner decision.
 
 1. Read `AI_CONTRACT.md` then this note.
 2. **G1 + G2 + G3 complete** — do not re-open unless regression.
-3. **G4:** plan ready; **no G4 code** without owner unlocking a slice + feature reason.
-4. Do not thin `index.ts` further without an explicit feature-driven seam.
+3. **G4 is PARKED** — do not implement; do not “continue Plan G” into pipeline splits.
+4. Do not thin `index.ts` / orchestrator / render-grid for line count.
+5. New work = product features or owner-directed tasks, not Plan G by default.
 
 ### First concrete next step
 
-**Owner either parks Plan G** or unlocks **one** G4 slice (G4a stage / G4b oracles /
-G4c design-only) with a written feature reason. Default: **no G4 implementation**.
+**None for Plan G.** Resume G4 only if owner reopens with a concrete pipeline
+feature reason (see G4 detail note feature gates).
 
 ---
 
