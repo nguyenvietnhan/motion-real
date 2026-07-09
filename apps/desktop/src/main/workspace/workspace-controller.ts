@@ -1,6 +1,12 @@
 import { authorInputWithCrawledImages, runCreateCrawlThenAuthor } from "./workspace-create-flow.js";
 import { canStartThumbnailRender, combineIntent, stageToFriendlyStatus } from "./workspace-helpers.js";
-import { clampRenderRatio, creativeBootstrapPreprompt, renderProgressEventOf, renderingStageOf, visionRepairPreprompt } from "./workspace-render-flow.js";
+import { clampRenderRatio, renderProgressEventOf, renderingStageOf } from "./workspace-render-flow.js";
+import {
+  refineBeforeDraft as runRefineBeforeDraft,
+  refineEditedScenes as runRefineEditedScenes,
+  restoreToPriorDraft as runRestoreToPriorDraft,
+  type RefineFlowDeps,
+} from "./workspace-refine-flow.js";
 import { applyScriptEditsToManifest, runScriptAuthoring, scriptGateModelFromLines } from "./workspace-script-flow.js";
 import {
   classifyStageKindTransition,
@@ -8,11 +14,24 @@ import {
   stageFingerprint,
   stageKindOf,
 } from "./workspace-stage.js";
-import { publishedStageOf, readyStageOf, scriptLinesFromScenes, storyboardScenesFromScenes } from "./workspace-view-model.js";
+import {
+  fullRenderStageStart,
+  publishErrorStageOf,
+  publishedStageOf,
+  readyStageOf,
+  scriptLinesFromScenes,
+  storyboardScenesFromScenes,
+} from "./workspace-view-model.js";
 import { createLogger, serializeError, type CrawledImage } from "@motionreal/pipeline";
 import { classifyError } from "../agent/error-classifier.js";
 import { toFriendlyError } from "../redact/friendly.js";
-import { AUTHORING_CONTRACT_REF, type AgentHooks, type AgentWorker, type AuthorInput, type SceneSnapshot } from "../agent/agent-worker.js";
+import {
+  AUTHORING_CONTRACT_REF,
+  type AgentHooks,
+  type AgentWorker,
+  type AuthorInput,
+  type SceneSnapshot,
+} from "../agent/agent-worker.js";
 import type {
   ApplyResult,
   ProjectCardVM,
@@ -389,7 +408,7 @@ export class WorkspaceController {
   }
 
   private async runPublish(projectId: string): Promise<void> {
-    this.setStage(projectId, { kind: "rendering", percent: 0, phase: "full" });
+    this.setStage(projectId, fullRenderStageStart());
     const signal = this.signalOf(projectId);
     try {
       const res = await this.deps.worker.publish(projectId, signal);
@@ -405,14 +424,14 @@ export class WorkspaceController {
         const message = res.error
           ? toFriendlyError(res.error, { projectId, phase: "full" }).message
           : "Xuất bản thất bại. Hãy thử lại.";
-        this.setStage(projectId, { kind: "error", message, fixable, retry: "full" });
+        this.setStage(projectId, publishErrorStageOf({ message, fixable }));
         this.deps.events.friendlyError({ projectId, message, retry: "full", fixable });
       }
     } catch (e) {
       const fixable = classifyError(serializeError(e, "render")) === "content";
       console.error(`[workspace] publish failed for ${projectId}:`, e);
       const message = "Có lỗi khi xuất bản video. Hãy thử lại.";
-      this.setStage(projectId, { kind: "error", message, fixable, retry: "full" });
+      this.setStage(projectId, publishErrorStageOf({ message, fixable }));
       this.deps.events.friendlyError({ projectId, message, retry: "full", fixable });
     }
   }
@@ -567,222 +586,49 @@ export class WorkspaceController {
     };
   }
 
-  /**
-   * Snapshot the authored source of any scenes not yet snapshotted in this refine
-   * run, appending to the cumulative `preRefine` so a later restore returns the
-   * PRE-refine (blind) source — never an intermediate refined version. Guarded by
-   * the `snapshotted` set so a scene touched twice keeps its earliest snapshot.
-   */
-  private async snapshotFresh(projectId: string, sceneIds: string[], preRefine: SceneSnapshot, snapshotted: Set<string>): Promise<void> {
-    const fresh = sceneIds.filter((id) => !snapshotted.has(id));
-    if (fresh.length === 0 || !this.deps.worker.snapshotScenes) return;
-    const snap = await this.deps.worker.snapshotScenes(projectId, fresh).catch((error) => {
-      log.warn({ err: error, projectId, sceneIds: fresh }, "refine snapshot failed; continuing without those rollback entries");
-      return [] as SceneSnapshot;
+  /** Build callback deps for the extracted refine flow module. */
+  private refineDeps(projectId: string, signal: AbortSignal | undefined): RefineFlowDeps {
+    return {
+      projectId,
+      ...(signal ? { signal } : {}),
+      settings: this.deps.settings,
+      worker: this.deps.worker,
+      loadManifest: (id) => this.deps.loadManifest(id),
+      setStage: (stage) => this.setStage(projectId, stage),
+      editHooks: () => this.editHooks(projectId),
+      warn: (details, message) => log.warn(details, message),
+    };
+  }
+
+  /** Silent refine before first draft MP4 — implementation in workspace-refine-flow. */
+  private refineBeforeDraft(projectId: string, signal: AbortSignal | undefined): Promise<SceneSnapshot> {
+    return runRefineBeforeDraft(this.refineDeps(projectId, signal));
+  }
+
+  /** Edit-path vision refine only — implementation in workspace-refine-flow. */
+  private refineEditedScenes(
+    projectId: string,
+    sceneIds: string[],
+    signal: AbortSignal | undefined,
+  ): Promise<boolean> {
+    return runRefineEditedScenes(this.refineDeps(projectId, signal), sceneIds);
+  }
+
+  /** Restore pre-edit source and re-render known-good draft. */
+  private restoreToPriorDraft(
+    projectId: string,
+    snapshot: SceneSnapshot,
+    hooks: AgentHooks,
+  ): Promise<boolean> {
+    return runRestoreToPriorDraft({
+      projectId,
+      snapshot,
+      settings: this.deps.settings,
+      worker: this.deps.worker,
+      setStage: (stage) => this.setStage(projectId, stage),
+      hooks,
+      bumpRenderVersion: () => this.bumpRenderVersion(projectId),
     });
-    for (const s of snap) {
-      preRefine.push(s);
-      snapshotted.add(s.sceneId);
-    }
-  }
-
-  /**
-   * One-shot CREATIVE bootstrap (, FIRST author only): reauthor
-   * EVERY scene with a "be bolder" intent — WITHOUT waiting for a vision model to
-   * flag a defect — so the first draft the user eventually sees is already
-   * ambitious, not a safe "title + one panel" take. This is the explicit "render
-   * lại cho sáng tạo hơn" pass the project owner asked for, distinct from the
-   * defect-fixing vision loop. Accept-gate: if the bold rewrite makes the
-   * project un-renderable (admission/render fails → no stills), restore the
-   * pre-bootstrap source so the flow never ships a broken scene.
-   */
-  private async creativeBootstrapPass(projectId: string, signal: AbortSignal | undefined, preRefine: SceneSnapshot, snapshotted: Set<string>): Promise<void> {
-    if (signal?.aborted) return;
-    const manifest = await this.deps.loadManifest(projectId).catch((error) => {
-      log.warn({ err: error, projectId }, "creative-bootstrap manifest read failed; bootstrap skipped");
-      return { scenes: [] as WsScene[] };
-    });
-    const sceneIds = manifest.scenes.map((s) => s.id);
-    if (sceneIds.length === 0) return;
-
-    await this.snapshotFresh(projectId, sceneIds, preRefine, snapshotted);
-    // "prepare" (not "qa"): this is one of the two HIDDEN pre-draft renders —
-    // the user sees a neutral "Đang dựng bản nháp…", never the bland/bootstrap take.
-    this.setStage(projectId, { kind: "rendering", percent: 0, phase: "prepare" });
-    await this.deps.worker.reauthorScenes(
-      { projectId, sceneIds, preprompt: creativeBootstrapPreprompt(sceneIds) },
-      this.editHooks(projectId),
-      signal,
-    );
-    // Re-render ALL scenes; an empty result means the bold rewrite broke admission
-    // for the project — roll back to the pre-bootstrap source (accept-gate).
-    const rendered = (await this.deps.worker.renderStills?.(projectId, sceneIds, signal)) ?? { stills: [] };
-    if (rendered.stills.length === 0 && preRefine.length > 0 && this.deps.worker.restoreScenes) {
-      await this.deps.worker.restoreScenes(projectId, preRefine);
-    }
-  }
-
-  /**
-   * The DEFECT-fixing vision loop : up to
-   * `settings.refinePasses` rounds where a vision model flags CLEAR layout defects
-   * on the rendered stills, the flagged scenes are re-authored, and ONLY those
-   * scenes re-render through the cheap no-TTS/no-MP4 stills path so the next pass
-   * judges the updated frames. `scope` limits the loop to specific scenes (the
-   * ones a user just edited). Stops EARLY the first time a pass finds no defect
-   *. Snapshots each scene the first time it's touched (into the shared
-   * `preRefine`) and rolls the whole refine back if a rewrite stops rendering
-   * (accept-gate). Returns whether any scene was accepted (so the caller
-   * knows to refresh the draft). Pure vision QA — the creative "be bolder" pass is
-   * a separate concern (`creativeBootstrapPass`).
-   */
-  private async runVisionPasses(projectId: string, scope: string[] | undefined, signal: AbortSignal | undefined, preRefine: SceneSnapshot, snapshotted: Set<string>): Promise<boolean> {
-    const passes = this.deps.settings.refinePasses;
-    if (passes <= 0 || !this.deps.worker.visualQa) return false;
-    const earlyStop = this.deps.settings.refineEarlyStop;
-    let changedAny = false;
-    // Count CONSECUTIVE clean passes: with early-stop ON, TWO in a row mean
-    // the draft is settled — the extra look guards against the vision model's
-    // non-determinism flagging nothing on a single glance then catching a defect
-    // on the next. A flagged pass resets the streak. With early-stop OFF, the
-    // streak never triggers a break, so the loop burns the full `refinePasses`.
-    let cleanStreak = 0;
-
-    for (let pass = 1; pass <= passes; pass += 1) {
-      if (signal?.aborted) break;
-      // Annotate the QA phase with the current pass so the UI can show
-      // "(lần N/M)" — the vision call + reauthor are indeterminate, so without
-      // this the user just sees an opaque spinner with no sense of progress.
-      this.setStage(projectId, { kind: "rendering", percent: 0, phase: "qa", qaPass: pass, qaTotal: passes });
-      const flagged = await this.deps.worker
-        .visualQa(projectId, scope, signal)
-        .catch((error) => {
-          log.warn({ err: error, projectId, sceneIds: scope }, "visual QA failed; treating pass as unflagged");
-          return [] as { sceneId: string; issue: string }[];
-        });
-      if (signal?.aborted) break;
-      // A clean pass has nothing to re-author. Count it toward the early-stop
-      // streak and move on; never break on the FIRST clean pass alone.
-      if (flagged.length === 0) {
-        cleanStreak += 1;
-        if (earlyStop && cleanStreak >= 2) break;
-        continue;
-      }
-      cleanStreak = 0;
-
-      const sceneIds = flagged.map((f) => f.sceneId);
-      await this.snapshotFresh(projectId, sceneIds, preRefine, snapshotted);
-      this.setStage(projectId, { kind: "rendering", percent: 0, phase: "qa", qaPass: pass, qaTotal: passes });
-      await this.deps.worker.reauthorScenes(
-        { projectId, sceneIds, preprompt: visionRepairPreprompt(flagged) },
-        this.editHooks(projectId),
-        signal,
-      );
-      changedAny = true;
-
-      // Re-render ONLY the touched scenes via the cheap stills path so the next
-      // pass's visualQa judges the updated frames.
-      const rendered = (await this.deps.worker.renderStills?.(projectId, sceneIds, signal)) ?? { stills: [] };
-      // Accept-gate: a rewrite that no longer renders rolls the whole refine
-      // back and stops. An aborted run lands here (empty stills) and restores too.
-      if (rendered.stills.length === 0) {
-        if (preRefine.length > 0 && this.deps.worker.restoreScenes) {
-          await this.deps.worker.restoreScenes(projectId, preRefine);
-          changedAny = false;
-        }
-        break;
-      }
-    }
-    return changedAny;
-  }
-
-  /**
-   * SILENT refine BEFORE the first real draft:
-   * render cheap stills (bản-1) so there are frames to judge → ONE creative
-   * bootstrap over every scene ("be bolder") → the defect-fixing vision loop — all
-   * on the no-TTS/no-MP4 stills path, ENTIRELY HIDDEN from the user. The MP4 draft
-   * is rendered AFTER this returns, so the user never sees the bland or the
-   * intermediate takes. Returns the cumulative pre-refine snapshot so the caller
-   * can fall back to the blind source if the post-refine draft can't be repaired
-   * (never ship worse than un-refined). A disabled/unsupported refine is a no-op
-   * returning an empty snapshot, so the draft renders exactly as before.
-   */
-  private async refineBeforeDraft(projectId: string, signal: AbortSignal | undefined): Promise<SceneSnapshot> {
-    const preRefine: SceneSnapshot = [];
-    const passes = this.deps.settings.refinePasses;
-    // Refine needs the cheap stills path AND a vision model; without either, skip
-    // entirely (no hidden bootstrap either) and let the normal draft render.
-    if (passes <= 0 || !this.deps.worker.renderStills || !this.deps.worker.visualQa) return preRefine;
-
-    // Bản-1 + the creative bootstrap are the two HIDDEN pre-draft renders:
-    // show a neutral "prepare" phase, never the raw bland/bootstrap frames, so the
-    // user only ever sees the refined take. The vision loop below flips to "qa".
-    this.setStage(projectId, { kind: "rendering", percent: 0, phase: "prepare" });
-    // Bản-1: render every scene once so the bootstrap + vision passes have frames.
-    const first = await this.deps.worker.renderStills(projectId, undefined, signal);
-    if (signal?.aborted || first.stills.length === 0) return preRefine;
-
-    const snapshotted = new Set<string>();
-    await this.creativeBootstrapPass(projectId, signal, preRefine, snapshotted);
-    if (signal?.aborted) return preRefine;
-    await this.runVisionPasses(projectId, undefined, signal, preRefine, snapshotted);
-    return preRefine;
-  }
-
-  /**
-   * Edit-path refine : mirrors {@link refineBeforeDraft} for a
-   * USER EDIT — render cheap stills for the edited scenes → the DEFECT-fixing
-   * vision loop, all on the no-TTS/no-MP4 path, BEFORE any draft MP4. Unlike the
-   * first-author path there is NO creative bootstrap (the user gave an explicit
-   * instruction — we don't second-guess it with a "be bolder" rewrite), only vision
-   * QA scoped to the edited scenes. Returns false when the edit broke the render
-   * (empty stills) so the caller restores the pre-edit draft; true otherwise (incl.
-   * a disabled/unsupported refine, which is a no-op letting the draft render as
-   * before). The single draft MP4 is rendered by the caller AFTER this returns.
-   */
-  private async refineEditedScenes(projectId: string, sceneIds: string[], signal: AbortSignal | undefined): Promise<boolean> {
-    const passes = this.deps.settings.refinePasses;
-    // Refine off / unsupported, or nothing to scope → skip and let the draft render.
-    if (passes <= 0 || !this.deps.worker.renderStills || !this.deps.worker.visualQa) return true;
-    if (sceneIds.length === 0) return true;
-
-    // Hidden pre-draft stills render: a neutral "prepare" phase, never a raw
-    // "draft"/"qa" percent, so the user only sees the refined take.
-    this.setStage(projectId, { kind: "rendering", percent: 0, phase: "prepare" });
-    const first = await this.deps.worker.renderStills(projectId, sceneIds, signal).catch((error) => {
-      log.warn({ err: error, projectId, sceneIds }, "edited-scene still render failed; edit acceptance will fail");
-      return { stills: [] };
-    });
-    if (signal?.aborted) return false;
-    // Empty stills ⇒ the edit broke admission/render — caller restores the prior draft.
-    if (first.stills.length === 0) return false;
-
-    // A FRESH pre-refine snapshot (NOT seeded with the pre-edit source): a mid-loop
-    // vision rewrite that stops rendering rolls back to the EDITED code, not the
-    // pre-edit code — the user's instruction is preserved; the coarse pre-edit
-    // snapshot guards only the final draft (caller's restoreToPriorDraft).
-    const preRefine: SceneSnapshot = [];
-    const snapshotted = new Set<string>();
-    await this.runVisionPasses(projectId, sceneIds, signal, preRefine, snapshotted);
-    return true;
-  }
-
-  /**
-   * Roll a regressive USER EDIT back to the draft the user already had: restore
-   * the pre-edit source from the snapshot and re-render that known-good draft.
-   * Returns true when the rollback path ran (so the caller reports "kept the
-   * previous draft" rather than stranding the user on an error screen). Returns
-   * false when there's nothing to restore (no snapshot / no restore seam), so the
-   * caller falls back to the normal error handling. The restored draft was clean
-   * before the edit, so its re-render is expected to pass; we don't re-gate it.
-   */
-  private async restoreToPriorDraft(projectId: string, snapshot: SceneSnapshot, hooks: AgentHooks): Promise<boolean> {
-    if (snapshot.length === 0 || !this.deps.worker.restoreScenes) return false;
-    this.setStage(projectId, { kind: "rendering", percent: 0, phase: "edit" });
-    await this.deps.worker.restoreScenes(projectId, snapshot);
-    this.setStage(projectId, { kind: "rendering", percent: 0, phase: "draft" });
-    await this.deps.worker.generateValidateRepair(projectId, { maxAttempts: this.deps.settings.maxRepairAttempts }, hooks);
-    this.bumpRenderVersion(projectId);
-    return true;
   }
 
   private renderHooks(projectId: string, phase: "draft" | "full" = "draft"): AgentHooks {
