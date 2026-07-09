@@ -30,6 +30,12 @@ Preferred order:
 3. revisit workspace state machine only after a new narrow slice is proven;
 4. split render-grid/orchestrator only after safer outer cleanup.
 
+Active multi-slice godfile extraction progress (Plan G: G1 workspace → G2
+authoring facade → G3 desktop main → G4 pipeline when needed) is tracked in the
+temporary note `docs/working-notes/2026-07-09-plan-g-godfile-seams.md`. That
+file is not contract; sync accepted module boundaries back here when a G phase
+completes.
+
 Current workspace layout: local pure helpers exist for status/intent
 (`workspace-helpers`), stage fingerprints (`workspace-stage`), view-models,
 create/crawl, script gate, and render/refine prompts, while async
