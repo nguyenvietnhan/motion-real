@@ -56,6 +56,7 @@ export function createDashboardClient(ipc: IpcLike): DashboardApi {
       retry: (projectId) => inv("projects:retry", projectId),
       fixWithAi: (projectId) => inv("projects:fixWithAi", projectId),
       submitImageReview: (projectId, selectedRefs) => inv("projects:submitImageReview", projectId, selectedRefs),
+      diagnostics: (projectId) => inv("projects:diagnostics", projectId),
     },
     bgm: {
       list: () => inv("bgm:list"),
@@ -81,6 +82,7 @@ export function createDashboardClient(ipc: IpcLike): DashboardApi {
     settings: {
       get: () => inv("settings:get"),
       update: (patch) => inv("settings:update", patch),
+      readiness: () => inv("settings:readiness"),
     },
     tts: {
       setApiKey: (provider, apiKey) => inv("tts:setApiKey", provider, apiKey),

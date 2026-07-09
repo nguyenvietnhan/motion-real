@@ -42,7 +42,9 @@ export const ProjectsView: React.FC<{
           {totalPages > 1 && (
             <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 14, marginTop: 18 }}>
               <button className="ns-btn" disabled={cur <= 1} onClick={() => setPage(cur - 1)}>Trước</button>
-              <span style={{ color: "var(--muted-foreground)", fontSize: 13 }}>Trang {cur}/{totalPages} · {total} dự án</span>
+              <span className="ns-tabular" style={{ color: "var(--muted-foreground)", fontSize: 13, minWidth: "14ch", textAlign: "center" }}>
+                Trang {cur}/{totalPages} · {total} dự án
+              </span>
               <button className="ns-btn" disabled={cur >= totalPages} onClick={() => setPage(cur + 1)}>Sau</button>
             </div>
           )}

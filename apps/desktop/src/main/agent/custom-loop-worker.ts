@@ -7,7 +7,7 @@ import type {
   RepairLoopOptions,
   RepairOutcome,
   PublishResult,
-  VisualDefect,
+  VisualQaResult,
   SceneSnapshot,
 } from "./agent-worker.js";
 import type { SafetyIssue, CrawledImage } from "@motionreal/pipeline";
@@ -47,8 +47,11 @@ export interface AuthoringBackend {
   renderFull(projectId: string, signal?: AbortSignal): Promise<PublishResult>;
   /** Read the safety report for the just-rendered draft (MCP `get_safety_report`). */
   getSafetyReport(projectId: string): Promise<SafetyReportView>;
-  /** Optional AI visual-QA over rendered stills (vision model); flags layout defects. */
-  visualQa?(projectId: string, sceneIds?: string[], signal?: AbortSignal): Promise<VisualDefect[]>;
+  /**
+   * Optional AI visual-QA over rendered stills (vision model); flags layout defects.
+   * Returns checked or skipped — skipped is advisory and non-blocking.
+   */
+  visualQa?(projectId: string, sceneIds?: string[], signal?: AbortSignal): Promise<VisualQaResult>;
   /** Optional: snapshot authored scene source (for a non-regressive visual-QA round). */
   snapshotScenes?(projectId: string, sceneIds: string[]): Promise<SceneSnapshot>;
   /** Optional: restore authored scene source from a snapshot (re-admits the components). */
@@ -103,8 +106,15 @@ export class CustomLoopAgentWorker implements AgentWorker {
     return this.backend.renderStills?.(projectId, sceneIds, signal) ?? Promise.resolve({ stills: [] });
   }
 
-  visualQa(projectId: string, sceneIds?: string[], signal?: AbortSignal): Promise<VisualDefect[]> {
-    return this.backend.visualQa?.(projectId, sceneIds, signal) ?? Promise.resolve([]);
+  visualQa(projectId: string, sceneIds?: string[], signal?: AbortSignal): Promise<VisualQaResult> {
+    if (!this.backend.visualQa) {
+      return Promise.resolve({
+        kind: "skipped",
+        reason: "unsupported",
+        requestedSceneIds: sceneIds ? [...sceneIds] : [],
+      });
+    }
+    return this.backend.visualQa(projectId, sceneIds, signal);
   }
 
   snapshotScenes(projectId: string, sceneIds: string[]): Promise<SceneSnapshot> {

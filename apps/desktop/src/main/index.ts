@@ -1,7 +1,10 @@
 import { app, BrowserWindow, dialog, ipcMain, safeStorage, shell } from "electron";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { createLogger, createTools, loadManifest, writeJson, projectPaths, videoToolHome, stagingDir, ensureProject, importImageBytes, reconcileStaleStates, pruneRenderCache, pruneTtsCache, readBrief, listBgmTracks, addBgmTrack, removeBgmTrack, renderThumbnail, workspaceRoot, ELEVENLABS_DEFAULT_MODEL_ID, type VoiceProvider } from "@motionreal/pipeline";
+import { appendEvent, createLogger, createTools, loadManifest, writeJson, projectPaths, videoToolHome, stagingDir, ensureProject, importImageBytes, reconcileStaleStates, pruneRenderCache, pruneTtsCache, readBrief, listBgmTracks, addBgmTrack, removeBgmTrack, renderThumbnail, workspaceRoot, ELEVENLABS_DEFAULT_MODEL_ID, runDoctor, readProjectDiagnostics, readProjectEvidence, type VoiceProvider } from "@motionreal/pipeline";
+import { LockedVideoSpecSchema } from "@motionreal/schema";
+import { projectSceneTimelines } from "./workspace/workspace-view-model.js";
+import { setAuthoringDiagnosticObserver } from "./authoring/authoring-failure.js";
 import { registerIpcRouter, type InvokeHandlers } from "./ipc-router.js";
 import { ModelGatewayManager } from "./gateway/model-gateway-manager.js";
 import { createGatewayHandlers } from "./gateway/gateway-handlers.js";
@@ -19,6 +22,7 @@ import { toCards } from "../shared/gallery-controller.js";
 import { defaultSettings } from "../shared/settings-model.js";
 import { SettingsStore } from "./settings/settings-store.js";
 import { createSettingsHandlers } from "./settings/settings-handlers.js";
+import { buildDesktopReadinessReport, desktopVoiceDoctorCheck } from "./settings/desktop-readiness.js";
 import { createThumbnailHandlers } from "./thumbnail/thumbnail-handlers.js";
 import {
   importDroppedImages,
@@ -174,6 +178,34 @@ const workspace = new WorkspaceController({
   },
   loadManifest: (id) => loadManifest(id),
   writeManifest: (id, manifest) => writeJson(projectPaths(id).manifest, manifest),
+  loadEvidence: async (id) => {
+    const raw = await readProjectEvidence(id);
+    if (!raw) return undefined;
+    const sceneByClaim = new Map<string, string[]>();
+    for (const scene of raw.scenes) {
+      for (const claimId of scene.evidenceClaimIds) {
+        const list = sceneByClaim.get(claimId) ?? [];
+        list.push(scene.sceneId);
+        sceneByClaim.set(claimId, list);
+      }
+    }
+    return {
+      sources: raw.sources.map((s) => ({
+        id: s.id,
+        sourceUrl: s.sourceUrl,
+        title: s.title,
+        ...(s.site ? { site: s.site } : {}),
+        ...(s.publishedDate ? { publishedDate: s.publishedDate } : {}),
+      })),
+      claims: raw.claims.map((c) => ({
+        id: c.id,
+        text: c.text,
+        ...(c.sourceRef?.sourceId ? { sourceId: c.sourceRef.sourceId } : {}),
+        ...(c.sourceRef?.excerpt ? { excerpt: c.sourceRef.excerpt } : {}),
+        sceneIds: sceneByClaim.get(c.id) ?? [],
+      })),
+    };
+  },
   reviewStill: (id, sceneId) => mediaUrl(join(projectPaths(id).reviewDir, `${sceneId}.png`)) ?? "",
   toMedia: (p) => mediaUrl(p) ?? p,
   hasStill: (id, sceneId) => existsSync(join(projectPaths(id).reviewDir, `${sceneId}.png`)),
@@ -181,6 +213,24 @@ const workspace = new WorkspaceController({
   outputMedia: (id) => mediaUrl(join(projectPaths(id).rendersDir, `${id}.mp4`)) ?? "",
   hasDraft: (id) => existsSync(join(projectPaths(id).rendersDir, `${id}.draft.mp4`)),
   draftMedia: (id) => mediaUrl(join(projectPaths(id).rendersDir, `${id}.draft.mp4`)) ?? "",
+  loadSceneTimelines: async (id) => {
+    try {
+      const raw = JSON.parse(await readFile(projectPaths(id).lock, "utf8")) as unknown;
+      const parsed = LockedVideoSpecSchema.safeParse(raw);
+      if (!parsed.success) return {};
+      return projectSceneTimelines({
+        fps: parsed.data.fps,
+        scenes: parsed.data.scenes.map((s) => ({
+          id: s.id,
+          startFrame: s.startFrame,
+          durationInFrames: s.durationInFrames,
+        })),
+      });
+    } catch (error) {
+      log.debug({ err: error, projectId: id }, "locked timeline unreadable; storyboard seeks disabled");
+      return {};
+    }
+  },
   // Render the first authored scene without TTS/captions, then expose the stable
   // review/thumbnail.png artifact on the published screen.
   renderThumbnail: async (id) => {
@@ -212,6 +262,24 @@ const workspace = new WorkspaceController({
     }
   },
   redact: stripL0Tokens,
+  appendProjectEvent: (projectId, event) => {
+    void appendEvent(projectId, event).catch((error) => {
+      log.debug({ err: error, projectId, type: event.type }, "diagnostic event append failed");
+    });
+  },
+});
+
+// Fan out safe authoring failure metadata into the project event stream (best-effort).
+setAuthoringDiagnosticObserver((payload) => {
+  if (!payload.projectId) return;
+  void appendEvent(payload.projectId, {
+    type: payload.type,
+    failureClass: payload.failureClass,
+    level: payload.level,
+    projectId: payload.projectId,
+  }).catch((error) => {
+    log.debug({ err: error, projectId: payload.projectId }, "authoring diagnostic append failed");
+  });
 });
 
 // Now that the workspace exists, point the render-progress forwarder at it so
@@ -365,6 +433,30 @@ const settingsHandlers = createSettingsHandlers({
   setApiKey: (provider, apiKey) => settingsStore.setApiKey(provider, apiKey),
   clearApiKey: (provider) => settingsStore.clearApiKey(provider),
   parseVoiceProvider,
+  readiness: async () => {
+    const current = settingsStore.current();
+    const voiceCfg = settingsStore.voiceConfig();
+    const voice = {
+      hasApiKey: Boolean(voiceCfg.apiKey?.trim()),
+      hasVoiceId: Boolean(voiceCfg.voiceId?.trim()),
+      providerLabel: voiceCfg.provider === "elevenlabs" ? "ElevenLabs" : "Vivibe",
+    };
+    const doctor = await runDoctor({
+      checkEnv: () => desktopVoiceDoctorCheck(voice),
+    });
+    const gw = gateway.state();
+    const account = await gateway.refreshConnections().catch((_error: unknown) => ({ kind: "disconnected" as const }));
+    const models = gw.kind === "ready" ? await gateway.listModels().catch((_error: unknown) => []) : [];
+    return buildDesktopReadinessReport({
+      gateway: gw,
+      account,
+      selectedModelId: gateway.selectedModel()?.id,
+      preferredModelId: current.preferredAiModelId,
+      availableModelIds: models.map((m) => m.id),
+      voice,
+      doctor,
+    });
+  },
 });
 
 const thumbnailHandlers = createThumbnailHandlers({
@@ -419,6 +511,7 @@ const handlers: InvokeHandlers = {
     workspace.submitImageReview(String(projectId), Array.isArray(selectedRefs) ? (selectedRefs as unknown[]).map(String) : []);
     return undefined;
   },
+  "projects:diagnostics": (projectId) => readProjectDiagnostics(String(projectId)),
 
   ...bgmHandlers,
   ...thumbnailHandlers,

@@ -73,6 +73,8 @@ export interface DashboardApi {
     fixWithAi(projectId: string): Promise<void>;
     /** Confirm the crawled-image selection (crawled-image review); authoring begins with these refs. Empty ⇒ author text-only. */
     submitImageReview(projectId: string, selectedRefs: string[]): Promise<void>;
+    /** Bounded, redacted project diagnostic trace (lifecycle/repair/authoring only). */
+    diagnostics(projectId: string): Promise<import("./types.js").ProjectDiagnosticsVM>;
   };
   bgm: {
     /** List the per-machine BGM library tracks (shared across projects). */
@@ -108,6 +110,8 @@ export interface DashboardApi {
   settings: {
     get(): Promise<SettingsModel>;
     update(patch: Partial<SettingsModel>): Promise<SettingsModel>;
+    /** Local/gateway readiness report (no LLM/TTS call). */
+    readiness(): Promise<import("./types.js").DesktopReadinessReport>;
   };
   tts: {
     setApiKey(provider: VoiceProviderChoice, apiKey: string): Promise<SettingsModel>;

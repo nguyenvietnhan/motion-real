@@ -148,6 +148,9 @@ export type ApplyResult =
 
 // --- storyboard review + edits -------------------------------------
 
+/** Locked-timeline projection for draft player seek/highlight (seconds). */
+export type SceneTimeline = { startSeconds: number; endSeconds: number };
+
 export type SceneCard = {
   sceneId: string;
   order: number;
@@ -156,12 +159,20 @@ export type SceneCard = {
   headline?: string;
   narration?: string;
   eyebrow?: string;
+  /** Present only when a readable locked timeline exists for this scene. */
+  timeline?: SceneTimeline;
 };
 
 export type StoryboardModel = { projectId: string; scenes: SceneCard[]; globalNotes: string };
 
 /** A reviewable script line (narration + headline) before rendering. */
 export type ScriptLine = { sceneId: string; order: number; headline: string; narration: string; imagePath?: string };
+
+/** Script-gate evidence panel (optional; absent for text-only/old projects). */
+export type ScriptEvidenceModel = {
+  sources: Array<{ id: string; sourceUrl: string; title: string; site?: string; publishedDate?: string }>;
+  claims: Array<{ id: string; text: string; sourceId?: string; excerpt?: string; sceneIds: string[] }>;
+};
 
 /**
  * One crawled article image offered on the review screen (crawled-image review).
@@ -174,7 +185,7 @@ export type CrawledImageVM = { ref: string; previewUrl: string; width: number; h
 export type ProjectStage =
   | { kind: "writing"; phase?: "author" | "crawl" | "image-filter" } // AI is reading sources / drafting the script
   | { kind: "image-review"; images: CrawledImageVM[] } // blocking: confirm which crawled article images to use before authoring (crawled-image review)
-  | { kind: "script"; lines: ScriptLine[]; linkWarning?: string } // awaiting user review/approval (linkWarning = brief links that couldn't be read)
+  | { kind: "script"; lines: ScriptLine[]; linkWarning?: string; evidence?: ScriptEvidenceModel } // awaiting user review/approval (linkWarning = brief links that couldn't be read)
   | { kind: "rendering"; percent: number; phase?: "edit" | "draft" | "full" | "qa" | "prepare"; qaPass?: number; qaTotal?: number } // building (edit reauthor | draft | full | ai visual-qa | hidden prep). "prepare" is the NEUTRAL phase for the two hidden pre-draft renders (blind stills + creative bootstrap): the user sees a generic "Đang dựng bản nháp…" and never the raw bland take. qaPass/qaTotal annotate a "qa" phase with which vision round is running (e.g. 2/5) so the UI can say "Đang soát lỗi hình ảnh (lần 2/5)…"
   | { kind: "ready"; scenes: SceneCard[]; notice?: string; draftPath?: string } // draft ready, review scenes (notice = a transient message; draftPath = mediaUrl of the low-res draft MP4 for in-app preview, when it exists)
   | { kind: "published"; outputPath: string; title?: string; hashtags?: string[]; thumbnailPath?: string; format?: VideoFormatChoice } // full MP4 rendered (title+hashtags for Copy; thumbnailPath = caption-free first-scene cover; format drives preview/cover aspect)
@@ -195,10 +206,46 @@ export type SubmitResult =
 
 export type ApproveResult = { ok: true; outputPath: string } | { ok: false; reason: "draft-first" };
 
+// --- project diagnostics (renderer-safe view model) ---------------
+
+export type ProjectDiagnosticEntryVM = {
+  at: string;
+  kind: "lifecycle" | "authoring" | "repair" | "warning" | "error";
+  state: "info" | "warning" | "error" | "resolved" | "reverted";
+  message: string;
+  sceneId?: string;
+};
+
+export type ProjectDiagnosticsVM = {
+  projectId: string;
+  entries: ProjectDiagnosticEntryVM[];
+  truncated: boolean;
+};
+
+// --- settings readiness (renderer-safe view model) ----------------
+
+export type DesktopReadinessCheck = {
+  id: "gateway" | "account" | "model" | "voice" | "ffmpeg" | "browser" | "n10" | "theme" | "fonts";
+  state: "ready" | "warning" | "blocked";
+  label: string;
+  detail: string;
+  remediation?: string;
+};
+
+export type DesktopReadinessReport = {
+  ok: boolean;
+  checks: DesktopReadinessCheck[];
+};
+
 // --- settings -----------------------------------------------------
 
 export type SettingsModel = {
   aiAccount: AiAccountState;
+  /**
+   * User's explicit generation-model preference; runtime account state remains
+   * transient. Absent on first use; older settings files may omit it.
+   */
+  preferredAiModelId?: string;
   /** Default for the create screen; each project persists its actual selection. */
   voiceProvider: VoiceProviderChoice;
   vivibeVoiceId?: string;

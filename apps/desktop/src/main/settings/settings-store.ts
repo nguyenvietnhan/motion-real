@@ -7,6 +7,7 @@ import {
   clampWordsPerSecond,
   voiceCalibrationKey,
 } from "../../shared/settings-model.js";
+import { normalizePreferredAiModelId } from "../../shared/model-selection.js";
 import { existsSync, readFileSync, writeFileSync, renameSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 
@@ -92,6 +93,7 @@ export class SettingsStore {
       voiceCalibrations: { ...(saved.voiceCalibrations ?? {}) },
       voiceCredentials: base.voiceCredentials,
       aiAccount: base.aiAccount,
+      preferredAiModelId: normalizePreferredAiModelId(saved.preferredAiModelId),
     };
     const legacyCarrier = merged as unknown as Record<string, unknown>;
     for (const key of [
@@ -188,10 +190,15 @@ export class SettingsStore {
     const provider = patch.voiceProvider === "elevenlabs" ? "elevenlabs"
       : patch.voiceProvider === "vivibe" ? "vivibe"
         : this.settings.voiceProvider;
+    const preferredAiModelId =
+      "preferredAiModelId" in patch
+        ? normalizePreferredAiModelId(patch.preferredAiModelId)
+        : this.settings.preferredAiModelId;
     this.settings = {
       ...this.settings,
       ...patch,
       voiceProvider: provider,
+      preferredAiModelId,
       voiceCredentials: this.settings.voiceCredentials,
       voiceCalibrations: patch.voiceCalibrations ?? this.settings.voiceCalibrations,
     };

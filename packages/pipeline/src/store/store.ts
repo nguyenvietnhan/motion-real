@@ -104,6 +104,8 @@ export function projectPaths(projectId: string) {
     authoredDir: join(root, "authored"),
     /** Local image assets the AI may place in scenes; content-addressed `<sha>.<ext>`. */
     assetsDir: join(root, "assets"),
+    /** Script-review claim provenance (sources + validated excerpts); optional. */
+    evidence: join(root, "evidence.json"),
   };
 }
 

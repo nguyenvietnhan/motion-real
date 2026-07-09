@@ -106,6 +106,31 @@ button {
   font-family: inherit;
 }
 
+/*
+ * Stable digit widths: counters like 1/20 → 10/20 keep the same glyph width so
+ * neighboring labels/buttons do not reflow (feels less "cheap" during live updates).
+ */
+.ns-tabular {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+.ns-counter {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+  display: inline-block;
+  text-align: end;
+  white-space: nowrap;
+}
+.ns-counter-pct {
+  min-width: 4ch; /* "100%" */
+}
+.ns-counter-frac {
+  min-width: 5ch; /* "10/20" */
+}
+.ns-counter-scene {
+  min-width: 9ch; /* "Cảnh 10/20" */
+}
+
 /* Visible keyboard focus for accessibility (WCAG 2.2). */
 :focus-visible {
   outline: 2px solid var(--ring);

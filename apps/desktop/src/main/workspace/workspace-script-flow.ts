@@ -1,7 +1,7 @@
 import { linkWarningOf } from "./workspace-helpers.js";
 import { computeScriptEdits } from "../script/script-gate-apply.js";
 import type { AgentHooks, AgentWorker, AuthorInput } from "../agent/agent-worker.js";
-import type { ApplyResult, FriendlyError, ProjectStage, ScriptEdit, ScriptGateModel, ScriptLine } from "../../shared/types.js";
+import type { ApplyResult, FriendlyError, ProjectStage, ScriptEdit, ScriptEvidenceModel, ScriptGateModel, ScriptLine } from "../../shared/types.js";
 
 type EditableManifest = {
   scenes: Array<{ id: string; narration?: string; headline?: string }>;
@@ -14,6 +14,7 @@ type RunScriptAuthoringOptions = {
   scriptGateEnabled: boolean;
   redact: (message: string) => string;
   loadScriptLines: () => Promise<ScriptLine[]>;
+  loadEvidence?: () => Promise<ScriptEvidenceModel | undefined>;
   setStage: (stage: ProjectStage) => void;
   runRender: (readyNotice?: string) => Promise<void>;
   friendlyError: (error: FriendlyError) => void;
@@ -44,6 +45,7 @@ export async function runScriptAuthoring({
   scriptGateEnabled,
   redact,
   loadScriptLines,
+  loadEvidence,
   setStage,
   runRender,
   friendlyError,
@@ -62,10 +64,12 @@ export async function runScriptAuthoring({
 
     const linkWarning = linkWarningOf(input.urls.length, authored.unreadableUrls ?? []);
     if (scriptGateEnabled) {
+      const evidence = await loadEvidence?.().catch((_error: unknown) => undefined);
       setStage({
         kind: "script",
         lines: await loadScriptLines(),
         ...(linkWarning ? { linkWarning } : {}),
+        ...(evidence ? { evidence } : {}),
       });
     } else {
       await runRender(linkWarning);

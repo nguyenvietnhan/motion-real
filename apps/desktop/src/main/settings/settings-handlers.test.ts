@@ -11,17 +11,34 @@ describe("settings IPC handlers", () => {
     const updatedSettings = { ...currentSettings, maxRepairAttempts: 5 };
     const current = vi.fn(() => currentSettings);
     const update = vi.fn((_patch: Partial<SettingsModel>) => updatedSettings);
+    const readiness = vi.fn(async () => ({ ok: true, checks: [] }));
     const handlers = createSettingsHandlers({
       current,
       update,
       setApiKey: vi.fn(),
       clearApiKey: vi.fn(),
       parseVoiceProvider: (value) => value as VoiceProviderChoice,
+      readiness,
     });
 
     expect(handlers["settings:get"]()).toBe(currentSettings);
     expect(handlers["settings:update"]({ maxRepairAttempts: 5 })).toBe(updatedSettings);
     expect(update).toHaveBeenCalledWith({ maxRepairAttempts: 5 });
+  });
+
+  it("delegates readiness to the injected probe", async () => {
+    const report = { ok: false, checks: [{ id: "voice" as const, state: "blocked" as const, label: "Giọng đọc", detail: "thiếu" }] };
+    const readiness = vi.fn(async () => report);
+    const handlers = createSettingsHandlers({
+      current: () => baseSettings(),
+      update: (patch) => ({ ...baseSettings(), ...patch }),
+      setApiKey: vi.fn(),
+      clearApiKey: vi.fn(),
+      parseVoiceProvider: (value) => value as VoiceProviderChoice,
+      readiness,
+    });
+    await expect(handlers["settings:readiness"]()).resolves.toBe(report);
+    expect(readiness).toHaveBeenCalledTimes(1);
   });
 
   it("parses TTS providers and stringifies API keys before mutating secrets", () => {
@@ -38,6 +55,7 @@ describe("settings IPC handlers", () => {
       setApiKey,
       clearApiKey,
       parseVoiceProvider,
+      readiness: async () => ({ ok: true, checks: [] }),
     });
 
     expect(handlers["tts:setApiKey"]("elevenlabs", 123)).toBe(settings);

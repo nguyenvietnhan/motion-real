@@ -3,6 +3,7 @@ import type { BgmTrackVM, StoryboardModel } from "../../shared/types.js";
 import { Icon } from "../icons.js";
 import { EmptyState, InfoHint } from "../primitives.js";
 import { compactNotificationMessage, errorDetails, useNotifications } from "../notifications.js";
+import { sceneIndexAtSeconds, seekSecondsForScene } from "../storyboard-timing.js";
 
 /**
  * Background-music picker: a compact dropdown of the per-machine BGM
@@ -177,7 +178,9 @@ export const StoryboardView: React.FC<{
   onBgmRemove?: (name: string) => Promise<void>;
   /** Set (or clear, with null) the open project's BGM track; persisted to its manifest before the full render. */
   onBgmSelect?: (name: string | null) => Promise<void>;
-}> = ({ model, canApprove, notice, draftPath, onBack, onSubmit, onApprove, bgm, bgmSelected, onBgmAdd, onBgmRemove, onBgmSelect }) => {
+  /** Optional diagnostics entry (ready-stage). */
+  diagnosticsSlot?: React.ReactNode;
+}> = ({ model, canApprove, notice, draftPath, onBack, onSubmit, onApprove, bgm, bgmSelected, onBgmAdd, onBgmRemove, onBgmSelect, diagnosticsSlot }) => {
   const [selected, setSelected] = useState(0);
   // Per-scene edit drafts keyed by sceneId, so switching slides KEEPS what you
   // typed. You gather edits across many scenes and send them in ONE pass.
@@ -186,15 +189,70 @@ export const StoryboardView: React.FC<{
   const [showEdit, setShowEdit] = useState(true);
   // When a draft video exists, the big preview defaults to playing it; this flips
   // to the selected scene's still (what you point at to edit one scene).
+  // Default to video draft when present; rail click flips to that scene's still.
   const [showStill, setShowStill] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [bgmSaving, setBgmSaving] = useState(false);
   const notify = useNotifications();
   const lastNotice = useRef("");
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const pendingSeekRef = useRef<number | null>(null);
+  /** Suppress timeupdate→rail sync while a programmatic seek is in flight (avoids thrash). */
+  const seekingRef = useRef(false);
 
   const scenes = model.scenes;
   const idx = Math.min(selected, Math.max(0, scenes.length - 1));
   const current = scenes[idx];
+
+  const seekVideoTo = (seconds: number): void => {
+    const video = videoRef.current;
+    if (!video || !Number.isFinite(seconds)) return;
+    if (video.readyState >= 1) {
+      if (Math.abs(video.currentTime - seconds) > 0.05) {
+        seekingRef.current = true;
+        video.currentTime = seconds;
+      } else {
+        seekingRef.current = false;
+      }
+      pendingSeekRef.current = null;
+    } else {
+      pendingSeekRef.current = seconds;
+    }
+  };
+
+  /** Rail click: select that scene and show its still (review/edit UX). Never force video mode. */
+  const selectSceneOnRail = (i: number): void => {
+    setSelected(i);
+    setShowStill(true);
+    pendingSeekRef.current = null;
+    seekingRef.current = false;
+    const video = videoRef.current;
+    if (video) {
+      try {
+        video.pause();
+      } catch (_error: unknown) {
+        // ignore pause failures on detached media
+      }
+    }
+  };
+
+  /** Switch preview to draft video, seeking to the currently selected scene when timing exists. */
+  const switchToVideoPreview = (): void => {
+    const seek = seekSecondsForScene(scenes[idx]);
+    if (seek !== undefined) pendingSeekRef.current = seek;
+    setShowStill(false);
+  };
+
+  // After the video element mounts (or remounts), flush a pending seek for the selected scene.
+  useEffect(() => {
+    if (showStill || !draftPath) return;
+    if (pendingSeekRef.current === null) return;
+    // Defer so ref is attached after paint.
+    const id = requestAnimationFrame(() => {
+      if (pendingSeekRef.current !== null) seekVideoTo(pendingSeekRef.current);
+    });
+    return () => cancelAnimationFrame(id);
+  }, [showStill, draftPath, selected]);
 
   const hasEdit = (sceneId: string): boolean => (edits[sceneId] ?? "").trim().length > 0;
   const editedCount = scenes.filter((s) => hasEdit(s.sceneId)).length;
@@ -268,7 +326,12 @@ export const StoryboardView: React.FC<{
       <button className="ns-btn" onClick={onBack}>Quay lại</button>
       <div className="ns-story-title">
         <strong className="ns-story-heading">Duyệt cảnh</strong>
-        {scenes.length > 0 && <span className="ns-story-count">Cảnh {idx + 1}/{scenes.length}</span>}
+        {scenes.length > 0 && (
+          <span className="ns-story-count ns-tabular" aria-label={`Cảnh ${idx + 1} trên ${scenes.length}`}>
+            Cảnh {idx + 1}/{scenes.length}
+          </span>
+        )}
+        {diagnosticsSlot}
       </div>
       {scenes.length > 0 && (
         <>
@@ -277,12 +340,17 @@ export const StoryboardView: React.FC<{
           )}
           <button className={`ns-btn ns-story-edit-toggle${showEdit ? " is-active" : ""}`} onClick={() => setShowEdit((v) => !v)}>
             {Icon.pencil({ size: 15 })}
-            {showEdit ? `Sửa cảnh ${idx + 1}` : "Sửa cảnh"}
+            <span className="ns-tabular">{showEdit ? `Sửa cảnh ${idx + 1}` : "Sửa cảnh"}</span>
           </button>
           {showEdit && (
             <button className="ns-btn ns-btn-primary" disabled={!canSend || submitting} onClick={sendAll}
-              title={canSend ? undefined : "Nhập yêu cầu cho một cảnh hoặc ghi chú chung trước khi gửi."}>
-              {submitting ? "Đang gửi…" : editedCount > 0 ? `Gửi chỉnh sửa (${editedCount})` : "Gửi chỉnh sửa"}
+              title={canSend ? undefined : "Nhập yêu cầu cho một cảnh hoặc ghi chú chung trước khi gửi."}
+              style={{ minWidth: "11.5rem" }}>
+              {submitting ? "Đang gửi…" : editedCount > 0 ? (
+                <span className="ns-tabular">Gửi chỉnh sửa ({editedCount})</span>
+              ) : (
+                "Gửi chỉnh sửa"
+              )}
             </button>
           )}
           <button className="ns-btn" disabled={!canApprove || bgmSaving} onClick={onApprove}
@@ -312,11 +380,18 @@ export const StoryboardView: React.FC<{
         {/* Slide rail */}
         <div className="ns-story-rail">
           {scenes.map((s, i) => (
-            <button key={s.sceneId} onClick={() => { setSelected(i); setShowStill(true); }} title={`Cảnh ${i + 1}`} className="ns-thumb ns-story-thumb"
+            <button
+              key={s.sceneId}
+              type="button"
+              onClick={() => selectSceneOnRail(i)}
+              title={`Cảnh ${i + 1}`}
+              className="ns-thumb ns-story-thumb"
+              aria-current={i === idx ? "true" : undefined}
               style={{
                 border: i === idx ? "2px solid var(--brand)" : "1px solid var(--border)",
                 background: s.stillPath ? `center/cover no-repeat #0c0e12 url(${s.stillPath})` : "#101216",
-              }}>
+              }}
+            >
               <span className="ns-story-thumb-index">{i + 1}</span>
               {hasEdit(s.sceneId) && (
                 <span className="ns-story-thumb-edit" title="Đã ghi yêu cầu chỉnh sửa">
@@ -334,23 +409,63 @@ export const StoryboardView: React.FC<{
           {draftPath && (
             <div className="ns-story-preview-toolbar">
               <div className="ns-story-segmented">
-                {[{ still: false, label: "Video nháp" }, { still: true, label: `Ảnh cảnh ${idx + 1}` }].map((seg) => {
-                  const active = showStill === seg.still;
-                  return (
-                    <button key={seg.label} onClick={() => setShowStill(seg.still)}
-                      className={`ns-story-segment${active ? " is-active" : ""}`}>
-                      {seg.label}
-                    </button>
-                  );
-                })}
+                <button
+                  type="button"
+                  onClick={() => switchToVideoPreview()}
+                  className={`ns-story-segment${!showStill ? " is-active" : ""}`}
+                >
+                  Video nháp
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowStill(true);
+                    pendingSeekRef.current = null;
+                    seekingRef.current = false;
+                    videoRef.current?.pause();
+                  }}
+                  className={`ns-story-segment${showStill ? " is-active" : ""}`}
+                >
+                  {`Ảnh cảnh ${idx + 1}`}
+                </button>
               </div>
-              <InfoHint text="Bản nháp nhẹ để xem nhịp và nghe giọng. Bản cuối sẽ nét hơn." />
+              <InfoHint text="Bấm cảnh bên trái để xem ảnh. Chọn Video nháp để xem theo timeline đã khóa." />
+              {current && (
+                <span className="ns-story-active-label" style={{ marginLeft: 8, fontSize: 13, color: "var(--muted-foreground)" }}>
+                  Đang xem cảnh {idx + 1}
+                </span>
+              )}
             </div>
           )}
           
           <div className="ns-story-preview-stage">
             {draftPath && !showStill ? (
-              <video src={draftPath} controls className="ns-story-preview-media" />
+              <video
+                ref={videoRef}
+                src={draftPath}
+                controls
+                className="ns-story-preview-media"
+                onLoadedMetadata={() => {
+                  if (pendingSeekRef.current !== null) {
+                    seekVideoTo(pendingSeekRef.current);
+                  }
+                }}
+                onSeeking={() => {
+                  seekingRef.current = true;
+                }}
+                onSeeked={(e) => {
+                  seekingRef.current = false;
+                  // One stable rail update at the final seek position (not mid-scrub thrash).
+                  const next = sceneIndexAtSeconds(scenes, e.currentTarget.currentTime);
+                  if (next !== undefined && next !== selected) setSelected(next);
+                }}
+                onTimeUpdate={(e) => {
+                  // Only follow playback while playing; ignore seeks / pause scrub thrash.
+                  if (seekingRef.current || e.currentTarget.paused) return;
+                  const next = sceneIndexAtSeconds(scenes, e.currentTarget.currentTime);
+                  if (next !== undefined && next !== selected) setSelected(next);
+                }}
+              />
             ) : (
               <div
                 className="ns-story-preview-media ns-story-preview-still"

@@ -9,6 +9,8 @@ import {
 import { Icon } from "../icons.js";
 import { EmptyState, PageHeader, Spinner } from "../primitives.js";
 import { StoryboardView } from "./storyboard.js";
+import { ProjectDiagnosticsPanel } from "./project-diagnostics.js";
+import type { ProjectDiagnosticsVM } from "../../shared/types.js";
 import { ImageReviewView } from "./image-review.js";
 import { compactNotificationMessage, errorDetails, useNotifications } from "../notifications.js";
 
@@ -71,12 +73,14 @@ const PublishCopyPanel: React.FC<{ title?: string; hashtags?: string[] }> = ({ t
 const ScriptReview: React.FC<{
   lines: ScriptLine[];
   linkWarning?: string;
+  evidence?: import("../../shared/types.js").ScriptEvidenceModel;
   onApply: (edits: { sceneId: string; narration?: string; headline?: string }[]) => void;
   onApprove: () => void;
-}> = ({ lines, linkWarning, onApply, onApprove }) => {
+}> = ({ lines, linkWarning, evidence, onApply, onApprove }) => {
   const [draft, setDraft] = useState<Record<string, { headline: string; narration: string }>>(
     Object.fromEntries(lines.map((l) => [l.sceneId, { headline: l.headline, narration: l.narration }])),
   );
+  const [showEvidence, setShowEvidence] = useState(false);
   const notify = useNotifications();
   const lastWarning = useRef("");
   const edits = lines.map((l) => ({ sceneId: l.sceneId, headline: draft[l.sceneId]?.headline, narration: draft[l.sceneId]?.narration }));
@@ -99,6 +103,46 @@ const ScriptReview: React.FC<{
           <button className="ns-btn ns-btn-primary" onClick={() => { onApply(edits); onApprove(); }}>Duyệt và dựng</button>
         </div>
       </div>
+      {evidence && evidence.sources.length > 0 && (
+        <div className="ns-card" style={{ marginBottom: 12, padding: 12 }}>
+          <button type="button" className="ns-btn" onClick={() => setShowEvidence((v) => !v)}>
+            {showEvidence ? "Ẩn căn cứ nội dung" : "Căn cứ nội dung"}
+          </button>
+          {showEvidence && (
+            <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 12 }}>
+              {evidence.sources.map((s) => (
+                <div key={s.id} style={{ borderTop: "1px solid var(--border)", paddingTop: 8 }}>
+                  <strong>{s.title}</strong>
+                  <div style={{ fontSize: 12, color: "var(--muted-foreground)" }}>
+                    {s.site ? `${s.site} · ` : ""}
+                    {s.publishedDate ? `${s.publishedDate} · ` : ""}
+                    {s.sourceUrl}
+                  </div>
+                  <ul style={{ margin: "8px 0 0", paddingLeft: 18 }}>
+                    {evidence.claims
+                      .filter((c) => c.sourceId === s.id)
+                      .map((c) => (
+                        <li key={c.id} style={{ marginBottom: 6, fontSize: 13 }}>
+                          <div>{c.text}</div>
+                          {c.excerpt && (
+                            <div style={{ color: "var(--muted-foreground)", fontStyle: "italic" }}>
+                              “{c.excerpt}”
+                            </div>
+                          )}
+                          {c.sceneIds.length > 0 && (
+                            <div style={{ fontSize: 12, color: "var(--muted-foreground)" }}>
+                              Cảnh: {c.sceneIds.join(", ")}
+                            </div>
+                          )}
+                        </li>
+                      ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
       <div className="ns-script-list">
         {lines.map((l, i) => (
           <div key={l.sceneId} className="ns-card ns-script-card">
@@ -162,7 +206,21 @@ const RenderingPanel: React.FC<{ stage: Extract<ProjectStage, { kind: "rendering
   return (
     <div className="ns-card ns-render-card">
       <div className="ns-render-status-line">
-        <Spinner /> <span>{stopping ? "Đang dừng…" : `${label}${indeterminate ? "" : ` ${stage.percent}%`}`}</span>
+        <Spinner />
+        <span className="ns-render-status-copy">
+          {stopping ? (
+            <span className="ns-render-status-label">Đang dừng…</span>
+          ) : (
+            <>
+              <span className="ns-render-status-label">{label}</span>
+              {!indeterminate && (
+                <span className="ns-counter ns-counter-pct" aria-label={`${stage.percent} phần trăm`}>
+                  {stage.percent}%
+                </span>
+              )}
+            </>
+          )}
+        </span>
       </div>
       <div className="ns-progress-track">
         {indeterminate || stopping ? (
@@ -303,6 +361,7 @@ const ThumbnailPanel: React.FC<{
 
 export const ProjectWorkspaceView: React.FC<{
   stage: ProjectStage;
+  projectId?: string;
   onBack: () => void;
   onRetry: () => void;
   onFixWithAi: () => void;
@@ -331,12 +390,13 @@ export const ProjectWorkspaceView: React.FC<{
   onGenerateThumbnail: () => Promise<{ thumbnailUrl: string } | null>;
   /** Copy the generated cover PNG through a native Save dialog. */
   onSaveThumbnail: () => Promise<{ saved: boolean; error?: string }>;
-}> = ({ stage, onBack, onRetry, onFixWithAi, onApplyScript, onApproveScript, onSubmitEdits, onApproveDraft, onReveal, onSave, onCancel, onSubmitImageReview, bgm, bgmSelected, onBgmAdd, onBgmRemove, onBgmSelect, onGenerateThumbnail, onSaveThumbnail }) => {
+  loadDiagnostics?: (projectId: string) => Promise<ProjectDiagnosticsVM>;
+}> = ({ stage, projectId, onBack, onRetry, onFixWithAi, onApplyScript, onApproveScript, onSubmitEdits, onApproveDraft, onReveal, onSave, onCancel, onSubmitImageReview, bgm, bgmSelected, onBgmAdd, onBgmRemove, onBgmSelect, onGenerateThumbnail, onSaveThumbnail, loadDiagnostics }) => {
   const title = workspaceStageTitle;
   if (stage.kind === "ready") {
     return (
       <StoryboardView
-        model={{ projectId: "", scenes: stage.scenes, globalNotes: "" }}
+        model={{ projectId: projectId ?? "", scenes: stage.scenes, globalNotes: "" }}
         canApprove
         notice={stage.notice}
         draftPath={stage.draftPath}
@@ -348,6 +408,11 @@ export const ProjectWorkspaceView: React.FC<{
         onBgmAdd={onBgmAdd}
         onBgmRemove={onBgmRemove}
         onBgmSelect={onBgmSelect}
+        diagnosticsSlot={
+          projectId && loadDiagnostics ? (
+            <ProjectDiagnosticsPanel projectId={projectId} load={loadDiagnostics} />
+          ) : undefined
+        }
       />
     );
   }
@@ -366,7 +431,15 @@ export const ProjectWorkspaceView: React.FC<{
           </p>
         </div>
       )}
-      {stage.kind === "script" && <ScriptReview lines={stage.lines} linkWarning={stage.linkWarning} onApply={onApplyScript} onApprove={onApproveScript} />}
+      {stage.kind === "script" && (
+        <ScriptReview
+          lines={stage.lines}
+          linkWarning={stage.linkWarning}
+          evidence={stage.evidence}
+          onApply={onApplyScript}
+          onApprove={onApproveScript}
+        />
+      )}
       {stage.kind === "image-review" && <ImageReviewView images={stage.images} onSubmit={onSubmitImageReview} />}
       {stage.kind === "rendering" && <RenderingPanel stage={stage} onCancel={onCancel} />}
       {stage.kind === "published" && (
@@ -401,22 +474,27 @@ export const ProjectWorkspaceView: React.FC<{
         </div>
       )}
       {stage.kind === "error" && (
-        <EmptyState icon={Icon.film({ size: 34 })} title="Gặp lỗi khi dựng" hint={stage.message}
-          action={
-            <div className="ns-error-actions">
-              {stage.fixable ? (
-                // A content render defect: the grid is deterministic, so re-rendering
-                // the SAME code would fail identically — only an AI rewrite can help.
-                // Show just "Sửa bằng AI" (a redundant "Thử lại" would mislead).
-                <button className="ns-btn ns-btn-primary" onClick={onFixWithAi}>Sửa bằng AI</button>
-              ) : (
-                // An author or infra error: re-running the failed loop is meaningful
-                // (infra blips self-heal; a fresh author attempt may succeed).
-                <button className="ns-btn ns-btn-primary" onClick={onRetry}>{Icon.refresh({ size: 14 })} Thử lại</button>
-              )}
-              <button className="ns-btn" onClick={onBack}>Quay lại Trang chủ</button>
-            </div>
-          } />
+        <>
+          <EmptyState icon={Icon.film({ size: 34 })} title="Gặp lỗi khi dựng" hint={stage.message}
+            action={
+              <div className="ns-error-actions">
+                {stage.fixable ? (
+                  // A content render defect: the grid is deterministic, so re-rendering
+                  // the SAME code would fail identically — only an AI rewrite can help.
+                  // Show just "Sửa bằng AI" (a redundant "Thử lại" would mislead).
+                  <button className="ns-btn ns-btn-primary" onClick={onFixWithAi}>Sửa bằng AI</button>
+                ) : (
+                  // An author or infra error: re-running the failed loop is meaningful
+                  // (infra blips self-heal; a fresh author attempt may succeed).
+                  <button className="ns-btn ns-btn-primary" onClick={onRetry}>{Icon.refresh({ size: 14 })} Thử lại</button>
+                )}
+                <button className="ns-btn" onClick={onBack}>Quay lại Trang chủ</button>
+              </div>
+            } />
+          {projectId && loadDiagnostics && (
+            <ProjectDiagnosticsPanel projectId={projectId} load={loadDiagnostics} />
+          )}
+        </>
       )}
     </div>
   );

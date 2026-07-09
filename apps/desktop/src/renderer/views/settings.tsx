@@ -1,9 +1,16 @@
 import React, { useRef, useState } from "react";
-import type { AiAccountState, GatewayState, ModelInfo, SettingsModel, VoiceProviderChoice } from "../../shared/types.js";
+import type {
+  AiAccountState,
+  DesktopReadinessReport,
+  GatewayState,
+  ModelInfo,
+  SettingsModel,
+  VoiceProviderChoice,
+} from "../../shared/types.js";
 import { DEFAULT_REFINE_PASSES } from "../../shared/settings-model.js";
 import { activeAccount } from "../../shared/active-account.js";
 import { Icon } from "../icons.js";
-import { ExpandableToggle, Field, InfoRow, NumberRow, PageHeader, SettingsCard, Toggle } from "../primitives.js";
+import { ExpandableToggle, Field, InfoHint, InfoRow, NumberRow, PageHeader, SettingsCard, Toggle } from "../primitives.js";
 import { compactNotificationMessage, errorDetails, useNotifications } from "../notifications.js";
 
 type SettingsTab = "ai" | "voice" | "build" | "about";
@@ -87,17 +94,22 @@ export const SettingsView: React.FC<{
   account: AiAccountState;
   models: ModelInfo[];
   settings: SettingsModel;
+  /** Saved preference is no longer in the gateway list — ask the user to pick a replacement. */
+  preferredModelUnavailable?: string;
   onManageAccounts: () => void;
   onSelectModel: (modelId: string) => void;
   onUpdate: (patch: Partial<SettingsModel>) => void | Promise<unknown>;
   onSetApiKey: (provider: VoiceProviderChoice, apiKey: string) => Promise<SettingsModel>;
   onClearApiKey: (provider: VoiceProviderChoice) => Promise<SettingsModel>;
-}> = ({ gateway, account, models, settings, onManageAccounts, onSelectModel, onUpdate, onSetApiKey, onClearApiKey }) => {
+  onCheckReadiness?: () => Promise<DesktopReadinessReport>;
+}> = ({ gateway, account, models, settings, preferredModelUnavailable, onManageAccounts, onSelectModel, onUpdate, onSetApiKey, onClearApiKey, onCheckReadiness }) => {
   const [tab, setTab] = useState<SettingsTab>("ai");
   const [refineExpanded, setRefineExpanded] = useState(settings.refinePasses > 0);
   const [showVoiceKey, setShowVoiceKey] = useState(false);
   const [voiceKeyInput, setVoiceKeyInput] = useState("");
   const [saveState, setSaveState] = useState<"idle" | "saving" | "error">("idle");
+  const [readinessLoading, setReadinessLoading] = useState(false);
+  const [readiness, setReadiness] = useState<DesktopReadinessReport | null>(null);
   const saveSeq = useRef(0);
   const notify = useNotifications();
   const connected = account.kind === "connected" ? account.accounts : [];
@@ -221,9 +233,94 @@ export const SettingsView: React.FC<{
                         style={{ width: "100%", maxWidth: 460 }}
                       />
                     </Field>
+                    {preferredModelUnavailable && (
+                      <p style={{ color: "var(--danger)", margin: "12px 0 0", fontSize: 13 }} role="status">
+                        Model đã lưu <strong>{preferredModelUnavailable}</strong> không còn trong danh sách hiện tại.
+                        Chọn model khác — app sẽ không tự đổi sang model đầu danh sách.
+                      </p>
+                    )}
                   </div>
                 </>
               )}
+              <div style={{ marginTop: connected.length > 0 || gateway.kind !== "ready" ? 20 : 0, paddingTop: 16, borderTop: "1px solid var(--border)" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                  <button
+                    type="button"
+                    className="ns-btn ns-btn-primary"
+                    disabled={readinessLoading || !onCheckReadiness}
+                    onClick={() => {
+                      if (!onCheckReadiness) return;
+                      setReadinessLoading(true);
+                      void onCheckReadiness()
+                        .then((report) => setReadiness(report))
+                        .catch((error: unknown) => {
+                          const details = errorDetails(error);
+                          notify.error({
+                            title: "Không kiểm tra được",
+                            message: compactNotificationMessage(details, "Thử lại sau."),
+                            details,
+                          });
+                        })
+                        .finally(() => setReadinessLoading(false));
+                    }}
+                  >
+                    {readinessLoading ? "Đang kiểm tra…" : "Kiểm tra"}
+                  </button>
+                  <InfoHint text="Kiểm tra cổng AI, giọng đọc và công cụ render trên máy. Không gọi model hay TTS." />
+                </div>
+                {readiness && (
+                  <ul
+                    className="ns-readiness-list"
+                    style={{
+                      margin: "12px 0 0",
+                      padding: 0,
+                      listStyle: "none",
+                      display: "grid",
+                      gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
+                      gap: "6px 12px",
+                    }}
+                    role="list"
+                    aria-label="Kết quả kiểm tra sẵn sàng"
+                  >
+                    {readiness.checks.map((c) => {
+                      const tone =
+                        c.state === "ready"
+                          ? "var(--good, #16a34a)"
+                          : c.state === "warning"
+                            ? "var(--warn, #ca8a04)"
+                            : "var(--danger)";
+                      const statusWord =
+                        c.state === "ready" ? "sẵn sàng" : c.state === "warning" ? "cảnh báo" : "chặn";
+                      const tip = [c.detail, c.remediation].filter(Boolean).join(" — ");
+                      return (
+                        <li
+                          key={c.id}
+                          title={tip || undefined}
+                          aria-label={`${c.label}: ${statusWord}${tip ? `. ${tip}` : ""}`}
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 8,
+                            minWidth: 0,
+                            fontSize: 13,
+                          }}
+                        >
+                          <span style={{ color: tone, display: "inline-flex", flexShrink: 0 }} aria-hidden>
+                            {c.state === "ready"
+                              ? Icon.check({ size: 14 })
+                              : c.state === "warning"
+                                ? Icon.warn({ size: 14 })
+                                : Icon.close({ size: 14 })}
+                          </span>
+                          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            {c.label}
+                          </span>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </div>
             </SettingsCard>
           )}
 

@@ -1,4 +1,4 @@
-import type { AgentHooks, AgentWorker, SceneSnapshot, VisualDefect } from "../agent/agent-worker.js";
+import type { AgentHooks, AgentWorker, SceneSnapshot, VisualQaResult } from "../agent/agent-worker.js";
 import type { ProjectStage } from "../../shared/types.js";
 import { creativeBootstrapPreprompt, visionRepairPreprompt } from "./workspace-render-flow.js";
 
@@ -90,7 +90,8 @@ export async function creativeBootstrapPass(
 
 /**
  * Defect-fixing vision loop: up to refinePasses rounds of visualQa → reauthor →
- * stills. Early-stop needs two consecutive clean passes when enabled.
+ * stills. Early-stop needs two consecutive *checked* clean passes when enabled.
+ * A skipped pass consumes the budget but never increments the clean streak.
  */
 export async function runVisionPasses(
   deps: RefineFlowDeps,
@@ -107,21 +108,33 @@ export async function runVisionPasses(
   for (let pass = 1; pass <= passes; pass += 1) {
     if (deps.signal?.aborted) break;
     deps.setStage({ kind: "rendering", percent: 0, phase: "qa", qaPass: pass, qaTotal: passes });
-    const flagged = await deps.worker.visualQa(deps.projectId, scope, deps.signal).catch((error) => {
+    const result: VisualQaResult = await deps.worker.visualQa(deps.projectId, scope, deps.signal).catch((error) => {
       deps.warn(
         { err: error, projectId: deps.projectId, sceneIds: scope },
-        "visual QA failed; treating pass as unflagged",
+        "visual QA failed; treating pass as skipped",
       );
-      return [] as VisualDefect[];
+      return {
+        kind: "skipped" as const,
+        reason: "provider-error" as const,
+        requestedSceneIds: scope ? [...scope] : [],
+      };
     });
     if (deps.signal?.aborted) break;
-    if (flagged.length === 0) {
+
+    if (result.kind === "skipped") {
+      // Consume this configured pass; do not invent retries or count as clean.
+      cleanStreak = 0;
+      continue;
+    }
+
+    if (result.defects.length === 0) {
       cleanStreak += 1;
       if (earlyStop && cleanStreak >= 2) break;
       continue;
     }
     cleanStreak = 0;
 
+    const flagged = result.defects;
     const sceneIds = flagged.map((defect) => defect.sceneId);
     await snapshotFresh(deps, sceneIds, preRefine, snapshotted);
     deps.setStage({ kind: "rendering", percent: 0, phase: "qa", qaPass: pass, qaTotal: passes });

@@ -380,9 +380,13 @@ describe("fixWithAi + fixable flag", () => {
     const reauthorScenes = vi.fn(async () => ({ kind: "authored", sceneIds: ["scene-02"] }) as AuthorOutcome);
     // refinePasses=2: pass 1 flags a defect, pass 2 finds none → early stop.
     const visualQa = vi
-      .fn<(p: string, s?: string[], sig?: AbortSignal) => Promise<{ sceneId: string; issue: string }[]>>()
-      .mockResolvedValueOnce([{ sceneId: "scene-02", issue: "chữ đè lên nhau" }])
-      .mockResolvedValueOnce([]);
+      .fn<(p: string, s?: string[], sig?: AbortSignal) => Promise<import("../agent/agent-worker.js").VisualQaResult>>()
+      .mockResolvedValueOnce({
+        kind: "checked",
+        defects: [{ sceneId: "scene-02", issue: "chữ đè lên nhau" }],
+        checkedSceneIds: ["scene-02"],
+      })
+      .mockResolvedValueOnce({ kind: "checked", defects: [], checkedSceneIds: ["scene-02"] });
     const renderStills = vi.fn(async () => ({ stills: ["media://still/scene-02.png"] }));
     let renders = 0;
     const worker: AgentWorker = {
@@ -415,7 +419,7 @@ describe("fixWithAi + fixable flag", () => {
     // ambitious. With visualQa returning no defects, the bootstrap is the ONLY
     // reauthor, and it covers every manifest scene.
     const reauthorScenes = vi.fn(async (job: { sceneIds: string[] }) => ({ kind: "authored", sceneIds: job.sceneIds }) as AuthorOutcome);
-    const visualQa = vi.fn(async () => [] as { sceneId: string; issue: string }[]);
+    const visualQa = vi.fn(async () => ({ kind: "checked" as const, defects: [], checkedSceneIds: [] as string[] }));
     const renderStills = vi.fn(async () => ({ stills: ["media://still/scene-01.png", "media://still/scene-02.png"] }));
     let renders = 0;
     const worker: AgentWorker = {
@@ -461,9 +465,13 @@ describe("fixWithAi + fixable flag", () => {
     // spinner isn't opaque. refinePasses=2: pass 1 flags, pass 2 clean → stops.
     const reauthorScenes = vi.fn(async (job: { sceneIds: string[] }) => ({ kind: "authored", sceneIds: job.sceneIds }) as AuthorOutcome);
     const visualQa = vi
-      .fn<(p: string, s?: string[], sig?: AbortSignal) => Promise<{ sceneId: string; issue: string }[]>>()
-      .mockResolvedValueOnce([{ sceneId: "scene-01", issue: "đè chữ" }])
-      .mockResolvedValueOnce([]);
+      .fn<(p: string, s?: string[], sig?: AbortSignal) => Promise<import("../agent/agent-worker.js").VisualQaResult>>()
+      .mockResolvedValueOnce({
+        kind: "checked",
+        defects: [{ sceneId: "scene-01", issue: "đè chữ" }],
+        checkedSceneIds: ["scene-01"],
+      })
+      .mockResolvedValueOnce({ kind: "checked", defects: [], checkedSceneIds: ["scene-01"] });
     const worker: AgentWorker = {
       author: async (): Promise<AuthorOutcome> => ({ kind: "authored", sceneIds: [] }),
       reauthorScenes,
@@ -500,8 +508,15 @@ describe("fixWithAi + fixable flag", () => {
     // required; a flagged pass resets the streak. With it OFF, the loop always runs
     // the full `refinePasses`. Driven through the first-author flow (`approve`); the
     // creative bootstrap never calls visualQa, so the visualQa count == vision passes.
+    type VisualQaResult = import("../agent/agent-worker.js").VisualQaResult;
+    const clean: VisualQaResult = { kind: "checked", defects: [], checkedSceneIds: ["scene-01"] };
+    const defect: VisualQaResult = {
+      kind: "checked",
+      defects: [{ sceneId: "scene-01", issue: "đè chữ" }],
+      checkedSceneIds: ["scene-01"],
+    };
     const makeWorker = (
-      visualQa: (p: string, s?: string[], sig?: AbortSignal) => Promise<{ sceneId: string; issue: string }[]>,
+      visualQa: (p: string, s?: string[], sig?: AbortSignal) => Promise<VisualQaResult>,
     ): AgentWorker => ({
       author: async (): Promise<AuthorOutcome> => ({ kind: "authored", sceneIds: [] }),
       reauthorScenes: async (job: { sceneIds: string[] }) => ({ kind: "authored", sceneIds: job.sceneIds }) as AuthorOutcome,
@@ -524,22 +539,22 @@ describe("fixWithAi + fixable flag", () => {
     };
 
     // ON + [clean, clean]: two clean in a row → stop after pass 2 (not the full 5).
-    const wA = makeWorker(async () => []);
+    const wA = makeWorker(async () => clean);
     expect((await run({ refinePasses: 5, refineEarlyStop: true }, wA))).toHaveBeenCalledTimes(2);
 
     // ON + [defect, clean, clean]: the defect resets the streak, so it takes a clean
     // PAIR after it → passes run 1(defect),2(clean),3(clean) then stop. 4th never runs.
     let n = 0;
-    const wB = makeWorker(async () => (++n === 1 ? [{ sceneId: "scene-01", issue: "đè chữ" }] : []));
+    const wB = makeWorker(async () => (++n === 1 ? defect : clean));
     expect((await run({ refinePasses: 5, refineEarlyStop: true }, wB))).toHaveBeenCalledTimes(3);
 
     // OFF + always clean: the streak never triggers a break → burns the full count.
-    const wC = makeWorker(async () => []);
+    const wC = makeWorker(async () => clean);
     expect((await run({ refinePasses: 3, refineEarlyStop: false }, wC))).toHaveBeenCalledTimes(3);
   });
 
   it("post-edit refine is scoped to the edited scenes; refinePasses=0 ⇒ never called", async () => {
-    const visualQa = vi.fn(async () => [] as { sceneId: string; issue: string }[]);
+    const visualQa = vi.fn(async () => ({ kind: "checked" as const, defects: [], checkedSceneIds: ["scene-01"] }));
     const worker: AgentWorker = {
       author: async (): Promise<AuthorOutcome> => ({ kind: "authored", sceneIds: [] }),
       reauthorScenes: async (): Promise<AuthorOutcome> => ({ kind: "authored", sceneIds: ["scene-01"] }),
@@ -567,7 +582,10 @@ describe("fixWithAi + fixable flag", () => {
     const calls: string[] = [];
     const reauthorScenes = vi.fn(async (): Promise<AuthorOutcome> => { calls.push("reauthor"); return { kind: "authored", sceneIds: ["scene-01"] }; });
     const renderStills = vi.fn(async () => { calls.push("renderStills"); return { stills: ["media://still/scene-01.png"] }; });
-    const visualQa = vi.fn(async () => { calls.push("visualQa"); return [] as { sceneId: string; issue: string }[]; });
+    const visualQa = vi.fn(async () => {
+      calls.push("visualQa");
+      return { kind: "checked" as const, defects: [], checkedSceneIds: ["scene-01"] };
+    });
     const generateValidateRepair = vi.fn(async (): Promise<RepairOutcome> => { calls.push("draft"); return { kind: "passed", attempts: 1 }; });
     const worker: AgentWorker = {
       author: async (): Promise<AuthorOutcome> => ({ kind: "authored", sceneIds: [] }),
@@ -603,7 +621,7 @@ describe("fixWithAi + fixable flag", () => {
       reauthorScenes: async (): Promise<AuthorOutcome> => ({ kind: "authored", sceneIds: ["scene-01"] }),
       publish: async () => ({ ok: true, outputPath: "out.mp4" }),
       generateValidateRepair,
-      visualQa: async () => [],
+      visualQa: async () => ({ kind: "checked" as const, defects: [], checkedSceneIds: ["scene-01"] }),
       renderStills: async () => ({ stills: [] }), // edit broke the render
       snapshotScenes,
       restoreScenes,
@@ -623,7 +641,11 @@ describe("fixWithAi + fixable flag", () => {
     // pre-refine source and re-render it — refine must never ship a draft worse
     // than the un-refined one. The draft MP4 renders at most twice (refined, then
     // restored), never a draft-before-refine.
-    const visualQa = vi.fn(async () => [{ sceneId: "scene-02", issue: "đè chữ" }]);
+    const visualQa = vi.fn(async () => ({
+      kind: "checked" as const,
+      defects: [{ sceneId: "scene-02", issue: "đè chữ" }],
+      checkedSceneIds: ["scene-02"],
+    }));
     const snapshotScenes = vi.fn(async () => [{ sceneId: "scene-02", code: "// BLIND good code" }]);
     const restoreScenes = vi.fn(async () => {});
     let gen = 0;
@@ -990,7 +1012,7 @@ describe("submitEdits (per-scene free-form edit)", () => {
       publish: async () => ({ ok: true, outputPath: "out.mp4" }),
       generateValidateRepair,
       renderStills,
-      visualQa: async () => [],
+      visualQa: async () => ({ kind: "checked" as const, defects: [], checkedSceneIds: ["scene-01"] }),
     };
     const ctrl = new WorkspaceController(
       baseDeps({

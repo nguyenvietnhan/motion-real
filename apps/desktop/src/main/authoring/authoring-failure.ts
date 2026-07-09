@@ -32,10 +32,41 @@ export type AuthoringFailureEvent = {
   [key: string]: unknown;
 };
 
+/** Safe payload for project diagnostics — enum class/level/project id only. */
+export type SafeAuthoringDiagnostic = {
+  type: "authoring.failure";
+  failureClass: AuthoringFailureClass;
+  level: "warning" | "error";
+  projectId?: string;
+};
+
 type FailureLogger = {
   error: (obj: object, msg: string) => void;
   warn?: (obj: object, msg: string) => void;
 };
+
+export type AuthoringDiagnosticObserver = (payload: SafeAuthoringDiagnostic) => void;
+
+let diagnosticObserver: AuthoringDiagnosticObserver | undefined;
+
+/** Optional non-blocking fan-out for project diagnostics (never blocks authoring). */
+export function setAuthoringDiagnosticObserver(observer: AuthoringDiagnosticObserver | undefined): void {
+  diagnosticObserver = observer;
+}
+
+export function safeAuthoringDiagnostic(
+  event: AuthoringFailureEvent,
+  level: "error" | "warn",
+): SafeAuthoringDiagnostic {
+  return {
+    type: "authoring.failure",
+    failureClass: event.class,
+    level: level === "warn" ? "warning" : "error",
+    ...(typeof event.projectId === "string" && event.projectId.trim()
+      ? { projectId: event.projectId.trim() }
+      : {}),
+  };
+}
 
 /**
  * Emit a structured authoring failure. Preserves `message` exactly so existing
@@ -51,7 +82,14 @@ export function logAuthoringFailure(
   const payload = { failureClass, ...rest };
   if (level === "warn" && logger.warn) {
     logger.warn(payload, message);
-    return;
+  } else {
+    logger.error(payload, message);
   }
-  logger.error(payload, message);
+  if (diagnosticObserver) {
+    try {
+      diagnosticObserver(safeAuthoringDiagnostic(event, level));
+    } catch (_observerError) {
+      // observability must never block authoring
+    }
+  }
 }

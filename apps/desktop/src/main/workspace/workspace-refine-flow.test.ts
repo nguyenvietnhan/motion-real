@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, type Mock } from "vitest";
-import type { AgentHooks, SceneSnapshot } from "../agent/agent-worker.js";
+import type { AgentHooks, SceneSnapshot, VisualQaResult } from "../agent/agent-worker.js";
 import type { ProjectStage } from "../../shared/types.js";
 import {
   refineBeforeDraft,
@@ -14,6 +14,24 @@ const hooks: AgentHooks = {
   onSceneProduced: () => {},
   onRepair: () => {},
 };
+
+const cleanQa = (sceneIds: string[] = []): VisualQaResult => ({
+  kind: "checked",
+  defects: [],
+  checkedSceneIds: sceneIds,
+});
+
+const defectQa = (sceneId: string, issue: string): VisualQaResult => ({
+  kind: "checked",
+  defects: [{ sceneId, issue }],
+  checkedSceneIds: [sceneId],
+});
+
+const skippedQa = (reason: "provider-error" | "invalid-response" | "no-stills" = "provider-error"): VisualQaResult => ({
+  kind: "skipped",
+  reason,
+  requestedSceneIds: [],
+});
 
 type MockWorker = {
   renderStills: Mock;
@@ -32,7 +50,7 @@ function makeDeps(over: {
   const stages: ProjectStage[] = [];
   const worker: MockWorker = {
     renderStills: vi.fn(async () => ({ stills: ["s1.png"] })),
-    visualQa: vi.fn(async () => [] as { sceneId: string; issue: string }[]),
+    visualQa: vi.fn(async () => cleanQa()),
     reauthorScenes: vi.fn(async () => ({ kind: "authored" as const, sceneIds: ["scene-01"] })),
     snapshotScenes: vi.fn(async (_id: string, sceneIds: string[]) =>
       sceneIds.map((sceneId) => ({ sceneId, code: `// ${sceneId}` })),
@@ -91,9 +109,9 @@ describe("workspace-refine-flow", () => {
       worker: {
         visualQa: vi
           .fn()
-          .mockResolvedValueOnce([{ sceneId: "scene-01", issue: "overlap" }])
-          .mockResolvedValueOnce([])
-          .mockResolvedValueOnce([]),
+          .mockResolvedValueOnce(defectQa("scene-01", "overlap"))
+          .mockResolvedValueOnce(cleanQa(["scene-01"]))
+          .mockResolvedValueOnce(cleanQa(["scene-01"])),
       },
     });
     const snap = await refineBeforeDraft(deps);
@@ -110,7 +128,7 @@ describe("workspace-refine-flow", () => {
   it("restores snapshot when stills empty after vision reauthor (accept-gate)", async () => {
     const { deps, worker } = makeDeps({
       worker: {
-        visualQa: vi.fn(async () => [{ sceneId: "scene-01", issue: "clip" }]),
+        visualQa: vi.fn(async () => defectQa("scene-01", "clip")),
         renderStills: vi
           .fn()
           .mockResolvedValueOnce({ stills: ["ok.png"] })
@@ -122,8 +140,8 @@ describe("workspace-refine-flow", () => {
     expect(worker.restoreScenes).toHaveBeenCalled();
   });
 
-  it("early-stops vision after two consecutive clean passes", async () => {
-    const visualQa = vi.fn(async () => [] as { sceneId: string; issue: string }[]);
+  it("early-stops vision after two consecutive checked-clean passes", async () => {
+    const visualQa = vi.fn(async () => cleanQa());
     const { deps } = makeDeps({
       settings: { refinePasses: 5, refineEarlyStop: true, maxRepairAttempts: 3 },
       worker: { visualQa },
@@ -132,9 +150,49 @@ describe("workspace-refine-flow", () => {
     expect(visualQa).toHaveBeenCalledTimes(2);
   });
 
+  it("skipped then two checked-clean requires three passes before early stop", async () => {
+    const visualQa = vi
+      .fn()
+      .mockResolvedValueOnce(skippedQa("provider-error"))
+      .mockResolvedValueOnce(cleanQa())
+      .mockResolvedValueOnce(cleanQa());
+    const { deps, worker } = makeDeps({
+      settings: { refinePasses: 5, refineEarlyStop: true, maxRepairAttempts: 3 },
+      worker: { visualQa },
+    });
+    await runVisionPasses(deps, undefined, [], new Set());
+    expect(visualQa).toHaveBeenCalledTimes(3);
+    expect(worker.reauthorScenes).not.toHaveBeenCalled();
+  });
+
+  it("skipped never increments the clean streak even if repeated", async () => {
+    const visualQa = vi.fn(async () => skippedQa("invalid-response"));
+    const { deps } = makeDeps({
+      settings: { refinePasses: 3, refineEarlyStop: true, maxRepairAttempts: 3 },
+      worker: { visualQa },
+    });
+    await runVisionPasses(deps, undefined, [], new Set());
+    expect(visualQa).toHaveBeenCalledTimes(3);
+  });
+
+  it("checked defect reauthors only flagged scenes", async () => {
+    const visualQa = vi
+      .fn()
+      .mockResolvedValueOnce(defectQa("scene-02", "clip"))
+      .mockResolvedValueOnce(cleanQa(["scene-02"]))
+      .mockResolvedValueOnce(cleanQa(["scene-02"]));
+    const { deps, worker } = makeDeps({
+      settings: { refinePasses: 5, refineEarlyStop: true, maxRepairAttempts: 3 },
+      worker: { visualQa },
+    });
+    await runVisionPasses(deps, undefined, [], new Set());
+    expect(worker.reauthorScenes).toHaveBeenCalledTimes(1);
+    expect(worker.reauthorScenes.mock.calls[0]![0].sceneIds).toEqual(["scene-02"]);
+  });
+
   it("edit path never runs creative bootstrap reauthor when vision is clean", async () => {
     const { deps, worker } = makeDeps({
-      worker: { visualQa: vi.fn(async () => []) },
+      worker: { visualQa: vi.fn(async () => cleanQa(["scene-01"])) },
     });
     expect(await refineEditedScenes(deps, ["scene-01"])).toBe(true);
     expect(worker.reauthorScenes).not.toHaveBeenCalled();

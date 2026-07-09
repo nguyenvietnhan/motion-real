@@ -1,6 +1,6 @@
 import { join } from "node:path";
 import type { AuthoredRegistration } from "@motionreal/pipeline";
-import type { VisualDefect, SceneSnapshot } from "../agent/agent-worker.js";
+import type { VisualDefect, VisualQaResult, SceneSnapshot } from "../agent/agent-worker.js";
 import type { ChatMessage } from "../gateway/ninerouter-client.js";
 import { logAuthoringFailure } from "./authoring-failure.js";
 import { extractJsonObject } from "./manifest-schema.js";
@@ -61,14 +61,21 @@ export type SceneRestoreArgs = {
   logger: VisualQaLogger;
 };
 
-/** Parse the visual-QA JSON reply into high-severity, known-scene defects (tolerant). */
+/**
+ * Parse the visual-QA JSON reply into a truthful outcome.
+ * Only a valid JSON object with an `issues` array is `checked`; otherwise
+ * `skipped/invalid-response` (never a fake clean pass).
+ */
 export function parseVisualDefects(
   reply: string,
   knownScenes: Set<string>,
   logger?: VisualQaLogger,
-): VisualDefect[] {
+): VisualQaResult {
+  const checkedSceneIds = [...knownScenes];
   const json = extractJsonObject(reply);
-  if (!json) return [];
+  if (!json) {
+    return { kind: "skipped", reason: "invalid-response", requestedSceneIds: checkedSceneIds };
+  }
   let raw: unknown;
   try {
     raw = JSON.parse(json);
@@ -77,14 +84,19 @@ export function parseVisualDefects(
       logAuthoringFailure(
         logger,
         { class: "visual-qa-parse", err: error },
-        "visual-QA JSON parse failed; treating reply as no defects",
+        "visual-QA JSON parse failed; treating reply as skipped",
         "warn",
       );
     }
-    return [];
+    return { kind: "skipped", reason: "invalid-response", requestedSceneIds: checkedSceneIds };
   }
-  const issues = (raw as { issues?: unknown })?.issues;
-  if (!Array.isArray(issues)) return [];
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    return { kind: "skipped", reason: "invalid-response", requestedSceneIds: checkedSceneIds };
+  }
+  const issues = (raw as { issues?: unknown }).issues;
+  if (!Array.isArray(issues)) {
+    return { kind: "skipped", reason: "invalid-response", requestedSceneIds: checkedSceneIds };
+  }
   const out: VisualDefect[] = [];
   const seen = new Set<string>();
   for (const it of issues) {
@@ -97,17 +109,30 @@ export function parseVisualDefects(
     seen.add(sceneId);
     out.push({ sceneId, issue });
   }
-  return out;
+  return { kind: "checked", defects: out, checkedSceneIds };
 }
 
 /**
- * Best-effort AI visual layout QA on rendered stills. No model, no stills, a
- * vision failure, or an unparseable reply all yield `[]` (never block pipeline).
+ * Best-effort AI visual layout QA on rendered stills. Returns checked or an
+ * explicit skipped reason — never represents a skip as a clean pass.
  */
-export async function runVisualQa(args: VisualQaRunnerArgs): Promise<VisualDefect[]> {
-  if (!args.model) return [];
+export async function runVisualQa(args: VisualQaRunnerArgs): Promise<VisualQaResult> {
+  const requestedSceneIds = args.sceneIds ? [...args.sceneIds] : [];
+  if (!args.model) {
+    args.logger.debug?.(
+      { projectId: args.projectId, reason: "no-model", sceneCount: requestedSceneIds.length },
+      "[visual-qa] skipped: no model",
+    );
+    return { kind: "skipped", reason: "no-model", requestedSceneIds };
+  }
   const manifest = await args.loadManifest(args.projectId);
-  if (!manifest) return [];
+  if (!manifest) {
+    args.logger.debug?.(
+      { projectId: args.projectId, reason: "manifest-unavailable" },
+      "[visual-qa] skipped: manifest unavailable",
+    );
+    return { kind: "skipped", reason: "manifest-unavailable", requestedSceneIds };
+  }
 
   const wanted = args.sceneIds && args.sceneIds.length > 0 ? new Set(args.sceneIds) : null;
   const known = new Set<string>();
@@ -118,7 +143,14 @@ export async function runVisualQa(args: VisualQaRunnerArgs): Promise<VisualDefec
     const url = args.readStillDataUrl(join(args.reviewDir, `${s.id}.png`));
     if (url) scenes.push({ sceneId: s.id, stillDataUrl: url });
   }
-  if (scenes.length === 0) return [];
+  const knownIds = [...known];
+  if (scenes.length === 0) {
+    args.logger.debug?.(
+      { projectId: args.projectId, reason: "no-stills", sceneCount: knownIds.length },
+      "[visual-qa] skipped: no stills",
+    );
+    return { kind: "skipped", reason: "no-stills", requestedSceneIds: knownIds.length > 0 ? knownIds : requestedSceneIds };
+  }
 
   let reply: string;
   try {
@@ -130,7 +162,7 @@ export async function runVisualQa(args: VisualQaRunnerArgs): Promise<VisualDefec
       "[visual-qa] vision call failed; skipping QA",
       "warn",
     );
-    return [];
+    return { kind: "skipped", reason: "provider-error", requestedSceneIds: knownIds };
   }
   return parseVisualDefects(reply, known, args.logger);
 }

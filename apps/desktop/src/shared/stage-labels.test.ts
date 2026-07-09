@@ -10,7 +10,11 @@ describe("stage-labels", () => {
   it("covers every rendering phase with stable Vietnamese copy", () => {
     expect(renderingPhaseLabel("edit")).toBe("AI đang chỉnh sửa các cảnh theo yêu cầu…");
     expect(renderingPhaseLabel("qa", { qaPass: 2, qaTotal: 5 })).toBe(
-      "AI đang soát lỗi hình ảnh (lần 2/5)…",
+      // Figure-space pad keeps "2/5" the same width as "10/20" in the UI.
+      "AI đang soát lỗi hình ảnh (lần \u20072/\u20075)…",
+    );
+    expect(renderingPhaseLabel("qa", { qaPass: 10, qaTotal: 20 })).toBe(
+      "AI đang soát lỗi hình ảnh (lần 10/20)…",
     );
     expect(renderingPhaseLabel("prepare")).toBe("Đang dựng bản nháp…");
     expect(renderingPhaseLabel("full")).toBe("Đang dựng video bản đầy đủ (chất lượng cao)…");

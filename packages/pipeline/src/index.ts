@@ -8,6 +8,8 @@ export * from "./types.js";
 export * from "./errors.js";
 export * from "./log/logger.js";
 export * from "./store/store.js";
+export * from "./store/project-diagnostics.js";
+export * from "./store/project-evidence.js";
 export * from "./assets/import-image.js";
 export * from "./assets/bundled-media.js";
 export * from "./ingest/url-ingest.js";

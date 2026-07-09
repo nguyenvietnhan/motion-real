@@ -96,6 +96,23 @@ export type PublishResult = { ok: true; outputPath: string } | { ok: false; erro
 /** A layout defect the AI visual-QA flagged on a rendered scene still. */
 export type VisualDefect = { sceneId: string; issue: string };
 
+/** Why a visual-QA pass did not produce a checked result (advisory, non-blocking). */
+export type VisualQaSkipReason =
+  | "no-model"
+  | "manifest-unavailable"
+  | "no-stills"
+  | "provider-error"
+  | "invalid-response"
+  | "unsupported";
+
+/**
+ * Truthful visual-QA outcome. Only `checked` with zero high-severity defects
+ * is a clean pass for early-stop. `skipped` must never increment the clean streak.
+ */
+export type VisualQaResult =
+  | { kind: "checked"; defects: VisualDefect[]; checkedSceneIds: string[] }
+  | { kind: "skipped"; reason: VisualQaSkipReason; requestedSceneIds: string[] };
+
 /** A snapshot of authored scene source, used to roll back a regressive QA round. */
 export type SceneSnapshot = { sceneId: string; code: string }[];
 
@@ -143,10 +160,10 @@ export interface AgentWorker {
    * Optional AI visual-QA: judge the rendered scene stills (vision model) for
    * clear LAYOUT defects (overlap, clipping, off-canvas, imbalance) the
    * deterministic grid can't catch. `sceneIds` scopes the check (e.g. only the
-   * scenes a user just edited); omit to check every scene. Returns the flagged
-   * scenes + a short description. Model-dependent (needs vision) and best-effort.
+   * scenes a user just edited); omit to check every scene. Returns a truthful
+   * checked/skipped outcome — skipped is advisory and non-blocking.
    */
-  visualQa?(projectId: string, sceneIds?: string[], signal?: AbortSignal): Promise<VisualDefect[]>;
+  visualQa?(projectId: string, sceneIds?: string[], signal?: AbortSignal): Promise<VisualQaResult>;
   /** Snapshot authored scene source so a regressive visual-QA round can be rolled back. */
   snapshotScenes?(projectId: string, sceneIds: string[]): Promise<SceneSnapshot>;
   /** Restore authored scene source from a snapshot (re-admits the components). */

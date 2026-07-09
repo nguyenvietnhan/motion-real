@@ -57,6 +57,30 @@ describe("CustomLoopAgentWorker.author", () => {
   });
 });
 
+describe("CustomLoopAgentWorker.visualQa", () => {
+  it("absent backend QA returns unsupported, not a fake clean pass", async () => {
+    const worker = new CustomLoopAgentWorker(backend());
+    await expect(worker.visualQa("p1", ["scene-01"])).resolves.toEqual({
+      kind: "skipped",
+      reason: "unsupported",
+      requestedSceneIds: ["scene-01"],
+    });
+  });
+
+  it("passes through a checked backend result", async () => {
+    const worker = new CustomLoopAgentWorker(
+      backend({
+        visualQa: async () => ({
+          kind: "checked",
+          defects: [{ sceneId: "scene-01", issue: "clip" }],
+          checkedSceneIds: ["scene-01"],
+        }),
+      }),
+    );
+    await expect(worker.visualQa("p1")).resolves.toMatchObject({ kind: "checked" });
+  });
+});
+
 describe("CustomLoopAgentWorker.generateValidateRepair", () => {
   it("delegates to the repair loop, re-authoring flagged scenes until clean", async () => {
     let renders = 0;

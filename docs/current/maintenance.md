@@ -65,6 +65,22 @@ on the relevant runner or a new tested seam; do not thin the facade only for
 line count, and keep `authorScenes` on the facade unless a future orchestration
 harness is planned.
 
+Visual QA is advisory and returns a truthful `VisualQaResult`: `checked` (ran
+with a valid reply) or `skipped` (no model, no stills, provider error, invalid
+response, unsupported). Only a **checked** pass with zero high-severity defects
+increments the consecutive-clean early-stop streak. A skipped pass consumes the
+configured refine pass but is never logged or treated as a clean QA result.
+
+Settings → **Kiểm tra sẵn sàng** (`settings:readiness`) runs local doctor +
+gateway/account/model/voice presence checks only. It never calls an LLM or TTS,
+never auto-selects a model, and never ships secrets, raw doctor paths, or error
+stacks to the renderer — only fixed Vietnamese labels and remediations.
+
+**Chi tiết xử lý** (`projects:diagnostics`) projects a bounded, redacted view of
+`events.ndjson` (and safe authoring/repair appends). The renderer never receives
+raw Pino logs, prompts, TSX, paths, N-codes, or free-form repair text — only
+fixed-language lifecycle/authoring/repair states.
+
 `content-plan.ts` is the public facade; schema/types, normalization, parser,
 quality checks, and prompt builders live in focused `content-plan-*` modules.
 Keep imports pointed at the facade unless a local module needs an internal
