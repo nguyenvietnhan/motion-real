@@ -313,6 +313,49 @@ describe("calibratedWordsPerSecond (per-voice, clamped)", () => {
   });
 });
 
+describe("preferredAiModelId persistence", () => {
+  it("round-trips the preference while still omitting aiAccount and credentials", () => {
+    const { store, readFile } = memStore();
+    const out = store.update({ preferredAiModelId: "  gpt-5.6  " });
+    expect(out.preferredAiModelId).toBe("gpt-5.6");
+    const persisted = JSON.parse(readFile()!) as Record<string, unknown>;
+    expect(persisted.preferredAiModelId).toBe("gpt-5.6");
+    expect("aiAccount" in persisted).toBe(false);
+    expect("voiceCredentials" in persisted).toBe(false);
+
+    const reloaded = new SettingsStore({
+      filePath: "settings.json",
+      defaults,
+      envApiKey: () => undefined,
+      envVoiceId: () => undefined,
+      exists: () => true,
+      readText: () => readFile()!,
+      writeText: () => undefined,
+    });
+    expect(reloaded.current().preferredAiModelId).toBe("gpt-5.6");
+  });
+
+  it("normalizes blank/invalid preferred model values to undefined", () => {
+    const { store } = memStore(JSON.stringify({ preferredAiModelId: "   " }));
+    expect(store.current().preferredAiModelId).toBeUndefined();
+    const cleared = store.update({ preferredAiModelId: "  " });
+    expect(cleared.preferredAiModelId).toBeUndefined();
+  });
+
+  it("a manual replacement persists the replacement", () => {
+    const { store, readFile } = memStore();
+    store.update({ preferredAiModelId: "old-model" });
+    store.update({ preferredAiModelId: "replacement" });
+    expect(JSON.parse(readFile()!).preferredAiModelId).toBe("replacement");
+    expect(store.current().preferredAiModelId).toBe("replacement");
+  });
+
+  it("older settings files may omit the field without migration", () => {
+    const { store } = memStore(JSON.stringify({ outputDir: "/x", refinePasses: 2 }));
+    expect(store.current().preferredAiModelId).toBeUndefined();
+  });
+});
+
 // Property 6: setScriptGateEnabled is Boolean coercion + persisted
 describe("Property 6: setScriptGateEnabled Boolean coercion", () => {
   it("scriptGateEnabled === Boolean(enabled) and is persisted", () => {

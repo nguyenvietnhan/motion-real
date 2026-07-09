@@ -199,6 +199,11 @@ export type ApproveResult = { ok: true; outputPath: string } | { ok: false; reas
 
 export type SettingsModel = {
   aiAccount: AiAccountState;
+  /**
+   * User's explicit generation-model preference; runtime account state remains
+   * transient. Absent on first use; older settings files may omit it.
+   */
+  preferredAiModelId?: string;
   /** Default for the create screen; each project persists its actual selection. */
   voiceProvider: VoiceProviderChoice;
   vivibeVoiceId?: string;

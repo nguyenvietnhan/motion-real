@@ -1,7 +1,8 @@
-import React, { useCallback, useEffect, useReducer, useState } from "react";
+import React, { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { HomeView, LicenseView, ProjectsView, ProjectWorkspaceView, SettingsView, Sidebar, type Screen } from "./views.js";
 import { reduceDesktop, type DesktopState } from "./state/desktop-state.js";
 import { aiReady } from "../shared/ai-ready.js";
+import { preferredModelDecision } from "../shared/model-selection.js";
 import { defaultSettings } from "../shared/settings-model.js";
 import type { BgmTrackVM, LicenseState, ModelInfo, ProjectStage } from "../shared/types.js";
 import { compactNotificationMessage, errorDetails, NotificationProvider, useNotifications } from "./notifications.js";
@@ -9,8 +10,8 @@ import { compactNotificationMessage, errorDetails, NotificationProvider, useNoti
 /**
  * Renderer root — enterprise shell: a left Sidebar + a content
  * area, Home-first. AI status lives in the sidebar; login is delegated to
- * 9router via Settings; a default model auto-selects once connected. Gateway is
- * polled only until AI is ready.
+ * 9router via Settings. Preferred model is restored from settings (or first-use
+ * first model is selected and persisted). Gateway is polled only until AI is ready.
  */
 
 const initial: DesktopState = {
@@ -34,13 +35,17 @@ const AppShell: React.FC = () => {
   const [gateway, setGateway] = useState(initial.gateway);
   const [account, setAccount] = useState(initial.aiAccount);
   const [settings, setSettings] = useState(initial.settings);
+  const [settingsLoaded, setSettingsLoaded] = useState(false);
   const [models, setModels] = useState<ModelInfo[]>([]);
+  const [preferredModelUnavailable, setPreferredModelUnavailable] = useState<string | undefined>();
   const [openProjectId, setOpenProjectId] = useState<string | null>(null);
   const [stage, setStage] = useState<ProjectStage>({ kind: "writing" });
   // BGM library (per-machine, shared) + the open project's current selection.
   // Loaded when a workspace opens; the picker mutates the library then refreshes.
   const [bgm, setBgm] = useState<BgmTrackVM[]>([]);
   const [bgmSelected, setBgmSelected] = useState<string | null>(null);
+  const selectingModelRef = useRef<string | null>(null);
+  const preferredModelIdRef = useRef<string | undefined>(undefined);
   const notify = useNotifications();
 
   const dash = typeof window !== "undefined" ? window.dashboard : undefined;
@@ -56,18 +61,64 @@ const AppShell: React.FC = () => {
     if (ms.length) setModels(ms);
 
     let acc = await dash.ai.connectedAccounts();
-    if (acc.kind === "connected" && acc.accounts.length > 0 && !acc.selectedModel && ms.length) {
-      acc = await dash.ai.selectModel(ms[0]!.id);
+    // Do not auto-select before settings load — that would race past the saved preference.
+    if (!settingsLoaded) {
+      setAccount(acc);
+      return false;
     }
+
+    if (acc.kind === "connected" && acc.accounts.length > 0 && ms.length) {
+      const decision = preferredModelDecision({
+        preferredModelId: preferredModelIdRef.current,
+        runtimeModelId: acc.selectedModel?.id,
+        availableModelIds: ms.map((m) => m.id),
+      });
+
+      if (decision.kind === "unavailable") {
+        setPreferredModelUnavailable(decision.modelId);
+        setAccount(acc);
+        return false;
+      }
+
+      setPreferredModelUnavailable(undefined);
+
+      if (decision.kind === "select-runtime" || decision.kind === "select-and-persist") {
+        if (selectingModelRef.current !== decision.modelId) {
+          selectingModelRef.current = decision.modelId;
+          try {
+            acc = await dash.ai.selectModel(decision.modelId);
+            if (decision.kind === "select-and-persist") {
+              try {
+                const next = await dash.settings.update({ preferredAiModelId: decision.modelId });
+                preferredModelIdRef.current = next.preferredAiModelId;
+                setSettings(next);
+              } catch {
+                // Runtime selection still applied; preference write failed — surface later via settings UI.
+              }
+            }
+          } finally {
+            selectingModelRef.current = null;
+          }
+        }
+      }
+    }
+
     setAccount(acc);
     return aiReady(gw, acc);
-  }, [dash]);
+  }, [dash, settingsLoaded]);
+
+  useEffect(() => {
+    preferredModelIdRef.current = settings.preferredAiModelId;
+  }, [settings.preferredAiModelId]);
 
   useEffect(() => {
     if (!dash) return;
     void (async () => {
       setLicense(await dash.license.get());
-      setSettings(await dash.settings.get());
+      const loaded = await dash.settings.get();
+      preferredModelIdRef.current = loaded.preferredAiModelId;
+      setSettings(loaded);
+      setSettingsLoaded(true);
       dispatch({ type: "gallery", load: "loading", cards: [] });
       try {
         const cards = await dash.projects.list();
@@ -84,8 +135,8 @@ const AppShell: React.FC = () => {
     // the polled stage, so we don't double-handle them via the event stream.
     const unsubs = [dash.events.onStatus((e) => dispatch({ type: "status", event: e }))];
 
-    // Poll only until AI is ready (gateway up + a connection + a model); auto-pick
-    // a default model so the user isn't forced to choose; then stop (no churn).
+    // Poll only until AI is ready (gateway up + a connection + a model); restore
+    // preferred model (or first-use first model) then stop (no churn).
     const poll = setInterval(() => {
       void refreshAiState().then((isReady) => {
         if (isReady) clearInterval(poll);
@@ -288,14 +339,49 @@ const AppShell: React.FC = () => {
             account={account}
             models={models}
             settings={settings}
+            preferredModelUnavailable={preferredModelUnavailable}
             onManageAccounts={() => {
               if (!dash) return;
               void dash.ai.beginConnect("").then(() => void refreshAiState());
             }}
-            onSelectModel={(modelId) => void dash?.ai.selectModel(modelId).then(setAccount)}
+            onSelectModel={(modelId) => {
+              if (!dash) return;
+              void (async () => {
+                try {
+                  const acc = await dash.ai.selectModel(modelId);
+                  setAccount(acc);
+                  try {
+                    const next = await dash.settings.update({ preferredAiModelId: modelId });
+                    preferredModelIdRef.current = next.preferredAiModelId;
+                    setSettings(next);
+                    setPreferredModelUnavailable(undefined);
+                  } catch (error: unknown) {
+                    const details = errorDetails(error);
+                    notify.error({
+                      title: "Model đã chọn nhưng chưa lưu được",
+                      message: compactNotificationMessage(
+                        details,
+                        "Lựa chọn hiện tại có thể không còn sau khi khởi động lại.",
+                      ),
+                      details,
+                    });
+                  }
+                } catch (error: unknown) {
+                  const details = errorDetails(error);
+                  notify.error({
+                    title: "Không chọn được model",
+                    message: compactNotificationMessage(details, "Thử chọn lại model."),
+                    details,
+                  });
+                }
+              })();
+            }}
             onUpdate={(patch) => {
               if (!dash) return Promise.reject(new Error("Dashboard API is unavailable"));
-              return dash.settings.update(patch).then((next) => { setSettings(next); });
+              return dash.settings.update(patch).then((next) => {
+                preferredModelIdRef.current = next.preferredAiModelId;
+                setSettings(next);
+              });
             }}
             onSetApiKey={(provider, apiKey) => {
               if (!dash) return Promise.reject(new Error("Dashboard API is unavailable"));

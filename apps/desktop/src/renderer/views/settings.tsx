@@ -87,12 +87,14 @@ export const SettingsView: React.FC<{
   account: AiAccountState;
   models: ModelInfo[];
   settings: SettingsModel;
+  /** Saved preference is no longer in the gateway list — ask the user to pick a replacement. */
+  preferredModelUnavailable?: string;
   onManageAccounts: () => void;
   onSelectModel: (modelId: string) => void;
   onUpdate: (patch: Partial<SettingsModel>) => void | Promise<unknown>;
   onSetApiKey: (provider: VoiceProviderChoice, apiKey: string) => Promise<SettingsModel>;
   onClearApiKey: (provider: VoiceProviderChoice) => Promise<SettingsModel>;
-}> = ({ gateway, account, models, settings, onManageAccounts, onSelectModel, onUpdate, onSetApiKey, onClearApiKey }) => {
+}> = ({ gateway, account, models, settings, preferredModelUnavailable, onManageAccounts, onSelectModel, onUpdate, onSetApiKey, onClearApiKey }) => {
   const [tab, setTab] = useState<SettingsTab>("ai");
   const [refineExpanded, setRefineExpanded] = useState(settings.refinePasses > 0);
   const [showVoiceKey, setShowVoiceKey] = useState(false);
@@ -221,6 +223,12 @@ export const SettingsView: React.FC<{
                         style={{ width: "100%", maxWidth: 460 }}
                       />
                     </Field>
+                    {preferredModelUnavailable && (
+                      <p style={{ color: "var(--danger)", margin: "12px 0 0", fontSize: 13 }} role="status">
+                        Model đã lưu <strong>{preferredModelUnavailable}</strong> không còn trong danh sách hiện tại.
+                        Chọn model khác — app sẽ không tự đổi sang model đầu danh sách.
+                      </p>
+                    )}
                   </div>
                 </>
               )}

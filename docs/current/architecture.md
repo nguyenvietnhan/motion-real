@@ -51,6 +51,11 @@ directly:
 - `gateway/gateway-handlers.ts` owns the `ai:*` IPC handler group and the
   desktop-side selected-model mirror used by authoring. `ModelGatewayManager`
   construction and `startGateway` stay root-owned.
+- The user's generation-model preference is persisted as
+  `SettingsModel.preferredAiModelId` (public settings JSON only). Runtime
+  `AiAccountState.selectedModel` stays process-memory; the renderer restores
+  the saved id after settings load, and does not silently pick another model
+  when the saved id is missing from the gateway list.
 
 **Composition-root charter (`index.ts` must own):** process boot (media scheme,
 env scrub, privilege gate); construction order (settings → tools → gateway →
