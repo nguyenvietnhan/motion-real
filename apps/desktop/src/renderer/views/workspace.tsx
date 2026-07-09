@@ -206,7 +206,21 @@ const RenderingPanel: React.FC<{ stage: Extract<ProjectStage, { kind: "rendering
   return (
     <div className="ns-card ns-render-card">
       <div className="ns-render-status-line">
-        <Spinner /> <span>{stopping ? "Đang dừng…" : `${label}${indeterminate ? "" : ` ${stage.percent}%`}`}</span>
+        <Spinner />
+        <span className="ns-render-status-copy">
+          {stopping ? (
+            <span className="ns-render-status-label">Đang dừng…</span>
+          ) : (
+            <>
+              <span className="ns-render-status-label">{label}</span>
+              {!indeterminate && (
+                <span className="ns-counter ns-counter-pct" aria-label={`${stage.percent} phần trăm`}>
+                  {stage.percent}%
+                </span>
+              )}
+            </>
+          )}
+        </span>
       </div>
       <div className="ns-progress-track">
         {indeterminate || stopping ? (

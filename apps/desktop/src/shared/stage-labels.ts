@@ -15,9 +15,10 @@ export function renderingPhaseLabel(
   options: { qaPass?: number; qaTotal?: number } = {},
 ): string {
   const resolved = phase ?? "draft";
+  // Keep suffix length stable across 1/5 → 10/20 so the status line does not reflow.
   const qaSuffix =
     resolved === "qa" && options.qaPass && options.qaTotal
-      ? ` (lần ${options.qaPass}/${options.qaTotal})`
+      ? ` (lần ${String(options.qaPass).padStart(2, "\u2007")}/${String(options.qaTotal).padStart(2, "\u2007")})`
       : "";
   switch (resolved) {
     case "edit":

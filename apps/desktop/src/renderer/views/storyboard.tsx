@@ -326,7 +326,11 @@ export const StoryboardView: React.FC<{
       <button className="ns-btn" onClick={onBack}>Quay lại</button>
       <div className="ns-story-title">
         <strong className="ns-story-heading">Duyệt cảnh</strong>
-        {scenes.length > 0 && <span className="ns-story-count">Cảnh {idx + 1}/{scenes.length}</span>}
+        {scenes.length > 0 && (
+          <span className="ns-story-count ns-tabular" aria-label={`Cảnh ${idx + 1} trên ${scenes.length}`}>
+            Cảnh {idx + 1}/{scenes.length}
+          </span>
+        )}
         {diagnosticsSlot}
       </div>
       {scenes.length > 0 && (
@@ -336,12 +340,17 @@ export const StoryboardView: React.FC<{
           )}
           <button className={`ns-btn ns-story-edit-toggle${showEdit ? " is-active" : ""}`} onClick={() => setShowEdit((v) => !v)}>
             {Icon.pencil({ size: 15 })}
-            {showEdit ? `Sửa cảnh ${idx + 1}` : "Sửa cảnh"}
+            <span className="ns-tabular">{showEdit ? `Sửa cảnh ${idx + 1}` : "Sửa cảnh"}</span>
           </button>
           {showEdit && (
             <button className="ns-btn ns-btn-primary" disabled={!canSend || submitting} onClick={sendAll}
-              title={canSend ? undefined : "Nhập yêu cầu cho một cảnh hoặc ghi chú chung trước khi gửi."}>
-              {submitting ? "Đang gửi…" : editedCount > 0 ? `Gửi chỉnh sửa (${editedCount})` : "Gửi chỉnh sửa"}
+              title={canSend ? undefined : "Nhập yêu cầu cho một cảnh hoặc ghi chú chung trước khi gửi."}
+              style={{ minWidth: "11.5rem" }}>
+              {submitting ? "Đang gửi…" : editedCount > 0 ? (
+                <span className="ns-tabular">Gửi chỉnh sửa ({editedCount})</span>
+              ) : (
+                "Gửi chỉnh sửa"
+              )}
             </button>
           )}
           <button className="ns-btn" disabled={!canApprove || bgmSaving} onClick={onApprove}

@@ -246,7 +246,7 @@ export const SettingsView: React.FC<{
                 <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                   <button
                     type="button"
-                    className="ns-btn"
+                    className="ns-btn ns-btn-primary"
                     disabled={readinessLoading || !onCheckReadiness}
                     onClick={() => {
                       if (!onCheckReadiness) return;
@@ -256,7 +256,7 @@ export const SettingsView: React.FC<{
                         .catch((error: unknown) => {
                           const details = errorDetails(error);
                           notify.error({
-                            title: "Không kiểm tra được sẵn sàng",
+                            title: "Không kiểm tra được",
                             message: compactNotificationMessage(details, "Thử lại sau."),
                             details,
                           });
@@ -264,9 +264,9 @@ export const SettingsView: React.FC<{
                         .finally(() => setReadinessLoading(false));
                     }}
                   >
-                    {readinessLoading ? "Đang kiểm tra…" : "Kiểm tra sẵn sàng"}
+                    {readinessLoading ? "Đang kiểm tra…" : "Kiểm tra"}
                   </button>
-                  <InfoHint text="Chỉ kiểm tra cổng AI, giọng đọc và công cụ render trên máy — không gọi model hay TTS." />
+                  <InfoHint text="Kiểm tra cổng AI, giọng đọc và công cụ render trên máy. Không gọi model hay TTS." />
                 </div>
                 {readiness && (
                   <ul
