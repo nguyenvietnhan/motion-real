@@ -170,11 +170,14 @@ unrelated facade code; facade charter in durable docs.
 
 | ID | Slice | Intent | Status |
 | --- | --- | --- | --- |
-| **G3a** | One more IPC group | License **or** gateway handlers factory (pick one) | pending |
-| **G3b** | Stop when root is wire-only | Avoid mega-builder | pending |
+| **G3a** | Gateway AI IPC factory | `ai:*` handlers + `selectedModel` → `gateway-handlers.ts` (**pick: gateway**, not license) | **planned** — see G3 detail note |
+| **G3b** | Root charter + stop | Durable docs: what root must own; no mega-builder / no more line-count extracts | **planned** |
 
 **Already extracted (do not redo):** settings/TTS, BGM, thumbnail, create IPC,
 image staging, runtime-env, native-save, startup-sequence.
+
+**Detailed plan:** `docs/working-notes/2026-07-09-plan-g3-desktop-main.md`  
+**Order:** **G3a → G3b**.
 
 ### G4 — Pipeline core (feature-driven only)
 
@@ -223,7 +226,10 @@ Update this table after every Plan G commit or owner decision.
 | G2b | **done** | `visual-qa-runner.ts` |
 | G2c | **done** | vision chat + render adapters + facade charter |
 | G2 complete | **done** | |
-| G3* | pending | After G2 unless owner reprioritizes |
+| G3 detailed plan | **done** | `2026-07-09-plan-g3-desktop-main.md` — await owner approval to code |
+| G3a | planned | Gateway AI IPC factory (`gateway-handlers.ts`) |
+| G3b | planned | Root charter + stop rule (docs) |
+| G3 complete | pending | |
 | G4* | blocked on need | Do not start “for cleanliness” |
 
 ---
@@ -232,13 +238,14 @@ Update this table after every Plan G commit or owner decision.
 
 1. Read `AI_CONTRACT.md` then this note.
 2. **G1 + G2 complete** — do not re-open unless regression.
-3. If task is G3: write/approve G3 detail plan first; **no G3 code** without approval.
-4. Do not start G4 without a feature-driven boundary + owner override.
+3. If task is G3 and plan not approved: only refine the G3 plan; **no G3 code**.
+4. If G3 plan approved: implement **G3a → G3b**, verify, commit, **update this board**.
+5. Do not start G4 without a feature-driven boundary + owner override.
 
 ### First concrete next step
 
-**Owner decides** whether to start **G3** (desktop main composition root) or park
-Plan G. Default: only write G3 detail plan when owner asks.
+**Owner approves** `2026-07-09-plan-g3-desktop-main.md`, then implement
+**G3a** first (gateway handlers).
 
 ---
 
