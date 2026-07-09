@@ -4,6 +4,7 @@ import { dirname, join } from "node:path";
 import { createLogger, createTools, loadManifest, writeJson, projectPaths, videoToolHome, stagingDir, ensureProject, importImageBytes, reconcileStaleStates, pruneRenderCache, pruneTtsCache, readBrief, listBgmTracks, addBgmTrack, removeBgmTrack, renderThumbnail, workspaceRoot, ELEVENLABS_DEFAULT_MODEL_ID, type VoiceProvider } from "@motionreal/pipeline";
 import { registerIpcRouter, type InvokeHandlers } from "./ipc-router.js";
 import { ModelGatewayManager } from "./gateway/model-gateway-manager.js";
+import { createGatewayHandlers } from "./gateway/gateway-handlers.js";
 import { buildNineRouterGatewayDeps } from "./gateway/ninerouter-deps.js";
 import { NineRouterClient } from "./gateway/ninerouter-client.js";
 import { NineRouterAuthoringBackend } from "./authoring/ninerouter-backend.js";
@@ -38,7 +39,7 @@ import { registerMediaScheme, handleMediaProtocol, mediaUrl } from "./media-prot
 import { events, setEventTarget } from "./event-bus.js";
 import { existsSync, statSync } from "node:fs";
 import { copyFile, readFile, readdir, rm, stat } from "node:fs/promises";
-import type { DroppedImage, ModelInfo, PickImagesResult, ScriptEdit } from "../shared/types.js";
+import type { DroppedImage, PickImagesResult, ScriptEdit } from "../shared/types.js";
 import { authorInputFromBrief } from "./workspace/recall-author-input.js";
 import {
   applyNonSensitiveEnvironment,
@@ -97,7 +98,6 @@ const settingsStore = new SettingsStore({
     decryptString: (value) => safeStorage.decryptString(value),
   },
 });
-let selectedModel: ModelInfo | undefined;
 
 // TTS config: a user-entered voice key/id (Settings) overrides the.env fallback.
 const tools = createTools({
@@ -114,6 +114,15 @@ const nrClient = new NineRouterClient();
 const gateway = new ModelGatewayManager(
   buildNineRouterGatewayDeps({ client: nrClient, openExternal: (url) => void shell.openExternal(url) }),
 );
+const { handlers: gatewayHandlers, getSelectedModelId } = createGatewayHandlers({
+  ensureReady: () => gateway.ensureReady(),
+  listProviders: () => gateway.listProviders(),
+  refreshConnections: () => gateway.refreshConnections(),
+  beginConnect: (providerId) => gateway.beginConnect(providerId),
+  listModels: () => gateway.listModels(),
+  selectModel: (model) => gateway.selectModel(model),
+  getSelectedFromGateway: () => gateway.selectedModel(),
+});
 
 // The authoring brain: AI writes an open AUTHOR manifest and fresh scene
 // modules; we admit + render. Drives the SAME tools / one registry; render
@@ -124,7 +133,7 @@ let reportProgress: (projectId: string, ratio: number) => void = () => {};
 const authoringBackend = new NineRouterAuthoringBackend({
   client: nrClient,
   tools,
-  model: () => selectedModel?.id,
+  model: () => getSelectedModelId(),
   apiKey: () => undefined, // 9router /v1 is open on localhost
   // Per-voice CALIBRATED narration rate for the author word-budget;
   // undefined when uncalibrated/stale ⇒ the prompt uses its baked default (~4.7).
@@ -366,7 +375,7 @@ const thumbnailHandlers = createThumbnailHandlers({
 // IPC ownership inventory: keep Electron lifecycle and dependency
 // wiring here, but route contained behavior to focused owners when a seam exists.
 // - license: inline thin wrapper over LicenseManager.
-// - gateway: inline thin wrapper over ModelGatewayManager.
+// - gateway AI: grouped factory in gateway/gateway-handlers.ts (selectedModel mirror).
 // - projects: mixed root wiring; create payload coercion lives in create-ipc.ts,
 // create behavior in CreateController, image staging in image-staging.ts,
 // workspace behavior in WorkspaceController, and native save in native-save.ts.
@@ -378,16 +387,7 @@ const handlers: InvokeHandlers = {
   "license:get": () => licenseManager.current(),
   "license:activate": (key) => licenseManager.activate(String(key)),
 
-  "ai:gatewayState": () => gateway.ensureReady(),
-  "ai:listProviders": () => gateway.listProviders(),
-  "ai:connectedAccounts": () => gateway.refreshConnections(),
-  "ai:beginConnect": (providerId) => gateway.beginConnect(String(providerId)),
-  "ai:listModels": () => gateway.listModels(),
-  "ai:selectModel": (modelId) => {
-    selectedModel = { id: String(modelId), label: String(modelId) };
-    return gateway.selectModel(selectedModel);
-  },
-  "ai:selectedModel": () => gateway.selectedModel(),
+  ...gatewayHandlers,
 
   "projects:list": () => workspace.list(),
   "projects:create": (input) => {
