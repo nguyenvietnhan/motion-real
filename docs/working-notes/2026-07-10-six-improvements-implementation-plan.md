@@ -1,6 +1,6 @@
 # Plan — Six bounded MotionReal improvements
 
-**Status:** implementation plan only; no feature code has been written  
+**Status:** implemented (six phase commits on `codex/gpt-5-6-feature-review`)  
 **Prepared:** 2026-07-10  
 **Branch:** `codex/gpt-5-6-feature-review`  
 **Baseline commit:** `7cd2f1e` (`chore: add Codex MCP configuration`)  
@@ -1212,11 +1212,11 @@ After all gates pass:
 
 | Phase | Status | Commit | Notes |
 | --- | --- | --- | --- |
-| 0 — baseline | planned/preflight only | n/a | Do not treat as implementation. |
-| 1 — persisted model | pending | — | First actual code phase. |
-| 2 — QA truthfulness | pending | — | Advisory behavior only. |
-| 3 — readiness | pending | — | No billable provider call. |
-| 4 — synced draft review | pending | — | Read locked timing only. |
-| 5 — diagnostics trace | pending | — | Strict redaction/allow-list required. |
-| 6 — evidence provenance | pending | — | Largest phase; preserve claim safety. |
+| 0 — baseline | done (preflight) | n/a | typecheck clean at start. |
+| 1 — persisted model | done | `211ad27` | preferredAiModelId + pure decision helper. |
+| 2 — QA truthfulness | done | `0969434` | VisualQaResult checked vs skipped. |
+| 3 — readiness | done | `6fd71de` | settings:readiness + Vietnamese report. |
+| 4 — synced draft review | done | `04fa151` | locked timeline seek/highlight. |
+| 5 — diagnostics trace | done | `d9fb2d4` | Chi tiết xử lý + repair honesty. |
+| 6 — evidence provenance | done | `2e1049d` | evidence.json + Căn cứ nội dung. |
 
