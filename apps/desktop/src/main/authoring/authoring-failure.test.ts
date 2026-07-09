@@ -41,6 +41,7 @@ describe("logAuthoringFailure", () => {
       { class: "reauthor-provider", message: "[reauthor] AI call failed" },
       { class: "missing-tsx-recovery", message: "author-reply missing TSX recovery call failed" },
       { class: "image-filter-provider", message: "[image-filter] vision call failed; no pre-selection", level: "warn" },
+      { class: "visual-qa-provider", message: "[visual-qa] vision call failed; skipping QA", level: "warn" },
     ];
     for (const row of cases) {
       error.mockClear();

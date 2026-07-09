@@ -19,7 +19,8 @@ export type AuthoringFailureClass =
   | "reauthor-provider"
   | "image-filter-parse"
   | "image-filter-provider"
-  | "visual-qa-parse";
+  | "visual-qa-parse"
+  | "visual-qa-provider";
 
 export type AuthoringFailureEvent = {
   class: AuthoringFailureClass;

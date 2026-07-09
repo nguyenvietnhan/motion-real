@@ -390,6 +390,7 @@ Authoring fail logs keep their legacy message strings for continuity and add a
 | `reauthor-provider` | `[reauthor] AI call failed` |
 | `image-filter-parse` / `image-filter-provider` | soft warn, non-blocking |
 | `visual-qa-parse` | soft warn, non-blocking |
+| `visual-qa-provider` | soft warn, vision call failed / skip QA |
 
 Example filters:
 
