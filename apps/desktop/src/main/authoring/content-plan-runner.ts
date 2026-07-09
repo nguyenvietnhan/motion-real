@@ -14,6 +14,7 @@ import { logAuthoringFailure } from "./authoring-failure.js";
 import { rawAiReplyLogFields } from "./authoring-log-policy.js";
 import { computePacingBudget, type PacingBudget } from "./pacing-policy.js";
 import type { AuthorImageInput } from "./prompt.js";
+import type { ResearchSource } from "./content-evidence.js";
 
 export const CONTENT_PLAN_PARSE_FAILURE =
   "AI chưa lập được kế hoạch nội dung hợp lệ. Hãy thử lại hoặc mô tả rõ nguồn/ý chính hơn.";
@@ -32,6 +33,8 @@ export type RunContentPlanInput = {
   projectId: string;
   input: AuthorInput;
   research?: string;
+  /** Readable sources for claim-provenance; pass [] when URL ingest produced none. */
+  researchSources?: readonly ResearchSource[];
   offeredImages?: AuthorImageInput[];
   wordsPerSecond?: number;
   chat: (model: string, messages: ChatMessage[]) => Promise<string>;
@@ -68,7 +71,8 @@ export async function runContentPlan(args: RunContentPlanInput): Promise<RunCont
     logContentPlanNormalizations(args.logger, args.projectId, parsedPlan.diagnostics);
 
     let planned = parsedPlan.plan;
-    let quality = evaluateContentPlanQuality(planned, pacing);
+    const sources = args.researchSources;
+    let quality = evaluateContentPlanQuality(planned, pacing, sources);
     if (quality.blockingIssues.length > 0) {
       const repaired = await repairContentPlanIfPossible({
         model: args.model,
@@ -76,6 +80,7 @@ export async function runContentPlan(args: RunContentPlanInput): Promise<RunCont
         plan: planned,
         blockingIssues: quality.blockingIssues,
         pacing,
+        sources,
         chat: args.chat,
         logger: args.logger,
       });
@@ -109,16 +114,23 @@ export async function runContentPlan(args: RunContentPlanInput): Promise<RunCont
   }
 }
 
+function isRepairableClaimIssue(check: ContentPlanQualityIssue["check"]): boolean {
+  return check === "claim-ledger" || check === "claim-provenance";
+}
+
 async function repairContentPlanIfPossible(args: {
   model: string;
   projectId: string;
   plan: ContentPlan;
   blockingIssues: readonly ContentPlanQualityIssue[];
   pacing: PacingBudget;
+  sources?: readonly ResearchSource[];
   chat: (model: string, messages: ChatMessage[]) => Promise<string>;
   logger: ContentPlanRunnerLogger;
 }): Promise<{ plan: ContentPlan; quality: ContentPlanQualityResult } | null> {
-  if (args.blockingIssues.length === 0 || !args.blockingIssues.every((issue) => issue.check === "claim-ledger")) return null;
+  if (args.blockingIssues.length === 0 || !args.blockingIssues.every((issue) => isRepairableClaimIssue(issue.check))) {
+    return null;
+  }
 
   args.logger.warn(
     {
@@ -148,7 +160,7 @@ async function repairContentPlanIfPossible(args: {
   }
   logContentPlanNormalizations(args.logger, args.projectId, parsed.diagnostics);
 
-  const quality = evaluateContentPlanQuality(parsed.plan, args.pacing);
+  const quality = evaluateContentPlanQuality(parsed.plan, args.pacing, args.sources);
   if (quality.blockingIssues.length > 0) {
     args.logger.error(
       { projectId: args.projectId, qualityIssues: quality.blockingIssues },

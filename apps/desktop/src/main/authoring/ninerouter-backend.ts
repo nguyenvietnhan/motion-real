@@ -9,6 +9,7 @@ import {
   projectPaths,
   writeAuthoredScene,
   writeJson,
+  writeProjectEvidence,
   unregisterComponent,
   makeSafeFetch,
   crawlArticleImagesWithStats,
@@ -35,6 +36,7 @@ import {
 import { VisionChatSession } from "./authoring-vision-chat.js";
 import { type AuthorImageInput } from "./prompt.js";
 import { runContentPlan } from "./content-plan-runner.js";
+import { buildProjectEvidence, researchSourcesFromIngest, type ResearchSource } from "./content-evidence.js";
 import { runBatchedAuthorReply, runSingleAuthorReply, type SuccessfulAuthorReply } from "./author-reply-runner.js";
 import { runReauthor } from "./reauthor-runner.js";
 import { runImageFilter } from "./image-filter-runner.js";
@@ -173,6 +175,7 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
     // Best-effort grounding: fetch any links in the brief. A failed fetch is NOT
     // fatal — authoring continues from the user's text + the model's knowledge.
     const chunks: string[] = [];
+    const researchBodies: Array<{ metadata: { sourceUrl: string; title?: string; site?: string; author?: string; publishedDate?: string; fetchedAt?: string }; body: string }> = [];
     const unreadableUrls: string[] = [];
     for (const url of job.input.urls) {
       const ing = await this.deps.tools.ingest_url({ url }).catch((error) => {
@@ -193,6 +196,18 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
       }
       if (body && body.trim()) {
         chunks.push(`# ${url}\n${body.trim()}`);
+        const meta = ing && ing.ok ? ing.data.metadata : undefined;
+        researchBodies.push({
+          metadata: {
+            sourceUrl: meta?.sourceUrl ?? url,
+            ...(meta?.title ? { title: meta.title } : {}),
+            ...(meta?.site ? { site: meta.site } : {}),
+            ...(meta?.author ? { author: meta.author } : {}),
+            ...(meta?.publishedDate ? { publishedDate: meta.publishedDate } : {}),
+            ...(meta?.fetchedAt ? { fetchedAt: meta.fetchedAt } : {}),
+          },
+          body: body.trim(),
+        });
       } else {
         unreadableUrls.push(url);
         const reason = ing && !ing.ok ? `${ing.error.stage}: ${ing.error.cause}` : "no readable article text";
@@ -200,6 +215,7 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
       }
     }
     const research = chunks.length > 0 ? chunks.join("\n\n---\n\n") : undefined;
+    const researchSources: ResearchSource[] = researchSourcesFromIngest(researchBodies);
 
     // Provided images (create-time image staging): read each already-imported asset into a
     // data URL so the model can SEE it and decide placement. A ref we can't read
@@ -224,6 +240,9 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
       projectId: job.projectId,
       input: job.input,
       research,
+      // Enforce claim-provenance only for URL-grounded runs (including all-unreadable → []).
+      // Text-only briefs omit the arg so existing plans without sourceRef stay valid.
+      ...(job.input.urls.length > 0 ? { researchSources } : {}),
       offeredImages,
       wordsPerSecond,
       chat: (selectedModel, messages) => this.vision.chatWithVisionFallback(selectedModel, messages),
@@ -322,6 +341,37 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
       );
       // NO kit fallback — pure-author surfaces the failure for retry / AI-fix.
       return { scenes: [], message: "Một số cảnh chưa hợp lệ. Hãy thử tạo lại." };
+    }
+
+    // Persist claim provenance only after successful admission (script review metadata).
+    try {
+      const usableClaims = plannedContent.claims.filter((c) => c.confidence === "supported" && c.action === "use");
+      const engineSceneIds = new Set(engineManifest.scenes.map((s) => s.id));
+      const sceneLinks = plannedContent.scenes
+        .filter((s) => engineSceneIds.has(s.sceneId))
+        .map((s) => ({ sceneId: s.sceneId, evidenceClaimIds: s.evidenceClaimIds }));
+      if (plannedContent.scenes.some((s) => !engineSceneIds.has(s.sceneId))) {
+        this.logger().warn(
+          { projectId: job.projectId },
+          "content-plan scene ids did not fully match engine scenes; evidence scene links omitted for mismatches",
+        );
+      }
+      await writeProjectEvidence(
+        job.projectId,
+        buildProjectEvidence({
+          sources: researchSources,
+          claims: usableClaims.map((c) => ({
+            id: c.id,
+            text: c.text,
+            support: c.support,
+            ...(c.sourceRef ? { sourceRef: c.sourceRef } : {}),
+          })),
+          scenes: sceneLinks,
+        }),
+      );
+    } catch (error) {
+      this.logger().error({ err: error, projectId: job.projectId }, "failed to write project evidence after admission");
+      return { scenes: [], message: "Không lưu được căn cứ nội dung. Hãy thử tạo lại." };
     }
 
     const reviewDir = projectPaths(job.projectId).reviewDir;

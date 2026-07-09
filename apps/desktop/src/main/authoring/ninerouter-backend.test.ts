@@ -94,7 +94,9 @@ function validContentPlanReply(): string {
       {
         id: "claim-01",
         text: "Năng lực sản xuất chip tiên tiến tập trung vào rất ít nhà máy.",
-        support: "source_material",
+        // user_brief: text-only and mixed-URL fixtures must not fail claim-provenance
+        // when readable sources exist without matching sourceRef excerpts.
+        support: "user_brief",
         confidence: "supported",
         action: "use",
       },

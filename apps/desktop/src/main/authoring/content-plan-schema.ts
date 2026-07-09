@@ -8,6 +8,13 @@ export const SCENE_PURPOSE_VALUES = ["hook", "context", "turn", "proof", "contra
 export const ScenePurposeSchema = z.enum(SCENE_PURPOSE_VALUES);
 const LayoutFamilySchema = z.enum(["big-number", "two-column", "timeline", "diagram", "list", "signature-visual", "statement"]);
 
+export const SourceRefSchema = z
+  .object({
+    sourceId: z.string().regex(/^source-[0-9]{2}$/),
+    excerpt: z.string().min(20).max(320),
+  })
+  .strict();
+
 export const ContentPlanClaimSchema = z
   .object({
     id: z.string().min(1),
@@ -15,6 +22,8 @@ export const ContentPlanClaimSchema = z
     support: ClaimSupportSchema,
     confidence: ClaimConfidenceSchema,
     action: ClaimActionSchema,
+    /** Optional; required by quality for usable source_material claims when sources exist. */
+    sourceRef: SourceRefSchema.optional(),
   })
   .strict();
 

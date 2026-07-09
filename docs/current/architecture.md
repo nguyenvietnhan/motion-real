@@ -271,6 +271,7 @@ Important files include:
 - `safety-report.json`
 - `events.ndjson`
 - `authored/*.tsx`
+- `evidence.json` (optional script-review claim provenance from URL-grounded runs)
 - `review/*.png`
 - `renders/*.mp4`
 

@@ -88,7 +88,7 @@ export function logAuthoringFailure(
   if (diagnosticObserver) {
     try {
       diagnosticObserver(safeAuthoringDiagnostic(event, level));
-    } catch {
+    } catch (_observerError) {
       // observability must never block authoring
     }
   }

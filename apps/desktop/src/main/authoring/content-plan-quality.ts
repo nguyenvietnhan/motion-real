@@ -2,12 +2,14 @@ import type { PacingBudget } from "./pacing-policy.js";
 import { countWords } from "./pacing-policy.js";
 import type { ContentPlan } from "./content-plan-schema.js";
 import { hasConcreteFact, hasGenericMotionIntent } from "./content-plan-normalize.js";
+import { excerptMatchesSource, type ResearchSource } from "./content-evidence.js";
 
 export type ContentPlanQualityCheck =
   | "hook"
   | "viewer-promise"
   | "payoff"
   | "claim-ledger"
+  | "claim-provenance"
   | "pacing"
   | "layout-diversity"
   | "motion-progression";
@@ -33,11 +35,17 @@ function contentPlanQualitySeverity(check: ContentPlanQualityCheck): ContentPlan
  * factual safety and pacing; advisory issues are fed into TSX authoring instead
  * of stopping creative plans before visual code exists.
  */
-export function evaluateContentPlanQuality(plan: ContentPlan, pacing?: PacingBudget): ContentPlanQualityResult {
+export function evaluateContentPlanQuality(
+  plan: ContentPlan,
+  pacing?: PacingBudget,
+  /** When provided (including empty), enforce claim-provenance against readable sources. */
+  sources?: readonly ResearchSource[],
+): ContentPlanQualityResult {
   const issues: ContentPlanQualityIssue[] = [];
   const addIssue = (issue: Omit<ContentPlanQualityIssue, "severity">) => {
     issues.push({ ...issue, severity: contentPlanQualitySeverity(issue.check) });
   };
+  const sourcesById = new Map((sources ?? []).map((s) => [s.id, s]));
   if (plan.scenes[0]?.purpose !== "hook") {
     addIssue({ check: "hook", sceneId: plan.scenes[0]?.sceneId, message: "scene-01 must be the hook beat" });
   }
@@ -46,6 +54,50 @@ export function evaluateContentPlanQuality(plan: ContentPlan, pacing?: PacingBud
   }
   if (plan.payoff.trim().length === 0) {
     addIssue({ check: "payoff", message: "payoff is required" });
+  }
+
+  if (sources !== undefined) {
+    for (const claim of plan.claims) {
+      const usable = claim.confidence === "supported" && claim.action === "use";
+      if (claim.support === "source_material" && usable) {
+        // Unreadable/empty source set: do not hard-block authoring (links stay non-fatal).
+        // Provenance is enforced only when at least one readable source exists — then a
+        // usable source_material claim must cite an exact excerpt. Evidence write never
+        // invents sources for empty sets.
+        if (sources.length > 0) {
+          if (!claim.sourceRef) {
+            addIssue({
+              check: "claim-provenance",
+              message: `usable source_material claim ${claim.id} requires sourceRef`,
+            });
+          } else {
+            const src = sourcesById.get(claim.sourceRef.sourceId);
+            if (!src) {
+              addIssue({
+                check: "claim-provenance",
+                message: `claim ${claim.id} references unknown source ${claim.sourceRef.sourceId}`,
+              });
+            } else if (!excerptMatchesSource(claim.sourceRef.excerpt, src.body)) {
+              addIssue({
+                check: "claim-provenance",
+                message: `claim ${claim.id} excerpt does not match source ${claim.sourceRef.sourceId}`,
+              });
+            }
+          }
+        } else if (claim.sourceRef) {
+          addIssue({
+            check: "claim-provenance",
+            message: `claim ${claim.id} cannot cite a source when no readable sources exist`,
+          });
+        }
+      }
+      if ((claim.support === "user_brief" || claim.support === "common_knowledge") && claim.sourceRef) {
+        addIssue({
+          check: "claim-provenance",
+          message: `claim ${claim.id} with support ${claim.support} must not carry sourceRef`,
+        });
+      }
+    }
   }
 
   for (const scene of plan.scenes) {

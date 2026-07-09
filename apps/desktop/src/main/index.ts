@@ -1,7 +1,7 @@
 import { app, BrowserWindow, dialog, ipcMain, safeStorage, shell } from "electron";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { appendEvent, createLogger, createTools, loadManifest, writeJson, projectPaths, videoToolHome, stagingDir, ensureProject, importImageBytes, reconcileStaleStates, pruneRenderCache, pruneTtsCache, readBrief, listBgmTracks, addBgmTrack, removeBgmTrack, renderThumbnail, workspaceRoot, ELEVENLABS_DEFAULT_MODEL_ID, runDoctor, readProjectDiagnostics, type VoiceProvider } from "@motionreal/pipeline";
+import { appendEvent, createLogger, createTools, loadManifest, writeJson, projectPaths, videoToolHome, stagingDir, ensureProject, importImageBytes, reconcileStaleStates, pruneRenderCache, pruneTtsCache, readBrief, listBgmTracks, addBgmTrack, removeBgmTrack, renderThumbnail, workspaceRoot, ELEVENLABS_DEFAULT_MODEL_ID, runDoctor, readProjectDiagnostics, readProjectEvidence, type VoiceProvider } from "@motionreal/pipeline";
 import { LockedVideoSpecSchema } from "@motionreal/schema";
 import { projectSceneTimelines } from "./workspace/workspace-view-model.js";
 import { setAuthoringDiagnosticObserver } from "./authoring/authoring-failure.js";
@@ -178,6 +178,34 @@ const workspace = new WorkspaceController({
   },
   loadManifest: (id) => loadManifest(id),
   writeManifest: (id, manifest) => writeJson(projectPaths(id).manifest, manifest),
+  loadEvidence: async (id) => {
+    const raw = await readProjectEvidence(id);
+    if (!raw) return undefined;
+    const sceneByClaim = new Map<string, string[]>();
+    for (const scene of raw.scenes) {
+      for (const claimId of scene.evidenceClaimIds) {
+        const list = sceneByClaim.get(claimId) ?? [];
+        list.push(scene.sceneId);
+        sceneByClaim.set(claimId, list);
+      }
+    }
+    return {
+      sources: raw.sources.map((s) => ({
+        id: s.id,
+        sourceUrl: s.sourceUrl,
+        title: s.title,
+        ...(s.site ? { site: s.site } : {}),
+        ...(s.publishedDate ? { publishedDate: s.publishedDate } : {}),
+      })),
+      claims: raw.claims.map((c) => ({
+        id: c.id,
+        text: c.text,
+        ...(c.sourceRef?.sourceId ? { sourceId: c.sourceRef.sourceId } : {}),
+        ...(c.sourceRef?.excerpt ? { excerpt: c.sourceRef.excerpt } : {}),
+        sceneIds: sceneByClaim.get(c.id) ?? [],
+      })),
+    };
+  },
   reviewStill: (id, sceneId) => mediaUrl(join(projectPaths(id).reviewDir, `${sceneId}.png`)) ?? "",
   toMedia: (p) => mediaUrl(p) ?? p,
   hasStill: (id, sceneId) => existsSync(join(projectPaths(id).reviewDir, `${sceneId}.png`)),
@@ -417,8 +445,8 @@ const settingsHandlers = createSettingsHandlers({
       checkEnv: () => desktopVoiceDoctorCheck(voice),
     });
     const gw = gateway.state();
-    const account = await gateway.refreshConnections().catch(() => ({ kind: "disconnected" as const }));
-    const models = gw.kind === "ready" ? await gateway.listModels().catch(() => []) : [];
+    const account = await gateway.refreshConnections().catch((_error: unknown) => ({ kind: "disconnected" as const }));
+    const models = gw.kind === "ready" ? await gateway.listModels().catch((_error: unknown) => []) : [];
     return buildDesktopReadinessReport({
       gateway: gw,
       account,

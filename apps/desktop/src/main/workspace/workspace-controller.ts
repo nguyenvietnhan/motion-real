@@ -42,6 +42,7 @@ import type {
   ScriptLine,
   SceneCard,
   SceneTimeline,
+  ScriptEvidenceModel,
   StoryboardModel,
 } from "../../shared/types.js";
 
@@ -103,6 +104,8 @@ export interface WorkspaceDeps {
   listProjects: () => Promise<ProjectCardVM[]>;
   loadManifest: (projectId: string) => Promise<WsManifest>;
   writeManifest: (projectId: string, manifest: WsManifest) => Promise<void>;
+  /** Optional script-review evidence from evidence.json (URL-grounded runs). */
+  loadEvidence?: (projectId: string) => Promise<ScriptEvidenceModel | undefined>;
   /** mediaUrl-wrapped path to a scene's review still (`review/<sceneId>.png`). */
   reviewStill: (projectId: string, sceneId: string) => string;
   /** mediaUrl-wrapped path to a project asset (`assets/<sha>.<ext>`) for the crawl-review preview. */
@@ -398,6 +401,9 @@ export class WorkspaceController {
       scriptGateEnabled: this.deps.settings.scriptGateEnabled,
       redact: this.deps.redact,
       loadScriptLines: () => this.scriptLinesOf(projectId),
+      loadEvidence: this.deps.loadEvidence
+        ? () => this.deps.loadEvidence!(projectId)
+        : undefined,
       setStage: (stage) => this.setStage(projectId, stage),
       runRender: (readyNotice) => this.runRender(projectId, readyNotice),
       friendlyError: (error) => this.deps.events.friendlyError(error),
@@ -602,7 +608,7 @@ export class WorkspaceController {
   private appendDiag(projectId: string, event: { type: string } & Record<string, unknown>): void {
     try {
       this.deps.appendProjectEvent?.(projectId, event);
-    } catch {
+    } catch (_appendError) {
       // diagnostics never block
     }
   }
