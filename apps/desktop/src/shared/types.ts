@@ -148,6 +148,9 @@ export type ApplyResult =
 
 // --- storyboard review + edits -------------------------------------
 
+/** Locked-timeline projection for draft player seek/highlight (seconds). */
+export type SceneTimeline = { startSeconds: number; endSeconds: number };
+
 export type SceneCard = {
   sceneId: string;
   order: number;
@@ -156,6 +159,8 @@ export type SceneCard = {
   headline?: string;
   narration?: string;
   eyebrow?: string;
+  /** Present only when a readable locked timeline exists for this scene. */
+  timeline?: SceneTimeline;
 };
 
 export type StoryboardModel = { projectId: string; scenes: SceneCard[]; globalNotes: string };

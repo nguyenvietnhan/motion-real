@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { SceneCard } from "../../shared/types.js";
 import {
   fullRenderStageStart,
+  projectSceneTimelines,
   publishErrorStageOf,
   publishedStageOf,
   readyStageOf,
@@ -177,5 +178,45 @@ describe("workspace view model helpers", () => {
         eyebrow: "Context",
       },
     ]);
+  });
+
+  it("projects locked frame/fps values to exact start/end seconds", () => {
+    expect(
+      projectSceneTimelines({
+        fps: 30,
+        scenes: [
+          { id: "scene-01", startFrame: 0, durationInFrames: 60 },
+          { id: "scene-02", startFrame: 60, durationInFrames: 90 },
+        ],
+      }),
+    ).toEqual({
+      "scene-01": { startSeconds: 0, endSeconds: 2 },
+      "scene-02": { startSeconds: 2, endSeconds: 5 },
+    });
+  });
+
+  it("omits invalid fps or duration instead of yielding NaN/Infinity", () => {
+    expect(projectSceneTimelines({ fps: 0, scenes: [{ id: "a", startFrame: 0, durationInFrames: 30 }] })).toEqual({});
+    expect(
+      projectSceneTimelines({
+        fps: 30,
+        scenes: [{ id: "a", startFrame: 0, durationInFrames: 0 }],
+      }),
+    ).toEqual({});
+  });
+
+  it("attaches optional timelines to storyboard cards without dropping still cache busting", () => {
+    const cards = storyboardScenesFromScenes(
+      "p1",
+      [{ id: "scene-01" }],
+      2,
+      (sceneId) => `media://review/${sceneId}.png`,
+      { "scene-01": { startSeconds: 0, endSeconds: 2 } },
+    );
+    expect(cards[0]).toMatchObject({
+      sceneId: "scene-01",
+      stillPath: "media://review/scene-01.png#r2",
+      timeline: { startSeconds: 0, endSeconds: 2 },
+    });
   });
 });

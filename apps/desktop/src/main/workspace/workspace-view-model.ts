@@ -1,5 +1,23 @@
-import type { ProjectStage, SceneCard, ScriptLine, VideoFormatChoice } from "../../shared/types.js";
+import type { ProjectStage, SceneCard, SceneTimeline, ScriptLine, VideoFormatChoice } from "../../shared/types.js";
 import { buildStoryboard } from "../review/storyboard.js";
+
+/** Pure projection from locked frames to seekable seconds (no I/O). */
+export function projectSceneTimelines(input: {
+  fps: number;
+  scenes: ReadonlyArray<{ id: string; startFrame: number; durationInFrames: number }>;
+}): Record<string, SceneTimeline> {
+  if (!Number.isFinite(input.fps) || input.fps <= 0) return {};
+  const out: Record<string, SceneTimeline> = {};
+  for (const scene of input.scenes) {
+    if (!scene.id || !Number.isFinite(scene.startFrame) || !Number.isFinite(scene.durationInFrames)) continue;
+    if (scene.startFrame < 0 || scene.durationInFrames <= 0) continue;
+    const startSeconds = Math.max(0, scene.startFrame / input.fps);
+    const endSeconds = Math.max(0, (scene.startFrame + scene.durationInFrames) / input.fps);
+    if (!Number.isFinite(startSeconds) || !Number.isFinite(endSeconds) || endSeconds <= startSeconds) continue;
+    out[scene.id] = { startSeconds, endSeconds };
+  }
+  return out;
+}
 
 type ScriptLineSourceScene = {
   id: string;
@@ -79,6 +97,7 @@ export function storyboardScenesFromScenes(
   scenes: StoryboardSourceScene[],
   renderVersion: number,
   reviewStillOf: (sceneId: string) => string,
+  timelines?: Record<string, SceneTimeline>,
 ): SceneCard[] {
   return buildStoryboard(
     projectId,
@@ -88,12 +107,14 @@ export function storyboardScenesFromScenes(
     (_root, sceneId) => reviewStillOf(sceneId),
   ).scenes.map((scene) => {
     const manifestScene = scenes.find((candidate) => candidate.id === scene.sceneId);
+    const timeline = timelines?.[scene.sceneId];
     return {
       ...scene,
       stillPath: scene.stillPath ? `${scene.stillPath}#r${renderVersion}` : scene.stillPath,
       headline: manifestScene?.headline,
       narration: manifestScene?.narration,
       eyebrow: manifestScene?.eyebrow,
+      ...(timeline ? { timeline } : {}),
     };
   });
 }

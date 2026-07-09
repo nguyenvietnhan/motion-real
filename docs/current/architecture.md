@@ -284,8 +284,10 @@ virtual built-in track that resolves directly to this asset, not as a copied
 runtime-library file. Root-level media assets should not be added.
 
 Stills are the cheap visual pass. Draft MP4s are lower quality previews that
-follow the same timing path as full renders. Full MP4 output is the deliverable
-and should run only after user approval. TTS provider and voice come from
+follow the same timing path as full renders. Ready-stage storyboard review can
+seek/highlight scenes from the locked timeline (`video-spec.lock.json`) without
+estimating timing; a missing lock keeps still-only review. Full MP4 output is
+the deliverable and should run only after user approval. TTS provider and voice come from
 project/user settings; missing credentials stop render instead of silently
 falling back to another provider. `mock` and `none` are explicit CLI/dev/offline
 TTS modes; the desktop production path must not select them as a hidden fallback.

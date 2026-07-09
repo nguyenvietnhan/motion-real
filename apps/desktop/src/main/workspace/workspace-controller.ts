@@ -40,6 +40,7 @@ import type {
   ScriptGateModel,
   ScriptLine,
   SceneCard,
+  SceneTimeline,
   StoryboardModel,
 } from "../../shared/types.js";
 
@@ -117,6 +118,11 @@ export interface WorkspaceDeps {
   hasDraft: (projectId: string) => boolean;
   /** mediaUrl-wrapped path to the low-res draft MP4 (for in-app preview). */
   draftMedia: (projectId: string) => string;
+  /**
+   * Optional locked-timeline projection for storyboard seek/highlight.
+   * Missing/torn lock → empty map (still-only review).
+   */
+  loadSceneTimelines?: (projectId: string) => Promise<Record<string, SceneTimeline>>;
   /** Render a caption-free still of the first authored scene as the cover PNG. */
   renderThumbnail?: (projectId: string) => Promise<{ path: string }>;
   /** Whether the thumbnail PNG (`review/thumbnail.png`) exists on disk. */
@@ -287,10 +293,20 @@ export class WorkspaceController {
   }
 
   private async storyboardScenesOf(projectId: string): Promise<SceneCard[]> {
-    const manifest = await this.deps.loadManifest(projectId);
     const ver = this.renderVersions.get(projectId) ?? 0;
-    return storyboardScenesFromScenes(projectId, manifest.scenes, ver, (sceneId) =>
-      this.deps.reviewStill(projectId, sceneId),
+    const [manifest, timelines] = await Promise.all([
+      this.deps.loadManifest(projectId),
+      this.deps.loadSceneTimelines?.(projectId).catch((error) => {
+        log.debug?.({ err: error, projectId }, "scene timelines unreadable; storyboard keeps still-only timing");
+        return {} as Record<string, SceneTimeline>;
+      }) ?? Promise.resolve({} as Record<string, SceneTimeline>),
+    ]);
+    return storyboardScenesFromScenes(
+      projectId,
+      manifest.scenes,
+      ver,
+      (sceneId) => this.deps.reviewStill(projectId, sceneId),
+      timelines && Object.keys(timelines).length > 0 ? timelines : undefined,
     );
   }
 

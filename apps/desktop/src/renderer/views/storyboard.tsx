@@ -3,6 +3,7 @@ import type { BgmTrackVM, StoryboardModel } from "../../shared/types.js";
 import { Icon } from "../icons.js";
 import { EmptyState, InfoHint } from "../primitives.js";
 import { compactNotificationMessage, errorDetails, useNotifications } from "../notifications.js";
+import { sceneIndexAtSeconds, seekSecondsForScene } from "../storyboard-timing.js";
 
 /**
  * Background-music picker: a compact dropdown of the per-machine BGM
@@ -191,10 +192,36 @@ export const StoryboardView: React.FC<{
   const [bgmSaving, setBgmSaving] = useState(false);
   const notify = useNotifications();
   const lastNotice = useRef("");
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const pendingSeekRef = useRef<number | null>(null);
 
   const scenes = model.scenes;
   const idx = Math.min(selected, Math.max(0, scenes.length - 1));
   const current = scenes[idx];
+
+  const seekVideoTo = (seconds: number): void => {
+    const video = videoRef.current;
+    if (!video || !Number.isFinite(seconds)) return;
+    if (video.readyState >= 1) {
+      if (Math.abs(video.currentTime - seconds) > 0.05) {
+        video.currentTime = seconds;
+      }
+      pendingSeekRef.current = null;
+    } else {
+      pendingSeekRef.current = seconds;
+    }
+  };
+
+  const selectScene = (i: number, preferVideoSeek: boolean): void => {
+    setSelected(i);
+    const seek = preferVideoSeek && draftPath ? seekSecondsForScene(scenes[i]) : undefined;
+    if (seek !== undefined) {
+      setShowStill(false);
+      seekVideoTo(seek);
+    } else {
+      setShowStill(true);
+    }
+  };
 
   const hasEdit = (sceneId: string): boolean => (edits[sceneId] ?? "").trim().length > 0;
   const editedCount = scenes.filter((s) => hasEdit(s.sceneId)).length;
@@ -312,11 +339,18 @@ export const StoryboardView: React.FC<{
         {/* Slide rail */}
         <div className="ns-story-rail">
           {scenes.map((s, i) => (
-            <button key={s.sceneId} onClick={() => { setSelected(i); setShowStill(true); }} title={`Cảnh ${i + 1}`} className="ns-thumb ns-story-thumb"
+            <button
+              key={s.sceneId}
+              type="button"
+              onClick={() => selectScene(i, true)}
+              title={`Cảnh ${i + 1}`}
+              className="ns-thumb ns-story-thumb"
+              aria-current={i === idx ? "true" : undefined}
               style={{
                 border: i === idx ? "2px solid var(--brand)" : "1px solid var(--border)",
                 background: s.stillPath ? `center/cover no-repeat #0c0e12 url(${s.stillPath})` : "#101216",
-              }}>
+              }}
+            >
               <span className="ns-story-thumb-index">{i + 1}</span>
               {hasEdit(s.sceneId) && (
                 <span className="ns-story-thumb-edit" title="Đã ghi yêu cầu chỉnh sửa">
@@ -345,12 +379,32 @@ export const StoryboardView: React.FC<{
                 })}
               </div>
               <InfoHint text="Bản nháp nhẹ để xem nhịp và nghe giọng. Bản cuối sẽ nét hơn." />
+              {current && (
+                <span className="ns-story-active-label" style={{ marginLeft: 8, fontSize: 13, color: "var(--muted-foreground)" }}>
+                  Đang xem cảnh {idx + 1}
+                </span>
+              )}
             </div>
           )}
           
           <div className="ns-story-preview-stage">
             {draftPath && !showStill ? (
-              <video src={draftPath} controls className="ns-story-preview-media" />
+              <video
+                ref={videoRef}
+                src={draftPath}
+                controls
+                className="ns-story-preview-media"
+                onLoadedMetadata={() => {
+                  if (pendingSeekRef.current !== null) {
+                    seekVideoTo(pendingSeekRef.current);
+                  }
+                }}
+                onTimeUpdate={(e) => {
+                  const t = e.currentTarget.currentTime;
+                  const next = sceneIndexAtSeconds(scenes, t);
+                  if (next !== undefined && next !== selected) setSelected(next);
+                }}
+              />
             ) : (
               <div
                 className="ns-story-preview-media ns-story-preview-still"

@@ -2,6 +2,8 @@ import { app, BrowserWindow, dialog, ipcMain, safeStorage, shell } from "electro
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { createLogger, createTools, loadManifest, writeJson, projectPaths, videoToolHome, stagingDir, ensureProject, importImageBytes, reconcileStaleStates, pruneRenderCache, pruneTtsCache, readBrief, listBgmTracks, addBgmTrack, removeBgmTrack, renderThumbnail, workspaceRoot, ELEVENLABS_DEFAULT_MODEL_ID, runDoctor, type VoiceProvider } from "@motionreal/pipeline";
+import { LockedVideoSpecSchema } from "@motionreal/schema";
+import { projectSceneTimelines } from "./workspace/workspace-view-model.js";
 import { registerIpcRouter, type InvokeHandlers } from "./ipc-router.js";
 import { ModelGatewayManager } from "./gateway/model-gateway-manager.js";
 import { createGatewayHandlers } from "./gateway/gateway-handlers.js";
@@ -182,6 +184,24 @@ const workspace = new WorkspaceController({
   outputMedia: (id) => mediaUrl(join(projectPaths(id).rendersDir, `${id}.mp4`)) ?? "",
   hasDraft: (id) => existsSync(join(projectPaths(id).rendersDir, `${id}.draft.mp4`)),
   draftMedia: (id) => mediaUrl(join(projectPaths(id).rendersDir, `${id}.draft.mp4`)) ?? "",
+  loadSceneTimelines: async (id) => {
+    try {
+      const raw = JSON.parse(await readFile(projectPaths(id).lock, "utf8")) as unknown;
+      const parsed = LockedVideoSpecSchema.safeParse(raw);
+      if (!parsed.success) return {};
+      return projectSceneTimelines({
+        fps: parsed.data.fps,
+        scenes: parsed.data.scenes.map((s) => ({
+          id: s.id,
+          startFrame: s.startFrame,
+          durationInFrames: s.durationInFrames,
+        })),
+      });
+    } catch (error) {
+      log.debug({ err: error, projectId: id }, "locked timeline unreadable; storyboard seeks disabled");
+      return {};
+    }
+  },
   // Render the first authored scene without TTS/captions, then expose the stable
   // review/thumbnail.png artifact on the published screen.
   renderThumbnail: async (id) => {
