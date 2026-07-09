@@ -21,7 +21,7 @@ import {
 import type { createTools } from "@motionreal/pipeline";
 import type { AuthoringBackend, AuthoredScene, ReauthorTarget } from "../agent/custom-loop-worker.js";
 import type { SafetyReportView } from "../agent/repair-loop.js";
-import type { AuthorJob, VisualDefect, SceneSnapshot, AuthorImageRef } from "../agent/agent-worker.js";
+import type { AuthorJob, VisualQaResult, SceneSnapshot, AuthorImageRef } from "../agent/agent-worker.js";
 import { GatewayChatError, type NineRouterClient } from "../gateway/ninerouter-client.js";
 import { logAuthoringFailure } from "./authoring-failure.js";
 import { countSafetyChecks, toEngineManifest } from "./author-manifest-convert.js";
@@ -484,11 +484,11 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
    * AI visual-QA: ask the (vision) model to flag CLEAR layout defects on the
    * rendered scene stills — overlap, clipping, off-canvas, imbalance — that the
    * deterministic grid can't catch. `sceneIds` scopes the check (e.g. only the
-   * scenes a user just edited); omit to check every scene. Best-effort and
-   * model-dependent: no model, no stills, a vision failure, or an unparseable
-   * reply all yield `[]` (skip QA, never block the pipeline).
+   * scenes a user just edited); omit to check every scene. Returns a truthful
+   * checked/skipped result. Skipped is advisory and non-blocking — never a hard
+   * render/admission gate and never counted as a clean QA pass.
    */
-  async visualQa(projectId: string, sceneIds?: string[], signal?: AbortSignal): Promise<VisualDefect[]> {
+  async visualQa(projectId: string, sceneIds?: string[], signal?: AbortSignal): Promise<VisualQaResult> {
     const model = this.deps.model();
     return runVisualQa({
       ...(model ? { model } : {}),

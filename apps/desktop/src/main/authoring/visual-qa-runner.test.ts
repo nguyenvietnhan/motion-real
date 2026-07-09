@@ -25,34 +25,62 @@ describe("parseVisualDefects", () => {
         { sceneId: "scene-03", issue: "  ", severity: "high" },
       ],
     });
-    expect(parseVisualDefects(reply, new Set(["scene-01", "scene-02", "scene-03"]))).toEqual([
-      { sceneId: "scene-01", issue: "overlap" },
-    ]);
+    expect(parseVisualDefects(reply, new Set(["scene-01", "scene-02", "scene-03"]))).toEqual({
+      kind: "checked",
+      defects: [{ sceneId: "scene-01", issue: "overlap" }],
+      checkedSceneIds: ["scene-01", "scene-02", "scene-03"],
+    });
   });
 
-  it("returns [] and warns on invalid JSON body", () => {
+  it("valid empty issue list is a checked clean pass", () => {
+    expect(parseVisualDefects(JSON.stringify({ issues: [] }), new Set(["scene-01"]))).toEqual({
+      kind: "checked",
+      defects: [],
+      checkedSceneIds: ["scene-01"],
+    });
+  });
+
+  it("returns skipped/invalid-response and warns on invalid JSON body", () => {
     const logger = fakeLogger();
-    expect(parseVisualDefects("```json\n{not-json}\n```", new Set(["scene-01"]), logger)).toEqual([]);
+    expect(parseVisualDefects("```json\n{not-json}\n```", new Set(["scene-01"]), logger)).toEqual({
+      kind: "skipped",
+      reason: "invalid-response",
+      requestedSceneIds: ["scene-01"],
+    });
     expect(logger.warn).toHaveBeenCalledOnce();
     expect(logger.warn.mock.calls[0]![0]).toMatchObject({ failureClass: "visual-qa-parse" });
-    expect(logger.warn.mock.calls[0]![1]).toBe("visual-QA JSON parse failed; treating reply as no defects");
+  });
+
+  it("returns skipped/invalid-response when issues is missing or wrong shape", () => {
+    expect(parseVisualDefects(JSON.stringify({}), new Set(["scene-01"]))).toEqual({
+      kind: "skipped",
+      reason: "invalid-response",
+      requestedSceneIds: ["scene-01"],
+    });
+    expect(parseVisualDefects(JSON.stringify({ issues: "nope" }), new Set(["scene-01"]))).toEqual({
+      kind: "skipped",
+      reason: "invalid-response",
+      requestedSceneIds: ["scene-01"],
+    });
   });
 });
 
 describe("runVisualQa", () => {
-  it("returns [] without model", async () => {
+  it("no model -> skipped/no-model and no chat call", async () => {
+    const chat = vi.fn();
     const out = await runVisualQa({
       projectId: "p1",
       loadManifest: async () => ({ scenes: [{ id: "scene-01" }] }),
       reviewDir: "/r",
       readStillDataUrl: () => "data:image/png;base64,xx",
-      chat: async () => "",
+      chat,
       logger: fakeLogger(),
     });
-    expect(out).toEqual([]);
+    expect(out).toEqual({ kind: "skipped", reason: "no-model", requestedSceneIds: [] });
+    expect(chat).not.toHaveBeenCalled();
   });
 
-  it("returns [] when no stills on disk", async () => {
+  it("no stills -> skipped/no-stills and no chat call", async () => {
     const chat = vi.fn();
     const out = await runVisualQa({
       model: "m",
@@ -63,11 +91,24 @@ describe("runVisualQa", () => {
       chat,
       logger: fakeLogger(),
     });
-    expect(out).toEqual([]);
+    expect(out).toEqual({ kind: "skipped", reason: "no-stills", requestedSceneIds: ["scene-01"] });
     expect(chat).not.toHaveBeenCalled();
   });
 
-  it("returns defects from a valid high-severity reply", async () => {
+  it("manifest unavailable -> skipped/manifest-unavailable", async () => {
+    const out = await runVisualQa({
+      model: "m",
+      projectId: "p1",
+      loadManifest: async () => null,
+      reviewDir: "/r",
+      readStillDataUrl: () => "data:image/png;base64,xx",
+      chat: async () => "",
+      logger: fakeLogger(),
+    });
+    expect(out).toEqual({ kind: "skipped", reason: "manifest-unavailable", requestedSceneIds: [] });
+  });
+
+  it("returns checked defects from a valid high-severity reply", async () => {
     const out = await runVisualQa({
       model: "m",
       projectId: "p1",
@@ -80,10 +121,15 @@ describe("runVisualQa", () => {
         }),
       logger: fakeLogger(),
     });
-    expect(out).toEqual([{ sceneId: "scene-01", issue: "clip" }]);
+    expect(out).toEqual({
+      kind: "checked",
+      defects: [{ sceneId: "scene-01", issue: "clip" }],
+      // Known scene ids from the scope (with or without stills on disk).
+      checkedSceneIds: ["scene-01", "scene-02"],
+    });
   });
 
-  it("returns [] and logs visual-qa-provider on chat throw", async () => {
+  it("provider throw -> skipped/provider-error with existing failure log", async () => {
     const logger = fakeLogger();
     const out = await runVisualQa({
       model: "m",
@@ -96,13 +142,34 @@ describe("runVisualQa", () => {
       },
       logger,
     });
-    expect(out).toEqual([]);
+    expect(out).toEqual({
+      kind: "skipped",
+      reason: "provider-error",
+      requestedSceneIds: ["scene-01"],
+    });
     expect(logger.warn).toHaveBeenCalledOnce();
     expect(logger.warn.mock.calls[0]![0]).toMatchObject({
       failureClass: "visual-qa-provider",
       projectId: "p1",
     });
     expect(logger.warn.mock.calls[0]![1]).toBe("[visual-qa] vision call failed; skipping QA");
+  });
+
+  it("malformed reply -> skipped/invalid-response", async () => {
+    const out = await runVisualQa({
+      model: "m",
+      projectId: "p1",
+      loadManifest: async () => ({ scenes: [{ id: "scene-01" }] }),
+      reviewDir: "/r",
+      readStillDataUrl: () => "data:image/png;base64,xx",
+      chat: async () => "not json at all",
+      logger: fakeLogger(),
+    });
+    expect(out).toEqual({
+      kind: "skipped",
+      reason: "invalid-response",
+      requestedSceneIds: ["scene-01"],
+    });
   });
 });
 
