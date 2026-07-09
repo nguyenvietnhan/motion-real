@@ -48,10 +48,22 @@ directly:
 - `startup-sequence.ts` keeps the tested ordering seam: stale-state
   reconciliation completes before gateway/window startup. Media scheme/protocol
   registration and app lifecycle hooks stay in `index.ts`.
+- `gateway/gateway-handlers.ts` owns the `ai:*` IPC handler group and the
+  desktop-side selected-model mirror used by authoring. `ModelGatewayManager`
+  construction and `startGateway` stay root-owned.
 
-Avoid creating a broad desktop handler builder or moving Electron lifecycle code
-just to reduce line count; those pieces are clearer at the composition root
-unless a future focused slice proves otherwise.
+**Composition-root charter (`index.ts` must own):** process boot (media scheme,
+env scrub, privilege gate); construction order (settings → tools → gateway →
+authoring → worker → workspace → create); engine seam injection into controllers;
+spreading handler factories into `InvokeHandlers` + `registerIpcRouter`; Electron
+lifecycle (whenReady, window, activate, quit); native dialog adapters passed into
+factories; dev license manager construction.
+
+**Do not extract next without a feature gate:** a full WorkspaceController deps
+bag builder; projects/script/review IPC maps for line count alone (already thin
+delegates); `createWindow` / protocol / cache prune into a second godfile; a
+cross-cutting `createDesktopApp()` that hides startup order. Avoid creating a
+broad desktop handler mega-builder.
 
 ## Desktop Renderer UI
 

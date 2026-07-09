@@ -35,8 +35,8 @@ authoring facade → G3 desktop main → G4 pipeline when needed) is tracked in 
 temporary note `docs/working-notes/2026-07-09-plan-g-godfile-seams.md`. Phase
 detail notes: G1 `2026-07-09-plan-g1-workspace-seams.md` (**implemented**), G2
 `2026-07-09-plan-g2-authoring-facade.md` (**implemented**), G3
-`2026-07-09-plan-g3-desktop-main.md` (plan). Those files are not contract; sync
-accepted module boundaries back here when a G phase completes.
+`2026-07-09-plan-g3-desktop-main.md` (**implemented**). Those files are not
+contract; sync accepted module boundaries back here when a G phase completes.
 
 Current workspace layout: local pure helpers exist for status/intent
 (`workspace-helpers`), stage fingerprints and kind policy (`workspace-stage`),
@@ -67,6 +67,13 @@ harness is planned.
 quality checks, and prompt builders live in focused `content-plan-*` modules.
 Keep imports pointed at the facade unless a local module needs an internal
 helper.
+
+`apps/desktop/src/main/index.ts` is the Electron composition root (construct,
+register IPC, lifecycle). Focused IPC factories already cover settings/TTS, BGM,
+thumbnail, and gateway AI (`gateway/gateway-handlers.ts`). Projects/script/review
+handlers stay as thin root wrappers. Do not invent a mega-handler builder or
+extract more from `index.ts` for line count alone; see the composition-root
+charter in `architecture.md`.
 
 `apps/desktop/src/main/index.ts` is the Electron composition root. Local tested
 helpers own runtime env parsing, create-time image staging, BGM handlers, native

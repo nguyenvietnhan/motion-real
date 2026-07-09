@@ -1,10 +1,10 @@
 # Plan G3 — Desktop main composition root (detailed)
 
-**Status:** plan ready for owner approval → implement  
+**Status:** **implemented** (G3a–G3b) — keep for history until Plan G archives  
 **Parent:** `docs/working-notes/2026-07-09-plan-g-godfile-seams.md` (Plan G)  
 **Created:** 2026-07-09  
 **Depends on:** G1 + G2 complete  
-**Not durable contract.** Sync accepted module names into `docs/current/*` when G3 completes.
+**Not durable contract.** Module names synced into `docs/current/architecture.md` + `maintenance.md`.
 
 ---
 
@@ -198,10 +198,10 @@ npm.cmd run typecheck
 
 ### Acceptance G3a
 
-- [ ] `ai:*` handlers live in `gateway-handlers.ts` (+ tests)
-- [ ] Root spreads `...gatewayHandlers`; no duplicate selectedModel on root
-- [ ] Authoring still resolves model id via factory accessor
-- [ ] Plan G board: G3a done
+- [x] `ai:*` handlers live in `gateway-handlers.ts` (+ tests)
+- [x] Root spreads `...gatewayHandlers`; no duplicate selectedModel on root
+- [x] Authoring still resolves model id via factory accessor
+- [x] Plan G board: G3a done
 
 ### Commit message (suggested)
 
@@ -249,9 +249,9 @@ lifecycle out of `index.ts`.
 
 ### Acceptance G3b
 
-- [ ] Durable docs list gateway-handlers + restate stop rule
-- [ ] Plan G board: G3 complete
-- [ ] This note marked implemented
+- [x] Durable docs list gateway-handlers + restate stop rule
+- [x] Plan G board: G3 complete
+- [x] This note marked implemented
 
 ### Commit message (suggested)
 
@@ -322,17 +322,15 @@ Never weaken license gate, gateway auth, or security scrub during rollback.
 
 ## Done when (G3 complete)
 
-- [ ] G3a merged with tests  
-- [ ] G3b charter in durable docs  
-- [ ] New AI gateway IPC can land in `gateway-handlers` without editing unrelated root wiring  
-- [ ] Plan G board G3 rows done  
-- [ ] Explicit **stop**: no further index.ts extraction without owner + feature reason  
+- [x] G3a merged with tests  
+- [x] G3b charter in durable docs  
+- [x] New AI gateway IPC can land in `gateway-handlers` without editing unrelated root wiring  
+- [x] Plan G board G3 rows done  
+- [x] Explicit **stop**: no further index.ts extraction without owner + feature reason  
 
 ---
 
-## Owner decision before code
+## Implementation note
 
-Approve this G3 plan (especially: **gateway** not license for G3a; projects/script
-stay on root; no mega-builder; G3b is charter/stop not more code).
-
-After approval, implement **G3a first**.
+G3a: `createGatewayHandlers` owns desktop `selectedModel` mirror;
+`getSelectedModelId()` feeds authoring. G3b: charter only (no further code).
