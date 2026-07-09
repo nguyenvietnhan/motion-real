@@ -37,9 +37,10 @@ file is not contract; sync accepted module boundaries back here when a G phase
 completes.
 
 Current workspace layout: local pure helpers exist for status/intent
-(`workspace-helpers`), stage fingerprints (`workspace-stage`), view-models,
-create/crawl, script gate, and render/refine prompts, while async
-render/refine/publish orchestration stays in `WorkspaceController`. Stage
+(`workspace-helpers`), stage fingerprints and kind policy (`workspace-stage`),
+view-models / publish stage shapes, create/crawl, script gate, render/refine
+prompts, and refine flow (`workspace-refine-flow`), while async
+render/refine/publish **orchestration** stays in `WorkspaceController`. Stage
 transitions log at `setStage` only. Do not force further extraction just to
 reduce line count.
 

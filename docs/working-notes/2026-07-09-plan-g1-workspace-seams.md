@@ -1,6 +1,7 @@
 # Plan G1 — Workspace godfile seams (detailed)
 
-**Status:** plan ready for owner approval → implement  
+**Status:** **implemented** (G1a–G1c) — keep for history until Plan G archives  
+
 **Parent:** `docs/working-notes/2026-07-09-plan-g-godfile-seams.md` (Plan G)  
 **Created:** 2026-07-09  
 **Not durable contract.** Sync accepted module names into `docs/current/*` when G1 completes.

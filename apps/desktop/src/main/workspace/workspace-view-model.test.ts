@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { SceneCard } from "../../shared/types.js";
 import {
+  fullRenderStageStart,
+  publishErrorStageOf,
   publishedStageOf,
   readyStageOf,
   scriptLinesFromScenes,
@@ -70,6 +72,16 @@ describe("workspace view model helpers", () => {
       outputPath: "media://out.mp4",
       format: "youtube",
       thumbnailPath: "media://thumbnail.png",
+    });
+  });
+
+  it("builds full-render start and publish-error stages", () => {
+    expect(fullRenderStageStart()).toEqual({ kind: "rendering", percent: 0, phase: "full" });
+    expect(publishErrorStageOf({ message: "Xuất bản thất bại.", fixable: false })).toEqual({
+      kind: "error",
+      message: "Xuất bản thất bại.",
+      fixable: false,
+      retry: "full",
     });
   });
 

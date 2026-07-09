@@ -107,14 +107,17 @@ recovery, crash cleanup, and focused render-path verification.
 The workspace controller has been split only along narrow local seams:
 
 - `workspace-helpers.ts` owns pure status, intent, and link-warning helpers.
-- `workspace-stage.ts` owns stage fingerprints and “should log transition”
-  (percent ticks are ignored so draft progress stays quiet).
-- `workspace-view-model.ts` owns pure ready/published/script/storyboard shaping.
+- `workspace-stage.ts` owns stage fingerprints, kind-transition policy, and
+  “should log transition” (percent ticks are ignored so draft progress stays quiet).
+- `workspace-view-model.ts` owns pure ready/published/script/storyboard shaping
+  and full-render start/error stage helpers.
 - `workspace-create-flow.ts` owns create/crawl/image-review helpers and the
   callback-driven create runner.
 - `workspace-script-flow.ts` owns script-gate, manifest-edit, and script
   authoring runner helpers.
 - `workspace-render-flow.ts` owns pure render/refine prompt and progress helpers.
+- `workspace-refine-flow.ts` owns silent pre-draft and edit-path vision refine
+  (bootstrap, vision passes, accept-gate, restore-to-prior-draft) via callbacks.
 
 Renderer-safe Vietnamese stage/phase copy lives in
 `apps/desktop/src/shared/stage-labels.ts` (not under `main/`).

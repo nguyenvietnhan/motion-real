@@ -46,6 +46,21 @@ export function publishedStageOf(
   };
 }
 
+/** Full-render progress stage at the start of publish. */
+export function fullRenderStageStart(): ProjectStage {
+  return { kind: "rendering", percent: 0, phase: "full" };
+}
+
+/** Error stage after a failed full publish (retry re-runs publish, not re-author). */
+export function publishErrorStageOf(input: { message: string; fixable: boolean }): ProjectStage {
+  return {
+    kind: "error",
+    message: input.message,
+    fixable: input.fixable,
+    retry: "full",
+  };
+}
+
 export function scriptLinesFromScenes(
   scenes: ScriptLineSourceScene[],
   assetMediaOf: (ref: string) => string,

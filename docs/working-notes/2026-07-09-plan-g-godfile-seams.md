@@ -130,17 +130,17 @@ godfile further.
 
 | ID | Slice | Intent | Status |
 | --- | --- | --- | --- |
-| **G1a** | Stage transition policy | Pure policy on top of fingerprints: document/allowed edges, optional assert; tests for create/cancel/error paths | **planned** — see G1 detail note |
-| **G1b** | Refine flow extract | Move silent pre-draft refine / vision loop body into `workspace-refine-flow.ts` (callback style like create-flow) | **planned** — see G1 detail note |
-| **G1c** | Publish / full-path helpers | Tighten pure helpers for full render → published stage / metadata (extend view-model or small flow module); controller keeps job/cancel | **planned** — see G1 detail note |
+| **G1a** | Stage transition policy | Pure policy on top of fingerprints: document/allowed edges, optional assert; tests for create/cancel/error paths | **done** |
+| **G1b** | Refine flow extract | Move silent pre-draft refine / vision loop body into `workspace-refine-flow.ts` (callback style like create-flow) | **done** |
+| **G1c** | Publish / full-path helpers | Tighten pure helpers for full render → published stage / metadata (extend view-model or small flow module); controller keeps job/cancel | **done** |
 
 **G1 done when:**
 
-- [ ] G1a–G1c committed with tests
-- [ ] `workspace-controller.ts` no longer owns refine loop implementation detail
-- [ ] Stage policy is readable without scrolling the whole controller
-- [ ] Durable docs mention refine-flow / stage-policy modules
-- [ ] No intentional behavior change to draft-before-full or cancel recovery
+- [x] G1a–G1c committed with tests
+- [x] `workspace-controller.ts` no longer owns refine loop implementation detail
+- [x] Stage policy is readable without scrolling the whole controller
+- [x] Durable docs mention refine-flow / stage-policy modules
+- [x] No intentional behavior change to draft-before-full or cancel recovery
 
 **G1 out of scope:** multi-project queue, parallel renders, prompt changes.
 
@@ -211,10 +211,11 @@ Update this table after every Plan G commit or owner decision.
 | --- | --- | --- |
 | G0 baseline | done | Observability + hygiene + stable short-form |
 | Working note (this file) | **done** | 2026-07-09 |
-| G1 detailed plan | **done** | `2026-07-09-plan-g1-workspace-seams.md` — await owner approval to code |
-| G1a | planned | Stage kind policy |
-| G1b | planned | Refine flow extract (largest) |
-| G1c | planned | Publish pure helpers |
+| G1 detailed plan | **done** | `2026-07-09-plan-g1-workspace-seams.md` |
+| G1a | **done** | Stage kind policy + debug unknown hops |
+| G1b | **done** | `workspace-refine-flow.ts` + tests |
+| G1c | **done** | `fullRenderStageStart` / `publishErrorStageOf` |
+| G1 complete | **done** | Next optional: G2 plan when owner wants |
 | G2* | pending | After G1 complete unless owner reprioritizes |
 | G3* | pending | |
 | G4* | blocked on need | Do not start “for cleanliness” |
@@ -232,8 +233,8 @@ Update this table after every Plan G commit or owner decision.
 
 ### First concrete next step
 
-**Owner approves** `2026-07-09-plan-g1-workspace-seams.md`, then implement
-**G1a** (stage kind policy + tests) first.
+**G1 complete.** Next: owner may request **Plan G2** (authoring facade) or park
+Plan G and ship features on existing seams.
 
 ---
 
