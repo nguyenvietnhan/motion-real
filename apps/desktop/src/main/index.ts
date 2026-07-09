@@ -1,7 +1,7 @@
 import { app, BrowserWindow, dialog, ipcMain, safeStorage, shell } from "electron";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { createLogger, createTools, loadManifest, writeJson, projectPaths, videoToolHome, stagingDir, ensureProject, importImageBytes, reconcileStaleStates, pruneRenderCache, pruneTtsCache, readBrief, listBgmTracks, addBgmTrack, removeBgmTrack, renderThumbnail, workspaceRoot, ELEVENLABS_DEFAULT_MODEL_ID, type VoiceProvider } from "@motionreal/pipeline";
+import { createLogger, createTools, loadManifest, writeJson, projectPaths, videoToolHome, stagingDir, ensureProject, importImageBytes, reconcileStaleStates, pruneRenderCache, pruneTtsCache, readBrief, listBgmTracks, addBgmTrack, removeBgmTrack, renderThumbnail, workspaceRoot, ELEVENLABS_DEFAULT_MODEL_ID, runDoctor, type VoiceProvider } from "@motionreal/pipeline";
 import { registerIpcRouter, type InvokeHandlers } from "./ipc-router.js";
 import { ModelGatewayManager } from "./gateway/model-gateway-manager.js";
 import { createGatewayHandlers } from "./gateway/gateway-handlers.js";
@@ -19,6 +19,7 @@ import { toCards } from "../shared/gallery-controller.js";
 import { defaultSettings } from "../shared/settings-model.js";
 import { SettingsStore } from "./settings/settings-store.js";
 import { createSettingsHandlers } from "./settings/settings-handlers.js";
+import { buildDesktopReadinessReport, desktopVoiceDoctorCheck } from "./settings/desktop-readiness.js";
 import { createThumbnailHandlers } from "./thumbnail/thumbnail-handlers.js";
 import {
   importDroppedImages,
@@ -365,6 +366,30 @@ const settingsHandlers = createSettingsHandlers({
   setApiKey: (provider, apiKey) => settingsStore.setApiKey(provider, apiKey),
   clearApiKey: (provider) => settingsStore.clearApiKey(provider),
   parseVoiceProvider,
+  readiness: async () => {
+    const current = settingsStore.current();
+    const voiceCfg = settingsStore.voiceConfig();
+    const voice = {
+      hasApiKey: Boolean(voiceCfg.apiKey?.trim()),
+      hasVoiceId: Boolean(voiceCfg.voiceId?.trim()),
+      providerLabel: voiceCfg.provider === "elevenlabs" ? "ElevenLabs" : "Vivibe",
+    };
+    const doctor = await runDoctor({
+      checkEnv: () => desktopVoiceDoctorCheck(voice),
+    });
+    const gw = gateway.state();
+    const account = await gateway.refreshConnections().catch(() => ({ kind: "disconnected" as const }));
+    const models = gw.kind === "ready" ? await gateway.listModels().catch(() => []) : [];
+    return buildDesktopReadinessReport({
+      gateway: gw,
+      account,
+      selectedModelId: gateway.selectedModel()?.id,
+      preferredModelId: current.preferredAiModelId,
+      availableModelIds: models.map((m) => m.id),
+      voice,
+      doctor,
+    });
+  },
 });
 
 const thumbnailHandlers = createThumbnailHandlers({

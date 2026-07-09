@@ -81,6 +81,7 @@ export function createDashboardClient(ipc: IpcLike): DashboardApi {
     settings: {
       get: () => inv("settings:get"),
       update: (patch) => inv("settings:update", patch),
+      readiness: () => inv("settings:readiness"),
     },
     tts: {
       setApiKey: (provider, apiKey) => inv("tts:setApiKey", provider, apiKey),

@@ -85,6 +85,7 @@ describe("createDashboardClient — invoke channel mapping", () => {
     await api.review.approveDraft("p1");
     await api.settings.get();
     await api.settings.update({ maxRepairAttempts: 5 });
+    await api.settings.readiness();
     await api.tts.setApiKey("elevenlabs", "secret");
     await api.tts.clearApiKey("elevenlabs");
 

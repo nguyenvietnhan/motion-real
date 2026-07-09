@@ -391,6 +391,10 @@ const AppShell: React.FC = () => {
               if (!dash) return Promise.reject(new Error("Dashboard API is unavailable"));
               return dash.tts.clearApiKey(provider).then((next) => { setSettings(next); return next; });
             }}
+            onCheckReadiness={() => {
+              if (!dash) return Promise.reject(new Error("Dashboard API is unavailable"));
+              return dash.settings.readiness();
+            }}
           />
         )}
 

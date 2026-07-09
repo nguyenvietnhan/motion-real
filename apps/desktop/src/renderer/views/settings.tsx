@@ -1,5 +1,12 @@
 import React, { useRef, useState } from "react";
-import type { AiAccountState, GatewayState, ModelInfo, SettingsModel, VoiceProviderChoice } from "../../shared/types.js";
+import type {
+  AiAccountState,
+  DesktopReadinessReport,
+  GatewayState,
+  ModelInfo,
+  SettingsModel,
+  VoiceProviderChoice,
+} from "../../shared/types.js";
 import { DEFAULT_REFINE_PASSES } from "../../shared/settings-model.js";
 import { activeAccount } from "../../shared/active-account.js";
 import { Icon } from "../icons.js";
@@ -94,12 +101,15 @@ export const SettingsView: React.FC<{
   onUpdate: (patch: Partial<SettingsModel>) => void | Promise<unknown>;
   onSetApiKey: (provider: VoiceProviderChoice, apiKey: string) => Promise<SettingsModel>;
   onClearApiKey: (provider: VoiceProviderChoice) => Promise<SettingsModel>;
-}> = ({ gateway, account, models, settings, preferredModelUnavailable, onManageAccounts, onSelectModel, onUpdate, onSetApiKey, onClearApiKey }) => {
+  onCheckReadiness?: () => Promise<DesktopReadinessReport>;
+}> = ({ gateway, account, models, settings, preferredModelUnavailable, onManageAccounts, onSelectModel, onUpdate, onSetApiKey, onClearApiKey, onCheckReadiness }) => {
   const [tab, setTab] = useState<SettingsTab>("ai");
   const [refineExpanded, setRefineExpanded] = useState(settings.refinePasses > 0);
   const [showVoiceKey, setShowVoiceKey] = useState(false);
   const [voiceKeyInput, setVoiceKeyInput] = useState("");
   const [saveState, setSaveState] = useState<"idle" | "saving" | "error">("idle");
+  const [readinessLoading, setReadinessLoading] = useState(false);
+  const [readiness, setReadiness] = useState<DesktopReadinessReport | null>(null);
   const saveSeq = useRef(0);
   const notify = useNotifications();
   const connected = account.kind === "connected" ? account.accounts : [];
@@ -319,6 +329,54 @@ export const SettingsView: React.FC<{
                 hint="Đăng nhập tài khoản nhà cung cấp được uỷ quyền cho 9Router. Motion Real không lưu mật khẩu của bạn." />
               <InfoRow label="Mã kích hoạt (bản dev)" value="123" />
               <InfoRow label="Thư mục lưu dự án" value={settings.outputDir || "(mặc định)"} mono />
+              <div style={{ marginTop: 20 }}>
+                <button
+                  type="button"
+                  className="ns-btn ns-btn-primary"
+                  disabled={readinessLoading || !onCheckReadiness}
+                  onClick={() => {
+                    if (!onCheckReadiness) return;
+                    setReadinessLoading(true);
+                    void onCheckReadiness()
+                      .then((report) => setReadiness(report))
+                      .catch((error: unknown) => {
+                        const details = errorDetails(error);
+                        notify.error({
+                          title: "Không kiểm tra được sẵn sàng",
+                          message: compactNotificationMessage(details, "Thử lại sau."),
+                          details,
+                        });
+                      })
+                      .finally(() => setReadinessLoading(false));
+                  }}
+                >
+                  {readinessLoading ? "Đang kiểm tra…" : "Kiểm tra sẵn sàng"}
+                </button>
+                <p style={{ margin: "8px 0 0", fontSize: 13, color: "var(--muted-foreground)" }}>
+                  Chỉ kiểm tra cổng AI, giọng đọc và công cụ render trên máy — không gọi model hay TTS.
+                </p>
+                {readiness && (
+                  <ul style={{ margin: "16px 0 0", padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 10 }}>
+                    {readiness.checks.map((c) => (
+                      <li key={c.id} style={{ border: "1px solid var(--border)", borderRadius: 8, padding: "10px 12px" }}>
+                        <div style={{ display: "flex", gap: 8, alignItems: "baseline", flexWrap: "wrap" }}>
+                          <strong>{c.label}</strong>
+                          <span style={{
+                            fontSize: 12,
+                            color: c.state === "ready" ? "var(--success, #16a34a)" : c.state === "warning" ? "var(--warning, #ca8a04)" : "var(--danger)",
+                          }}>
+                            {c.state === "ready" ? "Sẵn sàng" : c.state === "warning" ? "Cảnh báo" : "Chặn"}
+                          </span>
+                        </div>
+                        <div style={{ fontSize: 13, color: "var(--muted-foreground)", marginTop: 4 }}>{c.detail}</div>
+                        {c.remediation && c.state === "blocked" && (
+                          <div style={{ fontSize: 13, marginTop: 4 }}>{c.remediation}</div>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
             </SettingsCard>
           )}
         </div>

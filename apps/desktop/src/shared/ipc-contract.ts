@@ -108,6 +108,8 @@ export interface DashboardApi {
   settings: {
     get(): Promise<SettingsModel>;
     update(patch: Partial<SettingsModel>): Promise<SettingsModel>;
+    /** Local/gateway readiness report (no LLM/TTS call). */
+    readiness(): Promise<import("./types.js").DesktopReadinessReport>;
   };
   tts: {
     setApiKey(provider: VoiceProviderChoice, apiKey: string): Promise<SettingsModel>;

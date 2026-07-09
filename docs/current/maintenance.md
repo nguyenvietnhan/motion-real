@@ -71,6 +71,11 @@ response, unsupported). Only a **checked** pass with zero high-severity defects
 increments the consecutive-clean early-stop streak. A skipped pass consumes the
 configured refine pass but is never logged or treated as a clean QA result.
 
+Settings → **Kiểm tra sẵn sàng** (`settings:readiness`) runs local doctor +
+gateway/account/model/voice presence checks only. It never calls an LLM or TTS,
+never auto-selects a model, and never ships secrets, raw doctor paths, or error
+stacks to the renderer — only fixed Vietnamese labels and remediations.
+
 `content-plan.ts` is the public facade; schema/types, normalization, parser,
 quality checks, and prompt builders live in focused `content-plan-*` modules.
 Keep imports pointed at the facade unless a local module needs an internal

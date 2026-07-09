@@ -195,6 +195,21 @@ export type SubmitResult =
 
 export type ApproveResult = { ok: true; outputPath: string } | { ok: false; reason: "draft-first" };
 
+// --- settings readiness (renderer-safe view model) ----------------
+
+export type DesktopReadinessCheck = {
+  id: "gateway" | "account" | "model" | "voice" | "ffmpeg" | "browser" | "n10" | "theme" | "fonts";
+  state: "ready" | "warning" | "blocked";
+  label: string;
+  detail: string;
+  remediation?: string;
+};
+
+export type DesktopReadinessReport = {
+  ok: boolean;
+  checks: DesktopReadinessCheck[];
+};
+
 // --- settings -----------------------------------------------------
 
 export type SettingsModel = {
