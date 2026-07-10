@@ -10,7 +10,11 @@
   --muted-foreground: #a1a1aa; /* Zinc-400 */
   --border: #25252b; /* Clean border color */
   --input: #1a1a22; /* Lighter, clean input field background */
-  --ring: rgba(59, 130, 246, 0.4); /* Cobalt blue focus ring */
+  --ring: rgba(59, 130, 246, 0.35);
+  /* Soft focus: thin ring, no bloom. Prefer over hard brand border + glow. */
+  --focus-border: color-mix(in srgb, var(--brand) 42%, var(--border));
+  --focus-ring: 0 0 0 1px color-mix(in srgb, var(--brand) 38%, transparent);
+  --hover-border: color-mix(in srgb, var(--border) 55%, #ffffff);
 
   --primary: #ffffff;
   --primary-foreground: #09090b;

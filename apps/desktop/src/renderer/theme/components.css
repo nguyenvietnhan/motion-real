@@ -101,9 +101,9 @@
 }
 .ns-project:hover,
 .ns-project:focus-within {
-  border-color: var(--brand);
+  border-color: var(--hover-border);
   background: var(--card-hover);
-  box-shadow: var(--shadow-md);
+  box-shadow: var(--shadow-sm);
 }
 
 /* Shared primitive layouts */
