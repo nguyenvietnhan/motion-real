@@ -40,14 +40,17 @@ export const ImageReviewView: React.FC<{
   };
 
   return (
-    <>
-      <div className="ns-card" style={{ padding: 16, marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
-        <span style={{ color: "var(--muted-foreground)", fontSize: 14 }}>
+    <div className="ns-image-review">
+      <div className="ns-card ns-image-review-bar">
+        <p className="ns-image-review-help">
           Chọn các ảnh phù hợp để AI đưa vào video. AI sẽ tự quyết đặt ảnh ở cảnh nào. Ảnh được đề xuất đã tick sẵn.
-        </span>
-        <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
-          <button className="ns-btn" onClick={() => submit([])} disabled={submitting}>Bỏ qua ảnh</button>
+        </p>
+        <div className="ns-image-review-actions">
+          <button type="button" className="ns-btn" onClick={() => submit([])} disabled={submitting}>
+            Bỏ qua ảnh
+          </button>
           <button
+            type="button"
             className="ns-btn ns-btn-primary"
             onClick={() => submit(selectedRefs)}
             disabled={submitting || count === 0}
@@ -58,47 +61,27 @@ export const ImageReviewView: React.FC<{
         </div>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 12 }}>
+      <div className="ns-image-review-grid">
         {images.map((img) => {
           const on = checked[img.ref] ?? false;
           return (
             <button
               key={img.ref}
+              type="button"
+              className={`ns-image-tile${on ? " is-selected" : ""}`}
               onClick={() => toggle(img.ref)}
               aria-pressed={on}
               title={img.sourceUrl}
-              style={{
-                position: "relative",
-                padding: 0,
-                cursor: "pointer",
-                borderRadius: 10,
-                overflow: "hidden",
-                border: on ? "2px solid var(--brand)" : "1px solid var(--border)",
-                background: "#0c0e12",
-                aspectRatio: "9 / 16",
-                display: "block",
-              }}
             >
-              <div style={{ position: "absolute", inset: 0, background: `center/contain no-repeat #0c0e12 url(${img.previewUrl})` }} />
-              {/* Selection check badge (top-right). */}
               <span
-                style={{
-                  position: "absolute", right: 6, top: 6, width: 22, height: 22, borderRadius: 999,
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  background: on ? "var(--brand)" : "rgba(0,0,0,0.55)", color: "#fff", fontSize: 12,
-                  border: on ? "none" : "1px solid rgba(255,255,255,0.4)",
-                }}
-              >
+                className="ns-image-tile-media"
+                style={{ backgroundImage: `url(${img.previewUrl})` }}
+              />
+              <span className={`ns-image-tile-check${on ? " is-on" : ""}`} aria-hidden="true">
                 {on ? "✓" : ""}
               </span>
-              {/* AI-suggested ribbon (bottom-left). */}
-              {img.suggested && (
-                <span style={{ position: "absolute", left: 6, top: 6, fontSize: 10, fontWeight: 800, color: "#fff",
-                  background: "rgba(0,0,0,0.6)", borderRadius: 5, padding: "1px 6px", lineHeight: "16px" }}>AI đề xuất</span>
-              )}
-              <span style={{ position: "absolute", left: 0, right: 0, bottom: 0, padding: "4px 8px", fontSize: 11,
-                color: "#fff", background: "linear-gradient(transparent, rgba(0,0,0,0.75))", textAlign: "left",
-                whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+              {img.suggested && <span className="ns-image-tile-badge">AI đề xuất</span>}
+              <span className="ns-image-tile-caption">
                 {host(img.sourceUrl)} · {img.width}×{img.height}
               </span>
             </button>
@@ -107,10 +90,10 @@ export const ImageReviewView: React.FC<{
       </div>
 
       {images.length === 0 && (
-        <p style={{ color: "var(--muted-foreground)", marginTop: 16, display: "flex", alignItems: "center", gap: 8 }}>
+        <p className="ns-image-review-empty">
           {Icon.info({ size: 16 })} Không tìm thấy ảnh phù hợp trong bài. Video sẽ dựng bằng chữ.
         </p>
       )}
-    </>
+    </div>
   );
 };

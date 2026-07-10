@@ -159,6 +159,13 @@
   opacity: 1;
   transform: translateY(0);
 }
+/* Touch / coarse pointer: actions always visible (hover is unreliable). */
+@media (hover: none), (pointer: coarse) {
+  .ns-project-actions {
+    opacity: 1;
+    transform: none;
+  }
+}
 .ns-project-action {
   width: 30px;
   height: 30px;

@@ -3,6 +3,7 @@
 /* Script review keeps a stable two-column rhythm while the user edits narration. */
 .ns-script-review-banner {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
@@ -11,15 +12,55 @@
 }
 .ns-script-review-message {
   color: var(--muted-foreground);
+  min-width: min(100%, 16rem);
+  flex: 1 1 14rem;
+  line-height: 1.45;
 }
 .ns-script-review-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   flex-shrink: 0;
 }
 .ns-error-actions {
   display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
   gap: 10px;
+}
+.ns-evidence-panel {
+  margin-bottom: 12px;
+  padding: 12px;
+}
+.ns-evidence-list {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.ns-evidence-source {
+  border-top: 1px solid var(--border);
+  padding-top: 8px;
+}
+.ns-evidence-source-meta {
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+.ns-evidence-claims {
+  margin: 8px 0 0;
+  padding-left: 18px;
+}
+.ns-evidence-claim {
+  margin-bottom: 6px;
+  font-size: 13px;
+}
+.ns-evidence-excerpt {
+  color: var(--muted-foreground);
+  font-style: italic;
+}
+.ns-evidence-scenes {
+  font-size: 12px;
+  color: var(--muted-foreground);
 }
 .ns-script-list {
   display: grid;
@@ -30,6 +71,16 @@
   align-items: stretch;
   gap: 16px;
   padding: 16px;
+  min-width: 0;
+}
+@media (max-width: 640px) {
+  .ns-script-card {
+    flex-wrap: wrap;
+  }
+  .ns-script-media-slot {
+    width: 100%;
+    justify-content: flex-start;
+  }
 }
 .ns-script-index-wrap {
   display: flex;
@@ -124,8 +175,9 @@
 .ns-writing-card {
   display: grid;
   gap: 12px;
-  padding: 48px;
+  padding: clamp(24px, 6vw, 48px);
   place-items: center;
+  text-align: center;
 }
 .ns-writing-title,
 .ns-writing-detail {
@@ -357,24 +409,33 @@
 }
 .ns-story-preview-toolbar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   flex-shrink: 0;
   gap: 8px;
 }
+.ns-story-active-label {
+  margin-left: 4px;
+  font-size: 13px;
+  color: var(--muted-foreground);
+  white-space: nowrap;
+}
 .ns-story-segmented {
   display: inline-flex;
+  flex-wrap: wrap;
   overflow: hidden;
   padding: 4px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 10px;
   background: rgba(255, 255, 255, 0.03);
+  max-width: 100%;
 }
 .ns-story-segment {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 6.75rem; /* "Ảnh cảnh 10" — avoids toolbar reflow on scene index change */
-  padding: 6px 16px;
+  min-width: 5.5rem;
+  padding: 6px 12px;
   border: 0;
   border-radius: 6px;
   background: transparent;
@@ -384,6 +445,7 @@
   font-weight: 500;
   line-height: 1.4;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
   transition: all 0.15s ease;
 }
 .ns-story-segment.is-active {
@@ -608,13 +670,28 @@
 /* Edit requests are grouped by scope instead of explained in prose. The
  * accent card follows the selected scene; the neutral card applies globally. */
 .ns-story-edit-panel {
-  width: 344px;
+  width: min(344px, 100%);
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
   gap: 12px;
   padding: 14px;
   overflow-y: auto;
+  min-width: 0;
+  min-height: 0;
+}
+@media (max-width: 960px) {
+  .ns-story-body.has-edit {
+    flex-wrap: wrap;
+  }
+  .ns-story-preview-pane {
+    flex: 1 1 100%;
+    min-height: 280px;
+  }
+  .ns-story-edit-panel {
+    width: 100%;
+    max-height: min(42vh, 360px);
+  }
 }
 .ns-story-edit-heading {
   display: flex;
@@ -806,6 +883,118 @@
   .ns-story-edit-toggle {
     min-width: 0;
   }
+}
+
+/* Crawled image review — selection grid before authoring. */
+.ns-image-review {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+.ns-image-review-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px;
+}
+.ns-image-review-help {
+  margin: 0;
+  flex: 1 1 16rem;
+  min-width: 0;
+  color: var(--muted-foreground);
+  font-size: 14px;
+  line-height: 1.45;
+}
+.ns-image-review-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.ns-image-review-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 148px), 1fr));
+  gap: 12px;
+}
+.ns-image-tile {
+  position: relative;
+  display: block;
+  width: 100%;
+  padding: 0;
+  aspect-ratio: 9 / 16;
+  overflow: hidden;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: #0c0e12;
+  cursor: pointer;
+  color: inherit;
+}
+.ns-image-tile.is-selected {
+  border: 2px solid var(--brand);
+}
+.ns-image-tile-media {
+  position: absolute;
+  inset: 0;
+  background-color: #0c0e12;
+  background-position: center;
+  background-size: contain;
+  background-repeat: no-repeat;
+}
+.ns-image-tile-check {
+  position: absolute;
+  right: 6px;
+  top: 6px;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+}
+.ns-image-tile-check.is-on {
+  background: var(--brand);
+  border: none;
+}
+.ns-image-tile-badge {
+  position: absolute;
+  left: 6px;
+  top: 6px;
+  font-size: 10px;
+  font-weight: 800;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.6);
+  border-radius: 5px;
+  padding: 1px 6px;
+  line-height: 16px;
+}
+.ns-image-tile-caption {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 4px 8px;
+  font-size: 11px;
+  color: #fff;
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.75));
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ns-image-review-empty {
+  margin: 0;
+  color: var(--muted-foreground);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
 }
 
 /* Shared info hint used by workspace/review controls. */

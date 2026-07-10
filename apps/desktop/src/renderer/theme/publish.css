@@ -20,12 +20,22 @@
 }
 .ns-publish-preview {
   width: 100%;
+  min-width: 0;
+}
+.ns-publish-video {
+  display: block;
+  width: 100%;
+  max-width: 100%;
   aspect-ratio: 9 / 16;
   border-radius: var(--radius);
   border: 1px solid var(--border);
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
   background: #0c0e12;
   object-fit: contain;
+}
+.ns-publish-video.is-landscape,
+.ns-publish-preview.is-landscape .ns-publish-video {
+  aspect-ratio: 16 / 9;
 }
 .ns-publish-rail {
   display: flex;

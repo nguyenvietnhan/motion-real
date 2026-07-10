@@ -3,7 +3,7 @@
 /* Settings: left-rail tabs + enterprise toggle switch */
 .ns-settings {
   display: grid;
-  grid-template-columns: 220px 1fr;
+  grid-template-columns: 220px minmax(0, 1fr);
   gap: 24px;
   align-items: stretch;
 }
@@ -13,6 +13,23 @@
   gap: 2px;
   position: sticky;
   top: 0;
+  min-width: 0;
+}
+@media (max-width: 820px) {
+  .ns-settings {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+  .ns-settings-nav {
+    position: static;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .ns-settings-tab {
+    width: auto;
+    flex: 0 0 auto;
+  }
 }
 .ns-settings-tab {
   display: flex;

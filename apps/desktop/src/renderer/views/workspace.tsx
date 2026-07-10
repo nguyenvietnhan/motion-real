@@ -104,35 +104,29 @@ const ScriptReview: React.FC<{
         </div>
       </div>
       {evidence && evidence.sources.length > 0 && (
-        <div className="ns-card" style={{ marginBottom: 12, padding: 12 }}>
+        <div className="ns-card ns-evidence-panel">
           <button type="button" className="ns-btn" onClick={() => setShowEvidence((v) => !v)}>
             {showEvidence ? "Ẩn căn cứ nội dung" : "Căn cứ nội dung"}
           </button>
           {showEvidence && (
-            <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 12 }}>
+            <div className="ns-evidence-list">
               {evidence.sources.map((s) => (
-                <div key={s.id} style={{ borderTop: "1px solid var(--border)", paddingTop: 8 }}>
+                <div key={s.id} className="ns-evidence-source">
                   <strong>{s.title}</strong>
-                  <div style={{ fontSize: 12, color: "var(--muted-foreground)" }}>
+                  <div className="ns-evidence-source-meta">
                     {s.site ? `${s.site} · ` : ""}
                     {s.publishedDate ? `${s.publishedDate} · ` : ""}
                     {s.sourceUrl}
                   </div>
-                  <ul style={{ margin: "8px 0 0", paddingLeft: 18 }}>
+                  <ul className="ns-evidence-claims">
                     {evidence.claims
                       .filter((c) => c.sourceId === s.id)
                       .map((c) => (
-                        <li key={c.id} style={{ marginBottom: 6, fontSize: 13 }}>
+                        <li key={c.id} className="ns-evidence-claim">
                           <div>{c.text}</div>
-                          {c.excerpt && (
-                            <div style={{ color: "var(--muted-foreground)", fontStyle: "italic" }}>
-                              “{c.excerpt}”
-                            </div>
-                          )}
+                          {c.excerpt && <div className="ns-evidence-excerpt">“{c.excerpt}”</div>}
                           {c.sceneIds.length > 0 && (
-                            <div style={{ fontSize: 12, color: "var(--muted-foreground)" }}>
-                              Cảnh: {c.sceneIds.join(", ")}
-                            </div>
+                            <div className="ns-evidence-scenes">Cảnh: {c.sceneIds.join(", ")}</div>
                           )}
                         </li>
                       ))}
@@ -451,8 +445,11 @@ export const ProjectWorkspaceView: React.FC<{
         // single narrow centred column.
         <div className="ns-publish">
           <div className={`ns-publish-preview${stage.format === "youtube" ? " is-landscape" : ""}`}>
-            <video src={stage.outputPath} controls style={{ width: "100%", aspectRatio: stage.format === "youtube" ? "16 / 9" : "9 / 16",
-              borderRadius: 12, border: "1px solid var(--border)", boxShadow: "0 12px 40px rgba(0,0,0,0.5)", background: "#0c0e12", objectFit: "contain" }} />
+            <video
+              className={`ns-publish-video${stage.format === "youtube" ? " is-landscape" : ""}`}
+              src={stage.outputPath}
+              controls
+            />
           </div>
           <div className="ns-publish-rail">
             <div className="ns-publish-head">

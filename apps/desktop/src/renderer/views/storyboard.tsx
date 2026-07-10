@@ -402,7 +402,7 @@ export const StoryboardView: React.FC<{
       {Header}
 
       {/* Body fills the viewport; rail + edit panel scroll internally (no page scroll). */}
-      <div className="ns-story-body">
+      <div className={`ns-story-body${showEdit ? " has-edit" : ""}`}>
         {/* Slide rail */}
         <div className="ns-story-rail">
           {scenes.map((s, i) => (
@@ -457,7 +457,7 @@ export const StoryboardView: React.FC<{
               </div>
               <InfoHint text="Bấm cảnh bên trái để xem ảnh. Chọn Video nháp để xem theo timeline đã khóa." />
               {current && (
-                <span className="ns-story-active-label" style={{ marginLeft: 8, fontSize: 13, color: "var(--muted-foreground)" }}>
+                <span className="ns-story-active-label">
                   Đang xem cảnh {idx + 1}
                 </span>
               )}
