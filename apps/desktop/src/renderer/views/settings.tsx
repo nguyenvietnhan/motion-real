@@ -198,7 +198,7 @@ export const SettingsView: React.FC<{
 
         <div style={{ display: "flex", flexDirection: "column", gap: 16, minWidth: 0 }}>
           {tab === "ai" && (
-            <SettingsCard title="Tài khoản AI" desc="Kết nối 9Router và chọn model.">
+            <SettingsCard title="Tài khoản AI">
               {gateway.kind === "starting" && <p style={{ color: "var(--muted-foreground)", margin: 0 }}>Đang khởi động dịch vụ AI…</p>}
               {gateway.kind === "unavailable" && (
                 <p style={{ color: "var(--danger)", margin: 0 }}>Không khởi động được 9Router. Kiểm tra cài đặt rồi mở lại app.</p>
@@ -327,7 +327,7 @@ export const SettingsView: React.FC<{
           )}
 
           {tab === "voice" && (
-            <SettingsCard title="Giọng đọc" desc="Mặc định cho dự án mới.">
+            <SettingsCard title="Giọng đọc">
               <Field label="Nhà cung cấp giọng">
                 <CustomSelect
                   value={voiceProvider}
