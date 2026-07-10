@@ -138,29 +138,54 @@
   text-align: center;
 }
 
-/* Storyboard toolbar: keep the current minimal controls, but prevent the header
- * from degrading into wrapped button labels when the desktop window is narrow. */
+/* Storyboard header: leading identity + action cluster.
+ * Actions wrap as a group on narrow windows — never stack/overlap individual controls. */
 .ns-story-header {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 10px;
+  gap: 10px 12px;
   padding: 12px 18px;
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
+  row-gap: 10px;
+}
+.ns-story-header-leading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+.ns-story-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-left: auto;
+  min-width: 0;
+  /* Keep action chips on one visual band when possible; wrap only as a unit. */
+  flex: 0 1 auto;
 }
 .ns-story-header .ns-btn,
 .ns-story-header select {
   white-space: nowrap;
+  flex-shrink: 0;
+}
+.ns-story-back {
+  flex-shrink: 0;
 }
 .ns-story-title {
-  margin-right: auto;
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 10px;
   min-width: 0;
 }
 .ns-story-heading {
   font-size: 16px;
+  white-space: nowrap;
+  line-height: 1.2;
 }
 .ns-story-count {
   color: var(--muted-foreground);
@@ -170,6 +195,7 @@
   display: inline-block;
   min-width: 9ch; /* "Cảnh 10/20" — keeps header from shifting on scene change */
   white-space: nowrap;
+  flex-shrink: 0;
 }
 .ns-story-edit-toggle {
   min-width: 7.5rem; /* "Sửa cảnh 10" vs "Sửa cảnh" */
@@ -179,6 +205,79 @@
   border-color: color-mix(in srgb, var(--brand) 58%, var(--border));
   background: color-mix(in srgb, var(--brand) 14%, transparent);
   color: color-mix(in srgb, var(--brand) 78%, white);
+}
+.ns-story-send {
+  min-width: 9.5rem;
+}
+.ns-story-approve-short {
+  display: none;
+}
+.ns-story-approve-full {
+  display: inline;
+}
+
+/* Diagnostics popover — lives in the action cluster, never reflows the shell. */
+.ns-diag {
+  position: relative;
+  flex-shrink: 0;
+}
+.ns-diag-trigger {
+  max-width: 11.5rem;
+}
+.ns-diag-label-short {
+  display: none;
+}
+.ns-diag-panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  left: auto;
+  z-index: 50;
+  width: min(28rem, calc(100vw - 48px));
+  max-height: min(360px, 50vh);
+  overflow: auto;
+  padding: 12px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+}
+.ns-diag-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+  align-items: center;
+}
+.ns-diag-truncated {
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+.ns-diag-empty {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: 13px;
+}
+.ns-diag-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.ns-diag-item {
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 6px;
+}
+.ns-diag-item:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+.ns-diag-meta {
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+.ns-diag-message {
+  font-size: 14px;
+  line-height: 1.4;
 }
 .ns-story-shell {
   display: flex;
@@ -349,7 +448,8 @@
   font: inherit;
 }
 .ns-bgm-trigger {
-  min-width: 0;
+  min-width: 7.5rem;
+  max-width: 12rem;
   gap: 8px;
   padding: 0 10px;
   font-size: 13px;
@@ -619,9 +719,10 @@
 .ns-edit-scope.is-global .ns-edit-textarea {
   min-height: 88px;
 }
+/* Mid desktop: compact chrome, still single band when possible. */
 @media (max-width: 1120px) {
   .ns-story-header {
-    gap: 8px;
+    gap: 8px 10px;
     padding: 10px 12px;
   }
   .ns-story-header .ns-btn {
@@ -632,7 +733,78 @@
     gap: 7px;
   }
   .ns-bgm-current {
-    max-width: 105px;
+    max-width: 88px;
+  }
+  .ns-bgm-trigger {
+    min-width: 6.5rem;
+    max-width: 9.5rem;
+  }
+  .ns-story-approve-full {
+    display: none;
+  }
+  .ns-story-approve-short {
+    display: inline;
+  }
+  .ns-diag-label-full {
+    display: none;
+  }
+  .ns-diag-label-short {
+    display: inline;
+  }
+  .ns-diag-trigger {
+    max-width: none;
+    min-width: 0;
+  }
+}
+
+/* Narrow: stack identity above actions so nothing overlaps. */
+@media (max-width: 820px) {
+  .ns-story-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .ns-story-header-leading {
+    flex: 0 0 auto;
+  }
+  .ns-story-header-actions {
+    margin-left: 0;
+    justify-content: flex-start;
+    width: 100%;
+  }
+  .ns-diag-panel {
+    right: auto;
+    left: 0;
+    width: min(28rem, calc(100vw - 32px));
+  }
+}
+
+/* Very narrow Electron window: body also stacks rail above preview. */
+@media (max-width: 640px) {
+  .ns-story-body {
+    flex-direction: column;
+    gap: 10px;
+    padding: 10px;
+  }
+  .ns-story-rail {
+    width: 100%;
+    flex-direction: row;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding-right: 0;
+    padding-bottom: 4px;
+  }
+  .ns-story-thumb {
+    width: 56px;
+    flex: 0 0 auto;
+  }
+  .ns-story-preview-pane {
+    min-height: 0;
+  }
+  .ns-story-send {
+    min-width: 0;
+  }
+  .ns-story-edit-toggle {
+    min-width: 0;
   }
 }
 

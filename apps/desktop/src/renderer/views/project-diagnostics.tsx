@@ -1,19 +1,37 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import type { ProjectDiagnosticsVM } from "../../shared/types.js";
 import { compactNotificationMessage, errorDetails, useNotifications } from "../notifications.js";
 
 /**
- * Bounded, historical project diagnostic drawer.
+ * Bounded, historical project diagnostic popover.
  * Shows fixed-language entries only — never raw logs.
+ * Positioned as an overlay so it never reflows the storyboard header.
  */
 export const ProjectDiagnosticsPanel: React.FC<{
   projectId: string;
   load: (projectId: string) => Promise<ProjectDiagnosticsVM>;
 }> = ({ projectId, load }) => {
+  const rootRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [report, setReport] = useState<ProjectDiagnosticsVM | null>(null);
   const notify = useNotifications();
+
+  useEffect(() => {
+    if (!open) return;
+    const closeOutside = (event: MouseEvent): void => {
+      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent): void => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("mousedown", closeOutside);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("mousedown", closeOutside);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [open]);
 
   const refresh = (): void => {
     setLoading(true);
@@ -50,61 +68,51 @@ export const ProjectDiagnosticsPanel: React.FC<{
   };
 
   return (
-    // position:relative + absolute panel so opening diagnostics does not expand
-    // the storyboard header and push the whole review shell downward.
-    <div className="ns-diag" style={{ position: "relative", marginLeft: 8, display: "inline-block", verticalAlign: "middle" }}>
+    <div className="ns-diag" ref={rootRef}>
       <button
         type="button"
-        className="ns-btn"
+        className="ns-btn ns-diag-trigger"
+        aria-expanded={open}
+        aria-haspopup="dialog"
+        title="Chi tiết xử lý dự án"
         onClick={() => {
           const next = !open;
           setOpen(next);
           if (next) refresh();
         }}
       >
-        {open ? "Ẩn chi tiết xử lý" : "Chi tiết xử lý"}
+        <span className="ns-diag-label-full">{open ? "Ẩn chi tiết" : "Chi tiết xử lý"}</span>
+        <span className="ns-diag-label-short">{open ? "Ẩn" : "Chi tiết"}</span>
       </button>
       {open && (
-        <div
-          className="ns-card"
-          style={{
-            position: "absolute",
-            top: "calc(100% + 8px)",
-            left: 0,
-            zIndex: 40,
-            width: "min(28rem, 70vw)",
-            padding: 12,
-            maxHeight: 320,
-            overflow: "auto",
-            boxShadow: "0 12px 40px rgba(0,0,0,0.45)",
-          }}
-          role="region"
-          aria-label="Chi tiết xử lý dự án"
-        >
-          <div style={{ display: "flex", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
+        <div className="ns-diag-panel ns-card" role="dialog" aria-label="Chi tiết xử lý dự án">
+          <div className="ns-diag-toolbar">
             <button type="button" className="ns-btn" disabled={loading} onClick={refresh}>
               {loading ? "Đang tải…" : "Làm mới"}
             </button>
-            <button type="button" className="ns-btn" disabled={!report || report.entries.length === 0} onClick={copySummary}>
+            <button
+              type="button"
+              className="ns-btn"
+              disabled={!report || report.entries.length === 0}
+              onClick={copySummary}
+            >
               Sao chép tóm tắt
             </button>
-            {report?.truncated && (
-              <span style={{ fontSize: 12, color: "var(--muted-foreground)" }}>Đã rút gọn lịch sử</span>
-            )}
+            {report?.truncated && <span className="ns-diag-truncated">Đã rút gọn lịch sử</span>}
           </div>
-          {!report && !loading && <p style={{ margin: 0, color: "var(--muted-foreground)" }}>Chưa có dữ liệu.</p>}
+          {!report && !loading && <p className="ns-diag-empty">Chưa có dữ liệu.</p>}
           {report && report.entries.length === 0 && (
-            <p style={{ margin: 0, color: "var(--muted-foreground)" }}>Chưa ghi nhận bước xử lý nào.</p>
+            <p className="ns-diag-empty">Chưa ghi nhận bước xử lý nào.</p>
           )}
           {report && report.entries.length > 0 && (
-            <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 8 }}>
+            <ul className="ns-diag-list">
               {report.entries.map((e, i) => (
-                <li key={`${e.at}-${i}`} style={{ borderBottom: "1px solid var(--border)", paddingBottom: 6 }}>
-                  <div style={{ fontSize: 12, color: "var(--muted-foreground)" }}>
+                <li key={`${e.at}-${i}`} className="ns-diag-item">
+                  <div className="ns-diag-meta">
                     {new Date(e.at).toLocaleString()}
                     {e.sceneId ? ` · ${e.sceneId}` : ""}
                   </div>
-                  <div style={{ fontSize: 14 }}>{e.message}</div>
+                  <div className="ns-diag-message">{e.message}</div>
                 </li>
               ))}
             </ul>

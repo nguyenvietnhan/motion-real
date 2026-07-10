@@ -319,33 +319,45 @@ export const StoryboardView: React.FC<{
     }
   };
 
-  // Full-height Canva-style shell: fixed header with actions, then a body that
-  // fills the rest WITHOUT page scroll (rail + edit panel scroll internally).
+  // Full-height shell: leading identity row + action cluster that wraps cleanly
+  // on narrow windows (never overlap BGM / diagnostics / primary actions).
   const Header = (
-    <div className="ns-story-header">
-      <button className="ns-btn" onClick={onBack}>Quay lại</button>
-      <div className="ns-story-title">
-        <strong className="ns-story-heading">Duyệt cảnh</strong>
-        {scenes.length > 0 && (
-          <span className="ns-story-count ns-tabular" aria-label={`Cảnh ${idx + 1} trên ${scenes.length}`}>
-            Cảnh {idx + 1}/{scenes.length}
-          </span>
-        )}
-        {diagnosticsSlot}
+    <header className="ns-story-header">
+      <div className="ns-story-header-leading">
+        <button type="button" className="ns-btn ns-story-back" onClick={onBack}>
+          Quay lại
+        </button>
+        <div className="ns-story-title">
+          <strong className="ns-story-heading">Duyệt cảnh</strong>
+          {scenes.length > 0 && (
+            <span className="ns-story-count ns-tabular" aria-label={`Cảnh ${idx + 1} trên ${scenes.length}`}>
+              Cảnh {idx + 1}/{scenes.length}
+            </span>
+          )}
+        </div>
       </div>
       {scenes.length > 0 && (
-        <>
+        <div className="ns-story-header-actions">
+          {diagnosticsSlot}
           {bgm && onBgmAdd && onBgmRemove && onBgmSelect && (
             <BgmPicker bgm={bgm} selected={bgmSelected ?? null} busy={bgmSaving} onAdd={onBgmAdd} onRemove={removeBgm} onSelect={selectBgm} />
           )}
-          <button className={`ns-btn ns-story-edit-toggle${showEdit ? " is-active" : ""}`} onClick={() => setShowEdit((v) => !v)}>
+          <button
+            type="button"
+            className={`ns-btn ns-story-edit-toggle${showEdit ? " is-active" : ""}`}
+            onClick={() => setShowEdit((v) => !v)}
+          >
             {Icon.pencil({ size: 15 })}
             <span className="ns-tabular">{showEdit ? `Sửa cảnh ${idx + 1}` : "Sửa cảnh"}</span>
           </button>
           {showEdit && (
-            <button className="ns-btn ns-btn-primary" disabled={!canSend || submitting} onClick={sendAll}
+            <button
+              type="button"
+              className="ns-btn ns-btn-primary ns-story-send"
+              disabled={!canSend || submitting}
+              onClick={sendAll}
               title={canSend ? undefined : "Nhập yêu cầu cho một cảnh hoặc ghi chú chung trước khi gửi."}
-              style={{ minWidth: "11.5rem" }}>
+            >
               {submitting ? "Đang gửi…" : editedCount > 0 ? (
                 <span className="ns-tabular">Gửi chỉnh sửa ({editedCount})</span>
               ) : (
@@ -353,11 +365,25 @@ export const StoryboardView: React.FC<{
               )}
             </button>
           )}
-          <button className="ns-btn" disabled={!canApprove || bgmSaving} onClick={onApprove}
-            title={bgmSaving ? "Đang lưu lựa chọn nhạc nền." : canApprove ? undefined : "Bản nháp chưa sẵn sàng để duyệt."}>Duyệt &amp; xuất bản</button>
-        </>
+          <button
+            type="button"
+            className="ns-btn ns-story-approve"
+            disabled={!canApprove || bgmSaving}
+            onClick={onApprove}
+            title={
+              bgmSaving
+                ? "Đang lưu lựa chọn nhạc nền."
+                : canApprove
+                  ? undefined
+                  : "Bản nháp chưa sẵn sàng để duyệt."
+            }
+          >
+            <span className="ns-story-approve-full">Duyệt &amp; xuất bản</span>
+            <span className="ns-story-approve-short">Xuất bản</span>
+          </button>
+        </div>
       )}
-    </div>
+    </header>
   );
 
   if (scenes.length === 0) {
