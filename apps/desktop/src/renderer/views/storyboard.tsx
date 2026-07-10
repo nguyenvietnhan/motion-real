@@ -186,7 +186,6 @@ export const StoryboardView: React.FC<{
   // typed. You gather edits across many scenes and send them in ONE pass.
   const [edits, setEdits] = useState<Record<string, string>>({});
   const [notes, setNotes] = useState("");
-  const [showEdit, setShowEdit] = useState(true);
   // When a draft video exists, the big preview defaults to playing it; this flips
   // to the selected scene's still (what you point at to edit one scene).
   // Default to video draft when present; rail click flips to that scene's still.
@@ -344,27 +343,17 @@ export const StoryboardView: React.FC<{
           )}
           <button
             type="button"
-            className={`ns-btn ns-story-edit-toggle${showEdit ? " is-active" : ""}`}
-            onClick={() => setShowEdit((v) => !v)}
+            className="ns-btn ns-btn-primary ns-story-send"
+            disabled={!canSend || submitting}
+            onClick={sendAll}
+            title={canSend ? undefined : "Nhập yêu cầu cho một cảnh hoặc ghi chú chung trước khi gửi."}
           >
-            {Icon.pencil({ size: 15 })}
-            <span className="ns-tabular">{showEdit ? `Sửa cảnh ${idx + 1}` : "Sửa cảnh"}</span>
+            {submitting ? "Đang gửi…" : editedCount > 0 ? (
+              <span className="ns-tabular">Gửi chỉnh sửa ({editedCount})</span>
+            ) : (
+              "Gửi chỉnh sửa"
+            )}
           </button>
-          {showEdit && (
-            <button
-              type="button"
-              className="ns-btn ns-btn-primary ns-story-send"
-              disabled={!canSend || submitting}
-              onClick={sendAll}
-              title={canSend ? undefined : "Nhập yêu cầu cho một cảnh hoặc ghi chú chung trước khi gửi."}
-            >
-              {submitting ? "Đang gửi…" : editedCount > 0 ? (
-                <span className="ns-tabular">Gửi chỉnh sửa ({editedCount})</span>
-              ) : (
-                "Gửi chỉnh sửa"
-              )}
-            </button>
-          )}
           <button
             type="button"
             className="ns-btn ns-story-approve"
@@ -402,7 +391,7 @@ export const StoryboardView: React.FC<{
       {Header}
 
       {/* Body fills the viewport; rail + edit panel scroll internally (no page scroll). */}
-      <div className={`ns-story-body${showEdit ? " has-edit" : ""}`}>
+      <div className="ns-story-body has-edit">
         {/* Slide rail */}
         <div className="ns-story-rail">
           {scenes.map((s, i) => (
@@ -503,42 +492,37 @@ export const StoryboardView: React.FC<{
           </div>
         </div>
 
-        {/* Edit panel */}
-        {showEdit && (
-          <aside className="ns-card ns-story-edit-panel" aria-label="Yêu cầu chỉnh sửa">
-            <div className="ns-story-edit-heading">
-              <div>
-                <strong>Biên tập &amp; Góp ý</strong>
-                <span>Gửi phản hồi chỉnh sửa cảnh hoặc toàn video</span>
-              </div>
-              <button className="ns-story-edit-close" type="button" aria-label="Đóng bảng chỉnh sửa" title="Đóng" onClick={() => setShowEdit(false)}>
-                {Icon.close({ size: 16 })}
-              </button>
+        {/* Edit panel — always on; header no longer carries a redundant "Sửa cảnh N" toggle. */}
+        <aside className="ns-card ns-story-edit-panel" aria-label="Yêu cầu chỉnh sửa">
+          <div className="ns-story-edit-heading">
+            <div>
+              <strong>Biên tập &amp; Góp ý</strong>
+              <span>Gửi phản hồi chỉnh sửa cảnh hoặc toàn video</span>
             </div>
+          </div>
 
-            <section className="ns-edit-scope is-scene">
-              <div className="ns-edit-scope-heading">
-                <span className="ns-edit-scope-icon">{Icon.pencil({ size: 15 })}</span>
-                <strong>Yêu cầu Cảnh {idx + 1}</strong>
-                <span className="ns-edit-scope-badge">Riêng cảnh này</span>
-              </div>
-              <textarea aria-label={`Yêu cầu chỉnh sửa cảnh ${idx + 1}`} className="ns-input ns-edit-textarea" value={current ? (edits[current.sceneId] ?? "") : ""}
-                maxLength={2000} rows={4} onChange={(e) => setCurrentEdit(e.target.value)}
-                placeholder="Nhập yêu cầu chỉnh sửa (đổi ảnh, chỉnh chữ...)" />
-            </section>
+          <section className="ns-edit-scope is-scene">
+            <div className="ns-edit-scope-heading">
+              <span className="ns-edit-scope-icon">{Icon.pencil({ size: 15 })}</span>
+              <strong>Yêu cầu Cảnh {idx + 1}</strong>
+              <span className="ns-edit-scope-badge">Riêng cảnh này</span>
+            </div>
+            <textarea aria-label={`Yêu cầu chỉnh sửa cảnh ${idx + 1}`} className="ns-input ns-edit-textarea" value={current ? (edits[current.sceneId] ?? "") : ""}
+              maxLength={2000} rows={4} onChange={(e) => setCurrentEdit(e.target.value)}
+              placeholder="Nhập yêu cầu chỉnh sửa (đổi ảnh, chỉnh chữ...)" />
+          </section>
 
-            <section className="ns-edit-scope is-global">
-              <div className="ns-edit-scope-heading">
-                <span className="ns-edit-scope-icon">{Icon.globe({ size: 15 })}</span>
-                <strong>Góp ý toàn video</strong>
-                <span className="ns-edit-scope-badge">Mọi cảnh</span>
-              </div>
-              <textarea aria-label="Ghi chú chung cho cả video" className="ns-input ns-edit-textarea" value={notes} maxLength={2000} rows={3}
-                onChange={(e) => setNotes(e.target.value)}
-                placeholder="Nhập ghi chú chung cho toàn bộ video..." />
-            </section>
-          </aside>
-        )}
+          <section className="ns-edit-scope is-global">
+            <div className="ns-edit-scope-heading">
+              <span className="ns-edit-scope-icon">{Icon.globe({ size: 15 })}</span>
+              <strong>Góp ý toàn video</strong>
+              <span className="ns-edit-scope-badge">Mọi cảnh</span>
+            </div>
+            <textarea aria-label="Ghi chú chung cho cả video" className="ns-input ns-edit-textarea" value={notes} maxLength={2000} rows={3}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Nhập ghi chú chung cho toàn bộ video..." />
+          </section>
+        </aside>
       </div>
     </div>
   );

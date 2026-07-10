@@ -288,15 +288,6 @@
   white-space: nowrap;
   flex-shrink: 0;
 }
-.ns-story-edit-toggle {
-  min-width: 7.5rem; /* "Sửa cảnh 10" vs "Sửa cảnh" */
-  justify-content: center;
-}
-.ns-story-edit-toggle.is-active {
-  border-color: color-mix(in srgb, var(--brand) 58%, var(--border));
-  background: color-mix(in srgb, var(--brand) 14%, transparent);
-  color: color-mix(in srgb, var(--brand) 78%, white);
-}
 .ns-story-send {
   min-width: 9.5rem;
 }
@@ -751,28 +742,6 @@
   color: var(--muted-foreground);
   font-size: 11px;
 }
-.ns-story-edit-close {
-  display: grid;
-  width: 30px;
-  height: 30px;
-  flex-shrink: 0;
-  place-items: center;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: transparent;
-  color: var(--muted-foreground);
-  cursor: pointer;
-}
-.ns-story-edit-close:hover,
-.ns-story-edit-close:focus-visible {
-  border-color: color-mix(in srgb, var(--brand) 42%, var(--border));
-  background: var(--card-hover);
-  color: var(--foreground);
-}
-.ns-story-edit-close:focus-visible {
-  outline: 2px solid var(--ring);
-  outline-offset: 2px;
-}
 .ns-edit-scope {
   display: flex;
   flex-direction: column;
@@ -912,9 +881,6 @@
     min-height: 0;
   }
   .ns-story-send {
-    min-width: 0;
-  }
-  .ns-story-edit-toggle {
     min-width: 0;
   }
 }
