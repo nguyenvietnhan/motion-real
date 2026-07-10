@@ -423,12 +423,12 @@ export const ExpandableToggle: React.FC<{
 /** A read-only info row (label left, value right, optional (i) note + mono
  * value) — the "Giới thiệu" tab's line item, matching the toggle/number rhythm. */
 export const InfoRow: React.FC<{ label: string; value: string; hint?: string; mono?: boolean }> = ({ label, value, hint, mono }) => (
-  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, padding: "14px 0", borderTop: "1px solid var(--border)" }}>
-    <span style={{ minWidth: 0, display: "flex", alignItems: "center" }}>
-      <span style={{ fontSize: 14, fontWeight: 600 }}>{label}</span>
+  <div className={`ns-info-row${mono ? " is-mono" : ""}`}>
+    <span className="ns-info-row-label">
+      <span className="ns-info-row-title">{label}</span>
       {hint && <InfoHint text={hint} />}
     </span>
-    <span style={{ flexShrink: 0, fontSize: 13, color: "var(--muted-foreground)", textAlign: "right", wordBreak: "break-all", ...(mono ? { fontFamily: "var(--font-mono, monospace)" } : {}) }}>{value}</span>
+    <span className="ns-info-row-value" title={value}>{value}</span>
   </div>
 );
 

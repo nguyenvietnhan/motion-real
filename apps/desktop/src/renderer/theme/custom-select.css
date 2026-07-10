@@ -4,12 +4,23 @@
 .ns-custom-select-container {
   display: inline-block;
   width: 100%;
+  max-width: 100%;
+  vertical-align: top;
 }
 
 .ns-custom-select-trigger {
   cursor: pointer;
   position: relative;
   padding-right: 36px !important;
+  overflow: hidden;
+}
+
+.ns-custom-select-label {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .ns-custom-select-trigger::after {

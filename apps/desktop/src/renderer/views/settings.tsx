@@ -51,9 +51,10 @@ const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options, p
         type="button"
         className={`ns-input ns-custom-select-trigger${open ? " is-open" : ""}`}
         onClick={() => setOpen(!open)}
-        style={{ width: "100%", textAlign: "left", display: "flex", alignItems: "center", justifyContent: "space-between" }}
+        title={selectedOption?.label}
+        style={{ width: "100%", textAlign: "left", display: "flex", alignItems: "center", justifyContent: "space-between", minWidth: 0 }}
       >
-        <span>{selectedOption ? selectedOption.label : placeholder || "Chọn..."}</span>
+        <span className="ns-custom-select-label">{selectedOption ? selectedOption.label : placeholder || "Chọn..."}</span>
       </button>
 
       {open && (
@@ -233,7 +234,7 @@ export const SettingsView: React.FC<{
                         onChange={onSelectModel}
                         options={models.map((m) => ({ value: m.id, label: m.id }))}
                         placeholder="Chọn model"
-                        style={{ width: "100%", maxWidth: 460 }}
+                        style={{ width: "100%", maxWidth: 280 }}
                       />
                     </Field>
                     {preferredModelUnavailable && (
@@ -337,7 +338,7 @@ export const SettingsView: React.FC<{
                     { value: "vivibe", label: "Vivibe" },
                     { value: "elevenlabs", label: "ElevenLabs" }
                   ]}
-                  style={{ width: "100%", maxWidth: 180 }}
+                  style={{ width: "100%", maxWidth: 148 }}
                 />
               </Field>
               <Field label={`API key ${voiceProvider === "vivibe" ? "Vivibe" : "ElevenLabs"}`} hint={`Trạng thái: ${credentialState === "saved" ? "đã lưu an toàn" : credentialState === "environment" ? "đang dùng từ .env" : "chưa cấu hình"}.`}>

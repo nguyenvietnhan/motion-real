@@ -179,6 +179,40 @@
   border-radius: 999px;
 }
 
+/* Info rows (Giới thiệu): divider only between rows, not under card title. */
+.ns-info-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 0;
+}
+.ns-info-row + .ns-info-row {
+  border-top: 1px solid var(--border);
+}
+.ns-info-row-label {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+}
+.ns-info-row-title {
+  font-size: 14px;
+  font-weight: 600;
+}
+.ns-info-row-value {
+  flex: 0 1 auto;
+  max-width: 58%;
+  font-size: 13px;
+  color: var(--muted-foreground);
+  text-align: right;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ns-info-row.is-mono .ns-info-row-value {
+  font-family: var(--font-mono, monospace);
+}
+
 /* Settings section labels (pipeline groups under one card). */
 .ns-settings-group {
   margin: 0;
