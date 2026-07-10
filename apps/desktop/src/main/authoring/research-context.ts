@@ -23,6 +23,8 @@ export type ResearchIngestReport = {
   selectedUrlCount: number;
   readableSources: RetainedResearchSource[];
   unreadableUrls: string[];
+  /** Readable extracts dropped only because the total retained-char budget was full. */
+  droppedBudgetUrls: string[];
   skippedUrls: string[];
   truncatedSourceIds: string[];
 };
@@ -84,6 +86,7 @@ export async function collectResearchContext(input: {
       selectedUrlCount: 0,
       readableSources: [],
       unreadableUrls: [],
+      droppedBudgetUrls: [],
       skippedUrls,
       truncatedSourceIds: [],
     };
@@ -127,12 +130,12 @@ export async function collectResearchContext(input: {
   // Apply total budget in original order.
   let total = 0;
   const readableSources: RetainedResearchSource[] = [];
+  const droppedBudgetUrls: string[] = [];
   for (const src of retained) {
     if (!src) continue;
     if (total >= MAX_RESEARCH_CHARS_TOTAL) {
-      // Drop remaining readable sources beyond total budget as unreadable-for-planner
-      // but report as truncated on the last kept is enough; extra go unreadable.
-      unreadableUrls.push(src.originalUrl);
+      // Readable extract dropped only for total retained-char budget — not a fetch failure.
+      droppedBudgetUrls.push(src.originalUrl);
       continue;
     }
     const room = MAX_RESEARCH_CHARS_TOTAL - total;
@@ -162,6 +165,7 @@ export async function collectResearchContext(input: {
     selectedUrlCount: selected.length,
     readableSources: renumbered,
     unreadableUrls: [...new Set(unreadableUrls)],
+    droppedBudgetUrls: [...new Set(droppedBudgetUrls)],
     skippedUrls,
     truncatedSourceIds: renumbered
       .filter((s) => s.status === "truncated")
@@ -196,6 +200,9 @@ export function researchLinkWarningOf(report: ResearchIngestReport): string | un
   }
   if (report.skippedUrls.length > 0) {
     parts.push(`bỏ qua ${report.skippedUrls.length} link vượt giới hạn ${MAX_AUTHORING_SOURCE_URLS}`);
+  }
+  if (report.droppedBudgetUrls.length > 0) {
+    parts.push(`bỏ qua ${report.droppedBudgetUrls.length} nguồn do giới hạn dung lượng tư liệu`);
   }
   if (report.truncatedSourceIds.length > 0) {
     parts.push(`đã rút gọn ${report.truncatedSourceIds.length} nguồn dài`);

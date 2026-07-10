@@ -84,17 +84,20 @@ describe("formatUntrustedResearchBlock", () => {
 });
 
 describe("researchLinkWarningOf", () => {
-  it("summarizes unreadable, skipped, and truncated counts", () => {
+  it("summarizes unreadable, skipped, budget-dropped, and truncated counts", () => {
     const warning = researchLinkWarningOf({
       requestedUrlCount: 7,
       selectedUrlCount: 5,
       readableSources: [],
       unreadableUrls: ["https://a.example"],
+      droppedBudgetUrls: ["https://d.example"],
       skippedUrls: ["https://b.example", "https://c.example"],
       truncatedSourceIds: ["source-01"],
     });
     expect(warning).toMatch(/Không đọc được 1\/7/);
     expect(warning).toMatch(/bỏ qua 2/);
+    expect(warning).toMatch(/giới hạn dung lượng tư liệu/);
     expect(warning).toMatch(/rút gọn 1/);
+    expect(warning).not.toMatch(/Không đọc được 2/);
   });
 });
