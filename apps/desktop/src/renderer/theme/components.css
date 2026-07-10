@@ -78,13 +78,12 @@
   background: var(--brand);
 }
 
-/* Cards — solid fill (no backdrop blur): blur softens 1px rounded borders. */
+/* Cards — solid fill; dual stroke (border + ring) so curves don't look thinner. */
 .ns-card {
   background: var(--card);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  /* Ring + depth: even stroke at curves vs border alone on some GPUs. */
-  box-shadow: 0 0 0 0.5px color-mix(in srgb, var(--border) 80%, #000), var(--shadow-sm);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--border) 55%, transparent), var(--shadow-sm);
   background-clip: padding-box;
   transition: border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
 }
@@ -95,14 +94,13 @@
   padding: 0;
   overflow: hidden;
   color: var(--foreground);
-  /* Keep corner stroke crisp inside overflow:hidden */
   isolation: isolate;
 }
 .ns-project:hover,
 .ns-project:focus-within {
   border-color: var(--hover-border);
   background: var(--card-hover);
-  box-shadow: 0 0 0 0.5px color-mix(in srgb, var(--hover-border) 70%, transparent), var(--shadow-sm);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--hover-border) 45%, transparent), var(--shadow-sm);
 }
 
 /* Shared primitive layouts */

@@ -8,8 +8,8 @@
   --popover: #1e1e24; /* Popover background matching cards */
   --muted: #25252b; /* Muted background */
   --muted-foreground: #a1a1aa; /* Zinc-400 */
-  /* Slightly brighter than card so 1px curves stay even (dark-on-dark AA looked thin). */
-  --border: #32323c;
+  /* Brighter than card so 1px curves read evenly on dark UI. */
+  --border: #3f3f4a;
   --input: #1a1a22; /* Lighter, clean input field background */
   --ring: rgba(59, 130, 246, 0.35);
   /* Soft focus: thin ring, no bloom. Prefer over hard brand border + glow. */
