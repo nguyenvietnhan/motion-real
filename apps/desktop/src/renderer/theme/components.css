@@ -78,18 +78,15 @@
   background: var(--brand);
 }
 
-/* Cards */
+/* Cards — solid fill (no backdrop blur): blur softens 1px rounded borders. */
 .ns-card {
   background: var(--card);
-  backdrop-filter: var(--backdrop);
-  -webkit-backdrop-filter: var(--backdrop);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  box-shadow: var(--shadow-sm);
-  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), 
-              border-color 0.25s cubic-bezier(0.4, 0, 0.2, 1), 
-              background 0.25s cubic-bezier(0.4, 0, 0.2, 1),
-              box-shadow 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  /* Ring + depth: even stroke at curves vs border alone on some GPUs. */
+  box-shadow: 0 0 0 0.5px color-mix(in srgb, var(--border) 80%, #000), var(--shadow-sm);
+  background-clip: padding-box;
+  transition: border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
 }
 .ns-project {
   position: relative;
@@ -98,12 +95,14 @@
   padding: 0;
   overflow: hidden;
   color: var(--foreground);
+  /* Keep corner stroke crisp inside overflow:hidden */
+  isolation: isolate;
 }
 .ns-project:hover,
 .ns-project:focus-within {
   border-color: var(--hover-border);
   background: var(--card-hover);
-  box-shadow: var(--shadow-sm);
+  box-shadow: 0 0 0 0.5px color-mix(in srgb, var(--hover-border) 70%, transparent), var(--shadow-sm);
 }
 
 /* Shared primitive layouts */
