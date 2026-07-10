@@ -407,7 +407,7 @@ export const HomeView: React.FC<{
         onDrop={onDrop}
       >
         <div className="ns-create-heading">
-          <h2>Tạo video mới</h2>
+          <h2>Tạo video</h2>
         </div>
 
         <div className="ns-create-flow">
