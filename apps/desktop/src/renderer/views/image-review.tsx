@@ -43,7 +43,7 @@ export const ImageReviewView: React.FC<{
     <div className="ns-image-review">
       <div className="ns-card ns-image-review-bar">
         <p className="ns-image-review-help">
-          Chọn ảnh đưa vào video — AI sẽ tự xếp vào cảnh. Ảnh đề xuất đã tick sẵn.
+          Chọn ảnh đưa vào video. AI tự xếp cảnh. Ảnh đề xuất đã tick sẵn.
         </p>
         <div className="ns-image-review-actions">
           <button type="button" className="ns-btn" onClick={() => submit([])} disabled={submitting}>
