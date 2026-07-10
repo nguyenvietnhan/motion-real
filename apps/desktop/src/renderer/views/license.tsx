@@ -29,7 +29,7 @@ export const LicenseView: React.FC<{
   return (
     <div className="ns-license">
       <div className="ns-card ns-license-card">
-        <img className="ns-license-logo" src={logoUrl} alt="" width={56} height={56} />
+        <img className="ns-license-logo" src={logoUrl} alt="" width={68} height={68} />
         <h1 className="ns-license-title">Motion Real</h1>
         <p className="ns-license-sub">Xưởng video ngắn</p>
 
