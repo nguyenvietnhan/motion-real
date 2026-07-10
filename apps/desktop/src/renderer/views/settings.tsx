@@ -374,6 +374,12 @@ export const SettingsView: React.FC<{
                 <Toggle checked={settings.scriptGateEnabled} onChange={(v) => update({ scriptGateEnabled: v })}
                   title="Duyệt kịch bản"
                   desc="Xem và sửa lời trước khi dựng." />
+                <Toggle
+                  checked={settings.imageCrawlHumanReview}
+                  onChange={(v) => update({ imageCrawlHumanReview: v })}
+                  title="Duyệt ảnh từ link"
+                  desc="Xác nhận ảnh cào từ link trước khi viết. Tắt để bỏ qua bước này."
+                />
               </div>
               <div className="ns-settings-group">
                 <div className="ns-settings-group-label">Sau dựng</div>
@@ -434,10 +440,7 @@ export const SettingsView: React.FC<{
                 <div className="ns-settings-group-label">Ảnh</div>
                 <Toggle checked={settings.imageCrawlAiFilter} onChange={(v) => update({ imageCrawlAiFilter: v })}
                   title="AI chọn ảnh link"
-                  desc="Chọn ảnh phù hợp từ bài báo. Cần model nhìn ảnh." />
-                <Toggle checked={settings.imageCrawlHumanReview} onChange={(v) => update({ imageCrawlHumanReview: v })}
-                  title="Duyệt ảnh trước"
-                  desc="Bạn xác nhận ảnh trước khi viết kịch bản." />
+                  desc="Chọn ảnh phù hợp từ bài báo trước. Cần model nhìn ảnh." />
               </div>
             </SettingsCard>
           )}
