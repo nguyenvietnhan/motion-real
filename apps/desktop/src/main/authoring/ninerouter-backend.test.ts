@@ -279,7 +279,11 @@ function fakeLogger() {
 
 function makeBackend(
   authorReply = validReply(),
-  admit = vi.fn(async () => ({ ok: true as const, componentIds: ["alpha", "beta"], files: [] })),
+  admitFiles = vi.fn(async (files: readonly string[]) => ({
+    ok: true as const,
+    componentIds: ["alpha", "beta"],
+    files: [...files],
+  })),
   planReply = validContentPlanReply(),
   logger?: ReturnType<typeof fakeLogger>,
 ) {
@@ -290,10 +294,10 @@ function makeBackend(
     tools: {} as never,
     model: () => "test-model",
     apiKey: () => undefined,
-    admit,
+    admitFiles,
     ...(logger ? { logger } : {}),
   };
-  return { backend: new NineRouterAuthoringBackend(deps), admit, client, chat };
+  return { backend: new NineRouterAuthoringBackend(deps), admitFiles, client, chat };
 }
 
 function authoredDir(projectId: string): string {
@@ -301,6 +305,16 @@ function authoredDir(projectId: string): string {
 }
 
 describe("authorScenes (pure-author)", () => {
+  it("admits staged candidate module paths under .authoring-candidate, not the project root", async () => {
+    const projectId = "pa-staged-admit";
+    const { backend, admitFiles } = makeBackend(validReply());
+    await backend.authorScenes({ projectId, input: { text: "chủ đề", urls: [] }, scriptGate: false });
+    expect(admitFiles).toHaveBeenCalledTimes(1);
+    const files = admitFiles.mock.calls[0]![0] as string[];
+    expect(files.length).toBeGreaterThan(0);
+    expect(files.every((f) => f.replace(/\\/g, "/").includes("/.authoring-candidate/"))).toBe(true);
+  });
+
   it("baseline: one successful text-only authoring run plans content before authoring", async () => {
     const projectId = "pa-chat-baseline";
     const { backend, chat } = makeBackend(validReply());
@@ -331,14 +345,14 @@ describe("authorScenes (pure-author)", () => {
     const projectId = "pa-content-plan-normalized";
     const logger = fakeLogger();
     const componentIds = ids(3);
-    const admit = vi.fn(async () => ({ ok: true as const, componentIds, files: [] }));
+    const admitFiles = vi.fn(async (files: readonly string[]) => ({ ok: true as const, componentIds, files: [] }));
     const chat = chatReplies(INVALID_PURPOSE_CONTENT_PLAN_REPLY, authorReplyForIds(componentIds));
     const backend = new NineRouterAuthoringBackend({
       client: { chat } as unknown as NineRouterClient,
       tools: {} as never,
       model: () => "test-model",
       apiKey: () => undefined,
-      admit,
+      admitFiles,
       logger,
     });
 
@@ -370,14 +384,14 @@ describe("authorScenes (pure-author)", () => {
   it("keeps normal 12-scene no-image plans on the single authoring path", async () => {
     const projectId = "pa-single-normal-long";
     const componentIds = ids(12);
-    const admit = vi.fn(async () => ({ ok: true as const, componentIds, files: [] }));
+    const admitFiles = vi.fn(async (files: readonly string[]) => ({ ok: true as const, componentIds, files: [] }));
     const chat = chatReplies(longContentPlanReply(12), authorReplyForIds(componentIds));
     const backend = new NineRouterAuthoringBackend({
       client: { chat } as unknown as NineRouterClient,
       tools: {} as never,
       model: () => "test-model",
       apiKey: () => undefined,
-      admit,
+      admitFiles,
     });
 
     const out = await backend.authorScenes({ projectId, input: { text: "long topic", urls: [], format: "tiktok", durationTier: 3 }, scriptGate: false });
@@ -387,7 +401,7 @@ describe("authorScenes (pure-author)", () => {
     const authorText = messageText(chat.mock.calls[1]![1] as ChatMessage[]);
     expect(authorText).toContain("AI_Output_Contract");
     expect(authorText).not.toContain("Batch 1/");
-    expect(admit).toHaveBeenCalledTimes(1);
+    expect(admitFiles).toHaveBeenCalledTimes(1);
 
     const dir = authoredDir(projectId);
     expect(existsSync(join(dir, "scene-01.tsx"))).toBe(true);
@@ -400,7 +414,7 @@ describe("authorScenes (pure-author)", () => {
     const projectId = "pa-batched-compact";
     const logger = fakeLogger();
     const componentIds = ids(13);
-    const admit = vi.fn(async () => ({ ok: true as const, componentIds, files: [] }));
+    const admitFiles = vi.fn(async (files: readonly string[]) => ({ ok: true as const, componentIds, files: [] }));
     const chat = chatReplies(
       longContentPlanReply(13),
       ...Array.from({ length: 7 }, (_, index) => blocksFor(componentIds.slice(index * 2, index * 2 + 2))),
@@ -410,7 +424,7 @@ describe("authorScenes (pure-author)", () => {
       tools: {} as never,
       model: () => "test-model",
       apiKey: () => undefined,
-      admit,
+      admitFiles,
       logger,
     });
 
@@ -429,7 +443,7 @@ describe("authorScenes (pure-author)", () => {
     expect(batch1Text).not.toContain('"sceneId": "scene-13"');
     const batchSelectedLog = logger.info.mock.calls.find((call) => call[1] === "authoring batch selected; authoring will use compact TSX batches");
     expect(batchSelectedLog?.[0]).toMatchObject({ projectId, batchCount: 7, batchSize: 2, componentCount: 13 });
-    expect(admit).toHaveBeenCalledTimes(1);
+    expect(admitFiles).toHaveBeenCalledTimes(1);
   });
 
   it("does not lose already parsed TSX batch modules during final coverage validation", async () => {
@@ -437,7 +451,7 @@ describe("authorScenes (pure-author)", () => {
     const logger = fakeLogger();
     const componentIds = ids(13);
     const batches = Array.from({ length: 7 }, (_, index) => componentIds.slice(index * 2, index * 2 + 2));
-    const admit = vi.fn(async () => ({ ok: true as const, componentIds, files: [] }));
+    const admitFiles = vi.fn(async (files: readonly string[]) => ({ ok: true as const, componentIds, files: [] }));
     const chat = chatReplies(
       longContentPlanReply(13),
       ...batches.map((batch) => bareBatchWithTrailingFence(batch)),
@@ -447,7 +461,7 @@ describe("authorScenes (pure-author)", () => {
       tools: {} as never,
       model: () => "test-model",
       apiKey: () => undefined,
-      admit,
+      admitFiles,
       logger,
     });
 
@@ -455,7 +469,7 @@ describe("authorScenes (pure-author)", () => {
 
     expect(out.scenes).toHaveLength(13);
     expect(chat).toHaveBeenCalledTimes(8);
-    expect(admit).toHaveBeenCalledTimes(1);
+    expect(admitFiles).toHaveBeenCalledTimes(1);
     expect(existsSync(join(authoredDir(projectId), "scene-13.tsx"))).toBe(true);
     expect(logger.error.mock.calls.some((call) => call[1] === "batched author reply failed final structured validation")).toBe(false);
   });
@@ -463,7 +477,7 @@ describe("authorScenes (pure-author)", () => {
   it("keeps claim-ledger repair plus normal single authoring inside the bounded call budget", async () => {
     const projectId = "pa-single-after-plan-repair";
     const componentIds = ids(10);
-    const admit = vi.fn(async () => ({ ok: true as const, componentIds, files: [] }));
+    const admitFiles = vi.fn(async (files: readonly string[]) => ({ ok: true as const, componentIds, files: [] }));
     const chat = chatReplies(
       longContentPlanReply(10, { unsupportedFirstScene: true }),
       longContentPlanReply(10),
@@ -474,7 +488,7 @@ describe("authorScenes (pure-author)", () => {
       tools: {} as never,
       model: () => "test-model",
       apiKey: () => undefined,
-      admit,
+      admitFiles,
     });
 
     const out = await backend.authorScenes({ projectId, input: { text: "long repaired topic", urls: [], format: "tiktok", durationTier: 3 }, scriptGate: false });
@@ -484,13 +498,13 @@ describe("authorScenes (pure-author)", () => {
     expect(messageText(chat.mock.calls[1]![1] as ChatMessage[])).toContain("CONTENT PLAN REPAIR");
     expect(messageText(chat.mock.calls[2]![1] as ChatMessage[])).toContain("AI_Output_Contract");
     expect(messageText(chat.mock.calls[2]![1] as ChatMessage[])).not.toContain("Batch 1/");
-    expect(admit).toHaveBeenCalledTimes(1);
+    expect(admitFiles).toHaveBeenCalledTimes(1);
   });
 
   it("does not write partial files when a TSX batch is incomplete", async () => {
     const projectId = "pa-batched-missing";
     const componentIds = ids(13);
-    const admit = vi.fn(async () => ({ ok: true as const, componentIds, files: [] }));
+    const admitFiles = vi.fn(async (files: readonly string[]) => ({ ok: true as const, componentIds, files: [] }));
     const chat = chatReplies(
       longContentPlanReply(13),
       "I cannot provide that module.",
@@ -500,7 +514,7 @@ describe("authorScenes (pure-author)", () => {
       tools: {} as never,
       model: () => "test-model",
       apiKey: () => undefined,
-      admit,
+      admitFiles,
     });
 
     const out = await backend.authorScenes({ projectId, input: { text: "long topic", urls: [], format: "tiktok", durationTier: 1 }, scriptGate: false });
@@ -508,20 +522,20 @@ describe("authorScenes (pure-author)", () => {
     expect(out.scenes).toEqual([]);
     expect(out.message).toMatch(/hợp lệ/i);
     expect(chat).toHaveBeenCalledTimes(2);
-    expect(admit).not.toHaveBeenCalled();
+    expect(admitFiles).not.toHaveBeenCalled();
     expect(existsSync(authoredDir(projectId))).toBe(false);
   });
 
   it("fails before TSX calls when a plan would exceed the eight-batch authoring budget", async () => {
     const projectId = "pa-batched-too-large";
-    const admit = vi.fn(async () => ({ ok: true as const, componentIds: [], files: [] }));
+    const admitFiles = vi.fn(async (files: readonly string[]) => ({ ok: true as const, componentIds: [], files: [...files] }));
     const chat = chatReplies(longContentPlanReply(17), blocksFor(ids(4)));
     const backend = new NineRouterAuthoringBackend({
       client: { chat } as unknown as NineRouterClient,
       tools: {} as never,
       model: () => "test-model",
       apiKey: () => undefined,
-      admit,
+      admitFiles,
     });
 
     const out = await backend.authorScenes({ projectId, input: { text: "too many scenes", urls: [], format: "tiktok", durationTier: 3 }, scriptGate: false });
@@ -530,7 +544,7 @@ describe("authorScenes (pure-author)", () => {
     expect(out.message).toMatch(/quá nhiều cảnh/i);
     expect(out.message).toContain("16 component");
     expect(chat).toHaveBeenCalledTimes(1);
-    expect(admit).not.toHaveBeenCalled();
+    expect(admitFiles).not.toHaveBeenCalled();
     expect(existsSync(authoredDir(projectId))).toBe(false);
   });
 
@@ -541,14 +555,14 @@ describe("authorScenes (pure-author)", () => {
     const assetsDir = join(home, ".video-tool", "projects", projectId, "assets");
     mkdirSync(assetsDir, { recursive: true });
     writeFileSync(join(home, ".video-tool", "projects", projectId, providedRef), Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
-    const admit = vi.fn(async () => ({ ok: true as const, componentIds, files: [] }));
+    const admitFiles = vi.fn(async (files: readonly string[]) => ({ ok: true as const, componentIds, files: [] }));
     const chat = chatReplies(longContentPlanReply(6), authorReplyForIds(componentIds, providedRef));
     const backend = new NineRouterAuthoringBackend({
       client: { chat } as unknown as NineRouterClient,
       tools: {} as never,
       model: () => "test-model",
       apiKey: () => undefined,
-      admit,
+      admitFiles,
     });
 
     await backend.authorScenes({
@@ -566,13 +580,13 @@ describe("authorScenes (pure-author)", () => {
 
   it("valid reply ⇒ writes one .tsx per unique id + open-id manifest + admits + returns scenes", async () => {
     const projectId = "pa-valid";
-    const { backend, admit } = makeBackend(validReply());
+    const { backend, admitFiles } = makeBackend(validReply());
     const job: AuthorJob = { projectId, input: { text: "chủ đề", urls: [] }, scriptGate: false };
 
     const out = await backend.authorScenes(job);
 
     expect(out.scenes.map((s) => s.sceneId)).toEqual(["scene-01", "scene-02", "scene-03"]);
-    expect(admit).toHaveBeenCalledTimes(1);
+    expect(admitFiles).toHaveBeenCalledTimes(1);
 
     const dir = authoredDir(projectId);
     expect(existsSync(join(dir, "alpha.tsx"))).toBe(true);
@@ -585,7 +599,7 @@ describe("authorScenes (pure-author)", () => {
   it("logs admission failure counts by safety check", async () => {
     const projectId = "pa-admission-counts";
     const logger = fakeLogger();
-    const admit = vi.fn(async () => ({
+    const admitFiles = vi.fn(async (files: readonly string[]) => ({
       ok: false as const,
       violations: [
         { check: "N5", severity: "error" as const, path: "alpha.tsx:1", message: "forbidden API" },
@@ -598,7 +612,7 @@ describe("authorScenes (pure-author)", () => {
       tools: {} as never,
       model: () => "test-model",
       apiKey: () => undefined,
-      admit,
+      admitFiles,
       logger,
     });
 
@@ -617,14 +631,14 @@ describe("authorScenes (pure-author)", () => {
   it("recovers a manifest-only author reply with one bounded missing-TSX call", async () => {
     const projectId = "pa-recover-json-only";
     const logger = fakeLogger();
-    const admit = vi.fn(async () => ({ ok: true as const, componentIds: ["alpha", "beta"], files: [] }));
+    const admitFiles = vi.fn(async (files: readonly string[]) => ({ ok: true as const, componentIds: ["alpha", "beta"], files: [...files] }));
     const chat = chatReplies(validContentPlanReply(), manifestOnlyReply(), block("alpha") + "\n\n" + block("beta"));
     const backend = new NineRouterAuthoringBackend({
       client: { chat } as unknown as NineRouterClient,
       tools: {} as never,
       model: () => "test-model",
       apiKey: () => undefined,
-      admit,
+      admitFiles,
       logger,
     });
 
@@ -644,21 +658,21 @@ describe("authorScenes (pure-author)", () => {
       expect.objectContaining({ projectId, recoveryAttempt: 1, recoveredComponentIds: ["alpha", "beta"] }),
       "author-reply missing TSX recovery succeeded",
     ]);
-    expect(admit).toHaveBeenCalledTimes(1);
+    expect(admitFiles).toHaveBeenCalledTimes(1);
     expect(existsSync(join(authoredDir(projectId), "alpha.tsx"))).toBe(true);
     expect(existsSync(join(authoredDir(projectId), "beta.tsx"))).toBe(true);
   });
 
   it("recovers only the missing component id and preserves valid first-pass modules", async () => {
     const projectId = "pa-recover-partial";
-    const admit = vi.fn(async () => ({ ok: true as const, componentIds: ["alpha", "beta"], files: [] }));
+    const admitFiles = vi.fn(async (files: readonly string[]) => ({ ok: true as const, componentIds: ["alpha", "beta"], files: [...files] }));
     const chat = chatReplies(validContentPlanReply(), partialReply(), block("beta"));
     const backend = new NineRouterAuthoringBackend({
       client: { chat } as unknown as NineRouterClient,
       tools: {} as never,
       model: () => "test-model",
       apiKey: () => undefined,
-      admit,
+      admitFiles,
     });
 
     const out = await backend.authorScenes({ projectId, input: { text: "chủ đề", urls: [] }, scriptGate: false });
@@ -678,14 +692,14 @@ describe("authorScenes (pure-author)", () => {
   it("does not accept partial code when the bounded missing-TSX recovery is still invalid", async () => {
     const projectId = "pa-recover-negative";
     const logger = fakeLogger();
-    const admit = vi.fn(async () => ({ ok: true as const, componentIds: ["alpha", "beta"], files: [] }));
+    const admitFiles = vi.fn(async (files: readonly string[]) => ({ ok: true as const, componentIds: ["alpha", "beta"], files: [...files] }));
     const chat = chatReplies(validContentPlanReply(), partialReply(), "I cannot provide TSX.");
     const backend = new NineRouterAuthoringBackend({
       client: { chat } as unknown as NineRouterClient,
       tools: {} as never,
       model: () => "test-model",
       apiKey: () => undefined,
-      admit,
+      admitFiles,
       logger,
     });
 
@@ -702,7 +716,7 @@ describe("authorScenes (pure-author)", () => {
       expect.objectContaining({ projectId, missingComponentIds: ["beta"], recoveredComponentIds: [] }),
       "author-reply missing TSX recovery failed",
     ]);
-    expect(admit).not.toHaveBeenCalled();
+    expect(admitFiles).not.toHaveBeenCalled();
     expect(existsSync(authoredDir(projectId))).toBe(false);
   });
 
@@ -712,12 +726,12 @@ describe("authorScenes (pure-author)", () => {
     mkdirSync(dir, { recursive: true });
     writeFileSync(join(dir, "orphan.tsx"), "this is not valid tsx");
     writeFileSync(join(dir, "_entry.tsx"), "// generated entry must survive");
-    const { backend, admit } = makeBackend(validReply());
+    const { backend, admitFiles } = makeBackend(validReply());
     const job: AuthorJob = { projectId, input: { text: "chủ đề", urls: [] }, scriptGate: false };
 
     await backend.authorScenes(job);
 
-    expect(admit).toHaveBeenCalledTimes(1);
+    expect(admitFiles).toHaveBeenCalledTimes(1);
     expect(existsSync(join(dir, "orphan.tsx"))).toBe(false);
     expect(existsSync(join(dir, "_entry.tsx"))).toBe(true);
     expect(existsSync(join(dir, "alpha.tsx"))).toBe(true);
@@ -726,14 +740,14 @@ describe("authorScenes (pure-author)", () => {
 
   it("invalid reply ⇒ {scenes:[]}, no admit call, no kit/.tsx written", async () => {
     const projectId = "pa-invalid";
-    const { backend, admit } = makeBackend("xin lỗi, không có gì ở đây");
+    const { backend, admitFiles } = makeBackend("xin lỗi, không có gì ở đây");
     const job: AuthorJob = { projectId, input: { text: "chủ đề", urls: [] }, scriptGate: false };
 
     const out = await backend.authorScenes(job);
 
     expect(out.scenes).toEqual([]);
     expect(out.message).toMatch(/hợp lệ/i);
-    expect(admit).not.toHaveBeenCalled();
+    expect(admitFiles).not.toHaveBeenCalled();
     expect(existsSync(authoredDir(projectId))).toBe(false);
   });
 
@@ -741,14 +755,14 @@ describe("authorScenes (pure-author)", () => {
     const projectId = "pa-invalid-logged";
     const logger = fakeLogger();
     const longInvalidReply = "x".repeat(3000);
-    const admit = vi.fn(async () => ({ ok: true as const, componentIds: ["alpha", "beta"], files: [] }));
+    const admitFiles = vi.fn(async (files: readonly string[]) => ({ ok: true as const, componentIds: ["alpha", "beta"], files: [...files] }));
     const chat = chatReplies(validContentPlanReply(), longInvalidReply);
     const backend = new NineRouterAuthoringBackend({
       client: { chat } as unknown as NineRouterClient,
       tools: {} as never,
       model: () => "test-model",
       apiKey: () => undefined,
-      admit,
+      admitFiles,
       logger,
     });
 
@@ -783,7 +797,7 @@ describe("authorScenes (pure-author)", () => {
     });
     expect((errorCall?.[0] as { rawReply?: string }).rawReply).toBeUndefined();
     expect(JSON.stringify(errorCall?.[0])).not.toContain("x".repeat(100));
-    expect(admit).not.toHaveBeenCalled();
+    expect(admitFiles).not.toHaveBeenCalled();
   });
 
   it("logs capped raw author replies only when the diagnostic flag is enabled", async () => {
@@ -793,14 +807,14 @@ describe("authorScenes (pure-author)", () => {
       const projectId = "pa-invalid-raw-logged";
       const logger = fakeLogger();
       const longInvalidReply = "x".repeat(3000);
-      const admit = vi.fn(async () => ({ ok: true as const, componentIds: ["alpha", "beta"], files: [] }));
+      const admitFiles = vi.fn(async (files: readonly string[]) => ({ ok: true as const, componentIds: ["alpha", "beta"], files: [...files] }));
       const chat = chatReplies(validContentPlanReply(), longInvalidReply);
       const backend = new NineRouterAuthoringBackend({
         client: { chat } as unknown as NineRouterClient,
         tools: {} as never,
         model: () => "test-model",
         apiKey: () => undefined,
-        admit,
+        admitFiles,
         logger,
       });
 
@@ -818,8 +832,8 @@ describe("authorScenes (pure-author)", () => {
   it("invalid content plan stops before authoring and does not fall back to one-step authoring", async () => {
     const projectId = "pa-invalid-plan";
     const logger = fakeLogger();
-    const admit = vi.fn(async () => ({ ok: true as const, componentIds: ["alpha", "beta"], files: [] }));
-    const { backend, chat } = makeBackend(validReply(), admit, "not a json plan", logger);
+    const admitFiles = vi.fn(async (files: readonly string[]) => ({ ok: true as const, componentIds: ["alpha", "beta"], files: [...files] }));
+    const { backend, chat } = makeBackend(validReply(), admitFiles, "not a json plan", logger);
     const job: AuthorJob = { projectId, input: { text: "chủ đề", urls: [] }, scriptGate: false };
 
     const out = await backend.authorScenes(job);
@@ -829,14 +843,14 @@ describe("authorScenes (pure-author)", () => {
     expect(chat).toHaveBeenCalledTimes(1);
     const parseLog = logger.error.mock.calls.find((call) => call[1] === "content-plan parse invalid; content-plan parse failed");
     expect(parseLog?.[0]).toMatchObject({ projectId, reason: "no-json" });
-    expect(admit).not.toHaveBeenCalled();
+    expect(admitFiles).not.toHaveBeenCalled();
     expect(existsSync(authoredDir(projectId))).toBe(false);
   });
 
   it("weak content plans fail the local quality gate before code authoring", async () => {
     const projectId = "pa-weak-plan";
-    const admit = vi.fn(async () => ({ ok: true as const, componentIds: ["alpha", "beta"], files: [] }));
-    const { backend, chat } = makeBackend(validReply(), admit, weakContentPlanReply());
+    const admitFiles = vi.fn(async (files: readonly string[]) => ({ ok: true as const, componentIds: ["alpha", "beta"], files: [...files] }));
+    const { backend, chat } = makeBackend(validReply(), admitFiles, weakContentPlanReply());
     const job: AuthorJob = { projectId, input: { text: "chủ đề", urls: [] }, scriptGate: false };
 
     const out = await backend.authorScenes(job);
@@ -844,20 +858,20 @@ describe("authorScenes (pure-author)", () => {
     expect(out.scenes).toEqual([]);
     expect(out.message).toMatch(/kế hoạch nội dung/i);
     expect(chat).toHaveBeenCalledTimes(1);
-    expect(admit).not.toHaveBeenCalled();
+    expect(admitFiles).not.toHaveBeenCalled();
     expect(existsSync(authoredDir(projectId))).toBe(false);
   });
 
   it("repairs a claim-ledger-only content-plan failure once, then proceeds to authoring", async () => {
     const projectId = "pa-plan-repair-ok";
-    const admit = vi.fn(async () => ({ ok: true as const, componentIds: ["alpha", "beta"], files: [] }));
+    const admitFiles = vi.fn(async (files: readonly string[]) => ({ ok: true as const, componentIds: ["alpha", "beta"], files: [...files] }));
     const chat = chatReplies(claimLedgerContentPlanReply(), repairedClaimLedgerContentPlanReply(), validReply());
     const backend = new NineRouterAuthoringBackend({
       client: { chat } as unknown as NineRouterClient,
       tools: {} as never,
       model: () => "test-model",
       apiKey: () => undefined,
-      admit,
+      admitFiles,
     });
 
     const out = await backend.authorScenes({ projectId, input: { text: "chủ đề", urls: [] }, scriptGate: false });
@@ -868,19 +882,19 @@ describe("authorScenes (pure-author)", () => {
     expect(repairText).toContain("CONTENT PLAN REPAIR");
     expect(repairText).toContain("claim-ledger @scene-01");
     expect(repairText).toContain("Do not make uncertain/omit claims supported");
-    expect(admit).toHaveBeenCalledTimes(1);
+    expect(admitFiles).toHaveBeenCalledTimes(1);
   });
 
   it("stops with CONTENT_PLAN_QUALITY_FAILURE when claim-ledger repair still fails", async () => {
     const projectId = "pa-plan-repair-fails";
-    const admit = vi.fn(async () => ({ ok: true as const, componentIds: ["alpha", "beta"], files: [] }));
+    const admitFiles = vi.fn(async (files: readonly string[]) => ({ ok: true as const, componentIds: ["alpha", "beta"], files: [...files] }));
     const chat = chatReplies(claimLedgerContentPlanReply(), claimLedgerContentPlanReply(), validReply());
     const backend = new NineRouterAuthoringBackend({
       client: { chat } as unknown as NineRouterClient,
       tools: {} as never,
       model: () => "test-model",
       apiKey: () => undefined,
-      admit,
+      admitFiles,
     });
 
     const out = await backend.authorScenes({ projectId, input: { text: "chủ đề", urls: [] }, scriptGate: false });
@@ -888,21 +902,21 @@ describe("authorScenes (pure-author)", () => {
     expect(out.scenes).toEqual([]);
     expect(out.message).toMatch(/kế hoạch nội dung/i);
     expect(chat).toHaveBeenCalledTimes(2);
-    expect(admit).not.toHaveBeenCalled();
+    expect(admitFiles).not.toHaveBeenCalled();
     expect(existsSync(authoredDir(projectId))).toBe(false);
   });
 
   it("passes advisory-only content plan issues into authoring instead of blocking", async () => {
     const projectId = "pa-advisory-plan";
-    const admit = vi.fn(async () => ({ ok: true as const, componentIds: ["alpha", "beta"], files: [] }));
-    const { backend, chat } = makeBackend(validReply(), admit, advisoryContentPlanReply());
+    const admitFiles = vi.fn(async (files: readonly string[]) => ({ ok: true as const, componentIds: ["alpha", "beta"], files: [...files] }));
+    const { backend, chat } = makeBackend(validReply(), admitFiles, advisoryContentPlanReply());
     const job: AuthorJob = { projectId, input: { text: "chủ đề", urls: [] }, scriptGate: false };
 
     const out = await backend.authorScenes(job);
 
     expect(out.scenes.map((scene) => scene.sceneId)).toEqual(["scene-01", "scene-02", "scene-03"]);
     expect(chat).toHaveBeenCalledTimes(2);
-    expect(admit).toHaveBeenCalledTimes(1);
+    expect(admitFiles).toHaveBeenCalledTimes(1);
     const authorMessages = chat.mock.calls[1]![1] as ChatMessage[];
     const authorText = authorMessages.map((message) => message.content).join("\n");
     expect(authorText).toContain("CONTENT PLAN ADVISORIES TO RESOLVE IN TSX");
@@ -927,7 +941,11 @@ describe("authorScenes (pure-author)", () => {
       tools: {} as never,
       model: () => "test-model",
       apiKey: () => undefined,
-      admit: vi.fn(async () => ({ ok: true as const, componentIds: ["alpha", "beta"], files: [] })),
+      admitFiles: vi.fn(async (files: readonly string[]) => ({
+        ok: true as const,
+        componentIds: ["alpha", "beta"],
+        files: [...files],
+      })),
       extractUrl,
     });
 
@@ -1272,7 +1290,11 @@ describe("vision-incapable model hardening", () => {
       tools: {} as never,
       model: () => "kr/auto",
       apiKey: () => undefined,
-      admit: vi.fn(async () => ({ ok: true as const, componentIds: ["alpha", "beta"], files: [] })),
+      admitFiles: vi.fn(async (files: readonly string[]) => ({
+        ok: true as const,
+        componentIds: ["alpha", "beta"],
+        files: [...files],
+      })),
     };
     const backend = new NineRouterAuthoringBackend(deps);
     const out = await backend.authorScenes({
@@ -1300,7 +1322,11 @@ describe("vision-incapable model hardening", () => {
       tools: {} as never,
       model: () => "kr/auto",
       apiKey: () => undefined,
-      admit: vi.fn(async () => ({ ok: true as const, componentIds: ["alpha", "beta"], files: [] })),
+      admitFiles: vi.fn(async (files: readonly string[]) => ({
+        ok: true as const,
+        componentIds: ["alpha", "beta"],
+        files: [...files],
+      })),
     };
     const backend = new NineRouterAuthoringBackend(deps);
     // First, an authoring call that hits the 400 marks the model image-unsupported.

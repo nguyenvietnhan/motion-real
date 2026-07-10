@@ -3,7 +3,6 @@ import { existsSync, readFileSync } from "node:fs";
 import { readFile, writeFile } from "node:fs/promises";
 import {
   createLogger,
-  admitProjectScenes,
   admitAuthoredSceneFile,
   loadManifest,
   projectPaths,
@@ -22,6 +21,7 @@ import {
   applyAuthoringCandidate,
   reconcileAuthoringCandidateTransaction,
 } from "./author-candidate-transaction.js";
+import { isCancelled } from "../util/abort.js";
 import {
   collectResearchContext,
   formatUntrustedResearchBlock,
@@ -127,10 +127,11 @@ export type NineRouterBackendDeps = {
    */
   wordsPerSecond?: (projectId: string) => number | undefined | Promise<number | undefined>;
   /**
-   * Admit a project's authored scenes (injectable for tests). The default is a
-   * pure AST gate; authored code is never imported into the Electron/Node host.
+   * Admit staged candidate module paths (injectable for tests).
+   * Must receive the staged file list — never the canonical project id.
+   * Default: pipeline admitAuthoredSceneFiles on those paths.
    */
-  admit?: (projectId: string) => Promise<AdmitProjectResult>;
+  admitFiles?: (files: readonly string[]) => Promise<AdmitProjectResult>;
   /** Admit ONE authored module (injectable for tests; reauthor path). */
   admitOne?: (tsxPath: string) => Promise<AuthoredRegistration>;
   /** Optional structured logger override for focused backend observability tests. */
@@ -192,19 +193,18 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
   ): Promise<{ scenes: AuthoredScene[]; message?: string; unreadableUrls?: string[]; cancelled?: boolean }> {
     const model = this.deps.model();
     if (!model) return { scenes: [], message: "Chưa chọn model AI." };
-    if (signal?.aborted) return { scenes: [], cancelled: true };
+    if (isCancelled(signal)) return { scenes: [], cancelled: true };
     // Drop any half-finished candidate transaction left by a prior crash.
     await reconcileAuthoringCandidateTransaction(job.projectId).catch((_error) => undefined);
 
     // Bounded, concurrent URL grounding (Phase 5). Planner sees labeled untrusted
     // text only; code authoring never receives raw article bodies.
-    if (signal?.aborted) return { scenes: [], cancelled: true };
     const researchReport = await collectResearchContext({
       urls: job.input.urls,
       ...(signal ? { signal } : {}),
       extract: this.deps.extractUrl ?? ((url, options) => extractUrlContent(url, options)),
     });
-    if (signal?.aborted) return { scenes: [], cancelled: true };
+    if (isCancelled(signal)) return { scenes: [], cancelled: true };
     const unreadableUrls = [...researchReport.unreadableUrls, ...researchReport.skippedUrls];
     const researchSources = toResearchSources(researchReport.readableSources);
     const research =
@@ -231,7 +231,6 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
     const wordsPerSecond = await this.deps.wordsPerSecond?.(job.projectId);
     const offeredImages = images.length > 0 ? images : undefined;
 
-    if (signal?.aborted) return { scenes: [], cancelled: true };
     const chat = (selectedModel: string, messages: import("../gateway/ninerouter-client.js").ChatMessage[]) =>
       this.vision.chatWithVisionFallback(selectedModel, messages, signal);
 
@@ -252,16 +251,14 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
         callErrorMessage: authorCallErrorMessage,
         logger: this.logger(),
       });
-      if (signal?.aborted) return { scenes: [], cancelled: true };
+      if (isCancelled(signal)) return { scenes: [], cancelled: true };
       if (!contentPlan.ok) {
         return { scenes: [], message: contentPlan.message, ...(unreadableUrls.length > 0 ? { unreadableUrls } : {}) };
       }
       plannedContent = contentPlan.contentPlan;
       contentPlanAdvisories = contentPlan.advisories;
     } catch (error) {
-      if (signal?.aborted || (error && typeof error === "object" && (error as { name?: string }).name === "AbortError")) {
-        return { scenes: [], cancelled: true };
-      }
+      if (isCancelled(signal, error)) return { scenes: [], cancelled: true };
       throw error;
     }
     const batchDecision = planAuthorBatching({
@@ -299,7 +296,7 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
         callLogger: log,
         logger: this.logger(),
       });
-      if (signal?.aborted) return { scenes: [], cancelled: true };
+      if (isCancelled(signal)) return { scenes: [], cancelled: true };
       if (!batched.ok) return { scenes: [], message: batched.message, ...(unreadableUrls.length > 0 ? { unreadableUrls } : {}) };
       parsed = batched.parsed;
     } else {
@@ -317,7 +314,7 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
         callLogger: log,
         logger: this.logger(),
       });
-      if (signal?.aborted) return { scenes: [], cancelled: true };
+      if (isCancelled(signal)) return { scenes: [], cancelled: true };
       if (!authored.ok) return { scenes: [], message: authored.message, ...(unreadableUrls.length > 0 ? { unreadableUrls } : {}) };
       parsed = authored.parsed;
     }
@@ -361,10 +358,8 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
       candidate: { manifest: engineManifest, modules, evidence },
       ...(signal ? { signal } : {}),
       deps: {
-        // Injectable admit keeps tests; production admits staged file paths.
-        admitFiles: this.deps.admit
-          ? async () => this.deps.admit!(job.projectId)
-          : undefined,
+        // Staged paths only. Project-level admit is intentionally not a seam here.
+        ...(this.deps.admitFiles ? { admitFiles: this.deps.admitFiles } : {}),
         onCommitted: async (info: { previousComponentIds: string[]; nextComponentIds: string[] }) => {
           for (const id of new Set([...info.previousComponentIds, ...info.nextComponentIds])) {
             unregisterComponent(id);
