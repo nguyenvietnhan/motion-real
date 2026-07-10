@@ -14,7 +14,7 @@ import { logAuthoringFailure } from "./authoring-failure.js";
 import { rawAiReplyLogFields } from "./authoring-log-policy.js";
 import { computePacingBudget, type PacingBudget } from "./pacing-policy.js";
 import type { AuthorImageInput } from "./prompt.js";
-import type { ResearchSource } from "./content-evidence.js";
+import { excerptMatchesSource, type ResearchSource } from "./content-evidence.js";
 
 export const CONTENT_PLAN_PARSE_FAILURE =
   "AI chưa lập được kế hoạch nội dung hợp lệ. Hãy thử lại hoặc mô tả rõ nguồn/ý chính hơn.";
@@ -169,7 +169,27 @@ async function repairContentPlanIfPossible(args: {
   }
   logContentPlanNormalizations(args.logger, args.projectId, parsed.diagnostics);
 
-  const quality = evaluateContentPlanQuality(parsed.plan, args.pacing, args.sources);
+  let plan = parsed.plan;
+  let quality = evaluateContentPlanQuality(plan, args.pacing, args.sources);
+  if (quality.blockingIssues.length > 0) {
+    // Last resort for claim-provenance only: demote unusable source_material
+    // claims instead of failing the whole create (model often paraphrases quotes).
+    const onlyProvenance = quality.blockingIssues.every((issue) => issue.check === "claim-provenance");
+    if (onlyProvenance && args.sources !== undefined) {
+      const demoted = demoteInvalidProvenanceClaims(plan, args.sources);
+      if (demoted.demotedClaimIds.length > 0) {
+        args.logger.warn(
+          {
+            projectId: args.projectId,
+            demotedClaimIds: demoted.demotedClaimIds,
+          },
+          "content-plan demoted unusable source_material claims after repair",
+        );
+        plan = demoted.plan;
+        quality = evaluateContentPlanQuality(plan, args.pacing, args.sources);
+      }
+    }
+  }
   if (quality.blockingIssues.length > 0) {
     args.logger.error(
       { projectId: args.projectId, qualityIssues: quality.blockingIssues },
@@ -177,7 +197,51 @@ async function repairContentPlanIfPossible(args: {
     );
     return null;
   }
-  return { plan: parsed.plan, quality };
+  return { plan, quality };
+}
+
+/**
+ * Deterministic recovery: unusable source_material claims become omit/uncertain
+ * and are stripped from scene evidenceClaimIds. Does not invent excerpts.
+ */
+export function demoteInvalidProvenanceClaims(
+  plan: ContentPlan,
+  sources: readonly ResearchSource[],
+): { plan: ContentPlan; demotedClaimIds: string[] } {
+  const sourcesById = new Map(sources.map((s) => [s.id, s]));
+  const demotedClaimIds: string[] = [];
+  const claims = plan.claims.map((claim) => {
+    const usable = claim.confidence === "supported" && claim.action === "use";
+    if (!usable || claim.support !== "source_material") return claim;
+    if (sources.length === 0) {
+      if (claim.sourceRef) {
+        demotedClaimIds.push(claim.id);
+        return { ...claim, confidence: "uncertain" as const, action: "omit" as const, sourceRef: undefined };
+      }
+      return claim;
+    }
+    const ref = claim.sourceRef;
+    const ok =
+      ref &&
+      sourcesById.has(ref.sourceId) &&
+      excerptMatchesSource(ref.excerpt, sourcesById.get(ref.sourceId)!.body);
+    if (ok) return claim;
+    demotedClaimIds.push(claim.id);
+    return { ...claim, confidence: "uncertain" as const, action: "omit" as const, sourceRef: undefined };
+  });
+  if (demotedClaimIds.length === 0) return { plan, demotedClaimIds };
+  const demoted = new Set(demotedClaimIds);
+  return {
+    demotedClaimIds,
+    plan: {
+      ...plan,
+      claims,
+      scenes: plan.scenes.map((scene) => ({
+        ...scene,
+        evidenceClaimIds: scene.evidenceClaimIds.filter((id) => !demoted.has(id)),
+      })),
+    },
+  };
 }
 
 function logContentPlanNormalizations(

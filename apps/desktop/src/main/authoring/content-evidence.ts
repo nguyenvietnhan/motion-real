@@ -48,15 +48,52 @@ export function normalizedEvidenceText(value: string): string {
   return value
     .normalize("NFKC")
     .toLowerCase()
+    // Readability often glues sentences: "human?We built" / "app.See your".
+    // Insert a space after sentence punctuation when the next char is a letter.
+    .replace(/([.!?…])([a-z0-9])/g, "$1 $2")
     .replace(/\s+/g, " ")
     .trim();
 }
 
+/** Letters/digits only — used for space-insensitive containment after normalize. */
+function compactEvidenceText(value: string): string {
+  return normalizedEvidenceText(value).replace(/[^a-z0-9]+/g, "");
+}
+
+/**
+ * True when `excerpt` appears in `sourceBody` as a contiguous quote.
+ * Matching is case/whitespace tolerant and tolerates missing spaces after
+ * punctuation (common in Readability plain-text dumps). It does NOT accept
+ * paraphrases: the letter/digit sequence must still be a substring of the body.
+ */
 export function excerptMatchesSource(excerpt: string, sourceBody: string): boolean {
   const ex = normalizedEvidenceText(excerpt);
   if (ex.length < EXCERPT_MIN || ex.length > EXCERPT_MAX) return false;
   const body = normalizedEvidenceText(sourceBody);
-  return body.includes(ex);
+  if (body.includes(ex)) return true;
+
+  // Fallback: ignore remaining whitespace/punctuation differences.
+  const exCompact = compactEvidenceText(excerpt);
+  const bodyCompact = compactEvidenceText(sourceBody);
+  // Keep a minimum compacted length so tiny fragments cannot match by accident.
+  if (exCompact.length < 16) return false;
+  return bodyCompact.includes(exCompact);
+}
+
+/**
+ * Strip planning-file YAML frontmatter and leading H1 so provenance matching and
+ * planner prompts see article text only (not header keys the model might quote).
+ */
+export function articleBodyFromResearchFile(fileText: string): string {
+  let text = fileText.replace(/^\uFEFF/, "").trim();
+  if (text.startsWith("---")) {
+    const close = text.indexOf("\n---", 3);
+    if (close !== -1) {
+      text = text.slice(close + 4).trim();
+    }
+  }
+  text = text.replace(/^#\s+[^\n]+\n+/, "").trim();
+  return text;
 }
 
 export function isValidSourceId(id: string): boolean {

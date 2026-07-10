@@ -9,6 +9,7 @@ import {
   usableClaims,
   type ContentPlan,
 } from "./content-plan.js";
+import { demoteInvalidProvenanceClaims } from "./content-plan-runner.js";
 import type { ContentPart } from "./prompt.js";
 import { computePacingBudget } from "./pacing-policy.js";
 import {
@@ -455,6 +456,24 @@ describe("claim-provenance quality (evaluateContentPlanQuality + sources)", () =
     // Backward-compatible path for text-only / non-URL authoring tests.
     const quality = evaluateContentPlanQuality(provenancePlan());
     expect(quality.blockingIssues.filter((i) => i.check === "claim-provenance")).toEqual([]);
+  });
+
+  it("demotes unusable source_material claims instead of leaving mixed provenance", () => {
+    const plan = provenancePlan({
+      sourceRef: {
+        sourceId: "source-01",
+        excerpt: "hallucinated fifty billion nonsense quote here",
+      },
+    });
+    const { plan: fixed, demotedClaimIds } = demoteInvalidProvenanceClaims(plan, sources);
+    expect(demotedClaimIds).toEqual(["claim-01"]);
+    expect(fixed.claims.find((c) => c.id === "claim-01")).toMatchObject({
+      action: "omit",
+      confidence: "uncertain",
+    });
+    expect(fixed.claims.find((c) => c.id === "claim-01")?.sourceRef).toBeUndefined();
+    expect(fixed.scenes.every((s) => !s.evidenceClaimIds.includes("claim-01"))).toBe(true);
+    expect(evaluateContentPlanQuality(fixed, undefined, sources).blockingIssues.filter((i) => i.check === "claim-provenance")).toEqual([]);
   });
 });
 

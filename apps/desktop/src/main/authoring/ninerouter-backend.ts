@@ -36,7 +36,12 @@ import {
 import { VisionChatSession } from "./authoring-vision-chat.js";
 import { type AuthorImageInput } from "./prompt.js";
 import { runContentPlan } from "./content-plan-runner.js";
-import { buildProjectEvidence, researchSourcesFromIngest, type ResearchSource } from "./content-evidence.js";
+import {
+  articleBodyFromResearchFile,
+  buildProjectEvidence,
+  researchSourcesFromIngest,
+  type ResearchSource,
+} from "./content-evidence.js";
 import { runBatchedAuthorReply, runSingleAuthorReply, type SuccessfulAuthorReply } from "./author-reply-runner.js";
 import { runReauthor } from "./reauthor-runner.js";
 import { runImageFilter } from "./image-filter-runner.js";
@@ -195,19 +200,27 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
         });
       }
       if (body && body.trim()) {
-        chunks.push(`# ${url}\n${body.trim()}`);
-        const meta = ing && ing.ok ? ing.data.metadata : undefined;
-        researchBodies.push({
-          metadata: {
-            sourceUrl: meta?.sourceUrl ?? url,
-            ...(meta?.title ? { title: meta.title } : {}),
-            ...(meta?.site ? { site: meta.site } : {}),
-            ...(meta?.author ? { author: meta.author } : {}),
-            ...(meta?.publishedDate ? { publishedDate: meta.publishedDate } : {}),
-            ...(meta?.fetchedAt ? { fetchedAt: meta.fetchedAt } : {}),
-          },
-          body: body.trim(),
-        });
+        // Provenance matching and planner labels need article text only — not the
+        // planning YAML frontmatter / H1 wrapper written by ingest_url.
+        const articleBody = articleBodyFromResearchFile(body);
+        if (!articleBody) {
+          unreadableUrls.push(url);
+          log.warn({ url }, "ingested research file had no article body after frontmatter strip");
+        } else {
+          chunks.push(`# ${url}\n${articleBody}`);
+          const meta = ing && ing.ok ? ing.data.metadata : undefined;
+          researchBodies.push({
+            metadata: {
+              sourceUrl: meta?.sourceUrl ?? url,
+              ...(meta?.title ? { title: meta.title } : {}),
+              ...(meta?.site ? { site: meta.site } : {}),
+              ...(meta?.author ? { author: meta.author } : {}),
+              ...(meta?.publishedDate ? { publishedDate: meta.publishedDate } : {}),
+              ...(meta?.fetchedAt ? { fetchedAt: meta.fetchedAt } : {}),
+            },
+            body: articleBody,
+          });
+        }
       } else {
         unreadableUrls.push(url);
         const reason = ing && !ing.ok ? `${ing.error.stage}: ${ing.error.cause}` : "no readable article text";

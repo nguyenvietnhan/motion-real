@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  articleBodyFromResearchFile,
   buildProjectEvidence,
   excerptMatchesSource,
   isValidExcerpt,
@@ -12,11 +13,42 @@ describe("content-evidence helpers", () => {
     expect(normalizedEvidenceText("  Hello\nWorld  ")).toBe("hello world");
   });
 
+  it("inserts spaces after glued sentence punctuation from Readability dumps", () => {
+    expect(normalizedEvidenceText("human?We built")).toBe("human? we built");
+    expect(normalizedEvidenceText("app.See your")).toBe("app. see your");
+  });
+
   it("matches exact excerpts and rejects hallucinated quotes", () => {
     const body = "The company reported revenue of 12 billion dollars in 2024.";
     expect(excerptMatchesSource("reported revenue of 12 billion dollars", body)).toBe(true);
     expect(excerptMatchesSource("reported revenue of 50 billion dollars", body)).toBe(false);
     expect(excerptMatchesSource("short", body)).toBe(false);
+  });
+
+  it("matches natural excerpts against readability-glued article bodies", () => {
+    // Live Anthropic research dump glues sentences without spaces after ?/.
+    const glued =
+      "when is AI suited to a task, and when is it better left to a human?We built this feature to help answer these types of questions.";
+    expect(
+      excerptMatchesSource(
+        "when is it better left to a human? We built this feature to help answer",
+        glued,
+      ),
+    ).toBe(true);
+  });
+
+  it("strips planning frontmatter and H1 from research files", () => {
+    const file = `---
+sourceUrl: "https://example.com/a"
+title: Hello
+fetchedAt: "2026-01-01T00:00:00.000Z"
+---
+
+# Hello
+
+Article body with enough text for matching later.
+`;
+    expect(articleBodyFromResearchFile(file)).toBe("Article body with enough text for matching later.");
   });
 
   it("assigns sequential source ids in URL order", () => {
