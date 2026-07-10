@@ -171,23 +171,25 @@ async function repairContentPlanIfPossible(args: {
 
   let plan = parsed.plan;
   let quality = evaluateContentPlanQuality(plan, args.pacing, args.sources);
-  if (quality.blockingIssues.length > 0) {
-    // Last resort for claim-provenance only: demote unusable source_material
-    // claims instead of failing the whole create (model often paraphrases quotes).
-    const onlyProvenance = quality.blockingIssues.every((issue) => issue.check === "claim-provenance");
-    if (onlyProvenance && args.sources !== undefined) {
-      const demoted = demoteInvalidProvenanceClaims(plan, args.sources);
-      if (demoted.demotedClaimIds.length > 0) {
-        args.logger.warn(
-          {
-            projectId: args.projectId,
-            demotedClaimIds: demoted.demotedClaimIds,
-          },
-          "content-plan demoted unusable source_material claims after repair",
-        );
-        plan = demoted.plan;
-        quality = evaluateContentPlanQuality(plan, args.pacing, args.sources);
-      }
+  // Deterministic recovery after repair: demote unusable source_material claims
+  // whenever provenance still fails (not only when it is the sole blocker).
+  // Models often paraphrase arXiv/HTML text so excerpts never match exactly.
+  if (
+    args.sources !== undefined &&
+    quality.blockingIssues.some((issue) => issue.check === "claim-provenance")
+  ) {
+    const recovered = recoverAfterInvalidProvenance(plan, args.sources, args.pacing);
+    if (recovered.demotedClaimIds.length > 0) {
+      args.logger.warn(
+        {
+          projectId: args.projectId,
+          demotedClaimIds: recovered.demotedClaimIds,
+          softenedClaimLedger: recovered.softenedClaimLedger,
+        },
+        "content-plan demoted unusable source_material claims after repair",
+      );
+      plan = recovered.plan;
+      quality = recovered.quality;
     }
   }
   if (quality.blockingIssues.length > 0) {
@@ -198,6 +200,64 @@ async function repairContentPlanIfPossible(args: {
     return null;
   }
   return { plan, quality };
+}
+
+/**
+ * After repair: demote bad source_material claims, then soften residual claim-ledger
+ * blockers caused by emptied evidenceClaimIds (numbers remain in narration but we
+ * refuse to invent matching excerpts). Other blockers stay hard.
+ */
+export function recoverAfterInvalidProvenance(
+  plan: ContentPlan,
+  sources: readonly ResearchSource[],
+  pacing?: PacingBudget,
+): {
+  plan: ContentPlan;
+  quality: ContentPlanQualityResult;
+  demotedClaimIds: string[];
+  softenedClaimLedger: boolean;
+} {
+  const demoted = demoteInvalidProvenanceClaims(plan, sources);
+  if (demoted.demotedClaimIds.length === 0) {
+    return {
+      plan,
+      quality: evaluateContentPlanQuality(plan, pacing, sources),
+      demotedClaimIds: [],
+      softenedClaimLedger: false,
+    };
+  }
+  let quality = evaluateContentPlanQuality(demoted.plan, pacing, sources);
+  let softenedClaimLedger = false;
+  if (quality.blockingIssues.some((issue) => issue.check === "claim-ledger")) {
+    quality = softenBlockingChecks(quality, "claim-ledger");
+    softenedClaimLedger = true;
+  }
+  return {
+    plan: demoted.plan,
+    quality,
+    demotedClaimIds: demoted.demotedClaimIds,
+    softenedClaimLedger,
+  };
+}
+
+function softenBlockingChecks(
+  quality: ContentPlanQualityResult,
+  check: ContentPlanQualityIssue["check"],
+): ContentPlanQualityResult {
+  const issues = quality.issues.map((issue) =>
+    issue.check === check && issue.severity === "blocking"
+      ? {
+          ...issue,
+          severity: "advisory" as const,
+          message: `${issue.message} (advisory after demoting unusable source claims)`,
+        }
+      : issue,
+  );
+  return {
+    issues,
+    blockingIssues: issues.filter((issue) => issue.severity === "blocking"),
+    advisoryIssues: issues.filter((issue) => issue.severity === "advisory"),
+  };
 }
 
 /**

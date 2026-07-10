@@ -9,7 +9,7 @@ import {
   usableClaims,
   type ContentPlan,
 } from "./content-plan.js";
-import { demoteInvalidProvenanceClaims } from "./content-plan-runner.js";
+import { demoteInvalidProvenanceClaims, recoverAfterInvalidProvenance } from "./content-plan-runner.js";
 import type { ContentPart } from "./prompt.js";
 import { computePacingBudget } from "./pacing-policy.js";
 import {
@@ -474,6 +474,33 @@ describe("claim-provenance quality (evaluateContentPlanQuality + sources)", () =
     expect(fixed.claims.find((c) => c.id === "claim-01")?.sourceRef).toBeUndefined();
     expect(fixed.scenes.every((s) => !s.evidenceClaimIds.includes("claim-01"))).toBe(true);
     expect(evaluateContentPlanQuality(fixed, undefined, sources).blockingIssues.filter((i) => i.check === "claim-provenance")).toEqual([]);
+  });
+
+  it("after demote, residual claim-ledger from emptied evidence becomes advisory so create can continue", () => {
+    // Mirrors arXiv-style paraphrase failures: repair leaves bad excerpts + a scene
+    // that still names a concrete figure after its only evidence claim is demoted.
+    const plan = {
+      ...provenancePlan({
+        sourceRef: {
+          sourceId: "source-01",
+          excerpt: "this paraphrased excerpt never appears in the body at all",
+        },
+      }),
+      scenes: [
+        {
+          ...provenancePlan().scenes[0]!,
+          narration: "Paper reports 42.7% accuracy on the held-out set.",
+          onScreenText: "42.7%",
+          evidenceClaimIds: ["claim-01"],
+        },
+      ],
+    };
+    const recovered = recoverAfterInvalidProvenance(plan, sources);
+    expect(recovered.demotedClaimIds).toEqual(["claim-01"]);
+    expect(recovered.softenedClaimLedger).toBe(true);
+    expect(recovered.quality.blockingIssues.filter((i) => i.check === "claim-provenance")).toEqual([]);
+    expect(recovered.quality.blockingIssues.filter((i) => i.check === "claim-ledger")).toEqual([]);
+    expect(recovered.quality.advisoryIssues.some((i) => i.check === "claim-ledger")).toBe(true);
   });
 });
 
