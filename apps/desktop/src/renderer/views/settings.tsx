@@ -338,11 +338,6 @@ export const SettingsView: React.FC<{
                   ]}
                   style={{ width: "100%", maxWidth: 180 }}
                 />
-                <p style={{ margin: "8px 0 0", color: "var(--muted-foreground)", fontSize: 12 }}>
-                  {voiceProvider === "vivibe"
-                    ? "Vivibe chỉ hỗ trợ tiếng Việt."
-                    : "ElevenLabs hỗ trợ video tiếng Việt và tiếng Anh."}
-                </p>
               </Field>
               <Field label={`API key ${voiceProvider === "vivibe" ? "Vivibe" : "ElevenLabs"}`} hint={`Trạng thái: ${credentialState === "saved" ? "đã lưu an toàn" : credentialState === "environment" ? "đang dùng từ .env" : "chưa cấu hình"}.`}>
                 <div className="ns-secret-field">

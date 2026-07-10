@@ -118,20 +118,39 @@ function KnobButton<T extends string | number>(props: {
   );
 }
 
+/**
+ * Language options depend on voice: Vivibe is Vietnamese-only, so English is
+ * hidden (no yellow warn, no silent switch to ElevenLabs when picking EN).
+ */
+export function languageOptionsForProvider(
+  provider: VoiceProviderChoice,
+): readonly { value: VideoLanguageChoice; label: string }[] {
+  return provider === "vivibe"
+    ? [{ value: "vi", label: "Việt" }]
+    : [
+        { value: "vi", label: "Việt" },
+        { value: "en", label: "Anh" },
+      ];
+}
+
+/** @deprecated Prefer languageOptionsForProvider; kept for tests that list labels. */
+export const VIDEO_LANGUAGE_OPTIONS = [
+  { value: "vi", label: "Việt" },
+  { value: "en", label: "Anh" },
+] as const satisfies readonly { value: VideoLanguageChoice; label: string }[];
+
+/** Picking a language never changes provider; EN is only offered under ElevenLabs. */
 export function applyVideoLanguageSelection(
   next: VideoLanguageChoice,
   currentProvider: VoiceProviderChoice,
 ): { videoLanguage: VideoLanguageChoice; voiceProvider: VoiceProviderChoice } {
-  return next === "en"
-    ? { videoLanguage: "en", voiceProvider: "elevenlabs" }
-    : { videoLanguage: "vi", voiceProvider: currentProvider };
+  if (currentProvider === "vivibe") {
+    return { videoLanguage: "vi", voiceProvider: "vivibe" };
+  }
+  return { videoLanguage: next, voiceProvider: currentProvider };
 }
 
-export const VIDEO_LANGUAGE_OPTIONS = [
-  { value: "vi", label: "Việt" },
-  { value: "en", label: "Anh", warn: "Video tiếng Anh sử dụng ElevenLabs." },
-] as const satisfies readonly { value: VideoLanguageChoice; label: string; warn?: string }[];
-
+/** Vivibe forces Vietnamese; ElevenLabs keeps the current language. */
 export function applyVoiceProviderSelection(
   next: VoiceProviderChoice,
   currentLanguage: VideoLanguageChoice,
@@ -490,7 +509,7 @@ export const HomeView: React.FC<{
                     setVideoLanguage(selection.videoLanguage);
                     setVoiceProvider(selection.voiceProvider);
                   }}
-                  options={VIDEO_LANGUAGE_OPTIONS}
+                  options={languageOptionsForProvider(voiceProvider)}
                 />
               </div>
 
@@ -509,7 +528,7 @@ export const HomeView: React.FC<{
                     setVoiceProvider(selection.voiceProvider);
                   }}
                   options={[
-                    { value: "vivibe", label: "Vivibe", warn: "Vivibe chỉ hỗ trợ tiếng Việt." },
+                    { value: "vivibe", label: "Vivibe" },
                     { value: "elevenlabs", label: "ElevenLabs" },
                   ]}
                 />

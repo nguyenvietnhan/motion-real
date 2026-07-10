@@ -1,11 +1,28 @@
 import { describe, expect, it } from "vitest";
-import { applyVideoLanguageSelection, applyVoiceProviderSelection, VIDEO_LANGUAGE_OPTIONS } from "./home.js";
+import {
+  applyVideoLanguageSelection,
+  applyVoiceProviderSelection,
+  languageOptionsForProvider,
+  VIDEO_LANGUAGE_OPTIONS,
+} from "./home.js";
 
 describe("create-screen language/provider coupling", () => {
-  it("selecting English switches the provider to ElevenLabs", () => {
-    expect(applyVideoLanguageSelection("en", "vivibe")).toEqual({
+  it("Vivibe only offers Vietnamese; ElevenLabs offers both", () => {
+    expect(languageOptionsForProvider("vivibe").map((o) => o.value)).toEqual(["vi"]);
+    expect(languageOptionsForProvider("elevenlabs").map((o) => o.value)).toEqual(["vi", "en"]);
+  });
+
+  it("picking English under ElevenLabs keeps ElevenLabs", () => {
+    expect(applyVideoLanguageSelection("en", "elevenlabs")).toEqual({
       videoLanguage: "en",
       voiceProvider: "elevenlabs",
+    });
+  });
+
+  it("picking English under Vivibe is forced back to Vietnamese (defensive)", () => {
+    expect(applyVideoLanguageSelection("en", "vivibe")).toEqual({
+      videoLanguage: "vi",
+      voiceProvider: "vivibe",
     });
   });
 
@@ -16,7 +33,7 @@ describe("create-screen language/provider coupling", () => {
     });
   });
 
-  it("never exposes a mixed-language selection", () => {
+  it("never exposes a mixed-language selection label", () => {
     expect(VIDEO_LANGUAGE_OPTIONS.map((option) => option.value)).toEqual(["vi", "en"]);
     expect(VIDEO_LANGUAGE_OPTIONS.map((option) => option.label)).not.toContain("Trộn");
   });
