@@ -122,12 +122,12 @@ export const ProjectsView: React.FC<{
         }
       />
       {load === "loading" && <LoadingLine />}
-      {load === "empty" && <EmptyState icon={Icon.film({ size: 34 })} title="Chưa có dự án" hint="Tạo video để bắt đầu." />}
+      {load === "empty" && <EmptyState icon={Icon.film({ size: 34 })} title="Chưa có dự án" hint="Tạo video mới để bắt đầu." />}
       {load === "error" && (
         <EmptyState
           icon={Icon.film({ size: 34 })}
-          title="Không tải được"
-          hint="Thử lại."
+          title="Không tải được danh sách"
+          hint="Thử lại sau giây lát."
           action={onRetry && <button className="ns-btn ns-btn-primary" onClick={onRetry}>Thử lại</button>}
         />
       )}

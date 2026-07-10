@@ -207,11 +207,12 @@ export const HomeView: React.FC<{
   const [videoLanguage, setVideoLanguage] = useState<VideoLanguageChoice>("vi");
   const [voiceProvider, setVoiceProvider] = useState<VoiceProviderChoice>(defaultVoiceProvider);
   const [creating, setCreating] = useState(false);
+  // Conversational examples (not rigid labels) — typewriter suggests how to start.
   const PLACEHOLDERS = [
-    "Ý tưởng video…",
-    "Dán link…",
-    "Chủ đề…",
-    "Thả ảnh…",
+    "Hãy tạo cho tôi video về robot AI tuần này…",
+    "Từ link này: https://vnexpress.net/…",
+    "Chủ đề: vì sao startup nhỏ đang thắng lớn…",
+    "Kéo thả ảnh sản phẩm, rồi kể chuyện cho tôi…",
   ];
   const [currentPlaceholder, setCurrentPlaceholder] = useState("");
   useEffect(() => {
@@ -285,7 +286,7 @@ export const HomeView: React.FC<{
     });
     if (res.rejected.length > 0) {
       notify.warning({
-        title: "Bỏ qua ảnh",
+        title: "Một số ảnh bị bỏ qua",
         message: `${res.rejected.length} ảnh không hợp lệ.`,
         details: rejectedImageDetails(res.rejected),
       });
@@ -299,8 +300,8 @@ export const HomeView: React.FC<{
       .catch((err: unknown) => {
         const details = errorDetails(err);
         notify.error({
-          title: "Không nạp ảnh",
-          message: compactNotificationMessage(details, "Thử lại."),
+          title: "Không nạp được ảnh",
+          message: compactNotificationMessage(details, "Kiểm tra tệp rồi thử lại."),
           details,
         });
       });
@@ -321,8 +322,8 @@ export const HomeView: React.FC<{
       .catch((err: unknown) => {
         const details = errorDetails(err);
         notify.error({
-          title: "Không nạp ảnh",
-          message: compactNotificationMessage(details, "Thử lại."),
+          title: "Không nạp được ảnh",
+          message: compactNotificationMessage(details, "Kiểm tra tệp rồi thử lại."),
           details,
         });
       });
@@ -487,7 +488,7 @@ export const HomeView: React.FC<{
             </div>
           </div>
           
-          {!aiReady && <p className="ns-create-hint warning">Chưa kết nối AI. Mở Cài đặt.</p>}
+          {!aiReady && <p className="ns-create-hint warning">Chưa kết nối AI. Mở Cài đặt để kết nối.</p>}
 
           {/* Compact delivery knobs — one tight row, no empty column stretch */}
           <div className="ns-create-knobs" role="group" aria-label="Cấu hình">
@@ -549,14 +550,14 @@ export const HomeView: React.FC<{
         <EmptyState
           icon={Icon.film({ size: 34 })}
           title="Chưa có video"
-          hint="Nhập chủ đề hoặc dán link ở trên."
+          hint="Nhập ý tưởng hoặc dán link ở trên để bắt đầu."
         />
       )}
       {load === "error" && (
         <EmptyState
           icon={Icon.film({ size: 34 })}
-          title="Không tải được"
-          hint="Thử lại."
+          title="Không tải được danh sách"
+          hint="Thử lại sau giây lát."
           action={onRetry && <button className="ns-btn ns-btn-primary" onClick={onRetry}>Thử lại</button>}
         />
       )}

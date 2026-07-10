@@ -78,8 +78,8 @@ export const ProjectDiagnosticsPanel: React.FC<{
       .catch((error: unknown) => {
         const details = errorDetails(error);
         notify.error({
-          title: "Không tải log",
-          message: compactNotificationMessage(details, "Thử lại."),
+          title: "Không tải được nhật ký",
+          message: compactNotificationMessage(details, "Thử lại sau."),
           details,
         });
       })
@@ -94,14 +94,14 @@ export const ProjectDiagnosticsPanel: React.FC<{
       return `${when} — ${e.message}${scene}`;
     });
     const text = [
-      `Log · ${report.projectId}`,
-      report.truncated ? "(rút gọn)" : "",
+      `Nhật ký · ${report.projectId}`,
+      report.truncated ? "(đã rút gọn)" : "",
       ...lines,
     ]
       .filter(Boolean)
       .join("\n");
     void navigator.clipboard?.writeText(text).catch(() => {
-      notify.error({ title: "Không copy được", message: "Clipboard không dùng được." });
+      notify.error({ title: "Không sao chép được", message: "Clipboard không khả dụng." });
     });
   };
 
@@ -120,7 +120,7 @@ export const ProjectDiagnosticsPanel: React.FC<{
           if (next) refresh();
         }}
       >
-        <span className="ns-diag-label-short">{open ? "Ẩn" : "Log"}</span>
+        <span className="ns-diag-label-short">{open ? "Ẩn" : "Nhật ký"}</span>
       </button>
       {open && placement && (
         <div
@@ -136,7 +136,7 @@ export const ProjectDiagnosticsPanel: React.FC<{
         >
           <div className="ns-diag-toolbar">
             <button type="button" className="ns-btn" disabled={loading} onClick={refresh}>
-              {loading ? "…" : "Làm mới"}
+              {loading ? "Đang tải…" : "Làm mới"}
             </button>
             <button
               type="button"
@@ -144,13 +144,13 @@ export const ProjectDiagnosticsPanel: React.FC<{
               disabled={!report || report.entries.length === 0}
               onClick={copySummary}
             >
-              Copy
+              Sao chép
             </button>
-            {report?.truncated && <span className="ns-diag-truncated">Rút gọn</span>}
+            {report?.truncated && <span className="ns-diag-truncated">Đã rút gọn</span>}
           </div>
           {!report && !loading && <p className="ns-diag-empty">Chưa có dữ liệu.</p>}
           {report && report.entries.length === 0 && (
-            <p className="ns-diag-empty">Chưa có bước nào.</p>
+            <p className="ns-diag-empty">Chưa ghi nhận bước xử lý nào.</p>
           )}
           {report && report.entries.length > 0 && (
             <ul className="ns-diag-list">

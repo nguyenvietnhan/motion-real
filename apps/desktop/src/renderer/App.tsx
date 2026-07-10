@@ -299,8 +299,8 @@ const AppShell: React.FC = () => {
                 .catch((err: unknown) => {
                   const details = errorDetails(err);
                   notify.error({
-                    title: "Không tạo được",
-                    message: compactNotificationMessage(details, "Thử lại."),
+                    title: "Không tạo được video",
+                    message: compactNotificationMessage(details, "Kiểm tra cài đặt rồi thử lại."),
                     details,
                   });
                 });
@@ -357,16 +357,16 @@ const AppShell: React.FC = () => {
                   } catch (error: unknown) {
                     const details = errorDetails(error);
                     notify.error({
-                      title: "Chưa lưu model",
-                      message: compactNotificationMessage(details, "Có thể mất sau khi mở lại app."),
+                      title: "Model chưa lưu được",
+                      message: compactNotificationMessage(details, "Lựa chọn có thể mất sau khi mở lại app."),
                       details,
                     });
                   }
                 } catch (error: unknown) {
                   const details = errorDetails(error);
                   notify.error({
-                    title: "Không chọn model",
-                    message: compactNotificationMessage(details, "Thử lại."),
+                    title: "Không chọn được model",
+                    message: compactNotificationMessage(details, "Thử chọn lại model."),
                     details,
                   });
                 }

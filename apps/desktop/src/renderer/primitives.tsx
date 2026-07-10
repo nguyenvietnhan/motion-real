@@ -15,10 +15,10 @@ import { Icon } from "./icons.js";
 export type Screen = "home" | "projects" | "settings" | "workspace";
 
 export function aiStatus(gateway: GatewayState, account: AiAccountState): { color: string; text: string; sub?: string } {
-  if (gateway.kind === "starting") return { color: "var(--muted-foreground)", text: "Đang khởi động…" };
-  if (gateway.kind === "unavailable") return { color: "var(--danger)", text: "AI lỗi" };
+  if (gateway.kind === "starting") return { color: "var(--muted-foreground)", text: "Đang khởi động AI…" };
+  if (gateway.kind === "unavailable") return { color: "var(--danger)", text: "AI chưa sẵn sàng" };
   if (account.kind !== "connected" || account.accounts.length === 0)
-    return { color: "var(--warn)", text: "Chưa kết nối" };
+    return { color: "var(--warn)", text: "Chưa kết nối AI" };
   // Sidebar stays quiet: email/label only — model id lives in Settings.
   return {
     color: "var(--good)",

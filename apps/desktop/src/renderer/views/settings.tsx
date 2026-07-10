@@ -146,8 +146,8 @@ export const SettingsView: React.FC<{
         const details = errorDetails(error);
         setSaveState("error");
         notify.error({
-          title: "Không lưu",
-          message: compactNotificationMessage(details, "Thử lại."),
+          title: "Không lưu được cài đặt",
+          message: compactNotificationMessage(details, "Thay đổi chưa được lưu."),
           details,
         });
       });
@@ -161,8 +161,8 @@ export const SettingsView: React.FC<{
       .catch((error: unknown) => {
         const details = errorDetails(error);
         notify.error({
-          title: "Không lưu key",
-          message: compactNotificationMessage(details, "Thử lại."),
+          title: "Không lưu được API key",
+          message: compactNotificationMessage(details, "Kiểm tra key rồi thử lại."),
           details,
         });
       });
@@ -173,8 +173,8 @@ export const SettingsView: React.FC<{
     void onClearApiKey(provider).catch((error: unknown) => {
       const details = errorDetails(error);
       notify.error({
-        title: "Không xóa key",
-        message: compactNotificationMessage(details, "Thử lại."),
+        title: "Không xóa được API key",
+        message: compactNotificationMessage(details, "Thử lại sau."),
         details,
       });
     });
@@ -201,14 +201,14 @@ export const SettingsView: React.FC<{
         <div className="ns-settings-main">
           {tab === "ai" && (
             <SettingsCard title="Tài khoản AI">
-              {gateway.kind === "starting" && <p style={{ color: "var(--muted-foreground)", margin: 0 }}>Đang khởi động…</p>}
+              {gateway.kind === "starting" && <p style={{ color: "var(--muted-foreground)", margin: 0 }}>Đang khởi động dịch vụ AI…</p>}
               {gateway.kind === "unavailable" && (
-                <p style={{ color: "var(--danger)", margin: 0 }}>AI lỗi. Kiểm tra rồi mở lại app.</p>
+                <p style={{ color: "var(--danger)", margin: 0 }}>Không khởi động được 9Router. Kiểm tra rồi mở lại app.</p>
               )}
               {gateway.kind === "ready" && connected.length === 0 && (
                 <>
                   <p style={{ margin: "0 0 16px", fontSize: 14, color: "var(--muted-foreground)" }}>
-                    Chưa có tài khoản. Đăng nhập qua 9Router.
+                    Chưa có tài khoản. Đăng nhập qua 9Router để kết nối AI.
                   </p>
                   <button className="ns-btn ns-btn-primary" onClick={onManageAccounts}>
                     {Icon.spark({ size: 15 })} Đăng nhập

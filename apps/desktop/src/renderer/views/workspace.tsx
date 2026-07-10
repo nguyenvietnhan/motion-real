@@ -85,8 +85,8 @@ const ScriptReview: React.FC<{
     if (!linkWarning || linkWarning === lastWarning.current) return;
     lastWarning.current = linkWarning;
     notify.warning({
-      title: "Link lỗi",
-      message: compactNotificationMessage(linkWarning, "Dùng phần đọc được."),
+      title: "Không đọc được một số link",
+      message: compactNotificationMessage(linkWarning, "App sẽ dùng phần nội dung đọc được."),
       details: linkWarning,
     });
   }, [linkWarning, notify]);
@@ -302,11 +302,11 @@ const ThumbnailPanel: React.FC<{
       .then((result) => {
         if (result.saved) {
           setSaved(true);
-          notify.success({ title: "Đã lưu bìa" });
+          notify.success({ title: "Đã lưu ảnh bìa" });
           setTimeout(() => setSaved(false), 1800);
         } else if (result.error) {
           notify.error({
-            title: "Không lưu bìa",
+            title: "Không lưu được ảnh bìa",
             message: compactNotificationMessage(result.error, "Thử lại."),
             details: result.error,
           });
@@ -315,7 +315,7 @@ const ThumbnailPanel: React.FC<{
       .catch((error: unknown) => {
         const details = errorDetails(error);
         notify.error({
-          title: "Không lưu bìa",
+          title: "Không lưu được ảnh bìa",
           message: compactNotificationMessage(details, "Thử lại."),
           details,
         });
@@ -325,11 +325,11 @@ const ThumbnailPanel: React.FC<{
 
   return (
     <div className="ns-publish-section ns-cover-section">
-      <span className="ns-publish-eyebrow">Bìa</span>
+      <span className="ns-publish-eyebrow">Ảnh bìa</span>
       {!shownUrl && (
         <div className="ns-cover-actions">
           <button className="ns-btn" onClick={generate} disabled={generating}>
-            {generating ? "…" : "Tạo bìa"}
+            {generating ? "Đang tạo…" : "Tạo ảnh bìa"}
           </button>
         </div>
       )}
@@ -435,7 +435,7 @@ export const ProjectWorkspaceView: React.FC<{
 
   return (
     <div className="ns-content">
-      <PageHeader title={title(stage.kind)} action={<button className="ns-btn" onClick={onBack} aria-label="Quay lại">←</button>} />
+      <PageHeader title={title(stage.kind)} action={<button className="ns-btn" onClick={onBack}>Quay lại</button>} />
       {stage.kind === "writing" && writingCopy && (
         <RunningJobPanel
           label={writingCopy.title}
@@ -456,17 +456,17 @@ export const ProjectWorkspaceView: React.FC<{
       {stage.kind === "rendering" && <RenderingPanel stage={stage} onCancel={onCancel} />}
       {stage.kind === "draft-recovery" && (
         <div className="ns-card ns-draft-recovery">
-          <p className="ns-writing-title">Đã khôi phục</p>
+          <p className="ns-writing-title">Bản nháp đã khôi phục</p>
           {stage.notice ? <p className="ns-writing-detail">{stage.notice}</p> : null}
           {stage.draftPath ? (
             <video className="ns-draft-recovery-video" src={stage.draftPath} controls />
           ) : null}
           <div className="ns-error-actions">
             <button type="button" className="ns-btn" onClick={onReveal}>
-              {Icon.folder({ size: 15 })} Thư mục
+              {Icon.folder({ size: 15 })} Mở thư mục
             </button>
             <button type="button" className="ns-btn" onClick={onBack}>
-              Lại
+              Quay lại
             </button>
           </div>
         </div>
@@ -488,12 +488,12 @@ export const ProjectWorkspaceView: React.FC<{
           </div>
           <div className="ns-publish-rail">
             <div className="ns-publish-head">
-              <span className="ns-publish-done"><span className="ns-publish-done-icon">{Icon.check({ size: 16 })}</span>Xong</span>
-              <h2 className="ns-publish-title">{stage.title || "Video sẵn sàng"}</h2>
+              <span className="ns-publish-done"><span className="ns-publish-done-icon">{Icon.check({ size: 16 })}</span>Đã xuất bản</span>
+              <h2 className="ns-publish-title">{stage.title || "Video đã sẵn sàng"}</h2>
             </div>
             <div className="ns-publish-cta">
-              <button className="ns-btn ns-btn-primary" onClick={onSave}>{Icon.download({ size: 16 })} Lưu</button>
-              <button className="ns-btn" onClick={onReveal}>{Icon.folder({ size: 15 })} Thư mục</button>
+              <button className="ns-btn ns-btn-primary" onClick={onSave}>{Icon.download({ size: 16 })} Lưu video</button>
+              <button className="ns-btn" onClick={onReveal}>{Icon.folder({ size: 15 })} Mở thư mục</button>
             </div>
             <PublishCopyPanel title={stage.title} hashtags={stage.hashtags} />
             <ThumbnailPanel
@@ -520,7 +520,7 @@ export const ProjectWorkspaceView: React.FC<{
                   // (infra blips self-heal; a fresh author attempt may succeed).
                   <button className="ns-btn ns-btn-primary" onClick={onRetry}>{Icon.refresh({ size: 14 })} Thử lại</button>
                 )}
-                <button className="ns-btn" onClick={onBack}>Trang chủ</button>
+                <button className="ns-btn" onClick={onBack}>Về trang chủ</button>
               </div>
             } />
           {projectId && loadDiagnostics && (

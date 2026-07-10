@@ -43,20 +43,20 @@ export const ImageReviewView: React.FC<{
     <div className="ns-image-review">
       <div className="ns-card ns-image-review-bar">
         <p className="ns-image-review-help">
-          Chọn ảnh cho video. AI tự xếp cảnh. Ảnh đề xuất đã tick.
+          Chọn ảnh đưa vào video — AI sẽ tự xếp vào cảnh. Ảnh đề xuất đã tick sẵn.
         </p>
         <div className="ns-image-review-actions">
           <button type="button" className="ns-btn" onClick={() => submit([])} disabled={submitting}>
-            Bỏ qua
+            Bỏ qua ảnh
           </button>
           <button
             type="button"
             className="ns-btn ns-btn-primary"
             onClick={() => submit(selectedRefs)}
             disabled={submitting || count === 0}
-            title={count === 0 ? "Chọn ảnh hoặc Bỏ qua." : undefined}
+            title={count === 0 ? "Chọn ảnh, hoặc bấm Bỏ qua ảnh." : undefined}
           >
-            {submitting ? "…" : `Dùng (${count})`}
+            {submitting ? "Đang xử lý…" : `Dùng ảnh (${count})`}
           </button>
         </div>
       </div>
@@ -91,7 +91,7 @@ export const ImageReviewView: React.FC<{
 
       {images.length === 0 && (
         <p className="ns-image-review-empty">
-          {Icon.info({ size: 16 })} Không có ảnh. Video dùng chữ.
+          {Icon.info({ size: 16 })} Không tìm thấy ảnh phù hợp. Video sẽ dựng bằng chữ.
         </p>
       )}
     </div>

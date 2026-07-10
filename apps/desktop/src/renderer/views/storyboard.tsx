@@ -334,8 +334,8 @@ export const StoryboardView: React.FC<{
           setNotes("");
         } else {
           notify.error({
-            title: "Không gửi được",
-            message: "Nội dung vẫn được giữ.",
+            title: "Không gửi được chỉnh sửa",
+            message: "Nội dung bạn nhập vẫn được giữ.",
             details: "Backend từ chối chỉnh sửa.",
           });
         }
@@ -343,8 +343,8 @@ export const StoryboardView: React.FC<{
       .catch((error: unknown) => {
         const details = errorDetails(error);
         notify.error({
-          title: "Không gửi được",
-          message: "Nội dung vẫn được giữ.",
+          title: "Không gửi được chỉnh sửa",
+          message: "Nội dung bạn nhập vẫn được giữ.",
           details,
         });
       })
@@ -374,8 +374,8 @@ export const StoryboardView: React.FC<{
   const Header = (
     <header className="ns-story-header">
       <div className="ns-story-header-leading">
-        <button type="button" className="ns-btn ns-story-back" onClick={onBack} aria-label="Quay lại" title="Quay lại">
-          ←
+        <button type="button" className="ns-btn ns-story-back" onClick={onBack}>
+          Quay lại
         </button>
         <div className="ns-story-title">
           <strong className="ns-story-heading">Duyệt</strong>
@@ -400,8 +400,8 @@ export const StoryboardView: React.FC<{
               onClick={sendAll}
               title={canSend ? undefined : "Nhập yêu cầu trước khi gửi."}
             >
-              {submitting ? "…" : editedCount > 0 ? (
-                <span className="ns-tabular">Gửi {editedCount}</span>
+              {submitting ? "Đang gửi…" : editedCount > 0 ? (
+                <span className="ns-tabular">Gửi ({editedCount})</span>
               ) : (
                 "Gửi"
               )}
@@ -414,10 +414,10 @@ export const StoryboardView: React.FC<{
             onClick={onApprove}
             title={
               bgmSaving
-                ? "Đang lưu nhạc."
+                ? "Đang lưu nhạc nền."
                 : canApprove
                   ? undefined
-                  : "Chưa sẵn sàng."
+                  : "Chưa sẵn sàng xuất bản."
             }
           >
             Xuất bản
