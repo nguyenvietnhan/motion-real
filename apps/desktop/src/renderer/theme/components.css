@@ -142,6 +142,8 @@
   overflow-wrap: break-word;
 }
 .ns-project-grid {
+  position: relative;
+  z-index: 1;
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(min(100%, 200px), 1fr));
   gap: 16px;
