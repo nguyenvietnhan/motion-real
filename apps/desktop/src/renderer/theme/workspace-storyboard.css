@@ -261,6 +261,13 @@
   flex: 1;
   min-height: 0;
   place-items: center;
+  /* Canvas well so dark stills still read as a phone frame */
+  padding: 12px;
+  border-radius: 14px;
+  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+  background:
+    radial-gradient(ellipse 55% 45% at 50% 40%, rgba(59, 130, 246, 0.05), transparent 70%),
+    linear-gradient(180deg, #121218 0%, #0c0c10 100%);
 }
 .ns-story-preview-media {
   height: 100%;
@@ -270,7 +277,7 @@
   border: 1px solid var(--border);
   border-radius: 12px;
   background: #0c0e12;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.45);
   object-fit: contain;
 }
 .ns-story-preview-still {
@@ -278,7 +285,12 @@
   overflow: hidden;
   color: #3a3f49;
   place-items: center;
-  background: #101216;
+  background:
+    linear-gradient(45deg, #14141a 25%, transparent 25%) -6px 0 / 12px 12px,
+    linear-gradient(-45deg, #14141a 25%, transparent 25%) -6px 0 / 12px 12px,
+    linear-gradient(45deg, transparent 75%, #14141a 75%) -6px 0 / 12px 12px,
+    linear-gradient(-45deg, transparent 75%, #14141a 75%) -6px 0 / 12px 12px,
+    #101216;
 }
 
 /* Background music is one compact compound control: selection opens downward;

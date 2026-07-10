@@ -197,7 +197,7 @@ export const SettingsView: React.FC<{
           ))}
         </nav>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: 16, minWidth: 0 }}>
+        <div className="ns-settings-main">
           {tab === "ai" && (
             <SettingsCard title="Tài khoản AI">
               {gateway.kind === "starting" && <p style={{ color: "var(--muted-foreground)", margin: 0 }}>Đang khởi động dịch vụ AI…</p>}

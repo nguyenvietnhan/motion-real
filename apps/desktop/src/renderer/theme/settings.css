@@ -1,11 +1,19 @@
 /* --- 5. Settings view, secrets, switches, account/model badges ---------- */
 
-/* Settings: left-rail tabs + enterprise toggle switch */
+/* Settings: left-rail tabs + content column (card left-aligned, not floating mid). */
 .ns-settings {
   display: grid;
   grid-template-columns: 220px minmax(0, 1fr);
   gap: 24px;
-  align-items: stretch;
+  align-items: start;
+}
+.ns-settings-main {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+  width: 100%;
+  max-width: 560px;
 }
 .ns-settings-nav {
   display: flex;

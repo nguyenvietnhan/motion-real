@@ -542,7 +542,6 @@ export const HomeView: React.FC<{
 
       <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 14 }}>
         <h2 style={{ margin: 0, fontSize: 16 }}>Gần đây</h2>
-        {cards.length > 0 && <span style={{ color: "var(--muted-foreground)", fontSize: 13 }}>{cards.length} dự án</span>}
       </div>
 
       {load === "loading" && <p style={{ color: "var(--muted-foreground)" }}>Đang tải…</p>}

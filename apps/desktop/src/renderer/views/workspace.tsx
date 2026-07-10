@@ -178,69 +178,80 @@ const ScriptReview: React.FC<{
 };
 
 /**
- * The "đang dựng" status panel + its Stop button. Kept as its own component so
- * it can hold local `stopping` state: the Electron main process is briefly
- * blocked by the synchronous N10 typecheck, so the engine-side cancel + the
- * 1.5s stage poll can lag a second or two behind the click. The renderer
- * process is NOT blocked, so we flip to "Đang dừng…" and disable the button the
- * instant it's pressed — the user gets immediate feedback and never feels the
- * need to spam-click (which only queued more ignored IPC messages). The flag
- * resets automatically when the stage leaves "rendering" (recover/ready/error).
+ * Shared "job running" panel for writing + rendering: status row, progress,
+ * Stop always bottom-right. Local `stopping` flips immediately so cancel lag
+ * never looks like a dead button.
  */
-const RenderingPanel: React.FC<{ stage: Extract<ProjectStage, { kind: "rendering" }>; onCancel: () => void }> = ({ stage, onCancel }) => {
+const RunningJobPanel: React.FC<{
+  label: string;
+  detail?: string;
+  percent?: number;
+  indeterminate?: boolean;
+  count?: string;
+  onCancel: () => void;
+}> = ({ label, detail, percent, indeterminate = true, count, onCancel }) => {
   const [stopping, setStopping] = useState(false);
-  // Shared label map keeps render-phase copy total; count stays nowrap so
-  // "(lần N/M)" never orphans alone on the next line.
-  const parts = renderingPhaseParts(stage.phase, { qaPass: stage.qaPass, qaTotal: stage.qaTotal });
-  // "prepare" (the two hidden pre-draft renders) shows a neutral indeterminate
-  // bar — no raw percent — so the user never sees the bland/bootstrap takes.
-  const indeterminate = renderingPhaseIndeterminate(stage.phase, stage.percent);
+  const showPct = !indeterminate && !stopping && typeof percent === "number";
   return (
-    <div className="ns-card ns-render-card">
-      <div className="ns-render-status-line">
+    <div className="ns-card ns-running-card">
+      <div className="ns-running-status">
         <Spinner />
-        <span className="ns-render-status-copy">
-          {stopping ? (
-            <span className="ns-render-status-label">Đang dừng…</span>
-          ) : (
-            <>
-              <span className="ns-render-status-label">
-                {parts.body}
-                {parts.count ? (
-                  <>
-                    {" "}
-                    <span className="ns-render-status-count ns-tabular">{parts.count}</span>
-                    …
-                  </>
-                ) : null}
+        <div className="ns-running-copy">
+          <div className="ns-running-label-row">
+            <span className="ns-running-label">
+              {stopping ? "Đang dừng…" : label}
+              {!stopping && count ? (
+                <>
+                  {" "}
+                  <span className="ns-running-count ns-tabular">{count}</span>
+                  …
+                </>
+              ) : null}
+            </span>
+            {showPct && (
+              <span className="ns-counter ns-counter-pct" aria-label={`${percent} phần trăm`}>
+                {percent}%
               </span>
-              {!indeterminate && (
-                <span className="ns-counter ns-counter-pct" aria-label={`${stage.percent} phần trăm`}>
-                  {stage.percent}%
-                </span>
-              )}
-            </>
-          )}
-        </span>
+            )}
+          </div>
+          {!stopping && detail ? <p className="ns-running-detail">{detail}</p> : null}
+        </div>
       </div>
       <div className="ns-progress-track">
         {indeterminate || stopping ? (
           <div className="ns-indeterminate ns-progress-fill" />
         ) : (
-          <div className="ns-progress-fill" style={{ width: `${stage.percent}%` }} />
+          <div className="ns-progress-fill" style={{ width: `${percent ?? 0}%` }} />
         )}
       </div>
-      {/* Stop the in-flight render. A cancel is not a failure: the project
-          returns to its prior reviewable stage (the draft/scenes it had),
-          never an error screen. One press is enough — disable + show "Đang
-          dừng…" immediately so the brief engine-side lag never looks like a
-          dead button. */}
-      <div className="ns-render-actions">
-        <button className="ns-btn" onClick={() => { setStopping(true); onCancel(); }} disabled={stopping}>
-          {stopping ? "Đang dừng…" : "Dừng dựng"}
+      <div className="ns-running-actions">
+        <button
+          type="button"
+          className="ns-btn"
+          onClick={() => {
+            setStopping(true);
+            onCancel();
+          }}
+          disabled={stopping}
+        >
+          {stopping ? "Đang dừng…" : "Dừng"}
         </button>
       </div>
     </div>
+  );
+};
+
+const RenderingPanel: React.FC<{ stage: Extract<ProjectStage, { kind: "rendering" }>; onCancel: () => void }> = ({ stage, onCancel }) => {
+  const parts = renderingPhaseParts(stage.phase, { qaPass: stage.qaPass, qaTotal: stage.qaTotal });
+  const indeterminate = renderingPhaseIndeterminate(stage.phase, stage.percent);
+  return (
+    <RunningJobPanel
+      label={parts.body}
+      count={parts.count}
+      percent={stage.percent}
+      indeterminate={indeterminate}
+      onCancel={onCancel}
+    />
   );
 };
 
@@ -425,19 +436,13 @@ export const ProjectWorkspaceView: React.FC<{
   return (
     <div className="ns-content">
       <PageHeader title={title(stage.kind)} action={<button className="ns-btn" onClick={onBack}>Quay lại</button>} />
-      {stage.kind === "writing" && (
-        <div className="ns-card ns-writing-card">
-          <Spinner />
-          <p className="ns-writing-title">{writingCopy?.title}</p>
-          <p className="ns-writing-detail">
-            {writingCopy?.detail}
-          </p>
-          <div className="ns-writing-actions">
-            <button type="button" className="ns-btn" onClick={onCancel}>
-              Dừng tạo
-            </button>
-          </div>
-        </div>
+      {stage.kind === "writing" && writingCopy && (
+        <RunningJobPanel
+          label={writingCopy.title}
+          detail={writingCopy.detail}
+          indeterminate
+          onCancel={onCancel}
+        />
       )}
       {stage.kind === "script" && (
         <ScriptReview
