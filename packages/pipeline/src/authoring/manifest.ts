@@ -196,10 +196,14 @@ export type AdmitProjectResult =
  * is never imported into the Node host; render-time registration happens inside
  * the generated Remotion entry.
  */
-export async function admitProjectScenes(
-  projectId: string,
+/**
+ * Admit an explicit list of authored scene files (canonical or staged).
+ * Static AST gate only — does not mutate the runtime registry.
+ */
+export async function admitAuthoredSceneFiles(
+  files: readonly string[],
+  emptyPathHint?: string,
 ): Promise<AdmitProjectResult> {
-  const files = await listAuthoredScenes(projectId);
   if (files.length === 0) {
     return {
       ok: false,
@@ -207,7 +211,7 @@ export async function admitProjectScenes(
         {
           check: "N4",
           severity: "error",
-          path: projectPaths(projectId).authoredDir,
+          path: emptyPathHint ?? "(no files)",
           message: "No authored scenes found. Add scene .tsx modules under authored/ before rendering.",
         },
       ],
@@ -236,7 +240,14 @@ export async function admitProjectScenes(
     }
   }
   if (violations.length > 0) return { ok: false, violations };
-  return { ok: true, componentIds, files };
+  return { ok: true, componentIds, files: [...files] };
+}
+
+export async function admitProjectScenes(
+  projectId: string,
+): Promise<AdmitProjectResult> {
+  const files = await listAuthoredScenes(projectId);
+  return admitAuthoredSceneFiles(files, projectPaths(projectId).authoredDir);
 }
 
 /** Write a starter authored scene + manifest entry placeholder (used by scaffold examples/tests). */

@@ -1,6 +1,6 @@
 import { join } from "node:path";
 import { existsSync, readFileSync } from "node:fs";
-import { readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import {
   createLogger,
   admitProjectScenes,
@@ -8,8 +8,6 @@ import {
   loadManifest,
   projectPaths,
   writeAuthoredScene,
-  writeJson,
-  writeProjectEvidence,
   unregisterComponent,
   makeSafeFetch,
   crawlArticleImagesWithStats,
@@ -19,6 +17,10 @@ import {
   type AuthoredRegistration,
   type SerializedPipelineError,
 } from "@motionreal/pipeline";
+import {
+  applyAuthoringCandidate,
+  reconcileAuthoringCandidateTransaction,
+} from "./author-candidate-transaction.js";
 import type { createTools } from "@motionreal/pipeline";
 import type { AuthoringBackend, AuthoredScene, ReauthorTarget } from "../agent/custom-loop-worker.js";
 import type { SafetyReportView } from "../agent/repair-loop.js";
@@ -173,9 +175,14 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
     };
   }
 
-  async authorScenes(job: AuthorJob): Promise<{ scenes: AuthoredScene[]; message?: string; unreadableUrls?: string[] }> {
+  async authorScenes(
+    job: AuthorJob,
+    signal?: AbortSignal,
+  ): Promise<{ scenes: AuthoredScene[]; message?: string; unreadableUrls?: string[] }> {
     const model = this.deps.model();
     if (!model) return { scenes: [], message: "Chưa chọn model AI." };
+    // Drop any half-finished candidate transaction left by a prior crash.
+    await reconcileAuthoringCandidateTransaction(job.projectId).catch(() => undefined);
 
     // Best-effort grounding: fetch any links in the brief. A failed fetch is NOT
     // fatal — authoring continues from the user's text + the model's knowledge.
@@ -324,67 +331,72 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
       parsed = authored.parsed;
     }
 
-    // Write each AI-authored module. Unregister first so a re-authored id (or a
-    // cross-project id collision in the process-wide registry) is refreshed with
-    // THIS project's code at admission time.
-    await this.clearAuthoredSceneFiles(job.projectId);
-    for (const mod of parsed.modules) {
-      unregisterComponent(mod.id);
-      await writeAuthoredScene(job.projectId, sceneFileName(mod.id), normalizeAuthoredFontSizes(normalizeAuthoredImports(mod.code)));
-    }
+    // Build candidate in memory, then apply via failure-atomic transaction
+    // (stage → admit staged → backup → promote). Never clear-first.
     const engineManifest = toEngineManifest(parsed.manifest, allowedRefs, {
       ...(job.input.format ? { format: job.input.format } : {}),
       ...(job.input.durationTier ? { durationTier: job.input.durationTier } : {}),
       ...(job.input.videoLanguage ? { videoLanguage: job.input.videoLanguage } : {}),
     });
-    await writeJson(manifestPathOf(job.projectId), engineManifest);
+    const modules = parsed.modules.map((mod) => ({
+      componentId: mod.id,
+      fileName: sceneFileName(mod.id),
+      source: normalizeAuthoredFontSizes(normalizeAuthoredImports(mod.code)),
+    }));
+    const usableClaims = plannedContent.claims.filter((c) => c.confidence === "supported" && c.action === "use");
+    const engineSceneIds = new Set(engineManifest.scenes.map((s) => s.id));
+    const sceneLinks = plannedContent.scenes
+      .filter((s) => engineSceneIds.has(s.sceneId))
+      .map((s) => ({ sceneId: s.sceneId, evidenceClaimIds: s.evidenceClaimIds }));
+    if (plannedContent.scenes.some((s) => !engineSceneIds.has(s.sceneId))) {
+      this.logger().warn(
+        { projectId: job.projectId },
+        "content-plan scene ids did not fully match engine scenes; evidence scene links omitted for mismatches",
+      );
+    }
+    const evidence = buildProjectEvidence({
+      sources: researchSources,
+      claims: usableClaims.map((c) => ({
+        id: c.id,
+        text: c.text,
+        support: c.support,
+        ...(c.sourceRef ? { sourceRef: c.sourceRef } : {}),
+      })),
+      scenes: sceneLinks,
+    });
 
-    const admit = this.deps.admit ?? ((id: string) => admitProjectScenes(id));
-    const admitted = await admit(job.projectId);
-    if (!admitted.ok) {
+    const applied = await applyAuthoringCandidate({
+      projectId: job.projectId,
+      candidate: { manifest: engineManifest, modules, evidence },
+      ...(signal ? { signal } : {}),
+      deps: {
+        // Injectable admit keeps tests; production admits staged file paths.
+        admitFiles: this.deps.admit
+          ? async () => this.deps.admit!(job.projectId)
+          : undefined,
+        onCommitted: async (info: { previousComponentIds: string[]; nextComponentIds: string[] }) => {
+          for (const id of new Set([...info.previousComponentIds, ...info.nextComponentIds])) {
+            unregisterComponent(id);
+          }
+        },
+      },
+    });
+
+    if (applied.kind === "cancelled") {
+      return { scenes: [], message: undefined, ...(unreadableUrls.length > 0 ? { unreadableUrls } : {}) };
+    }
+    if (applied.kind === "rejected") {
       logAuthoringFailure(
         this.logger(),
         {
           class: "admission",
           projectId: job.projectId,
-          violationCounts: countSafetyChecks(admitted.violations),
-          violations: admitted.violations.map((v) => `${v.check} ${v.path}: ${v.message}`),
+          violationCounts: countSafetyChecks(applied.violations),
+          violations: applied.violations.map((v) => `${v.check} ${v.path ?? ""}: ${v.message}`),
         },
         "admission failed",
       );
-      // NO kit fallback — pure-author surfaces the failure for retry / AI-fix.
       return { scenes: [], message: "Một số cảnh chưa hợp lệ. Hãy thử tạo lại." };
-    }
-
-    // Persist claim provenance only after successful admission (script review metadata).
-    try {
-      const usableClaims = plannedContent.claims.filter((c) => c.confidence === "supported" && c.action === "use");
-      const engineSceneIds = new Set(engineManifest.scenes.map((s) => s.id));
-      const sceneLinks = plannedContent.scenes
-        .filter((s) => engineSceneIds.has(s.sceneId))
-        .map((s) => ({ sceneId: s.sceneId, evidenceClaimIds: s.evidenceClaimIds }));
-      if (plannedContent.scenes.some((s) => !engineSceneIds.has(s.sceneId))) {
-        this.logger().warn(
-          { projectId: job.projectId },
-          "content-plan scene ids did not fully match engine scenes; evidence scene links omitted for mismatches",
-        );
-      }
-      await writeProjectEvidence(
-        job.projectId,
-        buildProjectEvidence({
-          sources: researchSources,
-          claims: usableClaims.map((c) => ({
-            id: c.id,
-            text: c.text,
-            support: c.support,
-            ...(c.sourceRef ? { sourceRef: c.sourceRef } : {}),
-          })),
-          scenes: sceneLinks,
-        }),
-      );
-    } catch (error) {
-      this.logger().error({ err: error, projectId: job.projectId }, "failed to write project evidence after admission");
-      return { scenes: [], message: "Không lưu được căn cứ nội dung. Hãy thử tạo lại." };
     }
 
     const reviewDir = projectPaths(job.projectId).reviewDir;
@@ -393,17 +405,6 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
       stillPath: join(reviewDir, `${s.id}.png`),
     }));
     return { scenes, ...(unreadableUrls.length > 0 ? { unreadableUrls } : {}) };
-  }
-
-  private async clearAuthoredSceneFiles(projectId: string): Promise<void> {
-    const dir = projectPaths(projectId).authoredDir;
-    if (!existsSync(dir)) return;
-    const files = await readdir(dir);
-    await Promise.all(
-      files
-        .filter((file) => /\.tsx$/.test(file) && !file.startsWith("_"))
-        .map((file) => rm(join(dir, file), { force: true })),
-    );
   }
 
   /**

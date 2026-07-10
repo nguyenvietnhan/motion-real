@@ -19,6 +19,7 @@ export {
   manifestToVideoSpec,
   listAuthoredScenes,
   manifestSceneFiles,
+  admitAuthoredSceneFiles,
   admitProjectScenes,
   writeAuthoredScene,
   emptyManifest,

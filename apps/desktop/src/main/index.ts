@@ -611,7 +611,13 @@ app
       console.error("[desktop] tts-cache prune failed:", error);
     });
     await runStartupSequence({
-      reconcileStaleStates,
+      reconcileStaleStates: async () => {
+        await reconcileStaleStates();
+        // Restore or drop half-finished fresh-author candidate transactions
+        // before any renderer job can start.
+        const { reconcileAuthoringCandidateTransactions } = await import("./authoring/author-candidate-transaction.js");
+        await reconcileAuthoringCandidateTransactions(join(videoToolHome(), "projects"));
+      },
       onReconcileError: (error) => {
         log.warn({ err: error }, "stale-state reconcile failed; desktop startup will continue");
       },
