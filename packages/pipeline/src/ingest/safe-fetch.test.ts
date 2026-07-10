@@ -150,6 +150,21 @@ describe("makeSafeFetch", () => {
     expect(seen[0]!.addresses.every((a) => !isPrivateAddress(a.address))).toBe(true);
   });
 
+  it("still classifies dual-stack hosts as public while dial prefers IPv4", async () => {
+    const { addressesForPinnedConnect } = await import("./public-address.js");
+    const fetcher = makeSafeFetch({
+      requestPinned: async (target) => {
+        // Policy list may include AAAA; connect list must prefer A.
+        expect(target.addresses.some((a) => a.family === 6)).toBe(true);
+        expect(addressesForPinnedConnect(target.addresses).every((a) => a.family === 4)).toBe(true);
+        return res({ body: "ok" });
+      },
+      lookupImpl: async () => ["2607:6bc0::10", "160.79.104.10"],
+    });
+    const out = await fetcher("https://dual.example.com/");
+    expect(await out.text()).toContain("ok");
+  });
+
   it("aborts when the body exceeds the cap", async () => {
     const big = "x".repeat(1024);
     const fetcher = makeSafeFetch({

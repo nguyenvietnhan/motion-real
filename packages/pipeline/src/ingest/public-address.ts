@@ -121,6 +121,22 @@ export function sortPublicAddresses(addresses: readonly PublicAddress[]): Public
   });
 }
 
+/**
+ * Addresses the pinned transport should actually dial.
+ *
+ * DNS often returns both A and AAAA. On many Windows/desktop networks IPv6 is
+ * published but not reliably routable, and undici with `all:true` can hang on a
+ * broken AAAA while IPv4 would succeed. Prefer public IPv4 when present; fall
+ * back to IPv6 only when no IPv4 candidate exists. Policy classification still
+ * requires *every* resolved candidate to be public (fail closed on mixed).
+ */
+export function addressesForPinnedConnect(addresses: readonly PublicAddress[]): PublicAddress[] {
+  const sorted = sortPublicAddresses(addresses);
+  const v4 = sorted.filter((a) => a.family === 4);
+  if (v4.length > 0) return v4;
+  return sorted.filter((a) => a.family === 6);
+}
+
 function deny(rawUrl: string, cause: string, remediation: string): never {
   throw new PipelineError({ stage: "ingest", cause, remediation });
 }

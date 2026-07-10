@@ -61,41 +61,39 @@ line count, and keep `authorScenes` on the facade unless a future orchestration
 harness is planned.
 
 Visual QA is advisory and returns a truthful `VisualQaResult`: `checked` (ran
-with a valid reply) or `skipped` (no model, no stills, provider error, invalid
-response, unsupported). Only a **checked** pass with zero high-severity defects
-increments the consecutive-clean early-stop streak. A skipped pass consumes the
-configured refine pass but is never logged or treated as a clean QA result.
+with a valid reply) or `skipped` (no model, manifest unavailable, no stills,
+provider error, invalid response, unsupported). Only a **checked** pass with zero
+high-severity defects increments the consecutive-clean early-stop streak. A
+skipped pass consumes the configured refine pass and may emit a diagnostic log,
+but it is never counted or presented as a clean QA result.
 
 Settings → **Kiểm tra** (`settings:readiness`, under Tài khoản AI) runs local
 doctor + gateway/account/model/voice presence checks only. It never calls an
 LLM or TTS, never auto-selects a model, and never ships secrets, raw doctor
-paths, or error stacks to the renderer — only fixed Vietnamese labels (compact
-status icons in the UI).
+paths, or error stacks to the renderer. The IPC result uses fixed Vietnamese
+labels, details, and remediations; compact status icons are the visible summary,
+with safe detail/remediation text available through tooltip/accessibility copy.
 
 **Chi tiết xử lý** (`projects:diagnostics`) projects a bounded, redacted view of
 `events.ndjson` (and safe authoring/repair appends). The renderer never receives
 raw Pino logs, prompts, TSX, paths, N-codes, or free-form repair text — only
-fixed-language lifecycle/authoring/repair states.
+fixed-language lifecycle/authoring/repair states. The reader tails at most 256
+KiB from each of the current and single rotated event files and returns at most
+80 newest entries.
 
 `content-plan.ts` is the public facade; schema/types, normalization, parser,
 quality checks, and prompt builders live in focused `content-plan-*` modules.
 Keep imports pointed at the facade unless a local module needs an internal
 helper.
 
-`apps/desktop/src/main/index.ts` is the Electron composition root (construct,
-register IPC, lifecycle). Focused IPC factories already cover settings/TTS, BGM,
-thumbnail, and gateway AI (`gateway/gateway-handlers.ts`). Projects/script/review
-handlers stay as thin root wrappers. Do not invent a mega-handler builder or
-extract more from `index.ts` for line count alone; see the composition-root
-charter in `architecture.md`.
-
 `apps/desktop/src/main/index.ts` is the Electron composition root. Local tested
 helpers own runtime env parsing, create-time image staging, BGM handlers, native
-save/export helpers, and `projects:create` IPC payload coercion. Settings/TTS
-and thumbnail IPC handlers live in focused handler factories with explicit root
-wiring. Keep Electron lifecycle, media scheme/protocol ordering, controller
-construction, and broad handler composition root-owned unless a future slice has
-a narrower reason than line count.
+save/export helpers, and `projects:create` IPC payload coercion. Focused IPC
+factories cover settings/TTS, BGM, thumbnail, and gateway AI; project, script,
+and review handlers remain thin root wrappers. Keep Electron lifecycle, media
+scheme/protocol ordering, controller construction, and broad handler composition
+root-owned. Do not invent a mega-handler builder or extract more from `index.ts`
+for line count alone; see the composition-root charter in `architecture.md`.
 
 TTS provider clients, provider HTTP helpers, caption timing, and audio operations
 live under `packages/tts/src/`; keep `index.ts` as the public barrel and
@@ -193,20 +191,29 @@ requested repair or reauthoring pass.
 ## Authoring Output Size
 
 Fresh authoring should stay bounded before the first draft. The current budget is
-one content-plan call, at most one claim-ledger repair call, and then either one
-single authoring reply plus at most one missing-TSX recovery, or compact TSX
-batch calls only when a no-image plan exceeds the normal single-reply capacity.
-The current compact batch path starts after 12 components, uses two component
-ids per batch, and still caps total authoring at 16 components. That capacity
-policy lives in `author-batch-policy.ts`; keep changes there focused and tested.
-Do not add unbounded retries, extra manifest-only model calls, or provider
-`max_tokens` overrides without a new owner-approved slice and tests.
+one content-plan call, at most one repair call when every blocker is
+`claim-ledger` or `claim-provenance`, and then either one single authoring reply
+plus at most one missing-TSX recovery, or compact TSX batch calls only when a
+no-image plan exceeds the normal single-reply capacity. The current compact
+batch path starts after 12 components, uses two component ids per batch, and
+still caps total authoring at 16 components. That capacity policy lives in
+`author-batch-policy.ts`; keep changes there focused and tested. Do not add
+unbounded retries, extra manifest-only model calls, or provider `max_tokens`
+overrides without a new owner-approved slice and tests.
 
 Content-plan metadata that is not safety-critical should not hard-fail authoring
 by itself. Purpose drift and missing/generic `motionProgression` are normalized
-with diagnostics so their frequency remains observable. Claim-ledger/evidence
-violations, duplicate ids, invalid JSON shape, unsafe authored code, and render
-integrity failures remain hard blockers.
+with diagnostics so their frequency remains observable. Claim-ledger/
+claim-provenance violations, duplicate ids, invalid JSON shape, unsafe authored
+code, and render integrity failures remain hard blockers.
+
+On URL-grounded runs with at least one readable source, a usable
+`source_material` claim must carry a known source id and a bounded excerpt that
+matches normalized source text. `user_brief` and `common_knowledge` claims must
+not carry source references. If every URL is unreadable, authoring may continue
+without validated URL evidence; source references are not manufactured. New
+authoring writes `evidence.json` only after admission and never persists raw
+research bodies there.
 
 ## Parser And Normalizer Policy
 
@@ -278,8 +285,8 @@ not silent bugs to "fix in drive-by hygiene," but they should stay visible:
 - Reauthor/refine can still hit one-off N4 syntax failures on a single scene;
   pipeline recovery or retry may continue, but that noise is not eliminated.
 - URL/RAG ingest can fail with HTTP errors (for example 401). Unreadable-link
-  fallback may still produce a draft; that is resilience, not proof that source
-  reading succeeded.
+  fallback may still produce a draft, but cannot supply validated URL evidence;
+  that is resilience, not proof that source reading succeeded.
 - Provider smoke evidence is still thinner than a full multi-model canary set.
   Local typecheck/test/build green does not replace provider-connected checks
   after prompt or recovery changes.
@@ -456,8 +463,12 @@ address policy in `public-address.ts` (`net.BlockList`).
 
 - Resolve DNS **once per hop**, classify every candidate, fail closed if any
   address is non-public (including mapped IPv6 and full `fe80::/10`).
-- Pin the undici transport lookup to only those vetted addresses — never call
-  ordinary unpinned `fetch()` after a successful resolve.
+- Pin the undici transport lookup to vetted addresses — never call ordinary
+  unpinned `fetch()` after a successful resolve.
+- When both A and AAAA are public, **dial IPv4 first** (`addressesForPinnedConnect`).
+  Broken desktop IPv6 routes otherwise hang image crawls until timeout.
+- Buffer the response body before closing the per-request dispatcher (large
+  binary crawls).
 - Text and binary fetchers share one redirect/pin engine. On redirect, discard
   the prior body and re-resolve/pin the next hop.
 - Corporate HTTP proxies are not supported on this path; do not silently route

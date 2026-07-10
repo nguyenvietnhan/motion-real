@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  addressesForPinnedConnect,
   classifyPublicAddress,
   extractMappedIpv4,
   isPrivateAddress,
@@ -124,5 +125,21 @@ describe("sortPublicAddresses", () => {
       { address: "8.8.8.8", family: 4 },
     ]);
     expect(sorted[0]!.family).toBe(4);
+  });
+});
+
+describe("addressesForPinnedConnect", () => {
+  it("prefers IPv4 when dual-stack so broken AAAA cannot hang dial", () => {
+    const dial = addressesForPinnedConnect([
+      { address: "2607:6bc0::10", family: 6 },
+      { address: "160.79.104.10", family: 4 },
+    ]);
+    expect(dial).toEqual([{ address: "160.79.104.10", family: 4 }]);
+  });
+
+  it("keeps IPv6 when no IPv4 candidate exists", () => {
+    const dial = addressesForPinnedConnect([{ address: "2606:2800:220:1:248:1893:25c8:1946", family: 6 }]);
+    expect(dial).toHaveLength(1);
+    expect(dial[0]!.family).toBe(6);
   });
 });

@@ -2,6 +2,7 @@ import { lookup as dnsLookup } from "node:dns/promises";
 import { Agent, fetch as undiciFetch } from "undici";
 import { PipelineError } from "../errors.js";
 import {
+  addressesForPinnedConnect,
   isPrivateAddress,
   resolvePublicTarget,
   type PublicAddress,
@@ -16,16 +17,18 @@ import {
  * Policy:
  * 1. Resolve the host once per hop and classify every candidate address
  *    (`public-address.ts` / `net.BlockList`).
- * 2. Pin the transport DNS lookup to only those vetted addresses (undici
- *    Agent) so the socket cannot re-resolve and rebind to a private IP.
+ * 2. Pin the transport DNS lookup to vetted addresses (undici Agent), preferring
+ *    IPv4 when available so broken AAAA routes cannot hang image downloads.
  * 3. Follow redirects manually and re-resolve/pin every hop.
  * 4. Cap response bodies; honour AbortSignal + optional timeout.
+ * 5. Buffer the response before closing the per-request dispatcher so large
+ *    image bodies are not cancelled mid-stream.
  *
  * Corporate HTTP proxies are intentionally unsupported here — do not silently
  * route pinned fetches through an unvetted proxy.
  */
 
-export { isPrivateAddress, resolvePublicTarget } from "./public-address.js";
+export { isPrivateAddress, resolvePublicTarget, addressesForPinnedConnect } from "./public-address.js";
 export type { PublicAddress, ResolvedPublicTarget } from "./public-address.js";
 
 const MAX_REDIRECTS = 5;
@@ -43,7 +46,9 @@ export const DEFAULT_IMAGE_FETCH_TIMEOUT_MS = 10_000;
 const BROWSER_HEADERS: Record<string, string> = {
   "User-Agent":
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-  Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+  // Include image types: the same pin path serves article HTML and crawl images.
+  Accept:
+    "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
   "Accept-Language": "vi,en-US;q=0.9,en;q=0.8",
 };
 
@@ -236,16 +241,20 @@ function createPinnedLookup(addresses: readonly PublicAddress[]) {
 
 /**
  * Production pinned request: undici Agent whose connector DNS lookup returns
- * only the already-vetted addresses. Host header / TLS SNI keep the original
- * hostname via the request URL.
+ * only the already-vetted addresses (IPv4 preferred). Host header / TLS SNI
+ * keep the original hostname via the request URL.
+ *
+ * The response body is fully buffered before the dispatcher closes — closing
+ * first cancels open streams and was hanging/ truncating large image crawls.
  */
 export async function requestPinnedWithUndici(
   target: ResolvedPublicTarget,
   signal?: AbortSignal,
 ): Promise<Response> {
+  const dialAddresses = addressesForPinnedConnect(target.addresses);
   const dispatcher = new Agent({
     connect: {
-      lookup: createPinnedLookup(target.addresses) as never,
+      lookup: createPinnedLookup(dialAddresses) as never,
     },
   });
   try {
@@ -255,8 +264,17 @@ export async function requestPinnedWithUndici(
       headers: BROWSER_HEADERS,
       ...(signal ? { signal } : {}),
     });
-    // undici Response is fetch-compatible for our read path.
-    return res as unknown as Response;
+    // Buffer before close so callers can still read the body after we return.
+    const body = Buffer.from(await res.arrayBuffer());
+    const headers = new Headers();
+    res.headers.forEach((value, key) => {
+      headers.set(key, value);
+    });
+    return new Response(body, {
+      status: res.status,
+      statusText: res.statusText,
+      headers,
+    });
   } finally {
     // Close/destroy even on abort or throw so sockets do not leak.
     try {
