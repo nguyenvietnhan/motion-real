@@ -1,0 +1,138 @@
+/* Workspace — script review & evidence */
+/* --- 7. Workspace storyboard/review toolbar, BGM picker, edit panel ----- */
+
+/* Script review keeps a stable two-column rhythm while the user edits narration. */
+.ns-script-review-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+.ns-script-review-message {
+  color: var(--muted-foreground);
+  min-width: min(100%, 16rem);
+  flex: 1 1 14rem;
+  line-height: 1.45;
+}
+.ns-script-review-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.ns-error-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+}
+.ns-evidence-panel {
+  margin-bottom: 12px;
+  padding: 12px;
+}
+.ns-evidence-list {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.ns-evidence-source {
+  border-top: 1px solid var(--border);
+  padding-top: 8px;
+}
+.ns-evidence-source-meta {
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+.ns-evidence-claims {
+  margin: 8px 0 0;
+  padding-left: 18px;
+}
+.ns-evidence-claim {
+  margin-bottom: 6px;
+  font-size: 13px;
+}
+.ns-evidence-excerpt {
+  color: var(--muted-foreground);
+  font-style: italic;
+}
+.ns-evidence-scenes {
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+.ns-script-list {
+  display: grid;
+  gap: 12px;
+}
+.ns-script-card {
+  display: flex;
+  align-items: stretch;
+  gap: 16px;
+  padding: 16px;
+  min-width: 0;
+}
+@media (max-width: 640px) {
+  .ns-script-card {
+    flex-wrap: wrap;
+  }
+  .ns-script-media-slot {
+    width: 100%;
+    justify-content: flex-start;
+  }
+}
+.ns-script-index-wrap {
+  display: flex;
+  flex-shrink: 0;
+  flex-direction: column;
+  align-items: center;
+  padding-top: 8px;
+}
+.ns-script-index {
+  min-width: 20px;
+  color: var(--brand);
+  font-size: 16px;
+  font-weight: 800;
+  text-align: center;
+}
+.ns-script-fields {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  gap: 8px;
+}
+.ns-script-fields .ns-input {
+  width: 100%;
+  padding: 8px 12px;
+}
+.ns-script-fields textarea.ns-input {
+  min-height: 64px;
+  resize: vertical;
+}
+.ns-script-media-slot {
+  display: flex;
+  width: 80px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+}
+.ns-script-media-thumb,
+.ns-script-media-empty {
+  width: 72px;
+  height: 72px;
+  border-radius: 8px;
+}
+.ns-script-media-thumb {
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+.ns-script-media-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px dashed rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.15);
+}

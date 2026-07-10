@@ -1,0 +1,269 @@
+/* Workspace — writing / render / draft-recovery / image review */
+.ns-render-card {
+  padding: clamp(20px, 4vw, 32px);
+}
+.ns-render-status-line {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-height: 1.5em;
+  margin-bottom: 12px;
+}
+.ns-render-status-copy {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 8px;
+  min-width: 0;
+  flex: 1;
+}
+.ns-render-status-label {
+  min-width: 0;
+  line-height: 1.4;
+  overflow-wrap: normal;
+  word-break: normal;
+}
+.ns-render-status-count {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.ns-progress-track {
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--muted);
+}
+.ns-progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--brand);
+  transition: width 0.3s;
+}
+.ns-render-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 16px;
+}
+.ns-writing-card {
+  display: grid;
+  gap: 12px;
+  padding: clamp(24px, 6vw, 48px);
+  place-items: center;
+  text-align: center;
+}
+.ns-writing-title,
+.ns-writing-detail {
+  margin: 0;
+  max-width: 32rem;
+  overflow-wrap: normal;
+  word-break: normal;
+  hyphens: none;
+}
+.ns-writing-title {
+  color: var(--foreground);
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.4;
+  text-wrap: balance;
+}
+.ns-writing-detail {
+  color: var(--muted-foreground);
+  font-size: 13px;
+  line-height: 1.5;
+  text-align: center;
+}
+.ns-writing-actions {
+  display: flex;
+  justify-content: center;
+  margin-top: 8px;
+}
+.ns-draft-recovery {
+  display: grid;
+  gap: 14px;
+  padding: clamp(20px, 4vw, 32px);
+  place-items: center;
+  text-align: center;
+}
+.ns-draft-recovery-video {
+  width: min(100%, 360px);
+  max-height: 70vh;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: #0c0e12;
+  object-fit: contain;
+}
+
+/* Crawled image review — selection grid before authoring. */
+.ns-image-review {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+.ns-image-review-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px;
+}
+.ns-image-review-help {
+  margin: 0;
+  flex: 1 1 16rem;
+  min-width: 0;
+  color: var(--muted-foreground);
+  font-size: 14px;
+  line-height: 1.45;
+}
+.ns-image-review-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.ns-image-review-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 148px), 1fr));
+  gap: 12px;
+}
+.ns-image-tile {
+  position: relative;
+  display: block;
+  width: 100%;
+  padding: 0;
+  aspect-ratio: 9 / 16;
+  overflow: hidden;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: #0c0e12;
+  cursor: pointer;
+  color: inherit;
+}
+.ns-image-tile.is-selected {
+  border: 2px solid var(--brand);
+}
+.ns-image-tile-media {
+  position: absolute;
+  inset: 0;
+  background-color: #0c0e12;
+  background-position: center;
+  background-size: contain;
+  background-repeat: no-repeat;
+}
+.ns-image-tile-check {
+  position: absolute;
+  right: 6px;
+  top: 6px;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+}
+.ns-image-tile-check.is-on {
+  background: var(--brand);
+  border: none;
+}
+.ns-image-tile-badge {
+  position: absolute;
+  left: 6px;
+  top: 6px;
+  font-size: 10px;
+  font-weight: 800;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.6);
+  border-radius: 5px;
+  padding: 1px 6px;
+  line-height: 16px;
+}
+.ns-image-tile-caption {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 4px 8px;
+  font-size: 11px;
+  color: #fff;
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.75));
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ns-image-review-empty {
+  margin: 0;
+  color: var(--muted-foreground);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+}
+
+/* Shared info hint used by workspace/review controls. */
+/* --- (i) info hint: a glyph with a hover/focus tooltip ------------------ */
+.ns-info {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  margin-left: 6px;
+  border-radius: 999px;
+  color: var(--muted-foreground);
+  cursor: help;
+  vertical-align: middle;
+}
+.ns-info:hover,
+.ns-info:focus-visible {
+  color: var(--foreground);
+  outline: none;
+}
+/* Render the glyph as a block so it has no inline-baseline descender gap that
+ * would push it visually off-centre inside the flex row. */
+.ns-info svg {
+  display: block;
+}
+.ns-info-tip {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%) translateY(4px);
+  width: max-content;
+  max-width: 260px;
+  background: var(--popover);
+  color: var(--foreground);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 8px 11px;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.5;
+  text-align: left;
+  white-space: normal;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s, transform 0.12s;
+  z-index: 30;
+}
+.ns-info:hover .ns-info-tip,
+.ns-info:focus-visible .ns-info-tip {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+.ns-info-tip::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-top-color: var(--popover);
+}
