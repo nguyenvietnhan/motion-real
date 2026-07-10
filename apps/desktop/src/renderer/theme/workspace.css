@@ -208,6 +208,11 @@
   line-height: 1.5;
   text-align: center;
 }
+.ns-writing-actions {
+  display: flex;
+  justify-content: center;
+  margin-top: 8px;
+}
 
 /* Storyboard header: leading identity + action cluster.
  * Actions wrap as a group on narrow windows — never stack/overlap individual controls. */

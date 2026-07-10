@@ -19,6 +19,9 @@ type RunScriptAuthoringOptions = {
   runRender: (readyNotice?: string) => Promise<void>;
   friendlyError: (error: FriendlyError) => void;
   logError?: (message?: unknown, ...optionalParams: unknown[]) => void;
+  signal?: AbortSignal;
+  /** Restore prior reviewable stage after cancel — not an error. */
+  recoverAfterCancel?: () => Promise<void>;
 };
 
 export function scriptGateModelFromLines(
@@ -38,6 +41,10 @@ export function scriptGateModelFromLines(
   };
 }
 
+function isAbortError(error: unknown): boolean {
+  return Boolean(error && typeof error === "object" && (error as { name?: string }).name === "AbortError");
+}
+
 export async function runScriptAuthoring({
   projectId,
   input,
@@ -50,11 +57,21 @@ export async function runScriptAuthoring({
   runRender,
   friendlyError,
   logError,
+  signal,
+  recoverAfterCancel,
 }: RunScriptAuthoringOptions): Promise<void> {
   const hooks: AgentHooks = { onProgress: () => {}, onSceneProduced: () => {}, onRepair: () => {} };
 
   try {
-    const authored = await worker.author({ projectId, input, scriptGate: scriptGateEnabled }, hooks);
+    if (signal?.aborted) {
+      await recoverAfterCancel?.();
+      return;
+    }
+    const authored = await worker.author({ projectId, input, scriptGate: scriptGateEnabled }, hooks, signal);
+    if (authored.kind === "cancelled" || signal?.aborted) {
+      await recoverAfterCancel?.();
+      return;
+    }
     if (authored.kind !== "authored") {
       const message = redact(authored.message ?? "Chưa tìm được nguồn nội dung phù hợp.");
       setStage({ kind: "error", message, fixable: false, retry: "create" });
@@ -75,6 +92,10 @@ export async function runScriptAuthoring({
       await runRender(linkWarning);
     }
   } catch (error) {
+    if (isAbortError(error) || signal?.aborted) {
+      await recoverAfterCancel?.();
+      return;
+    }
     logError?.(`[workspace] authoring failed for ${projectId}:`, error);
     const message = "Có lỗi khi viết kịch bản. Hãy thử lại.";
     setStage({ kind: "error", message, fixable: false, retry: "create" });

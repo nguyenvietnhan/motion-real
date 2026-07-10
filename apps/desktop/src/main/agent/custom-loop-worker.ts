@@ -36,7 +36,10 @@ export type ReauthorTarget = { sceneId: string; issues?: SafetyIssue[]; intent?:
  * encode (via Remotion's cancelSignal) and the AI calls (via fetch abort). */
 export interface AuthoringBackend {
   /** Author the scene.tsx + manifest + narration for a fresh project (ingests any brief links best-effort). */
-  authorScenes(job: AuthorJob): Promise<{ scenes: AuthoredScene[]; message?: string; unreadableUrls?: string[] }>;
+  authorScenes(
+    job: AuthorJob,
+    signal?: AbortSignal,
+  ): Promise<{ scenes: AuthoredScene[]; message?: string; unreadableUrls?: string[]; cancelled?: boolean }>;
   /** Re-author ONLY the named scenes (code-level self-repair / visual edit). */
   reauthor(projectId: string, targets: ReauthorTarget[], signal?: AbortSignal): Promise<{ scenes: AuthoredScene[] }>;
   /** Render one draft (drives the MCP `render_draft` tool); failure carries the engine error. */
@@ -72,8 +75,10 @@ function emitScenes(scenes: AuthoredScene[], hooks: AgentHooks): void {
 export class CustomLoopAgentWorker implements AgentWorker {
   constructor(private readonly backend: AuthoringBackend) {}
 
-  async author(job: AuthorJob, hooks: AgentHooks): Promise<AuthorOutcome> {
-    const authored = await this.backend.authorScenes(job);
+  async author(job: AuthorJob, hooks: AgentHooks, signal?: AbortSignal): Promise<AuthorOutcome> {
+    if (signal?.aborted) return { kind: "cancelled" };
+    const authored = await this.backend.authorScenes(job, signal);
+    if (authored.cancelled || signal?.aborted) return { kind: "cancelled" };
     if (authored.scenes.length === 0) {
       return { kind: "no-source", message: authored.message ?? "Chưa tạo được cảnh nào từ yêu cầu này." };
     }

@@ -178,9 +178,10 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
   async authorScenes(
     job: AuthorJob,
     signal?: AbortSignal,
-  ): Promise<{ scenes: AuthoredScene[]; message?: string; unreadableUrls?: string[] }> {
+  ): Promise<{ scenes: AuthoredScene[]; message?: string; unreadableUrls?: string[]; cancelled?: boolean }> {
     const model = this.deps.model();
     if (!model) return { scenes: [], message: "Chưa chọn model AI." };
+    if (signal?.aborted) return { scenes: [], cancelled: true };
     // Drop any half-finished candidate transaction left by a prior crash.
     await reconcileAuthoringCandidateTransaction(job.projectId).catch(() => undefined);
 
@@ -190,6 +191,7 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
     const researchBodies: Array<{ metadata: { sourceUrl: string; title?: string; site?: string; author?: string; publishedDate?: string; fetchedAt?: string }; body: string }> = [];
     const unreadableUrls: string[] = [];
     for (const url of job.input.urls) {
+      if (signal?.aborted) return { scenes: [], cancelled: true };
       const ing = await this.deps.tools.ingest_url({ url }).catch((error) => {
         log.warn({ err: error, url }, "URL ingest threw; authoring will continue without article text");
         return null;
@@ -255,26 +257,39 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
     const wordsPerSecond = await this.deps.wordsPerSecond?.(job.projectId);
     const offeredImages = images.length > 0 ? images : undefined;
 
-    const contentPlan = await runContentPlan({
-      model,
-      projectId: job.projectId,
-      input: job.input,
-      research,
-      // Enforce claim-provenance only for URL-grounded runs (including all-unreadable → []).
-      // Text-only briefs omit the arg so existing plans without sourceRef stay valid.
-      ...(job.input.urls.length > 0 ? { researchSources } : {}),
-      offeredImages,
-      wordsPerSecond,
-      chat: (selectedModel, messages) => this.vision.chatWithVisionFallback(selectedModel, messages),
-      callErrorMessage: authorCallErrorMessage,
-      logger: this.logger(),
-    });
-    if (!contentPlan.ok) {
-      return { scenes: [], message: contentPlan.message, ...(unreadableUrls.length > 0 ? { unreadableUrls } : {}) };
-    }
-    const plannedContent = contentPlan.contentPlan;
-    const contentPlanAdvisories = contentPlan.advisories;
+    if (signal?.aborted) return { scenes: [], cancelled: true };
+    const chat = (selectedModel: string, messages: import("../gateway/ninerouter-client.js").ChatMessage[]) =>
+      this.vision.chatWithVisionFallback(selectedModel, messages, signal);
 
+    let plannedContent;
+    let contentPlanAdvisories;
+    try {
+      const contentPlan = await runContentPlan({
+        model,
+        projectId: job.projectId,
+        input: job.input,
+        research,
+        // Enforce claim-provenance only for URL-grounded runs (including all-unreadable → []).
+        // Text-only briefs omit the arg so existing plans without sourceRef stay valid.
+        ...(job.input.urls.length > 0 ? { researchSources } : {}),
+        offeredImages,
+        wordsPerSecond,
+        chat,
+        callErrorMessage: authorCallErrorMessage,
+        logger: this.logger(),
+      });
+      if (signal?.aborted) return { scenes: [], cancelled: true };
+      if (!contentPlan.ok) {
+        return { scenes: [], message: contentPlan.message, ...(unreadableUrls.length > 0 ? { unreadableUrls } : {}) };
+      }
+      plannedContent = contentPlan.contentPlan;
+      contentPlanAdvisories = contentPlan.advisories;
+    } catch (error) {
+      if (signal?.aborted || (error && typeof error === "object" && (error as { name?: string }).name === "AbortError")) {
+        return { scenes: [], cancelled: true };
+      }
+      throw error;
+    }
     const batchDecision = planAuthorBatching({
       sceneIds: plannedContent.scenes.map((scene) => scene.sceneId),
       imageCount: job.input.images?.length ?? 0,
@@ -305,11 +320,12 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
         contentPlanAdvisories,
         batches: batchDecision.batches,
         batchSize: AUTHOR_BATCH_SIZE,
-        chat: (selectedModel, messages) => this.vision.chatWithVisionFallback(selectedModel, messages),
+        chat,
         callErrorMessage: authorCallErrorMessage,
         callLogger: log,
         logger: this.logger(),
       });
+      if (signal?.aborted) return { scenes: [], cancelled: true };
       if (!batched.ok) return { scenes: [], message: batched.message, ...(unreadableUrls.length > 0 ? { unreadableUrls } : {}) };
       parsed = batched.parsed;
     } else {
@@ -322,11 +338,12 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
         wordsPerSecond,
         contentPlan: plannedContent,
         contentPlanAdvisories,
-        chat: (selectedModel, messages) => this.vision.chatWithVisionFallback(selectedModel, messages),
+        chat,
         callErrorMessage: authorCallErrorMessage,
         callLogger: log,
         logger: this.logger(),
       });
+      if (signal?.aborted) return { scenes: [], cancelled: true };
       if (!authored.ok) return { scenes: [], message: authored.message, ...(unreadableUrls.length > 0 ? { unreadableUrls } : {}) };
       parsed = authored.parsed;
     }
@@ -383,7 +400,7 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
     });
 
     if (applied.kind === "cancelled") {
-      return { scenes: [], message: undefined, ...(unreadableUrls.length > 0 ? { unreadableUrls } : {}) };
+      return { scenes: [], cancelled: true, ...(unreadableUrls.length > 0 ? { unreadableUrls } : {}) };
     }
     if (applied.kind === "rejected") {
       logAuthoringFailure(

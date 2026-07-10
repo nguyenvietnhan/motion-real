@@ -433,6 +433,11 @@ export const ProjectWorkspaceView: React.FC<{
           <p className="ns-writing-detail">
             {writingCopy?.detail}
           </p>
+          <div className="ns-writing-actions">
+            <button type="button" className="ns-btn" onClick={onCancel}>
+              Dừng tạo
+            </button>
+          </div>
         </div>
       )}
       {stage.kind === "script" && (

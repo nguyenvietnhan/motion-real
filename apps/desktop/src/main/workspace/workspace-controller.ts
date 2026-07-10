@@ -178,6 +178,8 @@ export class WorkspaceController {
    * process-wide component registry, the TTS cache and the output file.
    */
   private readonly inFlight = new Set<string>();
+  /** Settling promises for in-flight jobs so delete can await cancel completion. */
+  private readonly inFlightTasks = new Map<string, Promise<void>>();
 
   /**
    * Per-project AbortController for the in-flight job, so "Dừng render" can
@@ -195,10 +197,13 @@ export class WorkspaceController {
     if (this.inFlight.has(projectId)) return;
     this.inFlight.add(projectId);
     this.aborters.set(projectId, new AbortController());
-    void run().finally(() => {
+    const task = run().finally(() => {
       this.inFlight.delete(projectId);
       this.aborters.delete(projectId);
+      this.inFlightTasks.delete(projectId);
     });
+    this.inFlightTasks.set(projectId, task);
+    void task;
   }
 
   /** The in-flight job's abort signal for this project, if one is running. */
@@ -408,6 +413,8 @@ export class WorkspaceController {
       runRender: (readyNotice) => this.runRender(projectId, readyNotice),
       friendlyError: (error) => this.deps.events.friendlyError(error),
       logError: (message, error) => console.error(message, error),
+      signal: this.signalOf(projectId),
+      recoverAfterCancel: () => this.recoverAfterCancel(projectId),
     });
   }
 
@@ -883,13 +890,16 @@ export class WorkspaceController {
   }
 
   async delete(projectId: string): Promise<void> {
-    // Drop EVERY per-project in-memory entry, not just stage + inFlight: a long
-    // session that creates/deletes many projects would otherwise leak the input,
-    // parked review, aborter, and render-version maps unboundedly. Abort any
-    // in-flight job first so its controller isn't stranded after the entry is gone.
+    // Abort then AWAIT the in-flight task so a late author write cannot recreate
+    // project files/maps after delete. Then clear maps and remove on disk.
     this.aborters.get(projectId)?.abort();
+    const task = this.inFlightTasks.get(projectId);
+    if (task) {
+      await task.catch(() => undefined);
+    }
     this.stages.delete(projectId);
     this.inFlight.delete(projectId);
+    this.inFlightTasks.delete(projectId);
     this.inputs.delete(projectId);
     this.pendingReview.delete(projectId);
     this.aborters.delete(projectId);

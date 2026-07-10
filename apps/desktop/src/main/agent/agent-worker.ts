@@ -80,7 +80,9 @@ export type RepairLoopOptions = { maxAttempts: number; signal?: AbortSignal };
 /** Outcome of a fresh-author or re-author job. */
 export type AuthorOutcome =
   | { kind: "authored"; sceneIds: string[]; unreadableUrls?: string[] }
-  | { kind: "no-source"; message: string };
+  | { kind: "no-source"; message: string }
+  /** User cancelled fresh authoring (Dừng tạo) — not a failure. */
+  | { kind: "cancelled" };
 
 /** Outcome of the generate-validate-repair loop. */
 export type RepairOutcome =
@@ -135,8 +137,8 @@ export interface AgentHooks {
 }
 
 export interface AgentWorker {
-  /** Author scenes for a fresh project. */
-  author(job: AuthorJob, hooks: AgentHooks): Promise<AuthorOutcome>;
+  /** Author scenes for a fresh project. Optional signal for Dừng tạo. */
+  author(job: AuthorJob, hooks: AgentHooks, signal?: AbortSignal): Promise<AuthorOutcome>;
   /** Re-author ONLY the named scenes from batched visual edits. */
   reauthorScenes(job: ReauthorJob, hooks: AgentHooks, signal?: AbortSignal): Promise<AuthorOutcome>;
   /**
