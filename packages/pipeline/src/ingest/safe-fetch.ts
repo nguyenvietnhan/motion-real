@@ -1,22 +1,32 @@
-import { lookup } from "node:dns/promises";
-import { isIP } from "node:net";
+import { lookup as dnsLookup } from "node:dns/promises";
+import { Agent, fetch as undiciFetch } from "undici";
 import { PipelineError } from "../errors.js";
+import {
+  isPrivateAddress,
+  resolvePublicTarget,
+  type PublicAddress,
+  type ResolvedPublicTarget,
+} from "./public-address.js";
 
 /**
- * SSRF guard for outbound article fetches (audit P1-2). User-pasted URLs are
- * fetched server-side (Electron main), so without a guard a brief could reach
- * the bundled localhost gateway (127.0.0.1:20128), cloud metadata
- * (169.254.169.254), or LAN hosts, and capture the response into a file + the
- * authoring prompt — an exfiltration channel. This module:
- * 1. resolves the target host and REJECTS loopback / private / link-local /
- * ULA / unspecified addresses (literal IPs are checked directly; hostnames
- * via DNS so a public name that resolves inward is still blocked),
- * 2. follows redirects MANUALLY and re-validates every hop (a public URL that
- * 302-redirects to an internal target is blocked at the hop),
- * 3. caps the response body so a huge response can't exhaust memory, and
- * 4. supports optional AbortSignal + timeout so hung CDNs cannot block create forever.
- * The `fetchImpl`/`lookupImpl` seams keep it unit-testable with no live network.
+ * SSRF guard for outbound article/image fetches. User-pasted URLs are fetched
+ * server-side (Electron main), so without a guard a brief could reach the
+ * bundled localhost gateway, cloud metadata, or LAN hosts.
+ *
+ * Policy:
+ * 1. Resolve the host once per hop and classify every candidate address
+ *    (`public-address.ts` / `net.BlockList`).
+ * 2. Pin the transport DNS lookup to only those vetted addresses (undici
+ *    Agent) so the socket cannot re-resolve and rebind to a private IP.
+ * 3. Follow redirects manually and re-resolve/pin every hop.
+ * 4. Cap response bodies; honour AbortSignal + optional timeout.
+ *
+ * Corporate HTTP proxies are intentionally unsupported here — do not silently
+ * route pinned fetches through an unvetted proxy.
  */
+
+export { isPrivateAddress, resolvePublicTarget } from "./public-address.js";
+export type { PublicAddress, ResolvedPublicTarget } from "./public-address.js";
 
 const MAX_REDIRECTS = 5;
 const MAX_BODY_BYTES = 5 * 1024 * 1024; // 5 MB — articles are text; this is generous.
@@ -28,11 +38,7 @@ export const DEFAULT_IMAGE_FETCH_TIMEOUT_MS = 10_000;
 
 /**
  * Browser-like request headers. Without a real User-Agent, news sites behind a
- * CDN (Cloudflare etc.) routinely answer Node's default agent with 403/429 or a
- * bot-challenge page, so the article never reaches Readability and authoring
- * falls back to the model's own (often stale/wrong) knowledge. Sending a normal
- * desktop-Chrome UA + Accept headers gets static article HTML through; JS-only
- * pages still need a headless browser (out of scope) and fail gracefully.
+ * CDN routinely answer Node's default agent with 403/429 or a bot challenge.
  */
 const BROWSER_HEADERS: Record<string, string> = {
   "User-Agent":
@@ -46,9 +52,22 @@ export type SafeFetchResult = { ok: boolean; status: number; text: () => Promise
 
 export type FetchImpl = (url: string, init?: { signal?: AbortSignal }) => Promise<Response>;
 
+/** Production/test seam: request a already-resolved public target (DNS-pinned). */
+export type PinnedRequestImpl = (
+  target: ResolvedPublicTarget,
+  signal?: AbortSignal,
+) => Promise<Response>;
+
 export type SafeFetchOptions = {
-  /** Underlying fetch (defaults to global fetch with manual redirects). Test seam. */
+  /**
+   * Legacy test seam: plain URL fetch after public-target resolution.
+   * Prefer `requestPinned` when proving transport pinning. When set without
+   * `requestPinned`, the resolved target is still computed first (SSRF gate)
+   * then this impl is called with the URL string only.
+   */
   fetchImpl?: FetchImpl;
+  /** DNS-pinned request seam. Production default uses undici with pinned lookup. */
+  requestPinned?: PinnedRequestImpl;
   /** DNS resolver returning candidate addresses for a hostname. Test seam. */
   lookupImpl?: (host: string) => Promise<string[]>;
   maxRedirects?: number;
@@ -64,45 +83,8 @@ export type SafeFetchOptions = {
 
 /** Default DNS lookup: every A/AAAA address for the host (so we check them all). */
 async function defaultLookup(host: string): Promise<string[]> {
-  const records = await lookup(host, { all: true });
+  const records = await dnsLookup(host, { all: true });
   return records.map((r) => r.address);
-}
-
-/** Extract the embedded IPv4 from an IPv4-mapped IPv6 address, else null. */
-function mappedV4(ip: string): string | null {
-  const m = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/i.exec(ip);
-  return m ? m[1]! : null;
-}
-
-/**
- * True if `ip` is a non-public address we must never fetch: loopback, private
- * (RFC 1918), link-local, carrier-grade NAT, ULA, or unspecified. Handles
- * IPv4, IPv6, and IPv4-mapped IPv6.
- */
-export function isPrivateAddress(ip: string): boolean {
-  const v4 = isIP(ip) === 4 ? ip : mappedV4(ip);
-  if (v4) {
-    const parts = v4.split(".").map((n) => Number(n));
-    if (parts.length !== 4 || parts.some((n) => Number.isNaN(n) || n < 0 || n > 255)) return true; // malformed → deny
-    const [a, b] = parts as [number, number, number, number];
-    if (a === 0) return true; // 0.0.0.0/8 (incl. unspecified)
-    if (a === 10) return true; // 10/8
-    if (a === 127) return true; // loopback
-    if (a === 169 && b === 254) return true; // link-local
-    if (a === 172 && b >= 16 && b <= 31) return true; // 172.16/12
-    if (a === 192 && b === 168) return true; // 192.168/16
-    if (a === 100 && b >= 64 && b <= 127) return true; // 100.64/10 CGNAT
-    return false;
-  }
-  if (isIP(ip) === 6) {
-    const lower = ip.toLowerCase();
-    if (lower === "::1" || lower === "::") return true; // loopback / unspecified
-    if (lower.startsWith("fe80")) return true; // link-local
-    if (lower.startsWith("fc") || lower.startsWith("fd")) return true; // ULA fc00::/7
-    return false;
-  }
-  // Not a recognizable IP literal — deny (defensive).
-  return true;
 }
 
 /**
@@ -113,45 +95,7 @@ export async function assertPublicUrl(
   rawUrl: string,
   lookupImpl: (host: string) => Promise<string[]> = defaultLookup,
 ): Promise<void> {
-  let url: URL;
-  try {
-    url = new URL(rawUrl);
-  } catch {
-    throw new PipelineError({
-      stage: "ingest",
-      cause: `invalid URL: ${rawUrl}`,
-      remediation: "Provide a full http(s) URL to a public article.",
-    });
-  }
-  if (url.protocol !== "http:" && url.protocol !== "https:") {
-    throw new PipelineError({
-      stage: "ingest",
-      cause: `unsupported URL scheme "${url.protocol}" for ${rawUrl}`,
-      remediation: "Only http(s) article URLs are allowed.",
-    });
-  }
-  const host = url.hostname;
-  let addresses: string[];
-  if (isIP(host)) {
-    addresses = [host];
-  } else {
-    try {
-      addresses = await lookupImpl(host);
-    } catch {
-      throw new PipelineError({
-        stage: "ingest",
-        cause: `could not resolve host "${host}"`,
-        remediation: "Check the URL host is correct and reachable.",
-      });
-    }
-  }
-  if (addresses.length === 0 || addresses.some((a) => isPrivateAddress(a))) {
-    throw new PipelineError({
-      stage: "ingest",
-      cause: `refusing to fetch a private/loopback/link-local address for ${rawUrl}`,
-      remediation: "Use a public article URL — internal, localhost, and LAN addresses are not allowed.",
-    });
-  }
+  await resolvePublicTarget(rawUrl, lookupImpl);
 }
 
 /** True when fetch failed because the caller cancelled or the deadline elapsed. */
@@ -204,7 +148,12 @@ function reasonLooksLikeTimeout(reason: unknown, error: unknown): boolean {
   return false;
 }
 
-function rethrowFetchFailure(error: unknown, url: string, signal: AbortSignal | undefined, timeoutMs?: number): never {
+function rethrowFetchFailure(
+  error: unknown,
+  url: string,
+  signal: AbortSignal | undefined,
+  timeoutMs?: number,
+): never {
   if (error instanceof PipelineError) throw error;
   if (signal?.aborted || isFetchAbortError(error)) {
     throw abortPipelineError(url, reasonLooksLikeTimeout(signal?.reason, error), timeoutMs);
@@ -262,48 +211,140 @@ async function readCappedBytes(res: Response, max: number): Promise<Uint8Array> 
   return Buffer.concat(chunks);
 }
 
-function defaultFetchImpl(url: string, init?: { signal?: AbortSignal }): Promise<Response> {
-  return fetch(url, { redirect: "manual", headers: BROWSER_HEADERS, ...(init?.signal ? { signal: init.signal } : {}) });
+function createPinnedLookup(addresses: readonly PublicAddress[]) {
+  return (
+    _hostname: string,
+    options: { all?: boolean } | undefined,
+    callback: (...args: any[]) => void,
+  ): void => {
+    if (!addresses.length) {
+      const err = Object.assign(new Error("ENOTFOUND"), { code: "ENOTFOUND" });
+      callback(err);
+      return;
+    }
+    if (options && (options as { all?: boolean }).all) {
+      callback(
+        null,
+        addresses.map((a) => ({ address: a.address, family: a.family })),
+      );
+      return;
+    }
+    const first = addresses[0]!;
+    callback(null, first.address, first.family);
+  };
 }
 
 /**
- * Build an SSRF-guarded fetcher: validates the host (and every redirect hop) and
- * caps the body. Returns a function compatible with the ingest `FetchLike`.
+ * Production pinned request: undici Agent whose connector DNS lookup returns
+ * only the already-vetted addresses. Host header / TLS SNI keep the original
+ * hostname via the request URL.
+ */
+export async function requestPinnedWithUndici(
+  target: ResolvedPublicTarget,
+  signal?: AbortSignal,
+): Promise<Response> {
+  const dispatcher = new Agent({
+    connect: {
+      lookup: createPinnedLookup(target.addresses) as never,
+    },
+  });
+  try {
+    const res = await undiciFetch(target.url.toString(), {
+      dispatcher,
+      redirect: "manual",
+      headers: BROWSER_HEADERS,
+      ...(signal ? { signal } : {}),
+    });
+    // undici Response is fetch-compatible for our read path.
+    return res as unknown as Response;
+  } finally {
+    // Close/destroy even on abort or throw so sockets do not leak.
+    try {
+      await dispatcher.close();
+    } catch {
+      dispatcher.destroy();
+    }
+  }
+}
+
+function resolveRequestPinned(opts: SafeFetchOptions): PinnedRequestImpl {
+  if (opts.requestPinned) return opts.requestPinned;
+  if (opts.fetchImpl) {
+    const fetchImpl = opts.fetchImpl;
+    return async (target, signal) => fetchImpl(target.url.toString(), signal ? { signal } : undefined);
+  }
+  return requestPinnedWithUndici;
+}
+
+async function discardBody(res: Response): Promise<void> {
+  try {
+    await res.body?.cancel();
+  } catch {
+    // ignore — redirect hop is discarded either way
+  }
+}
+
+/**
+ * Shared redirect + pin engine for text and binary fetchers.
+ */
+export async function followPublicRedirects<T>(
+  url: string,
+  signal: AbortSignal | undefined,
+  requestPinned: PinnedRequestImpl,
+  readBody: (response: Response, maxBytes: number) => Promise<T>,
+  opts: {
+    lookupImpl: (host: string) => Promise<string[]>;
+    maxRedirects: number;
+    maxBodyBytes: number;
+  },
+): Promise<{ ok: boolean; status: number; body: T }> {
+  let current = url;
+  for (let hop = 0; hop <= opts.maxRedirects; hop++) {
+    if (signal?.aborted) {
+      throw new PipelineError({
+        stage: "ingest",
+        cause: `fetch aborted for ${url}`,
+        remediation: "The request was cancelled.",
+      });
+    }
+    const target = await resolvePublicTarget(current, opts.lookupImpl);
+    const res = await requestPinned(target, signal);
+    const location = res.status >= 300 && res.status < 400 ? res.headers.get("location") : null;
+    if (location) {
+      await discardBody(res);
+      current = new URL(location, current).toString();
+      continue;
+    }
+    const body = await readBody(res, opts.maxBodyBytes);
+    return { ok: res.ok, status: res.status, body };
+  }
+  throw new PipelineError({
+    stage: "ingest",
+    cause: `too many redirects (>${opts.maxRedirects}) starting at ${url}`,
+    remediation: "The URL redirects too many times; try the final article URL directly.",
+  });
+}
+
+/**
+ * Build an SSRF-guarded fetcher: validates the host (and every redirect hop),
+ * pins DNS for the transport, and caps the body.
  */
 export function makeSafeFetch(opts: SafeFetchOptions = {}): (url: string) => Promise<SafeFetchResult> {
-  const fetchImpl = opts.fetchImpl ?? defaultFetchImpl;
   const lookupImpl = opts.lookupImpl ?? defaultLookup;
   const maxRedirects = opts.maxRedirects ?? MAX_REDIRECTS;
   const maxBodyBytes = opts.maxBodyBytes ?? MAX_BODY_BYTES;
   const timeoutMs = opts.timeoutMs;
+  const requestPinned = resolveRequestPinned(opts);
 
   return async (url: string): Promise<SafeFetchResult> => {
     const signal = mergeFetchSignals(opts.signal, timeoutMs);
-    let current = url;
     try {
-      for (let hop = 0; hop <= maxRedirects; hop++) {
-        if (signal?.aborted) {
-          throw new PipelineError({
-            stage: "ingest",
-            cause: `fetch aborted for ${url}`,
-            remediation: "The request was cancelled.",
-          });
-        }
-        await assertPublicUrl(current, lookupImpl);
-        const res = await fetchImpl(current, signal ? { signal } : undefined);
-        const location = res.status >= 300 && res.status < 400 ? res.headers.get("location") : null;
-        if (location) {
-          current = new URL(location, current).toString();
-          continue;
-        }
-        const text = await readCapped(res, maxBodyBytes);
-        return { ok: res.ok, status: res.status, text: async () => text };
-      }
-      throw new PipelineError({
-        stage: "ingest",
-        cause: `too many redirects (>${maxRedirects}) starting at ${url}`,
-        remediation: "The URL redirects too many times; try the final article URL directly.",
+      const out = await followPublicRedirects(url, signal, requestPinned, readCapped, {
+        lookupImpl,
+        maxRedirects,
+        maxBodyBytes,
       });
+      return { ok: out.ok, status: out.status, text: async () => out.body };
     } catch (error) {
       rethrowFetchFailure(error, url, signal, timeoutMs);
     }
@@ -316,57 +357,30 @@ const MAX_IMAGE_FETCH_BYTES = 10 * 1024 * 1024;
 /** The byte result shape for image downloads (binary-safe, unlike SafeFetchResult). */
 export type SafeFetchBytesResult = { ok: boolean; status: number; bytes: Uint8Array };
 
-export type SafeFetchBytesOptions = {
-  /** Underlying fetch (defaults to global fetch with manual redirects). Test seam. */
-  fetchImpl?: FetchImpl;
-  /** DNS resolver returning candidate addresses for a hostname. Test seam. */
-  lookupImpl?: (host: string) => Promise<string[]>;
-  maxRedirects?: number;
-  maxBodyBytes?: number;
-  signal?: AbortSignal;
-  timeoutMs?: number;
-};
+export type SafeFetchBytesOptions = SafeFetchOptions;
 
 /**
  * Build an SSRF-guarded BINARY fetcher for article image downloads.
- * Same host/redirect-hop validation as `makeSafeFetch`, but reads the body into
- * a byte-capped Buffer instead of utf8 text — so an image's bytes are never
- * corrupted by a string decode. The body cap defaults to the importer's 10 MB.
+ * Shares the same redirect/pinning engine as `makeSafeFetch`.
  */
-export function makeSafeFetchBytes(opts: SafeFetchBytesOptions = {}): (url: string) => Promise<SafeFetchBytesResult> {
-  const fetchImpl = opts.fetchImpl ?? defaultFetchImpl;
+export function makeSafeFetchBytes(
+  opts: SafeFetchBytesOptions = {},
+): (url: string) => Promise<SafeFetchBytesResult> {
   const lookupImpl = opts.lookupImpl ?? defaultLookup;
   const maxRedirects = opts.maxRedirects ?? MAX_REDIRECTS;
   const maxBodyBytes = opts.maxBodyBytes ?? MAX_IMAGE_FETCH_BYTES;
   const timeoutMs = opts.timeoutMs;
+  const requestPinned = resolveRequestPinned(opts);
 
   return async (url: string): Promise<SafeFetchBytesResult> => {
     const signal = mergeFetchSignals(opts.signal, timeoutMs);
-    let current = url;
     try {
-      for (let hop = 0; hop <= maxRedirects; hop++) {
-        if (signal?.aborted) {
-          throw new PipelineError({
-            stage: "ingest",
-            cause: `fetch aborted for ${url}`,
-            remediation: "The request was cancelled.",
-          });
-        }
-        await assertPublicUrl(current, lookupImpl);
-        const res = await fetchImpl(current, signal ? { signal } : undefined);
-        const location = res.status >= 300 && res.status < 400 ? res.headers.get("location") : null;
-        if (location) {
-          current = new URL(location, current).toString();
-          continue;
-        }
-        const bytes = await readCappedBytes(res, maxBodyBytes);
-        return { ok: res.ok, status: res.status, bytes };
-      }
-      throw new PipelineError({
-        stage: "ingest",
-        cause: `too many redirects (>${maxRedirects}) starting at ${url}`,
-        remediation: "The image URL redirects too many times; skip it.",
+      const out = await followPublicRedirects(url, signal, requestPinned, readCappedBytes, {
+        lookupImpl,
+        maxRedirects,
+        maxBodyBytes,
       });
+      return { ok: out.ok, status: out.status, bytes: out.body };
     } catch (error) {
       rethrowFetchFailure(error, url, signal, timeoutMs);
     }

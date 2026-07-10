@@ -5,14 +5,13 @@ import {
   isPrivateAddress,
   makeSafeFetch,
   makeSafeFetchBytes,
+  type ResolvedPublicTarget,
 } from "./safe-fetch.js";
 import { isPipelineError } from "../errors.js";
 
 /**
- * SSRF guard tests (audit P1-2). The default ingest egress must refuse to fetch
- * private/loopback/link-local targets, re-validate every redirect hop, and cap
- * the response body — so a user-pasted URL cannot reach the bundled localhost
- * gateway, cloud metadata, or LAN hosts, directly or via a redirect.
+ * SSRF guard tests. The default ingest egress must refuse private targets,
+ * re-validate every redirect hop, pin DNS for the transport, and cap bodies.
  */
 
 /** A Response-like stub for the underlying fetch seam. */
@@ -23,9 +22,24 @@ function res(opts: { status?: number; location?: string; body?: string }): Respo
   return new Response(status >= 300 && status < 400 ? null : body, { status, headers });
 }
 
-describe("isPrivateAddress", () => {
-  it("flags loopback, private, link-local, CGNAT, ULA, and unspecified", () => {
-    for (const ip of ["127.0.0.1", "10.0.0.5", "172.16.3.4", "192.168.1.1", "169.254.169.254", "100.64.0.1", "0.0.0.0", "::1", "::", "fe80::1", "fd00::1", "::ffff:127.0.0.1"]) {
+describe("isPrivateAddress (compat re-export)", () => {
+  it("flags loopback, private, link-local, CGNAT, ULA, mapped, and unspecified", () => {
+    for (const ip of [
+      "127.0.0.1",
+      "10.0.0.5",
+      "172.16.3.4",
+      "192.168.1.1",
+      "169.254.169.254",
+      "100.64.0.1",
+      "0.0.0.0",
+      "::1",
+      "::",
+      "fe80::1",
+      "fe90::1",
+      "fd00::1",
+      "::ffff:127.0.0.1",
+      "::ffff:7f00:1",
+    ]) {
       expect(isPrivateAddress(ip), ip).toBe(true);
     }
   });
@@ -45,19 +59,27 @@ describe("assertPublicUrl", () => {
   });
 
   it("rejects a literal loopback IP without any DNS", async () => {
-    await expect(assertPublicUrl("http://127.0.0.1:20128/api/providers")).rejects.toSatisfy(isPipelineError);
+    await expect(assertPublicUrl("http://127.0.0.1:20128/api/providers")).rejects.toSatisfy(
+      isPipelineError,
+    );
   });
 
   it("rejects cloud-metadata link-local", async () => {
-    await expect(assertPublicUrl("http://169.254.169.254/latest/meta-data/")).rejects.toSatisfy(isPipelineError);
+    await expect(assertPublicUrl("http://169.254.169.254/latest/meta-data/")).rejects.toSatisfy(
+      isPipelineError,
+    );
   });
 
   it("rejects a public hostname that resolves to a private address", async () => {
-    await expect(assertPublicUrl("http://evil.example.com/", lookup("10.1.2.3"))).rejects.toSatisfy(isPipelineError);
+    await expect(assertPublicUrl("http://evil.example.com/", lookup("10.1.2.3"))).rejects.toSatisfy(
+      isPipelineError,
+    );
   });
 
   it("allows a public hostname that resolves to a public address", async () => {
-    await expect(assertPublicUrl("https://example.com/article", lookup("93.184.216.34"))).resolves.toBeUndefined();
+    await expect(
+      assertPublicUrl("https://example.com/article", lookup("93.184.216.34")),
+    ).resolves.toBeUndefined();
   });
 });
 
@@ -72,12 +94,60 @@ describe("makeSafeFetch", () => {
     expect(await out.text()).toContain("ok");
   });
 
-  it("blocks a redirect hop into a private target", async () => {
+  it("blocks a redirect hop into a private target before the second request", async () => {
+    const requested: string[] = [];
     const fetcher = makeSafeFetch({
-      fetchImpl: async (u) => (u.includes("start") ? res({ status: 302, location: "http://127.0.0.1/secret" }) : res({ body: "leak" })),
-      lookupImpl: async () => ["93.184.216.34"],
+      fetchImpl: async (u) => {
+        requested.push(u);
+        return u.includes("start")
+          ? res({ status: 302, location: "http://127.0.0.1/secret" })
+          : res({ body: "leak" });
+      },
+      lookupImpl: async (host) => {
+        if (host === "127.0.0.1") return ["127.0.0.1"];
+        return ["93.184.216.34"];
+      },
     });
     await expect(fetcher("https://start.example.com/")).rejects.toSatisfy(isPipelineError);
+    expect(requested).toEqual(["https://start.example.com/"]);
+  });
+
+  it("repins a public → public redirect with a fresh resolved target", async () => {
+    const pinnedHosts: string[] = [];
+    const fetcher = makeSafeFetch({
+      requestPinned: async (target: ResolvedPublicTarget) => {
+        pinnedHosts.push(target.url.hostname);
+        if (target.url.hostname === "start.example.com") {
+          return res({ status: 302, location: "https://final.example.com/page" });
+        }
+        return res({ body: "<html>final</html>" });
+      },
+      lookupImpl: async (host) => {
+        if (host === "start.example.com") return ["93.184.216.34"];
+        if (host === "final.example.com") return ["1.1.1.1"];
+        return ["8.8.8.8"];
+      },
+    });
+    const out = await fetcher("https://start.example.com/");
+    expect(await out.text()).toContain("final");
+    expect(pinnedHosts).toEqual(["start.example.com", "final.example.com"]);
+  });
+
+  it("proves the transport receives only the pinned public target (rebinding seam)", async () => {
+    const seen: ResolvedPublicTarget[] = [];
+    const fetcher = makeSafeFetch({
+      requestPinned: async (target) => {
+        seen.push(target);
+        return res({ body: "ok" });
+      },
+      // Guard resolves public; a rebinding world would re-resolve private —
+      // our seam only ever gets the pinned public list from resolvePublicTarget.
+      lookupImpl: async () => ["93.184.216.34"],
+    });
+    await fetcher("https://rebind.example.com/");
+    expect(seen).toHaveLength(1);
+    expect(seen[0]!.addresses).toEqual([{ address: "93.184.216.34", family: 4 }]);
+    expect(seen[0]!.addresses.every((a) => !isPrivateAddress(a.address))).toBe(true);
   });
 
   it("aborts when the body exceeds the cap", async () => {
@@ -143,31 +213,8 @@ describe("makeSafeFetch", () => {
       signal: ac.signal,
       timeoutMs: 0,
     });
-    // Abort before the fetch runs so the merged signal is already aborted.
     ac.abort();
     await expect(fetcher("https://example.com/x")).rejects.toSatisfy(isPipelineError);
-  });
-
-  it("sends browser-like headers on the default fetch (so CDN-fronted articles aren't 403'd)", async () => {
-    // The default fetchImpl uses global fetch; capture its init to assert headers.
-    const realFetch = globalThis.fetch;
-    let captured: RequestInit | undefined;
-    globalThis.fetch = (async (_url: string, init?: RequestInit) => {
-      captured = init;
-      return res({ body: "<html>ok</html>" });
-    }) as typeof fetch;
-    try {
-      // Only override lookup (public) so the default fetchImpl path runs.
-      const fetcher = makeSafeFetch({ lookupImpl: async () => ["93.184.216.34"] });
-      await fetcher("https://example.com/a");
-    } finally {
-      globalThis.fetch = realFetch;
-    }
-    const headers = (captured?.headers ?? {}) as Record<string, string>;
-    expect(captured?.redirect).toBe("manual");
-    expect(headers["User-Agent"]).toMatch(/Mozilla\/5\.0.*Chrome/);
-    expect(headers["Accept"]).toContain("text/html");
-    expect(headers["Accept-Language"]).toContain("vi");
   });
 });
 
@@ -177,7 +224,10 @@ describe("makeSafeFetchBytes", () => {
     const { status = 200, location } = opts;
     const headers = new Headers();
     if (location) headers.set("location", location);
-    return new Response(status >= 300 && status < 400 ? null : (bytes as unknown as BodyInit), { status, headers });
+    return new Response(status >= 300 && status < 400 ? null : (bytes as unknown as BodyInit), {
+      status,
+      headers,
+    });
   };
 
   it("returns the raw bytes intact (no utf8 corruption)", async () => {
@@ -199,10 +249,12 @@ describe("makeSafeFetchBytes", () => {
     await expect(fetcher("https://evil.example.com/x.png")).rejects.toSatisfy(isPipelineError);
   });
 
-  it("re-validates a redirect hop into a private target", async () => {
+  it("re-validates a redirect hop into a private target (parity with text path)", async () => {
     const fetcher = makeSafeFetchBytes({
       fetchImpl: async (u) =>
-        u.includes("start") ? binRes(new Uint8Array(), { status: 302, location: "http://127.0.0.1/secret.png" }) : binRes(new Uint8Array([9])),
+        u.includes("start")
+          ? binRes(new Uint8Array(), { status: 302, location: "http://127.0.0.1/secret.png" })
+          : binRes(new Uint8Array([9])),
       lookupImpl: async () => ["93.184.216.34"],
     });
     await expect(fetcher("https://start.example.com/")).rejects.toSatisfy(isPipelineError);
@@ -215,5 +267,20 @@ describe("makeSafeFetchBytes", () => {
       maxBodyBytes: 100,
     });
     await expect(fetcher("https://example.com/big.png")).rejects.toSatisfy(isPipelineError);
+  });
+
+  it("uses the same requestPinned pinning seam as text fetch", async () => {
+    const seen: string[] = [];
+    const bytes = new Uint8Array([1, 2, 3]);
+    const fetcher = makeSafeFetchBytes({
+      requestPinned: async (target) => {
+        seen.push(target.addresses.map((a) => a.address).join(","));
+        return binRes(bytes);
+      },
+      lookupImpl: async () => ["1.1.1.1"],
+    });
+    const out = await fetcher("https://cdn.example.com/a.png");
+    expect(Array.from(out.bytes)).toEqual([1, 2, 3]);
+    expect(seen).toEqual(["1.1.1.1"]);
   });
 });

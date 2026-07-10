@@ -449,6 +449,21 @@ When renaming or cleaning comments only:
 - After comment-only edits: `git diff` must show comment/docs lines only, then
   `npm.cmd run typecheck`. Run focused tests if `describe`/`it` titles changed.
 
+## Outbound URL fetch (SSRF / DNS pin)
+
+Article and image ingest use `packages/pipeline/src/ingest/safe-fetch.ts` with
+address policy in `public-address.ts` (`net.BlockList`).
+
+- Resolve DNS **once per hop**, classify every candidate, fail closed if any
+  address is non-public (including mapped IPv6 and full `fe80::/10`).
+- Pin the undici transport lookup to only those vetted addresses — never call
+  ordinary unpinned `fetch()` after a successful resolve.
+- Text and binary fetchers share one redirect/pin engine. On redirect, discard
+  the prior body and re-resolve/pin the next hop.
+- Corporate HTTP proxies are not supported on this path; do not silently route
+  through one. Changing the deny table requires tests and an explicit policy
+  decision — do not shrink it because one site misbehaved.
+
 ## Media protocol allow-list
 
 Do not widen `media://` to all of `VIDEO_TOOL_HOME` or to project JSON/TSX/logs.

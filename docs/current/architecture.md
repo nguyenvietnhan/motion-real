@@ -309,6 +309,15 @@ Use domain folders for content:
 Do not add vendor-specific AI contract files or loose root media files. Shared
 AI guidance belongs in `AI_CONTRACT.md` and `docs/current/`.
 
+## URL ingest egress
+
+Desktop URL/article-image fetches go through `@motionreal/pipeline` SSRF-safe
+fetchers (`safe-fetch.ts` + `public-address.ts`). Each hop is DNS-resolved once,
+classified with `net.BlockList`, and the undici transport is pinned to those
+public addresses so a rebinding hostname cannot open a private socket after the
+guard. Redirects are followed manually and re-pinned. Body size, timeout, and
+abort signals apply to both text and binary paths.
+
 ## Media protocol boundary
 
 The desktop renderer loads local stills, draft/full MP4s, staged images, BGM, and
