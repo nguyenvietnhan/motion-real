@@ -871,7 +871,7 @@ export class WorkspaceController {
       const art = await inspect(projectId);
       full = art.full;
       draft = art.draft;
-    } catch {
+    } catch (_error) {
       full = this.deps.hasOutput(projectId) ? "healthy" : "missing";
       draft = this.deps.hasDraft(projectId) ? "healthy" : "missing";
     }
@@ -947,7 +947,7 @@ export class WorkspaceController {
     this.aborters.get(projectId)?.abort();
     const task = this.inFlightTasks.get(projectId);
     if (task) {
-      await task.catch(() => undefined);
+      await task.catch((_error) => undefined);
     }
     this.stages.delete(projectId);
     this.inFlight.delete(projectId);

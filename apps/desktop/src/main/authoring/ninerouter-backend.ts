@@ -194,7 +194,7 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
     if (!model) return { scenes: [], message: "Chưa chọn model AI." };
     if (signal?.aborted) return { scenes: [], cancelled: true };
     // Drop any half-finished candidate transaction left by a prior crash.
-    await reconcileAuthoringCandidateTransaction(job.projectId).catch(() => undefined);
+    await reconcileAuthoringCandidateTransaction(job.projectId).catch((_error) => undefined);
 
     // Bounded, concurrent URL grounding (Phase 5). Planner sees labeled untrusted
     // text only; code authoring never receives raw article bodies.

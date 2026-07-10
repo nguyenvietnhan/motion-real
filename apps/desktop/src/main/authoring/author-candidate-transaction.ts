@@ -99,7 +99,7 @@ async function readJournal(projectId: string): Promise<Journal | null> {
     if (raw?.version !== 1 || raw.projectId !== projectId) return null;
     if (raw.state !== "prepared" && raw.state !== "promoting" && raw.state !== "committed") return null;
     return raw;
-  } catch {
+  } catch (_error) {
     return null;
   }
 }
@@ -188,7 +188,7 @@ async function promoteCandidate(projectId: string, modules: readonly AuthoringCa
   await mkdir(p.authoredDir, { recursive: true });
 
   // Replace scene modules: remove old non-entry tsx, copy candidate modules
-  const existing = await readdir(p.authoredDir).catch(() => [] as string[]);
+  const existing = await readdir(p.authoredDir).catch((_error) => [] as string[]);
   const nextNames = new Set(modules.map((m) => m.fileName));
   await Promise.all(
     existing
@@ -217,7 +217,7 @@ async function listPreviousComponentIds(projectId: string): Promise<string[]> {
       scenes?: Array<{ component?: string }>;
     };
     return (raw.scenes ?? []).map((s) => s.component).filter((id): id is string => typeof id === "string");
-  } catch {
+  } catch (_error) {
     return [];
   }
 }
@@ -269,13 +269,13 @@ export async function applyAuthoringCandidate(input: {
       await promoteCandidate(projectId, candidate.modules);
       await writeJournal(projectId, "committed");
     } catch (error) {
-      await restoreBackup(projectId).catch(() => undefined);
-      await cleanupTx(projectId).catch(() => undefined);
+      await restoreBackup(projectId).catch((_error) => undefined);
+      await cleanupTx(projectId).catch((_error) => undefined);
       if (isAbortError(error) || signal?.aborted) return { kind: "cancelled" };
       throw error;
     }
 
-    await cleanupTx(projectId).catch(() => undefined);
+    await cleanupTx(projectId).catch((_error) => undefined);
 
     const nextComponentIds = candidate.modules.map((m) => m.componentId);
     await deps?.onCommitted?.({ projectId, previousComponentIds, nextComponentIds });
@@ -283,11 +283,11 @@ export async function applyAuthoringCandidate(input: {
     return { kind: "committed" };
   } catch (error) {
     // Best-effort restore if we had started promotion (journal may say promoting)
-    const journal = await readJournal(projectId).catch(() => null);
+    const journal = await readJournal(projectId).catch((_error) => null);
     if (journal?.state === "promoting") {
-      await restoreBackup(projectId).catch(() => undefined);
+      await restoreBackup(projectId).catch((_error) => undefined);
     }
-    await cleanupTx(projectId).catch(() => undefined);
+    await cleanupTx(projectId).catch((_error) => undefined);
     if (isAbortError(error) || signal?.aborted) return { kind: "cancelled" };
     throw error;
   }
@@ -313,7 +313,7 @@ export async function reconcileAuthoringCandidateTransaction(projectId: string):
 
   if (journal.state === "promoting") {
     // Prefer known-good backup over half-written candidate
-    await restoreBackup(projectId).catch(() => undefined);
+    await restoreBackup(projectId).catch((_error) => undefined);
     await cleanupTx(projectId);
   }
 }
@@ -329,7 +329,7 @@ export async function reconcileAuthoringCandidateTransactions(projectsRootDir: s
     if (!existsSync(marker)) continue;
     try {
       await reconcileAuthoringCandidateTransaction(id);
-    } catch {
+    } catch (_error) {
       // Best-effort: never block startup
     }
   }

@@ -296,7 +296,7 @@ export async function resolveMediaRequest(
   let parsed: URL;
   try {
     parsed = new URL(requestUrl);
-  } catch {
+  } catch (_error) {
     return { ok: false, status: 403 };
   }
 
@@ -316,7 +316,7 @@ export async function resolveMediaRequest(
   let decodedSegments: string[];
   try {
     decodedSegments = rawPath.split("/").map((s) => decodeURIComponent(s));
-  } catch {
+  } catch (_error) {
     return { ok: false, status: 403 };
   }
 
@@ -338,7 +338,7 @@ export async function resolveMediaRequest(
   try {
     resolvedRoot = await fs.realpath(classified.root);
     resolvedTarget = await fs.realpath(lexicalAbs);
-  } catch {
+  } catch (_error) {
     return { ok: false, status: 404 };
   }
 
@@ -353,7 +353,7 @@ export async function resolveMediaRequest(
   let fileStat: { size: number; isFile: () => boolean };
   try {
     fileStat = await fs.stat(resolvedTarget);
-  } catch {
+  } catch (_error) {
     return { ok: false, status: 404 };
   }
   if (!fileStat.isFile()) {

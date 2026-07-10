@@ -221,7 +221,7 @@ const workspace = new WorkspaceController({
         if (!existsSync(abs)) return isHealthyMediaFile(null);
         const s = statSync(abs);
         return isHealthyMediaFile({ isFile: s.isFile(), size: s.size });
-      } catch {
+      } catch (_error) {
         return isHealthyMediaFile(null);
       }
     };

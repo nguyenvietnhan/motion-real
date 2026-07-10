@@ -119,7 +119,7 @@ export async function collectResearchContext(input: {
         body: per.text,
       };
       if (per.truncated) truncatedSourceIds.push(id);
-    } catch {
+    } catch (_error) {
       unreadableUrls.push(url);
     }
   });
