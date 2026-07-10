@@ -90,6 +90,8 @@ export async function runContentPlan(args: RunContentPlanInput): Promise<RunCont
         chat: args.chat,
         logger: args.logger,
       });
+      // Always adopt post-repair plan/quality when repair ran and parsed, so failure
+      // logs describe residual issues — not the pre-repair snapshot.
       if (repaired) {
         planned = repaired.plan;
         quality = repaired.quality;
@@ -169,44 +171,89 @@ async function repairContentPlanIfPossible(args: {
   }
   logContentPlanNormalizations(args.logger, args.projectId, parsed.diagnostics);
 
-  let plan = parsed.plan;
-  let quality = evaluateContentPlanQuality(plan, args.pacing, args.sources);
-  // Deterministic recovery after repair: demote unusable source_material claims
-  // whenever provenance still fails (not only when it is the sole blocker).
-  // Models often paraphrase arXiv/HTML text so excerpts never match exactly.
-  if (
-    args.sources !== undefined &&
-    quality.blockingIssues.some((issue) => issue.check === "claim-provenance")
-  ) {
-    const recovered = recoverAfterInvalidProvenance(plan, args.sources, args.pacing);
-    if (recovered.demotedClaimIds.length > 0) {
-      args.logger.warn(
-        {
-          projectId: args.projectId,
-          demotedClaimIds: recovered.demotedClaimIds,
-          softenedClaimLedger: recovered.softenedClaimLedger,
-        },
-        "content-plan demoted unusable source_material claims after repair",
-      );
-      plan = recovered.plan;
-      quality = recovered.quality;
-    }
+  // Always return the post-repair plan + finalized quality (even if still blocked)
+  // so the outer failure log matches residual issues, not the pre-repair snapshot.
+  const finalized = finalizeAfterClaimRepair(parsed.plan, args.sources, args.pacing);
+  if (finalized.demotedClaimIds.length > 0 || finalized.softenedClaimLedger) {
+    args.logger.warn(
+      {
+        projectId: args.projectId,
+        demotedClaimIds: finalized.demotedClaimIds,
+        softenedClaimLedger: finalized.softenedClaimLedger,
+      },
+      "content-plan deterministic claim recovery after repair",
+    );
   }
-  if (quality.blockingIssues.length > 0) {
+  if (finalized.quality.blockingIssues.length > 0) {
     args.logger.error(
-      { projectId: args.projectId, qualityIssues: quality.blockingIssues },
+      { projectId: args.projectId, qualityIssues: finalized.quality.blockingIssues },
       "content-plan repair still has blocking quality checks",
     );
-    return null;
   }
-  return { plan, quality };
+  return { plan: finalized.plan, quality: finalized.quality };
 }
 
 /**
- * After repair: demote bad source_material claims, then soften residual claim-ledger
- * blockers caused by emptied evidenceClaimIds (numbers remain in narration but we
- * refuse to invent matching excerpts). Other blockers stay hard.
+ * Deterministic post-repair recovery for URL-grounded plans (sources provided).
+ *
+ * Order (no invented excerpts):
+ * 1. Demote unusable source_material claims (paraphrased/missing excerpts).
+ * 2. Re-evaluate quality.
+ * 3. If the only remaining blockers are claim-ledger, soften them to advisory.
+ *    claim-ledger after one AI repair often means "numbers left in narration
+ *    without wired claims" — hard-failing create re-hits the same wall; other
+ *    blockers (hook/pacing/…) stay hard.
+ *
+ * Text-only runs (sources === undefined) skip this recovery.
  */
+export function finalizeAfterClaimRepair(
+  plan: ContentPlan,
+  sources: readonly ResearchSource[] | undefined,
+  pacing?: PacingBudget,
+): {
+  plan: ContentPlan;
+  quality: ContentPlanQualityResult;
+  demotedClaimIds: string[];
+  softenedClaimLedger: boolean;
+} {
+  if (sources === undefined) {
+    return {
+      plan,
+      quality: evaluateContentPlanQuality(plan, pacing, sources),
+      demotedClaimIds: [],
+      softenedClaimLedger: false,
+    };
+  }
+
+  const demoted = demoteInvalidProvenanceClaims(plan, sources);
+  const nextPlan = demoted.demotedClaimIds.length > 0 ? demoted.plan : plan;
+  let quality = evaluateContentPlanQuality(nextPlan, pacing, sources);
+  let softenedClaimLedger = false;
+
+  // Soften claim-ledger only when it is the sole remaining blocking class.
+  if (
+    quality.blockingIssues.length > 0 &&
+    quality.blockingIssues.every((issue) => issue.check === "claim-ledger")
+  ) {
+    quality = softenBlockingChecks(
+      quality,
+      "claim-ledger",
+      demoted.demotedClaimIds.length > 0
+        ? "advisory after demoting unusable source claims"
+        : "advisory after claim repair (no inventing evidence)",
+    );
+    softenedClaimLedger = true;
+  }
+
+  return {
+    plan: nextPlan,
+    quality,
+    demotedClaimIds: demoted.demotedClaimIds,
+    softenedClaimLedger,
+  };
+}
+
+/** @deprecated Use finalizeAfterClaimRepair — kept as a thin alias for existing tests. */
 export function recoverAfterInvalidProvenance(
   plan: ContentPlan,
   sources: readonly ResearchSource[],
@@ -217,39 +264,20 @@ export function recoverAfterInvalidProvenance(
   demotedClaimIds: string[];
   softenedClaimLedger: boolean;
 } {
-  const demoted = demoteInvalidProvenanceClaims(plan, sources);
-  if (demoted.demotedClaimIds.length === 0) {
-    return {
-      plan,
-      quality: evaluateContentPlanQuality(plan, pacing, sources),
-      demotedClaimIds: [],
-      softenedClaimLedger: false,
-    };
-  }
-  let quality = evaluateContentPlanQuality(demoted.plan, pacing, sources);
-  let softenedClaimLedger = false;
-  if (quality.blockingIssues.some((issue) => issue.check === "claim-ledger")) {
-    quality = softenBlockingChecks(quality, "claim-ledger");
-    softenedClaimLedger = true;
-  }
-  return {
-    plan: demoted.plan,
-    quality,
-    demotedClaimIds: demoted.demotedClaimIds,
-    softenedClaimLedger,
-  };
+  return finalizeAfterClaimRepair(plan, sources, pacing);
 }
 
 function softenBlockingChecks(
   quality: ContentPlanQualityResult,
   check: ContentPlanQualityIssue["check"],
+  reason: string,
 ): ContentPlanQualityResult {
   const issues = quality.issues.map((issue) =>
     issue.check === check && issue.severity === "blocking"
       ? {
           ...issue,
           severity: "advisory" as const,
-          message: `${issue.message} (advisory after demoting unusable source claims)`,
+          message: `${issue.message} (${reason})`,
         }
       : issue,
   );

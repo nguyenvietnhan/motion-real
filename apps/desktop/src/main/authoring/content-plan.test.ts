@@ -9,7 +9,11 @@ import {
   usableClaims,
   type ContentPlan,
 } from "./content-plan.js";
-import { demoteInvalidProvenanceClaims, recoverAfterInvalidProvenance } from "./content-plan-runner.js";
+import {
+  demoteInvalidProvenanceClaims,
+  finalizeAfterClaimRepair,
+  recoverAfterInvalidProvenance,
+} from "./content-plan-runner.js";
 import type { ContentPart } from "./prompt.js";
 import { computePacingBudget } from "./pacing-policy.js";
 import {
@@ -501,6 +505,77 @@ describe("claim-provenance quality (evaluateContentPlanQuality + sources)", () =
     expect(recovered.quality.blockingIssues.filter((i) => i.check === "claim-provenance")).toEqual([]);
     expect(recovered.quality.blockingIssues.filter((i) => i.check === "claim-ledger")).toEqual([]);
     expect(recovered.quality.advisoryIssues.some((i) => i.check === "claim-ledger")).toBe(true);
+  });
+
+  it("after repair with only claim-ledger left (no provenance), softens ledger without inventing evidence", () => {
+    // Real incident c3c0f440: repair fixed/dropped provenance but left numbers in
+    // scene-01 with empty evidenceClaimIds — previous recovery required provenance
+    // to demote first and never ran, hard-failing create.
+    const plan = {
+      ...provenancePlan({
+        support: "user_brief" as const,
+        sourceRef: undefined,
+      }),
+      scenes: [
+        {
+          ...provenancePlan().scenes[0]!,
+          narration: "Accuracy reaches 42.7 percent on the held-out benchmark.",
+          onScreenText: "42.7%",
+          evidenceClaimIds: [],
+        },
+      ],
+    };
+    // No provenance blockers (user_brief), only claim-ledger.
+    const pre = evaluateContentPlanQuality(plan, undefined, sources);
+    expect(pre.blockingIssues.every((i) => i.check === "claim-ledger")).toBe(true);
+
+    const finalized = finalizeAfterClaimRepair(plan, sources);
+    expect(finalized.demotedClaimIds).toEqual([]);
+    expect(finalized.softenedClaimLedger).toBe(true);
+    expect(finalized.quality.blockingIssues).toEqual([]);
+    expect(finalized.quality.advisoryIssues.some((i) => i.check === "claim-ledger")).toBe(true);
+  });
+
+  it("does not soften claim-ledger on text-only plans (sources omitted)", () => {
+    const plan = {
+      ...provenancePlan({ support: "user_brief" as const, sourceRef: undefined }),
+      scenes: [
+        {
+          ...provenancePlan().scenes[0]!,
+          narration: "Costs rose 42.7 percent year over year.",
+          onScreenText: "42.7%",
+          evidenceClaimIds: [],
+        },
+      ],
+    };
+    const finalized = finalizeAfterClaimRepair(plan, undefined);
+    expect(finalized.softenedClaimLedger).toBe(false);
+    expect(finalized.quality.blockingIssues.some((i) => i.check === "claim-ledger")).toBe(true);
+  });
+
+  it("keeps non-ledger blockers hard after demote (no blanket soften)", () => {
+    const plan = {
+      ...provenancePlan({
+        sourceRef: {
+          sourceId: "source-01",
+          excerpt: "paraphrase that never appears in source body text here",
+        },
+      }),
+      viewerPromise: "", // also trip viewer-promise blocking
+      scenes: [
+        {
+          ...provenancePlan().scenes[0]!,
+          narration: "Score is 42.7 percent.",
+          evidenceClaimIds: ["claim-01"],
+        },
+      ],
+    };
+    const finalized = finalizeAfterClaimRepair(plan, sources);
+    expect(finalized.demotedClaimIds).toEqual(["claim-01"]);
+    // claim-ledger may be present but must NOT be the only class — viewer-promise stays hard
+    expect(finalized.quality.blockingIssues.some((i) => i.check === "viewer-promise")).toBe(true);
+    // Must not soften ledger when other hard blockers remain
+    expect(finalized.softenedClaimLedger).toBe(false);
   });
 });
 
