@@ -2,7 +2,8 @@ import type { PacingBudget } from "./pacing-policy.js";
 import { countWords } from "./pacing-policy.js";
 import type { ContentPlan } from "./content-plan-schema.js";
 import { hasConcreteFact, hasGenericMotionIntent } from "./content-plan-normalize.js";
-import { excerptMatchesSource, type ResearchSource } from "./content-evidence.js";
+import type { ResearchSource } from "./content-evidence.js";
+import { provenanceQualityMessages, provenanceVerdict } from "./content-plan-provenance.js";
 
 export type ContentPlanQualityCheck =
   | "hook"
@@ -45,7 +46,6 @@ export function evaluateContentPlanQuality(
   const addIssue = (issue: Omit<ContentPlanQualityIssue, "severity">) => {
     issues.push({ ...issue, severity: contentPlanQualitySeverity(issue.check) });
   };
-  const sourcesById = new Map((sources ?? []).map((s) => [s.id, s]));
   if (plan.scenes[0]?.purpose !== "hook") {
     addIssue({ check: "hook", sceneId: plan.scenes[0]?.sceneId, message: "scene-01 must be the hook beat" });
   }
@@ -58,46 +58,8 @@ export function evaluateContentPlanQuality(
 
   if (sources !== undefined) {
     for (const claim of plan.claims) {
-      const usable = claim.confidence === "supported" && claim.action === "use";
-      if (claim.support === "source_material" && usable) {
-        // When sources was supplied (including empty): usable source_material must
-        // not look "sourced" without a readable body + matching excerpt.
-        if (sources.length === 0) {
-          addIssue({
-            check: "claim-provenance",
-            message: `usable source_material claim ${claim.id} has no readable sources; use user_brief/common_knowledge or omit`,
-          });
-          if (claim.sourceRef) {
-            addIssue({
-              check: "claim-provenance",
-              message: `claim ${claim.id} cannot cite a source when no readable sources exist`,
-            });
-          }
-        } else if (!claim.sourceRef) {
-          addIssue({
-            check: "claim-provenance",
-            message: `usable source_material claim ${claim.id} requires sourceRef`,
-          });
-        } else {
-          const src = sourcesById.get(claim.sourceRef.sourceId);
-          if (!src) {
-            addIssue({
-              check: "claim-provenance",
-              message: `claim ${claim.id} references unknown source ${claim.sourceRef.sourceId}`,
-            });
-          } else if (!excerptMatchesSource(claim.sourceRef.excerpt, src.body)) {
-            addIssue({
-              check: "claim-provenance",
-              message: `claim ${claim.id} excerpt does not match source ${claim.sourceRef.sourceId}`,
-            });
-          }
-        }
-      }
-      if ((claim.support === "user_brief" || claim.support === "common_knowledge") && claim.sourceRef) {
-        addIssue({
-          check: "claim-provenance",
-          message: `claim ${claim.id} with support ${claim.support} must not carry sourceRef`,
-        });
+      for (const msg of provenanceQualityMessages(claim, provenanceVerdict(claim, sources))) {
+        addIssue(msg);
       }
     }
   }

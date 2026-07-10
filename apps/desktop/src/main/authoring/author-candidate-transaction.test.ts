@@ -165,4 +165,44 @@ describe("applyAuthoringCandidate", () => {
     expect(await readFile(join(root, "authored", "scene-01.tsx"), "utf8")).toBe("KEEP");
     expect(existsSync(tx)).toBe(false);
   });
+
+  it("reconcile promoting without backup leaves canonical intact", async () => {
+    await seedCanonical({
+      sceneCode: "KEEP",
+      manifest: { title: "keep", scenes: [] },
+      evidence: { version: 1, sources: [], claims: [], scenes: [] },
+    });
+    const root = join(home, ".video-tool", "projects", projectId());
+    const tx = join(root, ".authoring-candidate");
+    // Simulates old crash window: journal promoting before backup finished.
+    await mkdir(tx, { recursive: true });
+    await writeFile(
+      join(tx, "journal.json"),
+      JSON.stringify({ version: 1, projectId: projectId(), state: "promoting" }),
+      "utf8",
+    );
+    await reconcileAuthoringCandidateTransaction(projectId());
+    expect(await readFile(join(root, "authored", "scene-01.tsx"), "utf8")).toBe("KEEP");
+    expect(await readFile(join(root, "manifest.json"), "utf8")).toContain('"title": "keep"');
+    expect(existsSync(tx)).toBe(false);
+  });
+
+  it("reconcile promoting with empty backup dir does not wipe canonical", async () => {
+    await seedCanonical({
+      sceneCode: "KEEP",
+      manifest: { title: "keep", scenes: [] },
+    });
+    const root = join(home, ".video-tool", "projects", projectId());
+    const tx = join(root, ".authoring-candidate");
+    await mkdir(join(tx, "backup"), { recursive: true });
+    // Empty backup/ — no authored, no manifest: must not clear KEEP.
+    await writeFile(
+      join(tx, "journal.json"),
+      JSON.stringify({ version: 1, projectId: projectId(), state: "promoting" }),
+      "utf8",
+    );
+    await reconcileAuthoringCandidateTransaction(projectId());
+    expect(await readFile(join(root, "authored", "scene-01.tsx"), "utf8")).toBe("KEEP");
+    expect(existsSync(tx)).toBe(false);
+  });
 });

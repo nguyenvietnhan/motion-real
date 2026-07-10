@@ -8,13 +8,15 @@ import {
   parseContentPlan,
   type ContentPlan,
   type ContentPlanQualityIssue,
-  type ContentPlanQualityResult,
 } from "./content-plan.js";
+import { finalizeAfterClaimRepair } from "./content-plan-claim-policy.js";
 import { logAuthoringFailure } from "./authoring-failure.js";
 import { rawAiReplyLogFields } from "./authoring-log-policy.js";
-import { computePacingBudget, type PacingBudget } from "./pacing-policy.js";
+import { computePacingBudget } from "./pacing-policy.js";
 import type { AuthorImageInput } from "./prompt.js";
-import { excerptMatchesSource, type ResearchSource } from "./content-evidence.js";
+import type { ResearchSource } from "./content-evidence.js";
+
+export { demoteInvalidProvenanceClaims, finalizeAfterClaimRepair } from "./content-plan-claim-policy.js";
 
 export const CONTENT_PLAN_PARSE_FAILURE =
   "AI chưa lập được kế hoạch nội dung hợp lệ. Hãy thử lại hoặc mô tả rõ nguồn/ý chính hơn.";
@@ -211,142 +213,6 @@ async function attemptClaimRepairChat(args: {
   }
   logContentPlanNormalizations(args.logger, args.projectId, parsed.diagnostics);
   return parsed.plan;
-}
-
-/**
- * Deterministic recovery for URL-grounded plans (`sources` provided, including []).
- *
- * Order (never invents excerpts):
- * 1. Demote unusable source_material claims.
- * 2. Re-evaluate.
- * 3. If *only* claim-ledger remains blocking → advisory (after one optional AI repair
- *    attempt at the call site). Other blockers stay hard.
- *
- * Text-only (`sources === undefined`) must not call this for softening; caller skips.
- */
-export function finalizeAfterClaimRepair(
-  plan: ContentPlan,
-  sources: readonly ResearchSource[] | undefined,
-  pacing?: PacingBudget,
-): {
-  plan: ContentPlan;
-  quality: ContentPlanQualityResult;
-  demotedClaimIds: string[];
-  softenedClaimLedger: boolean;
-} {
-  if (sources === undefined) {
-    return {
-      plan,
-      quality: evaluateContentPlanQuality(plan, pacing, sources),
-      demotedClaimIds: [],
-      softenedClaimLedger: false,
-    };
-  }
-
-  const demoted = demoteInvalidProvenanceClaims(plan, sources);
-  const nextPlan = demoted.demotedClaimIds.length > 0 ? demoted.plan : plan;
-  let quality = evaluateContentPlanQuality(nextPlan, pacing, sources);
-  let softenedClaimLedger = false;
-
-  if (
-    quality.blockingIssues.length > 0 &&
-    quality.blockingIssues.every((issue) => issue.check === "claim-ledger")
-  ) {
-    quality = softenBlockingChecks(
-      quality,
-      "claim-ledger",
-      demoted.demotedClaimIds.length > 0
-        ? "advisory after demoting unusable source claims"
-        : "advisory after claim repair (no inventing evidence)",
-    );
-    softenedClaimLedger = true;
-  }
-
-  return {
-    plan: nextPlan,
-    quality,
-    demotedClaimIds: demoted.demotedClaimIds,
-    softenedClaimLedger,
-  };
-}
-
-/** @deprecated Prefer finalizeAfterClaimRepair. */
-export function recoverAfterInvalidProvenance(
-  plan: ContentPlan,
-  sources: readonly ResearchSource[],
-  pacing?: PacingBudget,
-): {
-  plan: ContentPlan;
-  quality: ContentPlanQualityResult;
-  demotedClaimIds: string[];
-  softenedClaimLedger: boolean;
-} {
-  return finalizeAfterClaimRepair(plan, sources, pacing);
-}
-
-function softenBlockingChecks(
-  quality: ContentPlanQualityResult,
-  check: ContentPlanQualityIssue["check"],
-  reason: string,
-): ContentPlanQualityResult {
-  const issues = quality.issues.map((issue) =>
-    issue.check === check && issue.severity === "blocking"
-      ? {
-          ...issue,
-          severity: "advisory" as const,
-          message: `${issue.message} (${reason})`,
-        }
-      : issue,
-  );
-  return {
-    issues,
-    blockingIssues: issues.filter((issue) => issue.severity === "blocking"),
-    advisoryIssues: issues.filter((issue) => issue.severity === "advisory"),
-  };
-}
-
-/**
- * Deterministic recovery: unusable source_material claims become omit/uncertain
- * and are stripped from scene evidenceClaimIds. Does not invent excerpts.
- */
-export function demoteInvalidProvenanceClaims(
-  plan: ContentPlan,
-  sources: readonly ResearchSource[],
-): { plan: ContentPlan; demotedClaimIds: string[] } {
-  const sourcesById = new Map(sources.map((s) => [s.id, s]));
-  const demotedClaimIds: string[] = [];
-  const claims = plan.claims.map((claim) => {
-    const usable = claim.confidence === "supported" && claim.action === "use";
-    if (!usable || claim.support !== "source_material") return claim;
-
-    // No readable bodies: nothing can be proven — demote every usable source_material.
-    if (sources.length === 0) {
-      demotedClaimIds.push(claim.id);
-      return { ...claim, confidence: "uncertain" as const, action: "omit" as const, sourceRef: undefined };
-    }
-
-    const ref = claim.sourceRef;
-    const ok =
-      Boolean(ref) &&
-      sourcesById.has(ref!.sourceId) &&
-      excerptMatchesSource(ref!.excerpt, sourcesById.get(ref!.sourceId)!.body);
-    if (ok) return claim;
-    demotedClaimIds.push(claim.id);
-    return { ...claim, confidence: "uncertain" as const, action: "omit" as const, sourceRef: undefined };
-  });
-  if (demotedClaimIds.length === 0) return { plan, demotedClaimIds };
-  const demoted = new Set(demotedClaimIds);
-  return {
-    demotedClaimIds,
-    plan: {
-      ...plan,
-      claims,
-      scenes: plan.scenes.map((scene) => ({
-        ...scene,
-        evidenceClaimIds: scene.evidenceClaimIds.filter((id) => !demoted.has(id)),
-      })),
-    },
-  };
 }
 
 function logContentPlanNormalizations(

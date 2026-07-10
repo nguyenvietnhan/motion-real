@@ -54,7 +54,9 @@ code out of these files for size alone.
 `authorScenes` orchestration, file write/admission, and thin delegates. Focused
 modules own content planning, author reply generation/recovery, reauthor
 retry/rollback, image filtering, article crawl, visual-QA/snapshot, manifest
-convert, vision-session policy, and render tool adapters. Structured fail logs
+convert, vision-session policy, and render tool adapters. Claim-provenance
+rules live in `content-plan-provenance.ts` (shared by quality + demote);
+deterministic demote/soften recovery lives in `content-plan-claim-policy.ts`. Structured fail logs
 use `authoring-failure.ts` (`failureClass`) on existing fail paths. Add behavior
 on the relevant runner or a new tested seam; do not thin the facade only for
 line count, and keep `authorScenes` on the facade unless a future orchestration

@@ -136,7 +136,27 @@ async function backupCanonical(projectId: string): Promise<void> {
   }
 }
 
+/**
+ * True when backup has at least one restorable artifact.
+ * Without this, restore with empty backup can wipe good canonical state
+ * (e.g. crash after journal "promoting" before backup finished — old order).
+ */
+async function hasUsableBackup(projectId: string): Promise<boolean> {
+  const tx = txPaths(projectId);
+  if (!existsSync(tx.backup)) return false;
+  if (existsSync(tx.backupManifest) || existsSync(tx.backupEvidence)) return true;
+  if (!existsSync(tx.backupAuthored)) return false;
+  try {
+    const names = await readdir(tx.backupAuthored);
+    return names.some((n) => n.endsWith(".tsx") && !n.startsWith("_"));
+  } catch (_error) {
+    return false;
+  }
+}
+
 async function restoreBackup(projectId: string): Promise<void> {
+  if (!(await hasUsableBackup(projectId))) return;
+
   const p = projectPaths(projectId);
   const tx = txPaths(projectId);
 
@@ -250,8 +270,9 @@ export async function applyAuthoringCandidate(input: {
     }
 
     throwIfAborted(signal);
-    await writeJournal(projectId, "promoting");
+    // Backup first so journal "promoting" never means "backup maybe incomplete".
     await backupCanonical(projectId);
+    await writeJournal(projectId, "promoting");
     throwIfAborted(signal);
     await promoteCandidate(projectId, candidate.modules);
     await writeJournal(projectId, "committed");
@@ -262,7 +283,7 @@ export async function applyAuthoringCandidate(input: {
 
     return { kind: "committed" };
   } catch (error) {
-    // Best-effort restore if promotion may have started (journal says promoting).
+    // Best-effort restore only when promoting with a usable backup.
     const journal = await readJournal(projectId).catch((_error) => null);
     if (journal?.state === "promoting") {
       await restoreBackup(projectId).catch((_error) => undefined);
@@ -292,7 +313,8 @@ export async function reconcileAuthoringCandidateTransaction(projectId: string):
   }
 
   if (journal.state === "promoting") {
-    // Prefer known-good backup over half-written candidate
+    // Prefer known-good backup over half-written candidate. If backup is
+    // missing/empty, leave canonical alone (do not wipe with empty restore).
     await restoreBackup(projectId).catch((_error) => undefined);
     await cleanupTx(projectId);
   }
