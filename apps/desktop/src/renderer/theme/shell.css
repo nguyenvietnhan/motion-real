@@ -23,7 +23,7 @@
   width: 108px;
   object-fit: contain;
   /* PNG has transparent padding — pull title up into that empty band */
-  margin-bottom: -14px;
+  margin-bottom: -28px;
   display: block;
 }
 .ns-license-title {
