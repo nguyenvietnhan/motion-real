@@ -46,6 +46,14 @@ export type RunContentPlanResult =
   | { ok: true; contentPlan: ContentPlan; advisories: ContentPlanQualityIssue[] }
   | { ok: false; message: string };
 
+function isRepairableClaimIssue(check: ContentPlanQualityIssue["check"]): boolean {
+  return check === "claim-ledger" || check === "claim-provenance";
+}
+
+function isClaimOnlyBlocking(issues: readonly ContentPlanQualityIssue[]): boolean {
+  return issues.length > 0 && issues.every((issue) => isRepairableClaimIssue(issue.check));
+}
+
 export async function runContentPlan(args: RunContentPlanInput): Promise<RunContentPlanResult> {
   const pacing = computePacingBudget(args.input, args.wordsPerSecond);
   const messages = buildContentPlanMessages(
@@ -79,24 +87,58 @@ export async function runContentPlan(args: RunContentPlanInput): Promise<RunCont
     let planned = parsedPlan.plan;
     const sources = args.researchSources;
     let quality = evaluateContentPlanQuality(planned, pacing, sources);
-    if (quality.blockingIssues.length > 0) {
-      const repaired = await repairContentPlanIfPossible({
+
+    /**
+     * Claim-only blockers: optional AI repair, then deterministic finalize.
+     *
+     * Finalize (URL-grounded only: sources !== undefined, including []) always
+     * runs after the claim-only path — even when AI repair is skipped or parse
+     * fails — so demote/soften never depends on a successful repair reply.
+     *
+     * Non-claim blockers (hook/pacing/…) never enter this path.
+     */
+    if (isClaimOnlyBlocking(quality.blockingIssues)) {
+      const aiRepaired = await attemptClaimRepairChat({
         model: args.model,
         projectId: args.projectId,
         plan: planned,
         blockingIssues: quality.blockingIssues,
-        pacing,
         sources,
         chat: args.chat,
         logger: args.logger,
       });
-      // Always adopt post-repair plan/quality when repair ran and parsed, so failure
-      // logs describe residual issues — not the pre-repair snapshot.
-      if (repaired) {
-        planned = repaired.plan;
-        quality = repaired.quality;
+      if (aiRepaired) {
+        planned = aiRepaired;
+      }
+
+      if (sources !== undefined) {
+        const finalized = finalizeAfterClaimRepair(planned, sources, pacing);
+        if (finalized.demotedClaimIds.length > 0 || finalized.softenedClaimLedger) {
+          args.logger.warn(
+            {
+              projectId: args.projectId,
+              demotedClaimIds: finalized.demotedClaimIds,
+              softenedClaimLedger: finalized.softenedClaimLedger,
+              aiRepairApplied: Boolean(aiRepaired),
+            },
+            "content-plan deterministic claim recovery",
+          );
+        }
+        planned = finalized.plan;
+        quality = finalized.quality;
+      } else {
+        // Text-only: re-evaluate after optional AI repair; no demote/soften.
+        quality = evaluateContentPlanQuality(planned, pacing, sources);
+      }
+
+      if (quality.blockingIssues.length > 0) {
+        args.logger.error(
+          { projectId: args.projectId, qualityIssues: quality.blockingIssues },
+          "content-plan claim recovery still has blocking quality checks",
+        );
       }
     }
+
     if (quality.blockingIssues.length > 0) {
       logAuthoringFailure(
         args.logger,
@@ -122,24 +164,19 @@ export async function runContentPlan(args: RunContentPlanInput): Promise<RunCont
   }
 }
 
-function isRepairableClaimIssue(check: ContentPlanQualityIssue["check"]): boolean {
-  return check === "claim-ledger" || check === "claim-provenance";
-}
-
-async function repairContentPlanIfPossible(args: {
+/**
+ * One AI repair pass. Returns the parsed plan only — no demote/soften.
+ * Deterministic recovery is always applied by the caller for URL-grounded runs.
+ */
+async function attemptClaimRepairChat(args: {
   model: string;
   projectId: string;
   plan: ContentPlan;
   blockingIssues: readonly ContentPlanQualityIssue[];
-  pacing: PacingBudget;
   sources?: readonly ResearchSource[];
   chat: (model: string, messages: ChatMessage[]) => Promise<string>;
   logger: ContentPlanRunnerLogger;
-}): Promise<{ plan: ContentPlan; quality: ContentPlanQualityResult } | null> {
-  if (args.blockingIssues.length === 0 || !args.blockingIssues.every((issue) => isRepairableClaimIssue(issue.check))) {
-    return null;
-  }
-
+}): Promise<ContentPlan | null> {
   args.logger.warn(
     {
       projectId: args.projectId,
@@ -153,7 +190,10 @@ async function repairContentPlanIfPossible(args: {
     args.model,
     buildContentPlanRepairMessages(args.plan, args.blockingIssues, args.sources),
   );
-  args.logger.info({ projectId: args.projectId, replyChars: reply.length, repairAttempt: 1 }, "AI content-plan repair replied");
+  args.logger.info(
+    { projectId: args.projectId, replyChars: reply.length, repairAttempt: 1 },
+    "AI content-plan repair replied",
+  );
   const parsed = parseContentPlan(reply);
   if (!parsed.ok) {
     logAuthoringFailure(
@@ -170,41 +210,19 @@ async function repairContentPlanIfPossible(args: {
     return null;
   }
   logContentPlanNormalizations(args.logger, args.projectId, parsed.diagnostics);
-
-  // Always return the post-repair plan + finalized quality (even if still blocked)
-  // so the outer failure log matches residual issues, not the pre-repair snapshot.
-  const finalized = finalizeAfterClaimRepair(parsed.plan, args.sources, args.pacing);
-  if (finalized.demotedClaimIds.length > 0 || finalized.softenedClaimLedger) {
-    args.logger.warn(
-      {
-        projectId: args.projectId,
-        demotedClaimIds: finalized.demotedClaimIds,
-        softenedClaimLedger: finalized.softenedClaimLedger,
-      },
-      "content-plan deterministic claim recovery after repair",
-    );
-  }
-  if (finalized.quality.blockingIssues.length > 0) {
-    args.logger.error(
-      { projectId: args.projectId, qualityIssues: finalized.quality.blockingIssues },
-      "content-plan repair still has blocking quality checks",
-    );
-  }
-  return { plan: finalized.plan, quality: finalized.quality };
+  return parsed.plan;
 }
 
 /**
- * Deterministic post-repair recovery for URL-grounded plans (sources provided).
+ * Deterministic recovery for URL-grounded plans (`sources` provided, including []).
  *
- * Order (no invented excerpts):
- * 1. Demote unusable source_material claims (paraphrased/missing excerpts).
- * 2. Re-evaluate quality.
- * 3. If the only remaining blockers are claim-ledger, soften them to advisory.
- *    claim-ledger after one AI repair often means "numbers left in narration
- *    without wired claims" — hard-failing create re-hits the same wall; other
- *    blockers (hook/pacing/…) stay hard.
+ * Order (never invents excerpts):
+ * 1. Demote unusable source_material claims.
+ * 2. Re-evaluate.
+ * 3. If *only* claim-ledger remains blocking → advisory (after one optional AI repair
+ *    attempt at the call site). Other blockers stay hard.
  *
- * Text-only runs (sources === undefined) skip this recovery.
+ * Text-only (`sources === undefined`) must not call this for softening; caller skips.
  */
 export function finalizeAfterClaimRepair(
   plan: ContentPlan,
@@ -230,7 +248,6 @@ export function finalizeAfterClaimRepair(
   let quality = evaluateContentPlanQuality(nextPlan, pacing, sources);
   let softenedClaimLedger = false;
 
-  // Soften claim-ledger only when it is the sole remaining blocking class.
   if (
     quality.blockingIssues.length > 0 &&
     quality.blockingIssues.every((issue) => issue.check === "claim-ledger")
@@ -253,7 +270,7 @@ export function finalizeAfterClaimRepair(
   };
 }
 
-/** @deprecated Use finalizeAfterClaimRepair — kept as a thin alias for existing tests. */
+/** @deprecated Prefer finalizeAfterClaimRepair. */
 export function recoverAfterInvalidProvenance(
   plan: ContentPlan,
   sources: readonly ResearchSource[],
@@ -301,18 +318,18 @@ export function demoteInvalidProvenanceClaims(
   const claims = plan.claims.map((claim) => {
     const usable = claim.confidence === "supported" && claim.action === "use";
     if (!usable || claim.support !== "source_material") return claim;
+
+    // No readable bodies: nothing can be proven — demote every usable source_material.
     if (sources.length === 0) {
-      if (claim.sourceRef) {
-        demotedClaimIds.push(claim.id);
-        return { ...claim, confidence: "uncertain" as const, action: "omit" as const, sourceRef: undefined };
-      }
-      return claim;
+      demotedClaimIds.push(claim.id);
+      return { ...claim, confidence: "uncertain" as const, action: "omit" as const, sourceRef: undefined };
     }
+
     const ref = claim.sourceRef;
     const ok =
-      ref &&
-      sourcesById.has(ref.sourceId) &&
-      excerptMatchesSource(ref.excerpt, sourcesById.get(ref.sourceId)!.body);
+      Boolean(ref) &&
+      sourcesById.has(ref!.sourceId) &&
+      excerptMatchesSource(ref!.excerpt, sourcesById.get(ref!.sourceId)!.body);
     if (ok) return claim;
     demotedClaimIds.push(claim.id);
     return { ...claim, confidence: "uncertain" as const, action: "omit" as const, sourceRef: undefined };

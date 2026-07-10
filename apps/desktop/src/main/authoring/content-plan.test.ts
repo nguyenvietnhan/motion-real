@@ -577,6 +577,33 @@ describe("claim-provenance quality (evaluateContentPlanQuality + sources)", () =
     // Must not soften ledger when other hard blockers remain
     expect(finalized.softenedClaimLedger).toBe(false);
   });
+
+  it("with zero readable sources, demotes all usable source_material (with or without sourceRef)", () => {
+    const withRef = provenancePlan({
+      sourceRef: { sourceId: "source-01", excerpt: "twelve billion dollars last year according" },
+    });
+    const withoutRef = provenancePlan(); // usable source_material, no sourceRef
+    const demotedWith = demoteInvalidProvenanceClaims(withRef, []);
+    const demotedWithout = demoteInvalidProvenanceClaims(withoutRef, []);
+    expect(demotedWith.demotedClaimIds).toEqual(["claim-01"]);
+    expect(demotedWithout.demotedClaimIds).toEqual(["claim-01"]);
+    // finalize with [] must clear provenance and may soften residual ledger
+    const finalized = finalizeAfterClaimRepair(withRef, []);
+    expect(finalized.quality.blockingIssues.filter((i) => i.check === "claim-provenance")).toEqual([]);
+  });
+
+  it("finalize without a prior AI repair still demotes bad provenance (repair-parse independence)", () => {
+    // Hidden bug: recovery used to run only after successful repair parse.
+    const plan = provenancePlan({
+      sourceRef: {
+        sourceId: "source-01",
+        excerpt: "completely made up excerpt that is not in the filing body",
+      },
+    });
+    const finalized = finalizeAfterClaimRepair(plan, sources);
+    expect(finalized.demotedClaimIds).toEqual(["claim-01"]);
+    expect(finalized.quality.blockingIssues.filter((i) => i.check === "claim-provenance")).toEqual([]);
+  });
 });
 
 describe("content quality eval fixtures", () => {
