@@ -136,24 +136,32 @@
   color: rgba(255, 255, 255, 0.15);
 }
 .ns-render-card {
-  padding: 32px;
+  padding: clamp(20px, 4vw, 32px);
 }
 .ns-render-status-line {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 10px;
   min-height: 1.5em;
   margin-bottom: 12px;
 }
 .ns-render-status-copy {
   display: flex;
+  flex-wrap: wrap;
   align-items: baseline;
-  gap: 6px;
+  gap: 6px 8px;
   min-width: 0;
   flex: 1;
 }
 .ns-render-status-label {
   min-width: 0;
+  line-height: 1.4;
+  overflow-wrap: normal;
+  word-break: normal;
+}
+.ns-render-status-count {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 .ns-progress-track {
   height: 8px;
@@ -182,11 +190,22 @@
 .ns-writing-title,
 .ns-writing-detail {
   margin: 0;
-  color: var(--muted-foreground);
+  max-width: 32rem;
+  overflow-wrap: normal;
+  word-break: normal;
+  hyphens: none;
+}
+.ns-writing-title {
+  color: var(--foreground);
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.4;
+  text-wrap: balance;
 }
 .ns-writing-detail {
-  max-width: 520px;
+  color: var(--muted-foreground);
   font-size: 13px;
+  line-height: 1.5;
   text-align: center;
 }
 

@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import type { BgmTrackVM, ProjectStage, ScriptLine, VideoFormatChoice } from "../../shared/types.js";
 import {
   renderingPhaseIndeterminate,
-  renderingPhaseLabel,
+  renderingPhaseParts,
   workspaceStageTitle,
   writingPhaseCopy,
 } from "../../shared/stage-labels.js";
@@ -192,8 +192,9 @@ const ScriptReview: React.FC<{
  */
 const RenderingPanel: React.FC<{ stage: Extract<ProjectStage, { kind: "rendering" }>; onCancel: () => void }> = ({ stage, onCancel }) => {
   const [stopping, setStopping] = useState(false);
-  // Shared label map keeps render-phase copy total and identical to main-side docs.
-  const label = renderingPhaseLabel(stage.phase, { qaPass: stage.qaPass, qaTotal: stage.qaTotal });
+  // Shared label map keeps render-phase copy total; count stays nowrap so
+  // "(lần N/M)" never orphans alone on the next line.
+  const parts = renderingPhaseParts(stage.phase, { qaPass: stage.qaPass, qaTotal: stage.qaTotal });
   // "prepare" (the two hidden pre-draft renders) shows a neutral indeterminate
   // bar — no raw percent — so the user never sees the bland/bootstrap takes.
   const indeterminate = renderingPhaseIndeterminate(stage.phase, stage.percent);
@@ -206,7 +207,16 @@ const RenderingPanel: React.FC<{ stage: Extract<ProjectStage, { kind: "rendering
             <span className="ns-render-status-label">Đang dừng…</span>
           ) : (
             <>
-              <span className="ns-render-status-label">{label}</span>
+              <span className="ns-render-status-label">
+                {parts.body}
+                {parts.count ? (
+                  <>
+                    {" "}
+                    <span className="ns-render-status-count ns-tabular">{parts.count}</span>
+                    …
+                  </>
+                ) : null}
+              </span>
               {!indeterminate && (
                 <span className="ns-counter ns-counter-pct" aria-label={`${stage.percent} phần trăm`}>
                   {stage.percent}%

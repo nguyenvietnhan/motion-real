@@ -15,10 +15,11 @@ export function renderingPhaseLabel(
   options: { qaPass?: number; qaTotal?: number } = {},
 ): string {
   const resolved = phase ?? "draft";
-  // Keep suffix length stable across 1/5 → 10/20 so the status line does not reflow.
+  // Keep "(lần N/M)" as a single unit — no figure-space padding (it looked like
+  // broken gaps and still reflowed when the status line wrapped).
   const qaSuffix =
     resolved === "qa" && options.qaPass && options.qaTotal
-      ? ` (lần ${String(options.qaPass).padStart(2, "\u2007")}/${String(options.qaTotal).padStart(2, "\u2007")})`
+      ? ` (lần ${options.qaPass}/${options.qaTotal})`
       : "";
   switch (resolved) {
     case "edit":
@@ -36,6 +37,21 @@ export function renderingPhaseLabel(
       return _exhaustive;
     }
   }
+}
+
+/** Split rendering status into body + optional nowrap counter for clean wraps. */
+export function renderingPhaseParts(
+  phase: RenderingStagePhase | undefined,
+  options: { qaPass?: number; qaTotal?: number } = {},
+): { body: string; count?: string } {
+  const resolved = phase ?? "draft";
+  if (resolved === "qa" && options.qaPass && options.qaTotal) {
+    return {
+      body: "AI đang soát lỗi hình ảnh",
+      count: `(lần ${options.qaPass}/${options.qaTotal})`,
+    };
+  }
+  return { body: renderingPhaseLabel(phase, options) };
 }
 
 /** Whether the rendering progress bar should be indeterminate (no percent). */
