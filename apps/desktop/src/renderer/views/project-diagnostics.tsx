@@ -78,8 +78,8 @@ export const ProjectDiagnosticsPanel: React.FC<{
       .catch((error: unknown) => {
         const details = errorDetails(error);
         notify.error({
-          title: "Không tải được chi tiết xử lý",
-          message: compactNotificationMessage(details, "Thử lại sau."),
+          title: "Không tải log",
+          message: compactNotificationMessage(details, "Thử lại."),
           details,
         });
       })
@@ -94,14 +94,14 @@ export const ProjectDiagnosticsPanel: React.FC<{
       return `${when} — ${e.message}${scene}`;
     });
     const text = [
-      `Chi tiết xử lý · ${report.projectId}`,
-      report.truncated ? "(đã rút gọn)" : "",
+      `Log · ${report.projectId}`,
+      report.truncated ? "(rút gọn)" : "",
       ...lines,
     ]
       .filter(Boolean)
       .join("\n");
     void navigator.clipboard?.writeText(text).catch(() => {
-      notify.error({ title: "Không sao chép được", message: "Clipboard không khả dụng." });
+      notify.error({ title: "Không copy được", message: "Clipboard không dùng được." });
     });
   };
 
@@ -113,21 +113,20 @@ export const ProjectDiagnosticsPanel: React.FC<{
         className="ns-btn ns-diag-trigger"
         aria-expanded={open}
         aria-haspopup="dialog"
-        title="Chi tiết xử lý dự án"
+        title="Nhật ký xử lý"
         onClick={() => {
           const next = !open;
           setOpen(next);
           if (next) refresh();
         }}
       >
-        <span className="ns-diag-label-full">{open ? "Ẩn chi tiết" : "Chi tiết xử lý"}</span>
-        <span className="ns-diag-label-short">{open ? "Ẩn" : "Chi tiết"}</span>
+        <span className="ns-diag-label-short">{open ? "Ẩn" : "Log"}</span>
       </button>
       {open && placement && (
         <div
           className="ns-diag-panel ns-card"
           role="dialog"
-          aria-label="Chi tiết xử lý dự án"
+          aria-label="Nhật ký xử lý"
           style={{
             top: placement.top,
             left: placement.left,
@@ -137,7 +136,7 @@ export const ProjectDiagnosticsPanel: React.FC<{
         >
           <div className="ns-diag-toolbar">
             <button type="button" className="ns-btn" disabled={loading} onClick={refresh}>
-              {loading ? "Đang tải…" : "Làm mới"}
+              {loading ? "…" : "Làm mới"}
             </button>
             <button
               type="button"
@@ -145,13 +144,13 @@ export const ProjectDiagnosticsPanel: React.FC<{
               disabled={!report || report.entries.length === 0}
               onClick={copySummary}
             >
-              Sao chép tóm tắt
+              Copy
             </button>
-            {report?.truncated && <span className="ns-diag-truncated">Đã rút gọn lịch sử</span>}
+            {report?.truncated && <span className="ns-diag-truncated">Rút gọn</span>}
           </div>
           {!report && !loading && <p className="ns-diag-empty">Chưa có dữ liệu.</p>}
           {report && report.entries.length === 0 && (
-            <p className="ns-diag-empty">Chưa ghi nhận bước xử lý nào.</p>
+            <p className="ns-diag-empty">Chưa có bước nào.</p>
           )}
           {report && report.entries.length > 0 && (
             <ul className="ns-diag-list">

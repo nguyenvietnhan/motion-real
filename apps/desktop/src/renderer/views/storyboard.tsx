@@ -119,14 +119,14 @@ const BgmPicker: React.FC<{
           aria-expanded={open}
           aria-busy={busy}
           disabled={busy}
-          title="Chọn nhạc nền cho video"
+          title="Nhạc nền"
           onClick={() => setOpen((value) => !value)}
         >
           <span className="ns-bgm-leading">{Icon.music({ size: 15 })}</span>
           <span className="ns-bgm-current">{selectedTrack?.label ?? (missing ? selected : "Không nhạc")}</span>
           <span className="ns-bgm-chevron">{Icon.chevronDown({ size: 14 })}</span>
         </button>
-        <button className="ns-bgm-add" type="button" aria-label="Thêm nhạc nền" title="Thêm nhạc nền từ máy" disabled={busy} onClick={onAdd}>
+        <button className="ns-bgm-add" type="button" aria-label="Thêm nhạc" title="Thêm nhạc" disabled={busy} onClick={onAdd}>
           {Icon.plus({ size: 15 })}
         </button>
       </div>
@@ -316,8 +316,8 @@ export const StoryboardView: React.FC<{
     if (!notice || notice === lastNotice.current) return;
     lastNotice.current = notice;
     notify.warning({
-      title: "Cần chú ý",
-      message: compactNotificationMessage(notice, "Kiểm tra bản nháp trước khi duyệt."),
+      title: "Chú ý",
+      message: compactNotificationMessage(notice, "Kiểm tra trước khi xuất bản."),
       details: notice,
     });
   }, [notice, notify]);
@@ -334,8 +334,8 @@ export const StoryboardView: React.FC<{
           setNotes("");
         } else {
           notify.error({
-            title: "Không gửi được chỉnh sửa",
-            message: "Nội dung bạn nhập vẫn được giữ.",
+            title: "Không gửi được",
+            message: "Nội dung vẫn được giữ.",
             details: "Backend từ chối chỉnh sửa.",
           });
         }
@@ -343,8 +343,8 @@ export const StoryboardView: React.FC<{
       .catch((error: unknown) => {
         const details = errorDetails(error);
         notify.error({
-          title: "Không gửi được chỉnh sửa",
-          message: "Nội dung bạn nhập vẫn được giữ.",
+          title: "Không gửi được",
+          message: "Nội dung vẫn được giữ.",
           details,
         });
       })
@@ -374,8 +374,8 @@ export const StoryboardView: React.FC<{
   const Header = (
     <header className="ns-story-header">
       <div className="ns-story-header-leading">
-        <button type="button" className="ns-btn ns-story-back" onClick={onBack}>
-          Quay lại
+        <button type="button" className="ns-btn ns-story-back" onClick={onBack} aria-label="Quay lại" title="Quay lại">
+          ←
         </button>
         <div className="ns-story-title">
           <strong className="ns-story-heading">Duyệt</strong>
@@ -388,7 +388,7 @@ export const StoryboardView: React.FC<{
       </div>
       {scenes.length > 0 && (
         <div className="ns-story-header-actions">
-          {diagnosticsSlot}
+          {/* Primary actions stay visible; secondary (log) collapses into overflow on narrow widths. */}
           {bgm && onBgmAdd && onBgmRemove && onBgmSelect && (
             <BgmPicker bgm={bgm} selected={bgmSelected ?? null} busy={bgmSaving} onAdd={onBgmAdd} onRemove={removeBgm} onSelect={selectBgm} />
           )}
@@ -400,8 +400,8 @@ export const StoryboardView: React.FC<{
               onClick={sendAll}
               title={canSend ? undefined : "Nhập yêu cầu trước khi gửi."}
             >
-              {submitting ? "Đang gửi…" : editedCount > 0 ? (
-                <span className="ns-tabular">Gửi ({editedCount})</span>
+              {submitting ? "…" : editedCount > 0 ? (
+                <span className="ns-tabular">Gửi {editedCount}</span>
               ) : (
                 "Gửi"
               )}
@@ -414,15 +414,15 @@ export const StoryboardView: React.FC<{
             onClick={onApprove}
             title={
               bgmSaving
-                ? "Đang lưu nhạc nền."
+                ? "Đang lưu nhạc."
                 : canApprove
                   ? undefined
                   : "Chưa sẵn sàng."
             }
           >
-            <span className="ns-story-approve-full">Xuất bản</span>
-            <span className="ns-story-approve-short">Xuất bản</span>
+            Xuất bản
           </button>
+          {diagnosticsSlot ? <div className="ns-story-overflow">{diagnosticsSlot}</div> : null}
         </div>
       )}
     </header>
@@ -433,7 +433,7 @@ export const StoryboardView: React.FC<{
       <div className="ns-story-shell">
         {Header}
         <div className="ns-story-empty-body">
-          <EmptyState icon={Icon.film({ size: 34 })} title="Chưa có cảnh" hint="Chưa tạo được cảnh." />
+          <EmptyState icon={Icon.film({ size: 34 })} title="Chưa có cảnh" hint="Thử tạo lại video." />
         </div>
       </div>
     );

@@ -233,11 +233,11 @@
   text-align: left;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  padding: 12px;
+  padding: 10px 12px;
   background: var(--card);
   color: var(--foreground);
   cursor: pointer;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: border-color 0.15s ease, background 0.15s ease;
   min-width: 0;
 }
 .ns-account:hover {
@@ -275,16 +275,11 @@
   gap: 2px;
 }
 .ns-account-name {
+  display: block;
+  min-width: 0;
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 500;
   color: var(--foreground);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.ns-account-sub {
-  font-size: 11px;
-  color: var(--muted-foreground);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

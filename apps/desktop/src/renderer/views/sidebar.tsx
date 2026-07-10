@@ -50,15 +50,14 @@ export const Sidebar: React.FC<{
         type="button"
         className="ns-account"
         onClick={() => onNavigate("settings")}
-        title="Trạng thái dịch vụ AI"
+        title={s.text}
       >
         <span className="ns-account-avatar">
           {initial ? <span className="ns-avatar-initial">{initial}</span> : Icon.spark({ size: 15 })}
           <span className="ns-account-status" style={{ background: s.color }} />
         </span>
         <span className="ns-account-info">
-          <span className="ns-account-name">{s.text}</span>
-          {s.sub ? <span className="ns-account-sub">{s.sub}</span> : null}
+          <span className="ns-account-name" title={s.text}>{s.text}</span>
         </span>
       </button>
     </aside>

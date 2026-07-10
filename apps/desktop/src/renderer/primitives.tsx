@@ -15,14 +15,14 @@ import { Icon } from "./icons.js";
 export type Screen = "home" | "projects" | "settings" | "workspace";
 
 export function aiStatus(gateway: GatewayState, account: AiAccountState): { color: string; text: string; sub?: string } {
-  if (gateway.kind === "starting") return { color: "var(--muted-foreground)", text: "Đang khởi động AI…" };
-  if (gateway.kind === "unavailable") return { color: "var(--danger)", text: "AI chưa khởi động được" };
+  if (gateway.kind === "starting") return { color: "var(--muted-foreground)", text: "Đang khởi động…" };
+  if (gateway.kind === "unavailable") return { color: "var(--danger)", text: "AI lỗi" };
   if (account.kind !== "connected" || account.accounts.length === 0)
-    return { color: "var(--warn)", text: "Chưa kết nối AI" };
+    return { color: "var(--warn)", text: "Chưa kết nối" };
+  // Sidebar stays quiet: email/label only — model id lives in Settings.
   return {
     color: "var(--good)",
     text: activeAccount(account)?.label ?? "Đã kết nối",
-    sub: account.selectedModel?.id,
   };
 }
 
@@ -152,6 +152,14 @@ export const EmptyState: React.FC<{ icon: React.ReactNode; title: string; hint: 
 
 export const Spinner: React.FC = () => (
   <span className="ns-spinner" />
+);
+
+/** Compact inline loading line — shared by gallery empty bands. */
+export const LoadingLine: React.FC<{ label?: string }> = ({ label = "Đang tải…" }) => (
+  <p className="ns-loading-line" role="status" aria-live="polite">
+    <Spinner />
+    <span>{label}</span>
+  </p>
 );
 
 /** An (i) glyph that reveals a short explanation on hover/focus — keeps setting

@@ -3,7 +3,7 @@ import type { FriendlyStatus, ProjectCardVM } from "../../shared/types.js";
 import { paginate, type GalleryLoad } from "../../shared/gallery-controller.js";
 import { FRIENDLY_LABELS } from "../../shared/friendly-status.js";
 import { Icon } from "../icons.js";
-import { EmptyState, PageHeader, ProjectGrid } from "../primitives.js";
+import { EmptyState, LoadingLine, PageHeader, ProjectGrid } from "../primitives.js";
 
 type GalleryFilter = "all" | FriendlyStatus;
 
@@ -121,13 +121,13 @@ export const ProjectsView: React.FC<{
           </button>
         }
       />
-      {load === "loading" && <p style={{ color: "var(--muted-foreground)" }}>Đang tải…</p>}
-      {load === "empty" && <EmptyState icon={Icon.film({ size: 34 })} title="Chưa có dự án" hint="Tạo video mới để bắt đầu." />}
+      {load === "loading" && <LoadingLine />}
+      {load === "empty" && <EmptyState icon={Icon.film({ size: 34 })} title="Chưa có dự án" hint="Tạo video để bắt đầu." />}
       {load === "error" && (
         <EmptyState
           icon={Icon.film({ size: 34 })}
-          title="Không tải được danh sách video"
-          hint="Không đọc được dự án. Thử lại."
+          title="Không tải được"
+          hint="Thử lại."
           action={onRetry && <button className="ns-btn ns-btn-primary" onClick={onRetry}>Thử lại</button>}
         />
       )}

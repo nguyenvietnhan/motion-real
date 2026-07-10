@@ -5,16 +5,16 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 10px 12px;
-  padding: 12px 18px;
+  gap: 8px 10px;
+  padding: 10px 14px;
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
-  row-gap: 10px;
+  row-gap: 8px;
 }
 .ns-story-header-leading {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   min-width: 0;
   flex: 1 1 auto;
 }
@@ -23,7 +23,7 @@
   flex-wrap: wrap;
   align-items: center;
   justify-content: flex-end;
-  gap: 8px;
+  gap: 6px;
   margin-left: auto;
   min-width: 0;
   /* Keep action chips on one visual band when possible; wrap only as a unit. */
@@ -36,15 +36,19 @@
 }
 .ns-story-back {
   flex-shrink: 0;
+  min-width: 2.25rem;
+  padding-inline: 10px;
+  font-size: 16px;
+  line-height: 1;
 }
 .ns-story-title {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   min-width: 0;
 }
 .ns-story-heading {
-  font-size: 16px;
+  font-size: 15px;
   white-space: nowrap;
   line-height: 1.2;
 }
@@ -54,18 +58,20 @@
   font-variant-numeric: tabular-nums;
   font-feature-settings: "tnum" 1;
   display: inline-block;
-  min-width: 9ch; /* "Cảnh 10/20" — keeps header from shifting on scene change */
+  min-width: 5ch; /* "10/20" — keeps header from shifting on scene change */
   white-space: nowrap;
   flex-shrink: 0;
 }
 .ns-story-send {
-  min-width: 9.5rem;
+  min-width: 4.5rem;
 }
-.ns-story-approve-short {
-  display: none;
-}
-.ns-story-approve-full {
-  display: inline;
+/* Secondary tools (log) trail the primary cluster. */
+.ns-story-overflow {
+  display: flex;
+  align-items: center;
+  margin-left: 2px;
+  padding-left: 6px;
+  border-left: 1px solid var(--border);
 }
 
 /* Diagnostics popover — trigger stays in the action cluster; panel is
@@ -76,10 +82,12 @@
   flex-shrink: 0;
 }
 .ns-diag-trigger {
-  max-width: 11.5rem;
+  max-width: none;
+  min-width: 0;
+  padding-inline: 10px;
 }
 .ns-diag-label-short {
-  display: none;
+  display: inline;
 }
 .ns-diag-panel {
   position: fixed;
@@ -365,7 +373,7 @@
   color: var(--muted-foreground);
 }
 .ns-bgm-current {
-  max-width: 140px;
+  max-width: 100px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -588,38 +596,22 @@
 /* Mid desktop: compact chrome, still single band when possible. */
 @media (max-width: 1120px) {
   .ns-story-header {
-    gap: 8px 10px;
-    padding: 10px 12px;
+    gap: 6px 8px;
+    padding: 8px 10px;
   }
   .ns-story-header .ns-btn {
-    padding: 8px 10px;
+    padding: 7px 9px;
     font-size: 13px;
   }
   .ns-story-title {
-    gap: 7px;
+    gap: 6px;
   }
   .ns-bgm-current {
-    max-width: 88px;
+    max-width: 72px;
   }
   .ns-bgm-trigger {
-    min-width: 6.5rem;
-    max-width: 9.5rem;
-  }
-  .ns-story-approve-full {
-    display: none;
-  }
-  .ns-story-approve-short {
-    display: inline;
-  }
-  .ns-diag-label-full {
-    display: none;
-  }
-  .ns-diag-label-short {
-    display: inline;
-  }
-  .ns-diag-trigger {
-    max-width: none;
-    min-width: 0;
+    min-width: 5.5rem;
+    max-width: 8.5rem;
   }
 }
 

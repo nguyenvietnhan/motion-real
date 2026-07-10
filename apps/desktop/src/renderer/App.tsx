@@ -299,8 +299,8 @@ const AppShell: React.FC = () => {
                 .catch((err: unknown) => {
                   const details = errorDetails(err);
                   notify.error({
-                    title: "Không tạo được dự án",
-                    message: compactNotificationMessage(details, "Kiểm tra cài đặt rồi thử lại."),
+                    title: "Không tạo được",
+                    message: compactNotificationMessage(details, "Thử lại."),
                     details,
                   });
                 });
@@ -357,19 +357,16 @@ const AppShell: React.FC = () => {
                   } catch (error: unknown) {
                     const details = errorDetails(error);
                     notify.error({
-                      title: "Model đã chọn nhưng chưa lưu được",
-                      message: compactNotificationMessage(
-                        details,
-                        "Lựa chọn hiện tại có thể không còn sau khi khởi động lại.",
-                      ),
+                      title: "Chưa lưu model",
+                      message: compactNotificationMessage(details, "Có thể mất sau khi mở lại app."),
                       details,
                     });
                   }
                 } catch (error: unknown) {
                   const details = errorDetails(error);
                   notify.error({
-                    title: "Không chọn được model",
-                    message: compactNotificationMessage(details, "Thử chọn lại model."),
+                    title: "Không chọn model",
+                    message: compactNotificationMessage(details, "Thử lại."),
                     details,
                   });
                 }

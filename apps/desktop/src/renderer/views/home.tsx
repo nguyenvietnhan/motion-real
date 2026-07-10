@@ -11,7 +11,7 @@ import type {
 import type { GalleryLoad } from "../../shared/gallery-controller.js";
 import { validateCreateInput, extractUrls } from "../../shared/create-validation.js";
 import { Icon } from "../icons.js";
-import { EmptyState, PageHeader, ProjectGrid } from "../primitives.js";
+import { EmptyState, LoadingLine, PageHeader, ProjectGrid } from "../primitives.js";
 import { compactNotificationMessage, errorDetails, useNotifications } from "../notifications.js";
 
 /** Read a File's bytes and base64-encode them (stable across the IPC boundary). */
@@ -208,10 +208,10 @@ export const HomeView: React.FC<{
   const [voiceProvider, setVoiceProvider] = useState<VoiceProviderChoice>(defaultVoiceProvider);
   const [creating, setCreating] = useState(false);
   const PLACEHOLDERS = [
-    "Mô tả ý tưởng video…",
-    "Dán link bài báo…",
-    "Nhập chủ đề video…",
-    "Kéo thả ảnh minh họa…",
+    "Ý tưởng video…",
+    "Dán link…",
+    "Chủ đề…",
+    "Thả ảnh…",
   ];
   const [currentPlaceholder, setCurrentPlaceholder] = useState("");
   useEffect(() => {
@@ -285,7 +285,7 @@ export const HomeView: React.FC<{
     });
     if (res.rejected.length > 0) {
       notify.warning({
-        title: "Một số ảnh bị bỏ qua",
+        title: "Bỏ qua ảnh",
         message: `${res.rejected.length} ảnh không hợp lệ.`,
         details: rejectedImageDetails(res.rejected),
       });
@@ -299,8 +299,8 @@ export const HomeView: React.FC<{
       .catch((err: unknown) => {
         const details = errorDetails(err);
         notify.error({
-          title: "Không nạp được ảnh",
-          message: compactNotificationMessage(details, "Kiểm tra tệp rồi thử lại."),
+          title: "Không nạp ảnh",
+          message: compactNotificationMessage(details, "Thử lại."),
           details,
         });
       });
@@ -321,8 +321,8 @@ export const HomeView: React.FC<{
       .catch((err: unknown) => {
         const details = errorDetails(err);
         notify.error({
-          title: "Không nạp được ảnh",
-          message: compactNotificationMessage(details, "Kiểm tra tệp rồi thử lại."),
+          title: "Không nạp ảnh",
+          message: compactNotificationMessage(details, "Thử lại."),
           details,
         });
       });
@@ -487,7 +487,7 @@ export const HomeView: React.FC<{
             </div>
           </div>
           
-          {!aiReady && <p className="ns-create-hint warning">Chưa sẵn sàng AI. Mở Cài đặt để kết nối.</p>}
+          {!aiReady && <p className="ns-create-hint warning">Chưa kết nối AI. Mở Cài đặt.</p>}
 
           {/* Compact delivery knobs — one tight row, no empty column stretch */}
           <div className="ns-create-knobs" role="group" aria-label="Cấu hình">
@@ -544,19 +544,19 @@ export const HomeView: React.FC<{
         <h2 style={{ margin: 0, fontSize: 16 }}>Gần đây</h2>
       </div>
 
-      {load === "loading" && <p style={{ color: "var(--muted-foreground)" }}>Đang tải…</p>}
+      {load === "loading" && <LoadingLine />}
       {load === "empty" && (
         <EmptyState
           icon={Icon.film({ size: 34 })}
-          title="Chưa có video nào"
-          hint="Nhập chủ đề hoặc dán liên kết ở trên để bắt đầu."
+          title="Chưa có video"
+          hint="Nhập chủ đề hoặc dán link ở trên."
         />
       )}
       {load === "error" && (
         <EmptyState
           icon={Icon.film({ size: 34 })}
-          title="Không tải được danh sách video"
-          hint="Không đọc được dự án. Thử lại."
+          title="Không tải được"
+          hint="Thử lại."
           action={onRetry && <button className="ns-btn ns-btn-primary" onClick={onRetry}>Thử lại</button>}
         />
       )}

@@ -62,27 +62,18 @@ export function renderingPhaseIndeterminate(
 }
 
 /**
- * Title + detail for the writing spinner card. Defaults to the author copy when
- * phase is absent (plain authoring with no crawl).
+ * Writing spinner title. Detail is optional and unused in the quiet UI
+ * (title only under the spinner). Defaults to author copy when phase is absent.
  */
-export function writingPhaseCopy(phase: WritingStagePhase | undefined): { title: string; detail: string } {
+export function writingPhaseCopy(phase: WritingStagePhase | undefined): { title: string; detail?: string } {
   switch (phase) {
     case "crawl":
-      return {
-        title: "Đang lấy ảnh…",
-        detail: "Có thể bỏ qua phần link không đọc được.",
-      };
+      return { title: "Đang lấy ảnh…" };
     case "image-filter":
-      return {
-        title: "Đang chọn ảnh…",
-        detail: "Lọc ảnh không phù hợp trước khi duyệt.",
-      };
+      return { title: "Đang chọn ảnh…" };
     case "author":
     case undefined:
-      return {
-        title: "Đang viết kịch bản…",
-        detail: "Có thể mất vài phút.",
-      };
+      return { title: "Đang viết kịch bản…" };
     default: {
       const _exhaustive: never = phase;
       return _exhaustive;
