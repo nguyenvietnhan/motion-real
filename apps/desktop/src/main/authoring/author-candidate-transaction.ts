@@ -17,6 +17,7 @@ import {
 import { dirname, join } from "node:path";
 import {
   admitAuthoredSceneFiles,
+  normalizeAuthoredSource,
   projectPaths,
   type AdmitProjectResult,
   type Manifest,
@@ -248,7 +249,9 @@ export async function applyAuthoringCandidate(input: {
 
     for (const mod of candidate.modules) {
       throwIfAborted(signal);
-      await writeFile(join(tx.candidateAuthored, mod.fileName), mod.source, "utf8");
+      // Strip RN-only CSS keys (shadowColor, …) so N10 web CSSProperties typecheck
+      // does not fail full render after expensive prepare/QA (TS2353).
+      await writeFile(join(tx.candidateAuthored, mod.fileName), normalizeAuthoredSource(mod.source), "utf8");
     }
     await writeJsonAtomic(tx.candidateManifest, candidate.manifest);
     await writeJsonAtomic(tx.candidateEvidence, candidate.evidence);

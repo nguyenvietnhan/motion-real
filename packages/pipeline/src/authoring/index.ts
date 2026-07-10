@@ -29,3 +29,8 @@ export {
   type AdmitProjectResult,
 } from "./manifest.js";
 export { parseDurationFromPrompt } from "./parse-duration.js";
+export {
+  normalizeAuthoredSource,
+  stripReactNativeStyleKeys,
+  REACT_NATIVE_STYLE_KEYS,
+} from "./normalize-authored-source.js";

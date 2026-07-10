@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { VideoSpecSchema, type DurationTier, type SceneImage, type VideoFormat, type VideoLanguage, type VideoSpec } from "@motionreal/schema";
 import type { SafetyIssue } from "../types.js";
 import { ensureProject, projectPaths, readJson, writeJson } from "../store/store.js";
+import { normalizeAuthoredSource } from "./normalize-authored-source.js";
 import { admitAuthoredSceneFile } from "./register.js";
 
 /**
@@ -248,6 +249,6 @@ export async function writeAuthoredScene(projectId: string, fileName: string, so
   const p = projectPaths(projectId);
   await mkdir(p.authoredDir, { recursive: true });
   const path = join(p.authoredDir, fileName);
-  await writeFile(path, source, "utf8");
+  await writeFile(path, normalizeAuthoredSource(source), "utf8");
   return path;
 }
