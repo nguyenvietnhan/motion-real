@@ -24,6 +24,7 @@ import {
 } from "./workspace-view-model.js";
 import { WorkspaceRepairTrace } from "./workspace-repair-trace.js";
 import { createLogger, serializeError, type CrawledImage } from "@motionreal/pipeline";
+import { isHealthyMediaFile, recoveryDecision, type ArtifactHealth, type RecoveryDecision } from "./workspace-recovery.js";
 import { classifyError } from "../agent/error-classifier.js";
 import { toFriendlyError } from "../redact/friendly.js";
 import {
@@ -127,8 +128,8 @@ export interface WorkspaceDeps {
    * Prefer this over hasDraft/hasOutput for stage recovery.
    */
   inspectArtifacts?: (projectId: string) => Promise<{
-    full: import("./workspace-recovery.js").ArtifactHealth;
-    draft: import("./workspace-recovery.js").ArtifactHealth;
+    full: ArtifactHealth;
+    draft: ArtifactHealth;
   }>;
   /**
    * Optional locked-timeline projection for storyboard seek/highlight.
@@ -853,29 +854,52 @@ export class WorkspaceController {
     return recovered;
   }
 
-  private async recoverStage(projectId: string): Promise<ProjectStage> {
-    const { recoveryDecision, isHealthyMediaFile } = await import("./workspace-recovery.js");
-    const inspect =
-      this.deps.inspectArtifacts ??
-      (async (id: string) => {
-        // Fallback: existence + nonzero size via hasDraft/hasOutput helpers.
-        return {
-          full: this.deps.hasOutput(id) ? ("healthy" as const) : ("missing" as const),
-          draft: this.deps.hasDraft(id) ? ("healthy" as const) : ("missing" as const),
-        };
-      });
-
-    let full: import("./workspace-recovery.js").ArtifactHealth = "missing";
-    let draft: import("./workspace-recovery.js").ArtifactHealth = "missing";
-    try {
-      const art = await inspect(projectId);
-      full = art.full;
-      draft = art.draft;
-    } catch (_error) {
-      full = this.deps.hasOutput(projectId) ? "healthy" : "missing";
-      draft = this.deps.hasDraft(projectId) ? "healthy" : "missing";
+  private async inspectArtifactHealth(projectId: string): Promise<{ full: ArtifactHealth; draft: ArtifactHealth }> {
+    if (this.deps.inspectArtifacts) {
+      try {
+        return await this.deps.inspectArtifacts(projectId);
+      } catch (_error) {
+        // Fall through to boolean helpers below.
+      }
     }
-    void isHealthyMediaFile;
+    // Fallback: existence only (cannot distinguish empty invalid MP4s without stat).
+    return {
+      full: this.deps.hasOutput(projectId) ? isHealthyMediaFile({ isFile: true, size: 1 }) : isHealthyMediaFile(null),
+      draft: this.deps.hasDraft(projectId) ? isHealthyMediaFile({ isFile: true, size: 1 }) : isHealthyMediaFile(null),
+    };
+  }
+
+  private async stageFromRecoveryDecision(projectId: string, decision: RecoveryDecision): Promise<ProjectStage> {
+    if (decision.kind === "published") {
+      return await this.publishedStage(projectId, this.deps.outputMedia(projectId));
+    }
+    if (decision.kind === "ready") {
+      return this.readyStage(projectId, await this.storyboardScenesOf(projectId));
+    }
+    if (decision.kind === "draft-recovery") {
+      return {
+        kind: "draft-recovery",
+        draftPath: this.deps.draftMedia(projectId),
+        notice:
+          "Đã khôi phục bản nháp. Kịch bản/metadata chưa đọc được — chỉ xem video, không chỉnh sửa hay xuất full.",
+      };
+    }
+    if (decision.kind === "script") {
+      return { kind: "script", lines: await this.scriptLinesOf(projectId) };
+    }
+    return {
+      kind: "error",
+      message:
+        decision.reason === "empty"
+          ? "Dự án chưa kịp tạo kịch bản (có thể bạn đã dừng giữa chừng hoặc đóng app). Hãy tạo lại."
+          : "Không đọc được dữ liệu dự án. Hãy tạo lại.",
+      fixable: false,
+      retry: "create",
+    };
+  }
+
+  private async recoverStage(projectId: string): Promise<ProjectStage> {
+    const { full, draft } = await this.inspectArtifactHealth(projectId);
 
     try {
       const manifest = await this.deps.loadManifest(projectId);
@@ -885,50 +909,11 @@ export class WorkspaceController {
         draft,
         manifest: { sceneCount: manifest.scenes.length, hasAnyStill },
       });
-      if (decision.kind === "published") {
-        return await this.publishedStage(projectId, this.deps.outputMedia(projectId));
-      }
-      if (decision.kind === "ready") {
-        return this.readyStage(projectId, await this.storyboardScenesOf(projectId));
-      }
-      if (decision.kind === "draft-recovery") {
-        return {
-          kind: "draft-recovery",
-          draftPath: this.deps.draftMedia(projectId),
-          notice: "Đã khôi phục bản nháp. Kịch bản/metadata chưa đọc được — chỉ xem video, không chỉnh sửa hay xuất full.",
-        };
-      }
-      if (decision.kind === "script") {
-        return { kind: "script", lines: await this.scriptLinesOf(projectId) };
-      }
-      return {
-        kind: "error",
-        message:
-          decision.reason === "empty"
-            ? "Dự án chưa kịp tạo kịch bản (có thể bạn đã dừng giữa chừng hoặc đóng app). Hãy tạo lại."
-            : "Không đọc được dữ liệu dự án. Hãy tạo lại.",
-        fixable: false,
-        retry: "create",
-      };
+      return await this.stageFromRecoveryDecision(projectId, decision);
     } catch (error) {
       log.warn({ err: error, projectId }, "project recovery read failed; applying artifact-first fallback");
       const decision = recoveryDecision({ full, draft, manifest: "unreadable" });
-      if (decision.kind === "published") {
-        return await this.publishedStage(projectId, this.deps.outputMedia(projectId));
-      }
-      if (decision.kind === "draft-recovery") {
-        return {
-          kind: "draft-recovery",
-          draftPath: this.deps.draftMedia(projectId),
-          notice: "Đã khôi phục bản nháp. Kịch bản/metadata chưa đọc được — chỉ xem video, không chỉnh sửa hay xuất full.",
-        };
-      }
-      return {
-        kind: "error",
-        message: "Không đọc được dữ liệu dự án. Hãy tạo lại.",
-        fixable: false,
-        retry: "create",
-      };
+      return await this.stageFromRecoveryDecision(projectId, decision);
     }
   }
 
