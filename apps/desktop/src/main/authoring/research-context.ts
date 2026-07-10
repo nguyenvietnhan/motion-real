@@ -192,21 +192,34 @@ export function toResearchSources(sources: readonly RetainedResearchSource[]): R
   }));
 }
 
-/** Sanitized multi-link warning for script stage / ready notice. */
+/**
+ * Sanitized multi-link warning for script stage / ready notice.
+ *
+ * Only fires when coverage is reduced (unreadable / over URL limit / total
+ * budget drop). Mere per-source truncation of a successfully retained article
+ * is not a user-facing warning — the body was read; evidence still comes from
+ * the link. Do not imply "AI knowledge" for truncation-only runs.
+ */
 export function researchLinkWarningOf(report: ResearchIngestReport): string | undefined {
-  const parts: string[] = [];
+  const coverageGaps: string[] = [];
   if (report.unreadableUrls.length > 0) {
-    parts.push(`Không đọc được ${report.unreadableUrls.length}/${report.requestedUrlCount} đường dẫn`);
+    coverageGaps.push(
+      `Không đọc được ${report.unreadableUrls.length}/${report.requestedUrlCount} đường dẫn`,
+    );
   }
   if (report.skippedUrls.length > 0) {
-    parts.push(`bỏ qua ${report.skippedUrls.length} link vượt giới hạn ${MAX_AUTHORING_SOURCE_URLS}`);
+    coverageGaps.push(`bỏ qua ${report.skippedUrls.length} link vượt giới hạn ${MAX_AUTHORING_SOURCE_URLS}`);
   }
   if (report.droppedBudgetUrls.length > 0) {
-    parts.push(`bỏ qua ${report.droppedBudgetUrls.length} nguồn do giới hạn dung lượng tư liệu`);
+    coverageGaps.push(
+      `bỏ qua ${report.droppedBudgetUrls.length} nguồn do giới hạn dung lượng tư liệu`,
+    );
   }
+  if (coverageGaps.length === 0) return undefined;
+
+  const notes: string[] = [...coverageGaps];
   if (report.truncatedSourceIds.length > 0) {
-    parts.push(`đã rút gọn ${report.truncatedSourceIds.length} nguồn dài`);
+    notes.push(`đã rút gọn ${report.truncatedSourceIds.length} nguồn dài`);
   }
-  if (parts.length === 0) return undefined;
-  return `${parts.join("; ")}. Nội dung liên quan có thể dựa trên phần đọc được và hiểu biết của AI.`;
+  return `${notes.join("; ")}. Nội dung liên quan có thể dựa trên phần đọc được và hiểu biết của AI.`;
 }

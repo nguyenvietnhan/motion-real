@@ -84,7 +84,7 @@ describe("formatUntrustedResearchBlock", () => {
 });
 
 describe("researchLinkWarningOf", () => {
-  it("summarizes unreadable, skipped, budget-dropped, and truncated counts", () => {
+  it("summarizes unreadable, skipped, budget-dropped, and (only then) truncated notes", () => {
     const warning = researchLinkWarningOf({
       requestedUrlCount: 7,
       selectedUrlCount: 5,
@@ -98,6 +98,30 @@ describe("researchLinkWarningOf", () => {
     expect(warning).toMatch(/bỏ qua 2/);
     expect(warning).toMatch(/giới hạn dung lượng tư liệu/);
     expect(warning).toMatch(/rút gọn 1/);
+    expect(warning).toMatch(/hiểu biết của AI/);
     expect(warning).not.toMatch(/Không đọc được 2/);
+  });
+
+  it("does not warn when the only event is truncating a successfully read long source", () => {
+    // One arXiv HTML page often exceeds the per-source char budget; that is not
+    // "unreadable" and must not toast AI-knowledge wording while evidence exists.
+    const warning = researchLinkWarningOf({
+      requestedUrlCount: 1,
+      selectedUrlCount: 1,
+      readableSources: [
+        {
+          id: "source-01",
+          originalUrl: "https://arxiv.org/html/2607.08173v1",
+          status: "truncated",
+          metadata: { sourceUrl: "https://arxiv.org/html/2607.08173v1" },
+          body: "x".repeat(100),
+        },
+      ],
+      unreadableUrls: [],
+      droppedBudgetUrls: [],
+      skippedUrls: [],
+      truncatedSourceIds: ["source-01"],
+    });
+    expect(warning).toBeUndefined();
   });
 });
