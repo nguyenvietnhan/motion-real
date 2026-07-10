@@ -154,10 +154,11 @@ kind/phase transitions are logged at `WorkspaceController.setStage` (see
 
 Runtime AI does not read repository docs directly. For fresh authoring, the
 desktop backend first asks the selected 9router-compatible model for a structured
-content plan with a claim ledger, then validates that plan and feeds only usable
-facts and scene-plan data into the scene-code authoring prompt built from the
-current authoring contract. Edit/refine flows use scoped repair prompts instead
-of rerunning the full fresh-authoring chain.
+content plan with a claim ledger. URL-grounded runs also validate usable
+`source_material` claims against a known source id and an excerpt from the
+readable source body. Only usable facts and scene-plan data enter the scene-code
+authoring prompt. Edit/refine flows use scoped repair prompts instead of
+rerunning the full fresh-authoring chain.
 
 `apps/desktop/src/main/authoring/ninerouter-backend.ts` is the public desktop
 authoring facade (`AuthoringBackend`). It keeps deps construction, `authorScenes`
@@ -168,8 +169,9 @@ the full `authorScenes` spine without a dedicated orchestration test harness.
 
 Focused modules own bounded workflows:
 
-- `content-plan-runner.ts` owns content-plan call, parse, quality check, and
-  one-shot claim-ledger repair.
+- `content-plan-runner.ts` owns content-plan call, parse, quality check, and one
+  repair call when every blocking issue is `claim-ledger` or
+  `claim-provenance`.
 - `author-reply-runner.ts` owns single-reply authoring, compact TSX batches, and
   missing-TSX recovery.
 - `author-batch-policy.ts` owns the no-image compact batching threshold and
@@ -202,17 +204,17 @@ URL/image workflows currently default to AI image preselection plus blocking
 human review. Keep that default unless product explicitly accepts the cost,
 latency, and UX change.
 
-Fresh authoring has bounded stabilization before admission. A claim-ledger-only
-content-plan failure may get one repair call. Content-plan purpose drift and
-missing/generic motion intent are normalized with diagnostics, because they are
-metadata guidance rather than safety blockers. Normal no-image plans up to the
-single-reply capacity use one authoring reply, where a valid manifest with
-missing TSX modules may get one targeted missing-module recovery call. Larger
-no-image plans use a deterministic manifest plus compact TSX batches of at most
-two component ids, capped at 16 components total; plans beyond that budget fail
-instead of looping. Image-placement plans keep the single-reply authoring path.
-None of these paths accept partial output or weaken admission, N10 typecheck, or
-render safety.
+Fresh authoring has bounded stabilization before admission. A content plan may
+get one repair call only when all blockers are claim-ledger/provenance issues.
+Content-plan purpose drift and missing/generic motion intent are normalized with
+diagnostics, because they are metadata guidance rather than safety blockers.
+Normal no-image plans up to the single-reply capacity use one authoring reply,
+where a valid manifest with missing TSX modules may get one targeted
+missing-module recovery call. Larger no-image plans use a deterministic
+manifest plus compact TSX batches of at most two component ids, capped at 16
+components total; plans beyond that budget fail instead of looping.
+Image-placement plans keep the single-reply authoring path. None of these paths
+accept partial output or weaken admission, N10 typecheck, or render safety.
 
 Before the user sees a first draft, the desktop flow may run a hidden sequence:
 
@@ -234,14 +236,17 @@ cancellation between stages is not treated as project failure.
 
 ```text
 Topic / URL / images
+-> best-effort URL ingest into shared planning research files
 -> AI plans story beats and usable claims
--> validate content plan pacing/claims
--> optional one-shot claim-ledger repair
+-> validate pacing, claim ledger, and URL-source provenance
+-> optional one-shot claim-ledger/provenance repair
 -> AI authors manifest + TSX in one reply,
    or deterministic manifest + compact TSX batches for larger no-image plans
 -> optional one-shot missing-TSX module recovery on the single-reply path
--> optional hidden stills/refine in desktop
 -> admission gate
+-> persist source metadata, bounded excerpts, claims, and scene links for script review
+-> optional script review
+-> optional hidden stills/refine in desktop
 -> manifest -> VideoSpec
 -> static safety grid
 -> authored scene typecheck
@@ -262,6 +267,11 @@ Topic / URL / images
 
 Project state lives under `VIDEO_TOOL_HOME/.video-tool/projects/<id>/`.
 
+URL ingest currently writes extracted article text and metadata under
+`VIDEO_TOOL_HOME/.video-tool/planning/`; the desktop backend reads those files
+for grounding. Raw research bodies are not copied into `evidence.json` or sent
+to the renderer.
+
 Important files include:
 
 - `brief.json`
@@ -271,7 +281,9 @@ Important files include:
 - `safety-report.json`
 - `events.ndjson`
 - `authored/*.tsx`
-- `evidence.json` (optional script-review claim provenance from URL-grounded runs)
+- `evidence.json` (written after successful admission for new authoring; may be
+  absent on legacy projects; contains bounded source metadata/excerpts and scene
+  links, never raw research bodies)
 - `review/*.png`
 - `renders/*.mp4`
 
@@ -285,13 +297,19 @@ virtual built-in track that resolves directly to this asset, not as a copied
 runtime-library file. Root-level media assets should not be added.
 
 Stills are the cheap visual pass. Draft MP4s are lower quality previews that
-follow the same timing path as full renders. Ready-stage storyboard review can
-seek/highlight scenes from the locked timeline (`video-spec.lock.json`) without
-estimating timing; a missing lock keeps still-only review. Full MP4 output is
-the deliverable and should run only after user approval. TTS provider and voice come from
-project/user settings; missing credentials stop render instead of silently
-falling back to another provider. `mock` and `none` are explicit CLI/dev/offline
-TTS modes; the desktop production path must not select them as a hidden fallback.
+follow the same timing path as full renders. In ready-stage review, clicking the
+scene rail keeps the still image visible; choosing **Video nháp** seeks to that
+scene, and playback highlights scenes from the locked timeline
+(`video-spec.lock.json`) without estimating timestamps. A missing lock keeps
+still-only review. Full MP4 output is the deliverable and should run only after
+user approval. TTS provider and voice come from project/user settings; missing
+credentials stop render instead of silently falling back to another provider.
+`mock` and `none` are explicit CLI/dev/offline TTS modes; the desktop production
+path must not select them as a hidden fallback.
+
+The desktop diagnostics surface reads a bounded, allow-listed projection of
+`events.ndjson` and its single rotated file. It exposes fixed lifecycle,
+authoring, and repair states rather than raw prompts, paths, code, or errors.
 
 ## Repository Layout
 

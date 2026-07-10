@@ -10,6 +10,10 @@ coverage/
 *.tsbuildinfo
 .DS_Store
 
+# Local agent/tool runtime scratch (generated schemas and terminal transcripts)
+/mcps/
+/terminals/
+
 # Remotion
 remotion-render-*/
 /renders/

@@ -168,7 +168,7 @@ export type StoryboardModel = { projectId: string; scenes: SceneCard[]; globalNo
 /** A reviewable script line (narration + headline) before rendering. */
 export type ScriptLine = { sceneId: string; order: number; headline: string; narration: string; imagePath?: string };
 
-/** Script-gate evidence panel (optional; absent for text-only/old projects). */
+/** Script-gate evidence model; source panel stays hidden when metadata is absent. */
 export type ScriptEvidenceModel = {
   sources: Array<{ id: string; sourceUrl: string; title: string; site?: string; publishedDate?: string }>;
   claims: Array<{ id: string; text: string; sourceId?: string; excerpt?: string; sceneIds: string[] }>;

@@ -16,6 +16,12 @@ true long-form YouTube author-by-segment path is not a stable workflow.
   safety checks.
 - Long no-image authoring plans use bounded TSX batches instead of one giant
   code reply.
+- The desktop persists the chosen generation model and reports explicitly when
+  that model is no longer available instead of silently switching models.
+- URL-grounded authoring validates claim provenance against readable source
+  excerpts and exposes that evidence during optional script review.
+- Local readiness checks, redacted project diagnostics, and locked-timeline
+  draft review are available without weakening render or safety gates.
 - Captions, TTS, timing lock, safety checks, and render orchestration are owned
   by the pipeline.
 
@@ -40,7 +46,7 @@ that ignored file.
 
 | Path | Purpose |
 | --- | --- |
-| `apps/desktop` | Electron UI for create, settings, hidden refine, review, BGM, thumbnail, and export. |
+| `apps/desktop` | Electron UI for create, settings/readiness, hidden refine, evidence and draft review, diagnostics, BGM, thumbnail, and export. |
 | `apps/remotion` | Remotion root and compositions entry. |
 | `packages/schema` | Video specs, locked specs, geometry, timing, captions. |
 | `packages/compositions` | Registry, master video composition, thumbnail composition, `SceneImage` re-export. |

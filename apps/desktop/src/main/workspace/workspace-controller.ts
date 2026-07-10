@@ -104,7 +104,7 @@ export interface WorkspaceDeps {
   listProjects: () => Promise<ProjectCardVM[]>;
   loadManifest: (projectId: string) => Promise<WsManifest>;
   writeManifest: (projectId: string, manifest: WsManifest) => Promise<void>;
-  /** Optional script-review evidence from evidence.json (URL-grounded runs). */
+  /** Optional evidence artifact; source review appears only when URL metadata exists. */
   loadEvidence?: (projectId: string) => Promise<ScriptEvidenceModel | undefined>;
   /** mediaUrl-wrapped path to a scene's review still (`review/<sceneId>.png`). */
   reviewStill: (projectId: string, sceneId: string) => string;

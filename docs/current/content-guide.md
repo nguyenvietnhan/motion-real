@@ -51,6 +51,23 @@ Never invent:
 If a fact is not supplied or verified, express the idea without pretending to
 have data.
 
+For URL-grounded authoring:
+
+- When at least one source is readable, every usable `source_material` claim
+  must identify that source and include a bounded excerpt that matches the
+  normalized source text. A model-declared source label is not evidence.
+- `user_brief` and `common_knowledge` claims must not borrow a URL source
+  reference.
+- An unreadable URL is non-fatal, but it contributes no validated evidence. The
+  UI may warn about the unreadable link while continuing from the user's brief.
+- After successful admission, the project evidence artifact stores source
+  metadata, bounded excerpts, claims, and claim-to-scene links for script
+  review. It never stores the raw fetched article body.
+
+The optional desktop script gate can show this provenance before draft render.
+Missing evidence artifacts on legacy projects, or the absence of URL sources on
+text-only projects, must remain graceful; neither is proof that a URL was read.
+
 ## Language And TTS
 
 - Vietnamese projects may use Vivibe or ElevenLabs.
