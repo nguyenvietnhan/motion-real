@@ -1,78 +1,129 @@
 # MotionReal
 
-MotionReal is an AI-driven Remotion video generator. It turns a prompt, URL, and
-optional local images into a publishable MP4.
+AI-driven **short-form** video generator on Remotion. Give a Vietnamese or
+English prompt (optional URLs and local images); the app plans content, writes
+fresh scene modules, speaks narration, and renders a publishable MP4.
 
-The stable production path is TikTok/Reels/Shorts-style 9:16. YouTube 16:9
-support exists as shared format plumbing and thumbnail/caption behavior, but the
-true long-form YouTube author-by-segment path is not a stable workflow.
+**Stable path:** TikTok / Reels / Shorts **9:16**.  
+**Also present:** 16:9 geometry, thumbnail, and caption-off plumbing for YouTube
+format — not a long-form “author by chapter/segment” product. Do not start that
+workflow unless the project owner asks for it.
 
-## Current Model
+## How it works
 
-- Runtime AI authors fresh Remotion scene modules for each video.
-- Scenes are raw JSX/SVG/CSS, admitted through the AUTHOR gate before render.
-- There is no template catalog and no authored-facing layout-block toolkit.
-- The pipeline persists the resolved duration target used by authoring and
-  safety checks.
-- Long no-image authoring plans use bounded TSX batches instead of one giant
-  code reply.
-- Captions, TTS, timing lock, safety checks, and render orchestration are owned
-  by the pipeline.
+- **Pure AUTHOR:** for every video the runtime AI writes new Remotion React
+  scenes (raw JSX/SVG/CSS). No template catalog, no authored layout-block kit,
+  no authored theme tokens.
+- **Authored imports only:** `react`, `remotion`, `@motionreal/compositions`
+  (including `SceneImage`), and `zod`. Admission rejects everything else.
+- **Pipeline owns** captions, TTS, timing lock, safety grid, cache, and render.
+  Authored scenes never draw subtitles or call the network/filesystem.
+- **Draft before full**, every time. Full export is an explicit approval step.
+- **URL-grounded create** (desktop): up to 5 links, concurrent extract, bounded
+  text budgets. Planner sees labeled untrusted sources; code authoring only
+  sees the approved plan/claims (no raw article paste into TSX prompts).
+- **Fresh author apply** is transactional (stage → admit staged files → backup →
+  promote). Cancel mid-create is not treated as a hard project failure.
+
+Typical desktop path:
+
+```text
+Create (prompt / URLs / images)
+  → content plan (+ optional claim repair / demote-soften on URL runs)
+  → author TSX + manifest
+  → hidden stills / refine (desktop)
+  → draft MP4 → review → full MP4
+```
+
+## Requirements
+
+- **Node.js** `>= 24` and **npm** `>= 11` (see root `package.json` `engines`)
+- Windows-friendly commands below use `npm.cmd` (PowerShell execution policy)
 
 ## Setup
 
 ```bash
 npm install
 copy .env.example .env
-npm.cmd run typecheck
-npm.cmd test
-npm.cmd run build
 ```
 
-Configure Vivibe or ElevenLabs credentials in `.env` or through the desktop app
-settings.
+Fill `.env` (or configure later in the desktop **Settings** UI):
 
-Optional local MCP/dev-tool config is intentionally machine-specific. If needed,
-copy `.mcp.example.json` to `.mcp.json` and keep local filesystem paths only in
-that ignored file.
-
-## Apps And Packages
-
-| Path | Purpose |
+| Area | Notes |
 | --- | --- |
-| `apps/desktop` | Electron UI for create, settings, hidden refine, review, BGM, thumbnail, and export. |
-| `apps/remotion` | Remotion root and compositions entry. |
-| `packages/schema` | Video specs, locked specs, geometry, timing, captions. |
-| `packages/compositions` | Registry, master video composition, thumbnail composition, `SceneImage` re-export. |
-| `packages/blocks` | Render runtime internals only. Not authored-facing. |
-| `packages/theme` | Neutral runtime theme for render internals. Not authored-facing. |
-| `packages/tts` | Vivibe and ElevenLabs clients plus audio helpers. |
-| `packages/pipeline` | Authoring, admission, TTS, lock, render, safety, cache, review, store, and internal tool facade. |
+| **TTS** | Vivibe (Vietnamese) or ElevenLabs — see `docs/providers/`. Missing credentials must **block** render; never silent fall back to `mock` / `none`. |
+| **AI planner** | OpenAI-compatible API (desktop also uses a local 9router-style gateway for model chat). |
+| **Storage** | `VIDEO_TOOL_HOME` (default `.video-tool`) holds projects, cache, BGM library under `.video-tool/`. |
+
+Optional machine-only tool config: copy `.mcp.example.json` → `.mcp.json` (gitignored). Do not commit absolute paths.
+
+## Run the desktop app
+
+```bash
+npm --prefix apps/desktop run app
+```
+
+That launcher builds Electron main/preload, starts the Vite renderer, ensures
+the model gateway is up when possible, and opens the UI. Project data shares the
+repo `VIDEO_TOOL_HOME` / `.video-tool` tree with CLI/scripts.
+
+Other useful scripts (repo root unless noted):
+
+| Command | Purpose |
+| --- | --- |
+| `npm.cmd run typecheck` | Workspace TypeScript check |
+| `npm.cmd test` | Vitest suite |
+| `npm.cmd run build` | Remotion **webpack bundle only** (no browser download, no video render) |
+| `npm.cmd run smoke` | Smoke script |
+| `npm.cmd run studio` | Remotion Studio (`apps/remotion`) |
+| `npm --prefix apps/desktop run smoke:gateway` | Gateway smoke |
+
+## Repository map
+
+| Path | Role |
+| --- | --- |
+| `apps/desktop` | Electron product: create, workspace stages, settings, gateway, refine, BGM, diagnostics, export |
+| `apps/remotion` | Remotion root / composition entry |
+| `packages/pipeline` | Authoring admission, ingest, TTS orchestration, lock, render, safety, store, CLI, tools facade |
+| `packages/schema` | Specs, lock model, geometry, captions helpers |
+| `packages/compositions` | Registry, master video + thumbnail, authored-facing `SceneImage` |
+| `packages/blocks` | Render-runtime internals only — **not** for authored scene imports |
+| `packages/theme` | Neutral runtime theme for internals — **not** authored-facing |
+| `packages/tts` | Vivibe + ElevenLabs clients and audio helpers |
+| `docs/current/` | Durable product/architecture docs |
+| `docs/providers/` | TTS provider setup |
+| `AI_CONTRACT.md` | Canonical rules for AI agents (entry: `AGENTS.md`) |
+| `.env.example` | Env template |
+
+Runtime artifacts: `VIDEO_TOOL_HOME/.video-tool/` (projects, renders, cache, BGM).
+Do not commit generated project trees or secrets.
 
 ## Documentation
 
-- `AI_CONTRACT.md` — single canonical contract for all AI agents.
-- `docs/current/architecture.md` — current package map and data flow.
-- `docs/current/authoring-contract.md` — authored scene rules.
-- `docs/current/content-guide.md` — story, evidence, language, and visuals.
-- `docs/current/maintenance.md` — cleanup, residual risks, stage/failure log
-  reading notes, and refactor guardrails.
+| Doc | Use when |
+| --- | --- |
+| `AI_CONTRACT.md` | Agent/human contract: invariants, safety, workflow |
+| `docs/current/architecture.md` | Packages, data flow, media protocol, research, recovery |
+| `docs/current/authoring-contract.md` | Rules for generated scene modules |
+| `docs/current/content-guide.md` | Story, evidence, language, motion guidance |
+| `docs/current/maintenance.md` | Refactor guardrails, residual risks, log reading |
+| `docs/providers/vivibe.md` / `elevenlabs.md` | TTS credentials and API notes |
 
-Provider setup lives in `docs/providers/`.
+Prefer `docs/current/` over ad-hoc notes. Do not leave long-lived plans under
+`docs/working-notes/` — sync outcomes into durable docs, then delete the note.
 
-Do not keep long-lived plans under `docs/working-notes/`. If a short execution
-note is needed mid-task, delete it after outcomes land in `docs/current/` or
-`AI_CONTRACT.md`. Agents must treat those notes as non-authoritative.
+## Development notes
 
-## Health Checks
-
-Use the Windows-safe commands:
+- Sensitive areas: `packages/pipeline` orchestrator / render-grid, desktop
+  workspace controller — change only with focused tests and clear scope.
+- Authored-scene bugs that repeat should become schema, normalizer, admission,
+  or render-oracle checks — not only prompt text.
+- Layout/visual taste checks stay **advisory** unless live code marks a hard
+  integrity failure.
+- After authoring or provider-facing changes, run:
 
 ```bash
 npm.cmd run typecheck
 npm.cmd test
 npm.cmd run build
 ```
-
-`npm.cmd run build` verifies the Remotion webpack bundle. It does not render a
-video or download a browser.
