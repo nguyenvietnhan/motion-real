@@ -105,7 +105,8 @@ export const SettingsView: React.FC<{
   onCheckReadiness?: () => Promise<DesktopReadinessReport>;
 }> = ({ gateway, account, models, settings, preferredModelUnavailable, onManageAccounts, onSelectModel, onUpdate, onSetApiKey, onClearApiKey, onCheckReadiness }) => {
   const [tab, setTab] = useState<SettingsTab>("ai");
-  const [refineExpanded, setRefineExpanded] = useState(settings.refinePasses > 0);
+  // Sub-settings start collapsed (same as Mức duyệt); user opens the chevron.
+  const [refineExpanded, setRefineExpanded] = useState(false);
   const [reviewModeExpanded, setReviewModeExpanded] = useState(false);
   const [showVoiceKey, setShowVoiceKey] = useState(false);
   const [voiceKeyInput, setVoiceKeyInput] = useState("");
@@ -406,7 +407,11 @@ export const SettingsView: React.FC<{
                 <div className="ns-settings-group-label">Tinh chỉnh</div>
                 <ExpandableToggle
                   checked={settings.refinePasses > 0}
-                  onChange={(v) => { update({ refinePasses: v ? DEFAULT_REFINE_PASSES : 0 }); if (v) setRefineExpanded(true); }}
+                  onChange={(v) => {
+                    update({ refinePasses: v ? DEFAULT_REFINE_PASSES : 0 });
+                    // Keep sub-rows collapsed unless the user opens the chevron.
+                    if (!v) setRefineExpanded(false);
+                  }}
                   expanded={refineExpanded}
                   onToggleExpanded={() => setRefineExpanded((e) => !e)}
                   title="Tinh chỉnh ảnh AI"
