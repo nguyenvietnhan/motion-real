@@ -11,6 +11,8 @@
   min-width: 0;
   min-height: 0;
   overflow-y: auto;
+  /* Reserve scrollbar space so content does not shift when overflow appears. */
+  scrollbar-gutter: stable;
   background: var(--background);
   position: relative;
   display: flex;

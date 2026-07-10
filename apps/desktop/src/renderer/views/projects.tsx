@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import type { FriendlyStatus, ProjectCardVM } from "../../shared/types.js";
 import { paginate, type GalleryLoad } from "../../shared/gallery-controller.js";
 import { FRIENDLY_LABELS } from "../../shared/friendly-status.js";
@@ -14,6 +14,73 @@ const FILTERS: { id: GalleryFilter; label: string }[] = [
   { id: "done", label: "Xong" },
   { id: "error", label: "Lỗi" },
 ];
+
+/** Compact filter: icon + "Lọc" + current value, dropdown options. */
+const GalleryFilterMenu: React.FC<{
+  value: GalleryFilter;
+  onChange: (next: GalleryFilter) => void;
+}> = ({ value, onChange }) => {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const current = FILTERS.find((f) => f.id === value) ?? FILTERS[0]!;
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent): void => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  return (
+    <div ref={ref} className="ns-gallery-filter-wrap">
+      <button
+        type="button"
+        className={`ns-gallery-filter-trigger${open ? " is-open" : ""}`}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-label={`Lọc: ${current.label}`}
+        onClick={() => setOpen((v) => !v)}
+      >
+        {Icon.film({ size: 14 })}
+        <span className="ns-gallery-filter-caption">Lọc</span>
+        <span className="ns-gallery-filter-value">{current.label}</span>
+      </button>
+      {open && (
+        <div className="ns-gallery-filter-menu" role="listbox" aria-label="Lọc theo trạng thái">
+          {FILTERS.map((f) => {
+            const active = f.id === value;
+            return (
+              <button
+                key={f.id}
+                type="button"
+                role="option"
+                aria-selected={active}
+                className={`ns-gallery-filter-opt${active ? " is-active" : ""}`}
+                onClick={() => {
+                  onChange(f.id);
+                  setOpen(false);
+                }}
+                title={f.id === "all" ? "Tất cả dự án" : FRIENDLY_LABELS[f.id]}
+              >
+                <span className="ns-gallery-filter-tick">{active ? Icon.check({ size: 14 }) : null}</span>
+                <span>{f.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+};
 
 /** Projects: the full gallery of every video, paginated 12-per-page. */
 export const ProjectsView: React.FC<{
@@ -66,20 +133,8 @@ export const ProjectsView: React.FC<{
       )}
       {load === "populated" && (
         <>
-          <div className="ns-gallery-filters" role="tablist" aria-label="Lọc theo trạng thái">
-            {FILTERS.map((f) => (
-              <button
-                key={f.id}
-                type="button"
-                role="tab"
-                aria-selected={filter === f.id}
-                className={`ns-gallery-filter${filter === f.id ? " is-active" : ""}`}
-                onClick={() => setFilterAndReset(f.id)}
-                title={f.id === "all" ? "Tất cả dự án" : FRIENDLY_LABELS[f.id]}
-              >
-                {f.label}
-              </button>
-            ))}
+          <div className="ns-gallery-toolbar">
+            <GalleryFilterMenu value={filter} onChange={setFilterAndReset} />
           </div>
           {filtered.length === 0 ? (
             <EmptyState
