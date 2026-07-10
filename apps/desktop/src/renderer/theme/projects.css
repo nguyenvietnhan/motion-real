@@ -93,11 +93,12 @@
 }
 
 /* --- Project card (thumbnail + overlay status/actions + body) ----------- */
-/* Short-form only: frame matches 9:16 stills so cover fills with no letterbox. */
+/* Vertical cover without letterbox; 3/4 is a bit shorter than full 9:16 so
+ * gallery cards stay compact while still reading as short-form. */
 .ns-project-thumb {
   position: relative;
   width: 100%;
-  aspect-ratio: 9 / 16;
+  aspect-ratio: 3 / 4;
   background: #090a12;
   display: grid;
   place-items: center;
