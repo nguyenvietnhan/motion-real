@@ -498,50 +498,52 @@ export const StoryboardView: React.FC<{
                 </button>
               </div>
               <InfoHint text="Bấm cảnh bên trái để xem ảnh." />
+            </div>
+          )}
+
+          <div className="ns-story-preview-stage">
+            <div className="ns-story-preview-frame">
+              {draftPath && !showStill ? (
+                <video
+                  ref={videoRef}
+                  src={draftPath}
+                  controls
+                  className="ns-story-preview-media"
+                  onLoadedMetadata={() => {
+                    if (pendingSeekRef.current !== null) {
+                      seekVideoTo(pendingSeekRef.current);
+                    }
+                  }}
+                  onSeeking={() => {
+                    seekingRef.current = true;
+                  }}
+                  onSeeked={(e) => {
+                    seekingRef.current = false;
+                    // One stable rail update at the final seek position (not mid-scrub thrash).
+                    const next = sceneIndexAtSeconds(scenes, e.currentTarget.currentTime);
+                    if (next !== undefined && next !== selected) setSelected(next);
+                  }}
+                  onTimeUpdate={(e) => {
+                    // Only follow playback while playing; ignore seeks / pause scrub thrash.
+                    if (seekingRef.current || e.currentTarget.paused) return;
+                    const next = sceneIndexAtSeconds(scenes, e.currentTarget.currentTime);
+                    if (next !== undefined && next !== selected) setSelected(next);
+                  }}
+                />
+              ) : (
+                <div
+                  className="ns-story-preview-media ns-story-preview-still"
+                  style={current?.stillPath ? { background: `center/contain no-repeat #0c0e12 url(${current.stillPath})` } : undefined}
+                >
+                  {!current?.stillPath && Icon.film({ size: 30 })}
+                </div>
+              )}
               {current && (
-                <span className="ns-story-active-label">
+                <span className="ns-story-preview-scene" aria-hidden="true">
                   Cảnh {idx + 1}
                 </span>
               )}
             </div>
-          )}
-          
-          <div className="ns-story-preview-stage">
-            {draftPath && !showStill ? (
-              <video
-                ref={videoRef}
-                src={draftPath}
-                controls
-                className="ns-story-preview-media"
-                onLoadedMetadata={() => {
-                  if (pendingSeekRef.current !== null) {
-                    seekVideoTo(pendingSeekRef.current);
-                  }
-                }}
-                onSeeking={() => {
-                  seekingRef.current = true;
-                }}
-                onSeeked={(e) => {
-                  seekingRef.current = false;
-                  // One stable rail update at the final seek position (not mid-scrub thrash).
-                  const next = sceneIndexAtSeconds(scenes, e.currentTarget.currentTime);
-                  if (next !== undefined && next !== selected) setSelected(next);
-                }}
-                onTimeUpdate={(e) => {
-                  // Only follow playback while playing; ignore seeks / pause scrub thrash.
-                  if (seekingRef.current || e.currentTarget.paused) return;
-                  const next = sceneIndexAtSeconds(scenes, e.currentTarget.currentTime);
-                  if (next !== undefined && next !== selected) setSelected(next);
-                }}
-              />
-            ) : (
-              <div
-                className="ns-story-preview-media ns-story-preview-still"
-                style={current?.stillPath ? { background: `center/contain no-repeat #0c0e12 url(${current.stillPath})` } : undefined}
-              >
-                {!current?.stillPath && Icon.film({ size: 30 })}
-              </div>
-            )}
           </div>
         </div>
 
