@@ -451,6 +451,23 @@ export const ProjectWorkspaceView: React.FC<{
       )}
       {stage.kind === "image-review" && <ImageReviewView images={stage.images} onSubmit={onSubmitImageReview} />}
       {stage.kind === "rendering" && <RenderingPanel stage={stage} onCancel={onCancel} />}
+      {stage.kind === "draft-recovery" && (
+        <div className="ns-card ns-draft-recovery">
+          <p className="ns-writing-title">Bản nháp đã khôi phục</p>
+          <p className="ns-writing-detail">{stage.notice}</p>
+          {stage.draftPath ? (
+            <video className="ns-draft-recovery-video" src={stage.draftPath} controls />
+          ) : null}
+          <div className="ns-error-actions">
+            <button type="button" className="ns-btn" onClick={onReveal}>
+              {Icon.folder({ size: 15 })} Mở thư mục
+            </button>
+            <button type="button" className="ns-btn" onClick={onBack}>
+              Quay lại
+            </button>
+          </div>
+        </div>
+      )}
       {stage.kind === "published" && (
         // Two-column export screen (the pattern CapCut / Opus Clip / Descript use
         // when a render finishes): the video preview is fixed on the LEFT, and a

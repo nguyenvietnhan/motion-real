@@ -214,6 +214,23 @@ const workspace = new WorkspaceController({
   outputMedia: (id) => mediaUrl(join(projectPaths(id).rendersDir, `${id}.mp4`)) ?? "",
   hasDraft: (id) => existsSync(join(projectPaths(id).rendersDir, `${id}.draft.mp4`)),
   draftMedia: (id) => mediaUrl(join(projectPaths(id).rendersDir, `${id}.draft.mp4`)) ?? "",
+  inspectArtifacts: async (id) => {
+    const { isHealthyMediaFile } = await import("./workspace/workspace-recovery.js");
+    const health = (abs: string) => {
+      try {
+        if (!existsSync(abs)) return isHealthyMediaFile(null);
+        const s = statSync(abs);
+        return isHealthyMediaFile({ isFile: s.isFile(), size: s.size });
+      } catch {
+        return isHealthyMediaFile(null);
+      }
+    };
+    const p = projectPaths(id);
+    return {
+      full: health(join(p.rendersDir, `${id}.mp4`)),
+      draft: health(join(p.rendersDir, `${id}.draft.mp4`)),
+    };
+  },
   loadSceneTimelines: async (id) => {
     try {
       const raw = JSON.parse(await readFile(projectPaths(id).lock, "utf8")) as unknown;

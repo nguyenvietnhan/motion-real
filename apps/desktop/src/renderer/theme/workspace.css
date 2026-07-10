@@ -213,6 +213,21 @@
   justify-content: center;
   margin-top: 8px;
 }
+.ns-draft-recovery {
+  display: grid;
+  gap: 14px;
+  padding: clamp(20px, 4vw, 32px);
+  place-items: center;
+  text-align: center;
+}
+.ns-draft-recovery-video {
+  width: min(100%, 360px);
+  max-height: 70vh;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: #0c0e12;
+  object-fit: contain;
+}
 
 /* Storyboard header: leading identity + action cluster.
  * Actions wrap as a group on narrow windows — never stack/overlap individual controls. */

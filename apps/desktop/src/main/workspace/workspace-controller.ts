@@ -123,6 +123,14 @@ export interface WorkspaceDeps {
   /** mediaUrl-wrapped path to the low-res draft MP4 (for in-app preview). */
   draftMedia: (projectId: string) => string;
   /**
+   * Artifact-first recovery: health of full/draft deliverables (nonzero regular files).
+   * Prefer this over hasDraft/hasOutput for stage recovery.
+   */
+  inspectArtifacts?: (projectId: string) => Promise<{
+    full: import("./workspace-recovery.js").ArtifactHealth;
+    draft: import("./workspace-recovery.js").ArtifactHealth;
+  }>;
+  /**
    * Optional locked-timeline projection for storyboard seek/highlight.
    * Missing/torn lock → empty map (still-only review).
    */
@@ -846,31 +854,75 @@ export class WorkspaceController {
   }
 
   private async recoverStage(projectId: string): Promise<ProjectStage> {
+    const { recoveryDecision, isHealthyMediaFile } = await import("./workspace-recovery.js");
+    const inspect =
+      this.deps.inspectArtifacts ??
+      (async (id: string) => {
+        // Fallback: existence + nonzero size via hasDraft/hasOutput helpers.
+        return {
+          full: this.deps.hasOutput(id) ? ("healthy" as const) : ("missing" as const),
+          draft: this.deps.hasDraft(id) ? ("healthy" as const) : ("missing" as const),
+        };
+      });
+
+    let full: import("./workspace-recovery.js").ArtifactHealth = "missing";
+    let draft: import("./workspace-recovery.js").ArtifactHealth = "missing";
+    try {
+      const art = await inspect(projectId);
+      full = art.full;
+      draft = art.draft;
+    } catch {
+      full = this.deps.hasOutput(projectId) ? "healthy" : "missing";
+      draft = this.deps.hasDraft(projectId) ? "healthy" : "missing";
+    }
+    void isHealthyMediaFile;
+
     try {
       const manifest = await this.deps.loadManifest(projectId);
-      // 0 scenes here means NO live job: recoverStage is only reached when the
-      // project has no in-memory stage (a running author/crawl job always holds a
-      // {kind:"writing"} stage in the map, which `stage` returns first). So a
-      // scaffolded-but-unauthored project at this point was stranded — a cancel
-      // mid-crawl, or an app restart while authoring/at image-review (the pending
-      // review lives in memory and is gone). Landing on "writing" spins forever
-      // with no affordance; surface a recoverable error so the user can re-create.
-      if (manifest.scenes.length === 0) {
+      const hasAnyStill = manifest.scenes.some((s) => this.deps.hasStill(projectId, s.id));
+      const decision = recoveryDecision({
+        full,
+        draft,
+        manifest: { sceneCount: manifest.scenes.length, hasAnyStill },
+      });
+      if (decision.kind === "published") {
+        return await this.publishedStage(projectId, this.deps.outputMedia(projectId));
+      }
+      if (decision.kind === "ready") {
+        return this.readyStage(projectId, await this.storyboardScenesOf(projectId));
+      }
+      if (decision.kind === "draft-recovery") {
         return {
-          kind: "error",
-          message: "Dự án chưa kịp tạo kịch bản (có thể bạn đã dừng giữa chừng hoặc đóng app). Hãy tạo lại.",
-          fixable: false,
-          retry: "create",
+          kind: "draft-recovery",
+          draftPath: this.deps.draftMedia(projectId),
+          notice: "Đã khôi phục bản nháp. Kịch bản/metadata chưa đọc được — chỉ xem video, không chỉnh sửa hay xuất full.",
         };
       }
-      if (this.deps.hasOutput(projectId)) return await this.publishedStage(projectId, this.deps.outputMedia(projectId));
-      const hasStills = manifest.scenes.some((s) => this.deps.hasStill(projectId, s.id));
-      if (hasStills) return this.readyStage(projectId, await this.storyboardScenesOf(projectId));
-      return { kind: "script", lines: await this.scriptLinesOf(projectId) };
+      if (decision.kind === "script") {
+        return { kind: "script", lines: await this.scriptLinesOf(projectId) };
+      }
+      return {
+        kind: "error",
+        message:
+          decision.reason === "empty"
+            ? "Dự án chưa kịp tạo kịch bản (có thể bạn đã dừng giữa chừng hoặc đóng app). Hãy tạo lại."
+            : "Không đọc được dữ liệu dự án. Hãy tạo lại.",
+        fixable: false,
+        retry: "create",
+      };
     } catch (error) {
-      log.warn({ err: error, projectId }, "project recovery read failed; returning recoverable error stage");
-      // An unreadable/absent manifest is the same stranded case (scaffold without
-      // a manifest yet) — a recoverable error beats a permanent spinner.
+      log.warn({ err: error, projectId }, "project recovery read failed; applying artifact-first fallback");
+      const decision = recoveryDecision({ full, draft, manifest: "unreadable" });
+      if (decision.kind === "published") {
+        return await this.publishedStage(projectId, this.deps.outputMedia(projectId));
+      }
+      if (decision.kind === "draft-recovery") {
+        return {
+          kind: "draft-recovery",
+          draftPath: this.deps.draftMedia(projectId),
+          notice: "Đã khôi phục bản nháp. Kịch bản/metadata chưa đọc được — chỉ xem video, không chỉnh sửa hay xuất full.",
+        };
+      }
       return {
         kind: "error",
         message: "Không đọc được dữ liệu dự án. Hãy tạo lại.",

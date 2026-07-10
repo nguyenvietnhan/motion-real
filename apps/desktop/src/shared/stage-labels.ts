@@ -106,6 +106,8 @@ export function workspaceStageTitle(kind: ProjectStage["kind"]): string {
       return "Đang dựng video";
     case "ready":
       return "Duyệt cảnh";
+    case "draft-recovery":
+      return "Khôi phục bản nháp";
     case "published":
       return "Đã xuất bản";
     case "error":

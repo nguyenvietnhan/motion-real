@@ -30,6 +30,8 @@ export function stageFingerprint(stage: ProjectStage | undefined): string {
     }
     case "ready":
       return "ready";
+    case "draft-recovery":
+      return "draft-recovery";
     case "published":
       return "published";
     case "error":

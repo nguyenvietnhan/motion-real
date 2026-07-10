@@ -54,6 +54,7 @@ describe("stage-labels", () => {
     expect(workspaceStageTitle("image-review")).toBe("Duyệt ảnh");
     expect(workspaceStageTitle("rendering")).toBe("Đang dựng video");
     expect(workspaceStageTitle("ready")).toBe("Duyệt cảnh");
+    expect(workspaceStageTitle("draft-recovery")).toBe("Khôi phục bản nháp");
     expect(workspaceStageTitle("published")).toBe("Đã xuất bản");
     expect(workspaceStageTitle("error")).toBe("Gặp lỗi");
   });

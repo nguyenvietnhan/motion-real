@@ -4,6 +4,7 @@ import type { FriendlyStatus, ProjectStage } from "../../shared/types.js";
 export function stageToFriendlyStatus(kind: ProjectStage["kind"]): FriendlyStatus {
   switch (kind) {
     case "ready":
+    case "draft-recovery":
       return "draft-ready";
     case "published":
       return "done";
