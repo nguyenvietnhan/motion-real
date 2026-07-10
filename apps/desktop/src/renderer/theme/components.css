@@ -64,6 +64,11 @@
     left: 140%;
   }
 }
+.ns-btn-icon-only {
+  padding: 10px;
+  min-width: 40px;
+  gap: 0;
+}
 .ns-btn:disabled {
   opacity: 0.45;
   cursor: not-allowed;

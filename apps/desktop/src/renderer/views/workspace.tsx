@@ -270,7 +270,10 @@ const ThumbnailPanel: React.FC<{
   const [nonce, setNonce] = useState(0);
   const notify = useNotifications();
   const baseUrl = freshUrl ?? thumbnailPath ?? null;
-  const shownUrl = baseUrl ? `${baseUrl}${baseUrl.includes("?") ? "&" : "?"}t=${nonce}` : null;
+  // media:// rejects query strings (403). Cache-bust with a fragment like storyboard stills (#rN).
+  const shownUrl = baseUrl
+    ? `${(baseUrl.split("#")[0] || baseUrl)}#r${nonce}`
+    : null;
 
   useEffect(() => {
     if (!previewOpen) return;
@@ -286,10 +289,23 @@ const ThumbnailPanel: React.FC<{
     setGenerating(true);
     void onGenerate()
       .then((r) => {
-        if (r) {
+        if (r?.thumbnailUrl) {
           setFreshUrl(r.thumbnailUrl);
           setNonce((n) => n + 1);
+          return;
         }
+        notify.warning({
+          title: "Chưa tạo được ảnh bìa",
+          message: "Thử lại sau khi video xong hẳn.",
+        });
+      })
+      .catch((error: unknown) => {
+        const details = errorDetails(error);
+        notify.error({
+          title: "Không tạo được ảnh bìa",
+          message: compactNotificationMessage(details, "Thử lại."),
+          details,
+        });
       })
       .finally(() => setGenerating(false));
   };
@@ -488,12 +504,19 @@ export const ProjectWorkspaceView: React.FC<{
           </div>
           <div className="ns-publish-rail">
             <div className="ns-publish-head">
-              <span className="ns-publish-done"><span className="ns-publish-done-icon">{Icon.check({ size: 16 })}</span>Đã xuất bản</span>
               <h2 className="ns-publish-title">{stage.title || "Video đã sẵn sàng"}</h2>
             </div>
             <div className="ns-publish-cta">
               <button className="ns-btn ns-btn-primary" onClick={onSave}>{Icon.download({ size: 16 })} Lưu video</button>
-              <button className="ns-btn" onClick={onReveal}>{Icon.folder({ size: 15 })} Mở thư mục</button>
+              <button
+                type="button"
+                className="ns-btn ns-btn-icon-only"
+                onClick={onReveal}
+                title="Mở thư mục"
+                aria-label="Mở thư mục"
+              >
+                {Icon.folder({ size: 16 })}
+              </button>
             </div>
             <PublishCopyPanel title={stage.title} hashtags={stage.hashtags} />
             <ThumbnailPanel

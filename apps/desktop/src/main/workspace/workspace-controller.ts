@@ -1050,13 +1050,18 @@ export class WorkspaceController {
     this.inFlight.add(projectId);
     try {
       const { path } = await renderThumbnail(projectId);
+      const thumbnailUrl = this.deps.toMedia(path);
+      if (!thumbnailUrl) {
+        console.warn(`[workspace] generateThumbnail produced a path mediaUrl rejected: ${projectId}`);
+        return null;
+      }
       // Re-emit the published stage so the freshly-rendered thumbnail surfaces in
       // the UI on the next poll (the stage carries thumbnailPath via publishedStage).
       const stage = this.stages.get(projectId);
       if (stage?.kind === "published" && this.deps.hasOutput(projectId)) {
         this.setStage(projectId, await this.publishedStage(projectId, this.deps.outputMedia(projectId)));
       }
-      return { thumbnailUrl: this.deps.toMedia(path) };
+      return { thumbnailUrl };
     } catch (e) {
       console.warn(`[workspace] generateThumbnail failed for ${projectId}:`, e);
       return null;
