@@ -440,7 +440,7 @@ export const HomeView: React.FC<{
               onChange={(e) => setRaw(e.target.value)}
               onPaste={onPaste}
               placeholder={currentPlaceholder}
-              rows={4}
+              rows={3}
             />
             
             {images.length > 0 && (
