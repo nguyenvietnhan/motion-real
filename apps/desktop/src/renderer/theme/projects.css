@@ -93,10 +93,11 @@
 }
 
 /* --- Project card (thumbnail + overlay status/actions + body) ----------- */
+/* Short-form only: frame matches 9:16 stills so cover fills with no letterbox. */
 .ns-project-thumb {
   position: relative;
   width: 100%;
-  aspect-ratio: 16 / 10;
+  aspect-ratio: 9 / 16;
   background: #090a12;
   display: grid;
   place-items: center;
@@ -111,12 +112,8 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
+  object-position: center;
   transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-}
-.ns-project-thumb.is-tiktok .ns-project-media {
-  width: auto;
-  max-width: 48%;
-  object-fit: contain;
 }
 .ns-project:hover .ns-project-media {
   transform: scale(1.05);
