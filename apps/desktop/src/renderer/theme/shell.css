@@ -18,9 +18,9 @@
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--border) 55%, transparent), var(--shadow-md);
 }
 .ns-license-logo {
-  /* ~20% larger than 56px — transparent padding in the asset makes it look small */
-  height: 68px;
-  width: 68px;
+  /* Larger glyph only; transparent padding in the PNG still reads small at 56–68 */
+  height: 88px;
+  width: 88px;
   object-fit: contain;
   margin-bottom: 12px;
 }
