@@ -126,13 +126,7 @@ describe("applyAuthoringCandidate", () => {
       manifest: { title: "prior", scenes: [] },
       evidence: { version: 1, sources: [], claims: [{ id: "c1", text: "t", support: "user_brief" }], scenes: [] },
     });
-    // Force promote failure by making admit succeed then corrupting candidate dir mid-way:
-    // use admitFiles that deletes candidate authored after returning ok... better: pass
-    // modules with empty fileName causing cp failure after journal promoting.
-    // Simpler: spy by using a module fileName with invalid nested path after stage.
-    // We'll simulate by admitting ok then renaming project root mid-flight is hard.
-    // Instead: abort after admit by checking signal between admit and promote — covered above.
-    // Backup restore path: call reconcile after writing promoting journal + backup manually.
+    // Seed journal=promoting + complete backup, corrupt canonical, then reconcile.
     const root = join(home, ".video-tool", "projects", projectId());
     const tx = join(root, ".authoring-candidate");
     await mkdir(join(tx, "backup", "authored"), { recursive: true });
@@ -143,7 +137,6 @@ describe("applyAuthoringCandidate", () => {
       JSON.stringify({ version: 1, projectId: projectId(), state: "promoting" }),
       "utf8",
     );
-    // Corrupt canonical as if mid-promote
     await writeFile(join(root, "authored", "scene-01.tsx"), "CORRUPT", "utf8");
     await reconcileAuthoringCandidateTransaction(projectId());
     expect(await readFile(join(root, "authored", "scene-01.tsx"), "utf8")).toBe("PRIOR");

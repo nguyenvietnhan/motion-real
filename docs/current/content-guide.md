@@ -57,8 +57,9 @@ The desktop may read a bounded set of user links (first five, concurrency two,
 retained text budgets). Content planning sees labeled **untrusted** source
 blocks and must attach `sourceRef: { sourceId, excerpt }` for usable
 `source_material` claims. Code authoring uses only the approved plan and claim
-ledger — not full article text. When no readable source remains, do not present
-usable `source_material` claims as if they were URL-grounded.
+ledger — not full article text. When no readable source remains, or an excerpt
+cannot be verified, the runtime demotes those claims rather than inventing
+quotes or presenting them as URL-grounded evidence.
 
 ## Language And TTS
 

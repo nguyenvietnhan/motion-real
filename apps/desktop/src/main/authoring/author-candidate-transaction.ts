@@ -113,12 +113,6 @@ async function pathExists(path: string): Promise<boolean> {
   return existsSync(path);
 }
 
-async function listTsxFiles(dir: string): Promise<string[]> {
-  if (!existsSync(dir)) return [];
-  const names = await readdir(dir);
-  return names.filter((n) => n.endsWith(".tsx") && !n.startsWith("_")).map((n) => join(dir, n));
-}
-
 async function backupCanonical(projectId: string): Promise<void> {
   const p = projectPaths(projectId);
   const tx = txPaths(projectId);

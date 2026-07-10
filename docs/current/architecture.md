@@ -168,8 +168,13 @@ the full `authorScenes` spine without a dedicated orchestration test harness.
 
 Focused modules own bounded workflows:
 
-- `content-plan-runner.ts` owns content-plan call, parse, quality check, and
-  one-shot claim-ledger repair.
+- `content-plan-runner.ts` owns content-plan call, parse, quality check, optional
+  one-shot claim repair when every blocker is `claim-ledger` or
+  `claim-provenance`, then deterministic finalize for URL-grounded runs.
+- `content-plan-provenance.ts` owns the single provenance verdict shared by
+  quality evaluation and demote recovery.
+- `content-plan-claim-policy.ts` owns demote of unusable `source_material` and
+  residual claim-ledger soften (never invents excerpts).
 - `author-reply-runner.ts` owns single-reply authoring, compact TSX batches, and
   missing-TSX recovery.
 - `author-batch-policy.ts` owns the no-image compact batching threshold and
@@ -194,25 +199,29 @@ Focused modules own bounded workflows:
   authoring fail logs (preserves legacy message strings for continuity).
 
 The public `content-plan.ts` module stays as the import facade for content-plan
-types and helpers. Its internals are split into schema/types, normalization,
-parser, quality, and prompt-builder modules so policy changes stay local and
-testable.
+types and helpers. Internals are split into schema/types, normalization,
+parser, quality, prompt-builder, provenance verdict, and claim-policy recovery
+so policy changes stay local and testable.
 
 URL/image workflows currently default to AI image preselection plus blocking
 human review. Keep that default unless product explicitly accepts the cost,
 latency, and UX change.
 
-Fresh authoring has bounded stabilization before admission. A claim-ledger-only
-content-plan failure may get one repair call. Content-plan purpose drift and
-missing/generic motion intent are normalized with diagnostics, because they are
-metadata guidance rather than safety blockers. Normal no-image plans up to the
-single-reply capacity use one authoring reply, where a valid manifest with
-missing TSX modules may get one targeted missing-module recovery call. Larger
-no-image plans use a deterministic manifest plus compact TSX batches of at most
-two component ids, capped at 16 components total; plans beyond that budget fail
-instead of looping. Image-placement plans keep the single-reply authoring path.
-None of these paths accept partial output or weaken admission, N10 typecheck, or
-render safety.
+Fresh authoring has bounded stabilization before admission. When every content-
+plan blocker is `claim-ledger` or `claim-provenance`, the runner may make one
+repair call, then (on URL-grounded runs, including zero readable sources)
+always runs deterministic finalize: demote unusable `source_material` claims and,
+if only claim-ledger remains blocking, soften that ledger to advisory without
+inventing evidence. Text-only runs (no `researchSources`) never demote or soften.
+Content-plan purpose drift and missing/generic motion intent are normalized with
+diagnostics, because they are metadata guidance rather than safety blockers.
+Normal no-image plans up to the single-reply capacity use one authoring reply,
+where a valid manifest with missing TSX modules may get one targeted
+missing-module recovery call. Larger no-image plans use a deterministic manifest
+plus compact TSX batches of at most two component ids, capped at 16 components
+total; plans beyond that budget fail instead of looping. Image-placement plans
+keep the single-reply authoring path. None of these paths accept partial output
+or weaken admission, N10 typecheck, or render safety.
 
 Before the user sees a first draft, the desktop flow may run a hidden sequence:
 
@@ -236,12 +245,14 @@ cancellation between stages is not treated as project failure.
 Topic / URL / images
 -> AI plans story beats and usable claims
 -> validate content plan pacing/claims
--> optional one-shot claim-ledger repair
+-> optional one-shot claim repair (claim-ledger/provenance only)
+-> URL-grounded: deterministic demote/soften finalize (no inventing evidence)
 -> AI authors manifest + TSX in one reply,
    or deterministic manifest + compact TSX batches for larger no-image plans
 -> optional one-shot missing-TSX module recovery on the single-reply path
 -> optional hidden stills/refine in desktop
--> admission gate
+-> stage/admit/promote candidate (transactional)
+-> admission gate (staged modules)
 -> manifest -> VideoSpec
 -> static safety grid
 -> authored scene typecheck
@@ -336,10 +347,11 @@ Fresh desktop authoring collects sources via `research-context.ts`:
 ## Fresh-author candidate transaction
 
 Canonical manifest/TSX/evidence are applied through
-`author-candidate-transaction.ts`: stage under `.authoring-candidate/`, admit
-staged files, journal `prepared` → `promoting` → `committed`, backup then
-promote. Failure/abort restores prior bytes. Startup (and pre-author) reconciles
-stale journals.
+`author-candidate-transaction.ts`: stage under `.authoring-candidate/`, journal
+`prepared`, admit **staged** files, **backup canonical**, journal `promoting`,
+then promote, journal `committed`, cleanup. Failure/abort restores prior bytes
+only when a usable backup exists (empty/missing backup never wipes good
+canonical). Startup (and pre-author) reconciles stale journals.
 
 ## Cancellation
 

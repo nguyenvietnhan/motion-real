@@ -205,16 +205,22 @@ overrides without a new owner-approved slice and tests.
 
 Content-plan metadata that is not safety-critical should not hard-fail authoring
 by itself. Purpose drift and missing/generic `motionProgression` are normalized
-with diagnostics so their frequency remains observable. Claim-ledger/
-claim-provenance violations, duplicate ids, invalid JSON shape, unsafe authored
-code, and render integrity failures remain hard blockers.
+with diagnostics so their frequency remains observable. Duplicate ids, invalid
+JSON shape, unsafe authored code, and render integrity failures remain hard
+blockers. Claim-ledger / claim-provenance start as quality blockers; on
+URL-grounded claim-only failures the runner may one-shot AI-repair then always
+runs deterministic recovery (`content-plan-claim-policy.ts`): demote unusable
+`source_material` (including when readable sources is `[]`), and soften residual
+claim-ledger to advisory only when no other hard blockers remain. Never invent
+excerpts. Text-only plans do not demote or soften.
 
-On URL-grounded runs with at least one readable source, a usable
+On URL-grounded runs (`researchSources` provided, including empty), a usable
 `source_material` claim must carry a known source id and a bounded excerpt that
-matches normalized source text. `user_brief` and `common_knowledge` claims must
-not carry source references. If every URL is unreadable, authoring may continue
-without validated URL evidence; source references are not manufactured. New
-authoring writes `evidence.json` only after admission and never persists raw
+matches normalized source text — or it is demoted to omit/uncertain. `user_brief`
+and `common_knowledge` claims must not carry source references. If every URL is
+unreadable, authoring may continue after demote without validated URL evidence;
+source references are not manufactured. New authoring writes `evidence.json`
+only after staged admission succeeds and promote commits, and never persists raw
 research bodies there.
 
 ## Parser And Normalizer Policy
@@ -231,9 +237,11 @@ covered by focused regression tests:
   code safety, such as overlong strings, image ref aliases, hashtags, and bad
   transition hints. Empty required content and invalid component ids still fail.
 - `content-plan-normalize.ts` may normalize non-safety metadata with diagnostics,
-  currently `purpose` and missing/generic `motionProgression`. Evidence,
-  duplicate ids, schema-critical enum drift, and claim-ledger issues stay hard
-  unless a documented owner-approved policy changes them.
+  currently `purpose`, missing/generic `motionProgression`, tolerant `sourceRef`
+  shape coercion, and defaulting missing `evidenceClaimIds` to `[]`. Duplicate
+  ids and schema-critical enum drift stay hard. Claim-ledger / provenance stay
+  quality-gated; URL-grounded demote/soften is the documented recovery in
+  `content-plan-claim-policy.ts`, not silent inventing of evidence.
 - `normalize-imports.ts` may fix mechanical authored-source compatibility issues
   already proven by incidents, such as `SceneImage` re-home, old Remotion
   `Extrapolate`, color-valued `interpolate`, boundary markdown fences, and the
@@ -481,7 +489,10 @@ address policy in `public-address.ts` (`net.BlockList`).
 
 Do not clear-first authored TSX/manifest/evidence. Use
 `author-candidate-transaction.ts` only. Do not bypass the helper for “quick”
-writes. Startup reconciles `.authoring-candidate/` journals before jobs start.
+writes. Order is stage → `prepared` → admit staged paths → backup → `promoting`
+→ promote → `committed`. Reconcile on `promoting` restores only when backup is
+usable; never wipe canonical from an empty backup. Startup reconciles
+`.authoring-candidate/` journals before jobs start.
 
 ## Source context budgets
 

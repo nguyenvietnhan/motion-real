@@ -1,15 +1,21 @@
 # Plan — Six security, reliability, and source-pipeline hardening slices
 
-**Status:** complete for Phases 1–6 — pending owner end smoke (§0.5)
+> **STALE / historical only.** Product truth lives in `docs/current/`
+> (`architecture.md`, `maintenance.md`, `content-guide.md`) and the code.
+> Do **not** implement from this note. Known outdated lines include “demote only
+> after failed repair”, journal order before backup-first, and early Phase 5
+> partial status. Prefer current docs.
+
+**Status:** historical — Phases 1–6 + residual claim recovery/journal cleanup shipped
 **Prepared:** 2026-07-10 · **Revised:** 2026-07-10 (continuous 3–6 shipped + residual gate fix)
-**Intended executor:** Grok 4.5 (or a fresh implementation agent)
+**Intended executor:** (none — do not re-run as active plan)
 **Starting branch:** `main`
 **Original audit commit:** `d47870f`
 **Phase 1–2 baseline after fixes (approx.):** `fa345f2` / later `main` tip when starting 3–6
 
-This is a temporary execution document, not a product contract. Delete it only
-after accepted behaviour is synchronized into `AI_CONTRACT.md` or `docs/current/`
-and the owner approves removal.
+This is a temporary execution document, not a product contract. Safe to delete
+when the owner no longer wants the historical audit trail; accepted behaviour is
+already synchronized into `docs/current/`.
 
 The six slices remain deliberately bounded. They do not introduce templates,
 themes, YouTube long-form authoring, cross-project render parallelism, provider
