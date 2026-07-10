@@ -345,9 +345,10 @@ paths. Responses are buffered before the per-request dispatcher closes.
 ## Delivery format (short-form only)
 
 The product ships **TikTok/Reels/Shorts 9:16** only. Specs use `format: "tiktok"`
-and `ratio: "9:16"`. Desktop create always sets `durationTier: 1` (~45s pacing);
-there is no format or duration picker in the UI. Geometry, captions, and
-thumbnail cover are vertical short-form only.
+and `ratio: "9:16"`. Desktop create always uses short-form delivery; the Home
+duration knobs pick `durationTier` **1 / 2 / 3** (~45s / ~90s / ~150s pacing;
+default **1**). There is no landscape / YouTube format option. Geometry,
+captions, and thumbnail cover are vertical short-form only.
 
 ## Research context (URL-grounded authoring)
 
