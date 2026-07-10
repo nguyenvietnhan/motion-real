@@ -32,6 +32,11 @@ export type ContentPlanNormalizationDiagnostic =
     kind: "source-ref-normalized";
     claimId?: string;
     reason: "snake-case" | "string-dropped" | "invalid-dropped";
+  }
+  | {
+    kind: "evidence-claim-ids-defaulted";
+    sceneId?: string;
+    reason: "missing" | "null" | "non-array";
   };
 
 export function hasConcreteFact(value: string): boolean {
@@ -179,6 +184,34 @@ export function normalizeContentPlanCandidate(raw: unknown): { value: unknown; d
     } else if (hasGenericMotionIntent(motion)) {
       next.motionProgression = DEFAULT_MOTION_PROGRESSION;
       diagnostics.push({ kind: "motion-defaulted", ...(sceneId ? { sceneId } : {}), reason: "generic", original: motion });
+    }
+
+    // Models often omit evidenceClaimIds on scenes without citations. Default to []
+    // so parse does not hard-fail; claim-ledger quality still flags concrete facts.
+    if (next.evidenceClaimIds === undefined) {
+      next.evidenceClaimIds = [];
+      diagnostics.push({
+        kind: "evidence-claim-ids-defaulted",
+        ...(sceneId ? { sceneId } : {}),
+        reason: "missing",
+      });
+    } else if (next.evidenceClaimIds === null) {
+      next.evidenceClaimIds = [];
+      diagnostics.push({
+        kind: "evidence-claim-ids-defaulted",
+        ...(sceneId ? { sceneId } : {}),
+        reason: "null",
+      });
+    } else if (!Array.isArray(next.evidenceClaimIds)) {
+      next.evidenceClaimIds = [];
+      diagnostics.push({
+        kind: "evidence-claim-ids-defaulted",
+        ...(sceneId ? { sceneId } : {}),
+        reason: "non-array",
+      });
+    } else {
+      // Keep only string claim ids; drop garbage elements models sometimes emit.
+      next.evidenceClaimIds = next.evidenceClaimIds.filter((id): id is string => typeof id === "string");
     }
     return next;
   });

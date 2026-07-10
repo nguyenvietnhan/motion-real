@@ -218,6 +218,26 @@ describe("parseContentPlan", () => {
     });
   });
 
+  it("defaults missing evidenceClaimIds to [] so parse does not hard-fail (arXiv model omission)", () => {
+    // Live failure 896dc49d: scenes.0/6/11/12 omitted evidenceClaimIds → expected array, received undefined.
+    const base = validPlan();
+    const scenes = base.scenes.map((scene, index) => {
+      if (index === 0 || index === 1) {
+        const { evidenceClaimIds: _drop, ...rest } = scene;
+        return rest;
+      }
+      return scene;
+    });
+    const result = parseContentPlan(JSON.stringify({ ...base, scenes }));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.plan.scenes[0]!.evidenceClaimIds).toEqual([]);
+    expect(result.plan.scenes[1]!.evidenceClaimIds).toEqual([]);
+    expect(result.diagnostics).toContainEqual(
+      expect.objectContaining({ kind: "evidence-claim-ids-defaulted", reason: "missing" }),
+    );
+  });
+
   it("does not normalize hookType or layoutFamily drift without evidence", () => {
     const base = validPlan();
     const result = parseContentPlan(
