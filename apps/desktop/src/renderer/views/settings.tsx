@@ -13,6 +13,7 @@ import { activeAccount } from "../../shared/active-account.js";
 import { Icon } from "../icons.js";
 import { ChoiceGroup, ExpandableToggle, Field, InfoHint, InfoRow, NumberRow, PageHeader, SettingsCard, Toggle } from "../primitives.js";
 import { compactNotificationMessage, errorDetails, useNotifications } from "../notifications.js";
+import { useDismissable } from "../use-dismissable.js";
 
 type SettingsTab = "ai" | "voice" | "build" | "about";
 
@@ -32,16 +33,8 @@ interface CustomSelectProps {
 const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options, placeholder, style }) => {
   const [open, setOpen] = React.useState(false);
   const containerRef = React.useRef<HTMLDivElement>(null);
-
-  React.useEffect(() => {
-    const handleOutsideClick = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", handleOutsideClick);
-    return () => document.removeEventListener("mousedown", handleOutsideClick);
-  }, []);
+  const close = React.useCallback(() => setOpen(false), []);
+  useDismissable(open, close, containerRef);
 
   const selectedOption = options.find((opt) => opt.value === value);
 

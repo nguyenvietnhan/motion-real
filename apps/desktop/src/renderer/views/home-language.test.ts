@@ -3,7 +3,6 @@ import {
   applyVideoLanguageSelection,
   applyVoiceProviderSelection,
   languageOptionsForProvider,
-  VIDEO_LANGUAGE_OPTIONS,
 } from "./home.js";
 
 describe("create-screen language/provider coupling", () => {
@@ -34,7 +33,8 @@ describe("create-screen language/provider coupling", () => {
   });
 
   it("never exposes a mixed-language selection label", () => {
-    expect(VIDEO_LANGUAGE_OPTIONS.map((option) => option.value)).toEqual(["vi", "en"]);
-    expect(VIDEO_LANGUAGE_OPTIONS.map((option) => option.label)).not.toContain("Trộn");
+    const labels = languageOptionsForProvider("elevenlabs").map((option) => option.label);
+    expect(languageOptionsForProvider("elevenlabs").map((option) => option.value)).toEqual(["vi", "en"]);
+    expect(labels).not.toContain("Trộn");
   });
 });

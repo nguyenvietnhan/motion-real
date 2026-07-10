@@ -162,6 +162,14 @@ describe("media URL route round-trip", () => {
     const withQuery = await resolveMediaRequest("media://file/project-asset/p1/a.png?x=1", policy, fs);
     expect(withQuery.ok).toBe(false);
     if (!withQuery.ok) expect(withQuery.status).toBe(403);
+    // Cover preview once used ?t= nonce — that must stay 403 (use #rN instead).
+    const coverQuery = await resolveMediaRequest(
+      "media://file/project-review/p1/thumbnail.png?t=1",
+      policy,
+      fs,
+    );
+    expect(coverQuery.ok).toBe(false);
+    if (!coverQuery.ok) expect(coverQuery.status).toBe(403);
     // Cache-bust fragment on stills (storyboard appends #rN) must not 403.
     const withHash = await resolveMediaRequest("media://file/project-review/p1/scene-01.png#r3", policy, fs);
     // Missing file → 404 after allow, not 403 from hash policy.

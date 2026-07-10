@@ -1,4 +1,5 @@
 import type { ProjectStage, SceneCard, SceneTimeline, ScriptLine, VideoFormatChoice } from "../../shared/types.js";
+import { withMediaCacheBust } from "../../shared/media-cache-bust.js";
 import { buildStoryboard } from "../review/storyboard.js";
 
 /** Pure projection from locked frames to seekable seconds (no I/O). */
@@ -110,7 +111,7 @@ export function storyboardScenesFromScenes(
     const timeline = timelines?.[scene.sceneId];
     return {
       ...scene,
-      stillPath: scene.stillPath ? `${scene.stillPath}#r${renderVersion}` : scene.stillPath,
+      stillPath: scene.stillPath ? withMediaCacheBust(scene.stillPath, renderVersion) : scene.stillPath,
       headline: manifestScene?.headline,
       narration: manifestScene?.narration,
       eyebrow: manifestScene?.eyebrow,

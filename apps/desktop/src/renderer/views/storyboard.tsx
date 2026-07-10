@@ -3,6 +3,7 @@ import type { BgmTrackVM, StoryboardModel } from "../../shared/types.js";
 import { Icon } from "../icons.js";
 import { EmptyState, InfoHint } from "../primitives.js";
 import { compactNotificationMessage, errorDetails, useNotifications } from "../notifications.js";
+import { useDismissable } from "../use-dismissable.js";
 import { sceneIndexAtSeconds, seekSecondsForScene } from "../storyboard-timing.js";
 import { placeDiagPanel, type DiagPanelPlacement } from "./diag-panel-placement.js";
 
@@ -65,21 +66,8 @@ const BgmPicker: React.FC<{
     };
   }, [open, updatePlacement]);
 
-  useEffect(() => {
-    if (!open) return;
-    const closeOutside = (event: MouseEvent): void => {
-      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
-    };
-    const closeOnEscape = (event: KeyboardEvent): void => {
-      if (event.key === "Escape") setOpen(false);
-    };
-    document.addEventListener("mousedown", closeOutside);
-    document.addEventListener("keydown", closeOnEscape);
-    return () => {
-      document.removeEventListener("mousedown", closeOutside);
-      document.removeEventListener("keydown", closeOnEscape);
-    };
-  }, [open]);
+  const closeMenu = useCallback(() => setOpen(false), []);
+  useDismissable(open, closeMenu, rootRef);
 
   useEffect(() => () => audioRef.current?.pause(), []);
 

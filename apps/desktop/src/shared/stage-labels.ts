@@ -62,18 +62,17 @@ export function renderingPhaseIndeterminate(
 }
 
 /**
- * Writing spinner title. Detail is optional and unused in the quiet UI
- * (title only under the spinner). Defaults to author copy when phase is absent.
+ * Writing spinner title. Defaults to author copy when phase is absent.
  */
-export function writingPhaseCopy(phase: WritingStagePhase | undefined): { title: string; detail?: string } {
+export function writingPhaseCopy(phase: WritingStagePhase | undefined): string {
   switch (phase) {
     case "crawl":
-      return { title: "Đang lấy ảnh…" };
+      return "Đang lấy ảnh…";
     case "image-filter":
-      return { title: "Đang chọn ảnh…" };
+      return "Đang chọn ảnh…";
     case "author":
     case undefined:
-      return { title: "Đang viết kịch bản…" };
+      return "Đang viết kịch bản…";
     default: {
       const _exhaustive: never = phase;
       return _exhaustive;

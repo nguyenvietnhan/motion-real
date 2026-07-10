@@ -1,18 +1,16 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useMemo, useRef, useState } from "react";
 import type { FriendlyStatus, ProjectCardVM } from "../../shared/types.js";
 import { paginate, type GalleryLoad } from "../../shared/gallery-controller.js";
-import { FRIENDLY_LABELS } from "../../shared/friendly-status.js";
+import { FRIENDLY_LABELS, FRIENDLY_SHORT_LABELS, FRIENDLY_STATUSES } from "../../shared/friendly-status.js";
 import { Icon } from "../icons.js";
 import { EmptyState, LoadingLine, PageHeader, ProjectGrid } from "../primitives.js";
+import { useDismissable } from "../use-dismissable.js";
 
 type GalleryFilter = "all" | FriendlyStatus;
 
 const FILTERS: { id: GalleryFilter; label: string }[] = [
   { id: "all", label: "Tất cả" },
-  { id: "building", label: "Đang dựng" },
-  { id: "draft-ready", label: "Duyệt" },
-  { id: "done", label: "Xong" },
-  { id: "error", label: "Lỗi" },
+  ...FRIENDLY_STATUSES.map((id) => ({ id, label: FRIENDLY_SHORT_LABELS[id] })),
 ];
 
 /** Compact filter: icon + "Lọc" + current value, dropdown options. */
@@ -23,22 +21,8 @@ const GalleryFilterMenu: React.FC<{
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const current = FILTERS.find((f) => f.id === value) ?? FILTERS[0]!;
-
-  useEffect(() => {
-    if (!open) return;
-    const onDown = (e: MouseEvent): void => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    };
-    const onKey = (e: KeyboardEvent): void => {
-      if (e.key === "Escape") setOpen(false);
-    };
-    document.addEventListener("mousedown", onDown);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("mousedown", onDown);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [open]);
+  const close = useCallback(() => setOpen(false), []);
+  useDismissable(open, close, ref);
 
   return (
     <div ref={ref} className="ns-gallery-filter-wrap">

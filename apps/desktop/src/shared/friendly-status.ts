@@ -7,9 +7,18 @@ import type { FriendlyStatus, ProjectState } from "./types.js";
  * state name is ever returned.
  */
 
+/** Full labels for cards / pills. */
 export const FRIENDLY_LABELS: Record<FriendlyStatus, string> = {
   building: "Đang dựng…",
   "draft-ready": "Sẵn sàng duyệt",
+  done: "Xong",
+  error: "Lỗi",
+};
+
+/** Compact labels for dense chrome (gallery filter, toolbars). */
+export const FRIENDLY_SHORT_LABELS: Record<FriendlyStatus, string> = {
+  building: "Đang dựng",
+  "draft-ready": "Duyệt",
   done: "Xong",
   error: "Lỗi",
 };

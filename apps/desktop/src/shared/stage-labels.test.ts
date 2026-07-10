@@ -38,10 +38,10 @@ describe("stage-labels", () => {
   });
 
   it("covers every writing phase copy", () => {
-    expect(writingPhaseCopy("crawl").title).toContain("ảnh");
-    expect(writingPhaseCopy("image-filter").title).toContain("ảnh");
-    expect(writingPhaseCopy("author").title).toContain("kịch bản");
-    expect(writingPhaseCopy(undefined).title).toContain("kịch bản");
+    expect(writingPhaseCopy("crawl")).toContain("ảnh");
+    expect(writingPhaseCopy("image-filter")).toContain("ảnh");
+    expect(writingPhaseCopy("author")).toContain("kịch bản");
+    expect(writingPhaseCopy(undefined)).toContain("kịch bản");
   });
 
   it("covers every workspace stage chrome title", () => {

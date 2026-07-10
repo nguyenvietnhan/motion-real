@@ -6,6 +6,7 @@ import {
   workspaceStageTitle,
   writingPhaseCopy,
 } from "../../shared/stage-labels.js";
+import { withMediaCacheBust } from "../../shared/media-cache-bust.js";
 import { Icon } from "../icons.js";
 import { EmptyState, PageHeader, Spinner } from "../primitives.js";
 import { StoryboardView } from "./storyboard.js";
@@ -270,10 +271,8 @@ const ThumbnailPanel: React.FC<{
   const [nonce, setNonce] = useState(0);
   const notify = useNotifications();
   const baseUrl = freshUrl ?? thumbnailPath ?? null;
-  // media:// rejects query strings (403). Cache-bust with a fragment like storyboard stills (#rN).
-  const shownUrl = baseUrl
-    ? `${(baseUrl.split("#")[0] || baseUrl)}#r${nonce}`
-    : null;
+  // media:// rejects query strings (403) — fragment-only bust via shared helper.
+  const shownUrl = baseUrl ? withMediaCacheBust(baseUrl, nonce) : null;
 
   useEffect(() => {
     if (!previewOpen) return;
@@ -447,14 +446,14 @@ export const ProjectWorkspaceView: React.FC<{
     );
   }
 
-  const writingCopy = stage.kind === "writing" ? writingPhaseCopy(stage.phase) : null;
+  const writingLabel = stage.kind === "writing" ? writingPhaseCopy(stage.phase) : null;
 
   return (
     <div className="ns-content">
       <PageHeader title={title(stage.kind)} action={<button className="ns-btn" onClick={onBack}>Quay lại</button>} />
-      {stage.kind === "writing" && writingCopy && (
+      {stage.kind === "writing" && writingLabel && (
         <RunningJobPanel
-          label={writingCopy.title}
+          label={writingLabel}
           indeterminate
           onCancel={onCancel}
         />

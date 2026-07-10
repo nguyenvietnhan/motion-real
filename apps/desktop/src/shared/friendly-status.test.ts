@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import fc from "fast-check";
-import { FRIENDLY_STATUSES, toFriendlyStatus } from "./friendly-status.js";
+import { FRIENDLY_LABELS, FRIENDLY_SHORT_LABELS, FRIENDLY_STATUSES, toFriendlyStatus } from "./friendly-status.js";
 import type { ProjectState } from "./types.js";
 
 /**
@@ -34,6 +34,17 @@ const KNOWN: Record<ProjectState, string> = {
   done: "done",
   failed: "error",
 };
+
+describe("friendly-status labels", () => {
+  it("exposes full and short labels for every friendly status", () => {
+    for (const status of FRIENDLY_STATUSES) {
+      expect(FRIENDLY_LABELS[status].length).toBeGreaterThan(0);
+      expect(FRIENDLY_SHORT_LABELS[status].length).toBeGreaterThan(0);
+    }
+    expect(FRIENDLY_SHORT_LABELS["draft-ready"]).toBe("Duyệt");
+    expect(FRIENDLY_LABELS["draft-ready"]).toBe("Sẵn sàng duyệt");
+  });
+});
 
 describe("Property 10: friendly-status mapping", () => {
   it("is total and never returns an internal-only state name", () => {

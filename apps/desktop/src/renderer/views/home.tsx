@@ -13,6 +13,7 @@ import { validateCreateInput, extractUrls } from "../../shared/create-validation
 import { Icon } from "../icons.js";
 import { EmptyState, LoadingLine, PageHeader, ProjectGrid } from "../primitives.js";
 import { compactNotificationMessage, errorDetails, useNotifications } from "../notifications.js";
+import { useDismissable } from "../use-dismissable.js";
 
 /** Read a File's bytes and base64-encode them (stable across the IPC boundary). */
 async function fileToBase64(file: File): Promise<string> {
@@ -55,22 +56,8 @@ function KnobButton<T extends string | number>(props: {
 }): React.ReactElement {
   const current = props.options.find((o) => o.value === props.value);
   const ref = useRef<HTMLDivElement>(null);
-  // Close on an outside click / Escape so a popover never lingers over the page.
-  useEffect(() => {
-    if (!props.open) return;
-    const onDown = (e: MouseEvent): void => {
-      if (ref.current && !ref.current.contains(e.target as Node)) props.onClose();
-    };
-    const onKey = (e: KeyboardEvent): void => {
-      if (e.key === "Escape") props.onClose();
-    };
-    document.addEventListener("mousedown", onDown);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("mousedown", onDown);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [props]);
+  // Close on outside click / Escape so a popover never lingers over the page.
+  useDismissable(props.open, props.onClose, ref);
   return (
     <div ref={ref} style={{ position: "relative" }}>
       <button
@@ -132,12 +119,6 @@ export function languageOptionsForProvider(
         { value: "en", label: "Anh" },
       ];
 }
-
-/** @deprecated Prefer languageOptionsForProvider; kept for tests that list labels. */
-export const VIDEO_LANGUAGE_OPTIONS = [
-  { value: "vi", label: "Việt" },
-  { value: "en", label: "Anh" },
-] as const satisfies readonly { value: VideoLanguageChoice; label: string }[];
 
 /** Picking a language never changes provider; EN is only offered under ElevenLabs. */
 export function applyVideoLanguageSelection(

@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { ProjectDiagnosticsVM } from "../../shared/types.js";
 import { compactNotificationMessage, errorDetails, useNotifications } from "../notifications.js";
+import { useDismissable } from "../use-dismissable.js";
 import { placeDiagPanel, type DiagPanelPlacement } from "./diag-panel-placement.js";
 
 /**
@@ -55,21 +56,8 @@ export const ProjectDiagnosticsPanel: React.FC<{
     };
   }, [open, updatePlacement]);
 
-  useEffect(() => {
-    if (!open) return;
-    const closeOutside = (event: MouseEvent): void => {
-      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
-    };
-    const closeOnEscape = (event: KeyboardEvent): void => {
-      if (event.key === "Escape") setOpen(false);
-    };
-    document.addEventListener("mousedown", closeOutside);
-    document.addEventListener("keydown", closeOnEscape);
-    return () => {
-      document.removeEventListener("mousedown", closeOutside);
-      document.removeEventListener("keydown", closeOnEscape);
-    };
-  }, [open]);
+  const closePanel = useCallback(() => setOpen(false), []);
+  useDismissable(open, closePanel, rootRef);
 
   const refresh = (): void => {
     setLoading(true);
