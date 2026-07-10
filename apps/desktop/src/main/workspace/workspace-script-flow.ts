@@ -2,6 +2,7 @@ import { linkWarningOf } from "./workspace-helpers.js";
 import { computeScriptEdits } from "../script/script-gate-apply.js";
 import type { AgentHooks, AgentWorker, AuthorInput } from "../agent/agent-worker.js";
 import type { ApplyResult, FriendlyError, ProjectStage, ScriptEdit, ScriptEvidenceModel, ScriptGateModel, ScriptLine } from "../../shared/types.js";
+import { isCancelled } from "../util/abort.js";
 
 type EditableManifest = {
   scenes: Array<{ id: string; narration?: string; headline?: string }>;
@@ -39,10 +40,6 @@ export function scriptGateModelFromLines(
       headline: line.headline,
     })),
   };
-}
-
-function isAbortError(error: unknown): boolean {
-  return Boolean(error && typeof error === "object" && (error as { name?: string }).name === "AbortError");
 }
 
 export async function runScriptAuthoring({
@@ -93,7 +90,7 @@ export async function runScriptAuthoring({
       await runRender(linkWarning);
     }
   } catch (error) {
-    if (isAbortError(error) || signal?.aborted) {
+    if (isCancelled(signal, error)) {
       await recoverAfterCancel?.();
       return;
     }

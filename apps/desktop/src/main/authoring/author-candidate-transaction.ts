@@ -23,6 +23,7 @@ import {
   type SafetyIssue,
 } from "@motionreal/pipeline";
 import type { ProjectEvidenceArtifact } from "@motionreal/pipeline";
+import { isAbortError, throwIfAborted } from "../util/abort.js";
 
 export type AuthoringCandidateModule = {
   componentId: string;
@@ -110,18 +111,6 @@ async function rmRf(path: string): Promise<void> {
 
 async function pathExists(path: string): Promise<boolean> {
   return existsSync(path);
-}
-
-function throwIfAborted(signal?: AbortSignal): void {
-  if (signal?.aborted) {
-    const err = new Error("Authoring candidate apply aborted");
-    err.name = "AbortError";
-    throw err;
-  }
-}
-
-function isAbortError(error: unknown): boolean {
-  return Boolean(error && typeof error === "object" && (error as { name?: string }).name === "AbortError");
 }
 
 async function listTsxFiles(dir: string): Promise<string[]> {
@@ -263,18 +252,9 @@ export async function applyAuthoringCandidate(input: {
     throwIfAborted(signal);
     await writeJournal(projectId, "promoting");
     await backupCanonical(projectId);
-
-    try {
-      throwIfAborted(signal);
-      await promoteCandidate(projectId, candidate.modules);
-      await writeJournal(projectId, "committed");
-    } catch (error) {
-      await restoreBackup(projectId).catch((_error) => undefined);
-      await cleanupTx(projectId).catch((_error) => undefined);
-      if (isAbortError(error) || signal?.aborted) return { kind: "cancelled" };
-      throw error;
-    }
-
+    throwIfAborted(signal);
+    await promoteCandidate(projectId, candidate.modules);
+    await writeJournal(projectId, "committed");
     await cleanupTx(projectId).catch((_error) => undefined);
 
     const nextComponentIds = candidate.modules.map((m) => m.componentId);
@@ -282,7 +262,7 @@ export async function applyAuthoringCandidate(input: {
 
     return { kind: "committed" };
   } catch (error) {
-    // Best-effort restore if we had started promotion (journal may say promoting)
+    // Best-effort restore if promotion may have started (journal says promoting).
     const journal = await readJournal(projectId).catch((_error) => null);
     if (journal?.state === "promoting") {
       await restoreBackup(projectId).catch((_error) => undefined);
