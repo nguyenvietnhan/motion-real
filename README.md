@@ -4,8 +4,8 @@ AI-driven **short-form** video generator on Remotion. Give a Vietnamese or
 English prompt (optional URLs and local images); the app plans content, writes
 fresh scene modules, speaks narration, and renders a publishable MP4.
 
-**Product path:** TikTok / Reels / Shorts **9:16** only (default pacing ~45s).
-No YouTube / landscape format or duration picker.
+**Product path:** TikTok / Reels / Shorts **9:16** only. Create can pick a
+short-form duration tier (~45s / ~90s / ~150s). No YouTube / landscape format.
 
 ## How it works
 
@@ -16,7 +16,8 @@ No YouTube / landscape format or duration picker.
   (including `SceneImage`), and `zod`. Admission rejects everything else.
 - **Pipeline owns** captions, TTS, timing lock, safety grid, cache, and render.
   Authored scenes never draw subtitles or call the network/filesystem.
-- **Draft before full**, every time. Full export is an explicit approval step.
+- **Draft before full** by default. Desktop can use stills-only review modes;
+  full export is always an explicit approval step.
 - **URL-grounded create** (desktop): up to 5 links, concurrent extract, bounded
   text budgets. Planner sees labeled untrusted sources; code authoring only
   sees the approved plan/claims (no raw article paste into TSX prompts).
@@ -30,7 +31,8 @@ Create (prompt / URLs / images)
   → content plan (+ optional claim repair / demote-soften on URL runs)
   → author TSX + manifest
   → hidden stills / refine (desktop)
-  → draft MP4 → review → full MP4
+  → draft MP4 or stills-only preview (Settings review mode)
+  → review → full MP4
 ```
 
 ## Requirements

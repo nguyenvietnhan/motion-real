@@ -469,8 +469,12 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
     return renderStillsWithTools(this.renderTools(), projectId, sceneIds, signal);
   }
 
-  async renderFull(projectId: string, signal?: AbortSignal): Promise<{ ok: true; outputPath: string } | { ok: false; error?: SerializedPipelineError }> {
-    return renderFullWithTools(this.renderTools(), projectId, signal);
+  async renderFull(
+    projectId: string,
+    signal?: AbortSignal,
+    opts?: { forceFull?: boolean },
+  ): Promise<{ ok: true; outputPath: string } | { ok: false; error?: SerializedPipelineError }> {
+    return renderFullWithTools(this.renderTools(), projectId, signal, opts);
   }
 
   async getSafetyReport(projectId: string): Promise<SafetyReportView> {

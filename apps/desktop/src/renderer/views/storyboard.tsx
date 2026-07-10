@@ -206,6 +206,11 @@ export const StoryboardView: React.FC<{
    * selected scene's still image.
    */
   draftPath?: string;
+  /**
+   * When false (skip_edit review mode), hide scene-edit chrome; stills + BGM +
+   * full approve remain. Defaults to true for fixtures/call sites that omit it.
+   */
+  allowSceneEdit?: boolean;
   onBack: () => void;
   /**
    * Submit the gathered edits. Resolves `true` when the backend accepted them
@@ -227,7 +232,7 @@ export const StoryboardView: React.FC<{
   onBgmSelect?: (name: string | null) => Promise<void>;
   /** Optional diagnostics entry (ready-stage). */
   diagnosticsSlot?: React.ReactNode;
-}> = ({ model, canApprove, notice, draftPath, onBack, onSubmit, onApprove, bgm, bgmSelected, onBgmAdd, onBgmRemove, onBgmSelect, diagnosticsSlot }) => {
+}> = ({ model, canApprove, notice, draftPath, allowSceneEdit = true, onBack, onSubmit, onApprove, bgm, bgmSelected, onBgmAdd, onBgmRemove, onBgmSelect, diagnosticsSlot }) => {
   const [selected, setSelected] = useState(0);
   // Per-scene edit drafts keyed by sceneId, so switching slides KEEPS what you
   // typed. You gather edits across many scenes and send them in ONE pass.
@@ -387,19 +392,21 @@ export const StoryboardView: React.FC<{
           {bgm && onBgmAdd && onBgmRemove && onBgmSelect && (
             <BgmPicker bgm={bgm} selected={bgmSelected ?? null} busy={bgmSaving} onAdd={onBgmAdd} onRemove={removeBgm} onSelect={selectBgm} />
           )}
-          <button
-            type="button"
-            className="ns-btn ns-btn-primary ns-story-send"
-            disabled={!canSend || submitting}
-            onClick={sendAll}
-            title={canSend ? undefined : "Nhập yêu cầu cho một cảnh hoặc ghi chú chung trước khi gửi."}
-          >
-            {submitting ? "Đang gửi…" : editedCount > 0 ? (
-              <span className="ns-tabular">Gửi chỉnh sửa ({editedCount})</span>
-            ) : (
-              "Gửi chỉnh sửa"
-            )}
-          </button>
+          {allowSceneEdit && (
+            <button
+              type="button"
+              className="ns-btn ns-btn-primary ns-story-send"
+              disabled={!canSend || submitting}
+              onClick={sendAll}
+              title={canSend ? undefined : "Nhập yêu cầu cho một cảnh hoặc ghi chú chung trước khi gửi."}
+            >
+              {submitting ? "Đang gửi…" : editedCount > 0 ? (
+                <span className="ns-tabular">Gửi chỉnh sửa ({editedCount})</span>
+              ) : (
+                "Gửi chỉnh sửa"
+              )}
+            </button>
+          )}
           <button
             type="button"
             className="ns-btn ns-story-approve"
@@ -410,7 +417,7 @@ export const StoryboardView: React.FC<{
                 ? "Đang lưu lựa chọn nhạc nền."
                 : canApprove
                   ? undefined
-                  : "Bản nháp chưa sẵn sàng để duyệt."
+                  : "Chưa sẵn sàng để xuất bản."
             }
           >
             <span className="ns-story-approve-full">Duyệt &amp; xuất bản</span>
@@ -437,7 +444,7 @@ export const StoryboardView: React.FC<{
       {Header}
 
       {/* Body fills the viewport; rail + edit panel scroll internally (no page scroll). */}
-      <div className="ns-story-body has-edit">
+      <div className={`ns-story-body${allowSceneEdit ? " has-edit" : ""}`}>
         {/* Slide rail */}
         <div className="ns-story-rail">
           {scenes.map((s, i) => (
@@ -454,7 +461,7 @@ export const StoryboardView: React.FC<{
               }}
             >
               <span className="ns-story-thumb-index">{i + 1}</span>
-              {hasEdit(s.sceneId) && (
+              {allowSceneEdit && hasEdit(s.sceneId) && (
                 <span className="ns-story-thumb-edit" title="Đã ghi yêu cầu chỉnh sửa">
                   <svg className="ns-story-thumb-edit-icon" viewBox="0 0 512 512" width="9" height="9" fill="currentColor">
                     <path d="M362.7 19.3L314.3 67.7 444.3 197.7l48.4-48.4c25-25 25-65.5 0-90.5L453.3 19.3c-25-25-65.5-25-90.5 0zm-71 71L58.6 323.5c-10.4 10.4-18 23.3-22.2 37.4L1 490.7c-3.9 13 8.4 25.3 21.4 21.4l129.8-35.4c14.1-4.2 27-11.8 37.4-22.2L422.3 221.7 291.7 90.3z" />
@@ -538,37 +545,39 @@ export const StoryboardView: React.FC<{
           </div>
         </div>
 
-        {/* Edit panel — always on; header no longer carries a redundant "Sửa cảnh N" toggle. */}
-        <aside className="ns-card ns-story-edit-panel" aria-label="Yêu cầu chỉnh sửa">
-          <div className="ns-story-edit-heading">
-            <div>
-              <strong>Biên tập &amp; Góp ý</strong>
-              <span>Gửi phản hồi chỉnh sửa cảnh hoặc toàn video</span>
+        {/* Edit panel — hidden when reviewMode is skip_edit. */}
+        {allowSceneEdit && (
+          <aside className="ns-card ns-story-edit-panel" aria-label="Yêu cầu chỉnh sửa">
+            <div className="ns-story-edit-heading">
+              <div>
+                <strong>Biên tập &amp; Góp ý</strong>
+                <span>Gửi phản hồi chỉnh sửa cảnh hoặc toàn video</span>
+              </div>
             </div>
-          </div>
 
-          <section className="ns-edit-scope is-scene">
-            <div className="ns-edit-scope-heading">
-              <span className="ns-edit-scope-icon">{Icon.pencil({ size: 15 })}</span>
-              <strong>Yêu cầu Cảnh {idx + 1}</strong>
-              <span className="ns-edit-scope-badge">Riêng cảnh này</span>
-            </div>
-            <textarea aria-label={`Yêu cầu chỉnh sửa cảnh ${idx + 1}`} className="ns-input ns-edit-textarea" value={current ? (edits[current.sceneId] ?? "") : ""}
-              maxLength={2000} rows={4} onChange={(e) => setCurrentEdit(e.target.value)}
-              placeholder="Nhập yêu cầu chỉnh sửa (đổi ảnh, chỉnh chữ...)" />
-          </section>
+            <section className="ns-edit-scope is-scene">
+              <div className="ns-edit-scope-heading">
+                <span className="ns-edit-scope-icon">{Icon.pencil({ size: 15 })}</span>
+                <strong>Yêu cầu Cảnh {idx + 1}</strong>
+                <span className="ns-edit-scope-badge">Riêng cảnh này</span>
+              </div>
+              <textarea aria-label={`Yêu cầu chỉnh sửa cảnh ${idx + 1}`} className="ns-input ns-edit-textarea" value={current ? (edits[current.sceneId] ?? "") : ""}
+                maxLength={2000} rows={4} onChange={(e) => setCurrentEdit(e.target.value)}
+                placeholder="Nhập yêu cầu chỉnh sửa (đổi ảnh, chỉnh chữ...)" />
+            </section>
 
-          <section className="ns-edit-scope is-global">
-            <div className="ns-edit-scope-heading">
-              <span className="ns-edit-scope-icon">{Icon.globe({ size: 15 })}</span>
-              <strong>Góp ý toàn video</strong>
-              <span className="ns-edit-scope-badge">Mọi cảnh</span>
-            </div>
-            <textarea aria-label="Ghi chú chung cho cả video" className="ns-input ns-edit-textarea" value={notes} maxLength={2000} rows={3}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder="Nhập ghi chú chung cho toàn bộ video..." />
-          </section>
-        </aside>
+            <section className="ns-edit-scope is-global">
+              <div className="ns-edit-scope-heading">
+                <span className="ns-edit-scope-icon">{Icon.globe({ size: 15 })}</span>
+                <strong>Góp ý toàn video</strong>
+                <span className="ns-edit-scope-badge">Mọi cảnh</span>
+              </div>
+              <textarea aria-label="Ghi chú chung cho cả video" className="ns-input ns-edit-textarea" value={notes} maxLength={2000} rows={3}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder="Nhập ghi chú chung cho toàn bộ video..." />
+            </section>
+          </aside>
+        )}
       </div>
     </div>
   );

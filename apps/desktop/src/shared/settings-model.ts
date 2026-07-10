@@ -1,4 +1,24 @@
-import type { SettingsModel, VoiceProviderChoice } from "./types.js";
+import type { ReviewMode, SettingsModel, VoiceProviderChoice } from "./types.js";
+
+export const REVIEW_MODES: readonly ReviewMode[] = ["full", "stills_edit", "skip_edit"] as const;
+export const DEFAULT_REVIEW_MODE: ReviewMode = "full";
+
+/** Coerce persisted/unknown values to a valid review mode; missing → full. */
+export function normalizeReviewMode(raw: unknown): ReviewMode {
+  return raw === "full" || raw === "stills_edit" || raw === "skip_edit" ? raw : DEFAULT_REVIEW_MODE;
+}
+
+export function reviewModeAllowsSceneEdit(mode: ReviewMode): boolean {
+  return mode === "full" || mode === "stills_edit";
+}
+
+export function reviewModeNeedsDraftMp4(mode: ReviewMode): boolean {
+  return mode === "full";
+}
+
+export function reviewModeRequiresForceFull(mode: ReviewMode): boolean {
+  return mode !== "full";
+}
 
 export const ELEVENLABS_DEFAULT_MODEL_ID = "eleven_multilingual_v2";
 
@@ -125,6 +145,7 @@ export function defaultSettings(outputDir: string): SettingsModel {
     outputDir,
     maxRepairAttempts: DEFAULT_MAX_REPAIR_ATTEMPTS,
     scriptGateEnabled: true,
+    reviewMode: DEFAULT_REVIEW_MODE,
     refinePasses: DEFAULT_REFINE_PASSES,
     refineEarlyStop: true,
     // URL/image workflows default to provider preselection plus human review.

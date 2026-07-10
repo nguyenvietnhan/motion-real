@@ -190,6 +190,145 @@ export const Toggle: React.FC<{ checked: boolean; onChange: (v: boolean) => void
   </label>
 );
 
+/**
+ * SVG radio mark — geometry is in the viewBox so the inner disk stays
+ * pixel-centered (CSS border + ::after dots often look off-center on Electron).
+ */
+const ChoiceRadioMark: React.FC<{ selected: boolean }> = ({ selected }) => (
+  <svg
+    className={`ns-choice-radio-svg${selected ? " is-selected" : ""}`}
+    width={18}
+    height={18}
+    viewBox="0 0 18 18"
+    aria-hidden
+  >
+    <circle className="ns-choice-radio-ring" cx="9" cy="9" r="7.5" />
+    {selected && <circle className="ns-choice-radio-dot" cx="9" cy="9" r="3.5" />}
+  </svg>
+);
+
+/**
+ * Exclusive multi-option setting matching ExpandableToggle rhythm: a header
+ * row (chevron + title + (i)) expands/collapses radio options. Options only
+ * render when `expanded`. Selected mode detail lives in each option’s (i).
+ */
+export const ChoiceGroup: React.FC<{
+  title: string;
+  /** Short group-level note for the header (i). */
+  desc?: string;
+  value: string;
+  onChange: (value: string) => void;
+  options: Array<{ value: string; title: string; /** Per-option (i) note. */ desc: string }>;
+  name: string;
+  expanded: boolean;
+  onToggleExpanded: () => void;
+}> = ({ title, desc, value, onChange, options, name, expanded, onToggleExpanded }) => {
+  const selectedTitle = options.find((o) => o.value === value)?.title ?? value;
+  return (
+  <div style={{ borderTop: "1px solid var(--border)" }}>
+    <div
+      role="button"
+      tabIndex={0}
+      aria-expanded={expanded}
+      aria-label={title}
+      onClick={onToggleExpanded}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onToggleExpanded();
+        }
+      }}
+      style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: 16,
+        padding: "12px 0",
+        cursor: "pointer",
+      }}
+    >
+      <span style={{ minWidth: 0, display: "flex", alignItems: "center", gap: 6 }}>
+        <span
+          style={{
+            display: "inline-flex",
+            color: "var(--muted-foreground)",
+            transform: expanded ? "rotate(90deg)" : "none",
+            transition: "transform 0.12s",
+          }}
+        >
+          {Icon.chevronRight({ size: 16 })}
+        </span>
+        <span style={{ fontSize: 14, fontWeight: 600 }}>{title}</span>
+        {desc && <InfoHint text={desc} />}
+      </span>
+      {/* Collapsed: current mode on the right so the closed row is informative. */}
+      {!expanded && (
+        <span
+          style={{
+            flexShrink: 0,
+            maxWidth: "48%",
+            fontSize: 13,
+            color: "var(--muted-foreground)",
+            textAlign: "right",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {selectedTitle}
+        </span>
+      )}
+    </div>
+    {expanded && (
+      <div role="radiogroup" aria-label={title} style={{ paddingBottom: 6 }}>
+        {options.map((opt) => {
+          const selected = value === opt.value;
+          return (
+            <label
+              key={opt.value}
+              className={`ns-choice-option${selected ? " is-selected" : ""}`}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 16,
+                padding: "6px 0 6px 16px",
+                minHeight: 40,
+                cursor: "pointer",
+              }}
+            >
+              <span style={{ minWidth: 0, display: "flex", alignItems: "center" }}>
+                <span
+                  style={{
+                    fontSize: 14,
+                    fontWeight: 500,
+                    color: selected ? "var(--foreground)" : "var(--muted-foreground)",
+                  }}
+                >
+                  {opt.title}
+                </span>
+                <InfoHint text={opt.desc} />
+              </span>
+              <span className="ns-choice-radio">
+                <input
+                  type="radio"
+                  name={name}
+                  value={opt.value}
+                  checked={selected}
+                  aria-label={opt.title}
+                  onChange={() => onChange(opt.value)}
+                />
+                <ChoiceRadioMark selected={selected} />
+              </span>
+            </label>
+          );
+        })}
+      </div>
+    )}
+  </div>
+  );
+};
+
 /** A numeric setting laid out as a row (title + optional (i) left, compact
  * stepper right) so it sits in the same column rhythm as `Toggle` rows. The
  * field holds a DRAFT string while focused so you can clear it and type an

@@ -34,6 +34,10 @@ open backlog to split large files for size alone.
 - Workspace pure helpers already exist (`workspace-helpers`, `workspace-stage`,
   create/script/refine flows). Async render/refine/publish orchestration stays
   in `WorkspaceController`; stage transitions log at `setStage` only.
+- Desktop `reviewMode` (`full` | `stills_edit` | `skip_edit`) lives on
+  `SettingsModel` / Settings tab **Dựng video**. Branches in
+  `WorkspaceController.runRender` / `submitEdits` / publish `forceFull` when
+  `!hasDraft`. Do not weaken pipeline draft-first for CLI without forceFull.
 - `ninerouter-backend.ts` is the stable `AuthoringBackend` facade. Add behavior
   on the owning runner/helper (`content-plan-*`, reply, reauthor, crawl, visual
   QA, claim-policy, etc.). Do not thin the facade or move `authorScenes` only

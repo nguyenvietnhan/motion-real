@@ -5,11 +5,16 @@ import {
   clampWordsPerSecond,
   computeWordsPerSecond,
   DEFAULT_MAX_REPAIR_ATTEMPTS,
+  DEFAULT_REVIEW_MODE,
   MIN_REPAIR_ATTEMPTS,
   MAX_REPAIR_ATTEMPTS,
   DEFAULT_WORDS_PER_SECOND,
   MIN_WORDS_PER_SECOND,
   MAX_WORDS_PER_SECOND,
+  normalizeReviewMode,
+  reviewModeAllowsSceneEdit,
+  reviewModeNeedsDraftMp4,
+  reviewModeRequiresForceFull,
 } from "./settings-model.js";
 
 /**
@@ -28,9 +33,31 @@ describe("defaultSettings", () => {
     expect(s.outputDir).toBe("/home/.video-tool/out");
     expect(s.maxRepairAttempts).toBe(3);
     expect(s.scriptGateEnabled).toBe(true);
+    expect(s.reviewMode).toBe(DEFAULT_REVIEW_MODE);
     expect(s.aiAccount).toEqual({ kind: "disconnected" });
     // First-use: no preferred model until the gateway list + decision helper pick one.
     expect(s.preferredAiModelId).toBeUndefined();
+  });
+});
+
+describe("reviewMode helpers", () => {
+  it("normalizes unknown/missing values to full", () => {
+    expect(normalizeReviewMode(undefined)).toBe("full");
+    expect(normalizeReviewMode("nope")).toBe("full");
+    expect(normalizeReviewMode("stills_edit")).toBe("stills_edit");
+    expect(normalizeReviewMode("skip_edit")).toBe("skip_edit");
+  });
+
+  it("maps edit and draft needs for each mode", () => {
+    expect(reviewModeAllowsSceneEdit("full")).toBe(true);
+    expect(reviewModeAllowsSceneEdit("stills_edit")).toBe(true);
+    expect(reviewModeAllowsSceneEdit("skip_edit")).toBe(false);
+    expect(reviewModeNeedsDraftMp4("full")).toBe(true);
+    expect(reviewModeNeedsDraftMp4("stills_edit")).toBe(false);
+    expect(reviewModeNeedsDraftMp4("skip_edit")).toBe(false);
+    expect(reviewModeRequiresForceFull("full")).toBe(false);
+    expect(reviewModeRequiresForceFull("stills_edit")).toBe(true);
+    expect(reviewModeRequiresForceFull("skip_edit")).toBe(true);
   });
 });
 

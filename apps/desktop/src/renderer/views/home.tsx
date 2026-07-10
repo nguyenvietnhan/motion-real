@@ -1,5 +1,13 @@
 import React, { useEffect, useRef, useState } from "react";
-import type { ProjectCardVM, StagedImage, PickImagesResult, DroppedImage, VideoLanguageChoice, VoiceProviderChoice } from "../../shared/types.js";
+import type {
+  ProjectCardVM,
+  StagedImage,
+  PickImagesResult,
+  DroppedImage,
+  DurationTierChoice,
+  VideoLanguageChoice,
+  VoiceProviderChoice,
+} from "../../shared/types.js";
 import type { GalleryLoad } from "../../shared/gallery-controller.js";
 import { validateCreateInput, extractUrls } from "../../shared/create-validation.js";
 import { Icon } from "../icons.js";
@@ -32,8 +40,8 @@ function rejectedImageDetails(rejected: PickImagesResult["rejected"]): string {
  * A compact delivery-knob button : a short pill showing an
  * icon + the current value, sitting inline next to the "+" attach button. Click
  * it to open a small popover of mutually-exclusive options; the choice closes the
- * popover. Generic over the option value so language / voice stay type-safe.
- * `open`/`onToggle` are lifted so only ONE knob popover is open at a time.
+ * popover. Generic over the option value so duration / language / voice stay
+ * type-safe. `open`/`onToggle` are lifted so only ONE knob popover is open at a time.
  */
 function KnobButton<T extends string | number>(props: {
   icon: React.ReactNode;
@@ -141,7 +149,11 @@ export const HomeView: React.FC<{
   onCreate: (
     raw: string,
     images: StagedImage[],
-    choices: { videoLanguage: VideoLanguageChoice; voiceProvider: VoiceProviderChoice },
+    choices: {
+      durationTier: DurationTierChoice;
+      videoLanguage: VideoLanguageChoice;
+      voiceProvider: VoiceProviderChoice;
+    },
   ) => void | Promise<void>;
   onOpen: (projectId: string) => void;
   onConnectPrompt: () => void;
@@ -170,7 +182,9 @@ export const HomeView: React.FC<{
   const [images, setImages] = useState<StagedImage[]>([]);
   const [dragOver, setDragOver] = useState(false);
   const notify = useNotifications();
-  // Language + voice only. Format/duration are fixed short-form on the backend.
+  // Short-form only: duration tier (TikTok pacing) + language + voice.
+  // Format is always 9:16 on the backend (no YouTube option).
+  const [durationTier, setDurationTier] = useState<DurationTierChoice>(1);
   const [videoLanguage, setVideoLanguage] = useState<VideoLanguageChoice>("vi");
   const [voiceProvider, setVoiceProvider] = useState<VoiceProviderChoice>(defaultVoiceProvider);
   const [creating, setCreating] = useState(false);
@@ -225,7 +239,7 @@ export const HomeView: React.FC<{
   }, []);
   // Which delivery-knob popover is open (only one at a time); null = all closed.
   // Each knob is its own inline chip next to "+", revealing its options on click.
-  const [openKnob, setOpenKnob] = useState<null | "language" | "voice">(null);
+  const [openKnob, setOpenKnob] = useState<null | "duration" | "language" | "voice">(null);
   useEffect(() => {
     const selection = applyVoiceProviderSelection(defaultVoiceProvider, videoLanguage);
     setVoiceProvider(selection.voiceProvider);
@@ -366,7 +380,7 @@ export const HomeView: React.FC<{
     }
     setCreating(true);
     try {
-      void Promise.resolve(onCreate(raw, images, { videoLanguage, voiceProvider })).finally(() => setCreating(false));
+      void Promise.resolve(onCreate(raw, images, { durationTier, videoLanguage, voiceProvider })).finally(() => setCreating(false));
     } catch (error) {
       setCreating(false);
       throw error;
@@ -444,6 +458,24 @@ export const HomeView: React.FC<{
             <span className="ns-settings-section-title">Cấu hình video</span>
             
             <div className="ns-settings-horizontal-grid">
+              <div className="ns-setting-column">
+                <span className="ns-setting-label">Thời lượng</span>
+                <KnobButton
+                  icon={Icon.clock({ size: 14 })}
+                  title="Thời lượng"
+                  value={durationTier}
+                  open={openKnob === "duration"}
+                  onToggle={() => setOpenKnob((k) => (k === "duration" ? null : "duration"))}
+                  onClose={() => setOpenKnob(null)}
+                  onChange={setDurationTier}
+                  options={[
+                    { value: 1, label: "0:45" },
+                    { value: 2, label: "1:30" },
+                    { value: 3, label: "2:30" },
+                  ]}
+                />
+              </div>
+
               <div className="ns-setting-column">
                 <span className="ns-setting-label">Ngôn ngữ</span>
                 <KnobButton

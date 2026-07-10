@@ -53,8 +53,8 @@ export interface AuthoringBackend {
   renderDraft(projectId: string, signal?: AbortSignal): Promise<RenderResult>;
   /** Optional fast per-scene STILLS render (no TTS/MP4) — the cheap loop the silent refine pass iterates on. */
   renderStills?(projectId: string, sceneIds?: string[], signal?: AbortSignal): Promise<{ stills: string[] }>;
-  /** Render the final full-quality MP4 (drives MCP `render_full`); draft-first gate already satisfied. */
-  renderFull(projectId: string, signal?: AbortSignal): Promise<PublishResult>;
+  /** Render the final full-quality MP4 (drives MCP `render_full`); draft-first unless forceFull. */
+  renderFull(projectId: string, signal?: AbortSignal, opts?: { forceFull?: boolean }): Promise<PublishResult>;
   /** Read the safety report for the just-rendered draft (MCP `get_safety_report`). */
   getSafetyReport(projectId: string): Promise<SafetyReportView>;
   /**
@@ -111,8 +111,8 @@ export class CustomLoopAgentWorker implements AgentWorker {
     return { kind: "authored", sceneIds: result.scenes.map((s) => s.sceneId) };
   }
 
-  publish(projectId: string, signal?: AbortSignal): Promise<PublishResult> {
-    return this.backend.renderFull(projectId, signal);
+  publish(projectId: string, signal?: AbortSignal, opts?: { forceFull?: boolean }): Promise<PublishResult> {
+    return this.backend.renderFull(projectId, signal, opts);
   }
 
   renderStills(projectId: string, sceneIds?: string[], signal?: AbortSignal): Promise<{ stills: string[] }> {

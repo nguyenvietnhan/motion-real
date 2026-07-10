@@ -13,10 +13,11 @@ describe("parseVoiceProvider", () => {
 });
 
 describe("createControllerArgsFromIpc", () => {
-  it("preserves raw text, language, voice provider, and images", () => {
+  it("preserves raw text, duration tier, language, voice provider, and images", () => {
     expect(
       createControllerArgsFromIpc({
         raw: "chủ đề",
+        durationTier: 2,
         videoLanguage: "en",
         voiceProvider: "elevenlabs",
         images: [{ ref: "staging/aa.png", width: 800, height: 600 }],
@@ -25,10 +26,19 @@ describe("createControllerArgsFromIpc", () => {
       raw: "chủ đề",
       images: [{ ref: "staging/aa.png", width: 800, height: 600 }],
       choices: {
+        durationTier: 2,
         videoLanguage: "en",
         voiceProvider: "elevenlabs",
       },
     });
+  });
+
+  it("accepts duration tier 1 (truthy edge)", () => {
+    expect(createControllerArgsFromIpc({ raw: "x", durationTier: 1 }).choices.durationTier).toBe(1);
+  });
+
+  it("ignores invalid duration tiers", () => {
+    expect(createControllerArgsFromIpc({ raw: "x", durationTier: 9 }).choices.durationTier).toBeUndefined();
   });
 
   it("defaults missing images to an empty array", () => {

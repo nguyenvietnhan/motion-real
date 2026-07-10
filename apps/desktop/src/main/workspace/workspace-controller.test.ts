@@ -17,7 +17,7 @@ function baseDeps(over: Partial<WorkspaceDeps> = {}): WorkspaceDeps {
   return {
     worker: {} as AgentWorker,
     events: noopEvents(),
-    settings: { scriptGateEnabled: true, maxRepairAttempts: 3, refinePasses: 0, refineEarlyStop: true, imageCrawlAiFilter: false, imageCrawlHumanReview: false },
+    settings: { scriptGateEnabled: true, reviewMode: "full", maxRepairAttempts: 3, refinePasses: 0, refineEarlyStop: true, imageCrawlAiFilter: false, imageCrawlHumanReview: false },
     listProjects: async () => [],
     loadManifest: async () => ({ scenes: [] }),
     writeManifest: async () => {},
@@ -399,7 +399,7 @@ describe("fixWithAi + fixable flag", () => {
       snapshotScenes: async (_id, ids) => ids.map((id) => ({ sceneId: id, code: "// good" })),
       restoreScenes: async () => {},
     };
-    const ctrl = new WorkspaceController(baseDeps({ worker, loadManifest: async () => ({ scenes: [{ id: "scene-02" }] }), settings: { scriptGateEnabled: false, maxRepairAttempts: 3, refinePasses: 2, refineEarlyStop: true, imageCrawlAiFilter: false, imageCrawlHumanReview: false } }));
+    const ctrl = new WorkspaceController(baseDeps({ worker, loadManifest: async () => ({ scenes: [{ id: "scene-02" }] }), settings: { scriptGateEnabled: false, reviewMode: "full", maxRepairAttempts: 3, refinePasses: 2, refineEarlyStop: true, imageCrawlAiFilter: false, imageCrawlHumanReview: false } }));
     ctrl.approve("p1");
     await flush();
     expect(visualQa).toHaveBeenCalledTimes(2); // pass 1 (flags) + pass 2 (clean → early stop)
@@ -432,7 +432,7 @@ describe("fixWithAi + fixable flag", () => {
       snapshotScenes: async (_id, ids) => ids.map((id) => ({ sceneId: id, code: "// blind" })),
       restoreScenes: async () => {},
     };
-    const ctrl = new WorkspaceController(baseDeps({ worker, loadManifest: async () => ({ scenes: [{ id: "scene-01" }, { id: "scene-02" }] }), settings: { scriptGateEnabled: false, maxRepairAttempts: 3, refinePasses: 2, refineEarlyStop: true, imageCrawlAiFilter: false, imageCrawlHumanReview: false } }));
+    const ctrl = new WorkspaceController(baseDeps({ worker, loadManifest: async () => ({ scenes: [{ id: "scene-01" }, { id: "scene-02" }] }), settings: { scriptGateEnabled: false, reviewMode: "full", maxRepairAttempts: 3, refinePasses: 2, refineEarlyStop: true, imageCrawlAiFilter: false, imageCrawlHumanReview: false } }));
     ctrl.approve("p1");
     await flush();
     expect(reauthorScenes).toHaveBeenCalledTimes(1); // ONE bold bootstrap (no vision defects to fix)
@@ -482,7 +482,7 @@ describe("fixWithAi + fixable flag", () => {
       snapshotScenes: async (_id, ids) => ids.map((id) => ({ sceneId: id, code: "// good" })),
       restoreScenes: async () => {},
     };
-    const ctrl = new WorkspaceController(baseDeps({ worker, loadManifest: async () => ({ scenes: [{ id: "scene-01" }] }), settings: { scriptGateEnabled: false, maxRepairAttempts: 3, refinePasses: 2, refineEarlyStop: true, imageCrawlAiFilter: false, imageCrawlHumanReview: false } }));
+    const ctrl = new WorkspaceController(baseDeps({ worker, loadManifest: async () => ({ scenes: [{ id: "scene-01" }] }), settings: { scriptGateEnabled: false, reviewMode: "full", maxRepairAttempts: 3, refinePasses: 2, refineEarlyStop: true, imageCrawlAiFilter: false, imageCrawlHumanReview: false } }));
     // Capture every rendering stage the controller emits during the flow.
     const seen: Extract<ProjectStage, { kind: "rendering" }>[] = [];
     const realSetStage = ctrl.setStage.bind(ctrl);
@@ -531,7 +531,7 @@ describe("fixWithAi + fixable flag", () => {
       const ctrl = new WorkspaceController(baseDeps({
         worker,
         loadManifest: async () => ({ scenes: [{ id: "scene-01" }] }),
-        settings: { scriptGateEnabled: false, maxRepairAttempts: 3, ...over, imageCrawlAiFilter: false, imageCrawlHumanReview: false },
+        settings: { scriptGateEnabled: false, reviewMode: "full", maxRepairAttempts: 3, ...over, imageCrawlAiFilter: false, imageCrawlHumanReview: false },
       }));
       ctrl.approve("p1");
       await flush();
@@ -563,12 +563,12 @@ describe("fixWithAi + fixable flag", () => {
       visualQa,
       renderStills: async () => ({ stills: ["media://still/scene-01.png"] }),
     };
-    const off = new WorkspaceController(baseDeps({ worker, settings: { scriptGateEnabled: false, maxRepairAttempts: 3, refinePasses: 0, refineEarlyStop: true, imageCrawlAiFilter: false, imageCrawlHumanReview: false } }));
+    const off = new WorkspaceController(baseDeps({ worker, settings: { scriptGateEnabled: false, reviewMode: "full", maxRepairAttempts: 3, refinePasses: 0, refineEarlyStop: true, imageCrawlAiFilter: false, imageCrawlHumanReview: false } }));
     off.approve("p1");
     await flush();
     expect(visualQa).not.toHaveBeenCalled();
 
-    const on = new WorkspaceController(baseDeps({ worker, settings: { scriptGateEnabled: false, maxRepairAttempts: 3, refinePasses: 1, refineEarlyStop: true, imageCrawlAiFilter: false, imageCrawlHumanReview: false } }));
+    const on = new WorkspaceController(baseDeps({ worker, settings: { scriptGateEnabled: false, reviewMode: "full", maxRepairAttempts: 3, refinePasses: 1, refineEarlyStop: true, imageCrawlAiFilter: false, imageCrawlHumanReview: false } }));
     on.setStage("p2", { kind: "ready", scenes: [] });
     on.submitEdits("p2", [{ sceneId: "scene-01", text: "to chữ" }], "");
     await flush();
@@ -597,7 +597,7 @@ describe("fixWithAi + fixable flag", () => {
       snapshotScenes: async (_id, ids) => ids.map((id) => ({ sceneId: id, code: "// good" })),
       restoreScenes: async () => {},
     };
-    const ctrl = new WorkspaceController(baseDeps({ worker, loadManifest: async () => ({ scenes: [{ id: "scene-01" }] }), settings: { scriptGateEnabled: false, maxRepairAttempts: 3, refinePasses: 1, refineEarlyStop: true, imageCrawlAiFilter: false, imageCrawlHumanReview: false } }));
+    const ctrl = new WorkspaceController(baseDeps({ worker, loadManifest: async () => ({ scenes: [{ id: "scene-01" }] }), settings: { scriptGateEnabled: false, reviewMode: "full", maxRepairAttempts: 3, refinePasses: 1, refineEarlyStop: true, imageCrawlAiFilter: false, imageCrawlHumanReview: false } }));
     ctrl.setStage("p1", { kind: "ready", scenes: [] });
     ctrl.submitEdits("p1", [{ sceneId: "scene-01", text: "to chữ" }], "");
     await flush();
@@ -626,7 +626,7 @@ describe("fixWithAi + fixable flag", () => {
       snapshotScenes,
       restoreScenes,
     };
-    const ctrl = new WorkspaceController(baseDeps({ worker, loadManifest: async () => ({ scenes: [{ id: "scene-01" }] }), settings: { scriptGateEnabled: false, maxRepairAttempts: 3, refinePasses: 1, refineEarlyStop: true, imageCrawlAiFilter: false, imageCrawlHumanReview: false } }));
+    const ctrl = new WorkspaceController(baseDeps({ worker, loadManifest: async () => ({ scenes: [{ id: "scene-01" }] }), settings: { scriptGateEnabled: false, reviewMode: "full", maxRepairAttempts: 3, refinePasses: 1, refineEarlyStop: true, imageCrawlAiFilter: false, imageCrawlHumanReview: false } }));
     ctrl.setStage("p1", { kind: "ready", scenes: [] });
     ctrl.submitEdits("p1", [{ sceneId: "scene-01", text: "làm hỏng" }], "");
     await flush();
@@ -663,7 +663,7 @@ describe("fixWithAi + fixable flag", () => {
       snapshotScenes,
       restoreScenes,
     };
-    const ctrl = new WorkspaceController(baseDeps({ worker, loadManifest: async () => ({ scenes: [{ id: "scene-02" }] }), settings: { scriptGateEnabled: false, maxRepairAttempts: 3, refinePasses: 1, refineEarlyStop: true, imageCrawlAiFilter: false, imageCrawlHumanReview: false } }));
+    const ctrl = new WorkspaceController(baseDeps({ worker, loadManifest: async () => ({ scenes: [{ id: "scene-02" }] }), settings: { scriptGateEnabled: false, reviewMode: "full", maxRepairAttempts: 3, refinePasses: 1, refineEarlyStop: true, imageCrawlAiFilter: false, imageCrawlHumanReview: false } }));
     ctrl.approve("p1");
     await flush();
     expect(snapshotScenes).toHaveBeenCalledWith("p1", ["scene-02"]);
@@ -793,7 +793,7 @@ describe("retry() rehydrates the author input from disk when not in memory", () 
       videoLanguage: "vi" as const,
     }));
     // Fresh controller (nothing in the in-memory inputs map) ⇒ simulates a restart.
-    const ctrl = new WorkspaceController(baseDeps({ worker, recallInput, settings: { scriptGateEnabled: false, maxRepairAttempts: 3, refinePasses: 0, refineEarlyStop: true, imageCrawlAiFilter: false, imageCrawlHumanReview: false } }));
+    const ctrl = new WorkspaceController(baseDeps({ worker, recallInput, settings: { scriptGateEnabled: false, reviewMode: "full", maxRepairAttempts: 3, refinePasses: 0, refineEarlyStop: true, imageCrawlAiFilter: false, imageCrawlHumanReview: false } }));
     await ctrl.retry("p-restart");
     await flush();
     expect(recallInput).toHaveBeenCalledWith("p-restart");
@@ -829,7 +829,8 @@ describe('publish re-runs from a retry:"full" error stage, not other errors', ()
     ctrl.setStage("p1", { kind: "error", message: "x", fixable: false, retry: "full" });
     ctrl.publish("p1"); // App.tsx routes a retry:"full" "Thử lại" to review.approveDraft → publish
     await flush();
-    expect(publish).toHaveBeenCalledWith("p1", expect.any(AbortSignal));
+    // No draft on disk ⇒ desktop passes forceFull (draft-first bypass after approve).
+    expect(publish).toHaveBeenCalledWith("p1", expect.any(AbortSignal), { forceFull: true });
     expect((await ctrl.stage("p1")).kind).toBe("published");
   });
 
@@ -863,7 +864,7 @@ describe("runScript link warning (unreadable brief links)", () => {
 
   it("gate ON + an unreadable link ⇒ the script stage carries a linkWarning naming the count", async () => {
     const ctrl = new WorkspaceController(
-      baseDeps({ worker: authorReturning(["https://a.example/x"]), settings: { scriptGateEnabled: true, maxRepairAttempts: 3, refinePasses: 0, refineEarlyStop: true, imageCrawlAiFilter: false, imageCrawlHumanReview: false } }),
+      baseDeps({ worker: authorReturning(["https://a.example/x"]), settings: { scriptGateEnabled: true, reviewMode: "full", maxRepairAttempts: 3, refinePasses: 0, refineEarlyStop: true, imageCrawlAiFilter: false, imageCrawlHumanReview: false } }),
     );
     ctrl.beginScript("p1", { text: "tóm tắt https://a.example/x", urls: ["https://a.example/x"] });
     await flush();
@@ -877,7 +878,7 @@ describe("runScript link warning (unreadable brief links)", () => {
 
   it("gate ON + every link read ⇒ NO linkWarning", async () => {
     const ctrl = new WorkspaceController(
-      baseDeps({ worker: authorReturning(), settings: { scriptGateEnabled: true, maxRepairAttempts: 3, refinePasses: 0, refineEarlyStop: true, imageCrawlAiFilter: false, imageCrawlHumanReview: false } }),
+      baseDeps({ worker: authorReturning(), settings: { scriptGateEnabled: true, reviewMode: "full", maxRepairAttempts: 3, refinePasses: 0, refineEarlyStop: true, imageCrawlAiFilter: false, imageCrawlHumanReview: false } }),
     );
     ctrl.beginScript("p1", { text: "tóm tắt https://a.example/x", urls: ["https://a.example/x"] });
     await flush();
@@ -899,7 +900,7 @@ describe("runScript link warning (unreadable brief links)", () => {
             { id: "scene-02", headline: "H2", narration: "n2" },
           ],
         }),
-        settings: { scriptGateEnabled: true, maxRepairAttempts: 3, refinePasses: 0, refineEarlyStop: true, imageCrawlAiFilter: false, imageCrawlHumanReview: false },
+        settings: { scriptGateEnabled: true, reviewMode: "full", maxRepairAttempts: 3, refinePasses: 0, refineEarlyStop: true, imageCrawlAiFilter: false, imageCrawlHumanReview: false },
       }),
     );
     ctrl.beginScript("p1", { text: "x", urls: [] });
@@ -914,7 +915,7 @@ describe("runScript link warning (unreadable brief links)", () => {
 
   it("gate OFF + an unreadable link ⇒ the warning rides through to the ready stage notice", async () => {
     const ctrl = new WorkspaceController(
-      baseDeps({ worker: authorReturning(["https://a.example/x", "https://b.example/y"]), settings: { scriptGateEnabled: false, maxRepairAttempts: 3, refinePasses: 0, refineEarlyStop: true, imageCrawlAiFilter: false, imageCrawlHumanReview: false } }),
+      baseDeps({ worker: authorReturning(["https://a.example/x", "https://b.example/y"]), settings: { scriptGateEnabled: false, reviewMode: "full", maxRepairAttempts: 3, refinePasses: 0, refineEarlyStop: true, imageCrawlAiFilter: false, imageCrawlHumanReview: false } }),
     );
     ctrl.beginScript("p1", { text: "x", urls: ["https://a.example/x", "https://b.example/y"] });
     await flush();
@@ -1017,7 +1018,7 @@ describe("submitEdits (per-scene free-form edit)", () => {
     const ctrl = new WorkspaceController(
       baseDeps({
         worker,
-        settings: { scriptGateEnabled: false, maxRepairAttempts: 3, refinePasses: 1, refineEarlyStop: true, imageCrawlAiFilter: false, imageCrawlHumanReview: false },
+        settings: { scriptGateEnabled: false, reviewMode: "full", maxRepairAttempts: 3, refinePasses: 1, refineEarlyStop: true, imageCrawlAiFilter: false, imageCrawlHumanReview: false },
         loadManifest: async () => ({ scenes: [{ id: "scene-01" }] }),
         hasStill: () => true,
         hasDraft: () => true,
@@ -1124,11 +1125,13 @@ describe("publish (full render)", () => {
   it("from ready: renders full and moves to published with the output path", async () => {
     const publish = vi.fn(async () => ({ ok: true as const, outputPath: "/out/p1.mp4" }));
     const worker = { ...workerWith({ kind: "passed", attempts: 1 }), publish };
-    const ctrl = new WorkspaceController(baseDeps({ worker, toMedia: (p) => `media://${p}` }));
+    const ctrl = new WorkspaceController(
+      baseDeps({ worker, toMedia: (p) => `media://${p}`, hasDraft: () => true }),
+    );
     ctrl.setStage("p1", { kind: "ready", scenes: [] });
     ctrl.publish("p1");
     await flush();
-    expect(publish).toHaveBeenCalledWith("p1", expect.any(AbortSignal));
+    expect(publish).toHaveBeenCalledWith("p1", expect.any(AbortSignal), undefined);
     const st = await ctrl.stage("p1");
     expect(st.kind).toBe("published");
     if (st.kind === "published") expect(st.outputPath).toBe("media:///out/p1.mp4");
@@ -1209,7 +1212,7 @@ describe("cancel (Dừng render) → recover prior stage", () => {
     const ctrl = new WorkspaceController(
       baseDeps({
         worker,
-        settings: { scriptGateEnabled: false, maxRepairAttempts: 3, refinePasses: 0, refineEarlyStop: true, imageCrawlAiFilter: false, imageCrawlHumanReview: false },
+        settings: { scriptGateEnabled: false, reviewMode: "full", maxRepairAttempts: 3, refinePasses: 0, refineEarlyStop: true, imageCrawlAiFilter: false, imageCrawlHumanReview: false },
         loadManifest: async () => ({ scenes: [{ id: "scene-01" }] }),
         hasStill: () => true,
         hasDraft: () => true,
@@ -1234,6 +1237,190 @@ describe("cancel (Dừng render) → recover prior stage", () => {
   it("cancel() is a no-op when nothing is running for the project", () => {
     const ctrl = new WorkspaceController(baseDeps());
     expect(() => ctrl.cancel("nope")).not.toThrow();
+  });
+});
+
+describe("reviewMode (stills_edit / skip_edit)", () => {
+  const stillsWorker = (over: Partial<AgentWorker> = {}): AgentWorker => ({
+    author: async (): Promise<AuthorOutcome> => ({ kind: "authored", sceneIds: ["scene-01"] }),
+    reauthorScenes: async (): Promise<AuthorOutcome> => ({ kind: "authored", sceneIds: ["scene-01"] }),
+    publish: async () => ({ ok: true, outputPath: "out.mp4" }),
+    generateValidateRepair: async (): Promise<RepairOutcome> => ({ kind: "passed", attempts: 1 }),
+    renderStills: async () => ({ stills: ["/tmp/scene-01.png"] }),
+    ...over,
+  });
+
+  it("stills_edit: approve lands ready without draft repair loop", async () => {
+    const gen = vi.fn(async (): Promise<RepairOutcome> => ({ kind: "passed", attempts: 1 }));
+    const stills = vi.fn(async () => ({ stills: ["/tmp/scene-01.png"] }));
+    const ctrl = new WorkspaceController(
+      baseDeps({
+        worker: stillsWorker({ generateValidateRepair: gen, renderStills: stills }),
+        settings: {
+          scriptGateEnabled: false,
+          reviewMode: "stills_edit",
+          maxRepairAttempts: 3,
+          refinePasses: 0,
+          refineEarlyStop: true,
+          imageCrawlAiFilter: false,
+          imageCrawlHumanReview: false,
+        },
+        loadManifest: async () => ({ scenes: [{ id: "scene-01" }] }),
+        hasStill: () => true,
+        hasDraft: () => false,
+      }),
+    );
+    ctrl.approve("p1");
+    await flush();
+    expect(gen).not.toHaveBeenCalled();
+    expect(stills).toHaveBeenCalled();
+    const st = await ctrl.stage("p1");
+    expect(st.kind).toBe("ready");
+    if (st.kind === "ready") expect(st.draftPath).toBeUndefined();
+  });
+
+  it("skip_edit: after stills goes straight to full publish (never ready / no reauthor)", async () => {
+    const reauthor = vi.fn(async (): Promise<AuthorOutcome> => ({ kind: "authored", sceneIds: ["scene-01"] }));
+    const gen = vi.fn(async (): Promise<RepairOutcome> => ({ kind: "passed", attempts: 1 }));
+    const publish = vi.fn(async () => ({ ok: true as const, outputPath: "/out.mp4" }));
+    const ctrl = new WorkspaceController(
+      baseDeps({
+        worker: stillsWorker({ reauthorScenes: reauthor, generateValidateRepair: gen, publish }),
+        settings: {
+          scriptGateEnabled: false,
+          reviewMode: "skip_edit",
+          maxRepairAttempts: 3,
+          refinePasses: 0,
+          refineEarlyStop: true,
+          imageCrawlAiFilter: false,
+          imageCrawlHumanReview: false,
+        },
+        loadManifest: async () => ({ scenes: [{ id: "scene-01" }] }),
+        hasStill: () => true,
+        hasDraft: () => false,
+        toMedia: (p) => p,
+      }),
+    );
+    ctrl.approve("p1");
+    await flush();
+    expect(gen).not.toHaveBeenCalled();
+    expect(publish).toHaveBeenCalledWith("p1", expect.any(AbortSignal), { forceFull: true });
+    expect((await ctrl.stage("p1")).kind).toBe("published");
+    ctrl.submitEdits("p1", [{ sceneId: "scene-01", text: "to chữ" }], "");
+    await flush();
+    expect(reauthor).not.toHaveBeenCalled();
+  });
+
+  it("skip_edit: still runs silent refine (stills + visualQa) before auto full", async () => {
+    const visualQa = vi
+      .fn()
+      .mockResolvedValueOnce({ kind: "checked", defects: [] })
+      .mockResolvedValueOnce({ kind: "checked", defects: [] });
+    const stills = vi.fn(async () => ({ stills: ["/tmp/scene-01.png"] }));
+    const publish = vi.fn(async () => ({ ok: true as const, outputPath: "/out.mp4" }));
+    const reauthor = vi.fn(async (): Promise<AuthorOutcome> => ({ kind: "authored", sceneIds: ["scene-01"] }));
+    const ctrl = new WorkspaceController(
+      baseDeps({
+        worker: stillsWorker({
+          visualQa,
+          renderStills: stills,
+          publish,
+          reauthorScenes: reauthor,
+          snapshotScenes: async () => [{ sceneId: "scene-01", code: "x" }],
+        }),
+        settings: {
+          scriptGateEnabled: false,
+          reviewMode: "skip_edit",
+          maxRepairAttempts: 3,
+          refinePasses: 2,
+          refineEarlyStop: true,
+          imageCrawlAiFilter: false,
+          imageCrawlHumanReview: false,
+        },
+        loadManifest: async () => ({ scenes: [{ id: "scene-01" }] }),
+        hasStill: () => true,
+        hasDraft: () => false,
+        toMedia: (p) => p,
+      }),
+    );
+    ctrl.approve("p1");
+    await flush();
+    // First stills (refine) + creative bootstrap reauthor stills + final stills refresh ≥ 2.
+    expect(stills.mock.calls.length).toBeGreaterThanOrEqual(2);
+    // Vision refine ran (early-stop needs 2 consecutive clean passes when earlyStop on).
+    expect(visualQa).toHaveBeenCalled();
+    expect(publish).toHaveBeenCalled();
+    expect((await ctrl.stage("p1")).kind).toBe("published");
+  });
+
+  it("stills_edit submitEdits reauthors and re-stills without draft loop", async () => {
+    const gen = vi.fn(async (): Promise<RepairOutcome> => ({ kind: "passed", attempts: 1 }));
+    const reauthor = vi.fn(async (): Promise<AuthorOutcome> => ({ kind: "authored", sceneIds: ["scene-01"] }));
+    const stills = vi.fn(async () => ({ stills: ["/tmp/scene-01.png"] }));
+    const ctrl = new WorkspaceController(
+      baseDeps({
+        worker: stillsWorker({
+          generateValidateRepair: gen,
+          reauthorScenes: reauthor,
+          renderStills: stills,
+          snapshotScenes: async () => [{ sceneId: "scene-01", code: "x" }],
+        }),
+        settings: {
+          scriptGateEnabled: false,
+          reviewMode: "stills_edit",
+          maxRepairAttempts: 3,
+          refinePasses: 0,
+          refineEarlyStop: true,
+          imageCrawlAiFilter: false,
+          imageCrawlHumanReview: false,
+        },
+        loadManifest: async () => ({ scenes: [{ id: "scene-01" }] }),
+        hasStill: () => true,
+        hasDraft: () => false,
+      }),
+    );
+    ctrl.approve("p1");
+    await flush();
+    gen.mockClear();
+    stills.mockClear();
+    ctrl.submitEdits("p1", [{ sceneId: "scene-01", text: "to chữ" }], "");
+    await flush();
+    expect(reauthor).toHaveBeenCalled();
+    expect(stills).toHaveBeenCalled();
+    expect(gen).not.toHaveBeenCalled();
+    expect((await ctrl.stage("p1")).kind).toBe("ready");
+  });
+
+  it("publish without draft passes forceFull to worker", async () => {
+    const publish = vi.fn(async (_id: string, _signal?: AbortSignal, opts?: { forceFull?: boolean }) => {
+      expect(opts?.forceFull).toBe(true);
+      return { ok: true as const, outputPath: "/out.mp4" };
+    });
+    const ctrl = new WorkspaceController(
+      baseDeps({
+        worker: stillsWorker({ publish }),
+        settings: {
+          scriptGateEnabled: false,
+          reviewMode: "stills_edit",
+          maxRepairAttempts: 3,
+          refinePasses: 0,
+          refineEarlyStop: true,
+          imageCrawlAiFilter: false,
+          imageCrawlHumanReview: false,
+        },
+        loadManifest: async () => ({ scenes: [{ id: "scene-01" }] }),
+        hasStill: () => true,
+        hasDraft: () => false,
+        hasOutput: () => false,
+        toMedia: (p) => p,
+      }),
+    );
+    ctrl.approve("p1");
+    await flush();
+    ctrl.publish("p1");
+    await flush();
+    expect(publish).toHaveBeenCalled();
+    expect((await ctrl.stage("p1")).kind).toBe("published");
   });
 });
 
@@ -1277,6 +1464,7 @@ describe("crawled images: crawl → (AI-filter) → (review) → author", () => 
   });
   const settings = (over: Partial<WorkspaceDeps["settings"]>): WorkspaceDeps["settings"] => ({
     scriptGateEnabled: true,
+    reviewMode: "full",
     maxRepairAttempts: 3,
     refinePasses: 0,
     refineEarlyStop: true,

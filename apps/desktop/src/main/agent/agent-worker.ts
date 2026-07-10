@@ -145,8 +145,12 @@ export interface AgentWorker {
    * best-effort and must never crash the author flow).
    */
   renderStills?(projectId: string, sceneIds?: string[], signal?: AbortSignal): Promise<{ stills: string[] }>;
-  /** Render the final full-quality MP4 (draft-first gate already satisfied). */
-  publish(projectId: string, signal?: AbortSignal): Promise<PublishResult>;
+  /**
+   * Render the final full-quality MP4.
+   * Pass forceFull when desktop reviewed without a draft MP4 (stills/skip modes
+   * or recovery ready-without-draft). CLI/tools still enforce draft-first by default.
+   */
+  publish(projectId: string, signal?: AbortSignal, opts?: { forceFull?: boolean }): Promise<PublishResult>;
   /** Run the generate-validate-repair loop to zero hard errors or budget. */
   generateValidateRepair(
     projectId: string,

@@ -4,13 +4,14 @@ import type {
   DesktopReadinessReport,
   GatewayState,
   ModelInfo,
+  ReviewMode,
   SettingsModel,
   VoiceProviderChoice,
 } from "../../shared/types.js";
 import { DEFAULT_REFINE_PASSES } from "../../shared/settings-model.js";
 import { activeAccount } from "../../shared/active-account.js";
 import { Icon } from "../icons.js";
-import { ExpandableToggle, Field, InfoHint, InfoRow, NumberRow, PageHeader, SettingsCard, Toggle } from "../primitives.js";
+import { ChoiceGroup, ExpandableToggle, Field, InfoHint, InfoRow, NumberRow, PageHeader, SettingsCard, Toggle } from "../primitives.js";
 import { compactNotificationMessage, errorDetails, useNotifications } from "../notifications.js";
 
 type SettingsTab = "ai" | "voice" | "build" | "about";
@@ -105,6 +106,7 @@ export const SettingsView: React.FC<{
 }> = ({ gateway, account, models, settings, preferredModelUnavailable, onManageAccounts, onSelectModel, onUpdate, onSetApiKey, onClearApiKey, onCheckReadiness }) => {
   const [tab, setTab] = useState<SettingsTab>("ai");
   const [refineExpanded, setRefineExpanded] = useState(settings.refinePasses > 0);
+  const [reviewModeExpanded, setReviewModeExpanded] = useState(false);
   const [showVoiceKey, setShowVoiceKey] = useState(false);
   const [voiceKeyInput, setVoiceKeyInput] = useState("");
   const [saveState, setSaveState] = useState<"idle" | "saving" | "error">("idle");
@@ -373,6 +375,32 @@ export const SettingsView: React.FC<{
               <Toggle checked={settings.scriptGateEnabled} onChange={(v) => update({ scriptGateEnabled: v })}
                 title="Duyệt kịch bản trước khi dựng"
                 desc="Tạm dừng để bạn xem và sửa lời đọc trước khi AI dựng video." />
+              <ChoiceGroup
+                name="reviewMode"
+                title="Mức duyệt sau khi dựng"
+                desc="Chọn mức dừng sau khi AI dựng xong, trước khi xuất bản full."
+                value={settings.reviewMode}
+                onChange={(v) => update({ reviewMode: v as ReviewMode })}
+                expanded={reviewModeExpanded}
+                onToggleExpanded={() => setReviewModeExpanded((e) => !e)}
+                options={[
+                  {
+                    value: "full",
+                    title: "Xem video nháp rồi chỉnh",
+                    desc: "Có video nháp để xem nhịp và giọng. Có form chỉnh từng cảnh. Đây là mặc định.",
+                  },
+                  {
+                    value: "stills_edit",
+                    title: "Chỉ xem ảnh cảnh rồi chỉnh",
+                    desc: "Không render video nháp. Chỉ ảnh từng cảnh và vẫn chỉnh theo yêu cầu.",
+                  },
+                  {
+                    value: "skip_edit",
+                    title: "Bỏ qua chỉnh sửa cảnh",
+                    desc: "Không video nháp, không màn chỉnh cảnh. Vẫn tinh chỉnh ảnh ngầm (nếu bật), rồi xuất bản full luôn.",
+                  },
+                ]}
+              />
               <ExpandableToggle
                 checked={settings.refinePasses > 0}
                 onChange={(v) => { update({ refinePasses: v ? DEFAULT_REFINE_PASSES : 0 }); if (v) setRefineExpanded(true); }}

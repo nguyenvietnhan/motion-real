@@ -3,7 +3,7 @@ import { HomeView, LicenseView, ProjectsView, ProjectWorkspaceView, SettingsView
 import { reduceDesktop, type DesktopState } from "./state/desktop-state.js";
 import { aiReady } from "../shared/ai-ready.js";
 import { preferredModelDecision } from "../shared/model-selection.js";
-import { defaultSettings } from "../shared/settings-model.js";
+import { defaultSettings, reviewModeAllowsSceneEdit } from "../shared/settings-model.js";
 import type { BgmTrackVM, LicenseState, ModelInfo, ProjectStage } from "../shared/types.js";
 import { compactNotificationMessage, errorDetails, NotificationProvider, useNotifications } from "./notifications.js";
 
@@ -284,6 +284,7 @@ const AppShell: React.FC = () => {
                 .create({
                   raw,
                   ...(images.length > 0 ? { images: images.map((s) => ({ ref: s.ref, width: s.width, height: s.height })) } : {}),
+                  durationTier: choices.durationTier,
                   videoLanguage: choices.videoLanguage,
                   voiceProvider: choices.voiceProvider,
                 })
@@ -400,6 +401,7 @@ const AppShell: React.FC = () => {
           <ProjectWorkspaceView
             stage={stage}
             projectId={openProjectId}
+            allowSceneEdit={reviewModeAllowsSceneEdit(settings.reviewMode)}
             loadDiagnostics={(id) => {
               if (!dash) return Promise.reject(new Error("Dashboard API is unavailable"));
               return dash.projects.diagnostics(id);

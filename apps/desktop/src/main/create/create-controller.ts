@@ -86,6 +86,7 @@ export class CreateController {
     raw: string,
     images: StagedImageRef[] = [],
     choices: {
+      durationTier?: DurationTierChoice;
       videoLanguage?: VideoLanguageChoice;
       voiceProvider?: VoiceProviderChoice;
     } = {},
@@ -102,8 +103,10 @@ export class CreateController {
     }
     const block = this.deps.preflight?.(voiceProvider, videoLanguage);
     if (block) throw new Error(block);
-    // Short-form only: always TikTok 9:16, duration tier 1 (≈45s pacing target).
-    const delivery = { format: "tiktok" as const, durationTier: 1 as const };
+    // Short-form 9:16 only. Duration tier is user-picked (1≈45s / 2≈90s / 3≈150s).
+    const durationTier: DurationTierChoice =
+      choices.durationTier === 2 || choices.durationTier === 3 ? choices.durationTier : 1;
+    const delivery = { format: "tiktok" as const, durationTier };
     const res = await this.deps.scaffold(v.brief.text, voiceProvider, videoLanguage, delivery);
     if (!res.ok) throw new Error(toFriendlyError(res.error).message); // redacted friendly message
     // Promote staged images into the project before authoring so the first draft
@@ -122,9 +125,9 @@ export class CreateController {
       text: v.brief.text,
       urls: v.brief.urls,
       ...(promoted.length > 0 ? { images: promoted } : {}),
-      // Fixed short-form delivery + video language for retry/recall.
+      // Fixed format + user duration tier + language for retry/recall.
       format: "tiktok",
-      durationTier: 1,
+      durationTier,
       videoLanguage,
     }); // hand off to workspace stage 1
     return { projectId: res.projectId };

@@ -9,7 +9,8 @@ separate project rules.
 
 MotionReal turns a Vietnamese or English prompt, optionally with URLs/images,
 into a publishable Remotion MP4. The only production path is short-form
-TikTok/Reels/Shorts-style **9:16** (default pacing target ~45s).
+TikTok/Reels/Shorts-style **9:16**. Create may pick short-form duration tier
+(~45s / ~90s / ~150s; default ~45s). No landscape / YouTube format.
 
 The visual model is pure AUTHOR mode: for every video, the runtime AI writes
 fresh Remotion React scene modules as raw JSX/SVG. There is no template catalog,
@@ -47,7 +48,10 @@ Provider setup lives in `docs/providers/`.
 - Never fabricate facts, numbers, dates, quotes, prices, benchmarks, or sources.
 - Preserve the configured TTS provider and voice. Never silently fall back to
   `mock`, `none`, or another provider when configuration is missing.
-- Draft before full, every time.
+- Default desktop policy is draft-before-full. Desktop Settings may choose a
+  review mode that previews with stills only (no draft MP4); full export then
+  uses an explicit forceFull after user approve. CLI/tools stay draft-first
+  unless the caller passes forceFull.
 - Generated runtime artifacts belong under `VIDEO_TOOL_HOME/.video-tool/`.
 
 ## Safety Posture
@@ -78,10 +82,11 @@ For video production:
 
 1. Scaffold or create a project through the supported desktop or pipeline path.
 2. Author fresh scene modules and manifest.
-3. Render stills for fast visual inspection/refine.
-4. Render a draft MP4.
-5. Stop for user review.
-6. Render full only after explicit approval.
+3. Render stills for fast visual inspection/refine (and optional silent vision refine).
+4. Default: render a draft MP4. `stills_edit` stops at stills for scene edit.
+   `skip_edit` skips human review and auto-runs full after silent refine.
+5. Stop for user review when mode is full or stills_edit.
+6. Full after explicit approval (or auto in skip_edit); forceFull when no draft.
 
 For OpenAI/Remotion/React/Zod/Electron or other library questions, verify against
 official/current docs before changing code. For pipeline operations, use the

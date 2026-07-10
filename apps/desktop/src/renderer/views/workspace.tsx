@@ -369,6 +369,8 @@ export const ProjectWorkspaceView: React.FC<{
   onApproveScript: () => void;
   onSubmitEdits: (perScene: { sceneId: string; text: string }[], globalNotes: string) => Promise<boolean>;
   onApproveDraft: () => void;
+  /** When false, hide scene-edit chrome (skip_edit review mode). */
+  allowSceneEdit?: boolean;
   onReveal: () => void;
   /** Copy the finished MP4 to a user-chosen location (native Save dialog). */
   onSave: () => void;
@@ -391,7 +393,7 @@ export const ProjectWorkspaceView: React.FC<{
   /** Copy the generated cover PNG through a native Save dialog. */
   onSaveThumbnail: () => Promise<{ saved: boolean; error?: string }>;
   loadDiagnostics?: (projectId: string) => Promise<ProjectDiagnosticsVM>;
-}> = ({ stage, projectId, onBack, onRetry, onFixWithAi, onApplyScript, onApproveScript, onSubmitEdits, onApproveDraft, onReveal, onSave, onCancel, onSubmitImageReview, bgm, bgmSelected, onBgmAdd, onBgmRemove, onBgmSelect, onGenerateThumbnail, onSaveThumbnail, loadDiagnostics }) => {
+}> = ({ stage, projectId, onBack, onRetry, onFixWithAi, onApplyScript, onApproveScript, onSubmitEdits, onApproveDraft, allowSceneEdit = true, onReveal, onSave, onCancel, onSubmitImageReview, bgm, bgmSelected, onBgmAdd, onBgmRemove, onBgmSelect, onGenerateThumbnail, onSaveThumbnail, loadDiagnostics }) => {
   const title = workspaceStageTitle;
   if (stage.kind === "ready") {
     return (
@@ -400,6 +402,7 @@ export const ProjectWorkspaceView: React.FC<{
         canApprove
         notice={stage.notice}
         draftPath={stage.draftPath}
+        allowSceneEdit={allowSceneEdit}
         onBack={onBack}
         onSubmit={onSubmitEdits}
         onApprove={onApproveDraft}

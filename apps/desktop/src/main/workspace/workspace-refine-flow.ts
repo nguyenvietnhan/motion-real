@@ -29,11 +29,19 @@ export type RestorePriorDraftDeps = {
   projectId: string;
   snapshot: SceneSnapshot;
   settings: Pick<RefineSettings, "maxRepairAttempts">;
-  worker: Pick<AgentWorker, "restoreScenes" | "generateValidateRepair">;
+  worker: Pick<AgentWorker, "restoreScenes" | "generateValidateRepair" | "renderStills">;
   setStage: (stage: ProjectStage) => void;
   hooks: AgentHooks;
   /** Called after a successful restore + re-render so still URLs invalidate. */
   bumpRenderVersion: () => void;
+  /**
+   * How to re-preview after restore: draft MP4 repair loop (default) or cheap stills.
+   * Use stills when desktop reviewMode does not render a draft.
+   */
+  preview?: "draft" | "stills";
+  /** When preview is stills, optional scene scope (omit ⇒ all scenes). */
+  sceneIds?: string[];
+  signal?: AbortSignal;
 };
 
 async function snapshotFresh(
@@ -204,19 +212,29 @@ export async function refineEditedScenes(deps: RefineFlowDeps, sceneIds: string[
 }
 
 /**
- * Restore pre-edit source and re-render the known-good draft.
+ * Restore pre-edit source and re-preview the known-good state (draft or stills).
  * Returns true when the rollback path ran.
  */
 export async function restoreToPriorDraft(deps: RestorePriorDraftDeps): Promise<boolean> {
   if (deps.snapshot.length === 0 || !deps.worker.restoreScenes) return false;
   deps.setStage({ kind: "rendering", percent: 0, phase: "edit" });
   await deps.worker.restoreScenes(deps.projectId, deps.snapshot);
-  deps.setStage({ kind: "rendering", percent: 0, phase: "draft" });
-  await deps.worker.generateValidateRepair(
-    deps.projectId,
-    { maxAttempts: deps.settings.maxRepairAttempts },
-    deps.hooks,
-  );
+  if (deps.preview === "stills") {
+    deps.setStage({ kind: "rendering", percent: 0, phase: "prepare" });
+    await deps.worker.renderStills?.(
+      deps.projectId,
+      deps.sceneIds && deps.sceneIds.length > 0 ? deps.sceneIds : undefined,
+      deps.signal,
+    );
+  } else {
+    deps.setStage({ kind: "rendering", percent: 0, phase: "draft" });
+    await deps.worker.generateValidateRepair(
+      deps.projectId,
+      { maxAttempts: deps.settings.maxRepairAttempts },
+      deps.hooks,
+      deps.signal,
+    );
+  }
   deps.bumpRenderVersion();
   return true;
 }

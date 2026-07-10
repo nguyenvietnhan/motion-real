@@ -233,10 +233,22 @@ author initial TSX/manifest
 -> render draft MP4
 ```
 
-Those rough intermediate stills are hidden from the user. After draft review,
+Those rough intermediate stills are hidden from the user. After review,
 edit flows skip broad creative bootstrap and use scoped scene repair. Script
-review is optional; draft review is mandatory before full render. Deliberate
-cancellation between stages is not treated as project failure.
+review is optional (`scriptGateEnabled`). Post-author human review is controlled
+by Settings `reviewMode`:
+
+| Mode | Preview | Scene edit | Full export |
+|------|---------|------------|-------------|
+| `full` (default) | Draft MP4 (+ stills) | Yes | After approve; draft-first |
+| `stills_edit` | Stills only | Yes | After approve; `forceFull` if no draft |
+| `skip_edit` | No human review stop | No | Auto full after silent refine + stills; `forceFull` |
+
+Silent refine (`refinePasses`) is independent of `reviewMode` and still runs for
+`stills_edit` / `skip_edit` before the stills (or full) handoff. Desktop publish
+passes `forceFull` when no draft MP4 exists. CLI/MCP draft-first is unchanged
+unless the caller sets forceFull. Deliberate cancellation between stages is not
+treated as project failure.
 
 ## Data Flow
 

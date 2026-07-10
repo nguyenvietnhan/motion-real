@@ -34,10 +34,15 @@ import {
   type AuthorInput,
   type SceneSnapshot,
 } from "../agent/agent-worker.js";
+import {
+  reviewModeAllowsSceneEdit,
+  reviewModeNeedsDraftMp4,
+} from "../../shared/settings-model.js";
 import type {
   ApplyResult,
   ProjectCardVM,
   ProjectStage,
+  ReviewMode,
   ScriptEdit,
   ScriptGateModel,
   ScriptLine,
@@ -94,6 +99,7 @@ export interface WorkspaceDeps {
   /** Live settings reads (SettingsStore). */
   settings: {
     readonly scriptGateEnabled: boolean;
+    readonly reviewMode: ReviewMode;
     readonly maxRepairAttempts: number;
     readonly refinePasses: number;
     /** Require TWO consecutive clean vision passes (not one) before stopping early. */
@@ -451,8 +457,12 @@ export class WorkspaceController {
   private async runPublish(projectId: string): Promise<void> {
     this.setStage(projectId, fullRenderStageStart());
     const signal = this.signalOf(projectId);
+    // Desktop may reach ready without a draft MP4 (stills/skip review modes, or
+    // recovery). Pipeline draft-first stays for CLI; pass forceFull only when
+    // no draft file exists after the user already approved from ready.
+    const forceFull = !this.deps.hasDraft(projectId);
     try {
-      const res = await this.deps.worker.publish(projectId, signal);
+      const res = await this.deps.worker.publish(projectId, signal, forceFull ? { forceFull: true } : undefined);
       // A user cancel ("Dừng render") during the full render is NOT a failure:
       // the engine threw a RenderCancelledError (no `state: "failed"`) and left
       // the prior draft intact, so recover the reviewable stage, not an error.
@@ -479,11 +489,13 @@ export class WorkspaceController {
 
   /**
    * Per-scene free-form edit (Canva-style review): re-author the named scenes
-   * with the user's natural-language instruction, then re-render the draft. Only
-   * runs from the `ready` review stage; an empty instruction set is a no-op.
+   * with the user's natural-language instruction, then re-preview (draft or stills
+   * per reviewMode). Only runs from the `ready` review stage when scene edit is
+   * allowed; an empty instruction set is a no-op.
    */
   submitEdits(projectId: string, edits: { sceneId: string; text: string }[], globalNotes: string): void {
     if (this.stages.get(projectId)?.kind !== "ready") return;
+    if (!reviewModeAllowsSceneEdit(this.deps.settings.reviewMode)) return;
     const named = edits.map((e) => ({ sceneId: e.sceneId, text: e.text.trim() })).filter((e) => e.text.length > 0);
     const notes = globalNotes.trim();
     if (named.length === 0 && notes === "") return; // nothing to do
@@ -558,11 +570,11 @@ export class WorkspaceController {
         await this.recoverAfterCancel(projectId);
         return;
       }
+      const restoreOpts = { sceneIds, signal };
       if (!stillsOk) {
         // The edit broke admission/render on the cheap stills path. Restore the
-        // known-good pre-edit source and re-render the draft the user already had
-        // (an edit may only improve or keep the draft, never strand it broken).
-        if (await this.restoreToPriorDraft(projectId, snapshot, hooks)) {
+        // known-good pre-edit source and re-preview (draft or stills per mode).
+        if (await this.restoreToPriorDraft(projectId, snapshot, hooks, restoreOpts)) {
           this.setStage(projectId, this.readyStage(
             projectId,
             await this.storyboardScenesOf(projectId),
@@ -575,26 +587,59 @@ export class WorkspaceController {
         }
         return;
       }
-      // …then render the draft ONCE (and auto-repair any new oracle errors).
+
+      const failedNamed = named.filter((n) => !appliedIds.includes(n.sceneId));
+      const notice =
+        failedNamed.length > 0
+          ? `Đã áp dụng chỉnh sửa, nhưng chưa đổi được ${failedNamed.length} cảnh (AI tạo mã chưa hợp lệ) — bạn có thể thử lại các cảnh đó.`
+          : undefined;
+
+      // Stills review: re-render stills only (no draft MP4 / oracle loop).
+      if (!reviewModeNeedsDraftMp4(this.deps.settings.reviewMode)) {
+        this.setStage(projectId, { kind: "rendering", percent: 0, phase: "prepare" });
+        // When refine was off, refineEditedScenes skipped the stills pass.
+        if (this.deps.settings.refinePasses <= 0) {
+          const stills = (await this.deps.worker.renderStills?.(projectId, sceneIds, signal)) ?? { stills: [] };
+          if (signal?.aborted) {
+            await this.recoverAfterCancel(projectId);
+            return;
+          }
+          if (stills.stills.length === 0 && this.deps.worker.renderStills) {
+            if (await this.restoreToPriorDraft(projectId, snapshot, hooks, restoreOpts)) {
+              this.setStage(projectId, this.readyStage(
+                projectId,
+                await this.storyboardScenesOf(projectId),
+                "Chưa áp dụng được chỉnh sửa này (làm hỏng bố cục cảnh) — đã giữ lại bản nháp trước đó. Hãy thử diễn đạt khác hoặc chỉnh nhẹ hơn.",
+              ));
+            } else {
+              const message = "Chưa áp dụng được chỉnh sửa sau nhiều lần thử. Bạn có thể thử lại hoặc để AI sửa.";
+              this.setStage(projectId, { kind: "error", message, fixable: true, retry: "draft" });
+              this.deps.events.friendlyError({ projectId, message, retry: "draft", fixable: true });
+            }
+            return;
+          }
+        } else if (signal?.aborted) {
+          await this.recoverAfterCancel(projectId);
+          return;
+        }
+        this.bumpRenderVersion(projectId);
+        this.setStage(projectId, this.readyStage(projectId, await this.storyboardScenesOf(projectId), notice));
+        return;
+      }
+
+      // Full review: render the draft ONCE (and auto-repair any new oracle errors).
       this.setStage(projectId, { kind: "rendering", percent: 0, phase: "draft" });
       const outcome = await this.deps.worker.generateValidateRepair(projectId, { maxAttempts: this.deps.settings.maxRepairAttempts }, hooks, signal);
       if (outcome.kind === "cancelled") {
         await this.recoverAfterCancel(projectId);
       } else if (outcome.kind === "passed") {
         this.bumpRenderVersion(projectId);
-        // If the user explicitly edited some scenes but a SUBSET failed to apply,
-        // say so (the rest did render) so a half-applied batch isn't silent.
-        const failedNamed = named.filter((n) => !appliedIds.includes(n.sceneId));
-        const notice =
-          failedNamed.length > 0
-            ? `Đã áp dụng chỉnh sửa, nhưng chưa đổi được ${failedNamed.length} cảnh (AI tạo mã chưa hợp lệ) — bạn có thể thử lại các cảnh đó.`
-            : undefined;
         this.setStage(projectId, this.readyStage(projectId, await this.storyboardScenesOf(projectId), notice));
       } else if (outcome.kind === "infra") {
         const message = "Gặp trục trặc hạ tầng khi dựng lại (kết nối hoặc cấu hình). Hãy kiểm tra và thử lại.";
         this.setStage(projectId, { kind: "error", message, fixable: false, retry: "draft" });
         this.deps.events.friendlyError({ projectId, message, retry: "draft", fixable: false });
-      } else if (await this.restoreToPriorDraft(projectId, snapshot, hooks)) {
+      } else if (await this.restoreToPriorDraft(projectId, snapshot, hooks, restoreOpts)) {
         // The edit produced a draft we couldn't clean up (content errors after
         // every attempt). Rather than strand the user on an error screen with a
         // broken scene, we restored the pre-edit source and re-rendered the draft
@@ -665,12 +710,14 @@ export class WorkspaceController {
     return runRefineEditedScenes(this.refineDeps(projectId, signal), sceneIds);
   }
 
-  /** Restore pre-edit source and re-render known-good draft. */
+  /** Restore pre-edit source and re-preview known-good state (draft or stills). */
   private restoreToPriorDraft(
     projectId: string,
     snapshot: SceneSnapshot,
     hooks: AgentHooks,
+    opts?: { sceneIds?: string[]; signal?: AbortSignal },
   ): Promise<boolean> {
+    const needsDraft = reviewModeNeedsDraftMp4(this.deps.settings.reviewMode);
     return runRestoreToPriorDraft({
       projectId,
       snapshot,
@@ -679,6 +726,9 @@ export class WorkspaceController {
       setStage: (stage) => this.setStage(projectId, stage),
       hooks,
       bumpRenderVersion: () => this.bumpRenderVersion(projectId),
+      preview: needsDraft ? "draft" : "stills",
+      ...(opts?.sceneIds ? { sceneIds: opts.sceneIds } : {}),
+      ...(opts?.signal ? { signal: opts.signal } : {}),
     });
   }
 
@@ -720,18 +770,47 @@ export class WorkspaceController {
     const repairTrace = new WorkspaceRepairTrace();
     const hooks = this.renderHooks(projectId, "draft", repairTrace);
     const signal = this.signalOf(projectId);
+    const needsDraft = reviewModeNeedsDraftMp4(this.deps.settings.reviewMode);
     try {
       // SILENT refine FIRST : render cheap stills,
       // do the one-shot creative bootstrap + the defect-fixing vision loop — all on
       // the no-TTS/no-MP4 path, hidden from the user — BEFORE the first real MP4
-      // draft. So the draft the user eventually sees is already the refined take,
-      // and the vision work no longer runs AFTER a 100%-complete MP4 (the old
-      // "stuck at 100%" symptom). `preRefine` is the blind pre-refine source we
-      // fall back to if the refined draft can't be repaired (never ship worse).
+      // draft (or stills-only ready when reviewMode skips draft).
       const preRefine = await this.refineBeforeDraft(projectId, signal);
       if (signal?.aborted) {
         this.flushRepairTrace(projectId, repairTrace, "cancelled");
         await this.recoverAfterCancel(projectId);
+        return;
+      }
+
+      // Stills / skip review: no draft MP4 or draft-oracle loop.
+      // Silent refine (above) still runs for both — it is independent of reviewMode.
+      if (!needsDraft) {
+        this.setStage(projectId, { kind: "rendering", percent: 0, phase: "prepare" });
+        // refinePasses=0 skips refineBeforeDraft stills; always ensure a stills pass.
+        // When refine already ran, this is a final stills refresh (cheap).
+        const stills = (await this.deps.worker.renderStills?.(projectId, undefined, signal)) ?? { stills: [] };
+        if (signal?.aborted) {
+          this.flushRepairTrace(projectId, repairTrace, "cancelled");
+          await this.recoverAfterCancel(projectId);
+          return;
+        }
+        if (stills.stills.length === 0 && this.deps.worker.renderStills) {
+          this.flushRepairTrace(projectId, repairTrace, "exhausted");
+          const message = "Chưa tạo được ảnh xem trước cho các cảnh. Hãy thử lại.";
+          this.setStage(projectId, { kind: "error", message, fixable: true, retry: "draft" });
+          this.deps.events.friendlyError({ projectId, message, retry: "draft", fixable: true });
+          return;
+        }
+        this.flushRepairTrace(projectId, repairTrace, "passed");
+        this.bumpRenderVersion(projectId);
+        // skip_edit: no human review stop — go straight to full export.
+        if (this.deps.settings.reviewMode === "skip_edit") {
+          await this.runPublish(projectId);
+          return;
+        }
+        // stills_edit: ready with stills, scene-edit chrome on, no draft video.
+        this.setStage(projectId, this.readyStage(projectId, await this.storyboardScenesOf(projectId), readyNotice));
         return;
       }
 

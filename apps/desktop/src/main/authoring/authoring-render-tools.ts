@@ -82,10 +82,11 @@ export async function renderFullWithTools(
   deps: AuthoringRenderToolsDeps,
   projectId: string,
   signal?: AbortSignal,
+  opts?: { forceFull?: boolean },
 ): Promise<{ ok: true; outputPath: string } | { ok: false; error?: SerializedPipelineError }> {
   await refreshAuthoredRegistry(deps, projectId);
   const res = await deps.tools.render_full(
-    { projectId },
+    { projectId, ...(opts?.forceFull ? { forceFull: true } : {}) },
     deps.onRenderProgress ? (r) => deps.onRenderProgress!(r, projectId) : undefined,
     signal,
   );

@@ -5,6 +5,7 @@ import {
   clampMaxRepairAttempts,
   clampRefinePasses,
   clampWordsPerSecond,
+  normalizeReviewMode,
   voiceCalibrationKey,
 } from "../../shared/settings-model.js";
 import { normalizePreferredAiModelId } from "../../shared/model-selection.js";
@@ -113,6 +114,7 @@ export class SettingsStore {
     }
     merged.maxRepairAttempts = clampMaxRepairAttempts(merged.maxRepairAttempts);
     merged.refinePasses = clampRefinePasses(merged.refinePasses);
+    merged.reviewMode = normalizeReviewMode(merged.reviewMode);
     return merged;
   }
 
@@ -180,6 +182,7 @@ export class SettingsStore {
   }
 
   get scriptGateEnabled(): boolean { return this.settings.scriptGateEnabled; }
+  get reviewMode(): SettingsModel["reviewMode"] { return this.settings.reviewMode; }
   get maxRepairAttempts(): number { return this.settings.maxRepairAttempts; }
   get refinePasses(): number { return this.settings.refinePasses; }
   get refineEarlyStop(): boolean { return this.settings.refineEarlyStop; }
@@ -204,6 +207,7 @@ export class SettingsStore {
     };
     this.settings.maxRepairAttempts = clampMaxRepairAttempts(this.settings.maxRepairAttempts);
     this.settings.refinePasses = clampRefinePasses(this.settings.refinePasses);
+    this.settings.reviewMode = normalizeReviewMode(this.settings.reviewMode);
     this.settings = this.withCredentialStates(this.settings);
     this.save();
     return this.settings;

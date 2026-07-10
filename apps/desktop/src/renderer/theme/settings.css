@@ -133,6 +133,44 @@
   outline-offset: 2px;
 }
 
+/* ChoiceGroup radios: SVG geometry (cx/cy) so the inner disc is never off-center. */
+.ns-choice-radio {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+.ns-choice-radio input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+.ns-choice-radio-svg {
+  display: block;
+  overflow: visible;
+}
+.ns-choice-radio-ring {
+  fill: var(--input);
+  stroke: var(--border);
+  stroke-width: 1.5;
+}
+.ns-choice-radio-svg.is-selected .ns-choice-radio-ring {
+  fill: var(--brand);
+  stroke: var(--brand);
+}
+.ns-choice-radio-dot {
+  fill: #fff;
+}
+.ns-choice-radio input:focus-visible + .ns-choice-radio-svg {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+  border-radius: 999px;
+}
+
 /* Settings → AI tab: account card + 9router route badge. The account reads as a
  * single object (avatar + email + live status), and each model's route prefix
  * (ag/kr/cx…) is surfaced as a small badge so the picker's shape mirrors how

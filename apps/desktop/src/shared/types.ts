@@ -81,7 +81,7 @@ export type PickImagesResult = {
 
 /** Delivery format — short-form 9:16 only. */
 export type VideoFormatChoice = "tiktok";
-/** Duration tier (1/2/3) for pacing; new creates always use tier 1. */
+/** Duration tier for short-form pacing: 1≈45s, 2≈90s, 3≈150s. */
 export type DurationTierChoice = 1 | 2 | 3;
 /** Authored video language the user picks: content, narration, captions, title, hashtags. */
 export type VideoLanguageChoice = "vi" | "en";
@@ -92,7 +92,7 @@ export type CreateInput = {
   voiceProvider?: VoiceProviderChoice;
   /** Always tiktok for new creates (optional for older call sites). */
   format?: VideoFormatChoice;
-  /** Always tier 1 for new creates (optional for older call sites). */
+  /** User-picked short-form duration tier (default 1). */
   durationTier?: DurationTierChoice;
   /** Authored video language (default vi). */
   videoLanguage?: VideoLanguageChoice;
@@ -241,6 +241,14 @@ export type DesktopReadinessReport = {
 
 // --- settings -----------------------------------------------------
 
+/**
+ * Desktop post-author review policy (global Settings).
+ * - full: draft MP4 + scene edit (default)
+ * - stills_edit: stills only + scene edit (no draft MP4)
+ * - skip_edit: stills only, no scene-edit chrome; user still approves full
+ */
+export type ReviewMode = "full" | "stills_edit" | "skip_edit";
+
 export type SettingsModel = {
   aiAccount: AiAccountState;
   /**
@@ -259,6 +267,11 @@ export type SettingsModel = {
   outputDir: string;
   maxRepairAttempts: number;
   scriptGateEnabled: boolean;
+  /**
+   * How far to stop for human review before full export.
+   * Independent of silent refine and script gate.
+   */
+  reviewMode: ReviewMode;
   /**
    * How many SILENT refine passes run over the rendered stills before the user
    * sees the first draft : an AI vision pass flags
