@@ -207,7 +207,8 @@ const workspace = new WorkspaceController({
     };
   },
   reviewStill: (id, sceneId) => mediaUrl(join(projectPaths(id).reviewDir, `${sceneId}.png`)) ?? "",
-  toMedia: (p) => mediaUrl(p) ?? p,
+  // Never fall back to a raw absolute path — denied/unclassified media stays empty.
+  toMedia: (p) => mediaUrl(p) ?? "",
   hasStill: (id, sceneId) => existsSync(join(projectPaths(id).reviewDir, `${sceneId}.png`)),
   hasOutput: (id) => existsSync(join(projectPaths(id).rendersDir, `${id}.mp4`)),
   outputMedia: (id) => mediaUrl(join(projectPaths(id).rendersDir, `${id}.mp4`)) ?? "",

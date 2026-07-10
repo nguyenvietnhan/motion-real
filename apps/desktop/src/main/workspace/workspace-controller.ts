@@ -110,7 +110,7 @@ export interface WorkspaceDeps {
   reviewStill: (projectId: string, sceneId: string) => string;
   /** mediaUrl-wrapped path to a project asset (`assets/<sha>.<ext>`) for the crawl-review preview. */
   assetMedia: (projectId: string, ref: string) => string;
-  /** Wrap an absolute still path for the renderer (mediaUrl, falling back to the path). */
+  /** Wrap an absolute still path for the renderer (mediaUrl, or empty when denied). */
   toMedia: (absPath: string) => string;
   /** Whether a scene's review still exists on disk. */
   hasStill: (projectId: string, sceneId: string) => boolean;

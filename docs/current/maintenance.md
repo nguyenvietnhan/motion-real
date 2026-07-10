@@ -449,6 +449,21 @@ When renaming or cleaning comments only:
 - After comment-only edits: `git diff` must show comment/docs lines only, then
   `npm.cmd run typecheck`. Run focused tests if `describe`/`it` titles changed.
 
+## Media protocol allow-list
+
+Do not widen `media://` to all of `VIDEO_TOOL_HOME` or to project JSON/TSX/logs.
+When a new renderer preview needs a local file:
+
+1. Confirm it is a real media artifact (image/audio/video) with a known extension.
+2. Place it under an existing allow-listed root, or get owner approval for one
+   exact new location + kind in `media-protocol.ts`.
+3. Extend the classify/allow matrix tests before changing the handler.
+4. Keep URLs route-relative; never reintroduce absolute-path `media://` encoding
+   or a raw-path `toMedia` fallback.
+
+Symlink/junction escape is closed by realpath containment in the handler — do
+not replace it with a lexical-only `startsWith` check.
+
 ## Repository Hygiene
 
 Prefer descriptive, domain-owned paths over loose root files:

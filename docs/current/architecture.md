@@ -309,6 +309,27 @@ Use domain folders for content:
 Do not add vendor-specific AI contract files or loose root media files. Shared
 AI guidance belongs in `AI_CONTRACT.md` and `docs/current/`.
 
+## Media protocol boundary
+
+The desktop renderer loads local stills, draft/full MP4s, staged images, BGM, and
+bundled assets only through the privileged `media://` scheme
+(`apps/desktop/src/main/media-protocol.ts`).
+
+- URLs are **route-relative** locators (`media://file/<kind>/…`), not absolute
+  filesystem paths. The handler recomputes the physical path from an allow-listed
+  kind plus relative segments.
+- Allowed locations only: `projects/<id>/assets|review|renders/*`,
+  `staging/*`, `bgm/*`, and `apps/desktop/assets/*` (bundled). Known media MIME
+  extensions only; unknown extensions are denied (no `application/octet-stream`
+  fallback).
+- Before streaming, the handler `realpath`s root and target, requires a regular
+  file, and re-checks extension + containment (blocks junction/symlink escape).
+- `toMedia` / `mediaUrl` return a safe media URL or empty/`null` — never a raw
+  absolute path to the renderer. Settings, planning research, events, authored
+  TSX, project JSON, and `audio/**` are not media roots.
+- Range requests (`200` / `206` / `416`) remain supported for MP4 seeking.
+- Scheme privileges do not set `bypassCSP`.
+
 ## Boundaries
 
 - Authored scene code is admitted before render.
