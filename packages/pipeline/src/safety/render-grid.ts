@@ -172,9 +172,9 @@ export function checkSafeArea(frame: Frame, sceneId?: string, options?: RenderGr
  * frame — content flush on the canvas edge reads as "flew off the frame". Unlike
  * the four vertical-only N14 variants above (which encode the 9:16 news layout —
  * content zone, caption band, divider clearance), this one is GEOMETRY-DRIVEN: it
- * takes a `FormatGeometry` (`geometry("tiktok")` or `geometry("youtube")`) and
+ * takes a `FormatGeometry` (`geometry("tiktok")`) and
  * scans the ring of `geometry.safeMargin` px around the frame, so it is correct
- * for BOTH the 9:16 vertical and the 16:9 horizontal canvas. The 16:9 ring is
+ * for the short-form 9:16 canvas. The
  * thin (YouTube uses nearly the whole frame); the 9:16 ring matches the vertical
  * safe margin.
  *

@@ -1,14 +1,10 @@
 import type {
-  DurationTierChoice,
   StagedImageRef,
-  VideoFormatChoice,
   VideoLanguageChoice,
   VoiceProviderChoice,
 } from "../../shared/types.js";
 
 export type CreateControllerChoices = {
-  format?: VideoFormatChoice;
-  durationTier?: DurationTierChoice;
   videoLanguage?: VideoLanguageChoice;
   voiceProvider?: VoiceProviderChoice;
 };
@@ -21,8 +17,6 @@ export type CreateControllerArgs = {
 
 type RawCreatePayload = {
   raw: string;
-  format?: VideoFormatChoice;
-  durationTier?: DurationTierChoice;
   videoLanguage?: VideoLanguageChoice;
   voiceProvider?: unknown;
   images?: StagedImageRef[];
@@ -39,8 +33,6 @@ export function createControllerArgsFromIpc(input: unknown): CreateControllerArg
     raw: payload.raw,
     images: payload.images ?? [],
     choices: {
-      ...(payload.format ? { format: payload.format } : {}),
-      ...(payload.durationTier ? { durationTier: payload.durationTier } : {}),
       ...(payload.videoLanguage ? { videoLanguage: payload.videoLanguage } : {}),
       ...(payload.voiceProvider ? { voiceProvider: parseVoiceProvider(payload.voiceProvider) } : {}),
     },

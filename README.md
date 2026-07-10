@@ -4,10 +4,8 @@ AI-driven **short-form** video generator on Remotion. Give a Vietnamese or
 English prompt (optional URLs and local images); the app plans content, writes
 fresh scene modules, speaks narration, and renders a publishable MP4.
 
-**Stable path:** TikTok / Reels / Shorts **9:16**.  
-**Also present:** 16:9 geometry, thumbnail, and caption-off plumbing for YouTube
-format — not a long-form “author by chapter/segment” product. Do not start that
-workflow unless the project owner asks for it.
+**Product path:** TikTok / Reels / Shorts **9:16** only (default pacing ~45s).
+No YouTube / landscape format or duration picker.
 
 ## How it works
 

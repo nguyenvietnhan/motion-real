@@ -568,17 +568,17 @@ describe("buildContentPlanMessages", () => {
     expect(user).toContain("Giải thích vì sao cà phê");
   });
 
-  it("builds a YouTube English prompt with readable source material", () => {
+  it("builds an English short-form prompt with readable source material", () => {
     const messages = buildContentPlanMessages(
-      { text: "Make a video about the battery breakthrough", urls: ["https://example.com/research"], format: "youtube", videoLanguage: "en" },
+      { text: "Make a video about the battery breakthrough", urls: ["https://example.com/research"], format: "tiktok", videoLanguage: "en" },
       "The source says the prototype reached 500 cycles in lab tests.",
     );
     const system = messages[0]!.content as string;
     const user = messages[1]!.content as string;
-    expect(system).toMatch(/YouTube 16:9 horizontal/);
+    expect(system).toMatch(/9:16 vertical|TikTok\/Reels\/Shorts 9:16/);
     expect(system).toMatch(/English/);
-    expect(system).toMatch(/300 seconds/);
-    expect(system).toMatch(/under 200 characters/);
+    expect(system).toMatch(/45 seconds/);
+    expect(system).toMatch(/under 100 characters/);
     expect(user).toContain("https://example.com/research");
     expect(user).toContain("Readable source material");
     expect(user).toContain("500 cycles");

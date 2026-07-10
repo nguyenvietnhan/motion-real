@@ -960,23 +960,22 @@ describe("authorScenes (pure-author)", () => {
     expect(extractUrl).toHaveBeenCalledOnce();
   });
 
-  it("injects the user-chosen delivery knobs (format/tier/videoLanguage) into the manifest — the AI never authors them", async () => {
+  it("injects fixed short-form delivery + videoLanguage into the manifest — the AI never authors them", async () => {
     const projectId = "pa-delivery";
     const { backend } = makeBackend(validReply());
-    // The model's manifest carries only theme + scenes; the create-screen knobs
-    // (format/durationTier/videoLanguage) are injected by the backend so the
-    // canvas + word-budget + full content language are the user's choice, not the AI's.
+    // The model's manifest carries only theme + scenes; format/durationTier/videoLanguage
+    // are injected by the backend (short-form fixed; language from create).
     const job: AuthorJob = {
       projectId,
-      input: { text: "topic", urls: [], format: "youtube", durationTier: 2, videoLanguage: "en" },
+      input: { text: "topic", urls: [], format: "tiktok", durationTier: 1, videoLanguage: "en" },
       scriptGate: false,
     };
 
     await backend.authorScenes(job);
 
     const manifest = JSON.parse(readFileSync(join(home, ".video-tool", "projects", projectId, "manifest.json"), "utf8"));
-    expect(manifest.format).toBe("youtube");
-    expect(manifest.durationTier).toBe(2);
+    expect(manifest.format).toBe("tiktok");
+    expect(manifest.durationTier).toBe(1);
     expect(manifest.videoLanguage).toBe("en");
   });
 

@@ -31,15 +31,31 @@ describe("CreateController.create", () => {
     const result = await ctrl.create("tin công nghệ");
     expect(result).toEqual({ projectId: "proj-7" });
     expect(scaffold).toHaveBeenCalledOnce();
-    expect(scaffold).toHaveBeenCalledWith("tin công nghệ", "vivibe", "vi");
-    expect(began).toEqual([{ id: "proj-7", input: { text: "tin công nghệ", urls: [], videoLanguage: "vi" } }]);
+    expect(scaffold).toHaveBeenCalledWith("tin công nghệ", "vivibe", "vi", { format: "tiktok", durationTier: 1 });
+    expect(began).toEqual([
+      {
+        id: "proj-7",
+        input: { text: "tin công nghệ", urls: [], format: "tiktok", durationTier: 1, videoLanguage: "vi" },
+      },
+    ]);
   });
 
   it("passes a brief carrying the link found in the input", async () => {
     const { deps: d, began } = deps();
     const ctrl = new CreateController(d);
     await ctrl.create("https://news.example.com/a");
-    expect(began).toEqual([{ id: "p1", input: { text: "https://news.example.com/a", urls: ["https://news.example.com/a"], videoLanguage: "vi" } }]);
+    expect(began).toEqual([
+      {
+        id: "p1",
+        input: {
+          text: "https://news.example.com/a",
+          urls: ["https://news.example.com/a"],
+          format: "tiktok",
+          durationTier: 1,
+          videoLanguage: "vi",
+        },
+      },
+    ]);
   });
 
   it("promotes staged images and threads the resulting refs into the author input (create-time image staging)", async () => {
@@ -69,13 +85,13 @@ describe("CreateController.create", () => {
     expect(began[0]!.input.images).toBeUndefined();
   });
 
-  it("threads format/tier/videoLanguage into the author input", async () => {
+  it("threads fixed short-form delivery + videoLanguage into the author input", async () => {
     const { deps: d, scaffold, began } = deps();
     const ctrl = new CreateController(d);
-    await ctrl.create("chủ đề", [], { format: "youtube", durationTier: 2, videoLanguage: "en", voiceProvider: "elevenlabs" });
-    expect(scaffold).toHaveBeenCalledWith("chủ đề", "elevenlabs", "en", { format: "youtube", durationTier: 2 });
-    expect(began[0]!.input.format).toBe("youtube");
-    expect(began[0]!.input.durationTier).toBe(2);
+    await ctrl.create("chủ đề", [], { videoLanguage: "en", voiceProvider: "elevenlabs" });
+    expect(scaffold).toHaveBeenCalledWith("chủ đề", "elevenlabs", "en", { format: "tiktok", durationTier: 1 });
+    expect(began[0]!.input.format).toBe("tiktok");
+    expect(began[0]!.input.durationTier).toBe(1);
     expect(began[0]!.input.videoLanguage).toBe("en");
   });
 
@@ -83,15 +99,15 @@ describe("CreateController.create", () => {
     const scaffold = vi.fn(async () => ({ ok: true as const, projectId: "p-eleven" }));
     const ctrl = new CreateController({ scaffold, beginCreate: vi.fn() });
     await ctrl.create("chủ đề", [], { voiceProvider: "elevenlabs" });
-    expect(scaffold).toHaveBeenCalledWith("chủ đề", "elevenlabs", "vi");
+    expect(scaffold).toHaveBeenCalledWith("chủ đề", "elevenlabs", "vi", { format: "tiktok", durationTier: 1 });
   });
 
-  it("defaults the authored video language to Vietnamese", async () => {
+  it("defaults the authored video language to Vietnamese with fixed short-form delivery", async () => {
     const { deps: d, began } = deps();
     const ctrl = new CreateController(d);
     await ctrl.create("chủ đề");
-    expect(began[0]!.input.format).toBeUndefined();
-    expect(began[0]!.input.durationTier).toBeUndefined();
+    expect(began[0]!.input.format).toBe("tiktok");
+    expect(began[0]!.input.durationTier).toBe(1);
     expect(began[0]!.input.videoLanguage).toBe("vi");
   });
 

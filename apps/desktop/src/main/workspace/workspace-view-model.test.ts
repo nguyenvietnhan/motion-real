@@ -66,12 +66,12 @@ describe("workspace view model helpers", () => {
         title: "",
         hashtags: [],
         thumbnailPath: "media://thumbnail.png",
-        format: "youtube",
+        format: "tiktok",
       }),
     ).toEqual({
       kind: "published",
       outputPath: "media://out.mp4",
-      format: "youtube",
+      format: "tiktok",
       thumbnailPath: "media://thumbnail.png",
     });
   });

@@ -124,19 +124,17 @@ describe("N14 checkInFrame (format-aware edge ring)", () => {
     expect(issues.some((i) => i.check === "N14")).toBe(true);
     expect(issues.every((i) => i.severity === "warning")).toBe(true);
   });
-  it("youtube (16:9): fires when content bleeds into the edge ring", () => {
-    const g = geometry("youtube");
+  it("fires when content bleeds into the right edge ring", () => {
+    const g = geometry("tiktok");
     const f = makeFrame(g.canvas.width, g.canvas.height);
     paint(f, { x: g.canvas.width - 8, y: 0, width: 8, height: g.canvas.height }, WHITE); // flush on the right edge
     expect(checkInFrame(f, g, "scene-01").some((i) => i.check === "N14")).toBe(true);
   });
-  it("passes for both formats when content stays in the center", () => {
-    for (const fmt of ["tiktok", "youtube"] as const) {
-      const g = geometry(fmt);
-      const f = makeFrame(g.canvas.width, g.canvas.height);
-      paint(f, { x: Math.floor(g.canvas.width / 2) - 100, y: Math.floor(g.canvas.height / 2) - 100, width: 200, height: 200 }, WHITE);
-      expect(checkInFrame(f, g)).toEqual([]);
-    }
+  it("passes when content stays in the center", () => {
+    const g = geometry("tiktok");
+    const f = makeFrame(g.canvas.width, g.canvas.height);
+    paint(f, { x: Math.floor(g.canvas.width / 2) - 100, y: Math.floor(g.canvas.height / 2) - 100, width: 200, height: 200 }, WHITE);
+    expect(checkInFrame(f, g)).toEqual([]);
   });
 });
 
@@ -531,8 +529,8 @@ describe("runRenderGrid aggregator", () => {
     return encodePngRGBA(f.width, f.height, f.data);
   }
 
-  function fullFrame(format: "tiktok" | "youtube", rect: Rect): Buffer {
-    const g = geometry(format);
+  function fullFrame(rect: Rect): Buffer {
+    const g = geometry("tiktok");
     const f = makeFrame(g.canvas.width, g.canvas.height);
     paint(f, rect, WHITE);
     return encodePngRGBA(f.width, f.height, f.data);
@@ -561,26 +559,26 @@ describe("runRenderGrid aggregator", () => {
     expect(report.issues.some((i) => i.sceneId === "scene-02" && /could not load still/i.test(i.message))).toBe(true);
   });
 
-  it("runs the format-aware in-frame oracle for YouTube stills", async () => {
-    const g = geometry("youtube");
-    await writeFile(join(dir, "scene-01.png"), fullFrame("youtube", { x: g.canvas.width - 8, y: 0, width: 8, height: g.canvas.height }));
+  it("runs the in-frame oracle for short-form stills", async () => {
+    const g = geometry("tiktok");
+    await writeFile(join(dir, "scene-01.png"), fullFrame({ x: g.canvas.width - 8, y: 0, width: 8, height: g.canvas.height }));
     const locked = lockedFixture({
-      format: "youtube",
-      ratio: "16:9",
+      format: "tiktok",
+      ratio: "9:16",
       language: "en",
       scenes: [scene("scene-01", 0, 600, "one short line")],
     });
 
     const report = await runRenderGrid(locked, { framesDir: dir });
 
-    expect(report.issues.some((i) => i.check === "N14" && /youtube frame edge ring/.test(i.message))).toBe(true);
+    expect(report.issues.some((i) => i.check === "N14" && /frame edge ring|edge ring/i.test(i.message))).toBe(true);
   });
 
-  it("does not run TikTok caption/divider zone oracles for YouTube stills", async () => {
-    await writeFile(join(dir, "scene-01.png"), fullFrame("youtube", { x: 220, y: 768, width: 1000, height: 10 }));
+  it("runs TikTok caption/divider zone oracles on short-form stills", async () => {
+    await writeFile(join(dir, "scene-01.png"), fullFrame({ x: 220, y: 768, width: 1000, height: 10 }));
     const locked = lockedFixture({
-      format: "youtube",
-      ratio: "16:9",
+      format: "tiktok",
+      ratio: "9:16",
       language: "en",
       scenes: [scene("scene-01", 0, 600, "one short line")],
     });
@@ -592,7 +590,7 @@ describe("runRenderGrid aggregator", () => {
   });
 
   it("does not auto-run above-divider clearance when the production divider is absent", async () => {
-    await writeFile(join(dir, "scene-01.png"), fullFrame("tiktok", { x: 120, y: 1338, width: 500, height: 10 }));
+    await writeFile(join(dir, "scene-01.png"), fullFrame({ x: 120, y: 1338, width: 500, height: 10 }));
     const locked = lockedFixture({
       scenes: [scene("scene-01", 0, 600, "tu mot hai ba bon")],
     });
@@ -603,7 +601,7 @@ describe("runRenderGrid aggregator", () => {
   });
 
   it("can still run above-divider clearance when a divider profile opts in", async () => {
-    await writeFile(join(dir, "scene-01.png"), fullFrame("tiktok", { x: 120, y: 1338, width: 500, height: 10 }));
+    await writeFile(join(dir, "scene-01.png"), fullFrame({ x: 120, y: 1338, width: 500, height: 10 }));
     const locked = lockedFixture({
       scenes: [scene("scene-01", 0, 600, "tu mot hai ba bon")],
     });

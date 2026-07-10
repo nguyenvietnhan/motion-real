@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import type { ProjectCardVM, StagedImage, PickImagesResult, DroppedImage, VideoFormatChoice, DurationTierChoice, VideoLanguageChoice, VoiceProviderChoice } from "../../shared/types.js";
+import type { ProjectCardVM, StagedImage, PickImagesResult, DroppedImage, VideoLanguageChoice, VoiceProviderChoice } from "../../shared/types.js";
 import type { GalleryLoad } from "../../shared/gallery-controller.js";
 import { validateCreateInput, extractUrls } from "../../shared/create-validation.js";
 import { Icon } from "../icons.js";
@@ -32,10 +32,8 @@ function rejectedImageDetails(rejected: PickImagesResult["rejected"]): string {
  * A compact delivery-knob button : a short pill showing an
  * icon + the current value, sitting inline next to the "+" attach button. Click
  * it to open a small popover of mutually-exclusive options; the choice closes the
- * popover. Generic over the option value so format / tier / video-language stay
- * type-safe. `open`/`onToggle` are lifted to the parent so only ONE knob popover
- * is open at a time. Keeping each knob a separate button (rather than one big
- * "Tùy chỉnh" panel) means a non-technical user only ever sees three tidy chips.
+ * popover. Generic over the option value so language / voice stay type-safe.
+ * `open`/`onToggle` are lifted so only ONE knob popover is open at a time.
  */
 function KnobButton<T extends string | number>(props: {
   icon: React.ReactNode;
@@ -143,7 +141,7 @@ export const HomeView: React.FC<{
   onCreate: (
     raw: string,
     images: StagedImage[],
-    choices: { format: VideoFormatChoice; durationTier: DurationTierChoice; videoLanguage: VideoLanguageChoice; voiceProvider: VoiceProviderChoice },
+    choices: { videoLanguage: VideoLanguageChoice; voiceProvider: VoiceProviderChoice },
   ) => void | Promise<void>;
   onOpen: (projectId: string) => void;
   onConnectPrompt: () => void;
@@ -172,11 +170,7 @@ export const HomeView: React.FC<{
   const [images, setImages] = useState<StagedImage[]>([]);
   const [dragOver, setDragOver] = useState(false);
   const notify = useNotifications();
-  // The three delivery knobs the user picks at create time. The backend threads
-  // these into the prompt + spec — the model never chooses them. Defaults:
-  // TikTok / tier 1 / Vietnamese video.
-  const [format, setFormat] = useState<VideoFormatChoice>("tiktok");
-  const [durationTier, setDurationTier] = useState<DurationTierChoice>(1);
+  // Language + voice only. Format/duration are fixed short-form on the backend.
   const [videoLanguage, setVideoLanguage] = useState<VideoLanguageChoice>("vi");
   const [voiceProvider, setVoiceProvider] = useState<VoiceProviderChoice>(defaultVoiceProvider);
   const [creating, setCreating] = useState(false);
@@ -231,7 +225,7 @@ export const HomeView: React.FC<{
   }, []);
   // Which delivery-knob popover is open (only one at a time); null = all closed.
   // Each knob is its own inline chip next to "+", revealing its options on click.
-  const [openKnob, setOpenKnob] = useState<null | "format" | "duration" | "language" | "voice">(null);
+  const [openKnob, setOpenKnob] = useState<null | "language" | "voice">(null);
   useEffect(() => {
     const selection = applyVoiceProviderSelection(defaultVoiceProvider, videoLanguage);
     setVoiceProvider(selection.voiceProvider);
@@ -372,7 +366,7 @@ export const HomeView: React.FC<{
     }
     setCreating(true);
     try {
-      void Promise.resolve(onCreate(raw, images, { format, durationTier, videoLanguage, voiceProvider })).finally(() => setCreating(false));
+      void Promise.resolve(onCreate(raw, images, { videoLanguage, voiceProvider })).finally(() => setCreating(false));
     } catch (error) {
       setCreating(false);
       throw error;
@@ -450,49 +444,6 @@ export const HomeView: React.FC<{
             <span className="ns-settings-section-title">Cấu hình video</span>
             
             <div className="ns-settings-horizontal-grid">
-              <div className="ns-setting-column">
-                <span className="ns-setting-label">Định dạng</span>
-                <KnobButton
-                  icon={Icon.ratio({ size: 14 })}
-                  title="Định dạng"
-                  value={format}
-                  open={openKnob === "format"}
-                  onToggle={() => setOpenKnob((k) => (k === "format" ? null : "format"))}
-                  onClose={() => setOpenKnob(null)}
-                  onChange={setFormat}
-                  options={[
-                    { value: "tiktok", label: "TikTok 9:16" },
-                    { value: "youtube", label: "YouTube 16:9", warn: "Video ngang dài hơn nên thời gian dựng và lượng quota tiêu thụ sẽ cao hơn TikTok." },
-                  ]}
-                />
-              </div>
-
-              <div className="ns-setting-column">
-                <span className="ns-setting-label">Thời lượng</span>
-                <KnobButton
-                  icon={Icon.clock({ size: 14 })}
-                  title="Thời lượng"
-                  value={durationTier}
-                  open={openKnob === "duration"}
-                  onToggle={() => setOpenKnob((k) => (k === "duration" ? null : "duration"))}
-                  onClose={() => setOpenKnob(null)}
-                  onChange={setDurationTier}
-                  options={
-                    format === "youtube"
-                      ? [
-                          { value: 1, label: "5:00" },
-                          { value: 2, label: "7:30" },
-                          { value: 3, label: "10:00" },
-                        ]
-                      : [
-                          { value: 1, label: "0:45" },
-                          { value: 2, label: "1:30" },
-                          { value: 3, label: "2:30" }
-                        ]
-                  }
-                />
-              </div>
-
               <div className="ns-setting-column">
                 <span className="ns-setting-label">Ngôn ngữ</span>
                 <KnobButton

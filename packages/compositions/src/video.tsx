@@ -139,17 +139,9 @@ export const VideoComposition: React.FC<VideoCompositionProps> = ({ spec, measur
         </TransitionSeries>
 
         {spec.audio.narrationSrc ? <Audio src={resolveAudio(spec.audio.narrationSrc)} /> : null}
-        {/* Caption band is a TikTok (9:16) concern only: YouTube ships its own
-            native captions, so a 16:9 video mounts neither the burned karaoke
-            track nor the optional content divider. It uses the full frame.
-            `format` defaults to "tiktok" for any spec authored before the field
-            existed, so vertical videos are unchanged. */}
-        {spec.format !== "youtube" ? (
-          <>
-            <CaptionDivider color={theme.colors.fg} />
-            <Captions cues={spec.captions ?? []} />
-          </>
-        ) : null}
+        {/* Short-form 9:16 always burns captions + content divider. */}
+        <CaptionDivider color={theme.colors.fg} />
+        <Captions cues={spec.captions ?? []} />
         {measure ? <LayoutProbe /> : null}
       </CompositionBackdrop>
     </ThemeProvider>

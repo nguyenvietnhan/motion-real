@@ -118,11 +118,6 @@
   max-width: 48%;
   object-fit: contain;
 }
-.ns-project-thumb.is-youtube .ns-project-media {
-  width: 100%;
-  max-width: 100%;
-  object-fit: cover;
-}
 .ns-project:hover .ns-project-media {
   transform: scale(1.05);
 }

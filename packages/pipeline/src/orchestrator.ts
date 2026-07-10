@@ -145,7 +145,7 @@ export async function scaffoldVideoProject(opts: ScaffoldVideoProjectOptions): P
     duration,
     ...(opts.format ? { format: opts.format } : {}),
     ...(opts.durationTier ? { durationTier: opts.durationTier } : {}),
-    ratio: format === "youtube" ? "16:9" : "9:16",
+    ratio: "9:16",
     language: opts.language ?? "vi",
     aiProvider: "mock" as AiProvider,
     tts: {
@@ -867,31 +867,29 @@ type LateSafeAreaWarningPassArgs = {
 };
 
 /**
- * External late-sample N14 warning pass. YouTube skips this TikTok caption-band
- * scan; TikTok issues are warnings and only land in the aggregate report.
+ * External late-sample N14 warning pass (short-form caption-band scan).
+ * Issues are warnings and only land in the aggregate report.
  */
 async function runLateSafeAreaWarningPass(args: LateSafeAreaWarningPassArgs): Promise<SafetyIssue[]> {
-  const issues = args.format === "youtube"
-    ? []
-    : await args.timedPipelineStage(
-        "stage.late_safe_area",
-        async () => {
-          const out: SafetyIssue[] = [];
-          for (const scene of args.locked.scenes) {
-            for (const fraction of args.fractions) {
-              const latePath = join(args.reviewDir, `${scene.id}.f${Math.round(fraction * 100)}.png`);
-              try {
-                const frame = decodePng(await readFile(latePath));
-                out.push(...checkLateSafeArea(frame, scene.id, args.renderGridOptions));
-              } catch {
-                /* no late still for this scene/fraction -> nothing to scan */
-              }
-            }
+  const issues = await args.timedPipelineStage(
+    "stage.late_safe_area",
+    async () => {
+      const out: SafetyIssue[] = [];
+      for (const scene of args.locked.scenes) {
+        for (const fraction of args.fractions) {
+          const latePath = join(args.reviewDir, `${scene.id}.f${Math.round(fraction * 100)}.png`);
+          try {
+            const frame = decodePng(await readFile(latePath));
+            out.push(...checkLateSafeArea(frame, scene.id, args.renderGridOptions));
+          } catch {
+            /* no late still for this scene/fraction -> nothing to scan */
           }
-          return out;
-        },
-        { fractions: args.fractions.length },
-      );
+        }
+      }
+      return out;
+    },
+    { fractions: args.fractions.length },
+  );
   await args.appendProjectEvent({ type: "render.latesafearea", issues: issues.length });
   return issues;
 }

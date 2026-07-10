@@ -62,14 +62,14 @@ describe("renderThumbnail", () => {
 
   it("uses the manifest's actual first scene and delivery format", async () => {
     mocks.loadManifest.mockResolvedValueOnce({
-      format: "youtube",
+      format: "tiktok",
       scenes: [{ id: "intro", component: "intro-scene" }],
     });
 
     const result = await renderThumbnail("p1");
 
     expect(mocks.renderProjectStillsUnlocked).toHaveBeenCalledWith("p1", { sceneIds: ["intro"] });
-    expect(result.format).toBe("youtube");
+    expect(result.format).toBe("tiktok");
   });
 
   it("restores the published full-render lock after a successful cover render", async () => {

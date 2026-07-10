@@ -239,9 +239,6 @@ describe("scaffoldVideoProject — R8/R10", () => {
       { format: "tiktok", durationTier: 1, seconds: 45 },
       { format: "tiktok", durationTier: 2, seconds: 90 },
       { format: "tiktok", durationTier: 3, seconds: 150 },
-      { format: "youtube", durationTier: 1, seconds: 300 },
-      { format: "youtube", durationTier: 2, seconds: 450 },
-      { format: "youtube", durationTier: 3, seconds: 600 },
     ];
 
     for (const item of cases) {

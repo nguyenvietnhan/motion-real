@@ -42,32 +42,15 @@ describe("layout zones", () => {
   });
 });
 
-describe("geometry(format)", () => {
-  it("tiktok returns the exact vertical globals (zero regression)", () => {
+describe("geometry", () => {
+  it("returns the short-form 9:16 globals", () => {
     const g = geometry("tiktok");
     expect(g.format).toBe("tiktok");
     expect(g.canvas).toEqual({ width: CANVAS.width, height: CANVAS.height });
     expect(g.contentZone).toEqual(CONTENT_ZONE);
     expect(g.captionBand).toEqual(CAPTION_BAND);
     expect(g.uiReserve).toEqual({ bottom: UI_RESERVE.bottom, right: UI_RESERVE.right });
-  });
-
-  it("youtube is 16:9 with no caption band and no UI reserve", () => {
-    const g = geometry("youtube");
-    expect(g.format).toBe("youtube");
-    expect(g.canvas).toEqual({ width: 1920, height: 1080 });
-    expect(g.captionBand).toBeNull();
-    expect(g.uiReserve).toEqual({ bottom: 0, right: 0 });
-    // content zone sits inside the canvas with a thin margin on every side.
-    expect(g.contentZone.top).toBeGreaterThan(0);
-    expect(g.contentZone.left).toBeGreaterThan(0);
-    expect(g.contentZone.right).toBeLessThan(g.canvas.width);
-    expect(g.contentZone.bottom).toBeLessThan(g.canvas.height);
-  });
-
-  it("both formats expose a positive safe-margin ring", () => {
-    expect(geometry("tiktok").safeMargin).toBeGreaterThan(0);
-    expect(geometry("youtube").safeMargin).toBeGreaterThan(0);
+    expect(g.safeMargin).toBeGreaterThan(0);
   });
 });
 

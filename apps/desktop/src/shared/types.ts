@@ -79,9 +79,9 @@ export type PickImagesResult = {
   rejected: { name: string; reason: string }[];
 };
 
-/** Delivery format the user picks at the create screen (drives canvas + zones + caption presence). */
-export type VideoFormatChoice = "tiktok" | "youtube";
-/** Duration tier (1/2/3) the user picks; maps to per-format second targets. */
+/** Delivery format — short-form 9:16 only. */
+export type VideoFormatChoice = "tiktok";
+/** Duration tier (1/2/3) for pacing; new creates always use tier 1. */
 export type DurationTierChoice = 1 | 2 | 3;
 /** Authored video language the user picks: content, narration, captions, title, hashtags. */
 export type VideoLanguageChoice = "vi" | "en";
@@ -90,9 +90,9 @@ export type CreateInput = {
   raw: string;
   /** TTS provider captured into the project brief at create time. */
   voiceProvider?: VoiceProviderChoice;
-  /** Delivery format (default tiktok). */
+  /** Always tiktok for new creates (optional for older call sites). */
   format?: VideoFormatChoice;
-  /** Duration tier the word-budget aims at (default 1). */
+  /** Always tier 1 for new creates (optional for older call sites). */
   durationTier?: DurationTierChoice;
   /** Authored video language (default vi). */
   videoLanguage?: VideoLanguageChoice;

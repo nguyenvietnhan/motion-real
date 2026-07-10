@@ -13,12 +13,10 @@ describe("parseVoiceProvider", () => {
 });
 
 describe("createControllerArgsFromIpc", () => {
-  it("preserves raw text, format, tier, language, voice provider, and images", () => {
+  it("preserves raw text, language, voice provider, and images", () => {
     expect(
       createControllerArgsFromIpc({
         raw: "chủ đề",
-        format: "youtube",
-        durationTier: 2,
         videoLanguage: "en",
         voiceProvider: "elevenlabs",
         images: [{ ref: "staging/aa.png", width: 800, height: 600 }],
@@ -27,8 +25,6 @@ describe("createControllerArgsFromIpc", () => {
       raw: "chủ đề",
       images: [{ ref: "staging/aa.png", width: 800, height: 600 }],
       choices: {
-        format: "youtube",
-        durationTier: 2,
         videoLanguage: "en",
         voiceProvider: "elevenlabs",
       },

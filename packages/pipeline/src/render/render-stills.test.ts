@@ -153,12 +153,8 @@ describe("renderProjectStills", () => {
     expect(timingEvents.map((event) => event.name)).toEqual(expect.arrayContaining(timings.map((timing) => timing.name)));
   });
 
-  it("is format-agnostic: a 16:9 (YouTube) spec renders stills the same way as 9:16", async () => {
-    // L6: the stills path is ONE code path for both formats — it reads the spec's
-    // own `format` via loadManifestAsSpec (the composition sizes itself off it), so
-    // a YouTube project produces review PNGs exactly like a TikTok one. No separate
-    // "thumbnail vs video" pipeline; both go through renderProjectStills → review/.
-    mocks.loadManifestAsSpec.mockResolvedValueOnce({ ...SPEC, format: "youtube", ratio: "16:9" });
+  it("renders stills for short-form 9:16 specs into review/", async () => {
+    mocks.loadManifestAsSpec.mockResolvedValueOnce({ ...SPEC, format: "tiktok", ratio: "9:16" });
     const res = await renderProjectStills("proj-1");
     expect(mocks.renderSceneStills).toHaveBeenCalledTimes(1);
     const reviewDir = projectPaths("proj-1").reviewDir;

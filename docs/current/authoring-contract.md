@@ -196,5 +196,4 @@ For TikTok 9:16, keep primary content in the upper content zone and leave the
 caption/platform reserve clear. These layout checks are advisory warnings for
 refine unless live code marks a class as hard render-integrity failure.
 
-For YouTube format, there is no burned caption band. Long-form YouTube
-author-by-segment is out of scope unless the owner explicitly requests it.
+The product is short-form 9:16 only; always leave the burned caption band clear.

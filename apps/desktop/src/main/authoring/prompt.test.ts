@@ -789,16 +789,8 @@ describe("buildAuthorMessages", () => {
     expect(text).toMatch(/phụ đề/i); // caption band the author must keep clear of
   });
 
-  it("YouTube: horizontal 16:9 framing + explicitly NO burned caption band", () => {
-    const [sys] = buildAuthorMessages({ text: "Chủ đề", urls: [], format: "youtube" });
-    const text = sys!.content;
-    expect(text).toMatch(/16:9/);
-    expect(text).toMatch(/KHÔNG.*phụ đề|không.*băng phụ đề/i);
-  });
-
-  it("word budget scales with the chosen duration tier (per-format seconds × measured rate)", () => {
-    // Tier maps to per-format seconds (TikTok 45/90/150); the budget is seconds ×
-    // 4.7 w/s. A higher tier ⇒ a visibly larger word target in the prompt.
+  it("word budget scales with the chosen duration tier (seconds × measured rate)", () => {
+    // Tier maps to short-form seconds (45/90/150); the budget is seconds × 4.7 w/s.
     const [t1] = buildAuthorMessages({ text: "X", urls: [], format: "tiktok", durationTier: 1 });
     const [t3] = buildAuthorMessages({ text: "X", urls: [], format: "tiktok", durationTier: 3 });
     expect(t1!.content).toMatch(/45 giây/);
@@ -809,18 +801,16 @@ describe("buildAuthorMessages", () => {
   });
 
   it("video-language rule applies to title, display text, narration, and captions", () => {
-    // vi (default) on TikTok: under 100 chars + a SEPARATE hashtags field (kept
-    // out of the title so the title doubles as a clean project name, D9/H3).
+    // vi (default): under 100 chars + a SEPARATE hashtags field.
     const [vi] = buildAuthorMessages({ text: "X", urls: [], format: "tiktok", videoLanguage: "vi" });
     expect(vi!.content).toMatch(/100 ký tự/);
     expect(vi!.content).toMatch(/hashtag/i);
-    // The hashtags must NOT be baked into the title (separate "hashtags" field).
     expect(vi!.content).toMatch(/KHÔNG nhồi hashtag vào trong "title"|field RIÊNG "hashtags"/);
     expect(vi!.content).toMatch(/TOÀN BỘ.*TIẾNG VIỆT|Hiển thị \+ lời đọc: tiếng Việt/is);
 
-    // en on YouTube: under 200 chars, no hashtag requirement, all video content English.
-    const [en] = buildAuthorMessages({ text: "X", urls: [], format: "youtube", videoLanguage: "en" });
-    expect(en!.content).toMatch(/200 ký tự/);
+    // en short-form: under 100 chars, all video content English.
+    const [en] = buildAuthorMessages({ text: "X", urls: [], format: "tiktok", videoLanguage: "en" });
+    expect(en!.content).toMatch(/100 ký tự/);
     expect(en!.content).toMatch(/TIẾNG ANH/);
     expect(en!.content).toMatch(/title.*hashtags.*eyebrow\/headline\/body.*narration.*CTA/is);
     expect(en!.content).toMatch(/KHÔNG xen câu tiếng Việt|Không để sót câu tiếng Việt/i);

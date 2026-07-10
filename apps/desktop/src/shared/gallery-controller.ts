@@ -45,13 +45,9 @@ function thumbnailOf(summary: ProjectSummary): string | null {
   return summary.hasRender ? `${summary.root}/review/scene-01.png` : null;
 }
 
-function formatOf(summary: ProjectSummary): ProjectCardVM["format"] {
-  const format = summary.brief?.format;
-  if (format === "tiktok" || format === "youtube") return format;
-  // Older project folders may only carry the derived ratio. Keep reading it
-  // defensively so the gallery card remains correct across persisted versions.
-  const ratio = summary.brief?.ratio;
-  return ratio === "16:9" ? "youtube" : "tiktok";
+function formatOf(_summary: ProjectSummary): ProjectCardVM["format"] {
+  // Product is short-form 9:16 only.
+  return "tiktok";
 }
 
 export function toCards(summaries: ProjectSummary[]): ProjectCardVM[] {

@@ -118,7 +118,7 @@ export function readableOn(fillHex: string, dark: string, light: string): string
 
 // --- Fixed constants ------------------------------------------------------
 
-/** The 9:16 canvas (TikTok). YouTube 16:9 geometry lives in `@motionreal/schema`'s `geometry`. */
+/** The short-form 9:16 canvas (matches `@motionreal/schema` geometry). */
 export const CANVAS = { width: 1080, height: 1920 } as const;
 
 /** Fallback dominant when a spec carries no palette (a punchy blue that reads on the dark base). */
@@ -498,7 +498,7 @@ export function sceneBackground(t: Theme = theme): string {
 /** Short design-system note surfaced to tooling (doctor). */
 export const designNotes = `## Neutral theme (freeform)
 
-Một theme trung tính DUY NHẤT cho video 9:16/16:9: nền tối gần đen, chữ gần trắng,
+Một theme trung tính DUY NHẤT cho video 9:16: nền tối gần đen, chữ gần trắng,
 một màu nhấn theo dominant, bo góc vừa, font render-safe (Inter + Cascadia Mono).
 A.I tự quyết toàn bộ màu/bố cục trong code cảnh. Theme này chỉ phục vụ runtime
 internals như captions, thumbnail, backdrop và SceneImage; authored scenes không

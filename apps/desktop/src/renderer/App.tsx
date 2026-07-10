@@ -284,8 +284,6 @@ const AppShell: React.FC = () => {
                 .create({
                   raw,
                   ...(images.length > 0 ? { images: images.map((s) => ({ ref: s.ref, width: s.width, height: s.height })) } : {}),
-                  ...(choices.format ? { format: choices.format } : {}),
-                  ...(choices.durationTier ? { durationTier: choices.durationTier } : {}),
                   videoLanguage: choices.videoLanguage,
                   voiceProvider: choices.voiceProvider,
                 })

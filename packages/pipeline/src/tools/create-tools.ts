@@ -129,7 +129,7 @@ export const scaffoldProjectInput = z.object({
   prompt: z.string().min(1),
   projectId: z.string().min(1).optional(),
   duration: z.union([z.literal(60), z.literal(90), z.literal(120), z.literal(180)]).optional(),
-  format: z.enum(["tiktok", "youtube"]).optional(),
+  format: z.literal("tiktok").optional(),
   durationTier: z.union([z.literal(1), z.literal(2), z.literal(3)]).optional(),
   language: z.enum(["vi", "en"]).optional(),
   ttsProvider: z.enum(["vivibe", "elevenlabs"]).optional(),

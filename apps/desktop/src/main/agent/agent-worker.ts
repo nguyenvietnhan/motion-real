@@ -29,13 +29,9 @@ export const AUTHORING_CONTRACT_REF = "AI_CONTRACT.md+docs/current" as const;
  * links found in it to fetch for grounding (best-effort, never a hard gate), and
  * any local images the user attached for the AI to place (create-time image staging).
  *
- * The create screen picks three delivery knobs the
- * backend threads into the prompt + spec (it never lets the model choose them):
- * `format` (TikTok 9:16 / YouTube 16:9 → canvas + caption presence), `durationTier`
- * (the word-budget bucket, see `tierSeconds`), and `videoLanguage` (vi/en for the
- * whole authored video: title, on-screen text, narration, captions). All optional: absent ⇒ the
- * backend's defaults (tiktok / tier 1 / vi). Style selection is not part of the
- * authoring input; the multi-style design system was removed.
+ * Delivery is fixed short-form 9:16 (`format: "tiktok"`, default `durationTier: 1`).
+ * `videoLanguage` (vi/en) is the user-facing language for title, on-screen text,
+ * narration, and captions. Optional fields default to tiktok / tier 1 / vi.
  */
 export type AuthorInput = {
   text: string;

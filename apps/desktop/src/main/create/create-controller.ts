@@ -50,7 +50,7 @@ export interface CreateDeps {
     prompt: string,
     voiceProvider: VoiceProviderChoice,
     videoLanguage: VideoLanguageChoice,
-    delivery?: { format?: VideoFormatChoice; durationTier?: DurationTierChoice },
+    delivery?: { format: VideoFormatChoice; durationTier: DurationTierChoice },
   ) => Promise<{ ok: true; projectId: string } | { ok: false; error: SerializedPipelineError }>;
   /**
    * Hand the brief off to the WorkspaceController. With a link this runs the
@@ -86,8 +86,6 @@ export class CreateController {
     raw: string,
     images: StagedImageRef[] = [],
     choices: {
-      format?: VideoFormatChoice;
-      durationTier?: DurationTierChoice;
       videoLanguage?: VideoLanguageChoice;
       voiceProvider?: VoiceProviderChoice;
     } = {},
@@ -104,13 +102,9 @@ export class CreateController {
     }
     const block = this.deps.preflight?.(voiceProvider, videoLanguage);
     if (block) throw new Error(block);
-    const delivery = {
-      ...(choices.format ? { format: choices.format } : {}),
-      ...(choices.durationTier ? { durationTier: choices.durationTier } : {}),
-    };
-    const res = choices.format || choices.durationTier
-      ? await this.deps.scaffold(v.brief.text, voiceProvider, videoLanguage, delivery)
-      : await this.deps.scaffold(v.brief.text, voiceProvider, videoLanguage);
+    // Short-form only: always TikTok 9:16, duration tier 1 (≈45s pacing target).
+    const delivery = { format: "tiktok" as const, durationTier: 1 as const };
+    const res = await this.deps.scaffold(v.brief.text, voiceProvider, videoLanguage, delivery);
     if (!res.ok) throw new Error(toFriendlyError(res.error).message); // redacted friendly message
     // Promote staged images into the project before authoring so the first draft
     // can place them. A promote failure never blocks create — the brief still
@@ -128,12 +122,9 @@ export class CreateController {
       text: v.brief.text,
       urls: v.brief.urls,
       ...(promoted.length > 0 ? { images: promoted } : {}),
-      // The three delivery knobs the user picked at the create screen:
-      // format + duration tier + video language. Folded into the AuthorInput so they
-      // survive an in-session "retry" (which re-runs from the remembered input); the
-      // backend threads them into the prompt + spec (the model never chooses them).
-      ...(choices.format ? { format: choices.format } : {}),
-      ...(choices.durationTier ? { durationTier: choices.durationTier } : {}),
+      // Fixed short-form delivery + video language for retry/recall.
+      format: "tiktok",
+      durationTier: 1,
       videoLanguage,
     }); // hand off to workspace stage 1
     return { projectId: res.projectId };

@@ -253,8 +253,7 @@ const ThumbnailPanel: React.FC<{
   format: VideoFormatChoice;
   onGenerate: () => Promise<{ thumbnailUrl: string } | null>;
   onSave: () => Promise<{ saved: boolean; error?: string }>;
-}> = ({ thumbnailPath, format, onGenerate, onSave }) => {
-  const isTikTok = format !== "youtube";
+}> = ({ thumbnailPath, format: _format, onGenerate, onSave }) => {
   const [generating, setGenerating] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -318,7 +317,7 @@ const ThumbnailPanel: React.FC<{
 
   return (
     <div className="ns-publish-section ns-cover-section">
-      <span className="ns-publish-eyebrow">{isTikTok ? "Ảnh bìa" : "Thumbnail YouTube"}</span>
+      <span className="ns-publish-eyebrow">Ảnh bìa</span>
       {!shownUrl && (
         <div className="ns-cover-actions">
           <button className="ns-btn" onClick={generate} disabled={generating}>
@@ -327,7 +326,7 @@ const ThumbnailPanel: React.FC<{
         </div>
       )}
       {shownUrl && (
-        <div className={`ns-cover-media${isTikTok ? "" : " is-landscape"}`}>
+        <div className="ns-cover-media">
           <button
             type="button"
             className="ns-cover-preview"
@@ -476,9 +475,9 @@ export const ProjectWorkspaceView: React.FC<{
         // a subordinate section. The preview no longer pushes everything down a
         // single narrow centred column.
         <div className="ns-publish">
-          <div className={`ns-publish-preview${stage.format === "youtube" ? " is-landscape" : ""}`}>
+          <div className="ns-publish-preview">
             <video
-              className={`ns-publish-video${stage.format === "youtube" ? " is-landscape" : ""}`}
+              className="ns-publish-video"
               src={stage.outputPath}
               controls
             />

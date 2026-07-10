@@ -312,8 +312,8 @@ const create = new CreateController({
     const res = await tools.scaffold_project({
       prompt,
       language: videoLanguage,
-      ...(delivery?.format ? { format: delivery.format } : {}),
-      ...(delivery?.durationTier ? { durationTier: delivery.durationTier } : {}),
+      format: delivery?.format ?? "tiktok",
+      durationTier: delivery?.durationTier ?? 1,
       ttsProvider: voiceProvider,
       voiceId: config.voiceId,
       ...(config.modelId ? { modelId: config.modelId } : {}),

@@ -31,7 +31,7 @@ export type ProjectBrief = {
   format?: VideoFormat;
   /** User-selected duration bucket; authoring retries use this to avoid falling back to tier 1 after restart. */
   durationTier?: DurationTier;
-  ratio: "9:16" | "16:9";
+  ratio: "9:16";
   language: VideoLanguage;
   aiProvider: AiProvider;
   tts: {

@@ -12,19 +12,11 @@ function roundRate(wps: number): number {
 }
 
 /**
- * Format-specific framing the model must author to. This
- * REPLACES the deleted per-style "design language" slice: there is no style to
- * read anymore, only the delivery format's hard geometry + caption presence.
- * - TikTok: vertical 9:16, a burned karaoke caption band lives at the bottom, so
- * authored content must keep clear of the bottom strip.
- * - YouTube: horizontal 16:9, NO burned caption (the platform supplies captions),
- * so the scene uses the full frame with a landscape composition.
+ * Short-form framing the model must author to: vertical 9:16 with a burned
+ * karaoke caption band at the bottom.
  */
-export function formatBlock(format: VideoFormat): string {
-  if (format === "youtube") {
-    return `KHUNG HÌNH (YouTube): NGANG 16:9 (1920×1080). KHÔNG có dải phụ đề cháy-chữ (nền tảng tự hiển thị phụ đề) — KHÔNG tự vẽ băng phụ đề ở đáy. Bố cục theo chiều NGANG, tận dụng cả bề ngang khung; tránh dồn mọi thứ vào một cột hẹp giữa màn hình.`;
-  }
-  return `KHUNG HÌNH (TikTok): DỌC 9:16 (1080×1920). Có dải phụ đề cháy-chữ (karaoke) ở ĐÁY khung do hệ thống tự chèn — CHỪA vùng đáy cho phụ đề, KHÔNG đặt nội dung quan trọng sát đáy. Bố cục theo chiều DỌC.`;
+export function formatBlock(_format: VideoFormat = "tiktok"): string {
+  return `KHUNG HÌNH (TikTok/Reels/Shorts): DỌC 9:16 (1080×1920). Có dải phụ đề cháy-chữ (karaoke) ở ĐÁY khung do hệ thống tự chèn — CHỪA vùng đáy cho phụ đề, KHÔNG đặt nội dung quan trọng sát đáy. Bố cục theo chiều DỌC.`;
 }
 
 /**
@@ -55,10 +47,7 @@ export function languageBlock(format: VideoFormat, videoLanguage: VideoLanguage)
   const contentRule = videoLanguage === "en"
     ? `TOÀN BỘ nội dung người xem đọc/nghe phải là TIẾNG ANH tự nhiên: "title", "hashtags", eyebrow/headline/body, narration, CTA và mọi chuỗi chữ tự viết trong JSX/SVG. Chỉ giữ nguyên tên riêng/thương hiệu. KHÔNG xen câu tiếng Việt.`
     : `TOÀN BỘ nội dung người xem đọc/nghe phải là TIẾNG VIỆT tự nhiên: "title", "hashtags", eyebrow/headline/body, narration, CTA và mọi chuỗi chữ tự viết trong JSX/SVG. Giữ tên riêng/thương hiệu/model bằng tiếng Anh khi cần.`;
-  const hashtag =
-    format === "tiktok"
-      ? ` KÈM 3–6 hashtag phù hợp ở field RIÊNG "hashtags" (mảng, mỗi tag bắt đầu bằng "#") — KHÔNG nhồi hashtag vào trong "title" (title là tên dự án nên phải sạch). Hashtag bám ĐÚNG chủ đề (tên riêng, lĩnh vực, từ khoá thật), KHÔNG nhồi tag chung chung "#fyp #viral #xuhuong".`
-      : ` KHÔNG cần hashtags (để mảng rỗng hoặc bỏ qua).`;
+  const hashtag = ` KÈM 3–6 hashtag phù hợp ở field RIÊNG "hashtags" (mảng, mỗi tag bắt đầu bằng "#") — KHÔNG nhồi hashtag vào trong "title" (title là tên dự án nên phải sạch). Hashtag bám ĐÚNG chủ đề (tên riêng, lĩnh vực, từ khoá thật), KHÔNG nhồi tag chung chung "#fyp #viral #xuhuong".`;
   return `NGÔN NGỮ VIDEO: ${contentRule}
 TIÊU ĐỀ ĐĂNG TẢI ("title" trong manifest): viết bằng ${lang}, DƯỚI ${cap} ký tự, KHÔNG kèm hashtag trong title.${hashtag}
 SỨC HÚT TIÊU ĐỀ (title là thứ quyết định người ta CÓ BẤM VÀO hay không — đừng viết mô tả phẳng): (a) phải có MÓC — một con số cụ thể, một nghịch lý, hoặc một khoảng-trống-tò-mò khiến người xem muốn biết tiếp; KHÔNG mô tả chung chung kiểu "Tìm hiểu về X" / "Những điều cần biết về Y" / "X là gì". (b) CỤ THỂ + động từ mạnh, không sáo rỗng. (c) CẤM clickbait rỗng: tiêu đề phải đúng với nội dung video, KHÔNG hứa điều video không trả lời, KHÔNG bịa số/chi tiết để câu view. Ví dụ — NHẠT: "Tìm hiểu về trí tuệ nhân tạo trong năm 2026." → SẮC: "AI vẽ xong trong 4 giây thứ hoạ sĩ mất cả tuần — và đây là cách."`;

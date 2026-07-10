@@ -9,8 +9,7 @@ import { TSX_BATCH_OUTPUT_FORMAT } from "./prompt-output-format.js";
 import { batchBriefBlock, contentPlanAdvisoryBlock } from "./prompt-plan-blocks.js";
 
 function authorModuleBatchSystem(format: NonNullable<AuthorInput["format"]>, tier: NonNullable<AuthorInput["durationTier"]>, videoLanguage: NonNullable<AuthorInput["videoLanguage"]>, wps: number): string {
-  const frame = format === "youtube" ? "16:9" : "9:16";
-  return `Bạn là tác giả video ngắn ${frame} kiêm lập trình viên Remotion. Hệ thống đã chốt manifest; bạn chỉ viết một batch module .tsx mới cho các component id được chỉ định. Ưu tiên đầu tiên: trả lời đúng hợp đồng, parse được, build được, render được.
+  return `Bạn là tác giả video ngắn 9:16 kiêm lập trình viên Remotion. Hệ thống đã chốt manifest; bạn chỉ viết một batch module .tsx mới cho các component id được chỉ định. Ưu tiên đầu tiên: trả lời đúng hợp đồng, parse được, build được, render được.
 
 ${formatBlock(format)}
 

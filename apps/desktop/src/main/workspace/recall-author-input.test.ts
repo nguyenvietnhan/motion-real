@@ -31,9 +31,10 @@ describe("authorInputFromBrief", () => {
     });
   });
 
-  it("keeps older landscape briefs on the YouTube format when no explicit format exists", () => {
-    expect(authorInputFromBrief(brief({ ratio: "16:9", language: "en" }))).toMatchObject({
-      format: "youtube",
+  it("always rehydrates short-form tiktok format", () => {
+    expect(authorInputFromBrief(brief({ language: "en" }))).toMatchObject({
+      format: "tiktok",
+      durationTier: 1,
       videoLanguage: "en",
     });
   });

@@ -33,10 +33,6 @@
   background: #0c0e12;
   object-fit: contain;
 }
-.ns-publish-video.is-landscape,
-.ns-publish-preview.is-landscape .ns-publish-video {
-  aspect-ratio: 16 / 9;
-}
 .ns-publish-rail {
   display: flex;
   flex-direction: column;
@@ -110,10 +106,6 @@
   aspect-ratio: 9 / 16;
   max-width: 100%;
 }
-.ns-cover-media.is-landscape {
-  width: 100%;
-  aspect-ratio: 16 / 9;
-}
 .ns-cover-preview {
   position: relative;
   display: block;
@@ -132,9 +124,6 @@
   width: 100%;
   height: 100%;
   object-fit: contain;
-}
-.ns-publish-preview.is-landscape {
-  aspect-ratio: 16 / 9;
 }
 .ns-publish-preview > video {
   display: block;

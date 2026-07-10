@@ -71,7 +71,7 @@ export type WsScene = { id: string; narration?: string; headline?: string; eyebr
  * `loadManifest` returns the FULL on-disk object, so spreading it on write keeps
  * them intact.
  */
-export type WsManifest = { title?: string; hashtags?: string[]; format?: "tiktok" | "youtube"; scenes: WsScene[] };
+export type WsManifest = { title?: string; hashtags?: string[]; format?: "tiktok"; scenes: WsScene[] };
 
 /**
  * Title length cap on rename, matching the authoring manifest schema's own
@@ -291,15 +291,12 @@ export class WorkspaceController {
   private async publishedStage(projectId: string, outputPath: string): Promise<ProjectStage> {
     let title: string | undefined;
     let hashtags: string[] | undefined;
-    // Format drives the thumbnail UI's aspect (9:16 vs 16:9). Default to tiktok
-    // (the historical vertical default) when the manifest is unreadable.
-    let format: "tiktok" | "youtube" = "tiktok";
+    const format = "tiktok" as const;
     try {
       const manifest = await this.deps.loadManifest(projectId);
       const t = manifest.title?.trim();
       if (t) title = t;
       if (Array.isArray(manifest.hashtags) && manifest.hashtags.length > 0) hashtags = manifest.hashtags;
-      if (manifest.format === "youtube") format = "youtube";
     } catch (e) {
       console.warn(`[workspace] publishedStage: cannot read manifest for ${projectId}:`, e);
     }

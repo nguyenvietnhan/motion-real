@@ -27,7 +27,7 @@ describe("workspace create-flow helpers", () => {
     const input: AuthorInput = {
       text: "brief",
       urls: ["https://article.example/a"],
-      format: "youtube",
+      format: "tiktok",
       durationTier: 2,
       videoLanguage: "en",
       images: [{ ref: "local.png", width: 100, height: 200 }],
@@ -36,7 +36,7 @@ describe("workspace create-flow helpers", () => {
     expect(authorInputWithCrawledImages(input, [crawled("a.png"), crawled("b.png", 1200, 900)])).toEqual({
       text: "brief",
       urls: ["https://article.example/a"],
-      format: "youtube",
+      format: "tiktok",
       durationTier: 2,
       videoLanguage: "en",
       images: [

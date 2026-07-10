@@ -26,15 +26,12 @@ export { buildVisualQaMessages } from "./prompt-visual-qa.js";
  */
 
 /**
- * Build the AUTHOR system prompt for the chosen DELIVERY FORMAT (no design style
- * anymore — the multi-language system was deleted). The format block fixes the
- * canvas + caption presence, the tier block sets the word budget, and the title
- * block steers ONLY the publish title's language; everything else is the invariant
- * content rules + authoring contract + output format.
+ * Build the AUTHOR system prompt for short-form 9:16. The format block fixes the
+ * canvas + caption band, the tier block sets the word budget, and the language
+ * block steers viewer-facing text language.
  */
 function authorSystem(format: VideoFormat, tier: DurationTier, videoLanguage: VideoLanguage, wps: number): string {
-  const frame = format === "youtube" ? "16:9" : "9:16";
-  return `Bạn là tác giả video ngắn ${frame} cho MỌI chủ đề người dùng muốn (giải thích, kể chuyện, quảng bá, giáo dục, giải trí…), kiêm lập trình viên Remotion. Bạn TỰ VIẾT MỚI mã .tsx cho từng cảnh (KHÔNG chọn từ tập component có sẵn). Ưu tiên đầu tiên: trả lời đúng hợp đồng, parse được, build được, render được.
+  return `Bạn là tác giả video ngắn 9:16 cho MỌI chủ đề người dùng muốn (giải thích, kể chuyện, quảng bá, giáo dục, giải trí…), kiêm lập trình viên Remotion. Bạn TỰ VIẾT MỚI mã .tsx cho từng cảnh (KHÔNG chọn từ tập component có sẵn). Ưu tiên đầu tiên: trả lời đúng hợp đồng, parse được, build được, render được.
 
 ${formatBlock(format)}
 

@@ -11,26 +11,15 @@ import { makeTheme, sceneBackground } from "@motionreal/theme";
 import { ThemeProvider, useReveal } from "@motionreal/blocks";
 
 /**
- * Thumbnail / cover composition — a CLEAN brand card
- * for both delivery formats: the theme's wash background with the publish title
- * centered in the format's content zone.
+ * Thumbnail / cover composition — a CLEAN brand card for short-form 9:16:
+ * the theme's wash background with the publish title centered in the content zone.
  *
  * Why NOT composite over a real scene frame: an authored scene is itself a
- * text-heavy card (its own headline / stat / eyebrow), so overlaying the publish
- * title on top of it stacks two big text blocks that collide (the observed bug).
- * A cover is a SEPARATE artifact — one title on a clean on-brand background —
- * not a screenshot of a scene. So there is no `bgImageSrc` / scene picker
- * anymore; the cover is the same for 9:16 and 16:9 (only the canvas + content
- * zone differ).
+ * text-heavy card, so overlaying the publish title collides. A cover is a
+ * SEPARATE artifact — one title on a clean on-brand background.
  *
- * Every visual decision reads from `makeTheme(dominant)` (the SAME theme the
- * video used), so the cover is on-brand with the video. Canvas size is driven by
- * `geometry(format)` at the Remotion `calculateMetadata` layer (Root.tsx), NOT
- * here — this component just lays out for whatever canvas it's mounted in.
- *
- * Determinism (N16): pure function of props; no time/random/network. The title's
- * entrance animation (`useReveal`) settles to 1 within ~2 frames, so the still is
- * rendered at the composition's LAST frame where reveal === 1.
+ * Canvas size is driven by `geometry()` at Remotion `calculateMetadata` (Root.tsx).
+ * Determinism (N16): pure function of props; no time/random/network.
  */
 
 export const ThumbnailPropsSchema = z.object({
@@ -54,7 +43,7 @@ export const ThumbnailComposition: React.FC<ThumbnailProps> = ({ format, dominan
   return (
     <ThemeProvider theme={theme}>
       <AbsoluteFill style={{ background: sceneBackground(theme), overflow: "hidden" }}>
-        {/* Title positioned in the format's content zone (16:9 vs 9:16), centered. */}
+        {/* Title positioned in the short-form content zone, centered. */}
         <div
           style={{
             position: "absolute",

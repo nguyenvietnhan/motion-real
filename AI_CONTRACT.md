@@ -8,10 +8,8 @@ separate project rules.
 ## Project In One Paragraph
 
 MotionReal turns a Vietnamese or English prompt, optionally with URLs/images,
-into a publishable Remotion MP4. The stable production path is short-form
-TikTok/Reels/Shorts-style 9:16. YouTube 16:9 support exists as shared format
-plumbing, thumbnail behavior, geometry, and caption-off rendering, but the true
-long-form YouTube author-by-segment path is not a stable workflow.
+into a publishable Remotion MP4. The only production path is short-form
+TikTok/Reels/Shorts-style **9:16** (default pacing target ~45s).
 
 The visual model is pure AUTHOR mode: for every video, the runtime AI writes
 fresh Remotion React scene modules as raw JSX/SVG. There is no template catalog,
@@ -27,8 +25,7 @@ Current docs live under `docs/current/`:
 - `maintenance.md` — cleanup/refactor rules, residual risks, and how to read
   workspace stage / authoring failure logs.
 
-Provider setup lives in `docs/providers/`. Do not invent long-form YouTube
-author-by-segment work unless the owner explicitly requests it.
+Provider setup lives in `docs/providers/`.
 
 ## Non-Negotiable Invariants
 

@@ -96,10 +96,8 @@ export function emptyManifest(title = "Untitled"): Manifest {
 
 /** Convert a manifest into a renderer-agnostic VideoSpec (fills sensible defaults). */
 export function manifestToVideoSpec(manifest: Manifest): VideoSpec {
-  // Format drives canvas/zones/caption presence. The backend injects it from the
-  // user's UI choice; absent ⇒ the historical vertical default so an older
-  // manifest still resolves. `ratio` is derived from format for readability.
-  const format: VideoFormat = manifest.format ?? "tiktok";
+  // Short-form only: absent format ⇒ tiktok. Ratio is always 9:16.
+  const format: VideoFormat = "tiktok";
   const videoLanguage = manifest.videoLanguage ?? "vi";
   const candidate = {
     version: 1,
@@ -107,7 +105,7 @@ export function manifestToVideoSpec(manifest: Manifest): VideoSpec {
     format,
     ...(manifest.durationTier ? { durationTier: manifest.durationTier } : {}),
     videoLanguage,
-    ratio: format === "youtube" ? "16:9" : "9:16",
+    ratio: "9:16" as const,
     language: videoLanguage,
     // Clamp to the VideoSpec schema so a manifest authored with AI variance
     // (or written by an older build) never trips validation at render time.

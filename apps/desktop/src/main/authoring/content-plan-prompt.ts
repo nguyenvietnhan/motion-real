@@ -11,10 +11,8 @@ function roundRate(wordsPerSecond: number): number {
   return Math.round(wordsPerSecond * 10) / 10;
 }
 
-function geometryLabel(format: VideoFormat): string {
-  return format === "youtube"
-    ? "YouTube 16:9 horizontal, no burned caption band"
-    : "TikTok/Reels/Shorts 9:16 vertical, reserve the bottom burned-caption band";
+function geometryLabel(_format: VideoFormat): string {
+  return "TikTok/Reels/Shorts 9:16 vertical, reserve the bottom burned-caption band";
 }
 
 function languageLabel(language: VideoLanguage): string {

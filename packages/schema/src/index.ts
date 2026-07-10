@@ -153,30 +153,23 @@ export const ThemeSpecSchema = z.object({
 export type ThemeSpec = z.infer<typeof ThemeSpecSchema>;
 
 /**
- * Delivery format. The canvas, layout zones, and whether
- * a burned caption band exists are all a function of this — see `geometry` in
- * `./zones.ts`. REQUIRED on a spec: a spec must declare what it
- * is, so the renderer/oracle can never silently treat a YouTube spec as vertical.
+ * Delivery format. Short-form 9:16 only — see `geometry` in `./zones.ts`.
+ * REQUIRED on a spec so the renderer always knows the canvas contract.
  */
-export const VideoFormatSchema = z.enum(["tiktok", "youtube"]);
+export const VideoFormatSchema = z.literal("tiktok");
 
 /**
- * Locked duration tier. Per format the three tiers map
- * to different second targets — TikTok 45s/90s/150s, YouTube 300s/450s/600s — via
- * `tierSeconds(format, tier)`. Optional on the spec because the resolved pacing
- * already lives in `duration` (seconds); the tier is the user-chosen bucket the
- * word-budget aims at.
+ * Duration tier for short-form pacing (45s / 90s / 150s). Optional on the spec
+ * because resolved pacing lives in `duration` (seconds). New desktop creates
+ * always use tier 1; tiers 2–3 remain for existing briefs / CLI.
  */
 export const DurationTierSchema = z.union([z.literal(1), z.literal(2), z.literal(3)]);
 export type DurationTier = z.infer<typeof DurationTierSchema>;
 
-/** Target seconds for a (format, tier) pair. The pacing AIM, not a hard cut. */
-export function tierSeconds(format: VideoFormat, tier: DurationTier): number {
-  const table: Record<VideoFormat, Record<DurationTier, number>> = {
-    tiktok: { 1: 45, 2: 90, 3: 150 },
-    youtube: { 1: 300, 2: 450, 3: 600 },
-  };
-  return table[format][tier];
+/** Target seconds for a short-form duration tier. The pacing AIM, not a hard cut. */
+export function tierSeconds(_format: VideoFormat, tier: DurationTier): number {
+  const table: Record<DurationTier, number> = { 1: 45, 2: 90, 3: 150 };
+  return table[tier];
 }
 
 /**
@@ -187,17 +180,17 @@ export function tierSeconds(format: VideoFormat, tier: DurationTier): number {
 export const VideoLanguageSchema = z.enum(["vi", "en"]);
 export type VideoLanguage = z.infer<typeof VideoLanguageSchema>;
 
-/** Max publish-title length per format: TikTok is tweet-short + hashtag, YouTube longer. */
-export function titleMaxChars(format: VideoFormat): number {
-  return format === "tiktok" ? 100 : 200;
+/** Max publish-title length (short-form + hashtags). */
+export function titleMaxChars(_format: VideoFormat = "tiktok"): number {
+  return 100;
 }
 
 export const VideoSpecSchema = z.object({
   version: z.literal(1),
   title: z.string().min(1).max(140),
-  /** Delivery format (REQUIRED): drives canvas + zones + caption presence. */
+  /** Delivery format (REQUIRED): short-form 9:16. */
   format: VideoFormatSchema,
-  /** User-chosen duration bucket (optional): the word-budget target, see `tierSeconds`. */
+  /** Duration bucket (optional): word-budget target, see `tierSeconds`. */
   durationTier: DurationTierSchema.optional(),
   /** Language of the authored video content (optional → vi). */
   videoLanguage: VideoLanguageSchema.optional(),
@@ -206,8 +199,8 @@ export const VideoSpecSchema = z.object({
    * Scene count and total duration are free; a longer measured render is fine.
    */
   duration: z.number().positive().optional(),
-  /** Aspect ratio. Derivable from `format`; kept for back-compat + readability. */
-  ratio: z.enum(["9:16", "16:9"]).optional(),
+  /** Aspect ratio. Always 9:16 for short-form; optional for readability. */
+  ratio: z.literal("9:16").optional(),
   language: VideoLanguageSchema,
   /** Per-project dominant color the AI chose (optional → default palette). */
   theme: ThemeSpecSchema.optional(),
@@ -324,8 +317,8 @@ export function validateVideoSpecStructure(
 ): ValidationResult {
   const errors: string[] = [];
 
-  if (spec.format !== "tiktok" && spec.format !== "youtube") {
-    errors.push(`Spec must declare a format ("tiktok" or "youtube"); received ${JSON.stringify(spec.format)}.`);
+  if (spec.format !== "tiktok") {
+    errors.push(`Spec must declare format "tiktok"; received ${JSON.stringify(spec.format)}.`);
   }
 
   if (spec.scenes.length === 0) {

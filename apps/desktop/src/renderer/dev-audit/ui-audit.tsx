@@ -19,8 +19,8 @@ const bgmTracks = [
 const cards: ProjectCardVM[] = Array.from({ length: 8 }, (_, index) => ({
   projectId: `p${index + 1}`,
   title: ["AI tự điều khiển chó robot nhanh gấp 20 lần", "4 gã khổng lồ AI gom sạch 188 tỷ USD", "Tại sao mô hình nhỏ đang thắng", "Xu hướng công nghệ đáng chú ý tuần này"][index % 4]!,
-  thumbnailPath: index % 2 === 0 ? "/dev-audit/audit-fixture.svg" : "/dev-audit/audit-fixture-youtube.svg",
-  format: index % 2 === 0 ? "tiktok" : "youtube",
+  thumbnailPath: "/dev-audit/audit-fixture.svg",
+  format: index % 2 === 0 ? "tiktok" : "tiktok",
   status: (["done", "draft-ready", "building", "error"] as const)[index % 4]!,
   createdAtLabel: `${19 - index}/06/2026`,
 }));

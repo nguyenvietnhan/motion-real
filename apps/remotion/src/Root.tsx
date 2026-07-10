@@ -55,10 +55,8 @@ export const RemotionRoot: React.FC = () => {
           }}
         />
       ))}
-      {/* Thumbnail/cover — a single format-aware still. The canvas is
-          sized off `geometry(props.format)` (1080×1920 for tiktok, 1920×1080 for
-          youtube), matching the video composition's format-aware dimensions; the
-          still is taken at the last frame so the title's entrance reveal has settled. */}
+      {/* Thumbnail/cover — short-form 9:16 still. Canvas from geometry(); still
+          taken at the last frame so the title entrance reveal has settled. */}
       <Composition
         id="Thumbnail"
         component={ThumbnailComposition}
