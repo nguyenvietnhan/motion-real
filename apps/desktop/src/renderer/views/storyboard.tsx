@@ -378,10 +378,10 @@ export const StoryboardView: React.FC<{
           Quay lại
         </button>
         <div className="ns-story-title">
-          <strong className="ns-story-heading">Duyệt cảnh</strong>
+          <strong className="ns-story-heading">Duyệt</strong>
           {scenes.length > 0 && (
             <span className="ns-story-count ns-tabular" aria-label={`Cảnh ${idx + 1} trên ${scenes.length}`}>
-              Cảnh {idx + 1}/{scenes.length}
+              {idx + 1}/{scenes.length}
             </span>
           )}
         </div>
@@ -395,32 +395,32 @@ export const StoryboardView: React.FC<{
           {allowSceneEdit && (
             <button
               type="button"
-              className="ns-btn ns-btn-primary ns-story-send"
+              className="ns-btn ns-story-send"
               disabled={!canSend || submitting}
               onClick={sendAll}
-              title={canSend ? undefined : "Nhập yêu cầu cho một cảnh hoặc ghi chú chung trước khi gửi."}
+              title={canSend ? undefined : "Nhập yêu cầu trước khi gửi."}
             >
               {submitting ? "Đang gửi…" : editedCount > 0 ? (
-                <span className="ns-tabular">Gửi chỉnh sửa ({editedCount})</span>
+                <span className="ns-tabular">Gửi ({editedCount})</span>
               ) : (
-                "Gửi chỉnh sửa"
+                "Gửi"
               )}
             </button>
           )}
           <button
             type="button"
-            className="ns-btn ns-story-approve"
+            className="ns-btn ns-btn-primary ns-story-approve"
             disabled={!canApprove || bgmSaving}
             onClick={onApprove}
             title={
               bgmSaving
-                ? "Đang lưu lựa chọn nhạc nền."
+                ? "Đang lưu nhạc nền."
                 : canApprove
                   ? undefined
-                  : "Chưa sẵn sàng để xuất bản."
+                  : "Chưa sẵn sàng."
             }
           >
-            <span className="ns-story-approve-full">Duyệt &amp; xuất bản</span>
+            <span className="ns-story-approve-full">Xuất bản</span>
             <span className="ns-story-approve-short">Xuất bản</span>
           </button>
         </div>
@@ -433,7 +433,7 @@ export const StoryboardView: React.FC<{
       <div className="ns-story-shell">
         {Header}
         <div className="ns-story-empty-body">
-          <EmptyState icon={Icon.film({ size: 34 })} title="Chưa có cảnh nào" hint="Bản nháp chưa tạo cảnh nào." />
+          <EmptyState icon={Icon.film({ size: 34 })} title="Chưa có cảnh" hint="Chưa tạo được cảnh." />
         </div>
       </div>
     );
@@ -482,7 +482,7 @@ export const StoryboardView: React.FC<{
                   onClick={() => switchToVideoPreview()}
                   className={`ns-story-segment${!showStill ? " is-active" : ""}`}
                 >
-                  Video nháp
+                  Nháp
                 </button>
                 <button
                   type="button"
@@ -494,13 +494,13 @@ export const StoryboardView: React.FC<{
                   }}
                   className={`ns-story-segment${showStill ? " is-active" : ""}`}
                 >
-                  {`Ảnh cảnh ${idx + 1}`}
+                  {`Ảnh ${idx + 1}`}
                 </button>
               </div>
-              <InfoHint text="Bấm cảnh bên trái để xem ảnh. Chọn Video nháp để xem theo timeline đã khóa." />
+              <InfoHint text="Bấm cảnh bên trái để xem ảnh." />
               {current && (
                 <span className="ns-story-active-label">
-                  Đang xem cảnh {idx + 1}
+                  Cảnh {idx + 1}
                 </span>
               )}
             </div>
@@ -550,31 +550,31 @@ export const StoryboardView: React.FC<{
           <aside className="ns-card ns-story-edit-panel" aria-label="Yêu cầu chỉnh sửa">
             <div className="ns-story-edit-heading">
               <div>
-                <strong>Biên tập &amp; Góp ý</strong>
-                <span>Gửi phản hồi chỉnh sửa cảnh hoặc toàn video</span>
+                <strong>Chỉnh sửa</strong>
+                <span>Góp ý theo cảnh hoặc cả video</span>
               </div>
             </div>
 
             <section className="ns-edit-scope is-scene">
               <div className="ns-edit-scope-heading">
                 <span className="ns-edit-scope-icon">{Icon.pencil({ size: 15 })}</span>
-                <strong>Yêu cầu Cảnh {idx + 1}</strong>
-                <span className="ns-edit-scope-badge">Riêng cảnh này</span>
+                <strong>Cảnh {idx + 1}</strong>
+                <span className="ns-edit-scope-badge">Một cảnh</span>
               </div>
-              <textarea aria-label={`Yêu cầu chỉnh sửa cảnh ${idx + 1}`} className="ns-input ns-edit-textarea" value={current ? (edits[current.sceneId] ?? "") : ""}
+              <textarea aria-label={`Yêu cầu cảnh ${idx + 1}`} className="ns-input ns-edit-textarea" value={current ? (edits[current.sceneId] ?? "") : ""}
                 maxLength={2000} rows={4} onChange={(e) => setCurrentEdit(e.target.value)}
-                placeholder="Nhập yêu cầu chỉnh sửa (đổi ảnh, chỉnh chữ...)" />
+                placeholder="Ví dụ: to chữ, đổi nền…" />
             </section>
 
             <section className="ns-edit-scope is-global">
               <div className="ns-edit-scope-heading">
                 <span className="ns-edit-scope-icon">{Icon.globe({ size: 15 })}</span>
-                <strong>Góp ý toàn video</strong>
+                <strong>Cả video</strong>
                 <span className="ns-edit-scope-badge">Mọi cảnh</span>
               </div>
-              <textarea aria-label="Ghi chú chung cho cả video" className="ns-input ns-edit-textarea" value={notes} maxLength={2000} rows={3}
+              <textarea aria-label="Ghi chú cả video" className="ns-input ns-edit-textarea" value={notes} maxLength={2000} rows={3}
                 onChange={(e) => setNotes(e.target.value)}
-                placeholder="Nhập ghi chú chung cho toàn bộ video..." />
+                placeholder="Góp ý chung…" />
             </section>
           </aside>
         )}

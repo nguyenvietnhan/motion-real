@@ -94,10 +94,10 @@ const ScriptReview: React.FC<{
   return (
     <>
       <div className="ns-card ns-script-review-banner">
-        <span className="ns-script-review-message">Kịch bản đã sẵn sàng. Vui lòng tinh chỉnh lời thoại (nếu cần) và duyệt dựng video.</span>
+        <span className="ns-script-review-message">Sửa lời nếu cần, rồi duyệt.</span>
         <div className="ns-script-review-actions">
           <button className="ns-btn" onClick={() => onApply(edits)}>Lưu</button>
-          <button className="ns-btn ns-btn-primary" onClick={() => { onApply(edits); onApprove(); }}>Duyệt và dựng</button>
+          <button className="ns-btn ns-btn-primary" onClick={() => { onApply(edits); onApprove(); }}>Duyệt</button>
         </div>
       </div>
       {evidence && evidence.sources.length > 0 && (
@@ -503,7 +503,7 @@ export const ProjectWorkspaceView: React.FC<{
       )}
       {stage.kind === "error" && (
         <>
-          <EmptyState icon={Icon.film({ size: 34 })} title="Gặp lỗi khi dựng" hint={stage.message}
+          <EmptyState icon={Icon.film({ size: 34 })} title="Lỗi" hint={stage.message}
             action={
               <div className="ns-error-actions">
                 {stage.fixable ? (

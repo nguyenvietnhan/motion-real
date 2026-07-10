@@ -9,9 +9,9 @@ import type { FriendlyStatus, ProjectState } from "./types.js";
 
 export const FRIENDLY_LABELS: Record<FriendlyStatus, string> = {
   building: "Đang dựng…",
-  "draft-ready": "Nháp sẵn sàng để duyệt",
-  done: "Hoàn tất",
-  error: "Gặp lỗi — thử lại",
+  "draft-ready": "Sẵn sàng duyệt",
+  done: "Xong",
+  error: "Lỗi",
 };
 
 /** All four friendly statuses, for total-coverage assertions. */

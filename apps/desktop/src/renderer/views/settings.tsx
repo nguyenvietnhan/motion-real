@@ -198,7 +198,7 @@ export const SettingsView: React.FC<{
 
         <div style={{ display: "flex", flexDirection: "column", gap: 16, minWidth: 0 }}>
           {tab === "ai" && (
-            <SettingsCard title="Tài khoản AI & model" desc="Kết nối tài khoản qua 9Router và chọn model dùng để dựng video.">
+            <SettingsCard title="Tài khoản AI" desc="Kết nối 9Router và chọn model.">
               {gateway.kind === "starting" && <p style={{ color: "var(--muted-foreground)", margin: 0 }}>Đang khởi động dịch vụ AI…</p>}
               {gateway.kind === "unavailable" && (
                 <p style={{ color: "var(--danger)", margin: 0 }}>Không khởi động được 9Router. Kiểm tra cài đặt rồi mở lại app.</p>
@@ -209,7 +209,7 @@ export const SettingsView: React.FC<{
                     Chưa có tài khoản nào. Đăng nhập để 9Router định tuyến yêu cầu tới nhà cung cấp AI.
                   </p>
                   <button className="ns-btn ns-btn-primary" onClick={onManageAccounts}>
-                    {Icon.spark({ size: 15 })} Đăng nhập tài khoản AI
+                    {Icon.spark({ size: 15 })} Đăng nhập
                   </button>
                 </>
               )}
@@ -226,7 +226,7 @@ export const SettingsView: React.FC<{
                     <button className="ns-btn ns-acct-manage" onClick={onManageAccounts}>Quản lý</button>
                   </div>
                   <div style={{ marginTop: 20 }}>
-                    <Field label="Model dùng để dựng" hint="Model nhìn được ảnh sẽ tự soát và sửa lỗi bố cục tốt hơn.">
+                    <Field label="Model" hint="Model nhìn ảnh sẽ tinh chỉnh bố cục tốt hơn.">
                       <CustomSelect
                         value={selectedModelId}
                         onChange={onSelectModel}
@@ -327,7 +327,7 @@ export const SettingsView: React.FC<{
           )}
 
           {tab === "voice" && (
-            <SettingsCard title="Giọng đọc" desc="Cấu hình riêng từng nhà cung cấp. Lựa chọn này là mặc định cho dự án mới.">
+            <SettingsCard title="Giọng đọc" desc="Mặc định cho dự án mới.">
               <Field label="Nhà cung cấp giọng">
                 <CustomSelect
                   value={voiceProvider}
@@ -371,71 +371,83 @@ export const SettingsView: React.FC<{
           )}
 
           {tab === "build" && (
-            <SettingsCard title="Dựng video" desc="Tuỳ chọn quy trình tự dựng và chọn ảnh.">
-              <Toggle checked={settings.scriptGateEnabled} onChange={(v) => update({ scriptGateEnabled: v })}
-                title="Duyệt kịch bản trước khi dựng"
-                desc="Tạm dừng để bạn xem và sửa lời đọc trước khi AI dựng video." />
-              <ChoiceGroup
-                name="reviewMode"
-                title="Mức duyệt sau khi dựng"
-                desc="Chọn mức dừng sau khi AI dựng xong, trước khi xuất bản full."
-                value={settings.reviewMode}
-                onChange={(v) => update({ reviewMode: v as ReviewMode })}
-                expanded={reviewModeExpanded}
-                onToggleExpanded={() => setReviewModeExpanded((e) => !e)}
-                options={[
-                  {
-                    value: "full",
-                    title: "Xem video nháp rồi chỉnh",
-                    desc: "Có video nháp để xem nhịp và giọng. Có form chỉnh từng cảnh. Đây là mặc định.",
-                  },
-                  {
-                    value: "stills_edit",
-                    title: "Chỉ xem ảnh cảnh rồi chỉnh",
-                    desc: "Không render video nháp. Chỉ ảnh từng cảnh và vẫn chỉnh theo yêu cầu.",
-                  },
-                  {
-                    value: "skip_edit",
-                    title: "Bỏ qua chỉnh sửa cảnh",
-                    desc: "Không video nháp, không màn chỉnh cảnh. Vẫn tinh chỉnh ảnh ngầm (nếu bật), rồi xuất bản full luôn.",
-                  },
-                ]}
-              />
-              <ExpandableToggle
-                checked={settings.refinePasses > 0}
-                onChange={(v) => { update({ refinePasses: v ? DEFAULT_REFINE_PASSES : 0 }); if (v) setRefineExpanded(true); }}
-                expanded={refineExpanded}
-                onToggleExpanded={() => setRefineExpanded((e) => !e)}
-                title="Tự tinh chỉnh hình ảnh bằng AI"
-                desc="Trước bản nháp đầu, AI xem ảnh từng cảnh và tự sửa lỗi bố cục. Cần model nhìn được ảnh.">
-                {settings.refinePasses > 0 && (
-                  <>
-                    <NumberRow value={settings.refinePasses} min={1} max={5} indent
-                      onChange={(v) => update({ refinePasses: v })}
-                      title="Số lần tinh chỉnh"
-                      desc="Số lượt AI nhìn ảnh và sửa lại tối đa." />
-                    <Toggle checked={settings.refineEarlyStop} onChange={(v) => update({ refineEarlyStop: v })} indent
-                      title="Dừng sớm khi đã ổn định"
-                      desc="Dừng khi hai lượt liên tiếp không còn lỗi, thay vì luôn chạy đủ số lần." />
-                  </>
-                )}
-              </ExpandableToggle>
-              <Toggle checked={settings.imageCrawlAiFilter} onChange={(v) => update({ imageCrawlAiFilter: v })}
-                title="AI tự chọn ảnh từ bài báo"
-                desc="Khi yêu cầu có đường dẫn bài báo, AI chọn sẵn ảnh phù hợp nội dung. Cần model nhìn được ảnh." />
-              <Toggle checked={settings.imageCrawlHumanReview} onChange={(v) => update({ imageCrawlHumanReview: v })}
-                title="Cho tôi duyệt ảnh trước khi dựng"
-                desc="Hiện màn chọn ảnh cào từ bài báo để bạn xác nhận trước khi AI viết kịch bản." />
+            <SettingsCard title="Dựng video">
+              <div className="ns-settings-group">
+                <div className="ns-settings-group-label">Trước dựng</div>
+                <Toggle checked={settings.scriptGateEnabled} onChange={(v) => update({ scriptGateEnabled: v })}
+                  title="Duyệt kịch bản"
+                  desc="Xem và sửa lời trước khi dựng." />
+              </div>
+              <div className="ns-settings-group">
+                <div className="ns-settings-group-label">Sau dựng</div>
+                <ChoiceGroup
+                  name="reviewMode"
+                  title="Mức duyệt"
+                  desc="Dừng lại trước khi xuất bản full."
+                  value={settings.reviewMode}
+                  onChange={(v) => update({ reviewMode: v as ReviewMode })}
+                  expanded={reviewModeExpanded}
+                  onToggleExpanded={() => setReviewModeExpanded((e) => !e)}
+                  options={[
+                    {
+                      value: "full",
+                      title: "Video nháp rồi chỉnh",
+                      desc: "Có nháp và form chỉnh cảnh. Mặc định.",
+                    },
+                    {
+                      value: "stills_edit",
+                      title: "Ảnh cảnh rồi chỉnh",
+                      desc: "Chỉ ảnh từng cảnh. Vẫn chỉnh được.",
+                    },
+                    {
+                      value: "skip_edit",
+                      title: "Bỏ qua chỉnh",
+                      desc: "Tinh chỉnh ngầm nếu bật, rồi xuất full.",
+                    },
+                  ]}
+                />
+              </div>
+              <div className="ns-settings-group">
+                <div className="ns-settings-group-label">Tinh chỉnh</div>
+                <ExpandableToggle
+                  checked={settings.refinePasses > 0}
+                  onChange={(v) => { update({ refinePasses: v ? DEFAULT_REFINE_PASSES : 0 }); if (v) setRefineExpanded(true); }}
+                  expanded={refineExpanded}
+                  onToggleExpanded={() => setRefineExpanded((e) => !e)}
+                  title="Tinh chỉnh ảnh AI"
+                  desc="AI xem ảnh cảnh và sửa bố cục. Cần model nhìn ảnh.">
+                  {settings.refinePasses > 0 && (
+                    <>
+                      <NumberRow value={settings.refinePasses} min={1} max={5} indent
+                        onChange={(v) => update({ refinePasses: v })}
+                        title="Số lần"
+                        desc="Số lượt tối đa." />
+                      <Toggle checked={settings.refineEarlyStop} onChange={(v) => update({ refineEarlyStop: v })} indent
+                        title="Dừng sớm"
+                        desc="Dừng khi hai lượt liên tiếp ổn." />
+                    </>
+                  )}
+                </ExpandableToggle>
+              </div>
+              <div className="ns-settings-group">
+                <div className="ns-settings-group-label">Ảnh</div>
+                <Toggle checked={settings.imageCrawlAiFilter} onChange={(v) => update({ imageCrawlAiFilter: v })}
+                  title="AI chọn ảnh link"
+                  desc="Chọn ảnh phù hợp từ bài báo. Cần model nhìn ảnh." />
+                <Toggle checked={settings.imageCrawlHumanReview} onChange={(v) => update({ imageCrawlHumanReview: v })}
+                  title="Duyệt ảnh trước"
+                  desc="Bạn xác nhận ảnh trước khi viết kịch bản." />
+              </div>
             </SettingsCard>
           )}
 
           {tab === "about" && (
-            <SettingsCard title="Giới thiệu" desc="Motion Real dựng video ngắn 9:16 bằng AI.">
+            <SettingsCard title="Giới thiệu">
               <InfoRow label="Phiên bản" value="Motion Real 0.1.0" />
               <InfoRow label="Dịch vụ AI" value="9Router · localhost:20128"
-                hint="Đăng nhập tài khoản nhà cung cấp được uỷ quyền cho 9Router. Motion Real không lưu mật khẩu của bạn." />
-              <InfoRow label="Mã kích hoạt (bản dev)" value="123" />
-              <InfoRow label="Thư mục lưu dự án" value={settings.outputDir || "(mặc định)"} mono />
+                hint="Đăng nhập qua 9Router. App không lưu mật khẩu." />
+              <InfoRow label="Mã kích hoạt (dev)" value="123" />
+              <InfoRow label="Thư mục dự án" value={settings.outputDir || "(mặc định)"} mono />
             </SettingsCard>
           )}
         </div>

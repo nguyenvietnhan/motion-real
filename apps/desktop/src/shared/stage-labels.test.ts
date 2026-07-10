@@ -9,26 +9,22 @@ import {
 
 describe("stage-labels", () => {
   it("covers every rendering phase with stable Vietnamese copy", () => {
-    expect(renderingPhaseLabel("edit")).toBe("AI đang chỉnh sửa các cảnh theo yêu cầu…");
-    expect(renderingPhaseLabel("qa", { qaPass: 2, qaTotal: 5 })).toBe(
-      "AI đang soát lỗi hình ảnh (lần 2/5)…",
-    );
-    expect(renderingPhaseLabel("qa", { qaPass: 10, qaTotal: 20 })).toBe(
-      "AI đang soát lỗi hình ảnh (lần 10/20)…",
-    );
-    expect(renderingPhaseLabel("prepare")).toBe("Đang dựng bản nháp…");
-    expect(renderingPhaseLabel("full")).toBe("Đang dựng video bản đầy đủ (chất lượng cao)…");
-    expect(renderingPhaseLabel("draft")).toBe("Đang dựng giọng đọc + bản nháp…");
-    expect(renderingPhaseLabel(undefined)).toBe("Đang dựng giọng đọc + bản nháp…");
+    expect(renderingPhaseLabel("edit")).toBe("Đang chỉnh cảnh…");
+    expect(renderingPhaseLabel("qa", { qaPass: 2, qaTotal: 5 })).toBe("Đang tinh chỉnh ảnh (2/5)…");
+    expect(renderingPhaseLabel("qa", { qaPass: 10, qaTotal: 20 })).toBe("Đang tinh chỉnh ảnh (10/20)…");
+    expect(renderingPhaseLabel("prepare")).toBe("Đang chuẩn bị…");
+    expect(renderingPhaseLabel("full")).toBe("Đang xuất bản…");
+    expect(renderingPhaseLabel("draft")).toBe("Đang dựng nháp…");
+    expect(renderingPhaseLabel(undefined)).toBe("Đang dựng nháp…");
   });
 
-  it("splits QA count so the UI can keep (lần N/M) nowrap", () => {
+  it("splits QA count so the UI can keep the counter nowrap", () => {
     expect(renderingPhaseParts("qa", { qaPass: 1, qaTotal: 1 })).toEqual({
-      body: "AI đang soát lỗi hình ảnh",
-      count: "(lần 1/1)",
+      body: "Đang tinh chỉnh ảnh",
+      count: "(1/1)",
     });
     expect(renderingPhaseParts("draft")).toEqual({
-      body: "Đang dựng giọng đọc + bản nháp…",
+      body: "Đang dựng nháp…",
     });
   });
 
@@ -42,20 +38,20 @@ describe("stage-labels", () => {
   });
 
   it("covers every writing phase copy", () => {
-    expect(writingPhaseCopy("crawl").title).toContain("cào ảnh");
-    expect(writingPhaseCopy("image-filter").title).toContain("chọn ảnh");
+    expect(writingPhaseCopy("crawl").title).toContain("ảnh");
+    expect(writingPhaseCopy("image-filter").title).toContain("ảnh");
     expect(writingPhaseCopy("author").title).toContain("kịch bản");
     expect(writingPhaseCopy(undefined).title).toContain("kịch bản");
   });
 
   it("covers every workspace stage chrome title", () => {
-    expect(workspaceStageTitle("writing")).toBe("Đang viết kịch bản");
-    expect(workspaceStageTitle("script")).toBe("Duyệt kịch bản");
+    expect(workspaceStageTitle("writing")).toBe("Đang viết");
+    expect(workspaceStageTitle("script")).toBe("Kịch bản");
     expect(workspaceStageTitle("image-review")).toBe("Duyệt ảnh");
-    expect(workspaceStageTitle("rendering")).toBe("Đang dựng video");
-    expect(workspaceStageTitle("ready")).toBe("Duyệt cảnh");
-    expect(workspaceStageTitle("draft-recovery")).toBe("Khôi phục bản nháp");
-    expect(workspaceStageTitle("published")).toBe("Đã xuất bản");
-    expect(workspaceStageTitle("error")).toBe("Gặp lỗi");
+    expect(workspaceStageTitle("rendering")).toBe("Đang dựng");
+    expect(workspaceStageTitle("ready")).toBe("Duyệt");
+    expect(workspaceStageTitle("draft-recovery")).toBe("Khôi phục");
+    expect(workspaceStageTitle("published")).toBe("Đã xong");
+    expect(workspaceStageTitle("error")).toBe("Lỗi");
   });
 });

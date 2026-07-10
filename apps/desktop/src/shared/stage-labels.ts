@@ -15,23 +15,21 @@ export function renderingPhaseLabel(
   options: { qaPass?: number; qaTotal?: number } = {},
 ): string {
   const resolved = phase ?? "draft";
-  // Keep "(lần N/M)" as a single unit — no figure-space padding (it looked like
-  // broken gaps and still reflowed when the status line wrapped).
   const qaSuffix =
     resolved === "qa" && options.qaPass && options.qaTotal
-      ? ` (lần ${options.qaPass}/${options.qaTotal})`
+      ? ` (${options.qaPass}/${options.qaTotal})`
       : "";
   switch (resolved) {
     case "edit":
-      return "AI đang chỉnh sửa các cảnh theo yêu cầu…";
+      return "Đang chỉnh cảnh…";
     case "qa":
-      return `AI đang soát lỗi hình ảnh${qaSuffix}…`;
+      return `Đang tinh chỉnh ảnh${qaSuffix}…`;
     case "prepare":
-      return "Đang dựng bản nháp…";
+      return "Đang chuẩn bị…";
     case "full":
-      return "Đang dựng video bản đầy đủ (chất lượng cao)…";
+      return "Đang xuất bản…";
     case "draft":
-      return "Đang dựng giọng đọc + bản nháp…";
+      return "Đang dựng nháp…";
     default: {
       const _exhaustive: never = resolved;
       return _exhaustive;
@@ -47,8 +45,8 @@ export function renderingPhaseParts(
   const resolved = phase ?? "draft";
   if (resolved === "qa" && options.qaPass && options.qaTotal) {
     return {
-      body: "AI đang soát lỗi hình ảnh",
-      count: `(lần ${options.qaPass}/${options.qaTotal})`,
+      body: "Đang tinh chỉnh ảnh",
+      count: `(${options.qaPass}/${options.qaTotal})`,
     };
   }
   return { body: renderingPhaseLabel(phase, options) };
@@ -71,20 +69,19 @@ export function writingPhaseCopy(phase: WritingStagePhase | undefined): { title:
   switch (phase) {
     case "crawl":
       return {
-        title: "Đang đọc link và cào ảnh từ bài báo…",
-        detail:
-          "Nếu trang chặn đọc nội dung hoặc ảnh, app sẽ bỏ qua phần đó và tiếp tục dựng từ phần đọc được.",
+        title: "Đang lấy ảnh…",
+        detail: "Có thể bỏ qua phần link không đọc được.",
       };
     case "image-filter":
       return {
-        title: "AI đang chọn ảnh phù hợp từ bài báo…",
-        detail: "Ảnh quảng cáo, logo hoặc ảnh không liên quan sẽ bị lọc trước khi bạn duyệt.",
+        title: "Đang chọn ảnh…",
+        detail: "Lọc ảnh không phù hợp trước khi duyệt.",
       };
     case "author":
     case undefined:
       return {
-        title: "AI đang viết kịch bản từ nội dung của bạn…",
-        detail: "Quá trình này có thể mất vài phút. Ứng dụng sẽ tự tiếp tục khi hoàn tất.",
+        title: "Đang viết kịch bản…",
+        detail: "Có thể mất vài phút.",
       };
     default: {
       const _exhaustive: never = phase;
@@ -97,21 +94,21 @@ export function writingPhaseCopy(phase: WritingStagePhase | undefined): { title:
 export function workspaceStageTitle(kind: ProjectStage["kind"]): string {
   switch (kind) {
     case "writing":
-      return "Đang viết kịch bản";
+      return "Đang viết";
     case "script":
-      return "Duyệt kịch bản";
+      return "Kịch bản";
     case "image-review":
       return "Duyệt ảnh";
     case "rendering":
-      return "Đang dựng video";
+      return "Đang dựng";
     case "ready":
-      return "Duyệt cảnh";
+      return "Duyệt";
     case "draft-recovery":
-      return "Khôi phục bản nháp";
+      return "Khôi phục";
     case "published":
-      return "Đã xuất bản";
+      return "Đã xong";
     case "error":
-      return "Gặp lỗi";
+      return "Lỗi";
     default: {
       const _exhaustive: never = kind;
       return _exhaustive;

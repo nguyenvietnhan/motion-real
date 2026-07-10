@@ -189,10 +189,10 @@ export const HomeView: React.FC<{
   const [voiceProvider, setVoiceProvider] = useState<VoiceProviderChoice>(defaultVoiceProvider);
   const [creating, setCreating] = useState(false);
   const PLACEHOLDERS = [
-    "Mô tả ý tưởng video... (ví dụ: 'Lịch sử phát triển của AI')",
-    "Dán đường link bài báo để tự động chuyển thành video...",
-    "Nhập chủ đề video... (ví dụ: '5 thói quen tốt vào buổi sáng')",
-    "Kéo thả hình ảnh vào đây để làm tư liệu minh họa cho video..."
+    "Mô tả ý tưởng video…",
+    "Dán link bài báo…",
+    "Nhập chủ đề video…",
+    "Kéo thả ảnh minh họa…",
   ];
   const [currentPlaceholder, setCurrentPlaceholder] = useState("");
   useEffect(() => {
@@ -451,11 +451,11 @@ export const HomeView: React.FC<{
             </div>
           </div>
           
-          {!aiReady && <p className="ns-create-hint warning">Chưa sẵn sàng AI. Bấm “Tạo bản nháp” để mở Cài đặt.</p>}
+          {!aiReady && <p className="ns-create-hint warning">Chưa sẵn sàng AI. Mở Cài đặt để kết nối.</p>}
 
           {/* Bottom: Settings Grid */}
           <div className="ns-settings-section">
-            <span className="ns-settings-section-title">Cấu hình video</span>
+            <span className="ns-settings-section-title">Cấu hình</span>
             
             <div className="ns-settings-horizontal-grid">
               <div className="ns-setting-column">
@@ -525,14 +525,14 @@ export const HomeView: React.FC<{
               onClick={submitCreate}
               disabled={!inputValid || creating}
             >
-              {Icon.spark({ size: 16 })} {creating ? "Đang tạo…" : "Tạo bản nháp"}
+              {Icon.spark({ size: 16 })} {creating ? "Đang tạo…" : "Tạo video"}
             </button>
           </div>
         </div>
       </div>
 
       <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 14 }}>
-        <h2 style={{ margin: 0, fontSize: 16 }}>Video gần đây</h2>
+        <h2 style={{ margin: 0, fontSize: 16 }}>Gần đây</h2>
         {cards.length > 0 && <span style={{ color: "var(--muted-foreground)", fontSize: 13 }}>{cards.length} dự án</span>}
       </div>
 
