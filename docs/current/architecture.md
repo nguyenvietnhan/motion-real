@@ -8,7 +8,7 @@ instance.
 
 | Package | Role |
 | --- | --- |
-| `@motionreal/schema` | Renderer-agnostic specs, locked specs, timing constants, format geometry, caption cues, validation helpers. |
+| `@motionreal/schema` | Renderer-agnostic specs, locked specs, timing constants, short-form 9:16 geometry, caption cues, validation helpers. |
 | `@motionreal/theme` | One neutral runtime theme used by render internals. It is not authored-facing. |
 | `@motionreal/blocks` | Small render-runtime surface: captions, scene timing, runtime motion hooks, diagnostic layout probe, fonts, minimal chrome helpers, and `SceneImage`. Authored scenes do not import this package. |
 | `@motionreal/compositions` | Registry, master `VideoComposition`, `ThumbnailComposition`, and the authored-facing re-export of `SceneImage`. |
@@ -329,6 +329,13 @@ guard. When both A and AAAA are public, **dial prefers IPv4** so broken desktop
 IPv6 routes do not hang image crawls. Redirects are followed manually and
 re-pinned. Body size, timeout, and abort signals apply to both text and binary
 paths. Responses are buffered before the per-request dispatcher closes.
+
+## Delivery format (short-form only)
+
+The product ships **TikTok/Reels/Shorts 9:16** only. Specs use `format: "tiktok"`
+and `ratio: "9:16"`. Desktop create always sets `durationTier: 1` (~45s pacing);
+there is no format or duration picker in the UI. Geometry, captions, and
+thumbnail cover are vertical short-form only.
 
 ## Research context (URL-grounded authoring)
 

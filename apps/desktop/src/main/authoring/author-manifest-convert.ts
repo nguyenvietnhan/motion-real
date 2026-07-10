@@ -27,11 +27,10 @@ export function sanitizeTheme(theme: { dominant: string; mood?: string }): {
  * N9 build existence check is the backstop). Empty set ⇒ no images were offered,
  * so every `image` is dropped.
  *
- * `delivery` carries the three create-screen knobs the USER picked (the AI never
- * authors them — it only writes `theme.dominant`/`mood` + the scenes). We inject
- * `format` / `durationTier` / `videoLanguage` into the engine manifest here so the
- * canvas + caption presence + word-budget + authored content language are driven by the
- * user's choice, defaulting to tiktok / undefined / vi.
+ * `delivery` is injected by the backend (the AI never authors it — it only writes
+ * `theme.dominant`/`mood` + scenes). Desktop create fixes short-form
+ * `format: "tiktok"` + `durationTier: 1`; `videoLanguage` is the user language
+ * choice. Defaults: tiktok / tier 1 / vi.
  */
 export function toEngineManifest(
   m: AuthorManifest,
@@ -56,8 +55,8 @@ export function toEngineManifest(
     };
   });
   // Clamp to the engine VideoSpec limits so AI variance never trips schema
-  // validation: title ≤140, theme.dominant hex, theme.mood ≤40. The delivery
-  // knobs are injected from the user's UI choice, never authored by the model.
+  // validation: title ≤140, theme.dominant hex, theme.mood ≤40. Delivery fields
+  // are injected by the backend, never authored by the model.
   return {
     title: m.title.slice(0, 140),
     ...(m.hashtags && m.hashtags.length > 0 ? { hashtags: m.hashtags } : {}),

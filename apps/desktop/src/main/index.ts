@@ -267,9 +267,9 @@ const workspace = new WorkspaceController({
   // Rehydrate a project's AuthorInput from the persisted brief when the in-memory
   // input is gone (after an app restart), so the error screen's "Thử lại" can
   // recover a project stranded across a restart instead of no-op'ing. The brief
-  // stores delivery knobs (format/duration tier/language) plus the prompt; urls
-  // are re-extracted from it. Create-time images aren't persisted → a rehydrated
-  // retry re-authors from text + links only (a degraded but functional recovery).
+  // stores fixed short-form delivery (tiktok / tier) + language + the prompt;
+  // urls are re-extracted from it. Create-time images aren't persisted → a
+  // rehydrated retry re-authors from text + links only.
   recallInput: async (id) => {
     try {
       const brief = await readBrief(id);

@@ -149,14 +149,11 @@ export const VideoComposition: React.FC<VideoCompositionProps> = ({ spec, measur
 };
 
 /**
- * The top-level background WASH. The composition used to
- * paint a flat near-black `colors.bg`, which looked dead on both formats; this
- * paints the theme's radial-gradient wash instead. Extracted as its own pure
- * component (single responsibility) so it can be tested without a Remotion
- * video-config context — the master composition mounts `TransitionSeries`, which
- * needs that context, but the backdrop itself is just a styled `AbsoluteFill`.
- * An authored scene that draws its own full-bleed background still paints over
- * this, so the wash only shows through transparent/letterboxed areas.
+ * The top-level background WASH. The composition used to paint a flat near-black
+ * `colors.bg`, which looked dead on short-form 9:16; this paints the theme's
+ * radial-gradient wash instead. Extracted as its own pure component so it can be
+ * tested without a Remotion video-config context. An authored scene that draws
+ * its own full-bleed background still paints over this.
  */
 export const CompositionBackdrop: React.FC<{ theme: Theme; children: React.ReactNode }> = ({ theme, children }) => {
   return <AbsoluteFill style={{ background: sceneBackground(theme) }}>{children}</AbsoluteFill>;

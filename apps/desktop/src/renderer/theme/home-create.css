@@ -171,9 +171,9 @@
   justify-content: center;
   color: var(--brand);
 }
-/* Inline warning glyph inside a knob option (e.g. YouTube format): a yellow icon
-   that reveals a styled tooltip to its RIGHT on hover/focus — same mechanism as
-   InfoHint (.ns-info) so it matches the rest of the app, but warn-coloured. */
+/* Inline warning glyph inside a knob option (e.g. Vivibe language limit): a yellow
+   icon that reveals a styled tooltip to its RIGHT on hover/focus — same mechanism
+   as InfoHint (.ns-info), but warn-coloured. */
 .ns-warn-hint {
   position: relative;
   display: inline-flex;
@@ -219,9 +219,8 @@
   outline: none;
 }
 
-/* Style picker: a star icon-button next to "+" opens a CENTERED modal (Canva /
-   YouTube template-chooser style) — a dimmed full-screen overlay behind a card
-   of large preview tiles. Click the dimmed area or the X to dismiss. */
+/* Centered modal shell (dimmed full-screen overlay + card). Click the dimmed
+   area or the X to dismiss. */
 .ns-modal-backdrop {
   position: fixed;
   inset: 0;

@@ -20,11 +20,10 @@ export function formatBlock(_format: VideoFormat = "tiktok"): string {
 }
 
 /**
- * Word-budget instruction from the user-chosen duration tier. The tier
- * maps to a per-format second target (`tierSeconds`); we turn that into a total
- * word budget at the selected language's rate so the model writes enough scenes to
- * hit the length (rather than guessing from the free-text brief). "Rather over
- * than under" — the pacing aim allows ±20s, never a hard cut.
+ * Word-budget instruction from the duration tier (desktop create always uses
+ * tier 1 ≈ 45s). Maps to seconds via `tierSeconds`, then to a total word budget
+ * at the language rate. "Rather over than under" — pacing allows ±20s, never a
+ * hard cut.
  */
 export function tierBudgetBlock(format: VideoFormat, tier: DurationTier, language: VideoLanguage, wps: number): string {
   const pacing = computePacingBudget({ format, durationTier: tier, videoLanguage: language }, wps);

@@ -160,12 +160,14 @@ MCP server without a focused owner-approved slice.
 
 ## Duration Targets
 
-New scaffolded projects persist one resolved duration target in `brief.duration`.
-The pipeline resolves it in this order: explicit tool duration, selected
-duration tier, duration parsed from the prompt, then the 60 second default.
-Existing project briefs are not silently migrated; stale targets such as an old
-`duration: 60` paired with a longer `durationTier` need an explicit owner
-requested repair or reauthoring pass.
+Product path is short-form **9:16 only** (no YouTube / landscape, no create-UI
+duration picker). Desktop create always scaffolds `format: "tiktok"` and
+`durationTier: 1` (~45s pacing aim).
+
+Resolved `brief.duration` order for the pipeline/CLI remains: explicit tool
+`duration`, then `durationTier` via `tierSeconds` (tiktok 45/90/150), then
+duration parsed from the prompt, then the 60 second default. Existing briefs are
+not silently migrated.
 
 ## Authoring Output Size
 

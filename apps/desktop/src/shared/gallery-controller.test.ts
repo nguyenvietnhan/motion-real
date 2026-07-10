@@ -123,15 +123,15 @@ describe("Property 11: gallery cards complete and ordered newest-first", () => {
     expect(noRender!.thumbnailPath).toBeNull();
   });
 
-  it("derives the gallery media ratio from the project brief", () => {
-    const vertical = brief("2026-01-02T00:00:00Z", "dọc", "done");
-    const landscape = { ...brief("2026-01-03T00:00:00Z", "ngang", "done"), ratio: "9:16" } as unknown as ProjectBrief;
+  it("always surfaces short-form tiktok format on gallery cards", () => {
+    const a = brief("2026-01-02T00:00:00Z", "dọc", "done");
+    const b = brief("2026-01-03T00:00:00Z", "khác", "done");
     const cards = toCards([
-      { projectId: "vertical", root: "/p/vertical", brief: vertical, hasRender: true },
-      { projectId: "landscape", root: "/p/landscape", brief: landscape, hasRender: true },
+      { projectId: "a", root: "/p/a", brief: a, hasRender: true },
+      { projectId: "b", root: "/p/b", brief: b, hasRender: true },
     ]);
-    expect(cards.find((card) => card.projectId === "vertical")?.format).toBe("tiktok");
-    expect(cards.find((card) => card.projectId === "landscape")?.format).toBe("tiktok");
+    expect(cards.find((card) => card.projectId === "a")?.format).toBe("tiktok");
+    expect(cards.find((card) => card.projectId === "b")?.format).toBe("tiktok");
   });
 });
 
