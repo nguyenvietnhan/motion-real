@@ -26,9 +26,9 @@ Current docs live under `docs/current/`:
 - `content-guide.md` — story, language, evidence, and visual guidance.
 - `maintenance.md` — cleanup/refactor rules, residual risks, and how to read
   workspace stage / authoring failure logs.
-- `youtube-mode-deferred.md` — deferred roadmap note only; not active scope.
 
-Provider setup lives in `docs/providers/`.
+Provider setup lives in `docs/providers/`. Do not invent long-form YouTube
+author-by-segment work unless the owner explicitly requests it.
 
 ## Non-Negotiable Invariants
 

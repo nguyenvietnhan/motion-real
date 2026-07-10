@@ -21,46 +21,23 @@ Treat these as high-risk:
 
 Open them only with focused tests and a clear slice.
 
-## Cleanup Order
+## Refactor Guardrails
 
-Preferred order:
+Keep docs truthful. Prefer focused fixes over rewrite campaigns. There is **no**
+open backlog to split large files for size alone.
 
-1. keep docs truthful and current;
-2. split authoring backend seams;
-3. revisit workspace state machine only after a new narrow slice is proven;
-4. split render-grid/orchestrator only after safer outer cleanup.
-
-Workspace / authoring / desktop-main seams already landed (narrow helpers +
-facade/composition-root charter). Pipeline-core godfile extraction stays
-parked: do not split `orchestrator.ts` or `render-grid.ts` without a written
-behavior boundary and focused tests.
-
-Current workspace layout: local pure helpers exist for status/intent
-(`workspace-helpers`), stage fingerprints and kind policy (`workspace-stage`),
-view-models / publish stage shapes, create/crawl, script gate, render/refine
-prompts, and refine flow (`workspace-refine-flow`), while async
-render/refine/publish **orchestration** stays in `WorkspaceController`. Stage
-transitions log at `setStage` only. Do not force further extraction just to
-reduce line count.
-
-`workspace-controller.ts`, `packages/pipeline/src/orchestrator.ts`, and
-`packages/pipeline/src/safety/render-grid.ts` remain large on purpose. They own
-real behavior boundaries: desktop stage orchestration, render pipeline
-sequencing/locks, and deterministic render oracles. Future extraction needs a
-written behavior boundary plus focused tests before code changes; do not move
-code out of these files for size alone.
-
-`ninerouter-backend.ts` is the stable `AuthoringBackend` facade: deps wiring,
-`authorScenes` orchestration, file write/admission, and thin delegates. Focused
-modules own content planning, author reply generation/recovery, reauthor
-retry/rollback, image filtering, article crawl, visual-QA/snapshot, manifest
-convert, vision-session policy, and render tool adapters. Claim-provenance
-rules live in `content-plan-provenance.ts` (shared by quality + demote);
-deterministic demote/soften recovery lives in `content-plan-claim-policy.ts`. Structured fail logs
-use `authoring-failure.ts` (`failureClass`) on existing fail paths. Add behavior
-on the relevant runner or a new tested seam; do not thin the facade only for
-line count, and keep `authorScenes` on the facade unless a future orchestration
-harness is planned.
+- Do **not** split `orchestrator.ts` or `render-grid.ts` without a written
+  behavior boundary, owner approval, and focused tests.
+- `workspace-controller.ts`, `orchestrator.ts`, and `render-grid.ts` stay large
+  on purpose (stage orchestration, render sequencing/locks, render oracles).
+  Do not extract for line count alone.
+- Workspace pure helpers already exist (`workspace-helpers`, `workspace-stage`,
+  create/script/refine flows). Async render/refine/publish orchestration stays
+  in `WorkspaceController`; stage transitions log at `setStage` only.
+- `ninerouter-backend.ts` is the stable `AuthoringBackend` facade. Add behavior
+  on the owning runner/helper (`content-plan-*`, reply, reauthor, crawl, visual
+  QA, claim-policy, etc.). Do not thin the facade or move `authorScenes` only
+  for size.
 
 Visual QA is advisory and returns a truthful `VisualQaResult`: `checked` (ran
 with a valid reply) or `skipped` (no model, manifest unavailable, no stills,
@@ -255,40 +232,20 @@ after fixtures plus the relevant parser/admission tests. Broad AST or source
 rewrites need owner approval, a rollback path, and must not weaken N4/N5/N10 or
 render-safety blockers.
 
-## Reserved Feature Surfaces
+## Reserved Compatibility Surfaces
 
-Some compatibility and reserved surfaces are intentionally present and should not
-be deleted during hygiene passes:
+Do not delete these during hygiene unless the owner explicitly opens a migration:
 
-- `NewsVideo` is a legacy Remotion composition id kept for old saved render
-  commands and generated entries. New work should target `MotionRealVideo`.
-- `news-studio-settings.json` is the pre-rename desktop settings filename, read
-  only for migration/compatibility. New writes use `motionreal-settings.json`.
-- Scene `sfx` and `audio/sfx.ts` are reserved/internal sound-effect metadata.
-  They are schema/export compatible surfaces, not a user-facing default audio
-  mixing feature yet.
-
-Removing any of these needs an owner-approved sunset/migration path and focused
-tests for the affected alias or persisted data.
-
-### Legacy Sunset Checklist
-
-Do not remove these aliases until the owner confirms each gate:
-
-1. `NewsVideo`: no remaining user-saved render commands, generated Remotion
-   entries, or docs that depend on the id; then drop the alias from
-   `apps/remotion` and `authored-entry` with a focused test update.
-2. `news-studio-settings.json`: no installs that still need the pre-rename
-   settings file, or a one-time migrate-and-delete path has shipped; then remove
-   read-compat from desktop settings and calibrate-voice.
-3. Scene `sfx` / `audio/sfx.ts`: either productize default audio mix with tests,
-   or remove the schema field and helpers after confirming no persisted specs
-   rely on non-`none` values.
+- `NewsVideo` — legacy Remotion composition id for old saves; new work uses
+  `MotionRealVideo`.
+- `news-studio-settings.json` — pre-rename settings filename (read-compat only);
+  new writes use `motionreal-settings.json`.
+- Scene `sfx` / `audio/sfx.ts` — reserved schema/export surface, not a
+  user-facing mix product.
 
 ## Known Residual Risks
 
-These are accepted residuals after the 2026-07 optimization closeout. They are
-not silent bugs to "fix in drive-by hygiene," but they should stay visible:
+Accepted production residuals (not drive-by “fix” tasks, not an open backlog):
 
 - Compact TSX batch authoring (no-image plans above the single-reply capacity)
   remains the higher-risk path versus normal single-reply authoring.

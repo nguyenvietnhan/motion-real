@@ -64,11 +64,10 @@ spreading handler factories into `InvokeHandlers` + `registerIpcRouter`; Electro
 lifecycle (whenReady, window, activate, quit); native dialog adapters passed into
 factories; dev license manager construction.
 
-**Do not extract next without a feature gate:** a full WorkspaceController deps
-bag builder; projects/script/review IPC maps for line count alone (already thin
-delegates); `createWindow` / protocol / cache prune into a second godfile; a
-cross-cutting `createDesktopApp()` that hides startup order. Avoid creating a
-broad desktop handler mega-builder.
+**Do not invent extractions for line count:** keep `index.ts` composition-root
+ownership as listed above. Projects/script/review IPC maps are already thin
+delegates. Avoid a second “app shell” godfile or a broad `createDesktopApp()`
+that hides startup order.
 
 ## Desktop Renderer UI
 

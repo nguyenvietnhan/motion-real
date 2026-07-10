@@ -57,7 +57,6 @@ that ignored file.
 - `docs/current/content-guide.md` — story, evidence, language, and visuals.
 - `docs/current/maintenance.md` — cleanup, residual risks, stage/failure log
   reading notes, and refactor guardrails.
-- `docs/current/youtube-mode-deferred.md` — deferred roadmap note; not active scope.
 
 Provider setup lives in `docs/providers/`.
 
