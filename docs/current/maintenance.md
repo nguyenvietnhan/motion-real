@@ -475,6 +475,24 @@ address policy in `public-address.ts` (`net.BlockList`).
   through one. Changing the deny table requires tests and an explicit policy
   decision — do not shrink it because one site misbehaved.
 
+## Fresh-author candidate transaction
+
+Do not clear-first authored TSX/manifest/evidence. Use
+`author-candidate-transaction.ts` only. Do not bypass the helper for “quick”
+writes. Startup reconciles `.authoring-candidate/` journals before jobs start.
+
+## Source context budgets
+
+Constants in `create-validation.ts` / `research-context.ts`: max 5 URLs,
+concurrency 2, 40k chars/source, 100k total. Change only with tests and an
+explicit product decision. Code authoring must not receive raw article bodies.
+
+## Restart recovery
+
+Use `workspace-recovery.ts` / `inspectArtifacts` for stage recovery. Do not
+require stills for a draft+manifest project to land on `ready`. Invalid/empty
+MP4s are not deliverables.
+
 ## Media protocol allow-list
 
 Do not widen `media://` to all of `VIDEO_TOOL_HOME` or to project JSON/TSX/logs.

@@ -1,7 +1,7 @@
 # Plan — Six security, reliability, and source-pipeline hardening slices
 
-**Status:** active execution note (revised after Phase 1–2 ship + regression fixes)
-**Prepared:** 2026-07-10 · **Revised:** 2026-07-10 (continuous remaining-phase mode)
+**Status:** complete for Phases 1–6 — pending owner end smoke (§0.5)
+**Prepared:** 2026-07-10 · **Revised:** 2026-07-10 (continuous 3–6 shipped + residual gate fix)
 **Intended executor:** Grok 4.5 (or a fresh implementation agent)
 **Starting branch:** `main`
 **Original audit commit:** `d47870f`
@@ -1625,11 +1625,13 @@ Before final handoff:
 | 0 — baseline | done | n/a | Preflight only. |
 | 1 — media policy | **done + residual fixed** | `64252b7`, `d260c0c` | Allow-list + route media; `#rN` fragments allowed. |
 | 2 — SSRF pinning | **done + residual fixed** | `14cbfc5`, `b15ff9a` | undici pin; IPv4 dial preference; buffer before close. |
-| 3 — candidate transaction | **next** | — | Continuous mode; required before cancel. |
-| 4 — fresh-author cancel | pending | — | After 3; one cancel channel; writing UI cancel. |
-| 5 — bounded source context | pending | — | Caps/concurrency + finish provenance (partial already). |
-| 6 — artifact recovery | pending | — | Last; validates cancel/transaction story. |
-| End smoke + fix pass | pending | — | §0.5 owner once; agent fixes residuals. |
+| 3 — candidate transaction | **done** | `7eb212a` | Stage/admit/promote + journal + startup reconcile. |
+| 4 — fresh-author cancel | **done** | `2269c2b` | Signal through author path; Dừng tạo; delete awaits task. |
+| 5 — bounded source context | **done** | `8f91f20` | Max 5 URLs, concurrency 2, budgets; planner-only raw text. |
+| 6 — artifact recovery | **done** | `5c2b2b0` | ready without stills; draft-recovery; inspectArtifacts. |
+| Residual gate fix | **done** | `745e529` | Bare `catch` policy + prompt tests for Phase 5 plan-only author input. |
+| Durable docs sync | **done** | docs commit after `745e529` | `architecture` / `content-guide` / `maintenance` match Phases 1–6. |
+| End smoke | owner | — | §0.5 checklist after restart; report punch list if any. |
 
 ## 6. Paste-ready Grok startup instruction (continuous Phases 3–6)
 

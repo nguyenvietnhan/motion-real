@@ -315,8 +315,51 @@ Desktop URL/article-image fetches go through `@motionreal/pipeline` SSRF-safe
 fetchers (`safe-fetch.ts` + `public-address.ts`). Each hop is DNS-resolved once,
 classified with `net.BlockList`, and the undici transport is pinned to those
 public addresses so a rebinding hostname cannot open a private socket after the
-guard. Redirects are followed manually and re-pinned. Body size, timeout, and
-abort signals apply to both text and binary paths.
+guard. When both A and AAAA are public, **dial prefers IPv4** so broken desktop
+IPv6 routes do not hang image crawls. Redirects are followed manually and
+re-pinned. Body size, timeout, and abort signals apply to both text and binary
+paths. Responses are buffered before the per-request dispatcher closes.
+
+## Research context (URL-grounded authoring)
+
+Fresh desktop authoring collects sources via `research-context.ts`:
+
+- At most **5** source URLs (first N in prompt order); extras are `skipped-limit`.
+- Concurrent extract of **2**; in-memory `extractUrlContent` (planning files remain
+  a CLI/tool path).
+- Per-source / total retained char budgets (40k / 100k).
+- Planner/repair receive **labeled untrusted** source blocks + `sourceRef` rules;
+  code authoring receives the approved content plan and claim ledger only — never
+  raw article bodies.
+- Sanitized multi-link warnings may appear on script review (`sourceWarning`).
+
+## Fresh-author candidate transaction
+
+Canonical manifest/TSX/evidence are applied through
+`author-candidate-transaction.ts`: stage under `.authoring-candidate/`, admit
+staged files, journal `prepared` → `promoting` → `committed`, backup then
+promote. Failure/abort restores prior bytes. Startup (and pre-author) reconciles
+stale journals.
+
+## Cancellation
+
+**Dừng tạo** on the writing stage aborts the workspace job signal. The signal is
+threaded through script authoring, agent author, content-plan/author chat, and
+candidate apply. Cancel recovers the prior reviewable stage (not an authoring
+error toast). Delete aborts then awaits the in-flight task before removing
+project state.
+
+## Workspace restart recovery
+
+`workspace-recovery.ts` decides stage from artifact health (nonzero regular
+files), not “stills required for ready”:
+
+1. healthy full MP4 → `published`;
+2. healthy draft + nonempty manifest → `ready` (even with zero stills);
+3. healthy draft + missing/unreadable manifest → `draft-recovery` (view-only);
+4. nonempty manifest + stills, no draft → `ready`;
+5. nonempty manifest, no draft/stills → `script`;
+6. otherwise recoverable create error.
 
 ## Media protocol boundary
 
@@ -331,6 +374,8 @@ bundled assets only through the privileged `media://` scheme
   `staging/*`, `bgm/*`, and `apps/desktop/assets/*` (bundled). Known media MIME
   extensions only; unknown extensions are denied (no `application/octet-stream`
   fallback).
+- Client **cache-bust fragments** (`#rN` on stills) are ignored for lookup; query
+  strings remain denied.
 - Before streaming, the handler `realpath`s root and target, requires a regular
   file, and re-checks extension + containment (blocks junction/symlink escape).
 - `toMedia` / `mediaUrl` return a safe media URL or empty/`null` — never a raw

@@ -51,6 +51,15 @@ Never invent:
 If a fact is not supplied or verified, express the idea without pretending to
 have data.
 
+### URL-grounded runs
+
+The desktop may read a bounded set of user links (first five, concurrency two,
+retained text budgets). Content planning sees labeled **untrusted** source
+blocks and must attach `sourceRef: { sourceId, excerpt }` for usable
+`source_material` claims. Code authoring uses only the approved plan and claim
+ledger — not full article text. When no readable source remains, do not present
+usable `source_material` claims as if they were URL-grounded.
+
 ## Language And TTS
 
 - Vietnamese projects may use Vivibe or ElevenLabs.
