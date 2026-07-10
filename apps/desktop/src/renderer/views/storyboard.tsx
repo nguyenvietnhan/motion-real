@@ -1,9 +1,12 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { BgmTrackVM, StoryboardModel } from "../../shared/types.js";
 import { Icon } from "../icons.js";
 import { EmptyState, InfoHint } from "../primitives.js";
 import { compactNotificationMessage, errorDetails, useNotifications } from "../notifications.js";
 import { sceneIndexAtSeconds, seekSecondsForScene } from "../storyboard-timing.js";
+import { placeDiagPanel, type DiagPanelPlacement } from "./diag-panel-placement.js";
+
+const BGM_MENU_WIDTH_PX = 268;
 
 /**
  * Background-music picker: a compact dropdown of the per-machine BGM
@@ -23,11 +26,44 @@ const BgmPicker: React.FC<{
   onSelect: (name: string | null) => Promise<void>;
 }> = ({ bgm, selected, busy, onAdd, onRemove, onSelect }) => {
   const rootRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
   const [open, setOpen] = useState(false);
+  const [placement, setPlacement] = useState<DiagPanelPlacement | null>(null);
   const [previewing, setPreviewing] = useState<string | null>(null);
   const missing = selected !== null && !bgm.some((t) => t.name === selected);
   const selectedTrack = bgm.find((t) => t.name === selected);
+
+  const updatePlacement = useCallback((): void => {
+    const trigger = triggerRef.current;
+    if (!trigger) return;
+    setPlacement(
+      placeDiagPanel(
+        trigger.getBoundingClientRect(),
+        { width: window.innerWidth, height: window.innerHeight },
+        { preferredWidth: BGM_MENU_WIDTH_PX, preferredMaxHeight: 360 },
+      ),
+    );
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!open) {
+      setPlacement(null);
+      return;
+    }
+    updatePlacement();
+  }, [open, updatePlacement, bgm.length]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onReposition = (): void => updatePlacement();
+    window.addEventListener("resize", onReposition);
+    window.addEventListener("scroll", onReposition, true);
+    return () => {
+      window.removeEventListener("resize", onReposition);
+      window.removeEventListener("scroll", onReposition, true);
+    };
+  }, [open, updatePlacement]);
 
   useEffect(() => {
     if (!open) return;
@@ -76,6 +112,7 @@ const BgmPicker: React.FC<{
       <audio ref={audioRef} onEnded={() => setPreviewing(null)} />
       <div className="ns-bgm-control">
         <button
+          ref={triggerRef}
           className="ns-bgm-trigger"
           type="button"
           aria-haspopup="menu"
@@ -94,8 +131,18 @@ const BgmPicker: React.FC<{
         </button>
       </div>
 
-      {open && (
-        <div className="ns-bgm-menu" role="menu" aria-label="Nhạc nền">
+      {open && placement && (
+        <div
+          className="ns-bgm-menu"
+          role="menu"
+          aria-label="Nhạc nền"
+          style={{
+            top: placement.top,
+            left: placement.left,
+            width: placement.width,
+            maxHeight: placement.maxHeight,
+          }}
+        >
           <div className="ns-bgm-row">
             <span className="ns-bgm-preview-spacer" />
             <button className="ns-bgm-choice" type="button" role="menuitemradio" aria-checked={selected === null} disabled={busy} onClick={() => choose(null)}>
@@ -280,7 +327,6 @@ export const StoryboardView: React.FC<{
         if (ok) {
           setEdits({});
           setNotes("");
-          setShowEdit(false);
         } else {
           notify.error({
             title: "Không gửi được chỉnh sửa",

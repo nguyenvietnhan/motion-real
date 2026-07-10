@@ -41,4 +41,14 @@ describe("placeDiagPanel", () => {
     expect(placed.width).toBeLessThanOrEqual(360 - 24);
     expect(placed.left).toBe(12);
   });
+
+  it("supports a narrow BGM menu width without overflowing", () => {
+    const placed = placeDiagPanel(
+      { top: 40, left: 900, right: 1100, bottom: 76, width: 200, height: 36 },
+      { width: 1200, height: 800 },
+      { preferredWidth: 268, preferredMaxHeight: 360 },
+    );
+    expect(placed.width).toBe(268);
+    expect(placed.left + placed.width).toBeLessThanOrEqual(1200 - 12);
+  });
 });
