@@ -48,7 +48,13 @@ export type RunContentPlanResult =
 
 export async function runContentPlan(args: RunContentPlanInput): Promise<RunContentPlanResult> {
   const pacing = computePacingBudget(args.input, args.wordsPerSecond);
-  const messages = buildContentPlanMessages(args.input, args.research, args.offeredImages, args.wordsPerSecond);
+  const messages = buildContentPlanMessages(
+    args.input,
+    args.research,
+    args.offeredImages,
+    args.wordsPerSecond,
+    args.researchSources,
+  );
   try {
     args.logger.info({ model: args.model, projectId: args.projectId }, "calling AI model for content planning");
     const planReply = await args.chat(args.model, messages);
@@ -141,7 +147,10 @@ async function repairContentPlanIfPossible(args: {
     "content-plan claim-ledger repair requested",
   );
 
-  const reply = await args.chat(args.model, buildContentPlanRepairMessages(args.plan, args.blockingIssues));
+  const reply = await args.chat(
+    args.model,
+    buildContentPlanRepairMessages(args.plan, args.blockingIssues, args.sources),
+  );
   args.logger.info({ projectId: args.projectId, replyChars: reply.length, repairAttempt: 1 }, "AI content-plan repair replied");
   const parsed = parseContentPlan(reply);
   if (!parsed.ok) {

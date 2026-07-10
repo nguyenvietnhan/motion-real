@@ -27,6 +27,11 @@ export type ContentPlanNormalizationDiagnostic =
     sceneId?: string;
     reason: "missing" | "generic";
     original?: string;
+  }
+  | {
+    kind: "source-ref-normalized";
+    claimId?: string;
+    reason: "snake-case" | "string-dropped" | "invalid-dropped";
   };
 
 export function hasConcreteFact(value: string): boolean {
@@ -64,9 +69,99 @@ function normalizedScenePurpose(value: unknown, sceneId: string | undefined, ind
   return { original, purpose: "turn" };
 }
 
+/**
+ * Coerce common model mistakes on sourceRef so parse does not fail on shape alone.
+ * - snake_case keys → camelCase object
+ * - bare string / unusable shape → drop (quality/repair can still enforce provenance)
+ */
+function normalizeClaimSourceRef(
+  claim: Record<string, unknown>,
+  claimId: string | undefined,
+  diagnostics: ContentPlanNormalizationDiagnostic[],
+): Record<string, unknown> {
+  if (!("sourceRef" in claim)) return claim;
+  const ref = claim.sourceRef;
+
+  if (typeof ref === "string") {
+    // Models often set sourceRef: "source-01" after repair; that is never valid schema.
+    const next = { ...claim };
+    delete next.sourceRef;
+    diagnostics.push({
+      kind: "source-ref-normalized",
+      ...(claimId ? { claimId } : {}),
+      reason: "string-dropped",
+    });
+    return next;
+  }
+
+  if (!isRecord(ref)) {
+    const next = { ...claim };
+    delete next.sourceRef;
+    diagnostics.push({
+      kind: "source-ref-normalized",
+      ...(claimId ? { claimId } : {}),
+      reason: "invalid-dropped",
+    });
+    return next;
+  }
+
+  const sourceId =
+    typeof ref.sourceId === "string"
+      ? ref.sourceId
+      : typeof ref.source_id === "string"
+        ? ref.source_id
+        : undefined;
+  const excerpt =
+    typeof ref.excerpt === "string"
+      ? ref.excerpt
+      : typeof ref.quote === "string"
+        ? ref.quote
+        : undefined;
+
+  if (!sourceId || !excerpt) {
+    const next = { ...claim };
+    delete next.sourceRef;
+    diagnostics.push({
+      kind: "source-ref-normalized",
+      ...(claimId ? { claimId } : {}),
+      reason: "invalid-dropped",
+    });
+    return next;
+  }
+
+  const alreadyCanonical =
+    ref.sourceId === sourceId && ref.excerpt === excerpt && Object.keys(ref).every((k) => k === "sourceId" || k === "excerpt");
+  if (!alreadyCanonical) {
+    diagnostics.push({
+      kind: "source-ref-normalized",
+      ...(claimId ? { claimId } : {}),
+      reason: "snake-case",
+    });
+  }
+
+  return {
+    ...claim,
+    sourceRef: { sourceId, excerpt },
+  };
+}
+
 export function normalizeContentPlanCandidate(raw: unknown): { value: unknown; diagnostics: ContentPlanNormalizationDiagnostic[] } {
-  if (!isRecord(raw) || !Array.isArray(raw.scenes)) return { value: raw, diagnostics: [] };
+  if (!isRecord(raw)) return { value: raw, diagnostics: [] };
   const diagnostics: ContentPlanNormalizationDiagnostic[] = [];
+
+  let claims = raw.claims;
+  if (Array.isArray(raw.claims)) {
+    claims = raw.claims.map((claim) => {
+      if (!isRecord(claim)) return claim;
+      const claimId = typeof claim.id === "string" ? claim.id : undefined;
+      return normalizeClaimSourceRef(claim, claimId, diagnostics);
+    });
+  }
+
+  if (!Array.isArray(raw.scenes)) {
+    return { value: claims === raw.claims ? raw : { ...raw, claims }, diagnostics };
+  }
+
   const scenes = raw.scenes.map((scene, index) => {
     if (!isRecord(scene)) return scene;
     const next: Record<string, unknown> = { ...scene };
@@ -87,5 +182,13 @@ export function normalizeContentPlanCandidate(raw: unknown): { value: unknown; d
     }
     return next;
   });
-  return { value: { ...raw, scenes }, diagnostics };
+
+  return {
+    value: {
+      ...raw,
+      ...(claims !== raw.claims ? { claims } : {}),
+      scenes,
+    },
+    diagnostics,
+  };
 }

@@ -168,6 +168,51 @@ describe("parseContentPlan", () => {
     expect(result).toMatchObject({ ok: false, reason: "invalid" });
   });
 
+  it("normalizes bare-string sourceRef by dropping it so parse can continue", () => {
+    // Live failure: repair returned sourceRef as a string → schema invalid.
+    const base = validPlan();
+    const result = parseContentPlan(
+      JSON.stringify({
+        ...base,
+        claims: base.claims.map((claim) =>
+          claim.id === "claim-01" ? { ...claim, sourceRef: "source-01" } : claim,
+        ),
+      }),
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.plan.claims.find((c) => c.id === "claim-01")?.sourceRef).toBeUndefined();
+    expect(result.diagnostics).toContainEqual(
+      expect.objectContaining({ kind: "source-ref-normalized", claimId: "claim-01", reason: "string-dropped" }),
+    );
+  });
+
+  it("normalizes snake_case source_id/quote into sourceRef object", () => {
+    const base = validPlan();
+    const result = parseContentPlan(
+      JSON.stringify({
+        ...base,
+        claims: base.claims.map((claim) =>
+          claim.id === "claim-01"
+            ? {
+                ...claim,
+                sourceRef: {
+                  source_id: "source-01",
+                  excerpt: "Năng lực sản xuất chip tiên tiến tập trung vào rất ít nhà máy.",
+                },
+              }
+            : claim,
+        ),
+      }),
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.plan.claims.find((c) => c.id === "claim-01")?.sourceRef).toEqual({
+      sourceId: "source-01",
+      excerpt: "Năng lực sản xuất chip tiên tiến tập trung vào rất ít nhà máy.",
+    });
+  });
+
   it("does not normalize hookType or layoutFamily drift without evidence", () => {
     const base = validPlan();
     const result = parseContentPlan(
@@ -753,5 +798,56 @@ describe("buildContentPlanRepairMessages", () => {
     expect(text).toContain("Do not make uncertain/omit claims supported");
     expect(text).toContain(JSON.stringify(CLAIM_LEDGER_MISSING_EVIDENCE_PLAN, null, 2));
     expect(text).toContain("Return the full repaired content-plan JSON object only");
+  });
+
+  it("teaches object sourceRef shape and includes labeled sources for claim-provenance repair", () => {
+    const messages = buildContentPlanRepairMessages(
+      validPlan(),
+      [
+        {
+          check: "claim-provenance",
+          severity: "blocking",
+          message: "usable source_material claim claim-01 requires sourceRef",
+        },
+      ],
+      [
+        {
+          id: "source-01",
+          metadata: { sourceUrl: "https://example.com/a" },
+          body: "The company reported revenue of twelve billion dollars last year according to its annual filing.",
+        },
+      ],
+    );
+    const text = messages.map((message) => (typeof message.content === "string" ? message.content : "")).join("\n");
+    expect(text).toContain("sourceRef");
+    expect(text).toContain("OBJECT");
+    expect(text).toContain("Never set sourceRef to a bare string");
+    expect(text).toContain("### source-01");
+    expect(text).toContain("twelve billion dollars");
+  });
+});
+
+describe("buildContentPlanMessages provenance labeling", () => {
+  it("includes labeled source ids and sourceRef object rules when sources exist", () => {
+    const messages = buildContentPlanMessages(
+      { text: "Summarize this launch", urls: ["https://example.com/a"], videoLanguage: "en" },
+      undefined,
+      undefined,
+      undefined,
+      [
+        {
+          id: "source-01",
+          metadata: { sourceUrl: "https://example.com/a", title: "Launch" },
+          body: "Reflect with Claude helps users review conversations over time with privacy controls.",
+        },
+      ],
+    );
+    const system = messages[0]!.content as string;
+    const user = messages[1]!.content as string;
+    expect(system).toContain("sourceRef");
+    expect(system).toContain("sourceId");
+    expect(system).toMatch(/never a bare string/i);
+    expect(user).toContain("### source-01");
+    expect(user).toContain("Reflect with Claude");
   });
 });
