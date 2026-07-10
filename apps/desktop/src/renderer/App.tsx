@@ -6,6 +6,7 @@ import { preferredModelDecision } from "../shared/model-selection.js";
 import { defaultSettings, reviewModeAllowsSceneEdit } from "../shared/settings-model.js";
 import type { BgmTrackVM, LicenseState, ModelInfo, ProjectStage } from "../shared/types.js";
 import { compactNotificationMessage, errorDetails, NotificationProvider, useNotifications } from "./notifications.js";
+import { ConfirmDialog } from "./primitives.js";
 
 /**
  * Renderer root — enterprise shell: a left Sidebar + a content
@@ -44,6 +45,8 @@ const AppShell: React.FC = () => {
   // Loaded when a workspace opens; the picker mutates the library then refreshes.
   const [bgm, setBgm] = useState<BgmTrackVM[]>([]);
   const [bgmSelected, setBgmSelected] = useState<string | null>(null);
+  /** Pending project id for in-app delete confirm (replaces native window.confirm). */
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const selectingModelRef = useRef<string | null>(null);
   const preferredModelIdRef = useRef<string | undefined>(undefined);
   const notify = useNotifications();
@@ -245,10 +248,12 @@ const AppShell: React.FC = () => {
 
   const onDelete = (projectId: string) => {
     if (!dash) return;
-    const ok = typeof window !== "undefined" && typeof window.confirm === "function"
-      ? window.confirm("Xoá vĩnh viễn dự án này? Hành động không thể hoàn tác.")
-      : true;
-    if (!ok) return;
+    setPendingDeleteId(projectId);
+  };
+  const confirmDelete = (): void => {
+    if (!dash || !pendingDeleteId) return;
+    const projectId = pendingDeleteId;
+    setPendingDeleteId(null);
     void dash.projects.delete(projectId).then(refreshGallery);
   };
   const onReveal = (projectId: string) => void dash?.projects.reveal(projectId);
@@ -483,6 +488,16 @@ const AppShell: React.FC = () => {
           />
         )}
       </main>
+      <ConfirmDialog
+        open={pendingDeleteId !== null}
+        title="Xoá dự án?"
+        message="Xoá vĩnh viễn dự án này. Hành động không thể hoàn tác."
+        confirmLabel="Xoá"
+        cancelLabel="Huỷ"
+        danger
+        onConfirm={confirmDelete}
+        onCancel={() => setPendingDeleteId(null)}
+      />
     </div>
   );
 };

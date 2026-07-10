@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import type { AiAccountState, FriendlyStatus, GatewayState, ProjectCardVM } from "../shared/types.js";
 import { FRIENDLY_LABELS } from "../shared/friendly-status.js";
 import { activeAccount } from "../shared/active-account.js";
@@ -149,6 +149,76 @@ export const EmptyState: React.FC<{ icon: React.ReactNode; title: string; hint: 
     {action && <div className="ns-empty-state-action">{action}</div>}
   </div>
 );
+
+/**
+ * In-app confirm dialog (replaces native window.confirm so destructive
+ * actions match the dark shell instead of a light OS chrome popup).
+ */
+export const ConfirmDialog: React.FC<{
+  open: boolean;
+  title: string;
+  message: string;
+  confirmLabel?: string;
+  cancelLabel?: string;
+  /** Destructive confirm styling (delete, clear…). */
+  danger?: boolean;
+  onConfirm: () => void;
+  onCancel: () => void;
+}> = ({
+  open,
+  title,
+  message,
+  confirmLabel = "Xác nhận",
+  cancelLabel = "Huỷ",
+  danger = false,
+  onConfirm,
+  onCancel,
+}) => {
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (event: KeyboardEvent): void => {
+      if (event.key === "Escape") onCancel();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [open, onCancel]);
+
+  if (!open) return null;
+  return (
+    <div className="ns-modal-backdrop ns-confirm-backdrop" role="presentation" onMouseDown={onCancel}>
+      <div
+        className="ns-modal ns-confirm-modal"
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby="ns-confirm-title"
+        aria-describedby="ns-confirm-message"
+        onMouseDown={(event) => event.stopPropagation()}
+      >
+        <div className="ns-confirm-body">
+          <h2 id="ns-confirm-title" className="ns-confirm-title">
+            {title}
+          </h2>
+          <p id="ns-confirm-message" className="ns-confirm-message">
+            {message}
+          </p>
+        </div>
+        <div className="ns-confirm-actions">
+          <button type="button" className="ns-btn" onClick={onCancel}>
+            {cancelLabel}
+          </button>
+          <button
+            type="button"
+            className={`ns-btn ${danger ? "ns-btn-danger" : "ns-btn-primary"}`}
+            onClick={onConfirm}
+            autoFocus
+          >
+            {confirmLabel}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 export const Spinner: React.FC = () => (
   <span className="ns-spinner" />

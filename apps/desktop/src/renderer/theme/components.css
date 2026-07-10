@@ -69,6 +69,57 @@
   min-width: 40px;
   gap: 0;
 }
+.ns-btn-danger {
+  background: var(--danger);
+  border-color: transparent;
+  color: #fff;
+  font-weight: 600;
+}
+.ns-btn-danger:hover {
+  background: color-mix(in srgb, var(--danger) 86%, #000);
+  border-color: transparent;
+}
+.ns-btn-danger:active {
+  background: color-mix(in srgb, var(--danger) 78%, #000);
+}
+.ns-btn-danger:disabled:hover {
+  background: var(--danger);
+}
+/* In-app confirm (project delete, etc.) — dark card, not native OS chrome. */
+.ns-confirm-backdrop {
+  z-index: 100;
+}
+.ns-confirm-modal {
+  width: min(400px, 100%);
+  overflow: hidden;
+}
+.ns-confirm-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 20px 20px 4px;
+}
+.ns-confirm-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  line-height: 1.3;
+  color: var(--foreground);
+}
+.ns-confirm-message {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--muted-foreground);
+}
+.ns-confirm-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 16px 20px 18px;
+}
 .ns-btn:disabled {
   opacity: 0.45;
   cursor: not-allowed;
