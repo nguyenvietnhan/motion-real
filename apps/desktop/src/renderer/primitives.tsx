@@ -1,4 +1,5 @@
 import React, { useEffect } from "react";
+import { createPortal } from "react-dom";
 import type { AiAccountState, FriendlyStatus, GatewayState, ProjectCardVM } from "../shared/types.js";
 import { FRIENDLY_LABELS } from "../shared/friendly-status.js";
 import { activeAccount } from "../shared/active-account.js";
@@ -184,7 +185,8 @@ export const ConfirmDialog: React.FC<{
   }, [open, onCancel]);
 
   if (!open) return null;
-  return (
+  // Portal to body so shell overflow / stacking never hides the dialog.
+  return createPortal(
     <div className="ns-modal-backdrop ns-confirm-backdrop" role="presentation" onMouseDown={onCancel}>
       <div
         className="ns-modal ns-confirm-modal"
@@ -216,7 +218,8 @@ export const ConfirmDialog: React.FC<{
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 };
 
