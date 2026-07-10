@@ -456,96 +456,86 @@ export const HomeView: React.FC<{
             )}
 
             <div className="ns-composer-bar">
-              {canAttach && onPickImages && (
-                <button type="button" className="ns-btn-attach" onClick={pickImages}>
-                  {Icon.plus({ size: 16 })} <span>Thêm hình ảnh</span>
-                </button>
-              )}
-              
-              {hasLink && (
-                <span className="ns-link-detected-badge">
-                  {Icon.globe({ size: 14 })} Phát hiện {linkCount} liên kết
-                </span>
-              )}
+              <div className="ns-composer-bar-leading">
+                {canAttach && onPickImages && (
+                  <button type="button" className="ns-btn-attach" onClick={pickImages} title="Thêm ảnh" aria-label="Thêm ảnh">
+                    {Icon.plus({ size: 16 })}
+                    <span className="ns-btn-attach-label">Ảnh</span>
+                  </button>
+                )}
+                {hasLink && (
+                  <span className="ns-link-detected-badge">
+                    {Icon.globe({ size: 14 })} {linkCount} link
+                  </span>
+                )}
+                {aiReady && reason ? <span className="ns-validation-warning">{reason}</span> : null}
+              </div>
+              <button
+                type="button"
+                className="ns-create-send"
+                onClick={submitCreate}
+                disabled={!inputValid || creating}
+                title={creating ? "Đang tạo…" : "Tạo video"}
+                aria-label={creating ? "Đang tạo…" : "Tạo video"}
+              >
+                {creating ? (
+                  <span className="ns-create-send-spin" aria-hidden />
+                ) : (
+                  Icon.spark({ size: 18 })
+                )}
+              </button>
             </div>
           </div>
           
           {!aiReady && <p className="ns-create-hint warning">Chưa sẵn sàng AI. Mở Cài đặt để kết nối.</p>}
 
-          {/* Bottom: Settings Grid */}
-          <div className="ns-settings-section">
-            <span className="ns-settings-section-title">Cấu hình</span>
-            
-            <div className="ns-settings-horizontal-grid">
-              <div className="ns-setting-column">
-                <span className="ns-setting-label">Thời lượng</span>
-                <KnobButton
-                  icon={Icon.clock({ size: 14 })}
-                  title="Thời lượng"
-                  value={durationTier}
-                  open={openKnob === "duration"}
-                  onToggle={() => setOpenKnob((k) => (k === "duration" ? null : "duration"))}
-                  onClose={() => setOpenKnob(null)}
-                  onChange={setDurationTier}
-                  options={[
-                    { value: 1, label: "0:45" },
-                    { value: 2, label: "1:30" },
-                    { value: 3, label: "2:30" },
-                  ]}
-                />
-              </div>
-
-              <div className="ns-setting-column">
-                <span className="ns-setting-label">Ngôn ngữ</span>
-                <KnobButton
-                  icon={Icon.globe({ size: 14 })}
-                  title="Ngôn ngữ"
-                  value={videoLanguage}
-                  open={openKnob === "language"}
-                  onToggle={() => setOpenKnob((k) => (k === "language" ? null : "language"))}
-                  onClose={() => setOpenKnob(null)}
-                  onChange={(next) => {
-                    const selection = applyVideoLanguageSelection(next, voiceProvider);
-                    setVideoLanguage(selection.videoLanguage);
-                    setVoiceProvider(selection.voiceProvider);
-                  }}
-                  options={languageOptionsForProvider(voiceProvider)}
-                />
-              </div>
-
-              <div className="ns-setting-column">
-                <span className="ns-setting-label">Giọng đọc</span>
-                <KnobButton
-                  icon={Icon.spark({ size: 14 })}
-                  title="Giọng đọc"
-                  value={voiceProvider}
-                  open={openKnob === "voice"}
-                  onToggle={() => setOpenKnob((k) => (k === "voice" ? null : "voice"))}
-                  onClose={() => setOpenKnob(null)}
-                  onChange={(next) => {
-                    const selection = applyVoiceProviderSelection(next, videoLanguage);
-                    setVideoLanguage(selection.videoLanguage);
-                    setVoiceProvider(selection.voiceProvider);
-                  }}
-                  options={[
-                    { value: "vivibe", label: "Vivibe" },
-                    { value: "elevenlabs", label: "ElevenLabs" },
-                  ]}
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Action Row */}
-          <div className="ns-create-action-row">
-            {aiReady && reason && <span className="ns-validation-warning">{reason}</span>}
-            <button
-              className="ns-btn ns-btn-primary ns-create-submit"
-              onClick={submitCreate}
-              disabled={!inputValid || creating}
-            >
-              {Icon.spark({ size: 16 })} {creating ? "Đang tạo…" : "Tạo video"}
-            </button>
+          {/* Compact delivery knobs — one tight row, no empty column stretch */}
+          <div className="ns-create-knobs" role="group" aria-label="Cấu hình">
+            <KnobButton
+              icon={Icon.clock({ size: 14 })}
+              title="Thời lượng"
+              value={durationTier}
+              open={openKnob === "duration"}
+              onToggle={() => setOpenKnob((k) => (k === "duration" ? null : "duration"))}
+              onClose={() => setOpenKnob(null)}
+              onChange={setDurationTier}
+              options={[
+                { value: 1, label: "0:45" },
+                { value: 2, label: "1:30" },
+                { value: 3, label: "2:30" },
+              ]}
+            />
+            <KnobButton
+              icon={Icon.globe({ size: 14 })}
+              title="Ngôn ngữ"
+              value={videoLanguage}
+              open={openKnob === "language"}
+              onToggle={() => setOpenKnob((k) => (k === "language" ? null : "language"))}
+              onClose={() => setOpenKnob(null)}
+              onChange={(next) => {
+                const selection = applyVideoLanguageSelection(next, voiceProvider);
+                setVideoLanguage(selection.videoLanguage);
+                setVoiceProvider(selection.voiceProvider);
+              }}
+              options={languageOptionsForProvider(voiceProvider)}
+            />
+            <KnobButton
+              icon={Icon.spark({ size: 14 })}
+              title="Giọng đọc"
+              value={voiceProvider}
+              open={openKnob === "voice"}
+              onToggle={() => setOpenKnob((k) => (k === "voice" ? null : "voice"))}
+              onClose={() => setOpenKnob(null)}
+              onChange={(next) => {
+                const selection = applyVoiceProviderSelection(next, videoLanguage);
+                setVideoLanguage(selection.videoLanguage);
+                setVoiceProvider(selection.voiceProvider);
+              }}
+              options={[
+                { value: "vivibe", label: "Vivibe" },
+                { value: "elevenlabs", label: "ElevenLabs" },
+              ]}
+            />
           </div>
         </div>
       </div>
