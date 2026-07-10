@@ -1,9 +1,12 @@
 /* Workspace — shared running job (write / render) + recovery / image review */
 
-/* One template: status · progress · Stop (always bottom-right). */
+/* One template: status · progress · Stop (always bottom-right).
+ * Full content width — no short left-aligned card. */
 .ns-running-card {
-  padding: clamp(20px, 3vw, 28px);
-  max-width: 40rem;
+  width: 100%;
+  max-width: none;
+  padding: clamp(20px, 4vw, 32px);
+  box-sizing: border-box;
 }
 .ns-running-status {
   display: flex;
