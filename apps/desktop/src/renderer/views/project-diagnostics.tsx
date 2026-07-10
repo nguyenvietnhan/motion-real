@@ -1,21 +1,59 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { ProjectDiagnosticsVM } from "../../shared/types.js";
 import { compactNotificationMessage, errorDetails, useNotifications } from "../notifications.js";
+import { placeDiagPanel, type DiagPanelPlacement } from "./diag-panel-placement.js";
 
 /**
  * Bounded, historical project diagnostic popover.
  * Shows fixed-language entries only — never raw logs.
- * Positioned as an overlay so it never reflows the storyboard header.
+ *
+ * Uses position:fixed + viewport clamping. Absolute placement inside the
+ * storyboard header was clipped by overflow ancestors (main / story-shell),
+ * which cut off the list text and left only empty divider lines.
  */
 export const ProjectDiagnosticsPanel: React.FC<{
   projectId: string;
   load: (projectId: string) => Promise<ProjectDiagnosticsVM>;
 }> = ({ projectId, load }) => {
   const rootRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [report, setReport] = useState<ProjectDiagnosticsVM | null>(null);
+  const [placement, setPlacement] = useState<DiagPanelPlacement | null>(null);
   const notify = useNotifications();
+
+  const updatePlacement = useCallback((): void => {
+    const trigger = triggerRef.current;
+    if (!trigger) return;
+    const rect = trigger.getBoundingClientRect();
+    setPlacement(
+      placeDiagPanel(rect, {
+        width: window.innerWidth,
+        height: window.innerHeight,
+      }),
+    );
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!open) {
+      setPlacement(null);
+      return;
+    }
+    updatePlacement();
+  }, [open, updatePlacement, report?.entries.length]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onReposition = (): void => updatePlacement();
+    window.addEventListener("resize", onReposition);
+    // Capture scroll from any overflow ancestor (main, story-shell, …).
+    window.addEventListener("scroll", onReposition, true);
+    return () => {
+      window.removeEventListener("resize", onReposition);
+      window.removeEventListener("scroll", onReposition, true);
+    };
+  }, [open, updatePlacement]);
 
   useEffect(() => {
     if (!open) return;
@@ -70,6 +108,7 @@ export const ProjectDiagnosticsPanel: React.FC<{
   return (
     <div className="ns-diag" ref={rootRef}>
       <button
+        ref={triggerRef}
         type="button"
         className="ns-btn ns-diag-trigger"
         aria-expanded={open}
@@ -84,8 +123,18 @@ export const ProjectDiagnosticsPanel: React.FC<{
         <span className="ns-diag-label-full">{open ? "Ẩn chi tiết" : "Chi tiết xử lý"}</span>
         <span className="ns-diag-label-short">{open ? "Ẩn" : "Chi tiết"}</span>
       </button>
-      {open && (
-        <div className="ns-diag-panel ns-card" role="dialog" aria-label="Chi tiết xử lý dự án">
+      {open && placement && (
+        <div
+          className="ns-diag-panel ns-card"
+          role="dialog"
+          aria-label="Chi tiết xử lý dự án"
+          style={{
+            top: placement.top,
+            left: placement.left,
+            width: placement.width,
+            maxHeight: placement.maxHeight,
+          }}
+        >
           <div className="ns-diag-toolbar">
             <button type="button" className="ns-btn" disabled={loading} onClick={refresh}>
               {loading ? "Đang tải…" : "Làm mới"}

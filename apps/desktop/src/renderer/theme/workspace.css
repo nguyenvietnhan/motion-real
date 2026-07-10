@@ -307,7 +307,9 @@
   display: inline;
 }
 
-/* Diagnostics popover — lives in the action cluster, never reflows the shell. */
+/* Diagnostics popover — trigger stays in the action cluster; panel is
+ * position:fixed (inline top/left/width/maxHeight from placeDiagPanel) so
+ * overflow:hidden on main/story-shell cannot clip entry text. */
 .ns-diag {
   position: relative;
   flex-shrink: 0;
@@ -319,16 +321,13 @@
   display: none;
 }
 .ns-diag-panel {
-  position: absolute;
-  top: calc(100% + 8px);
-  right: 0;
-  left: auto;
-  z-index: 50;
-  width: min(28rem, calc(100vw - 48px));
-  max-height: min(360px, 50vh);
+  position: fixed;
+  z-index: 200;
   overflow: auto;
   padding: 12px;
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+  color: var(--foreground);
+  box-sizing: border-box;
 }
 .ns-diag-toolbar {
   display: flex;
@@ -369,6 +368,7 @@
 .ns-diag-message {
   font-size: 14px;
   line-height: 1.4;
+  color: var(--foreground);
 }
 .ns-story-shell {
   display: flex;
@@ -886,11 +886,6 @@
     margin-left: 0;
     justify-content: flex-start;
     width: 100%;
-  }
-  .ns-diag-panel {
-    right: auto;
-    left: 0;
-    width: min(28rem, calc(100vw - 32px));
   }
 }
 
