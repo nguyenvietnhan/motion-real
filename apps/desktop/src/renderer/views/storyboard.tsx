@@ -544,32 +544,40 @@ export const StoryboardView: React.FC<{
         {allowSceneEdit && (
           <aside className="ns-card ns-story-edit-panel" aria-label="Yêu cầu chỉnh sửa">
             <div className="ns-story-edit-heading">
-              <div>
-                <strong>Chỉnh sửa</strong>
-                <span>Góp ý theo cảnh hoặc cả video</span>
-              </div>
+              <strong>Chỉnh sửa</strong>
+              <span>Góp ý theo cảnh hoặc cả video</span>
             </div>
 
-            <section className="ns-edit-scope is-scene">
-              <div className="ns-edit-scope-heading">
-                <span className="ns-edit-scope-icon">{Icon.pencil({ size: 15 })}</span>
-                <strong>Cảnh {idx + 1}</strong>
-                <span className="ns-edit-scope-badge">Một cảnh</span>
-              </div>
-              <textarea aria-label={`Yêu cầu cảnh ${idx + 1}`} className="ns-input ns-edit-textarea" value={current ? (edits[current.sceneId] ?? "") : ""}
-                maxLength={2000} rows={4} onChange={(e) => setCurrentEdit(e.target.value)}
-                placeholder="Ví dụ: to chữ, đổi nền…" />
+            <section className="ns-edit-field">
+              <label className="ns-edit-label" htmlFor={`edit-scene-${current?.sceneId ?? "none"}`}>
+                Cảnh {idx + 1}
+              </label>
+              <textarea
+                id={`edit-scene-${current?.sceneId ?? "none"}`}
+                aria-label={`Yêu cầu cảnh ${idx + 1}`}
+                className="ns-input ns-edit-textarea"
+                value={current ? (edits[current.sceneId] ?? "") : ""}
+                maxLength={2000}
+                rows={4}
+                onChange={(e) => setCurrentEdit(e.target.value)}
+                placeholder="Ví dụ: to chữ, đổi nền…"
+              />
             </section>
 
-            <section className="ns-edit-scope is-global">
-              <div className="ns-edit-scope-heading">
-                <span className="ns-edit-scope-icon">{Icon.globe({ size: 15 })}</span>
-                <strong>Cả video</strong>
-                <span className="ns-edit-scope-badge">Mọi cảnh</span>
-              </div>
-              <textarea aria-label="Ghi chú cả video" className="ns-input ns-edit-textarea" value={notes} maxLength={2000} rows={3}
+            <section className="ns-edit-field">
+              <label className="ns-edit-label" htmlFor="edit-global-notes">
+                Cả video
+              </label>
+              <textarea
+                id="edit-global-notes"
+                aria-label="Ghi chú cả video"
+                className="ns-input ns-edit-textarea"
+                value={notes}
+                maxLength={2000}
+                rows={3}
                 onChange={(e) => setNotes(e.target.value)}
-                placeholder="Góp ý chung…" />
+                placeholder="Góp ý chung…"
+              />
             </section>
           </aside>
         )}
