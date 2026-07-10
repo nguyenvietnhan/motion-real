@@ -162,9 +162,11 @@ describe("media URL route round-trip", () => {
     const withQuery = await resolveMediaRequest("media://file/project-asset/p1/a.png?x=1", policy, fs);
     expect(withQuery.ok).toBe(false);
     if (!withQuery.ok) expect(withQuery.status).toBe(403);
-    const withHash = await resolveMediaRequest("media://file/project-asset/p1/a.png#frag", policy, fs);
+    // Cache-bust fragment on stills (storyboard appends #rN) must not 403.
+    const withHash = await resolveMediaRequest("media://file/project-review/p1/scene-01.png#r3", policy, fs);
+    // Missing file → 404 after allow, not 403 from hash policy.
     expect(withHash.ok).toBe(false);
-    if (!withHash.ok) expect(withHash.status).toBe(403);
+    if (!withHash.ok) expect(withHash.status).toBe(404);
     const emptyRoute = await resolveMediaRequest("media://file/", policy, fs);
     expect(emptyRoute.ok).toBe(false);
     if (!emptyRoute.ok) expect(emptyRoute.status).toBe(403);
@@ -189,6 +191,25 @@ describe("resolveMediaRequest realpath and allow matrix", () => {
       absolutePath: abs,
       contentType: "video/mp4",
       size: 1024,
+    });
+  });
+
+  it("serves review stills with storyboard cache-bust fragment #rN", async () => {
+    const home = resolve(join(workspaceRoot(), ".video-tool-media-test"));
+    const policy = policyFor(home);
+    const abs = resolve(join(home, "projects", "p1", "review", "scene-01.png"));
+    const zoneRoot = resolve(join(home, "projects", "p1", "review"));
+    const fs = mockFs({
+      files: { [abs]: { size: 2048 } },
+      realpathMap: { [abs]: abs, [zoneRoot]: zoneRoot },
+    });
+    const url = `${mediaUrl(abs, policy)!}#r7`;
+    const result = await resolveMediaRequest(url, policy, fs);
+    expect(result).toEqual({
+      ok: true,
+      absolutePath: abs,
+      contentType: "image/png",
+      size: 2048,
     });
   });
 

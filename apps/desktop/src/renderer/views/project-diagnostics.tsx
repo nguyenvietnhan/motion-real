@@ -50,7 +50,9 @@ export const ProjectDiagnosticsPanel: React.FC<{
   };
 
   return (
-    <div className="ns-diag" style={{ marginTop: 12 }}>
+    // position:relative + absolute panel so opening diagnostics does not expand
+    // the storyboard header and push the whole review shell downward.
+    <div className="ns-diag" style={{ position: "relative", marginLeft: 8, display: "inline-block", verticalAlign: "middle" }}>
       <button
         type="button"
         className="ns-btn"
@@ -65,7 +67,17 @@ export const ProjectDiagnosticsPanel: React.FC<{
       {open && (
         <div
           className="ns-card"
-          style={{ marginTop: 10, padding: 12, maxHeight: 280, overflow: "auto" }}
+          style={{
+            position: "absolute",
+            top: "calc(100% + 8px)",
+            left: 0,
+            zIndex: 40,
+            width: "min(28rem, 70vw)",
+            padding: 12,
+            maxHeight: 320,
+            overflow: "auto",
+            boxShadow: "0 12px 40px rgba(0,0,0,0.45)",
+          }}
           role="region"
           aria-label="Chi tiết xử lý dự án"
         >

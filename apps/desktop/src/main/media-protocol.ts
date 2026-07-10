@@ -303,8 +303,10 @@ export async function resolveMediaRequest(
   if (parsed.protocol !== `${SCHEME}:` || parsed.hostname !== HOST) {
     return { ok: false, status: 403 };
   }
-  // Query/fragment must not change lookup semantics.
-  if (parsed.search || parsed.hash) {
+  // Query strings must not change lookup semantics.
+  // Fragment (#rN) is client-only cache-busting on still URLs — pathname is the
+  // resource; reject only if someone tried to encode path data in the query.
+  if (parsed.search) {
     return { ok: false, status: 403 };
   }
 
