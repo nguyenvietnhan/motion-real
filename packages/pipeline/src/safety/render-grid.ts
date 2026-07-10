@@ -167,16 +167,9 @@ export function checkSafeArea(frame: Frame, sceneId?: string, options?: RenderGr
 // --- N14 (format-aware "don't fly off the frame") --------------------------
 
 /**
- * The ONE format-aware layout oracle for both canvases: authored
- * content must not bleed into the outer `safeMargin` ring at the very edge of the
- * frame — content flush on the canvas edge reads as "flew off the frame". Unlike
- * the four vertical-only N14 variants above (which encode the 9:16 news layout —
- * content zone, caption band, divider clearance), this one is GEOMETRY-DRIVEN: it
- * takes a `FormatGeometry` (`geometry("tiktok")`) and
- * scans the ring of `geometry.safeMargin` px around the frame, so it is correct
- * for the short-form 9:16 canvas. The
- * thin (YouTube uses nearly the whole frame); the 9:16 ring matches the vertical
- * safe margin.
+ * Layout oracle: authored content must not bleed into the outer `safeMargin`
+ * ring at the canvas edge. Geometry-driven via `FormatGeometry` (`geometry()`);
+ * short-form 9:16 only.
  *
  * Severity = WARNING (advisory): the refine loop uses it to know which scene to
  * fix, but it never hard-blocks — that is the whole point of the overhaul (don't

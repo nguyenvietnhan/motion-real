@@ -21,12 +21,9 @@ import { compactNotificationMessage, errorDetails, useNotifications } from "../n
  */
 
 /**
- * Final-screen Copy panel: shows the AI-generated publish title and
- * hashtags with one-click copy each, so the user can paste them straight into
- * TikTok/YouTube. Title doubles as the project name (clean, no inline hashtags);
- * hashtags are the separate publish tags. Renders nothing when neither exists
- * (an older video authored before the title/hashtags split, or a YouTube video
- * with no hashtags). Copy feedback stays local to the small icon button.
+ * Final-screen Copy panel: publish title + hashtags with one-click copy for
+ * short-form platforms. Title doubles as the project name (no inline hashtags).
+ * Renders nothing when neither exists. Copy feedback stays on the icon button.
  */
 const PublishCopyPanel: React.FC<{ title?: string; hashtags?: string[] }> = ({ title, hashtags }) => {
   const [copied, setCopied] = useState<"title" | "tags" | null>(null);

@@ -29,7 +29,7 @@ describe("VideoComposition missing-component fallback", () => {
 describe("CompositionBackdrop default background wash", () => {
   // The composition's top-level backdrop must paint a gradient WASH, never the
   // flat near-black `colors.bg` (which looked dead on both formats). The backdrop
-  // is format-agnostic — the same wash backs TikTok and YouTube — so one theme
+  // is format-agnostic — the same wash for short-form 9:16 — so one theme
   // exercises both. Tested directly (not through VideoComposition) because the
   // master composition mounts TransitionSeries, which needs a Remotion
   // video-config context; the backdrop is just a styled AbsoluteFill.

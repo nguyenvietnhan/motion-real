@@ -43,21 +43,16 @@ export type ManifestScene = {
 export type Manifest = {
   title?: string;
   /**
-   * Publish hashtags (TikTok), kept SEPARATE from the title so the project
-   * display name stays clean ("Gemma 3 chạy trên máy nhà", not "… #ai #llm").
-   * The published screen surfaces them next to the title with a Copy button
-   *. Each entry already carries its leading `#` (normalized at parse).
-   * Absent for YouTube (no hashtag requirement) or an older manifest.
+   * Publish hashtags, kept SEPARATE from the title so the project display name
+   * stays clean. Each entry already carries its leading `#` (normalized at parse).
    */
   hashtags?: string[];
   /**
-   * Delivery format. The backend injects this from the
-   * user's UI choice — the model does NOT pick it. Absent ⇒ "tiktok" (the
-   * historical vertical default), so a manifest authored before format existed
-   * still resolves to a valid spec.
+   * Delivery format. Always short-form `"tiktok"` for new projects; the model
+   * does NOT pick it. Absent ⇒ "tiktok".
    */
   format?: VideoFormat;
-  /** User-chosen duration bucket (1|2|3); maps to seconds via `tierSeconds`. */
+  /** Duration bucket (1|2|3) for pacing; new creates use tier 1. */
   durationTier?: DurationTier;
   /**
    * User-chosen background-music track : the library
