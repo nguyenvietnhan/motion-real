@@ -392,7 +392,7 @@ describe("claim-provenance quality (evaluateContentPlanQuality + sources)", () =
     );
   });
 
-  it("empty sources: sourceRef is blocked; missing sourceRef is not hard-blocked", () => {
+  it("empty sources: usable source_material is blocked (with or without sourceRef)", () => {
     const withCite = evaluateContentPlanQuality(
       provenancePlan({
         sourceRef: {
@@ -403,15 +403,15 @@ describe("claim-provenance quality (evaluateContentPlanQuality + sources)", () =
       undefined,
       [],
     );
-    expect(withCite.blockingIssues).toContainEqual(
+    expect(withCite.blockingIssues.some((i) => i.check === "claim-provenance")).toBe(true);
+
+    const noCite = evaluateContentPlanQuality(provenancePlan(), undefined, []);
+    expect(noCite.blockingIssues).toContainEqual(
       expect.objectContaining({
         check: "claim-provenance",
         message: expect.stringMatching(/no readable sources/i),
       }),
     );
-
-    const noCite = evaluateContentPlanQuality(provenancePlan(), undefined, []);
-    expect(noCite.blockingIssues.filter((i) => i.check === "claim-provenance")).toEqual([]);
   });
 
   it("blocks user_brief and common_knowledge claims that carry sourceRef", () => {
@@ -841,8 +841,9 @@ describe("buildContentPlanRepairMessages", () => {
     expect(text).toContain("sourceRef");
     expect(text).toContain("OBJECT");
     expect(text).toContain("Never set sourceRef to a bare string");
-    expect(text).toContain("### source-01");
+    expect(text).toContain('id="source-01"');
     expect(text).toContain("twelve billion dollars");
+    expect(text).toContain("UNTRUSTED SOURCE MATERIAL");
   });
 });
 
@@ -866,7 +867,8 @@ describe("buildContentPlanMessages provenance labeling", () => {
     expect(system).toContain("sourceRef");
     expect(system).toContain("sourceId");
     expect(system).toMatch(/never a bare string/i);
-    expect(user).toContain("### source-01");
+    expect(user).toContain('id="source-01"');
     expect(user).toContain("Reflect with Claude");
+    expect(user).toContain("UNTRUSTED SOURCE MATERIAL");
   });
 });

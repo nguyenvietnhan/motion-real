@@ -79,7 +79,7 @@ export type RepairLoopOptions = { maxAttempts: number; signal?: AbortSignal };
 
 /** Outcome of a fresh-author or re-author job. */
 export type AuthorOutcome =
-  | { kind: "authored"; sceneIds: string[]; unreadableUrls?: string[] }
+  | { kind: "authored"; sceneIds: string[]; unreadableUrls?: string[]; sourceWarning?: string }
   | { kind: "no-source"; message: string }
   /** User cancelled fresh authoring (Dừng tạo) — not a failure. */
   | { kind: "cancelled" };

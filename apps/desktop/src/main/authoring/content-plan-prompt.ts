@@ -5,6 +5,7 @@ import { computePacingBudget } from "./pacing-policy.js";
 import type { ContentPlan } from "./content-plan-schema.js";
 import type { ContentPlanQualityIssue } from "./content-plan-quality.js";
 import type { ResearchSource } from "./content-evidence.js";
+import { formatUntrustedResearchBlock, type RetainedResearchSource } from "./research-context.js";
 
 function roundRate(wordsPerSecond: number): number {
   return Math.round(wordsPerSecond * 10) / 10;
@@ -175,23 +176,13 @@ Note: omit the sourceRef field entirely when the claim is not source_material, o
 /** Label readable sources with stable ids for planner/repair prompts. */
 export function formatLabeledResearchSources(sources: readonly ResearchSource[]): string {
   if (sources.length === 0) return "";
-  return sources
-    .map((source) => {
-      const title = source.metadata.title?.trim();
-      const site = source.metadata.site?.trim();
-      const header = [
-        `### ${source.id}`,
-        `URL: ${source.metadata.sourceUrl}`,
-        title ? `Title: ${title}` : null,
-        site ? `Site: ${site}` : null,
-        "Body:",
-        source.body.trim(),
-      ]
-        .filter(Boolean)
-        .join("\n");
-      return header;
-    })
-    .join("\n\n");
+  // Prefer structured untrusted tags when sources already look retained.
+  const retained: RetainedResearchSource[] = sources.map((s) => ({
+    ...s,
+    status: "readable" as const,
+    originalUrl: s.metadata.sourceUrl,
+  }));
+  return formatUntrustedResearchBlock(retained);
 }
 
 function userBriefBlock(

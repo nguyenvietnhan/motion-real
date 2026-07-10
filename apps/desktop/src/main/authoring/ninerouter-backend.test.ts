@@ -921,13 +921,14 @@ describe("authorScenes (pure-author)", () => {
   it("continues authoring when URL ingest throws and reports the URL as unreadable", async () => {
     const projectId = "pa-ingest-fallback";
     const client = { chat: chatReplies(validContentPlanReply(), validReply()) } as unknown as NineRouterClient;
-    const ingestUrl = vi.fn(async () => { throw new Error("ingest offline"); });
+    const extractUrl = vi.fn(async () => { throw new Error("ingest offline"); });
     const backend = new NineRouterAuthoringBackend({
       client,
-      tools: { ingest_url: ingestUrl } as never,
+      tools: {} as never,
       model: () => "test-model",
       apiKey: () => undefined,
       admit: vi.fn(async () => ({ ok: true as const, componentIds: ["alpha", "beta"], files: [] })),
+      extractUrl,
     });
 
     const out = await backend.authorScenes({
@@ -938,7 +939,7 @@ describe("authorScenes (pure-author)", () => {
 
     expect(out.scenes).toHaveLength(3);
     expect(out.unreadableUrls).toEqual(["https://example.test/article"]);
-    expect(ingestUrl).toHaveBeenCalledOnce();
+    expect(extractUrl).toHaveBeenCalledOnce();
   });
 
   it("injects the user-chosen delivery knobs (format/tier/videoLanguage) into the manifest — the AI never authors them", async () => {
@@ -1044,18 +1045,17 @@ describe("authorScenes (pure-author)", () => {
   it("reports links it could NOT read in unreadableUrls (so the UI can warn the user)", async () => {
     const projectId = "pa-unreadable";
     const { backend } = makeBackend(validReply());
-    // One link extracts text (ingest_url writes a research file and returns its
-    // path — the body is read from disk, NOT from the result), the other fails.
-    // Only the failed one is reported.
-    const goodResearch = join(home, ".video-tool", "planning", "pa-unreadable-good.md");
-    mkdirSync(join(home, ".video-tool", "planning"), { recursive: true });
-    writeFileSync(goodResearch, "# tiêu đề\n\nnội dung bài báo đọc được từ link.");
-    const ingest_url = vi.fn(async ({ url }: { url: string }) =>
-      url.includes("good")
-        ? { ok: true as const, data: { id: "g", researchPath: goodResearch, metadata: {}, wordCount: 7 } }
-        : { ok: false as const, error: { stage: "ingest", cause: "HTTP 403" } },
-    );
-    (backend as unknown as { deps: NineRouterBackendDeps }).deps.tools = { ingest_url } as never;
+    const extractUrl = vi.fn(async (url: string) => {
+      if (url.includes("good")) {
+        return {
+          metadata: { sourceUrl: url, title: "good", fetchedAt: "2026-01-01T00:00:00.000Z" },
+          body: "nội dung bài báo đọc được từ link với đủ ký tự cho provenance.",
+          wordCount: 12,
+        };
+      }
+      throw new Error("HTTP 403");
+    });
+    (backend as unknown as { deps: NineRouterBackendDeps }).deps.extractUrl = extractUrl;
     const job: AuthorJob = {
       projectId,
       input: { text: "hai link", urls: ["https://good.example.com/a", "https://bad.example.com/b"] },
@@ -1066,7 +1066,7 @@ describe("authorScenes (pure-author)", () => {
 
     expect(out.scenes.length).toBeGreaterThan(0); // authoring still succeeds
     expect(out.unreadableUrls).toEqual(["https://bad.example.com/b"]);
-    expect(ingest_url).toHaveBeenCalledTimes(2);
+    expect(extractUrl).toHaveBeenCalledTimes(2);
   });
 });
 

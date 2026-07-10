@@ -53,6 +53,15 @@ export type IngestOptions = {
   fetchImpl?: FetchLike;
   /** Override the provenance timestamp (tests). Defaults to now (ISO). */
   now?: () => string;
+  /** Optional cancel (desktop authoring). */
+  signal?: AbortSignal;
+};
+
+/** In-memory extraction result (no planning-file write). */
+export type ExtractedUrlContent = {
+  metadata: ArticleMetadata;
+  body: string;
+  wordCount: number;
 };
 
 /** Deterministic, filesystem-safe slug from a title or URL (no randomness). */
@@ -164,15 +173,30 @@ function countWords(text: string): number {
 }
 
 /**
- * Fetch a URL, extract its main article text + metadata, and write a grounded
- * research file. Throws `PipelineError(stage: "ingest")` on fetch failure or
- * when no readable body is found — and writes NO partial/empty file in that case.
+ * Fetch + extract article text in memory (no planning-file write). Desktop
+ * authoring uses this path so AbortSignal can cancel work without depending on
+ * the CLI tool surface.
  */
-export async function ingestUrl(url: string, opts: IngestOptions = {}): Promise<IngestResult> {
+export async function extractUrlContent(
+  url: string,
+  opts: IngestOptions = {},
+): Promise<ExtractedUrlContent> {
+  if (opts.signal?.aborted) {
+    throw new PipelineError({
+      stage: "ingest",
+      cause: `fetch aborted for ${url}`,
+      remediation: "The request was cancelled.",
+    });
+  }
   // Default egress is SSRF-guarded (audit P1-2): rejects private/loopback/
   // link-local hosts, re-validates each redirect hop, and caps the body. Tests
   // inject `fetchImpl` and bypass the guard (they never touch the network).
-  const fetchImpl = opts.fetchImpl ?? makeSafeFetch({ timeoutMs: DEFAULT_PAGE_FETCH_TIMEOUT_MS });
+  const fetchImpl =
+    opts.fetchImpl ??
+    makeSafeFetch({
+      timeoutMs: DEFAULT_PAGE_FETCH_TIMEOUT_MS,
+      ...(opts.signal ? { signal: opts.signal } : {}),
+    });
   const fetchedAt = (opts.now ?? (() => new Date().toISOString()))();
 
   let html: string;
@@ -234,13 +258,28 @@ export async function ingestUrl(url: string, opts: IngestOptions = {}): Promise<
     fetchedAt,
   };
 
-  const id = deriveId(opts.id, title, url);
+  return { metadata, body, wordCount: countWords(body) };
+}
+
+/**
+ * Fetch a URL, extract its main article text + metadata, and write a grounded
+ * research file. Throws `PipelineError(stage: "ingest")` on fetch failure or
+ * when no readable body is found — and writes NO partial/empty file in that case.
+ */
+export async function ingestUrl(url: string, opts: IngestOptions = {}): Promise<IngestResult> {
+  const extracted = await extractUrlContent(url, opts);
+  const id = deriveId(opts.id, extracted.metadata.title, url);
   const dir = planningDir();
   const researchPath = join(dir, `${id}.md`);
 
   // Only NOW (after a successful extraction) do we touch disk — no partial files.
   await mkdir(dir, { recursive: true });
-  await writeFile(researchPath, buildResearchFile(metadata, body), "utf8");
+  await writeFile(researchPath, buildResearchFile(extracted.metadata, extracted.body), "utf8");
 
-  return { id, researchPath, metadata, wordCount: countWords(body) };
+  return {
+    id,
+    researchPath,
+    metadata: extracted.metadata,
+    wordCount: extracted.wordCount,
+  };
 }

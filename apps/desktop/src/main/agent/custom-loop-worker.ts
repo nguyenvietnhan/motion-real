@@ -39,7 +39,14 @@ export interface AuthoringBackend {
   authorScenes(
     job: AuthorJob,
     signal?: AbortSignal,
-  ): Promise<{ scenes: AuthoredScene[]; message?: string; unreadableUrls?: string[]; cancelled?: boolean }>;
+  ): Promise<{
+    scenes: AuthoredScene[];
+    message?: string;
+    unreadableUrls?: string[];
+    /** Sanitized multi-link / budget warning for script stage. */
+    sourceWarning?: string;
+    cancelled?: boolean;
+  }>;
   /** Re-author ONLY the named scenes (code-level self-repair / visual edit). */
   reauthor(projectId: string, targets: ReauthorTarget[], signal?: AbortSignal): Promise<{ scenes: AuthoredScene[] }>;
   /** Render one draft (drives the MCP `render_draft` tool); failure carries the engine error. */
@@ -87,6 +94,7 @@ export class CustomLoopAgentWorker implements AgentWorker {
       kind: "authored",
       sceneIds: authored.scenes.map((s) => s.sceneId),
       ...(authored.unreadableUrls && authored.unreadableUrls.length > 0 ? { unreadableUrls: authored.unreadableUrls } : {}),
+      ...(authored.sourceWarning ? { sourceWarning: authored.sourceWarning } : {}),
     };
   }
 

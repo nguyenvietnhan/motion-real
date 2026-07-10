@@ -37,12 +37,15 @@ LUẬT DÙNG ADVISORY:
 - Giải quyết bằng lựa chọn visual/motion cụ thể trong TSX: bố cục, hierarchy, quick entrance đúng nhịp, semantic progression, continuous living motion, SVG/CSS bespoke, hoặc deliberate static hold khi hợp nội dung.`;
 }
 
-export function sourceBlock(input: AuthorInput, research?: string): string {
+/**
+ * Code-authoring brief only. Never include raw article bodies — approved
+ * content plan / claim ledger carry validated facts (Phase 5).
+ */
+export function sourceBlock(input: AuthorInput, _research?: string): string {
   const links = input.urls.length > 0 ? `\n\nLink trong yêu cầu: ${input.urls.join(", ")}` : "";
-  const grounding = research
-    ? `\n\nTư liệu đã đọc từ link (dùng làm căn cứ, không bịa thêm):\n${research}`
-    : input.urls.length > 0
-      ? "\n\n(Không đọc được nội dung link. Chỉ dùng thông tin trong yêu cầu + kiến thức chắc chắn về chủ đề. KHÔNG bịa số liệu, ngày tháng, giá, phần trăm hay tên sản phẩm/phiên bản mới — thiếu căn cứ thì đừng nêu.)"
+  const grounding =
+    input.urls.length > 0
+      ? "\n\n(Chỉ bám CONTENT PLAN + claim ledger đã duyệt. Không dùng lại toàn bộ bài báo. KHÔNG bịa số liệu ngoài claim.)"
       : "";
   return `Yêu cầu của người dùng:\n${input.text}${links}${grounding}`;
 }

@@ -60,35 +60,37 @@ export function evaluateContentPlanQuality(
     for (const claim of plan.claims) {
       const usable = claim.confidence === "supported" && claim.action === "use";
       if (claim.support === "source_material" && usable) {
-        // Unreadable/empty source set: do not hard-block authoring (links stay non-fatal).
-        // Provenance is enforced only when at least one readable source exists — then a
-        // usable source_material claim must cite an exact excerpt. Evidence write never
-        // invents sources for empty sets.
-        if (sources.length > 0) {
-          if (!claim.sourceRef) {
-            addIssue({
-              check: "claim-provenance",
-              message: `usable source_material claim ${claim.id} requires sourceRef`,
-            });
-          } else {
-            const src = sourcesById.get(claim.sourceRef.sourceId);
-            if (!src) {
-              addIssue({
-                check: "claim-provenance",
-                message: `claim ${claim.id} references unknown source ${claim.sourceRef.sourceId}`,
-              });
-            } else if (!excerptMatchesSource(claim.sourceRef.excerpt, src.body)) {
-              addIssue({
-                check: "claim-provenance",
-                message: `claim ${claim.id} excerpt does not match source ${claim.sourceRef.sourceId}`,
-              });
-            }
-          }
-        } else if (claim.sourceRef) {
+        // When sources was supplied (including empty): usable source_material must
+        // not look "sourced" without a readable body + matching excerpt.
+        if (sources.length === 0) {
           addIssue({
             check: "claim-provenance",
-            message: `claim ${claim.id} cannot cite a source when no readable sources exist`,
+            message: `usable source_material claim ${claim.id} has no readable sources; use user_brief/common_knowledge or omit`,
           });
+          if (claim.sourceRef) {
+            addIssue({
+              check: "claim-provenance",
+              message: `claim ${claim.id} cannot cite a source when no readable sources exist`,
+            });
+          }
+        } else if (!claim.sourceRef) {
+          addIssue({
+            check: "claim-provenance",
+            message: `usable source_material claim ${claim.id} requires sourceRef`,
+          });
+        } else {
+          const src = sourcesById.get(claim.sourceRef.sourceId);
+          if (!src) {
+            addIssue({
+              check: "claim-provenance",
+              message: `claim ${claim.id} references unknown source ${claim.sourceRef.sourceId}`,
+            });
+          } else if (!excerptMatchesSource(claim.sourceRef.excerpt, src.body)) {
+            addIssue({
+              check: "claim-provenance",
+              message: `claim ${claim.id} excerpt does not match source ${claim.sourceRef.sourceId}`,
+            });
+          }
         }
       }
       if ((claim.support === "user_brief" || claim.support === "common_knowledge") && claim.sourceRef) {

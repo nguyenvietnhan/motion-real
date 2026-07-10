@@ -16,6 +16,14 @@ import type { CreateInput } from "./types.js";
 
 export const MAX_TOPIC_LEN = 20000;
 export const MAX_URL_LEN = 2048;
+/** Max source URLs the authoring pipeline will attempt (first N in prompt order). */
+export const MAX_AUTHORING_SOURCE_URLS = 5;
+/** Concurrent article fetches during fresh authoring. */
+export const RESEARCH_INGEST_CONCURRENCY = 2;
+/** Soft cap on retained characters per source body after extraction. */
+export const MAX_RESEARCH_CHARS_PER_SOURCE = 40_000;
+/** Soft cap on total retained research characters across all sources. */
+export const MAX_RESEARCH_CHARS_TOTAL = 100_000;
 
 /** The free-form brief: the full user text + any http(s) links found in it. */
 export type CreateBrief = { text: string; urls: string[] };

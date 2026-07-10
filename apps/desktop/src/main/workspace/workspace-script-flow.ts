@@ -79,7 +79,8 @@ export async function runScriptAuthoring({
       return;
     }
 
-    const linkWarning = linkWarningOf(input.urls.length, authored.unreadableUrls ?? []);
+    const linkWarning =
+      authored.sourceWarning ?? linkWarningOf(input.urls.length, authored.unreadableUrls ?? []);
     if (scriptGateEnabled) {
       const evidence = await loadEvidence?.().catch((_error: unknown) => undefined);
       setStage({

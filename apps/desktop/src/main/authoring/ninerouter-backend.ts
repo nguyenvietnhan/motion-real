@@ -11,6 +11,7 @@ import {
   unregisterComponent,
   makeSafeFetch,
   crawlArticleImagesWithStats,
+  extractUrlContent,
   DEFAULT_PAGE_FETCH_TIMEOUT_MS,
   type CrawledImage,
   type AdmitProjectResult,
@@ -21,6 +22,12 @@ import {
   applyAuthoringCandidate,
   reconcileAuthoringCandidateTransaction,
 } from "./author-candidate-transaction.js";
+import {
+  collectResearchContext,
+  formatUntrustedResearchBlock,
+  researchLinkWarningOf,
+  toResearchSources,
+} from "./research-context.js";
 import type { createTools } from "@motionreal/pipeline";
 import type { AuthoringBackend, AuthoredScene, ReauthorTarget } from "../agent/custom-loop-worker.js";
 import type { SafetyReportView } from "../agent/repair-loop.js";
@@ -38,12 +45,7 @@ import {
 import { VisionChatSession } from "./authoring-vision-chat.js";
 import { type AuthorImageInput } from "./prompt.js";
 import { runContentPlan } from "./content-plan-runner.js";
-import {
-  articleBodyFromResearchFile,
-  buildProjectEvidence,
-  researchSourcesFromIngest,
-  type ResearchSource,
-} from "./content-evidence.js";
+import { buildProjectEvidence } from "./content-evidence.js";
 import { runBatchedAuthorReply, runSingleAuthorReply, type SuccessfulAuthorReply } from "./author-reply-runner.js";
 import { runReauthor } from "./reauthor-runner.js";
 import { runImageFilter } from "./image-filter-runner.js";
@@ -133,6 +135,15 @@ export type NineRouterBackendDeps = {
   admitOne?: (tsxPath: string) => Promise<AuthoredRegistration>;
   /** Optional structured logger override for focused backend observability tests. */
   logger?: AuthoringLogger;
+  /** Optional URL extract inject (tests); default is pipeline extractUrlContent. */
+  extractUrl?: (
+    url: string,
+    options?: { signal?: AbortSignal },
+  ) => Promise<{
+    metadata: { sourceUrl: string; title?: string; site?: string; author?: string; publishedDate?: string; fetchedAt?: string };
+    body: string;
+    wordCount: number;
+  }>;
 };
 
 function manifestPathOf(projectId: string): string {
@@ -185,59 +196,22 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
     // Drop any half-finished candidate transaction left by a prior crash.
     await reconcileAuthoringCandidateTransaction(job.projectId).catch(() => undefined);
 
-    // Best-effort grounding: fetch any links in the brief. A failed fetch is NOT
-    // fatal — authoring continues from the user's text + the model's knowledge.
-    const chunks: string[] = [];
-    const researchBodies: Array<{ metadata: { sourceUrl: string; title?: string; site?: string; author?: string; publishedDate?: string; fetchedAt?: string }; body: string }> = [];
-    const unreadableUrls: string[] = [];
-    for (const url of job.input.urls) {
-      if (signal?.aborted) return { scenes: [], cancelled: true };
-      const ing = await this.deps.tools.ingest_url({ url }).catch((error) => {
-        log.warn({ err: error, url }, "URL ingest threw; authoring will continue without article text");
-        return null;
-      });
-      // ingest_url returns an IngestResult ({ researchPath, metadata, wordCount });
-      // the extracted article (text + provenance header) is written to that file —
-      // the body is NOT inlined in the result. Read the research file to ground the
-      // author prompt. (A prior version read `ing.data.text`, which never exists, so
-      // EVERY link was silently treated as unreadable even on a clean fetch.)
-      let body: string | undefined;
-      if (ing && ing.ok) {
-        body = await readFile(ing.data.researchPath, "utf8").catch((error) => {
-          log.warn({ err: error, url, researchPath: ing.data.researchPath }, "ingested article file unreadable");
-          return undefined;
-        });
-      }
-      if (body && body.trim()) {
-        // Provenance matching and planner labels need article text only — not the
-        // planning YAML frontmatter / H1 wrapper written by ingest_url.
-        const articleBody = articleBodyFromResearchFile(body);
-        if (!articleBody) {
-          unreadableUrls.push(url);
-          log.warn({ url }, "ingested research file had no article body after frontmatter strip");
-        } else {
-          chunks.push(`# ${url}\n${articleBody}`);
-          const meta = ing && ing.ok ? ing.data.metadata : undefined;
-          researchBodies.push({
-            metadata: {
-              sourceUrl: meta?.sourceUrl ?? url,
-              ...(meta?.title ? { title: meta.title } : {}),
-              ...(meta?.site ? { site: meta.site } : {}),
-              ...(meta?.author ? { author: meta.author } : {}),
-              ...(meta?.publishedDate ? { publishedDate: meta.publishedDate } : {}),
-              ...(meta?.fetchedAt ? { fetchedAt: meta.fetchedAt } : {}),
-            },
-            body: articleBody,
-          });
-        }
-      } else {
-        unreadableUrls.push(url);
-        const reason = ing && !ing.ok ? `${ing.error.stage}: ${ing.error.cause}` : "no readable article text";
-        log.warn({ url, reason }, "could not read link; skipping; authoring continues");
-      }
-    }
-    const research = chunks.length > 0 ? chunks.join("\n\n---\n\n") : undefined;
-    const researchSources: ResearchSource[] = researchSourcesFromIngest(researchBodies);
+    // Bounded, concurrent URL grounding (Phase 5). Planner sees labeled untrusted
+    // text only; code authoring never receives raw article bodies.
+    if (signal?.aborted) return { scenes: [], cancelled: true };
+    const researchReport = await collectResearchContext({
+      urls: job.input.urls,
+      ...(signal ? { signal } : {}),
+      extract: this.deps.extractUrl ?? ((url, options) => extractUrlContent(url, options)),
+    });
+    if (signal?.aborted) return { scenes: [], cancelled: true };
+    const unreadableUrls = [...researchReport.unreadableUrls, ...researchReport.skippedUrls];
+    const researchSources = toResearchSources(researchReport.readableSources);
+    const research =
+      researchReport.readableSources.length > 0
+        ? formatUntrustedResearchBlock(researchReport.readableSources)
+        : undefined;
+    const researchWarning = researchLinkWarningOf(researchReport);
 
     // Provided images (create-time image staging): read each already-imported asset into a
     // data URL so the model can SEE it and decide placement. A ref we can't read
@@ -314,7 +288,7 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
         model,
         projectId: job.projectId,
         input: job.input,
-        research,
+        // Phase 5: code authoring never receives raw research bodies.
         wordsPerSecond,
         contentPlan: plannedContent,
         contentPlanAdvisories,
@@ -333,7 +307,7 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
         model,
         projectId: job.projectId,
         input: job.input,
-        research,
+        // Phase 5: do not pass raw research into code authoring.
         offeredImages,
         wordsPerSecond,
         contentPlan: plannedContent,
@@ -421,7 +395,11 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
       sceneId: s.id,
       stillPath: join(reviewDir, `${s.id}.png`),
     }));
-    return { scenes, ...(unreadableUrls.length > 0 ? { unreadableUrls } : {}) };
+    return {
+      scenes,
+      ...(unreadableUrls.length > 0 ? { unreadableUrls } : {}),
+      ...(researchWarning ? { sourceWarning: researchWarning } : {}),
+    };
   }
 
   /**
