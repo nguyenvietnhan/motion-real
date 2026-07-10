@@ -99,8 +99,10 @@ server exists.
   state unless explicitly asked.
 - Do not refactor `orchestrator.ts`, `render-grid.ts`, or desktop workspace flow
   casually. These are sensitive areas.
-- Prefer durable docs under `docs/current/` over temporary working notes. Keep
-  stage/failure log anchors stable when changing observability.
+- Prefer durable docs under `docs/current/` only. Temporary working notes (if
+  any) are not contract, must not drive implementation, and should be deleted
+  once outcomes are synced into `docs/current/`. Keep stage/failure log
+  anchors stable when changing observability.
 - Before adding prompt rules, check whether schema validation, a normalizer,
   admission, or an oracle is the correct layer.
 - Fixes for repeated AI-output bugs need regression fixtures/tests.

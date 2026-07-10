@@ -529,11 +529,10 @@ Prefer descriptive, domain-owned paths over loose root files:
 - `apps/desktop/assets/<domain>/`: bundled desktop assets shipped with the app;
 - `VIDEO_TOOL_HOME/.video-tool/<domain>/`: generated runtime state and user-added
   media;
-- `docs/current/`: durable documentation;
-- `docs/working-notes/`: optional temporary execution notes only (create the
-  folder when needed; it need not exist empty). Never treat them as contract;
-  accepted policy must land in `docs/current/` or `AI_CONTRACT.md` before a
-  temporary note is deleted.
+- `docs/current/`: durable documentation only;
+- avoid long-lived `docs/working-notes/`; if a short mid-task note exists,
+  sync outcomes into `docs/current/` or `AI_CONTRACT.md` and **delete** the note
+  in the same cleanup. Agents must not implement from working notes.
 
 AI guidance must stay vendor-neutral. `AI_CONTRACT.md` is the only contract and
 `AGENTS.md` is the generic entry-point pointer. Do not add assistant-specific
@@ -564,8 +563,7 @@ rg -n "kit-based|NewsVideo|news-studio-settings" `
   --glob '!**/*.test.ts' `
   --glob '!**/*.test.tsx' `
   --glob '!packages/pipeline/src/authoring/__fixtures__/**' `
-  --glob '!packages/pipeline/src/safety/__fixtures__/**' `
-  --glob '!docs/working-notes/**'
+  --glob '!packages/pipeline/src/safety/__fixtures__/**'
 ```
 
 Bundled media should not be copied into runtime libraries just to make it

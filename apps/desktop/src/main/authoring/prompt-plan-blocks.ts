@@ -39,7 +39,7 @@ LUẬT DÙNG ADVISORY:
 
 /**
  * Code-authoring brief only. Never include raw article bodies — approved
- * content plan / claim ledger carry validated facts (Phase 5).
+ * content plan / claim ledger carry validated facts.
  */
 export function sourceBlock(input: AuthorInput, _research?: string): string {
   const links = input.urls.length > 0 ? `\n\nLink trong yêu cầu: ${input.urls.join(", ")}` : "";

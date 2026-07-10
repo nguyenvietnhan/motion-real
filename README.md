@@ -61,9 +61,9 @@ that ignored file.
 
 Provider setup lives in `docs/providers/`.
 
-Optional `docs/working-notes/` files are temporary execution notes only. They are
-not part of the contract. Durable policy belongs in `AI_CONTRACT.md` or
-`docs/current/`.
+Do not keep long-lived plans under `docs/working-notes/`. If a short execution
+note is needed mid-task, delete it after outcomes land in `docs/current/` or
+`AI_CONTRACT.md`. Agents must treat those notes as non-authoritative.
 
 ## Health Checks
 

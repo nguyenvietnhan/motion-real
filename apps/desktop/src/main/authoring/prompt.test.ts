@@ -192,7 +192,7 @@ describe("prompt surface baseline", () => {
     });
     expect(promptText(authorTextOnly)).toEqual(expect.stringContaining("AI_Output_Contract"));
     expect(promptText(authorTextOnly)).toEqual(expect.stringContaining("registerComponent"));
-    // Phase 5: code authoring no longer embeds raw research bodies.
+    // Code authoring must not embed raw research bodies.
     expect(promptText(authorWithResearch)).toEqual(expect.stringContaining("CONTENT PLAN"));
     expect(promptText(authorWithResearch)).not.toEqual(expect.stringContaining("tư liệu baseline"));
     expect(promptText(authorWithImages)).toEqual(expect.stringContaining("BẮT BUỘC DÙNG ẢNH"));
@@ -476,7 +476,7 @@ describe("buildAuthorMessages", () => {
     ]);
   });
 
-  it("embeds links but not raw research for a brief with a link (Phase 5)", () => {
+  it("embeds links but not raw research for a brief with a link", () => {
     const [sys, user] = buildAuthorMessages({ text: "Tóm tắt bài này https://example.com/x", urls: ["https://example.com/x"] }, "tư liệu ABC");
     for (const token of required) expect(sys!.content).toContain(token);
     expect(user!.content).toContain("https://example.com/x");
@@ -730,8 +730,7 @@ describe("buildAuthorMessages", () => {
   });
 
   it("forbids fabrication when a link was provided (code author uses plan, not article body)", () => {
-    // Phase 5: author prompt no longer has an unreadable-link branch with raw text;
-    // it always steers to plan/claim ledger and forbids inventing figures.
+    // Author prompt steers to plan/claim ledger and forbids inventing figures.
     const [, user] = buildAuthorMessages({ text: "Tóm tắt https://example.com/x", urls: ["https://example.com/x"] });
     const text = user!.content as string;
     expect(text).toMatch(/KHÔNG bịa/);

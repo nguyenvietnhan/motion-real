@@ -1,5 +1,5 @@
 /**
- * Pure artifact-first restart recovery decision (Phase 6).
+ * Pure artifact-first restart recovery decision from on-disk media + manifest.
  */
 
 export type ArtifactHealth = "missing" | "invalid" | "healthy";

@@ -197,8 +197,8 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
     // Drop any half-finished candidate transaction left by a prior crash.
     await reconcileAuthoringCandidateTransaction(job.projectId).catch((_error) => undefined);
 
-    // Bounded, concurrent URL grounding (Phase 5). Planner sees labeled untrusted
-    // text only; code authoring never receives raw article bodies.
+    // Bounded, concurrent URL grounding. Planner sees labeled untrusted text
+    // only; code authoring never receives raw article bodies.
     const researchReport = await collectResearchContext({
       urls: job.input.urls,
       ...(signal ? { signal } : {}),
@@ -285,7 +285,7 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
         model,
         projectId: job.projectId,
         input: job.input,
-        // Phase 5: code authoring never receives raw research bodies.
+        // Code authoring never receives raw research bodies.
         wordsPerSecond,
         contentPlan: plannedContent,
         contentPlanAdvisories,
@@ -304,7 +304,7 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
         model,
         projectId: job.projectId,
         input: job.input,
-        // Phase 5: do not pass raw research into code authoring.
+        // Do not pass raw research into code authoring.
         offeredImages,
         wordsPerSecond,
         contentPlan: plannedContent,

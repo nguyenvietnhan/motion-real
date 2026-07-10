@@ -16,8 +16,6 @@ import { computePacingBudget } from "./pacing-policy.js";
 import type { AuthorImageInput } from "./prompt.js";
 import type { ResearchSource } from "./content-evidence.js";
 
-export { demoteInvalidProvenanceClaims, finalizeAfterClaimRepair } from "./content-plan-claim-policy.js";
-
 export const CONTENT_PLAN_PARSE_FAILURE =
   "AI chưa lập được kế hoạch nội dung hợp lệ. Hãy thử lại hoặc mô tả rõ nguồn/ý chính hơn.";
 
