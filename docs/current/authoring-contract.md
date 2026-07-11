@@ -173,6 +173,10 @@ Forbidden:
 - dynamic imports
 - `dangerouslySetInnerHTML`
 - remote image/video URLs
+- React Native-only style keys in objects (`shadowColor`, `shadowOffset`,
+  `shadowOpacity`, `shadowRadius`, `elevation`). Use web CSS (`boxShadow`,
+  `textShadow`) or SVG `filter` instead. The pipeline may strip residual RN
+  keys before admit; admission still rejects them if they remain.
 
 Use Remotion frame hooks, `interpolate`, `spring`, and `random(seed)` when
 needed.

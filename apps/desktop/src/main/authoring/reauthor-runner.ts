@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import type { AuthoredRegistration } from "@motionreal/pipeline";
+import { normalizeAuthoredSource, type AuthoredRegistration } from "@motionreal/pipeline";
 import type { AuthoredScene, ReauthorTarget } from "../agent/custom-loop-worker.js";
 import type { ChatMessage } from "../gateway/ninerouter-client.js";
 import { logAuthoringFailure } from "./authoring-failure.js";
@@ -9,6 +9,11 @@ import { normalizeAuthoredImports } from "./normalize-imports.js";
 import { buildReauthorMessages } from "./prompt.js";
 import { parseReauthorReply } from "./reply-parser.js";
 import type { ResolvedScene, ResolveManifest } from "./scene-files.js";
+
+/** Desktop pre-write chain: import rehomes + font floor + RN style strip. */
+function prepareAuthoredModuleSource(code: string): string {
+  return normalizeAuthoredSource(normalizeAuthoredFontSizes(normalizeAuthoredImports(code)));
+}
 
 type ReauthorLogger = {
   debug: (meta: unknown, message: string) => void;
@@ -153,7 +158,7 @@ async function reauthorOneScene(
     }
 
     lastGeneratedCode = parsed.module.code;
-    await args.writeText(path, normalizeAuthoredFontSizes(normalizeAuthoredImports(parsed.module.code)));
+    await args.writeText(path, prepareAuthoredModuleSource(parsed.module.code));
     args.unregisterComponent(componentId);
     const admission = await args.admitOne(path);
     if (admission.ok) return true;

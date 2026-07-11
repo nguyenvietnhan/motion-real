@@ -34,6 +34,18 @@ describe("admitAuthoredComponent (static AST gate)", () => {
     }
   });
 
+  it("rejects React Native style keys (N4)", () => {
+    const result = admitAuthoredComponent(fixture("banned-rn-style.tsx"));
+    expect(result.admitted).toBe(false);
+    if (!result.admitted) {
+      expect(
+        result.violations.some(
+          (v) => v.check === "N4" && /React Native style key/.test(v.message) && /shadowColor/.test(v.message),
+        ),
+      ).toBe(true);
+    }
+  });
+
   it("rejects whitelisted package subpath imports (N4)", async () => {
     const dir = await mkdtemp(join(tmpdir(), "motionreal-admission-subpath-"));
     try {

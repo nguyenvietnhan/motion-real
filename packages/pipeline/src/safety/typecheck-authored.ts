@@ -164,11 +164,26 @@ function authoredCompilerOptions(workspaceRoot: string): ts.CompilerOptions {
  * repair loop ROUTE an N10 failure to a precise scene reauthor (issues without a
  * sceneId are un-targetable and only exhaust the loop). Pass a resolved-path map.
  */
+/**
+ * EXPERIMENT ONLY — branch `experiment/no-n10-gate`.
+ * Hard-disable N10 so product can measure whether typecheck is a render bottleneck.
+ * Do NOT merge to main without restoring this to `false`.
+ */
+export const N10_EXPERIMENT_HARD_DISABLED = true;
+
 export function typecheckAuthoredScenes(
   files: string[],
   workspaceRoot: string,
   sceneIdByFile?: ReadonlyMap<string, string>,
 ): SafetyIssue[] {
+  if (N10_EXPERIMENT_HARD_DISABLED) {
+    // No CPU typecheck, no gating issues — render continues to TTS/lock/bundle.
+    console.warn(
+      "[N10] EXPERIMENT: authored typecheck HARD-DISABLED (experiment/no-n10-gate). " +
+        "TS2353/prop-shape errors will NOT block render.",
+    );
+    return [];
+  }
   if (files.length === 0) return [];
   // Degrade to a no-op if the MotionReal sources aren't where we expect: better to
   // fall back to the prior (no-typecheck) behavior than to block every render

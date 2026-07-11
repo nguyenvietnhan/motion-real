@@ -409,22 +409,12 @@ async function renderProjectUnlocked(projectId: string, opts: RenderProjectOptio
         throw new Error(`renderProject: static grid reported ${errorCount(staticReport.issues)} hard error(s):\n${formatIssues(staticReport.issues)}`);
       }
 
-      // N10 — typecheck authored scenes against the real @motionreal/blocks +
-      // @motionreal/compositions prop contracts. The render bundler strips types
-      // without checking them, so a wrong-shape prop (e.g. {text}[] passed to a
-      // string[] block) compiles and then crashes headless Chromium at runtime.
-      // Checking here — before TTS spends money — turns that class of model
-      // mistake into a deterministic, scene-targeted content error the repair
-      // loop can self-fix. Each issue carries its sceneId for precise reauthor.
-      // Degrades to a no-op when the MotionReal sources can't be resolved; it must
-      // never block a render it can't check correctly.
+      // N10 — typecheck authored scenes (see typecheck-authored.ts).
+      // EXPERIMENT (branch experiment/no-n10-gate): when
+      // N10_EXPERIMENT_HARD_DISABLED is true, typecheckAuthoredScenes returns []
+      // immediately — no gate, no ~5–8s CPU. Other gates (admission, static grid,
+      // N31 probe, determinism) still run.
       const sceneIdByFile = new Map(authoredSceneFiles.map((s) => [resolve(s.file), s.sceneId]));
-      // The N10 typecheck is SYNCHRONOUS and CPU-heavy (~5-8s) — it blocks the
-      // Electron main event loop for its whole duration, during which a queued
-      // "Dừng render" IPC message cannot be processed (so the abort can't fire).
-      // Check the signal RIGHT BEFORE it: a cancel that fired during the async
-      // admission/bundle above skips the typecheck entirely instead of forcing
-      // the user to wait out a block they already asked to stop.
       throwIfCancelled();
       const typecheckAuthored = deps.typecheckAuthored ?? typecheckAuthoredScenes;
       const typeIssues = await timedPipelineStage(
@@ -433,12 +423,6 @@ async function renderProjectUnlocked(projectId: string, opts: RenderProjectOptio
         { files: authoredFiles.length },
       );
       authoredTypeIssues = typeIssues;
-      // Only crash-class diagnostics (severity "error") gate the render — a
-      // wrong-shape prop that would crash Chromium at runtime. A missing color
-      // token is emitted as a WARNING (the design Proxy already resolves it to a
-      // safe color), so it never blocks; it rides along in the report for
-      // visibility and an advisory reauthor. Persist whenever there's anything to
-      // carry so the repair loop can read it back.
       const typeErrors = typeIssues.filter((i) => i.severity === "error");
       if (typeIssues.length > 0) {
         await persistFailureReport(projectId, typeIssues);

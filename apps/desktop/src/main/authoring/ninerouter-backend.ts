@@ -6,6 +6,7 @@ import {
   admitAuthoredSceneFile,
   loadManifest,
   projectPaths,
+  normalizeAuthoredSource,
   writeAuthoredScene,
   unregisterComponent,
   makeSafeFetch,
@@ -329,7 +330,7 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
     const modules = parsed.modules.map((mod) => ({
       componentId: mod.id,
       fileName: sceneFileName(mod.id),
-      source: normalizeAuthoredFontSizes(normalizeAuthoredImports(mod.code)),
+      source: normalizeAuthoredSource(normalizeAuthoredFontSizes(normalizeAuthoredImports(mod.code))),
     }));
     const usableClaims = plannedContent.claims.filter((c) => c.confidence === "supported" && c.action === "use");
     const engineSceneIds = new Set(engineManifest.scenes.map((s) => s.id));

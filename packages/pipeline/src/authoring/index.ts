@@ -32,5 +32,6 @@ export { parseDurationFromPrompt } from "./parse-duration.js";
 export {
   normalizeAuthoredSource,
   stripReactNativeStyleKeys,
+  isReactNativeStyleKey,
   REACT_NATIVE_STYLE_KEYS,
 } from "./normalize-authored-source.js";

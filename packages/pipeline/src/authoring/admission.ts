@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { basename } from "node:path";
 import ts from "typescript";
 import type { SafetyIssue } from "../types.js";
+import { isReactNativeStyleKey } from "./normalize-authored-source.js";
 
 /**
  * AI AUTHOR mode admission gate (N4/N5). BEFORE an AI-authored scene module is
@@ -167,6 +168,23 @@ export function admitAuthoredComponent(
   };
 
   const visit = (node: ts.Node): void => {
+    // --- React Native style keys (N4). Web/Remotion CSSProperties rejects
+    // shadowColor / shadowOffset / elevation etc. (TS2353 at N10). Prefer
+    // boxShadow / textShadow / SVG filter. Normalize may strip these before
+    // admit; residual keys hard-block so skipped write paths cannot slip through.
+    if (ts.isObjectLiteralExpression(node)) {
+      for (const prop of node.properties) {
+        const name = rnObjectLiteralPropertyName(prop);
+        if (name && isReactNativeStyleKey(name)) {
+          addN4(
+            prop,
+            `React Native style key "${name}" is not valid web CSSProperties. ` +
+              `Use boxShadow / textShadow / SVG filter instead of shadowColor, shadowOffset, shadowOpacity, shadowRadius, or elevation.`,
+          );
+        }
+      }
+    }
+
     // --- imports (N4 whitelist) ---
     if (ts.isImportDeclaration(node) && ts.isStringLiteral(node.moduleSpecifier)) {
       const spec = node.moduleSpecifier.text;
@@ -550,6 +568,17 @@ function hasExportModifier(node: ts.HasModifiers): boolean {
 function hasDefaultModifier(node: ts.HasModifiers): boolean {
   return (ts.getModifiers(node) ?? []).some((m) => m.kind === ts.SyntaxKind.DefaultKeyword);
 }
+
+/** Static name of an object-literal property when it is an identifier or string literal. */
+function rnObjectLiteralPropertyName(prop: ts.ObjectLiteralElementLike): string | null {
+  if (ts.isPropertyAssignment(prop) || ts.isShorthandPropertyAssignment(prop) || ts.isMethodDeclaration(prop)) {
+    const name = prop.name;
+    if (ts.isIdentifier(name)) return name.text;
+    if (ts.isStringLiteral(name) || ts.isNoSubstitutionTemplateLiteral(name)) return name.text;
+  }
+  return null;
+}
+
 function msg(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
