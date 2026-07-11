@@ -357,9 +357,12 @@ for pacing (`targetSeconds`, scene/word budget). `resolveEffectiveDuration` in
 Content-plan quality also blocks **under-budget** total narration (far below the
 target word count).
 
-**N10 soft-gate:** authored typecheck still runs, but CSSProperties excess /
-common RN style keys and many TS2339 data-field misses are **warnings** (do not
-block draft). Crash-likely diagnostics (e.g. unbound names) stay hard errors.
+**N10 B-minimal (crash-only):** authored typecheck still runs, but **only**
+unbound-name diagnostics (`TS2304` / “Cannot find name”) are emitted as hard
+errors (they become `ReferenceError` under transpile-only bundling). Style /
+CSSProperties excess, missing data fields, and other type noise are **dropped**
+(not soft-warnings — no repair consumer). Expand the crash allowlist only with
+a proven N31/ReferenceError fixture. RN style/fonts → normalizer; layout → vision.
 
 **Authored normalizers (pre-write):** RN shadow/padding shorthands + brand font
 rewrite (`Inter` / `Be Vietnam Pro` / `Cascadia Mono`) via

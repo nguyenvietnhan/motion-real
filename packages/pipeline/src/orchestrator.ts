@@ -416,11 +416,8 @@ async function renderProjectUnlocked(projectId: string, opts: RenderProjectOptio
         throw new Error(`renderProject: static grid reported ${errorCount(staticReport.issues)} hard error(s):\n${formatIssues(staticReport.issues)}`);
       }
 
-      // N10 — typecheck authored scenes (see typecheck-authored.ts).
-      // EXPERIMENT (branch experiment/no-n10-gate): when
-      // N10_EXPERIMENT_HARD_DISABLED is true, typecheckAuthoredScenes returns []
-      // immediately — no gate, no ~5–8s CPU. Other gates (admission, static grid,
-      // N31 probe, determinism) still run.
+      // N10 B-minimal — tsc on authored files; only unbound-name (TS2304) issues
+      // hard-block (see isN10CrashClassDiagnostic). Style/type noise is dropped.
       const sceneIdByFile = new Map(authoredSceneFiles.map((s) => [resolve(s.file), s.sceneId]));
       throwIfCancelled();
       const typecheckAuthored = deps.typecheckAuthored ?? typecheckAuthoredScenes;

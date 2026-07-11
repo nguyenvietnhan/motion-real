@@ -165,8 +165,8 @@ function authoredCompilerOptions(workspaceRoot: string): ts.CompilerOptions {
  * sceneId are un-targetable and only exhaust the loop). Pass a resolved-path map.
  */
 /**
- * Soft-gate mode (post E2E): still run tsc, but style/excess CSSProperties and
- * non-crash type debt are warnings. Set true only for pure A/B without typecheck CPU.
+ * When true, skip tsc entirely (pure A). Default false: B-minimal runs tsc but
+ * only emits crash-class diagnostics (see isN10CrashClassDiagnostic).
  */
 export const N10_EXPERIMENT_HARD_DISABLED = false;
 
@@ -219,10 +219,18 @@ export function typecheckAuthoredScenes(
 
   const authored = new Set(files.map((f) => resolve(f)));
   const issues: SafetyIssue[] = [];
+  let droppedNonCrash = 0;
   for (const d of ts.getPreEmitDiagnostics(program)) {
     // Skip global/options diagnostics (no file) and errors inside MotionReal sources.
     if (!d.file || !authored.has(resolve(d.file.fileName))) continue;
     const message = ts.flattenDiagnosticMessageText(d.messageText, "\n");
+    // B-minimal: only unbound names (ReferenceError at render) enter the report.
+    // Style/CSSProperties/TS2339 data-field noise is dropped — normalizer + vision
+    // own those classes; soft warnings had no consumer and cluttered throughput.
+    if (!isN10CrashClassDiagnostic(d.code, message)) {
+      droppedNonCrash += 1;
+      continue;
+    }
     const abs = resolve(d.file.fileName);
     let path = d.file.fileName;
     if (typeof d.start === "number") {
@@ -232,11 +240,15 @@ export function typecheckAuthoredScenes(
     const sceneId = sceneIdByFile?.get(abs);
     issues.push({
       check: "N10",
-      severity: severityFor(d.code, message),
+      severity: "error",
       path,
       ...(sceneId ? { sceneId } : {}),
       message: `TS${d.code}: ${message}`,
     });
+  }
+  if (droppedNonCrash > 0) {
+    // Owner metric only — not a safety-report warning (no repair consumer).
+    console.debug(`[N10] B-minimal: dropped ${droppedNonCrash} non-crash diagnostic(s)`);
   }
   while (typecheckCache.size >= TYPECHECK_CACHE_CAP) {
     const oldest = typecheckCache.keys().next().value;
@@ -318,64 +330,21 @@ export function __directoryFingerprint(dir: string): string {
 }
 
 /**
- * Decide an N10 diagnostic's severity.
+ * B-minimal crash-class filter (E2E + local N31 sample).
  *
- * The per-scene render error boundary keeps a broken authored scene from crashing
- * the whole MP4, but its fallback is intentionally plain (headline-only). That is
- * a last-resort containment net, not an acceptable "clean" draft. Diagnostics
- * that are likely to produce a runtime throw/fallback are hard errors so the
- * repair loop reauthors the scene before the user sees it. Diagnostics known to
- * be runtime-safe stay advisory warnings.
- */
-/**
- * Soft-gate matrix (E2E-proven): style/RN CSSProperties excess does not crash
- * Chromium — only blocks throughput when hard-gated. Crash-likely codes stay error.
+ * Hard-block only diagnostics that map to ReferenceError under transpile-only
+ * bundling (unbound identifier). Everything else is dropped from the report —
+ * style/CSSProperties excess, missing data fields, prop noise — so N10 does not
+ * become another soft-warning landfill or throughput rock.
  *
- * Exported for unit tests.
+ * Expand this allowlist only with a proven N31/ReferenceError fixture (same
+ * discipline as RN AST strip tests). Exported for unit tests.
  */
-export function severityForN10(code: number, message: string): SafetyIssue["severity"] {
-  // Safe runtime fallbacks:
-  // - Theme/ThemeColors unknown tokens resolve through the theme Proxy.
-  // - Extra props on surviving render helpers are ignored by React/the component.
-  // - Unknown Tone literals hit a safe default arm in the runtime helper.
-  if (/does not exist on type 'Theme(?:Colors)?'/.test(message)) return "warning";
-  if (/does not exist on type 'IntrinsicAttributes/.test(message)) return "warning";
-  if (/is not assignable to type 'Tone/.test(message)) return "warning";
-
-  // These diagnostics only report missing type annotations. TypeScript erases
-  // them without changing the emitted JavaScript, so they cannot by themselves
-  // cause SceneFallback: implicit parameter, rest-parameter, or binding-element
-  // `any`. Keep this allowlist narrow; every other unknown diagnostic stays hard.
-  if (code === 7006 || code === 7019 || code === 7031) return "warning";
-
-  // Excess style / CSSProperties / RN layout keys (TS2353) — web ignores unknown
-  // style props; do not hard-block draft for throughput.
-  if (
-    code === 2353 &&
-    (/Properties</.test(message) ||
-      /CSSProperties/.test(message) ||
-      /paddingHorizontal|paddingVertical|marginHorizontal|marginVertical|shadowColor|shadowOffset|shadowOpacity|shadowRadius|\belevation\b/.test(
-        message,
-      ))
-  ) {
-    return "warning";
-  }
-
-  // Missing property on a data object (TS2339) often renders as undefined text,
-  // not a Chromium crash. Soft during experiment; SceneImage contract still
-  // tends to surface as assignability errors (still hard below).
-  if (code === 2339 && /Property '.*' does not exist on type/.test(message)) {
-    return "warning";
-  }
-
-  // Definitely fallback-prone: an unbound value is erased by transpile-only
-  // bundling and throws `ReferenceError` at render time, producing SceneFallback.
-  if (code === 2304 || /Cannot find name/.test(message)) return "error";
-
-  // Default to hard: wrong component prop shapes and similar still block.
-  return "error";
+export function isN10CrashClassDiagnostic(code: number, message: string): boolean {
+  return code === 2304 || /Cannot find name\b/.test(message);
 }
 
-function severityFor(code: number, message: string): SafetyIssue["severity"] {
-  return severityForN10(code, message);
+/** @deprecated Use isN10CrashClassDiagnostic; kept for call-site clarity in tests. */
+export function severityForN10(code: number, message: string): SafetyIssue["severity"] {
+  return isN10CrashClassDiagnostic(code, message) ? "error" : "warning";
 }

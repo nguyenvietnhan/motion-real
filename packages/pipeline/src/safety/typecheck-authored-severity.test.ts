@@ -1,32 +1,38 @@
 import { describe, expect, it } from "vitest";
-import { severityForN10 } from "./typecheck-authored.js";
+import { isN10CrashClassDiagnostic, severityForN10 } from "./typecheck-authored.js";
 
-describe("severityForN10 soft-gate", () => {
-  it("softens CSSProperties / RN excess property errors (TS2353)", () => {
+describe("N10 B-minimal crash-class filter", () => {
+  it("hard-blocks unbound names (TS2304 → ReferenceError at render)", () => {
+    expect(isN10CrashClassDiagnostic(2304, "Cannot find name 'fooNotDefined'.")).toBe(true);
+    expect(severityForN10(2304, "Cannot find name 'fooNotDefined'.")).toBe("error");
+  });
+
+  it("does not treat CSSProperties / RN excess as crash-class", () => {
     expect(
-      severityForN10(
+      isN10CrashClassDiagnostic(
         2353,
         "Object literal may only specify known properties, and 'paddingHorizontal' does not exist in type 'Properties<string | number, string & {}>'.",
       ),
-    ).toBe("warning");
+    ).toBe(false);
     expect(
-      severityForN10(
+      isN10CrashClassDiagnostic(
         2353,
         "Object literal may only specify known properties, and 'shadowColor' does not exist in type 'Properties<string | number, string & {}>'.",
       ),
-    ).toBe("warning");
+    ).toBe(false);
   });
 
-  it("softens missing data-field access (TS2339)", () => {
+  it("does not treat missing data-field access (TS2339) as crash-class", () => {
     expect(
-      severityForN10(
+      isN10CrashClassDiagnostic(
         2339,
         "Property 'elevation' does not exist on type '{ id: number; title: string; shadow: string }'.",
       ),
-    ).toBe("warning");
+    ).toBe(false);
   });
 
-  it("keeps unbound names hard (TS2304)", () => {
-    expect(severityForN10(2304, "Cannot find name 'foo'.")).toBe("error");
+  it("does not treat generic assignability / prop noise as crash-class", () => {
+    expect(isN10CrashClassDiagnostic(2322, "Type 'string' is not assignable to type 'number'.")).toBe(false);
+    expect(isN10CrashClassDiagnostic(7006, "Parameter 'x' implicitly has an 'any' type.")).toBe(false);
   });
 });

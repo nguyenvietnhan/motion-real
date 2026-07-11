@@ -65,7 +65,8 @@ Current hard blockers are admission/security and render-integrity classes:
 - disallowed imports and forbidden APIs;
 - unknown components;
 - remote/unsafe media;
-- crash-class authored type/build errors;
+- crash-class authored type/build errors (N10: unbound names / TS2304 only;
+  style and aesthetic type noise must not hard-block render);
 - bundle failure;
 - invalid locked timing/audio;
 - determinism failure;
