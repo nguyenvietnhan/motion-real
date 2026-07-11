@@ -37,6 +37,11 @@ describe("createControllerArgsFromIpc", () => {
     expect(createControllerArgsFromIpc({ raw: "x", durationTier: 1 }).choices.durationTier).toBe(1);
   });
 
+  it("accepts duration tier 4 (3:30)", () => {
+    expect(createControllerArgsFromIpc({ raw: "x", durationTier: 4 }).choices.durationTier).toBe(4);
+    expect(createControllerArgsFromIpc({ raw: "x", durationTier: "4" }).choices.durationTier).toBe(4);
+  });
+
   it("ignores invalid duration tiers", () => {
     expect(createControllerArgsFromIpc({ raw: "x", durationTier: 9 }).choices.durationTier).toBeUndefined();
   });

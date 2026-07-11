@@ -6,7 +6,7 @@ import type {
 } from "../../shared/types.js";
 
 export type CreateControllerChoices = {
-  /** Short-form pacing tier (1≈45s, 2≈90s, 3≈150s). */
+  /** Short-form pacing tier (1≈45s, 2≈90s, 3≈150s, 4≈210s). */
   durationTier?: DurationTierChoice;
   videoLanguage?: VideoLanguageChoice;
   voiceProvider?: VoiceProviderChoice;
@@ -33,8 +33,10 @@ export function parseVoiceProvider(value: unknown): VoiceProviderChoice {
 
 /** Coerce IPC duration tier; invalid/missing → undefined (controller defaults to 1). */
 export function parseDurationTier(value: unknown): DurationTierChoice | undefined {
-  if (value === 1 || value === 2 || value === 3) return value;
-  if (value === "1" || value === "2" || value === "3") return Number(value) as DurationTierChoice;
+  if (value === 1 || value === 2 || value === 3 || value === 4) return value;
+  if (value === "1" || value === "2" || value === "3" || value === "4") {
+    return Number(value) as DurationTierChoice;
+  }
   return undefined;
 }
 
