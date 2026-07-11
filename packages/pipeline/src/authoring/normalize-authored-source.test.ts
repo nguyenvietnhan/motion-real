@@ -4,6 +4,7 @@ import {
   normalizeAuthoredSource,
   stripReactNativeStyleKeys,
 } from "./normalize-authored-source.js";
+// stripReactNativeStyleKeys used for layout expand tests; full normalize covers fonts.
 
 function parseErrors(source: string): number {
   const sf = ts.createSourceFile("t.tsx", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
@@ -104,5 +105,27 @@ describe("normalizeAuthoredSource", () => {
     const out = normalizeAuthoredSource(asModule(`shadowColor: "red"`));
     expect(out).not.toMatch(/\bshadowColor\b/);
     expect(parseErrors(out)).toBe(0);
+  });
+
+  it("expands paddingHorizontal into left/right", () => {
+    const src = asModule(`paddingHorizontal: 24, color: "#fff"`);
+    const out = stripReactNativeStyleKeys(src);
+    expect(out).toContain("paddingLeft");
+    expect(out).toContain("paddingRight");
+    expect(out).not.toMatch(/\bpaddingHorizontal\b/);
+    expect(parseErrors(out)).toBe(0);
+  });
+
+  it("rewrites system-ui fontFamily to brand stack", () => {
+    const src = asModule(`fontFamily: "system-ui, sans-serif", color: 1`);
+    const out = normalizeAuthoredSource(src);
+    expect(out).toMatch(/Inter/);
+    expect(out).not.toMatch(/system-ui/);
+    expect(parseErrors(out)).toBe(0);
+  });
+
+  it("does not rewrite system-ui inside string content", () => {
+    const src = `const msg = "system-ui is an OS font";\nexport const C = () => <div style={{ color: 1 }} />;\n`;
+    expect(normalizeAuthoredSource(src)).toContain("system-ui is an OS font");
   });
 });

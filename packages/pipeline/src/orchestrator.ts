@@ -6,7 +6,7 @@ import { performance } from "node:perf_hooks";
 import { createHash } from "node:crypto";
 import {
   DEFAULT_TTS_SPEED,
-  tierSeconds,
+
   type DurationPreset,
   type DurationTier,
   type LockedVideoSpec,
@@ -52,7 +52,7 @@ import {
 } from "./authoring/manifest.js";
 import { PipelineError, RenderCancelledError, isRenderCancelledError } from "./errors.js";
 import { generateAuthoredEntry } from "./authoring/authored-entry.js";
-import { parseDurationFromPrompt } from "./authoring/parse-duration.js";
+import { resolveEffectiveDuration } from "./authoring/parse-duration.js";
 import { synthesizeNarration, type SynthesizeOptions } from "./audio/tts.js";
 import { lockSpec } from "./audio/lock.js";
 import { checkDeterminism, type DeterminismOptions } from "./render/determinism.js";
@@ -109,7 +109,7 @@ export type ScaffoldVideoProjectOptions = {
   /** Explicit project id (defaults to a slug derived from the prompt). */
   projectId?: string;
   /** Soft target duration in seconds (drives the N28 duration check); defaults to 60. */
-  duration?: DurationPreset;
+  duration?: DurationPreset | number;
   /** Delivery format selected at create time; defaults to the historical vertical path. */
   format?: VideoFormat;
   /** User-selected duration bucket used by authoring word budgets. */
@@ -167,10 +167,17 @@ export async function scaffoldVideoProject(opts: ScaffoldVideoProjectOptions): P
   return { projectId, brief, manifestPath, authoredDir };
 }
 
-function resolveBriefDuration(opts: Pick<ScaffoldVideoProjectOptions, "duration" | "durationTier" | "prompt">, format: VideoFormat): number {
-  if (opts.duration !== undefined) return opts.duration;
-  if (opts.durationTier !== undefined) return tierSeconds(format, opts.durationTier);
-  return parseDurationFromPrompt(opts.prompt) ?? 60;
+function resolveBriefDuration(
+  opts: Pick<ScaffoldVideoProjectOptions, "duration" | "durationTier" | "prompt">,
+  format: VideoFormat,
+): number {
+  // Prompt explicit seconds win over tier when they conflict (create-time policy).
+  return resolveEffectiveDuration({
+    prompt: opts.prompt,
+    format,
+    ...(opts.durationTier !== undefined ? { durationTier: opts.durationTier } : {}),
+    ...(opts.duration !== undefined ? { explicitDuration: opts.duration } : {}),
+  }).targetSeconds;
 }
 
 // --- renderProject ---------------------------------------------------------

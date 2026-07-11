@@ -31,11 +31,22 @@ describe("CreateController.create", () => {
     const result = await ctrl.create("tin công nghệ");
     expect(result).toEqual({ projectId: "proj-7" });
     expect(scaffold).toHaveBeenCalledOnce();
-    expect(scaffold).toHaveBeenCalledWith("tin công nghệ", "vivibe", "vi", { format: "tiktok", durationTier: 1 });
+    expect(scaffold).toHaveBeenCalledWith("tin công nghệ", "vivibe", "vi", {
+      format: "tiktok",
+      durationTier: 1,
+      targetSeconds: 45,
+    });
     expect(began).toEqual([
       {
         id: "proj-7",
-        input: { text: "tin công nghệ", urls: [], format: "tiktok", durationTier: 1, videoLanguage: "vi" },
+        input: {
+          text: "tin công nghệ",
+          urls: [],
+          format: "tiktok",
+          durationTier: 1,
+          targetSeconds: 45,
+          videoLanguage: "vi",
+        },
       },
     ]);
   });
@@ -52,6 +63,7 @@ describe("CreateController.create", () => {
           urls: ["https://news.example.com/a"],
           format: "tiktok",
           durationTier: 1,
+          targetSeconds: 45,
           videoLanguage: "vi",
         },
       },
@@ -89,9 +101,14 @@ describe("CreateController.create", () => {
     const { deps: d, scaffold, began } = deps();
     const ctrl = new CreateController(d);
     await ctrl.create("chủ đề", [], { videoLanguage: "en", voiceProvider: "elevenlabs", durationTier: 2 });
-    expect(scaffold).toHaveBeenCalledWith("chủ đề", "elevenlabs", "en", { format: "tiktok", durationTier: 2 });
+    expect(scaffold).toHaveBeenCalledWith("chủ đề", "elevenlabs", "en", {
+      format: "tiktok",
+      durationTier: 2,
+      targetSeconds: 90,
+    });
     expect(began[0]!.input.format).toBe("tiktok");
     expect(began[0]!.input.durationTier).toBe(2);
+    expect(began[0]!.input.targetSeconds).toBe(90);
     expect(began[0]!.input.videoLanguage).toBe("en");
   });
 
@@ -99,15 +116,37 @@ describe("CreateController.create", () => {
     const { deps: d, scaffold, began } = deps();
     const ctrl = new CreateController(d);
     await ctrl.create("chủ đề", [], { videoLanguage: "vi", voiceProvider: "vivibe" });
-    expect(scaffold).toHaveBeenCalledWith("chủ đề", "vivibe", "vi", { format: "tiktok", durationTier: 1 });
+    expect(scaffold).toHaveBeenCalledWith("chủ đề", "vivibe", "vi", {
+      format: "tiktok",
+      durationTier: 1,
+      targetSeconds: 45,
+    });
     expect(began[0]!.input.durationTier).toBe(1);
+    expect(began[0]!.input.targetSeconds).toBe(45);
+  });
+
+  it("lets explicit prompt seconds win over UI tier for pacing", async () => {
+    const { deps: d, scaffold, began } = deps();
+    const ctrl = new CreateController(d);
+    await ctrl.create("Tạo video 15 giây app thời tiết", [], { durationTier: 2 });
+    expect(scaffold).toHaveBeenCalledWith(
+      "Tạo video 15 giây app thời tiết",
+      "vivibe",
+      "vi",
+      expect.objectContaining({ targetSeconds: 15, durationTier: 1 }),
+    );
+    expect(began[0]!.input.targetSeconds).toBe(15);
   });
 
   it("captures the selected voice provider during scaffold", async () => {
     const scaffold = vi.fn(async () => ({ ok: true as const, projectId: "p-eleven" }));
     const ctrl = new CreateController({ scaffold, beginCreate: vi.fn() });
     await ctrl.create("chủ đề", [], { voiceProvider: "elevenlabs" });
-    expect(scaffold).toHaveBeenCalledWith("chủ đề", "elevenlabs", "vi", { format: "tiktok", durationTier: 1 });
+    expect(scaffold).toHaveBeenCalledWith("chủ đề", "elevenlabs", "vi", {
+      format: "tiktok",
+      durationTier: 1,
+      targetSeconds: 45,
+    });
   });
 
   it("defaults the authored video language to Vietnamese with fixed short-form delivery", async () => {

@@ -5,7 +5,7 @@ import {
   type CreateBrief,
   type CreateValidation,
 } from "../../shared/create-validation.js";
-import { createLogger, type SerializedPipelineError } from "@motionreal/pipeline";
+import { createLogger, resolveEffectiveDuration, type SerializedPipelineError } from "@motionreal/pipeline";
 import type { AuthorInput, AuthorImageRef } from "../agent/agent-worker.js";
 import type {
   StagedImageRef,
@@ -50,7 +50,12 @@ export interface CreateDeps {
     prompt: string,
     voiceProvider: VoiceProviderChoice,
     videoLanguage: VideoLanguageChoice,
-    delivery?: { format: VideoFormatChoice; durationTier: DurationTierChoice },
+    delivery?: {
+      format: VideoFormatChoice;
+      durationTier: DurationTierChoice;
+      /** Exact brief/pacing target when prompt overrides tier. */
+      targetSeconds?: number;
+    },
   ) => Promise<{ ok: true; projectId: string } | { ok: false; error: SerializedPipelineError }>;
   /**
    * Hand the brief off to the WorkspaceController. With a link this runs the
@@ -103,10 +108,32 @@ export class CreateController {
     }
     const block = this.deps.preflight?.(voiceProvider, videoLanguage);
     if (block) throw new Error(block);
-    // Short-form 9:16 only. Duration tier is user-picked (1≈45s / 2≈90s / 3≈150s).
-    const durationTier: DurationTierChoice =
+    // Short-form 9:16 only. UI duration tier is the default; an explicit length
+    // in the prompt (e.g. "15 giây") wins when it conflicts with the knob.
+    const uiTier: DurationTierChoice =
       choices.durationTier === 2 || choices.durationTier === 3 ? choices.durationTier : 1;
-    const delivery = { format: "tiktok" as const, durationTier };
+    const resolved = resolveEffectiveDuration({
+      prompt: v.brief.text,
+      durationTier: uiTier,
+      format: "tiktok",
+    });
+    if (resolved.conflict) {
+      log.warn(
+        {
+          promptSeconds: resolved.conflict.promptSeconds,
+          tierSeconds: resolved.conflict.tierSeconds,
+          targetSeconds: resolved.targetSeconds,
+          source: resolved.source,
+        },
+        "create duration conflict: prompt length wins over UI tier for pacing",
+      );
+    }
+    const durationTier = resolved.durationTier as DurationTierChoice;
+    const delivery = {
+      format: "tiktok" as const,
+      durationTier,
+      targetSeconds: resolved.targetSeconds,
+    };
     const res = await this.deps.scaffold(v.brief.text, voiceProvider, videoLanguage, delivery);
     if (!res.ok) throw new Error(toFriendlyError(res.error).message); // redacted friendly message
     // Promote staged images into the project before authoring so the first draft
@@ -125,9 +152,10 @@ export class CreateController {
       text: v.brief.text,
       urls: v.brief.urls,
       ...(promoted.length > 0 ? { images: promoted } : {}),
-      // Fixed format + user duration tier + language for retry/recall.
+      // Fixed format + resolved duration + language for retry/recall.
       format: "tiktok",
       durationTier,
+      targetSeconds: resolved.targetSeconds,
       videoLanguage,
     }); // hand off to workspace stage 1
     return { projectId: res.projectId };

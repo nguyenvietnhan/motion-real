@@ -28,7 +28,14 @@ export {
   type ManifestSceneFile,
   type AdmitProjectResult,
 } from "./manifest.js";
-export { parseDurationFromPrompt } from "./parse-duration.js";
+export {
+  parseDurationFromPrompt,
+  parseDurationSecondsFromPrompt,
+  resolveEffectiveDuration,
+  nearestDurationTier,
+  type EffectiveDuration,
+  type EffectiveDurationSource,
+} from "./parse-duration.js";
 export {
   normalizeAuthoredSource,
   stripReactNativeStyleKeys,

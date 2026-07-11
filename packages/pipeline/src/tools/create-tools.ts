@@ -129,6 +129,8 @@ export const scaffoldProjectInput = z.object({
   prompt: z.string().min(1),
   projectId: z.string().min(1).optional(),
   duration: z.union([z.literal(60), z.literal(90), z.literal(120), z.literal(180)]).optional(),
+  /** Exact brief target seconds (prompt-resolved short form, e.g. 15). */
+  durationSeconds: z.number().positive().max(600).optional(),
   format: z.literal("tiktok").optional(),
   durationTier: z.union([z.literal(1), z.literal(2), z.literal(3)]).optional(),
   language: z.enum(["vi", "en"]).optional(),
@@ -267,7 +269,12 @@ export function createTools(overrides: Partial<ToolDeps> = {}) {
         const res = await deps.scaffoldVideoProject({
           prompt: input.prompt,
           ...(input.projectId ? { projectId: input.projectId } : {}),
-          ...(input.duration ? { duration: input.duration } : {}),
+          // Prefer free-form seconds (prompt-resolved); fall back to legacy preset.
+          ...(input.durationSeconds !== undefined
+            ? { duration: input.durationSeconds }
+            : input.duration
+              ? { duration: input.duration }
+              : {}),
           ...(input.format ? { format: input.format } : {}),
           ...(input.durationTier ? { durationTier: input.durationTier } : {}),
           ...(input.language ? { language: input.language } : {}),

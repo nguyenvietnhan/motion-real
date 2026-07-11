@@ -350,6 +350,21 @@ duration knobs pick `durationTier` **1 / 2 / 3** (~45s / ~90s / ~150s pacing;
 default **1**). There is no landscape / YouTube format option. Geometry,
 captions, and thumbnail cover are vertical short-form only.
 
+**Duration resolution:** if the user brief states an explicit length (e.g.
+"15 giây") and the UI tier disagrees by more than ~20%, **prompt seconds win**
+for pacing (`targetSeconds`, scene/word budget). `resolveEffectiveDuration` in
+`packages/pipeline` is the pure resolver; create wires `AuthorInput.targetSeconds`.
+Content-plan quality also blocks **under-budget** total narration (far below the
+target word count).
+
+**N10 soft-gate:** authored typecheck still runs, but CSSProperties excess /
+common RN style keys and many TS2339 data-field misses are **warnings** (do not
+block draft). Crash-likely diagnostics (e.g. unbound names) stay hard errors.
+
+**Authored normalizers (pre-write):** RN shadow/padding shorthands + brand font
+rewrite (`Inter` / `Be Vietnam Pro` / `Cascadia Mono`) via
+`normalizeAuthoredSource`.
+
 ## Research context (URL-grounded authoring)
 
 Fresh desktop authoring collects sources via `research-context.ts`:

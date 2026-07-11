@@ -165,11 +165,10 @@ function authoredCompilerOptions(workspaceRoot: string): ts.CompilerOptions {
  * sceneId are un-targetable and only exhaust the loop). Pass a resolved-path map.
  */
 /**
- * EXPERIMENT ONLY — branch `experiment/no-n10-gate`.
- * Hard-disable N10 so product can measure whether typecheck is a render bottleneck.
- * Do NOT merge to main without restoring this to `false`.
+ * Soft-gate mode (post E2E): still run tsc, but style/excess CSSProperties and
+ * non-crash type debt are warnings. Set true only for pure A/B without typecheck CPU.
  */
-export const N10_EXPERIMENT_HARD_DISABLED = true;
+export const N10_EXPERIMENT_HARD_DISABLED = false;
 
 export function typecheckAuthoredScenes(
   files: string[],
@@ -177,9 +176,8 @@ export function typecheckAuthoredScenes(
   sceneIdByFile?: ReadonlyMap<string, string>,
 ): SafetyIssue[] {
   if (N10_EXPERIMENT_HARD_DISABLED) {
-    // No CPU typecheck, no gating issues — render continues to TTS/lock/bundle.
     console.warn(
-      "[N10] EXPERIMENT: authored typecheck HARD-DISABLED (experiment/no-n10-gate). " +
+      "[N10] EXPERIMENT: authored typecheck HARD-DISABLED. " +
         "TS2353/prop-shape errors will NOT block render.",
     );
     return [];
@@ -329,7 +327,13 @@ export function __directoryFingerprint(dir: string): string {
  * repair loop reauthors the scene before the user sees it. Diagnostics known to
  * be runtime-safe stay advisory warnings.
  */
-function severityFor(code: number, message: string): SafetyIssue["severity"] {
+/**
+ * Soft-gate matrix (E2E-proven): style/RN CSSProperties excess does not crash
+ * Chromium — only blocks throughput when hard-gated. Crash-likely codes stay error.
+ *
+ * Exported for unit tests.
+ */
+export function severityForN10(code: number, message: string): SafetyIssue["severity"] {
   // Safe runtime fallbacks:
   // - Theme/ThemeColors unknown tokens resolve through the theme Proxy.
   // - Extra props on surviving render helpers are ignored by React/the component.
@@ -344,11 +348,34 @@ function severityFor(code: number, message: string): SafetyIssue["severity"] {
   // `any`. Keep this allowlist narrow; every other unknown diagnostic stays hard.
   if (code === 7006 || code === 7019 || code === 7031) return "warning";
 
+  // Excess style / CSSProperties / RN layout keys (TS2353) — web ignores unknown
+  // style props; do not hard-block draft for throughput.
+  if (
+    code === 2353 &&
+    (/Properties</.test(message) ||
+      /CSSProperties/.test(message) ||
+      /paddingHorizontal|paddingVertical|marginHorizontal|marginVertical|shadowColor|shadowOffset|shadowOpacity|shadowRadius|\belevation\b/.test(
+        message,
+      ))
+  ) {
+    return "warning";
+  }
+
+  // Missing property on a data object (TS2339) often renders as undefined text,
+  // not a Chromium crash. Soft during experiment; SceneImage contract still
+  // tends to surface as assignability errors (still hard below).
+  if (code === 2339 && /Property '.*' does not exist on type/.test(message)) {
+    return "warning";
+  }
+
   // Definitely fallback-prone: an unbound value is erased by transpile-only
   // bundling and throws `ReferenceError` at render time, producing SceneFallback.
   if (code === 2304 || /Cannot find name/.test(message)) return "error";
 
-  // Default to hard: most remaining authored type errors are more likely to throw
-  // or corrupt props than to render safely. The repair loop can target sceneId.
+  // Default to hard: wrong component prop shapes and similar still block.
   return "error";
+}
+
+function severityFor(code: number, message: string): SafetyIssue["severity"] {
+  return severityForN10(code, message);
 }

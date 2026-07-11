@@ -22,4 +22,17 @@ describe("computePacingBudget", () => {
     expect(budget.maxScenes).toBe(14);
     expect(budget.maxAvgWordsPerScene).toBe(75);
   });
+
+  it("honors exact targetSeconds for short prompts (15s)", () => {
+    const budget = computePacingBudget({
+      format: "tiktok",
+      durationTier: 2,
+      targetSeconds: 15,
+      videoLanguage: "vi",
+    });
+    expect(budget.targetSeconds).toBe(15);
+    expect(budget.targetScenes).toBeLessThan(8);
+    expect(budget.maxScenes).toBeLessThan(10);
+    expect(budget.minTotalNarrationWords).toBeLessThan(budget.targetWords);
+  });
 });

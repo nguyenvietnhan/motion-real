@@ -93,6 +93,20 @@ export function evaluateContentPlanQuality(
         message: `${pacing.targetSeconds}s/${pacing.targetWords} words needs at least ${pacing.minScenes} scenes; got ${plan.scenes.length}`,
       });
     }
+    if (plan.scenes.length > pacing.maxScenes) {
+      addIssue({
+        check: "pacing",
+        message: `${pacing.targetSeconds}s target allows at most ${pacing.maxScenes} scenes; got ${plan.scenes.length} — merge beats or lengthen narration per scene`,
+      });
+    }
+    if (totalNarrationWords < pacing.minTotalNarrationWords) {
+      addIssue({
+        check: "pacing",
+        message:
+          `total narration is ${totalNarrationWords} words, far below ~${pacing.targetWords} words for ${pacing.targetSeconds}s ` +
+          `(minimum ${pacing.minTotalNarrationWords}). Lengthen spoken lines; do not only add empty/micro scenes.`,
+      });
+    }
     if (avgNarrationWords > pacing.maxAvgWordsPerScene) {
       addIssue({
         check: "pacing",

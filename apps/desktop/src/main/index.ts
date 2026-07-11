@@ -314,6 +314,8 @@ const create = new CreateController({
       language: videoLanguage,
       format: delivery?.format ?? "tiktok",
       durationTier: delivery?.durationTier ?? 1,
+      // Free-form seconds when prompt resolved a length (e.g. 15); else tier default.
+      ...(delivery?.targetSeconds !== undefined ? { durationSeconds: delivery.targetSeconds } : {}),
       ttsProvider: voiceProvider,
       voiceId: config.voiceId,
       ...(config.modelId ? { modelId: config.modelId } : {}),

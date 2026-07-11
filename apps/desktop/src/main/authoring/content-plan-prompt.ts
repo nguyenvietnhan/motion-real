@@ -112,8 +112,17 @@ function systemPrompt(
   language: VideoLanguage,
   wordsPerSecond: number,
   hasLabeledSources: boolean,
+  targetSeconds?: number,
 ): string {
-  const pacing = computePacingBudget({ format, durationTier: tier, videoLanguage: language }, wordsPerSecond);
+  const pacing = computePacingBudget(
+    {
+      format,
+      durationTier: tier,
+      videoLanguage: language,
+      ...(targetSeconds !== undefined ? { targetSeconds } : {}),
+    },
+    wordsPerSecond,
+  );
   const titleCap = titleMaxChars(format);
   return `You are MotionReal's CONTENT PLANNER, not the Remotion code author.
 Plan a short-form video before any TSX is written. Return only valid JSON. Do not include markdown fences, commentary, JSX, imports, or component code.
@@ -128,7 +137,8 @@ TASK:
 
 DELIVERY LOCKS (already chosen by the app; do not change them):
 - Format: ${geometryLabel(format)}.
-- Duration tier: ${pacing.targetSeconds} seconds target, around ${pacing.targetWords} spoken words at ~${roundRate(wordsPerSecond)} words/second.
+- Duration TARGET (authoritative): ${pacing.targetSeconds} seconds of spoken video, around ${pacing.targetWords} spoken words at ~${roundRate(wordsPerSecond)} words/second. Ignore any other length mentioned in the user brief if it conflicts — this number is the single source of truth.
+- Total narration across ALL scenes must land near ${pacing.targetWords} words (at least ~${pacing.minTotalNarrationWords}). Do not plan ${pacing.maxScenes}+ micro-scenes with 1-line narration when the target is longer, and do not plan a long scene count when the target is very short.
 - Pacing: plan ${pacing.minScenes}-${pacing.maxScenes} scenes, aim around ${pacing.targetScenes}; keep average narration at or below ${pacing.maxAvgWordsPerScene} words/scene and split any scene that grows past ${pacing.maxSceneNarrationWords} words.
 - Video language: ${languageLabel(language)} for title, narration, on-screen text, and final viewer-facing wording.
 - Publish title cap: under ${titleCap} characters.
@@ -217,13 +227,26 @@ export function buildContentPlanMessages(
   const format = input.format ?? "tiktok";
   const tier = input.durationTier ?? 1;
   const language = input.videoLanguage ?? "vi";
-  const effectiveWordsPerSecond = computePacingBudget(
-    { format, durationTier: tier, videoLanguage: language },
+  const pacingSeed = computePacingBudget(
+    {
+      format,
+      durationTier: tier,
+      videoLanguage: language,
+      ...(input.targetSeconds !== undefined ? { targetSeconds: input.targetSeconds } : {}),
+    },
     wordsPerSecond,
-  ).wordsPerSecond;
+  );
+  const effectiveWordsPerSecond = pacingSeed.wordsPerSecond;
   const imageList = images ?? [];
   const hasLabeledSources = Boolean(sources && sources.length > 0);
-  const system = systemPrompt(format, tier, language, effectiveWordsPerSecond, hasLabeledSources);
+  const system = systemPrompt(
+    format,
+    tier,
+    language,
+    effectiveWordsPerSecond,
+    hasLabeledSources,
+    input.targetSeconds ?? pacingSeed.targetSeconds,
+  );
   const text = `${userBriefBlock(input, research, sources)}${imageInstruction(imageList)}\n\nReturn only the content-plan JSON object.`;
 
   if (imageList.length === 0) {

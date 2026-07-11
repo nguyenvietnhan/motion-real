@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { parseDurationFromPrompt } from "./parse-duration.js";
+import {
+  nearestDurationTier,
+  parseDurationFromPrompt,
+  parseDurationSecondsFromPrompt,
+  resolveEffectiveDuration,
+} from "./parse-duration.js";
 
 /**
  * The desktop create flow hands the orchestrator only the raw prompt, so the
@@ -27,14 +32,65 @@ describe("parseDurationFromPrompt", () => {
   });
 
   it("snaps an off-preset length to the closest preset", () => {
-    expect(parseDurationFromPrompt("100 giây")).toBe(90); // 100 → nearer 90 than 120
-    expect(parseDurationFromPrompt("75 giây")).toBe(60); // 75 → nearer 60 than 90 (gap 15 vs 15 → first wins = 60)
-    expect(parseDurationFromPrompt("2 phút 30 giây")).toBe(120); // 150 → nearer 120 than 180
+    expect(parseDurationFromPrompt("100 giây")).toBe(90);
+    expect(parseDurationFromPrompt("75 giây")).toBe(60);
+    expect(parseDurationFromPrompt("2 phút 30 giây")).toBe(120);
   });
 
   it("returns undefined when no recognizable length is stated", () => {
     expect(parseDurationFromPrompt("Tóm tắt bài báo này")).toBeUndefined();
     expect(parseDurationFromPrompt("")).toBeUndefined();
     expect(parseDurationFromPrompt("https://example.com/a")).toBeUndefined();
+  });
+});
+
+describe("parseDurationSecondsFromPrompt", () => {
+  it("keeps exact short lengths (no snap to 60)", () => {
+    expect(parseDurationSecondsFromPrompt("Tạo video 15 giây app thời tiết")).toBe(15);
+    expect(parseDurationSecondsFromPrompt("20s mockup")).toBe(20);
+  });
+});
+
+describe("resolveEffectiveDuration", () => {
+  it("lets explicit prompt seconds win over a conflicting UI tier", () => {
+    const r = resolveEffectiveDuration({
+      prompt: "Tạo video 15 giây app thời tiết",
+      durationTier: 2,
+      format: "tiktok",
+    });
+    expect(r.targetSeconds).toBe(15);
+    expect(r.source).toBe("prompt");
+    expect(r.conflict).toEqual({ promptSeconds: 15, tierSeconds: 90 });
+    expect(r.durationTier).toBe(1); // nearest label
+  });
+
+  it("uses UI tier when prompt has no duration", () => {
+    const r = resolveEffectiveDuration({
+      prompt: "Giới thiệu app quản lý công việc",
+      durationTier: 2,
+      format: "tiktok",
+    });
+    expect(r.targetSeconds).toBe(90);
+    expect(r.source).toBe("tier");
+    expect(r.conflict).toBeUndefined();
+  });
+
+  it("keeps tier when prompt length is close", () => {
+    const r = resolveEffectiveDuration({
+      prompt: "video khoảng 90 giây về AI",
+      durationTier: 2,
+      format: "tiktok",
+    });
+    expect(r.targetSeconds).toBe(90);
+    expect(r.source).toBe("tier");
+  });
+});
+
+describe("nearestDurationTier", () => {
+  it("maps free seconds onto 1/2/3 labels", () => {
+    expect(nearestDurationTier(15)).toBe(1);
+    expect(nearestDurationTier(45)).toBe(1);
+    expect(nearestDurationTier(90)).toBe(2);
+    expect(nearestDurationTier(150)).toBe(3);
   });
 });

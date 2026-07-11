@@ -39,6 +39,12 @@ export type AuthorInput = {
   images?: AuthorImageRef[];
   format?: VideoFormat;
   durationTier?: DurationTier;
+  /**
+   * Exact pacing target (seconds). When set, content-plan word/scene budgets
+   * use this instead of tierSeconds(durationTier) so prompt "15 giây" can win
+   * over a UI 90s knob.
+   */
+  targetSeconds?: number;
   videoLanguage?: VideoLanguage;
 };
 

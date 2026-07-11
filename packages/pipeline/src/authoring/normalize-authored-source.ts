@@ -1,25 +1,25 @@
 /**
  * Pure pre-write rewrites for AI-authored scene modules.
  *
- * Models sometimes emit React Native style keys (`shadowColor`, …) inside web
- * `style={{…}}` objects. N10 typechecks against React's CSSProperties, which
- * rejects those keys (TS2353) and fails the full render at build-gate — after
- * expensive prepare/QA. Strip the known RN-only keys (AST-safe) so remaining
- * valid CSS (`boxShadow` / `textShadow` / SVG `filter`) is left untouched.
+ * - Expand / strip React Native style keys (shadow*, elevation, paddingHorizontal…).
+ * - Rewrite system/OS font stacks to product brand fonts (Inter / Be Vietnam Pro).
  *
- * Does NOT convert RN shadows to boxShadow (web/RN models differ). Admission
- * also bans residual RN keys as defense-in-depth.
+ * Admission still bans residual RN keys as defense-in-depth.
  */
 
 import ts from "typescript";
 
-/** React Native shadow / elevation keys that are not valid CSSProperties. */
+/** React Native keys that are never valid CSSProperties (strip or expand). */
 export const REACT_NATIVE_STYLE_KEYS = [
   "shadowColor",
   "shadowOffset",
   "shadowOpacity",
   "shadowRadius",
   "elevation",
+  "paddingHorizontal",
+  "paddingVertical",
+  "marginHorizontal",
+  "marginVertical",
 ] as const;
 
 export type ReactNativeStyleKey = (typeof REACT_NATIVE_STYLE_KEYS)[number];
@@ -31,16 +31,29 @@ export function isReactNativeStyleKey(name: string): boolean {
   return RN_KEY_SET.has(name);
 }
 
+const SHADOW_STRIP_KEYS = new Set([
+  "shadowColor",
+  "shadowOffset",
+  "shadowOpacity",
+  "shadowRadius",
+  "elevation",
+]);
+
+const EXPAND_PAIRS: Record<string, [string, string]> = {
+  paddingHorizontal: ["paddingLeft", "paddingRight"],
+  paddingVertical: ["paddingTop", "paddingBottom"],
+  marginHorizontal: ["marginLeft", "marginRight"],
+  marginVertical: ["marginTop", "marginBottom"],
+};
+
+/** Brand stacks already vendored for Remotion render. */
+export const BRAND_FONT_STACK = 'Inter, "Be Vietnam Pro", sans-serif';
+export const BRAND_MONO_STACK = '"Cascadia Mono", monospace';
+
 /**
- * Remove known invalid React Native style property assignments via TS AST.
- * Idempotent; leaves valid CSS (`boxShadow`, `textShadow`) and string/comment
- * contents untouched. Unparseable source is returned unchanged (admission N4
- * handles syntax).
+ * Remove / expand RN style keys via TS AST. Idempotent.
  */
 export function stripReactNativeStyleKeys(source: string): string {
-  // Parse as a full TSX module. TypeScript still builds a usable AST when the
-  // buffer is a fragment or has soft errors — do not no-op on parseDiagnostics
-  // (that left RN keys in place for any imperfect model output).
   const sf = ts.createSourceFile(
     "authored.tsx",
     source,
@@ -49,14 +62,32 @@ export function stripReactNativeStyleKeys(source: string): string {
     ts.ScriptKind.TSX,
   );
 
-  const ranges: Array<{ start: number; end: number }> = [];
+  type Edit = { start: number; end: number; text: string };
+  const edits: Edit[] = [];
 
   const visit = (node: ts.Node): void => {
     if (ts.isObjectLiteralExpression(node)) {
       for (const prop of node.properties) {
-        const name = objectLiteralPropertyName(prop);
-        if (name && isReactNativeStyleKey(name)) {
-          ranges.push(propertyRemovalRange(prop, source, sf));
+        if (!ts.isPropertyAssignment(prop)) continue;
+        const name = propertyNameText(prop.name);
+        if (!name || !isReactNativeStyleKey(name)) continue;
+
+        const range = propertyRemovalRange(prop, source, sf);
+        const expand = EXPAND_PAIRS[name];
+        const valueText = simpleStyleValueText(prop.initializer, sf);
+        if (expand && valueText !== null) {
+          const [a, b] = expand;
+          // range often includes the trailing comma — put a comma after the
+          // expanded pair so the next sibling stays valid.
+          const needsComma = range.end > prop.getEnd() || /,\s*$/.test(source.slice(range.start, range.end));
+          edits.push({
+            start: range.start,
+            end: range.end,
+            text: `${a}: ${valueText}, ${b}: ${valueText}${needsComma ? "," : ""}`,
+          });
+        } else if (SHADOW_STRIP_KEYS.has(name) || expand) {
+          // Nested shadowOffset / non-simple expand value → drop property.
+          edits.push({ start: range.start, end: range.end, text: "" });
         }
       }
     }
@@ -64,30 +95,105 @@ export function stripReactNativeStyleKeys(source: string): string {
   };
   visit(sf);
 
-  if (ranges.length === 0) return source;
-
-  // Remove from the end so earlier offsets stay valid.
-  ranges.sort((a, b) => b.start - a.start);
+  if (edits.length === 0) return source;
+  edits.sort((a, b) => b.start - a.start);
   let out = source;
   let lastStart = Infinity;
-  for (const { start, end } of ranges) {
-    if (end > lastStart) continue; // overlap guard
-    out = out.slice(0, start) + out.slice(end);
-    lastStart = start;
+  for (const e of edits) {
+    if (e.end > lastStart) continue;
+    out = out.slice(0, e.start) + e.text + out.slice(e.end);
+    lastStart = e.start;
   }
   return out;
 }
 
-/** Apply all authored-source normalizers before persist / typecheck. */
-export function normalizeAuthoredSource(source: string): string {
-  return stripReactNativeStyleKeys(source);
+/**
+ * Rewrite fontFamily values toward brand stacks (AST property values only).
+ */
+export function normalizeAuthoredFonts(source: string): string {
+  const sf = ts.createSourceFile(
+    "authored.tsx",
+    source,
+    ts.ScriptTarget.Latest,
+    /*setParentNodes*/ true,
+    ts.ScriptKind.TSX,
+  );
+
+  type Edit = { start: number; end: number; text: string };
+  const edits: Edit[] = [];
+
+  const visit = (node: ts.Node): void => {
+    if (ts.isPropertyAssignment(node)) {
+      const name = propertyNameText(node.name);
+      if (name === "fontFamily" && ts.isStringLiteralLike(node.initializer)) {
+        const raw = node.initializer.text;
+        const next = rewriteFontStack(raw);
+        if (next !== raw) {
+          const q = ts.isStringLiteral(node.initializer) && node.initializer.getText(sf).startsWith("'") ? "'" : '"';
+          edits.push({
+            start: node.initializer.getStart(sf),
+            end: node.initializer.getEnd(),
+            text: `${q}${next.replace(/\\/g, "\\\\").replace(new RegExp(q, "g"), `\\${q}`)}${q}`,
+          });
+        }
+      }
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(sf);
+
+  if (edits.length === 0) return source;
+  edits.sort((a, b) => b.start - a.start);
+  let out = source;
+  for (const e of edits) {
+    out = out.slice(0, e.start) + e.text + out.slice(e.end);
+  }
+  return out;
 }
 
-function objectLiteralPropertyName(prop: ts.ObjectLiteralElementLike): string | null {
-  if (ts.isPropertyAssignment(prop) || ts.isShorthandPropertyAssignment(prop) || ts.isMethodDeclaration(prop)) {
-    return propertyNameText(prop.name);
+/** Map a fontFamily string to brand defaults. */
+export function rewriteFontStack(value: string): string {
+  const v = value.trim().toLowerCase();
+  if (!v) return BRAND_FONT_STACK;
+  if (v.includes("inter") || v.includes("be vietnam")) return value.trim();
+  if (v.includes("cascadia") || v === "monospace" || v.includes("mono")) {
+    if (v.includes("cascadia")) return value.trim();
+    return BRAND_MONO_STACK;
   }
-  // Spread / non-name forms: leave alone.
+  // system-ui, -apple-system, Segoe UI, Arial, sans-serif-only, etc.
+  if (
+    v.includes("system-ui") ||
+    v.includes("apple-system") ||
+    v.includes("blinkmacsystemfont") ||
+    v.includes("segoe") ||
+    v.includes("roboto") ||
+    v.includes("helvetica") ||
+    v.includes("arial") ||
+    v === "sans-serif" ||
+    v.startsWith("sans-serif")
+  ) {
+    return BRAND_FONT_STACK;
+  }
+  // Unknown custom → brand body (bold product consistency).
+  return BRAND_FONT_STACK;
+}
+
+/** Apply all authored-source normalizers before persist / typecheck. */
+export function normalizeAuthoredSource(source: string): string {
+  return normalizeAuthoredFonts(stripReactNativeStyleKeys(source));
+}
+
+function simpleStyleValueText(expr: ts.Expression, sf: ts.SourceFile): string | null {
+  if (ts.isNumericLiteral(expr) || ts.isStringLiteralLike(expr) || ts.isIdentifier(expr)) {
+    return expr.getText(sf);
+  }
+  if (
+    ts.isPrefixUnaryExpression(expr) &&
+    expr.operator === ts.SyntaxKind.MinusToken &&
+    ts.isNumericLiteral(expr.operand)
+  ) {
+    return expr.getText(sf);
+  }
   return null;
 }
 
@@ -97,21 +203,14 @@ function propertyNameText(name: ts.PropertyName): string | null {
   return null;
 }
 
-/**
- * Expand a property node range to include the adjacent comma so the object
- * literal stays syntactically valid after removal.
- */
 function propertyRemovalRange(
   prop: ts.ObjectLiteralElementLike,
   text: string,
   sf: ts.SourceFile,
 ): { start: number; end: number } {
-  // Leading trivia (whitespace/newlines before this prop) stays with the prior
-  // sibling so we don't glue tokens; we only remove the property itself + comma.
   let start = prop.getStart(sf);
   let end = prop.getEnd();
 
-  // Prefer trailing comma after this property.
   let i = end;
   while (i < text.length && (text[i] === " " || text[i] === "\t")) i++;
   if (text[i] === ",") {
@@ -119,7 +218,6 @@ function propertyRemovalRange(
     return { start, end };
   }
 
-  // Last property (or no trailing comma): drop the preceding comma.
   let j = start - 1;
   while (j >= 0 && (text[j] === " " || text[j] === "\t" || text[j] === "\n" || text[j] === "\r")) {
     j--;

@@ -25,15 +25,29 @@ export function formatBlock(_format: VideoFormat = "tiktok"): string {
  * at the language rate. "Rather over than under" — pacing allows ±20s, never a
  * hard cut.
  */
-export function tierBudgetBlock(format: VideoFormat, tier: DurationTier, language: VideoLanguage, wps: number): string {
-  const pacing = computePacingBudget({ format, durationTier: tier, videoLanguage: language }, wps);
+export function tierBudgetBlock(
+  format: VideoFormat,
+  tier: DurationTier,
+  language: VideoLanguage,
+  wps: number,
+  targetSeconds?: number,
+): string {
+  const pacing = computePacingBudget(
+    {
+      format,
+      durationTier: tier,
+      videoLanguage: language,
+      ...(targetSeconds !== undefined ? { targetSeconds } : {}),
+    },
+    wps,
+  );
   const seconds = pacing.targetSeconds;
   const rate = roundRate(wps);
   const words = pacing.targetWords;
-  const low = Math.round((seconds - 20) * wps);
+  const low = Math.max(pacing.minTotalNarrationWords, Math.round((seconds - 20) * wps));
   const high = Math.round((seconds + 20) * wps);
   const languageLabel = language === "en" ? "tiếng Anh" : "tiếng Việt";
-  return `MỤC TIÊU THỜI LƯỢNG: video nhắm khoảng ${seconds} giây. Giọng đọc ${languageLabel} ~${rate} từ/giây, nên hãy viết TỔNG lời đọc toàn video khoảng ${words} từ (chấp nhận ${low}–${high} từ — thà hơi DƯ còn hơn hụt), chia thành đủ số cảnh để đạt tổng đó. Nhịp cảnh nên khoảng ${pacing.minScenes}–${pacing.maxScenes} cảnh, nhắm ${pacing.targetScenes}; đừng nhồi quá nhiều lời vào vài cảnh dài. KHÔNG cắt câu để ép đúng giây.`;
+  return `MỤC TIÊU THỜI LƯỢNG (nguồn duy nhất — bỏ qua mọi “N giây” khác trong brief nếu lệch): video nhắm khoảng ${seconds} giây. Giọng đọc ${languageLabel} ~${rate} từ/giây, nên hãy viết TỔNG lời đọc toàn video khoảng ${words} từ (chấp nhận ${low}–${high} từ — thà hơi DƯ còn hơn hụt), chia thành ${pacing.minScenes}–${pacing.maxScenes} cảnh (nhắm ${pacing.targetScenes}). KHÔNG cắt câu để ép đúng giây; KHÔNG tạo hàng chục cảnh 1 câu khi mục tiêu dài, cũng KHÔNG phình số cảnh khi mục tiêu rất ngắn.`;
 }
 
 /**
@@ -75,6 +89,7 @@ export function contentRules(wps: number, language: VideoLanguage): string {
   const languageLabel = language === "en" ? "tiếng Anh" : "tiếng Việt";
   return `QUY TẮC NỘI DUNG (bắt buộc):
 ${languageRule}
+- FONT: mặc định fontFamily: "Inter, \\"Be Vietnam Pro\\", sans-serif". Dùng "Cascadia Mono", monospace chỉ cho số/code chrome. KHÔNG dùng system-ui / -apple-system làm body chính.
 - KHÔNG bịa số liệu/nguồn/ngày/giá/phần trăm. Không chắc một con số thì đừng nêu.
 - scene-01 mở bằng HOOK trực diện kéo người xem ở lại (không chào hỏi/định nghĩa lề mề). Cảnh CUỐI chốt lại gắn chủ đề (không "like/share/subscribe" chung chung) — tuỳ chủ đề mà chốt bằng câu hỏi, lời mời hành động, hay điểm nhấn đọng lại.
 - Mỗi cảnh MỘT ý; narration 1–3 câu cô đọng (khoảng 18–40 từ). Đa dạng form.

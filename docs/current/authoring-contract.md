@@ -174,9 +174,14 @@ Forbidden:
 - `dangerouslySetInnerHTML`
 - remote image/video URLs
 - React Native-only style keys in objects (`shadowColor`, `shadowOffset`,
-  `shadowOpacity`, `shadowRadius`, `elevation`). Use web CSS (`boxShadow`,
-  `textShadow`) or SVG `filter` instead. The pipeline may strip residual RN
-  keys before admit; admission still rejects them if they remain.
+  `shadowOpacity`, `shadowRadius`, `elevation`, `paddingHorizontal` /
+  `paddingVertical` / `marginHorizontal` / `marginVertical`). Prefer web CSS
+  (`boxShadow`, `textShadow`, `paddingLeft`/`paddingRight`, …). The pipeline
+  expands simple padding/margin RN shorthands and strips residual RN keys;
+  admission still rejects leftovers.
+- Prefer brand fonts: `Inter` / `Be Vietnam Pro` for body (and `Cascadia Mono`
+  for code chrome). Avoid `system-ui` / `-apple-system` as the primary stack;
+  the pipeline may rewrite those to the brand stack.
 
 Use Remotion frame hooks, `interpolate`, `spring`, and `random(seed)` when
 needed.
