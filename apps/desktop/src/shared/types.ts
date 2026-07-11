@@ -81,8 +81,8 @@ export type PickImagesResult = {
 
 /** Delivery format — short-form 9:16 only. */
 export type VideoFormatChoice = "tiktok";
-/** Duration tier for short-form pacing: 1≈45s, 2≈90s, 3≈150s. */
-export type DurationTierChoice = 1 | 2 | 3;
+/** Duration tier for short-form pacing: 1≈45s, 2≈90s, 3≈150s, 4≈210s. */
+export type DurationTierChoice = 1 | 2 | 3 | 4;
 /** Authored video language the user picks: content, narration, captions, title, hashtags. */
 export type VideoLanguageChoice = "vi" | "en";
 

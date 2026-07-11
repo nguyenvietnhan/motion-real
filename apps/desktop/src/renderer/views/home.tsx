@@ -485,6 +485,7 @@ export const HomeView: React.FC<{
                 { value: 1, label: "0:45" },
                 { value: 2, label: "1:30" },
                 { value: 3, label: "2:30" },
+                { value: 4, label: "3:30" },
               ]}
             />
             <KnobButton

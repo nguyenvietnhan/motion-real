@@ -10,7 +10,7 @@ separate project rules.
 MotionReal turns a Vietnamese or English prompt, optionally with URLs/images,
 into a publishable Remotion MP4. The only production path is short-form
 TikTok/Reels/Shorts-style **9:16**. Create may pick short-form duration tier
-(~45s / ~90s / ~150s; default ~45s). No landscape / YouTube format.
+(~45s / ~90s / ~150s / ~210s; default ~45s). No landscape / YouTube format.
 
 The visual model is pure AUTHOR mode: for every video, the runtime AI writes
 fresh Remotion React scene modules as raw JSX/SVG. There is no template catalog,

@@ -217,7 +217,7 @@ diagnostics, because they are metadata guidance rather than safety blockers.
 Normal no-image plans up to the single-reply capacity use one authoring reply,
 where a valid manifest with missing TSX modules may get one targeted
 missing-module recovery call. Larger no-image plans use a deterministic manifest
-plus compact TSX batches of at most two component ids, capped at 16 components
+plus compact TSX batches of at most two component ids, capped at 20 components
 total; plans beyond that budget fail instead of looping. Image-placement plans
 keep the single-reply authoring path. None of these paths accept partial output
 or weaken admission, N10 typecheck, or render safety.
@@ -346,16 +346,15 @@ paths. Responses are buffered before the per-request dispatcher closes.
 
 The product ships **TikTok/Reels/Shorts 9:16** only. Specs use `format: "tiktok"`
 and `ratio: "9:16"`. Desktop create always uses short-form delivery; the Home
-duration knobs pick `durationTier` **1 / 2 / 3** (~45s / ~90s / ~150s pacing;
-default **1**). There is no landscape / YouTube format option. Geometry,
-captions, and thumbnail cover are vertical short-form only.
+duration knobs pick `durationTier` **1 / 2 / 3 / 4** (~45s / ~90s / ~150s /
+~210s pacing; default **1**). There is no landscape / YouTube format option.
+Geometry, captions, and thumbnail cover are vertical short-form only.
 
-**Duration resolution:** if the user brief states an explicit length (e.g.
-"15 giây") and the UI tier disagrees by more than ~20%, **prompt seconds win**
-for pacing (`targetSeconds`, scene/word budget). `resolveEffectiveDuration` in
-`packages/pipeline` is the pure resolver; create wires `AuthorInput.targetSeconds`.
-Content-plan quality also blocks **under-budget** total narration (far below the
-target word count).
+**Duration resolution:** desktop **Settings/knobs always win**. An explicit
+length in the prompt is ignored for pacing when a tier is set (conflicts are
+logged only). `resolveEffectiveDuration` is the pure resolver; create wires
+`AuthorInput.targetSeconds` from the selected tier. Content-plan quality also
+blocks **under-budget** total narration (far below the target word count).
 
 **N10 B-minimal (crash-only):** authored typecheck still runs, but **only**
 unbound-name diagnostics (`TS2304` / “Cannot find name”) are emitted as hard

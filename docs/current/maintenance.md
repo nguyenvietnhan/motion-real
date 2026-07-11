@@ -166,10 +166,10 @@ MCP server without a focused owner-approved slice.
 
 Product path is short-form **9:16 only** (no YouTube / landscape). Desktop create
 always scaffolds `format: "tiktok"` and a short-form `durationTier` from the
-Home knobs: **1 / 2 / 3** → ~45s / ~90s / ~150s pacing (default **1**).
+Home knobs: **1 / 2 / 3 / 4** → ~45s / ~90s / ~150s / ~210s pacing (default **1**).
 
 Resolved `brief.duration` order for the pipeline/CLI remains: explicit tool
-`duration`, then `durationTier` via `tierSeconds` (tiktok 45/90/150), then
+`duration`, then `durationTier` via `tierSeconds` (tiktok 45/90/150/210), then
 duration parsed from the prompt, then the 60 second default. Existing briefs are
 not silently migrated.
 
@@ -181,7 +181,7 @@ one content-plan call, at most one repair call when every blocker is
 plus at most one missing-TSX recovery, or compact TSX batch calls only when a
 no-image plan exceeds the normal single-reply capacity. The current compact
 batch path starts after 12 components, uses two component ids per batch, and
-still caps total authoring at 16 components. That capacity policy lives in
+still caps total authoring at 20 components. That capacity policy lives in
 `author-batch-policy.ts`; keep changes there focused and tested. Do not add
 unbounded retries, extra manifest-only model calls, or provider `max_tokens`
 overrides without a new owner-approved slice and tests.

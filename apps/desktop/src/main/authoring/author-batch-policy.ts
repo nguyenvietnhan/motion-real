@@ -1,10 +1,16 @@
 export const AUTHOR_BATCH_BUDGET_FAILURE =
-  "AI lập kế hoạch quá nhiều cảnh cho lượt authoring an toàn (tối đa 16 component trong 8 batch nhỏ). Hãy thử lại với phạm vi hẹp hơn hoặc thời lượng ngắn hơn.";
+  "AI lập kế hoạch quá nhiều cảnh cho lượt authoring an toàn (tối đa 20 component). Hãy thử lại với phạm vi hẹp hơn hoặc thời lượng ngắn hơn.";
 
 export const AUTHOR_BATCH_SIZE = 2;
-export const MAX_AUTHOR_BATCHES = 8;
-export const AUTHOR_BATCH_THRESHOLD = 12;
-export const MAX_BATCHED_COMPONENTS = AUTHOR_BATCH_SIZE * MAX_AUTHOR_BATCHES;
+/** Enough batches for MAX_BATCHED_COMPONENTS at AUTHOR_BATCH_SIZE. */
+export const MAX_AUTHOR_BATCHES = 10;
+/**
+ * Plans at or below this size use one authoring reply (no batching).
+ * Raised with the 20-component budget so ~15–20 scene plans stay workable.
+ */
+export const AUTHOR_BATCH_THRESHOLD = 16;
+/** Hard cap on authored components per create (tier 4 ~3:30 may need many scenes). */
+export const MAX_BATCHED_COMPONENTS = 20;
 
 export type AuthorBatchDecision =
   | { mode: "single"; componentIds: string[]; reason: "short-plan" | "user-images" }

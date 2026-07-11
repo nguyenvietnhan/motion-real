@@ -239,6 +239,7 @@ describe("scaffoldVideoProject — R8/R10", () => {
       { format: "tiktok", durationTier: 1, seconds: 45 },
       { format: "tiktok", durationTier: 2, seconds: 90 },
       { format: "tiktok", durationTier: 3, seconds: 150 },
+      { format: "tiktok", durationTier: 4, seconds: 210 },
     ];
 
     for (const item of cases) {
@@ -256,7 +257,7 @@ describe("scaffoldVideoProject — R8/R10", () => {
     }
   });
 
-  it("resolves scaffold duration: explicit override, else prompt wins conflicts over tier", async () => {
+  it("resolves scaffold duration: explicit override, else UI tier wins over prompt", async () => {
     const explicit = await scaffoldVideoProject({
       projectId: "duration-explicit",
       prompt: "Make this 1p30s, but caller overrides",
@@ -266,14 +267,22 @@ describe("scaffoldVideoProject — R8/R10", () => {
     });
     expect(explicit.brief.duration).toBe(120);
 
-    // Prompt "60s" vs tier 3 (~150s) → prompt wins (conflict policy).
-    const promptBeatsTier = await scaffoldVideoProject({
-      projectId: "duration-prompt-beats-tier",
+    // Prompt "60s" vs tier 3 (~150s) → UI tier wins.
+    const tierBeatsPrompt = await scaffoldVideoProject({
+      projectId: "duration-tier-beats-prompt",
       prompt: "Make this a quick 60s video",
       format: "tiktok",
       durationTier: 3,
     });
-    expect(promptBeatsTier.brief.duration).toBe(60);
+    expect(tierBeatsPrompt.brief.duration).toBe(150);
+
+    const tier4 = await scaffoldVideoProject({
+      projectId: "duration-tier-4",
+      prompt: "Short note in prompt 15s ignored",
+      format: "tiktok",
+      durationTier: 4,
+    });
+    expect(tier4.brief.duration).toBe(210);
 
     const promptOnly = await scaffoldVideoProject({
       projectId: "duration-prompt-only",

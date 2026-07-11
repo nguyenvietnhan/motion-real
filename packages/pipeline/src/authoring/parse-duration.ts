@@ -11,7 +11,7 @@ import {
  * to the nearest supported {@link DurationPreset} (60/90/120/180) for CLI/legacy.
  *
  * Prefer {@link parseDurationSecondsFromPrompt} + {@link resolveEffectiveDuration}
- * when exact short-form lengths (e.g. 15s) matter for pacing.
+ * for desktop create pacing.
  */
 export function parseDurationFromPrompt(prompt: string): DurationPreset | undefined {
   const seconds = parseDurationSecondsFromPrompt(prompt);
@@ -52,7 +52,6 @@ export function parseDurationSecondsFromPrompt(prompt: string): number | undefin
   }
 
   if (seconds === undefined || !Number.isFinite(seconds) || seconds <= 0) return undefined;
-  // Clamp to a sane short-form band (product is TikTok/Reels/Shorts).
   return Math.min(Math.max(Math.round(seconds), 8), 600);
 }
 
@@ -76,6 +75,7 @@ export function nearestDurationTier(targetSeconds: number): DurationTier {
     { tier: 1, seconds: 45 },
     { tier: 2, seconds: 90 },
     { tier: 3, seconds: 150 },
+    { tier: 4, seconds: 210 },
   ];
   let best = table[0]!;
   let bestGap = Math.abs(targetSeconds - best.seconds);
@@ -97,21 +97,29 @@ export type EffectiveDuration = {
   /** Nearest tier label for schema / UI continuity. */
   durationTier: DurationTier;
   source: EffectiveDurationSource;
+  /** Present when prompt length disagreed with UI tier (UI still wins). */
   conflict?: { promptSeconds: number; tierSeconds: number };
 };
 
 const CONFLICT_RATIO = 0.2;
 
+function isDurationTier(value: unknown): value is DurationTier {
+  return value === 1 || value === 2 || value === 3 || value === 4;
+}
+
 /**
  * One duration truth for create/authoring.
- * When the prompt states an explicit length and the UI tier disagrees by >20%,
- * **prompt wins** (user typed "15 giây" on purpose; knobs are often left default).
+ *
+ * **Desktop policy: Settings / UI `durationTier` always wins** when set.
+ * An explicit length in the prompt is only used when no tier is provided
+ * (CLI / tools). Conflicts are logged for observability but do not override
+ * the knob.
  */
 export function resolveEffectiveDuration(input: {
   prompt: string;
   durationTier?: DurationTier;
   format?: VideoFormat;
-  /** Explicit override (CLI / scaffold options.duration). */
+  /** Explicit override (CLI / scaffold options.duration) — highest priority. */
   explicitDuration?: number;
 }): EffectiveDuration {
   const format: VideoFormat = input.format ?? "tiktok";
@@ -126,25 +134,20 @@ export function resolveEffectiveDuration(input: {
   }
 
   const promptSeconds = parseDurationSecondsFromPrompt(input.prompt);
-  const hasTier = input.durationTier === 1 || input.durationTier === 2 || input.durationTier === 3;
+  const hasTier = isDurationTier(input.durationTier);
   const tierSec = hasTier ? tierSeconds(format, input.durationTier!) : undefined;
 
-  if (promptSeconds !== undefined && tierSec !== undefined) {
-    const gap = Math.abs(promptSeconds - tierSec);
-    const conflict = gap > CONFLICT_RATIO * Math.max(promptSeconds, tierSec);
-    if (conflict) {
-      return {
-        targetSeconds: promptSeconds,
-        durationTier: nearestDurationTier(promptSeconds),
-        source: "prompt",
-        conflict: { promptSeconds, tierSeconds: tierSec },
-      };
-    }
-    // Aligned enough: keep UI tier label, use tier seconds for stability.
+  if (hasTier && tierSec !== undefined) {
+    const conflict =
+      promptSeconds !== undefined &&
+      Math.abs(promptSeconds - tierSec) > CONFLICT_RATIO * Math.max(promptSeconds, tierSec)
+        ? { promptSeconds, tierSeconds: tierSec }
+        : undefined;
     return {
       targetSeconds: tierSec,
       durationTier: input.durationTier!,
       source: "tier",
+      ...(conflict ? { conflict } : {}),
     };
   }
 
@@ -153,14 +156,6 @@ export function resolveEffectiveDuration(input: {
       targetSeconds: promptSeconds,
       durationTier: nearestDurationTier(promptSeconds),
       source: "prompt",
-    };
-  }
-
-  if (tierSec !== undefined) {
-    return {
-      targetSeconds: tierSec,
-      durationTier: input.durationTier!,
-      source: "tier",
     };
   }
 

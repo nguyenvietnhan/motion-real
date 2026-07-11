@@ -132,7 +132,7 @@ export const scaffoldProjectInput = z.object({
   /** Exact brief target seconds (prompt-resolved short form, e.g. 15). */
   durationSeconds: z.number().positive().max(600).optional(),
   format: z.literal("tiktok").optional(),
-  durationTier: z.union([z.literal(1), z.literal(2), z.literal(3)]).optional(),
+  durationTier: z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4)]).optional(),
   language: z.enum(["vi", "en"]).optional(),
   ttsProvider: z.enum(["vivibe", "elevenlabs"]).optional(),
   voiceId: z.string().min(1).optional(),

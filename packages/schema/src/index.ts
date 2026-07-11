@@ -159,16 +159,21 @@ export type ThemeSpec = z.infer<typeof ThemeSpecSchema>;
 export const VideoFormatSchema = z.literal("tiktok");
 
 /**
- * Duration tier for short-form pacing (45s / 90s / 150s). Optional on the spec
- * because resolved pacing lives in `duration` (seconds). New desktop creates
- * always use tier 1; tiers 2–3 remain for existing briefs / CLI.
+ * Duration tier for short-form pacing (45s / 90s / 150s / 210s). Optional on the
+ * spec because resolved pacing lives in `duration` (seconds). Desktop knobs:
+ * 1≈0:45, 2≈1:30, 3≈2:30, 4≈3:30 (default 1).
  */
-export const DurationTierSchema = z.union([z.literal(1), z.literal(2), z.literal(3)]);
+export const DurationTierSchema = z.union([
+  z.literal(1),
+  z.literal(2),
+  z.literal(3),
+  z.literal(4),
+]);
 export type DurationTier = z.infer<typeof DurationTierSchema>;
 
 /** Target seconds for a short-form duration tier. The pacing AIM, not a hard cut. */
 export function tierSeconds(_format: VideoFormat, tier: DurationTier): number {
-  const table: Record<DurationTier, number> = { 1: 45, 2: 90, 3: 150 };
+  const table: Record<DurationTier, number> = { 1: 45, 2: 90, 3: 150, 4: 210 };
   return table[tier];
 }
 

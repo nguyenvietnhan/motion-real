@@ -40,9 +40,8 @@ export type AuthorInput = {
   format?: VideoFormat;
   durationTier?: DurationTier;
   /**
-   * Exact pacing target (seconds). When set, content-plan word/scene budgets
-   * use this instead of tierSeconds(durationTier) so prompt "15 giây" can win
-   * over a UI 90s knob.
+   * Exact pacing target (seconds), usually from UI durationTier via tierSeconds.
+   * Content-plan word/scene budgets prefer this when set.
    */
   targetSeconds?: number;
   videoLanguage?: VideoLanguage;

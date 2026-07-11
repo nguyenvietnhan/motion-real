@@ -5,7 +5,7 @@ English prompt (optional URLs and local images); the app plans content, writes
 fresh scene modules, speaks narration, and renders a publishable MP4.
 
 **Product path:** TikTok / Reels / Shorts **9:16** only. Create can pick a
-short-form duration tier (~45s / ~90s / ~150s). No YouTube / landscape format.
+short-form duration tier (~45s / ~90s / ~150s / ~210s). No YouTube / landscape format.
 
 ## How it works
 

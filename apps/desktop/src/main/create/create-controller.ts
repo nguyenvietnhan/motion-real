@@ -108,10 +108,11 @@ export class CreateController {
     }
     const block = this.deps.preflight?.(voiceProvider, videoLanguage);
     if (block) throw new Error(block);
-    // Short-form 9:16 only. UI duration tier is the default; an explicit length
-    // in the prompt (e.g. "15 giây") wins when it conflicts with the knob.
+    // Short-form 9:16 only. Desktop knobs always win over any length in the prompt.
     const uiTier: DurationTierChoice =
-      choices.durationTier === 2 || choices.durationTier === 3 ? choices.durationTier : 1;
+      choices.durationTier === 2 || choices.durationTier === 3 || choices.durationTier === 4
+        ? choices.durationTier
+        : 1;
     const resolved = resolveEffectiveDuration({
       prompt: v.brief.text,
       durationTier: uiTier,
@@ -125,7 +126,7 @@ export class CreateController {
           targetSeconds: resolved.targetSeconds,
           source: resolved.source,
         },
-        "create duration conflict: prompt length wins over UI tier for pacing",
+        "create duration conflict: UI tier wins over prompt length for pacing",
       );
     }
     const durationTier = resolved.durationTier as DurationTierChoice;

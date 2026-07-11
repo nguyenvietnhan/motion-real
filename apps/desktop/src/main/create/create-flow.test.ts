@@ -125,7 +125,7 @@ describe("CreateController.create", () => {
     expect(began[0]!.input.targetSeconds).toBe(45);
   });
 
-  it("lets explicit prompt seconds win over UI tier for pacing", async () => {
+  it("lets UI tier win over conflicting prompt seconds for pacing", async () => {
     const { deps: d, scaffold, began } = deps();
     const ctrl = new CreateController(d);
     await ctrl.create("Tạo video 15 giây app thời tiết", [], { durationTier: 2 });
@@ -133,9 +133,24 @@ describe("CreateController.create", () => {
       "Tạo video 15 giây app thời tiết",
       "vivibe",
       "vi",
-      expect.objectContaining({ targetSeconds: 15, durationTier: 1 }),
+      expect.objectContaining({ targetSeconds: 90, durationTier: 2 }),
     );
-    expect(began[0]!.input.targetSeconds).toBe(15);
+    expect(began[0]!.input.targetSeconds).toBe(90);
+    expect(began[0]!.input.durationTier).toBe(2);
+  });
+
+  it("supports tier 4 (3:30)", async () => {
+    const { deps: d, scaffold, began } = deps();
+    const ctrl = new CreateController(d);
+    await ctrl.create("chủ đề dài", [], { durationTier: 4 });
+    expect(scaffold).toHaveBeenCalledWith(
+      "chủ đề dài",
+      "vivibe",
+      "vi",
+      expect.objectContaining({ targetSeconds: 210, durationTier: 4 }),
+    );
+    expect(began[0]!.input.durationTier).toBe(4);
+    expect(began[0]!.input.targetSeconds).toBe(210);
   });
 
   it("captures the selected voice provider during scaffold", async () => {
