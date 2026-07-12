@@ -1,10 +1,16 @@
-import React, { useCallback, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { FriendlyStatus, ProjectCardVM } from "../../shared/types.js";
 import { paginate, type GalleryLoad } from "../../shared/gallery-controller.js";
 import { FRIENDLY_LABELS, FRIENDLY_SHORT_LABELS, FRIENDLY_STATUSES } from "../../shared/friendly-status.js";
 import { Icon } from "../icons.js";
 import { EmptyState, LoadingLine, PageHeader, ProjectGrid } from "../primitives.js";
 import { useDismissable } from "../use-dismissable.js";
+
+/** Scroll the shell main pane to top (gallery lives inside `.ns-main`). */
+function scrollGalleryToTop(): void {
+  const main = document.querySelector(".ns-main");
+  if (main instanceof HTMLElement) main.scrollTo({ top: 0, behavior: "auto" });
+}
 
 type GalleryFilter = "all" | FriendlyStatus;
 
@@ -90,6 +96,11 @@ export const ProjectsView: React.FC<{
   // page (or a poll that shrinks the list) shows the new last page, not blank.
   const { items, page: cur, totalPages, total } = paginate(filtered, page);
 
+  // New page content starts at the top of the list, not at the old scroll offset.
+  useEffect(() => {
+    scrollGalleryToTop();
+  }, [cur]);
+
   const setFilterAndReset = (next: GalleryFilter): void => {
     setFilter(next);
     setPage(1);
@@ -135,12 +146,33 @@ export const ProjectsView: React.FC<{
             <>
               <ProjectGrid cards={items} onOpen={onOpen} onDelete={onDelete} onReveal={onReveal} onRename={onRename} />
               {totalPages > 1 && (
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 14, marginTop: 18 }}>
-                  <button className="ns-btn" disabled={cur <= 1} onClick={() => setPage(cur - 1)}>Trước</button>
+                <div
+                  className="ns-gallery-pager"
+                  style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 14, marginTop: 18 }}
+                >
+                  <button
+                    type="button"
+                    className="ns-btn ns-btn-icon-only"
+                    disabled={cur <= 1}
+                    aria-label="Trang trước"
+                    title="Trang trước"
+                    onClick={() => setPage(cur - 1)}
+                  >
+                    {Icon.chevronLeft({ size: 18 })}
+                  </button>
                   <span className="ns-tabular" style={{ color: "var(--muted-foreground)", fontSize: 13, minWidth: "14ch", textAlign: "center" }}>
                     Trang {cur}/{totalPages} · {total} dự án
                   </span>
-                  <button className="ns-btn" disabled={cur >= totalPages} onClick={() => setPage(cur + 1)}>Sau</button>
+                  <button
+                    type="button"
+                    className="ns-btn ns-btn-icon-only"
+                    disabled={cur >= totalPages}
+                    aria-label="Trang sau"
+                    title="Trang sau"
+                    onClick={() => setPage(cur + 1)}
+                  >
+                    {Icon.chevronRight({ size: 18 })}
+                  </button>
                 </div>
               )}
             </>
