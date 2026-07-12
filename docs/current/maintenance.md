@@ -170,8 +170,9 @@ Home knobs: **1 / 2 / 3 / 4** → ~45s / ~90s / ~150s / ~210s pacing (default **
 
 Resolved `brief.duration` order for the pipeline/CLI remains: explicit tool
 `duration`, then `durationTier` via `tierSeconds` (tiktok 45/90/150/210), then
-duration parsed from the prompt, then the 60 second default. Existing briefs are
-not silently migrated.
+duration parsed from the prompt, then the **45 second** default (tier 1). Desktop
+UI tier always wins when set; prompt length is conflict-logged only. Existing
+briefs are not silently migrated.
 
 ## Authoring Output Size
 
@@ -179,10 +180,12 @@ Fresh authoring should stay bounded before the first draft. The current budget i
 one content-plan call, at most one repair call when every blocker is
 `claim-ledger` or `claim-provenance`, and then either one single authoring reply
 plus at most one missing-TSX recovery, or compact TSX batch calls only when a
-no-image plan exceeds the normal single-reply capacity. The current compact
-batch path starts after 12 components, uses two component ids per batch, and
-still caps total authoring at 20 components. That capacity policy lives in
-`author-batch-policy.ts`; keep changes there focused and tested. Do not add
+no-image plan exceeds the normal single-reply capacity. Single-reply holds through
+**16** components; the compact batch path (two component ids per batch, max 10
+batches) covers **17–20** components and rejects above **20**. Content-plan pacing
+`maxScenes` is currently ≤16 for all tiers, so live plans usually stay on the
+single path; batch/too-large remain unit-tested headroom in
+`author-batch-policy.ts`. Keep changes there focused and tested. Do not add
 unbounded retries, extra manifest-only model calls, or provider `max_tokens`
 overrides without a new owner-approved slice and tests.
 

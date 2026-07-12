@@ -33,6 +33,7 @@ export {
   parseDurationSecondsFromPrompt,
   resolveEffectiveDuration,
   nearestDurationTier,
+  isDurationTier,
   type EffectiveDuration,
   type EffectiveDurationSource,
 } from "./parse-duration.js";
@@ -40,5 +41,6 @@ export {
   normalizeAuthoredSource,
   stripReactNativeStyleKeys,
   isReactNativeStyleKey,
+  isCssStyleObjectLiteral,
   REACT_NATIVE_STYLE_KEYS,
 } from "./normalize-authored-source.js";

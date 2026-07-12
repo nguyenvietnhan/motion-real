@@ -1,10 +1,14 @@
 import {
   DURATION_PRESETS,
+  isDurationTier,
+  nearestDurationTier,
   tierSeconds,
   type DurationPreset,
   type DurationTier,
   type VideoFormat,
 } from "@motionreal/schema";
+
+export { isDurationTier, nearestDurationTier };
 
 /**
  * Parse a target duration (seconds) out of a free-text Vietnamese brief and snap
@@ -69,26 +73,6 @@ function snapToPreset(seconds: number): DurationPreset {
   return best;
 }
 
-/** Nearest desktop duration tier label for a free target length. */
-export function nearestDurationTier(targetSeconds: number): DurationTier {
-  const table: Array<{ tier: DurationTier; seconds: number }> = [
-    { tier: 1, seconds: 45 },
-    { tier: 2, seconds: 90 },
-    { tier: 3, seconds: 150 },
-    { tier: 4, seconds: 210 },
-  ];
-  let best = table[0]!;
-  let bestGap = Math.abs(targetSeconds - best.seconds);
-  for (const row of table) {
-    const gap = Math.abs(targetSeconds - row.seconds);
-    if (gap < bestGap) {
-      best = row;
-      bestGap = gap;
-    }
-  }
-  return best.tier;
-}
-
 export type EffectiveDurationSource = "tier" | "prompt" | "explicit" | "default";
 
 export type EffectiveDuration = {
@@ -102,10 +86,6 @@ export type EffectiveDuration = {
 };
 
 const CONFLICT_RATIO = 0.2;
-
-function isDurationTier(value: unknown): value is DurationTier {
-  return value === 1 || value === 2 || value === 3 || value === 4;
-}
 
 /**
  * One duration truth for create/authoring.

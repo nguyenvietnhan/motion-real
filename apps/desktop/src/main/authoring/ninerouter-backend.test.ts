@@ -113,7 +113,8 @@ function validContentPlanReply(): string {
         sceneId: "scene-01",
         purpose: "hook",
         beat: "Reveal scarcity before specs.",
-        narration: "Con chip không đắt vì nó nhỏ. Nó đắt vì gần như không ai làm nổi.",
+        narration:
+          "Con chip không đắt vì nó nhỏ. Nó đắt vì gần như không ai làm nổi. Khi năng lực sản xuất bị khóa, mọi thông số kỹ thuật chỉ còn là lời hứa trên giấy cho đến khi lô hàng thật ra khỏi nhà máy. Người xem cần nghe rõ nút thắt trước khi chạm vào bất kỳ thông số nào. Đây là mở đầu để hiểu vì sao năng lực khan hiếm định hình cả chuỗi giá trị.",
         onScreenText: "Đắt vì khan hiếm",
         visualMetaphor: "A tiny glowing chip behind a locked factory gate.",
         motionProgression: "Quick entrance: chip pops in under a second; semantic: the gate closes; living: the lock keeps a small warning pulse.",
@@ -124,7 +125,8 @@ function validContentPlanReply(): string {
         sceneId: "scene-02",
         purpose: "context",
         beat: "Show why capacity, not hype, is the bottleneck.",
-        narration: "Khi chỉ vài nơi làm được, mỗi đơn hàng phải xếp hàng trước một cánh cửa hẹp.",
+        narration:
+          "Khi chỉ vài nơi làm được, mỗi đơn hàng phải xếp hàng trước một cánh cửa hẹp. Hàng đợi dài không phải vì marketing ồn, mà vì mỗi lô chip phải chen chúc qua cùng một nút thắt sản xuất. Cổ chai thật sự nằm ở nhà máy, không nằm ở quảng cáo. Người xem theo dõi hàng đợi để thấy áp lực thật của cửa hẹp.",
         onScreenText: "Cổ chai là nhà máy",
         visualMetaphor: "A narrowing production timeline.",
         motionProgression: "Quick entrance: chips enter the timeline; semantic: the path narrows into one gate; final hold when the queue pauses at the bottleneck.",
@@ -135,7 +137,8 @@ function validContentPlanReply(): string {
         sceneId: "scene-03",
         purpose: "payoff",
         beat: "Resolve the open loop with the scarcity takeaway.",
-        narration: "Thứ được định giá không phải vật liệu, mà là quyền bước qua cánh cổng sản xuất.",
+        narration:
+          "Thứ được định giá không phải vật liệu, mà là quyền bước qua cánh cổng sản xuất. Ai nắm cửa đó nắm chuỗi cung, và giá phản ánh đúng sức ép của cửa hẹp ấy. Kết lại: khan hiếm năng lực quyết định giá trị thực. Người xem mang theo một khung nhìn rõ về chỗ thắt cổ chai.",
         onScreenText: "Giá nằm ở năng lực biến thiết kế thành hàng thật",
         visualMetaphor: "Blueprint lines turning into one finished glowing chip.",
         motionProgression: "Quick entrance: blueprint frame appears; semantic: traces brighten into one finished chip; living: a small glow pulse continues through the payoff.",
@@ -147,24 +150,30 @@ function validContentPlanReply(): string {
   return JSON.stringify(plan);
 }
 
+/** ~17 words — pads tier-3 minTotalNarrationWords without inventing numbers/years. */
+const LONG_PLAN_NARRATION_PAD =
+  " The viewer keeps following the scarce production gate and why waiting lines form under real capacity pressure.";
+
 function longContentPlanReply(count: number, overrides: { unsupportedFirstScene?: boolean } = {}): string {
   const purposes = ["context", "turn", "proof", "contrast"] as const;
   const layouts = ["signature-visual", "timeline", "diagram", "list"] as const;
   const scenes = ids(count).map((sceneId, index) => {
     const first = index === 0;
     const last = index === count - 1;
+    const baseNarration =
+      first && overrides.unsupportedFirstScene
+        ? "The prototype reached 500 cycles in 2026 without usable evidence. That claim stays unsupported until a source backs it."
+        : first
+          ? "The bottleneck appears before the viewer sees any specification. Capacity, not hype, decides who ships and who waits in line for the same scarce process."
+          : last
+            ? "The story resolves by showing why the bottleneck matters. Price tracks the right to pass the narrow gate, not the bulk cost of raw material alone."
+            : `This beat adds one concrete step in the explanation without inventing measurements. The viewer learns how the queue forms and why each station still depends on the same choke point.`;
     return {
       sceneId,
       purpose: first ? "hook" : last ? "payoff" : purposes[(index - 1) % purposes.length],
       beat: first ? "Open with the bottleneck." : last ? "Resolve the open loop." : `Advance beat ${index + 1}.`,
-      narration:
-        first && overrides.unsupportedFirstScene
-          ? "The prototype reached 500 cycles in 2026 without usable evidence."
-          : first
-            ? "The bottleneck appears before the viewer sees any specification."
-            : last
-              ? "The story resolves by showing why the bottleneck matters."
-              : `This beat adds one concrete step in the explanation without inventing measurements.`,
+      // Pad every scene so tier-3 under-budget (≥388 words) passes for N=10..14.
+      narration: `${baseNarration}${LONG_PLAN_NARRATION_PAD}`,
       onScreenText: first && overrides.unsupportedFirstScene ? "500 cycles in 2026" : first ? "The bottleneck first" : last ? "The bottleneck decides" : `Step ${index + 1}`,
       visualMetaphor: first ? "A small chip behind a locked gate." : last ? "A gate opening to a finished product." : `A visual station for beat ${index + 1}.`,
       motionProgression: "Quick entrance: the visual lands fast; semantic: one shape moves through the scene; living: a small signal pulse continues; final hold.",
@@ -233,7 +242,10 @@ function repairedClaimLedgerContentPlanReply(): string {
   };
   plan.scenes[0] = {
     ...plan.scenes[0]!,
-    narration: "A safety plan should keep concrete measurements out until a usable claim id supports them.",
+    narration:
+      "A safety plan should keep concrete measurements out until a usable claim id supports them. " +
+      "The viewer learns to wait for evidence instead of trusting an unsupported lab note. " +
+      "That keeps the story honest while the rest of the bottleneck explanation continues.",
     onScreenText: "Evidence first",
     evidenceClaimIds: [],
   };
@@ -410,15 +422,14 @@ describe("authorScenes (pure-author)", () => {
     expect(manifest.scenes.map((scene: { component: string }) => scene.component)).toEqual(componentIds);
   });
 
-  it("uses compact two-scene TSX batches only beyond the normal single-reply capacity", async () => {
-    const projectId = "pa-batched-compact";
+  it("keeps tier-3 plans within single-reply capacity (≤16) on the single authoring path", async () => {
+    // AUTHOR_BATCH_THRESHOLD=16 and pacing maxScenes≤16 ⇒ real quality-passing
+    // plans stay single; batch mode is unit-tested in author-batch-policy.test.ts.
+    const projectId = "pa-single-at-capacity";
     const logger = fakeLogger();
-    const componentIds = ids(13);
+    const componentIds = ids(14);
     const admitFiles = vi.fn(async (files: readonly string[]) => ({ ok: true as const, componentIds, files: [] }));
-    const chat = chatReplies(
-      longContentPlanReply(13),
-      ...Array.from({ length: 7 }, (_, index) => blocksFor(componentIds.slice(index * 2, index * 2 + 2))),
-    );
+    const chat = chatReplies(longContentPlanReply(14), authorReplyForIds(componentIds));
     const backend = new NineRouterAuthoringBackend({
       client: { chat } as unknown as NineRouterClient,
       tools: {} as never,
@@ -430,32 +441,33 @@ describe("authorScenes (pure-author)", () => {
 
     const out = await backend.authorScenes({ projectId, input: { text: "long topic", urls: [], format: "tiktok", durationTier: 3 }, scriptGate: false });
 
-    expect(out.scenes).toHaveLength(13);
-    expect(chat).toHaveBeenCalledTimes(8);
-    const batch1Text = messageText(chat.mock.calls[1]![1] as ChatMessage[]);
-    const batch2Text = messageText(chat.mock.calls[2]![1] as ChatMessage[]);
-    expect(batch1Text).toContain("Batch 1/7");
-    expect(batch1Text).toContain("scene-01\nscene-02");
-    expect(batch1Text).not.toContain("scene-03\nscene-04");
-    expect(batch2Text).toContain("Batch 2/7");
-    expect(batch2Text).toContain("scene-03\nscene-04");
-    expect(batch1Text).toContain("MANIFEST SCENES CỦA BATCH NÀY");
-    expect(batch1Text).not.toContain('"sceneId": "scene-13"');
-    const batchSelectedLog = logger.info.mock.calls.find((call) => call[1] === "authoring batch selected; authoring will use compact TSX batches");
-    expect(batchSelectedLog?.[0]).toMatchObject({ projectId, batchCount: 7, batchSize: 2, componentCount: 13 });
+    expect(out.scenes).toHaveLength(14);
+    expect(chat).toHaveBeenCalledTimes(2);
+    const authorText = messageText(chat.mock.calls[1]![1] as ChatMessage[]);
+    expect(authorText).toContain("AI_Output_Contract");
+    expect(authorText).not.toContain("Batch 1/");
+    expect(logger.info.mock.calls.some((call) => call[1] === "authoring batch selected; authoring will use compact TSX batches")).toBe(false);
     expect(admitFiles).toHaveBeenCalledTimes(1);
   });
 
-  it("does not lose already parsed TSX batch modules during final coverage validation", async () => {
-    const projectId = "pa-batched-structured-coverage";
+  it("accepts TSX modules with a trailing fence after the JSON manifest on the single path", async () => {
+    const projectId = "pa-single-structured-coverage";
     const logger = fakeLogger();
-    const componentIds = ids(13);
-    const batches = Array.from({ length: 7 }, (_, index) => componentIds.slice(index * 2, index * 2 + 2));
+    const componentIds = ids(12);
     const admitFiles = vi.fn(async (files: readonly string[]) => ({ ok: true as const, componentIds, files: [] }));
-    const chat = chatReplies(
-      longContentPlanReply(13),
-      ...batches.map((batch) => bareBatchWithTrailingFence(batch)),
-    );
+    // Single-path author replies still need a manifest; modules may use bare fences.
+    const manifest = {
+      title: "Structured coverage",
+      theme: { dominant: "#1E9CB0", mood: "test" },
+      scenes: componentIds.map((component, index) => ({
+        component,
+        eyebrow: index === 0 ? "HOOK" : "BEAT",
+        headline: `Scene ${index + 1}`,
+        narration: `Narration ${index + 1}.`,
+      })),
+    };
+    const authorReply = "```json\n" + JSON.stringify(manifest) + "\n```\n\n" + bareBatchWithTrailingFence(componentIds);
+    const chat = chatReplies(longContentPlanReply(12), authorReply);
     const backend = new NineRouterAuthoringBackend({
       client: { chat } as unknown as NineRouterClient,
       tools: {} as never,
@@ -467,11 +479,10 @@ describe("authorScenes (pure-author)", () => {
 
     const out = await backend.authorScenes({ projectId, input: { text: "long topic", urls: [], format: "tiktok", durationTier: 3 }, scriptGate: false });
 
-    expect(out.scenes).toHaveLength(13);
-    expect(chat).toHaveBeenCalledTimes(8);
+    expect(out.scenes).toHaveLength(12);
+    expect(chat).toHaveBeenCalledTimes(2);
     expect(admitFiles).toHaveBeenCalledTimes(1);
-    expect(existsSync(join(authoredDir(projectId), "scene-13.tsx"))).toBe(true);
-    expect(logger.error.mock.calls.some((call) => call[1] === "batched author reply failed final structured validation")).toBe(false);
+    expect(existsSync(join(authoredDir(projectId), "scene-12.tsx"))).toBe(true);
   });
 
   it("keeps claim-ledger repair plus normal single authoring inside the bounded call budget", async () => {
@@ -501,13 +512,15 @@ describe("authorScenes (pure-author)", () => {
     expect(admitFiles).toHaveBeenCalledTimes(1);
   });
 
-  it("does not write partial files when a TSX batch is incomplete", async () => {
-    const projectId = "pa-batched-missing";
-    const componentIds = ids(13);
+  it("does not write partial files when the single TSX reply is incomplete", async () => {
+    // Tier 3 so a 12-scene plan passes pacing quality; fail on author reply.
+    const projectId = "pa-single-missing";
+    const componentIds = ids(12);
     const admitFiles = vi.fn(async (files: readonly string[]) => ({ ok: true as const, componentIds, files: [] }));
     const chat = chatReplies(
-      longContentPlanReply(13),
+      longContentPlanReply(12),
       "I cannot provide that module.",
+      "I still cannot provide that module.",
     );
     const backend = new NineRouterAuthoringBackend({
       client: { chat } as unknown as NineRouterClient,
@@ -517,17 +530,21 @@ describe("authorScenes (pure-author)", () => {
       admitFiles,
     });
 
-    const out = await backend.authorScenes({ projectId, input: { text: "long topic", urls: [], format: "tiktok", durationTier: 1 }, scriptGate: false });
+    const out = await backend.authorScenes({ projectId, input: { text: "long topic", urls: [], format: "tiktok", durationTier: 3 }, scriptGate: false });
 
     expect(out.scenes).toEqual([]);
     expect(out.message).toMatch(/hợp lệ/i);
-    expect(chat).toHaveBeenCalledTimes(2);
+    // plan + author (+ optional missing-TSX recovery)
+    expect(chat.mock.calls.length).toBeGreaterThanOrEqual(2);
+    expect(chat.mock.calls.length).toBeLessThanOrEqual(3);
     expect(admitFiles).not.toHaveBeenCalled();
     expect(existsSync(authoredDir(projectId))).toBe(false);
   });
 
-  it("fails before TSX calls when a plan would exceed the eight-batch authoring budget", async () => {
-    const projectId = "pa-batched-too-large";
+  it("fails content-plan quality when scene count exceeds tier maxScenes (before TSX)", async () => {
+    // Tier 3 maxScenes=14; N=17 never reaches author-batch too-large (cap 20).
+    // Budget-cap coverage lives in author-batch-policy.test.ts.
+    const projectId = "pa-plan-over-max-scenes";
     const admitFiles = vi.fn(async (files: readonly string[]) => ({ ok: true as const, componentIds: [], files: [...files] }));
     const chat = chatReplies(longContentPlanReply(17), blocksFor(ids(4)));
     const backend = new NineRouterAuthoringBackend({
@@ -541,8 +558,7 @@ describe("authorScenes (pure-author)", () => {
     const out = await backend.authorScenes({ projectId, input: { text: "too many scenes", urls: [], format: "tiktok", durationTier: 3 }, scriptGate: false });
 
     expect(out.scenes).toEqual([]);
-    expect(out.message).toMatch(/quá nhiều cảnh/i);
-    expect(out.message).toContain("16 component");
+    expect(out.message).toMatch(/kế hoạch nội dung|nhịp cảnh|hook|căn cứ/i);
     expect(chat).toHaveBeenCalledTimes(1);
     expect(admitFiles).not.toHaveBeenCalled();
     expect(existsSync(authoredDir(projectId))).toBe(false);

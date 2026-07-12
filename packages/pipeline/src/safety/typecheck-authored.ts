@@ -25,7 +25,9 @@ const warnedN10Reasons = new Set<string>();
 function warnN10Degraded(reason: string): void {
   if (warnedN10Reasons.has(reason)) return;
   warnedN10Reasons.add(reason);
-  console.warn(`[N10] authored typecheck degraded to a no-op: ${reason}. Authored prop-shape errors will NOT be caught before render.`);
+  console.warn(
+    `[N10] authored typecheck degraded to a no-op: ${reason}. Crash-class unbound names will NOT be caught before render.`,
+  );
 }
 
 function n10DegradedIssue(workspaceRoot: string, reason: string): SafetyIssue {
@@ -34,7 +36,7 @@ function n10DegradedIssue(workspaceRoot: string, reason: string): SafetyIssue {
     check: "N10",
     severity: "warning",
     path: resolve(workspaceRoot),
-    message: `Authored typecheck skipped: ${reason}. N10 degraded to a no-op; authored prop-shape errors were not checked before render.`,
+    message: `Authored typecheck skipped: ${reason}. N10 degraded to a no-op; crash-class unbound names were not checked before render.`,
   };
 }
 
@@ -43,31 +45,21 @@ const typecheckCache = new Map<string, SafetyIssue[]>();
 const typecheckCacheStats = { hits: 0, misses: 0 };
 
 /**
- * N10 — TypeScript typecheck of AI-authored scene modules against the REAL
- * authored component contracts from `@motionreal/compositions`. This is the
- * type-level analogue of the AST admission gate (admission.ts): admission proves
- * a module imports only whitelisted packages and exports the right SHAPE; N10
- * proves the module USES those components with the right prop TYPES.
+ * N10 — TypeScript typecheck of AI-authored scene modules (B-minimal / crash-only).
  *
- * Why it exists: the render bundler (esbuild/webpack) is transpile-only — it
- * strips types without checking them — so a model that writes a wrong-shaped
- * component prop such as `maxHeight={props.labels}` for `SceneImage` can compile
- * fine and then fail at runtime. A real typecheck BEFORE render turns that whole
- * CLASS of model mistakes into a deterministic, pre-render content error the
- * repair loop can self-fix — regardless of which 9router model authored the
- * scene.
+ * Policy: only **unbound-name** diagnostics (`TS2304` / "Cannot find name") are
+ * emitted as hard errors. Those become `ReferenceError` under the transpile-only
+ * render bundler and trip SceneErrorBoundary. Style/CSSProperties noise, excess
+ * props, wrong-shape props, and other type diagnostics are **dropped** (no soft
+ * warning landfill — normalizer + vision own those classes).
  *
- * Scope + safety (this gate must never block a renderable video):
- * - Only diagnostics located IN the authored files are reported; errors inside
- * the MotionReal sources themselves are filtered out (they pass their own tsc).
- * - `noUncheckedIndexedAccess` is deliberately OFF here (it is ON repo-wide):
- * arr[i] access is ubiquitous in authored scenes and almost always safe at
- * runtime, so flagging it would block working videos. We keep the rest of
- * `strict` (so a real wrong-shape prop or a null-deref still trips).
- * - If the workspace MotionReal sources can't be resolved (an unexpected packaging
- * layout), the check DEGRADES TO A NO-OP rather than blocking every render
- * with bogus "cannot find module @motionreal/*" errors. It only ever runs
- * when it can run correctly.
+ * Scope + safety (this gate must never block a renderable video for non-crash noise):
+ * - Only diagnostics located IN the authored files are considered; MotionReal
+ *   package sources are filtered out.
+ * - `noUncheckedIndexedAccess` is OFF here (ON repo-wide) so common `arr[i]`
+ *   access does not flood diagnostics.
+ * - If workspace MotionReal sources can't be resolved, N10 **degrades to a no-op
+ *   warning** rather than blocking every render.
  */
 
 /**
@@ -164,24 +156,11 @@ function authoredCompilerOptions(workspaceRoot: string): ts.CompilerOptions {
  * repair loop ROUTE an N10 failure to a precise scene reauthor (issues without a
  * sceneId are un-targetable and only exhaust the loop). Pass a resolved-path map.
  */
-/**
- * When true, skip tsc entirely (pure A). Default false: B-minimal runs tsc but
- * only emits crash-class diagnostics (see isN10CrashClassDiagnostic).
- */
-export const N10_EXPERIMENT_HARD_DISABLED = false;
-
 export function typecheckAuthoredScenes(
   files: string[],
   workspaceRoot: string,
   sceneIdByFile?: ReadonlyMap<string, string>,
 ): SafetyIssue[] {
-  if (N10_EXPERIMENT_HARD_DISABLED) {
-    console.warn(
-      "[N10] EXPERIMENT: authored typecheck HARD-DISABLED. " +
-        "TS2353/prop-shape errors will NOT block render.",
-    );
-    return [];
-  }
   if (files.length === 0) return [];
   // Degrade to a no-op if the MotionReal sources aren't where we expect: better to
   // fall back to the prior (no-typecheck) behavior than to block every render
@@ -344,7 +323,4 @@ export function isN10CrashClassDiagnostic(code: number, message: string): boolea
   return code === 2304 || /Cannot find name\b/.test(message);
 }
 
-/** @deprecated Use isN10CrashClassDiagnostic; kept for call-site clarity in tests. */
-export function severityForN10(code: number, message: string): SafetyIssue["severity"] {
-  return isN10CrashClassDiagnostic(code, message) ? "error" : "warning";
-}
+

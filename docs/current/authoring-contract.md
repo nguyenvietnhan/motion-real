@@ -173,12 +173,13 @@ Forbidden:
 - dynamic imports
 - `dangerouslySetInnerHTML`
 - remote image/video URLs
-- React Native-only style keys in objects (`shadowColor`, `shadowOffset`,
-  `shadowOpacity`, `shadowRadius`, `elevation`, `paddingHorizontal` /
-  `paddingVertical` / `marginHorizontal` / `marginVertical`). Prefer web CSS
-  (`boxShadow`, `textShadow`, `paddingLeft`/`paddingRight`, …). The pipeline
-  expands simple padding/margin RN shorthands and strips residual RN keys;
-  admission still rejects leftovers.
+- React Native-only keys **in `style={{…}}` / `style: {…}`** (`shadowColor`,
+  `shadowOffset`, `shadowOpacity`, `shadowRadius`, `elevation`,
+  `paddingHorizontal` / `paddingVertical` / `marginHorizontal` /
+  `marginVertical`). Prefer web CSS (`boxShadow`, `textShadow`,
+  `paddingLeft`/`paddingRight`, …). The pipeline expands simple padding/margin
+  RN shorthands and strips residual RN keys in style objects only; admission
+  rejects leftovers there. Data objects may still use a field named `elevation`.
 - Prefer brand fonts: `Inter` / `Be Vietnam Pro` for body (and `Cascadia Mono`
   for code chrome). Avoid `system-ui` / `-apple-system` as the primary stack;
   the pipeline may rewrite those to the brand stack.

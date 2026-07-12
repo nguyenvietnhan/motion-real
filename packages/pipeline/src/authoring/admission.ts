@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { basename } from "node:path";
 import ts from "typescript";
 import type { SafetyIssue } from "../types.js";
-import { isReactNativeStyleKey } from "./normalize-authored-source.js";
+import { isCssStyleObjectLiteral, isReactNativeStyleKey } from "./normalize-authored-source.js";
 
 /**
  * AI AUTHOR mode admission gate (N4/N5). BEFORE an AI-authored scene module is
@@ -168,11 +168,10 @@ export function admitAuthoredComponent(
   };
 
   const visit = (node: ts.Node): void => {
-    // --- React Native style keys (N4). Web/Remotion CSSProperties rejects
-    // shadowColor / shadowOffset / elevation etc. (TS2353 at N10). Prefer
-    // boxShadow / textShadow / SVG filter. Normalize may strip these before
-    // admit; residual keys hard-block so skipped write paths cannot slip through.
-    if (ts.isObjectLiteralExpression(node)) {
+    // --- React Native style keys (N4), only inside JSX/CSS `style` objects.
+    // Data objects may use names like elevation for content without being CSS.
+    // Prefer boxShadow / textShadow / SVG filter. Normalize may strip residuals.
+    if (ts.isObjectLiteralExpression(node) && isCssStyleObjectLiteral(node)) {
       for (const prop of node.properties) {
         const name = rnObjectLiteralPropertyName(prop);
         if (name && isReactNativeStyleKey(name)) {

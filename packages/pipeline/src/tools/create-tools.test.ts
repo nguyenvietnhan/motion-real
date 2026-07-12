@@ -248,7 +248,7 @@ describe("tool input schemas + result shapes — 7.12", () => {
     expect(scaffoldProjectInput.safeParse({ prompt: "hi", format: "tiktok", durationTier: 3 }).success).toBe(true);
     expect(scaffoldProjectInput.safeParse({ prompt: "" }).success).toBe(false);
     expect(scaffoldProjectInput.safeParse({ prompt: "x", duration: 75 }).success).toBe(false);
-    expect(scaffoldProjectInput.safeParse({ prompt: "x", durationTier: 4 }).success).toBe(false);
+    expect(scaffoldProjectInput.safeParse({ prompt: "x", durationTier: 4 }).success).toBe(true);
     expect(renderFullInput.safeParse({ projectId: "p", forceFull: true }).success).toBe(true);
     expect(trackerAddInput.safeParse({ url: "https://a.test" }).success).toBe(true);
     expect(trackerAddInput.safeParse({ url: "x" }).success).toBe(false);

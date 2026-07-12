@@ -34,7 +34,7 @@ export const example: Props = {};
 export default registerComponent<Props>({
   id: "typecheck-spring-tension",
   displayName: "Typecheck Spring Tension",
-  promptGuide: "Fixture: invalid Remotion spring config field must hard-fail N10.",
+  promptGuide: "Fixture: invalid Remotion spring config field — B-minimal N10 drops TS2353 (non-crash).",
   schema,
   Component: Scene,
   example,

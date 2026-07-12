@@ -1,5 +1,10 @@
-import { tierSeconds, type DurationTier, type VideoFormat, type VideoLanguage } from "@motionreal/schema";
-import { nearestDurationTier } from "@motionreal/pipeline";
+import {
+  nearestDurationTier,
+  tierSeconds,
+  type DurationTier,
+  type VideoFormat,
+  type VideoLanguage,
+} from "@motionreal/schema";
 import { DEFAULT_ENGLISH_WORDS_PER_SECOND, DEFAULT_WORDS_PER_SECOND, countWords as countSpeechWords } from "../../shared/settings-model.js";
 
 export type PacingPolicyInput = {

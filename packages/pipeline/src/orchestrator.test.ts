@@ -684,7 +684,7 @@ describe("renderProject — render pipeline (skipAuthoring)", () => {
       check: "N10",
       severity: "warning" as const,
       path: "packaged-app",
-      message: "Authored typecheck skipped: packaged layout. N10 degraded to a no-op; authored prop-shape errors were not checked before render.",
+      message: "Authored typecheck skipped: packaged layout. N10 degraded to a no-op; crash-class unbound names were not checked before render.",
     };
     const typecheckAuthored = vi.fn<NonNullable<RenderProjectDeps["typecheckAuthored"]>>(() => [n10Warning]);
     const sceneRuntimeProbe: RenderProjectDeps["sceneRuntimeProbe"] = vi.fn(async () => makeReport([], ["render"]));

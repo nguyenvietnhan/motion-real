@@ -5,7 +5,12 @@ import {
   type CreateBrief,
   type CreateValidation,
 } from "../../shared/create-validation.js";
-import { createLogger, resolveEffectiveDuration, type SerializedPipelineError } from "@motionreal/pipeline";
+import {
+  createLogger,
+  isDurationTier,
+  resolveEffectiveDuration,
+  type SerializedPipelineError,
+} from "@motionreal/pipeline";
 import type { AuthorInput, AuthorImageRef } from "../agent/agent-worker.js";
 import type {
   StagedImageRef,
@@ -53,7 +58,7 @@ export interface CreateDeps {
     delivery?: {
       format: VideoFormatChoice;
       durationTier: DurationTierChoice;
-      /** Exact brief/pacing target when prompt overrides tier. */
+      /** Tier-derived pacing target (seconds). */
       targetSeconds?: number;
     },
   ) => Promise<{ ok: true; projectId: string } | { ok: false; error: SerializedPipelineError }>;
@@ -109,10 +114,7 @@ export class CreateController {
     const block = this.deps.preflight?.(voiceProvider, videoLanguage);
     if (block) throw new Error(block);
     // Short-form 9:16 only. Desktop knobs always win over any length in the prompt.
-    const uiTier: DurationTierChoice =
-      choices.durationTier === 2 || choices.durationTier === 3 || choices.durationTier === 4
-        ? choices.durationTier
-        : 1;
+    const uiTier: DurationTierChoice = isDurationTier(choices.durationTier) ? choices.durationTier : 1;
     const resolved = resolveEffectiveDuration({
       prompt: v.brief.text,
       durationTier: uiTier,

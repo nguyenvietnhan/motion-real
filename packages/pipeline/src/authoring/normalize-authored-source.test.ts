@@ -93,10 +93,11 @@ describe("stripReactNativeStyleKeys", () => {
     expect(parseErrors(once)).toBe(0);
   });
 
-  it("strips RN keys from plain object literals too", () => {
+  it("does not strip RN keys on plain (non-style) object literals", () => {
     const src = `const o = { shadowColor: ballColor, color: 1 };\n`;
     const out = stripReactNativeStyleKeys(src);
-    expect(out).toBe(`const o = {  color: 1 };\n`);
+    // Not a JSX/CSS style object — left alone (may be data or dead code).
+    expect(out).toBe(src);
   });
 });
 
@@ -127,5 +128,12 @@ describe("normalizeAuthoredSource", () => {
   it("does not rewrite system-ui inside string content", () => {
     const src = `const msg = "system-ui is an OS font";\nexport const C = () => <div style={{ color: 1 }} />;\n`;
     expect(normalizeAuthoredSource(src)).toContain("system-ui is an OS font");
+  });
+
+  it("does not strip elevation on non-style data objects", () => {
+    const src = `const card = { elevation: 8, title: "Card" };\nexport const C = () => <div style={{ color: 1 }} />;\n`;
+    const out = stripReactNativeStyleKeys(src);
+    expect(out).toContain("elevation: 8");
+    expect(out).toContain('title: "Card"');
   });
 });

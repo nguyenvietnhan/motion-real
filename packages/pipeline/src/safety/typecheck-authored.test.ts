@@ -6,15 +6,16 @@ import { tmpdir } from "node:os";
 import { __directoryFingerprint, __resetTypecheckAuthoredCache, __typecheckAuthoredCacheStats, typecheckAuthoredScenes } from "./typecheck-authored.js";
 
 /**
- * N10 authored-typecheck self-tests. Non-vacuous: a scene that uses the current
- * authored surface (`@motionreal/compositions`) with correct prop types passes,
- * while the exact class of real model mistake — passing an array/object-shaped
- * value where a scalar component prop is required — is caught as an N10 error
- * BEFORE any render (the render bundler is transpile-only and would let it crash
- * headless Chromium at runtime).
+ * N10 authored-typecheck self-tests (B-minimal / crash-only).
  *
- * The check resolves @motionreal/* to the workspace sources, so these run against the
- * real component contracts, not a stub.
+ * Hard errors: unbound names (TS2304 / "Cannot find name") — ReferenceError under
+ * transpile-only bundling → SceneErrorBoundary.
+ *
+ * Dropped (not reported): wrong-shape props, excess props, tone enums, spring
+ * config typos, implicit-any — normalizer + vision own those classes.
+ *
+ * The check resolves @motionreal/* to the workspace sources, so these run against
+ * the real component contracts, not a stub.
  */
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -54,39 +55,16 @@ describe("typecheckAuthoredScenes (N10)", () => {
     }
   }, TS_PROGRAM_TIMEOUT);
 
-  // A render fallback is not an acceptable clean draft: SceneErrorBoundary keeps
-  // the MP4 alive, but it replaces the authored design with a bland headline-only
-  // frame. Crash/fallback-prone type errors must therefore be hard N10 errors so
-  // the repair loop reauthors the scene before the user sees it.
-  it("catches a wrong-shape prop ({text}[] vs string[]) and surfaces it as a hard N10 error", () => {
+  // B-minimal: non-crash type noise is dropped (not soft-warnings).
+  it("drops wrong-shape prop diagnostics (not crash-class under B-minimal)", () => {
     const issues = typecheckAuthoredScenes([fixture("typecheck-wrong-prop.tsx")], root);
-    expect(issues.length).toBeGreaterThan(0);
-    expect(issues.every((i) => i.check === "N10" && i.severity === "error")).toBe(true);
-    // The diagnostic must point at the wrong-prop fixture, not a MotionReal source.
-    expect(issues.every((i) => /typecheck-wrong-prop\.tsx/.test(i.path ?? ""))).toBe(true);
+    expect(issues).toEqual([]);
   }, TS_PROGRAM_TIMEOUT);
 
-  it("incident fixture: invalid Remotion spring config field tension is a hard N10 error", () => {
+  it("drops invalid Remotion spring config field tension (TS2353 is non-crash)", () => {
     const file = fixture("typecheck-spring-tension.tsx");
     const issues = typecheckAuthoredScenes([file], root, new Map([[resolve(file), "scene-09"]]));
-
-    expect(issues).toContainEqual(
-      expect.objectContaining({
-        check: "N10",
-        severity: "error",
-        sceneId: "scene-09",
-        message: expect.stringContaining("tension"),
-      }),
-    );
-    expect(issues.some((issue) => /TS2353/.test(issue.message))).toBe(true);
-  }, TS_PROGRAM_TIMEOUT);
-
-  it("stamps each issue with the manifest sceneId so the repair loop can target it", () => {
-    const file = fixture("typecheck-wrong-prop.tsx");
-    const sceneIdByFile = new Map([[resolve(file), "scene-05"]]);
-    const issues = typecheckAuthoredScenes([file], root, sceneIdByFile);
-    expect(issues.length).toBeGreaterThan(0);
-    expect(issues.every((i) => i.sceneId === "scene-05")).toBe(true);
+    expect(issues).toEqual([]);
   }, TS_PROGRAM_TIMEOUT);
 
   it("hard-fails an undefined identifier because it would render SceneFallback", () => {
@@ -101,38 +79,27 @@ describe("typecheckAuthoredScenes (N10)", () => {
     );
   }, TS_PROGRAM_TIMEOUT);
 
-  it("warns on an implicit-any parameter because the emitted JavaScript is runtime-safe", () => {
+  it("stamps each crash-class issue with the manifest sceneId so repair can target it", () => {
+    const file = fixture("typecheck-missing-identifier.tsx");
+    const sceneIdByFile = new Map([[resolve(file), "scene-05"]]);
+    const issues = typecheckAuthoredScenes([file], root, sceneIdByFile);
+    expect(issues.length).toBeGreaterThan(0);
+    expect(issues.every((i) => i.sceneId === "scene-05")).toBe(true);
+  }, TS_PROGRAM_TIMEOUT);
+
+  it("drops implicit-any parameter diagnostics (runtime-safe; not crash-class)", () => {
     const issues = typecheckAuthoredScenes([fixture("typecheck-implicit-any.tsx")], root);
-    expect(issues).toContainEqual(
-      expect.objectContaining({
-        check: "N10",
-        severity: "warning",
-        message: expect.stringContaining("TS7006"),
-      }),
-    );
-    expect(issues.some((i) => i.severity === "error")).toBe(false);
+    expect(issues).toEqual([]);
   }, TS_PROGRAM_TIMEOUT);
 
-  it("flags an EXCESS component prop (<SceneImage caption={...}>) as a WARNING, not a hard error", () => {
-    // The model habit: passing undeclared props to a component to add nearby
-    // annotation. React ignores undeclared props at runtime, so the scene renders
-    // fine — N10 must warn, never block.
+  it("drops excess component prop diagnostics (React ignores undeclared props)", () => {
     const issues = typecheckAuthoredScenes([fixture("typecheck-excess-prop.tsx")], root);
-    expect(issues.length).toBeGreaterThan(0);
-    expect(issues.every((i) => i.severity === "warning")).toBe(true);
-    expect(issues.some((i) => /does not exist on type 'IntrinsicAttributes/.test(i.message))).toBe(true);
+    expect(issues).toEqual([]);
   }, TS_PROGRAM_TIMEOUT);
 
-  it("flags an out-of-union string-literal prop (<Tag tone=\"regular\">) as a WARNING, not a hard error", () => {
-    // The cx/gpt-5.5 habit: passing an invented tone value like "regular" where
-    // Tone is "accent" | "signal" | "blue" | …. The block resolves an unknown
-    // tone through a `default:` switch arm to a safe color, so the scene renders
-    // fine — N10 must warn, never block. The crash-class {text}[] case (whose
-    // source type is an object array, not a quoted string) stays a hard error.
+  it("drops out-of-union string-literal prop diagnostics (tone enum)", () => {
     const issues = typecheckAuthoredScenes([fixture("typecheck-tone-enum.tsx")], root);
-    expect(issues.length).toBeGreaterThan(0);
-    expect(issues.every((i) => i.severity === "warning")).toBe(true);
-    expect(issues.some((i) => /is not assignable to type 'Tone/.test(i.message))).toBe(true);
+    expect(issues).toEqual([]);
   }, TS_PROGRAM_TIMEOUT);
 
   it("is a no-op for an empty file list", () => {

@@ -1,10 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { isN10CrashClassDiagnostic, severityForN10 } from "./typecheck-authored.js";
+import { isN10CrashClassDiagnostic } from "./typecheck-authored.js";
 
 describe("N10 B-minimal crash-class filter", () => {
   it("hard-blocks unbound names (TS2304 → ReferenceError at render)", () => {
     expect(isN10CrashClassDiagnostic(2304, "Cannot find name 'fooNotDefined'.")).toBe(true);
-    expect(severityForN10(2304, "Cannot find name 'fooNotDefined'.")).toBe("error");
   });
 
   it("does not treat CSSProperties / RN excess as crash-class", () => {

@@ -108,7 +108,7 @@ export type ScaffoldVideoProjectOptions = {
   prompt: string;
   /** Explicit project id (defaults to a slug derived from the prompt). */
   projectId?: string;
-  /** Soft target duration in seconds (drives the N28 duration check); defaults to 60. */
+  /** Soft target duration in seconds (drives the N28 duration check); omit → tier/prompt/default 45s. */
   duration?: DurationPreset | number;
   /** Delivery format selected at create time; defaults to the historical vertical path. */
   format?: VideoFormat;
@@ -171,7 +171,8 @@ function resolveBriefDuration(
   opts: Pick<ScaffoldVideoProjectOptions, "duration" | "durationTier" | "prompt">,
   format: VideoFormat,
 ): number {
-  // Prompt explicit seconds win over tier when they conflict (create-time policy).
+  // Desktop: UI tier wins when set. `duration` / durationSeconds is an explicit
+  // override (highest priority). Prompt length is used only when no tier is set.
   return resolveEffectiveDuration({
     prompt: opts.prompt,
     format,

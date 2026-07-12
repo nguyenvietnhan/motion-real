@@ -177,6 +177,31 @@ export function tierSeconds(_format: VideoFormat, tier: DurationTier): number {
   return table[tier];
 }
 
+/** True when value is a valid desktop/CLI duration tier (1–4). */
+export function isDurationTier(value: unknown): value is DurationTier {
+  return value === 1 || value === 2 || value === 3 || value === 4;
+}
+
+/** Nearest tier label for a free-form second length. */
+export function nearestDurationTier(targetSeconds: number): DurationTier {
+  const table: Array<{ tier: DurationTier; seconds: number }> = [
+    { tier: 1, seconds: 45 },
+    { tier: 2, seconds: 90 },
+    { tier: 3, seconds: 150 },
+    { tier: 4, seconds: 210 },
+  ];
+  let best = table[0]!;
+  let bestGap = Math.abs(targetSeconds - best.seconds);
+  for (const row of table) {
+    const gap = Math.abs(targetSeconds - row.seconds);
+    if (gap < bestGap) {
+      best = row;
+      bestGap = gap;
+    }
+  }
+  return best.tier;
+}
+
 /**
  * Language of the authored video content: publish title, hashtags, on-screen
  * text, narration, and therefore generated captions. Vivibe supports only `vi`;

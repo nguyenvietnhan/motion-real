@@ -1,3 +1,4 @@
+import { isDurationTier } from "@motionreal/schema";
 import type {
   DurationTierChoice,
   StagedImageRef,
@@ -33,9 +34,10 @@ export function parseVoiceProvider(value: unknown): VoiceProviderChoice {
 
 /** Coerce IPC duration tier; invalid/missing → undefined (controller defaults to 1). */
 export function parseDurationTier(value: unknown): DurationTierChoice | undefined {
-  if (value === 1 || value === 2 || value === 3 || value === 4) return value;
+  if (isDurationTier(value)) return value;
   if (value === "1" || value === "2" || value === "3" || value === "4") {
-    return Number(value) as DurationTierChoice;
+    const n = Number(value);
+    return isDurationTier(n) ? n : undefined;
   }
   return undefined;
 }

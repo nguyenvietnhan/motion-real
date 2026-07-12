@@ -31,6 +31,13 @@ describe("authorInputFromBrief", () => {
     });
   });
 
+  it("rehydrates durationTier 4 (3:30 knobs)", () => {
+    expect(authorInputFromBrief(brief({ durationTier: 4 }))).toMatchObject({
+      durationTier: 4,
+      format: "tiktok",
+    });
+  });
+
   it("always rehydrates short-form tiktok format", () => {
     expect(authorInputFromBrief(brief({ language: "en" }))).toMatchObject({
       format: "tiktok",

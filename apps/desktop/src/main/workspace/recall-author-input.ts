@@ -1,12 +1,10 @@
 import type { ProjectBrief } from "@motionreal/pipeline";
-import type { DurationTier, VideoLanguage } from "@motionreal/schema";
+import { isDurationTier, type DurationTier, type VideoLanguage } from "@motionreal/schema";
 import { extractUrls } from "../../shared/create-validation.js";
 import type { AuthorInput } from "../agent/agent-worker.js";
 
 function durationTierFromBrief(brief: ProjectBrief): DurationTier | undefined {
-  return brief.durationTier === 1 || brief.durationTier === 2 || brief.durationTier === 3
-    ? brief.durationTier
-    : undefined;
+  return isDurationTier(brief.durationTier) ? brief.durationTier : undefined;
 }
 
 function languageFromBrief(brief: ProjectBrief): VideoLanguage {

@@ -127,7 +127,8 @@ export const INVALID_PURPOSE_CONTENT_PLAN_REPLY = JSON.stringify({
       sceneId: "scene-01",
       purpose: "hook",
       beat: "Open with the forest metaphor.",
-      narration: "Một cây quyết định dễ học vẹt. Cả rừng thì khó lệch hơn.",
+      narration:
+        "Một cây quyết định dễ học vẹt. Cả rừng thì khó lệch hơn. Người xem thấy ngay sự khác biệt giữa một quyết định đơn lẻ và một tập hợp ý kiến độc lập. Hình ảnh rừng yên ổn đối lập với một cây lung lay giúp mở vòng lặp giải thích.",
       onScreenText: "Một cây vs cả rừng",
       visualMetaphor: "One shaky tree next to a calm forest.",
       motionProgression: "Quick entrance: one tree appears; semantic: the forest fills in behind it; final hold on the contrast.",
@@ -138,7 +139,8 @@ export const INVALID_PURPOSE_CONTENT_PLAN_REPLY = JSON.stringify({
       sceneId: "scene-02",
       purpose: "definition",
       beat: "Define the vote.",
-      narration: "Mỗi cây nhìn dữ liệu hơi khác nhau, rồi cả rừng bỏ phiếu.",
+      narration:
+        "Mỗi cây nhìn dữ liệu hơi khác nhau, rồi cả rừng bỏ phiếu. Đó không phải phép màu, mà là cách gom nhiều góc nhìn yếu thành một quyết định ổn định hơn. Người xem theo dõi từng lá phiếu nhỏ góp thành đa số.",
       onScreenText: "Nhiều góc nhìn",
       visualMetaphor: "Small trees casting ballots.",
       motionProgression: "Text appears.",
@@ -149,7 +151,8 @@ export const INVALID_PURPOSE_CONTENT_PLAN_REPLY = JSON.stringify({
       sceneId: "scene-03",
       purpose: "mechanism",
       beat: "Show the mechanism.",
-      narration: "Khi một cây đoán lệch, các cây còn lại kéo kết quả về hướng ổn định hơn.",
+      narration:
+        "Khi một cây đoán lệch, các cây còn lại kéo kết quả về hướng ổn định hơn. Random Forest làm mượt sai lệch bằng nhiều quyết định độc lập rồi lấy đa số, nên một lỗi đơn lẻ không làm cả câu trả lời sụp đổ.",
       onScreenText: "Đa số làm mượt",
       visualMetaphor: "Votes collecting into one calmer answer.",
       layoutFamily: "timeline",

@@ -34,7 +34,7 @@ describe("admitAuthoredComponent (static AST gate)", () => {
     }
   });
 
-  it("rejects React Native style keys (N4)", () => {
+  it("rejects React Native style keys in JSX style objects (N4)", () => {
     const result = admitAuthoredComponent(fixture("banned-rn-style.tsx"));
     expect(result.admitted).toBe(false);
     if (!result.admitted) {
@@ -43,6 +43,36 @@ describe("admitAuthoredComponent (static AST gate)", () => {
           (v) => v.check === "N4" && /React Native style key/.test(v.message) && /shadowColor/.test(v.message),
         ),
       ).toBe(true);
+    }
+  });
+
+  it("allows elevation as a data field outside style objects", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "motionreal-admission-elevation-data-"));
+    try {
+      const path = join(dir, "data-elevation.tsx");
+      await writeFile(
+        path,
+        `
+import React from "react";
+import { registerComponent } from "@motionreal/compositions";
+import { z } from "zod";
+export const schema = z.object({});
+export const example = {};
+const cards = [{ elevation: 8, title: "Card" }];
+const Comp: React.FC = () => <div style={{ color: "#fff" }}>{cards[0]!.title}</div>;
+export default registerComponent({
+  id: "authored-elevation-data",
+  displayName: "Elevation Data",
+  promptGuide: "Test",
+  schema,
+  Component: Comp,
+  example,
+});
+`,
+      );
+      expect(admitAuthoredComponent(path).admitted).toBe(true);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
     }
   });
 

@@ -363,9 +363,10 @@ CSSProperties excess, missing data fields, and other type noise are **dropped**
 (not soft-warnings — no repair consumer). Expand the crash allowlist only with
 a proven N31/ReferenceError fixture. RN style/fonts → normalizer; layout → vision.
 
-**Authored normalizers (pre-write):** RN shadow/padding shorthands + brand font
-rewrite (`Inter` / `Be Vietnam Pro` / `Cascadia Mono`) via
-`normalizeAuthoredSource`.
+**Authored normalizers (pre-write):** RN shadow/padding shorthands **only inside
+CSS/JSX `style` objects** + brand font rewrite (`Inter` / `Be Vietnam Pro` /
+`Cascadia Mono`) via `normalizeAuthoredSource`. Data objects may use names like
+`elevation` without being treated as CSS.
 
 ## Research context (URL-grounded authoring)
 

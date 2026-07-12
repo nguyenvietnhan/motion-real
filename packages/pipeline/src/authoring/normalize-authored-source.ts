@@ -31,6 +31,44 @@ export function isReactNativeStyleKey(name: string): boolean {
   return RN_KEY_SET.has(name);
 }
 
+/**
+ * True when this object literal is a React `style={{…}}` / `style: {…}` value.
+ * RN key strip/admission must NOT run on arbitrary data objects (e.g. Material
+ * `{ elevation: 8, title: "…" }` copy models).
+ */
+export function isCssStyleObjectLiteral(node: ts.ObjectLiteralExpression): boolean {
+  let cur: ts.Node = node;
+  // Unwrap parentheses / as / satisfies.
+  while (cur.parent) {
+    const p = cur.parent;
+    if (ts.isParenthesizedExpression(p) || ts.isAsExpression(p)) {
+      cur = p;
+      continue;
+    }
+    if (typeof (ts as { isSatisfiesExpression?: (n: ts.Node) => boolean }).isSatisfiesExpression === "function") {
+      if ((ts as { isSatisfiesExpression: (n: ts.Node) => boolean }).isSatisfiesExpression(p)) {
+        cur = p;
+        continue;
+      }
+    }
+    break;
+  }
+  const p = cur.parent;
+  if (!p) return false;
+  if (ts.isJsxExpression(p)) {
+    const attr = p.parent;
+    if (ts.isJsxAttribute(attr)) {
+      const n = attr.name;
+      return (ts.isIdentifier(n) ? n.text : n.getText()) === "style";
+    }
+    return false;
+  }
+  if (ts.isPropertyAssignment(p)) {
+    return propertyNameText(p.name) === "style";
+  }
+  return false;
+}
+
 const SHADOW_STRIP_KEYS = new Set([
   "shadowColor",
   "shadowOffset",
@@ -66,7 +104,7 @@ export function stripReactNativeStyleKeys(source: string): string {
   const edits: Edit[] = [];
 
   const visit = (node: ts.Node): void => {
-    if (ts.isObjectLiteralExpression(node)) {
+    if (ts.isObjectLiteralExpression(node) && isCssStyleObjectLiteral(node)) {
       for (const prop of node.properties) {
         if (!ts.isPropertyAssignment(prop)) continue;
         const name = propertyNameText(prop.name);

@@ -611,7 +611,8 @@ describe("buildAuthorMessages", () => {
     const text = sys!.content;
 
     expect(text).toContain("90 giây");
-    expect(text).toContain("Nhịp cảnh nên khoảng 10–12 cảnh");
+    // Pacing budget copy: "chia thành 10–12 cảnh (nhắm 11)" + content-rules "thường 10–12 cảnh".
+    expect(text).toMatch(/10–12 cảnh/);
     expect(text).toMatch(/90 giây[\s\S]*thường 10–12 cảnh/);
     expect(text).not.toContain("12–16 cảnh");
   });
