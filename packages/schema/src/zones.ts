@@ -30,17 +30,17 @@ export const CANVAS = { width: 1080, height: 1920 } as const;
 export type Rect = { top: number; bottom: number; left: number; right: number };
 
 /**
- * Where a scene's PRIMARY content must live: a top-margin → ~68% height band,
- * biased upper/middle (never pinned to the very top, never into the caption
- * band). `Content`/`Story` lay out inside this; the caption divider is drawn at
- * its bottom; N14 flags content outside it.
+ * Where a scene's PRIMARY content must live: a top-margin → mid band (~65%
+ * height), biased upper/middle (not glued to the top edge, never into the
+ * caption band). The caption divider is drawn at its bottom; N14 flags content
+ * outside it.
  *
- * Lowered from the historical bottom of 1190 to 1350 so every scene gets more
- * vertical room for images/visualizations, and so the divider sits close to the
- * caption (only a ~20px gap) rather than floating well above it. ONE shared zone
- * for all visual treatments (chrome differs, not where content sits).
+ * Bottom 1350 keeps the divider near the caption (~20px gap). Top 160 (was 96)
+ * is a light nudge so primary content sits a bit lower under status-bar chrome
+ * without dumping the composition into the lower third. ONE shared zone for all
+ * visual treatments (chrome differs, not where content sits).
  */
-export const CONTENT_ZONE: Rect = { top: 96, bottom: 1350, left: 80, right: 1000 };
+export const CONTENT_ZONE: Rect = { top: 160, bottom: 1350, left: 80, right: 1000 };
 
 /**
  * Where the burned-in single-line caption renders: a band beneath the content
