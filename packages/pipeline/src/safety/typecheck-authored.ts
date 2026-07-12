@@ -309,12 +309,12 @@ export function __directoryFingerprint(dir: string): string {
 }
 
 /**
- * B-minimal crash-class filter (E2E + local N31 sample).
+ * B-minimal crash-class filter for N10.
  *
  * Hard-block only diagnostics that map to ReferenceError under transpile-only
  * bundling (unbound identifier). Everything else is dropped from the report —
  * style/CSSProperties excess, missing data fields, prop noise — so N10 does not
- * become another soft-warning landfill or throughput rock.
+ * become a soft-warning landfill.
  *
  * Expand this allowlist only with a proven N31/ReferenceError fixture (same
  * discipline as RN AST strip tests). Exported for unit tests.

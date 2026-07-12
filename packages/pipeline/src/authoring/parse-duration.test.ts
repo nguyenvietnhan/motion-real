@@ -7,9 +7,8 @@ import {
 } from "./parse-duration.js";
 
 /**
- * The desktop create flow hands the orchestrator only the raw prompt, so the
- * user's stated length must be recovered from the text — otherwise every project
- * silently defaulted to a 60s target (the bug behind "1p30s rendered as 1p").
+ * Legacy CLI/preset parser: free-text length → nearest DurationPreset (60/90/120/180).
+ * Desktop create prefers resolveEffectiveDuration (UI tier wins; default 45s).
  */
 describe("parseDurationFromPrompt", () => {
   it("reads 'm phút n giây' style and snaps to the nearest preset", () => {
