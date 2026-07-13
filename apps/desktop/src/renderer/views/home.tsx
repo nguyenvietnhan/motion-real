@@ -441,41 +441,6 @@ export const HomeView: React.FC<{
     <div className="ns-content">
       <PageHeader title="Trang chủ" />
 
-      {!createPathOk && (
-        <div className="ns-card ns-create-readiness" style={{ padding: 16, marginBottom: 20, borderColor: "var(--brand)" }}>
-          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
-            <div style={{ minWidth: 0, flex: "1 1 220px" }}>
-              <div style={{ fontWeight: 600, marginBottom: 10 }}>Hoàn tất thiết lập để tạo video</div>
-              <ul
-                className="ns-create-readiness-list"
-                style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 8 }}
-                aria-label="Các bước thiết lập trước khi tạo"
-              >
-                {createPath.steps.map((step) => {
-                  const tone = step.ok ? "var(--good, #16a34a)" : "var(--warn, #ca8a04)";
-                  return (
-                    <li key={step.id} style={{ display: "flex", alignItems: "flex-start", gap: 8, fontSize: 13 }}>
-                      <span style={{ color: tone, display: "inline-flex", flexShrink: 0, marginTop: 2 }} aria-hidden>
-                        {step.ok ? Icon.check({ size: 14 }) : Icon.warn({ size: 14 })}
-                      </span>
-                      <span style={{ minWidth: 0 }}>
-                        <span style={{ fontWeight: 500 }}>{step.label}</span>
-                        {!step.ok && step.hint ? (
-                          <span style={{ display: "block", color: "var(--muted-foreground)", marginTop: 2 }}>{step.hint}</span>
-                        ) : null}
-                      </span>
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
-            <button type="button" className="ns-btn ns-btn-primary" onClick={onConnectPrompt} style={{ flexShrink: 0 }}>
-              {Icon.spark({ size: 15 })} Mở Cài đặt
-            </button>
-          </div>
-        </div>
-      )}
-
       {/* Create hero — drag-drop an image anywhere onto this card (create-time image staging). */}
       <div
         className={`ns-card ns-create-card${dragOver ? " is-dragging" : ""}`}
@@ -597,6 +562,42 @@ export const HomeView: React.FC<{
           </div>
         </div>
       </div>
+
+      {/* Below the prompt so setup never shoves the composer down. */}
+      {!createPathOk && (
+        <div className="ns-card ns-create-readiness" style={{ padding: 16, marginTop: 16, marginBottom: 20, borderColor: "var(--brand)" }}>
+          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
+            <div style={{ minWidth: 0, flex: "1 1 220px" }}>
+              <div style={{ fontWeight: 600, marginBottom: 10 }}>Hoàn tất thiết lập để tạo video</div>
+              <ul
+                className="ns-create-readiness-list"
+                style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 8 }}
+                aria-label="Các bước thiết lập trước khi tạo"
+              >
+                {createPath.steps.map((step) => {
+                  const tone = step.ok ? "var(--good, #16a34a)" : "var(--warn, #ca8a04)";
+                  return (
+                    <li key={step.id} style={{ display: "flex", alignItems: "flex-start", gap: 8, fontSize: 13 }}>
+                      <span style={{ color: tone, display: "inline-flex", flexShrink: 0, marginTop: 2 }} aria-hidden>
+                        {step.ok ? Icon.check({ size: 14 }) : Icon.warn({ size: 14 })}
+                      </span>
+                      <span style={{ minWidth: 0 }}>
+                        <span style={{ fontWeight: 500 }}>{step.label}</span>
+                        {!step.ok && step.hint ? (
+                          <span style={{ display: "block", color: "var(--muted-foreground)", marginTop: 2 }}>{step.hint}</span>
+                        ) : null}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+            <button type="button" className="ns-btn ns-btn-primary" onClick={onConnectPrompt} style={{ flexShrink: 0 }}>
+              {Icon.spark({ size: 15 })} Mở Cài đặt
+            </button>
+          </div>
+        </div>
+      )}
 
       <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 14 }}>
         <h2 style={{ margin: 0, fontSize: 16 }}>Gần đây</h2>
