@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import type { AiAccountState, GatewayState } from "./types.js";
 import {
   createPathReadiness,
+  settingsTabForCreatePath,
+  settingsTabForCreatePathStep,
   voicePresenceFromSettings,
   type CreatePathVoicePresence,
 } from "./create-path-readiness.js";
@@ -63,6 +65,23 @@ describe("createPathReadiness", () => {
   it("returns exactly three ordered steps", () => {
     const r = createPathReadiness({ gateway: gwReady, account: accConnected, voice: voiceOk });
     expect(r.steps.map((s) => s.id)).toEqual(["ai", "model", "voice"]);
+  });
+});
+
+describe("settingsTabForCreatePath", () => {
+  it("maps step ids to settings tabs", () => {
+    expect(settingsTabForCreatePathStep("ai")).toBe("ai");
+    expect(settingsTabForCreatePathStep("model")).toBe("ai");
+    expect(settingsTabForCreatePathStep("voice")).toBe("voice");
+  });
+
+  it("uses the first blocked step", () => {
+    const voiceBlocked = createPathReadiness({ gateway: gwReady, account: accConnected, voice: voiceNoKey });
+    expect(settingsTabForCreatePath(voiceBlocked)).toBe("voice");
+    const modelBlocked = createPathReadiness({ gateway: gwReady, account: accNoModel, voice: voiceOk });
+    expect(settingsTabForCreatePath(modelBlocked)).toBe("ai");
+    const allOk = createPathReadiness({ gateway: gwReady, account: accConnected, voice: voiceOk });
+    expect(settingsTabForCreatePath(allOk)).toBe("ai");
   });
 });
 

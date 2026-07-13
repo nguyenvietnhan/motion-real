@@ -50,6 +50,20 @@ export function voiceReady(voice: CreatePathVoicePresence): boolean {
   return voice.hasApiKey && voice.hasVoiceId;
 }
 
+/** Settings tabs that create-path can deep-link into (not build/about). */
+export type CreatePathSettingsTab = "ai" | "voice";
+
+/** Map one checklist step to the Settings tab that fixes it. */
+export function settingsTabForCreatePathStep(id: CreatePathStepId): CreatePathSettingsTab {
+  return id === "voice" ? "voice" : "ai";
+}
+
+/** First blocked step → Settings tab; all green → "ai". */
+export function settingsTabForCreatePath(readiness: CreatePathReadiness): CreatePathSettingsTab {
+  const first = readiness.steps.find((s) => !s.ok);
+  return first ? settingsTabForCreatePathStep(first.id) : "ai";
+}
+
 /**
  * Three-step create-path checklist. Order is intentional: connect → model → voice.
  */

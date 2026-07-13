@@ -15,7 +15,7 @@ import { ChoiceGroup, ExpandableToggle, Field, InfoHint, InfoRow, NumberRow, Pag
 import { compactNotificationMessage, errorDetails, useNotifications } from "../notifications.js";
 import { useDismissable } from "../use-dismissable.js";
 
-type SettingsTab = "ai" | "voice" | "build" | "about";
+export type SettingsTab = "ai" | "voice" | "build" | "about";
 
 interface CustomSelectOption {
   value: string;
@@ -97,8 +97,24 @@ export const SettingsView: React.FC<{
   onSetApiKey: (provider: VoiceProviderChoice, apiKey: string) => Promise<SettingsModel>;
   onClearApiKey: (provider: VoiceProviderChoice) => Promise<SettingsModel>;
   onCheckReadiness?: () => Promise<DesktopReadinessReport>;
-}> = ({ gateway, account, models, settings, preferredModelUnavailable, onManageAccounts, onSelectModel, onUpdate, onSetApiKey, onClearApiKey, onCheckReadiness }) => {
-  const [tab, setTab] = useState<SettingsTab>("ai");
+  /** Controlled tab (App owns deep-links from Home create-path checklist). */
+  tab: SettingsTab;
+  onTabChange: (tab: SettingsTab) => void;
+}> = ({
+  gateway,
+  account,
+  models,
+  settings,
+  preferredModelUnavailable,
+  onManageAccounts,
+  onSelectModel,
+  onUpdate,
+  onSetApiKey,
+  onClearApiKey,
+  onCheckReadiness,
+  tab,
+  onTabChange,
+}) => {
   // Sub-settings start collapsed (same as Mức duyệt); user opens the chevron.
   const [refineExpanded, setRefineExpanded] = useState(false);
   const [reviewModeExpanded, setReviewModeExpanded] = useState(false);
@@ -184,7 +200,7 @@ export const SettingsView: React.FC<{
       <div className="ns-settings">
         <nav className="ns-settings-nav">
           {TABS.map((t) => (
-            <button key={t.id} className={`ns-settings-tab${tab === t.id ? " active" : ""}`} onClick={() => setTab(t.id)}>
+            <button key={t.id} className={`ns-settings-tab${tab === t.id ? " active" : ""}`} onClick={() => onTabChange(t.id)}>
               {t.icon}
               {t.label}
             </button>

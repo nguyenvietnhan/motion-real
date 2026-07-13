@@ -121,6 +121,15 @@
   border-radius: 999px;
   animation: ns-spin 0.7s linear infinite;
 }
+/* Create-path setup rows (actionable when incomplete). */
+.ns-create-readiness-step:hover {
+  background: color-mix(in srgb, var(--brand) 10%, transparent) !important;
+}
+.ns-create-readiness-step:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 1px;
+}
+
 /* Tight chip row under the prompt — no empty full-width columns. */
 .ns-create-knobs {
   position: relative;

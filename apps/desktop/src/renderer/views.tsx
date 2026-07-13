@@ -8,7 +8,7 @@ export { LicenseView } from "./views/license.js";
 export { Sidebar } from "./views/sidebar.js";
 export { HomeView } from "./views/home.js";
 export { ProjectsView } from "./views/projects.js";
-export { SettingsView } from "./views/settings.js";
+export { SettingsView, type SettingsTab } from "./views/settings.js";
 export { ProjectWorkspaceView } from "./views/workspace.js";
 export { StoryboardView } from "./views/storyboard.js";
 export type { Screen } from "./primitives.js";

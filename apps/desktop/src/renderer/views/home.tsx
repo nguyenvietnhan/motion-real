@@ -13,7 +13,13 @@ import type {
 } from "../../shared/types.js";
 import type { GalleryLoad } from "../../shared/gallery-controller.js";
 import { validateCreateInput, extractUrls } from "../../shared/create-validation.js";
-import { createPathReadiness, voicePresenceFromSettings } from "../../shared/create-path-readiness.js";
+import {
+  createPathReadiness,
+  settingsTabForCreatePath,
+  settingsTabForCreatePathStep,
+  voicePresenceFromSettings,
+  type CreatePathSettingsTab,
+} from "../../shared/create-path-readiness.js";
 import { Icon } from "../icons.js";
 import { EmptyState, LoadingLine, PageHeader, ProjectGrid } from "../primitives.js";
 import { compactNotificationMessage, errorDetails, useNotifications } from "../notifications.js";
@@ -165,7 +171,8 @@ export const HomeView: React.FC<{
     },
   ) => void | Promise<void>;
   onOpen: (projectId: string) => void;
-  onConnectPrompt: () => void;
+  /** Open Settings; optional tab deep-link (ai | voice) from create-path steps. */
+  onConnectPrompt: (tab?: CreatePathSettingsTab) => void;
   defaultVoiceProvider: VoiceProviderChoice;
   /** Open the native image picker (create-time image staging); resolves staged images + rejections. */
   onPickImages?: () => Promise<PickImagesResult>;
@@ -425,7 +432,7 @@ export const HomeView: React.FC<{
   const submitCreate = (): void => {
     if (!inputValid || creating) return;
     if (!createPathOk) {
-      onConnectPrompt();
+      onConnectPrompt(settingsTabForCreatePath(createPath));
       return;
     }
     setCreating(true);
@@ -576,23 +583,62 @@ export const HomeView: React.FC<{
               >
                 {createPath.steps.map((step) => {
                   const tone = step.ok ? "var(--good, #16a34a)" : "var(--warn, #ca8a04)";
-                  return (
-                    <li key={step.id} style={{ display: "flex", alignItems: "flex-start", gap: 8, fontSize: 13 }}>
+                  const body = (
+                    <>
                       <span style={{ color: tone, display: "inline-flex", flexShrink: 0, marginTop: 2 }} aria-hidden>
                         {step.ok ? Icon.check({ size: 14 }) : Icon.warn({ size: 14 })}
                       </span>
-                      <span style={{ minWidth: 0 }}>
+                      <span style={{ minWidth: 0, textAlign: "left" }}>
                         <span style={{ fontWeight: 500 }}>{step.label}</span>
                         {!step.ok && step.hint ? (
                           <span style={{ display: "block", color: "var(--muted-foreground)", marginTop: 2 }}>{step.hint}</span>
                         ) : null}
                       </span>
+                    </>
+                  );
+                  if (step.ok) {
+                    return (
+                      <li key={step.id} style={{ display: "flex", alignItems: "flex-start", gap: 8, fontSize: 13 }}>
+                        {body}
+                      </li>
+                    );
+                  }
+                  return (
+                    <li key={step.id} style={{ listStyle: "none" }}>
+                      <button
+                        type="button"
+                        className="ns-create-readiness-step"
+                        onClick={() => onConnectPrompt(settingsTabForCreatePathStep(step.id))}
+                        title={step.hint}
+                        style={{
+                          display: "flex",
+                          alignItems: "flex-start",
+                          gap: 8,
+                          fontSize: 13,
+                          width: "100%",
+                          margin: 0,
+                          padding: "4px 6px",
+                          border: "none",
+                          borderRadius: 8,
+                          background: "transparent",
+                          color: "inherit",
+                          cursor: "pointer",
+                          textAlign: "left",
+                        }}
+                      >
+                        {body}
+                      </button>
                     </li>
                   );
                 })}
               </ul>
             </div>
-            <button type="button" className="ns-btn ns-btn-primary" onClick={onConnectPrompt} style={{ flexShrink: 0 }}>
+            <button
+              type="button"
+              className="ns-btn ns-btn-primary"
+              onClick={() => onConnectPrompt(settingsTabForCreatePath(createPath))}
+              style={{ flexShrink: 0 }}
+            >
               {Icon.spark({ size: 15 })} Mở Cài đặt
             </button>
           </div>

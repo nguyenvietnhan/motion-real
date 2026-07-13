@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useReducer, useRef, useState } from "react";
-import { HomeView, LicenseView, ProjectsView, ProjectWorkspaceView, SettingsView, Sidebar, type Screen } from "./views.js";
+import { HomeView, LicenseView, ProjectsView, ProjectWorkspaceView, SettingsView, Sidebar, type Screen, type SettingsTab } from "./views.js";
 import { reduceDesktop, type DesktopState } from "./state/desktop-state.js";
 import { aiReady } from "../shared/ai-ready.js";
+import type { CreatePathSettingsTab } from "../shared/create-path-readiness.js";
 import { preferredModelDecision } from "../shared/model-selection.js";
 import { defaultSettings, reviewModeAllowsSceneEdit } from "../shared/settings-model.js";
 import type { BgmTrackVM, LicenseState, ModelInfo, ProjectStage } from "../shared/types.js";
@@ -32,6 +33,7 @@ export const App: React.FC = () => (
 const AppShell: React.FC = () => {
   const [state, dispatch] = useReducer(reduceDesktop, initial);
   const [screen, setScreen] = useState<Screen>("home");
+  const [settingsTab, setSettingsTab] = useState<SettingsTab>("ai");
   const [license, setLicense] = useState<LicenseState>({ kind: "unactivated" });
   const [gateway, setGateway] = useState(initial.gateway);
   const [account, setAccount] = useState(initial.aiAccount);
@@ -53,6 +55,17 @@ const AppShell: React.FC = () => {
 
   const dash = typeof window !== "undefined" ? window.dashboard : undefined;
   const ready = aiReady(gateway, account);
+
+  const openSettings = useCallback((tab: SettingsTab = "ai") => {
+    setSettingsTab(tab);
+    setScreen("settings");
+  }, []);
+
+  const onNavigate = useCallback((s: Screen) => {
+    // Sidebar "Cài đặt" lands on the AI tab (default entry); Home deep-links set tab first.
+    if (s === "settings") setSettingsTab("ai");
+    setScreen(s);
+  }, []);
 
   const refreshAiState = useCallback(async (): Promise<boolean> => {
     if (!dash) return false;
@@ -264,7 +277,7 @@ const AppShell: React.FC = () => {
 
   return (
     <div className="ns-shell">
-      <Sidebar active={screen} gateway={gateway} account={account} onNavigate={setScreen} />
+      <Sidebar active={screen} gateway={gateway} account={account} onNavigate={onNavigate} />
       <main className="ns-main">
         {screen === "home" && (
           <HomeView
@@ -275,7 +288,7 @@ const AppShell: React.FC = () => {
             elevenLabsVoiceId={settings.elevenLabsVoiceId}
             load={state.gallery.load}
             cards={state.gallery.cards}
-            onConnectPrompt={() => setScreen("settings")}
+            onConnectPrompt={(tab?: CreatePathSettingsTab) => openSettings(tab ?? "ai")}
             defaultVoiceProvider={settings.voiceProvider}
             onPickImages={() => dash?.projects.pickImages() ?? Promise.resolve({ staged: [], rejected: [] })}
             onImportImageBytes={(files) =>
@@ -348,6 +361,8 @@ const AppShell: React.FC = () => {
             models={models}
             settings={settings}
             preferredModelUnavailable={preferredModelUnavailable}
+            tab={settingsTab}
+            onTabChange={setSettingsTab}
             onManageAccounts={() => {
               if (!dash) return;
               void dash.ai.beginConnect("").then(() => void refreshAiState());
