@@ -268,7 +268,11 @@ const AppShell: React.FC = () => {
       <main className="ns-main">
         {screen === "home" && (
           <HomeView
-            aiReady={ready}
+            gateway={gateway}
+            account={account}
+            voiceCredentials={settings.voiceCredentials}
+            vivibeVoiceId={settings.vivibeVoiceId}
+            elevenLabsVoiceId={settings.elevenLabsVoiceId}
             load={state.gallery.load}
             cards={state.gallery.cards}
             onConnectPrompt={() => setScreen("settings")}

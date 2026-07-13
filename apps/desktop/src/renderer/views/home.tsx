@@ -7,9 +7,13 @@ import type {
   DurationTierChoice,
   VideoLanguageChoice,
   VoiceProviderChoice,
+  AiAccountState,
+  GatewayState,
+  SettingsModel,
 } from "../../shared/types.js";
 import type { GalleryLoad } from "../../shared/gallery-controller.js";
 import { validateCreateInput, extractUrls } from "../../shared/create-validation.js";
+import { createPathReadiness, voicePresenceFromSettings } from "../../shared/create-path-readiness.js";
 import { Icon } from "../icons.js";
 import { EmptyState, LoadingLine, PageHeader, ProjectGrid } from "../primitives.js";
 import { compactNotificationMessage, errorDetails, useNotifications } from "../notifications.js";
@@ -143,7 +147,12 @@ export function applyVoiceProviderSelection(
 
 /** Home: create hero (chat-style brief) + recent-projects grid. */
 export const HomeView: React.FC<{
-  aiReady: boolean;
+  gateway: GatewayState;
+  account: AiAccountState;
+  /** Public voice presence fields from settings (no secrets). */
+  voiceCredentials: SettingsModel["voiceCredentials"];
+  vivibeVoiceId?: string;
+  elevenLabsVoiceId?: string;
   load: GalleryLoad;
   cards: ProjectCardVM[];
   onCreate: (
@@ -169,7 +178,26 @@ export const HomeView: React.FC<{
   /** Rename a project's display title. Absent ⇒ no rename affordance. */
   onRename?: (id: string, newTitle: string) => void;
   onRetry?: () => void;
-}> = ({ aiReady, load, cards, onCreate, onOpen, onConnectPrompt, defaultVoiceProvider, onPickImages, onImportImageBytes, onUnstageImage, onDelete, onReveal, onRename, onRetry }) => {
+}> = ({
+  gateway,
+  account,
+  voiceCredentials,
+  vivibeVoiceId,
+  elevenLabsVoiceId,
+  load,
+  cards,
+  onCreate,
+  onOpen,
+  onConnectPrompt,
+  defaultVoiceProvider,
+  onPickImages,
+  onImportImageBytes,
+  onUnstageImage,
+  onDelete,
+  onReveal,
+  onRename,
+  onRetry,
+}) => {
   const [raw, setRaw] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -188,6 +216,18 @@ export const HomeView: React.FC<{
   const [videoLanguage, setVideoLanguage] = useState<VideoLanguageChoice>("vi");
   const [voiceProvider, setVoiceProvider] = useState<VoiceProviderChoice>(defaultVoiceProvider);
   const [creating, setCreating] = useState(false);
+  // Recompute when the create-knob voice provider changes (credentials are per provider).
+  const createPath = createPathReadiness({
+    gateway,
+    account,
+    voice: voicePresenceFromSettings({
+      voiceProvider,
+      voiceCredentials,
+      vivibeVoiceId,
+      elevenLabsVoiceId,
+    }),
+  });
+  const createPathOk = createPath.ok;
   // Conversational examples (not rigid labels) — typewriter suggests how to start.
   const PLACEHOLDERS = [
     "Hãy tạo cho tôi video về robot AI tuần này…",
@@ -373,9 +413,18 @@ export const HomeView: React.FC<{
         : valid.reason === "too-long"
           ? "Nội dung quá dài (tối đa 20.000 ký tự)."
           : "Nội dung chưa hợp lệ.";
+  const firstBlocked = createPath.steps.find((s) => !s.ok);
+  const sendTitle = creating
+    ? "Đang tạo…"
+    : !createPathOk
+      ? firstBlocked?.hint ?? "Hoàn tất thiết lập trong Cài đặt trước khi tạo."
+      : !inputValid
+        ? "Nhập mô tả video để tạo."
+        : "Tạo video";
+
   const submitCreate = (): void => {
     if (!inputValid || creating) return;
-    if (!aiReady) {
+    if (!createPathOk) {
       onConnectPrompt();
       return;
     }
@@ -392,10 +441,38 @@ export const HomeView: React.FC<{
     <div className="ns-content">
       <PageHeader title="Trang chủ" />
 
-      {!aiReady && (
-        <div className="ns-card" style={{ padding: 16, marginBottom: 20, display: "flex", alignItems: "center", justifyContent: "space-between", borderColor: "var(--brand)" }}>
-          <span style={{ color: "var(--muted-foreground)" }}>Kết nối tài khoản AI để bắt đầu tạo video.</span>
-          <button className="ns-btn ns-btn-primary" onClick={onConnectPrompt}>{Icon.spark({ size: 15 })} Kết nối AI</button>
+      {!createPathOk && (
+        <div className="ns-card ns-create-readiness" style={{ padding: 16, marginBottom: 20, borderColor: "var(--brand)" }}>
+          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
+            <div style={{ minWidth: 0, flex: "1 1 220px" }}>
+              <div style={{ fontWeight: 600, marginBottom: 10 }}>Hoàn tất thiết lập để tạo video</div>
+              <ul
+                className="ns-create-readiness-list"
+                style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 8 }}
+                aria-label="Các bước thiết lập trước khi tạo"
+              >
+                {createPath.steps.map((step) => {
+                  const tone = step.ok ? "var(--good, #16a34a)" : "var(--warn, #ca8a04)";
+                  return (
+                    <li key={step.id} style={{ display: "flex", alignItems: "flex-start", gap: 8, fontSize: 13 }}>
+                      <span style={{ color: tone, display: "inline-flex", flexShrink: 0, marginTop: 2 }} aria-hidden>
+                        {step.ok ? Icon.check({ size: 14 }) : Icon.warn({ size: 14 })}
+                      </span>
+                      <span style={{ minWidth: 0 }}>
+                        <span style={{ fontWeight: 500 }}>{step.label}</span>
+                        {!step.ok && step.hint ? (
+                          <span style={{ display: "block", color: "var(--muted-foreground)", marginTop: 2 }}>{step.hint}</span>
+                        ) : null}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+            <button type="button" className="ns-btn ns-btn-primary" onClick={onConnectPrompt} style={{ flexShrink: 0 }}>
+              {Icon.spark({ size: 15 })} Mở Cài đặt
+            </button>
+          </div>
         </div>
       )}
 
@@ -450,15 +527,15 @@ export const HomeView: React.FC<{
                     {Icon.globe({ size: 14 })} {linkCount} link
                   </span>
                 )}
-                {aiReady && reason ? <span className="ns-validation-warning">{reason}</span> : null}
+                {createPathOk && reason ? <span className="ns-validation-warning">{reason}</span> : null}
               </div>
               <button
                 type="button"
                 className="ns-create-send"
                 onClick={submitCreate}
-                disabled={!inputValid || creating}
-                title={creating ? "Đang tạo…" : "Tạo video"}
-                aria-label={creating ? "Đang tạo…" : "Tạo video"}
+                disabled={!inputValid || creating || !createPathOk}
+                title={sendTitle}
+                aria-label={sendTitle}
               >
                 {creating ? (
                   <span className="ns-create-send-spin" aria-hidden />
@@ -468,8 +545,6 @@ export const HomeView: React.FC<{
               </button>
             </div>
           </div>
-          
-          {!aiReady && <p className="ns-create-hint warning">Chưa kết nối AI. Mở Cài đặt để kết nối.</p>}
 
           {/* Compact delivery knobs — one tight row, no empty column stretch */}
           <div className="ns-create-knobs" role="group" aria-label="Cấu hình">

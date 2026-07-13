@@ -20,6 +20,10 @@ export function aiStatus(gateway: GatewayState, account: AiAccountState): { colo
   if (gateway.kind === "unavailable") return { color: "var(--danger)", text: "AI chưa sẵn sàng" };
   if (account.kind !== "connected" || account.accounts.length === 0)
     return { color: "var(--warn)", text: "Chưa kết nối AI" };
+  // Connected but no model: align with create-path `aiReady` (not full green).
+  if (account.selectedModel === undefined) {
+    return { color: "var(--warn)", text: "Chưa chọn model" };
+  }
   // Sidebar stays quiet: email/label only — model id lives in Settings.
   return {
     color: "var(--good)",

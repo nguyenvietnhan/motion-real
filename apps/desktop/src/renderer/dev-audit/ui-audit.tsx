@@ -35,7 +35,23 @@ const content = screen === "projects" ? (
 ) : screen === "storyboard" ? (
   <StoryboardView model={{ projectId: "p1", globalNotes: "", scenes: Array.from({ length: 5 }, (_, index) => ({ sceneId: `scene-0${index + 1}`, order: index + 1, stillPath: "/dev-audit/audit-fixture.svg", editText: "" })) }} canApprove onBack={() => {}} onSubmit={async () => true} onApprove={() => {}} bgm={bgmTracks} bgmSelected="nhac-nen-mac-dinh.mp3" onBgmAdd={() => {}} onBgmRemove={async () => {}} onBgmSelect={async () => {}} />
 ) : (
-  <HomeView aiReady load="populated" cards={cards} defaultVoiceProvider="vivibe" onCreate={() => {}} onOpen={() => {}} onConnectPrompt={() => {}} onPickImages={async () => ({ staged: [], rejected: [] })} onImportImageBytes={async () => ({ staged: [], rejected: [] })} onDelete={() => {}} onReveal={() => {}} onRename={() => {}} />
+  <HomeView
+    gateway={{ kind: "ready", baseUrl: "http://127.0.0.1:20128" }}
+    account={account}
+    voiceCredentials={{ vivibe: "saved", elevenlabs: "missing" }}
+    vivibeVoiceId="audit-voice"
+    load="populated"
+    cards={cards}
+    defaultVoiceProvider="vivibe"
+    onCreate={() => {}}
+    onOpen={() => {}}
+    onConnectPrompt={() => {}}
+    onPickImages={async () => ({ staged: [], rejected: [] })}
+    onImportImageBytes={async () => ({ staged: [], rejected: [] })}
+    onDelete={() => {}}
+    onReveal={() => {}}
+    onRename={() => {}}
+  />
 );
 
 createRoot(document.getElementById("root")!).render(
