@@ -39,7 +39,7 @@ jobs:
         run: npm test
 
       # Webpack bundle of the whole Remotion app graph — fails non-zero if any
-      # @news/* source or scene component fails to type-resolve/compile. No
+      # @motionreal/* source or scene component fails to type-resolve/compile. No
       # browser is launched or downloaded here.
       - name: Build
         run: npm run build

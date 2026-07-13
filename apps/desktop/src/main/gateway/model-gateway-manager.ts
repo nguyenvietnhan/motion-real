@@ -18,11 +18,12 @@ export { aiReady } from "../../shared/ai-ready.js";
 /**
  * 9router gateway manager.
  *
- * Owns the bundled 9router child + the AI-account connections. Providers are
- * DISCOVERED dynamically; login is DELEGATED to the gateway's own UI (the
- * dashboard never reimplements OAuth/device-code/api-key screens); multiple
- * connections may be active; the user selects a model. The local gateway key is
- * generated + wired internally and never leaves the main process.
+ * Owns the external 9router-compatible gateway process (localhost) + AI-account
+ * connections. Providers are DISCOVERED dynamically; login is DELEGATED to the
+ * gateway's own UI (the dashboard never reimplements OAuth/device-code/api-key
+ * screens); multiple connections may be active; the user selects a model. The
+ * local gateway key is generated + wired internally and never leaves the main
+ * process.
  */
 
 export const GATEWAY_BASE_URL = "http://localhost:20128/v1";
@@ -49,9 +50,9 @@ export type GatewayDeps = {
 };
 
 /**
- * Owns the 9router child + AI-account connections 
- *. Concrete gateway is 9router on localhost:20128. Vivibe stays the
- * default voice — the gateway's TTS is unused.
+ * Owns the 9router child + AI-account connections.
+ * Concrete gateway is 9router (or compatible) on localhost:20128. Vivibe stays
+ * the default voice — the gateway's TTS is unused.
  */
 export class ModelGatewayManager {
   private gw: GatewayState = { kind: "starting", attempt: 0 };

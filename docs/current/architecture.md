@@ -15,7 +15,7 @@ instance.
 | `@motionreal/tts` | Vivibe/LucyLab and ElevenLabs clients, audio measurement, concat/mix helpers, SRT/timestamp support. |
 | `@motionreal/pipeline` | Authoring/admission, manifest conversion, ingest, TTS orchestration, lock, render, cache, review, safety grid, store, CLI, and the in-process `createTools` facade. |
 | `apps/remotion` | Remotion root and sample fixtures. |
-| `apps/desktop` | Electron app: create flow, workspace stages, settings, 9router gateway, hidden refine, BGM, thumbnail, export. |
+| `apps/desktop` | Electron app: create flow, workspace stages, settings, external 9router-compatible gateway (localhost:20128), hidden refine, BGM, thumbnail, export. |
 
 ## Desktop Main Internals
 

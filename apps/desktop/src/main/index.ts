@@ -73,8 +73,8 @@ scrubSensitiveEnvironment(process.env);
 /**
  * Electron main = the ENGINE HOST. Imports the pipeline tools
  * from source -> ONE `@motionreal/compositions` registry.
- * The bundled 9router gateway is a real 9router on localhost:20128; login is
- * delegated to 9router's own UI.
+ * Model chat uses an external 9router-compatible gateway on localhost:20128
+ * (not vendored in this repo); login is delegated to the gateway's own UI.
  */
 
 const SETTINGS_FILE = join(videoToolHome(), "motionreal-settings.json");

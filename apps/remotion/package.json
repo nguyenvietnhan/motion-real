@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "type": "module",
   "private": true,
+  "license": "MIT",
   "scripts": {
     "studio": "remotion studio",
     "render": "remotion render",

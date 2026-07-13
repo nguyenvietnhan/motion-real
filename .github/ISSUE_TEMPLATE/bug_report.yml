@@ -1,0 +1,73 @@
+name: Bug report
+description: Something is broken or behaves incorrectly
+title: "[bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for filing a bug. **Do not paste API keys, `.env` contents, or private video assets.**
+        For security issues, email **nguyenvietnhan.work@gmail.com** (see `SECURITY.md`) instead of a public issue.
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What went wrong in one or two sentences?
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: Minimal steps from a clean install if possible.
+      placeholder: |
+        1. …
+        2. …
+        3. …
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: OS
+      placeholder: e.g. Windows 11, Ubuntu 24.04, macOS 15
+    validations:
+      required: true
+  - type: input
+    id: node
+    attributes:
+      label: Node / npm
+      placeholder: e.g. Node 24.x, npm 11.x
+    validations:
+      required: true
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Surface
+      options:
+        - Desktop app
+        - Pipeline / CLI
+        - Remotion studio / render
+        - Docs
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / redacted diagnostics
+      description: Paste relevant errors only. Strip secrets, absolute home paths if sensitive, and full prompts/TSX if not needed.
+    validations:
+      required: false

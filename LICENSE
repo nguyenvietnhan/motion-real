@@ -1,36 +1,21 @@
-Copyright (c) 2026 Nguyen Viet Nhan. All Rights Reserved.
+MIT License
 
-PROPRIETARY AND CONFIDENTIAL
+Copyright (c) 2026 Nguyen Viet Nhan
 
-This software and its source code, including all files in this repository
-(the "Software"), are the proprietary and confidential property of Nguyen Viet
-Nhan (the "Owner").
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
 
-No license, express or implied, is granted to any person or entity. Without the
-Owner's prior written permission, you MAY NOT:
-
-  - copy, reproduce, or store the Software in whole or in part;
-  - use, run, or execute the Software for any purpose;
-  - modify, adapt, translate, or create derivative works of the Software;
-  - distribute, publish, sublicense, sell, rent, lease, or otherwise transfer
-    the Software or access to it;
-  - reverse engineer, decompile, or disassemble the Software except to the
-    extent this restriction is prohibited by applicable law;
-  - remove or alter this notice or any proprietary markings.
-
-Access to this repository does not transfer any ownership or intellectual
-property rights. All rights not expressly granted are reserved by the Owner.
-
-THIRD-PARTY COMPONENTS. The Software depends on third-party packages and assets
-that are licensed separately under their own terms (see each dependency's
-license). This notice applies only to the Owner's original code in this
-repository, not to those components.
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
-FOR A PARTICULAR PURPOSE, AND NONINFRINGEMENT. IN NO EVENT SHALL THE OWNER BE
-LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY, WHETHER IN AN ACTION OF
-CONTRACT, TORT, OR OTHERWISE, ARISING FROM, OUT OF, OR IN CONNECTION WITH THE
-SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-
-For licensing inquiries: nguyenvietnhan.work@gmail.com
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.

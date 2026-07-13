@@ -1,5 +1,8 @@
 # MotionReal
 
+[![CI](https://github.com/nguyenvietnhan/news_remotion_tool/actions/workflows/ci.yml/badge.svg)](https://github.com/nguyenvietnhan/news_remotion_tool/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 AI-driven **short-form** video generator on Remotion. Give a Vietnamese or
 English prompt (optional URLs and local images); the app plans content, writes
 fresh scene modules, speaks narration, and renders a publishable MP4.
@@ -37,8 +40,14 @@ Create (prompt / URLs / images)
 
 ## Requirements
 
-- **Node.js** `>= 24` and **npm** `>= 11` (see root `package.json` `engines`)
-- Windows-friendly commands below use `npm.cmd` (PowerShell execution policy)
+| Need | Notes |
+| --- | --- |
+| **Node.js** `>= 24`, **npm** `>= 11` | See root `package.json` `engines` |
+| **9router** (desktop AI) | External binary on `PATH`. Not vendored in this repo. App expects OpenAI-compatible chat at `http://localhost:20128/v1`. Launcher tries `9router -n -t --skip-update` if nothing is already listening. |
+| **TTS credentials** | Vivibe (Vietnamese) and/or ElevenLabs for real narration — see `docs/providers/`. Missing credentials **block** production render; never silent fall back to `mock` / `none`. |
+| **Chromium / Remotion browser** | Needed for real video stills/MP4 (`npm run smoke`, desktop/CLI render). **Not** required for `npm run typecheck`, `npm test`, or `npm run build` (webpack-only). |
+
+Windows-friendly commands below may use `npm.cmd` under PowerShell execution policy.
 
 ## Setup
 
@@ -51,11 +60,55 @@ Fill `.env` (or configure later in the desktop **Settings** UI):
 
 | Area | Notes |
 | --- | --- |
-| **TTS** | Vivibe (Vietnamese) or ElevenLabs — see `docs/providers/`. Missing credentials must **block** render; never silent fall back to `mock` / `none`. |
-| **AI planner** | OpenAI-compatible API (desktop also uses a local 9router-style gateway for model chat). |
+| **TTS** | Vivibe (Vietnamese) or ElevenLabs — see `docs/providers/`. |
+| **AI planner** | Desktop uses a **local 9router-compatible gateway** for model chat (not an in-repo binary). CLI / env-based OpenAI-compatible vars also appear in `.env.example` for non-desktop tooling. |
 | **Storage** | `VIDEO_TOOL_HOME` (default `.video-tool`) holds projects, cache, BGM library under `.video-tool/`. |
 
 Optional machine-only tool config: copy `.mcp.example.json` → `.mcp.json` (gitignored). Do not commit absolute paths.
+
+## First video
+
+### A. Desktop (full product path)
+
+1. Install deps and create `.env` (above).
+2. Install **9router** and ensure it is on `PATH`. Start it if needed:
+   `9router -n -t --skip-update` (port **20128**).
+3. Launch the app:
+
+```bash
+npm --prefix apps/desktop run app
+```
+
+4. In **Settings**, connect an AI account via the gateway UI and pick a model.
+5. Configure voice (Vivibe / ElevenLabs) with a real API key + voice id.
+6. On **Home**, enter a prompt (optional URLs/images), create, wait for draft,
+   review, then approve full export.
+
+### B. Offline-friendly checks (no paid APIs)
+
+```bash
+npm run typecheck
+npm test
+npm run build
+```
+
+Optional real Chromium stills smoke (downloads browser if needed; no TTS):
+
+```bash
+npm run smoke
+```
+
+Pipeline CLI (no-voice sample draft MP4 — needs Remotion browser; no Vivibe):
+
+```bash
+npx tsx packages/pipeline/src/cli/cli.ts render --sample
+```
+
+Environment doctor:
+
+```bash
+npx tsx packages/pipeline/src/cli/cli.ts doctor
+```
 
 ## Run the desktop app
 
@@ -63,9 +116,10 @@ Optional machine-only tool config: copy `.mcp.example.json` → `.mcp.json` (git
 npm --prefix apps/desktop run app
 ```
 
-That launcher builds Electron main/preload, starts the Vite renderer, ensures
-the model gateway is up when possible, and opens the UI. Project data shares the
-repo `VIDEO_TOOL_HOME` / `.video-tool` tree with CLI/scripts.
+That launcher builds Electron main/preload, starts the Vite renderer, tries to
+ensure the **external** 9router gateway is up when possible, and opens the UI.
+Project data shares the repo `VIDEO_TOOL_HOME` / `.video-tool` tree with
+CLI/scripts.
 
 Other useful scripts (repo root unless noted):
 
@@ -74,9 +128,9 @@ Other useful scripts (repo root unless noted):
 | `npm.cmd run typecheck` | Workspace TypeScript check |
 | `npm.cmd test` | Vitest suite |
 | `npm.cmd run build` | Remotion **webpack bundle only** (no browser download, no video render) |
-| `npm.cmd run smoke` | Smoke script |
+| `npm.cmd run smoke` | Real stills / determinism smoke (Chromium) |
 | `npm.cmd run studio` | Remotion Studio (`apps/remotion`) |
-| `npm --prefix apps/desktop run smoke:gateway` | Gateway smoke |
+| `npm --prefix apps/desktop run smoke:gateway` | Gateway smoke (live 9router) |
 
 ## Repository map
 
@@ -92,6 +146,7 @@ Other useful scripts (repo root unless noted):
 | `packages/tts` | Vivibe + ElevenLabs clients and audio helpers |
 | `docs/current/` | Durable product/architecture docs |
 | `docs/providers/` | TTS provider setup |
+| `docs/third-party.md` | Third-party and bundled-asset attribution |
 | `AI_CONTRACT.md` | Canonical rules for AI agents (entry: `AGENTS.md`) |
 | `.env.example` | Env template |
 
@@ -103,11 +158,15 @@ Do not commit generated project trees or secrets.
 | Doc | Use when |
 | --- | --- |
 | `AI_CONTRACT.md` | Agent/human contract: invariants, safety, workflow |
+| `CONTRIBUTING.md` | Setup, checks, PR expectations, sensitive files |
+| `SECURITY.md` | Private vulnerability reporting |
+| `CODE_OF_CONDUCT.md` | Community standards |
 | `docs/current/architecture.md` | Packages, data flow, media protocol, research, recovery |
 | `docs/current/authoring-contract.md` | Rules for generated scene modules |
 | `docs/current/content-guide.md` | Story, evidence, language, motion guidance |
 | `docs/current/maintenance.md` | Refactor guardrails, residual risks, log reading |
 | `docs/providers/vivibe.md` / `elevenlabs.md` | TTS credentials and API notes |
+| `docs/third-party.md` | Fonts, BGM, dependency attribution |
 
 Prefer `docs/current/` over ad-hoc notes. Do not leave long-lived plans under
 `docs/working-notes/` — sync outcomes into durable docs, then delete the note.
@@ -127,3 +186,16 @@ npm.cmd run typecheck
 npm.cmd test
 npm.cmd run build
 ```
+
+## Support
+
+This project is provided as-is under MIT. Help is **best effort** via GitHub
+Issues only — no SLA, no guaranteed response time. Please redact secrets from
+logs. Security issues: see [`SECURITY.md`](SECURITY.md).
+
+## License
+
+Copyright (c) 2026 Nguyen Viet Nhan. Released under the [MIT License](LICENSE).
+
+Third-party packages and some bundled assets have their own terms — see
+[`docs/third-party.md`](docs/third-party.md).
