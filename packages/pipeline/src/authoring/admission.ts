@@ -32,15 +32,10 @@ export type AdmissionPolicy = {
 };
 
 export const DEFAULT_ADMISSION_POLICY: AdmissionPolicy = {
-  // Post-freeform-pivot the layout blocks were deleted: the AI bốc pre-made
-  // @motionreal/blocks (TitleBlock/KeyPoints/Panel/Story/…) into every scene, which made
-  // every video look the same. Cutting @motionreal/blocks (and @motionreal/theme) from the
-  // whitelist is the STRUCTURAL lever — not a prompt nudge — that forces the AI to
-  // author every scene as 100% bespoke JSX/SVG. The image feature survives because
-  // the one sanctioned authored-facing export, SceneImage, is re-exported from
-  // @motionreal/compositions (which IS whitelisted and authored scenes must import anyway
-  // for registerComponent). @motionreal/blocks still exists as the render runtime the
-  // composition layer imports — but a scene can no longer reach it.
+  // Pure AUTHOR: only these imports pass admission. Layout-block packages
+  // (@motionreal/blocks, @motionreal/theme) are not whitelisted so scenes must be
+  // bespoke JSX/SVG. SceneImage is reached via @motionreal/compositions re-export.
+  // @motionreal/blocks remains render-runtime for the composition layer only.
   allowedImports: ["react", "remotion", "@motionreal/compositions", "zod"],
   bannedApis: [
     "Math.random",

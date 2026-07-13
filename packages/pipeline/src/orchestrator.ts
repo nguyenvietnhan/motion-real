@@ -186,7 +186,7 @@ function resolveBriefDuration(
 /** Fast-draft render fps (fewer frames → faster preview; motion is fps-aware). */
 const DRAFT_FPS = 10;
 /** Final full-quality render fps. 30 is the deliverable default (60fps doubles
- * the frame count for little gain on this editorial style). */
+ * the frame count for little gain on this short-form style). */
 const FULL_FPS = 30;
 const VALID_OPEN_GL_RENDERERS = new Set<RenderOpenGlRenderer>(["angle", "egl", "swiftshader", "swangle", "vulkan", "angle-egl"]);
 const VALID_CHROME_MODES = new Set<RenderChromeMode>(["headless-shell", "chrome-for-testing"]);
@@ -624,7 +624,7 @@ async function renderProjectUnlocked(projectId: string, opts: RenderProjectOptio
     const authoredSources = await timedPipelineStage("stage.read_authored_sources", () => readAuthoredSources(authoredFiles), {
       files: authoredFiles.length,
     });
-    // Desktop/MCP callers always pass bgmPath as either a selected path or null.
+    // Desktop/tools callers always pass bgmPath as either a selected path or null.
     // Fold that explicit choice into the full-render cache key; otherwise a
     // cached MP4 with music could be reused after the user chooses silence.
     let bgmCacheDiscriminator = "";
@@ -1027,9 +1027,9 @@ async function fail(projectId: string, message: string): Promise<void> {
 
 /**
  * Persist a safety report for a PRE-render failure (e.g. N10 typecheck) to the
- * same path the MCP `get_safety_report` tool reads. The render path's normal
- * report is written by the MCP layer AFTER a render returns; an early throw
- * never reaches that, so the repair loop would otherwise read a stale or missing
+ * same path `createTools.get_safety_report` reads. The normal render path
+ * writes the report after a successful render returns; an early throw never
+ * reaches that, so the repair loop would otherwise read a stale or missing
  * report and fail to route the scene-targeted fix. Best-effort: a persistence
  * failure must never mask the original error.
  */

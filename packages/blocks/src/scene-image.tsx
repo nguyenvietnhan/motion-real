@@ -79,8 +79,8 @@ export const SceneImage: React.FC<{
           objectFit: "contain",
           border: surfaceBorder(theme),
           borderRadius: surfaceRadius(theme, "md"),
-          // A neutral plate behind a transparent PNG so it sits on the language's
-          // panel surface rather than showing the backdrop through it.
+          // Neutral plate behind a transparent PNG so it sits on the panel
+          // surface rather than showing the backdrop through it.
           backgroundColor: theme.colors.panel,
         }}
       />

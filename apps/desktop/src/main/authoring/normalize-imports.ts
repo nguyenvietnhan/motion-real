@@ -1,20 +1,13 @@
 /**
  * Deterministic authored-import normalizer (hardening).
  *
- * Post-freeform-pivot the layout blocks were deleted and `@motionreal/blocks` /
- * `@motionreal/theme` were dropped from the authored-import whitelist (admission N4):
- * an authored scene writes 100% bespoke JSX/SVG and imports only `react`,
- * `remotion`, `@motionreal/compositions`, `zod`. The ONE authored-facing symbol that
- * survives is `SceneImage` (the sanctioned image block), now re-exported from
- * `@motionreal/compositions`.
- *
- * Models can still put `SceneImage` on the wrong current-namespace module, e.g.
- * "@motionreal/blocks"` — which now fails N4 and kills an image scene. So the only
- * useful re-home left is: route `SceneImage` from `@motionreal/blocks`/`@motionreal/theme`
- * onto `@motionreal/compositions`. Every OTHER symbol from those modules (Frame,
- * TitleBlock, useTheme, …) is intentionally NOT rescued — those blocks are gone,
- * and a scene that reaches for them SHOULD fail N4 so the model rewrites it as
- * raw JSX. Pure string transform; leaves everything else as-is.
+ * Authored scenes import only `react`, `remotion`, `@motionreal/compositions`,
+ * and `zod` (admission N4). The only authored-facing image symbol is `SceneImage`,
+ * re-exported from `@motionreal/compositions`. Models sometimes put `SceneImage`
+ * on `@motionreal/blocks` / `@motionreal/theme` (fails N4) — re-home that one
+ * symbol onto `@motionreal/compositions`. Other symbols from those packages
+ * (Frame, TitleBlock, useTheme, …) are not rescued; they should fail N4 so the
+ * model rewrites as raw JSX. Pure string transform; leaves everything else as-is.
  */
 
 /** The base identifier of a named-import clause: strips `type ` and `as alias`. */

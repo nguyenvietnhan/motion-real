@@ -125,9 +125,8 @@ export type ReauthorPromptInput = {
 };
 
 /**
- * Reauthor system prompt. The multi-language design system was deleted, so a
- * repair carries only the invariant authoring contract — there is no per-style
- * slice to restore toward anymore.
+ * Reauthor system prompt. Repair carries only the invariant AUTHOR contract —
+ * no style pack or theme identity to restore toward.
  */
 function reauthorSystem(): string {
   return `Bạn đang SỬA một cảnh video (module .tsx Remotion) cho đúng hợp đồng AUTHOR mode. Giữ ý/nội dung của cảnh, chỉ sửa lỗi được nêu.

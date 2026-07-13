@@ -1,14 +1,12 @@
 import { z } from "zod";
 
 /**
- * Renderer-agnostic video contract.
+ * Renderer-agnostic video contract for pure AUTHOR mode.
  *
- * Unlike the HyperFrames pipeline (which locked the AI into ~40 fixed template
- * IDs with rigid visual payloads), this schema keeps the structural / pacing /
- * narration discipline but leaves the *visual layer open*: every scene names a
- * Remotion `component` from an extensible registry and passes free-form `props`.
- * Each component validates its own props at the composition layer, so diversity
- * lives in code (React) rather than in a closed enum.
+ * Structural / pacing / narration discipline lives here; visuals stay open:
+ * every scene names a Remotion `component` from an extensible registry and
+ * passes free-form `props`. Each component validates its own props at the
+ * composition layer, so diversity lives in authored React code.
  */
 
 // Layout zones (content zone / caption band / platform-UI reserve) live in their

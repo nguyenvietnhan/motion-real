@@ -3,13 +3,11 @@ import type { Severity } from "./types.js";
 /**
  * Structured, surface-agnostic pipeline errors.
  *
- * One error vocabulary shared by every surface — CLI, MCP, and the bulk loop —
- * so a failure reads the same whether a buyer sees CLI text or an MCP tool
- * result: a failing STAGE, the specific CAUSE, the safety-check id when a grid
- * check tripped, the affected scene id when applicable, a hard-vs-advisory
- * SEVERITY, and a known REMEDIATION. The CLI formatter and the MCP serializer
- * are two renderings of one object — there is no second, surface-specific error
- * path.
+ * One error vocabulary for CLI, in-process `createTools`, desktop, and bulk:
+ * failing STAGE, specific CAUSE, safety-check id when a grid check tripped,
+ * affected scene id when applicable, hard-vs-advisory SEVERITY, and a known
+ * REMEDIATION. Callers serialize the same object for their transport — there is
+ * no second, surface-specific error path.
  */
 
 /** The pipeline stage a failure originates from. */
@@ -26,7 +24,7 @@ export type PipelineStage =
   | "tts"
   | "config";
 
-/** Plain, JSON-serializable form carried across a transport (e.g. an MCP tool result). */
+/** Plain, JSON-serializable form for tools/IPC/CLI JSON output. */
 export type SerializedPipelineError = {
   /** Human-readable one-line message (stage + cause [+ check/scene]). */
   message: string;

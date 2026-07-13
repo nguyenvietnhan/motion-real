@@ -373,7 +373,7 @@ describe("get_safety_report", () => {
   });
 });
 
-describe("render_stills — fast per-scene stills (freeform R4/R5)", () => {
+describe("render_stills — fast per-scene stills (no TTS)", () => {
   it("returns the rendered stills and needs NO Vivibe config (no TTS)", async () => {
     let calledProjectId: string | undefined;
     const tools = createTools({

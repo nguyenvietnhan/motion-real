@@ -9,15 +9,14 @@ import { easeOut } from "./motion.js";
  * `Captions` — burned-in single-line KARAOKE caption track, rendered
  * top-level by the composition (outside the transition series). Text only — NO
  * background box by default; bold ink text with a base-colored halo so it stays
- * legible on EITHER polarity (cream on editorial, deep night on galaxy). Each cue
- * is a short "page" of words; the word currently being spoken is highlighted in
- * the accent color (already-spoken words stay fg, upcoming words are dimmed).
- * Pure function of the frame (N16).
+ * legible over busy video. Each cue is a short "page" of words; the word
+ * currently being spoken is highlighted in the accent color (already-spoken
+ * words stay fg, upcoming words are dimmed). Pure function of the frame (N16).
  *
- * ONE shared caption band for every language (`CAPTION_BAND`) — the N29 oracle
- * reads the SAME constant, so the caption is drawn and measured in the same
- * place. A language may set `theme.captionScrim`, a faint plate behind the text
- * (chrome, the "outfit") for looks whose caption sits low over busy video.
+ * ONE shared caption band (`CAPTION_BAND`) — the N29 oracle reads the same
+ * constant, so the caption is drawn and measured in the same place. Optional
+ * `theme.captionScrim` paints a faint plate behind the text when configured
+ * (neutral theme leaves it off).
  */
 export const Captions: React.FC<{ cues: CaptionCue[] }> = ({ cues }) => {
   const theme = useTheme();
@@ -29,9 +28,7 @@ export const Captions: React.FC<{ cues: CaptionCue[] }> = ({ cues }) => {
 
   const band = CAPTION_BAND;
   const scrim = theme.captionScrim;
-  // Halo follows base polarity: the page background color (cream on editorial,
-  // deep night on galaxy) so the ink/light caption text is wrapped in a glow that
-  // matches its base and pops on busy video underneath.
+  // Halo uses the theme page background so caption ink pops on busy video.
   const halo = theme.colors.bg;
   // Deterministic shrink-to-fit: the band is fixed-width and captions are single
   // line (no wrap), so size the font from the page length to guarantee no clip.
@@ -57,16 +54,9 @@ export const Captions: React.FC<{ cues: CaptionCue[] }> = ({ cues }) => {
         justifyContent: "center",
         overflow: "hidden",
         pointerEvents: "none",
-        // Optional faint plate (chrome): a translucent scrim behind the caption
-        // for looks whose band sits low over busy video. Its base matches the
-        // language polarity — a dark ink plate on galaxy, a light paper plate on
-        // a light language. Omitted ⇒ no box (the classic look draws directly on
-        // the base).
+        // Optional faint plate behind the caption when theme.captionScrim is set.
         ...(scrim
           ? {
-              // The plate base is the language's own background (dark night on
-              // galaxy, cream on a light language), so the scrim always matches
-              // the polarity it sits over.
               background: withAlpha(theme.colors.bg, scrim.opacity),
               backdropFilter: scrim.blur > 0 ? `blur(${scrim.blur}px)` : undefined,
               borderRadius: scrim.radius,

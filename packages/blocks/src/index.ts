@@ -1,17 +1,11 @@
 /**
- * @motionreal/blocks — render RUNTIME internals + the single sanctioned image block.
+ * @motionreal/blocks — render RUNTIME internals + SceneImage implementation.
  *
- * Post-freeform-pivot the layout blocks (Frame/Content/TitleBlock/KeyPoints/
- * Panel/StatBlock/Story/…) were DELETED: the AI bốc them into every scene, which
- * made every video look the same. Authored scenes now write 100% bespoke JSX/SVG
- * and `@motionreal/blocks` is NO LONGER on the authored-import whitelist (admission N4).
- *
- * What survives in this barrel is the small render runtime that
- * `@motionreal/compositions` consumes — theme context, scene timing, the motion
- * hooks still used by runtime compositions, captions, fonts, the diagnostic
- * layout probe — plus `SceneImage`, which authored code reaches only through
- * `@motionreal/compositions` (that package re-exports it). Helper modules may
- * keep private/tested utilities, but they are not part of the public barrel.
+ * Not on the authored-import whitelist (admission N4). Authored scenes write
+ * bespoke JSX/SVG and import only `react`, `remotion`, `@motionreal/compositions`,
+ * and `zod`. This barrel is the small runtime `@motionreal/compositions` consumes
+ * — theme context, scene timing, motion hooks, captions, fonts, layout probe —
+ * plus `SceneImage` (authored code reaches it only via the compositions re-export).
  */
 
 // Theme context (the single shared runtime instance; consumed by compositions internally):

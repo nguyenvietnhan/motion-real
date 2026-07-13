@@ -59,7 +59,7 @@ describe("AUTHORING_CONTRACT — no-block / raw-JSX invariants", () => {
   });
 
   /**
-   * freeform pivot — three defects seen by eye on a real desktop render
+   * three defects seen by eye on a real desktop render
    * (content, not code), fixed by sharpening the contract the model reads:
    *
    * 1. On-screen text duplicated the full narration sentence. The burned karaoke

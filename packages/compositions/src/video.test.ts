@@ -66,7 +66,7 @@ describe("crossfadeOpacity (true crossfade, no mid-dip)", () => {
   });
 
   it("never yields a dual-zero window across the progress range", () => {
-    // Guards against reintroducing sequential fade-to-background (both 0 at 0.5).
+    // Guards against reintroducing sequential dip-to-empty (both 0 at mid).
     for (let i = 0; i <= 20; i += 1) {
       const p = i / 20;
       const enter = crossfadeOpacity(p, true);

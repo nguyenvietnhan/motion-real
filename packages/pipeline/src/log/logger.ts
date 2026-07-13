@@ -27,7 +27,7 @@ function resolveLevel(): string {
  * The single root logger. `pino.destination({ sync: false })` is a SonicBoom
  * stream on the main thread — fast, no worker thread, bundler-safe. fd 2
  * (stderr) keeps logs off stdout so they never corrupt a stdout JSON protocol
- * (the MCP stdio server writes its protocol to stdout).
+ * (CLI/tool JSON on stdout stays clean).
  */
 const root: Logger = pino(
   {

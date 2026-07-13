@@ -60,7 +60,7 @@ const META_IMAGE_KEYS = ["og:image", "og:image:url", "og:image:secure_url", "twi
 
 /**
  * Extract candidate image URLs from article HTML (PURE — no network). Collects
- * `og:image`/`twitter:image` `<meta>` first (the editorial lead image), then
+ * `og:image`/`twitter:image` `<meta>` first (the social lead image), then
  * content `<img>` preferring real lazy attrs over placeholder `src` (data-GIF /
  * empty). Relative URLs resolve against `baseUrl`; `data:`/`svg`/non-http and
  * obvious tracking pixels are dropped; deduped in first-seen order and capped

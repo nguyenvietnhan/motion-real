@@ -69,9 +69,9 @@ export type RenderGridOptions = {
   audioDriftTolerance?: number;
   /**
    * Outer decorative-frame ring (as a fraction of the smaller canvas side) that
-   * N14 ignores: a thin editorial border / corner ticks at the very edge is
-   * chrome the host platform overlays anyway, not content. Genuine content
-   * pushed into the platform-UI reserve still lies INSIDE this ring and fires.
+   * N14 ignores: a thin border / corner ticks at the very edge is chrome the
+   * host platform overlays anyway, not content. Genuine content pushed into the
+   * platform-UI reserve still lies INSIDE this ring and fires.
    */
   chromeMarginRatio?: number;
   /** Soft target total duration in seconds (N28-duration); 0/undefined disables. */
@@ -150,11 +150,9 @@ export function checkSafeArea(frame: Frame, sceneId?: string, options?: RenderGr
     return [
       {
         check: "N14",
-        // Freeform pivot: the safe-area / content-zone / divider family is the
-        // news-format LAYOUT constraint ("ép khuôn"). It is now ADVISORY — a
-        // full-bleed or edge-to-edge creative layout must not be hard-blocked.
-        // Captions remain a top-level overlay with their own scrim, so legibility
-        // survives even when authored content paints under them.
+        // Layout-margin N14 is ADVISORY — full-bleed creative layouts must not
+        // hard-block. Captions are a top-level overlay; legibility can survive
+        // content painting under them.
         severity: "warning",
         sceneId,
         message: `Content paints into the 9:16 safe-area margin (${(fraction * 100).toFixed(2)}% of the edge band); keep content inside the safe rect.`,
@@ -251,10 +249,9 @@ export function checkContentZone(frame: Frame, sceneId?: string, options?: Rende
   const inside = (x: number, y: number) =>
     x >= allowed.left && x <= allowed.right && y >= allowed.top && y <= allowed.bottom;
 
-  // Ignore a thin decorative-frame ring at the very canvas edge (editorial
-  // border + corner registration ticks are chrome the platform overlays, not
-  // content). Content genuinely intruding into the UI reserve sits inside this
-  // ring and is still flagged.
+  // Ignore a thin decorative-frame ring at the very canvas edge (border + corner
+  // ticks are chrome the platform overlays, not content). Content genuinely
+  // intruding into the UI reserve sits inside this ring and is still flagged.
   const ring = Math.floor(Math.min(width, height) * o.chromeMarginRatio);
   const inChromeRing = (x: number, y: number) =>
     x < ring || x >= width - ring || y < ring || y >= height - ring;
@@ -276,7 +273,7 @@ export function checkContentZone(frame: Frame, sceneId?: string, options?: Rende
     return [
       {
         check: "N14",
-        // Freeform pivot: advisory, not a hard gate (see checkSafeArea).
+        // advisory, not a hard gate (see checkSafeArea).
         severity: "warning",
         sceneId,
         message: `Content paints outside the content zone / caption band (${(fraction * 100).toFixed(2)}% of sampled pixels), e.g. into the platform-UI reserve; keep content inside the content zone.`,
@@ -314,9 +311,8 @@ export function checkCaptionClearance(frame: Frame, sceneId?: string, options?: 
   // Need enough vertical resolution to resolve the ~32px gap; on tiny frames the
   // band collapses and would false-positive, so skip (real stills are full/half res).
   if (bottom - top < 6) return [];
-  // Solid-run count (not raw per-pixel): a galaxy starfield speckles this gap with
-  // isolated stars that a raw count misreads as authored overflow; only adjacent
-  // runs (real text/box edges drifting down) count. Same fix as the above-divider scan.
+  // Solid-run count (not raw per-pixel): decorative speckle can false-positive;
+  // only adjacent runs (real text/box edges) count. Same as the above-divider scan.
   const minRun = Math.max(4, Math.round(8 * sx));
   const { band, content } = bandSolidContent(frame, { top, bottom, left, right }, o.contentThreshold, minRun);
   const fraction = band > 0 ? content / band : 0;
@@ -324,7 +320,7 @@ export function checkCaptionClearance(frame: Frame, sceneId?: string, options?: 
     return [
       {
         check: "N14",
-        // Freeform pivot: advisory, not a hard gate (see checkSafeArea).
+        // advisory, not a hard gate (see checkSafeArea).
         severity: "warning",
         sceneId,
         message: `Content reaches into the caption clearance gap (${(fraction * 100).toFixed(2)}% of the gap band); keep authored content clear of the caption band.`,
@@ -376,11 +372,10 @@ export function checkDividerClearanceAbove(frame: Frame, sceneId?: string, optio
   // On a tiny still the band collapses and would false-positive; skip (real
   // stills are full/half res, same guard as the below-divider scan).
   if (bottom - top < 6) return [];
-  // Count only SOLID horizontal runs (real text/box edges), not sparse speckle:
-  // a galaxy starfield paints isolated 1–4px stars in this band that a raw
-  // per-pixel count reads as "content flush on the divider" on EVERY scene. A
-  // run threshold scaled to the still resolution drops stars while still
-  // catching genuine overflow (which fills many adjacent columns).
+  // Count only SOLID horizontal runs (real text/box edges), not sparse
+  // decorative 1–4px dots that a raw per-pixel count misreads as overflow.
+  // A run threshold scaled to still resolution drops dots while catching
+  // genuine overflow (many adjacent columns).
   const minRun = Math.max(4, Math.round(8 * sx));
   const { band, content } = bandSolidContent(frame, { top, bottom, left, right }, o.contentThreshold, minRun);
   const fraction = band > 0 ? content / band : 0;
@@ -388,7 +383,7 @@ export function checkDividerClearanceAbove(frame: Frame, sceneId?: string, optio
     return [
       {
         check: "N14",
-        // Freeform pivot: advisory, not a hard gate (see checkSafeArea).
+        // advisory, not a hard gate (see checkSafeArea).
         severity: "warning",
         sceneId,
         message: `Content sits flush on the divider from above (${(fraction * 100).toFixed(2)}% of the band just above the divider); keep a clear gap above the line.`,
@@ -719,8 +714,8 @@ export function checkAudioSync(locked: LockedVideoSpec, options?: RenderGridOpti
  * Soft duration check: when a target is configured, warn if the finished video
  * lands outside `target ± tolerance`. Advisory only (free pacing stands), but it
  * surfaces "way under/over the brief" so a video that should be ~2 min does not
- * silently ship at ~1 min. "Rather over than under" is the editorial rule, so
- * the message distinguishes the two directions.
+ * silently ship at ~1 min. Prefer over-target to under-target; the message
+ * distinguishes the two directions.
  */
 export function checkDuration(locked: LockedVideoSpec, options?: RenderGridOptions): SafetyIssue[] {
   const o = opt(options);
@@ -901,16 +896,16 @@ export function checkDensity(frame: Frame, sceneId?: string, options?: RenderGri
  *
  * | id | auto-run in runRenderGrid | external orchestrator pass | exported/manual only | effective severity | posture reason |
  * | --- | --- | --- | --- | --- | --- |
- * | pacing (N20) | yes, spec | no | no | warning | pacing is editorial and recoverable |
+ * | pacing (N20) | yes, spec | no | no | warning | pacing is advisory and recoverable |
  * | audio-sync (N22) | yes, spec | no | no | warning | reports drift after lock without failing render |
  * | duration (N28) | yes, spec | no | no | warning | soft brief target, not render integrity |
  * | captions (N29) | yes, spec | no | no | warning | caption coverage/line-length advisory |
  * | in-frame (N14) | yes, format geometry | no | no | warning | catches off-canvas pixels while visual layout matures |
  * | content-zone (N14) | yes, TikTok frame | no | no | warning | TikTok content-zone/caption reserve is advisory |
  * | caption-clearance (N14) | yes, TikTok frame | no | no | warning | caption-band clearance is advisory |
- * | divider-clearance-above (N14) | yes, TikTok frame when enabled | no | no | warning | only meaningful for divider-rendering profiles |
+ * | divider-clearance-above (N14) | yes, TikTok frame when enabled | no | no | warning | only when divider paint is enabled |
  * | density (N30) | yes, frame | no | no | warning | overcrowding heuristic can false-positive |
- * | dead-air (N19) | yes, frame | no | no | warning | blank/near-empty stills need human/editorial review |
+ * | dead-air (N19) | yes, frame | no | no | warning | blank/near-empty stills need human review |
  * | contrast (N18) | yes, frame | no | no | warning | raster contrast estimate is approximate |
  * | transition (N21) | yes, adjacent frames | no | no | warning | coarse still-to-still flicker heuristic |
  * | safe-area (N14) | no | no | yes | warning | legacy/manual pixel probe, superseded by active N14 scans |

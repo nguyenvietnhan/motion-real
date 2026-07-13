@@ -2,11 +2,10 @@
  * The `AgentWorker` abstraction.
  *
  * ONE interface, TWO swappable implementations decided by the gateway choice:
- * (Y) headless agent-runtime adapter (auto-loads the shared contract/docs and MCP tools)
- * (X) custom-loop adapter (assembles a Preprompt, drives the OpenAI-compatible
- * gateway + MCP tools ourselves)
- * Both drive the SAME pipeline tools / single-process orchestrator, so the
- * rest of the design depends only on this interface — never on the chosen path.
+ * (Y) headless agent-runtime adapter (shared contract/docs + pipeline tools)
+ * (X) custom-loop adapter (preprompt + OpenAI-compatible gateway + pipeline tools)
+ * Both drive the same pipeline tools / single-process orchestrator, so the rest
+ * of the design depends only on this interface — never on the chosen path.
  * No engine internals appear here; this is the authoring contract the control
  * plane sees.
  */

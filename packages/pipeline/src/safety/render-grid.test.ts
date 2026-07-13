@@ -169,10 +169,10 @@ describe("N14 above-divider clearance", () => {
     paint(f, { x: 120, y: 1338, width: 500, height: 10 }, WHITE); // would otherwise fire
     expect(checkDividerClearanceAbove(f)).toEqual([]);
   });
-  it("does NOT fire on a sparse galaxy starfield in the band (decorative speckle, not overflow)", () => {
-    // The bug this guards: a galaxy backdrop paints isolated 1–4px stars (+ a
+  it("does NOT fire on sparse decorative speckle in the band (not overflow)", () => {
+    // The bug this guards: a decorative backdrop paints isolated 1–4px dots (+ a
     // faint nebula glow) in the thin band above the divider. A raw per-pixel
-    // count read them as "content flush on the divider" on EVERY galaxy scene,
+    // count read them as "content flush on the divider" on every scene,
     // hard-blocking the render. Scattered specks never form a solid run, so the
     // run-based count must drop them — while real overflow (above) still fires.
     const f = makeFrame(1080, 1920);
@@ -316,7 +316,7 @@ describe("N14 zone-aware (content zone / caption band)", () => {
   it("tolerates a thin decorative frame border + corner ticks at the very edge", () => {
     const f = makeFrame(1080, 1920);
     paint(f, { x: 200, y: 300, width: 600, height: 600 }, WHITE); // real content, in zone
-    // A 4px editorial border just inside the canvas edge (inset ~40px) + ticks.
+    // A 4px decorative border just inside the canvas edge (inset ~40px) + ticks.
     paint(f, { x: 40, y: 40, width: 1000, height: 4 }, WHITE); // top
     paint(f, { x: 40, y: 1876, width: 1000, height: 4 }, WHITE); // bottom (in UI reserve)
     paint(f, { x: 40, y: 40, width: 4, height: 1840 }, WHITE); // left

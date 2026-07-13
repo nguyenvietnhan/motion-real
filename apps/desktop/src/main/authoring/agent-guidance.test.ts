@@ -6,7 +6,7 @@ const rootFile = (path: string): string =>
   readFileSync(fileURLToPath(new URL(`../../../../../${path}`, import.meta.url)), "utf8");
 
 describe("AI video-authoring guidance", () => {
-  it("keeps the canonical contract aligned with the freeform authored surface", () => {
+  it("keeps the canonical contract aligned with pure AUTHOR mode", () => {
     const text = rootFile("AI_CONTRACT.md");
 
     expect(text).toMatch(/raw JSX\/SVG|raw <div>\/<svg>/);

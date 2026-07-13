@@ -13,7 +13,7 @@ const BGM_MENU_WIDTH_PX = 268;
  * Background-music picker: a compact dropdown of the per-machine BGM
  * library + add/remove, shown in the storyboard header so the user sets the
  * track BEFORE approving the full render (the choice is persisted to the
- * manifest; the MCP render tool resolves it to a real path and mixes it in).
+ * manifest; the render path resolves it to a real path and mixes it in).
  * "Không nhạc" clears the selection. The custom menu keeps select, preview,
  * add, and remove in one compact control instead of scattering peer buttons
  * across the storyboard toolbar.

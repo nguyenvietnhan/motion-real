@@ -30,8 +30,8 @@ export type VideoCompositionProps = {
 
 /**
  * True crossfade opacity for transition presentations: both layers stay visible
- * across the full progress range (sum = 1). Avoids sequential fade-to-backdrop,
- * which briefly exposes only CompositionBackdrop (a dark flash on bright scenes).
+ * across the full progress range (sum = 1). Avoids sequential dip-to-empty mid
+ * frames that flash only CompositionBackdrop on bright scenes.
  */
 export function crossfadeOpacity(progress: number, entering: boolean): number {
   const p = Math.min(1, Math.max(0, progress));
@@ -158,19 +158,14 @@ export const CompositionBackdrop: React.FC<{ theme: Theme; children: React.React
 };
 
 /**
- * Horizontal divider at the content-zone bottom — the editorial baseline that
- * separates authored content from the burned-in caption band. Rendered globally
- * by the composition (not per scene), so when a language draws it, it appears on
- * EVERY video regardless of what the authored scenes draw.
- *
- * Whether the LINE is painted is a per-language CHROME choice (`backdrop.divider`).
- * The current production theme turns it off. The old above-divider N14 oracle is
- * now opt-in/manual, so this toggle is paint only and must not imply a production
- * gate by itself.
+ * Horizontal divider at the content-zone bottom — separates authored content
+ * from the burned-in caption band. Rendered globally by the composition (not
+ * per scene). Paint is gated by `theme.backdrop.divider` (neutral theme: off).
+ * Above-divider N14 clearance is opt-in/manual; this toggle is paint only.
  */
 const CaptionDivider: React.FC<{ color: string }> = ({ color }) => {
   const theme = useTheme();
-  // Chrome-only: a language may keep the clearance but not paint the bar.
+  // Chrome-only: theme may keep clearance geometry but not paint the bar.
   if (!theme.backdrop.divider) return null;
   // Drawn at the ONE shared content-zone bottom, never a drifting hard-coded y.
   return (
@@ -208,16 +203,11 @@ export const SceneContent: React.FC<{ scene: LockedSceneSpec; strictSceneErrors?
   const inner = scene.emphasis === "zoom" ? <SceneZoom>{content}</SceneZoom> : content;
   if (strictSceneErrors) return <>{inner}</>;
 
-  // Freeform pivot: a single authored scene that THROWS at render time (e.g. a
-  // `.map` over an undefined prop) used to crash headless Chromium and take the
-  // WHOLE video down with an opaque error. With the hard prop/typecheck gates
-  // relaxed to warnings, that risk moves to render time — so each scene renders
-  // inside its OWN boundary: a throwing scene shows a graceful fallback (its
-  // headline on a safe layout) while every other scene still renders. The video
-  // ALWAYS ships. The pre-render runtime probe flips `strictSceneErrors` so the
-  // pipeline still catches and targets the authored crash instead of accepting a
-  // fallback-clean render. The boundary is a pure function of its subtree (no
-  // state read from outside render), so determinism (N16) is unaffected.
+  // A single authored scene that throws at render time must not take the whole
+  // video down. Each scene renders inside its own boundary: a throwing scene
+  // shows a graceful fallback while other scenes still render. The pre-render
+  // runtime probe flips `strictSceneErrors` so the pipeline still targets the
+  // crash instead of accepting a fallback-clean render. Determinism (N16) holds.
   return (
     <SceneErrorBoundary fallback={<SceneFallback headline={scene.headline} eyebrow={scene.eyebrow} />}>
       {inner}
@@ -226,11 +216,11 @@ export const SceneContent: React.FC<{ scene: LockedSceneSpec; strictSceneErrors?
 };
 
 /**
- * Per-scene render boundary (freeform pivot). Catches a runtime throw from ONE
- * authored scene so it can't crash the whole render; renders `fallback` instead.
- * Deterministic: `getDerivedStateFromError` is a pure transform of the caught
- * error into `{ failed: true }`, so the same broken scene always yields the same
- * fallback pixels (no time/random/network), keeping the N16 guard valid.
+ * Per-scene render boundary. Catches a runtime throw from ONE authored scene so
+ * it can't crash the whole render; renders `fallback` instead. Deterministic:
+ * `getDerivedStateFromError` is a pure transform of the caught error into
+ * `{ failed: true }`, so the same broken scene always yields the same fallback
+ * pixels (no time/random/network), keeping the N16 guard valid.
  */
 class SceneErrorBoundary extends React.Component<
   { fallback: React.ReactNode; children: React.ReactNode },
@@ -250,7 +240,7 @@ class SceneErrorBoundary extends React.Component<
 
 /**
  * Graceful fallback for a scene that threw: the headline + eyebrow centered on
- * the language's base surface, inside the safe content zone. The video keeps a
+ * the theme base surface, inside the safe content zone. The video keeps a
  * readable beat for that scene instead of a blank frame or a dead render.
  */
 const SceneFallback: React.FC<{ headline: string; eyebrow?: string }> = ({ headline, eyebrow }) => {

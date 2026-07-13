@@ -15,9 +15,9 @@ import type { AuthorImageRef } from "./agent-worker.js";
 import { generateValidateRepair, type SafetyReportView, type RenderResult } from "./repair-loop.js";
 
 /**
- * Path-X custom-loop AgentWorker adapter. It drives the 9router gateway + MCP
- * tools and orchestrates author / re-author / repair via the `AuthoringBackend`
- * seam, and is testable without a live model.
+ * Custom-loop AgentWorker adapter. Drives the 9router gateway + pipeline tools
+ * and orchestrates author / re-author / repair via the `AuthoringBackend` seam.
+ * Testable without a live model.
  */
 
 /** One authored/re-authored scene with its review keyframe. */
@@ -31,7 +31,7 @@ export type AuthoredScene = { sceneId: string; stillPath: string };
  */
 export type ReauthorTarget = { sceneId: string; issues?: SafetyIssue[]; intent?: string; visual?: boolean };
 
-/** The model+MCP-facing operations the custom loop drives. Render/chat ops take
+/** Model + pipeline tool operations the custom loop drives. Render/chat ops take
  * an optional `signal` so a user "Dừng render" aborts the in-flight Remotion
  * encode (via Remotion's cancelSignal) and the AI calls (via fetch abort). */
 export interface AuthoringBackend {
@@ -49,13 +49,13 @@ export interface AuthoringBackend {
   }>;
   /** Re-author ONLY the named scenes (code-level self-repair / visual edit). */
   reauthor(projectId: string, targets: ReauthorTarget[], signal?: AbortSignal): Promise<{ scenes: AuthoredScene[] }>;
-  /** Render one draft (drives the MCP `render_draft` tool); failure carries the engine error. */
+  /** Render one draft (pipeline `render_draft` / renderProject quality draft). */
   renderDraft(projectId: string, signal?: AbortSignal): Promise<RenderResult>;
   /** Optional fast per-scene STILLS render (no TTS/MP4) — the cheap loop the silent refine pass iterates on. */
   renderStills?(projectId: string, sceneIds?: string[], signal?: AbortSignal): Promise<{ stills: string[] }>;
-  /** Render the final full-quality MP4 (drives MCP `render_full`); draft-first unless forceFull. */
+  /** Render the final full-quality MP4 (pipeline `render_full`); draft-first unless forceFull. */
   renderFull(projectId: string, signal?: AbortSignal, opts?: { forceFull?: boolean }): Promise<PublishResult>;
-  /** Read the safety report for the just-rendered draft (MCP `get_safety_report`). */
+  /** Read the safety report for the just-rendered draft (`get_safety_report`). */
   getSafetyReport(projectId: string): Promise<SafetyReportView>;
   /**
    * Optional AI visual-QA over rendered stills (vision model); flags layout defects.

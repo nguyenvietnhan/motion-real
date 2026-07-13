@@ -94,12 +94,11 @@ export function analyzeFrame(frame: Frame, threshold: number): FrameStats {
 
 /**
  * Count "solid content" pixels inside a rectangular band, ignoring sparse
- * speckle (e.g. a galaxy starfield's tiny stars/nebula). A real content element
- * — text, a box edge, an image — paints a RUN of adjacent pixels on a row; a
- * star is 1–4 isolated pixels with background on both sides. So we count a pixel
- * as content only when it belongs to a horizontal run of at least `minRun`
- * content pixels. Scattered stars never form a long-enough run and drop out,
- * while genuine overflow (which fills many adjacent columns) is still counted.
+ * decorative speckle (tiny 1–4px dots). A real content element — text, a box
+ * edge, an image — paints a RUN of adjacent pixels on a row; isolated dots have
+ * background on both sides. Count a pixel as content only when it belongs to a
+ * horizontal run of at least `minRun` content pixels. Scattered dots never form
+ * a long-enough run and drop out, while genuine overflow still counts.
  *
  * This is the pixel-side complement to the geometric clearance fix: the band is
  * already chosen by geometry (e.g. just above the divider); this removes the

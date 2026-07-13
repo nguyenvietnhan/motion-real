@@ -34,8 +34,8 @@ export function runStaticGrid(spec: VideoSpec, opts: StaticGridOptions = {}): Sa
   // N1: structural (uses the registry's known ids for unknown-component detection too)
   const structural = validateVideoSpecStructure(spec, known);
   for (const message of structural.errors) {
-    // Freeform pivot: only the CRASH / no-video class hard-blocks; everything
-    // else is advisory (the video renders fine, so it must not be gated). Hard:
+    // Only the CRASH / no-video class hard-blocks; everything else is advisory
+    // (the video renders fine, so it must not be gated). Hard:
     // - unknown component (N2) — nothing to render for that scene;
     // - empty spec — there is no video at all;
     // - duplicate scene id — the per-scene still is written to `<id>.png` and the
@@ -85,11 +85,9 @@ export function runStaticGrid(spec: VideoSpec, opts: StaticGridOptions = {}): Sa
       for (const err of result.errors) {
         issues.push({
           check: "N3",
-          // Freeform pivot: a prop-shape mismatch is now ADVISORY, not a hard
-          // block. Authored scenes carry their own defaults and a render-time
-          // error boundary catches a genuinely broken scene, so a Zod mismatch
-          // must not stop a video that otherwise renders. It rides along as a
-          // warning for visibility + an optional reauthor.
+          // Prop-shape mismatch is ADVISORY, not a hard block. Authored scenes
+          // carry defaults and a render-time error boundary catches real crashes,
+          // so a Zod mismatch must not stop a video that otherwise renders.
           severity: "warning",
           sceneId: scene.id,
           path: err.path || undefined,

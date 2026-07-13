@@ -94,10 +94,8 @@ describe("static grid — clean baseline", () => {
 });
 
 describe("static grid — N1 structural", () => {
-  // Freeform pivot: a non-sequential `scene-NN` id is a cosmetic convention (the
-  // renderer keys by whatever id is given), so it surfaces as a WARNING and no
-  // longer hard-blocks a video that renders fine. Only the crash/no-video class
-  // (unknown component, empty spec, duplicate id) stays hard.
+  // Non-sequential `scene-NN` id is cosmetic (renderer keys by whatever id is
+  // given) → WARNING, not hard-block. Crash/no-video class stays hard.
   it("warns (does not hard-block) when a scene id is out of sequence", () => {
     const spec = validSpec();
     spec.scenes[1]!.id = "scene-99";
@@ -225,9 +223,8 @@ describe("static grid — N3 prop validation", () => {
 });
 
 describe("static grid — N6 phonetic / N7 spaced abbreviations", () => {
-  // Freeform pivot: these are Vietnamese-TTS heuristics that always misfire on
-  // Korean/German/English content, so they are advisory WARNINGS now — they still
-  // fire (so a Vietnamese author sees the nudge) but never hard-block a render.
+  // Vietnamese-TTS heuristics can misfire on other languages → advisory WARNINGS
+  // (nudge only; never hard-block a render).
   it("warns (does not hard-block) on phonetic spelling in a display field", () => {
     const spec = validSpec();
     spec.scenes[3]!.headline = "Sức mạnh của Ô pân A I";

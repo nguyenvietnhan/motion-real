@@ -21,14 +21,13 @@ import {
 } from "../apps/desktop/src/shared/settings-model.js";
 
 /**
- * Vivibe read-rate calibration (freeform-engine K1/R5.4/D13).
+ * Vivibe read-rate calibration.
  *
- * Sends a handful of fixed-length Vietnamese passages through the CONFIGURED
- * Vivibe voice, measures the REAL audio seconds each took, and derives the
- * average words/second (Σ words / Σ seconds). Writes the result + the voiceId it
- * was measured for back into the desktop settings JSON so the author prompt's
- * word-budget math uses the measured rate (replacing the baked ~4.7 guess). The
- * rate is voice-specific, so re-run this after changing the voice.
+ * Sends fixed-length Vietnamese passages through the configured Vivibe voice,
+ * measures real audio seconds, and derives average words/second (Σ words / Σ
+ * seconds). Writes the result + voiceId into desktop settings so author word
+ * budgets use the measured rate. Rate is voice-specific — re-run after a voice
+ * change.
  *
  * Usage (needs the Vivibe key + voice id, same env the engine reads):
  *   npx tsx --env-file=.env scripts/calibrate-voice.ts

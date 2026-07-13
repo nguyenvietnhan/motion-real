@@ -10,9 +10,8 @@ import { registerComponent, type SceneComponentProps } from "@motionreal/composi
  * real visuals without a per-project authored bundle. Importing this module
  * registers them.
  *
- * Post-freeform-pivot the layout blocks were deleted, so these demos are written
- * as raw JSX/CSS — the SAME shape an authored scene now takes (bespoke <div>/<svg>,
- * theme tokens hard-coded, motion via useCurrentFrame + interpolate).
+ * Demos use raw JSX/CSS — the same shape authored scenes take (bespoke
+ * <div>/<svg>, colors hard-coded, motion via useCurrentFrame + interpolate).
  */
 
 const FG = "#F2F5F8";

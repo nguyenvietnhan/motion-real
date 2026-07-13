@@ -246,9 +246,9 @@ by Settings `reviewMode`:
 
 Silent refine (`refinePasses`) is independent of `reviewMode` and still runs for
 `stills_edit` / `skip_edit` before the stills (or full) handoff. Desktop publish
-passes `forceFull` when no draft MP4 exists. CLI/MCP draft-first is unchanged
-unless the caller sets forceFull. Deliberate cancellation between stages is not
-treated as project failure.
+passes `forceFull` when no draft MP4 exists. CLI and in-process `createTools`
+stay draft-first unless the caller sets forceFull. Deliberate cancellation
+between stages is not treated as project failure.
 
 ## Data Flow
 
@@ -306,11 +306,15 @@ example `apps/desktop/assets/bgm/default.mp3`; the default BGM is exposed as a
 virtual built-in track that resolves directly to this asset, not as a copied
 runtime-library file. Root-level media assets should not be added.
 
-Stills are the cheap visual pass. Draft MP4s are lower quality previews that
-follow the same timing path as full renders. Ready-stage storyboard review can
-seek/highlight scenes from the locked timeline (`video-spec.lock.json`) without
-estimating timing; a missing lock keeps still-only review. Full MP4 output is
-the deliverable and should run only after user approval. TTS provider and voice come from
+Stills are the cheap visual pass: admit + no-TTS hold lock + PNG midpoints
+(refine loop). They share the same composition/admission stack as production
+stills but do **not** use the TTS-locked draft/full timeline, and are not
+pixel-identical to H.264 frames. Draft MP4s are lower-quality previews that
+follow the same TTS lock timing path as full renders (draft also uses lower
+fps/scale/encode knobs). Ready-stage storyboard review can seek/highlight scenes
+from the locked timeline (`video-spec.lock.json`) without estimating timing; a
+missing lock keeps still-only review. Full MP4 output is the deliverable and
+should run only after user approval. TTS provider and voice come from
 project/user settings; missing credentials stop render instead of silently
 falling back to another provider. `mock` and `none` are explicit CLI/dev/offline
 TTS modes; the desktop production path must not select them as a hidden fallback.

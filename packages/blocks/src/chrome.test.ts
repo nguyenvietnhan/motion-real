@@ -12,12 +12,10 @@ import {
 } from "./chrome.js";
 
 /**
- * The block SURFACE-KIT maps the resolved (neutral) theme's `surface`/`radius`/
- * `colors` tokens to concrete CSS, so ONE set of blocks renders against the one
- * neutral grammar the freeform engine ships. These test the pure mapping (no
- * React render): the neutral theme is a dark, hairline-bordered, softly-rounded,
- * soft-shadow, outline-chip look — and the kit must read every value from tokens,
- * never hard-code, so a future theme change flows through automatically.
+ * Surface helpers map the neutral theme's `surface`/`radius`/`colors` tokens to
+ * concrete CSS. These tests cover the pure mapping (no React render): dark base,
+ * hairline border, soft radius/shadow, outline chips — values come from tokens,
+ * not hard-codes.
  */
 describe("surface-kit — neutral theme token mapping", () => {
   const accent = "#2F5FF0";
@@ -34,10 +32,10 @@ describe("surface-kit — neutral theme token mapping", () => {
     expect(surfaceRadius(t, "lg")).toBeGreaterThan(surfaceRadius(t, "md"));
   });
 
-  it("soft shadow — a diffuse depth shadow, not the editorial hard-offset print drop", () => {
+  it("soft shadow — a diffuse depth shadow, not a hard-offset drop", () => {
     const shadow = surfaceShadow(t, accent);
     expect(shadow).not.toBe("none");
-    expect(shadow).not.toContain("10px 10px 0"); // not a hard-offset print drop
+    expect(shadow).not.toContain("10px 10px 0"); // not hard-offset
   });
 
   it("blockSurface composes border + radius + fill + shadow from tokens", () => {

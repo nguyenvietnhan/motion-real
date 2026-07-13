@@ -1,22 +1,15 @@
 /**
- * @motionreal/theme — the SINGLE neutral theme.
+ * @motionreal/theme — one neutral runtime theme for render internals.
  *
- * The "thay máu" overhaul deletes the multi-language design system and its
- * editorial/galaxy `StyleLanguage` registry. Authored scenes now decide
- * ALL of their own visuals in code; the engine no longer imposes a look. But
- * `@motionreal/blocks` still reads a resolved `Theme` off `useTheme` in render
- * internals, so we keep ONE neutral theme: a dark near-black base, near-white
- * ink, one accent, medium corners, render-safe fonts. Authored scenes do not
- * read this theme or import blocks.
+ * Authored scenes decide their own visuals in code and must not import this
+ * package. `@motionreal/blocks` still reads a resolved `Theme` via `useTheme`
+ * (captions, chrome helpers, SceneImage, etc.), so we keep a single dark
+ * near-black base, near-white ink, one accent from the dominant hue, medium
+ * corners, and render-safe fonts.
  *
- * This module keeps the runtime `Theme` shape and the proven 2-layer cross-model
- * defense (typed alias keys + a Proxy fallback) for `colors` and `radius`, so a
- * stale runtime/fixture token read can never break a render. There is no
- * selectable style identity here: `makeTheme` derives one neutral runtime theme
- * from the dominant hue.
- *
- * Pure + deterministic (no Math.random / Date / IO): a theme is a stable function
- * of its dominant hue.
+ * Runtime defense: typed alias keys + Proxy fallback on `colors` / `radius` so a
+ * stale token read cannot break a render. Pure + deterministic (no Math.random /
+ * Date / IO): a theme is a stable function of its dominant hue.
  */
 
 // --- Color math (pure, deterministic) -------------------------------------
@@ -210,7 +203,7 @@ export type SurfaceTokens = {
   labelUppercase: boolean;
 };
 
-/** Full-canvas backdrop tokens a language paints behind content. */
+/** Full-canvas backdrop tokens painted behind content. */
 export type BackdropTokens = {
   fill: "flat" | "radial";
   grid: boolean;
@@ -496,10 +489,10 @@ export function sceneBackground(t: Theme = theme): string {
 }
 
 /** Short design-system note surfaced to tooling (doctor). */
-export const designNotes = `## Neutral theme (freeform)
+export const designNotes = `## Neutral theme
 
-Một theme trung tính DUY NHẤT cho video 9:16: nền tối gần đen, chữ gần trắng,
+Một theme trung tính duy nhất cho video 9:16: nền tối gần đen, chữ gần trắng,
 một màu nhấn theo dominant, bo góc vừa, font render-safe (Inter + Cascadia Mono).
-A.I tự quyết toàn bộ màu/bố cục trong code cảnh. Theme này chỉ phục vụ runtime
+AI tự quyết toàn bộ màu/bố cục trong code cảnh. Theme này chỉ phục vụ runtime
 internals như captions, thumbnail, backdrop và SceneImage; authored scenes không
 đọc theme tokens và không import \`@motionreal/theme\`.`;

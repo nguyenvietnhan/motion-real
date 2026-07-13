@@ -2,26 +2,24 @@ import React from "react";
 import { withAlpha, type Theme } from "@motionreal/theme";
 
 /**
- * The block SURFACE-KIT — pure helpers that turn a resolved language's `surface`
- * / `radius` / `colors` tokens into concrete CSS. Blocks call these instead of
- * hard-coding `4px solid #17150F`, `border-radius: 0`, or a fixed drop shadow, so
- * the SAME block renders correctly in EVERY design language (editorial print,
- * galaxy dark, and any future language) by reading the theme. This is the seam
- * that makes the look swappable end-to-end.
+ * Block surface helpers — pure functions that map the neutral runtime theme's
+ * `surface` / `radius` / `colors` tokens into concrete CSS. Render internals use
+ * these instead of hard-coded borders, radii, or shadows so chrome stays
+ * consistent with `makeTheme`. Authored scenes do not import this package.
  *
  * All functions are pure (theme in → CSS out), so a block stays deterministic.
  */
 
 // --- Border ---------------------------------------------------------------
 
-/** CSS `border` shorthand for a delineated block, per the language's surface tokens. */
+/** CSS `border` shorthand for a delineated block, from theme surface tokens. */
 export function surfaceBorder(theme: Theme): string {
   const w = theme.surface.borderWidth;
   if (w <= 0) return "none";
   return `${w}px solid ${theme.surface.borderColor}`;
 }
 
-/** Border width in px (0 ⇒ the language draws no border) — for per-side borders. */
+/** Border width in px (0 ⇒ no border) — for per-side borders. */
 export function surfaceBorderWidth(theme: Theme): number {
   return Math.max(0, theme.surface.borderWidth);
 }
@@ -35,7 +33,7 @@ export function innerDivider(theme: Theme): string {
 
 // --- Radius ---------------------------------------------------------------
 
-/** Corner radius in px for a given element size, from the language's radius scale. */
+/** Corner radius in px for a given element size, from the theme radius scale. */
 export function surfaceRadius(theme: Theme, size: "sm" | "md" | "lg" = "md"): number {
   return theme.radius[size];
 }
@@ -43,10 +41,10 @@ export function surfaceRadius(theme: Theme, size: "sm" | "md" | "lg" = "md"): nu
 // --- Shadow ---------------------------------------------------------------
 
 /**
- * CSS `boxShadow` for a floating block, per the language's shadow style:
- * - "hard-offset" → editorial print drop (`10px 10px 0 accent`)
- * - "glow" → galaxy neon glow in the accent + a soft depth shadow
- * - "soft" → a gentle diffuse depth shadow
+ * CSS `boxShadow` for a floating block, from `theme.surface.shadowStyle`:
+ * - "hard-offset" → hard offset drop (`10px 10px 0 accent`)
+ * - "glow" → accent halo + soft depth shadow
+ * - "soft" → gentle diffuse depth shadow (neutral theme default)
  * - "none" → no shadow
  * `accent` is the color the block wants to express (usually its tone color).
  */
@@ -55,8 +53,6 @@ export function surfaceShadow(theme: Theme, accent: string): string {
     case "hard-offset":
       return `10px 10px 0 ${withAlpha(accent, 0.9)}`;
     case "glow":
-      // Neon halo in the accent + a soft dark depth shadow so the card lifts off
-      // the night base without a hard edge.
       return `0 0 24px ${withAlpha(accent, 0.45)}, 0 12px 32px rgba(0,0,0,0.45)`;
     case "soft":
       return `0 12px 32px rgba(0,0,0,0.22)`;
@@ -87,10 +83,9 @@ export function blockSurface(
 }
 
 /**
- * The accent TOP-RULE bar style (the editorial print detail: a solid accent strip
- * across a block's top edge). Returns null for languages that express accent
- * another way (galaxy = glow + tint, `surface.topRule: false`) so a block simply
- * omits the bar. The bar respects the block's top corners (rounded languages).
+ * Accent top-rule bar (solid strip across a block's top edge). Returns null when
+ * `surface.topRule` is false (neutral theme default). Respects the block's top
+ * corner radius when present.
  */
 export function topRuleStyle(theme: Theme, color: string): React.CSSProperties | null {
   if (!theme.surface.topRule) return null;
@@ -107,11 +102,10 @@ export function topRuleStyle(theme: Theme, color: string): React.CSSProperties |
 // --- Chips / labels -------------------------------------------------------
 
 /**
- * Style for a small label/eyebrow CHIP, per the language's chip style:
- * - "solid" → a solid accent fill with readable text on it (editorial)
- * - "outline" → a translucent tinted pill with an accent border + accent text (galaxy)
- * `onColor` is the function that picks readable text on a solid fill (passed in
- * so blocks keep using the language-aware resolver).
+ * Style for a small label/eyebrow chip, from `theme.surface.chipStyle`:
+ * - "solid" → solid accent fill with readable text on it
+ * - "outline" → translucent tinted pill with accent border + accent text
+ * `onColor` picks readable text on a solid fill.
  */
 export function chipStyle(
   theme: Theme,
@@ -136,9 +130,8 @@ export function chipStyle(
 }
 
 /**
- * Shared text styling for a mono label/eyebrow (tracking + case), per the
- * language: editorial shouts in uppercase with wide tracking; galaxy keeps a
- * calmer natural case with tight tracking.
+ * Shared text styling for a mono label/eyebrow (tracking + case) from
+ * `theme.surface` label tokens.
  */
 export function labelStyle(theme: Theme): React.CSSProperties {
   return {
