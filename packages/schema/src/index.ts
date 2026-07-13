@@ -127,9 +127,9 @@ export const SceneSpecSchema = z.object({
   transitionToNext: z.enum(["slide", "fade", "wipe", "clockWipe", "zoom"]).optional(),
   /**
    * AI-chosen in-scene emphasis. `"zoom"` applies a whole-scene punch-in that
-   * settles — reserve it for the beats that deserve a spotlight (the hook, a key
-   * reveal), NOT every scene. Omit for a calm scene. (The ambient 3D tilt is
-   * always on; this is the deliberate, per-scene accent on top.)
+   * settles (composition `SceneZoom`) — reserve it for the beats that deserve a
+   * spotlight (the hook, a key reveal), NOT every scene. Omit for a calm scene;
+   * there is no engine-wide ambient tilt applied when this field is absent.
    */
   emphasis: z.enum(["zoom"]).optional(),
 });

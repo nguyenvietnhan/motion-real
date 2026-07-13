@@ -30,8 +30,9 @@ import type { SafetyIssue } from "../types.js";
  * `renderProject` is a sensitive orchestration seam, so this lives in its own
  * module rather than as a branch inside the orchestrator; it reuses the same
  * building blocks (`admitProjectScenes`, `generateAuthoredEntry`, `lockSpec`,
- * `renderSceneStills`) so the stills are byte-faithful to what a real render
- * would produce for those frames.
+ * `renderSceneStills`) as production stills. Note: the no-TTS hold lock is not
+ * the TTS-locked draft/full timeline, and PNG midpoints are not claimed
+ * pixel-identical to H.264 MP4 frames.
  *
  * `sceneIds` scopes the render to a subset (the scenes a refine pass just
  * rewrote), so a single-scene fix re-renders one still, not the whole video — the

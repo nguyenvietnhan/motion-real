@@ -29,9 +29,20 @@ export type VideoCompositionProps = {
 };
 
 /**
+ * True crossfade opacity for transition presentations: both layers stay visible
+ * across the full progress range (sum = 1). Avoids sequential fade-to-backdrop,
+ * which briefly exposes only CompositionBackdrop (a dark flash on bright scenes).
+ */
+export function crossfadeOpacity(progress: number, entering: boolean): number {
+  const p = Math.min(1, Math.max(0, progress));
+  return entering ? p : 1 - p;
+}
+
+/**
  * A custom DETERMINISTIC zoom transition (DOM transform + opacity, no WebGL):
  * the entering scene eases in from a slight zoom-out while the exiting scene
- * pushes back. Used for emphasis beats (e.g. into a key stat).
+ * pushes back, with simultaneous crossfade (no mid-transition empty frame).
+ * Used for emphasis beats (e.g. into a key stat).
  */
 type ZoomProps = Record<string, never>;
 const ZoomPresentationComponent: React.FC<{
@@ -43,33 +54,18 @@ const ZoomPresentationComponent: React.FC<{
   const scale = entering
     ? interpolate(presentationProgress, [0, 1], [1.08, 1])
     : interpolate(presentationProgress, [0, 1], [1, 0.96]);
-  // Fade-to-background: exiting scene fades out in first half, entering fades in in second half.
-  const opacity = entering
-    ? (presentationProgress < 0.5 ? 0 : (presentationProgress - 0.5) * 2)
-    : (presentationProgress < 0.5 ? 1 - presentationProgress * 2 : 0);
+  const opacity = crossfadeOpacity(presentationProgress, entering);
   return <AbsoluteFill style={{ transform: `scale(${scale})`, opacity }}>{children}</AbsoluteFill>;
 };
 function zoomPush(): TransitionPresentation<ZoomProps> {
   return { component: ZoomPresentationComponent, props: {} } as unknown as TransitionPresentation<ZoomProps>;
 }
 
-const FadePresentationComponent: React.FC<{
-  presentationProgress: number;
-  presentationDirection: "entering" | "exiting";
-  children: React.ReactNode;
-}> = ({ presentationProgress, presentationDirection, children }) => {
-  const entering = presentationDirection === "entering";
-  // Fade-to-background: exiting scene fades out in first half, entering fades in in second half.
-  const opacity = entering
-    ? (presentationProgress < 0.5 ? 0 : (presentationProgress - 0.5) * 2)
-    : (presentationProgress < 0.5 ? 1 - presentationProgress * 2 : 0);
-  return <AbsoluteFill style={{ opacity }}>{children}</AbsoluteFill>;
-};
-function fadeToDb(): TransitionPresentation<Record<string, never>> {
-  return { component: FadePresentationComponent, props: {} } as unknown as TransitionPresentation<Record<string, never>>;
-}
-
-/** Map a scene's `transitionToNext` to a deterministic presentation (DOM, no GL). */
+/**
+ * Map a scene's `transitionToNext` to a deterministic presentation (DOM, no GL).
+ * `fade` is a true crossfade (exiting fades out while entering fades in).
+ * `zoom` crossfades with a mild scale push. `slide`/`wipe`/`clockWipe` are stock.
+ */
 function presentationFor(
   kind: LockedSceneSpec["transitionToNext"],
   index: number,
@@ -77,7 +73,8 @@ function presentationFor(
   const cast = (p: unknown) => p as TransitionPresentation<Record<string, unknown>>;
   switch (kind) {
     case "fade":
-      return cast(fadeToDb());
+      // shouldFadeOutExitingScene: simultaneous A→out / B→in (no dual-zero mid frame).
+      return cast(fade({ shouldFadeOutExitingScene: true }));
     case "wipe": {
       const dirs: Array<"from-left" | "from-right"> = ["from-left", "from-right"];
       return cast(wipe({ direction: dirs[index % dirs.length]! }));
@@ -101,9 +98,10 @@ function presentationFor(
  * sequence so the transition overlap lands on the silent breath gap and no
  * speech is clipped. Transitions use `springTiming`
  * (smooth, premium) pinned to the lock's overlap length, with per-scene
- * presentations (slide/fade/wipe/clockWipe/zoom) for variety. The narration is
- * ONE continuous top-level `<Audio>`, and the burned-in karaoke captions are a
- * top-level `<Captions>` overlay — both OUTSIDE the transition series.
+ * presentations (slide / true-crossfade fade / wipe / clockWipe / zoom) for
+ * variety. The narration is ONE continuous top-level `<Audio>`, and the burned-in
+ * karaoke captions are a top-level `<Captions>` overlay — both OUTSIDE the
+ * transition series.
  */
 export const VideoComposition: React.FC<VideoCompositionProps> = ({ spec, measure, strictSceneErrors }) => {
   const theme = makeTheme(spec.theme?.dominant);

@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { geometry, tierSeconds, type LockedVideoSpec } from "@motionreal/schema";
+import { FPS, geometry, T_TRANSITION, T_TRANSITION_SECONDS, tierSeconds, type LockedVideoSpec } from "@motionreal/schema";
 import {
   checkAudioSync,
   checkCaptions,
@@ -405,26 +405,44 @@ describe("N22 audio sync", () => {
     expect(checkAudioSync(locked)).toEqual([]);
   });
   it("passes a multi-scene timeline where video exceeds audio only by transition padding", () => {
-    // T_TRANSITION = 12 frames @ 30fps = 0.4s. Middle scene gets 2T (0.8s),
-    // first/last get T (0.4s) of padding by lock design — not a real drift.
-    // Real locks OVERLAP transitions, so total = Σspeech + (n−1)·T = 900 + 24.
+    // Lock-shaped pad: first/last +T, middle +2T (T = T_TRANSITION_SECONDS).
+    // Overlap timeline: total frames = Σspeech + (n−1)·T.
+    const speechSec = 10;
+    const speechF = speechSec * FPS;
+    const firstDur = speechF + T_TRANSITION;
+    const midDur = speechF + 2 * T_TRANSITION;
+    const lastDur = speechF + T_TRANSITION;
+    // Overlap starts: each next scene starts T before the previous sequence ends.
+    const midStart = firstDur - T_TRANSITION;
+    const lastStart = midStart + midDur - T_TRANSITION;
+    const total = lastStart + lastDur;
+    expect(T_TRANSITION_SECONDS).toBeGreaterThan(0);
     const locked = lockedFixture({
-      durationInFrames: 924,
+      durationInFrames: total,
       scenes: [
-        scene("scene-01", 0, 312, "n", { src: "a.mp3", duration: 10 }), // 10.4s video, +T
-        scene("scene-02", 312, 324, "n", { src: "b.mp3", duration: 10 }), // 10.8s video, +2T
-        scene("scene-03", 636, 312, "n", { src: "c.mp3", duration: 10 }), // 10.4s video, +T
+        scene("scene-01", 0, firstDur, "n", { src: "a.mp3", duration: speechSec }),
+        scene("scene-02", midStart, midDur, "n", { src: "b.mp3", duration: speechSec }),
+        scene("scene-03", lastStart, lastDur, "n", { src: "c.mp3", duration: speechSec }),
       ],
     });
     expect(checkAudioSync(locked)).toEqual([]);
   });
   it("still fires when a scene drifts beyond the transition padding", () => {
+    const speechSec = 10;
+    const speechF = speechSec * FPS;
+    const firstDur = speechF + T_TRANSITION;
+    // Middle scene: +2s beyond speech+2T padding → residual 2s > audioDriftTolerance.
+    const midDur = speechF + 2 * T_TRANSITION + 2 * FPS;
+    const lastDur = speechF + T_TRANSITION;
+    const midStart = firstDur - T_TRANSITION;
+    const lastStart = midStart + midDur - T_TRANSITION;
+    const total = lastStart + lastDur;
     const locked = lockedFixture({
-      durationInFrames: 924,
+      durationInFrames: total,
       scenes: [
-        scene("scene-01", 0, 312, "n", { src: "a.mp3", duration: 10 }),
-        scene("scene-02", 312, 360, "n", { src: "b.mp3", duration: 10 }), // 12s video, +2s drift
-        scene("scene-03", 672, 312, "n", { src: "c.mp3", duration: 10 }),
+        scene("scene-01", 0, firstDur, "n", { src: "a.mp3", duration: speechSec }),
+        scene("scene-02", midStart, midDur, "n", { src: "b.mp3", duration: speechSec }),
+        scene("scene-03", lastStart, lastDur, "n", { src: "c.mp3", duration: speechSec }),
       ],
     });
     expect(checkAudioSync(locked).some((i) => i.check === "N22" && i.sceneId === "scene-02")).toBe(true);
