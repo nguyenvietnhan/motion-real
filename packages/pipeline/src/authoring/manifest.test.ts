@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { VideoSpecSchema } from "@motionreal/schema";
-import { manifestSceneFiles, manifestToVideoSpec, type Manifest } from "./manifest.js";
+import { manifestSceneFiles, manifestToVideoSpec, stampSceneIdsFromManifest, type Manifest } from "./manifest.js";
 
 /**
  * `manifestSceneFiles` scoping self-tests. The render entry and the N10
@@ -18,6 +18,27 @@ const manifest = (components: string[]): Manifest => ({
     narration: "n",
     headline: "h",
   })),
+});
+
+describe("stampSceneIdsFromManifest", () => {
+  it("attaches sceneId from component file basename / path", () => {
+    const m = manifest(["hook", "body"]);
+    const out = stampSceneIdsFromManifest(m, [
+      { check: "N4", severity: "error", path: "hook.tsx:12", message: "bad import" },
+      { check: "N5", severity: "error", path: "/abs/authored/body.tsx", message: "Math.random" },
+      { check: "N4", severity: "error", path: "unknown.tsx", message: "orphan" },
+    ]);
+    expect(out[0]?.sceneId).toBe("scene-01");
+    expect(out[1]?.sceneId).toBe("scene-02");
+    expect(out[2]?.sceneId).toBeUndefined();
+  });
+
+  it("preserves an existing sceneId", () => {
+    const out = stampSceneIdsFromManifest(manifest(["hook"]), [
+      { check: "N4", severity: "error", path: "other.tsx", sceneId: "scene-99", message: "x" },
+    ]);
+    expect(out[0]?.sceneId).toBe("scene-99");
+  });
 });
 
 describe("manifestSceneFiles (bundle/typecheck scoping)", () => {

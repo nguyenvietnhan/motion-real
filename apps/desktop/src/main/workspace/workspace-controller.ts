@@ -636,7 +636,8 @@ export class WorkspaceController {
         this.bumpRenderVersion(projectId);
         this.setStage(projectId, this.readyStage(projectId, await this.storyboardScenesOf(projectId), notice));
       } else if (outcome.kind === "infra") {
-        const message = "Gặp trục trặc hạ tầng khi dựng lại (kết nối hoặc cấu hình). Hãy kiểm tra và thử lại.";
+        const message =
+          "Gặp trục trặc khi dựng lại (kết nối hoặc cấu hình). Hãy kiểm tra Cài đặt rồi dùng nút bên dưới để thử lại.";
         this.setStage(projectId, { kind: "error", message, fixable: false, retry: "draft" });
         this.deps.events.friendlyError({ projectId, message, retry: "draft", fixable: false });
       } else if (await this.restoreToPriorDraft(projectId, snapshot, hooks, restoreOpts)) {
@@ -650,14 +651,17 @@ export class WorkspaceController {
           "Chưa áp dụng được chỉnh sửa này (làm hỏng bố cục cảnh) — đã giữ lại bản nháp trước đó. Hãy thử diễn đạt khác hoặc chỉnh nhẹ hơn.",
         ));
       } else {
-        const message = "Chưa áp dụng được chỉnh sửa sau nhiều lần thử. Bạn có thể thử lại hoặc để AI sửa.";
+        const message =
+          "AI đã thử áp dụng chỉnh sửa nhưng chưa ổn. Hãy dùng nút bên dưới để AI sửa tiếp.";
         this.setStage(projectId, { kind: "error", message, fixable: true, retry: "draft" });
         this.deps.events.friendlyError({ projectId, message, retry: "draft", fixable: true });
       }
     } catch (e) {
       const fixable = classifyError(serializeError(e, "render")) === "content";
       console.error(`[workspace] scene edits failed for ${projectId}:`, e);
-      const message = "Có lỗi khi áp dụng chỉnh sửa. Hãy thử lại.";
+      const message = fixable
+        ? "Chưa áp dụng được chỉnh sửa. Hãy dùng nút bên dưới để AI sửa tiếp."
+        : "Có lỗi khi áp dụng chỉnh sửa. Hãy kiểm tra kết nối hoặc Cài đặt, rồi dùng nút bên dưới để thử lại.";
       this.setStage(projectId, { kind: "error", message, fixable, retry: "draft" });
       this.deps.events.friendlyError({ projectId, message, retry: "draft", fixable });
     }
@@ -745,6 +749,10 @@ export class WorkspaceController {
       onSceneProduced: (sceneId, stillPath) => this.deps.events.scene({ projectId, sceneId, stillPath: this.deps.toMedia(stillPath) }),
       onRepair: (fix) => {
         repairTrace?.noteRepair(fix);
+      },
+      // Repair loop is re-authoring scenes — show edit phase (indeterminate), not stale draft %.
+      onRepairing: () => {
+        this.setStage(projectId, { kind: "rendering", percent: 0, phase: "edit" });
       },
     };
   }
@@ -837,13 +845,15 @@ export class WorkspaceController {
       } else if (outcome.kind === "infra") {
         this.flushRepairTrace(projectId, repairTrace, "infra");
         // Not agent-fixable: tell the user to retry / check setup, no "Sửa bằng AI".
-        const message = "Gặp trục trặc hạ tầng khi dựng (kết nối hoặc cấu hình). Hãy kiểm tra lại và thử lại.";
+        const message =
+          "Gặp trục trặc khi dựng (kết nối, giọng đọc hoặc cấu hình). Hãy kiểm tra Cài đặt rồi dùng nút bên dưới để thử lại.";
         this.setStage(projectId, { kind: "error", message, fixable: false, retry: "draft" });
         this.deps.events.friendlyError({ projectId, message, retry: "draft", fixable: false });
       } else {
         this.flushRepairTrace(projectId, repairTrace, "exhausted");
-        // exhausted: content defects remain → offer "Sửa bằng AI".
-        const message = "Chưa hoàn tất được video sau nhiều lần thử. Bạn có thể thử lại hoặc để AI sửa.";
+        // exhausted: content defects remain → offer "Sửa bằng AI" (neutral copy; button chosen by fixable).
+        const message =
+          "AI đã thử chỉnh các cảnh nhưng video vẫn chưa ổn. Hãy dùng nút bên dưới để AI sửa tiếp.";
         this.setStage(projectId, { kind: "error", message, fixable: true, retry: "draft" });
         this.deps.events.friendlyError({ projectId, message, retry: "draft", fixable: true });
       }
@@ -851,7 +861,9 @@ export class WorkspaceController {
       this.flushRepairTrace(projectId, repairTrace, "infra");
       const fixable = classifyError(serializeError(e, "render")) === "content";
       console.error(`[workspace] render failed for ${projectId}:`, e);
-      const message = "Có lỗi khi dựng video. Hãy thử lại.";
+      const message = fixable
+        ? "Một vài cảnh cần chỉnh lại trước khi dựng xong. Hãy dùng nút bên dưới để tiếp tục."
+        : "Có lỗi khi dựng video. Hãy kiểm tra kết nối hoặc Cài đặt, rồi dùng nút bên dưới để thử lại.";
       this.setStage(projectId, { kind: "error", message, fixable, retry: "draft" });
       this.deps.events.friendlyError({ projectId, message, retry: "draft", fixable });
     }

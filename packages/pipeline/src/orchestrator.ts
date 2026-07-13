@@ -379,8 +379,18 @@ async function renderProjectUnlocked(projectId: string, opts: RenderProjectOptio
       throwIfCancelled(); // before the admission/bundle work begins
       const admitted = await timedPipelineStage("stage.authoring.admission", () => admitProjectScenes(projectId));
       if (!admitted.ok) {
+        // Persist scene-targeted issues so generateValidateRepair can reauthor
+        // (same "retry does nothing" fix as static-grid / N10 below).
+        await persistFailureReport(projectId, admitted.violations);
         await fail(projectId, `Authored admission blocked render: ${errorSummary(admitted.violations)}`);
-        throw new Error(`renderProject: ${admitted.violations.length} authored scene(s) rejected by the admission gate.`);
+        const first = admitted.violations.find((i) => i.severity === "error") ?? admitted.violations[0];
+        throw new PipelineError({
+          stage: "admission",
+          cause: `authored admission rejected ${admitted.violations.length} scene module(s): ${errorSummary(admitted.violations)}`,
+          check: first?.check ?? "N4",
+          ...(first?.sceneId ? { sceneId: first.sceneId } : {}),
+          remediation: "Re-author the flagged scene so it passes the authored import/API admission gate.",
+        });
       }
       // Scope the bundle to exactly the files the manifest references. admitted
       // returns componentIds ↔ files 1:1 in the same order; pair them so a stale
@@ -505,8 +515,16 @@ async function renderProjectUnlocked(projectId: string, opts: RenderProjectOptio
       { lintSources: opts.lintSources !== false },
     );
     if (!buildGate.ok) {
+      await persistFailureReport(projectId, buildGate.issues);
       await fail(projectId, `Build gate blocked render: ${errorSummary(buildGate.issues)}`);
-      throw new Error(`renderProject: build gate reported ${errorCount(buildGate.issues)} hard error(s):\n${formatIssues(buildGate.issues)}`);
+      const first = buildGate.issues.find((i) => i.severity === "error") ?? buildGate.issues[0];
+      throw new PipelineError({
+        stage: "build-gate",
+        cause: `build gate reported ${errorCount(buildGate.issues)} hard error(s): ${errorSummary(buildGate.issues)}`,
+        ...(first?.check ? { check: first.check } : {}),
+        ...(first?.sceneId ? { sceneId: first.sceneId } : {}),
+        remediation: "Fix the flagged build/timing/audio issue, or re-run TTS when audio files are missing.",
+      });
     }
     await appendEvent(projectId, { type: "build.ok" });
 
@@ -586,8 +604,16 @@ async function renderProjectUnlocked(projectId: string, opts: RenderProjectOptio
       checkDet(locked, { ...renderEntry, timingScope: "determinism" }),
     );
     if (!detReport.ok) {
+      await persistFailureReport(projectId, detReport.issues);
       await fail(projectId, `Determinism guard failed: ${errorSummary(detReport.issues)}`);
-      throw new Error(`renderProject: determinism guard reported ${errorCount(detReport.issues)} hard error(s):\n${formatIssues(detReport.issues)}`);
+      const first = detReport.issues.find((i) => i.severity === "error") ?? detReport.issues[0];
+      throw new PipelineError({
+        stage: "determinism",
+        cause: `determinism guard reported ${errorCount(detReport.issues)} hard error(s): ${errorSummary(detReport.issues)}`,
+        check: first?.check ?? "N16",
+        ...(first?.sceneId ? { sceneId: first.sceneId } : {}),
+        remediation: "Remove non-deterministic APIs from authored scenes (use Remotion random(seed)).",
+      });
     }
     await appendEvent(projectId, { type: "determinism.ok" });
 

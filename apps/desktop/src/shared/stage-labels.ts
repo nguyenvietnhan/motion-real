@@ -21,7 +21,8 @@ export function renderingPhaseLabel(
       : "";
   switch (resolved) {
     case "edit":
-      return "Đang chỉnh cảnh…";
+      // User edits and auto repair-loop reauthor share this phase.
+      return "Đang sửa cảnh…";
     case "qa":
       return `Đang tinh chỉnh ảnh${qaSuffix}…`;
     case "prepare":

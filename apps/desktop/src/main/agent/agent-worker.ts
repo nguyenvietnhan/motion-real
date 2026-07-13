@@ -135,6 +135,12 @@ export interface AgentHooks {
   onSceneProduced(sceneId: string, stillPath: string): void;
   /** An auto-applied repair, described in plain language. */
   onRepair(fix: FriendlyFix): void;
+  /**
+   * Optional: the repair loop is about to re-author flagged scenes.
+   * Workspace uses this to flip rendering phase to "edit" so the UI shows
+   * "Đang sửa cảnh…" instead of only draft percent.
+   */
+  onRepairing?(): void;
 }
 
 export interface AgentWorker {

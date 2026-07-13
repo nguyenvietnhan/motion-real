@@ -529,7 +529,11 @@ export const ProjectWorkspaceView: React.FC<{
       )}
       {stage.kind === "error" && (
         <>
-          <EmptyState icon={Icon.film({ size: 34 })} title="Lỗi" hint={stage.message}
+          <EmptyState
+            icon={Icon.film({ size: 34 })}
+            // Soft titles: "Lỗi" feels dead-end; fixable → AI can help, else setup/retry.
+            title={stage.fixable ? "Chưa dựng xong" : "Chưa thể dựng"}
+            hint={stage.message}
             action={
               <div className="ns-error-actions">
                 {stage.fixable ? (
@@ -544,7 +548,8 @@ export const ProjectWorkspaceView: React.FC<{
                 )}
                 <button className="ns-btn" onClick={onBack}>Về trang chủ</button>
               </div>
-            } />
+            }
+          />
           {projectId && loadDiagnostics && (
             <ProjectDiagnosticsPanel projectId={projectId} load={loadDiagnostics} />
           )}

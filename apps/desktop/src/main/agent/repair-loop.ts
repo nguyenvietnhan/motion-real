@@ -124,6 +124,8 @@ export async function generateValidateRepair(
     if (attempts < max) {
       const targets = contentTargets(report.hardErrors);
       if (targets.length > 0) {
+        // Let the workspace flip UI to "Đang sửa cảnh…" while AI rewrites.
+        deps.hooks.onRepairing?.();
         await deps.reauthor(targets);
         continue; // re-render the repaired scene(s) on the next attempt
       }

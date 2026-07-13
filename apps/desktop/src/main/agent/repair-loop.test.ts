@@ -203,6 +203,7 @@ describe("Property 4: repair budget and routing", () => {
   it("only content scenes (with their issues) are passed to reauthor", async () => {
     let renders = 0;
     let received: { sceneId: string; issues?: SafetyIssue[] }[] | null = null;
+    let repairing = 0;
     const deps: RepairLoopDeps = {
       renderDraft: async () => {
         renders++;
@@ -215,12 +216,13 @@ describe("Property 4: repair budget and routing", () => {
       reauthor: async (targets) => {
         received = targets;
       },
-      hooks: noopHooks,
+      hooks: { ...noopHooks, onRepairing: () => { repairing++; } },
     };
     const outcome = await generateValidateRepair(deps, { maxAttempts: 3 });
     expect(outcome).toEqual({ kind: "passed", attempts: 2 });
     expect(received!.map((t) => t.sceneId).sort()).toEqual(["scene-01", "scene-03"]);
     expect(received!.every((t) => (t.issues ?? []).length > 0)).toBe(true);
+    expect(repairing).toBe(1);
   });
 
   it("N31 runtime fallback issues are targetable content defects", async () => {

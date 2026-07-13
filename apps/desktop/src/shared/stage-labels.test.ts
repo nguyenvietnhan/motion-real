@@ -9,7 +9,7 @@ import {
 
 describe("stage-labels", () => {
   it("covers every rendering phase with stable Vietnamese copy", () => {
-    expect(renderingPhaseLabel("edit")).toBe("Đang chỉnh cảnh…");
+    expect(renderingPhaseLabel("edit")).toBe("Đang sửa cảnh…");
     expect(renderingPhaseLabel("qa", { qaPass: 2, qaTotal: 5 })).toBe("Đang tinh chỉnh ảnh (2/5)…");
     expect(renderingPhaseLabel("qa", { qaPass: 10, qaTotal: 20 })).toBe("Đang tinh chỉnh ảnh (10/20)…");
     expect(renderingPhaseLabel("prepare")).toBe("Đang chuẩn bị…");

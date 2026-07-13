@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
 import { mkdir, readdir, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { VideoSpecSchema, type DurationTier, type SceneImage, type VideoFormat, type VideoLanguage, type VideoSpec } from "@motionreal/schema";
 import type { SafetyIssue } from "../types.js";
 import { ensureProject, projectPaths, readJson, writeJson } from "../store/store.js";
@@ -241,7 +241,54 @@ export async function admitProjectScenes(
   projectId: string,
 ): Promise<AdmitProjectResult> {
   const files = await listAuthoredScenes(projectId);
-  return admitAuthoredSceneFiles(files, projectPaths(projectId).authoredDir);
+  const result = await admitAuthoredSceneFiles(files, projectPaths(projectId).authoredDir);
+  if (!result.ok) {
+    // Stamp sceneId when we can so the draft repair loop can reauthor the
+    // precise scene (contentTargets requires sceneId on hard errors).
+    return { ok: false, violations: await stampSceneIdsOnAdmissionViolations(projectId, result.violations) };
+  }
+  return result;
+}
+
+/**
+ * Pure: map admission violation paths (authored file basenames) onto
+ * manifest scene ids. Never invents scenes — unmatched issues stay unscoped.
+ */
+export function stampSceneIdsFromManifest(
+  manifest: Manifest,
+  violations: readonly SafetyIssue[],
+): SafetyIssue[] {
+  if (violations.length === 0) return [];
+  const idByToken = new Map<string, string>();
+  for (const scene of manifest.scenes) {
+    idByToken.set(scene.component.toLowerCase(), scene.id);
+    idByToken.set(scene.id.toLowerCase(), scene.id);
+  }
+  return violations.map((v) => {
+    if (v.sceneId) return v;
+    const rawPath = (v.path ?? "").split(":")[0] ?? "";
+    const fileBase = basename(rawPath).replace(/\.tsx$/i, "").toLowerCase();
+    const fromToken = idByToken.get(fileBase);
+    if (fromToken) return { ...v, sceneId: fromToken };
+    const lower = rawPath.toLowerCase().replace(/\\/g, "/");
+    for (const [token, sceneId] of idByToken) {
+      if (token && lower.includes(token)) return { ...v, sceneId };
+    }
+    return v;
+  });
+}
+
+/** Load manifest then {@link stampSceneIdsFromManifest}; best-effort on missing manifest. */
+export async function stampSceneIdsOnAdmissionViolations(
+  projectId: string,
+  violations: readonly SafetyIssue[],
+): Promise<SafetyIssue[]> {
+  if (violations.length === 0) return [];
+  try {
+    return stampSceneIdsFromManifest(await loadManifest(projectId), violations);
+  } catch {
+    return [...violations];
+  }
 }
 
 /** Write a starter authored scene + manifest entry placeholder (used by scaffold examples/tests). */
