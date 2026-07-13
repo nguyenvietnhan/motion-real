@@ -459,7 +459,6 @@ export const SettingsView: React.FC<{
               <InfoRow label="Phiên bản" value="Motion Real 0.1.0" />
               <InfoRow label="Dịch vụ AI" value="9Router · localhost:20128"
                 hint="Đăng nhập qua 9Router. App không lưu mật khẩu." />
-              <InfoRow label="Mã kích hoạt (dev)" value="123" />
               <InfoRow label="Thư mục dự án" value={settings.outputDir || "(mặc định)"} mono />
             </SettingsCard>
           )}

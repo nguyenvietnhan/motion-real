@@ -62,7 +62,7 @@ env scrub, privilege gate); construction order (settings → tools → gateway �
 authoring → worker → workspace → create); engine seam injection into controllers;
 spreading handler factories into `InvokeHandlers` + `registerIpcRouter`; Electron
 lifecycle (whenReady, window, activate, quit); native dialog adapters passed into
-factories; dev license manager construction.
+factories.
 
 **Do not invent extractions for line count:** keep `index.ts` composition-root
 ownership as listed above. Projects/script/review IPC maps are already thin

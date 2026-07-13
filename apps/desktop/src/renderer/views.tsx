@@ -4,7 +4,6 @@
  * `./icons`. App.tsx imports every screen from here, so this file's surface is
  * the stable contract — adding a screen means adding one re-export line.
  */
-export { LicenseView } from "./views/license.js";
 export { Sidebar } from "./views/sidebar.js";
 export { HomeView } from "./views/home.js";
 export { ProjectsView } from "./views/projects.js";

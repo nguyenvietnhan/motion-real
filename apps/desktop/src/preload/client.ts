@@ -27,10 +27,6 @@ export function createDashboardClient(ipc: IpcLike): DashboardApi {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const inv = (channel: string, ...args: unknown[]): Promise<any> => ipc.invoke(channel, ...args) as Promise<any>;
   return {
-    license: {
-      get: () => inv("license:get"),
-      activate: (key) => inv("license:activate", key),
-    },
     ai: {
       gatewayState: () => inv("ai:gatewayState"),
       listProviders: () => inv("ai:listProviders"),

@@ -9,7 +9,6 @@ import type {
   EditBatch,
   FriendlyError,
   GatewayState,
-  LicenseState,
   ModelInfo,
   PickImagesResult,
   ProgressEvent,
@@ -35,10 +34,6 @@ export type Unsubscribe = () => void;
  * implements this interface.
  */
 export interface DashboardApi {
-  license: {
-    get(): Promise<LicenseState>;
-    activate(key: string): Promise<LicenseState>;
-  };
   ai: {
     gatewayState(): Promise<GatewayState>;
     listProviders(): Promise<ProviderInfo[]>;

@@ -10,7 +10,6 @@ import { defaultSettings } from "../../shared/settings-model.js";
 
 function baseState(): DesktopState {
   return {
-    license: { kind: "active", machineLocked: true, lastVerifiedAt: "2026-01-01T00:00:00Z" },
     gateway: { kind: "ready", baseUrl: "http://localhost:20128/v1" },
     aiAccount: { kind: "connected", accounts: [{ provider: "kiro", label: "me" }], selectedModel: { id: "kr/x", label: "x" } },
     settings: defaultSettings("/out"),

@@ -1,11 +1,11 @@
 import React, { useCallback, useEffect, useReducer, useRef, useState } from "react";
-import { HomeView, LicenseView, ProjectsView, ProjectWorkspaceView, SettingsView, Sidebar, type Screen, type SettingsTab } from "./views.js";
+import { HomeView, ProjectsView, ProjectWorkspaceView, SettingsView, Sidebar, type Screen, type SettingsTab } from "./views.js";
 import { reduceDesktop, type DesktopState } from "./state/desktop-state.js";
 import { aiReady } from "../shared/ai-ready.js";
 import type { CreatePathSettingsTab } from "../shared/create-path-readiness.js";
 import { preferredModelDecision } from "../shared/model-selection.js";
 import { defaultSettings, reviewModeAllowsSceneEdit } from "../shared/settings-model.js";
-import type { BgmTrackVM, LicenseState, ModelInfo, ProjectStage } from "../shared/types.js";
+import type { BgmTrackVM, ModelInfo, ProjectStage } from "../shared/types.js";
 import { compactNotificationMessage, errorDetails, NotificationProvider, useNotifications } from "./notifications.js";
 import { ConfirmDialog } from "./primitives.js";
 
@@ -17,7 +17,6 @@ import { ConfirmDialog } from "./primitives.js";
  */
 
 const initial: DesktopState = {
-  license: { kind: "active", machineLocked: true, lastVerifiedAt: "" },
   gateway: { kind: "starting", attempt: 0 },
   aiAccount: { kind: "disconnected" },
   settings: defaultSettings(""),
@@ -34,7 +33,6 @@ const AppShell: React.FC = () => {
   const [state, dispatch] = useReducer(reduceDesktop, initial);
   const [screen, setScreen] = useState<Screen>("home");
   const [settingsTab, setSettingsTab] = useState<SettingsTab>("ai");
-  const [license, setLicense] = useState<LicenseState>({ kind: "unactivated" });
   const [gateway, setGateway] = useState(initial.gateway);
   const [account, setAccount] = useState(initial.aiAccount);
   const [settings, setSettings] = useState(initial.settings);
@@ -130,7 +128,6 @@ const AppShell: React.FC = () => {
   useEffect(() => {
     if (!dash) return;
     void (async () => {
-      setLicense(await dash.license.get());
       const loaded = await dash.settings.get();
       preferredModelIdRef.current = loaded.preferredAiModelId;
       setSettings(loaded);
@@ -248,10 +245,6 @@ const AppShell: React.FC = () => {
     const iv = setInterval(() => void refreshGallery(), 1500);
     return () => clearInterval(iv);
   }, [dash, screen, refreshGallery]);
-
-  if (license.kind !== "active") {
-    return <LicenseView state={license} onActivate={(key) => void dash?.license.activate(key).then(setLicense)} />;
-  }
 
   const leaveWorkspace = () => {
     setOpenProjectId(null);

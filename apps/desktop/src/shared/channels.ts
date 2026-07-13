@@ -5,8 +5,6 @@
  */
 
 export const INVOKE_CHANNELS = [
-  "license:get",
-  "license:activate",
   "ai:gatewayState",
   "ai:listProviders",
   "ai:connectedAccounts",

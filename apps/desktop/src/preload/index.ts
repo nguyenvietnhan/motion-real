@@ -6,7 +6,7 @@ import { createDashboardClient, type IpcLike } from "./client.js";
  *
  * Exposes a SINGLE allow-listed `window.dashboard` object to the renderer and
  * nothing else (no `ipcRenderer`, no Node). The full typed `DashboardApi`
- * (license/ai/projects/script/review/settings/events) is built by the pure
+ * (ai/projects/script/review/settings/events) is built by the pure
  * `createDashboardClient` over a thin `IpcLike` wrapper around Electron's
  * `ipcRenderer`; the renderer can only reach the engine through these channels.
  */

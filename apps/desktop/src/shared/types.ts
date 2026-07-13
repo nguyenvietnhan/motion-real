@@ -7,15 +7,6 @@ import type { ProjectState } from "@motionreal/pipeline";
  * manifest JSON, `.tsx`, or stack traces).
  */
 
-// --- license -------------------------------------------------------
-
-export type LicenseState =
-  | { kind: "unactivated" }
-  | { kind: "activating" }
-  | { kind: "active"; machineLocked: true; lastVerifiedAt: string }
-  | { kind: "lapsed"; reason: "revoked" | "expired" }
-  | { kind: "error"; reason: "timeout" | "offline" | "invalid" | "limit" | "revoked" };
-
 // --- AI gateway + account ------------------------------------------
 
 /** Open provider id discovered from the gateway (NOT a fixed union). */

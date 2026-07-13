@@ -12,8 +12,6 @@ import { buildNineRouterGatewayDeps } from "./gateway/ninerouter-deps.js";
 import { NineRouterClient } from "./gateway/ninerouter-client.js";
 import { NineRouterAuthoringBackend } from "./authoring/ninerouter-backend.js";
 import { CustomLoopAgentWorker } from "./agent/custom-loop-worker.js";
-import { LicenseManager } from "./license/license-manager.js";
-import { DevLicenseService } from "./license/dev-license-service.js";
 import { WorkspaceController } from "./workspace/workspace-controller.js";
 import { runStartupSequence } from "./startup-sequence.js";
 import { CreateController } from "./create/create-controller.js";
@@ -76,8 +74,7 @@ scrubSensitiveEnvironment(process.env);
  * Electron main = the ENGINE HOST. Imports the pipeline tools
  * from source -> ONE `@motionreal/compositions` registry.
  * The bundled 9router gateway is a real 9router on localhost:20128; login is
- * delegated to 9router's own UI. License is dev-bypassed here so the app is
- * launchable for review without a live LicenseService.
+ * delegated to 9router's own UI.
  */
 
 const SETTINGS_FILE = join(videoToolHome(), "motionreal-settings.json");
@@ -397,11 +394,6 @@ async function pickImages(): Promise<PickImagesResult> {
   return importPickedImageFiles(picked.filePaths, imageStagingDeps);
 }
 
-// Dev license: starts unactivated so the activation screen shows. The dev code
-// "123" activates it via the tested LicenseManager over a DevLicenseService
-// (the LicenseService seam; HttpLicenseService is the future online adapter).
-const licenseManager = new LicenseManager({ service: new DevLicenseService(), machineId: "dev" });
-
 async function pickBgmAudioFiles(): Promise<string[] | null> {
   const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0];
   const opts = {
@@ -486,7 +478,6 @@ const thumbnailHandlers = createThumbnailHandlers({
 
 // IPC ownership inventory: keep Electron lifecycle and dependency
 // wiring here, but route contained behavior to focused owners when a seam exists.
-// - license: inline thin wrapper over LicenseManager.
 // - gateway AI: grouped factory in gateway/gateway-handlers.ts (selectedModel mirror).
 // - projects: mixed root wiring; create payload coercion lives in create-ipc.ts,
 // create behavior in CreateController, image staging in image-staging.ts,
@@ -496,9 +487,6 @@ const thumbnailHandlers = createThumbnailHandlers({
 // - script/review: inline thin wrappers over WorkspaceController/settingsStore.
 // - settings/TTS: grouped factory in settings/settings-handlers.ts.
 const handlers: InvokeHandlers = {
-  "license:get": () => licenseManager.current(),
-  "license:activate": (key) => licenseManager.activate(String(key)),
-
   ...gatewayHandlers,
 
   "projects:list": () => workspace.list(),

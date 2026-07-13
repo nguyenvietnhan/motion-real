@@ -1,7 +1,6 @@
 import type {
   AiAccountState,
   GatewayState,
-  LicenseState,
   ProjectCardVM,
   SettingsModel,
   StatusEvent,
@@ -17,7 +16,6 @@ import type { GalleryLoad } from "../../shared/gallery-controller.js";
  */
 
 export type DesktopState = {
-  license: LicenseState;
   gateway: GatewayState;
   aiAccount: AiAccountState;
   settings: SettingsModel;

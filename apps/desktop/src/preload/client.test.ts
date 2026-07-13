@@ -46,8 +46,6 @@ describe("createDashboardClient — invoke channel mapping", () => {
     const { ipc, invokes } = fakeIpc();
     const api = createDashboardClient(ipc);
 
-    await api.license.get();
-    await api.license.activate("KEY-123");
     await api.ai.gatewayState();
     await api.ai.listProviders();
     await api.ai.connectedAccounts();
@@ -102,9 +100,6 @@ describe("createDashboardClient — invoke channel mapping", () => {
   it("forwards arguments verbatim", async () => {
     const { ipc, invokes } = fakeIpc();
     const api = createDashboardClient(ipc);
-
-    await api.license.activate("ABC");
-    expect(invokes.find((i) => i.channel === "license:activate")?.args).toEqual(["ABC"]);
 
     await api.script.applyEdits("p9", [{ sceneId: "scene-02", headline: "H" }]);
     expect(invokes.find((i) => i.channel === "script:applyEdits")?.args).toEqual([
@@ -166,8 +161,8 @@ describe("registerIpcRouter", () => {
   it("dispatches to the registered handler with forwarded args", () => {
     const { ipcMain, handlers } = fakeMain();
     const spy = vi.fn((..._args: unknown[]) => "ok");
-    registerIpcRouter(ipcMain, { "license:get": spy });
-    const result = handlers.get("license:get")!({}, "a", 1);
+    registerIpcRouter(ipcMain, { "settings:get": spy });
+    const result = handlers.get("settings:get")!({}, "a", 1);
     expect(spy).toHaveBeenCalledWith("a", 1);
     expect(result).toBe("ok");
   });
