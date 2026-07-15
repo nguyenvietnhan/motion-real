@@ -1,4 +1,4 @@
-import { titleMaxChars, type DurationTier, type VideoFormat, type VideoLanguage } from "@motionreal/schema";
+import { TITLE_MAX_CHARS, type DurationTier, type VideoFormat, type VideoLanguage } from "@motionreal/schema";
 import type { AuthorInput } from "../agent/agent-worker.js";
 import type { AuthorImageInput, ContentPart, VisionMessage } from "./prompt.js";
 import { computePacingBudget } from "./pacing-policy.js";
@@ -11,7 +11,7 @@ function roundRate(wordsPerSecond: number): number {
   return Math.round(wordsPerSecond * 10) / 10;
 }
 
-function geometryLabel(_format: VideoFormat): string {
+function geometryLabel(): string {
   return "TikTok/Reels/Shorts 9:16 vertical, reserve the bottom burned-caption band";
 }
 
@@ -123,7 +123,7 @@ function systemPrompt(
     },
     wordsPerSecond,
   );
-  const titleCap = titleMaxChars();
+  const titleCap = TITLE_MAX_CHARS;
   return `You are MotionReal's CONTENT PLANNER, not the Remotion code author.
 Plan a short-form video before any TSX is written. Return only valid JSON. Do not include markdown fences, commentary, JSX, imports, or component code.
 
@@ -136,7 +136,7 @@ TASK:
 - Every scene advances exactly one viewer-facing idea.
 
 DELIVERY LOCKS (already chosen by the app; do not change them):
-- Format: ${geometryLabel(format)}.
+- Format: ${geometryLabel()}.
 - Duration TARGET (authoritative): ${pacing.targetSeconds} seconds of spoken video, around ${pacing.targetWords} spoken words at ~${roundRate(wordsPerSecond)} words/second. Ignore any other length mentioned in the user brief if it conflicts — this number is the single source of truth.
 - Total narration across ALL scenes must land near ${pacing.targetWords} words (at least ~${pacing.minTotalNarrationWords}). Do not plan ${pacing.maxScenes}+ micro-scenes with 1-line narration when the target is longer, and do not plan a long scene count when the target is very short.
 - Pacing: plan ${pacing.minScenes}-${pacing.maxScenes} scenes, aim around ${pacing.targetScenes}; keep average narration at or below ${pacing.maxAvgWordsPerScene} words/scene and split any scene that grows past ${pacing.maxSceneNarrationWords} words.

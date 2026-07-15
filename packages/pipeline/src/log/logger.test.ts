@@ -24,7 +24,7 @@ describe("createLogger", () => {
 
   it("exposes the standard level methods a call site uses", () => {
     const log = createLogger("ingest");
-    for (const level of ["trace", "debug", "info", "warn", "error", "fatal"] as const) {
+    for (const level of ["debug", "info", "warn", "error"] as const) {
       expect(typeof log[level]).toBe("function");
     }
   });

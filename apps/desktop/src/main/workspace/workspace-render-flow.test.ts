@@ -5,7 +5,7 @@ import {
   clampRenderRatio,
   creativeBootstrapPreprompt,
   renderPercentFromRatio,
-  renderProgressEventOf,
+
   renderingStageOf,
   visionRepairIntent,
   visionRepairPreprompt,
@@ -109,7 +109,4 @@ describe("workspace render-flow helpers", () => {
     });
   });
 
-  it("builds render progress events without changing the raw ratio", () => {
-    expect(renderProgressEventOf("project-1", 0.625, "full")).toEqual({ projectId: "project-1", ratio: 0.625, phase: "full" });
-  });
 });

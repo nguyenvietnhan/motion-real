@@ -123,7 +123,7 @@ describe("manifestToVideoSpec + clampTheme (AI-output → spec bridge)", () => {
   it("does not emit retired style identity fields", () => {
     const spec = manifestToVideoSpec(oneScene());
     expect(Object.keys(spec).sort()).toEqual(
-      ["format", "language", "ratio", "scenes", "theme", "title", "version", "videoLanguage"].sort(),
+      ["format", "language", "ratio", "scenes", "theme", "title", "version"].sort(),
     );
     expect(spec.theme ? Object.keys(spec.theme).sort() : []).toEqual(["dominant"]);
   });
@@ -133,15 +133,13 @@ describe("manifestToVideoSpec + clampTheme (AI-output → spec bridge)", () => {
     expect(VideoSpecSchema.safeParse(spec).success).toBe(true);
   });
 
-  it("persists the selected video language into both metadata fields", () => {
+  it("persists the selected video language onto language", () => {
     const spec = manifestToVideoSpec({ ...oneScene(), videoLanguage: "en" });
-    expect(spec.videoLanguage).toBe("en");
     expect(spec.language).toBe("en");
   });
 
   it("defaults missing video language to Vietnamese", () => {
     const spec = manifestToVideoSpec(oneScene());
-    expect(spec.videoLanguage).toBe("vi");
     expect(spec.language).toBe("vi");
   });
 

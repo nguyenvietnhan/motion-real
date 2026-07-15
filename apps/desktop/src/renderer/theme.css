@@ -31,7 +31,9 @@
 
 @import "./theme/projects.css";
 
-@import "./theme/workspace.css";
+@import "./theme/workspace-script.css";
+@import "./theme/workspace-stages.css";
+@import "./theme/workspace-storyboard.css";
 
 @import "./theme/publish.css";
 

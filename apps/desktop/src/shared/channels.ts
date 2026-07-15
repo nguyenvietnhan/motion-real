@@ -62,7 +62,3 @@ export type EventChannel = (typeof EVENT_CHANNELS)[number];
 export function isInvokeChannel(value: string): value is InvokeChannel {
   return (INVOKE_CHANNELS as readonly string[]).includes(value);
 }
-
-export function isEventChannel(value: string): value is EventChannel {
-  return (EVENT_CHANNELS as readonly string[]).includes(value);
-}

@@ -16,10 +16,6 @@ export function reviewModeNeedsDraftMp4(mode: ReviewMode): boolean {
   return mode === "full";
 }
 
-export function reviewModeRequiresForceFull(mode: ReviewMode): boolean {
-  return mode !== "full";
-}
-
 export const ELEVENLABS_DEFAULT_MODEL_ID = "eleven_multilingual_v2";
 
 export function voiceCalibrationKey(input: {

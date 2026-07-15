@@ -6,7 +6,6 @@ export {
   concatAudioWithGaps,
   measureAudioDuration,
   mixBgm,
-  normalizeAudioDuration,
   synthesizeMockAudio,
 } from "./audio-ops.js";
 export { alignmentToSrt, type ElevenLabsAlignment } from "./caption-timing.js";

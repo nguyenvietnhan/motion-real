@@ -11,14 +11,10 @@ export function clamp(n: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, n));
 }
 
-/** Accepts "#RGB" or "#RRGGBB" (case-insensitive); returns null if unparseable. */
+/** Accepts "#RRGGBB" (case-insensitive); returns null if unparseable. */
 export function normalizeHex(input: string | undefined | null): string | null {
   if (!input) return null;
   const v = input.trim().replace(/^#/, "");
-  if (/^[0-9a-fA-F]{3}$/.test(v)) {
-    const [r, g, b] = v.split("");
-    return `#${r}${r}${g}${g}${b}${b}`.toLowerCase();
-  }
   if (/^[0-9a-fA-F]{6}$/.test(v)) return `#${v.toLowerCase()}`;
   return null;
 }

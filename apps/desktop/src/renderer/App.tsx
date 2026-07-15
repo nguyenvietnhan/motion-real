@@ -1,5 +1,10 @@
 import React, { useCallback, useEffect, useReducer, useRef, useState } from "react";
-import { HomeView, ProjectsView, ProjectWorkspaceView, SettingsView, Sidebar, type Screen, type SettingsTab } from "./views.js";
+import type { Screen } from "./primitives.js";
+import { Sidebar } from "./views/sidebar.js";
+import { HomeView } from "./views/home.js";
+import { ProjectsView } from "./views/projects.js";
+import { SettingsView, type SettingsTab } from "./views/settings.js";
+import { ProjectWorkspaceView } from "./views/workspace.js";
 import { reduceDesktop, type DesktopState } from "./state/desktop-state.js";
 import { aiReady } from "../shared/ai-ready.js";
 import type { CreatePathSettingsTab } from "../shared/create-path-readiness.js";

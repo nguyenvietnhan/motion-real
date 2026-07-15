@@ -1,4 +1,4 @@
-import { titleMaxChars, type DurationTier, type VideoFormat, type VideoLanguage } from "@motionreal/schema";
+import { TITLE_MAX_CHARS, type DurationTier, type VideoFormat, type VideoLanguage } from "@motionreal/schema";
 import { computePacingBudget, SHORTFORM_90S_SCENE_RANGE } from "./pacing-policy.js";
 
 /**
@@ -15,7 +15,7 @@ function roundRate(wps: number): number {
  * Short-form framing the model must author to: vertical 9:16 with a burned
  * karaoke caption band at the bottom.
  */
-export function formatBlock(_format: VideoFormat = "tiktok"): string {
+export function formatBlock(): string {
   return `KHUNG HÌNH (TikTok/Reels/Shorts): DỌC 9:16 (1080×1920). Có dải phụ đề cháy-chữ (karaoke) ở ĐÁY khung do hệ thống tự chèn — CHỪA vùng đáy cho phụ đề, KHÔNG đặt nội dung quan trọng sát đáy. Bố cục theo chiều DỌC.`;
 }
 
@@ -55,7 +55,7 @@ export function tierBudgetBlock(
  * title, hashtags, authored display text, narration, and central captions.
  */
 export function languageBlock(format: VideoFormat, videoLanguage: VideoLanguage): string {
-  const cap = titleMaxChars();
+  const cap = TITLE_MAX_CHARS;
   const lang = videoLanguage === "en" ? "TIẾNG ANH" : "TIẾNG VIỆT";
   const contentRule = videoLanguage === "en"
     ? `TOÀN BỘ nội dung người xem đọc/nghe phải là TIẾNG ANH tự nhiên: "title", "hashtags", eyebrow/headline/body, narration, CTA và mọi chuỗi chữ tự viết trong JSX/SVG. Chỉ giữ nguyên tên riêng/thương hiệu. KHÔNG xen câu tiếng Việt.`

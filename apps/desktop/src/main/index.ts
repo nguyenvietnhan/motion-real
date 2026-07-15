@@ -13,7 +13,7 @@ import { NineRouterClient } from "./gateway/ninerouter-client.js";
 import { NineRouterAuthoringBackend } from "./authoring/ninerouter-backend.js";
 import { CustomLoopAgentWorker } from "./agent/custom-loop-worker.js";
 import { WorkspaceController } from "./workspace/workspace-controller.js";
-import { runStartupSequence } from "./startup-sequence.js";
+
 import { CreateController } from "./create/create-controller.js";
 import { stripL0Tokens } from "./redact/friendly.js";
 import { toCards } from "../shared/gallery-controller.js";
@@ -621,20 +621,16 @@ app
       // eslint-disable-next-line no-console
       console.error("[desktop] tts-cache prune failed:", error);
     });
-    await runStartupSequence({
-      reconcileStaleStates: async () => {
-        await reconcileStaleStates();
-        // Restore or drop half-finished fresh-author candidate transactions
-        // before any renderer job can start.
-        const { reconcileAuthoringCandidateTransactions } = await import("./authoring/author-candidate-transaction.js");
-        await reconcileAuthoringCandidateTransactions(join(videoToolHome(), "projects"));
-      },
-      onReconcileError: (error) => {
-        log.warn({ err: error }, "stale-state reconcile failed; desktop startup will continue");
-      },
-      startGateway,
-      createWindow,
-    });
+    // Reconcile stale project state before gateway/window so no job starts mid-repair.
+    try {
+      await reconcileStaleStates();
+      const { reconcileAuthoringCandidateTransactions } = await import("./authoring/author-candidate-transaction.js");
+      await reconcileAuthoringCandidateTransactions(join(videoToolHome(), "projects"));
+    } catch (error) {
+      log.warn({ err: error }, "stale-state reconcile failed; desktop startup will continue");
+    }
+    startGateway();
+    await createWindow();
   })
   .catch((error) => {
     // eslint-disable-next-line no-console

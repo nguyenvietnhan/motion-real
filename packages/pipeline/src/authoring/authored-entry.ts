@@ -76,7 +76,7 @@ const Root: React.FC = () =>
         height: initialGeometry.canvas.height,
         fps: spec.fps ?? FPS,
         durationInFrames: spec.durationInFrames,
-        calculateMetadata: ({ props }: { props: { spec: typeof spec; measure?: boolean; strictSceneErrors?: boolean } }) => {
+        calculateMetadata: ({ props }: { props: { spec: typeof spec; strictSceneErrors?: boolean } }) => {
           const g = geometry();
           return {
             durationInFrames: props.spec.durationInFrames,

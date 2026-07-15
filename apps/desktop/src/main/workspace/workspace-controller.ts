@@ -1,6 +1,6 @@
 import { authorInputWithCrawledImages, runCreateCrawlThenAuthor } from "./workspace-create-flow.js";
-import { canStartThumbnailRender, combineIntent, stageToFriendlyStatus } from "./workspace-helpers.js";
-import { clampRenderRatio, renderProgressEventOf, renderingStageOf } from "./workspace-render-flow.js";
+import { combineIntent, stageToFriendlyStatus } from "./workspace-helpers.js";
+import { clampRenderRatio, renderingStageOf } from "./workspace-render-flow.js";
 import {
   refineBeforeDraft as runRefineBeforeDraft,
   refineEditedScenes as runRefineEditedScenes,
@@ -9,10 +9,8 @@ import {
 } from "./workspace-refine-flow.js";
 import { applyScriptEditsToManifest, runScriptAuthoring, scriptGateModelFromLines } from "./workspace-script-flow.js";
 import {
-  classifyStageKindTransition,
   shouldLogStageTransition,
   stageFingerprint,
-  stageKindOf,
 } from "./workspace-stage.js";
 import {
   fullRenderStageStart,
@@ -259,13 +257,6 @@ export class WorkspaceController {
       const from = stageFingerprint(previous);
       const to = stageFingerprint(stage);
       log.info({ projectId, from, to }, "workspace stage transition");
-      const kindClass = classifyStageKindTransition(stageKindOf(previous), stage.kind);
-      if (kindClass === "unknown") {
-        log.debug(
-          { projectId, from, to, fromKind: stageKindOf(previous), toKind: stage.kind },
-          "workspace stage kind hop not in policy table",
-        );
-      }
     }
   }
 
@@ -744,7 +735,7 @@ export class WorkspaceController {
     return {
       onProgress: (ratio) => {
         this.setStage(projectId, renderingStageOf(phase, { ratio }));
-        this.deps.events.progress(renderProgressEventOf(projectId, ratio, phase));
+        this.deps.events.progress({ projectId, ratio, phase });
       },
       onSceneProduced: (sceneId, stillPath) => this.deps.events.scene({ projectId, sceneId, stillPath: this.deps.toMedia(stillPath) }),
       onRepair: (fix) => {
@@ -1055,10 +1046,7 @@ export class WorkspaceController {
    */
   async generateThumbnail(projectId: string): Promise<{ thumbnailUrl: string } | null> {
     const renderThumbnail = this.deps.renderThumbnail;
-    if (!canStartThumbnailRender({
-      isInFlight: this.inFlight.has(projectId),
-      hasRenderer: Boolean(renderThumbnail),
-    }) || !renderThumbnail) return null;
+    if (this.inFlight.has(projectId) || !renderThumbnail) return null;
     this.inFlight.add(projectId);
     try {
       const { path } = await renderThumbnail(projectId);

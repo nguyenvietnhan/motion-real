@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import fc from "fast-check";
 import type { ProjectBrief, ProjectState, ProjectSummary } from "@motionreal/pipeline";
-import { formatShortDate, galleryLoadState, paginate, PROJECTS_PER_PAGE, toCards } from "./gallery-controller.js";
+import { formatShortDate, paginate, PROJECTS_PER_PAGE, toCards } from "./gallery-controller.js";
 import { FRIENDLY_STATUSES } from "./friendly-status.js";
 
 /**
@@ -135,14 +135,7 @@ describe("Property 11: gallery cards complete and ordered newest-first", () => {
   });
 });
 
-describe("galleryLoadState", () => {
-  it("reports empty only after load completes", () => {
-    expect(galleryLoadState(false, 0)).toBe("loading");
-    expect(galleryLoadState(false, 5)).toBe("loading");
-    expect(galleryLoadState(true, 0)).toBe("empty");
-    expect(galleryLoadState(true, 3)).toBe("populated");
-  });
-
+describe("formatShortDate", () => {
   it("formatShortDate is empty for missing/invalid input", () => {
     expect(formatShortDate(undefined)).toBe("");
     expect(formatShortDate("not-a-date")).toBe("");

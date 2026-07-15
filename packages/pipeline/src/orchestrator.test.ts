@@ -44,8 +44,6 @@ let prevRenderConcurrency: string | undefined;
 let prevDraftRenderConcurrency: string | undefined;
 let prevRenderGl: string | undefined;
 let prevRenderChromeMode: string | undefined;
-let prevLayoutMeasure: string | undefined;
-
 beforeEach(async () => {
   tempRoot = await mkdtemp(join(tmpdir(), "news-orchestrator-"));
   prevHome = process.env.VIDEO_TOOL_HOME;
@@ -53,13 +51,11 @@ beforeEach(async () => {
   prevDraftRenderConcurrency = process.env.NEWS_DRAFT_RENDER_CONCURRENCY;
   prevRenderGl = process.env.NEWS_RENDER_GL;
   prevRenderChromeMode = process.env.NEWS_RENDER_CHROME_MODE;
-  prevLayoutMeasure = process.env.MOTIONREAL_LAYOUT_MEASURE;
   process.env.VIDEO_TOOL_HOME = tempRoot;
   delete process.env.NEWS_RENDER_CONCURRENCY;
   delete process.env.NEWS_DRAFT_RENDER_CONCURRENCY;
   delete process.env.NEWS_RENDER_GL;
   delete process.env.NEWS_RENDER_CHROME_MODE;
-  delete process.env.MOTIONREAL_LAYOUT_MEASURE;
   stillBytes = "identical-frame-bytes";
 
   mocks.bundle.mockResolvedValue("http://localhost:3000/bundle");
@@ -96,8 +92,6 @@ afterEach(async () => {
   else process.env.NEWS_RENDER_GL = prevRenderGl;
   if (prevRenderChromeMode === undefined) delete process.env.NEWS_RENDER_CHROME_MODE;
   else process.env.NEWS_RENDER_CHROME_MODE = prevRenderChromeMode;
-  if (prevLayoutMeasure === undefined) delete process.env.MOTIONREAL_LAYOUT_MEASURE;
-  else process.env.MOTIONREAL_LAYOUT_MEASURE = prevLayoutMeasure;
   await rm(tempRoot, { recursive: true, force: true });
 });
 
@@ -396,7 +390,6 @@ describe("renderProject — render pipeline (skipAuthoring)", () => {
         "stage.render",
         "stage.review",
         "stage.render_oracles",
-        "stage.layout_measure.skipped",
         "stage.late_safe_area",
         "stage.render_cache_key",
         "stage.read_authored_sources",
@@ -542,80 +535,6 @@ describe("renderProject — render pipeline (skipAuthoring)", () => {
     expect(existsSync(result.mp4Path)).toBe(true);
     expect(result.report.ok).toBe(false);
     expect(await readBriefState(projectId)).toBe("reviewing");
-  });
-
-  it("skips N15/N17 layout measuring for SceneImage-only specs by default", async () => {
-    const projectId = await readyProject({
-      ...SAMPLE_SPEC,
-      scenes: [
-        { ...SAMPLE_SPEC.scenes[0]!, image: { ref: "assets/photo.png", alt: "photo" } },
-        SAMPLE_SPEC.scenes[1]!,
-      ],
-    });
-    await writeFile(join(projectPaths(projectId).assetsDir, "photo.png"), Buffer.from("fake-image"));
-
-    await renderProject(projectId, {
-      skipAuthoring: true,
-      ttsProvider: "none",
-      forceFull: true,
-      checklist: FULL_CHECKLIST,
-      composeContactSheet: fakeCompositor(),
-    });
-
-    const events = (await readFile(projectPaths(projectId).events, "utf8"))
-      .trim()
-      .split("\n")
-      .map((l) => JSON.parse(l));
-    const timingNames = events.filter((e) => e.type === "render.timing").map((e) => e.name);
-    expect(timingNames).toContain("stage.layout_measure.skipped");
-    expect(timingNames).not.toContain("stage.layout_measure");
-    expect(events.find((e) => e.type === "render.overlap.skipped")).toMatchObject({
-      cause: "no tagged layout blocks",
-      layoutMeasureMode: "auto",
-    });
-  });
-
-  it("surfaces N15/N17 layout warnings as non-gating diagnostics", async () => {
-    const projectId = await readyProject();
-    mocks.renderStill.mockImplementation(async ({ output, onArtifact }) => {
-      if (output === null) {
-        onArtifact?.({
-          content: JSON.stringify({
-            blocks: [
-              { kind: "headline", x: 100, y: 100, width: 200, height: 160 },
-              { kind: "body", x: 150, y: 130, width: 200, height: 160 },
-            ],
-          }),
-        });
-      } else if (typeof output === "string") {
-        await writeFile(output, layoutWarningStillPng());
-      }
-      return { buffer: null, contentType: "image/png" };
-    });
-
-    const result = await renderProject(projectId, {
-      skipAuthoring: true,
-      ttsProvider: "none",
-      forceFull: true,
-      checklist: FULL_CHECKLIST,
-      composeContactSheet: fakeCompositor(),
-      layoutMeasureMode: "force",
-    });
-
-    const events = (await readFile(projectPaths(projectId).events, "utf8"))
-      .trim()
-      .split("\n")
-      .map((l) => JSON.parse(l));
-    const timingNames = events.filter((e) => e.type === "render.timing").map((e) => e.name);
-    expect(timingNames).toContain("stage.layout_measure");
-    expect(events.find((e) => e.type === "render.overlap")).toMatchObject({ scenes: SAMPLE_SPEC.scenes.length });
-    const layoutWarnings = result.report.issues.filter((i) => i.check === "N15" || i.check === "N17");
-    expect(layoutWarnings.some((i) => i.check === "N15")).toBe(true);
-    expect(layoutWarnings.some((i) => i.check === "N17")).toBe(true);
-    expect(layoutWarnings.every((i) => i.severity === "warning")).toBe(true);
-    expect(result.report.issues.some((i) => i.severity === "error")).toBe(false);
-    expect(result.report.ok).toBe(true);
-    expect(await readBriefState(projectId)).toBe("done");
   });
 
   it("surfaces late-sample N14 drift as a non-gating WARNING (lands in the report, project still 'done')", async () => {
@@ -780,37 +699,6 @@ function dirtyLateStillPng(): Buffer {
       rgba[i + 2] = 255;
       rgba[i + 3] = 255;
     }
-  }
-  return encodePngRGBA(width, height, rgba);
-}
-
-/**
- * A 1080x1920 PNG with white content exactly on the right/bottom edge of the
- * synthetic measured block used by the layout-warning test, so N17 fires.
- */
-function layoutWarningStillPng(): Buffer {
-  const width = 1080;
-  const height = 1920;
-  const rgba = new Uint8Array(width * height * 4);
-  for (let p = 0; p < width * height; p += 1) {
-    rgba[p * 4] = 10;
-    rgba[p * 4 + 1] = 12;
-    rgba[p * 4 + 2] = 18;
-    rgba[p * 4 + 3] = 255;
-  }
-  for (let y = 100; y < 260; y += 1) {
-    const i = (y * width + 299) * 4;
-    rgba[i] = 255;
-    rgba[i + 1] = 255;
-    rgba[i + 2] = 255;
-    rgba[i + 3] = 255;
-  }
-  for (let x = 100; x < 300; x += 1) {
-    const i = (259 * width + x) * 4;
-    rgba[i] = 255;
-    rgba[i + 1] = 255;
-    rgba[i + 2] = 255;
-    rgba[i + 3] = 255;
   }
   return encodePngRGBA(width, height, rgba);
 }

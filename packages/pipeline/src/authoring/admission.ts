@@ -22,70 +22,60 @@ import { isCssStyleObjectLiteral, isReactNativeStyleKey } from "./normalize-auth
  * entry, never in the Node host.
  */
 
-export type AdmissionPolicy = {
-  /** Only these exact module specifiers may be imported. */
-  allowedImports: readonly string[];
-  /** Identifiers / member expressions that are hard-banned anywhere in the AST. */
-  bannedApis: readonly string[];
-  /** Named exports the module MUST provide (use "default" for the default export). */
-  requiredExports: readonly string[];
-};
+/** Only these exact module specifiers may be imported (pure AUTHOR). */
+const ALLOWED_IMPORTS = ["react", "remotion", "@motionreal/compositions", "zod"] as const;
 
-export const DEFAULT_ADMISSION_POLICY: AdmissionPolicy = {
-  // Pure AUTHOR: only these imports pass admission. Layout-block packages
-  // (@motionreal/blocks, @motionreal/theme) are not whitelisted so scenes must be
-  // bespoke JSX/SVG. SceneImage is reached via @motionreal/compositions re-export.
-  // @motionreal/blocks remains render-runtime for the composition layer only.
-  allowedImports: ["react", "remotion", "@motionreal/compositions", "zod"],
-  bannedApis: [
-    "Math.random",
-    "Date.now",
-    "Date",
-    "fetch",
-    "XMLHttpRequest",
-    "eval",
-    "Function",
-    "require",
-    "import(",
-    "fs",
-    "child_process",
-    "process",
-    // Global ROOTS. A deny-list over an AST cannot enumerate every path to the
-    // host, but every escape needs SOME global object to start from. Banning the
-    // roots themselves (not just `globalThis.process`) closes the whole class:
-    // `global.process.getBuiltinModule("child_process").execSync(...)` is a
-    // working host-RCE bypass when only `process` is banned, because `process`
-    // sits in a property-NAME position the identifier visitor skips — but `global`
-    // (the base) is then flagged. The same ban catches `self["ev"+"al"]` /
-    // `window["x"]` since the root identifier is flagged regardless of access form.
-    "globalThis",
-    "global",
-    "self",
-    "window",
-    "document",
-    // Metaprogramming escapes (Reflect.get / a Proxy trap can reach a constructor).
-    "Reflect",
-    "Proxy",
-    "crypto",
-    "performance",
-    // Base64/char codecs are the usual way to BUILD an obfuscated member name
-    // (e.g. `x[atob("Y29uc3RydWN0b3I=")]`); deterministic scenes never need them.
-    "atob",
-    "btoa",
-    "dangerouslySetInnerHTML",
-    // Media must reach the screen ONLY through the sanctioned `<SceneImage>`
-    // block (fed by the scene's local-only `image` field). Banning Remotion's
-    // raw media primitives in authored code closes the remote-URL smuggle hole
-    // (e.g. `<Img src="https://…">`) — an authored scene cannot fetch or embed
-    // its own media, so the local-only / offline-determinism (N16) invariant
-    // holds without trusting AI output.
-    "Img",
-    "staticFile",
-    "Video",
-    "OffthreadVideo",
-  ],
-  requiredExports: ["default", "schema", "example"],
-};
+/** Identifiers / member expressions that are hard-banned anywhere in the AST. */
+const BANNED_APIS = [
+  "Math.random",
+  "Date.now",
+  "Date",
+  "fetch",
+  "XMLHttpRequest",
+  "eval",
+  "Function",
+  "require",
+  "import(",
+  "fs",
+  "child_process",
+  "process",
+  // Global ROOTS. A deny-list over an AST cannot enumerate every path to the
+  // host, but every escape needs SOME global object to start from. Banning the
+  // roots themselves (not just `globalThis.process`) closes the whole class:
+  // `global.process.getBuiltinModule("child_process").execSync(...)` is a
+  // working host-RCE bypass when only `process` is banned, because `process`
+  // sits in a property-NAME position the identifier visitor skips — but `global`
+  // (the base) is then flagged. The same ban catches `self["ev"+"al"]` /
+  // `window["x"]` since the root identifier is flagged regardless of access form.
+  "globalThis",
+  "global",
+  "self",
+  "window",
+  "document",
+  // Metaprogramming escapes (Reflect.get / a Proxy trap can reach a constructor).
+  "Reflect",
+  "Proxy",
+  "crypto",
+  "performance",
+  // Base64/char codecs are the usual way to BUILD an obfuscated member name
+  // (e.g. `x[atob("Y29uc3RydWN0b3I=")]`); deterministic scenes never need them.
+  "atob",
+  "btoa",
+  "dangerouslySetInnerHTML",
+  // Media must reach the screen ONLY through the sanctioned `<SceneImage>`
+  // block (fed by the scene's local-only `image` field). Banning Remotion's
+  // raw media primitives in authored code closes the remote-URL smuggle hole
+  // (e.g. `<Img src="https://…">`) — an authored scene cannot fetch or embed
+  // its own media, so the local-only / offline-determinism (N16) invariant
+  // holds without trusting AI output.
+  "Img",
+  "staticFile",
+  "Video",
+  "OffthreadVideo",
+] as const;
+
+/** Named exports the module MUST provide (use "default" for the default export). */
+const REQUIRED_EXPORTS = ["default", "schema", "example"] as const;
 
 export type AdmissionResult =
   | { admitted: true; componentId: string }
@@ -96,10 +86,7 @@ export type AdmissionResult =
  * free: it never imports or executes the module. On success it returns the
  * component id parsed from the `registerComponent({ id: "..." })` call.
  */
-export function admitAuthoredComponent(
-  tsxPath: string,
-  policy: AdmissionPolicy = DEFAULT_ADMISSION_POLICY,
-): AdmissionResult {
+export function admitAuthoredComponent(tsxPath: string): AdmissionResult {
   let text: string;
   try {
     text = readFileSync(tsxPath, "utf8");
@@ -113,8 +100,8 @@ export function admitAuthoredComponent(
   const file = basename(tsxPath);
   const src = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
   const violations: SafetyIssue[] = [];
-  const banned = new Set(policy.bannedApis);
-  const allowed = policy.allowedImports;
+  const banned = new Set<string>(BANNED_APIS);
+  const allowed = ALLOWED_IMPORTS;
   const exportedNames = new Set<string>();
   let componentId: string | null = null;
   const constantStrings = collectConstantStrings(src);
@@ -159,7 +146,7 @@ export function admitAuthoredComponent(
     // A `..` segment is never meaningful in the exact authored import allowlist;
     // reject it explicitly so a future policy change cannot reopen traversal.
     if (spec.split(/[\\/]/).includes("..")) return false;
-    return allowed.includes(spec);
+    return (allowed as readonly string[]).includes(spec);
   };
 
   const visit = (node: ts.Node): void => {
@@ -370,7 +357,7 @@ export function admitAuthoredComponent(
   visit(src);
 
   // Required exports (N4).
-  for (const required of policy.requiredExports) {
+  for (const required of REQUIRED_EXPORTS) {
     if (!exportedNames.has(required)) {
       addN4(src, `Authored module is missing required export "${required}".`);
     }

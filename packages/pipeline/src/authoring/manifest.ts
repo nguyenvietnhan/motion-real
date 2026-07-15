@@ -86,15 +86,14 @@ export function emptyManifest(title = "Untitled"): Manifest {
 export function manifestToVideoSpec(manifest: Manifest): VideoSpec {
   // Short-form only: absent format ⇒ tiktok. Ratio is always 9:16.
   const format: VideoFormat = "tiktok";
-  const videoLanguage = manifest.videoLanguage ?? "vi";
+  const language = manifest.videoLanguage ?? "vi";
   const candidate = {
     version: 1,
     title: (manifest.title?.trim() || "Untitled").slice(0, 140),
     format,
     ...(manifest.durationTier ? { durationTier: manifest.durationTier } : {}),
-    videoLanguage,
     ratio: "9:16" as const,
-    language: videoLanguage,
+    language,
     // Clamp to the VideoSpec schema so a manifest authored with AI variance
     // (or written by an older build) never trips validation at render time.
     theme: manifest.theme?.dominant ? clampTheme(manifest.theme) : undefined,

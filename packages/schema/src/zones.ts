@@ -70,21 +70,6 @@ export function rectHeight(r: Rect): number {
   return r.bottom - r.top;
 }
 
-/** True when `inner` is fully contained within `outer` (with optional slack px). */
-export function rectContains(outer: Rect, inner: Rect, slack = 0): boolean {
-  return (
-    inner.left >= outer.left - slack &&
-    inner.right <= outer.right + slack &&
-    inner.top >= outer.top - slack &&
-    inner.bottom <= outer.bottom + slack
-  );
-}
-
-/** The y where the platform-UI reserve begins (content/captions must stay above it). */
-export function uiReserveTop(): number {
-  return CANVAS.height - UI_RESERVE.bottom;
-}
-
 // --- Short-form geometry (9:16 only) ----------------------------------------
 //
 // Product is TikTok/Reels/Shorts vertical only. `geometry()` is the single

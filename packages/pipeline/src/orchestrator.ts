@@ -38,7 +38,7 @@ import {
 import { runStaticGrid } from "./safety/static-grid.js";
 import { runBuildGridStatic } from "./safety/build-grid.js";
 import { typecheckAuthoredScenes } from "./safety/typecheck-authored.js";
-import { runRenderGrid, checkOverlap, runTruncationForScene, checkLateSafeArea, type RenderGridOptions } from "./safety/render-grid.js";
+import { runRenderGrid, checkLateSafeArea, type RenderGridOptions } from "./safety/render-grid.js";
 import { decodePng } from "./safety/png.js";
 import { lintSceneSources, compositionsSrcDir, blocksSrcDir } from "./safety/forbidden-api.js";
 import {
@@ -60,7 +60,6 @@ import { renderCacheKey, getCachedRender, putCachedRender } from "./render/cache
 import { withProjectRenderLock } from "./render/project-lock.js";
 import {
   renderVideo,
-  measureSceneLayouts,
   remotionAppRoot,
   workspaceRoot,
   type RenderQuality,
@@ -174,7 +173,6 @@ function resolveBriefDuration(
   // (highest priority). Prompt length is used only when no tier is set.
   return resolveEffectiveDuration({
     prompt: opts.prompt,
-    format,
     ...(opts.durationTier !== undefined ? { durationTier: opts.durationTier } : {}),
     ...(opts.duration !== undefined ? { explicitDuration: opts.duration } : {}),
   }).targetSeconds;
@@ -189,8 +187,6 @@ const DRAFT_FPS = 10;
 const FULL_FPS = 30;
 const VALID_OPEN_GL_RENDERERS = new Set<RenderOpenGlRenderer>(["angle", "egl", "swiftshader", "swangle", "vulkan", "angle-egl"]);
 const VALID_CHROME_MODES = new Set<RenderChromeMode>(["headless-shell", "chrome-for-testing"]);
-type LayoutMeasureMode = "auto" | "force" | "off";
-const VALID_LAYOUT_MEASURE_MODES = new Set<LayoutMeasureMode>(["auto", "force", "off"]);
 
 export type RenderProjectDeps = {
   synthesize?: (spec: VideoSpec, opts: SynthesizeOptions) => Promise<TtsManifest | null>;
@@ -240,12 +236,6 @@ export type RenderProjectOptions = {
    * and no authored scenes. Defaults to false (full AUTHOR path).
    */
   skipAuthoring?: boolean;
-  /**
-   * Diagnostic layout measuring for legacy tagged block layouts. Default "auto"
-   * measures only scenes whose authored source contains `data-nrt-block`.
-   * "force" measures every scene; "off" disables the N15/N17 manual lane.
-   */
-  layoutMeasureMode?: LayoutMeasureMode;
   /**
    * User-cancel signal ("Dừng render"). When it fires, the in-flight render is
    * aborted and `renderProject` throws a `RenderCancelledError` — which is NOT
@@ -720,22 +710,6 @@ async function renderProjectUnlocked(projectId: string, opts: RenderProjectOptio
     );
     await appendEvent(projectId, { type: "render.oracles", ok: renderGrid.ok, issues: renderGrid.issues.length });
 
-    const layoutMode = opts.layoutMeasureMode ?? envLayoutMeasureMode() ?? "auto";
-    const overlapIssues = await runLayoutWarningPass({
-      locked,
-      authoredSources,
-      authoredSceneFiles,
-      layoutMode,
-      projectRoot: paths.root,
-      reviewDir: paths.reviewDir,
-      renderGridOptions,
-      ...(opts.signal ? { signal: opts.signal } : {}),
-      recordRenderTiming,
-      timedPipelineStage,
-      appendProjectEvent: (event) => appendEvent(projectId, event),
-      appendTimingEvent,
-    });
-
     const lateIssues = await runLateSafeAreaWarningPass({
       locked,
       format: spec.format,
@@ -753,7 +727,6 @@ async function renderProjectUnlocked(projectId: string, opts: RenderProjectOptio
         ...runtimeProbeReport.issues,
         ...detReport.issues,
         ...renderGrid.issues,
-        ...overlapIssues,
         ...lateIssues,
         ...reviewArtifacts.report.issues,
       ],
@@ -806,70 +779,6 @@ type TimedPipelineStage = <T>(
 type AppendTimingEvent = (name: string, ms: number, meta?: Record<string, unknown>) => Promise<void>;
 type AppendProjectEvent = (event: { type: string } & Record<string, unknown>) => Promise<void>;
 
-type LayoutWarningPassArgs = {
-  locked: LockedVideoSpec;
-  authoredSources: readonly string[];
-  authoredSceneFiles: readonly ManifestSceneFile[];
-  layoutMode: LayoutMeasureMode;
-  projectRoot: string;
-  reviewDir: string;
-  renderGridOptions: RenderGridOptions;
-  signal?: AbortSignal;
-  recordRenderTiming: (timing: RenderTiming) => void;
-  timedPipelineStage: TimedPipelineStage;
-  appendProjectEvent: AppendProjectEvent;
-  appendTimingEvent: AppendTimingEvent;
-};
-
-/**
- * External N15/N17 warning pass. The main orchestrator still owns when this pass
- * runs; this helper owns the explicit best-effort measure/oracle sequence.
- */
-async function runLayoutWarningPass(args: LayoutWarningPassArgs): Promise<SafetyIssue[]> {
-  const layoutSceneIds = layoutMeasureSceneIds(args.locked, args.authoredSources, args.authoredSceneFiles, args.layoutMode);
-  if (layoutSceneIds.length === 0) {
-    const cause = args.layoutMode === "off" ? "layout measure disabled" : "no tagged layout blocks";
-    await args.appendProjectEvent({ type: "render.overlap.skipped", cause, layoutMeasureMode: args.layoutMode });
-    await args.appendTimingEvent("stage.layout_measure.skipped", 0, { cause, layoutMeasureMode: args.layoutMode });
-    return [];
-  }
-
-  const issues: SafetyIssue[] = [];
-  try {
-    const layouts = await args.timedPipelineStage(
-      "stage.layout_measure",
-      () =>
-        measureSceneLayouts(args.locked, {
-          projectRoot: args.projectRoot,
-          logLevel: "error",
-          onTiming: args.recordRenderTiming,
-          timingScope: "layout-measure",
-          sceneIds: layoutSceneIds,
-          ...(args.signal ? { signal: args.signal } : {}),
-        }),
-      { scenes: layoutSceneIds.length, layoutMeasureMode: args.layoutMode },
-    );
-    await args.timedPipelineStage(
-      "stage.layout_oracles",
-      async () => {
-        for (const scene of args.locked.scenes) {
-          const blocks = layouts[scene.id];
-          if (blocks && blocks.length > 1) issues.push(...checkOverlap(blocks, scene.id, "warning"));
-          if (blocks && blocks.length > 0) {
-            const stillPath = join(args.reviewDir, `${scene.id}.png`);
-            issues.push(...(await runTruncationForScene(stillPath, blocks, scene.id, args.renderGridOptions)));
-          }
-        }
-      },
-      { scenes: Object.keys(layouts).length },
-    );
-    await args.appendProjectEvent({ type: "render.overlap", scenes: Object.keys(layouts).length, issues: issues.length });
-  } catch (error) {
-    await args.appendProjectEvent({ type: "render.overlap.skipped", cause: errMessage(error) });
-  }
-  return issues;
-}
-
 type LateSafeAreaWarningPassArgs = {
   locked: LockedVideoSpec;
   format: VideoFormat;
@@ -908,28 +817,6 @@ async function runLateSafeAreaWarningPass(args: LateSafeAreaWarningPassArgs): Pr
   return issues;
 }
 
-function layoutMeasureSceneIds(
-  locked: LockedVideoSpec,
-  authoredSources: readonly string[],
-  authoredSceneFiles: readonly ManifestSceneFile[],
-  mode: LayoutMeasureMode = "auto",
-): string[] {
-  if (mode === "off") return [];
-  if (mode === "force") return locked.scenes.map((scene) => scene.id);
-
-  const ids = new Set<string>();
-  for (const [index, source] of authoredSources.entries()) {
-    if (!source.includes("data-nrt-block")) continue;
-    const sceneId = authoredSceneFiles[index]?.sceneId;
-    if (sceneId) ids.add(sceneId);
-    else {
-      for (const scene of locked.scenes) ids.add(scene.id);
-    }
-  }
-
-  return [...ids];
-}
-
 function renderChromiumRuntimeOptions(
   opts: Pick<RenderProjectOptions, "chromiumOpenGlRenderer" | "chromeMode">,
 ): Pick<RenderVideoOptions, "chromiumOptions" | "chromeMode"> {
@@ -954,11 +841,6 @@ function envChromeMode(): RenderChromeMode | undefined {
   if (!raw) return undefined;
   const normalized = raw.toLowerCase();
   return VALID_CHROME_MODES.has(normalized as RenderChromeMode) ? (normalized as RenderChromeMode) : undefined;
-}
-
-function envLayoutMeasureMode(): LayoutMeasureMode | undefined {
-  const raw = process.env.MOTIONREAL_LAYOUT_MEASURE?.trim().toLowerCase();
-  return raw && VALID_LAYOUT_MEASURE_MODES.has(raw as LayoutMeasureMode) ? (raw as LayoutMeasureMode) : undefined;
 }
 
 function defaultDraftRenderConcurrency(): number {

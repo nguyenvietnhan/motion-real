@@ -14,7 +14,7 @@ import {
   normalizeReviewMode,
   reviewModeAllowsSceneEdit,
   reviewModeNeedsDraftMp4,
-  reviewModeRequiresForceFull,
+
 } from "./settings-model.js";
 
 /**
@@ -55,9 +55,6 @@ describe("reviewMode helpers", () => {
     expect(reviewModeNeedsDraftMp4("full")).toBe(true);
     expect(reviewModeNeedsDraftMp4("stills_edit")).toBe(false);
     expect(reviewModeNeedsDraftMp4("skip_edit")).toBe(false);
-    expect(reviewModeRequiresForceFull("full")).toBe(false);
-    expect(reviewModeRequiresForceFull("stills_edit")).toBe(true);
-    expect(reviewModeRequiresForceFull("skip_edit")).toBe(true);
   });
 });
 

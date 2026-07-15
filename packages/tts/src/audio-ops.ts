@@ -10,7 +10,21 @@ const ffmpegStatic = require("ffmpeg-static") as string | null;
 
 /** Measure audio duration via ffprobe (already on the dep graph for mix). */
 export async function measureAudioDuration(audioPath: string): Promise<number> {
-  return measureAudioDurationWithFfprobe(audioPath);
+  const ffprobePath = ffprobeStatic.path;
+  const output = await runProcess(ffprobePath, [
+    "-v",
+    "error",
+    "-show_entries",
+    "format=duration",
+    "-of",
+    "default=nw=1:nk=1",
+    audioPath,
+  ]);
+  const duration = Number(output.trim());
+  if (!Number.isFinite(duration)) {
+    throw new Error(`Unable to measure duration for ${basename(audioPath)}.`);
+  }
+  return duration;
 }
 
 export async function synthesizeMockAudio(text: string, outputPath: string): Promise<TTSResult> {
@@ -90,52 +104,6 @@ export async function concatAudioWithGaps(
   ]);
 }
 
-export async function normalizeAudioDuration(
-  inputPath: string,
-  outputPath: string,
-  durationSeconds: number,
-  startDelaySeconds = 0.25,
-): Promise<void> {
-  await mkdir(dirname(outputPath), { recursive: true });
-  const actualDuration = await measureAudioDuration(inputPath);
-
-  const filters: string[] = [];
-  const speechDuration = actualDuration;
-
-  if (speechDuration > 0) {
-    const fadeDuration = Math.min(0.01, speechDuration / 2);
-    if (fadeDuration > 0.001) {
-      filters.push(`afade=t=in:ss=0:d=${fadeDuration.toFixed(4)}`);
-      const fadeOutStart = speechDuration - fadeDuration;
-      filters.push(`afade=t=out:st=${fadeOutStart.toFixed(4)}:d=${fadeDuration.toFixed(4)}`);
-    }
-  }
-
-  if (startDelaySeconds > 0) {
-    const delayMs = Math.round(startDelaySeconds * 1000);
-    filters.push(`adelay=${delayMs}|${delayMs}`);
-  }
-
-  filters.push("apad");
-
-  await runProcess(ffmpegStatic ?? "ffmpeg", [
-    "-y",
-    "-i",
-    inputPath,
-    "-filter_complex",
-    `[0:a]${filters.length ? filters.join(",") : "anull"}[outa]`,
-    "-map",
-    "[outa]",
-    "-t",
-    String(durationSeconds),
-    "-ar",
-    "48000",
-    "-ac",
-    "2",
-    outputPath,
-  ]);
-}
-
 export async function mixBgm(
   voicePath: string,
   bgmPath: string,
@@ -172,24 +140,6 @@ export async function mixBgm(
     "2",
     outputPath,
   ]);
-}
-
-async function measureAudioDurationWithFfprobe(audioPath: string): Promise<number> {
-  const ffprobePath = ffprobeStatic.path;
-  const output = await runProcess(ffprobePath, [
-    "-v",
-    "error",
-    "-show_entries",
-    "format=duration",
-    "-of",
-    "default=nw=1:nk=1",
-    audioPath,
-  ]);
-  const duration = Number(output.trim());
-  if (!Number.isFinite(duration)) {
-    throw new Error(`Unable to measure duration for ${basename(audioPath)}.`);
-  }
-  return duration;
 }
 
 function runProcess(command: string, args: string[]): Promise<string> {

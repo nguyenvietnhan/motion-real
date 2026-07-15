@@ -43,7 +43,7 @@ describe("runDoctor", () => {
     expect(report.ok).toBe(true);
     const registry = report.checks.find((c) => c.name === "registry");
     expect(registry?.ok).toBe(true);
-    expect(registry?.detail).toMatch(/component/);
+    expect(registry?.detail).toMatch(/pure AUTHOR/i);
   });
 
   it("is not ok and names the missing item when a hard check fails", async () => {

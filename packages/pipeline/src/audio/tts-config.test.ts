@@ -49,7 +49,6 @@ describe("language-aware TTS preparation", () => {
       version: 1,
       title: "English",
       format: "tiktok",
-      videoLanguage: "en",
       language: "en",
       scenes: [],
     } satisfies VideoSpec;

@@ -33,7 +33,7 @@ export { buildVisualQaMessages } from "./prompt-visual-qa.js";
 function authorSystem(format: VideoFormat, tier: DurationTier, videoLanguage: VideoLanguage, wps: number): string {
   return `Bạn là tác giả video ngắn 9:16 cho MỌI chủ đề người dùng muốn (giải thích, kể chuyện, quảng bá, giáo dục, giải trí…), kiêm lập trình viên Remotion. Bạn TỰ VIẾT MỚI mã .tsx cho từng cảnh (KHÔNG chọn từ tập component có sẵn). Ưu tiên đầu tiên: trả lời đúng hợp đồng, parse được, build được, render được.
 
-${formatBlock(format)}
+${formatBlock()}
 
 ${tierBudgetBlock(format, tier, videoLanguage, wps)}
 

@@ -3,14 +3,11 @@
 export { unregisterComponent } from "@motionreal/compositions";
 export {
   admitAuthoredComponent,
-  DEFAULT_ADMISSION_POLICY,
-  type AdmissionPolicy,
   type AdmissionResult,
 } from "./admission.js";
 export {
   admitAuthoredSceneFile,
   type AuthoredRegistration,
-  type AdmitAuthoredSceneOptions,
 } from "./register.js";
 export {
   scaffoldProject,

@@ -48,7 +48,6 @@ export type StrictSceneErrorOptions = {
 
 export type VideoCompositionInputProps = {
   spec: LockedVideoSpec;
-  measure?: boolean;
   strictSceneErrors?: boolean;
 };
 

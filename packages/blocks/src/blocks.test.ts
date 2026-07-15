@@ -66,7 +66,5 @@ describe("@motionreal/blocks — surviving render surface", () => {
     expect(markup).toContain("object-fit:contain");
     // The frame (border) is drawn ON the image so the chrome hugs the picture.
     expect(markup).toContain("border:");
-    // Tagged so the N15 layout probe can measure it.
-    expect(markup).toContain('data-nrt-block="scene-image"');
   });
 });

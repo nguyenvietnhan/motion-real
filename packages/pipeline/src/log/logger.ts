@@ -6,7 +6,7 @@
  * No worker-thread transport, no bundler special cases.
  */
 
-export type LogLevel = "trace" | "debug" | "info" | "warn" | "error" | "fatal";
+export type LogLevel = "debug" | "info" | "warn" | "error";
 
 export type LogBindings = { scope?: string };
 
@@ -14,12 +14,10 @@ type LogFields = Record<string, unknown>;
 
 export type Logger = {
   bindings(): LogBindings;
-  trace: LogMethod;
   debug: LogMethod;
   info: LogMethod;
   warn: LogMethod;
   error: LogMethod;
-  fatal: LogMethod;
 };
 
 /** Pino-compatible: `log.warn("msg")` or `log.warn(fields, "msg")`. */
@@ -28,26 +26,17 @@ export type LogMethod = (fieldsOrMsg?: unknown, msg?: string) => void;
 /** Resolve the log level from env, defaulting to `info` (debug in dev). */
 function resolveLevel(): LogLevel {
   const fromEnv = process.env.LOG_LEVEL?.trim()?.toLowerCase();
-  if (
-    fromEnv === "trace" ||
-    fromEnv === "debug" ||
-    fromEnv === "info" ||
-    fromEnv === "warn" ||
-    fromEnv === "error" ||
-    fromEnv === "fatal"
-  ) {
+  if (fromEnv === "debug" || fromEnv === "info" || fromEnv === "warn" || fromEnv === "error") {
     return fromEnv;
   }
   return process.env.NODE_ENV === "production" ? "info" : "debug";
 }
 
 const LEVEL_RANK: Record<LogLevel, number> = {
-  trace: 10,
   debug: 20,
   info: 30,
   warn: 40,
   error: 50,
-  fatal: 60,
 };
 
 const minLevel = resolveLevel();
@@ -109,12 +98,10 @@ function makeLogger(bindings: LogBindings): Logger {
 
   return {
     bindings: () => ({ ...bindings }),
-    trace: method("trace"),
     debug: method("debug"),
     info: method("info"),
     warn: method("warn"),
     error: method("error"),
-    fatal: method("fatal"),
   };
 }
 

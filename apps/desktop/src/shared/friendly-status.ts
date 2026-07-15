@@ -49,7 +49,3 @@ export function toFriendlyStatus(state: ProjectState | string): FriendlyStatus {
       return "building";
   }
 }
-
-export function friendlyLabel(state: ProjectState | string): string {
-  return FRIENDLY_LABELS[toFriendlyStatus(state)];
-}

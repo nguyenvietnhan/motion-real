@@ -2,7 +2,7 @@ import {
   validateVideoSpecStructure,
   type VideoSpec,
 } from "@motionreal/schema";
-import { knownComponentIds, validateProps } from "@motionreal/compositions";
+import { knownComponentIds } from "@motionreal/compositions";
 import { makeReport, type SafetyIssue, type SafetyReport } from "../types.js";
 import { runContentRules } from "./content-rules.js";
 
@@ -12,10 +12,11 @@ import { runContentRules } from "./content-rules.js";
  * - N1: structural rules (free pacing: sequential ids, single-paragraph
  * narration, scannable headline, per-scene narration floor)
  * - N2: unknown component id
- * - N3: per-component Zod prop validation
  * - N6/N7: phonetic spellings / spaced abbreviations (hard)
  * - N8: display/narration number rules (warning)
  * - N9/N26/N27: media-ban (hard), weak hook & generic CTA (warning)
+ * Pure AUTHOR: N3 host-registry prop validation is skipped (authored schemas are
+ * untrusted; N10/render gates cover crash-class failures).
  */
 export type StaticGridOptions = {
   /**
@@ -55,46 +56,6 @@ export function runStaticGrid(spec: VideoSpec, opts: StaticGridOptions = {}): Sa
       sceneId: message.match(/\bscene-[0-9]{2}\b/)?.[0],
       message,
     });
-  }
-
-  // N3: per-component prop validation against each component's Zod schema.
-  // The framework passes `headline`/`eyebrow`/`body`/`image` to a scene as
-  // TOP-LEVEL props (`SceneComponentProps`, beside `props`), NOT inside `props`.
-  // But models recurrently declare them INSIDE the authored `schema` (`schema:
-  // z.object({ headline: z.string, … })`) — then `validateProps(component,
-  // scene.props)` sees `props={}` and reports a phantom "headline: expected
-  // string, received undefined", a wall of hard errors that blocks a video which
-  // would otherwise render fine (at render time `headline` arrives top-level). So
-  // validate against the MERGED view: a correct schema (props-only) strips the
-  // extra top-level keys by Zod's default, and a schema that mistakenly declares
-  // them is satisfied by the real top-level values. Mirrors the `theme.colors`
-  // tolerance philosophy — an AI contract-boundary slip must not hard-block a
-  // renderable video.
-  for (const scene of spec.scenes) {
-    if (!known.has(scene.component)) continue; // N2 already flagged it
-    if (authored.has(scene.component)) continue; // schema lives in untrusted authored code; N10/render gates cover crash-class failures.
-    const mergedProps = {
-      ...(scene.props ?? {}),
-      headline: scene.headline,
-      ...(scene.eyebrow !== undefined ? { eyebrow: scene.eyebrow } : {}),
-      ...(scene.body !== undefined ? { body: scene.body } : {}),
-      ...(scene.image !== undefined ? { image: scene.image } : {}),
-    };
-    const result = validateProps(scene.component, mergedProps);
-    if (!result.ok) {
-      for (const err of result.errors) {
-        issues.push({
-          check: "N3",
-          // Prop-shape mismatch is ADVISORY, not a hard block. Authored scenes
-          // carry defaults and a render-time error boundary catches real crashes,
-          // so a Zod mismatch must not stop a video that otherwise renders.
-          severity: "warning",
-          sceneId: scene.id,
-          path: err.path || undefined,
-          message: `${scene.id} ${scene.component} props invalid at "${err.path || "(root)"}": ${err.message}`,
-        });
-      }
-    }
   }
 
   // N6–N9 / N26 / N27: content rules

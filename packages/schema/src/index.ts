@@ -194,9 +194,7 @@ export const VideoLanguageSchema = z.enum(["vi", "en"]);
 export type VideoLanguage = z.infer<typeof VideoLanguageSchema>;
 
 /** Max publish-title length (short-form + hashtags). */
-export function titleMaxChars(): number {
-  return 100;
-}
+export const TITLE_MAX_CHARS = 100;
 
 export const VideoSpecSchema = z.object({
   version: z.literal(1),
@@ -205,8 +203,6 @@ export const VideoSpecSchema = z.object({
   format: VideoFormatSchema,
   /** Duration bucket (optional): word-budget target, see `tierSeconds`. */
   durationTier: DurationTierSchema.optional(),
-  /** Language of the authored video content (optional → vi). */
-  videoLanguage: VideoLanguageSchema.optional(),
   /**
    * Optional pacing TARGET in seconds (free pacing, R6): not a hard constraint.
    * Scene count and total duration are free; a longer measured render is fine.
@@ -214,6 +210,7 @@ export const VideoSpecSchema = z.object({
   duration: z.number().positive().optional(),
   /** Aspect ratio. Always 9:16 for short-form; optional for readability. */
   ratio: z.literal("9:16").optional(),
+  /** Language of the authored video content (title, on-screen, narration, captions). */
   language: VideoLanguageSchema,
   /** Per-project dominant color the AI chose (optional → default palette). */
   theme: ThemeSpecSchema.optional(),

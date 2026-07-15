@@ -70,6 +70,4 @@ export function renderingStageOf(
   return stage;
 }
 
-export function renderProgressEventOf(projectId: string, ratio: number, phase: RenderProgressPhase): ProgressEvent {
-  return { projectId, ratio, phase };
-}
+

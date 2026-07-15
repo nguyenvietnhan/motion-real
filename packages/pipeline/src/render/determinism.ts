@@ -14,8 +14,7 @@ import { renderFrameTwice, type RenderFrameOptions } from "./renderer.js";
  * (the static forbidden-API lint, N5, is the complementary defense).
  *
  * Returns a SafetyReport (rather than throwing) for testability and to match the
- * build-grid convention (runBuildGridStatic). `assertDeterministicFrame` is the
- * throwing variant for orchestrator call sites that want to fail fast.
+ * build-grid convention (runBuildGridStatic).
  */
 export type DeterminismOptions = RenderFrameOptions;
 
@@ -60,16 +59,5 @@ export async function checkDeterminism(
     return makeReport(issues, ["render"]);
   } finally {
     await rm(dir, { recursive: true, force: true });
-  }
-}
-
-/** Throwing variant of {@link checkDeterminism} for fail-fast orchestration. */
-export async function assertDeterministicFrame(
-  spec: LockedVideoSpec,
-  opts: DeterminismOptions = {},
-): Promise<void> {
-  const report = await checkDeterminism(spec, opts);
-  if (!report.ok) {
-    throw new Error(report.issues.map((issue) => `${issue.check}: ${issue.message}`).join("; "));
   }
 }

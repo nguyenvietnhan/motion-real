@@ -125,7 +125,6 @@ export class CreateController {
     const resolved = resolveEffectiveDuration({
       prompt: v.brief.text,
       durationTier: uiTier,
-      format: "tiktok",
     });
     if (resolved.conflict) {
       log.warn(

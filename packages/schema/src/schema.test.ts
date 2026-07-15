@@ -10,12 +10,10 @@ import {
   UI_RESERVE,
   geometry,
   parseAiJsonOutput,
-  rectContains,
   rectHeight,
   rectWidth,
   secondsToFrames,
   transitionFrames,
-  uiReserveTop,
 } from "./index.js";
 
 /**
@@ -29,16 +27,13 @@ describe("layout zones", () => {
     expect(CAPTION_BAND.top - CONTENT_ZONE.bottom).toBeGreaterThan(0);
   });
 
-  it("rect helpers compute width/height and containment", () => {
+  it("rect helpers compute width/height", () => {
     expect(rectWidth(CONTENT_ZONE)).toBe(CONTENT_ZONE.right - CONTENT_ZONE.left);
     expect(rectHeight(CONTENT_ZONE)).toBe(CONTENT_ZONE.bottom - CONTENT_ZONE.top);
-    expect(rectContains(CONTENT_ZONE, { top: 200, bottom: 400, left: 200, right: 400 })).toBe(true);
-    expect(rectContains(CONTENT_ZONE, { top: 0, bottom: 400, left: 200, right: 400 })).toBe(false);
   });
 
   it("caption band stays within the bottom platform-UI reserve", () => {
-    expect(CAPTION_BAND.bottom).toBeLessThanOrEqual(uiReserveTop());
-    expect(uiReserveTop()).toBe(CANVAS.height - UI_RESERVE.bottom);
+    expect(CAPTION_BAND.bottom).toBeLessThanOrEqual(CANVAS.height - UI_RESERVE.bottom);
   });
 });
 

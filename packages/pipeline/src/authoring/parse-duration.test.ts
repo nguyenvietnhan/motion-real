@@ -29,7 +29,6 @@ describe("resolveEffectiveDuration", () => {
     const r = resolveEffectiveDuration({
       prompt: "Tạo video 15 giây app thời tiết",
       durationTier: 2,
-      format: "tiktok",
     });
     expect(r.targetSeconds).toBe(90);
     expect(r.source).toBe("tier");
@@ -41,7 +40,6 @@ describe("resolveEffectiveDuration", () => {
     const r = resolveEffectiveDuration({
       prompt: "video ngắn thôi",
       durationTier: 4,
-      format: "tiktok",
     });
     expect(r.targetSeconds).toBe(210);
     expect(r.source).toBe("tier");
@@ -52,7 +50,6 @@ describe("resolveEffectiveDuration", () => {
     const r = resolveEffectiveDuration({
       prompt: "Giới thiệu app quản lý công việc",
       durationTier: 2,
-      format: "tiktok",
     });
     expect(r.targetSeconds).toBe(90);
     expect(r.source).toBe("tier");
@@ -62,7 +59,6 @@ describe("resolveEffectiveDuration", () => {
   it("falls back to prompt only when no tier is set", () => {
     const r = resolveEffectiveDuration({
       prompt: "video khoảng 90 giây về AI",
-      format: "tiktok",
     });
     expect(r.targetSeconds).toBe(90);
     expect(r.source).toBe("prompt");

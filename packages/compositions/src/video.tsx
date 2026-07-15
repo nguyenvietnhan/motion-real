@@ -8,17 +8,11 @@ import { clockWipe } from "@remotion/transitions/clock-wipe";
 import type { TransitionPresentation } from "@remotion/transitions";
 import { CANVAS, CONTENT_ZONE, transitionFrames, type LockedSceneSpec, type LockedVideoSpec } from "@motionreal/schema";
 import { makeTheme, sceneBackground, type Theme } from "@motionreal/theme";
-import { Captions, LayoutProbe, ThemeProvider, useIntroZoom, useTheme } from "@motionreal/blocks";
+import { Captions, ThemeProvider, useIntroZoom, useTheme } from "@motionreal/blocks";
 import { getComponent } from "./registry.js";
 
 export type VideoCompositionProps = {
   spec: LockedVideoSpec;
-  /**
-   * When true, mount the layout probe that measures composed-block rects and
-   * emits them as a JSON artifact (N15/N17). OFF for real renders, so production
-   * pixels are byte-identical and the N16 determinism guard is unaffected.
-   */
-  measure?: boolean;
   /**
    * Render authored scenes without the per-scene fallback boundary. Used only by
    * the pre-render runtime probe so a crashing scene surfaces as a targeted
@@ -102,7 +96,7 @@ function presentationFor(
  * karaoke captions are a top-level `<Captions>` overlay — both OUTSIDE the
  * transition series.
  */
-export const VideoComposition: React.FC<VideoCompositionProps> = ({ spec, measure, strictSceneErrors }) => {
+export const VideoComposition: React.FC<VideoCompositionProps> = ({ spec, strictSceneErrors }) => {
   const theme = makeTheme(spec.theme?.dominant);
   const scenes = spec.scenes;
   const T = transitionFrames(spec.fps);
@@ -135,7 +129,6 @@ export const VideoComposition: React.FC<VideoCompositionProps> = ({ spec, measur
 
         {spec.audio.narrationSrc ? <Audio src={resolveAudio(spec.audio.narrationSrc)} /> : null}
         <Captions cues={spec.captions ?? []} />
-        {measure ? <LayoutProbe /> : null}
       </CompositionBackdrop>
     </ThemeProvider>
   );

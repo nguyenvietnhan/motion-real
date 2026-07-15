@@ -99,7 +99,3 @@ export const Captions: React.FC<{ cues: CaptionCue[] }> = ({ cues }) => {
     </div>
   );
 };
-
-/** Exposed for the N29 caption oracle / tests: the band the track must stay in. */
-export const CAPTION_RENDER_BAND = CAPTION_BAND;
-export const CAPTION_CANVAS = CANVAS;

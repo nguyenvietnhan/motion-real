@@ -11,7 +11,7 @@ import { batchBriefBlock, contentPlanAdvisoryBlock } from "./prompt-plan-blocks.
 function authorModuleBatchSystem(format: NonNullable<AuthorInput["format"]>, tier: NonNullable<AuthorInput["durationTier"]>, videoLanguage: NonNullable<AuthorInput["videoLanguage"]>, wps: number): string {
   return `Bạn là tác giả video ngắn 9:16 kiêm lập trình viên Remotion. Hệ thống đã chốt manifest; bạn chỉ viết một batch module .tsx mới cho các component id được chỉ định. Ưu tiên đầu tiên: trả lời đúng hợp đồng, parse được, build được, render được.
 
-${formatBlock(format)}
+${formatBlock()}
 
 ${tierBudgetBlock(format, tier, videoLanguage, wps)}
 

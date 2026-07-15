@@ -3,8 +3,7 @@ import { existsSync } from "node:fs";
 import { parseArgs } from "node:util";
 import { pathToFileURL } from "node:url";
 
-import { listComponents } from "@motionreal/compositions";
-import { makeTheme, NEUTRAL_THEME_ID } from "@motionreal/theme";
+import { makeTheme } from "@motionreal/theme";
 import { fontCoverageReport } from "@motionreal/blocks";
 import {
   defaultElevenLabsVoiceId,
@@ -321,14 +320,10 @@ async function defaultCheckBrowser(): Promise<DoctorCheck> {
 }
 
 function defaultCheckRegistry(): DoctorCheck {
-  const count = listComponents().length;
   return {
     name: "registry",
     ok: true,
-    detail:
-      count > 0
-        ? `${count} component(s) registered`
-        : "0 components (pure AUTHOR mode: scenes register per project at render time)",
+    detail: "pure AUTHOR mode: scenes register per project at render time",
   };
 }
 
@@ -347,11 +342,7 @@ export function defaultCheckN10Typecheck(root = workspaceRoot()): DoctorCheck {
 /** Doctor check: the neutral theme resolves. */
 export function defaultCheckTheme(): DoctorCheck {
   const theme = makeTheme();
-  const ok =
-    theme.id === NEUTRAL_THEME_ID &&
-    theme.dark === true &&
-    typeof theme.colors.fg === "string" &&
-    typeof theme.fonts.display === "string";
+  const ok = typeof theme.colors.fg === "string" && typeof theme.fonts.display === "string";
   return {
     name: "theme",
     ok,

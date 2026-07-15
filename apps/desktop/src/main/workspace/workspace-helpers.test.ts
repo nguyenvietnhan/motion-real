@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { canStartThumbnailRender, combineIntent, linkWarningOf, stageToFriendlyStatus } from "./workspace-helpers.js";
+import { combineIntent, linkWarningOf, stageToFriendlyStatus } from "./workspace-helpers.js";
 
 describe("workspace helpers", () => {
   it("baseline: records current combined edit-intent prompt shape", () => {
@@ -18,12 +18,6 @@ describe("workspace helpers", () => {
     expect(stageToFriendlyStatus("image-review")).toBe("building");
     expect(stageToFriendlyStatus("script")).toBe("building");
     expect(stageToFriendlyStatus("rendering")).toBe("building");
-  });
-
-  it("allows thumbnail rendering only when the project is idle and the renderer seam exists", () => {
-    expect(canStartThumbnailRender({ isInFlight: false, hasRenderer: true })).toBe(true);
-    expect(canStartThumbnailRender({ isInFlight: true, hasRenderer: true })).toBe(false);
-    expect(canStartThumbnailRender({ isInFlight: false, hasRenderer: false })).toBe(false);
   });
 
   it("combines per-scene and global edit intent without losing either part", () => {

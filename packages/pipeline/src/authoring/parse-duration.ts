@@ -3,7 +3,6 @@ import {
   nearestDurationTier,
   tierSeconds,
   type DurationTier,
-  type VideoFormat,
 } from "@motionreal/schema";
 
 export { isDurationTier, nearestDurationTier };
@@ -69,7 +68,6 @@ const CONFLICT_RATIO = 0.2;
 export function resolveEffectiveDuration(input: {
   prompt: string;
   durationTier?: DurationTier;
-  format?: VideoFormat;
   /** Explicit override (CLI / scaffold options.duration) — highest priority. */
   explicitDuration?: number;
 }): EffectiveDuration {

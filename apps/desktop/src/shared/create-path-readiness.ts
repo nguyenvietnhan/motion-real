@@ -37,15 +37,6 @@ export type CreatePathReadinessInput = {
   voice: CreatePathVoicePresence;
 };
 
-/** AI account connected (gateway up + at least one account). Model is a separate step. */
-export function aiConnected(gw: GatewayState, acc: AiAccountState): boolean {
-  return gw.kind === "ready" && acc.kind === "connected" && acc.accounts.length > 0;
-}
-
-export function modelSelected(acc: AiAccountState): boolean {
-  return acc.kind === "connected" && acc.selectedModel !== undefined;
-}
-
 export function voiceReady(voice: CreatePathVoicePresence): boolean {
   return voice.hasApiKey && voice.hasVoiceId;
 }
@@ -70,16 +61,19 @@ export function settingsTabForCreatePath(readiness: CreatePathReadiness): Create
 export function createPathReadiness(input: CreatePathReadinessInput): CreatePathReadiness {
   const { gateway, account, voice } = input;
 
-  const aiOk = aiConnected(gateway, account);
-  const modelOk = aiOk && modelSelected(account);
+  const connected =
+    gateway.kind === "ready" && account.kind === "connected" && account.accounts.length > 0;
+  const modelOk = connected && account.kind === "connected" && account.selectedModel !== undefined;
   const voiceOk = voiceReady(voice);
+  // Single AI gate: connected + model selected (same as aiReady).
+  const aiHalfOk = aiReady(gateway, account);
 
   const steps: CreatePathStep[] = [
     {
       id: "ai",
-      ok: aiOk,
+      ok: connected,
       label: "Kết nối AI",
-      ...(!aiOk
+      ...(!connected
         ? {
             hint:
               gateway.kind === "starting"
@@ -96,7 +90,7 @@ export function createPathReadiness(input: CreatePathReadinessInput): CreatePath
       label: "Chọn model",
       ...(!modelOk
         ? {
-            hint: aiOk
+            hint: connected
               ? "Chọn model dựng video trong Cài đặt → Tài khoản AI."
               : "Cần kết nối AI trước khi chọn model.",
           }
@@ -117,8 +111,7 @@ export function createPathReadiness(input: CreatePathReadinessInput): CreatePath
   ];
 
   return {
-    // Keep parity with historical aiReady for AI half; voice is additional.
-    ok: aiReady(gateway, account) && voiceOk,
+    ok: aiHalfOk && voiceOk,
     steps,
   };
 }

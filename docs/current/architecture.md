@@ -45,9 +45,9 @@ directly:
   Electron dialog/window adapter stays in `index.ts`.
 - `create/create-ipc.ts` owns `projects:create` payload coercion and voice
   provider validation while `CreateController.create(...)` stays root-owned.
-- `startup-sequence.ts` keeps the tested ordering seam: stale-state
-  reconciliation completes before gateway/window startup. Media scheme/protocol
-  registration and app lifecycle hooks stay in `index.ts`.
+- Startup order in `index.ts`: stale-state reconciliation completes before
+  gateway/window startup. Media scheme/protocol registration and app lifecycle
+  hooks stay in `index.ts`.
 - `gateway/gateway-handlers.ts` owns the `ai:*` IPC handler group and the
   desktop-side selected-model mirror used by authoring. `ModelGatewayManager`
   construction and `startGateway` stay root-owned.
@@ -80,8 +80,9 @@ stable import map plus section inventory only; domain CSS lives under
 - `components.css` for shared buttons, cards, inputs, and numeric controls.
 - `home-create.css` and `create-layout.css` for the create/home experience,
   kept separate to preserve the original cascade order.
-- `settings.css`, `projects.css`, `workspace.css`, and `publish.css` for their
-  matching app surfaces.
+- `settings.css`, `projects.css`, workspace partials (`workspace-script.css`,
+  `workspace-stages.css`, `workspace-storyboard.css`), and `publish.css` for
+  their matching app surfaces.
 - `custom-select.css` for custom dropdowns and final native-control polish.
 
 Keep `theme.css` as the only renderer CSS import from TypeScript. New renderer
@@ -103,7 +104,7 @@ implementation is split by media responsibility:
   execution.
 
 `packages/pipeline/src/render/renderer.ts` remains the render primitive surface:
-video render, scene stills, runtime probe, layout measurement, and determinism
+video render, scene stills, runtime probe, and determinism
 frames. Bundle/composition preparation now lives in
 `render/composition-prep.ts`, including Remotion root helpers, timing
 instrumentation, bundle/composition cache, public-dir inference, static-audio

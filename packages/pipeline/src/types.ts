@@ -19,7 +19,8 @@ export type ProjectState =
 
 export type VoiceProvider = "vivibe" | "elevenlabs";
 export type TtsProvider = VoiceProvider | "mock" | "none";
-export type AiProvider = "mock" | "openai-compatible" | "deepseek";
+/** Legacy field on brief.json — always "mock"; desktop AI is via 9router, not this field. */
+export type AiProvider = "mock";
 export type VideoLanguage = "vi" | "en";
 
 /** Persisted project state (brief.json). */
@@ -33,7 +34,7 @@ export type ProjectBrief = {
   durationTier?: DurationTier;
   ratio: "9:16";
   language: VideoLanguage;
-  aiProvider: AiProvider;
+  aiProvider?: AiProvider;
   tts: {
     provider: TtsProvider;
     voiceId?: string;

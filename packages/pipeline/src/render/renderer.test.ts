@@ -24,7 +24,7 @@ vi.mock("@remotion/renderer", () => ({
   renderStill: mocks.renderStill,
 }));
 
-import { __resetBundleCache, measureSceneLayouts, renderSceneRuntimeProbe, renderSceneStills, renderVideo } from "./renderer.js";
+import { __resetBundleCache, renderSceneRuntimeProbe, renderSceneStills, renderVideo } from "./renderer.js";
 
 let tempRoot: string;
 
@@ -202,27 +202,6 @@ describe("renderSceneStills", () => {
     expect(calls.map((c) => c.frame)).toEqual([45, 61, 105, 117]);
     expect(calls[1]!.output).toBe(join(resolve(outDir), "scene-01.f82.png"));
     expect(calls[3]!.output).toBe(join(resolve(outDir), "scene-02.f82.png"));
-  });
-});
-
-describe("measureSceneLayouts", () => {
-  it("measures only the requested sceneIds, keeping full-timeline frame math", async () => {
-    const spec = lockedSpec();
-    const projectRoot = join(tempRoot, "projects", "demo-12345678");
-    const onProgress = vi.fn();
-
-    const layouts = await measureSceneLayouts(spec, { projectRoot, sceneIds: ["scene-02"], onProgress });
-
-    expect(layouts).toEqual({ "scene-02": [] });
-    expect(mocks.renderStill).toHaveBeenCalledTimes(1);
-    expect(mocks.renderStill.mock.calls[0]![0]).toEqual(
-      expect.objectContaining({
-        frame: 105,
-        output: null,
-        imageFormat: "png",
-      }),
-    );
-    expect(onProgress).toHaveBeenCalledWith(1, 1);
   });
 });
 

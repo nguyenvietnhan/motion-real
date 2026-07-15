@@ -45,11 +45,6 @@ function thumbnailOf(summary: ProjectSummary): string | null {
   return summary.hasRender ? `${summary.root}/review/scene-01.png` : null;
 }
 
-function formatOf(_summary: ProjectSummary): ProjectCardVM["format"] {
-  // Product is short-form 9:16 only.
-  return "tiktok";
-}
-
 export function toCards(summaries: ProjectSummary[]): ProjectCardVM[] {
   return summaries
     .map((summary) => ({
@@ -61,16 +56,10 @@ export function toCards(summaries: ProjectSummary[]): ProjectCardVM[] {
       projectId: summary.projectId,
       title: titleOf(summary),
       thumbnailPath: thumbnailOf(summary),
-      format: formatOf(summary),
+      format: "tiktok" as const,
       status: toFriendlyStatus(summary.brief?.state ?? "planning"),
       createdAtLabel: formatShortDate(summary.brief?.createdAt ?? summary.brief?.updatedAt),
     }));
-}
-
-/** Empty-state is reported ONLY after the load finishes. */
-export function galleryLoadState(loaded: boolean, cardCount: number): GalleryLoad {
-  if (!loaded) return "loading";
-  return cardCount === 0 ? "empty" : "populated";
 }
 
 /** Default page size for the projects gallery: a 3×4 grid. */

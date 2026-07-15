@@ -1,5 +1,5 @@
 import type { SafetyIssue } from "../types.js";
-import { admitAuthoredComponent, DEFAULT_ADMISSION_POLICY, type AdmissionPolicy } from "./admission.js";
+import { admitAuthoredComponent } from "./admission.js";
 
 /**
  * Authored admission handshake without host execution.
@@ -15,19 +15,12 @@ export type AuthoredRegistration =
   | { ok: true; componentId: string }
   | { ok: false; violations: SafetyIssue[] };
 
-export type AdmitAuthoredSceneOptions = {
-  policy?: AdmissionPolicy;
-};
-
 /**
  * Admit one authored scene module and return its component id. Pure with respect
  * to authored code: reads/parses the file only; never imports or executes it.
  */
-export async function admitAuthoredSceneFile(
-  tsxPath: string,
-  options: AdmitAuthoredSceneOptions = {},
-): Promise<AuthoredRegistration> {
-  const admission = admitAuthoredComponent(tsxPath, options.policy ?? DEFAULT_ADMISSION_POLICY);
+export async function admitAuthoredSceneFile(tsxPath: string): Promise<AuthoredRegistration> {
+  const admission = admitAuthoredComponent(tsxPath);
   if (!admission.admitted) {
     return { ok: false, violations: admission.violations };
   }

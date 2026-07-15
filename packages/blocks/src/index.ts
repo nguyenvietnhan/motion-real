@@ -18,14 +18,6 @@ export {
 
 export { SceneImage } from "./scene-image.js";
 
-export { Captions, CAPTION_RENDER_BAND, CAPTION_CANVAS } from "./captions.js";
+export { Captions } from "./captions.js";
 
 export { LOADED_FONT_FAMILIES, fontCoverageReport, type FontCoverage } from "./fonts.js";
-
-export {
-  LayoutProbe,
-  NRT_BLOCK_ATTR,
-  LAYOUT_ARTIFACT_NAME,
-  type MeasuredBlock,
-  type LayoutMeasurement,
-} from "./layout-probe.js";

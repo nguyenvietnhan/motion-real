@@ -27,8 +27,6 @@ import { useTheme } from "./theme-context.js";
  * it guesses either letterboxes (contain) or crops (cover). Here the image
  * decides its own shape and the chrome follows. Pure CSS intrinsic sizing — no
  * runtime measurement, so it stays deterministic (N16) and SSR-safe.
- *
- * `data-nrt-block` tags the wrapper so the N15 layout probe can measure it.
  */
 export const SceneImage: React.FC<{
   /**
@@ -52,7 +50,6 @@ export const SceneImage: React.FC<{
   const theme = useTheme();
   return (
     <div
-      data-nrt-block="scene-image"
       style={{
         width: "100%",
         display: "flex",
