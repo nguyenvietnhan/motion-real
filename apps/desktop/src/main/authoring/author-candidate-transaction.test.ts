@@ -82,6 +82,26 @@ describe("applyAuthoringCandidate", () => {
     expect(existsSync(join(root, ".authoring-candidate"))).toBe(false);
   });
 
+  it("preserves create-time bgm when the AI candidate omits it", async () => {
+    await seedCanonical({
+      sceneCode: "OLD",
+      manifest: { title: "old", bgm: "nhac-nen-mac-dinh.mp3", scenes: [] },
+      evidence: { version: 1, sources: [], claims: [], scenes: [] },
+    });
+    const result = await applyAuthoringCandidate({
+      projectId: projectId(),
+      candidate: candidate("NEW_CODE"),
+      deps: {
+        admitFiles: async () => ({ ok: true, componentIds: ["scene-01"], files: [] }),
+      },
+    });
+    expect(result).toEqual({ kind: "committed" });
+    const root = join(home, ".video-tool", "projects", projectId());
+    const written = JSON.parse(await readFile(join(root, "manifest.json"), "utf8")) as { bgm?: string; title?: string };
+    expect(written.bgm).toBe("nhac-nen-mac-dinh.mp3");
+    expect(written.title).toBe("T");
+  });
+
   it("leaves canonical state untouched when admission rejects", async () => {
     await seedCanonical({
       sceneCode: "KEEP",

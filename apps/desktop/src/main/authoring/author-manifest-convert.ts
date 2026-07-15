@@ -32,10 +32,28 @@ export function sanitizeTheme(theme: { dominant: string; mood?: string }): {
  * `format: "tiktok"` + `durationTier: 1`; `videoLanguage` is the user language
  * choice. Defaults: tiktok / tier 1 / vi.
  */
+/**
+ * Keep create-time BGM (or any non-empty prior `bgm`) when AI rewrites the
+ * manifest. The model never authors BGM; overwriting the whole file must not
+ * drop the user's library track selection.
+ */
+export function preserveUserBgm<T extends { bgm?: string }>(next: T, priorBgm: unknown): T {
+  if (typeof priorBgm === "string" && priorBgm.trim().length > 0) {
+    return { ...next, bgm: priorBgm.trim() };
+  }
+  return next;
+}
+
 export function toEngineManifest(
   m: AuthorManifest,
   allowedRefs: ReadonlySet<string> = new Set(),
-  delivery: { format?: VideoFormat; durationTier?: DurationTier; videoLanguage?: VideoLanguage } = {},
+  delivery: {
+    format?: VideoFormat;
+    durationTier?: DurationTier;
+    videoLanguage?: VideoLanguage;
+    /** User-chosen library track; never from the model. */
+    bgm?: string;
+  } = {},
 ): Manifest {
   const scenes: ManifestScene[] = m.scenes.map((s, i) => {
     const keepImage = s.image && allowedRefs.has(s.image.ref);
@@ -64,6 +82,7 @@ export function toEngineManifest(
     ...(delivery.format ? { format: delivery.format } : {}),
     ...(delivery.durationTier ? { durationTier: delivery.durationTier } : {}),
     ...(delivery.videoLanguage ? { videoLanguage: delivery.videoLanguage } : {}),
+    ...(delivery.bgm && delivery.bgm.trim().length > 0 ? { bgm: delivery.bgm.trim() } : {}),
     scenes,
   } as Manifest;
 }

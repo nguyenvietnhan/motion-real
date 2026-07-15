@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { countSafetyChecks, sanitizeTheme, toEngineManifest } from "./author-manifest-convert.js";
+import { countSafetyChecks, preserveUserBgm, sanitizeTheme, toEngineManifest } from "./author-manifest-convert.js";
 import type { AuthorManifest } from "./manifest-schema.js";
 
 function baseManifest(over: Partial<AuthorManifest> = {}): AuthorManifest {
@@ -96,6 +96,27 @@ describe("toEngineManifest", () => {
     } as AuthorManifest);
     const engine = toEngineManifest(m);
     expect(engine.scenes[0]!.image).toBeUndefined();
+  });
+
+  it("injects delivery bgm (user selection, never from the model)", () => {
+    const engine = toEngineManifest(baseManifest(), new Set(), { bgm: "  nhac-nen-mac-dinh.mp3  " });
+    expect(engine.bgm).toBe("nhac-nen-mac-dinh.mp3");
+  });
+});
+
+describe("preserveUserBgm", () => {
+  it("keeps a non-empty prior track on the next manifest", () => {
+    expect(preserveUserBgm({ title: "T", scenes: [] }, "track.mp3")).toEqual({
+      title: "T",
+      scenes: [],
+      bgm: "track.mp3",
+    });
+  });
+
+  it("does not invent bgm when prior was empty or silence", () => {
+    expect(preserveUserBgm({ title: "T", scenes: [] }, undefined).bgm).toBeUndefined();
+    expect(preserveUserBgm({ title: "T", scenes: [] }, null).bgm).toBeUndefined();
+    expect(preserveUserBgm({ title: "T", scenes: [] }, "").bgm).toBeUndefined();
   });
 });
 

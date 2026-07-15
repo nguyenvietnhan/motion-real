@@ -25,6 +25,7 @@ import {
 } from "@motionreal/pipeline";
 import type { ProjectEvidenceArtifact } from "@motionreal/pipeline";
 import { isAbortError, throwIfAborted } from "../util/abort.js";
+import { preserveUserBgm } from "./author-manifest-convert.js";
 
 export type AuthoringCandidateModule = {
   componentId: string;
@@ -253,7 +254,15 @@ export async function applyAuthoringCandidate(input: {
       // does not fail full render after expensive prepare/QA (TS2353).
       await writeFile(join(tx.candidateAuthored, mod.fileName), normalizeAuthoredSource(mod.source), "utf8");
     }
-    await writeJsonAtomic(tx.candidateManifest, candidate.manifest);
+    // Create-time BGM is written before author; AI candidate must not wipe it.
+    let priorBgm: unknown;
+    try {
+      const prior = JSON.parse(await readFile(projectPaths(projectId).manifest, "utf8")) as { bgm?: unknown };
+      priorBgm = prior.bgm;
+    } catch {
+      /* no prior manifest */
+    }
+    await writeJsonAtomic(tx.candidateManifest, preserveUserBgm(candidate.manifest, priorBgm));
     await writeJsonAtomic(tx.candidateEvidence, candidate.evidence);
     await writeJournal(projectId, "prepared");
 
