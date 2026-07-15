@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { makeTheme } from "@motionreal/theme";
 import { VENDORED_FONTS } from "./vendor-fonts.generated.js";
-import { fontCoverageReport, LOADED_FONT_FAMILIES } from "./fonts.js";
+import { FONT_FACE_LOAD_MS, fontCoverageReport, LOADED_FONT_FAMILIES } from "./fonts.js";
 
 /** Leading family name of a CSS font stack, unquoted. */
 function leading(stack: string): string {
@@ -70,5 +70,11 @@ describe("vendored fonts — self-hosted, render-safe (no network)", () => {
     const report = fontCoverageReport();
     expect(report).toHaveLength(3);
     expect(report.every((r) => r.hasVietnamese)).toBe(true);
+  });
+
+  it("caps per-face load well below the browser render timeout (~120s)", () => {
+    // Production: hung FontFace.load + per-face delayRender burned ~118s on full.
+    expect(FONT_FACE_LOAD_MS).toBeGreaterThan(0);
+    expect(FONT_FACE_LOAD_MS).toBeLessThanOrEqual(15_000);
   });
 });

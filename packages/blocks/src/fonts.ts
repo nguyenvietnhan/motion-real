@@ -12,13 +12,39 @@ import { VENDORED_FONTS } from "./vendor-fonts.generated.js";
  * network. This removes the live `fonts.gstatic.com` fetch from the render hot
  * path — the source of intermittent "Timed out loading Google Font" failures.
  *
- * Registration is wrapped in `delayRender`/`continueRender` but is NON-FATAL:
- * if a face fails we still `continueRender` so a cosmetic font issue never kills
- * an otherwise valid render.
+ * Registration uses ONE `delayRender` for the whole batch and is NON-FATAL:
+ * each face is capped with a short timeout; hang/fail never burns the full
+ * browser `timeoutInMilliseconds` (~120s). Production incident (2026-07-16):
+ * per-face delayRender + hung `FontFace.load()` on Inter 400 vietnamese killed
+ * unattended full export twice after TTS/build/determinism had already passed.
  *
  * Family map: Inter (display/body), Be Vietnam Pro (alternate display/body),
  * Cascadia Mono (mono labels) — all Vietnamese-complete.
  */
+
+/** Cap a single FontFace.load so a stuck face cannot hold the whole render. */
+export const FONT_FACE_LOAD_MS = 8_000;
+
+/** delayRender budget for the whole batch (must exceed parallel per-face cap). */
+const VENDORED_FONTS_DELAY_MS = FONT_FACE_LOAD_MS + 4_000;
+
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(new Error(`${label} timed out after ${ms}ms`));
+    }, ms);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (err: unknown) => {
+        clearTimeout(timer);
+        reject(err);
+      },
+    );
+  });
+}
 
 /** Register the vendored faces locally (no network). */
 function loadVendoredFonts(): void {
@@ -30,38 +56,38 @@ function loadVendoredFonts(): void {
   // No FontFace (Node/vitest) → inert.
   if (typeof FontFace === "undefined" || typeof document === "undefined") return;
 
-  for (const font of VENDORED_FONTS) {
-    const handle = delayRender(`Loading vendored font ${font.family} ${font.weight} ${font.subset}`);
+  // One handle for all faces. 22 independent delayRenders meant one hung
+  // FontFace.load() blocked full MP4 until BROWSER_TIMEOUT (~118s message).
+  const handle = delayRender("Loading vendored fonts", {
+    timeoutInMilliseconds: VENDORED_FONTS_DELAY_MS,
+  });
+
+  void (async () => {
     try {
-      const face = new FontFace(font.family, `url(${font.dataUrl}) format('woff2')`, {
-        weight: font.weight,
-        style: font.style,
-        unicodeRange: font.unicodeRange,
-      });
-      face
-        .load()
-        .then((loaded) => {
-          document.fonts.add(loaded);
-        })
-        .catch((err) => {
-          // eslint-disable-next-line no-console
-          console.warn(
-            `[fonts] vendored ${font.family} ${font.weight}/${font.subset} failed to load (using stack fallback):`,
-            err,
-          );
-        })
-        .finally(() => {
-          continueRender(handle);
-        });
-    } catch (err) {
-      // eslint-disable-next-line no-console
-      console.warn(
-        `[fonts] vendored ${font.family} ${font.weight}/${font.subset} could not be constructed (using stack fallback):`,
-        err,
+      await Promise.all(
+        VENDORED_FONTS.map(async (font) => {
+          const label = `${font.family} ${font.weight} ${font.subset}`;
+          try {
+            const face = new FontFace(font.family, `url(${font.dataUrl}) format('woff2')`, {
+              weight: font.weight,
+              style: font.style,
+              unicodeRange: font.unicodeRange,
+            });
+            const loaded = await withTimeout(face.load(), FONT_FACE_LOAD_MS, `vendored ${label}`);
+            document.fonts.add(loaded);
+          } catch (err) {
+            // eslint-disable-next-line no-console
+            console.warn(
+              `[fonts] vendored ${label} failed to load (using stack fallback):`,
+              err,
+            );
+          }
+        }),
       );
+    } finally {
       continueRender(handle);
     }
-  }
+  })();
 }
 
 // Importing this module (side-effect) triggers the loads.

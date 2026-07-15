@@ -237,6 +237,7 @@ npm.cmd run build
 | 2026-07-16 | Tạo note + verify code/docs | skip_edit auto-full OK; types comment drift; gates script/image human | Bắt matrix 1.1 |
 | 2026-07-16 | Hygiene commits | test cleanup + working note on branch | — |
 | 2026-07-16 | Matrix A unit lock | `ReviewMode` comment fixed; 3 tests (beginScript→published, scriptGate blocks, full fail→retry:full); workspace-controller 73 passed | Manual smoke A; matrix B/C/D |
+| 2026-07-16 | Manual smoke A (`test-a7ef7cb9`) | Settings unattended OK. Flow skip_edit ran. **Full fail ×2**: `delayRender` "Loading vendored font Inter 400 vietnamese" ~118s. Earlier stills N31 `row1Scale is not defined` (AI scene) then refine continued. Retry full: TTS/build/runtime/determinism OK → same font timeout. | Fix fonts.ts batch+timeout (1.4 reliability) |
 
 ---
 
