@@ -65,7 +65,7 @@ User chọn mức “chạy một mình” → dán link/prompt → bấm tạo 
 
   | # | Input | Settings tối thiểu cho unattended | Kỳ vọng | Unit (2026-07-16) | Manual full stack |
   | --- | --- | --- | --- | --- | --- |
-  | A | prompt only | `skip_edit`, script gate OFF, image human review OFF | author → refine? → stills → full → `published` / done | **PASS** (`matrix A: beginScript…`) | pending (cần 9router+TTS+Remotion) |
+  | A | prompt only | `skip_edit`, script gate OFF, image human review OFF | author → refine? → stills → full → `published` / done | **PASS** (`matrix A: beginScript…`) | **PASS** (2026-07-16, sau fix fonts CSS; full end-to-end) |
   | B | 1–N URL | như A + (tuỳ) image AI filter ON, human review **OFF** | same; claim demote ok, không kẹt UI | partial (crawl tests exist; unattended URL E2E unit chưa gộp) | pending |
   | C | prompt + ảnh local | như A | assets vào project trước author | pending | pending |
   | D | A/B/C + BGM create | BGM chọn lúc Home | full có BGM | historical fix exists | pending |
@@ -239,6 +239,7 @@ npm.cmd run build
 | 2026-07-16 | Matrix A unit lock | `ReviewMode` comment fixed; 3 tests (beginScript→published, scriptGate blocks, full fail→retry:full); workspace-controller 73 passed | Manual smoke A; matrix B/C/D |
 | 2026-07-16 | Manual smoke A (`test-a7ef7cb9`) | Settings unattended OK. Flow skip_edit ran. **Full fail ×2**: `delayRender` "Loading vendored font Inter 400 vietnamese" ~118s. Earlier stills N31 `row1Scale is not defined` (AI scene) then refine continued. Retry full: TTS/build/runtime/determinism OK → same font timeout. | Fix fonts.ts batch+timeout (1.4 reliability) |
 | 2026-07-16 | Smoke retest (`test-eb97afc9`) | New label `Loading vendored fonts` **still** fail ~10s (= our budget − 2s Remotion). Root: module-level delayRender + FontFace.load; Remotion `timeout − 2000`. N4 reauthor noise scene-02. | **Root fix**: drop delayRender entirely; CSS `@font-face` inject theme fonts only |
+| 2026-07-16 | Smoke A sau root font fix | User confirmed: render **đầu → cuối** unattended OK (full MP4) | Matrix B/C/D optional; throughput features later |
 
 ---
 
