@@ -87,6 +87,12 @@ export type CreateInput = {
   durationTier?: DurationTierChoice;
   /** Authored video language (default vi). */
   videoLanguage?: VideoLanguageChoice;
+  /**
+   * BGM library track name chosen at create (Home knobs). Required for
+   * skip_edit auto-full; also seeds full/stills_edit storyboard selection.
+   * `null` = explicit no music; omit = leave manifest unset (no BGM).
+   */
+  bgm?: string | null;
   images?: StagedImageRef[];
 };
 

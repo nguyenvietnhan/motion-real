@@ -414,7 +414,7 @@ export const SettingsView: React.FC<{
                     {
                       value: "skip_edit",
                       title: "Bỏ qua chỉnh",
-                      desc: "Tinh chỉnh ngầm nếu bật, rồi xuất full.",
+                      desc: "Tinh chỉnh ngầm nếu bật, rồi xuất full. Chọn nhạc trên màn tạo.",
                     },
                   ]}
                 />

@@ -13,13 +13,14 @@ describe("parseVoiceProvider", () => {
 });
 
 describe("createControllerArgsFromIpc", () => {
-  it("preserves raw text, duration tier, language, voice provider, and images", () => {
+  it("preserves raw text, duration tier, language, voice provider, bgm, and images", () => {
     expect(
       createControllerArgsFromIpc({
         raw: "chủ đề",
         durationTier: 2,
         videoLanguage: "en",
         voiceProvider: "elevenlabs",
+        bgm: "theme.mp3",
         images: [{ ref: "staging/aa.png", width: 800, height: 600 }],
       }),
     ).toEqual({
@@ -29,8 +30,13 @@ describe("createControllerArgsFromIpc", () => {
         durationTier: 2,
         videoLanguage: "en",
         voiceProvider: "elevenlabs",
+        bgm: "theme.mp3",
       },
     });
+  });
+
+  it("accepts explicit no-music bgm (null)", () => {
+    expect(createControllerArgsFromIpc({ raw: "x", bgm: null }).choices.bgm).toBeNull();
   });
 
   it("accepts duration tier 1 (truthy edge)", () => {

@@ -140,6 +140,16 @@
   gap: 8px;
   margin-top: 4px;
 }
+/* BGM picker sits with duration/language/voice knobs (create-time selection). */
+.ns-create-knobs .ns-create-bgm .ns-bgm-trigger {
+  min-height: 32px;
+  height: 32px;
+  max-width: 200px;
+}
+.ns-create-knobs .ns-create-bgm .ns-bgm-add {
+  width: 32px;
+  height: 32px;
+}
 .ns-icon-btn {
   display: inline-flex;
   align-items: center;

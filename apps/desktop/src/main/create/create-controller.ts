@@ -87,6 +87,11 @@ export interface CreateDeps {
    * in the UI — only on a guaranteed-fatal local config gap.
    */
   preflight?: (voiceProvider: VoiceProviderChoice, videoLanguage: VideoLanguageChoice) => string | undefined;
+  /**
+   * Persist create-time BGM onto the project manifest (library track name, or
+   * null for explicit silence). Best-effort: failure must not block create.
+   */
+  setProjectBgm?: (projectId: string, name: string | null) => Promise<void>;
 }
 
 export class CreateController {
@@ -99,6 +104,8 @@ export class CreateController {
       durationTier?: DurationTierChoice;
       videoLanguage?: VideoLanguageChoice;
       voiceProvider?: VoiceProviderChoice;
+      /** Library track name, or null for no music. */
+      bgm?: string | null;
     } = {},
   ): Promise<{ projectId: string }> {
     const v = validateCreateInput({ raw });
@@ -139,6 +146,15 @@ export class CreateController {
     };
     const res = await this.deps.scaffold(v.brief.text, voiceProvider, videoLanguage, delivery);
     if (!res.ok) throw new Error(toFriendlyError(res.error).message); // redacted friendly message
+    // Create-time BGM (Home knobs) must land before skip_edit auto-full publishes.
+    if (choices.bgm !== undefined && this.deps.setProjectBgm) {
+      await this.deps.setProjectBgm(res.projectId, choices.bgm).catch((error) => {
+        log.warn(
+          { err: error, projectId: res.projectId, bgm: choices.bgm },
+          "create-time BGM write failed; project continues without selection",
+        );
+      });
+    }
     // Promote staged images into the project before authoring so the first draft
     // can place them. A promote failure never blocks create — the brief still
     // authors (text-only), images just don't reach the AI.

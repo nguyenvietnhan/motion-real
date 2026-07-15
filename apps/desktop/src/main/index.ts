@@ -320,6 +320,10 @@ const create = new CreateController({
     return res.ok ? { ok: true, projectId: res.data.projectId } : { ok: false, error: res.error };
   },
   beginCreate: (id, input) => workspace.beginCreate(id, input),
+  // Create-time BGM from Home knobs (needed before skip_edit auto-full).
+  setProjectBgm: async (projectId, name) => {
+    await bgmHandlers["bgm:setForProject"](projectId, name);
+  },
   // Preflight: block create on a guaranteed-fatal LOCAL config gap (a missing
   // Vivibe voice key/id read from SETTINGS — env is only the fallback), so the
   // whole AI authoring pass doesn't burn and then fail at TTS. Read from the

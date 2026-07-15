@@ -1,187 +1,15 @@
-import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import type { BgmTrackVM, StoryboardModel } from "../../shared/types.js";
+import React, { useEffect, useRef, useState } from "react";
+import type { StoryboardModel } from "../../shared/types.js";
 import { Icon } from "../icons.js";
 import { EmptyState, InfoHint } from "../primitives.js";
 import { compactNotificationMessage, errorDetails, useNotifications } from "../notifications.js";
-import { useDismissable } from "../use-dismissable.js";
 import { sceneIndexAtSeconds, seekSecondsForScene } from "../storyboard-timing.js";
-import { placeDiagPanel, type DiagPanelPlacement } from "./diag-panel-placement.js";
-
-const BGM_MENU_WIDTH_PX = 268;
-
-/**
- * Background-music picker: a compact dropdown of the per-machine BGM
- * library + add/remove, shown in the storyboard header so the user sets the
- * track BEFORE approving the full render (the choice is persisted to the
- * manifest; the render path resolves it to a real path and mixes it in).
- * "Không nhạc" clears the selection. The custom menu keeps select, preview,
- * add, and remove in one compact control instead of scattering peer buttons
- * across the storyboard toolbar.
- */
-const BgmPicker: React.FC<{
-  bgm: BgmTrackVM[];
-  selected: string | null;
-  busy: boolean;
-  onAdd: () => void;
-  onRemove: (name: string) => Promise<void>;
-  onSelect: (name: string | null) => Promise<void>;
-}> = ({ bgm, selected, busy, onAdd, onRemove, onSelect }) => {
-  const rootRef = useRef<HTMLDivElement>(null);
-  const triggerRef = useRef<HTMLButtonElement>(null);
-  const audioRef = useRef<HTMLAudioElement>(null);
-  const [open, setOpen] = useState(false);
-  const [placement, setPlacement] = useState<DiagPanelPlacement | null>(null);
-  const [previewing, setPreviewing] = useState<string | null>(null);
-  const missing = selected !== null && !bgm.some((t) => t.name === selected);
-  const selectedTrack = bgm.find((t) => t.name === selected);
-
-  const updatePlacement = useCallback((): void => {
-    const trigger = triggerRef.current;
-    if (!trigger) return;
-    setPlacement(
-      placeDiagPanel(
-        trigger.getBoundingClientRect(),
-        { width: window.innerWidth, height: window.innerHeight },
-        { preferredWidth: BGM_MENU_WIDTH_PX, preferredMaxHeight: 360 },
-      ),
-    );
-  }, []);
-
-  useLayoutEffect(() => {
-    if (!open) {
-      setPlacement(null);
-      return;
-    }
-    updatePlacement();
-  }, [open, updatePlacement, bgm.length]);
-
-  useEffect(() => {
-    if (!open) return;
-    const onReposition = (): void => updatePlacement();
-    window.addEventListener("resize", onReposition);
-    window.addEventListener("scroll", onReposition, true);
-    return () => {
-      window.removeEventListener("resize", onReposition);
-      window.removeEventListener("scroll", onReposition, true);
-    };
-  }, [open, updatePlacement]);
-
-  const closeMenu = useCallback(() => setOpen(false), []);
-  useDismissable(open, closeMenu, rootRef);
-
-  useEffect(() => () => audioRef.current?.pause(), []);
-
-  const stopPreview = (): void => {
-    audioRef.current?.pause();
-    setPreviewing(null);
-  };
-  const choose = (name: string | null): void => {
-    stopPreview();
-    void onSelect(name);
-    setOpen(false);
-  };
-  const togglePreview = (track: BgmTrackVM): void => {
-    const audio = audioRef.current;
-    if (!audio || !track.previewUrl) return;
-    if (previewing === track.name && !audio.paused) {
-      stopPreview();
-      return;
-    }
-    audio.pause();
-    audio.src = track.previewUrl;
-    audio.currentTime = 0;
-    void audio.play()
-      .then(() => setPreviewing(track.name))
-      .catch(() => setPreviewing(null));
-  };
-
-  return (
-    <div className="ns-bgm-picker" ref={rootRef}>
-      <audio ref={audioRef} onEnded={() => setPreviewing(null)} />
-      <div className="ns-bgm-control">
-        <button
-          ref={triggerRef}
-          className="ns-bgm-trigger"
-          type="button"
-          aria-haspopup="menu"
-          aria-expanded={open}
-          aria-busy={busy}
-          disabled={busy}
-          title="Nhạc nền"
-          onClick={() => setOpen((value) => !value)}
-        >
-          <span className="ns-bgm-leading">{Icon.music({ size: 15 })}</span>
-          <span className="ns-bgm-current">{selectedTrack?.label ?? (missing ? selected : "Không nhạc")}</span>
-          <span className="ns-bgm-chevron">{Icon.chevronDown({ size: 14 })}</span>
-        </button>
-        <button className="ns-bgm-add" type="button" aria-label="Thêm nhạc" title="Thêm nhạc" disabled={busy} onClick={onAdd}>
-          {Icon.plus({ size: 15 })}
-        </button>
-      </div>
-
-      {open && placement && (
-        <div
-          className="ns-bgm-menu"
-          role="menu"
-          aria-label="Nhạc nền"
-          style={{
-            top: placement.top,
-            left: placement.left,
-            width: placement.width,
-            maxHeight: placement.maxHeight,
-          }}
-        >
-          <div className="ns-bgm-row">
-            <span className="ns-bgm-preview-spacer" />
-            <button className="ns-bgm-choice" type="button" role="menuitemradio" aria-checked={selected === null} disabled={busy} onClick={() => choose(null)}>
-              <span className="ns-bgm-name">Không nhạc</span>
-              {selected === null && <span className="ns-bgm-check">{Icon.check({ size: 14 })}</span>}
-            </button>
-          </div>
-
-          {missing && (
-          <div className="ns-bgm-missing">Không tìm thấy “{selected}”. Chọn bài khác.</div>
-          )}
-
-          {bgm.map((track) => (
-            <div className="ns-bgm-row" key={track.name}>
-              <button
-                className="ns-bgm-preview"
-                type="button"
-                aria-label={`${previewing === track.name ? "Dừng" : "Nghe thử"} ${track.label}`}
-                title={previewing === track.name ? "Dừng nghe thử" : "Nghe thử"}
-                disabled={busy}
-                onClick={() => togglePreview(track)}
-              >
-                {previewing === track.name ? Icon.pause({ size: 13 }) : Icon.play({ size: 13 })}
-              </button>
-              <button className="ns-bgm-choice" type="button" role="menuitemradio" aria-checked={selected === track.name} disabled={busy} onClick={() => choose(track.name)}>
-                <span className="ns-bgm-track-copy">
-                  <span className="ns-bgm-name">{track.label}</span>
-                  <span className="ns-bgm-size">{track.sizeLabel}</span>
-                </span>
-                {selected === track.name && <span className="ns-bgm-check">{Icon.check({ size: 14 })}</span>}
-              </button>
-              {!track.builtIn && (
-                <button className="ns-bgm-remove" type="button" aria-label={`Xoá ${track.label}`} title="Xoá khỏi thư viện" disabled={busy} onClick={() => void onRemove(track.name)}>
-                  {Icon.trash({ size: 13 })}
-                </button>
-              )}
-            </div>
-          ))}
-
-          {bgm.length === 0 && <div className="ns-bgm-empty">Chưa có nhạc nền. Thêm bằng nút +.</div>}
-        </div>
-      )}
-    </div>
-  );
-};
 
 /**
  * Storyboard ("Duyệt cảnh"): Canva-style full-height shell — fixed header with
  * actions, a slide rail, a big 9:16 preview, and an on-demand edit panel. Edit
  * drafts are kept per-sceneId so switching slides preserves what you typed; all
- * edits are gathered and sent in ONE pass.
+ * edits are gathered and sent in ONE pass. BGM is chosen at Home create only.
  */
 export const StoryboardView: React.FC<{
   model: StoryboardModel;
@@ -195,8 +23,8 @@ export const StoryboardView: React.FC<{
    */
   draftPath?: string;
   /**
-   * When false (skip_edit review mode), hide scene-edit chrome; stills + BGM +
-   * full approve remain. Defaults to true for fixtures/call sites that omit it.
+   * When false (skip_edit review mode), hide scene-edit chrome; stills + full
+   * approve remain. Defaults to true for fixtures/call sites that omit it.
    */
   allowSceneEdit?: boolean;
   onBack: () => void;
@@ -208,19 +36,9 @@ export const StoryboardView: React.FC<{
    */
   onSubmit: (perScene: { sceneId: string; text: string }[], globalNotes: string) => Promise<boolean>;
   onApprove: () => void;
-  /** Per-machine BGM library (shared across projects). Optional: only the "ready" stage passes it. */
-  bgm?: BgmTrackVM[];
-  /** The open project's currently-selected BGM track name (null = none). */
-  bgmSelected?: string | null;
-  /** Open the native picker to add audio file(s) to the library. */
-  onBgmAdd?: () => void;
-  /** Delete one library track by name. */
-  onBgmRemove?: (name: string) => Promise<void>;
-  /** Set (or clear, with null) the open project's BGM track; persisted to its manifest before the full render. */
-  onBgmSelect?: (name: string | null) => Promise<void>;
   /** Optional diagnostics entry (ready-stage). */
   diagnosticsSlot?: React.ReactNode;
-}> = ({ model, canApprove, notice, draftPath, allowSceneEdit = true, onBack, onSubmit, onApprove, bgm, bgmSelected, onBgmAdd, onBgmRemove, onBgmSelect, diagnosticsSlot }) => {
+}> = ({ model, canApprove, notice, draftPath, allowSceneEdit = true, onBack, onSubmit, onApprove, diagnosticsSlot }) => {
   const [selected, setSelected] = useState(0);
   // Per-scene edit drafts keyed by sceneId, so switching slides KEEPS what you
   // typed. You gather edits across many scenes and send them in ONE pass.
@@ -231,7 +49,6 @@ export const StoryboardView: React.FC<{
   // Default to video draft when present; rail click flips to that scene's still.
   const [showStill, setShowStill] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [bgmSaving, setBgmSaving] = useState(false);
   const notify = useNotifications();
   const lastNotice = useRef("");
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -338,27 +155,9 @@ export const StoryboardView: React.FC<{
       })
       .finally(() => setSubmitting(false));
   };
-  const selectBgm = async (name: string | null): Promise<void> => {
-    if (!onBgmSelect || bgmSaving) return;
-    setBgmSaving(true);
-    try {
-      await onBgmSelect(name);
-    } finally {
-      setBgmSaving(false);
-    }
-  };
-  const removeBgm = async (name: string): Promise<void> => {
-    if (!onBgmRemove || bgmSaving) return;
-    setBgmSaving(true);
-    try {
-      await onBgmRemove(name);
-    } finally {
-      setBgmSaving(false);
-    }
-  };
 
   // Full-height shell: leading identity row + action cluster that wraps cleanly
-  // on narrow windows (never overlap BGM / diagnostics / primary actions).
+  // on narrow windows (never overlap diagnostics / primary actions).
   const Header = (
     <header className="ns-story-header">
       <div className="ns-story-header-leading">
@@ -377,9 +176,6 @@ export const StoryboardView: React.FC<{
       {scenes.length > 0 && (
         <div className="ns-story-header-actions">
           {/* Primary actions stay visible; secondary (log) collapses into overflow on narrow widths. */}
-          {bgm && onBgmAdd && onBgmRemove && onBgmSelect && (
-            <BgmPicker bgm={bgm} selected={bgmSelected ?? null} busy={bgmSaving} onAdd={onBgmAdd} onRemove={removeBgm} onSelect={selectBgm} />
-          )}
           {allowSceneEdit && (
             <button
               type="button"
@@ -398,15 +194,9 @@ export const StoryboardView: React.FC<{
           <button
             type="button"
             className="ns-btn ns-btn-primary ns-story-approve"
-            disabled={!canApprove || bgmSaving}
+            disabled={!canApprove}
             onClick={onApprove}
-            title={
-              bgmSaving
-                ? "Đang lưu nhạc nền."
-                : canApprove
-                  ? undefined
-                  : "Chưa sẵn sàng xuất bản."
-            }
+            title={canApprove ? undefined : "Chưa sẵn sàng xuất bản."}
           >
             Xuất bản
           </button>

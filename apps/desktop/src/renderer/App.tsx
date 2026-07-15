@@ -41,10 +41,10 @@ const AppShell: React.FC = () => {
   const [preferredModelUnavailable, setPreferredModelUnavailable] = useState<string | undefined>();
   const [openProjectId, setOpenProjectId] = useState<string | null>(null);
   const [stage, setStage] = useState<ProjectStage>({ kind: "writing" });
-  // BGM library (per-machine, shared) + the open project's current selection.
-  // Loaded when a workspace opens; the picker mutates the library then refreshes.
+  /** Home create-time BGM library + selection (written at create; not on storyboard). */
   const [bgm, setBgm] = useState<BgmTrackVM[]>([]);
-  const [bgmSelected, setBgmSelected] = useState<string | null>(null);
+  const [createBgmSelected, setCreateBgmSelected] = useState<string | null>(null);
+  const createBgmInitialized = useRef(false);
   /** Pending project id for in-app delete confirm (replaces native window.confirm). */
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const selectingModelRef = useRef<string | null>(null);
@@ -200,23 +200,28 @@ const AppShell: React.FC = () => {
     setScreen("workspace");
   };
 
-  // Load the BGM library + this project's current selection when a workspace
-  // opens (and refresh the library on demand after add/remove). A failure leaves
-  // an empty library rather than crashing the workspace.
+  // Load the BGM library for Home create knobs only.
+  // A failure leaves an empty library rather than crashing the UI.
   const refreshBgm = useCallback(async () => {
     if (!dash) return;
     try {
-      setBgm(await dash.bgm.list());
+      const tracks = await dash.bgm.list();
+      setBgm(tracks);
+      // Default create selection to the bundled track once (user can clear to "Không nhạc").
+      if (!createBgmInitialized.current) {
+        createBgmInitialized.current = true;
+        const builtIn = tracks.find((t) => t.builtIn);
+        setCreateBgmSelected(builtIn?.name ?? null);
+      }
     } catch {
       setBgm([]);
     }
   }, [dash]);
 
   useEffect(() => {
-    if (!dash || screen !== "workspace" || !openProjectId) return;
+    if (!dash) return;
     void refreshBgm();
-    void dash.bgm.getForProject(openProjectId).then(setBgmSelected).catch(() => setBgmSelected(null));
-  }, [dash, screen, openProjectId, refreshBgm]);
+  }, [dash, refreshBgm]);
 
   // Poll the open project's stage while in the workspace (writing → script →
   // rendering → ready / error), so the staged UI updates live.
@@ -302,6 +307,7 @@ const AppShell: React.FC = () => {
                   durationTier: choices.durationTier,
                   videoLanguage: choices.videoLanguage,
                   voiceProvider: choices.voiceProvider,
+                  bgm: choices.bgm,
                 })
                 .then((r) => {
                   // Refresh the gallery the moment the project exists on disk
@@ -320,6 +326,18 @@ const AppShell: React.FC = () => {
                   });
                 });
             }}
+            bgm={bgm}
+            bgmSelected={createBgmSelected}
+            onBgmAdd={() => void dash?.bgm.add().then((tracks) => { setBgm(tracks); })}
+            onBgmRemove={async (name) => {
+              if (!dash) return;
+              const tracks = await dash.bgm.remove(name);
+              setBgm(tracks);
+              if (createBgmSelected === name) {
+                setCreateBgmSelected(tracks.find((t) => t.builtIn)?.name ?? null);
+              }
+            }}
+            onBgmSelect={(name) => setCreateBgmSelected(name)}
             onUnstageImage={(ref) => {
               // Best-effort: free the staged bytes when the user removes a pick
               // (the 24h sweep is the backstop). A stale preload lacks the method;
@@ -474,22 +492,6 @@ const AppShell: React.FC = () => {
               // transition to "writing" once the backend begins authoring.
               setStage({ kind: "writing", phase: "author" });
               void dash?.projects.submitImageReview(openProjectId, refs);
-            }}
-            bgm={bgm}
-            bgmSelected={bgmSelected}
-            onBgmAdd={() => void dash?.bgm.add().then(setBgm)}
-            onBgmRemove={async (name) => {
-              if (!dash) return;
-              const tracks = await dash.bgm.remove(name);
-              setBgm(tracks);
-              if (bgmSelected === name) {
-                setBgmSelected(null);
-                await dash.bgm.setForProject(openProjectId, null);
-              }
-            }}
-            onBgmSelect={async (name) => {
-              setBgmSelected(name);
-              await dash?.bgm.setForProject(openProjectId, name);
             }}
             onGenerateThumbnail={() =>
               dash?.thumbnail.generate(openProjectId) ?? Promise.resolve(null)

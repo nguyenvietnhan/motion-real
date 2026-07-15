@@ -10,6 +10,7 @@ import type {
   AiAccountState,
   GatewayState,
   SettingsModel,
+  BgmTrackVM,
 } from "../../shared/types.js";
 import type { GalleryLoad } from "../../shared/gallery-controller.js";
 import { validateCreateInput, extractUrls } from "../../shared/create-validation.js";
@@ -24,6 +25,7 @@ import { Icon } from "../icons.js";
 import { EmptyState, LoadingLine, PageHeader, ProjectGrid } from "../primitives.js";
 import { compactNotificationMessage, errorDetails, useNotifications } from "../notifications.js";
 import { useDismissable } from "../use-dismissable.js";
+import { BgmPicker } from "./bgm-picker.js";
 
 /** Read a File's bytes and base64-encode them (stable across the IPC boundary). */
 async function fileToBase64(file: File): Promise<string> {
@@ -168,6 +170,8 @@ export const HomeView: React.FC<{
       durationTier: DurationTierChoice;
       videoLanguage: VideoLanguageChoice;
       voiceProvider: VoiceProviderChoice;
+      /** Library track name, or null for no music (written before authoring). */
+      bgm: string | null;
     },
   ) => void | Promise<void>;
   onOpen: (projectId: string) => void;
@@ -185,6 +189,12 @@ export const HomeView: React.FC<{
   /** Rename a project's display title. Absent ⇒ no rename affordance. */
   onRename?: (id: string, newTitle: string) => void;
   onRetry?: () => void;
+  /** Per-machine BGM library for create-time pick (skip_edit auto-full needs this). */
+  bgm?: BgmTrackVM[];
+  bgmSelected?: string | null;
+  onBgmAdd?: () => void;
+  onBgmRemove?: (name: string) => Promise<void>;
+  onBgmSelect?: (name: string | null) => void;
 }> = ({
   gateway,
   account,
@@ -204,6 +214,11 @@ export const HomeView: React.FC<{
   onReveal,
   onRename,
   onRetry,
+  bgm = [],
+  bgmSelected = null,
+  onBgmAdd,
+  onBgmRemove,
+  onBgmSelect,
 }) => {
   const [raw, setRaw] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -437,7 +452,9 @@ export const HomeView: React.FC<{
     }
     setCreating(true);
     try {
-      void Promise.resolve(onCreate(raw, images, { durationTier, videoLanguage, voiceProvider })).finally(() => setCreating(false));
+      void Promise.resolve(
+        onCreate(raw, images, { durationTier, videoLanguage, voiceProvider, bgm: bgmSelected }),
+      ).finally(() => setCreating(false));
     } catch (error) {
       setCreating(false);
       throw error;
@@ -566,6 +583,17 @@ export const HomeView: React.FC<{
                 { value: "elevenlabs", label: "ElevenLabs" },
               ]}
             />
+            {onBgmSelect && onBgmAdd && onBgmRemove ? (
+              <BgmPicker
+                className="ns-create-bgm"
+                bgm={bgm}
+                selected={bgmSelected}
+                busy={creating}
+                onAdd={onBgmAdd}
+                onRemove={onBgmRemove}
+                onSelect={onBgmSelect}
+              />
+            ) : null}
           </div>
         </div>
       </div>

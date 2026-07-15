@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import type { BgmTrackVM, ProjectStage, ScriptLine, VideoFormatChoice } from "../../shared/types.js";
+import type { ProjectStage, ScriptLine, VideoFormatChoice } from "../../shared/types.js";
 import {
   renderingPhaseIndeterminate,
   renderingPhaseParts,
@@ -404,22 +404,12 @@ export const ProjectWorkspaceView: React.FC<{
   onCancel: () => void;
   /** Confirm the crawled-image selection (crawled-image review); empty ⇒ author text-only. */
   onSubmitImageReview: (selectedRefs: string[]) => void;
-  /** Per-machine BGM library (shared across projects); the picker in the storyboard lists these. */
-  bgm: BgmTrackVM[];
-  /** The open project's currently-selected BGM track name (null = none). */
-  bgmSelected: string | null;
-  /** Open the native picker to add audio file(s) to the library. */
-  onBgmAdd: () => void;
-  /** Delete one library track by name. */
-  onBgmRemove: (name: string) => Promise<void>;
-  /** Set (or clear, with null) the open project's BGM track; persisted to its manifest. */
-  onBgmSelect: (name: string | null) => Promise<void>;
   /** Generate a caption-free cover from the first authored scene. */
   onGenerateThumbnail: () => Promise<{ thumbnailUrl: string } | null>;
   /** Copy the generated cover PNG through a native Save dialog. */
   onSaveThumbnail: () => Promise<{ saved: boolean; error?: string }>;
   loadDiagnostics?: (projectId: string) => Promise<ProjectDiagnosticsVM>;
-}> = ({ stage, projectId, onBack, onRetry, onFixWithAi, onApplyScript, onApproveScript, onSubmitEdits, onApproveDraft, allowSceneEdit = true, onReveal, onSave, onCancel, onSubmitImageReview, bgm, bgmSelected, onBgmAdd, onBgmRemove, onBgmSelect, onGenerateThumbnail, onSaveThumbnail, loadDiagnostics }) => {
+}> = ({ stage, projectId, onBack, onRetry, onFixWithAi, onApplyScript, onApproveScript, onSubmitEdits, onApproveDraft, allowSceneEdit = true, onReveal, onSave, onCancel, onSubmitImageReview, onGenerateThumbnail, onSaveThumbnail, loadDiagnostics }) => {
   const title = workspaceStageTitle;
   if (stage.kind === "ready") {
     return (
@@ -432,11 +422,6 @@ export const ProjectWorkspaceView: React.FC<{
         onBack={onBack}
         onSubmit={onSubmitEdits}
         onApprove={onApproveDraft}
-        bgm={bgm}
-        bgmSelected={bgmSelected}
-        onBgmAdd={onBgmAdd}
-        onBgmRemove={onBgmRemove}
-        onBgmSelect={onBgmSelect}
         diagnosticsSlot={
           projectId && loadDiagnostics ? (
             <ProjectDiagnosticsPanel projectId={projectId} load={loadDiagnostics} />

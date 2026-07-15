@@ -11,6 +11,8 @@ export type CreateControllerChoices = {
   durationTier?: DurationTierChoice;
   videoLanguage?: VideoLanguageChoice;
   voiceProvider?: VoiceProviderChoice;
+  /** Library BGM track name, or null for explicit silence. */
+  bgm?: string | null;
 };
 
 export type CreateControllerArgs = {
@@ -24,8 +26,21 @@ type RawCreatePayload = {
   durationTier?: unknown;
   videoLanguage?: VideoLanguageChoice;
   voiceProvider?: unknown;
+  /** Track filename, null for no music, or omit. */
+  bgm?: unknown;
   images?: StagedImageRef[];
 };
+
+/** Coerce IPC BGM selection: string name, null silence, or undefined omit. */
+export function parseCreateBgm(value: unknown): string | null | undefined {
+  if (value === undefined) return undefined;
+  if (value === null) return null;
+  if (typeof value === "string") {
+    const name = value.trim();
+    return name.length > 0 ? name : null;
+  }
+  return undefined;
+}
 
 export function parseVoiceProvider(value: unknown): VoiceProviderChoice {
   if (value === "vivibe" || value === "elevenlabs") return value;
@@ -45,6 +60,7 @@ export function parseDurationTier(value: unknown): DurationTierChoice | undefine
 export function createControllerArgsFromIpc(input: unknown): CreateControllerArgs {
   const payload = input as RawCreatePayload;
   const durationTier = parseDurationTier(payload.durationTier);
+  const bgm = parseCreateBgm(payload.bgm);
   return {
     raw: payload.raw,
     images: payload.images ?? [],
@@ -52,6 +68,7 @@ export function createControllerArgsFromIpc(input: unknown): CreateControllerArg
       ...(durationTier ? { durationTier } : {}),
       ...(payload.videoLanguage ? { videoLanguage: payload.videoLanguage } : {}),
       ...(payload.voiceProvider ? { voiceProvider: parseVoiceProvider(payload.voiceProvider) } : {}),
+      ...(bgm !== undefined ? { bgm } : {}),
     },
   };
 }
