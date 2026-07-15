@@ -1,18 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { makeTheme } from "@motionreal/theme";
 import { VENDORED_FONTS } from "./vendor-fonts.generated.js";
-import { FONT_FACE_LOAD_MS, fontCoverageReport, LOADED_FONT_FAMILIES } from "./fonts.js";
+import { fontCoverageReport, LOADED_FONT_FAMILIES } from "./fonts.js";
 
 /** Leading family name of a CSS font stack, unquoted. */
 function leading(stack: string): string {
   return (stack.split(",")[0] ?? "").trim().replace(/^["']|["']$/g, "");
 }
 
-const RENDER_FAMILIES = [
-  LOADED_FONT_FAMILIES.display,
-  LOADED_FONT_FAMILIES.bodyPremium,
-  LOADED_FONT_FAMILIES.mono,
-] as const;
+const RENDER_FAMILIES = [...new Set(Object.values(LOADED_FONT_FAMILIES))];
 
 // Property 19: render fonts cover Vietnamese and load safely
 describe("render fonts — Property 19: Vietnamese coverage + render-safe", () => {
@@ -43,7 +39,7 @@ describe("render fonts — Property 19: Vietnamese coverage + render-safe", () =
 // Fonts are vendored as base64 woff2 data URLs so a render NEVER fetches
 // fonts.gstatic.com. These lock the vendored manifest's completeness.
 describe("vendored fonts — self-hosted, render-safe (no network)", () => {
-  it("vendors all three render families with the vietnamese subset", () => {
+  it("vendors theme families with the vietnamese subset", () => {
     for (const family of RENDER_FAMILIES) {
       const viet = VENDORED_FONTS.filter((f) => f.family === family && f.subset === "vietnamese");
       expect(viet.length, `${family} must have a vendored vietnamese face`).toBeGreaterThan(0);
@@ -66,15 +62,15 @@ describe("vendored fonts — self-hosted, render-safe (no network)", () => {
     }
   });
 
-  it("fontCoverageReport reports vietnamese coverage for all three families", () => {
+  it("fontCoverageReport covers unique theme families with vietnamese", () => {
     const report = fontCoverageReport();
-    expect(report).toHaveLength(3);
+    expect(report.map((r) => r.family).sort()).toEqual([...RENDER_FAMILIES].sort());
     expect(report.every((r) => r.hasVietnamese)).toBe(true);
   });
 
-  it("caps per-face load well below the browser render timeout (~120s)", () => {
-    // Production: hung FontFace.load + per-face delayRender burned ~118s on full.
-    expect(FONT_FACE_LOAD_MS).toBeGreaterThan(0);
-    expect(FONT_FACE_LOAD_MS).toBeLessThanOrEqual(15_000);
+  it("does not require Be Vietnam Pro on the render hot path (theme unused)", () => {
+    // Historical vendor bytes may still include it; inject path ignores non-theme families.
+    expect(RENDER_FAMILIES.includes("Be Vietnam Pro" as (typeof RENDER_FAMILIES)[number])).toBe(false);
+    expect(makeTheme().fonts.body).toMatch(/^Inter\b|^["']Inter["']/);
   });
 });

@@ -2,7 +2,6 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { getInfo as interInfo } from "@remotion/google-fonts/Inter";
-import { getInfo as bvpInfo } from "@remotion/google-fonts/BeVietnamPro";
 import { getInfo as cascadiaInfo } from "@remotion/google-fonts/CascadiaMono";
 
 /**
@@ -10,29 +9,26 @@ import { getInfo as cascadiaInfo } from "@remotion/google-fonts/CascadiaMono";
  * network-independent).
  *
  * WHY: `@remotion/google-fonts` fetches each woff2 from `fonts.gstatic.com`
- * inside headless Chromium on EVERY render, gated by a hard 18s `delayRender`
+ * inside headless Chromium on EVERY render, gated by a hard `delayRender`
  * timeout baked into the package. A slow or blocked network therefore KILLS an
  * otherwise-fine render ("Timed out loading Google Font") — a cosmetic asset
  * taking down the whole pipeline. That violates the project's "no network in the
  * hot path, deterministic" rule.
  *
- * WHAT: download exactly the weights + subsets the renderer uses, base64-encode
- * each woff2, and emit `packages/blocks/src/vendor-fonts.generated.ts` as a
- * manifest of `{ family, weight, style, unicodeRange, dataUrl }`. A data: URL is
- * a plain string, so the generated module loads IDENTICALLY in Node (vitest, no
- * FontFace — inert) and in the browser render (real FontFace) — unlike a static
- * `import x.woff2`, which would crash a Node import. `fonts.ts` then registers
- * these locally with zero network. Re-run this script to refresh (e.g. a font
- * version bump); the output is committed so renders never need the network.
+ * WHAT: download exactly the weights + subsets the **neutral theme** uses
+ * (Inter + Cascadia Mono — not Be Vietnam Pro), base64-encode each woff2, and
+ * emit `packages/blocks/src/vendor-fonts.generated.ts` as a manifest of
+ * `{ family, weight, style, unicodeRange, dataUrl }`. `fonts.ts` injects these
+ * as CSS `@font-face` (no module-level delayRender / FontFace.load). Re-run to
+ * refresh; the output is committed so renders never need the network.
  *
  * Usage: npx tsx scripts/vendor-fonts.ts
  */
 
-// The exact families / weights / subsets loaded by packages/blocks/src/fonts.ts.
-// Keep in sync with that file's loadFont() calls.
+// Keep in sync with packages/theme NEUTRAL_FONTS + packages/blocks fonts.ts.
 const FONT_PLAN: { info: () => FontInfo; weights: string[] }[] = [
+  // display/body stacks + captions (900) / headlines (800)
   { info: interInfo, weights: ["400", "700", "800", "900"] },
-  { info: bvpInfo, weights: ["400", "600", "700", "800", "900"] },
   { info: cascadiaInfo, weights: ["400", "700"] },
 ];
 const SUBSETS = ["vietnamese", "latin"] as const;

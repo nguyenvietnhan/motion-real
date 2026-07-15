@@ -1,118 +1,98 @@
-import { continueRender, delayRender } from "remotion";
 import { VENDORED_FONTS } from "./vendor-fonts.generated.js";
 
 /**
- * Render-safe font loading.
+ * Render-safe font loading (no network, never block Remotion).
  *
- * Every render font must be present with the **vietnamese** subset so a
- * Vietnamese diacritic never falls back to a system face ("nét to nét nhỏ").
+ * History / root cause (production unattended full, 2026-07-16):
+ * - Module-level `delayRender` + `FontFace.load()` on 22 base64 faces blocked
+ *   the render. Remotion's handle timeout is `timeoutInMilliseconds - 2000`
+ *   (so a 12s budget surfaces as "not cleared after 10000ms"). Sync FontFace
+ *   construction can starve the timers that were meant to continueRender.
+ * - Remotion also awaits `document.fonts.ready` after each seek; abandoned
+ *   `FontFace.load()` promises can leave faces "loading" forever.
+ * - Remotion docs: do not call delayRender outside a component.
  *
- * Fonts are VENDORED as base64 woff2 data URLs (`vendor-fonts.generated.ts`,
- * produced by `scripts/vendor-fonts.ts`) and registered via `FontFace` with NO
- * network. This removes the live `fonts.gstatic.com` fetch from the render hot
- * path — the source of intermittent "Timed out loading Google Font" failures.
+ * Fix: inject `@font-face` CSS for the faces the **neutral theme actually
+ * uses** (Inter + Cascadia Mono). No delayRender, no FontFace.load(). Browser
+ * loads glyphs on demand when a frame paints text. Be Vietnam Pro is vendored
+ * historically but unused by `makeTheme()` — skip it at inject time.
  *
- * Registration uses ONE `delayRender` for the whole batch and is NON-FATAL:
- * each face is capped with a short timeout; hang/fail never burns the full
- * browser `timeoutInMilliseconds` (~120s). Production incident (2026-07-16):
- * per-face delayRender + hung `FontFace.load()` on Inter 400 vietnamese killed
- * unattended full export twice after TTS/build/determinism had already passed.
- *
- * Family map: Inter (display/body), Be Vietnam Pro (alternate display/body),
- * Cascadia Mono (mono labels) — all Vietnamese-complete.
+ * Re-run `npm run vendor-fonts` only when refreshing woff2 bytes; this module
+ * does not need a regenerate to drop unused families from the hot path.
  */
 
-/** Cap a single FontFace.load so a stuck face cannot hold the whole render. */
-export const FONT_FACE_LOAD_MS = 8_000;
+/** Families the neutral render theme leads with (must stay in sync with theme). */
+export const LOADED_FONT_FAMILIES = {
+  display: "Inter",
+  body: "Inter",
+  mono: "Cascadia Mono",
+} as const;
 
-/** delayRender budget for the whole batch (must exceed parallel per-face cap). */
-const VENDORED_FONTS_DELAY_MS = FONT_FACE_LOAD_MS + 4_000;
+const THEME_FONT_FAMILIES = new Set<string>([
+  LOADED_FONT_FAMILIES.display,
+  LOADED_FONT_FAMILIES.body,
+  LOADED_FONT_FAMILIES.mono,
+]);
 
-function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
-  return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => {
-      reject(new Error(`${label} timed out after ${ms}ms`));
-    }, ms);
-    promise.then(
-      (value) => {
-        clearTimeout(timer);
-        resolve(value);
-      },
-      (err: unknown) => {
-        clearTimeout(timer);
-        reject(err);
-      },
-    );
-  });
-}
+const STYLE_TAG_ID = "motionreal-vendored-fonts";
 
-/** Register the vendored faces locally (no network). */
-function loadVendoredFonts(): void {
+/**
+ * Inject one `@font-face` rule per vendored face used by the theme.
+ * Idempotent; safe to import from multiple runtime modules.
+ */
+function injectVendoredFontFaces(): void {
   if (VENDORED_FONTS.length === 0) {
     // eslint-disable-next-line no-console
     console.warn("[fonts] VENDORED_FONTS is empty — run `npm run vendor-fonts`");
     return;
   }
-  // No FontFace (Node/vitest) → inert.
-  if (typeof FontFace === "undefined" || typeof document === "undefined") return;
+  if (typeof document === "undefined") return;
+  if (document.getElementById(STYLE_TAG_ID)) return;
 
-  // One handle for all faces. 22 independent delayRenders meant one hung
-  // FontFace.load() blocked full MP4 until BROWSER_TIMEOUT (~118s message).
-  const handle = delayRender("Loading vendored fonts", {
-    timeoutInMilliseconds: VENDORED_FONTS_DELAY_MS,
-  });
+  const faces = VENDORED_FONTS.filter((f) => THEME_FONT_FAMILIES.has(f.family));
+  if (faces.length === 0) {
+    // eslint-disable-next-line no-console
+    console.warn("[fonts] no vendored faces match theme families");
+    return;
+  }
 
-  void (async () => {
-    try {
-      await Promise.all(
-        VENDORED_FONTS.map(async (font) => {
-          const label = `${font.family} ${font.weight} ${font.subset}`;
-          try {
-            const face = new FontFace(font.family, `url(${font.dataUrl}) format('woff2')`, {
-              weight: font.weight,
-              style: font.style,
-              unicodeRange: font.unicodeRange,
-            });
-            const loaded = await withTimeout(face.load(), FONT_FACE_LOAD_MS, `vendored ${label}`);
-            document.fonts.add(loaded);
-          } catch (err) {
-            // eslint-disable-next-line no-console
-            console.warn(
-              `[fonts] vendored ${label} failed to load (using stack fallback):`,
-              err,
-            );
-          }
-        }),
-      );
-    } finally {
-      continueRender(handle);
-    }
-  })();
+  const css = faces
+    .map((font) => {
+      // JSON.stringify quotes family names safely (spaces, etc.).
+      return [
+        "@font-face {",
+        `  font-family: ${JSON.stringify(font.family)};`,
+        `  font-weight: ${font.weight};`,
+        `  font-style: ${font.style};`,
+        "  font-display: block;",
+        `  unicode-range: ${font.unicodeRange};`,
+        `  src: url(${JSON.stringify(font.dataUrl)}) format("woff2");`,
+        "}",
+      ].join("\n");
+    })
+    .join("\n");
+
+  const style = document.createElement("style");
+  style.id = STYLE_TAG_ID;
+  style.setAttribute("data-motionreal-fonts", "vendored");
+  style.textContent = css;
+  (document.head ?? document.documentElement).appendChild(style);
 }
 
-// Importing this module (side-effect) triggers the loads.
-loadVendoredFonts();
-
-/** Loaded family names — MUST match the neutral render theme font stacks. */
-export const LOADED_FONT_FAMILIES = {
-  display: "Inter",
-  bodyPremium: "Be Vietnam Pro",
-  mono: "Cascadia Mono",
-} as const;
+// Side-effect on import (Node/vitest: document undefined → no-op).
+injectVendoredFontFaces();
 
 /** One loaded font's Vietnamese-coverage status (for the doctor font check). */
 export type FontCoverage = { family: string; hasVietnamese: boolean };
 
 /**
- * Report whether each loaded render font ships the `vietnamese` subset.
- * Coverage is verified from the vendored manifest only.
+ * Report whether each theme render font ships the `vietnamese` subset.
+ * Coverage is verified from the vendored manifest only (unique families).
  */
 export function fontCoverageReport(): FontCoverage[] {
   const hasViet = (family: string) =>
     VENDORED_FONTS.some((f) => f.family === family && f.subset === "vietnamese");
-  return [
-    { family: LOADED_FONT_FAMILIES.display, hasVietnamese: hasViet(LOADED_FONT_FAMILIES.display) },
-    { family: LOADED_FONT_FAMILIES.bodyPremium, hasVietnamese: hasViet(LOADED_FONT_FAMILIES.bodyPremium) },
-    { family: LOADED_FONT_FAMILIES.mono, hasVietnamese: hasViet(LOADED_FONT_FAMILIES.mono) },
-  ];
+  // Unique families — theme display/body both use Inter.
+  const families = [...new Set(Object.values(LOADED_FONT_FAMILIES))];
+  return families.map((family) => ({ family, hasVietnamese: hasViet(family) }));
 }
