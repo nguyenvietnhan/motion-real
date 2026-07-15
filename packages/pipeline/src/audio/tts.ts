@@ -47,7 +47,7 @@ export type SynthesizeOptions = {
   speed?: number;
   /** absolute path to a BGM file to mix under the narration, if any */
   bgmPath?: string;
-  /** BGM gain relative to the voice (0–1); defaults to DEFAULT_BGM_VOLUME (~20%). */
+  /** BGM gain relative to the voice (0–1); defaults to DEFAULT_BGM_VOLUME (~28%). */
   bgmVolume?: number;
 };
 
@@ -81,7 +81,8 @@ export function resolveElevenLabsCredentials(
 }
 
 /** Default background-music gain under the narration (~20% of the voice). */
-export const DEFAULT_BGM_VOLUME = 0.2;
+/** BGM sits under voice — slightly above the old 0.2 so default tracks read on phone speakers. */
+export const DEFAULT_BGM_VOLUME = 0.28;
 
 const VIVIBE_TTS_DICTIONARY: Array<[RegExp, string]> = [
   // Prepare common English brand/tech terms for natural Vietnamese pronunciation.
@@ -238,7 +239,7 @@ export async function synthesizeNarration(
   if (opts.bgmPath && existsSync(opts.bgmPath)) {
     const withBgm = join(p.audioDir, "narration.bgm.wav");
     try {
-      // BGM sits quietly under the voice (~20%) and fades out at the tail.
+      // BGM sits under the voice (DEFAULT_BGM_VOLUME) and fades out at the tail.
       await mixBgm(mixedAbs, opts.bgmPath, withBgm, opts.bgmVolume ?? DEFAULT_BGM_VOLUME);
       mixedAbs = withBgm;
     } catch {

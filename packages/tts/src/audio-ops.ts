@@ -148,7 +148,7 @@ export async function mixBgm(
   voicePath: string,
   bgmPath: string,
   outputPath: string,
-  volume = 0.2,
+  volume = 0.28,
   fadeDurationSeconds = 3.0,
 ): Promise<void> {
   await mkdir(dirname(outputPath), { recursive: true });

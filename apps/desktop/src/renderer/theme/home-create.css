@@ -140,15 +140,41 @@
   gap: 8px;
   margin-top: 4px;
 }
-/* BGM picker sits with duration/language/voice knobs (create-time selection). */
+/* BGM picker matches duration/language/voice knob chips (same fill + border). */
+.ns-create-knobs .ns-create-bgm .ns-bgm-control {
+  height: 36px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
 .ns-create-knobs .ns-create-bgm .ns-bgm-trigger {
-  min-height: 32px;
-  height: 32px;
+  min-height: 36px;
+  height: 36px;
   max-width: 200px;
+  padding: 0 12px;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--foreground);
+  background: transparent;
 }
 .ns-create-knobs .ns-create-bgm .ns-bgm-add {
-  width: 32px;
-  height: 32px;
+  width: 36px;
+  height: 36px;
+  color: var(--muted-foreground);
+  background: transparent;
+  border-left: 1px solid var(--border);
+}
+.ns-create-knobs .ns-create-bgm .ns-bgm-trigger:hover,
+.ns-create-knobs .ns-create-bgm .ns-bgm-add:hover,
+.ns-create-knobs .ns-create-bgm .ns-bgm-trigger[aria-expanded="true"] {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--foreground);
+}
+.ns-create-knobs .ns-create-bgm .ns-bgm-leading,
+.ns-create-knobs .ns-create-bgm .ns-bgm-chevron {
+  color: var(--muted-foreground);
 }
 .ns-icon-btn {
   display: inline-flex;
