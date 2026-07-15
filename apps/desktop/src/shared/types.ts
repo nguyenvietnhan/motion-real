@@ -240,9 +240,11 @@ export type DesktopReadinessReport = {
 
 /**
  * Desktop post-author review policy (global Settings).
- * - full: draft MP4 + scene edit (default)
- * - stills_edit: stills only + scene edit (no draft MP4)
- * - skip_edit: stills only, no scene-edit chrome; user still approves full
+ * - full: draft MP4 + scene edit (default); user approves before full export
+ * - stills_edit: stills only + scene edit (no draft MP4); user approves full
+ * - skip_edit: stills (+ silent refine), no review/edit stop; auto full export
+ *   (forceFull when no draft). For true unattended runs also turn OFF
+ *   scriptGateEnabled and imageCrawlHumanReview.
  */
 export type ReviewMode = "full" | "stills_edit" | "skip_edit";
 

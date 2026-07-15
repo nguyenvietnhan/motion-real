@@ -1279,6 +1279,17 @@ describe("reviewMode (stills_edit / skip_edit)", () => {
     if (st.kind === "ready") expect(st.draftPath).toBeUndefined();
   });
 
+  /** Settings profile for production unattended (matrix A): auto full, no human gates. */
+  const unattendedSettings = {
+    scriptGateEnabled: false,
+    reviewMode: "skip_edit" as const,
+    maxRepairAttempts: 3,
+    refinePasses: 0,
+    refineEarlyStop: true,
+    imageCrawlAiFilter: false,
+    imageCrawlHumanReview: false,
+  };
+
   it("skip_edit: after stills goes straight to full publish (never ready / no reauthor)", async () => {
     const reauthor = vi.fn(async (): Promise<AuthorOutcome> => ({ kind: "authored", sceneIds: ["scene-01"] }));
     const gen = vi.fn(async (): Promise<RepairOutcome> => ({ kind: "passed", attempts: 1 }));
@@ -1286,15 +1297,7 @@ describe("reviewMode (stills_edit / skip_edit)", () => {
     const ctrl = new WorkspaceController(
       baseDeps({
         worker: stillsWorker({ reauthorScenes: reauthor, generateValidateRepair: gen, publish }),
-        settings: {
-          scriptGateEnabled: false,
-          reviewMode: "skip_edit",
-          maxRepairAttempts: 3,
-          refinePasses: 0,
-          refineEarlyStop: true,
-          imageCrawlAiFilter: false,
-          imageCrawlHumanReview: false,
-        },
+        settings: unattendedSettings,
         loadManifest: async () => ({ scenes: [{ id: "scene-01" }] }),
         hasStill: () => true,
         hasDraft: () => false,
@@ -1309,6 +1312,71 @@ describe("reviewMode (stills_edit / skip_edit)", () => {
     ctrl.submitEdits("p1", [{ sceneId: "scene-01", text: "to chữ" }], "");
     await flush();
     expect(reauthor).not.toHaveBeenCalled();
+  });
+
+  it("matrix A: beginScript prompt-only unattended → published (no script/ready stop)", async () => {
+    const author = vi.fn(async (): Promise<AuthorOutcome> => ({ kind: "authored", sceneIds: ["scene-01"] }));
+    const gen = vi.fn(async (): Promise<RepairOutcome> => ({ kind: "passed", attempts: 1 }));
+    const publish = vi.fn(async () => ({ ok: true as const, outputPath: "/out.mp4" }));
+    const ctrl = new WorkspaceController(
+      baseDeps({
+        worker: stillsWorker({ author, generateValidateRepair: gen, publish }),
+        settings: unattendedSettings,
+        loadManifest: async () => ({ scenes: [{ id: "scene-01" }] }),
+        hasStill: () => true,
+        hasDraft: () => false,
+        hasOutput: () => true,
+        toMedia: (p) => p,
+        outputMedia: () => "/out.mp4",
+      }),
+    );
+    ctrl.beginScript("p-unattended", { text: "Làm video ngắn về AI", urls: [] });
+    await flush();
+    expect(author).toHaveBeenCalled();
+    expect(gen).not.toHaveBeenCalled(); // skip_edit skips draft repair loop
+    expect(publish).toHaveBeenCalledWith("p-unattended", expect.any(AbortSignal), { forceFull: true });
+    const st = await ctrl.stage("p-unattended");
+    expect(st.kind).toBe("published");
+  });
+
+  it("matrix A: scriptGate ON still stops at script even when reviewMode is skip_edit", async () => {
+    const publish = vi.fn(async () => ({ ok: true as const, outputPath: "/out.mp4" }));
+    const ctrl = new WorkspaceController(
+      baseDeps({
+        worker: stillsWorker({
+          author: async () => ({ kind: "authored", sceneIds: ["scene-01"] }),
+          publish,
+        }),
+        settings: { ...unattendedSettings, scriptGateEnabled: true },
+        loadManifest: async () => ({ scenes: [{ id: "scene-01", narration: "nói" }] }),
+      }),
+    );
+    ctrl.beginScript("p-gate", { text: "prompt", urls: [] });
+    await flush();
+    expect((await ctrl.stage("p-gate")).kind).toBe("script");
+    expect(publish).not.toHaveBeenCalled();
+  });
+
+  it("matrix A: skip_edit full-render fail tags retry:full (re-run full, not re-author)", async () => {
+    const publish = vi.fn(async () => ({
+      ok: false as const,
+      error: { message: "render boom", stage: "render" as const, cause: "boom", severity: "error" as const },
+    }));
+    const ctrl = new WorkspaceController(
+      baseDeps({
+        worker: stillsWorker({ publish }),
+        settings: unattendedSettings,
+        loadManifest: async () => ({ scenes: [{ id: "scene-01" }] }),
+        hasStill: () => true,
+        hasDraft: () => false,
+        toMedia: (p) => p,
+      }),
+    );
+    ctrl.approve("p-full-fail");
+    await flush();
+    const st = await ctrl.stage("p-full-fail");
+    expect(st.kind === "error" && st.retry).toBe("full");
+    expect(publish).toHaveBeenCalled();
   });
 
   it("skip_edit: still runs silent refine (stills + visualQa) before auto full", async () => {

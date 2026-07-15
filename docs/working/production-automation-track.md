@@ -63,18 +63,19 @@ User chọn mức “chạy một mình” → dán link/prompt → bấm tạo 
 
 - [ ] Ma trận production (manual + ideally automated smoke):
 
-  | # | Input | Settings tối thiểu cho unattended | Kỳ vọng |
-  | --- | --- | --- | --- |
-  | A | prompt only | `skip_edit`, script gate OFF, image human review OFF | author → refine? → stills → full → `published` / done |
-  | B | 1–N URL | như A + (tuỳ) image AI filter ON, human review **OFF** | same; claim demote ok, không kẹt UI |
-  | C | prompt + ảnh local | như A | assets vào project trước author |
-  | D | A/B/C + BGM create | BGM chọn lúc Home | full có BGM (không mất vì author rewrite manifest — đã có fix lịch sử) |
-  | E | A với `stills_edit` / `full` | intentional stop | **có** điểm dừng đúng mode (không “lỡ” auto full) |
+  | # | Input | Settings tối thiểu cho unattended | Kỳ vọng | Unit (2026-07-16) | Manual full stack |
+  | --- | --- | --- | --- | --- | --- |
+  | A | prompt only | `skip_edit`, script gate OFF, image human review OFF | author → refine? → stills → full → `published` / done | **PASS** (`matrix A: beginScript…`) | pending (cần 9router+TTS+Remotion) |
+  | B | 1–N URL | như A + (tuỳ) image AI filter ON, human review **OFF** | same; claim demote ok, không kẹt UI | partial (crawl tests exist; unattended URL E2E unit chưa gộp) | pending |
+  | C | prompt + ảnh local | như A | assets vào project trước author | pending | pending |
+  | D | A/B/C + BGM create | BGM chọn lúc Home | full có BGM | historical fix exists | pending |
+  | E | A với `stills_edit` / `full` | intentional stop | **có** điểm dừng đúng mode | stills_edit + full covered elsewhere | pending |
 
-- [ ] Fail rõ: mỗi class (gateway, TTS, admission/typecheck, stills empty, full render) → message thân thiện + `retry` đúng (`create`/`draft`/`full`).
-- [ ] Re-run: “Thử lại” sau restart (brief disk), sau fail full, sau fail draft; không silent no-op.
-- [ ] Ghi defect lặp → fixture/test (không chỉ note).
-- [ ] Sửa drift comment `ReviewMode` khi có PR đụng types.
+- [x] Fail rõ (slice A): full-render fail trên skip_edit → `retry: "full"` (unit). Còn: gateway/TTS/admission classes end-to-end.
+- [x] Re-run full: skip_edit fail tags `retry:full` (unit). Rehydrate brief sau restart: already covered by `retry() rehydrates…`.
+- [x] Gate phụ: `scriptGate` ON + `skip_edit` **vẫn dừng** `script` (unit) — unattended **bắt buộc** tắt gate.
+- [x] Sửa drift comment `ReviewMode` trong `types.ts` (khớp auto full).
+- [ ] Ghi defect lặp production (manual) → fixture khi gặp.
 
 **Done khi:** một người production tin được “chọn skip + tắt gate phụ + create → đi làm việc khác → về là full hoặc lỗi actionable”.
 
@@ -234,6 +235,8 @@ npm.cmd run build
 | Ngày | Việc | Kết quả | Follow-up |
 | --- | --- | --- | --- |
 | 2026-07-16 | Tạo note + verify code/docs | skip_edit auto-full OK; types comment drift; gates script/image human | Bắt matrix 1.1 |
+| 2026-07-16 | Hygiene commits | test cleanup + working note on branch | — |
+| 2026-07-16 | Matrix A unit lock | `ReviewMode` comment fixed; 3 tests (beginScript→published, scriptGate blocks, full fail→retry:full); workspace-controller 73 passed | Manual smoke A; matrix B/C/D |
 
 ---
 
