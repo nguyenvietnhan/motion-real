@@ -312,7 +312,7 @@ const create = new CreateController({
       format: delivery?.format ?? "tiktok",
       durationTier: delivery?.durationTier ?? 1,
       // Tier-derived pacing seconds (UI knobs win over prompt length).
-      ...(delivery?.targetSeconds !== undefined ? { durationSeconds: delivery.targetSeconds } : {}),
+      ...(delivery?.targetSeconds !== undefined ? { duration: delivery.targetSeconds } : {}),
       ttsProvider: voiceProvider,
       voiceId: config.voiceId,
       ...(config.modelId ? { modelId: config.modelId } : {}),

@@ -1,7 +1,6 @@
 import React from "react";
 import { Img, staticFile } from "remotion";
 import { useTheme } from "./theme-context.js";
-import { surfaceBorder, surfaceRadius } from "./chrome.js";
 
 /**
  * `SceneImage` — the ONE sanctioned way an authored scene shows an image. The
@@ -77,8 +76,8 @@ export const SceneImage: React.FC<{
           height: "auto",
           maxHeight,
           objectFit: "contain",
-          border: surfaceBorder(theme),
-          borderRadius: surfaceRadius(theme, "md"),
+          border: `1px solid ${theme.surface.borderColor}`,
+          borderRadius: theme.radius.md,
           // Neutral plate behind a transparent PNG so it sits on the panel
           // surface rather than showing the backdrop through it.
           backgroundColor: theme.colors.panel,

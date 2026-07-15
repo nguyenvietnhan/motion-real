@@ -359,11 +359,8 @@ export function checkDividerClearanceAbove(frame: Frame, sceneId?: string, optio
   const { width, height } = frame;
   const sx = width / CANVAS.width;
   const sy = height / CANVAS.height;
-  // The thin band immediately ABOVE the divider line. The divider is drawn AT
-  // CONTENT_ZONE.bottom (downward), so we stop a couple px short of it to avoid
-  // counting the divider itself as content. Reads the SAME shared zone the
-  // composition's CaptionDivider draws from, so it never asserts a y the layout
-  // doesn't actually use.
+  // Thin band immediately ABOVE CONTENT_ZONE.bottom (caption-band edge). Stops
+  // a couple px short so edge paint is not counted as content.
   const zone = CONTENT_ZONE;
   const bottom = Math.floor((zone.bottom - 2) * sy);
   const top = Math.floor((zone.bottom - ABOVE_DIVIDER_BAND) * sy);

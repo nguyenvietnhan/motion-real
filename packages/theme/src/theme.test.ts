@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { makeTheme, DEFAULT_DOMINANT, PRINT, NEUTRAL_THEME_ID, sceneBackground, withAlpha } from "./index.js";
+import { makeTheme, DEFAULT_DOMINANT, NEUTRAL_THEME_ID, sceneBackground, withAlpha } from "./index.js";
 
 describe("neutral theme", () => {
   const t = makeTheme(DEFAULT_DOMINANT);
@@ -21,19 +21,9 @@ describe("neutral theme", () => {
     expect(makeTheme("#2F5FF0").colors.accent).not.toBe(makeTheme("#E8412E").colors.accent);
   });
 
-  it("exposes semantic PRINT accents", () => {
-    expect(t.colors.red).toBe(PRINT.red);
-    expect(t.colors.blue).toBe(PRINT.blue);
-  });
-
-  it("surface chrome tokens are set", () => {
+  it("surface border tokens are set", () => {
     expect(t.surface.borderWidth).toBe(1);
     expect(t.surface.borderColor).toMatch(/^#/);
-    expect(t.surface.panelFill).toMatch(/^#/);
-  });
-
-  it("caption divider paint is off by default", () => {
-    expect(t.backdrop.divider).toBe(false);
   });
 });
 

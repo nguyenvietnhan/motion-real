@@ -170,8 +170,8 @@ function resolveBriefDuration(
   opts: Pick<ScaffoldVideoProjectOptions, "duration" | "durationTier" | "prompt">,
   format: VideoFormat,
 ): number {
-  // Desktop: UI tier wins when set. `duration` / durationSeconds is an explicit
-  // override (highest priority). Prompt length is used only when no tier is set.
+  // Desktop: UI tier wins when set. `duration` is an explicit override
+  // (highest priority). Prompt length is used only when no tier is set.
   return resolveEffectiveDuration({
     prompt: opts.prompt,
     format,

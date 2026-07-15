@@ -6,16 +6,9 @@ import { fade } from "@remotion/transitions/fade";
 import { wipe } from "@remotion/transitions/wipe";
 import { clockWipe } from "@remotion/transitions/clock-wipe";
 import type { TransitionPresentation } from "@remotion/transitions";
-import { CANVAS, CONTENT_ZONE, rectWidth, transitionFrames, type LockedSceneSpec, type LockedVideoSpec } from "@motionreal/schema";
+import { CANVAS, CONTENT_ZONE, transitionFrames, type LockedSceneSpec, type LockedVideoSpec } from "@motionreal/schema";
 import { makeTheme, sceneBackground, type Theme } from "@motionreal/theme";
-import {
-  Captions,
-  LayoutProbe,
-  SceneTimingProvider,
-  ThemeProvider,
-  useIntroZoom,
-  useTheme,
-} from "@motionreal/blocks";
+import { Captions, LayoutProbe, ThemeProvider, useIntroZoom, useTheme } from "@motionreal/blocks";
 import { getComponent } from "./registry.js";
 
 export type VideoCompositionProps = {
@@ -127,9 +120,7 @@ export const VideoComposition: React.FC<VideoCompositionProps> = ({ spec, measur
             return (
               <React.Fragment key={scene.id}>
                 <TransitionSeries.Sequence durationInFrames={scene.durationInFrames}>
-                  <SceneTimingProvider durationInFrames={scene.durationInFrames}>
-                    <SceneContent scene={scene} strictSceneErrors={strictSceneErrors} />
-                  </SceneTimingProvider>
+                  <SceneContent scene={scene} strictSceneErrors={strictSceneErrors} />
                 </TransitionSeries.Sequence>
                 {!isLast ? (
                   <TransitionSeries.Transition
@@ -143,8 +134,6 @@ export const VideoComposition: React.FC<VideoCompositionProps> = ({ spec, measur
         </TransitionSeries>
 
         {spec.audio.narrationSrc ? <Audio src={resolveAudio(spec.audio.narrationSrc)} /> : null}
-        {/* Short-form 9:16 always burns captions + content divider. */}
-        <CaptionDivider color={theme.colors.fg} />
         <Captions cues={spec.captions ?? []} />
         {measure ? <LayoutProbe /> : null}
       </CompositionBackdrop>
@@ -161,33 +150,6 @@ export const VideoComposition: React.FC<VideoCompositionProps> = ({ spec, measur
  */
 export const CompositionBackdrop: React.FC<{ theme: Theme; children: React.ReactNode }> = ({ theme, children }) => {
   return <AbsoluteFill style={{ background: sceneBackground(theme) }}>{children}</AbsoluteFill>;
-};
-
-/**
- * Horizontal divider at the content-zone bottom — separates authored content
- * from the burned-in caption band. Rendered globally by the composition (not
- * per scene). Paint is gated by `theme.backdrop.divider` (neutral theme: off).
- * Above-divider N14 clearance is opt-in/manual; this toggle is paint only.
- */
-const CaptionDivider: React.FC<{ color: string }> = ({ color }) => {
-  const theme = useTheme();
-  // Chrome-only: theme may keep clearance geometry but not paint the bar.
-  if (!theme.backdrop.divider) return null;
-  // Drawn at the ONE shared content-zone bottom, never a drifting hard-coded y.
-  return (
-    <AbsoluteFill>
-      <div
-        style={{
-          position: "absolute",
-          top: CONTENT_ZONE.bottom,
-          left: CONTENT_ZONE.left,
-          width: rectWidth(CONTENT_ZONE),
-          height: 4,
-          background: color,
-        }}
-      />
-    </AbsoluteFill>
-  );
 };
 
 export const SceneContent: React.FC<{ scene: LockedSceneSpec; strictSceneErrors?: boolean }> = ({ scene, strictSceneErrors }) => {

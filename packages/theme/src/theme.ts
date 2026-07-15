@@ -88,24 +88,8 @@ export function withAlpha(hex: string, alpha: number): string {
 
 // --- Fixed constants ------------------------------------------------------
 
-export const CANVAS = { width: 1080, height: 1920 } as const;
 export const DEFAULT_DOMINANT = "#2F5FF0";
 export const NEUTRAL_THEME_ID = "neutral";
-
-/** Semantic accents for charts / compares on the dark base. */
-export const PRINT = {
-  blue: "#5B8CFF",
-  red: "#FF6B5E",
-  yellow: "#F4C430",
-  green: "#34D399",
-  violet: "#A98BFF",
-} as const;
-
-/** Easing for Remotion interpolate / motion helpers. */
-export const easing = {
-  out: [0.16, 1, 0.3, 1] as [number, number, number, number],
-  inOut: [0.65, 0, 0.35, 1] as [number, number, number, number],
-};
 
 // --- Theme shape ----------------------------------------------------------
 
@@ -117,12 +101,6 @@ export type ThemeColors = {
   muted: string;
   accent: string;
   signal: string;
-  line: string;
-  red: string;
-  blue: string;
-  yellow: string;
-  green: string;
-  violet: string;
 };
 
 export type ThemeRadius = { sm: number; md: number; lg: number };
@@ -130,12 +108,6 @@ export type ThemeRadius = { sm: number; md: number; lg: number };
 export type SurfaceTokens = {
   borderWidth: number;
   borderColor: string;
-  panelFill: string;
-};
-
-export type BackdropTokens = {
-  /** When true, paint the horizontal caption divider (production default: off). */
-  divider: boolean;
 };
 
 export type Theme = {
@@ -147,8 +119,6 @@ export type Theme = {
   fonts: { display: string; body: string; mono: string };
   radius: ThemeRadius;
   surface: SurfaceTokens;
-  backdrop: BackdropTokens;
-  canvas: typeof CANVAS;
 };
 
 const NEUTRAL_FONTS = { display: "Inter", body: "Inter", mono: "Cascadia Mono" } as const;
@@ -156,9 +126,7 @@ const NEUTRAL_RADIUS: ThemeRadius = { sm: 8, md: 14, lg: 22 };
 const NEUTRAL_SURFACE: SurfaceTokens = {
   borderWidth: 1,
   borderColor: "#2A2E3A",
-  panelFill: "#1B1E27",
 };
-const NEUTRAL_BACKDROP: BackdropTokens = { divider: false };
 
 function deriveColors(dominant: string): ThemeColors {
   const [h, s] = hexToHsl(dominant);
@@ -172,12 +140,6 @@ function deriveColors(dominant: string): ThemeColors {
     muted: "#9AA0AD",
     accent,
     signal,
-    line: "#2A2E3A",
-    red: PRINT.red,
-    blue: PRINT.blue,
-    yellow: PRINT.yellow,
-    green: PRINT.green,
-    violet: PRINT.violet,
   };
 }
 
@@ -193,8 +155,6 @@ export function makeTheme(dominant: string = DEFAULT_DOMINANT): Theme {
     fonts: { ...NEUTRAL_FONTS },
     radius: { ...NEUTRAL_RADIUS },
     surface: { ...NEUTRAL_SURFACE },
-    backdrop: { ...NEUTRAL_BACKDROP },
-    canvas: CANVAS,
   };
 }
 
