@@ -1,52 +1,26 @@
 import { describe, expect, it } from "vitest";
 import {
   nearestDurationTier,
-  parseDurationFromPrompt,
   parseDurationSecondsFromPrompt,
   resolveEffectiveDuration,
 } from "./parse-duration.js";
 
-/**
- * Legacy CLI/preset parser: free-text length → nearest DurationPreset (60/90/120/180).
- * Desktop create prefers resolveEffectiveDuration (UI tier wins; default 45s).
- */
-describe("parseDurationFromPrompt", () => {
-  it("reads 'm phút n giây' style and snaps to the nearest preset", () => {
-    expect(parseDurationFromPrompt("Làm video 1p30s về chủ đề X")).toBe(90);
-    expect(parseDurationFromPrompt("Làm 1 phút 30 giây")).toBe(90);
-    expect(parseDurationFromPrompt("1p30")).toBe(90);
-  });
-
-  it("reads 'rưỡi' (a-half) as minutes + 30s", () => {
-    expect(parseDurationFromPrompt("video 1 phút rưỡi")).toBe(90);
-    expect(parseDurationFromPrompt("1p rưỡi")).toBe(90);
+describe("parseDurationSecondsFromPrompt", () => {
+  it("reads compound and half forms", () => {
+    expect(parseDurationSecondsFromPrompt("Làm video 1p30s về chủ đề X")).toBe(90);
+    expect(parseDurationSecondsFromPrompt("1 phút 30 giây")).toBe(90);
+    expect(parseDurationSecondsFromPrompt("video 1 phút rưỡi")).toBe(90);
   });
 
   it("reads minutes-only and seconds-only forms", () => {
-    expect(parseDurationFromPrompt("video 2 phút")).toBe(120);
-    expect(parseDurationFromPrompt("làm 2p thôi")).toBe(120);
-    expect(parseDurationFromPrompt("90 giây")).toBe(90);
-    expect(parseDurationFromPrompt("60s")).toBe(60);
-    expect(parseDurationFromPrompt("3 phút")).toBe(180);
-  });
-
-  it("snaps an off-preset length to the closest preset", () => {
-    expect(parseDurationFromPrompt("100 giây")).toBe(90);
-    expect(parseDurationFromPrompt("75 giây")).toBe(60);
-    expect(parseDurationFromPrompt("2 phút 30 giây")).toBe(120);
+    expect(parseDurationSecondsFromPrompt("video 2 phút")).toBe(120);
+    expect(parseDurationSecondsFromPrompt("90 giây")).toBe(90);
+    expect(parseDurationSecondsFromPrompt("15 giây")).toBe(15);
   });
 
   it("returns undefined when no recognizable length is stated", () => {
-    expect(parseDurationFromPrompt("Tóm tắt bài báo này")).toBeUndefined();
-    expect(parseDurationFromPrompt("")).toBeUndefined();
-    expect(parseDurationFromPrompt("https://example.com/a")).toBeUndefined();
-  });
-});
-
-describe("parseDurationSecondsFromPrompt", () => {
-  it("keeps exact short lengths (no snap to 60)", () => {
-    expect(parseDurationSecondsFromPrompt("Tạo video 15 giây app thời tiết")).toBe(15);
-    expect(parseDurationSecondsFromPrompt("20s mockup")).toBe(20);
+    expect(parseDurationSecondsFromPrompt("Tóm tắt bài báo này")).toBeUndefined();
+    expect(parseDurationSecondsFromPrompt("")).toBeUndefined();
   });
 });
 

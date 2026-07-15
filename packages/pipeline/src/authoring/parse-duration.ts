@@ -1,27 +1,12 @@
 import {
-  DURATION_PRESETS,
   isDurationTier,
   nearestDurationTier,
   tierSeconds,
-  type DurationPreset,
   type DurationTier,
   type VideoFormat,
 } from "@motionreal/schema";
 
 export { isDurationTier, nearestDurationTier };
-
-/**
- * Parse a target duration (seconds) out of a free-text Vietnamese brief and snap
- * to the nearest supported {@link DurationPreset} (60/90/120/180) for CLI/legacy.
- *
- * Prefer {@link parseDurationSecondsFromPrompt} + {@link resolveEffectiveDuration}
- * for desktop create pacing.
- */
-export function parseDurationFromPrompt(prompt: string): DurationPreset | undefined {
-  const seconds = parseDurationSecondsFromPrompt(prompt);
-  if (seconds === undefined) return undefined;
-  return snapToPreset(seconds);
-}
 
 /**
  * Parse stated wall-clock seconds from free text (no snap).
@@ -57,20 +42,6 @@ export function parseDurationSecondsFromPrompt(prompt: string): number | undefin
 
   if (seconds === undefined || !Number.isFinite(seconds) || seconds <= 0) return undefined;
   return Math.min(Math.max(Math.round(seconds), 8), 600);
-}
-
-/** Snap an arbitrary seconds value to the closest supported preset. */
-function snapToPreset(seconds: number): DurationPreset {
-  let best: DurationPreset = DURATION_PRESETS[0];
-  let bestGap = Math.abs(seconds - best);
-  for (const p of DURATION_PRESETS) {
-    const gap = Math.abs(seconds - p);
-    if (gap < bestGap) {
-      best = p;
-      bestGap = gap;
-    }
-  }
-  return best;
 }
 
 export type EffectiveDurationSource = "tier" | "prompt" | "explicit" | "default";

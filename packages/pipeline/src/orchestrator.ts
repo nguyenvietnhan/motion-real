@@ -7,7 +7,6 @@ import { createHash } from "node:crypto";
 import {
   DEFAULT_TTS_SPEED,
 
-  type DurationPreset,
   type DurationTier,
   type LockedVideoSpec,
   type VideoFormat,
@@ -109,7 +108,7 @@ export type ScaffoldVideoProjectOptions = {
   /** Explicit project id (defaults to a slug derived from the prompt). */
   projectId?: string;
   /** Soft target duration in seconds (drives the N28 duration check); omit → tier/prompt/default 45s. */
-  duration?: DurationPreset | number;
+  duration?: number;
   /** Delivery format selected at create time; defaults to the historical vertical path. */
   format?: VideoFormat;
   /** User-selected duration bucket used by authoring word budgets. */

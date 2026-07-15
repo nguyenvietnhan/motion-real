@@ -115,7 +115,8 @@ export const ingestUrlInput = z.object({
 export const scaffoldProjectInput = z.object({
   prompt: z.string().min(1),
   projectId: z.string().min(1).optional(),
-  duration: z.union([z.literal(60), z.literal(90), z.literal(120), z.literal(180)]).optional(),
+  /** Soft target duration in seconds (explicit override; prefer durationTier). */
+  duration: z.number().positive().max(600).optional(),
   /** Exact brief target seconds (prompt-resolved short form, e.g. 15). */
   durationSeconds: z.number().positive().max(600).optional(),
   format: z.literal("tiktok").optional(),

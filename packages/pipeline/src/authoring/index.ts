@@ -29,7 +29,6 @@ export {
   type AdmitProjectResult,
 } from "./manifest.js";
 export {
-  parseDurationFromPrompt,
   parseDurationSecondsFromPrompt,
   resolveEffectiveDuration,
   nearestDurationTier,

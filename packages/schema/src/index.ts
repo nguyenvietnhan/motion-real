@@ -40,10 +40,6 @@ export const T_TRANSITION = transitionFrames(FPS);
 /** Breath gap between consecutive scene narration clips, in seconds. */
 export const BREATH_GAP_SECONDS = T_TRANSITION_SECONDS;
 
-/** A pacing target is advisory; videos may run shorter/longer than any preset. */
-export const DURATION_PRESETS = [60, 90, 120, 180] as const;
-export type DurationPreset = (typeof DURATION_PRESETS)[number];
-
 /** Minimum narration words per scene (free pacing): a floor that still guards against too-fast cuts. */
 export const MIN_SCENE_NARRATION_WORDS = 8;
 

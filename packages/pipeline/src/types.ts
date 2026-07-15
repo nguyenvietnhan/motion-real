@@ -1,4 +1,4 @@
-import type { DurationPreset, DurationTier, VideoFormat, VideoSpec, LockedVideoSpec } from "@motionreal/schema";
+import type { DurationTier, VideoFormat, VideoSpec, LockedVideoSpec } from "@motionreal/schema";
 
 /**
  * Pipeline-level data models. Contract types (VideoSpec / LockedVideoSpec) live
@@ -126,7 +126,7 @@ export type ReviewChecklist = {
 };
 
 /** Convenience re-exports so pipeline consumers import from one place. */
-export type { VideoSpec, LockedVideoSpec, DurationPreset };
+export type { VideoSpec, LockedVideoSpec };
 
 /**
  * Build a SafetyReport from a list of issues and the tiers that ran.
