@@ -23,13 +23,6 @@ import {
   type RenderProjectStillsResult,
 } from "../render/render-stills.js";
 import {
-  readTracker,
-  writeTracker,
-  upsertItem,
-  type TrackerItem,
-  type TrackerStatus,
-} from "../tracker/tracker.js";
-import {
   projectPaths,
   writeJson,
   readJson,
@@ -61,8 +54,6 @@ export type ToolDeps = {
   renderProjectStills: typeof renderProjectStills;
   runDoctor: typeof runDoctor;
   listProjects: typeof listProjects;
-  readTracker: typeof readTracker;
-  writeTracker: typeof writeTracker;
   /** Does a reviewed draft exist for this project? (draft-first gate input.) */
   draftExistsFor: (projectId: string) => boolean;
   /** TTS config presence — used to refuse a downgrade, never to substitute. */
@@ -93,8 +84,6 @@ const DEFAULT_DEPS: ToolDeps = {
   renderProjectStills,
   runDoctor,
   listProjects,
-  readTracker,
-  writeTracker,
   draftExistsFor,
   ttsConfig: async (projectId) => {
     const brief = await readBrief(projectId);
@@ -117,8 +106,6 @@ const DEFAULT_DEPS: ToolDeps = {
 };
 
 // --- input schemas (Zod) ---------------------------------------------------
-
-export const TRACKER_STATUSES = ["pending", "in-progress", "done", "failed", "paused-resumable"] as const;
 
 export const ingestUrlInput = z.object({
   url: z.string().url(),
@@ -163,26 +150,6 @@ export const renderStillsInput = z.object({
 export const doctorInput = z.object({});
 
 export const listProjectsInput = z.object({});
-
-export const trackerListInput = z.object({
-  trackerPath: z.string().min(1).optional(),
-});
-
-export const trackerAddInput = z.object({
-  trackerPath: z.string().min(1).optional(),
-  url: z.string().url(),
-  title: z.string().default(""),
-  source: z.string().default(""),
-  id: z.string().min(1).optional(),
-});
-
-export const trackerUpdateInput = z.object({
-  trackerPath: z.string().min(1).optional(),
-  id: z.string().min(1),
-  status: z.enum(TRACKER_STATUSES).optional(),
-  reason: z.string().optional(),
-  projectId: z.string().optional(),
-});
 
 // --- safety-report persistence ---------
 
@@ -424,75 +391,5 @@ export function createTools(overrides: Partial<ToolDeps> = {}) {
         return err(serializeError(e, "config"));
       }
     },
-
-    async tracker_list(input: z.infer<typeof trackerListInput>): Promise<ToolResult<TrackerItem[]>> {
-      try {
-        return ok(await deps.readTracker(input.trackerPath));
-      } catch (e) {
-        return err(serializeError(e, "config"));
-      }
-    },
-
-    async tracker_add(input: z.infer<typeof trackerAddInput>): Promise<ToolResult<TrackerItem>> {
-      try {
-        const items = await deps.readTracker(input.trackerPath);
-        const id = input.id ?? slugFromUrl(input.url);
-        const item: TrackerItem = {
-          id,
-          url: input.url,
-          title: input.title,
-          source: input.source,
-          status: "pending",
-          updatedAt: new Date().toISOString(),
-        };
-        await deps.writeTracker(upsertItem(items, item), input.trackerPath);
-        return ok(item);
-      } catch (e) {
-        return err(serializeError(e, "config"));
-      }
-    },
-
-    async tracker_update(input: z.infer<typeof trackerUpdateInput>): Promise<ToolResult<TrackerItem>> {
-      try {
-        const items = await deps.readTracker(input.trackerPath);
-        const existing = items.find((it) => it.id === input.id);
-        if (!existing) {
-          return err(
-            new PipelineError({
-              stage: "config",
-              cause: `tracker item not found: "${input.id}"`,
-              remediation: "List the tracker to find a valid id, or add the item first.",
-            }).toSerialized(),
-          );
-        }
-        const patch: Partial<TrackerItem> & { id: string } = {
-          id: input.id,
-          updatedAt: new Date().toISOString(),
-          ...(input.status ? { status: input.status as TrackerStatus } : {}),
-          ...(input.reason !== undefined ? { reason: input.reason } : {}),
-          ...(input.projectId !== undefined ? { projectId: input.projectId } : {}),
-        };
-        const next = upsertItem(items, patch);
-        await deps.writeTracker(next, input.trackerPath);
-        return ok(next.find((it) => it.id === input.id)!);
-      } catch (e) {
-        return err(serializeError(e, "config"));
-      }
-    },
   };
-}
-
-/** Deterministic slug from a URL host+path (fallback tracker id). */
-function slugFromUrl(url: string): string {
-  try {
-    const u = new URL(url);
-    const slug = `${u.hostname}${u.pathname}`
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-|-$/g, "")
-      .slice(0, 48);
-    return slug || "item";
-  } catch {
-    return "item";
-  }
 }

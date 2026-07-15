@@ -19,7 +19,6 @@ import {
   ingestUrlInput,
   renderFullInput,
   scaffoldProjectInput,
-  trackerAddInput,
   type ToolDeps,
 } from "./create-tools.js";
 
@@ -250,8 +249,6 @@ describe("tool input schemas + result shapes — 7.12", () => {
     expect(scaffoldProjectInput.safeParse({ prompt: "x", duration: 75 }).success).toBe(false);
     expect(scaffoldProjectInput.safeParse({ prompt: "x", durationTier: 4 }).success).toBe(true);
     expect(renderFullInput.safeParse({ projectId: "p", forceFull: true }).success).toBe(true);
-    expect(trackerAddInput.safeParse({ url: "https://a.test" }).success).toBe(true);
-    expect(trackerAddInput.safeParse({ url: "x" }).success).toBe(false);
   });
 
   it("scaffold_project passes persisted delivery choices to the orchestrator", async () => {
@@ -298,19 +295,6 @@ describe("single-process orchestrator path — 7.13", () => {
     if (listed.ok) expect(listed.data.map((p) => p.projectId)).toContain("chip-ai");
   });
 
-  it("tracker_add then tracker_list round-trips through the shared store", async () => {
-    const trackerPath = join(home, "tracker.json");
-    const tools = createTools();
-    const added = await tools.tracker_add({ url: "https://a.test/x", title: "T", source: "S", trackerPath });
-    expect(added.ok).toBe(true);
-    const listed = await tools.tracker_list({ trackerPath });
-    expect(listed.ok).toBe(true);
-    if (listed.ok) {
-      expect(listed.data).toHaveLength(1);
-      expect(listed.data[0]!.url).toBe("https://a.test/x");
-      expect(listed.data[0]!.status).toBe("pending");
-    }
-  });
 });
 
 describe("get_safety_report", () => {

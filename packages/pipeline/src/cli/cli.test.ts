@@ -124,57 +124,10 @@ describe("main — verbs", () => {
   });
 });
 
-describe("main — new verbs (ingest / tracker / bulk)", () => {
+describe("main — ingest", () => {
   it("ingest with no url prints usage and exits 1", async () => {
     const res = await main(["ingest"]);
     expect(res.exitCode).toBe(1);
     expect(res.lines.join("\n")).toMatch(/Usage: ingest <url>/);
-  });
-
-  it("tracker add → list → update round-trips through a tracker file", async () => {
-    const trackerPath = join(tempRoot, "queue.json");
-
-    const add = await main(["tracker", "add", "https://a.test/x", "--id", "n1", "--title", "Tin", "--source", "Wire", "--tracker", trackerPath]);
-    expect(add.exitCode).toBe(0);
-    expect(add.lines.join("\n")).toMatch(/Added tracker item n1/);
-
-    const list = await main(["tracker", "list", "--tracker", trackerPath]);
-    expect(list.exitCode).toBe(0);
-    expect(list.lines.join("\n")).toMatch(/\[pending\] n1/);
-
-    const update = await main(["tracker", "update", "n1", "--status", "done", "--project", "proj-1", "--tracker", trackerPath]);
-    expect(update.exitCode).toBe(0);
-
-    const list2 = await main(["tracker", "list", "--tracker", trackerPath]);
-    expect(list2.lines.join("\n")).toMatch(/\[done\] n1/);
-  });
-
-  it("tracker update on a missing id exits 1", async () => {
-    const trackerPath = join(tempRoot, "queue.json");
-    const res = await main(["tracker", "update", "ghost", "--status", "done", "--tracker", trackerPath]);
-    expect(res.exitCode).toBe(1);
-    expect(res.lines.join("\n")).toMatch(/not found/);
-  });
-
-  it("bulk over an empty tracker processes nothing (exit 0)", async () => {
-    const trackerPath = join(tempRoot, "empty.json");
-    const res = await main(["bulk", "--tracker", trackerPath]);
-    expect(res.exitCode).toBe(0);
-    expect(res.lines.join("\n")).toMatch(/0 processed/);
-  });
-
-  it("bulk marks an item with no projectId as failed and continues (exit 1)", async () => {
-    const trackerPath = join(tempRoot, "queue.json");
-    await main(["tracker", "add", "https://a.test/x", "--id", "n1", "--tracker", trackerPath]);
-    const res = await main(["bulk", "--tracker", trackerPath]);
-    expect(res.exitCode).toBe(1);
-    expect(res.lines.join("\n")).toMatch(/1 failed/);
-    expect(res.lines.join("\n")).toMatch(/no projectId/);
-  });
-
-  it("bulk rejects a non-positive --limit", async () => {
-    const res = await main(["bulk", "--limit", "0"]);
-    expect(res.exitCode).toBe(1);
-    expect(res.lines.join("\n")).toMatch(/Invalid --limit/);
   });
 });

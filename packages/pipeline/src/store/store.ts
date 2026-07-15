@@ -69,11 +69,6 @@ export function planningDir(): string {
   return join(videoToolHome(), "planning");
 }
 
-/** Default tracker work-queue location (under VIDEO_TOOL_HOME, never repo root). */
-export function trackerPath(): string {
-  return join(videoToolHome(), "tracker.json");
-}
-
 /**
  * Staging dir for images the user picks at the CREATE screen, BEFORE a project
  * exists (create-time image staging). Lives under VIDEO_TOOL_HOME so the `media://`

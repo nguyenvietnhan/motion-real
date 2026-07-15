@@ -15,8 +15,6 @@ export * from "./assets/bundled-media.js";
 export * from "./ingest/url-ingest.js";
 export * from "./ingest/safe-fetch.js";
 export * from "./ingest/crawl-images.js";
-export * from "./tracker/tracker.js";
-export * from "./bulk/bulk.js";
 // Re-export the Vivibe config probes so leaf adapters can read TTS readiness
 // without depending on @motionreal/tts directly.
 export {

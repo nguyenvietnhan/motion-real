@@ -13,10 +13,8 @@ import {
   vivibeApiKey,
 } from "@motionreal/tts";
 import type { TtsProvider } from "../types.js";
-import { projectPaths, trackerPath as defaultTrackerPath } from "../store/store.js";
+import { projectPaths } from "../store/store.js";
 import { ingestUrl } from "../ingest/url-ingest.js";
-import { readTracker, writeTracker, upsertItem, type TrackerItem, type TrackerStatus } from "../tracker/tracker.js";
-import { runBulkLoop, type BulkWorker } from "../bulk/bulk.js";
 import { workspaceRoot } from "../render/renderer.js";
 import { checkTypecheckAuthoredReadiness, describeTypecheckAuthoredReadiness } from "../safety/typecheck-authored.js";
 import {
@@ -56,13 +54,6 @@ const PARSE_OPTIONS = {
   draft: { type: "boolean" },
   "force-full": { type: "boolean" },
   id: { type: "string" },
-  tracker: { type: "string" },
-  limit: { type: "string" },
-  status: { type: "string" },
-  reason: { type: "string" },
-  project: { type: "string" },
-  title: { type: "string" },
-  source: { type: "string" },
 } as const;
 
 export async function main(argv: string[]): Promise<CliResult> {
@@ -96,10 +87,6 @@ export async function main(argv: string[]): Promise<CliResult> {
         return await runDoctorVerb(emit, lines);
       case "ingest":
         return await runIngestVerb(values, positionals, emit, lines);
-      case "tracker":
-        return await runTrackerVerb(values, positionals, emit, lines);
-      case "bulk":
-        return await runBulkVerb(values, emit, lines);
       default:
         emit(verb ? `Unknown command: ${verb}` : "No command given.");
         emit(usage());
@@ -229,7 +216,7 @@ async function runDoctorVerb(emit: Emit, lines: string[]): Promise<CliResult> {
   return { exitCode: report.ok ? 0 : 1, lines };
 }
 
-// --- ingest / tracker / bulk ----------------------------------------------
+// --- ingest ----------------------------------------------------------------
 
 async function runIngestVerb(values: ParsedValues, positionals: string[], emit: Emit, lines: string[]): Promise<CliResult> {
   const url = positionals[1];
@@ -242,114 +229,6 @@ async function runIngestVerb(values: ParsedValues, positionals: string[], emit: 
   emit(`  research: ${result.researchPath}`);
   emit(`  words: ${result.wordCount}`);
   return { exitCode: 0, lines };
-}
-
-async function runTrackerVerb(values: ParsedValues, positionals: string[], emit: Emit, lines: string[]): Promise<CliResult> {
-  const sub = positionals[1];
-  const path = values.tracker ?? defaultTrackerPath();
-
-  if (sub === "list") {
-    const items = await readTracker(path);
-    if (items.length === 0) emit("(tracker empty)");
-    for (const it of items) emit(`  [${it.status}] ${it.id}  ${it.title || it.url}${it.reason ? `  — ${it.reason}` : ""}`);
-    emit(`${items.length} item(s) at ${path}`);
-    return { exitCode: 0, lines };
-  }
-
-  if (sub === "add") {
-    const url = positionals[2];
-    if (!url) {
-      emit("Usage: tracker add <url> [--id <id>] [--title <t>] [--source <s>] [--tracker <path>]");
-      return { exitCode: 1, lines };
-    }
-    const items = await readTracker(path);
-    const id = values.id ?? slugFromUrl(url);
-    const item: TrackerItem = {
-      id,
-      url,
-      title: values.title ?? "",
-      source: values.source ?? "",
-      status: "pending",
-      updatedAt: new Date().toISOString(),
-    };
-    await writeTracker(upsertItem(items, item), path);
-    emit(`Added tracker item ${id} (pending).`);
-    return { exitCode: 0, lines };
-  }
-
-  if (sub === "update") {
-    const id = positionals[2];
-    if (!id) {
-      emit("Usage: tracker update <id> [--status <s>] [--reason <r>] [--project <id>] [--tracker <path>]");
-      return { exitCode: 1, lines };
-    }
-    const items = await readTracker(path);
-    if (!items.some((it) => it.id === id)) {
-      emit(`Tracker item not found: ${id}`);
-      return { exitCode: 1, lines };
-    }
-    const patch: Partial<TrackerItem> & { id: string } = {
-      id,
-      updatedAt: new Date().toISOString(),
-      ...(values.status ? { status: values.status as TrackerStatus } : {}),
-      ...(values.reason !== undefined ? { reason: values.reason } : {}),
-      ...(values.project !== undefined ? { projectId: values.project } : {}),
-    };
-    await writeTracker(upsertItem(items, patch), path);
-    emit(`Updated tracker item ${id}.`);
-    return { exitCode: 0, lines };
-  }
-
-  emit("Usage: tracker list | add <url> ... | update <id> ...");
-  return { exitCode: 1, lines };
-}
-
-async function runBulkVerb(values: ParsedValues, emit: Emit, lines: string[]): Promise<CliResult> {
-  const path = values.tracker ?? defaultTrackerPath();
-  const limit = values.limit !== undefined ? Number(values.limit) : undefined;
-  if (limit !== undefined && (!Number.isInteger(limit) || limit <= 0)) {
-    emit(`Invalid --limit "${values.limit}". Use a positive integer.`);
-    return { exitCode: 1, lines };
-  }
-
-  // CLI worker: finish already-authored projects via the orchestrator (draft →
-  // full). Authoring itself is the agent's job (no in-tool planner), so an item
-  // must carry a projectId whose authored scenes are ready.
-  const worker: BulkWorker = async (item) => {
-    if (!item.projectId) {
-      throw new Error("no projectId: scaffold + author the project first, then set the item's projectId");
-    }
-    await renderProject(item.projectId, { quality: "draft" });
-    await renderProject(item.projectId, { quality: "full" });
-    return { projectId: item.projectId };
-  };
-
-  const { outcomes } = await runBulkLoop({
-    worker,
-    trackerPath: path,
-    ...(limit !== undefined ? { limit } : {}),
-    onItem: (o) => emit(`  [${o.status}] ${o.id}${o.reason ? `  — ${o.reason}` : ""}`),
-  });
-  const done = outcomes.filter((o) => o.status === "done").length;
-  const failed = outcomes.filter((o) => o.status === "failed").length;
-  const paused = outcomes.filter((o) => o.status === "paused-resumable").length;
-  emit(`Bulk run: ${outcomes.length} processed — ${done} done, ${failed} failed, ${paused} paused.`);
-  return { exitCode: failed > 0 ? 1 : 0, lines };
-}
-
-/** Deterministic slug from a URL host+path (fallback tracker id). */
-function slugFromUrl(url: string): string {
-  try {
-    const u = new URL(url);
-    const slug = `${u.hostname}${u.pathname}`
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-|-$/g, "")
-      .slice(0, 48);
-    return slug || "item";
-  } catch {
-    return "item";
-  }
 }
 
 export type DoctorCheck = { name: string; ok: boolean; detail: string; severity?: "error" | "warning" };
@@ -527,13 +406,6 @@ type ParsedValues = {
   draft?: boolean;
   "force-full"?: boolean;
   id?: string;
-  tracker?: string;
-  limit?: string;
-  status?: string;
-  reason?: string;
-  project?: string;
-  title?: string;
-  source?: string;
 };
 type Emit = (line?: string) => void;
 
@@ -563,8 +435,6 @@ function usage(): string {
     "  render --sample [--out <path>]      Render the bundled no-voice sample draft (no Vivibe needed)",
     "  preview <id>                        Print the Studio command for a project's locked spec",
     "  ingest <url> [--id <id>]            Fetch an article into planning/<id>.md (text + metadata only)",
-    "  tracker list | add <url> ... | update <id> ...   Manage the bulk work queue (--tracker <path>)",
-    "  bulk [--tracker <path>] [--limit N]  Resumable bulk loop over the tracker (finishes authored projects)",
     "  doctor | probe                      Check .env, ffmpeg, browser, registry, N10 layout, theme, and fonts",
   ].join("\n");
 }
