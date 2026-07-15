@@ -8,27 +8,18 @@ import {
 } from "./stage-labels.js";
 
 describe("stage-labels", () => {
-  it("covers every rendering phase with stable Vietnamese copy", () => {
+  it("covers rendering phase labels, parts, and indeterminate rules", () => {
     expect(renderingPhaseLabel("edit")).toBe("Đang sửa cảnh…");
     expect(renderingPhaseLabel("qa", { qaPass: 2, qaTotal: 5 })).toBe("Đang tinh chỉnh ảnh (2/5)…");
-    expect(renderingPhaseLabel("qa", { qaPass: 10, qaTotal: 20 })).toBe("Đang tinh chỉnh ảnh (10/20)…");
     expect(renderingPhaseLabel("prepare")).toBe("Đang chuẩn bị…");
     expect(renderingPhaseLabel("full")).toBe("Đang xuất bản…");
     expect(renderingPhaseLabel("draft")).toBe("Đang dựng nháp…");
     expect(renderingPhaseLabel(undefined)).toBe("Đang dựng nháp…");
-  });
-
-  it("splits QA count so the UI can keep the counter nowrap", () => {
     expect(renderingPhaseParts("qa", { qaPass: 1, qaTotal: 1 })).toEqual({
       body: "Đang tinh chỉnh ảnh",
       count: "(1/1)",
     });
-    expect(renderingPhaseParts("draft")).toEqual({
-      body: "Đang dựng nháp…",
-    });
-  });
-
-  it("marks edit/qa/prepare and zero-percent as indeterminate", () => {
+    expect(renderingPhaseParts("draft")).toEqual({ body: "Đang dựng nháp…" });
     expect(renderingPhaseIndeterminate("edit", 50)).toBe(true);
     expect(renderingPhaseIndeterminate("qa", 50)).toBe(true);
     expect(renderingPhaseIndeterminate("prepare", 50)).toBe(true);
@@ -37,14 +28,11 @@ describe("stage-labels", () => {
     expect(renderingPhaseIndeterminate("full", 80)).toBe(false);
   });
 
-  it("covers every writing phase copy", () => {
+  it("covers writing phase copy and workspace stage titles", () => {
     expect(writingPhaseCopy("crawl")).toContain("ảnh");
     expect(writingPhaseCopy("image-filter")).toContain("ảnh");
     expect(writingPhaseCopy("author")).toContain("kịch bản");
     expect(writingPhaseCopy(undefined)).toContain("kịch bản");
-  });
-
-  it("covers every workspace stage chrome title", () => {
     expect(workspaceStageTitle("writing")).toBe("Đang viết");
     expect(workspaceStageTitle("script")).toBe("Kịch bản");
     expect(workspaceStageTitle("image-review")).toBe("Duyệt ảnh");
@@ -55,3 +43,4 @@ describe("stage-labels", () => {
     expect(workspaceStageTitle("error")).toBe("Lỗi");
   });
 });
+

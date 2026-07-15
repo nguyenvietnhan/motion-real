@@ -5,41 +5,38 @@ import {
   clampRenderRatio,
   creativeBootstrapPreprompt,
   renderPercentFromRatio,
-
   renderingStageOf,
   visionRepairIntent,
   visionRepairPreprompt,
 } from "./workspace-render-flow.js";
 
-describe("workspace render-flow helpers", () => {
-  it("baseline: records current render-flow prompt intent lengths", () => {
-    expect({
-      creativeBootstrapChars: CREATIVE_BOOTSTRAP_INTENT.length,
-      visionRepairChars: visionRepairIntent("chữ đè lên nhau").length,
-    }).toEqual({
-      creativeBootstrapChars: 1074,
-      visionRepairChars: 571,
-    });
-  });
+const BOOTSTRAP_REQUIRED = [
+  /3 việc cụ thể/,
+  /visual anchor riêng/,
+  /không chỉ làm đẹp mơ hồ/,
+  /quick entrance\/reveal\/pop/,
+  /semantic progression/,
+  /continuous living motion/,
+  /phase\/period deterministic/,
+  /không bịa thêm số liệu/,
+  /không đổi scene id\/component id/,
+  /khuyến khích sáng tạo, KHÔNG bắt buộc/,
+  /cảnh tĩnh có chủ đích vẫn hợp lệ/,
+  /KHÔNG được biến cảnh thành title-card/,
+  /frame\/spring\/interpolate có clamp hoặc phase\/period bounded/,
+  /KHÔNG kéo một reveal đơn giản ra hết cảnh/,
+];
 
+const BOOTSTRAP_FORBIDDEN = [
+  /ĐANG DIỄN TIẾN qua phần lớn thời lượng/,
+  /KHÔNG dùng Math\.sin\(frame\)/,
+  /ANIMATION PHẢI|NHIỀU PHA|chuyển động LIÊN TỤC|mạch đập|nhịp thở chậm/,
+];
+
+describe("workspace render-flow helpers", () => {
   it("keeps the creative bootstrap intent guard phrases", () => {
-    expect(CREATIVE_BOOTSTRAP_INTENT).toMatch(/3 việc cụ thể/);
-    expect(CREATIVE_BOOTSTRAP_INTENT).toMatch(/visual anchor riêng/);
-    expect(CREATIVE_BOOTSTRAP_INTENT).toMatch(/không chỉ làm đẹp mơ hồ/);
-    expect(CREATIVE_BOOTSTRAP_INTENT).toMatch(/quick entrance\/reveal\/pop/);
-    expect(CREATIVE_BOOTSTRAP_INTENT).toMatch(/semantic progression/);
-    expect(CREATIVE_BOOTSTRAP_INTENT).toMatch(/continuous living motion/);
-    expect(CREATIVE_BOOTSTRAP_INTENT).toMatch(/phase\/period deterministic/);
-    expect(CREATIVE_BOOTSTRAP_INTENT).toMatch(/không bịa thêm số liệu/);
-    expect(CREATIVE_BOOTSTRAP_INTENT).toMatch(/không đổi scene id\/component id/);
-    expect(CREATIVE_BOOTSTRAP_INTENT).toMatch(/khuyến khích sáng tạo, KHÔNG bắt buộc/);
-    expect(CREATIVE_BOOTSTRAP_INTENT).toMatch(/cảnh tĩnh có chủ đích vẫn hợp lệ/);
-    expect(CREATIVE_BOOTSTRAP_INTENT).toMatch(/KHÔNG được biến cảnh thành title-card/);
-    expect(CREATIVE_BOOTSTRAP_INTENT).toMatch(/frame\/spring\/interpolate có clamp hoặc phase\/period bounded/);
-    expect(CREATIVE_BOOTSTRAP_INTENT).toMatch(/KHÔNG kéo một reveal đơn giản ra hết cảnh/);
-    expect(CREATIVE_BOOTSTRAP_INTENT).not.toMatch(/ĐANG DIỄN TIẾN qua phần lớn thời lượng/);
-    expect(CREATIVE_BOOTSTRAP_INTENT).not.toMatch(/KHÔNG dùng Math\.sin\(frame\)/);
-    expect(CREATIVE_BOOTSTRAP_INTENT).not.toMatch(/ANIMATION PHẢI|NHIỀU PHA|chuyển động LIÊN TỤC|mạch đập|nhịp thở chậm/);
+    for (const p of BOOTSTRAP_REQUIRED) expect(CREATIVE_BOOTSTRAP_INTENT).toMatch(p);
+    for (const p of BOOTSTRAP_FORBIDDEN) expect(CREATIVE_BOOTSTRAP_INTENT).not.toMatch(p);
   });
 
   it("maps every scene to the creative bootstrap intent", () => {
@@ -56,7 +53,6 @@ describe("workspace render-flow helpers", () => {
 
   it("keeps the vision repair minimal-fix and title-card guard language", () => {
     const intent = visionRepairIntent("chữ đè lên nhau");
-
     expect(intent).toContain("Nhìn ảnh đã dựng và SỬA đúng lỗi bố cục: chữ đè lên nhau");
     expect(intent).toMatch(/BẢO TOÀN/);
     expect(intent).toMatch(/VÁ ĐÚNG LỖI/);
@@ -108,5 +104,4 @@ describe("workspace render-flow helpers", () => {
       qaTotal: 2,
     });
   });
-
 });

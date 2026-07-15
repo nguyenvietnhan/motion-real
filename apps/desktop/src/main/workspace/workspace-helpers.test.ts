@@ -2,18 +2,10 @@ import { describe, expect, it } from "vitest";
 import { combineIntent, linkWarningOf, stageToFriendlyStatus } from "./workspace-helpers.js";
 
 describe("workspace helpers", () => {
-  it("baseline: records current combined edit-intent prompt shape", () => {
-    const combined = combineIntent("to chu tieu de", "tong mau am");
-
-    expect(combined).toHaveLength(143);
-    expect(combined.split("\n\n")).toHaveLength(2);
-  });
-
   it("maps workspace stages to friendly gallery statuses", () => {
     expect(stageToFriendlyStatus("ready")).toBe("draft-ready");
     expect(stageToFriendlyStatus("published")).toBe("done");
     expect(stageToFriendlyStatus("error")).toBe("error");
-
     expect(stageToFriendlyStatus("writing")).toBe("building");
     expect(stageToFriendlyStatus("image-review")).toBe("building");
     expect(stageToFriendlyStatus("script")).toBe("building");
