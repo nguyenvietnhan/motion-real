@@ -148,10 +148,25 @@ const AppShell: React.FC = () => {
       }
     })();
 
-    // Only the gallery status badge is reduced here; the workspace flow is driven
-    // by stage polling (below). Progress/scene/friendly-error are surfaced through
-    // the polled stage, so we don't double-handle them via the event stream.
-    const unsubs = [dash.events.onStatus((e) => dispatch({ type: "status", event: e }))];
+    // Gallery badge + light in-app toast on terminal status so unattended jobs
+    // are visible even when the user is on Home (OS toast is main-process).
+    // Progress/scene/friendly-error stay on the polled stage path.
+    const unsubs = [
+      dash.events.onStatus((e) => {
+        dispatch({ type: "status", event: e });
+        if (e.status === "done") {
+          notify.success({
+            title: "Video đã xong",
+            message: "Mở dự án để xem, lưu video hoặc copy caption.",
+          });
+        } else if (e.status === "error") {
+          notify.error({
+            title: "Dựng video gặp lỗi",
+            message: "Mở dự án để xem chi tiết và thử lại.",
+          });
+        }
+      }),
+    ];
 
     // Poll only until AI is ready (gateway up + a connection + a model); restore
     // preferred model (or first-use first model) then stop (no churn).

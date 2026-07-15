@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, safeStorage, shell } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, Notification, safeStorage, shell } from "electron";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { appendEvent, createLogger, createTools, loadManifest, writeJson, projectPaths, videoToolHome, stagingDir, ensureProject, importImageBytes, reconcileStaleStates, pruneRenderCache, pruneTtsCache, readBrief, listBgmTracks, addBgmTrack, removeBgmTrack, renderThumbnail, workspaceRoot, ELEVENLABS_DEFAULT_MODEL_ID, runDoctor, readProjectDiagnostics, readProjectEvidence, type VoiceProvider } from "@motionreal/pipeline";
@@ -13,7 +13,6 @@ import { NineRouterClient } from "./gateway/ninerouter-client.js";
 import { NineRouterAuthoringBackend } from "./authoring/ninerouter-backend.js";
 import { CustomLoopAgentWorker } from "./agent/custom-loop-worker.js";
 import { WorkspaceController } from "./workspace/workspace-controller.js";
-
 import { CreateController } from "./create/create-controller.js";
 import { stripL0Tokens } from "./redact/friendly.js";
 import { toCards } from "../shared/gallery-controller.js";
@@ -281,6 +280,23 @@ const workspace = new WorkspaceController({
     void appendEvent(projectId, event).catch((error) => {
       log.debug({ err: error, projectId, type: event.type }, "diagnostic event append failed");
     });
+  },
+  // Unattended: system toast when a job ends (done/error). Click focuses the app.
+  onJobNotify: ({ title, body }) => {
+    try {
+      if (!Notification.isSupported()) return;
+      const n = new Notification({ title, body, silent: false });
+      n.on("click", () => {
+        const win = BrowserWindow.getAllWindows()[0];
+        if (!win || win.isDestroyed()) return;
+        if (win.isMinimized()) win.restore();
+        win.show();
+        win.focus();
+      });
+      n.show();
+    } catch (error) {
+      log.debug({ err: error }, "OS job notification failed");
+    }
   },
 });
 
@@ -589,6 +605,11 @@ async function createWindow(): Promise<void> {
   } else {
     await win.loadFile(join(here, "../renderer/index.html"));
   }
+}
+
+// Windows needs a stable AppUserModelID for Notification center grouping.
+if (process.platform === "win32") {
+  app.setAppUserModelId("com.motionreal.desktop");
 }
 
 app

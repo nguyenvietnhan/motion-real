@@ -1379,6 +1379,56 @@ describe("reviewMode (stills_edit / skip_edit)", () => {
     expect(publish).toHaveBeenCalled();
   });
 
+  it("unattended: onJobNotify fires once on published and once on error edge", async () => {
+    const onJobNotify = vi.fn();
+    const publish = vi.fn(async () => ({ ok: true as const, outputPath: "/out.mp4" }));
+    const ok = new WorkspaceController(
+      baseDeps({
+        worker: stillsWorker({ publish }),
+        settings: unattendedSettings,
+        onJobNotify,
+        loadManifest: async () => ({ scenes: [{ id: "scene-01" }], title: "Clip A" }),
+        hasStill: () => true,
+        hasDraft: () => false,
+        toMedia: (p) => p,
+      }),
+    );
+    ok.approve("p-done");
+    await flush();
+    expect(onJobNotify).toHaveBeenCalledTimes(1);
+    expect(onJobNotify.mock.calls[0]?.[0]).toMatchObject({
+      kind: "done",
+      projectId: "p-done",
+      title: "Video đã xong",
+      body: "Clip A",
+    });
+
+    onJobNotify.mockClear();
+    const fail = new WorkspaceController(
+      baseDeps({
+        worker: stillsWorker({
+          publish: async () => ({
+            ok: false as const,
+            error: { message: "x", stage: "render" as const, cause: "boom", severity: "error" as const },
+          }),
+        }),
+        settings: unattendedSettings,
+        onJobNotify,
+        loadManifest: async () => ({ scenes: [{ id: "scene-01" }] }),
+        hasStill: () => true,
+        hasDraft: () => false,
+        toMedia: (p) => p,
+      }),
+    );
+    fail.approve("p-err");
+    await flush();
+    expect(onJobNotify).toHaveBeenCalledTimes(1);
+    expect(onJobNotify.mock.calls[0]?.[0].kind).toBe("error");
+    // Re-set same error status must not spam.
+    fail.setStage("p-err", { kind: "error", message: "same", fixable: false, retry: "full" });
+    expect(onJobNotify).toHaveBeenCalledTimes(1);
+  });
+
   it("skip_edit: still runs silent refine (stills + visualQa) before auto full", async () => {
     const visualQa = vi
       .fn()

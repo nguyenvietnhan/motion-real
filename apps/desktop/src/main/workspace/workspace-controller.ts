@@ -1,5 +1,6 @@
 import { authorInputWithCrawledImages, runCreateCrawlThenAuthor } from "./workspace-create-flow.js";
 import { combineIntent, stageToFriendlyStatus } from "./workspace-helpers.js";
+import { jobNotifyKindFromStatusTransition, jobNotifyPayload } from "../notify/job-notify.js";
 import { clampRenderRatio, renderingStageOf } from "./workspace-render-flow.js";
 import {
   refineBeforeDraft as runRefineBeforeDraft,
@@ -162,6 +163,11 @@ export interface WorkspaceDeps {
    * into render/authoring critical paths (callers fire-and-forget).
    */
   appendProjectEvent?: (projectId: string, event: { type: string } & Record<string, unknown>) => void;
+  /**
+   * Unattended throughput: OS/in-app notify when a job reaches done or error.
+   * Optional — tests omit it. Must never throw into setStage.
+   */
+  onJobNotify?: (payload: { kind: "done" | "error"; title: string; body: string; projectId: string }) => void;
 }
 
 export class WorkspaceController {
@@ -251,12 +257,29 @@ export class WorkspaceController {
   setStage(projectId: string, stage: ProjectStage): void {
     const previous = this.stages.get(projectId);
     this.stages.set(projectId, stage);
-    this.deps.events.status({ projectId, status: stageToFriendlyStatus(stage.kind) });
+    const nextStatus = stageToFriendlyStatus(stage.kind);
+    this.deps.events.status({ projectId, status: nextStatus });
     // Log kind/phase transitions only — percent ticks share a fingerprint and are skipped.
     if (shouldLogStageTransition(previous, stage)) {
       const from = stageFingerprint(previous);
       const to = stageFingerprint(stage);
       log.info({ projectId, from, to }, "workspace stage transition");
+    }
+    // Terminal notify (done/error edge only) — unattended users leave the desk.
+    const prevStatus = previous ? stageToFriendlyStatus(previous.kind) : undefined;
+    const kind = jobNotifyKindFromStatusTransition(prevStatus, nextStatus);
+    if (kind && this.deps.onJobNotify) {
+      try {
+        const payload = jobNotifyPayload({
+          kind,
+          projectId,
+          message: stage.kind === "error" ? stage.message : undefined,
+          title: stage.kind === "published" ? stage.title : undefined,
+        });
+        this.deps.onJobNotify({ ...payload, projectId });
+      } catch (err) {
+        log.warn({ err, projectId }, "job notify callback failed");
+      }
     }
   }
 

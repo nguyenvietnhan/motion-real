@@ -66,10 +66,10 @@ User chọn mức “chạy một mình” → dán link/prompt → bấm tạo 
   | # | Input | Settings tối thiểu cho unattended | Kỳ vọng | Unit (2026-07-16) | Manual full stack |
   | --- | --- | --- | --- | --- | --- |
   | A | prompt only | `skip_edit`, script gate OFF, image human review OFF | author → refine? → stills → full → `published` / done | **PASS** (`matrix A: beginScript…`) | **PASS** (2026-07-16, sau fix fonts CSS; full end-to-end) |
-  | B | 1–N URL | như A + (tuỳ) image AI filter ON, human review **OFF** | same; claim demote ok, không kẹt UI | partial (crawl tests exist; unattended URL E2E unit chưa gộp) | pending |
-  | C | prompt + ảnh local | như A | assets vào project trước author | pending | pending |
-  | D | A/B/C + BGM create | BGM chọn lúc Home | full có BGM | historical fix exists | pending |
-  | E | A với `stills_edit` / `full` | intentional stop | **có** điểm dừng đúng mode | stills_edit + full covered elsewhere | pending |
+  | B | 1–N URL | như A + (tuỳ) image AI filter ON, human review **OFF** | same; claim demote ok, không kẹt UI | partial (crawl tests exist) | **PASS** (user 2026-07-16) |
+  | C | prompt + ảnh local | như A | assets vào project trước author | pending | **PASS** (user 2026-07-16) |
+  | D | A/B/C + BGM create | BGM chọn lúc Home | full có BGM | historical fix exists | **PASS** (user 2026-07-16) |
+  | E | A với `stills_edit` / `full` | intentional stop | **có** điểm dừng đúng mode | stills_edit + full covered elsewhere | n/a (modes intentional) |
 
 - [x] Fail rõ (slice A): full-render fail trên skip_edit → `retry: "full"` (unit). Còn: gateway/TTS/admission classes end-to-end.
 - [x] Re-run full: skip_edit fail tags `retry:full` (unit). Rehydrate brief sau restart: already covered by `retry() rehydrates…`.
@@ -149,10 +149,10 @@ Preset chỉ là **nút “chọn gói nhanh”** gán nhiều knob một lúc (
 
 #### Việc làm trên track (1.3)
 
-- [ ] Sau 1.1 (và defect 1.4): **chọn đúng 1** feature theo bottleneck thật (fail vs chờ vs “xong chưa đăng được”).
-- [ ] Spec mỏng + test + không phình IPC contract lung tung.
+- [x] **Notify khi done/fail** (2026-07-16): OS `Notification` + in-app toast; edge-only (không spam reopen); click OS toast → focus window. Module `main/notify/job-notify.ts`.
+- [ ] Ứng viên sau (chưa làm): queue multi-job, export pack, prompt presets.
 
-**Done khi:** metric thô “job/tuần” hoặc “tỷ lệ full không tay” cải thiện, không phải “thêm màn hình”.
+**Done khi (slice notify):** unattended user rời app vẫn biết job xong/lỗi.
 
 ---
 
@@ -240,6 +240,8 @@ npm.cmd run build
 | 2026-07-16 | Manual smoke A (`test-a7ef7cb9`) | Settings unattended OK. Flow skip_edit ran. **Full fail ×2**: `delayRender` "Loading vendored font Inter 400 vietnamese" ~118s. Earlier stills N31 `row1Scale is not defined` (AI scene) then refine continued. Retry full: TTS/build/runtime/determinism OK → same font timeout. | Fix fonts.ts batch+timeout (1.4 reliability) |
 | 2026-07-16 | Smoke retest (`test-eb97afc9`) | New label `Loading vendored fonts` **still** fail ~10s (= our budget − 2s Remotion). Root: module-level delayRender + FontFace.load; Remotion `timeout − 2000`. N4 reauthor noise scene-02. | **Root fix**: drop delayRender entirely; CSS `@font-face` inject theme fonts only |
 | 2026-07-16 | Smoke A sau root font fix | User confirmed: render **đầu → cuối** unattended OK (full MP4) | Matrix B/C/D optional; throughput features later |
+| 2026-07-16 | User smoke B+C+D | URL + ảnh + BGM unattended OK | 1.1 closed for production inputs |
+| 2026-07-16 | 1.3 notify done/fail | OS + in-app toast on terminal status edge | Manual: minimize app mid-job, confirm toast |
 
 ---
 
