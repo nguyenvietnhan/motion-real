@@ -1,6 +1,5 @@
 import React from "react";
 import { interpolateColors, useCurrentFrame, useVideoConfig } from "remotion";
-import { withAlpha } from "@motionreal/theme";
 import { type CaptionCue, CANVAS, CAPTION_BAND, rectWidth } from "@motionreal/schema";
 import { useTheme } from "./theme-context.js";
 import { easeOut } from "./motion.js";
@@ -14,9 +13,8 @@ import { easeOut } from "./motion.js";
  * words stay fg, upcoming words are dimmed). Pure function of the frame (N16).
  *
  * ONE shared caption band (`CAPTION_BAND`) — the N29 oracle reads the same
- * constant, so the caption is drawn and measured in the same place. Optional
- * `theme.captionScrim` paints a faint plate behind the text when configured
- * (neutral theme leaves it off).
+ * constant, so the caption is drawn and measured in the same place. Text-only
+ * with a base-color halo (no scrim plate).
  */
 export const Captions: React.FC<{ cues: CaptionCue[] }> = ({ cues }) => {
   const theme = useTheme();
@@ -27,7 +25,6 @@ export const Captions: React.FC<{ cues: CaptionCue[] }> = ({ cues }) => {
   if (!active) return null;
 
   const band = CAPTION_BAND;
-  const scrim = theme.captionScrim;
   // Halo uses the theme page background so caption ink pops on busy video.
   const halo = theme.colors.bg;
   // Deterministic shrink-to-fit: the band is fixed-width and captions are single
@@ -54,14 +51,6 @@ export const Captions: React.FC<{ cues: CaptionCue[] }> = ({ cues }) => {
         justifyContent: "center",
         overflow: "hidden",
         pointerEvents: "none",
-        // Optional faint plate behind the caption when theme.captionScrim is set.
-        ...(scrim
-          ? {
-              background: withAlpha(theme.colors.bg, scrim.opacity),
-              backdropFilter: scrim.blur > 0 ? `blur(${scrim.blur}px)` : undefined,
-              borderRadius: scrim.radius,
-            }
-          : null),
       }}
     >
       <div
