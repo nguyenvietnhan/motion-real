@@ -8,9 +8,15 @@ import { clockWipe } from "@remotion/transitions/clock-wipe";
 import type { TransitionPresentation } from "@remotion/transitions";
 import { CANVAS, CONTENT_ZONE, rectWidth, transitionFrames, type LockedSceneSpec, type LockedVideoSpec } from "@motionreal/schema";
 import { makeTheme, sceneBackground, type Theme } from "@motionreal/theme";
-import { Captions, LayoutProbe, SceneTimingProvider, useIntroZoom } from "@motionreal/blocks";
+import {
+  Captions,
+  LayoutProbe,
+  SceneTimingProvider,
+  ThemeProvider,
+  useIntroZoom,
+  useTheme,
+} from "@motionreal/blocks";
 import { getComponent } from "./registry.js";
-import { ThemeProvider, useTheme } from "./theme-context.js";
 
 export type VideoCompositionProps = {
   spec: LockedVideoSpec;

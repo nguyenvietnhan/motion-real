@@ -18,12 +18,7 @@ export { SceneTimingProvider, useSceneDurationInFrames } from "./scene-timing.js
 export {
   bezier,
   easeOut,
-  frameRamp,
   useReveal,
-  useFrameScale,
-  useSceneProgress,
-  useApproxSceneProgress,
-  useExactSceneProgress,
   useIntroZoom,
 } from "./motion.js";
 
