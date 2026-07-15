@@ -32,7 +32,6 @@ export type ManifestScene = {
   eyebrow?: string;
   /** Optional pacing target (seconds); real timing follows measured TTS. */
   durationInSeconds?: number;
-  sfx?: "none" | "transition" | "alert" | "emphasis" | "success";
   /** Narrative role (advisory). */
   role?: "hook" | "body" | "recap" | "cta";
   /** Transition into the next scene. */
@@ -64,30 +63,23 @@ export type Manifest = {
   bgm?: string;
   /** Authored video language: title, hashtags, on-screen text, narration, captions. Absent ⇒ "vi". */
   videoLanguage?: VideoLanguage;
-  theme?: { dominant: string; mood?: string };
+  theme?: { dominant: string };
   scenes: ManifestScene[];
 };
 
 /** Default per-scene hold when a manifest scene omits a pacing target. */
 const DEFAULT_SCENE_SECONDS = 8;
 
-/** VideoSpec theme limits: dominant must be 6-digit hex, mood ≤40 chars. */
+/** VideoSpec theme limits: dominant must be 6-digit hex. Legacy `mood` is ignored. */
 const HEX6 = /^#[0-9a-fA-F]{6}$/;
-function clampTheme(theme: { dominant: string; mood?: string }): {
-  dominant: string;
-  mood?: string;
-} {
+function clampTheme(theme: { dominant: string }): { dominant: string } {
   const dominant = HEX6.test((theme.dominant ?? "").trim()) ? theme.dominant.trim() : "#1E9CB0";
-  const mood = (theme.mood ?? "").trim().slice(0, 40);
-  return {
-    dominant,
-    ...(mood ? { mood } : {}),
-  };
+  return { dominant };
 }
 
 /** An empty manifest skeleton written by `author scaffold`. */
 export function emptyManifest(title = "Untitled"): Manifest {
-  return { title, theme: { dominant: "#5B8CFF", mood: "" }, scenes: [] };
+  return { title, theme: { dominant: "#5B8CFF" }, scenes: [] };
 }
 
 /** Convert a manifest into a renderer-agnostic VideoSpec (fills sensible defaults). */
@@ -116,7 +108,6 @@ export function manifestToVideoSpec(manifest: Manifest): VideoSpec {
       narration: scene.narration,
       props: scene.props ?? {},
       ...(scene.image ? { image: scene.image } : {}),
-      sfx: scene.sfx ?? "none",
       transitionToNext: scene.transitionToNext,
       emphasis: scene.emphasis,
     })),

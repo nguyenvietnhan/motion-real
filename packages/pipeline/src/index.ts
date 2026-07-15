@@ -29,8 +29,6 @@ export {
 export * from "./safety/index.js";
 export * from "./audio/captions.js";
 export * from "./audio/lock.js";
-// Reserved/internal SFX helpers: schema-compatible metadata only, not default audio mix.
-export * from "./audio/sfx.js";
 export * from "./audio/tts.js";
 export * from "./audio/bgm-library.js";
 export * from "./render/renderer.js";

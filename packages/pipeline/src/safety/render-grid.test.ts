@@ -117,7 +117,7 @@ describe("N14 checkInFrame (format-aware edge ring)", () => {
   // The ONE format-aware layout oracle (D7/O5): content bleeding into the outer
   // safe-margin ring fires; clean center passes — for BOTH formats.
   it("tiktok (9:16): fires when content bleeds into the edge ring", () => {
-    const g = geometry("tiktok");
+    const g = geometry();
     const f = makeFrame(g.canvas.width, g.canvas.height);
     paint(f, { x: 0, y: 0, width: 8, height: g.canvas.height }, WHITE); // flush on the left edge
     const issues = checkInFrame(f, g, "scene-01");
@@ -125,13 +125,13 @@ describe("N14 checkInFrame (format-aware edge ring)", () => {
     expect(issues.every((i) => i.severity === "warning")).toBe(true);
   });
   it("fires when content bleeds into the right edge ring", () => {
-    const g = geometry("tiktok");
+    const g = geometry();
     const f = makeFrame(g.canvas.width, g.canvas.height);
     paint(f, { x: g.canvas.width - 8, y: 0, width: 8, height: g.canvas.height }, WHITE); // flush on the right edge
     expect(checkInFrame(f, g, "scene-01").some((i) => i.check === "N14")).toBe(true);
   });
   it("passes when content stays in the center", () => {
-    const g = geometry("tiktok");
+    const g = geometry();
     const f = makeFrame(g.canvas.width, g.canvas.height);
     paint(f, { x: Math.floor(g.canvas.width / 2) - 100, y: Math.floor(g.canvas.height / 2) - 100, width: 200, height: 200 }, WHITE);
     expect(checkInFrame(f, g)).toEqual([]);
@@ -480,7 +480,7 @@ describe("N28 duration target (soft)", () => {
 
   it("does not warn a 142s TikTok tier-3 render when evaluated against the resolved tier target", () => {
     const issues = checkDuration(narrated(142 * 30), {
-      targetDurationSeconds: tierSeconds("tiktok", 3),
+      targetDurationSeconds: tierSeconds(3),
     });
 
     expect(issues).toEqual([]);
@@ -548,7 +548,7 @@ describe("runRenderGrid aggregator", () => {
   }
 
   function fullFrame(rect: Rect): Buffer {
-    const g = geometry("tiktok");
+    const g = geometry();
     const f = makeFrame(g.canvas.width, g.canvas.height);
     paint(f, rect, WHITE);
     return encodePngRGBA(f.width, f.height, f.data);
@@ -578,7 +578,7 @@ describe("runRenderGrid aggregator", () => {
   });
 
   it("runs the in-frame oracle for short-form stills", async () => {
-    const g = geometry("tiktok");
+    const g = geometry();
     await writeFile(join(dir, "scene-01.png"), fullFrame({ x: g.canvas.width - 8, y: 0, width: 8, height: g.canvas.height }));
     const locked = lockedFixture({
       format: "tiktok",

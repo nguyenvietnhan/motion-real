@@ -1014,7 +1014,7 @@ export async function runRenderGrid(
   const geometryFrameOracles = RENDER_ORACLES.filter((o): o is GeometryFrameOracle => o.phase === "geometry-frame");
   const frameOracles = RENDER_ORACLES.filter((o): o is FrameOracle => o.phase === "frame");
   const transitionOracles = RENDER_ORACLES.filter((o): o is TransitionOracle => o.phase === "transition");
-  const geom = geometry(locked.format);
+  const geom = geometry();
 
   // Spec-level oracles (no pixels needed).
   for (const oracle of specOracles) {

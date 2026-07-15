@@ -7,7 +7,7 @@ import { theme } from "@motionreal/theme";
 import "./demo-scenes.js"; // side-effect: registers demo scene components for the sample
 import { sampleSpec } from "./fixtures/sample-spec.js";
 
-const defaultCanvas = geometry("tiktok").canvas;
+const defaultCanvas = geometry().canvas;
 const { width, height } = defaultCanvas;
 
 const propsSchema = z.object({
@@ -45,7 +45,7 @@ export const RemotionRoot: React.FC = () => {
           durationInFrames={sampleSpec.durationInFrames}
           calculateMetadata={({ props }) => {
             const spec = props.spec;
-            const g = geometry(spec.format);
+            const g = geometry();
             return {
               durationInFrames: spec.durationInFrames,
               fps: spec.fps ?? FPS,
@@ -67,7 +67,7 @@ export const RemotionRoot: React.FC = () => {
         fps={FPS}
         durationInFrames={THUMBNAIL_DURATION}
         calculateMetadata={({ props }) => {
-          const g = geometry(props.format);
+          const g = geometry();
           return { width: g.canvas.width, height: g.canvas.height, durationInFrames: THUMBNAIL_DURATION, fps: FPS };
         }}
       />

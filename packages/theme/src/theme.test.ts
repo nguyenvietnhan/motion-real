@@ -17,8 +17,9 @@ describe("neutral theme", () => {
     expect(t.radius.lg).toBeGreaterThan(t.radius.md);
   });
 
-  it("accent follows dominant hue", () => {
-    expect(makeTheme("#2F5FF0").colors.accent).not.toBe(makeTheme("#E8412E").colors.accent);
+  it("accent is the project dominant hex", () => {
+    expect(makeTheme("#2F5FF0").colors.accent).toBe("#2f5ff0");
+    expect(makeTheme("#E8412E").colors.accent).toBe("#e8412e");
   });
 
   it("surface border tokens are set", () => {

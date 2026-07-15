@@ -249,8 +249,10 @@ Do not delete these during hygiene unless the owner explicitly opens a migration
   `MotionRealVideo`.
 - `news-studio-settings.json` — pre-rename settings filename (read-compat only);
   new writes use `motionreal-settings.json`.
-- Scene `sfx` / `audio/sfx.ts` — reserved schema/export surface, not a
-  user-facing mix product.
+
+Scene `sfx` / `audio/sfx.ts` and theme `mood` were removed as unused (never mixed
+into render audio; mood never drove palette). Old manifests that still carry
+those keys are stripped on parse and not re-emitted.
 
 ## Known Residual Risks
 

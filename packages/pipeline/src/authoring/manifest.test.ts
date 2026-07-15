@@ -84,14 +84,13 @@ describe("manifestSceneFiles (bundle/typecheck scoping)", () => {
 describe("manifestToVideoSpec + clampTheme (AI-output → spec bridge)", () => {
   const oneScene = (overrides: Partial<Manifest["scenes"][number]> = {}): Manifest => ({
     title: "Tiêu đề",
-    theme: { dominant: "#1E9CB0", mood: "calm" },
+    theme: { dominant: "#1E9CB0" },
     scenes: [{ id: "scene-01", component: "hook", narration: "n", headline: "h", ...overrides }],
   });
 
   it("passes a valid dominant hex straight through", () => {
     const spec = manifestToVideoSpec(oneScene());
     expect(spec.theme?.dominant).toBe("#1E9CB0");
-    expect(spec.theme?.mood).toBe("calm");
   });
 
   it("falls back to the default teal for a malformed dominant hex", () => {
@@ -99,9 +98,10 @@ describe("manifestToVideoSpec + clampTheme (AI-output → spec bridge)", () => {
     expect(spec.theme?.dominant).toBe("#1E9CB0");
   });
 
-  it("truncates an over-long mood to 40 chars", () => {
-    const spec = manifestToVideoSpec({ ...oneScene(), theme: { dominant: "#1E9CB0", mood: "x".repeat(80) } });
-    expect(spec.theme?.mood).toHaveLength(40);
+  it("strips legacy mood so it never reaches VideoSpec", () => {
+    const raw = { ...oneScene(), theme: { dominant: "#1E9CB0", mood: "calm" } as Manifest["theme"] };
+    const spec = manifestToVideoSpec(raw as Manifest);
+    expect(spec.theme).toEqual({ dominant: "#1E9CB0" });
   });
 
   it("emits no theme when the manifest omits a dominant", () => {
@@ -109,10 +109,9 @@ describe("manifestToVideoSpec + clampTheme (AI-output → spec bridge)", () => {
     expect(spec.theme).toBeUndefined();
   });
 
-  it("fills sensible scene defaults (durationInSeconds, sfx, props)", () => {
+  it("fills sensible scene defaults (durationInSeconds, props)", () => {
     const spec = manifestToVideoSpec(oneScene());
     expect(spec.scenes[0]!.durationInSeconds).toBeGreaterThan(0);
-    expect(spec.scenes[0]!.sfx).toBe("none");
     expect(spec.scenes[0]!.props).toEqual({});
   });
 
@@ -126,7 +125,7 @@ describe("manifestToVideoSpec + clampTheme (AI-output → spec bridge)", () => {
     expect(Object.keys(spec).sort()).toEqual(
       ["format", "language", "ratio", "scenes", "theme", "title", "version", "videoLanguage"].sort(),
     );
-    expect(spec.theme ? Object.keys(spec.theme).sort() : []).toEqual(["dominant", "mood"]);
+    expect(spec.theme ? Object.keys(spec.theme).sort() : []).toEqual(["dominant"]);
   });
 
   it("clamps an over-long title into a schema-valid spec", () => {

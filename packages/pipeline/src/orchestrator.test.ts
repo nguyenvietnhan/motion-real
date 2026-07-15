@@ -251,7 +251,7 @@ describe("scaffoldVideoProject — R8/R10", () => {
       });
 
       expect(result.brief.duration).toBe(item.seconds);
-      expect(result.brief.duration).toBe(tierSeconds(item.format, item.durationTier));
+      expect(result.brief.duration).toBe(tierSeconds(item.durationTier));
       const persisted = JSON.parse(await readFile(projectPaths(result.projectId).brief, "utf8"));
       expect(persisted.duration).toBe(item.seconds);
     }

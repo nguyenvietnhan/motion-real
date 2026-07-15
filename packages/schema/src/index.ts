@@ -12,9 +12,6 @@ import { z } from "zod";
 // Layout zones (content zone / caption band / platform-UI reserve) live in their
 // own module but are part of the shared contract, so re-export them here.
 export * from "./zones.js";
-// `VideoFormat` is also used by name in this module (tierSeconds), so import it
-// explicitly — a wildcard re-export does not bind the name in this file's scope.
-import type { VideoFormat } from "./zones.js";
 
 export const FPS = 30 as const;
 
@@ -108,12 +105,6 @@ export const SceneSpecSchema = z.object({
    */
   image: SceneImageSchema.optional(),
   /**
-   * Reserved/internal sound-effect metadata only.
-   * Present for schema compatibility and future mix design; the default render
-   * path does not mix these cues into audio. Do not treat as a shipped feature.
-   */
-  sfx: z.enum(["none", "transition", "alert", "emphasis", "success"]).default("none").optional(),
-  /**
    * Transition INTO the next scene. `slide` (default) and `fade` are the calm
    * baseline; `wipe`/`clockWipe`/`zoom` are punchier accents for section breaks
    * or emphasis. All are deterministic DOM transitions (no WebGL).
@@ -140,8 +131,6 @@ export type SceneSpec = z.infer<typeof SceneSpecSchema>;
 export const ThemeSpecSchema = z.object({
   /** Dominant color as a 6-digit hex (e.g. "#5B8CFF"). */
   dominant: z.string().regex(/^#[0-9a-fA-F]{6}$/, "dominant must be a 6-digit hex color like #5B8CFF"),
-  /** Optional short mood label for human readability (e.g. "calm tech blue"). */
-  mood: z.string().max(40).optional(),
 });
 
 export type ThemeSpec = z.infer<typeof ThemeSpecSchema>;
@@ -166,7 +155,7 @@ export const DurationTierSchema = z.union([
 export type DurationTier = z.infer<typeof DurationTierSchema>;
 
 /** Target seconds for a short-form duration tier. The pacing AIM, not a hard cut. */
-export function tierSeconds(_format: VideoFormat, tier: DurationTier): number {
+export function tierSeconds(tier: DurationTier): number {
   const table: Record<DurationTier, number> = { 1: 45, 2: 90, 3: 150, 4: 210 };
   return table[tier];
 }
@@ -205,7 +194,7 @@ export const VideoLanguageSchema = z.enum(["vi", "en"]);
 export type VideoLanguage = z.infer<typeof VideoLanguageSchema>;
 
 /** Max publish-title length (short-form + hashtags). */
-export function titleMaxChars(_format: VideoFormat = "tiktok"): number {
+export function titleMaxChars(): number {
   return 100;
 }
 

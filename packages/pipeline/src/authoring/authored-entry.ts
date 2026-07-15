@@ -51,7 +51,7 @@ ${importLines}
 import lockedSpec from ${JSON.stringify(lockRel)};
 
 const spec = lockedSpec as unknown as import("@motionreal/schema").LockedVideoSpec;
-const initialGeometry = geometry(spec.format);
+const initialGeometry = geometry();
 // NewsVideo: legacy composition id for old saved render commands/entries.
 // New work targets MotionRealVideo. Removal needs owner-approved sunset.
 const VIDEO_COMPOSITION_IDS = ["MotionRealVideo", "NewsVideo"] as const;
@@ -77,7 +77,7 @@ const Root: React.FC = () =>
         fps: spec.fps ?? FPS,
         durationInFrames: spec.durationInFrames,
         calculateMetadata: ({ props }: { props: { spec: typeof spec; measure?: boolean; strictSceneErrors?: boolean } }) => {
-          const g = geometry(props.spec.format);
+          const g = geometry();
           return {
             durationInFrames: props.spec.durationInFrames,
             fps: props.spec.fps ?? FPS,

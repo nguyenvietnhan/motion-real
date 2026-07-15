@@ -1,50 +1,131 @@
-import pino, { type Logger } from "pino";
-
 /**
- * Centralized structured logger (library-adoption pilot). One Pino instance for
- * the whole pipeline + desktop main; callers take a SCOPE-tagged child so every
- * line carries `scope` (`authoring`, `render`, `ingest`, …) and a failure is
- * never swallowed silently again (the "lỗi đẻ ra lỗi" root cause: a bare
- * `catch {}` hid a fault, state corrupted, an unrelated step later crashed).
+ * Centralized scoped logger. One small NDJSON writer for pipeline + desktop
+ * main; callers take a SCOPE-tagged child so every line carries `scope`.
  *
- * BUNDLER-SAFE BY DESIGN. Pino's worker-thread transports (`pino-pretty`,
- * `pino/file`) can't be esbuild-bundled without shipping extra worker files —
- * and the Electron main IS bundled (`apps/desktop/build-electron.mjs`, esbuild
- * `packages: "external"`). So we DON'T use a transport: we log straight to a
- * `pino.destination` on the MAIN thread (NDJSON to the chosen fd). No worker,
- * no transport, nothing for the bundler to miss. Pretty rendering, if ever
- * wanted, is a downstream `| pino-pretty` on the terminal, never in-process.
+ * Writes straight to stderr (fd 2) so logs never corrupt a stdout JSON protocol.
+ * No worker-thread transport, no bundler special cases.
  */
 
+export type LogLevel = "trace" | "debug" | "info" | "warn" | "error" | "fatal";
+
+export type LogBindings = { scope?: string };
+
+type LogFields = Record<string, unknown>;
+
+export type Logger = {
+  bindings(): LogBindings;
+  trace: LogMethod;
+  debug: LogMethod;
+  info: LogMethod;
+  warn: LogMethod;
+  error: LogMethod;
+  fatal: LogMethod;
+};
+
+/** Pino-compatible: `log.warn("msg")` or `log.warn(fields, "msg")`. */
+export type LogMethod = (fieldsOrMsg?: unknown, msg?: string) => void;
+
 /** Resolve the log level from env, defaulting to `info` (debug in dev). */
-function resolveLevel(): string {
-  const fromEnv = process.env.LOG_LEVEL?.trim();
-  if (fromEnv) return fromEnv;
+function resolveLevel(): LogLevel {
+  const fromEnv = process.env.LOG_LEVEL?.trim()?.toLowerCase();
+  if (
+    fromEnv === "trace" ||
+    fromEnv === "debug" ||
+    fromEnv === "info" ||
+    fromEnv === "warn" ||
+    fromEnv === "error" ||
+    fromEnv === "fatal"
+  ) {
+    return fromEnv;
+  }
   return process.env.NODE_ENV === "production" ? "info" : "debug";
 }
 
-/**
- * The single root logger. `pino.destination({ sync: false })` is a SonicBoom
- * stream on the main thread — fast, no worker thread, bundler-safe. fd 2
- * (stderr) keeps logs off stdout so they never corrupt a stdout JSON protocol
- * (CLI/tool JSON on stdout stays clean).
- */
-const root: Logger = pino(
-  {
-    level: resolveLevel(),
-    // ISO timestamps read better than epoch ms in a terminal scrollback.
-    timestamp: pino.stdTimeFunctions.isoTime,
-  },
-  pino.destination({ fd: 2, sync: false }),
-);
+const LEVEL_RANK: Record<LogLevel, number> = {
+  trace: 10,
+  debug: 20,
+  info: 30,
+  warn: 40,
+  error: 50,
+  fatal: 60,
+};
+
+const minLevel = resolveLevel();
+
+function serializeValue(value: unknown): unknown {
+  if (value instanceof Error) {
+    return { name: value.name, message: value.message };
+  }
+  if (Array.isArray(value)) {
+    return value.map(serializeValue);
+  }
+  if (value && typeof value === "object") {
+    const out: LogFields = {};
+    for (const [k, v] of Object.entries(value as LogFields)) {
+      out[k] = serializeValue(v);
+    }
+    return out;
+  }
+  return value;
+}
+
+function writeLine(level: LogLevel, bindings: LogBindings, fieldsOrMsg?: unknown, msg?: string): void {
+  if (LEVEL_RANK[level] < LEVEL_RANK[minLevel]) return;
+
+  let message = "";
+  let fields: LogFields = {};
+  if (typeof fieldsOrMsg === "string" && msg === undefined) {
+    message = fieldsOrMsg;
+  } else if (fieldsOrMsg !== undefined && fieldsOrMsg !== null && typeof fieldsOrMsg === "object") {
+    fields = (serializeValue(fieldsOrMsg) as LogFields) ?? {};
+    message = typeof msg === "string" ? msg : "";
+  } else if (typeof fieldsOrMsg === "string") {
+    message = fieldsOrMsg;
+  } else if (typeof msg === "string") {
+    message = msg;
+  }
+
+  const line = {
+    level,
+    time: new Date().toISOString(),
+    ...(bindings.scope ? { scope: bindings.scope } : {}),
+    ...fields,
+    ...(message ? { msg: message } : {}),
+  };
+
+  try {
+    process.stderr.write(`${JSON.stringify(line)}\n`);
+  } catch {
+    // Never throw from logging.
+  }
+}
+
+function makeLogger(bindings: LogBindings): Logger {
+  const method = (level: LogLevel): LogMethod => {
+    return (fieldsOrMsg?: unknown, msg?: string) => {
+      writeLine(level, bindings, fieldsOrMsg, msg);
+    };
+  };
+
+  return {
+    bindings: () => ({ ...bindings }),
+    trace: method("trace"),
+    debug: method("debug"),
+    info: method("info"),
+    warn: method("warn"),
+    error: method("error"),
+    fatal: method("fatal"),
+  };
+}
+
+const root: Logger = makeLogger({});
 
 /**
  * A scope-tagged child logger. Every authoring/render/ingest module takes one at
- * top of file: `const log = createLogger("authoring")`. The `scope` field then
- * tags every line so a fault is greppable by subsystem.
+ * top of file: `const log = createLogger("authoring")`.
  */
 export function createLogger(scope: string): Logger {
-  return root.child({ scope });
+  return makeLogger({ scope });
 }
 
 /** The bare root logger, for the rare caller that wants no scope. */

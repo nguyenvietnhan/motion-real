@@ -14,8 +14,7 @@
   },
   "dependencies": {
     "@motionreal/schema": "0.1.0",
-    "@motionreal/theme": "0.1.0",
-    "@remotion/google-fonts": "4.0.481"
+    "@motionreal/theme": "0.1.0"
   },
   "peerDependencies": {
     "react": ">=19",

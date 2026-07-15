@@ -103,11 +103,9 @@ export const authorManifestSchema = z.object({
   // name stays clean. Coerced from string/array shapes; a bad value degrades
   // to undefined rather than discarding the reply (see coerceHashtags).
   hashtags: z.preprocess(coerceHashtags, z.array(z.string()).optional().catch(undefined)),
-  // mood is advisory (clamped to 40 downstream); an empty/over-long mood must not
-  // discard the whole reply, so default empty and clamp rather than reject.
+  // Dominant hex only. Legacy AI `mood` keys are stripped by Zod object defaults.
   theme: z.object({
     dominant: z.string().min(1),
-    mood: z.preprocess((v) => (typeof v === "string" ? v.slice(0, 200) : v), z.string().catch("")),
   }),
   // No upper cap on scene count: the right number of scenes depends on narration
   // length, not a fixed ceiling (12 scenes with long voice-over vs 16 short ones

@@ -43,7 +43,7 @@ function codeBlock(id: string, opts: { marker?: string; literal?: string } = {})
 function manifestBlock(ids: string[], scenes: { component: string; eyebrow: string; headline: string; narration: string }[]): string {
   const manifest = {
     title: "Tiêu đề video kiểm thử",
-    theme: { dominant: "#1E9CB0", mood: "tông thử" },
+    theme: { dominant: "#1E9CB0" },
     scenes,
   };
   void ids;
@@ -275,7 +275,7 @@ describe("sceneId manifest recovery", () => {
   function sceneIdReply(codeIds: string[] = ["scene-01", "scene-02", "scene-03"]): string {
     const manifest = {
       title: "Random Forest dễ hiểu",
-      theme: { dominant: "#10b981", mood: "giải thích trực quan" },
+      theme: { dominant: "#10b981" },
       scenes: [
         { sceneId: "scene-01", eyebrow: "KHÁI NIỆM", headline: "Một khu rừng biết bỏ phiếu", narration: "Random Forest là nhiều cây quyết định cùng dự đoán." },
         { sceneId: "scene-02", eyebrow: "CÁCH LÀM", headline: "Mỗi cây nhìn một lát cắt", narration: "Mỗi cây học trên một mẫu dữ liệu và nhóm đặc trưng khác nhau." },
@@ -306,7 +306,7 @@ describe("robust manifest coercion (one bad field no longer nukes the whole repl
   // the strict schema fail safeParse, discarding the manifest + every authored
   //.tsx (up to 14 scenes) and forcing a full re-author. Clamp/coerce keeps them.
   function rawReply(scenes: unknown[]): string {
-    const manifest = { title: "Tiêu đề kiểm thử", theme: { dominant: "#1E9CB0", mood: "tông" }, scenes };
+    const manifest = { title: "Tiêu đề kiểm thử", theme: { dominant: "#1E9CB0" }, scenes };
     return (
       "```json\n" + JSON.stringify(manifest) + "\n```\n\n" + codeBlock("a-scene")
     );

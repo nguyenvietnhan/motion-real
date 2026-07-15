@@ -123,7 +123,7 @@ function systemPrompt(
     },
     wordsPerSecond,
   );
-  const titleCap = titleMaxChars(format);
+  const titleCap = titleMaxChars();
   return `You are MotionReal's CONTENT PLANNER, not the Remotion code author.
 Plan a short-form video before any TSX is written. Return only valid JSON. Do not include markdown fences, commentary, JSX, imports, or component code.
 

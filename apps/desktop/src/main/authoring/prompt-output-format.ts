@@ -4,7 +4,7 @@ export const OUTPUT_FORMAT = `ĐỊNH DẠNG TRẢ VỀ (AI_Output_Contract) —
 {
   "title": "tiêu đề video (KHÔNG chứa hashtag)",
   "hashtags": ["#chu_de", "#tu_khoa"],
-  "theme": { "dominant": "#RRGGBB", "mood": "mô tả ngắn tông màu" },
+  "theme": { "dominant": "#RRGGBB" },
   "scenes": [
     { "component": "id-canh", "eyebrow": "NHÃN", "headline": "tiêu đề cảnh", "narration": "lời đọc", "props": { }, "transitionToNext": "slide|fade|wipe|clockWipe|zoom" }
   ]

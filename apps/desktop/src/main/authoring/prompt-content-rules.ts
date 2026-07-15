@@ -55,7 +55,7 @@ export function tierBudgetBlock(
  * title, hashtags, authored display text, narration, and central captions.
  */
 export function languageBlock(format: VideoFormat, videoLanguage: VideoLanguage): string {
-  const cap = titleMaxChars(format);
+  const cap = titleMaxChars();
   const lang = videoLanguage === "en" ? "TIẾNG ANH" : "TIẾNG VIỆT";
   const contentRule = videoLanguage === "en"
     ? `TOÀN BỘ nội dung người xem đọc/nghe phải là TIẾNG ANH tự nhiên: "title", "hashtags", eyebrow/headline/body, narration, CTA và mọi chuỗi chữ tự viết trong JSX/SVG. Chỉ giữ nguyên tên riêng/thương hiệu. KHÔNG xen câu tiếng Việt.`

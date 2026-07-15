@@ -42,7 +42,6 @@ function validSpec(): VideoSpec {
     narration:
       "Đừng vội tin vào những lời quảng cáo hào nhoáng, vì đằng sau con số đẹp luôn có một cái giá mà rất ít người chịu nói thẳng ra.",
     props: { value: "Sự thật" },
-    sfx: "transition",
   });
   for (let i = 2; i <= 11; i += 1) {
     scenes.push({
@@ -53,7 +52,6 @@ function validSpec(): VideoSpec {
       body: `Dòng phụ ngắn cho cảnh ${i}.`,
       narration: mid(i),
       props: { value: `Lớp ${i}` },
-      sfx: "none",
     });
   }
   scenes.push({
@@ -66,7 +64,6 @@ function validSpec(): VideoSpec {
     narration:
       "Vậy giữa tốc độ và sự an toàn, bạn sẽ ưu tiên điều gì khi phải đưa ra quyết định quan trọng cho công việc sắp tới của mình đây.",
     props: { value: "Đánh đổi" },
-    sfx: "success",
   });
 
   return {

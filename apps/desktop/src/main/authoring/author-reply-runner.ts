@@ -334,7 +334,6 @@ function authorManifestFromContentPlan(plan: ContentPlan): AuthorManifest {
     title: clipNonEmpty(plan.title, 160, "MotionReal draft"),
     theme: {
       dominant: "#1E9CB0",
-      mood: clipNonEmpty(plan.hookType.replace(/-/g, " "), 200, "authored"),
     },
     scenes: plan.scenes.map((scene) => ({
       component: scene.sceneId,

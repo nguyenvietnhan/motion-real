@@ -1,13 +1,9 @@
 /**
  * The `AgentWorker` abstraction.
  *
- * ONE interface, TWO swappable implementations decided by the gateway choice:
- * (Y) headless agent-runtime adapter (shared contract/docs + pipeline tools)
- * (X) custom-loop adapter (preprompt + OpenAI-compatible gateway + pipeline tools)
- * Both drive the same pipeline tools / single-process orchestrator, so the rest
- * of the design depends only on this interface — never on the chosen path.
- * No engine internals appear here; this is the authoring contract the control
- * plane sees.
+ * Single production path: `CustomLoopAgentWorker` over `AuthoringBackend`
+ * (`NineRouterAuthoringBackend` + pipeline tools). Workspace/control plane
+ * depends on this interface for testability — not on NineRouter internals.
  */
 
 import type { SerializedPipelineError, CrawledImage } from "@motionreal/pipeline";
@@ -62,9 +58,8 @@ export type ReauthorJob = {
 };
 
 /**
- * The fixed, contract-bearing payload merged into a re-author request. For path
- * X this is assembled into the Preprompt; for path Y it is handed to the runtime
- * as the user intent alongside the auto-loaded contract files.
+ * The fixed, contract-bearing payload merged into a re-author request
+ * (custom-loop preprompt / repair intent).
  */
 export type PrepromptPayload = {
   /** Contract bearer reference only; the contract text is never inlined here. */

@@ -5,7 +5,7 @@ export const JSON_ONLY_AUTHOR_REPLY = [
   JSON.stringify(
     {
       title: "Fable safeguards incident fixture",
-      theme: { dominant: "#191B1F", mood: "cyber safety" },
+      theme: { dominant: "#191B1F" },
       scenes: [
         {
           component: "scene-01",

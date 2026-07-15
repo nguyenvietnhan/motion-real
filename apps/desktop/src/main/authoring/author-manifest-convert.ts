@@ -4,19 +4,12 @@ import type { AuthorManifest } from "./manifest-schema.js";
 
 const log = createLogger("authoring");
 
-/** Engine ThemeSpec limits: dominant must be 6-digit hex, mood ≤40 chars. */
+/** Engine ThemeSpec limits: dominant must be 6-digit hex. Legacy `mood` is ignored. */
 const HEX6 = /^#[0-9a-fA-F]{6}$/;
 
-export function sanitizeTheme(theme: { dominant: string; mood?: string }): {
-  dominant: string;
-  mood?: string;
-} {
+export function sanitizeTheme(theme: { dominant: string }): { dominant: string } {
   const dominant = HEX6.test(theme.dominant.trim()) ? theme.dominant.trim() : "#1E9CB0";
-  const mood = (theme.mood ?? "").trim().slice(0, 40);
-  return {
-    dominant,
-    ...(mood ? { mood } : {}),
-  };
+  return { dominant };
 }
 
 /**
@@ -28,7 +21,7 @@ export function sanitizeTheme(theme: { dominant: string; mood?: string }): {
  * so every `image` is dropped.
  *
  * `delivery` is injected by the backend (the AI never authors it — it only writes
- * `theme.dominant`/`mood` + scenes). Desktop create fixes short-form
+ * `theme.dominant` + scenes). Desktop create fixes short-form
  * `format: "tiktok"` + `durationTier: 1`; `videoLanguage` is the user language
  * choice. Defaults: tiktok / tier 1 / vi.
  */
@@ -37,7 +30,7 @@ export function sanitizeTheme(theme: { dominant: string; mood?: string }): {
  * manifest. The model never authors BGM; overwriting the whole file must not
  * drop the user's library track selection.
  */
-export function preserveUserBgm<T extends { bgm?: string }>(next: T, priorBgm: unknown): T {
+export function preserveUserBgm<T extends object>(next: T, priorBgm: unknown): T & { bgm?: string } {
   if (typeof priorBgm === "string" && priorBgm.trim().length > 0) {
     return { ...next, bgm: priorBgm.trim() };
   }
@@ -73,8 +66,8 @@ export function toEngineManifest(
     };
   });
   // Clamp to the engine VideoSpec limits so AI variance never trips schema
-  // validation: title ≤140, theme.dominant hex, theme.mood ≤40. Delivery fields
-  // are injected by the backend, never authored by the model.
+  // validation: title ≤140, theme.dominant hex. Delivery fields are injected
+  // by the backend, never authored by the model.
   return {
     title: m.title.slice(0, 140),
     ...(m.hashtags && m.hashtags.length > 0 ? { hashtags: m.hashtags } : {}),

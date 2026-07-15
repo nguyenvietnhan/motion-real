@@ -36,8 +36,8 @@ describe("authored-entry generation", () => {
     expect(source).toContain("schema: videoSchema");
     expect(source).toContain("measure: z.boolean().optional()");
     expect(source).toContain("strictSceneErrors: z.boolean().optional()");
-    expect(source).toContain("const initialGeometry = geometry(spec.format);");
-    expect(source).toContain("const g = geometry(props.spec.format);");
+    expect(source).toContain("const initialGeometry = geometry();");
+    expect(source).toContain("const g = geometry();");
     expect(source).not.toContain("@motionreal/theme");
     expect(source).not.toContain("theme.canvas");
 

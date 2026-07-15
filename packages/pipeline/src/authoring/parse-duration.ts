@@ -73,8 +73,6 @@ export function resolveEffectiveDuration(input: {
   /** Explicit override (CLI / scaffold options.duration) — highest priority. */
   explicitDuration?: number;
 }): EffectiveDuration {
-  const format: VideoFormat = input.format ?? "tiktok";
-
   if (input.explicitDuration !== undefined && Number.isFinite(input.explicitDuration) && input.explicitDuration > 0) {
     const targetSeconds = Math.round(input.explicitDuration);
     return {
@@ -86,7 +84,7 @@ export function resolveEffectiveDuration(input: {
 
   const promptSeconds = parseDurationSecondsFromPrompt(input.prompt);
   const hasTier = isDurationTier(input.durationTier);
-  const tierSec = hasTier ? tierSeconds(format, input.durationTier!) : undefined;
+  const tierSec = hasTier ? tierSeconds(input.durationTier!) : undefined;
 
   if (hasTier && tierSec !== undefined) {
     const conflict =

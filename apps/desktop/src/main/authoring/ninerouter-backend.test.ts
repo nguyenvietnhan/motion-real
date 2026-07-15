@@ -60,7 +60,7 @@ function bareBatchWithTrailingFence(componentIds: readonly string[]): string {
 function validAuthorManifest() {
   return {
     title: "Video kiểm thử pure-author",
-    theme: { dominant: "#1E9CB0", mood: "thử" },
+    theme: { dominant: "#1E9CB0" },
     scenes: [
       { component: "alpha", eyebrow: "A", headline: "Một", narration: "Câu một." },
       { component: "beta", eyebrow: "B", headline: "Hai", narration: "Câu hai." },
@@ -196,7 +196,7 @@ function longContentPlanReply(count: number, overrides: { unsupportedFirstScene?
 function authorReplyForIds(componentIds: readonly string[], imageRef?: string): string {
   const manifest = {
     title: "Long monolithic with images",
-    theme: { dominant: "#1E9CB0", mood: "image" },
+    theme: { dominant: "#1E9CB0" },
     scenes: componentIds.map((component, index) => ({
       component,
       eyebrow: index === 0 ? "HOOK" : "BEAT",
@@ -458,7 +458,7 @@ describe("authorScenes (pure-author)", () => {
     // Single-path author replies still need a manifest; modules may use bare fences.
     const manifest = {
       title: "Structured coverage",
-      theme: { dominant: "#1E9CB0", mood: "test" },
+      theme: { dominant: "#1E9CB0" },
       scenes: componentIds.map((component, index) => ({
         component,
         eyebrow: index === 0 ? "HOOK" : "BEAT",
@@ -1020,7 +1020,7 @@ describe("authorScenes (pure-author)", () => {
     // The AI reply pins the provided ref on scene-01 and an INVENTED ref on scene-02.
     const manifest = {
       title: "Có ảnh",
-      theme: { dominant: "#1E9CB0", mood: "thử" },
+      theme: { dominant: "#1E9CB0" },
       scenes: [
         { component: "alpha", eyebrow: "A", headline: "Một", narration: "Câu một.", image: { ref: "assets/abc123.png" } },
         { component: "beta", eyebrow: "B", headline: "Hai", narration: "Câu hai.", image: { ref: "https://evil.example/x.png" } },
@@ -1054,7 +1054,7 @@ describe("authorScenes (pure-author)", () => {
     const approvedRef = "assets/approved-but-missing.png"; // intentionally not on disk
     const manifest = {
       title: "Ảnh đã duyệt nhưng đọc lỗi",
-      theme: { dominant: "#1E9CB0", mood: "thử" },
+      theme: { dominant: "#1E9CB0" },
       scenes: [
         { component: "alpha", eyebrow: "A", headline: "Một", narration: "Câu một.", image: { ref: approvedRef } },
         { component: "beta", eyebrow: "B", headline: "Hai", narration: "Câu hai." },
@@ -1116,7 +1116,7 @@ function setupProject(projectId: string): { authoredPath: string } {
   mkdirSync(join(root, "review"), { recursive: true });
   writeFileSync(
     join(root, "manifest.json"),
-    JSON.stringify({ title: "t", theme: { dominant: "#1E9CB0", mood: "m" }, scenes: [{ id: "scene-01", component: "alpha", headline: "H", narration: "N" }] }),
+    JSON.stringify({ title: "t", theme: { dominant: "#1E9CB0" }, scenes: [{ id: "scene-01", component: "alpha", headline: "H", narration: "N" }] }),
   );
   const authoredPath = join(root, "authored", "alpha.tsx");
   writeFileSync(authoredPath, ORIGINAL);

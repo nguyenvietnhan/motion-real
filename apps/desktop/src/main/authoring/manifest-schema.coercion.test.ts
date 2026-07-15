@@ -9,7 +9,7 @@ import { parseAuthorManifest } from "./manifest-schema.js";
  * and throw away the manifest + every authored.tsx, forcing a full re-author.
  *
  * Covered historical fixes:
- * - 75f21c6 clamp/coerce manifest fields (over-long title/eyebrow/narration/mood)
+ * - 75f21c6 clamp/coerce manifest fields (over-long title/eyebrow/narration)
  * - e73fb0d coerce bare-string / aliased image field ({url}/{src}/{path})
  * - the per-field `.catch` degradations (bad transition enum, malformed image)
  */
@@ -17,7 +17,7 @@ import { parseAuthorManifest } from "./manifest-schema.js";
 /** A minimal valid manifest (3 scenes = the schema floor) we mutate per case. */
 const base = () => ({
   title: "Tiêu đề video hợp lệ",
-  theme: { dominant: "#1E9CB0", mood: "editorial teal" },
+  theme: { dominant: "#1E9CB0" },
   scenes: [
     { component: "scene-hook", eyebrow: "TIN", headline: "Câu mở đầu", narration: "Mở đầu trực diện.", props: {} },
     { component: "scene-stat", eyebrow: "SỐ", headline: "Một con số", narration: "Con số quan trọng.", props: {} },
@@ -53,12 +53,12 @@ describe("manifest coercion — over-long fields clamp, never discard the reply 
     if (r.ok) expect(r.manifest.title.length).toBe(160);
   });
 
-  it("clamps an over-long mood and never lets it nuke the reply", () => {
-    const m = base();
+  it("strips legacy theme.mood without discarding the reply", () => {
+    const m = base() as { theme: { dominant: string; mood?: string } };
     m.theme.mood = "m".repeat(500);
     const r = parse(m);
     expect(r.ok).toBe(true);
-    if (r.ok) expect(r.manifest.theme.mood.length).toBeLessThanOrEqual(200);
+    if (r.ok) expect(r.manifest.theme).toEqual({ dominant: "#1E9CB0" });
   });
 });
 

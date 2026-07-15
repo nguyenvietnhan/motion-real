@@ -80,7 +80,7 @@ export const sampleSpec: LockedVideoSpec = {
   duration: 60,
   ratio: "9:16",
   language: "vi",
-  theme: { dominant: "#5B8CFF", mood: "xanh công nghệ điềm tĩnh" },
+  theme: { dominant: "#5B8CFF" },
   fps: FPS,
   durationInFrames: totalFrames,
   scenes: lockedScenes,

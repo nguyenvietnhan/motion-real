@@ -259,8 +259,8 @@ export async function applyAuthoringCandidate(input: {
     try {
       const prior = JSON.parse(await readFile(projectPaths(projectId).manifest, "utf8")) as { bgm?: unknown };
       priorBgm = prior.bgm;
-    } catch {
-      /* no prior manifest */
+    } catch (_err) {
+      /* no prior manifest — promote will write a fresh one */
     }
     await writeJsonAtomic(tx.candidateManifest, preserveUserBgm(candidate.manifest, priorBgm));
     await writeJsonAtomic(tx.candidateEvidence, candidate.evidence);

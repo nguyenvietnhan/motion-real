@@ -56,7 +56,7 @@ export function computePacingBudget(input: PacingPolicyInput, wordsPerSecond?: n
   const targetSeconds =
     input.targetSeconds !== undefined && Number.isFinite(input.targetSeconds) && input.targetSeconds > 0
       ? Math.round(input.targetSeconds)
-      : tierSeconds(format, input.durationTier ?? 1);
+      : tierSeconds(input.durationTier ?? 1);
   const durationTier = input.durationTier ?? nearestDurationTier(targetSeconds);
 
   const targetWords = Math.round(targetSeconds * wps);

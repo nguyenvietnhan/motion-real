@@ -111,7 +111,7 @@ export type FormatGeometry = {
  * Resolve short-form 9:16 layout geometry. Accepts optional format for call-site
  * compatibility; only `"tiktok"` is valid.
  */
-export function geometry(_format: VideoFormat = "tiktok"): FormatGeometry {
+export function geometry(): FormatGeometry {
   return {
     format: "tiktok",
     canvas: { width: CANVAS.width, height: CANVAS.height },

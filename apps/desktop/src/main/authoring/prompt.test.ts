@@ -96,7 +96,7 @@ describe("prompt surface baseline", () => {
       input: { text: "Chủ đề batch", urls: [], format: "tiktok", durationTier: 3 },
       manifest: {
         title: "Batch",
-        theme: { dominant: "#1E9CB0", mood: "test" },
+        theme: { dominant: "#1E9CB0" },
         scenes: [
           { component: "scene-01", eyebrow: "HOOK", headline: "Một", narration: "Câu một.", props: {} },
           { component: "scene-02", eyebrow: "PAYOFF", headline: "Hai", narration: "Câu hai.", props: {} },
@@ -217,7 +217,7 @@ describe("prompt size budget snapshots", () => {
   it("records approximate text budgets for authoring prompt builders", () => {
     const manifest = {
       title: "Batch",
-      theme: { dominant: "#1E9CB0", mood: "test" },
+      theme: { dominant: "#1E9CB0" },
       scenes: [
         { component: "scene-01", eyebrow: "HOOK", headline: "Một", narration: "Câu một.", props: {} },
         { component: "scene-02", eyebrow: "POINT", headline: "Hai", narration: "Câu hai.", props: {} },
@@ -319,7 +319,7 @@ describe("buildAuthorModuleBatchMessages", () => {
   it("asks for only the requested TSX batch against a fixed manifest", () => {
     const manifest = {
       title: "Video batch",
-      theme: { dominant: "#1E9CB0", mood: "test" },
+      theme: { dominant: "#1E9CB0" },
       scenes: [
         { component: "scene-01", eyebrow: "HOOK", headline: "One", narration: "First.", props: {} },
         { component: "scene-02", eyebrow: "TURN", headline: "Two", narration: "Second.", props: {} },
@@ -419,7 +419,7 @@ describe("buildMissingTsxRecoveryMessages", () => {
   it("asks for only the missing TSX modules while preserving the exact manifest", () => {
     const manifest = {
       title: "Video kiểm thử",
-      theme: { dominant: "#1E9CB0", mood: "test" },
+      theme: { dominant: "#1E9CB0" },
       scenes: [
         { component: "alpha", eyebrow: "A", headline: "One", narration: "First." },
         { component: "beta", eyebrow: "B", headline: "Two", narration: "Second." },

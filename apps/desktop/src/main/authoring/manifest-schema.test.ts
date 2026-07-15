@@ -10,7 +10,7 @@ import { extractJsonObject, parseAuthorManifest } from "./manifest-schema.js";
 
 const valid = {
   title: "Gemma 3 QAT: LLM mạnh chạy trên máy nhà",
-  theme: { dominant: "#1E9CB0", mood: "editorial teal" },
+  theme: { dominant: "#1E9CB0" },
   scenes: [
     { component: "ns-statement", eyebrow: "GEMMA", headline: "LLM 27B chạy trên máy nhà", narration: "Câu mở đầu trực diện về chủ đề.", props: { callout: "Mô hình lớn không còn là đặc quyền của server" }, transitionToNext: "slide" },
     { component: "ns-stat", eyebrow: "DỮ LIỆU", headline: "54GB còn 14GB", narration: "Con số gây sốc về bộ nhớ.", props: { to: 14.1, suffix: " GB", statLabel: "VRAM" } },

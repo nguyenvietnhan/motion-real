@@ -2,12 +2,11 @@ import { describe, expect, it } from "vitest";
 import fc from "fast-check";
 import { FPS, T_TRANSITION, secondsToFrames, type VideoSpec } from "@motionreal/schema";
 import { lockSpec } from "./lock.js";
-import { getSfxCues, sfxAsset } from "./sfx.js";
 import type { TtsManifest } from "../types.js";
 
 /**
- * Property-based tests for the locker (design Properties 1 and 6) plus the SFX
- * mapping. These are renderer-independent and deterministic.
+ * Property-based tests for the locker (design Properties 1 and 6).
+ * Renderer-independent and deterministic.
  */
 
 function specWithSceneSeconds(seconds: number[]): VideoSpec {
@@ -19,7 +18,6 @@ function specWithSceneSeconds(seconds: number[]): VideoSpec {
     body: "Dòng phụ",
     narration: "Một câu tường thuật đủ dài để giữ nhịp cho cảnh này một cách tự nhiên và liền mạch.",
     props: {},
-    sfx: i === 0 ? "transition" : i === seconds.length - 1 ? "success" : "none",
   }));
   const duration = 60;
   return {
@@ -109,29 +107,5 @@ describe("secondsToFrames — Property 6: duration monotonicity", () => {
 
   it("uses the configured FPS", () => {
     expect(secondsToFrames(2, FPS)).toBe(2 * FPS);
-  });
-});
-
-describe("sfx mapping", () => {
-  it("maps tags to assets and treats none/undefined as no cue", () => {
-    expect(sfxAsset("transition")?.asset).toBe("swoosh");
-    expect(sfxAsset("alert")?.asset).toBe("thud");
-    expect(sfxAsset("emphasis")?.asset).toBe("ting");
-    expect(sfxAsset("success")?.asset).toBe("success");
-    expect(sfxAsset("none")).toBeNull();
-    expect(sfxAsset(undefined)).toBeNull();
-  });
-
-  it("places transition at scene start and success before scene end", () => {
-    const spec = specWithSceneSeconds([5, 5, 5, 5]);
-    const locked = lockSpec(spec, manifestFor(spec, [5, 5, 5, 5]));
-    const cues = getSfxCues(locked);
-    const first = cues.find((c) => c.sceneId === "scene-01");
-    const last = cues.find((c) => c.sceneId === "scene-04");
-    expect(first?.atFrame).toBe(0);
-    // success cue sits before the final scene's end, never before its start
-    const finalScene = locked.scenes.at(-1)!;
-    expect(last!.atFrame).toBeGreaterThanOrEqual(finalScene.startFrame);
-    expect(last!.atFrame).toBeLessThan(finalScene.startFrame + finalScene.durationInFrames);
   });
 });

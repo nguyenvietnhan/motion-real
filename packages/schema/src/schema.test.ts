@@ -44,7 +44,7 @@ describe("layout zones", () => {
 
 describe("geometry", () => {
   it("returns the short-form 9:16 globals", () => {
-    const g = geometry("tiktok");
+    const g = geometry();
     expect(g.format).toBe("tiktok");
     expect(g.canvas).toEqual({ width: CANVAS.width, height: CANVAS.height });
     expect(g.contentZone).toEqual(CONTENT_ZONE);

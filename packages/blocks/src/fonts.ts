@@ -1,10 +1,4 @@
 import { continueRender, delayRender } from "remotion";
-import { loadFont as loadInter } from "@remotion/google-fonts/Inter";
-import { loadFont as loadBeVietnamPro } from "@remotion/google-fonts/BeVietnamPro";
-import { loadFont as loadCascadiaMono } from "@remotion/google-fonts/CascadiaMono";
-import { getInfo as interInfo } from "@remotion/google-fonts/Inter";
-import { getInfo as bvpInfo } from "@remotion/google-fonts/BeVietnamPro";
-import { getInfo as cascadiaInfo } from "@remotion/google-fonts/CascadiaMono";
 import { VENDORED_FONTS } from "./vendor-fonts.generated.js";
 
 /**
@@ -13,40 +7,30 @@ import { VENDORED_FONTS } from "./vendor-fonts.generated.js";
  * Every render font must be present with the **vietnamese** subset so a
  * Vietnamese diacritic never falls back to a system face ("nét to nét nhỏ").
  *
- * STRATEGY — self-hosted first, never fatal:
- * 1. Primary path: fonts are VENDORED as base64 woff2 data URLs
- * (`vendor-fonts.generated.ts`, produced by `scripts/vendor-fonts.ts`) and
- * registered via `FontFace` with NO network. This removes the live
- * `fonts.gstatic.com` fetch from the render hot path — the source of the
- * intermittent "Timed out loading Google Font" render failures, which are a
- * network problem unrelated to the video's content.
- * 2. The registration is wrapped in `delayRender`/`continueRender` but is
- * NON-FATAL: if a face fails to parse/load we still `continueRender` (and
- * swallow the error) so a cosmetic font issue can NEVER kill an otherwise
- * valid render — at worst the text uses the next family in the CSS stack.
- * 3. Fallback: if the vendored manifest is empty (fonts were never vendored),
- * fall back to the original `@remotion/google-fonts` network loads so the
- * app still works — just with the old network dependency.
+ * Fonts are VENDORED as base64 woff2 data URLs (`vendor-fonts.generated.ts`,
+ * produced by `scripts/vendor-fonts.ts`) and registered via `FontFace` with NO
+ * network. This removes the live `fonts.gstatic.com` fetch from the render hot
+ * path — the source of intermittent "Timed out loading Google Font" failures.
  *
- * `fonts.ts` runs in BOTH Node (vitest, via `@motionreal/blocks`) and the browser. A
- * data: URL is a plain string and `FontFace` is guarded on `typeof`, so this
- * module is inert in Node and real in the browser.
+ * Registration is wrapped in `delayRender`/`continueRender` but is NON-FATAL:
+ * if a face fails we still `continueRender` so a cosmetic font issue never kills
+ * an otherwise valid render.
  *
  * Family map: Inter (display/body), Be Vietnam Pro (alternate display/body),
  * Cascadia Mono (mono labels) — all Vietnamese-complete.
  */
 
-/** Register the vendored faces locally (no network). Returns false if nothing was vendored. */
-function loadVendoredFonts(): boolean {
-  if (VENDORED_FONTS.length === 0) return false;
-  // No FontFace (Node/vitest) → inert, but report success so we don't hit the
-  // network fallback in a non-browser context.
-  if (typeof FontFace === "undefined" || typeof document === "undefined") return true;
+/** Register the vendored faces locally (no network). */
+function loadVendoredFonts(): void {
+  if (VENDORED_FONTS.length === 0) {
+    // eslint-disable-next-line no-console
+    console.warn("[fonts] VENDORED_FONTS is empty — run `npm run vendor-fonts`");
+    return;
+  }
+  // No FontFace (Node/vitest) → inert.
+  if (typeof FontFace === "undefined" || typeof document === "undefined") return;
 
   for (const font of VENDORED_FONTS) {
-    // Each face gets its own delayRender handle so the render waits for the
-    // (instant, local) load — but every exit path calls continueRender, so a
-    // bad face can never leave the render hanging or throw.
     const handle = delayRender(`Loading vendored font ${font.family} ${font.weight} ${font.subset}`);
     try {
       const face = new FontFace(font.family, `url(${font.dataUrl}) format('woff2')`, {
@@ -60,36 +44,28 @@ function loadVendoredFonts(): boolean {
           document.fonts.add(loaded);
         })
         .catch((err) => {
-          // Non-fatal: a cosmetic font miss must not fail the render.
           // eslint-disable-next-line no-console
-          console.warn(`[fonts] vendored ${font.family} ${font.weight}/${font.subset} failed to load (using stack fallback):`, err);
+          console.warn(
+            `[fonts] vendored ${font.family} ${font.weight}/${font.subset} failed to load (using stack fallback):`,
+            err,
+          );
         })
         .finally(() => {
           continueRender(handle);
         });
     } catch (err) {
-      // Synchronous construction failure (malformed data URL, bad descriptor) —
-      // also non-fatal.
       // eslint-disable-next-line no-console
-      console.warn(`[fonts] vendored ${font.family} ${font.weight}/${font.subset} could not be constructed (using stack fallback):`, err);
+      console.warn(
+        `[fonts] vendored ${font.family} ${font.weight}/${font.subset} could not be constructed (using stack fallback):`,
+        err,
+      );
       continueRender(handle);
     }
   }
-  return true;
 }
 
-/** Original network loads — only used when nothing was vendored. */
-function loadNetworkFonts(): void {
-  loadInter("normal", { weights: ["400", "700", "800", "900"], subsets: ["vietnamese", "latin"] });
-  loadBeVietnamPro("normal", { weights: ["400", "600", "700", "800", "900"], subsets: ["vietnamese", "latin"] });
-  loadCascadiaMono("normal", { weights: ["400", "700"], subsets: ["vietnamese", "latin"] });
-}
-
-// Importing this module (side-effect) triggers the loads; `Frame` imports it so
-// every render tree pulls the fonts in.
-if (!loadVendoredFonts()) {
-  loadNetworkFonts();
-}
+// Importing this module (side-effect) triggers the loads.
+loadVendoredFonts();
 
 /** Loaded family names — MUST match the neutral render theme font stacks. */
 export const LOADED_FONT_FAMILIES = {
@@ -102,25 +78,15 @@ export const LOADED_FONT_FAMILIES = {
 export type FontCoverage = { family: string; hasVietnamese: boolean };
 
 /**
- * Report whether each loaded render font ships the `vietnamese` subset — the
- * coverage that prevents diacritic fallback ("nét to nét nhỏ"). Used by the
- * doctor font-coverage check. When fonts are vendored, coverage is verified from
- * the manifest; otherwise from the google-fonts metadata. Both must report the
- * vietnamese subset for the three families.
+ * Report whether each loaded render font ships the `vietnamese` subset.
+ * Coverage is verified from the vendored manifest only.
  */
 export function fontCoverageReport(): FontCoverage[] {
-  if (VENDORED_FONTS.length > 0) {
-    const hasViet = (family: string) =>
-      VENDORED_FONTS.some((f) => f.family === family && f.subset === "vietnamese");
-    return [
-      { family: "Inter", hasVietnamese: hasViet("Inter") },
-      { family: "Be Vietnam Pro", hasVietnamese: hasViet("Be Vietnam Pro") },
-      { family: "Cascadia Mono", hasVietnamese: hasViet("Cascadia Mono") },
-    ];
-  }
+  const hasViet = (family: string) =>
+    VENDORED_FONTS.some((f) => f.family === family && f.subset === "vietnamese");
   return [
-    { family: "Inter", hasVietnamese: interInfo().subsets.includes("vietnamese") },
-    { family: "Be Vietnam Pro", hasVietnamese: bvpInfo().subsets.includes("vietnamese") },
-    { family: "Cascadia Mono", hasVietnamese: cascadiaInfo().subsets.includes("vietnamese") },
+    { family: LOADED_FONT_FAMILIES.display, hasVietnamese: hasViet(LOADED_FONT_FAMILIES.display) },
+    { family: LOADED_FONT_FAMILIES.bodyPremium, hasVietnamese: hasViet(LOADED_FONT_FAMILIES.bodyPremium) },
+    { family: LOADED_FONT_FAMILIES.mono, hasVietnamese: hasViet(LOADED_FONT_FAMILIES.mono) },
   ];
 }

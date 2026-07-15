@@ -32,8 +32,8 @@ export const ThumbnailPropsSchema = z.object({
 
 export type ThumbnailProps = z.infer<typeof ThumbnailPropsSchema>;
 
-export const ThumbnailComposition: React.FC<ThumbnailProps> = ({ format, dominant, title }) => {
-  const g = geometry(format);
+export const ThumbnailComposition: React.FC<ThumbnailProps> = ({ dominant, title }) => {
+  const g = geometry();
   const theme = makeTheme(dominant);
   const zone = g.contentZone;
   // Settle the title's entrance within ~2 frames; the still is taken at the last

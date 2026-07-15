@@ -2,22 +2,14 @@ import { createRequire } from "node:module";
 import { mkdir, writeFile } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
 import { spawn } from "node:child_process";
-import { parseFile } from "music-metadata";
 import type { TTSResult } from "./types.js";
 
 const require = createRequire(import.meta.url);
 const ffprobeStatic = require("ffprobe-static") as { path: string };
 const ffmpegStatic = require("ffmpeg-static") as string | null;
 
+/** Measure audio duration via ffprobe (already on the dep graph for mix). */
 export async function measureAudioDuration(audioPath: string): Promise<number> {
-  try {
-    const metadata = await parseFile(audioPath);
-    if (metadata.format.duration && Number.isFinite(metadata.format.duration)) {
-      return metadata.format.duration;
-    }
-  } catch {
-    /* fall through to ffprobe */
-  }
   return measureAudioDurationWithFfprobe(audioPath);
 }
 

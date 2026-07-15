@@ -5,7 +5,7 @@ import type { AuthorManifest } from "./manifest-schema.js";
 function baseManifest(over: Partial<AuthorManifest> = {}): AuthorManifest {
   return {
     title: "Tiêu đề thử",
-    theme: { dominant: "#1E9CB0", mood: "sáng" },
+    theme: { dominant: "#1E9CB0" },
     scenes: [
       {
         component: "alpha",
@@ -19,15 +19,12 @@ function baseManifest(over: Partial<AuthorManifest> = {}): AuthorManifest {
 }
 
 describe("sanitizeTheme", () => {
-  it("keeps valid hex and clamps mood length", () => {
-    expect(sanitizeTheme({ dominant: "  #AABBCC  ", mood: "x".repeat(50) })).toEqual({
-      dominant: "#AABBCC",
-      mood: "x".repeat(40),
-    });
+  it("keeps valid hex and trims whitespace", () => {
+    expect(sanitizeTheme({ dominant: "  #AABBCC  " })).toEqual({ dominant: "#AABBCC" });
   });
 
-  it("falls back invalid dominant and omits empty mood", () => {
-    expect(sanitizeTheme({ dominant: "blue", mood: "  " })).toEqual({ dominant: "#1E9CB0" });
+  it("falls back invalid dominant", () => {
+    expect(sanitizeTheme({ dominant: "blue" })).toEqual({ dominant: "#1E9CB0" });
   });
 });
 
