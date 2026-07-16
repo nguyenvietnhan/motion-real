@@ -1,6 +1,6 @@
-import { app, BrowserWindow, dialog, ipcMain, nativeImage, Notification, safeStorage, shell } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, Notification, safeStorage, shell } from "electron";
 import { fileURLToPath } from "node:url";
-import { dirname, join, resolve } from "node:path";
+import { dirname, join } from "node:path";
 import { appendEvent, createLogger, createTools, loadManifest, writeJson, projectPaths, videoToolHome, stagingDir, ensureProject, importImageBytes, reconcileStaleStates, pruneRenderCache, pruneTtsCache, readBrief, listBgmTracks, addBgmTrack, removeBgmTrack, renderThumbnail, workspaceRoot, ELEVENLABS_DEFAULT_MODEL_ID, runDoctor, readProjectDiagnostics, readProjectEvidence, type VoiceProvider } from "@motionreal/pipeline";
 import { QueueStore, queueStorePath } from "./queue/queue-store.js";
 import { QueueRunner } from "./queue/queue-runner.js";
@@ -697,47 +697,21 @@ function startGateway(): void {
 
 const here = dirname(fileURLToPath(import.meta.url));
 
-/**
- * Window chrome icon (title bar). Prefer the same PNG path that worked before
- * this feature branch. Taskbar on Windows unpackaged builds is handled by
- * launch.mjs stamping electron.exe (rcedit) — not by this alone.
- */
-function resolveBrandIconPath(): string | undefined {
-  const envPng = process.env.MOTIONREAL_BRAND_ICON_PNG?.trim();
-  const envIco = process.env.MOTIONREAL_BRAND_ICON?.trim();
-  const candidates = [
-    ...(envPng ? [envPng] : []),
-    join(here, "../../assets/brand/taskbar-logo.png"),
-    join(here, "../../assets/brand/logo.png"),
-    ...(envIco ? [envIco] : []),
-    join(here, "../../assets/brand/taskbar-logo.ico"),
-  ];
-  for (const p of candidates) {
-    if (p && existsSync(p)) return resolve(p);
-  }
-  return undefined;
+/** Same brand PNG path as before the queue work (window chrome). */
+function brandWindowIconPath(): string {
+  return join(here, "../../assets/brand/taskbar-logo.png");
 }
 
 async function createWindow(): Promise<void> {
-  const iconPath = resolveBrandIconPath();
-  const iconImage = iconPath ? nativeImage.createFromPath(iconPath) : undefined;
-  const iconOpt =
-    iconImage && !iconImage.isEmpty()
-      ? iconImage
-      : iconPath && existsSync(iconPath)
-        ? iconPath
-        : undefined;
-  if (!iconOpt) {
-    log.warn({ iconPath }, "brand window icon missing");
-  }
-
+  // Keep this minimal — historically this path showed the brand logo.
+  // Windows *taskbar* for unpackaged electron is fixed in launch.mjs (rcedit).
   const win = new BrowserWindow({
     width: 1180,
     height: 820,
     minWidth: 1080,
     minHeight: 720,
     show: true,
-    ...(iconOpt ? { icon: iconOpt } : {}),
+    icon: brandWindowIconPath(),
     webPreferences: {
       preload: join(here, "../preload/index.cjs"),
       contextIsolation: true,
@@ -745,13 +719,6 @@ async function createWindow(): Promise<void> {
       sandbox: false,
     },
   });
-  if (iconOpt) {
-    try {
-      win.setIcon(iconOpt);
-    } catch (error) {
-      log.warn({ err: error }, "win.setIcon failed");
-    }
-  }
   win.removeMenu();
   setEventTarget(win.webContents);
   win.on("closed", () => setEventTarget(null));
