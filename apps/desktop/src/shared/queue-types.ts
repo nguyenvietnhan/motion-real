@@ -23,7 +23,7 @@ export type QueueJobVM = {
   /** Silent ~10s test job (TTS none); only runs after queue Start. */
   smoke?: boolean;
   /**
-   * Card title: prompt slice while waiting; updated to manifest/AI title when done.
+   * Card title: full user prompt while waiting/running; AI clip title when done.
    */
   displayTitle?: string;
 };

@@ -121,8 +121,10 @@ export class QueueRunner {
           projectId = created.projectId;
         }
         this.currentProjectId = projectId;
-        // Default name like gallery: project-1, project-2… until AI sets full title.
-        const label = job.displayTitle?.trim() || (job.smoke ? "Smoke test" : "project-1");
+        // Until AI returns a clip title: show the user prompt (or "Smoke test").
+        const label =
+          job.displayTitle?.trim() ||
+          (job.smoke ? "Smoke test" : job.raw.trim().replace(/\s+/g, " ").slice(0, 140) || "Untitled");
         if (this.deps.renameProject) {
           await this.deps.renameProject(projectId, label).catch(() => undefined);
         }
@@ -144,6 +146,9 @@ export class QueueRunner {
             displayTitle = await this.deps.projectTitle?.(projectId);
           } catch {
             /* title is best-effort */
+          }
+          if (displayTitle && this.deps.renameProject) {
+            await this.deps.renameProject(projectId, displayTitle).catch(() => undefined);
           }
           this.deps.store.updateJob(queueId, job.id, {
             status: "done",

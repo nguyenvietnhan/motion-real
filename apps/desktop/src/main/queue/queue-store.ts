@@ -8,10 +8,11 @@ import type {
   QueueProjectVM,
 } from "../../shared/queue-types.js";
 
-/** Default card/project name before AI assigns a full title. */
-export function defaultJobDisplayTitle(_raw: string, smoke?: boolean, index = 0): string {
+/** Card title while waiting: the user prompt; replaced by AI clip title when done. */
+export function defaultJobDisplayTitle(raw: string, smoke?: boolean): string {
   if (smoke) return "Smoke test";
-  return `project-${Math.max(1, index + 1)}`;
+  const t = raw.trim().replace(/\s+/g, " ");
+  return (t || "Untitled").slice(0, 140);
 }
 
 type StoreFile = { version: 1; queues: QueueProjectVM[] };
@@ -94,7 +95,6 @@ export class QueueStore {
     if (!raw) return null;
     const now = (this.deps.now ?? (() => new Date().toISOString()))();
     const smoke = Boolean(input.smoke);
-    const index = q.jobs.length;
     const job: QueueJobVM = {
       id: `job-${(this.deps.id ?? (() => randomUUID().slice(0, 8)))()}`,
       raw,
@@ -104,7 +104,7 @@ export class QueueStore {
       bgm: smoke ? null : input.bgm,
       status: "queued",
       createdAt: now,
-      displayTitle: defaultJobDisplayTitle(raw, smoke, index),
+      displayTitle: defaultJobDisplayTitle(raw, smoke),
       ...(smoke ? { smoke: true as const } : {}),
     };
     q.jobs.push(job);
@@ -155,11 +155,10 @@ export class QueueStore {
     if (patch.voiceProvider === "vivibe" || patch.voiceProvider === "elevenlabs") {
       job.voiceProvider = patch.voiceProvider;
     }
-    // Keep existing project-N label on edit unless smoke toggled.
+    // Queued cards track the prompt; smoke keeps a fixed label.
     if (patch.smoke === true) job.displayTitle = defaultJobDisplayTitle(job.raw, true);
-    else if (!job.displayTitle?.startsWith("project-") && !job.smoke) {
-      const idx = q.jobs.findIndex((j) => j.id === jobId);
-      job.displayTitle = defaultJobDisplayTitle(job.raw, false, Math.max(0, idx));
+    else if (!job.smoke && (typeof patch.raw === "string" || patch.smoke === false)) {
+      job.displayTitle = defaultJobDisplayTitle(job.raw, false);
     }
     this.save();
     return cloneQueue(q);

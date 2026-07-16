@@ -97,12 +97,30 @@ describe("QueueStore", () => {
       bgm: null,
     });
     const jobId = withJob!.jobs[0]!.id;
-    expect(withJob!.jobs[0]!.displayTitle).toBe("project-1");
+    expect(withJob!.jobs[0]!.displayTitle).toBe("prompt dài để cắt tiêu đề hiển thị cho card");
     const edited = store.updateJobInput(q.id, jobId, { raw: "đã sửa", durationTier: 3 });
     expect(edited?.jobs[0]?.raw).toBe("đã sửa");
     expect(edited?.jobs[0]?.durationTier).toBe(3);
-    expect(edited?.jobs[0]?.displayTitle).toBe("project-1");
+    expect(edited?.jobs[0]?.displayTitle).toBe("đã sửa");
     expect(store.deleteJob(q.id, jobId)?.jobs).toHaveLength(0);
+  });
+
+  it("job displayTitle is the prompt until replaced later", () => {
+    expect(defaultJobDisplayTitle("  làm video chip   ")).toBe("làm video chip");
+    expect(defaultJobDisplayTitle("x", true)).toBe("Smoke test");
+    const dir = mkdtempSync(join(tmpdir(), "mr-queue-"));
+    const store = new QueueStore({ filePath: join(dir, "queues.json") });
+    const q = store.create();
+    const after = store.addJob(q.id, {
+      raw: "Video về pin điện thoại",
+      durationTier: 1,
+      videoLanguage: "vi",
+      voiceProvider: "vivibe",
+      bgm: null,
+    });
+    expect(after?.jobs[0]?.displayTitle).toBe("Video về pin điện thoại");
+    store.updateJob(q.id, after!.jobs[0]!.id, { displayTitle: "Pin điện thoại 2026" });
+    expect(store.get(q.id)?.jobs[0]?.displayTitle).toBe("Pin điện thoại 2026");
   });
 
   it("deletes a queue project", () => {

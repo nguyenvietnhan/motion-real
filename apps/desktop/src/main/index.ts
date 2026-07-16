@@ -487,7 +487,7 @@ const queueRunner = new QueueRunner({
     try {
       const m = await loadManifest(projectId);
       const t = typeof m.title === "string" ? m.title.trim() : "";
-      // Keep project-N until AI wrote a real title.
+      // Ignore placeholders; keep the user prompt on the card until a real clip title exists.
       if (!t || /^project-\d+$/i.test(t) || t === "Untitled" || t === "Smoke test") return undefined;
       return t;
     } catch {
