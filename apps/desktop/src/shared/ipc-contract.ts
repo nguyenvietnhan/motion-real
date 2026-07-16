@@ -24,6 +24,7 @@ import type {
   SubmitResult,
   VoiceProviderChoice,
 } from "./types.js";
+import type { QueueJobInput, QueueJobUpdateInput, QueueProjectVM } from "./queue-types.js";
 
 /** Unsubscribe handle returned by every event subscription. */
 export type Unsubscribe = () => void;
@@ -107,6 +108,30 @@ export interface DashboardApi {
     update(patch: Partial<SettingsModel>): Promise<SettingsModel>;
     /** Local/gateway readiness report (no LLM/TTS call). */
     readiness(): Promise<import("./types.js").DesktopReadinessReport>;
+    /**
+     * Dev/test: create a real project titled "test", ~10s target, TTS none,
+     * then hand off to the normal workspace author/render path.
+     */
+    renderSmoke(input?: {
+      raw?: string;
+      videoLanguage?: import("./types.js").VideoLanguageChoice;
+    }): Promise<{ ok: true; projectId: string } | { ok: false; error: string }>;
+  };
+  queue: {
+    list(): Promise<QueueProjectVM[]>;
+    get(queueId: string): Promise<QueueProjectVM | null>;
+    create(title?: string): Promise<QueueProjectVM>;
+    delete(queueId: string): Promise<boolean>;
+    rename(queueId: string, title: string): Promise<QueueProjectVM | null>;
+    addJob(queueId: string, input: QueueJobInput): Promise<QueueProjectVM | null>;
+    /** Patch a still-queued job (prompt + knobs). */
+    updateJob(queueId: string, jobId: string, patch: QueueJobUpdateInput): Promise<QueueProjectVM | null>;
+    deleteJob(queueId: string, jobId: string): Promise<QueueProjectVM | null>;
+    /** Stop the currently running job in this queue. */
+    cancelJob(queueId: string, jobId: string): Promise<{ ok: true } | { ok: false; error: string }>;
+    /** Explicit start only — addJob never starts render. */
+    start(queueId: string): Promise<{ ok: true } | { ok: false; error: string }>;
+    status(): Promise<{ busy: boolean; activeQueueId: string | null }>;
   };
   tts: {
     setApiKey(provider: VoiceProviderChoice, apiKey: string): Promise<SettingsModel>;

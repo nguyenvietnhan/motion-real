@@ -1,0 +1,281 @@
+/* Queue tab — list of containers + job list inside one queue. */
+.ns-queue-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.ns-queue-row {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+}
+.ns-queue-card {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--text) 10%, transparent);
+  background: var(--surface);
+  color: inherit;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.ns-queue-card:hover {
+  border-color: color-mix(in srgb, var(--brand) 35%, transparent);
+  background: color-mix(in srgb, var(--brand) 6%, var(--surface));
+}
+.ns-queue-card:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+.ns-queue-card-title {
+  font-weight: 600;
+  font-size: 15px;
+}
+.ns-queue-card-meta {
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+.ns-queue-delete {
+  flex-shrink: 0;
+  width: 44px;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--text) 10%, transparent);
+  background: var(--surface);
+  color: var(--muted-foreground);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+.ns-queue-delete:hover:not(:disabled) {
+  color: var(--danger, #ef4444);
+  border-color: color-mix(in srgb, var(--danger, #ef4444) 40%, transparent);
+  background: color-mix(in srgb, var(--danger, #ef4444) 8%, var(--surface));
+}
+.ns-queue-delete:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.ns-queue-delete:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.ns-queue-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.ns-queue-title-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.ns-queue-title-input {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  max-width: min(420px, 70vw);
+}
+.ns-page-title-slot {
+  min-width: 0;
+}
+
+.ns-queue-jobs-card {
+  margin-top: 16px;
+  padding: 16px;
+  overflow: visible;
+}
+.ns-queue-jobs-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.ns-queue-jobs-head h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+.ns-queue-progress {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--brand);
+  font-variant-numeric: tabular-nums;
+}
+.ns-queue-progress-muted {
+  font-size: 12px;
+  color: var(--muted-foreground);
+  font-variant-numeric: tabular-nums;
+}
+.ns-queue-jobs-empty {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted-foreground);
+}
+
+.ns-queue-jobs {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  overflow: visible;
+}
+.ns-queue-job {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--text) 4%, transparent);
+  position: relative;
+  overflow: visible;
+  z-index: 1;
+}
+.ns-queue-job.is-menu-open {
+  z-index: 30;
+}
+.ns-queue-job-idx {
+  flex-shrink: 0;
+  box-sizing: border-box;
+  min-width: 28px;
+  height: 28px;
+  padding: 0 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--muted);
+  font-size: 11px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted-foreground);
+  letter-spacing: 0.02em;
+}
+.ns-queue-job-dot {
+  flex-shrink: 0;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+}
+.ns-queue-job-body {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.ns-queue-job-title {
+  font-size: 13px;
+  font-weight: 550;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ns-queue-job-meta {
+  font-size: 11px;
+  color: var(--muted-foreground);
+}
+.ns-queue-job-more {
+  position: relative;
+  flex-shrink: 0;
+  z-index: 2;
+}
+/* Match project-card action chrome (not translucent ghost). */
+.ns-queue-job-more-btn {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-sm);
+  background: var(--muted);
+  border: 1px solid var(--border);
+  color: var(--muted-foreground);
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+.ns-queue-job-more-btn:hover,
+.ns-queue-job-more-btn.is-open {
+  background: var(--card-hover);
+  border-color: var(--hover-border);
+  color: var(--foreground);
+}
+.ns-queue-job-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 80;
+  min-width: 132px;
+  padding: 4px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  /* --surface is undefined in theme → was fully transparent */
+  background: var(--popover);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.ns-queue-job-menu-item {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: var(--foreground);
+  text-align: left;
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.ns-queue-job-menu-item:hover {
+  background: color-mix(in srgb, var(--brand) 14%, var(--popover));
+}
+.ns-queue-job-menu-item.danger {
+  color: var(--danger);
+}
+.ns-queue-job-menu-item.danger:hover {
+  background: color-mix(in srgb, var(--danger) 14%, var(--popover));
+}
+
+.ns-queue-edit-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: color-mix(in srgb, #000 55%, transparent);
+}
+.ns-queue-edit-panel {
+  width: min(520px, 100%);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.ns-queue-edit-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.ns-queue-edit-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}

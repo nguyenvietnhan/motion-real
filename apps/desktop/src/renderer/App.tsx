@@ -5,12 +5,14 @@ import { HomeView } from "./views/home.js";
 import { ProjectsView } from "./views/projects.js";
 import { SettingsView, type SettingsTab } from "./views/settings.js";
 import { ProjectWorkspaceView } from "./views/workspace.js";
+import { QueueView } from "./views/queue.js";
 import { reduceDesktop, type DesktopState } from "./state/desktop-state.js";
 import { aiReady } from "../shared/ai-ready.js";
 import type { CreatePathSettingsTab } from "../shared/create-path-readiness.js";
 import { preferredModelDecision } from "../shared/model-selection.js";
 import { defaultSettings, reviewModeAllowsSceneEdit } from "../shared/settings-model.js";
 import type { BgmTrackVM, ModelInfo, ProjectStage } from "../shared/types.js";
+import type { QueueProjectVM } from "../shared/queue-types.js";
 import { compactNotificationMessage, errorDetails, NotificationProvider, useNotifications } from "./notifications.js";
 import { ConfirmDialog } from "./primitives.js";
 
@@ -50,8 +52,14 @@ const AppShell: React.FC = () => {
   const [bgm, setBgm] = useState<BgmTrackVM[]>([]);
   const [createBgmSelected, setCreateBgmSelected] = useState<string | null>(null);
   const createBgmInitialized = useRef(false);
+  const [queues, setQueues] = useState<QueueProjectVM[]>([]);
+  const [queueLoad, setQueueLoad] = useState<"loading" | "ready" | "error">("loading");
+  const [activeQueueId, setActiveQueueId] = useState<string | null>(null);
+  const [queueBusy, setQueueBusy] = useState(false);
   /** Pending project id for in-app delete confirm (replaces native window.confirm). */
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+  /** Queue container id pending in-app delete confirm. */
+  const [pendingQueueDeleteId, setPendingQueueDeleteId] = useState<string | null>(null);
   const selectingModelRef = useRef<string | null>(null);
   const preferredModelIdRef = useRef<string | undefined>(undefined);
   const notify = useNotifications();
@@ -271,6 +279,49 @@ const AppShell: React.FC = () => {
     return () => clearInterval(iv);
   }, [dash, screen, refreshGallery]);
 
+  const refreshQueues = useCallback(async () => {
+    if (!dash?.queue) {
+      setQueueLoad("error");
+      return;
+    }
+    setQueueLoad("loading");
+    try {
+      const list = await dash.queue.list();
+      setQueues(list);
+      setQueueLoad("ready");
+    } catch {
+      setQueueLoad("error");
+    }
+  }, [dash]);
+
+  useEffect(() => {
+    if (screen !== "queue") return;
+    void refreshQueues();
+  }, [screen, refreshQueues]);
+
+  // While on queue tab, poll list + runner status so job rows update during a run.
+  useEffect(() => {
+    if (!dash?.queue || screen !== "queue") return;
+    let alive = true;
+    const tick = async () => {
+      try {
+        const [list, st] = await Promise.all([dash.queue.list(), dash.queue.status()]);
+        if (!alive) return;
+        setQueues(list);
+        setQueueLoad("ready");
+        setQueueBusy(st.busy);
+      } catch {
+        /* keep last good snapshot */
+      }
+    };
+    void tick();
+    const iv = setInterval(() => void tick(), 2000);
+    return () => {
+      alive = false;
+      clearInterval(iv);
+    };
+  }, [dash, screen]);
+
   const leaveWorkspace = () => {
     setOpenProjectId(null);
     setScreen("home");
@@ -286,6 +337,32 @@ const AppShell: React.FC = () => {
     const projectId = pendingDeleteId;
     setPendingDeleteId(null);
     void dash.projects.delete(projectId).then(refreshGallery);
+  };
+  const confirmQueueDelete = (): void => {
+    if (!dash?.queue || !pendingQueueDeleteId) return;
+    const queueId = pendingQueueDeleteId;
+    setPendingQueueDeleteId(null);
+    void dash.queue
+      .delete(queueId)
+      .then((ok) => {
+        if (!ok) {
+          notify.error({
+            title: "Không xóa được",
+            message: "Hàng đợi không còn hoặc đã bị xóa.",
+          });
+          return;
+        }
+        if (activeQueueId === queueId) setActiveQueueId(null);
+        return refreshQueues();
+      })
+      .catch((error: unknown) => {
+        const details = errorDetails(error);
+        notify.error({
+          title: "Không xóa được hàng đợi",
+          message: compactNotificationMessage(details, "Thử lại sau."),
+          details,
+        });
+      });
   };
   const onReveal = (projectId: string) => void dash?.projects.reveal(projectId);
   const onRename = (projectId: string, newTitle: string) => {
@@ -308,6 +385,17 @@ const AppShell: React.FC = () => {
             cards={state.gallery.cards}
             onConnectPrompt={(tab?: CreatePathSettingsTab) => openSettings(tab ?? "ai")}
             defaultVoiceProvider={settings.voiceProvider}
+            smokeRenderEnabled={settings.smokeRenderEnabled}
+            onRenderSmoke={(opts) => {
+              if (!dash) return Promise.reject(new Error("Dashboard API is unavailable"));
+              return dash.settings.renderSmoke(opts).then((res) => {
+                if (res.ok) {
+                  void refreshGallery();
+                  openProject(res.projectId);
+                }
+                return res;
+              });
+            }}
             onPickImages={() => dash?.projects.pickImages() ?? Promise.resolve({ staged: [], rejected: [] })}
             onImportImageBytes={(files) =>
               // The method is absent on a stale preload bundle (added this session;
@@ -382,6 +470,93 @@ const AppShell: React.FC = () => {
             onReveal={onReveal}
             onRename={onRename}
             onRetry={() => void refreshGallery()}
+          />
+        )}
+
+        {screen === "queue" && (
+          <QueueView
+            queues={queues}
+            active={activeQueueId ? queues.find((q) => q.id === activeQueueId) ?? null : null}
+            load={queueLoad}
+            defaultVoiceProvider={settings.voiceProvider}
+            smokeRenderEnabled={settings.smokeRenderEnabled}
+            bgm={bgm}
+            bgmSelected={createBgmSelected}
+            onBgmAdd={() => {
+              if (!dash) return;
+              void dash.bgm.add().then(setBgm).catch((error: unknown) => {
+                const details = errorDetails(error);
+                notify.error({
+                  title: "Không thêm được nhạc",
+                  message: compactNotificationMessage(details, "Thử lại."),
+                  details,
+                });
+              });
+            }}
+            onBgmRemove={async (name) => {
+              if (!dash) return;
+              const next = await dash.bgm.remove(name);
+              setBgm(next);
+            }}
+            onBgmSelect={(name) => setCreateBgmSelected(name)}
+            onRefresh={() => void refreshQueues()}
+            onCreateQueue={async () => {
+              if (!dash?.queue) return;
+              const created = await dash.queue.create();
+              setQueues((prev) => [created, ...prev.filter((q) => q.id !== created.id)]);
+              setActiveQueueId(created.id);
+              setQueueLoad("ready");
+            }}
+            onOpenQueue={(id) => setActiveQueueId(id)}
+            onDeleteQueue={(id) => setPendingQueueDeleteId(id)}
+            onRenameQueue={async (id, title) => {
+              if (!dash?.queue) return;
+              const next = await dash.queue.rename(id, title);
+              if (!next) throw new Error("Không đổi tên được hàng đợi.");
+              setQueues((prev) => prev.map((q) => (q.id === next.id ? next : q)));
+            }}
+            onBackToList={() => {
+              setActiveQueueId(null);
+              void refreshQueues();
+            }}
+            onAddJob={async (input) => {
+              if (!dash?.queue || !activeQueueId) return;
+              const next = await dash.queue.addJob(activeQueueId, input);
+              if (!next) throw new Error("Không thêm được prompt vào hàng đợi.");
+              setQueues((prev) => prev.map((q) => (q.id === next.id ? next : q)));
+            }}
+            onUpdateJob={async (jobId, patch) => {
+              if (!dash?.queue || !activeQueueId) return;
+              const next = await dash.queue.updateJob(activeQueueId, jobId, patch);
+              if (!next) throw new Error("Chỉ sửa được video đang chờ.");
+              setQueues((prev) => prev.map((q) => (q.id === next.id ? next : q)));
+            }}
+            onDeleteJob={async (jobId) => {
+              if (!dash?.queue || !activeQueueId) return;
+              const next = await dash.queue.deleteJob(activeQueueId, jobId);
+              if (!next) throw new Error("Không xóa được video (đang chạy?).");
+              setQueues((prev) => prev.map((q) => (q.id === next.id ? next : q)));
+            }}
+            onCancelJob={async (jobId) => {
+              if (!dash?.queue || !activeQueueId) return;
+              const res = await dash.queue.cancelJob(activeQueueId, jobId);
+              if (!res.ok) throw new Error(res.error);
+              const list = await dash.queue.list();
+              setQueues(list);
+            }}
+            queueBusy={queueBusy}
+            onStartQueue={async () => {
+              if (!dash?.queue || !activeQueueId) {
+                return { ok: false as const, error: "Chưa mở hàng đợi." };
+              }
+              const res = await dash.queue.start(activeQueueId);
+              if (res.ok) {
+                setQueueBusy(true);
+                const list = await dash.queue.list();
+                setQueues(list);
+              }
+              return res;
+            }}
           />
         )}
 
@@ -531,6 +706,16 @@ const AppShell: React.FC = () => {
         danger
         onConfirm={confirmDelete}
         onCancel={() => setPendingDeleteId(null)}
+      />
+      <ConfirmDialog
+        open={pendingQueueDeleteId !== null}
+        title="Xóa hàng đợi?"
+        message="Xóa hàng đợi và toàn bộ prompt đã xếp. Video đã tạo (nếu có) vẫn nằm ở tab Dự án."
+        confirmLabel="Xóa"
+        cancelLabel="Huỷ"
+        danger
+        onConfirm={confirmQueueDelete}
+        onCancel={() => setPendingQueueDeleteId(null)}
       />
     </div>
   );

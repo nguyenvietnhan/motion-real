@@ -115,6 +115,7 @@ export class SettingsStore {
     merged.maxRepairAttempts = clampMaxRepairAttempts(merged.maxRepairAttempts);
     merged.refinePasses = clampRefinePasses(merged.refinePasses);
     merged.reviewMode = normalizeReviewMode(merged.reviewMode);
+    merged.smokeRenderEnabled = Boolean(merged.smokeRenderEnabled);
     return merged;
   }
 
@@ -208,6 +209,7 @@ export class SettingsStore {
     this.settings.maxRepairAttempts = clampMaxRepairAttempts(this.settings.maxRepairAttempts);
     this.settings.refinePasses = clampRefinePasses(this.settings.refinePasses);
     this.settings.reviewMode = normalizeReviewMode(this.settings.reviewMode);
+    this.settings.smokeRenderEnabled = Boolean(this.settings.smokeRenderEnabled);
     this.settings = this.withCredentialStates(this.settings);
     this.save();
     return this.settings;

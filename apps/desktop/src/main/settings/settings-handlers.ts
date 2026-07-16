@@ -1,9 +1,16 @@
 import type { InvokeHandlers } from "../ipc-router.js";
 import type { DesktopReadinessReport, SettingsModel, VoiceProviderChoice } from "../../shared/types.js";
 
+export type SmokeRenderResult = { ok: true; projectId: string } | { ok: false; error: string };
+
 export type SettingsHandlers = Required<Pick<
   InvokeHandlers,
-  "settings:get" | "settings:update" | "settings:readiness" | "tts:setApiKey" | "tts:clearApiKey"
+  | "settings:get"
+  | "settings:update"
+  | "settings:readiness"
+  | "settings:renderSmoke"
+  | "tts:setApiKey"
+  | "tts:clearApiKey"
 >>;
 
 export type SettingsHandlerDeps = {
@@ -14,6 +21,8 @@ export type SettingsHandlerDeps = {
   parseVoiceProvider: (value: unknown) => VoiceProviderChoice;
   /** Explicit readiness probe; never auto-run on settings open. */
   readiness: () => Promise<DesktopReadinessReport>;
+  /** Dev/test: real project path, ~10s, TTS none; single-flight in the owner. */
+  renderSmoke: (input?: unknown) => Promise<SmokeRenderResult>;
 };
 
 export function createSettingsHandlers(deps: SettingsHandlerDeps): SettingsHandlers {
@@ -21,6 +30,7 @@ export function createSettingsHandlers(deps: SettingsHandlerDeps): SettingsHandl
     "settings:get": () => deps.current(),
     "settings:update": (patch) => deps.update(patch as Partial<SettingsModel>),
     "settings:readiness": () => deps.readiness(),
+    "settings:renderSmoke": (input) => deps.renderSmoke(input),
     "tts:setApiKey": (providerRaw, apiKey) => deps.setApiKey(deps.parseVoiceProvider(providerRaw), String(apiKey)),
     "tts:clearApiKey": (providerRaw) => deps.clearApiKey(deps.parseVoiceProvider(providerRaw)),
   };

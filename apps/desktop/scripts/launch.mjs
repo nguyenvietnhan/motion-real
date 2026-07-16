@@ -1,4 +1,5 @@
-import { spawn } from "node:child_process";
+import { execSync, spawn } from "node:child_process";
+import { createServer } from "node:net";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import electronPath from "electron";
@@ -19,8 +20,7 @@ const repoRoot = resolve(appDir, "..", "..");
 // Share the SAME project store as the CLI/build-scripts (repo .video-tool),
 // so existing projects show up and new ones land alongside them.
 const VIDEO_TOOL_HOME = resolve(repoRoot, ".video-tool");
-const PORT = 5174;
-const DEV_URL = `http://localhost:${PORT}`;
+const PREFERRED_PORT = 5174;
 const NINEROUTER_URL = "http://localhost:20128/v1/models";
 
 const run = (cmd, args, opts = {}) =>
@@ -29,6 +29,56 @@ const run = (cmd, args, opts = {}) =>
     p.on("exit", (code) => (code === 0 ? res() : rej(new Error(`${cmd} exited ${code}`))));
     p.on("error", rej);
   });
+
+/** Try free preferred port; on Windows kill LISTENING owner of that port, else pick next free. */
+function portFree(port) {
+  return new Promise((resolvePort) => {
+    const s = createServer();
+    s.once("error", () => resolvePort(false));
+    s.listen(port, "127.0.0.1", () => {
+      s.close(() => resolvePort(true));
+    });
+  });
+}
+
+function freePortWindows(port) {
+  try {
+    const out = execSync(`netstat -ano`, { encoding: "utf8" });
+    const pids = new Set();
+    for (const line of out.split(/\r?\n/)) {
+      if (!line.includes(`:${port}`) || !line.includes("LISTENING")) continue;
+      const parts = line.trim().split(/\s+/);
+      const pid = parts[parts.length - 1];
+      if (pid && /^\d+$/.test(pid) && pid !== "0") pids.add(pid);
+    }
+    for (const pid of pids) {
+      try {
+        execSync(`taskkill /PID ${pid} /F`, { stdio: "ignore" });
+        console.log(`[launch] freed port ${port} (killed pid ${pid})`);
+      } catch {
+        /* ignore */
+      }
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
+async function resolveDevPort() {
+  if (await portFree(PREFERRED_PORT)) return PREFERRED_PORT;
+  if (process.platform === "win32") {
+    freePortWindows(PREFERRED_PORT);
+    await new Promise((r) => setTimeout(r, 400));
+    if (await portFree(PREFERRED_PORT)) return PREFERRED_PORT;
+  }
+  for (let p = PREFERRED_PORT + 1; p < PREFERRED_PORT + 20; p += 1) {
+    if (await portFree(p)) {
+      console.warn(`[launch] port ${PREFERRED_PORT} busy — using ${p}`);
+      return p;
+    }
+  }
+  throw new Error(`No free port near ${PREFERRED_PORT}`);
+}
 
 async function waitFor(url, timeoutMs = 20_000) {
   const deadline = Date.now() + timeoutMs;
@@ -96,25 +146,38 @@ async function main() {
   console.log("[launch] bundling main + preload…");
   await run(process.execPath, [resolve(appDir, "build-electron.mjs")], { cwd: appDir });
 
-  console.log(`[launch] starting Vite dev server on ${DEV_URL}…`);
-  const vite = spawn("npx", ["vite", "--port", String(PORT), "--strictPort"], {
+  const port = await resolveDevPort();
+  const devUrl = `http://localhost:${port}`;
+  console.log(`[launch] starting Vite dev server on ${devUrl}…`);
+  const vite = spawn("npx", ["vite", "--port", String(port), "--strictPort"], {
     cwd: appDir,
     stdio: "inherit",
     shell: process.platform === "win32",
   });
 
-  const up = await waitFor(DEV_URL);
+  const up = await waitFor(devUrl);
   if (!up) {
     console.error("[launch] Vite dev server did not start.");
     vite.kill();
     process.exit(1);
   }
 
+  // Windows taskbar often shows electron.exe icon in pure `electron .` dev.
+  // Point Electron at a brand .ico via env for diagnostics; main process also setIcon.
+  const brandIco = resolve(appDir, "assets/brand/taskbar-logo.ico");
+  const brandPng = resolve(appDir, "assets/brand/logo.png");
+
   console.log("[launch] launching Electron…");
   const electron = spawn(electronPath, ["."], {
     cwd: appDir,
     stdio: "inherit",
-    env: { ...process.env, VITE_DEV_SERVER_URL: DEV_URL, VIDEO_TOOL_HOME },
+    env: {
+      ...process.env,
+      VITE_DEV_SERVER_URL: devUrl,
+      VIDEO_TOOL_HOME,
+      MOTIONREAL_BRAND_ICON: brandIco,
+      MOTIONREAL_BRAND_ICON_PNG: brandPng,
+    },
   });
 
   const shutdown = () => {

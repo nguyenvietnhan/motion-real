@@ -3,7 +3,7 @@ import type { AiAccountState, GatewayState } from "../../shared/types.js";
 import { Icon } from "../icons.js";
 import { activeAccount } from "../../shared/active-account.js";
 import { aiStatus, type Screen } from "../primitives.js";
-import logoUrl from "../../../assets/brand/taskbar-logo.png";
+import logoUrl from "../../../assets/brand/logo.png";
 
 /** Left navigation rail + AI status card. */
 export const Sidebar: React.FC<{
@@ -44,6 +44,7 @@ export const Sidebar: React.FC<{
       <nav className="ns-sidebar-nav" aria-label="Màn hình">
         {NavItem("home", "Trang chủ", Icon.home({}))}
         {NavItem("projects", "Dự án", Icon.film({}))}
+        {NavItem("queue", "Hàng đợi", Icon.list({}))}
         {NavItem("settings", "Cài đặt", Icon.settings({}))}
       </nav>
       <button

@@ -71,6 +71,7 @@ import {
 } from "./render/renderer.js";
 import { buildReview, type BuildReviewOptions, type ComposeContactSheet, type ReviewArtifacts } from "./review.js";
 import { bundledDefaultBgmPath } from "./assets/bundled-media.js";
+import { sampleLockedSpec } from "./fixtures/sample-locked-spec.js";
 
 /**
  * Extra per-scene still samples for the late-drift N14 pass, as fractions through
@@ -884,15 +885,112 @@ export async function renderSampleDraft(opts: RenderSampleDraftOptions = {}): Pr
   return render({ spec, outPath, concurrency: opts.concurrency, onProgress: opts.onProgress });
 }
 
+/** Desktop/dev test target: silent sample clip length. */
+export const SMOKE_RENDER_SECONDS = 10;
+
+/**
+ * Truncate a locked spec to ~`seconds` of video, drop audio/captions.
+ * Pure helper for smoke renders (no TTS).
+ */
+export function clipLockedSpecToSeconds(spec: LockedVideoSpec, seconds: number): LockedVideoSpec {
+  const fps = spec.fps > 0 ? spec.fps : 30;
+  const maxFrames = Math.max(1, Math.round(seconds * fps));
+  if (spec.durationInFrames <= maxFrames && !spec.audio?.narrationSrc && (spec.captions?.length ?? 0) === 0) {
+    return stripLockedAudio(spec);
+  }
+
+  const scenes: LockedVideoSpec["scenes"] = [];
+  for (const scene of spec.scenes) {
+    if (scene.startFrame >= maxFrames) break;
+    const end = scene.startFrame + scene.durationInFrames;
+    if (end <= maxFrames) {
+      const { audio: _a, ...rest } = scene;
+      scenes.push(rest);
+      continue;
+    }
+    const durationInFrames = Math.max(1, maxFrames - scene.startFrame);
+    const { audio: _a, ...rest } = scene;
+    scenes.push({
+      ...rest,
+      durationInFrames,
+      durationInSeconds: durationInFrames / fps,
+    });
+    break;
+  }
+
+  if (scenes.length === 0) {
+    const seed = spec.scenes[0];
+    if (!seed) {
+      return stripLockedAudio({
+        ...spec,
+        duration: seconds,
+        durationInFrames: maxFrames,
+        scenes: [],
+      });
+    }
+    const { audio: _a, ...rest } = seed;
+    scenes.push({
+      ...rest,
+      startFrame: 0,
+      durationInFrames: maxFrames,
+      durationInSeconds: maxFrames / fps,
+    });
+  }
+
+  const durationInFrames =
+    scenes.at(-1)!.startFrame + scenes.at(-1)!.durationInFrames;
+
+  return {
+    ...spec,
+    title: `${spec.title} (smoke ${seconds}s)`,
+    duration: durationInFrames / fps,
+    durationInFrames,
+    scenes,
+    audio: {},
+    captions: [],
+  };
+}
+
+/**
+ * Fast desktop test render: bundled sample, no TTS, draft quality, ~10s MP4.
+ * // ponytail: sample-only smoke; per-project silent clip when queue e2e needs it
+ */
+export async function renderSmokeDraft(opts: RenderSampleDraftOptions = {}): Promise<RenderVideoResult> {
+  const userLoad = opts.loadSpec;
+  return renderSampleDraft({
+    ...opts,
+    outPath: opts.outPath ?? defaultSmokeOutPath(),
+    loadSpec: async () => {
+      const full = await (userLoad ?? loadSampleSpec)();
+      return clipLockedSpecToSeconds(full, SMOKE_RENDER_SECONDS);
+    },
+    render:
+      opts.render ??
+      ((renderOpts) => renderVideo({ ...renderOpts, quality: "draft" })),
+  });
+}
+
+function stripLockedAudio(spec: LockedVideoSpec): LockedVideoSpec {
+  return {
+    ...spec,
+    audio: {},
+    captions: [],
+    scenes: spec.scenes.map(({ audio: _a, ...scene }) => scene),
+  };
+}
+
 async function loadSampleSpec(): Promise<LockedVideoSpec> {
-  const { pathToFileURL } = await import("node:url");
-  const specPath = join(workspaceRoot(), "apps", "remotion", "src", "fixtures", "sample-spec.ts");
-  const mod = (await import(pathToFileURL(specPath).href)) as { sampleSpec: LockedVideoSpec };
-  return mod.sampleSpec;
+  // Static module (esbuild inlines into Electron main). Do NOT load
+  // apps/remotion/*.ts at runtime — Node cannot resolve schema `./zones.js`.
+  return sampleLockedSpec;
 }
 
 function defaultSampleOutPath(): string {
   return join(workspaceRoot(), ".video-tool", "samples", "sample.mp4");
+}
+
+function defaultSmokeOutPath(): string {
+  return join(workspaceRoot(), ".video-tool", "samples", "smoke.mp4");
 }
 
 // --- internal helpers ------------------------------------------------------

@@ -31,6 +31,8 @@
 
 @import "./theme/projects.css";
 
+@import "./theme/queue.css";
+
 @import "./theme/workspace-script.css";
 @import "./theme/workspace-stages.css";
 @import "./theme/workspace-storyboard.css";

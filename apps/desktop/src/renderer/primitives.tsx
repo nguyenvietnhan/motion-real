@@ -13,7 +13,7 @@ import { Icon } from "./icons.js";
  */
 
 /** Navigation screens. */
-export type Screen = "home" | "projects" | "settings" | "workspace";
+export type Screen = "home" | "projects" | "queue" | "settings" | "workspace";
 
 export function aiStatus(gateway: GatewayState, account: AiAccountState): { color: string; text: string; sub?: string } {
   if (gateway.kind === "starting") return { color: "var(--muted-foreground)", text: "Đang khởi động AI…" };
@@ -38,10 +38,14 @@ export const STATUS_COLOR: Record<FriendlyStatus, string> = {
   error: "var(--danger)",
 };
 
-export const PageHeader: React.FC<{ title: string; subtitle?: string; action?: React.ReactNode }> = ({ title, subtitle, action }) => (
+export const PageHeader: React.FC<{ title: React.ReactNode; subtitle?: string; action?: React.ReactNode }> = ({ title, subtitle, action }) => (
   <div className="ns-page-header">
     <div className="ns-page-header-copy">
-      <h1 className="ns-page-title">{title}</h1>
+      {typeof title === "string" || typeof title === "number" ? (
+        <h1 className="ns-page-title">{title}</h1>
+      ) : (
+        <div className="ns-page-title-slot">{title}</div>
+      )}
       {subtitle && <p className="ns-page-subtitle">{subtitle}</p>}
     </div>
     {action}

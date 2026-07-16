@@ -34,6 +34,7 @@ describe("defaultSettings", () => {
     expect(s.maxRepairAttempts).toBe(3);
     expect(s.scriptGateEnabled).toBe(true);
     expect(s.reviewMode).toBe(DEFAULT_REVIEW_MODE);
+    expect(s.smokeRenderEnabled).toBe(false);
     expect(s.aiAccount).toEqual({ kind: "disconnected" });
     // First-use: no preferred model until the gateway list + decision helper pick one.
     expect(s.preferredAiModelId).toBeUndefined();

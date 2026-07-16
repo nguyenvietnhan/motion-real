@@ -195,6 +195,13 @@ export const HomeView: React.FC<{
   onBgmAdd?: () => void;
   onBgmRemove?: (name: string) => Promise<void>;
   onBgmSelect?: (name: string | null) => void;
+  /** When true (Settings → Render smoke), show the round smoke test button. */
+  smokeRenderEnabled?: boolean;
+  /** Same create path as send, but project "test", ~10s, no TTS. */
+  onRenderSmoke?: (opts: {
+    raw: string;
+    videoLanguage: VideoLanguageChoice;
+  }) => Promise<{ ok: true; projectId: string } | { ok: false; error: string }>;
 }> = ({
   gateway,
   account,
@@ -219,8 +226,11 @@ export const HomeView: React.FC<{
   onBgmAdd,
   onBgmRemove,
   onBgmSelect,
+  smokeRenderEnabled = false,
+  onRenderSmoke,
 }) => {
   const [raw, setRaw] = useState("");
+  const [smokeLoading, setSmokeLoading] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
@@ -518,20 +528,60 @@ export const HomeView: React.FC<{
                 )}
                 {createPathOk && reason ? <span className="ns-validation-warning">{reason}</span> : null}
               </div>
-              <button
-                type="button"
-                className="ns-create-send"
-                onClick={submitCreate}
-                disabled={!inputValid || creating || !createPathOk}
-                title={sendTitle}
-                aria-label={sendTitle}
-              >
-                {creating ? (
-                  <span className="ns-create-send-spin" aria-hidden />
-                ) : (
-                  Icon.spark({ size: 18 })
+              <div className="ns-composer-bar-actions">
+                {smokeRenderEnabled && onRenderSmoke && (
+                  <button
+                    type="button"
+                    className="ns-create-smoke"
+                    disabled={smokeLoading || creating}
+                    title="Smoke: tạo project test ~10s, không TTS (path như tạo video)"
+                    aria-label="Smoke: tạo project test ~10s, không TTS"
+                    onClick={() => {
+                      setSmokeLoading(true);
+                      void onRenderSmoke({ raw, videoLanguage })
+                        .then((res) => {
+                          if (!res.ok) {
+                            notify.error({
+                              title: "Smoke thất bại",
+                              message: compactNotificationMessage(res.error, "Không tạo được project smoke."),
+                              details: res.error,
+                            });
+                          }
+                          // ok → App opens workspace like create
+                        })
+                        .catch((error: unknown) => {
+                          const details = errorDetails(error);
+                          notify.error({
+                            title: "Smoke thất bại",
+                            message: compactNotificationMessage(details, "Không tạo được project smoke."),
+                            details,
+                          });
+                        })
+                        .finally(() => setSmokeLoading(false));
+                    }}
+                  >
+                    {smokeLoading ? (
+                      <span className="ns-create-send-spin ns-create-smoke-spin" aria-hidden />
+                    ) : (
+                      Icon.play({ size: 16 })
+                    )}
+                  </button>
                 )}
-              </button>
+                <button
+                  type="button"
+                  className="ns-create-send"
+                  onClick={submitCreate}
+                  disabled={!inputValid || creating || !createPathOk}
+                  title={sendTitle}
+                  aria-label={sendTitle}
+                >
+                  {creating ? (
+                    <span className="ns-create-send-spin" aria-hidden />
+                  ) : (
+                    Icon.spark({ size: 18 })
+                  )}
+                </button>
+              </div>
             </div>
           </div>
 

@@ -293,6 +293,11 @@ export type SettingsModel = {
   imageCrawlAiFilter: boolean;
   /** Show a blocking review screen so the user confirms crawled images before authoring (crawled-image review). */
   imageCrawlHumanReview: boolean;
+  /**
+   * Dev/test: when ON, Home shows a round "Render smoke" button next to send
+   * (silent ~10s sample MP4, no TTS). Default OFF.
+   */
+  smokeRenderEnabled: boolean;
 };
 
 // --- streaming events ---------------------------------------

@@ -148,5 +148,6 @@ export function defaultSettings(outputDir: string): SettingsModel {
     // Changing either default is a product/cost decision, not repo hygiene.
     imageCrawlAiFilter: true,
     imageCrawlHumanReview: true,
+    smokeRenderEnabled: false,
   };
 }

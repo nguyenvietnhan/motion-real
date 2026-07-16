@@ -451,6 +451,15 @@ export const SettingsView: React.FC<{
                   title="AI chọn ảnh link"
                   desc="Chọn ảnh phù hợp từ bài báo trước. Cần model nhìn ảnh." />
               </div>
+              <div className="ns-settings-group">
+                <div className="ns-settings-group-label">Kiểm tra</div>
+                <Toggle
+                  checked={settings.smokeRenderEnabled}
+                  onChange={(v) => update({ smokeRenderEnabled: v })}
+                  title="Render smoke"
+                  desc="Hiện nút smoke cạnh prompt (Home: chạy ngay; Hàng đợi: chỉ thêm vào list)."
+                />
+              </div>
             </SettingsCard>
           )}
 

@@ -1,7 +1,11 @@
-import { app, BrowserWindow, dialog, ipcMain, Notification, safeStorage, shell } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, nativeImage, Notification, safeStorage, shell } from "electron";
 import { fileURLToPath } from "node:url";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { appendEvent, createLogger, createTools, loadManifest, writeJson, projectPaths, videoToolHome, stagingDir, ensureProject, importImageBytes, reconcileStaleStates, pruneRenderCache, pruneTtsCache, readBrief, listBgmTracks, addBgmTrack, removeBgmTrack, renderThumbnail, workspaceRoot, ELEVENLABS_DEFAULT_MODEL_ID, runDoctor, readProjectDiagnostics, readProjectEvidence, type VoiceProvider } from "@motionreal/pipeline";
+import { QueueStore, queueStorePath } from "./queue/queue-store.js";
+import { QueueRunner } from "./queue/queue-runner.js";
+import { createSmokeProject } from "./create/smoke-create.js";
+import type { QueueJobInput } from "../shared/queue-types.js";
 import { LockedVideoSpecSchema } from "@motionreal/schema";
 import { projectSceneTimelines } from "./workspace/workspace-view-model.js";
 import { setAuthoringDiagnosticObserver } from "./authoring/authoring-failure.js";
@@ -459,6 +463,42 @@ const nativeSaveDeps: NativeSaveDeps = {
   warn: (details, message) => log.warn(details, message),
 };
 
+const queueStore = new QueueStore({ filePath: queueStorePath(videoToolHome()) });
+
+const smokeCreateDeps = {
+  tools,
+  beginCreate: (projectId: string, input: import("./agent/agent-worker.js").AuthorInput) =>
+    workspace.beginCreate(projectId, input),
+  rename: (projectId: string, title: string) => workspace.rename(projectId, title),
+};
+
+// Serial queue: only runs after explicit queue:start (addJob never renders).
+const queueRunner = new QueueRunner({
+  store: queueStore,
+  create,
+  createSmoke: (input) => createSmokeProject(smokeCreateDeps, input),
+  stageOf: (projectId) => workspace.stage(projectId),
+  cancelProject: (projectId) => workspace.cancel(projectId),
+  renameProject: async (projectId, title) => {
+    await workspace.rename(projectId, title);
+  },
+  projectTitle: async (projectId) => {
+    try {
+      const m = await loadManifest(projectId);
+      const t = typeof m.title === "string" ? m.title.trim() : "";
+      // Keep project-N until AI wrote a real title.
+      if (!t || /^project-\d+$/i.test(t) || t === "Untitled" || t === "Smoke test") return undefined;
+      return t;
+    } catch {
+      return undefined;
+    }
+  },
+  log: (msg, extra) => log.info(extra ?? {}, msg),
+});
+
+// ponytail: one smoke at a time; no queue for a test button
+let smokeRenderInFlight = false;
+
 const settingsHandlers = createSettingsHandlers({
   current: () => settingsStore.current(),
   update: (patch) => settingsStore.update(patch),
@@ -488,6 +528,30 @@ const settingsHandlers = createSettingsHandlers({
       voice,
       doctor,
     });
+  },
+  // Home smoke: run immediately. Queue smoke only enqueues (see queue addJob smoke flag).
+  renderSmoke: async (input) => {
+    if (smokeRenderInFlight) {
+      return { ok: false as const, error: "Đang tạo smoke — chờ xong rồi bấm lại." };
+    }
+    smokeRenderInFlight = true;
+    try {
+      const args = (input && typeof input === "object" ? input : {}) as {
+        raw?: unknown;
+        videoLanguage?: unknown;
+      };
+      const result = await createSmokeProject(smokeCreateDeps, {
+        raw: typeof args.raw === "string" ? args.raw : "",
+        videoLanguage: typeof args.videoLanguage === "string" ? args.videoLanguage : "vi",
+      });
+      if (!result.ok) return result;
+      return result;
+    } catch (error) {
+      const raw = error instanceof Error ? error.message : String(error);
+      return { ok: false as const, error: stripL0Tokens(raw).slice(0, 240) || "Smoke thất bại." };
+    } finally {
+      smokeRenderInFlight = false;
+    }
   },
 });
 
@@ -544,6 +608,59 @@ const handlers: InvokeHandlers = {
   ...bgmHandlers,
   ...thumbnailHandlers,
 
+  "queue:list": () => queueStore.list(),
+  "queue:get": (queueId) => queueStore.get(String(queueId)),
+  "queue:create": (title) => queueStore.create(typeof title === "string" ? title : undefined),
+  "queue:delete": (queueId) => {
+    const id = String(queueId);
+    // Refuse delete while this queue is the active serial run.
+    if (queueRunner.isBusy() && queueRunner.activeQueue() === id) {
+      throw new Error("Không xóa được: hàng đợi này đang chạy.");
+    }
+    return queueStore.delete(id);
+  },
+  "queue:rename": (queueId, title) => queueStore.rename(String(queueId), String(title ?? "")),
+  "queue:addJob": (queueId, input) => {
+    const body = (input && typeof input === "object" ? input : {}) as Partial<QueueJobInput>;
+    const raw = typeof body.raw === "string" ? body.raw : "";
+    const durationTier = body.durationTier === 2 || body.durationTier === 3 || body.durationTier === 4 ? body.durationTier : 1;
+    const videoLanguage = body.videoLanguage === "en" ? "en" : "vi";
+    const voiceProvider = body.voiceProvider === "elevenlabs" ? "elevenlabs" : "vivibe";
+    const bgm = typeof body.bgm === "string" ? body.bgm : null;
+    const smoke = body.smoke === true;
+    // Only enqueue — never start render here (including smoke jobs).
+    return queueStore.addJob(String(queueId), {
+      raw: smoke && !raw.trim() ? "Smoke test — video ngắn 10 giây, không tiếng." : raw,
+      durationTier,
+      videoLanguage,
+      voiceProvider,
+      bgm: smoke ? null : bgm,
+      ...(smoke ? { smoke: true } : {}),
+    });
+  },
+  "queue:updateJob": (queueId, jobId, patch) => {
+    const body = (patch && typeof patch === "object" ? patch : {}) as Partial<QueueJobInput>;
+    return queueStore.updateJobInput(String(queueId), String(jobId), {
+      ...(typeof body.raw === "string" ? { raw: body.raw } : {}),
+      ...(body.durationTier === 1 || body.durationTier === 2 || body.durationTier === 3 || body.durationTier === 4
+        ? { durationTier: body.durationTier }
+        : {}),
+      ...(body.videoLanguage === "en" || body.videoLanguage === "vi" ? { videoLanguage: body.videoLanguage } : {}),
+      ...(body.voiceProvider === "vivibe" || body.voiceProvider === "elevenlabs"
+        ? { voiceProvider: body.voiceProvider }
+        : {}),
+      ...(body.bgm !== undefined ? { bgm: typeof body.bgm === "string" ? body.bgm : null } : {}),
+      ...(body.smoke === true || body.smoke === false ? { smoke: body.smoke } : {}),
+    });
+  },
+  "queue:deleteJob": (queueId, jobId) => queueStore.deleteJob(String(queueId), String(jobId)),
+  "queue:cancelJob": (queueId, jobId) => queueRunner.cancelJob(String(queueId), String(jobId)),
+  "queue:start": (queueId) => queueRunner.start(String(queueId)),
+  "queue:status": () => ({
+    busy: queueRunner.isBusy(),
+    activeQueueId: queueRunner.activeQueue(),
+  }),
+
   "script:get": (projectId) => workspace.scriptGate(String(projectId)),
   "script:applyEdits": (projectId, edits) => workspace.applyEdits(String(projectId), edits as ScriptEdit[]),
   "script:approve": (projectId) => {
@@ -580,20 +697,77 @@ function startGateway(): void {
 
 const here = dirname(fileURLToPath(import.meta.url));
 
+/** Resolve window/taskbar icon. Windows prefers .ico; env from launch.mjs wins. */
+function resolveBrandIconPath(): string | undefined {
+  const envIco = process.env.MOTIONREAL_BRAND_ICON?.trim();
+  const envPng = process.env.MOTIONREAL_BRAND_ICON_PNG?.trim();
+  const preferred = [
+    ...(envIco ? [envIco] : []),
+    ...(envPng ? [envPng] : []),
+  ];
+  const roots = [join(here, "../../assets/brand"), join(app.getAppPath(), "assets/brand")];
+  const names =
+    process.platform === "win32"
+      ? ["taskbar-logo.ico", "logo.png", "taskbar-logo.png"]
+      : ["logo.png", "taskbar-logo.png", "taskbar-logo.ico"];
+  for (const p of preferred) {
+    if (p && existsSync(p)) return p;
+  }
+  for (const root of roots) {
+    for (const name of names) {
+      const p = join(root, name);
+      if (existsSync(p)) return p;
+    }
+  }
+  return undefined;
+}
+
 async function createWindow(): Promise<void> {
+  const iconPath = resolveBrandIconPath();
+  // Prefer absolute path; Windows taskbar is unreliable with PNG / empty nativeImage.
+  const absIcon = iconPath ? resolve(iconPath) : undefined;
+  let iconOpt: string | Electron.NativeImage | undefined;
+  if (absIcon && existsSync(absIcon)) {
+    if (process.platform === "win32" && absIcon.endsWith(".ico")) {
+      iconOpt = absIcon;
+    } else {
+      const img = nativeImage.createFromPath(absIcon);
+      iconOpt = !img.isEmpty() ? img : absIcon;
+    }
+  }
+  if (!iconOpt) {
+    log.warn({ iconPath: absIcon }, "brand window icon missing — taskbar may show Electron default");
+  } else {
+    log.info({ iconPath: absIcon }, "brand window icon loaded");
+  }
+
   const win = new BrowserWindow({
     width: 1180,
     height: 820,
     minWidth: 1080,
     minHeight: 720,
-    show: true,
-    icon: join(here, "../../assets/brand/taskbar-logo.png"),
+    show: false,
+    ...(iconOpt ? { icon: iconOpt } : {}),
     webPreferences: {
       preload: join(here, "../preload/index.cjs"),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false,
     },
+  });
+  // Re-apply on show — Windows often ignores constructor icon for taskbar grouping.
+  const applyIcon = (): void => {
+    if (!iconOpt) return;
+    try {
+      win.setIcon(iconOpt);
+    } catch (error) {
+      log.warn({ err: error }, "win.setIcon failed");
+    }
+  };
+  applyIcon();
+  win.once("ready-to-show", () => {
+    applyIcon();
+    win.show();
   });
   win.removeMenu();
   setEventTarget(win.webContents);
@@ -605,6 +779,8 @@ async function createWindow(): Promise<void> {
   } else {
     await win.loadFile(join(here, "../renderer/index.html"));
   }
+  // Fallback if ready-to-show already fired.
+  if (!win.isVisible()) win.show();
 }
 
 // Windows needs a stable AppUserModelID for Notification center grouping.

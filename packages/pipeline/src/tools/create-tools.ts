@@ -120,7 +120,8 @@ export const scaffoldProjectInput = z.object({
   format: z.literal("tiktok").optional(),
   durationTier: z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4)]).optional(),
   language: z.enum(["vi", "en"]).optional(),
-  ttsProvider: z.enum(["vivibe", "elevenlabs"]).optional(),
+  // none/mock: explicit CLI/dev/smoke only — never a silent production fallback.
+  ttsProvider: z.enum(["vivibe", "elevenlabs", "none", "mock"]).optional(),
   voiceId: z.string().min(1).optional(),
   modelId: z.string().min(1).optional(),
 });

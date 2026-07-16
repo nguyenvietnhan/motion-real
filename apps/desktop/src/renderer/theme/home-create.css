@@ -83,19 +83,69 @@
   min-width: 0;
   flex: 1 1 auto;
 }
-/* Round send inside the prompt (primary create). */
-.ns-create-send {
+.ns-composer-bar-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   flex-shrink: 0;
+}
+/* Round smoke test (optional; Settings → Render smoke). */
+.ns-create-smoke {
+  box-sizing: border-box;
+  flex: 0 0 40px;
   width: 40px;
   height: 40px;
+  min-width: 40px;
+  min-height: 40px;
+  padding: 0;
+  border: 1px solid color-mix(in srgb, var(--text) 18%, transparent);
+  border-radius: 50%;
+  aspect-ratio: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--surface) 88%, var(--text) 4%);
+  color: var(--text);
+  cursor: pointer;
+  line-height: 0;
+  transition: transform 0.15s ease, opacity 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+}
+.ns-create-smoke:hover:not(:disabled) {
+  transform: scale(1.03);
+  border-color: color-mix(in srgb, var(--brand) 40%, transparent);
+  color: var(--brand);
+}
+.ns-create-smoke:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.ns-create-smoke:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+.ns-create-smoke-spin {
+  border-color: color-mix(in srgb, var(--text) 25%, transparent);
+  border-top-color: var(--text);
+}
+/* Round send inside the prompt (primary create). */
+.ns-create-send {
+  box-sizing: border-box;
+  flex: 0 0 40px;
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
+  min-height: 40px;
+  padding: 0;
   border: none;
-  border-radius: 999px;
+  border-radius: 50%;
+  aspect-ratio: 1;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   background: var(--brand);
   color: #fff;
   cursor: pointer;
+  line-height: 0;
   box-shadow: 0 2px 8px color-mix(in srgb, var(--brand) 18%, transparent);
   transition: transform 0.15s ease, opacity 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
 }

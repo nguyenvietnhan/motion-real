@@ -85,6 +85,24 @@ describe("createDashboardClient — invoke channel mapping", () => {
     await api.settings.get();
     await api.settings.update({ maxRepairAttempts: 5 });
     await api.settings.readiness();
+    await api.settings.renderSmoke();
+    await api.queue.list();
+    await api.queue.get("q1");
+    await api.queue.create("Batch");
+    await api.queue.delete("q1");
+    await api.queue.rename("q1", "Mới");
+    await api.queue.addJob("q1", {
+      raw: "p",
+      durationTier: 1,
+      videoLanguage: "vi",
+      voiceProvider: "vivibe",
+      bgm: null,
+    });
+    await api.queue.updateJob("q1", "j1", { raw: "p2" });
+    await api.queue.deleteJob("q1", "j1");
+    await api.queue.cancelJob("q1", "j1");
+    await api.queue.start("q1");
+    await api.queue.status();
     await api.tts.setApiKey("elevenlabs", "secret");
     await api.tts.clearApiKey("elevenlabs");
 
