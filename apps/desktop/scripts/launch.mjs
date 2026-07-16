@@ -139,11 +139,21 @@ async function ensureNineRouter() {
   return child;
 }
 
+/** Kill leftover Electron processes so rcedit can rewrite electron.exe. */
+function killStrayElectron() {
+  if (process.platform !== "win32") return;
+  try {
+    execSync("taskkill /IM electron.exe /F", { stdio: "ignore" });
+    console.log("[launch] stopped leftover electron.exe");
+  } catch {
+    /* none running */
+  }
+}
+
 /**
- * Windows only: rewrite this install's electron.exe PE icon so the taskbar
- * shows MotionReal instead of the default Atom. Unpacked `electron .` ignores
- * BrowserWindow.setIcon for the *taskbar* (uses the exe resource). Failures
- * are non-fatal — window chrome icon still applies via main process setIcon.
+ * Windows: stamp brand .ico into this workspace's electron.exe.
+ * Taskbar uses the EXE icon for unpackaged `electron .` — setIcon alone is not enough.
+ * Must run while no electron.exe is running (rcedit: "Unable to commit changes").
  */
 async function ensureElectronBrandIcon(electronExe, icoPath) {
   if (process.platform !== "win32") return;
@@ -153,15 +163,15 @@ async function ensureElectronBrandIcon(electronExe, icoPath) {
       console.warn("[launch] skip electron icon stamp: missing exe or ico");
       return;
     }
+    killStrayElectron();
+    await new Promise((r) => setTimeout(r, 500));
     console.log("[launch] stamping brand icon onto electron.exe (Windows taskbar)…");
     const { rcedit } = await import("rcedit");
     await rcedit(electronExe, { icon: icoPath });
-    console.log("[launch] electron.exe icon stamped.");
+    console.log("[launch] electron.exe icon stamped OK.");
   } catch (e) {
     console.warn(
-      `[launch] could not stamp electron.exe icon (taskbar may stay Electron): ${
-        e instanceof Error ? e.message : e
-      }`,
+      `[launch] could not stamp electron.exe icon: ${e instanceof Error ? e.message : e}`,
     );
   }
 }
@@ -169,6 +179,11 @@ async function ensureElectronBrandIcon(electronExe, icoPath) {
 async function main() {
   // Bring the model gateway up first so the app finds it ready on launch.
   await ensureNineRouter();
+
+  // Stamp BEFORE vite/electron so electron.exe is not locked.
+  const brandIco = resolve(appDir, "assets/brand/taskbar-logo.ico");
+  const brandPng = resolve(appDir, "assets/brand/logo.png");
+  await ensureElectronBrandIcon(String(electronPath), brandIco);
 
   console.log("[launch] bundling main + preload…");
   await run(process.execPath, [resolve(appDir, "build-electron.mjs")], { cwd: appDir });
@@ -188,13 +203,6 @@ async function main() {
     vite.kill();
     process.exit(1);
   }
-
-  // Windows taskbar uses electron.exe's PE icon for unpackaged `electron .`.
-  // BrowserWindow.setIcon alone is not enough — stamp brand .ico onto this
-  // workspace's electron.exe once (node_modules only; not committed).
-  const brandIco = resolve(appDir, "assets/brand/taskbar-logo.ico");
-  const brandPng = resolve(appDir, "assets/brand/logo.png");
-  await ensureElectronBrandIcon(String(electronPath), brandIco);
 
   console.log("[launch] launching Electron…");
   const electron = spawn(electronPath, ["."], {

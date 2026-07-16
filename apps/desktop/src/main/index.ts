@@ -697,48 +697,38 @@ function startGateway(): void {
 
 const here = dirname(fileURLToPath(import.meta.url));
 
-/** Resolve window/taskbar icon. Windows prefers .ico; env from launch.mjs wins. */
+/**
+ * Window chrome icon (title bar). Prefer the same PNG path that worked before
+ * this feature branch. Taskbar on Windows unpackaged builds is handled by
+ * launch.mjs stamping electron.exe (rcedit) — not by this alone.
+ */
 function resolveBrandIconPath(): string | undefined {
-  const envIco = process.env.MOTIONREAL_BRAND_ICON?.trim();
   const envPng = process.env.MOTIONREAL_BRAND_ICON_PNG?.trim();
-  const preferred = [
-    ...(envIco ? [envIco] : []),
+  const envIco = process.env.MOTIONREAL_BRAND_ICON?.trim();
+  const candidates = [
     ...(envPng ? [envPng] : []),
+    join(here, "../../assets/brand/taskbar-logo.png"),
+    join(here, "../../assets/brand/logo.png"),
+    ...(envIco ? [envIco] : []),
+    join(here, "../../assets/brand/taskbar-logo.ico"),
   ];
-  const roots = [join(here, "../../assets/brand"), join(app.getAppPath(), "assets/brand")];
-  const names =
-    process.platform === "win32"
-      ? ["taskbar-logo.ico", "logo.png", "taskbar-logo.png"]
-      : ["logo.png", "taskbar-logo.png", "taskbar-logo.ico"];
-  for (const p of preferred) {
-    if (p && existsSync(p)) return p;
-  }
-  for (const root of roots) {
-    for (const name of names) {
-      const p = join(root, name);
-      if (existsSync(p)) return p;
-    }
+  for (const p of candidates) {
+    if (p && existsSync(p)) return resolve(p);
   }
   return undefined;
 }
 
 async function createWindow(): Promise<void> {
   const iconPath = resolveBrandIconPath();
-  // Prefer absolute path; Windows taskbar is unreliable with PNG / empty nativeImage.
-  const absIcon = iconPath ? resolve(iconPath) : undefined;
-  let iconOpt: string | Electron.NativeImage | undefined;
-  if (absIcon && existsSync(absIcon)) {
-    if (process.platform === "win32" && absIcon.endsWith(".ico")) {
-      iconOpt = absIcon;
-    } else {
-      const img = nativeImage.createFromPath(absIcon);
-      iconOpt = !img.isEmpty() ? img : absIcon;
-    }
-  }
+  const iconImage = iconPath ? nativeImage.createFromPath(iconPath) : undefined;
+  const iconOpt =
+    iconImage && !iconImage.isEmpty()
+      ? iconImage
+      : iconPath && existsSync(iconPath)
+        ? iconPath
+        : undefined;
   if (!iconOpt) {
-    log.warn({ iconPath: absIcon }, "brand window icon missing — taskbar may show Electron default");
-  } else {
-    log.info({ iconPath: absIcon }, "brand window icon loaded");
+    log.warn({ iconPath }, "brand window icon missing");
   }
 
   const win = new BrowserWindow({
@@ -746,7 +736,7 @@ async function createWindow(): Promise<void> {
     height: 820,
     minWidth: 1080,
     minHeight: 720,
-    show: false,
+    show: true,
     ...(iconOpt ? { icon: iconOpt } : {}),
     webPreferences: {
       preload: join(here, "../preload/index.cjs"),
@@ -755,20 +745,13 @@ async function createWindow(): Promise<void> {
       sandbox: false,
     },
   });
-  // Re-apply on show — Windows often ignores constructor icon for taskbar grouping.
-  const applyIcon = (): void => {
-    if (!iconOpt) return;
+  if (iconOpt) {
     try {
       win.setIcon(iconOpt);
     } catch (error) {
       log.warn({ err: error }, "win.setIcon failed");
     }
-  };
-  applyIcon();
-  win.once("ready-to-show", () => {
-    applyIcon();
-    win.show();
-  });
+  }
   win.removeMenu();
   setEventTarget(win.webContents);
   win.on("closed", () => setEventTarget(null));
@@ -779,8 +762,6 @@ async function createWindow(): Promise<void> {
   } else {
     await win.loadFile(join(here, "../renderer/index.html"));
   }
-  // Fallback if ready-to-show already fired.
-  if (!win.isVisible()) win.show();
 }
 
 // Windows needs a stable AppUserModelID for Notification center grouping.
