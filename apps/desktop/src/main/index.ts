@@ -42,8 +42,9 @@ import {
 } from "./export/native-save.js";
 import { registerMediaScheme, handleMediaProtocol, mediaUrl } from "./media-protocol.js";
 import { events, setEventTarget } from "./event-bus.js";
-import { existsSync, mkdirSync, statSync } from "node:fs";
+import { existsSync, mkdirSync, statSync, unlinkSync } from "node:fs";
 import { copyFile, readFile, readdir, rm, stat } from "node:fs/promises";
+import { execFileSync } from "node:child_process";
 import type { DroppedImage, PickImagesResult, ScriptEdit } from "../shared/types.js";
 import { authorInputFromBrief } from "./workspace/recall-author-input.js";
 import {
@@ -729,9 +730,55 @@ function loadBrandNativeImage(): Electron.NativeImage | undefined {
 }
 
 /**
- * Windows shell identity: AUMID + Start Menu shortcut pointing at the *running*
- * host (MotionReal.exe when launched via prepare-branded-electron).
+ * Write Start Menu .lnk with brand icon + AUMID.
+ * Electron `writeShortcutLink(..., "replace")` returns false if file missing —
+ * must create first. Falls back to PowerShell WScript.Shell COM.
  */
+function writeBrandShortcut(lnk: string, iconPath: string): boolean {
+  const details = {
+    target: process.execPath,
+    args: process.defaultApp ? `"${desktopAppRoot}"` : undefined,
+    cwd: desktopAppRoot,
+    appUserModelId: WINDOWS_AUMID,
+    icon: iconPath,
+    iconIndex: 0,
+    description: "Motion Real",
+  } as const;
+
+  const op = existsSync(lnk) ? "replace" : "create";
+  try {
+    if (shell.writeShortcutLink(lnk, op, { ...details })) return true;
+  } catch (error) {
+    log.warn({ err: error, op }, "writeShortcutLink threw");
+  }
+  // Retry opposite op once
+  try {
+    const op2 = op === "create" ? "replace" : "create";
+    if (shell.writeShortcutLink(lnk, op2, { ...details })) return true;
+  } catch {
+    /* fall through */
+  }
+
+  // PowerShell COM fallback (proven on this machine)
+  try {
+    const ps = `
+$W = New-Object -ComObject WScript.Shell
+$S = $W.CreateShortcut(${JSON.stringify(lnk)})
+$S.TargetPath = ${JSON.stringify(process.execPath)}
+$S.Arguments = ${JSON.stringify(process.defaultApp ? `"${desktopAppRoot}"` : "")}
+$S.WorkingDirectory = ${JSON.stringify(desktopAppRoot)}
+$S.IconLocation = ${JSON.stringify(`${iconPath},0`)}
+$S.Description = "Motion Real"
+$S.Save()
+`;
+    execFileSync("powershell.exe", ["-NoProfile", "-Command", ps], { stdio: "ignore" });
+    return existsSync(lnk);
+  } catch (error) {
+    log.error({ err: error }, "PowerShell shortcut fallback failed");
+    return false;
+  }
+}
+
 function ensureWindowsBrandShellIdentity(): void {
   if (process.platform !== "win32") return;
   app.setAppUserModelId(WINDOWS_AUMID);
@@ -746,17 +793,15 @@ function ensureWindowsBrandShellIdentity(): void {
     const programs = join(app.getPath("appData"), "Microsoft", "Windows", "Start Menu", "Programs");
     mkdirSync(programs, { recursive: true });
     const lnk = join(programs, "Motion Real.lnk");
-    const ok = shell.writeShortcutLink(lnk, "replace", {
-      target: process.execPath,
-      args: process.defaultApp ? `"${desktopAppRoot}"` : undefined,
-      cwd: desktopAppRoot,
-      appUserModelId: WINDOWS_AUMID,
-      icon: iconPath,
-      iconIndex: 0,
-      description: "Motion Real",
-    });
+    // Wipe stale broken lnk so create path is clean
+    try {
+      if (existsSync(lnk)) unlinkSync(lnk);
+    } catch {
+      /* ignore */
+    }
+    const ok = writeBrandShortcut(lnk, iconPath);
     log.info(
-      { lnk, iconPath, ok, execPath: process.execPath, aumid: WINDOWS_AUMID },
+      { lnk, iconPath, ok, execPath: process.execPath, aumid: WINDOWS_AUMID, exists: existsSync(lnk) },
       "Motion Real Start Menu shortcut",
     );
   } catch (error) {
@@ -765,7 +810,11 @@ function ensureWindowsBrandShellIdentity(): void {
 }
 
 async function createWindow(): Promise<void> {
+  // Windows title bar prefers a real .ico path; PNG NativeImage alone often stays Atom.
+  const ico = brandIconIcoPath();
   const brandImg = loadBrandNativeImage();
+  const windowIcon = existsSync(ico) ? ico : brandImg;
+
   const win = new BrowserWindow({
     width: 1180,
     height: 820,
@@ -773,7 +822,7 @@ async function createWindow(): Promise<void> {
     minHeight: 720,
     show: true,
     title: "Motion Real",
-    ...(brandImg ? { icon: brandImg } : {}),
+    ...(windowIcon ? { icon: windowIcon } : {}),
     webPreferences: {
       preload: join(here, "../preload/index.cjs"),
       contextIsolation: true,
@@ -781,12 +830,11 @@ async function createWindow(): Promise<void> {
       sandbox: false,
     },
   });
-  if (brandImg) {
-    try {
-      win.setIcon(brandImg);
-    } catch (error) {
-      log.warn({ err: error }, "win.setIcon failed");
-    }
+  try {
+    if (existsSync(ico)) win.setIcon(ico);
+    else if (brandImg) win.setIcon(brandImg);
+  } catch (error) {
+    log.warn({ err: error }, "win.setIcon failed");
   }
   win.removeMenu();
   setEventTarget(win.webContents);
