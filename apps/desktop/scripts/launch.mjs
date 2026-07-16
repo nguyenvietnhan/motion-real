@@ -131,11 +131,8 @@ async function ensureNineRouter() {
 /** Windows: branded host next to Electron resources (avoids ICU crash). */
 async function resolveHostExe() {
   if (process.platform !== "win32") return String(electronPath);
-  console.log("[launch] preparing MotionReal.exe (branded host)…");
   await run(process.execPath, [resolve(here, "prepare-branded-electron.mjs")], { cwd: appDir });
-  // prepare prints absolute path on last line; resolve same way as the script.
-  const electronExe = String(electronPath);
-  const brandedExe = resolve(dirname(electronExe), "MotionReal.exe");
+  const brandedExe = resolve(dirname(String(electronPath)), "MotionReal.exe");
   if (!existsSync(brandedExe)) {
     throw new Error(`MotionReal.exe missing after prepare: ${brandedExe}`);
   }
@@ -165,8 +162,8 @@ async function main() {
     process.exit(1);
   }
 
-  console.log(`[launch] starting app host: ${hostExe}`);
-  const electron = spawn(hostExe, ["."], {
+  console.log("[launch] starting app…");
+  const electron = spawn(hostExe, [appDir], {
     cwd: appDir,
     stdio: "inherit",
     env: {

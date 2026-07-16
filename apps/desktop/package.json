@@ -11,7 +11,6 @@
     "build:renderer": "vite build",
     "build:main": "node build-electron.mjs",
     "stamp-icon": "node scripts/prepare-branded-electron.mjs",
-    "clear-icon-cache": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/clear-windows-icon-cache.ps1",
     "app": "node scripts/launch.mjs",
     "smoke:gateway": "tsx scripts/gateway-smoke.ts"
   },

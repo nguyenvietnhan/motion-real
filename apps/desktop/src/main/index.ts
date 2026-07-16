@@ -716,16 +716,9 @@ function brandIconIcoPath(): string {
 
 function loadBrandNativeImage(): Electron.NativeImage | undefined {
   const png = brandIconPngPath();
-  if (!existsSync(png)) {
-    log.error({ png }, "brand PNG missing");
-    return undefined;
-  }
+  if (!existsSync(png)) return undefined;
   const img = nativeImage.createFromPath(png);
-  if (img.isEmpty()) {
-    log.error({ png }, "brand PNG loaded empty — title bar will be wrong");
-    return undefined;
-  }
-  log.info({ png, size: img.getSize() }, "brand window icon loaded");
+  if (img.isEmpty()) return undefined;
   return img;
 }
 
@@ -748,8 +741,8 @@ function writeBrandShortcut(lnk: string, iconPath: string): boolean {
   const op = existsSync(lnk) ? "replace" : "create";
   try {
     if (shell.writeShortcutLink(lnk, op, { ...details })) return true;
-  } catch (error) {
-    log.warn({ err: error, op }, "writeShortcutLink threw");
+  } catch {
+    /* try opposite op / PowerShell */
   }
   // Retry opposite op once
   try {
@@ -773,8 +766,7 @@ $S.Save()
 `;
     execFileSync("powershell.exe", ["-NoProfile", "-Command", ps], { stdio: "ignore" });
     return existsSync(lnk);
-  } catch (error) {
-    log.error({ err: error }, "PowerShell shortcut fallback failed");
+  } catch {
     return false;
   }
 }
@@ -785,27 +777,19 @@ function ensureWindowsBrandShellIdentity(): void {
   const ico = brandIconIcoPath();
   const png = brandIconPngPath();
   const iconPath = existsSync(ico) ? ico : png;
-  if (!existsSync(iconPath)) {
-    log.error({ iconPath }, "brand icon missing for shortcut");
-    return;
-  }
+  if (!existsSync(iconPath)) return;
   try {
     const programs = join(app.getPath("appData"), "Microsoft", "Windows", "Start Menu", "Programs");
     mkdirSync(programs, { recursive: true });
     const lnk = join(programs, "Motion Real.lnk");
-    // Wipe stale broken lnk so create path is clean
     try {
       if (existsSync(lnk)) unlinkSync(lnk);
     } catch {
       /* ignore */
     }
-    const ok = writeBrandShortcut(lnk, iconPath);
-    log.info(
-      { lnk, iconPath, ok, execPath: process.execPath, aumid: WINDOWS_AUMID, exists: existsSync(lnk) },
-      "Motion Real Start Menu shortcut",
-    );
+    writeBrandShortcut(lnk, iconPath);
   } catch (error) {
-    log.error({ err: error }, "Start Menu shortcut failed");
+    log.debug({ err: error }, "Start Menu brand shortcut failed");
   }
 }
 
@@ -831,10 +815,18 @@ async function createWindow(): Promise<void> {
     },
   });
   try {
-    if (existsSync(ico)) win.setIcon(ico);
-    else if (brandImg) win.setIcon(brandImg);
-  } catch (error) {
-    log.warn({ err: error }, "win.setIcon failed");
+    if (existsSync(ico)) {
+      const icoImg = nativeImage.createFromPath(ico);
+      if (!icoImg.isEmpty()) {
+        win.setIcon(icoImg);
+      } else if (brandImg) {
+        win.setIcon(brandImg);
+      }
+    } else if (brandImg) {
+      win.setIcon(brandImg);
+    }
+  } catch {
+    /* title bar may fall back to PE icon */
   }
   win.removeMenu();
   setEventTarget(win.webContents);

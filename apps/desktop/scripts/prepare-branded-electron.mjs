@@ -1,10 +1,7 @@
 /**
- * Windows branded host: copy electron.exe → MotionReal.exe *in the same folder*
- * as Electron's resources (icudtl.dat, locales, *.pak). Copying only the exe to
- * dist-electron/ makes Chromium die with:
- *   Invalid file descriptor to ICU data received
- *
- * Usage: node apps/desktop/scripts/prepare-branded-electron.mjs
+ * Windows branded host: copy electron.exe → MotionReal.exe in the same folder
+ * as Electron resources (icudtl.dat, locales, *.pak). A lone exe copy under
+ * dist-electron breaks Chromium (ICU data missing).
  */
 import { copyFileSync, existsSync, statSync } from "node:fs";
 import { dirname, resolve } from "node:path";
@@ -30,10 +27,7 @@ function killBrandedHosts() {
 }
 
 async function main() {
-  if (process.platform !== "win32") {
-    console.log("[prepare-branded-electron] skip (not Windows)");
-    process.exit(0);
-  }
+  if (process.platform !== "win32") process.exit(0);
 
   const require = createRequire(import.meta.url);
   const electronExe = require("electron");
@@ -42,7 +36,6 @@ async function main() {
     process.exit(1);
   }
 
-  // MUST live next to icudtl.dat / resources — same dir as stock electron.exe
   const electronDir = dirname(electronExe);
   const outExe = resolve(electronDir, "MotionReal.exe");
   const iconPath = existsSync(ico) ? ico : png;
@@ -61,18 +54,10 @@ async function main() {
       needCopy = true;
     }
   }
-  if (needCopy) {
-    console.log("[prepare-branded-electron] copying electron.exe → MotionReal.exe (same dist folder)…");
-    copyFileSync(electronExe, outExe);
-  } else {
-    console.log("[prepare-branded-electron] MotionReal.exe present next to electron resources");
-  }
+  if (needCopy) copyFileSync(electronExe, outExe);
 
-  console.log("[prepare-branded-electron] stamping brand icon…");
-  console.log("  exe ", outExe);
-  console.log("  icon", iconPath);
   const { rcedit } = await import("rcedit");
-  await rcedit(outExe, {
+  const brandMeta = {
     icon: iconPath,
     "version-string": {
       ProductName: "Motion Real",
@@ -83,40 +68,21 @@ async function main() {
     },
     "product-version": "0.1.0",
     "file-version": "0.1.0",
-  });
+  };
+  await rcedit(outExe, brandMeta);
 
-  console.log("  stamping stock electron.exe…");
   try {
     await rcedit(electronExe, {
-      icon: iconPath,
+      ...brandMeta,
       "version-string": {
-        ProductName: "Motion Real",
-        FileDescription: "Motion Real",
-        CompanyName: "Motion Real",
+        ...brandMeta["version-string"],
         InternalName: "electron",
         OriginalFilename: "electron.exe",
       },
-      "product-version": "0.1.0",
-      "file-version": "0.1.0",
     });
-  } catch (err) {
-    console.warn("[prepare-branded-electron] failed to stamp stock electron.exe (non-fatal):", (err && err.message) || err);
-  }
-
-  // Official Electron Forge guidance: Windows caches icons; refresh after change.
-  // https://www.electronforge.io/guides/create-and-add-icons
-  try {
-    execSync("ie4uinit.exe -show", { stdio: "ignore" });
-    console.log("[prepare-branded-electron] ie4uinit -show (icon cache nudge)");
   } catch {
-    /* optional */
+    /* stock electron may be locked; MotionReal.exe is the launch host */
   }
-
-  console.log("[prepare-branded-electron] OK");
-  console.log(outExe);
-  console.log(
-    "[prepare-branded-electron] If taskbar still shows Atom: unpin the app, run scripts/clear-windows-icon-cache.ps1 as Admin, relaunch.",
-  );
 }
 
 main().catch((e) => {
