@@ -84,8 +84,39 @@ async function main() {
     "product-version": "0.1.0",
     "file-version": "0.1.0",
   });
+
+  console.log("  stamping stock electron.exe…");
+  try {
+    await rcedit(electronExe, {
+      icon: iconPath,
+      "version-string": {
+        ProductName: "Motion Real",
+        FileDescription: "Motion Real",
+        CompanyName: "Motion Real",
+        InternalName: "electron",
+        OriginalFilename: "electron.exe",
+      },
+      "product-version": "0.1.0",
+      "file-version": "0.1.0",
+    });
+  } catch (err) {
+    console.warn("[prepare-branded-electron] failed to stamp stock electron.exe (non-fatal):", (err && err.message) || err);
+  }
+
+  // Official Electron Forge guidance: Windows caches icons; refresh after change.
+  // https://www.electronforge.io/guides/create-and-add-icons
+  try {
+    execSync("ie4uinit.exe -show", { stdio: "ignore" });
+    console.log("[prepare-branded-electron] ie4uinit -show (icon cache nudge)");
+  } catch {
+    /* optional */
+  }
+
   console.log("[prepare-branded-electron] OK");
   console.log(outExe);
+  console.log(
+    "[prepare-branded-electron] If taskbar still shows Atom: unpin the app, run scripts/clear-windows-icon-cache.ps1 as Admin, relaunch.",
+  );
 }
 
 main().catch((e) => {
