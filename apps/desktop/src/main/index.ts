@@ -696,67 +696,69 @@ function startGateway(): void {
 }
 
 const here = dirname(fileURLToPath(import.meta.url));
-/** apps/desktop root (dist-electron/main → ../..) */
+/** apps/desktop package root (from dist-electron/main → ../..) */
 const desktopAppRoot = join(here, "../..");
+/** Stable AUMID — must match Start Menu shortcut or Windows shows wrong taskbar icon. */
 const WINDOWS_AUMID = "com.motionreal.desktop";
 
-function brandIconPng(): string {
-  return join(desktopAppRoot, "assets/brand/taskbar-logo.png");
-}
-function brandIconIco(): string {
-  return join(desktopAppRoot, "assets/brand/taskbar-logo.ico");
+function brandIconPath(): string {
+  const ico = join(desktopAppRoot, "assets/brand/taskbar-logo.ico");
+  const png = join(desktopAppRoot, "assets/brand/taskbar-logo.png");
+  const logo = join(desktopAppRoot, "assets/brand/logo.png");
+  if (existsSync(ico)) return ico;
+  if (existsSync(png)) return png;
+  return logo;
 }
 
 /**
- * Windows taskbar identity: AUMID + Start Menu shortcut with the brand icon.
- * Without a matching shortcut, Windows often keeps showing the Electron atom
- * even after electron.exe was rcedit-stamped (shell uses shortcut metadata).
+ * Windows: pin shell identity to brand icon.
+ * 1) setAppUserModelId before any window
+ * 2) Start Menu .lnk with same AUMID + absolute brand icon (this is what taskbar uses)
+ * 3) BrowserWindow.icon for title-bar
+ * 4) electron.exe PE icon is stamped by scripts/stamp-brand-icon.mjs at launch
  */
-function ensureWindowsTaskbarIdentity(): void {
+function ensureWindowsBrandShellIdentity(): void {
   if (process.platform !== "win32") return;
   app.setAppUserModelId(WINDOWS_AUMID);
+  const iconPath = brandIconPath();
+  if (!existsSync(iconPath)) {
+    log.error({ iconPath }, "brand icon file missing — taskbar will stay Electron atom");
+    return;
+  }
   try {
-    const ico = brandIconIco();
-    const png = brandIconPng();
-    const iconPath = existsSync(ico) ? ico : png;
-    if (!existsSync(iconPath)) {
-      log.warn({ iconPath }, "brand icon missing for taskbar shortcut");
-      return;
-    }
     const programs = join(app.getPath("appData"), "Microsoft", "Windows", "Start Menu", "Programs");
     mkdirSync(programs, { recursive: true });
     const lnk = join(programs, "Motion Real.lnk");
-    // Launch the same way as `electron .` from apps/desktop.
     const ok = shell.writeShortcutLink(lnk, "replace", {
       target: process.execPath,
-      args: `"${desktopAppRoot}"`,
+      // Match `electron .` from apps/desktop (package main → dist-electron).
+      args: process.defaultApp ? `"${desktopAppRoot}"` : undefined,
       cwd: desktopAppRoot,
       appUserModelId: WINDOWS_AUMID,
       icon: iconPath,
       iconIndex: 0,
       description: "Motion Real",
     });
-    log.info(
-      { lnk, iconPath, ok, execPath: process.execPath, aumid: WINDOWS_AUMID },
-      "windows taskbar shortcut written",
-    );
+    if (!ok) {
+      log.error({ lnk, iconPath }, "writeShortcutLink returned false");
+    } else {
+      log.info({ lnk, iconPath, execPath: process.execPath }, "Motion Real Start Menu shortcut OK");
+    }
   } catch (error) {
-    log.warn({ err: error }, "windows taskbar shortcut failed");
+    log.error({ err: error }, "failed to write Start Menu brand shortcut");
   }
 }
 
 async function createWindow(): Promise<void> {
-  const iconPng = brandIconPng();
-  const iconIco = brandIconIco();
-  const iconPath = existsSync(iconIco) ? iconIco : iconPng;
-
+  const icon = brandIconPath();
   const win = new BrowserWindow({
     width: 1180,
     height: 820,
     minWidth: 1080,
     minHeight: 720,
     show: true,
-    icon: iconPath,
+    title: "Motion Real",
+    icon,
     webPreferences: {
       preload: join(here, "../preload/index.cjs"),
       contextIsolation: true,
@@ -764,10 +766,13 @@ async function createWindow(): Promise<void> {
       sandbox: false,
     },
   });
-  try {
-    win.setIcon(iconPath);
-  } catch (error) {
-    log.warn({ err: error, iconPath }, "win.setIcon failed");
+  // Force title-bar / alt-tab icon even if constructor path was relative-weird.
+  if (existsSync(icon)) {
+    try {
+      win.setIcon(icon);
+    } catch (error) {
+      log.warn({ err: error, icon }, "win.setIcon failed");
+    }
   }
   win.removeMenu();
   setEventTarget(win.webContents);
@@ -781,7 +786,7 @@ async function createWindow(): Promise<void> {
   }
 }
 
-// AUMID must be set before ready (and before any windows).
+// MUST run before app.ready / any BrowserWindow (Windows).
 if (process.platform === "win32") {
   app.setAppUserModelId(WINDOWS_AUMID);
 }
@@ -789,8 +794,7 @@ if (process.platform === "win32") {
 app
   .whenReady()
   .then(async () => {
-    // Shortcut with brand icon — required for correct Windows taskbar icon.
-    ensureWindowsTaskbarIdentity();
+    ensureWindowsBrandShellIdentity();
     if (!settingsStore.migrateLegacySecret()) {
       log.warn("legacy Vivibe API key could not be encrypted; user must re-enter it in Settings");
     }

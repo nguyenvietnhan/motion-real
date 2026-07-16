@@ -5,10 +5,12 @@
   "license": "MIT",
   "type": "module",
   "main": "dist-electron/main/index.js",
+  "productName": "Motion Real",
   "scripts": {
     "dev": "vite",
     "build:renderer": "vite build",
     "build:main": "node build-electron.mjs",
+    "stamp-icon": "node scripts/stamp-brand-icon.mjs",
     "app": "node scripts/launch.mjs",
     "smoke:gateway": "tsx scripts/gateway-smoke.ts"
   },

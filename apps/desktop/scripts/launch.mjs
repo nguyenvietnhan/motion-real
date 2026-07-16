@@ -139,57 +139,21 @@ async function ensureNineRouter() {
   return child;
 }
 
-/** Kill leftover Electron processes so rcedit can rewrite electron.exe. */
-function killStrayElectron() {
-  if (process.platform !== "win32") return;
-  try {
-    execSync("taskkill /IM electron.exe /F", { stdio: "ignore" });
-    console.log("[launch] stopped leftover electron.exe");
-  } catch {
-    /* none running */
-  }
-}
-
-/**
- * Windows: stamp brand .ico into this workspace's electron.exe.
- * Taskbar uses the EXE icon for unpackaged `electron .` — setIcon alone is not enough.
- * Must run while no electron.exe is running (rcedit: "Unable to commit changes").
- */
-async function ensureElectronBrandIcon(electronExe, icoPath) {
-  if (process.platform !== "win32") return;
-  try {
-    const { existsSync } = await import("node:fs");
-    if (!existsSync(electronExe) || !existsSync(icoPath)) {
-      console.warn("[launch] skip electron icon stamp: missing exe or ico");
-      return;
-    }
-    killStrayElectron();
-    await new Promise((r) => setTimeout(r, 800));
-    console.log("[launch] stamping brand icon onto electron.exe (Windows taskbar)…");
-    const { rcedit } = await import("rcedit");
-    await rcedit(electronExe, { icon: icoPath });
-    console.log("[launch] electron.exe icon stamped OK.");
-    // Nudge Windows shell to drop stale Atom icon cache.
-    try {
-      execSync("ie4uinit.exe -show", { stdio: "ignore" });
-    } catch {
-      /* optional */
-    }
-  } catch (e) {
-    console.warn(
-      `[launch] could not stamp electron.exe icon: ${e instanceof Error ? e.message : e}`,
-    );
-  }
-}
-
 async function main() {
+  // Brand icon FIRST — must run while no electron.exe holds the file lock.
+  console.log("[launch] stamping brand logo onto electron.exe…");
+  try {
+    await run(process.execPath, [resolve(here, "stamp-brand-icon.mjs")], { cwd: appDir });
+  } catch (e) {
+    console.error(
+      "[launch] BRAND ICON STAMP FAILED — close every Electron window and retry.",
+      e instanceof Error ? e.message : e,
+    );
+    // Continue launch so app still opens; taskbar may stay wrong until stamp works.
+  }
+
   // Bring the model gateway up first so the app finds it ready on launch.
   await ensureNineRouter();
-
-  // Stamp BEFORE vite/electron so electron.exe is not locked.
-  const brandIco = resolve(appDir, "assets/brand/taskbar-logo.ico");
-  const brandPng = resolve(appDir, "assets/brand/logo.png");
-  await ensureElectronBrandIcon(String(electronPath), brandIco);
 
   console.log("[launch] bundling main + preload…");
   await run(process.execPath, [resolve(appDir, "build-electron.mjs")], { cwd: appDir });
@@ -218,8 +182,6 @@ async function main() {
       ...process.env,
       VITE_DEV_SERVER_URL: devUrl,
       VIDEO_TOOL_HOME,
-      MOTIONREAL_BRAND_ICON: brandIco,
-      MOTIONREAL_BRAND_ICON_PNG: brandPng,
     },
   });
 
