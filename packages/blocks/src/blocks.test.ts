@@ -48,6 +48,8 @@ describe("@motionreal/blocks — surviving render surface", () => {
     const active = html(React.createElement(Captions, { cues }));
     expect(active).toContain("Dòng caption đang chạy");
     expect(active).not.toContain("Dòng sau");
+    // Soft wash under the band so karaoke stays readable on full-bleed dark scenes.
+    expect(active).toContain("linear-gradient");
 
     const none = html(React.createElement(Captions, { cues: [cues[1]!] }));
     expect(none).toBe("");

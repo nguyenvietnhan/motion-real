@@ -24,6 +24,52 @@ function hexToRgb(hex: string): [number, number, number] {
   return [parseInt(v.slice(0, 2), 16), parseInt(v.slice(2, 4), 16), parseInt(v.slice(4, 6), 16)];
 }
 
+function rgbToHex(r: number, g: number, b: number): string {
+  const h = (n: number) => clamp(Math.round(n), 0, 255).toString(16).padStart(2, "0");
+  return `#${h(r)}${h(g)}${h(b)}`;
+}
+
+/** Relative luminance (WCAG), 0 = black … 1 = white. */
+export function relativeLuminance(hex: string): number {
+  const channel = (c: number): number => {
+    const s = c / 255;
+    return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+  };
+  const [r, g, b] = hexToRgb(hex);
+  return 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b);
+}
+
+/** WCAG contrast ratio between two solid hex colors (≥1). */
+export function contrastRatio(a: string, b: string): number {
+  const l1 = relativeLuminance(a);
+  const l2 = relativeLuminance(b);
+  const light = Math.max(l1, l2);
+  const dark = Math.min(l1, l2);
+  return (light + 0.05) / (dark + 0.05);
+}
+
+/**
+ * Lift (or drop) `fg` toward white/black until contrast vs `bg` is at least
+ * `minRatio`. Used so karaoke / chrome ink stays readable when AI picks a dark
+ * dominant on the fixed dark canvas.
+ */
+export function ensureContrast(fg: string, bg: string, minRatio = 4.5): string {
+  const solid = normalizeHex(fg) ?? DEFAULT_DOMINANT;
+  const base = normalizeHex(bg) ?? "#0E0F13";
+  if (contrastRatio(solid, base) >= minRatio) return solid;
+
+  const bgLum = relativeLuminance(base);
+  // On dark surfaces push toward white; on light surfaces push toward black.
+  const target: [number, number, number] = bgLum < 0.5 ? [255, 255, 255] : [0, 0, 0];
+  const [sr, sg, sb] = hexToRgb(solid);
+  for (let step = 1; step <= 24; step += 1) {
+    const t = step / 24;
+    const candidate = rgbToHex(sr + (target[0] - sr) * t, sg + (target[1] - sg) * t, sb + (target[2] - sb) * t);
+    if (contrastRatio(candidate, base) >= minRatio) return candidate;
+  }
+  return bgLum < 0.5 ? "#F4F5F7" : "#0E0F13";
+}
+
 /** Translucent color string from a solid hex + alpha (0-1). */
 export function withAlpha(hex: string, alpha: number): string {
   const [r, g, b] = hexToRgb(hex);
@@ -47,6 +93,11 @@ export type ThemeColors = {
   fg: string;
   muted: string;
   accent: string;
+  /**
+   * Karaoke / burned-caption active-word ink. Always contrast-safe on `bg`
+   * even when project `dominant` is near-black (AI-chosen dark accents).
+   */
+  captionHighlight: string;
   signal: string;
 };
 
@@ -77,13 +128,16 @@ const NEUTRAL_SURFACE: SurfaceTokens = {
 
 /** Fixed dark chrome; accent = project dominant hex. */
 function deriveColors(dominant: string): ThemeColors {
+  const bg = "#0E0F13";
   return {
-    bg: "#0E0F13",
+    bg,
     bgElevated: "#16181F",
     panel: "#1B1E27",
     fg: "#F4F5F7",
     muted: "#9AA0AD",
     accent: dominant,
+    // Karaoke must never inherit an unreadable dark dominant on the dark canvas.
+    captionHighlight: ensureContrast(dominant, bg, 4.5),
     signal: FIXED_SIGNAL,
   };
 }

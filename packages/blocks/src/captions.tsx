@@ -1,20 +1,22 @@
 import React from "react";
 import { interpolateColors, useCurrentFrame, useVideoConfig } from "remotion";
-import { type CaptionCue, CANVAS, CAPTION_BAND, rectWidth } from "@motionreal/schema";
+import { type CaptionCue, CAPTION_BAND, rectWidth } from "@motionreal/schema";
+import { withAlpha } from "@motionreal/theme";
 import { useTheme } from "./theme-context.js";
 import { easeOut } from "./motion.js";
 
 /**
  * `Captions` — burned-in single-line KARAOKE caption track, rendered
  * top-level by the composition (outside the transition series). Text only — NO
- * background box by default; bold ink text with a base-colored halo so it stays
- * legible over busy video. Each cue is a short "page" of words; the word
- * currently being spoken is highlighted in the accent color (already-spoken
- * words stay fg, upcoming words are dimmed). Pure function of the frame (N16).
+ * heavy plate; bold ink with a dual-edge halo so it stays legible over busy
+ * (often near-black) short-form video. Each cue is a short "page" of words; the
+ * word currently being spoken is highlighted in a **contrast-safe** caption
+ * color (not raw project dominant — AI can pick dark accents that vanish on
+ * the dark canvas). Already-spoken words stay fg, upcoming words are dimmed.
+ * Pure function of the frame (N16).
  *
  * ONE shared caption band (`CAPTION_BAND`) — the N29 oracle reads the same
- * constant, so the caption is drawn and measured in the same place. Text-only
- * with a base-color halo (no scrim plate).
+ * constant, so the caption is drawn and measured in the same place.
  */
 export const Captions: React.FC<{ cues: CaptionCue[] }> = ({ cues }) => {
   const theme = useTheme();
@@ -25,18 +27,25 @@ export const Captions: React.FC<{ cues: CaptionCue[] }> = ({ cues }) => {
   if (!active) return null;
 
   const band = CAPTION_BAND;
-  // Halo uses the theme page background so caption ink pops on busy video.
-  const halo = theme.colors.bg;
-  // Deterministic shrink-to-fit: the band is fixed-width and captions are single
-  // line (no wrap), so size the font from the page length to guarantee no clip.
+  // Dual-edge halo: dark outer + light inner so ink pops on both pure-black
+  // scene fills and brighter authored panels under the band.
+  const haloDark = withAlpha(theme.colors.bg, 0.95);
+  const haloLight = withAlpha(theme.colors.fg, 0.55);
   const usableWidth = rectWidth(band) - 24;
   const len = Math.max(1, active.text.length);
   const fontSize = Math.max(32, Math.min(56, Math.floor(usableWidth / (len * 0.66))));
 
-  const haloShadow = `0 0 6px ${halo}, 0 0 6px ${halo}, 0 2px 3px ${halo}, 0 0 2px ${halo}`;
+  const haloShadow = [
+    `0 0 2px ${haloDark}`,
+    `0 0 6px ${haloDark}`,
+    `0 2px 4px ${haloDark}`,
+    `0 0 1px ${haloLight}`,
+    `0 1px 0 ${haloDark}`,
+  ].join(", ");
   // Smooth highlight ramp (~0.13s) so a word's emphasis EASES in/out instead of
   // snapping bigger — softer, more premium karaoke.
   const ramp = Math.max(2, Math.round(0.13 * fps));
+  const highlight = theme.colors.captionHighlight;
 
   return (
     <div
@@ -51,6 +60,9 @@ export const Captions: React.FC<{ cues: CaptionCue[] }> = ({ cues }) => {
         justifyContent: "center",
         overflow: "hidden",
         pointerEvents: "none",
+        // Soft legibility wash — keeps karaoke readable when the authored
+        // scene paints full-bleed near-black under the band (common AUTHOR mode).
+        background: `linear-gradient(180deg, transparent 0%, ${withAlpha(theme.colors.bg, 0.45)} 55%, ${withAlpha(theme.colors.bg, 0.72)} 100%)`,
       }}
     >
       <div
@@ -74,7 +86,7 @@ export const Captions: React.FC<{ cues: CaptionCue[] }> = ({ cues }) => {
             const outRamp = easeOut(Math.min(1, Math.max(0, (w.endFrame - frame) / ramp)));
             const emphasis = Math.max(0, Math.min(inRamp, outRamp));
             const base = isSpoken ? theme.colors.fg : theme.colors.muted;
-            const color = interpolateColors(emphasis, [0, 1], [base, theme.colors.accent]);
+            const color = interpolateColors(emphasis, [0, 1], [base, highlight]);
             return (
               <span
                 key={i}
