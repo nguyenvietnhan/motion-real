@@ -42,7 +42,7 @@ import {
 } from "./export/native-save.js";
 import { registerMediaScheme, handleMediaProtocol, mediaUrl } from "./media-protocol.js";
 import { events, setEventTarget } from "./event-bus.js";
-import { existsSync, statSync } from "node:fs";
+import { existsSync, mkdirSync, statSync } from "node:fs";
 import { copyFile, readFile, readdir, rm, stat } from "node:fs/promises";
 import type { DroppedImage, PickImagesResult, ScriptEdit } from "../shared/types.js";
 import { authorInputFromBrief } from "./workspace/recall-author-input.js";
@@ -696,22 +696,67 @@ function startGateway(): void {
 }
 
 const here = dirname(fileURLToPath(import.meta.url));
+/** apps/desktop root (dist-electron/main → ../..) */
+const desktopAppRoot = join(here, "../..");
+const WINDOWS_AUMID = "com.motionreal.desktop";
 
-/** Same brand PNG path as before the queue work (window chrome). */
-function brandWindowIconPath(): string {
-  return join(here, "../../assets/brand/taskbar-logo.png");
+function brandIconPng(): string {
+  return join(desktopAppRoot, "assets/brand/taskbar-logo.png");
+}
+function brandIconIco(): string {
+  return join(desktopAppRoot, "assets/brand/taskbar-logo.ico");
+}
+
+/**
+ * Windows taskbar identity: AUMID + Start Menu shortcut with the brand icon.
+ * Without a matching shortcut, Windows often keeps showing the Electron atom
+ * even after electron.exe was rcedit-stamped (shell uses shortcut metadata).
+ */
+function ensureWindowsTaskbarIdentity(): void {
+  if (process.platform !== "win32") return;
+  app.setAppUserModelId(WINDOWS_AUMID);
+  try {
+    const ico = brandIconIco();
+    const png = brandIconPng();
+    const iconPath = existsSync(ico) ? ico : png;
+    if (!existsSync(iconPath)) {
+      log.warn({ iconPath }, "brand icon missing for taskbar shortcut");
+      return;
+    }
+    const programs = join(app.getPath("appData"), "Microsoft", "Windows", "Start Menu", "Programs");
+    mkdirSync(programs, { recursive: true });
+    const lnk = join(programs, "Motion Real.lnk");
+    // Launch the same way as `electron .` from apps/desktop.
+    const ok = shell.writeShortcutLink(lnk, "replace", {
+      target: process.execPath,
+      args: `"${desktopAppRoot}"`,
+      cwd: desktopAppRoot,
+      appUserModelId: WINDOWS_AUMID,
+      icon: iconPath,
+      iconIndex: 0,
+      description: "Motion Real",
+    });
+    log.info(
+      { lnk, iconPath, ok, execPath: process.execPath, aumid: WINDOWS_AUMID },
+      "windows taskbar shortcut written",
+    );
+  } catch (error) {
+    log.warn({ err: error }, "windows taskbar shortcut failed");
+  }
 }
 
 async function createWindow(): Promise<void> {
-  // Keep this minimal — historically this path showed the brand logo.
-  // Windows *taskbar* for unpackaged electron is fixed in launch.mjs (rcedit).
+  const iconPng = brandIconPng();
+  const iconIco = brandIconIco();
+  const iconPath = existsSync(iconIco) ? iconIco : iconPng;
+
   const win = new BrowserWindow({
     width: 1180,
     height: 820,
     minWidth: 1080,
     minHeight: 720,
     show: true,
-    icon: brandWindowIconPath(),
+    icon: iconPath,
     webPreferences: {
       preload: join(here, "../preload/index.cjs"),
       contextIsolation: true,
@@ -719,6 +764,11 @@ async function createWindow(): Promise<void> {
       sandbox: false,
     },
   });
+  try {
+    win.setIcon(iconPath);
+  } catch (error) {
+    log.warn({ err: error, iconPath }, "win.setIcon failed");
+  }
   win.removeMenu();
   setEventTarget(win.webContents);
   win.on("closed", () => setEventTarget(null));
@@ -731,14 +781,16 @@ async function createWindow(): Promise<void> {
   }
 }
 
-// Windows needs a stable AppUserModelID for Notification center grouping.
+// AUMID must be set before ready (and before any windows).
 if (process.platform === "win32") {
-  app.setAppUserModelId("com.motionreal.desktop");
+  app.setAppUserModelId(WINDOWS_AUMID);
 }
 
 app
   .whenReady()
   .then(async () => {
+    // Shortcut with brand icon — required for correct Windows taskbar icon.
+    ensureWindowsTaskbarIdentity();
     if (!settingsStore.migrateLegacySecret()) {
       log.warn("legacy Vivibe API key could not be encrypted; user must re-enter it in Settings");
     }

@@ -164,11 +164,17 @@ async function ensureElectronBrandIcon(electronExe, icoPath) {
       return;
     }
     killStrayElectron();
-    await new Promise((r) => setTimeout(r, 500));
+    await new Promise((r) => setTimeout(r, 800));
     console.log("[launch] stamping brand icon onto electron.exe (Windows taskbar)…");
     const { rcedit } = await import("rcedit");
     await rcedit(electronExe, { icon: icoPath });
     console.log("[launch] electron.exe icon stamped OK.");
+    // Nudge Windows shell to drop stale Atom icon cache.
+    try {
+      execSync("ie4uinit.exe -show", { stdio: "ignore" });
+    } catch {
+      /* optional */
+    }
   } catch (e) {
     console.warn(
       `[launch] could not stamp electron.exe icon: ${e instanceof Error ? e.message : e}`,
