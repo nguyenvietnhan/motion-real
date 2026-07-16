@@ -133,6 +133,27 @@ describe("QueueStore", () => {
     expect(store.delete(q.id)).toBe(false);
   });
 
+  it("requeueRetryable puts failed jobs back to queued for Start retry", () => {
+    const dir = mkdtempSync(join(tmpdir(), "mr-queue-"));
+    const store = new QueueStore({ filePath: join(dir, "queues.json") });
+    const q = store.create();
+    const after = store.addJob(q.id, {
+      raw: "retry me",
+      durationTier: 1,
+      videoLanguage: "vi",
+      voiceProvider: "vivibe",
+      bgm: null,
+    });
+    const jobId = after!.jobs[0]!.id;
+    store.updateJob(q.id, jobId, { status: "failed", error: "no key", projectId: "p-old" });
+    expect(store.requeueRetryable(q.id)).toBe(1);
+    const job = store.get(q.id)?.jobs[0];
+    expect(job?.status).toBe("queued");
+    expect(job?.error).toBeUndefined();
+    expect(job?.projectId).toBeUndefined();
+    expect(store.requeueRetryable(q.id)).toBe(0);
+  });
+
   it("updateJob and nextQueuedJob support start-later workflow", () => {
     const dir = mkdtempSync(join(tmpdir(), "mr-queue-"));
     const store = new QueueStore({

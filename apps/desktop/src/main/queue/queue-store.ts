@@ -178,6 +178,25 @@ export class QueueStore {
     return job ? { ...job } : null;
   }
 
+  /**
+   * Put failed/cancelled jobs back to `queued` so Start can retry after a fix
+   * (e.g. API key). Done jobs stay done. Returns how many were requeued.
+   */
+  requeueRetryable(queueId: string): number {
+    const q = this.data.queues.find((x) => x.id === queueId);
+    if (!q) return 0;
+    let n = 0;
+    for (const job of q.jobs) {
+      if (job.status !== "failed" && job.status !== "cancelled") continue;
+      job.status = "queued";
+      delete job.error;
+      delete job.projectId;
+      n += 1;
+    }
+    if (n > 0) this.save();
+    return n;
+  }
+
   updateJob(
     queueId: string,
     jobId: string,

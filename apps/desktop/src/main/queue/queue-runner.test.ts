@@ -69,6 +69,50 @@ describe("QueueRunner", () => {
     expect(store.get(q.id)?.jobs.map((j) => j.status)).toEqual(["done", "done"]);
   });
 
+  it("start requeues failed jobs so retry works after a fix", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "mr-qrun-"));
+    const store = new QueueStore({
+      filePath: join(dir, "queues.json"),
+      id: (() => {
+        let n = 0;
+        return () => `r${++n}`;
+      })(),
+    });
+    const q = store.create();
+    store.addJob(q.id, {
+      raw: "again",
+      durationTier: 1,
+      videoLanguage: "vi",
+      voiceProvider: "vivibe",
+      bgm: null,
+    });
+    const jobId = store.get(q.id)!.jobs[0]!.id;
+    store.updateJob(q.id, jobId, { status: "failed", error: "no key" });
+
+    const create = {
+      create: vi.fn(async () => ({ projectId: "p-retry" })),
+    } as unknown as CreateController;
+    const runner = new QueueRunner({
+      store,
+      create,
+      createSmoke: async () => ({ ok: false as const, error: "not used" }),
+      stageOf: async () => ({ kind: "published", outputPath: "/out/r.mp4", title: "r" }),
+      cancelProject: () => {},
+      sleep: async () => {},
+    });
+
+    expect(runner.start(q.id)).toEqual({ ok: true });
+    for (let i = 0; i < 30 && runner.isBusy(); i += 1) {
+      await new Promise((r) => setTimeout(r, 5));
+    }
+    expect(create.create).toHaveBeenCalledWith(
+      "again",
+      [],
+      expect.objectContaining({ durationTier: 1 }),
+    );
+    expect(store.get(q.id)?.jobs[0]?.status).toBe("done");
+  });
+
   it("refuses a second start while busy", async () => {
     const dir = mkdtempSync(join(tmpdir(), "mr-qrun-"));
     const store = new QueueStore({ filePath: join(dir, "queues.json") });

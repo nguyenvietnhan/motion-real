@@ -266,7 +266,10 @@ const QueueDetail: React.FC<{
 
   const valid = validateCreateInput({ raw });
   const inputValid = valid.ok;
-  const queuedCount = queue.jobs.filter((j) => j.status === "queued").length;
+  /** Start can run fresh queued jobs or retry failed/cancelled after a fix. */
+  const startableCount = queue.jobs.filter(
+    (j) => j.status === "queued" || j.status === "failed" || j.status === "cancelled",
+  ).length;
   const progress = queueProgress(queue.jobs);
 
   const addJob = (smoke: boolean): void => {
@@ -371,19 +374,16 @@ const QueueDetail: React.FC<{
             <button
               type="button"
               className="ns-btn ns-btn-primary"
-              disabled={queueBusy || queuedCount === 0}
+              disabled={queueBusy || startableCount === 0}
               title={queueBusy ? "Đang chạy…" : "Bắt đầu chạy"}
               onClick={() => {
                 void onStartQueue().then((res) => {
-                  if (res.ok) {
-                    notify.success({ title: "Đã bắt đầu", message: "Chạy lần lượt các video đang chờ." });
-                  } else {
-                    notify.error({
-                      title: "Chưa chạy được",
-                      message: compactNotificationMessage(res.error, "Thử lại."),
-                      details: res.error,
-                    });
-                  }
+                  if (res.ok) return;
+                  notify.error({
+                    title: "Chưa chạy được",
+                    message: compactNotificationMessage(res.error, "Thử lại."),
+                    details: res.error,
+                  });
                 });
               }}
             >

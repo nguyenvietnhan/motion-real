@@ -1,4 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { Icon } from "./icons.js";
 
 export type NotificationVariant = "success" | "info" | "warning" | "error";
 
@@ -172,7 +173,7 @@ const NotificationToast: React.FC<{
           {notification.message && <p>{notification.message}</p>}
         </div>
         <button className="ns-toast-close" type="button" onClick={() => onDismiss(notification.id)} aria-label="Đóng">
-          ×
+          {Icon.close({ size: 12 })}
         </button>
       </div>
       {(notification.action || hasDetails) && (

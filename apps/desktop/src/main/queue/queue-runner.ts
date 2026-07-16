@@ -54,7 +54,10 @@ export class QueueRunner {
     }
     const q = this.deps.store.get(queueId);
     if (!q) return { ok: false, error: "Không tìm thấy hàng đợi." };
-    if (!q.jobs.some((j) => j.status === "queued")) {
+    // Retry path: failed/cancelled (e.g. missing API key) become queued again.
+    this.deps.store.requeueRetryable(queueId);
+    const ready = this.deps.store.get(queueId);
+    if (!ready?.jobs.some((j) => j.status === "queued")) {
       return { ok: false, error: "Chưa có video nào ở trạng thái chờ. Thêm prompt rồi bấm Bắt đầu." };
     }
     this.busy = true;
