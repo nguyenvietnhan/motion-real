@@ -5,6 +5,21 @@ import { join } from "node:path";
 import { defaultJobDisplayTitle, QueueStore } from "./queue-store.js";
 
 describe("QueueStore", () => {
+  it("defaults new queue titles to project-1, project-2, …", () => {
+    const dir = mkdtempSync(join(tmpdir(), "mr-queue-"));
+    const store = new QueueStore({
+      filePath: join(dir, "queues.json"),
+      id: (() => {
+        let n = 0;
+        return () => `t${++n}`;
+      })(),
+    });
+    expect(store.create().title).toBe("project-1");
+    expect(store.create().title).toBe("project-2");
+    store.create("project-9");
+    expect(store.create().title).toBe("project-10");
+  });
+
   it("creates a queue and appends jobs in order", () => {
     const dir = mkdtempSync(join(tmpdir(), "mr-queue-"));
     const store = new QueueStore({

@@ -43,18 +43,29 @@ export class QueueStore {
     return q ? cloneQueue(q) : null;
   }
 
-  create(title = "Hàng đợi"): QueueProjectVM {
+  create(title?: string): QueueProjectVM {
     const now = (this.deps.now ?? (() => new Date().toISOString()))();
     const id = (this.deps.id ?? (() => randomUUID().slice(0, 8)))();
+    const resolved = (title?.trim() || this.nextProjectTitle()).slice(0, 80);
     const queue: QueueProjectVM = {
       id: `queue-${id}`,
-      title: title.trim().slice(0, 80) || "Hàng đợi",
+      title: resolved,
       createdAt: now,
       jobs: [],
     };
     this.data.queues.unshift(queue);
     this.save();
     return cloneQueue(queue);
+  }
+
+  /** Next free `project-N` title across existing queue containers. */
+  nextProjectTitle(): string {
+    let max = 0;
+    for (const q of this.data.queues) {
+      const m = /^project-(\d+)$/i.exec(q.title.trim());
+      if (m) max = Math.max(max, Number.parseInt(m[1]!, 10) || 0);
+    }
+    return `project-${max + 1}`;
   }
 
   /** Remove a queue container. Returns false if missing. */
@@ -219,9 +230,10 @@ export class QueueStore {
 }
 
 function normalizeQueue(raw: QueueProjectVM): QueueProjectVM {
+  const title = String(raw.title ?? "").trim();
   return {
     id: String(raw.id ?? ""),
-    title: String(raw.title ?? "Hàng đợi").slice(0, 80),
+    title: (title || "project-1").slice(0, 80),
     createdAt: String(raw.createdAt ?? ""),
     jobs: Array.isArray(raw.jobs) ? raw.jobs.map(normalizeJob) : [],
   };

@@ -139,6 +139,33 @@ async function ensureNineRouter() {
   return child;
 }
 
+/**
+ * Windows only: rewrite this install's electron.exe PE icon so the taskbar
+ * shows MotionReal instead of the default Atom. Unpacked `electron .` ignores
+ * BrowserWindow.setIcon for the *taskbar* (uses the exe resource). Failures
+ * are non-fatal — window chrome icon still applies via main process setIcon.
+ */
+async function ensureElectronBrandIcon(electronExe, icoPath) {
+  if (process.platform !== "win32") return;
+  try {
+    const { existsSync } = await import("node:fs");
+    if (!existsSync(electronExe) || !existsSync(icoPath)) {
+      console.warn("[launch] skip electron icon stamp: missing exe or ico");
+      return;
+    }
+    console.log("[launch] stamping brand icon onto electron.exe (Windows taskbar)…");
+    const { rcedit } = await import("rcedit");
+    await rcedit(electronExe, { icon: icoPath });
+    console.log("[launch] electron.exe icon stamped.");
+  } catch (e) {
+    console.warn(
+      `[launch] could not stamp electron.exe icon (taskbar may stay Electron): ${
+        e instanceof Error ? e.message : e
+      }`,
+    );
+  }
+}
+
 async function main() {
   // Bring the model gateway up first so the app finds it ready on launch.
   await ensureNineRouter();
@@ -162,10 +189,12 @@ async function main() {
     process.exit(1);
   }
 
-  // Windows taskbar often shows electron.exe icon in pure `electron .` dev.
-  // Point Electron at a brand .ico via env for diagnostics; main process also setIcon.
+  // Windows taskbar uses electron.exe's PE icon for unpackaged `electron .`.
+  // BrowserWindow.setIcon alone is not enough — stamp brand .ico onto this
+  // workspace's electron.exe once (node_modules only; not committed).
   const brandIco = resolve(appDir, "assets/brand/taskbar-logo.ico");
   const brandPng = resolve(appDir, "assets/brand/logo.png");
+  await ensureElectronBrandIcon(String(electronPath), brandIco);
 
   console.log("[launch] launching Electron…");
   const electron = spawn(electronPath, ["."], {
