@@ -3,6 +3,7 @@ import { createServer } from "node:net";
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
+// dirname used for MotionReal.exe next to stock electron.exe
 import electronPath from "electron";
 
 /**
@@ -19,7 +20,7 @@ const repoRoot = resolve(appDir, "..", "..");
 const VIDEO_TOOL_HOME = resolve(repoRoot, ".video-tool");
 const PREFERRED_PORT = 5174;
 const NINEROUTER_URL = "http://localhost:20128/v1/models";
-const brandedExe = resolve(appDir, "dist-electron", "MotionReal.exe");
+// Resolved after prepare — lives next to electron resources, NOT dist-electron alone.
 
 const run = (cmd, args, opts = {}) =>
   new Promise((res, rej) => {
@@ -127,11 +128,14 @@ async function ensureNineRouter() {
   return null;
 }
 
-/** Windows: always launch branded host so taskbar is never electron.exe. */
+/** Windows: branded host next to Electron resources (avoids ICU crash). */
 async function resolveHostExe() {
   if (process.platform !== "win32") return String(electronPath);
   console.log("[launch] preparing MotionReal.exe (branded host)…");
   await run(process.execPath, [resolve(here, "prepare-branded-electron.mjs")], { cwd: appDir });
+  // prepare prints absolute path on last line; resolve same way as the script.
+  const electronExe = String(electronPath);
+  const brandedExe = resolve(dirname(electronExe), "MotionReal.exe");
   if (!existsSync(brandedExe)) {
     throw new Error(`MotionReal.exe missing after prepare: ${brandedExe}`);
   }
