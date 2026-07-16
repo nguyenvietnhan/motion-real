@@ -10,7 +10,7 @@
     "dev": "vite",
     "build:renderer": "vite build",
     "build:main": "node build-electron.mjs",
-    "stamp-icon": "node scripts/stamp-brand-icon.mjs",
+    "stamp-icon": "node scripts/prepare-branded-electron.mjs",
     "app": "node scripts/launch.mjs",
     "smoke:gateway": "tsx scripts/gateway-smoke.ts"
   },

@@ -1,27 +1,25 @@
 import { execSync, spawn } from "node:child_process";
 import { createServer } from "node:net";
+import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import electronPath from "electron";
 
 /**
- * One-command dev launcher for the desktop app (web-dashboard):
- *   1. ensure the 9router model gateway is running (reuse if up, else spawn it),
- *   2. bundle main + preload (esbuild),
- *   3. start the Vite renderer dev server (fixed port),
- *   4. launch Electron pointed at the dev server,
- *   5. tear the dev server down when Electron exits.
- *
- * Run:  npm --prefix apps/desktop run app   (or: node apps/desktop/scripts/launch.mjs)
+ * Dev launcher:
+ *   1. prepare branded MotionReal.exe (Windows taskbar/title identity)
+ *   2. ensure 9router
+ *   3. bundle main + preload
+ *   4. Vite on free port
+ *   5. launch MotionReal.exe (Windows) or electron (other OS)
  */
 const here = dirname(fileURLToPath(import.meta.url));
 const appDir = resolve(here, "..");
 const repoRoot = resolve(appDir, "..", "..");
-// Share the SAME project store as the CLI/build-scripts (repo .video-tool),
-// so existing projects show up and new ones land alongside them.
 const VIDEO_TOOL_HOME = resolve(repoRoot, ".video-tool");
 const PREFERRED_PORT = 5174;
 const NINEROUTER_URL = "http://localhost:20128/v1/models";
+const brandedExe = resolve(appDir, "dist-electron", "MotionReal.exe");
 
 const run = (cmd, args, opts = {}) =>
   new Promise((res, rej) => {
@@ -30,7 +28,6 @@ const run = (cmd, args, opts = {}) =>
     p.on("error", rej);
   });
 
-/** Try free preferred port; on Windows kill LISTENING owner of that port, else pick next free. */
 function portFree(port) {
   return new Promise((resolvePort) => {
     const s = createServer();
@@ -103,30 +100,21 @@ async function isUp(url) {
   }
 }
 
-/**
- * Ensure the 9router model gateway is running. Reuse an already-running instance
- * (don't disturb the user's own), otherwise spawn it headless in tray/background
- * mode (`9router -n -t --skip-update`) and wait until it answers on /v1. 9router
- * is a tray service, so we leave it running after the launcher exits (faster
- * next start, matching the in-app detached spawn). Returns the spawned child (or
- * null when reused / unavailable) so the caller can decide on teardown.
- */
 async function ensureNineRouter() {
   if (await isUp(NINEROUTER_URL)) {
     console.log("[launch] 9router already running — reusing it.");
     return null;
   }
   console.log("[launch] starting 9router (9router -n -t --skip-update)…");
-  let child = null;
   try {
-    child = spawn("9router", ["-n", "-t", "--skip-update"], {
+    const child = spawn("9router", ["-n", "-t", "--skip-update"], {
       cwd: appDir,
       detached: true,
       stdio: "ignore",
-      shell: process.platform === "win32", // resolve 9router.cmd on Windows
+      shell: process.platform === "win32",
     });
     child.on("error", (e) => {
-      console.warn(`[launch] could not start 9router (is it installed / on PATH?): ${e.message}`);
+      console.warn(`[launch] could not start 9router: ${e.message}`);
     });
     child.unref();
   } catch (e) {
@@ -135,24 +123,24 @@ async function ensureNineRouter() {
   }
   const up = await waitFor(NINEROUTER_URL, 30_000);
   if (up) console.log("[launch] 9router is reachable on :20128.");
-  else console.warn("[launch] 9router not reachable yet; the app will keep retrying. Install it or run `9router -n -t` manually if AI stays unavailable.");
-  return child;
+  else console.warn("[launch] 9router not reachable yet; app will keep retrying.");
+  return null;
+}
+
+/** Windows: always launch branded host so taskbar is never electron.exe. */
+async function resolveHostExe() {
+  if (process.platform !== "win32") return String(electronPath);
+  console.log("[launch] preparing MotionReal.exe (branded host)…");
+  await run(process.execPath, [resolve(here, "prepare-branded-electron.mjs")], { cwd: appDir });
+  if (!existsSync(brandedExe)) {
+    throw new Error(`MotionReal.exe missing after prepare: ${brandedExe}`);
+  }
+  return brandedExe;
 }
 
 async function main() {
-  // Brand icon FIRST — must run while no electron.exe holds the file lock.
-  console.log("[launch] stamping brand logo onto electron.exe…");
-  try {
-    await run(process.execPath, [resolve(here, "stamp-brand-icon.mjs")], { cwd: appDir });
-  } catch (e) {
-    console.error(
-      "[launch] BRAND ICON STAMP FAILED — close every Electron window and retry.",
-      e instanceof Error ? e.message : e,
-    );
-    // Continue launch so app still opens; taskbar may stay wrong until stamp works.
-  }
+  const hostExe = await resolveHostExe();
 
-  // Bring the model gateway up first so the app finds it ready on launch.
   await ensureNineRouter();
 
   console.log("[launch] bundling main + preload…");
@@ -160,22 +148,21 @@ async function main() {
 
   const port = await resolveDevPort();
   const devUrl = `http://localhost:${port}`;
-  console.log(`[launch] starting Vite dev server on ${devUrl}…`);
+  console.log(`[launch] starting Vite on ${devUrl}…`);
   const vite = spawn("npx", ["vite", "--port", String(port), "--strictPort"], {
     cwd: appDir,
     stdio: "inherit",
     shell: process.platform === "win32",
   });
 
-  const up = await waitFor(devUrl);
-  if (!up) {
-    console.error("[launch] Vite dev server did not start.");
+  if (!(await waitFor(devUrl))) {
+    console.error("[launch] Vite did not start.");
     vite.kill();
     process.exit(1);
   }
 
-  console.log("[launch] launching Electron…");
-  const electron = spawn(electronPath, ["."], {
+  console.log(`[launch] starting app host: ${hostExe}`);
+  const electron = spawn(hostExe, ["."], {
     cwd: appDir,
     stdio: "inherit",
     env: {

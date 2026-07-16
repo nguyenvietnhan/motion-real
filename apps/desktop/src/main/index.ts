@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, Notification, safeStorage, shell } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, nativeImage, Notification, safeStorage, shell } from "electron";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { appendEvent, createLogger, createTools, loadManifest, writeJson, projectPaths, videoToolHome, stagingDir, ensureProject, importImageBytes, reconcileStaleStates, pruneRenderCache, pruneTtsCache, readBrief, listBgmTracks, addBgmTrack, removeBgmTrack, renderThumbnail, workspaceRoot, ELEVENLABS_DEFAULT_MODEL_ID, runDoctor, readProjectDiagnostics, readProjectEvidence, type VoiceProvider } from "@motionreal/pipeline";
@@ -701,28 +701,45 @@ const desktopAppRoot = join(here, "../..");
 /** Stable AUMID — must match Start Menu shortcut or Windows shows wrong taskbar icon. */
 const WINDOWS_AUMID = "com.motionreal.desktop";
 
-function brandIconPath(): string {
-  const ico = join(desktopAppRoot, "assets/brand/taskbar-logo.ico");
+/** Absolute brand PNG (title bar). Prefer PNG — broken/partial ICO falls back to Atom. */
+function brandIconPngPath(): string {
   const png = join(desktopAppRoot, "assets/brand/taskbar-logo.png");
   const logo = join(desktopAppRoot, "assets/brand/logo.png");
-  if (existsSync(ico)) return ico;
   if (existsSync(png)) return png;
   return logo;
 }
 
+function brandIconIcoPath(): string {
+  return join(desktopAppRoot, "assets/brand/taskbar-logo.ico");
+}
+
+function loadBrandNativeImage(): Electron.NativeImage | undefined {
+  const png = brandIconPngPath();
+  if (!existsSync(png)) {
+    log.error({ png }, "brand PNG missing");
+    return undefined;
+  }
+  const img = nativeImage.createFromPath(png);
+  if (img.isEmpty()) {
+    log.error({ png }, "brand PNG loaded empty — title bar will be wrong");
+    return undefined;
+  }
+  log.info({ png, size: img.getSize() }, "brand window icon loaded");
+  return img;
+}
+
 /**
- * Windows: pin shell identity to brand icon.
- * 1) setAppUserModelId before any window
- * 2) Start Menu .lnk with same AUMID + absolute brand icon (this is what taskbar uses)
- * 3) BrowserWindow.icon for title-bar
- * 4) electron.exe PE icon is stamped by scripts/stamp-brand-icon.mjs at launch
+ * Windows shell identity: AUMID + Start Menu shortcut pointing at the *running*
+ * host (MotionReal.exe when launched via prepare-branded-electron).
  */
 function ensureWindowsBrandShellIdentity(): void {
   if (process.platform !== "win32") return;
   app.setAppUserModelId(WINDOWS_AUMID);
-  const iconPath = brandIconPath();
+  const ico = brandIconIcoPath();
+  const png = brandIconPngPath();
+  const iconPath = existsSync(ico) ? ico : png;
   if (!existsSync(iconPath)) {
-    log.error({ iconPath }, "brand icon file missing — taskbar will stay Electron atom");
+    log.error({ iconPath }, "brand icon missing for shortcut");
     return;
   }
   try {
@@ -731,7 +748,6 @@ function ensureWindowsBrandShellIdentity(): void {
     const lnk = join(programs, "Motion Real.lnk");
     const ok = shell.writeShortcutLink(lnk, "replace", {
       target: process.execPath,
-      // Match `electron .` from apps/desktop (package main → dist-electron).
       args: process.defaultApp ? `"${desktopAppRoot}"` : undefined,
       cwd: desktopAppRoot,
       appUserModelId: WINDOWS_AUMID,
@@ -739,18 +755,17 @@ function ensureWindowsBrandShellIdentity(): void {
       iconIndex: 0,
       description: "Motion Real",
     });
-    if (!ok) {
-      log.error({ lnk, iconPath }, "writeShortcutLink returned false");
-    } else {
-      log.info({ lnk, iconPath, execPath: process.execPath }, "Motion Real Start Menu shortcut OK");
-    }
+    log.info(
+      { lnk, iconPath, ok, execPath: process.execPath, aumid: WINDOWS_AUMID },
+      "Motion Real Start Menu shortcut",
+    );
   } catch (error) {
-    log.error({ err: error }, "failed to write Start Menu brand shortcut");
+    log.error({ err: error }, "Start Menu shortcut failed");
   }
 }
 
 async function createWindow(): Promise<void> {
-  const icon = brandIconPath();
+  const brandImg = loadBrandNativeImage();
   const win = new BrowserWindow({
     width: 1180,
     height: 820,
@@ -758,7 +773,7 @@ async function createWindow(): Promise<void> {
     minHeight: 720,
     show: true,
     title: "Motion Real",
-    icon,
+    ...(brandImg ? { icon: brandImg } : {}),
     webPreferences: {
       preload: join(here, "../preload/index.cjs"),
       contextIsolation: true,
@@ -766,12 +781,11 @@ async function createWindow(): Promise<void> {
       sandbox: false,
     },
   });
-  // Force title-bar / alt-tab icon even if constructor path was relative-weird.
-  if (existsSync(icon)) {
+  if (brandImg) {
     try {
-      win.setIcon(icon);
+      win.setIcon(brandImg);
     } catch (error) {
-      log.warn({ err: error, icon }, "win.setIcon failed");
+      log.warn({ err: error }, "win.setIcon failed");
     }
   }
   win.removeMenu();
