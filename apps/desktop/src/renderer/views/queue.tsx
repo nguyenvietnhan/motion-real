@@ -315,40 +315,43 @@ const QueueDetail: React.FC<{
     <div className="ns-content">
       <PageHeader
         title={
-          renaming ? (
-            <input
-              className="ns-input ns-queue-title-input"
-              value={renameDraft}
-              autoFocus
-              aria-label="Tên hàng đợi"
-              onChange={(e) => setRenameDraft(e.target.value)}
-              onBlur={commitRename}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") (e.target as HTMLInputElement).blur();
-                if (e.key === "Escape") {
-                  setRenameDraft(queue.title);
-                  setRenaming(false);
-                }
-              }}
-            />
-          ) : (
-            <span className="ns-queue-title-row">
-              <span className="ns-page-title" style={{ margin: 0 }}>{queue.title}</span>
-              <button
-                type="button"
-                className="ns-project-action"
-                title="Đổi tên"
-                aria-label="Đổi tên hàng đợi"
-                disabled={queueBusy}
-                onClick={() => {
-                  setRenameDraft(queue.title);
-                  setRenaming(true);
+          <span className="ns-queue-title-row">
+            {renaming ? (
+              <input
+                className="ns-queue-title-input"
+                value={renameDraft}
+                autoFocus
+                aria-label="Tên hàng đợi"
+                onChange={(e) => setRenameDraft(e.target.value)}
+                onBlur={commitRename}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                  if (e.key === "Escape") {
+                    setRenameDraft(queue.title);
+                    setRenaming(false);
+                  }
                 }}
-              >
-                {Icon.pencil({ size: 15 })}
-              </button>
-            </span>
-          )
+              />
+            ) : (
+              <span className="ns-page-title ns-queue-title-text">{queue.title}</span>
+            )}
+            <button
+              type="button"
+              className="ns-project-action"
+              title="Đổi tên"
+              aria-label="Đổi tên hàng đợi"
+              disabled={queueBusy || renaming}
+              tabIndex={renaming ? -1 : 0}
+              aria-hidden={renaming}
+              style={renaming ? { visibility: "hidden" } : undefined}
+              onClick={() => {
+                setRenameDraft(queue.title);
+                setRenaming(true);
+              }}
+            >
+              {Icon.pencil({ size: 15 })}
+            </button>
+          </span>
         }
         action={
           <div className="ns-queue-header-actions">
