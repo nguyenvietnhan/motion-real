@@ -150,7 +150,8 @@ Preset chỉ là **nút “chọn gói nhanh”** gán nhiều knob một lúc (
 #### Việc làm trên track (1.3)
 
 - [x] **Notify khi done/fail** (2026-07-16): OS `Notification` + in-app toast; edge-only (không spam reopen); click OS toast → focus window. Module `main/notify/job-notify.ts`.
-- [ ] Ứng viên sau (chưa làm): queue multi-job, export pack, prompt presets.
+- [x] **Queue multi-job (MVP tab + serial + queue-of-queues)** (2026-07-17): tab Hàng đợi, Start serial, Start lô 2/3 → pending FIFO. Chi tiết + Home spillover `home` (chưa code): `docs/working/batch-queue-production.md`.
+- [ ] Ứng viên sau: Home → container tạm `home` khi busy; export pack; prompt presets.
 
 **Done khi (slice notify):** unattended user rời app vẫn biết job xong/lỗi.
 
