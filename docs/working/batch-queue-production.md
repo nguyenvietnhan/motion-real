@@ -17,7 +17,7 @@ MotionReal là tool **sản xuất video short-form tự động**. Owner muốn
 - Render **song song** nhiều project (process giả định 1 workflow render; registry + bundle cache — xem `docs/current/maintenance.md` Parallel Render Assumption).
 - Editor layout / template catalog / theme authored (cấm contract).
 - Hủy giữa chừng job đang encode để “nhảy” video Home ngay (destructive + cancel phức tạp) — trừ khi owner đòi sau.
-- Nhiều queue active cùng lúc trong một process — **1 queue active / process** là đủ.
+- Render song song nhiều container — **1 run active / process**; nhiều container có thể Start và **xếp chờ** (queue-of-queues).
 
 ---
 
@@ -98,7 +98,7 @@ Thông báo / dialog kiểu:
 | Chỉ còn **1 job đang dở**, không còn `queued` | A ≈ B → gộp copy: *“Xong cái đang làm rồi làm video này”* + Hủy |
 | Create **trong tab Queue** | Luôn enqueue vào container; **không** dialog Home-conflict |
 | Home create khi **không** có queue active | Như flow create hiện tại |
-| **1 queue active / process** | Tránh N container song song; đủ cho “thg chủ quên Home” |
+| **1 run render active / process** | Nhiều container có thể **scheduled** (queue-of-queues FIFO); không parallel render |
 
 ### 3.4 Không mặc định ship (destructive / phức tạp)
 
@@ -186,3 +186,4 @@ Thứ tự slice đề xuất (serial, ít file):
 | Ngày | Ghi chú |
 | --- | --- |
 | 2026-07-16 | Tạo note: gom intent tab queue, auto-detect, Home conflict A/B/C, serial worker, nền unattended + parallel gate. Chưa implement. |
+| 2026-07-17 | MVP tab + serial Start + persist `queues.json` đã ship (trước note này). **Queue-of-queues (B):** Start container 2/3 lúc đang chạy → FIFO pending (RAM), UI badge Chờ/Đang chạy; không parallel. |

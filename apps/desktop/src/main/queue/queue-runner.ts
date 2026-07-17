@@ -1,5 +1,6 @@
 import type { CreateController } from "../create/create-controller.js";
 import type { ProjectStage } from "../../shared/types.js";
+import type { QueueRunnerStatus, QueueStartResult } from "../../shared/queue-types.js";
 import type { QueueStore } from "./queue-store.js";
 
 export type QueueRunnerDeps = {
@@ -23,12 +24,15 @@ export type QueueRunnerDeps = {
 };
 
 /**
- * Serial queue runner: only processes jobs after explicit start.
- * Add-job never calls this. // ponytail: one queue run at a time process-wide
+ * Serial queue runner across containers (queue-of-queues).
+ * Process concurrency = 1: drain active container jobs, then next pending Start.
+ * Add-job never calls this. Pending schedule is RAM-only (not in queues.json).
  */
 export class QueueRunner {
   private busy = false;
   private activeQueueId: string | null = null;
+  /** FIFO of containers waiting after the active one. */
+  private pendingQueueIds: string[] = [];
   private currentJobId: string | null = null;
   private currentProjectId: string | null = null;
   /** Set when user hits Dừng on the running job — waitTerminal exits as cancelled. */
@@ -44,33 +48,73 @@ export class QueueRunner {
     return this.activeQueueId;
   }
 
+  pendingQueues(): string[] {
+    return [...this.pendingQueueIds];
+  }
+
+  status(): QueueRunnerStatus {
+    return {
+      busy: this.busy,
+      activeQueueId: this.activeQueueId,
+      pendingQueueIds: this.pendingQueues(),
+    };
+  }
+
   /**
-   * Kick off background serial processing. Returns immediately.
-   * Only jobs already `queued` are run; jobs added mid-run stay queued until next start.
+   * Remove a container from the pending schedule (not the active run).
+   * Returns true if it was pending.
    */
-  start(queueId: string): { ok: true } | { ok: false; error: string } {
-    if (this.busy) {
-      return { ok: false, error: "Hàng đợi đang chạy — chờ xong hoặc đợi hết list hiện tại." };
-    }
+  unschedule(queueId: string): boolean {
+    const before = this.pendingQueueIds.length;
+    this.pendingQueueIds = this.pendingQueueIds.filter((id) => id !== queueId);
+    return this.pendingQueueIds.length < before;
+  }
+
+  /**
+   * Kick off or schedule serial processing. Returns immediately.
+   * When another container is already draining, this container is enqueued FIFO.
+   */
+  start(queueId: string): QueueStartResult {
     const q = this.deps.store.get(queueId);
     if (!q) return { ok: false, error: "Không tìm thấy hàng đợi." };
+
+    // Idempotent while already active/pending (running job is not status `queued`).
+    if (this.busy && this.activeQueueId === queueId) {
+      return { ok: true, mode: "already_running" };
+    }
+    if (this.pendingQueueIds.includes(queueId)) {
+      return { ok: true, mode: "already_scheduled" };
+    }
+
     // Retry path: failed/cancelled (e.g. missing API key) become queued again.
     this.deps.store.requeueRetryable(queueId);
     const ready = this.deps.store.get(queueId);
     if (!ready?.jobs.some((j) => j.status === "queued")) {
       return { ok: false, error: "Chưa có video nào ở trạng thái chờ. Thêm prompt rồi bấm Bắt đầu." };
     }
+
+    if (this.busy) {
+      this.pendingQueueIds.push(queueId);
+      this.deps.log?.("queue container scheduled", {
+        queueId,
+        after: this.activeQueueId,
+        pending: this.pendingQueueIds.length,
+      });
+      return { ok: true, mode: "scheduled" };
+    }
+
     this.busy = true;
     this.activeQueueId = queueId;
     this.cancelRequested = false;
-    void this.runLoop(queueId).finally(() => {
+    void this.runAll().finally(() => {
       this.busy = false;
       this.activeQueueId = null;
+      this.pendingQueueIds = [];
       this.currentJobId = null;
       this.currentProjectId = null;
       this.cancelRequested = false;
     });
-    return { ok: true };
+    return { ok: true, mode: "started" };
   }
 
   /**
@@ -91,7 +135,49 @@ export class QueueRunner {
     return { ok: true };
   }
 
-  private async runLoop(queueId: string): Promise<void> {
+  /** Drain active container, then each pending Start in order. */
+  private async runAll(): Promise<void> {
+    const log = this.deps.log ?? (() => {});
+
+    for (;;) {
+      const queueId = this.activeQueueId;
+      if (!queueId) break;
+
+      // Container may have been deleted mid-schedule.
+      if (!this.deps.store.get(queueId)) {
+        log("queue container missing, skip", { queueId });
+      } else {
+        log("queue container start", { queueId });
+        await this.drainJobs(queueId);
+        log("queue container done", { queueId });
+      }
+
+      const next = this.pickNextPending();
+      if (!next) break;
+      this.activeQueueId = next;
+      this.currentJobId = null;
+      this.currentProjectId = null;
+      this.cancelRequested = false;
+    }
+  }
+
+  /**
+   * Next pending id that still exists and has work (requeue failed first).
+   * Drops missing/empty entries from the front until one is ready or list ends.
+   */
+  private pickNextPending(): string | null {
+    while (this.pendingQueueIds.length > 0) {
+      const next = this.pendingQueueIds.shift()!;
+      const q = this.deps.store.get(next);
+      if (!q) continue;
+      this.deps.store.requeueRetryable(next);
+      const ready = this.deps.store.get(next);
+      if (ready?.jobs.some((j) => j.status === "queued")) return next;
+    }
+    return null;
+  }
+
+  private async drainJobs(queueId: string): Promise<void> {
     const sleep = this.deps.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms)));
     const log = this.deps.log ?? (() => {});
 

@@ -24,7 +24,13 @@ import type {
   SubmitResult,
   VoiceProviderChoice,
 } from "./types.js";
-import type { QueueJobInput, QueueJobUpdateInput, QueueProjectVM } from "./queue-types.js";
+import type {
+  QueueJobInput,
+  QueueJobUpdateInput,
+  QueueProjectVM,
+  QueueRunnerStatus,
+  QueueStartResult,
+} from "./queue-types.js";
 
 /** Unsubscribe handle returned by every event subscription. */
 export type Unsubscribe = () => void;
@@ -129,9 +135,9 @@ export interface DashboardApi {
     deleteJob(queueId: string, jobId: string): Promise<QueueProjectVM | null>;
     /** Stop the currently running job in this queue. */
     cancelJob(queueId: string, jobId: string): Promise<{ ok: true } | { ok: false; error: string }>;
-    /** Explicit start only — addJob never starts render. */
-    start(queueId: string): Promise<{ ok: true } | { ok: false; error: string }>;
-    status(): Promise<{ busy: boolean; activeQueueId: string | null }>;
+    /** Explicit start only — addJob never starts render. Schedules if another container is active. */
+    start(queueId: string): Promise<QueueStartResult>;
+    status(): Promise<QueueRunnerStatus>;
   };
   tts: {
     setApiKey(provider: VoiceProviderChoice, apiKey: string): Promise<SettingsModel>;

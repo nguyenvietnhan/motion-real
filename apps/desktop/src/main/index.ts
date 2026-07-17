@@ -618,6 +618,8 @@ const handlers: InvokeHandlers = {
     if (queueRunner.isBusy() && queueRunner.activeQueue() === id) {
       throw new Error("Không xóa được: hàng đợi này đang chạy.");
     }
+    // Drop from pending schedule if Start was queued behind another container.
+    queueRunner.unschedule(id);
     return queueStore.delete(id);
   },
   "queue:rename": (queueId, title) => queueStore.rename(String(queueId), String(title ?? "")),
@@ -657,10 +659,7 @@ const handlers: InvokeHandlers = {
   "queue:deleteJob": (queueId, jobId) => queueStore.deleteJob(String(queueId), String(jobId)),
   "queue:cancelJob": (queueId, jobId) => queueRunner.cancelJob(String(queueId), String(jobId)),
   "queue:start": (queueId) => queueRunner.start(String(queueId)),
-  "queue:status": () => ({
-    busy: queueRunner.isBusy(),
-    activeQueueId: queueRunner.activeQueue(),
-  }),
+  "queue:status": () => queueRunner.status(),
 
   "script:get": (projectId) => workspace.scriptGate(String(projectId)),
   "script:applyEdits": (projectId, edits) => workspace.applyEdits(String(projectId), edits as ScriptEdit[]),

@@ -5,7 +5,13 @@ import type {
   VideoLanguageChoice,
   VoiceProviderChoice,
 } from "../../shared/types.js";
-import type { QueueJobUpdateInput, QueueJobVM, QueueProjectVM } from "../../shared/queue-types.js";
+import type {
+  QueueJobUpdateInput,
+  QueueJobVM,
+  QueueProjectVM,
+  QueueRunnerStatus,
+  QueueStartResult,
+} from "../../shared/queue-types.js";
 import { validateCreateInput } from "../../shared/create-validation.js";
 import { Icon } from "../icons.js";
 import { EmptyState, LoadingLine, PageHeader, STATUS_COLOR } from "../primitives.js";
@@ -104,6 +110,29 @@ export function queueProgress(jobs: readonly QueueJobVM[]): { k: number; n: numb
   return { k: Math.min(n, finished + running), n };
 }
 
+export const EMPTY_QUEUE_STATUS: QueueRunnerStatus = {
+  busy: false,
+  activeQueueId: null,
+  pendingQueueIds: [],
+};
+
+/** List-card meta: running / waiting in process schedule / idle counts. */
+export function queueContainerMeta(
+  q: QueueProjectVM,
+  status: QueueRunnerStatus,
+  queues: readonly QueueProjectVM[],
+): string {
+  if (status.activeQueueId === q.id) return "Đang chạy";
+  const pendingIdx = status.pendingQueueIds.indexOf(q.id);
+  if (pendingIdx >= 0) {
+    const aheadId = pendingIdx === 0 ? status.activeQueueId : status.pendingQueueIds[pendingIdx - 1]!;
+    const aheadTitle = queues.find((x) => x.id === aheadId)?.title?.trim();
+    if (aheadTitle) return `Chờ · sau ${aheadTitle}`;
+    return `Chờ (thứ ${pendingIdx + 1})`;
+  }
+  return `${q.jobs.length} video · ${new Date(q.createdAt).toLocaleString("vi-VN")}`;
+}
+
 type JobInput = {
   raw: string;
   durationTier: DurationTierChoice;
@@ -134,14 +163,22 @@ export const QueueView: React.FC<{
   onUpdateJob: (jobId: string, patch: QueueJobUpdateInput) => Promise<void>;
   onDeleteJob: (jobId: string) => Promise<void>;
   onCancelJob: (jobId: string) => Promise<void>;
-  onStartQueue: () => Promise<{ ok: true } | { ok: false; error: string }>;
-  queueBusy?: boolean;
+  onStartQueue: () => Promise<QueueStartResult>;
+  queueStatus?: QueueRunnerStatus;
 }> = (props) => {
   if (props.active) {
     return <QueueDetail {...props} queue={props.active} />;
   }
 
-  const { load, queues, onCreateQueue, onOpenQueue, onDeleteQueue, onRefresh, queueBusy = false } = props;
+  const {
+    load,
+    queues,
+    onCreateQueue,
+    onOpenQueue,
+    onDeleteQueue,
+    onRefresh,
+    queueStatus = EMPTY_QUEUE_STATUS,
+  } = props;
 
   return (
     <div className="ns-content">
@@ -171,29 +208,35 @@ export const QueueView: React.FC<{
       )}
       {load === "ready" && queues.length > 0 && (
         <ul className="ns-queue-list" aria-label="Danh sách hàng đợi">
-          {queues.map((q) => (
-            <li key={q.id} className="ns-queue-row">
-              <button type="button" className="ns-queue-card" onClick={() => onOpenQueue(q.id)}>
-                <span className="ns-queue-card-title">{q.title}</span>
-                <span className="ns-queue-card-meta">
-                  {q.jobs.length} video · {new Date(q.createdAt).toLocaleString("vi-VN")}
-                </span>
-              </button>
-              <button
-                type="button"
-                className="ns-queue-delete"
-                title="Xóa"
-                aria-label={`Xóa ${q.title}`}
-                disabled={queueBusy}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  void onDeleteQueue(q.id);
-                }}
-              >
-                {Icon.trash({ size: 16 })}
-              </button>
-            </li>
-          ))}
+          {queues.map((q) => {
+            const isActive = queueStatus.activeQueueId === q.id;
+            const isPending = queueStatus.pendingQueueIds.includes(q.id);
+            return (
+              <li key={q.id} className="ns-queue-row">
+                <button type="button" className="ns-queue-card" onClick={() => onOpenQueue(q.id)}>
+                  <span className="ns-queue-card-title-row">
+                    <span className="ns-queue-card-title">{q.title}</span>
+                    {isActive ? <span className="ns-queue-badge is-running">Đang chạy</span> : null}
+                    {isPending ? <span className="ns-queue-badge is-pending">Chờ</span> : null}
+                  </span>
+                  <span className="ns-queue-card-meta">{queueContainerMeta(q, queueStatus, queues)}</span>
+                </button>
+                <button
+                  type="button"
+                  className="ns-queue-delete"
+                  title="Xóa"
+                  aria-label={`Xóa ${q.title}`}
+                  disabled={isActive}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    void onDeleteQueue(q.id);
+                  }}
+                >
+                  {Icon.trash({ size: 16 })}
+                </button>
+              </li>
+            );
+          })}
         </ul>
       )}
     </div>
@@ -216,8 +259,9 @@ const QueueDetail: React.FC<{
   onUpdateJob: (jobId: string, patch: QueueJobUpdateInput) => Promise<void>;
   onDeleteJob: (jobId: string) => Promise<void>;
   onCancelJob: (jobId: string) => Promise<void>;
-  onStartQueue: () => Promise<{ ok: true } | { ok: false; error: string }>;
-  queueBusy?: boolean;
+  onStartQueue: () => Promise<QueueStartResult>;
+  queueStatus?: QueueRunnerStatus;
+  queues?: QueueProjectVM[];
 }> = ({
   queue,
   defaultVoiceProvider,
@@ -235,7 +279,8 @@ const QueueDetail: React.FC<{
   onDeleteJob,
   onCancelJob,
   onStartQueue,
-  queueBusy = false,
+  queueStatus = EMPTY_QUEUE_STATUS,
+  queues = [],
 }) => {
   const notify = useNotifications();
   const [raw, setRaw] = useState("");
@@ -271,9 +316,17 @@ const QueueDetail: React.FC<{
     (j) => j.status === "queued" || j.status === "failed" || j.status === "cancelled",
   ).length;
   const progress = queueProgress(queue.jobs);
+  const isThisActive = queueStatus.activeQueueId === queue.id;
+  const isThisPending = queueStatus.pendingQueueIds.includes(queue.id);
+  const pendingHint =
+    isThisPending && queues.length > 0
+      ? queueContainerMeta(queue, queueStatus, queues)
+      : isThisPending
+        ? "Đã xếp chờ"
+        : null;
 
   const addJob = (smoke: boolean): void => {
-    if (adding || queueBusy) return;
+    if (adding) return;
     if (!smoke && !inputValid) return;
     setAdding(true);
     void onAddJob({
@@ -343,7 +396,7 @@ const QueueDetail: React.FC<{
               className="ns-project-action"
               title="Đổi tên"
               aria-label="Đổi tên hàng đợi"
-              disabled={queueBusy || renaming}
+              disabled={renaming}
               tabIndex={renaming ? -1 : 0}
               aria-hidden={renaming}
               style={renaming ? { visibility: "hidden" } : undefined}
@@ -364,8 +417,8 @@ const QueueDetail: React.FC<{
             <button
               type="button"
               className="ns-btn"
-              disabled={queueBusy}
-              title="Xóa hàng đợi"
+              disabled={isThisActive}
+              title={isThisActive ? "Không xóa được khi đang chạy" : "Xóa hàng đợi"}
               aria-label="Xóa hàng đợi"
               onClick={() => void onDeleteQueue(queue.id)}
             >
@@ -374,20 +427,44 @@ const QueueDetail: React.FC<{
             <button
               type="button"
               className="ns-btn ns-btn-primary"
-              disabled={queueBusy || startableCount === 0}
-              title={queueBusy ? "Đang chạy…" : "Bắt đầu chạy"}
+              disabled={isThisActive || isThisPending || startableCount === 0}
+              title={
+                isThisActive
+                  ? "Đang chạy lô này…"
+                  : isThisPending
+                    ? "Đã xếp sau hàng đợi đang chạy"
+                    : "Bắt đầu chạy"
+              }
               onClick={() => {
                 void onStartQueue().then((res) => {
-                  if (res.ok) return;
-                  notify.error({
-                    title: "Chưa chạy được",
-                    message: compactNotificationMessage(res.error, "Thử lại."),
-                    details: res.error,
-                  });
+                  if (!res.ok) {
+                    notify.error({
+                      title: "Chưa chạy được",
+                      message: compactNotificationMessage(res.error, "Thử lại."),
+                      details: res.error,
+                    });
+                    return;
+                  }
+                  if (res.mode === "scheduled") {
+                    notify.info({
+                      title: "Đã xếp vào hàng chờ",
+                      message: "Sẽ bắt đầu khi xong lô đang chạy (và các lô chờ trước).",
+                    });
+                  } else if (res.mode === "already_scheduled") {
+                    notify.info({
+                      title: "Đã nằm trong hàng chờ",
+                      message: "Lô này sẽ chạy sau khi các lô trước xong.",
+                    });
+                  } else if (res.mode === "already_running") {
+                    notify.info({
+                      title: "Đang chạy",
+                      message: "Lô này đang được dựng.",
+                    });
+                  }
                 });
               }}
             >
-              {queueBusy ? "Đang chạy…" : "Bắt đầu"}
+              {isThisActive ? "Đang chạy…" : isThisPending ? "Đã xếp chờ" : "Bắt đầu"}
             </button>
           </div>
         }
@@ -416,7 +493,7 @@ const QueueDetail: React.FC<{
                   <button
                     type="button"
                     className="ns-create-smoke"
-                    disabled={adding || queueBusy}
+                    disabled={adding}
                     title="Thêm smoke vào list"
                     aria-label="Thêm smoke vào list"
                     onClick={() => addJob(true)}
@@ -428,7 +505,7 @@ const QueueDetail: React.FC<{
                   type="button"
                   className="ns-create-send"
                   onClick={() => addJob(false)}
-                  disabled={!inputValid || adding || queueBusy}
+                  disabled={!inputValid || adding}
                   title="Thêm vào list"
                   aria-label="Thêm vào list"
                 >
@@ -490,7 +567,7 @@ const QueueDetail: React.FC<{
                 className="ns-create-bgm"
                 bgm={bgm}
                 selected={bgmSelected}
-                busy={adding || queueBusy}
+                busy={adding}
                 onAdd={onBgmAdd}
                 onRemove={onBgmRemove}
                 onSelect={onBgmSelect}
@@ -503,9 +580,13 @@ const QueueDetail: React.FC<{
       <div className="ns-card ns-queue-jobs-card">
         <div className="ns-queue-jobs-head">
           <h3>Trong hàng đợi</h3>
-          {queueBusy && progress.n > 0 ? (
+          {isThisActive && progress.n > 0 ? (
             <span className="ns-queue-progress" aria-live="polite">
               Đang chạy {progress.k}/{progress.n}
+            </span>
+          ) : pendingHint ? (
+            <span className="ns-queue-progress-muted" aria-live="polite">
+              {pendingHint}
             </span>
           ) : queue.jobs.length > 0 ? (
             <span className="ns-queue-progress-muted">{queue.jobs.length} video</span>

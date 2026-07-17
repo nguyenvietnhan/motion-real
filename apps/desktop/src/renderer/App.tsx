@@ -12,7 +12,8 @@ import type { CreatePathSettingsTab } from "../shared/create-path-readiness.js";
 import { preferredModelDecision } from "../shared/model-selection.js";
 import { defaultSettings, reviewModeAllowsSceneEdit } from "../shared/settings-model.js";
 import type { BgmTrackVM, ModelInfo, ProjectStage } from "../shared/types.js";
-import type { QueueProjectVM } from "../shared/queue-types.js";
+import type { QueueProjectVM, QueueRunnerStatus } from "../shared/queue-types.js";
+import { EMPTY_QUEUE_STATUS } from "./views/queue.js";
 import { compactNotificationMessage, errorDetails, NotificationProvider, useNotifications } from "./notifications.js";
 import { ConfirmDialog } from "./primitives.js";
 
@@ -55,7 +56,7 @@ const AppShell: React.FC = () => {
   const [queues, setQueues] = useState<QueueProjectVM[]>([]);
   const [queueLoad, setQueueLoad] = useState<"loading" | "ready" | "error">("loading");
   const [activeQueueId, setActiveQueueId] = useState<string | null>(null);
-  const [queueBusy, setQueueBusy] = useState(false);
+  const [queueStatus, setQueueStatus] = useState<QueueRunnerStatus>(EMPTY_QUEUE_STATUS);
   /** Pending project id for in-app delete confirm (replaces native window.confirm). */
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   /** Queue container id pending in-app delete confirm. */
@@ -309,7 +310,11 @@ const AppShell: React.FC = () => {
         if (!alive) return;
         setQueues(list);
         setQueueLoad("ready");
-        setQueueBusy(st.busy);
+        setQueueStatus({
+          busy: Boolean(st.busy),
+          activeQueueId: st.activeQueueId ?? null,
+          pendingQueueIds: Array.isArray(st.pendingQueueIds) ? st.pendingQueueIds.map(String) : [],
+        });
       } catch {
         /* keep last good snapshot */
       }
@@ -544,16 +549,20 @@ const AppShell: React.FC = () => {
               const list = await dash.queue.list();
               setQueues(list);
             }}
-            queueBusy={queueBusy}
+            queueStatus={queueStatus}
             onStartQueue={async () => {
               if (!dash?.queue || !activeQueueId) {
                 return { ok: false as const, error: "Chưa mở hàng đợi." };
               }
               const res = await dash.queue.start(activeQueueId);
               if (res.ok) {
-                setQueueBusy(true);
-                const list = await dash.queue.list();
+                const [list, st] = await Promise.all([dash.queue.list(), dash.queue.status()]);
                 setQueues(list);
+                setQueueStatus({
+                  busy: Boolean(st.busy),
+                  activeQueueId: st.activeQueueId ?? null,
+                  pendingQueueIds: Array.isArray(st.pendingQueueIds) ? st.pendingQueueIds.map(String) : [],
+                });
               }
               return res;
             }}

@@ -54,3 +54,16 @@ export type QueueJobInput = {
   bgm: string | null;
   smoke?: boolean;
 };
+
+/** Result of queue:start — may schedule behind a running container (queue-of-queues). */
+export type QueueStartResult =
+  | { ok: true; mode: "started" | "scheduled" | "already_running" | "already_scheduled" }
+  | { ok: false; error: string };
+
+/** Process-wide serial runner status (RAM only; pending not persisted). */
+export type QueueRunnerStatus = {
+  busy: boolean;
+  activeQueueId: string | null;
+  /** FIFO of containers waiting after the active one. */
+  pendingQueueIds: string[];
+};
