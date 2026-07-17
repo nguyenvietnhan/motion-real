@@ -2,6 +2,7 @@ import type { CreateController } from "../create/create-controller.js";
 import type { ProjectStage } from "../../shared/types.js";
 import type { QueueRunnerStatus, QueueStartResult } from "../../shared/queue-types.js";
 import { isEphemeralHomeQueue, shouldAutoDeleteHomeQueue, type QueueStore } from "./queue-store.js";
+import { classifyQueueWaitStage } from "./queue-stage.js";
 
 export type QueueRunnerDeps = {
   store: QueueStore;
@@ -317,9 +318,10 @@ export class QueueRunner {
     for (;;) {
       if (this.cancelRequested) return { kind: "cancelled" };
       const stage = await this.deps.stageOf(projectId);
-      if (stage.kind === "published") return { kind: "published" };
-      if (stage.kind === "error") {
-        return { kind: "failed", message: stage.message || "Lỗi sản xuất." };
+      const classified = classifyQueueWaitStage(stage);
+      if (classified.action === "published") return { kind: "published" };
+      if (classified.action === "failed") {
+        return { kind: "failed", message: classified.message };
       }
       await sleep(2000);
     }

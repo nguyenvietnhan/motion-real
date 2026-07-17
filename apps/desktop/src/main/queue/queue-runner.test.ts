@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { HOME_QUEUE_ID, QueueStore } from "./queue-store.js";
 import { QueueRunner } from "./queue-runner.js";
+import { QUEUE_HUMAN_WAIT_MESSAGE } from "./queue-stage.js";
 import type { CreateController } from "../create/create-controller.js";
 import type { ProjectStage } from "../../shared/types.js";
 
@@ -24,6 +25,44 @@ async function waitUntilIdle(runner: QueueRunner, max = 80): Promise<void> {
 }
 
 describe("QueueRunner", () => {
+  it("fails a job stuck on human-wait stage and continues the next job", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "mr-qrun-"));
+    const store = new QueueStore({
+      filePath: join(dir, "queues.json"),
+      id: (() => {
+        let n = 0;
+        return () => `h${++n}`;
+      })(),
+    });
+    const q = store.create();
+    store.addJob(q.id, jobInput("needs-review"));
+    store.addJob(q.id, jobInput("second-ok"));
+
+    const create = {
+      create: vi.fn(async (raw: string) => ({ projectId: `p-${raw}` })),
+    } as unknown as CreateController;
+
+    const runner = new QueueRunner({
+      store,
+      create,
+      createSmoke: async () => ({ ok: false as const, error: "not used" }),
+      stageOf: async (id) => {
+        if (id === "p-needs-review") return { kind: "script", lines: [] };
+        return { kind: "published", outputPath: "/out/ok.mp4", title: "ok" };
+      },
+      cancelProject: () => {},
+      sleep: async () => {},
+    });
+
+    expect(runner.start(q.id)).toEqual({ ok: true, mode: "started" });
+    await waitUntilIdle(runner);
+    const jobs = store.get(q.id)!.jobs;
+    expect(jobs[0]?.status).toBe("failed");
+    expect(jobs[0]?.error).toBe(QUEUE_HUMAN_WAIT_MESSAGE);
+    expect(jobs[1]?.status).toBe("done");
+    expect(create.create).toHaveBeenCalledTimes(2);
+  });
+
   it("does not run until start; start processes queued jobs serially", async () => {
     const dir = mkdtempSync(join(tmpdir(), "mr-qrun-"));
     const store = new QueueStore({

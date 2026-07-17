@@ -193,7 +193,7 @@ Preset “Full auto” = track 1.2; không chặn queue MVP.
 | # | Tình huống | Hiện trạng | Hướng xử lý |
 | --- | --- | --- | --- |
 | E1 | Home create lúc queue busy | **Đã ship** spill → `home` (create + smoke) | — |
-| E2 | reviewMode/gate sai → stage human-wait | `waitTerminal` **poll forever** | Fail rõ / timeout / detect non-terminal human stages → `failed` + message Settings |
+| E2 | reviewMode/gate sai → stage human-wait | **Đã ship:** `classifyQueueWaitStage` → failed + message Settings; chain tiếp | — |
 | E3 | Crash giữa job `running` | Zombie `running` trong JSON; `requeueRetryable` **không** đụng | Startup reconcile: `running` → `failed` hoặc `queued` |
 | E4 | Pending schedule RAM mất sau restart | Jobs còn `queued`, user phải Start lại | OK YAGNI; document. Optional persist pending sau |
 
@@ -238,7 +238,7 @@ Preset “Full auto” = track 1.2; không chặn queue MVP.
 - [x] Home spillover → `source:home` + busy → ensure home + addJob + start/schedule (IPC + `home-spill.ts`) — bước 3.
 - [x] Renderer: toast xếp chờ, không open workspace; cảnh báo ảnh dropped — bước 3–4.
 - [x] Auto-delete container `home` khi drain xong (runner hook; keep if failed) — bước 2.
-- [ ] Anti-stuck: human-wait stages → failed rõ (E2).
+- [x] Anti-stuck: human-wait stages → failed rõ (E2) — `queue-stage.ts` + waitTerminal.
 - [ ] Startup reconcile zombie `running` (E3).
 - [ ] (Optional) Home images parity vào queue job.
 - [x] Home spillover end-to-end code path (bước 1–5, 2026-07-17). Manual smoke matrix owner machine TBD.
@@ -288,6 +288,7 @@ Thứ tự đề xuất (Home spillover **đã xong**):
 | 2026-07-17 | **Fix:** Home **smoke** đi `settings:renderSmoke` immediate → bỏ qua spill. Giờ runner **busy** → smoke job vào `home` + toast. Cần **Bắt đầu** queue (chỉ add job chưa `isBusy`). |
 | 2026-07-17 | **Fix P0 race:** `runAll` finally không wipe `pendingQueueIds` mù; re-enter nếu start() (Home spill) đẩy lịch sau empty pick. |
 | 2026-07-17 | User confirm Home spill + queue OK. **Next:** E2 anti-stuck + E3 zombie running. Doc hygiene: Home = done. |
+| 2026-07-17 | **E2:** `classifyQueueWaitStage` — script/image-review/ready/draft-recovery → job failed, chain continues. |
 
 ---
 
