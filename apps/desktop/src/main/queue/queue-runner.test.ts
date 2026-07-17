@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { QueueStore } from "./queue-store.js";
+import { HOME_QUEUE_ID, QueueStore } from "./queue-store.js";
 import { QueueRunner } from "./queue-runner.js";
 import type { CreateController } from "../create/create-controller.js";
 import type { ProjectStage } from "../../shared/types.js";
@@ -367,5 +367,71 @@ describe("QueueRunner", () => {
     release();
     await waitUntilIdle(runner);
     expect(order).toEqual(["active"]);
+  });
+
+  it("auto-deletes ephemeral home after drain when all jobs done", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "mr-qrun-"));
+    const store = new QueueStore({ filePath: join(dir, "queues.json") });
+    const home = store.ensureHomeQueue();
+    store.addJob(home.id, jobInput("home-job"));
+    const create = {
+      create: vi.fn(async () => ({ projectId: "p-home" })),
+    } as unknown as CreateController;
+    const runner = new QueueRunner({
+      store,
+      create,
+      createSmoke: async () => ({ ok: false as const, error: "not used" }),
+      stageOf: async () => ({ kind: "published", outputPath: "/out/h.mp4", title: "h" }),
+      cancelProject: () => {},
+      sleep: async () => {},
+    });
+    expect(runner.start(HOME_QUEUE_ID)).toEqual({ ok: true, mode: "started" });
+    await waitUntilIdle(runner);
+    expect(store.get(HOME_QUEUE_ID)).toBeNull();
+    expect(create.create).toHaveBeenCalled();
+  });
+
+  it("keeps ephemeral home after drain when a job failed", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "mr-qrun-"));
+    const store = new QueueStore({ filePath: join(dir, "queues.json") });
+    const home = store.ensureHomeQueue();
+    store.addJob(home.id, jobInput("will-fail"));
+    const create = {
+      create: vi.fn(async () => ({ projectId: "p-fail" })),
+    } as unknown as CreateController;
+    const runner = new QueueRunner({
+      store,
+      create,
+      createSmoke: async () => ({ ok: false as const, error: "not used" }),
+      stageOf: async () => ({ kind: "error", message: "boom", fixable: true }),
+      cancelProject: () => {},
+      sleep: async () => {},
+    });
+    expect(runner.start(HOME_QUEUE_ID)).toEqual({ ok: true, mode: "started" });
+    await waitUntilIdle(runner);
+    expect(store.get(HOME_QUEUE_ID)?.jobs[0]?.status).toBe("failed");
+    expect(store.get(HOME_QUEUE_ID)?.ephemeralKind).toBe("home");
+  });
+
+  it("does not auto-delete a normal container after drain", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "mr-qrun-"));
+    const store = new QueueStore({ filePath: join(dir, "queues.json") });
+    const q = store.create("keep-me");
+    store.addJob(q.id, jobInput("normal"));
+    const create = {
+      create: vi.fn(async () => ({ projectId: "p-n" })),
+    } as unknown as CreateController;
+    const runner = new QueueRunner({
+      store,
+      create,
+      createSmoke: async () => ({ ok: false as const, error: "not used" }),
+      stageOf: async () => ({ kind: "published", outputPath: "/out/n.mp4", title: "n" }),
+      cancelProject: () => {},
+      sleep: async () => {},
+    });
+    expect(runner.start(q.id)).toEqual({ ok: true, mode: "started" });
+    await waitUntilIdle(runner);
+    expect(store.get(q.id)?.title).toBe("keep-me");
+    expect(store.get(q.id)?.jobs[0]?.status).toBe("done");
   });
 });

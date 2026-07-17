@@ -1,7 +1,7 @@
 import type { CreateController } from "../create/create-controller.js";
 import type { ProjectStage } from "../../shared/types.js";
 import type { QueueRunnerStatus, QueueStartResult } from "../../shared/queue-types.js";
-import type { QueueStore } from "./queue-store.js";
+import { isEphemeralHomeQueue, shouldAutoDeleteHomeQueue, type QueueStore } from "./queue-store.js";
 
 export type QueueRunnerDeps = {
   store: QueueStore;
@@ -150,6 +150,7 @@ export class QueueRunner {
         log("queue container start", { queueId });
         await this.drainJobs(queueId);
         log("queue container done", { queueId });
+        this.maybeAutoDeleteHome(queueId, log);
       }
 
       const next = this.pickNextPending();
@@ -159,6 +160,18 @@ export class QueueRunner {
       this.currentProjectId = null;
       this.cancelRequested = false;
     }
+  }
+
+  /** Drop ephemeral home after drain when no work/fail left (videos stay in gallery). */
+  private maybeAutoDeleteHome(
+    queueId: string,
+    log: (msg: string, extra?: Record<string, unknown>) => void,
+  ): void {
+    const q = this.deps.store.get(queueId);
+    if (!q || !isEphemeralHomeQueue(q) || !shouldAutoDeleteHomeQueue(q)) return;
+    this.unschedule(queueId);
+    this.deps.store.delete(queueId);
+    log("queue home ephemeral deleted", { queueId });
   }
 
   /**
