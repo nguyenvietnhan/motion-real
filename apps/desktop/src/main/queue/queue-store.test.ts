@@ -2,7 +2,13 @@ import { describe, expect, it } from "vitest";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { defaultJobDisplayTitle, QueueStore } from "./queue-store.js";
+import {
+  defaultJobDisplayTitle,
+  HOME_QUEUE_ID,
+  isEphemeralHomeQueue,
+  QueueStore,
+  shouldAutoDeleteHomeQueue,
+} from "./queue-store.js";
 
 describe("QueueStore", () => {
   it("defaults new queue titles to project-1, project-2, …", () => {
@@ -152,6 +158,52 @@ describe("QueueStore", () => {
     expect(job?.error).toBeUndefined();
     expect(job?.projectId).toBeUndefined();
     expect(store.requeueRetryable(q.id)).toBe(0);
+  });
+
+  it("ensureHomeQueue is idempotent with fixed id and ephemeral flag", () => {
+    const dir = mkdtempSync(join(tmpdir(), "mr-queue-"));
+    const store = new QueueStore({ filePath: join(dir, "queues.json") });
+    const a = store.ensureHomeQueue();
+    expect(a.id).toBe(HOME_QUEUE_ID);
+    expect(a.title).toBe("home");
+    expect(a.ephemeralKind).toBe("home");
+    expect(isEphemeralHomeQueue(a)).toBe(true);
+    store.addJob(a.id, {
+      raw: "from home",
+      durationTier: 1,
+      videoLanguage: "vi",
+      voiceProvider: "vivibe",
+      bgm: null,
+    });
+    const b = store.ensureHomeQueue();
+    expect(b.id).toBe(HOME_QUEUE_ID);
+    expect(b.jobs).toHaveLength(1);
+    expect(store.list().filter((q) => q.id === HOME_QUEUE_ID)).toHaveLength(1);
+    expect(store.rename(HOME_QUEUE_ID, "other")).toBeNull();
+    expect(store.get(HOME_QUEUE_ID)?.title).toBe("home");
+  });
+
+  it("shouldAutoDeleteHomeQueue only when no work or failed jobs remain", () => {
+    const dir = mkdtempSync(join(tmpdir(), "mr-queue-"));
+    const store = new QueueStore({ filePath: join(dir, "queues.json") });
+    const home = store.ensureHomeQueue();
+    expect(shouldAutoDeleteHomeQueue(home)).toBe(true);
+    store.addJob(home.id, {
+      raw: "x",
+      durationTier: 1,
+      videoLanguage: "vi",
+      voiceProvider: "vivibe",
+      bgm: null,
+    });
+    const withQueued = store.get(home.id)!;
+    expect(shouldAutoDeleteHomeQueue(withQueued)).toBe(false);
+    const jobId = withQueued.jobs[0]!.id;
+    store.updateJob(home.id, jobId, { status: "failed", error: "x" });
+    expect(shouldAutoDeleteHomeQueue(store.get(home.id)!)).toBe(false);
+    store.updateJob(home.id, jobId, { status: "done", error: "" });
+    expect(shouldAutoDeleteHomeQueue(store.get(home.id)!)).toBe(true);
+    const normal = store.create("user");
+    expect(shouldAutoDeleteHomeQueue(normal)).toBe(false);
   });
 
   it("updateJob and nextQueuedJob support start-later workflow", () => {

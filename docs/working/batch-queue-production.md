@@ -234,8 +234,9 @@ Preset “Full auto” = track 1.2; không chặn queue MVP.
 ### Code ship
 
 - [x] Store + runner + IPC + UI tab + tests meta-queue (`a514296` queue-of-queues).
-- [ ] Home spillover → ensure `home` + addJob + schedule + block parallel create.
-- [ ] Auto-delete container `home` khi drain xong / không còn queued|running.
+- [x] Store: `queue-home` + `ensureHomeQueue` + `ephemeralKind` + rename lock + auto-delete predicate (bước 1).
+- [ ] Home spillover → addJob + schedule + block parallel create (IPC).
+- [ ] Auto-delete container `home` khi drain xong (runner hook).
 - [ ] Anti-stuck: human-wait stages → failed rõ (E2).
 - [ ] Startup reconcile zombie `running` (E3).
 - [ ] (Optional) Home images parity vào queue job.
@@ -281,6 +282,7 @@ Thứ tự đề xuất:
 | 2026-07-17 | MVP tab + serial + `queues.json` đã ship. Queue-of-queues B ship (`feat` schedule containers). |
 | 2026-07-17 | Audit: note vs code; E1–E11 edge cases. Checklist A/B/C `[x]` là drift. |
 | 2026-07-17 | **Chốt Home:** bỏ A/B/C; Home create khi busy → container tạm **`home`** (reuse, append jobs), schedule serial, **tự xóa** khi xong hết video trong lô home. Chỉ Homepage. |
+| 2026-07-17 | **Bước 0** baseline OK (queue-of-queues B live; Home spillover chưa code). **Bước 1** store: `HOME_QUEUE_ID`, `ensureHomeQueue`, `shouldAutoDeleteHomeQueue` (giữ nếu còn failed). |
 
 ---
 

@@ -8,11 +8,28 @@ import type {
   QueueProjectVM,
 } from "../../shared/queue-types.js";
 
+/** Fixed id for the Home-create spillover container (not title-matched). */
+export const HOME_QUEUE_ID = "queue-home";
+
 /** Card title while waiting: the user prompt; replaced by AI clip title when done. */
 export function defaultJobDisplayTitle(raw: string, smoke?: boolean): string {
   if (smoke) return "Smoke test";
   const t = raw.trim().replace(/\s+/g, " ");
   return (t || "Untitled").slice(0, 140);
+}
+
+export function isEphemeralHomeQueue(q: Pick<QueueProjectVM, "id" | "ephemeralKind"> | null | undefined): boolean {
+  if (!q) return false;
+  return q.id === HOME_QUEUE_ID || q.ephemeralKind === "home";
+}
+
+/**
+ * After drain: drop ephemeral home when nothing left to run or retry.
+ * Keeps the container if any job is queued/running/failed.
+ */
+export function shouldAutoDeleteHomeQueue(q: QueueProjectVM): boolean {
+  if (!isEphemeralHomeQueue(q)) return false;
+  return !q.jobs.some((j) => j.status === "queued" || j.status === "running" || j.status === "failed");
 }
 
 type StoreFile = { version: 1; queues: QueueProjectVM[] };
@@ -46,10 +63,16 @@ export class QueueStore {
 
   create(title?: string): QueueProjectVM {
     const now = (this.deps.now ?? (() => new Date().toISOString()))();
-    const id = (this.deps.id ?? (() => randomUUID().slice(0, 8)))();
+    let suffix = (this.deps.id ?? (() => randomUUID().slice(0, 8)))();
+    // Never collide with the fixed Home spillover id.
+    let id = `queue-${suffix}`;
+    if (id === HOME_QUEUE_ID) {
+      suffix = `${suffix}x`;
+      id = `queue-${suffix}`;
+    }
     const resolved = (title?.trim() || this.nextProjectTitle()).slice(0, 80);
     const queue: QueueProjectVM = {
-      id: `queue-${id}`,
+      id,
       title: resolved,
       createdAt: now,
       jobs: [],
@@ -57,6 +80,43 @@ export class QueueStore {
     this.data.queues.unshift(queue);
     this.save();
     return cloneQueue(queue);
+  }
+
+  /**
+   * Get-or-create the single ephemeral Home spillover container.
+   * Title is always `home`; id is always `queue-home`.
+   */
+  ensureHomeQueue(): QueueProjectVM {
+    const existing = this.data.queues.find((x) => x.id === HOME_QUEUE_ID);
+    if (existing) {
+      existing.ephemeralKind = "home";
+      existing.title = "home";
+      this.save();
+      return cloneQueue(existing);
+    }
+    const now = (this.deps.now ?? (() => new Date().toISOString()))();
+    const queue: QueueProjectVM = {
+      id: HOME_QUEUE_ID,
+      title: "home",
+      createdAt: now,
+      jobs: [],
+      ephemeralKind: "home",
+    };
+    this.data.queues.unshift(queue);
+    this.save();
+    return cloneQueue(queue);
+  }
+
+  /** Block renaming the ephemeral home container (title stays `home`). */
+  rename(queueId: string, title: string): QueueProjectVM | null {
+    const q = this.data.queues.find((x) => x.id === queueId);
+    if (!q) return null;
+    if (isEphemeralHomeQueue(q)) return null;
+    const next = title.trim().slice(0, 80);
+    if (!next) return null;
+    q.title = next;
+    this.save();
+    return cloneQueue(q);
   }
 
   /** Next free `project-N` title across existing queue containers. */
@@ -76,16 +136,6 @@ export class QueueStore {
     if (this.data.queues.length === before) return false;
     this.save();
     return true;
-  }
-
-  rename(queueId: string, title: string): QueueProjectVM | null {
-    const q = this.data.queues.find((x) => x.id === queueId);
-    if (!q) return null;
-    const next = title.trim().slice(0, 80);
-    if (!next) return null;
-    q.title = next;
-    this.save();
-    return cloneQueue(q);
   }
 
   addJob(queueId: string, input: QueueJobInput): QueueProjectVM | null {
@@ -248,12 +298,15 @@ export class QueueStore {
 }
 
 function normalizeQueue(raw: QueueProjectVM): QueueProjectVM {
+  const id = String(raw.id ?? "");
   const title = String(raw.title ?? "").trim();
+  const ephemeralKind = raw.ephemeralKind === "home" || id === HOME_QUEUE_ID ? ("home" as const) : undefined;
   return {
-    id: String(raw.id ?? ""),
-    title: (title || "project-1").slice(0, 80),
+    id,
+    title: (ephemeralKind === "home" ? "home" : title || "project-1").slice(0, 80),
     createdAt: String(raw.createdAt ?? ""),
     jobs: Array.isArray(raw.jobs) ? raw.jobs.map(normalizeJob) : [],
+    ...(ephemeralKind ? { ephemeralKind } : {}),
   };
 }
 
@@ -285,6 +338,7 @@ function cloneQueue(q: QueueProjectVM): QueueProjectVM {
   return {
     ...q,
     jobs: q.jobs.map((j) => ({ ...j })),
+    ...(q.ephemeralKind ? { ephemeralKind: q.ephemeralKind } : {}),
   };
 }
 

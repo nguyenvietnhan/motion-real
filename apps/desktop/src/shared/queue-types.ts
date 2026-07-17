@@ -44,6 +44,11 @@ export type QueueProjectVM = {
   title: string;
   createdAt: string;
   jobs: QueueJobVM[];
+  /**
+   * Ephemeral Home spillover container (`queue-home`).
+   * Auto-deleted after drain when no work/fail remains — not a user project-N.
+   */
+  ephemeralKind?: "home";
 };
 
 export type QueueJobInput = {
