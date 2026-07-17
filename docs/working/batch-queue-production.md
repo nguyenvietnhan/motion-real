@@ -290,6 +290,7 @@ Thứ tự đề xuất:
 | 2026-07-17 | **Bước 5** list badge `Tạm · Home`; hide rename on ephemeral. |
 | 2026-07-17 | **Bước 6** final: queue unit tests + typecheck green. Manual smoke (busy Home → home → auto-delete) owner TBD. |
 | 2026-07-17 | **Fix:** Home **smoke** đi `settings:renderSmoke` immediate → bỏ qua spill. Giờ runner **busy** → smoke job vào `home` + toast. Cần **Bắt đầu** queue (chỉ add job chưa `isBusy`). |
+| 2026-07-17 | **Fix P0 race:** `runAll` finally không wipe `pendingQueueIds` mù; re-enter nếu start() (Home spill) đẩy lịch sau empty pick. |
 
 ---
 

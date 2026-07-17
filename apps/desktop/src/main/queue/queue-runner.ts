@@ -106,14 +106,8 @@ export class QueueRunner {
     this.busy = true;
     this.activeQueueId = queueId;
     this.cancelRequested = false;
-    void this.runAll().finally(() => {
-      this.busy = false;
-      this.activeQueueId = null;
-      this.pendingQueueIds = [];
-      this.currentJobId = null;
-      this.currentProjectId = null;
-      this.cancelRequested = false;
-    });
+    // Cleanup / re-entry lives in runAll finally — never wipe pending here.
+    void this.runAll();
     return { ok: true, mode: "started" };
   }
 
@@ -135,27 +129,60 @@ export class QueueRunner {
     return { ok: true };
   }
 
-  /** Drain active container, then each pending Start in order. */
+  /**
+   * Drain active container, then each pending Start in order.
+   * After each await, re-pick pending so concurrent start() (e.g. Home spill) is not lost.
+   * finally: if start() pushed pending in the race after last empty pick, re-enter — never wipe.
+   */
   private async runAll(): Promise<void> {
     const log = this.deps.log ?? (() => {});
 
-    for (;;) {
-      const queueId = this.activeQueueId;
-      if (!queueId) break;
+    try {
+      for (;;) {
+        if (!this.activeQueueId) {
+          const next = this.pickNextPending();
+          if (!next) break;
+          this.activeQueueId = next;
+          this.currentJobId = null;
+          this.currentProjectId = null;
+          this.cancelRequested = false;
+        }
 
-      // Container may have been deleted mid-schedule.
-      if (!this.deps.store.get(queueId)) {
-        log("queue container missing, skip", { queueId });
-      } else {
-        log("queue container start", { queueId });
-        await this.drainJobs(queueId);
-        log("queue container done", { queueId });
-        this.maybeAutoDeleteHome(queueId, log);
+        const queueId = this.activeQueueId;
+        // Container may have been deleted mid-schedule.
+        if (!this.deps.store.get(queueId)) {
+          log("queue container missing, skip", { queueId });
+        } else {
+          log("queue container start", { queueId });
+          await this.drainJobs(queueId);
+          log("queue container done", { queueId });
+          this.maybeAutoDeleteHome(queueId, log);
+        }
+
+        // Clear active so the next loop iteration picks concurrent schedules
+        // that arrived during drainJobs (Home spill, second Start, etc.).
+        this.activeQueueId = null;
+        this.currentJobId = null;
+        this.currentProjectId = null;
       }
-
-      const next = this.pickNextPending();
-      if (!next) break;
-      this.activeQueueId = next;
+    } finally {
+      // Microtask / IPC race: start() may push pending after our last empty pick
+      // and before busy is cleared. Re-enter instead of wiping the schedule.
+      if (this.pendingQueueIds.length > 0) {
+        const next = this.pickNextPending();
+        if (next) {
+          this.activeQueueId = next;
+          this.currentJobId = null;
+          this.currentProjectId = null;
+          this.cancelRequested = false;
+          log("queue chain re-enter after concurrent schedule", { queueId: next });
+          await this.runAll();
+          return;
+        }
+      }
+      this.busy = false;
+      this.activeQueueId = null;
+      this.pendingQueueIds = [];
       this.currentJobId = null;
       this.currentProjectId = null;
       this.cancelRequested = false;

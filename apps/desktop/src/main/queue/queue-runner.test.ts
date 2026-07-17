@@ -369,6 +369,105 @@ describe("QueueRunner", () => {
     expect(order).toEqual(["active"]);
   });
 
+  it("runs a container scheduled during drain (Home spill mid-run)", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "mr-qrun-"));
+    const store = new QueueStore({
+      filePath: join(dir, "queues.json"),
+      id: (() => {
+        let n = 0;
+        return () => `m${++n}`;
+      })(),
+    });
+    const q1 = store.create("A");
+    store.addJob(q1.id, jobInput("first"));
+
+    const order: string[] = [];
+    let checks = 0;
+    const create = {
+      create: vi.fn(async (raw: string) => {
+        order.push(raw);
+        return { projectId: `p-${raw}` };
+      }),
+    } as unknown as CreateController;
+
+    const runner = new QueueRunner({
+      store,
+      create,
+      createSmoke: async () => ({ ok: false as const, error: "not used" }),
+      stageOf: async () => {
+        checks += 1;
+        // Force waitTerminal to sleep once so we can schedule home mid-job.
+        if (checks === 1) return { kind: "writing" };
+        return { kind: "published", outputPath: "/out/x.mp4", title: "x" };
+      },
+      cancelProject: () => {},
+      sleep: async () => {
+        // Concurrent schedule while first job is still "running" (await sleep).
+        if (!store.get(HOME_QUEUE_ID)) {
+          store.ensureHomeQueue();
+          store.addJob(HOME_QUEUE_ID, jobInput("from-home-spill"));
+          expect(runner.start(HOME_QUEUE_ID)).toEqual({ ok: true, mode: "scheduled" });
+        }
+      },
+    });
+
+    expect(runner.start(q1.id)).toEqual({ ok: true, mode: "started" });
+    await waitUntilIdle(runner);
+    expect(order).toEqual(["first", "from-home-spill"]);
+    // home auto-deleted after success
+    expect(store.get(HOME_QUEUE_ID)).toBeNull();
+  });
+
+  it("re-enters chain when work is scheduled after last empty pick (finally race)", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "mr-qrun-"));
+    const store = new QueueStore({ filePath: join(dir, "queues.json") });
+    const q1 = store.create("A");
+    store.addJob(q1.id, jobInput("only"));
+
+    const order: string[] = [];
+    const create = {
+      create: vi.fn(async (raw: string) => {
+        order.push(raw);
+        return { projectId: `p-${raw}` };
+      }),
+    } as unknown as CreateController;
+
+    let injected = false;
+    const runner = new QueueRunner({
+      store,
+      create,
+      createSmoke: async () => ({ ok: false as const, error: "not used" }),
+      stageOf: async () => ({ kind: "published", outputPath: "/out/y.mp4", title: "y" }),
+      cancelProject: () => {},
+      sleep: async () => {},
+      log: (msg, extra) => {
+        // After first container fully done, pickNext is about to run (or re-loop).
+        // Inject via microtask to hit the finally re-enter path more reliably:
+        // schedule home after this turn's drain when chain would otherwise go idle.
+        if (!injected && msg === "queue container done" && extra?.queueId === q1.id) {
+          injected = true;
+          queueMicrotask(() => {
+            store.ensureHomeQueue();
+            store.addJob(HOME_QUEUE_ID, jobInput("late-home"));
+            const r = runner.start(HOME_QUEUE_ID);
+            // Still busy in finally race → scheduled; or already re-entered.
+            expect(r.ok).toBe(true);
+          });
+        }
+      },
+    });
+
+    expect(runner.start(q1.id)).toEqual({ ok: true, mode: "started" });
+    await waitUntilIdle(runner, 120);
+    // Allow microtask + re-enter to finish.
+    for (let i = 0; i < 40 && runner.isBusy(); i += 1) {
+      await new Promise((r) => setTimeout(r, 5));
+    }
+    await waitUntilIdle(runner, 120);
+    expect(order).toContain("only");
+    expect(order).toContain("late-home");
+  });
+
   it("auto-deletes ephemeral home after drain when all jobs done", async () => {
     const dir = mkdtempSync(join(tmpdir(), "mr-qrun-"));
     const store = new QueueStore({ filePath: join(dir, "queues.json") });
