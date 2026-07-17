@@ -192,7 +192,7 @@ Preset “Full auto” = track 1.2; không chặn queue MVP.
 
 | # | Tình huống | Hiện trạng | Hướng xử lý |
 | --- | --- | --- | --- |
-| E1 | Home create lúc queue busy | **Song song 2 workflow** (inFlight per project) | §3 spill → `home` + không create thẳng |
+| E1 | Home create lúc queue busy | **Đã ship** spill → `home` (create + smoke) | — |
 | E2 | reviewMode/gate sai → stage human-wait | `waitTerminal` **poll forever** | Fail rõ / timeout / detect non-terminal human stages → `failed` + message Settings |
 | E3 | Crash giữa job `running` | Zombie `running` trong JSON; `requeueRetryable` **không** đụng | Startup reconcile: `running` → `failed` hoặc `queued` |
 | E4 | Pending schedule RAM mất sau restart | Jobs còn `queued`, user phải Start lại | OK YAGNI; document. Optional persist pending sau |
@@ -242,23 +242,19 @@ Preset “Full auto” = track 1.2; không chặn queue MVP.
 - [ ] Startup reconcile zombie `running` (E3).
 - [ ] (Optional) Home images parity vào queue job.
 - [x] Home spillover end-to-end code path (bước 1–5, 2026-07-17). Manual smoke matrix owner machine TBD.
-- [x] Track 1.3: queue MVP marked shipped; Home `home` listed as follow-up.
+- [x] Track 1.3: queue MVP + Home `home` spillover shipped.
 
 ---
 
 ## 8. Slice implement gợi ý (tiếp theo)
 
-Thứ tự đề xuất:
+Thứ tự đề xuất (Home spillover **đã xong**):
 
-1. **Home spillover `home`** (§3) — vá parallel + product chốt.  
-   - `projects:create` từ Home (flag hoặc channel) check `queueRunner.isBusy()`.  
-   - ensure ephemeral home container → `addJob` → `start`/`schedule`.  
-   - Return UX: không open workspace ngay / toast xếp chờ.  
-   - Auto-delete home khi `drainJobs` xong container đó và id/flag ephemeral.
-2. **E2 anti-stuck** human stages trong `waitTerminal`.
-3. **E3 reconcile** on app boot / queue load.
-4. Tests: Home busy → job in home; idle → create thẳng; home auto-delete; no second inFlight from Home while busy.
-5. Polish badge UI + working note → sync `docs/current` nếu behavior bền.
+1. **E2 anti-stuck** human stages trong `waitTerminal` → fail rõ, chain tiếp.
+2. **E3 reconcile** zombie `running` on app boot.
+3. (Optional) E1b: Home create khi workspace inFlight non-queue.
+4. (Optional) E7 images parity; toast container-done; persist pending.
+5. Sync behavior bền vào `docs/current/` nếu owner muốn.
 
 **Sensitive:** không big-bang `orchestrator.ts` / `render-grid.ts`.
 
@@ -291,7 +287,8 @@ Thứ tự đề xuất:
 | 2026-07-17 | **Bước 6** final: queue unit tests + typecheck green. Manual smoke (busy Home → home → auto-delete) owner TBD. |
 | 2026-07-17 | **Fix:** Home **smoke** đi `settings:renderSmoke` immediate → bỏ qua spill. Giờ runner **busy** → smoke job vào `home` + toast. Cần **Bắt đầu** queue (chỉ add job chưa `isBusy`). |
 | 2026-07-17 | **Fix P0 race:** `runAll` finally không wipe `pendingQueueIds` mù; re-enter nếu start() (Home spill) đẩy lịch sau empty pick. |
+| 2026-07-17 | User confirm Home spill + queue OK. **Next:** E2 anti-stuck + E3 zombie running. Doc hygiene: Home = done. |
 
 ---
 
-*Hết working note tạm — cập nhật khi ship Home spillover / harden E2–E3.*
+*Hết working note tạm — cập nhật khi harden E2–E3 xong.*
