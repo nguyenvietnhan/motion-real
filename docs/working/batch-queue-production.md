@@ -227,7 +227,7 @@ Preset “Full auto” = track 1.2; không chặn queue MVP.
 - [x] Home lúc busy → **container tạm `home`**, gom mọi Home create vào đó; **tự xóa** container khi xong hết việc lô home (chốt 2026-07-17).
 - [x] **Không** dialog A/B/C (superseded bởi `home`).
 - [x] Chỉ spill khi create **Homepage**; tab Queue không dùng logic này.
-- [ ] UI copy final / badge “home” ephemeral.
+- [x] Badge “Tạm · Home” + ẩn rename trên ephemeral (bước 5).
 - [ ] Cancel/pause/retry UX chi tiết hơn (optional).
 - [ ] Persist pending schedule qua restart (optional; hiện RAM).
 
@@ -286,6 +286,7 @@ Thứ tự đề xuất:
 | 2026-07-17 | **Bước 0** baseline OK (queue-of-queues B live; Home spillover chưa code). **Bước 1** store: `HOME_QUEUE_ID`, `ensureHomeQueue`, `shouldAutoDeleteHomeQueue` (giữ nếu còn failed). |
 | 2026-07-17 | **Bước 2** runner: after drain `maybeAutoDeleteHome` for ephemeral only. |
 | 2026-07-17 | **Bước 3–4** `spillHomeCreateIfBusy` + `projects:create` return `started|queued`; Home passes `source:home`; toast + no openProject when queued. |
+| 2026-07-17 | **Bước 5** list badge `Tạm · Home`; hide rename on ephemeral. |
 
 ---
 

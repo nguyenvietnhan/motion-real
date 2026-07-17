@@ -66,6 +66,11 @@
   color: var(--muted-foreground);
   background: color-mix(in srgb, var(--text) 8%, transparent);
 }
+.ns-queue-badge.is-home {
+  color: color-mix(in srgb, var(--text) 70%, transparent);
+  background: color-mix(in srgb, var(--text) 10%, transparent);
+  border: 1px dashed color-mix(in srgb, var(--text) 18%, transparent);
+}
 .ns-queue-card-meta {
   font-size: 12px;
   color: var(--muted-foreground);

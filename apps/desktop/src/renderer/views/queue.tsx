@@ -211,11 +211,13 @@ export const QueueView: React.FC<{
           {queues.map((q) => {
             const isActive = queueStatus.activeQueueId === q.id;
             const isPending = queueStatus.pendingQueueIds.includes(q.id);
+            const isHomeEphemeral = q.ephemeralKind === "home" || q.id === "queue-home";
             return (
               <li key={q.id} className="ns-queue-row">
                 <button type="button" className="ns-queue-card" onClick={() => onOpenQueue(q.id)}>
                   <span className="ns-queue-card-title-row">
                     <span className="ns-queue-card-title">{q.title}</span>
+                    {isHomeEphemeral ? <span className="ns-queue-badge is-home">Tạm · Home</span> : null}
                     {isActive ? <span className="ns-queue-badge is-running">Đang chạy</span> : null}
                     {isPending ? <span className="ns-queue-badge is-pending">Chờ</span> : null}
                   </span>
@@ -391,6 +393,7 @@ const QueueDetail: React.FC<{
             ) : (
               <span className="ns-page-title ns-queue-title-text">{queue.title}</span>
             )}
+            {queue.ephemeralKind === "home" || queue.id === "queue-home" ? null : (
             <button
               type="button"
               className="ns-project-action"
@@ -407,6 +410,7 @@ const QueueDetail: React.FC<{
             >
               {Icon.pencil({ size: 15 })}
             </button>
+            )}
           </span>
         }
         action={
