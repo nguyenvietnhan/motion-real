@@ -247,6 +247,24 @@ export class QueueStore {
     return n;
   }
 
+  /**
+   * Process start only: jobs left `running` cannot still be in-flight after a crash/restart.
+   * Mark failed so Start can requeueRetryable. Keeps projectId for gallery. Returns count.
+   */
+  reconcileStaleRunningJobs(): number {
+    let n = 0;
+    for (const q of this.data.queues) {
+      for (const job of q.jobs) {
+        if (job.status !== "running") continue;
+        job.status = "failed";
+        job.error = "App dừng giữa chừng (job đang chạy). Bấm Bắt đầu để thử lại.";
+        n += 1;
+      }
+    }
+    if (n > 0) this.save();
+    return n;
+  }
+
   updateJob(
     queueId: string,
     jobId: string,

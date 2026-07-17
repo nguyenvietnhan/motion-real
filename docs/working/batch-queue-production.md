@@ -194,7 +194,7 @@ Preset “Full auto” = track 1.2; không chặn queue MVP.
 | --- | --- | --- | --- |
 | E1 | Home create lúc queue busy | **Đã ship** spill → `home` (create + smoke) | — |
 | E2 | reviewMode/gate sai → stage human-wait | **Đã ship:** `classifyQueueWaitStage` → failed + message Settings; chain tiếp | — |
-| E3 | Crash giữa job `running` | Zombie `running` trong JSON; `requeueRetryable` **không** đụng | Startup reconcile: `running` → `failed` hoặc `queued` |
+| E3 | Crash giữa job `running` | **Đã ship:** `reconcileStaleRunningJobs` on boot → failed; Start requeue | — |
 | E4 | Pending schedule RAM mất sau restart | Jobs còn `queued`, user phải Start lại | OK YAGNI; document. Optional persist pending sau |
 
 ### 🟠 Trung
@@ -239,7 +239,7 @@ Preset “Full auto” = track 1.2; không chặn queue MVP.
 - [x] Renderer: toast xếp chờ, không open workspace; cảnh báo ảnh dropped — bước 3–4.
 - [x] Auto-delete container `home` khi drain xong (runner hook; keep if failed) — bước 2.
 - [x] Anti-stuck: human-wait stages → failed rõ (E2) — `queue-stage.ts` + waitTerminal.
-- [ ] Startup reconcile zombie `running` (E3).
+- [x] Startup reconcile zombie `running` (E3) — `reconcileStaleRunningJobs` in index.
 - [ ] (Optional) Home images parity vào queue job.
 - [x] Home spillover end-to-end code path (bước 1–5, 2026-07-17). Manual smoke matrix owner machine TBD.
 - [x] Track 1.3: queue MVP + Home `home` spillover shipped.
@@ -268,7 +268,8 @@ Thứ tự đề xuất (Home spillover **đã xong**):
 4. Container **`home` tự xóa** khi hết việc lô đó; video thật vẫn ở Dự án.
 5. Home create khi idle → như create hiện tại.
 6. Không 2 full/author-render workflow từ **Home+Queue** cùng lúc (sau slice §3).
-7. (Hardening) không poll forever trên human-wait stages.
+7. (Hardening) không poll forever trên human-wait stages — **E2 done**.
+8. (Hardening) zombie `running` sau crash → failed + Start retry — **E3 done**.
 
 ---
 
@@ -289,6 +290,7 @@ Thứ tự đề xuất (Home spillover **đã xong**):
 | 2026-07-17 | **Fix P0 race:** `runAll` finally không wipe `pendingQueueIds` mù; re-enter nếu start() (Home spill) đẩy lịch sau empty pick. |
 | 2026-07-17 | User confirm Home spill + queue OK. **Next:** E2 anti-stuck + E3 zombie running. Doc hygiene: Home = done. |
 | 2026-07-17 | **E2:** `classifyQueueWaitStage` — script/image-review/ready/draft-recovery → job failed, chain continues. |
+| 2026-07-17 | **E3:** `reconcileStaleRunningJobs` on `QueueStore` construct (index boot). |
 
 ---
 

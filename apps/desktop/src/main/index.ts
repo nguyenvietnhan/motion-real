@@ -466,6 +466,11 @@ const nativeSaveDeps: NativeSaveDeps = {
 };
 
 const queueStore = new QueueStore({ filePath: queueStorePath(videoToolHome()) });
+// Crash/restart: no in-process runner can still own a `running` job from disk.
+const staleQueueJobs = queueStore.reconcileStaleRunningJobs();
+if (staleQueueJobs > 0) {
+  log.info({ count: staleQueueJobs }, "reconciled stale running queue jobs");
+}
 
 const smokeCreateDeps = {
   tools,

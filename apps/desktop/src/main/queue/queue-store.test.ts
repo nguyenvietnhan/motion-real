@@ -139,6 +139,38 @@ describe("QueueStore", () => {
     expect(store.delete(q.id)).toBe(false);
   });
 
+  it("reconcileStaleRunningJobs marks crash leftovers failed", () => {
+    const dir = mkdtempSync(join(tmpdir(), "mr-queue-"));
+    const store = new QueueStore({ filePath: join(dir, "queues.json") });
+    const q = store.create();
+    store.addJob(q.id, {
+      raw: "zombie",
+      durationTier: 1,
+      videoLanguage: "vi",
+      voiceProvider: "vivibe",
+      bgm: null,
+    });
+    store.addJob(q.id, {
+      raw: "still-waiting",
+      durationTier: 1,
+      videoLanguage: "vi",
+      voiceProvider: "vivibe",
+      bgm: null,
+    });
+    const jobs = store.get(q.id)!.jobs;
+    store.updateJob(q.id, jobs[0]!.id, { status: "running", projectId: "p-zombie" });
+    expect(store.reconcileStaleRunningJobs()).toBe(1);
+    const after = store.get(q.id)!.jobs;
+    expect(after[0]?.status).toBe("failed");
+    expect(after[0]?.projectId).toBe("p-zombie");
+    expect(after[0]?.error).toMatch(/dừng giữa chừng/i);
+    expect(after[1]?.status).toBe("queued");
+    expect(store.reconcileStaleRunningJobs()).toBe(0);
+    // Start path can requeue the failed zombie.
+    expect(store.requeueRetryable(q.id)).toBe(1);
+    expect(store.get(q.id)?.jobs[0]?.status).toBe("queued");
+  });
+
   it("requeueRetryable puts failed jobs back to queued for Start retry", () => {
     const dir = mkdtempSync(join(tmpdir(), "mr-queue-"));
     const store = new QueueStore({ filePath: join(dir, "queues.json") });

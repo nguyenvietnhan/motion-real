@@ -152,8 +152,8 @@ Preset chỉ là **nút “chọn gói nhanh”** gán nhiều knob một lúc (
 - [x] **Notify khi done/fail** (2026-07-16): OS `Notification` + in-app toast; edge-only (không spam reopen); click OS toast → focus window. Module `main/notify/job-notify.ts`.
 - [x] **Queue multi-job (MVP tab + serial + queue-of-queues)** (2026-07-17): tab Hàng đợi, Start serial, Start lô 2/3 → pending FIFO. See `docs/working/batch-queue-production.md`.
 - [x] **Home → container tạm `home` khi busy** (2026-07-17): spill serial (create + smoke), auto-delete after drain (keep if failed).
-- [ ] **E2/E3 harden (next):** anti-stuck human-wait stages; reconcile zombie `running` on boot.
-- [ ] Ứng viên sau: export pack; prompt presets.
+- [x] **E2/E3 harden** (2026-07-17): anti-stuck human-wait stages; reconcile zombie `running` on boot.
+- [ ] Ứng viên sau: export pack; prompt presets; E1b workspace inFlight spill.
 
 **Done khi (slice notify):** unattended user rời app vẫn biết job xong/lỗi.
 
