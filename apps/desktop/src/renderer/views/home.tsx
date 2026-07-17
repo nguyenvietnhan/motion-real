@@ -197,11 +197,15 @@ export const HomeView: React.FC<{
   onBgmSelect?: (name: string | null) => void;
   /** When true (Settings → Render smoke), show the round smoke test button. */
   smokeRenderEnabled?: boolean;
-  /** Same create path as send, but project "test", ~10s, no TTS. */
+  /** Same create path as send, but project "test", ~10s, no TTS. May queue when busy. */
   onRenderSmoke?: (opts: {
     raw: string;
     videoLanguage: VideoLanguageChoice;
-  }) => Promise<{ ok: true; projectId: string } | { ok: false; error: string }>;
+  }) => Promise<
+    | { ok: true; kind: "started"; projectId: string }
+    | { ok: true; kind: "queued"; queueId: string; jobId: string }
+    | { ok: false; error: string }
+  >;
 }> = ({
   gateway,
   account,

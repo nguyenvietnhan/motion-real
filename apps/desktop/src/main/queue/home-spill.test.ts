@@ -4,7 +4,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { HOME_QUEUE_ID, QueueStore } from "./queue-store.js";
 import { QueueRunner } from "./queue-runner.js";
-import { shouldSpillHomeCreate, spillHomeCreateIfBusy } from "./home-spill.js";
+import {
+  shouldSpillHomeCreate,
+  shouldSpillHomeSmoke,
+  spillHomeCreateIfBusy,
+  spillHomeSmokeIfBusy,
+} from "./home-spill.js";
 import type { CreateController } from "../create/create-controller.js";
 
 describe("home-spill", () => {
@@ -13,6 +18,11 @@ describe("home-spill", () => {
     expect(shouldSpillHomeCreate("home", false)).toBe(false);
     expect(shouldSpillHomeCreate(undefined, true)).toBe(false);
     expect(shouldSpillHomeCreate("other", true)).toBe(false);
+  });
+
+  it("shouldSpillHomeSmoke when runner busy", () => {
+    expect(shouldSpillHomeSmoke(true)).toBe(true);
+    expect(shouldSpillHomeSmoke(false)).toBe(false);
   });
 
   it("returns not_busy when runner is idle", () => {
@@ -105,6 +115,59 @@ describe("home-spill", () => {
     });
     expect(res2.kind).toBe("queued");
     expect(store.get(HOME_QUEUE_ID)?.jobs).toHaveLength(2);
+
+    release();
+    for (let i = 0; i < 80 && runner.isBusy(); i += 1) {
+      await new Promise((r) => setTimeout(r, 5));
+    }
+  });
+
+  it("spills home smoke job when busy", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "mr-spill-sm-"));
+    const store = new QueueStore({ filePath: join(dir, "queues.json") });
+    const q1 = store.create("A");
+    store.addJob(q1.id, {
+      raw: "hold",
+      durationTier: 1,
+      videoLanguage: "vi",
+      voiceProvider: "vivibe",
+      bgm: null,
+    });
+    let release!: () => void;
+    const gate = new Promise<void>((r) => {
+      release = r;
+    });
+    const create = {
+      create: vi.fn(async (raw: string) => {
+        if (raw === "hold") await gate;
+        return { projectId: `p-${raw}` };
+      }),
+    } as unknown as CreateController;
+    const createSmoke = vi.fn(async () => ({ ok: true as const, projectId: "p-smoke-direct" }));
+    const runner = new QueueRunner({
+      store,
+      create,
+      createSmoke,
+      stageOf: async () => ({ kind: "published", outputPath: "/o", title: "t" }),
+      cancelProject: () => {},
+      sleep: async () => {},
+    });
+    expect(runner.start(q1.id).ok).toBe(true);
+    for (let i = 0; i < 40 && !runner.isBusy(); i += 1) {
+      await new Promise((r) => setTimeout(r, 5));
+    }
+
+    const res = spillHomeSmokeIfBusy({
+      busy: true,
+      raw: "",
+      videoLanguage: "vi",
+      store,
+      runner,
+    });
+    expect(res.kind).toBe("queued");
+    const home = store.get(HOME_QUEUE_ID);
+    expect(home?.jobs.some((j) => j.smoke)).toBe(true);
+    expect(createSmoke).not.toHaveBeenCalled();
 
     release();
     for (let i = 0; i < 80 && runner.isBusy(); i += 1) {

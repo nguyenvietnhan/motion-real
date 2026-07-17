@@ -394,10 +394,18 @@ const AppShell: React.FC = () => {
             onRenderSmoke={(opts) => {
               if (!dash) return Promise.reject(new Error("Dashboard API is unavailable"));
               return dash.settings.renderSmoke(opts).then((res) => {
-                if (res.ok) {
-                  void refreshGallery();
-                  openProject(res.projectId);
+                if (!res.ok) return res;
+                // Queue busy: smoke job landed on ephemeral `home` — same toast as Home create spill.
+                if (res.kind === "queued") {
+                  notify.info({
+                    title: "Đã xếp vào hàng chờ",
+                    message: "Đang có hàng đợi chạy — smoke vào lô home, sẽ chạy sau.",
+                  });
+                  void refreshQueues();
+                  return res;
                 }
+                void refreshGallery();
+                openProject(res.projectId);
                 return res;
               });
             }}

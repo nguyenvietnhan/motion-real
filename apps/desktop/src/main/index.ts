@@ -4,7 +4,7 @@ import { dirname, join } from "node:path";
 import { appendEvent, createLogger, createTools, loadManifest, writeJson, projectPaths, videoToolHome, stagingDir, ensureProject, importImageBytes, reconcileStaleStates, pruneRenderCache, pruneTtsCache, readBrief, listBgmTracks, addBgmTrack, removeBgmTrack, renderThumbnail, workspaceRoot, ELEVENLABS_DEFAULT_MODEL_ID, runDoctor, readProjectDiagnostics, readProjectEvidence, type VoiceProvider } from "@motionreal/pipeline";
 import { QueueStore, queueStorePath } from "./queue/queue-store.js";
 import { QueueRunner } from "./queue/queue-runner.js";
-import { spillHomeCreateIfBusy } from "./queue/home-spill.js";
+import { spillHomeCreateIfBusy, spillHomeSmokeIfBusy } from "./queue/home-spill.js";
 import { createSmokeProject } from "./create/smoke-create.js";
 import type { QueueJobInput } from "../shared/queue-types.js";
 import { LockedVideoSpecSchema } from "@motionreal/schema";
@@ -531,26 +531,46 @@ const settingsHandlers = createSettingsHandlers({
       doctor,
     });
   },
-  // Home smoke: run immediately. Queue smoke only enqueues (see queue addJob smoke flag).
+  // Home smoke: if queue runner busy → spill smoke job into ephemeral `home` (no parallel).
+  // Idle → run immediately. Tab queue smoke still only enqueues until Start.
   renderSmoke: async (input) => {
+    const args = (input && typeof input === "object" ? input : {}) as {
+      raw?: unknown;
+      videoLanguage?: unknown;
+    };
+    const raw = typeof args.raw === "string" ? args.raw : "";
+    const videoLanguage = args.videoLanguage === "en" ? "en" : "vi";
+
+    const spill = spillHomeSmokeIfBusy({
+      busy: queueRunner.isBusy(),
+      raw,
+      videoLanguage,
+      store: queueStore,
+      runner: queueRunner,
+    });
+    if (spill.kind === "error") {
+      return { ok: false as const, error: spill.error };
+    }
+    if (spill.kind === "queued") {
+      return {
+        ok: true as const,
+        kind: "queued" as const,
+        queueId: spill.queueId,
+        jobId: spill.jobId,
+      };
+    }
+
     if (smokeRenderInFlight) {
       return { ok: false as const, error: "Đang tạo smoke — chờ xong rồi bấm lại." };
     }
     smokeRenderInFlight = true;
     try {
-      const args = (input && typeof input === "object" ? input : {}) as {
-        raw?: unknown;
-        videoLanguage?: unknown;
-      };
-      const result = await createSmokeProject(smokeCreateDeps, {
-        raw: typeof args.raw === "string" ? args.raw : "",
-        videoLanguage: typeof args.videoLanguage === "string" ? args.videoLanguage : "vi",
-      });
+      const result = await createSmokeProject(smokeCreateDeps, { raw, videoLanguage });
       if (!result.ok) return result;
-      return result;
+      return { ok: true as const, kind: "started" as const, projectId: result.projectId };
     } catch (error) {
-      const raw = error instanceof Error ? error.message : String(error);
-      return { ok: false as const, error: stripL0Tokens(raw).slice(0, 240) || "Smoke thất bại." };
+      const msg = error instanceof Error ? error.message : String(error);
+      return { ok: false as const, error: stripL0Tokens(msg).slice(0, 240) || "Smoke thất bại." };
     } finally {
       smokeRenderInFlight = false;
     }

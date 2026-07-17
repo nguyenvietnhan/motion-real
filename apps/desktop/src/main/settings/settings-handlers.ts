@@ -1,7 +1,10 @@
 import type { InvokeHandlers } from "../ipc-router.js";
 import type { DesktopReadinessReport, SettingsModel, VoiceProviderChoice } from "../../shared/types.js";
 
-export type SmokeRenderResult = { ok: true; projectId: string } | { ok: false; error: string };
+export type SmokeRenderResult =
+  | { ok: true; kind: "started"; projectId: string }
+  | { ok: true; kind: "queued"; queueId: string; jobId: string }
+  | { ok: false; error: string };
 
 export type SettingsHandlers = Required<Pick<
   InvokeHandlers,

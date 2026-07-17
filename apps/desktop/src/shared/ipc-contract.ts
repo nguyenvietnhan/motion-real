@@ -118,11 +118,16 @@ export interface DashboardApi {
     /**
      * Dev/test: create a real project titled "test", ~10s target, TTS none,
      * then hand off to the normal workspace author/render path.
+     * When the queue runner is busy, returns `kind: "queued"` (ephemeral home) instead.
      */
     renderSmoke(input?: {
       raw?: string;
       videoLanguage?: import("./types.js").VideoLanguageChoice;
-    }): Promise<{ ok: true; projectId: string } | { ok: false; error: string }>;
+    }): Promise<
+      | { ok: true; kind: "started"; projectId: string }
+      | { ok: true; kind: "queued"; queueId: string; jobId: string }
+      | { ok: false; error: string }
+    >;
   };
   queue: {
     list(): Promise<QueueProjectVM[]>;
