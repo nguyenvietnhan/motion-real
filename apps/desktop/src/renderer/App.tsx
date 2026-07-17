@@ -416,6 +416,7 @@ const AppShell: React.FC = () => {
               return dash.projects
                 .create({
                   raw,
+                  source: "home",
                   ...(images.length > 0 ? { images: images.map((s) => ({ ref: s.ref, width: s.width, height: s.height })) } : {}),
                   durationTier: choices.durationTier,
                   videoLanguage: choices.videoLanguage,
@@ -423,10 +424,22 @@ const AppShell: React.FC = () => {
                   bgm: choices.bgm,
                 })
                 .then((r) => {
-                  // Refresh the gallery the moment the project exists on disk
-                  // (brief.json is written by scaffold) so the card is already
-                  // there when the user returns home — not only after the next
-                  // poll tick. Then open the workspace.
+                  // Queue runner busy: spill into ephemeral `home` (no parallel create).
+                  if (r.kind === "queued") {
+                    notify.info({
+                      title: "Đã xếp vào hàng chờ",
+                      message: "Đang có hàng đợi chạy — video vào lô home, sẽ chạy sau.",
+                    });
+                    if (r.imagesDropped || images.length > 0) {
+                      notify.warning({
+                        title: "Ảnh chưa vào hàng đợi",
+                        message: "Chỉ prompt được xếp. Ảnh đính kèm chưa hỗ trợ trong lô home.",
+                      });
+                    }
+                    void refreshQueues();
+                    return;
+                  }
+                  // Idle path: project on disk → gallery + open workspace.
                   void refreshGallery();
                   openProject(r.projectId);
                 })

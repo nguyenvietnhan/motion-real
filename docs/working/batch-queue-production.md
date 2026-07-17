@@ -235,7 +235,8 @@ Preset “Full auto” = track 1.2; không chặn queue MVP.
 
 - [x] Store + runner + IPC + UI tab + tests meta-queue (`a514296` queue-of-queues).
 - [x] Store: `queue-home` + `ensureHomeQueue` + `ephemeralKind` + rename lock + auto-delete predicate (bước 1).
-- [ ] Home spillover → addJob + schedule + block parallel create (IPC).
+- [x] Home spillover → `source:home` + busy → ensure home + addJob + start/schedule (IPC + `home-spill.ts`) — bước 3.
+- [x] Renderer: toast xếp chờ, không open workspace; cảnh báo ảnh dropped — bước 3–4.
 - [x] Auto-delete container `home` khi drain xong (runner hook; keep if failed) — bước 2.
 - [ ] Anti-stuck: human-wait stages → failed rõ (E2).
 - [ ] Startup reconcile zombie `running` (E3).
@@ -284,6 +285,7 @@ Thứ tự đề xuất:
 | 2026-07-17 | **Chốt Home:** bỏ A/B/C; Home create khi busy → container tạm **`home`** (reuse, append jobs), schedule serial, **tự xóa** khi xong hết video trong lô home. Chỉ Homepage. |
 | 2026-07-17 | **Bước 0** baseline OK (queue-of-queues B live; Home spillover chưa code). **Bước 1** store: `HOME_QUEUE_ID`, `ensureHomeQueue`, `shouldAutoDeleteHomeQueue` (giữ nếu còn failed). |
 | 2026-07-17 | **Bước 2** runner: after drain `maybeAutoDeleteHome` for ephemeral only. |
+| 2026-07-17 | **Bước 3–4** `spillHomeCreateIfBusy` + `projects:create` return `started|queued`; Home passes `source:home`; toast + no openProject when queued. |
 
 ---
 

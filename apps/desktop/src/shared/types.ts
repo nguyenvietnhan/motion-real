@@ -94,7 +94,17 @@ export type CreateInput = {
    */
   bgm?: string | null;
   images?: StagedImageRef[];
+  /**
+   * Home composer only. When the queue runner is busy, create spills into the
+   * ephemeral `home` queue instead of starting a parallel project.
+   */
+  source?: "home";
 };
+
+/** Result of projects:create — started immediately or queued behind busy runner. */
+export type CreateProjectResult =
+  | { kind: "started"; projectId: string }
+  | { kind: "queued"; queueId: string; jobId: string; imagesDropped?: boolean };
 
 // --- projects / gallery -------------------------------------------
 

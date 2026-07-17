@@ -19,6 +19,8 @@ export type CreateControllerArgs = {
   raw: string;
   images: StagedImageRef[];
   choices: CreateControllerChoices;
+  /** Home composer spillover marker. */
+  source?: "home";
 };
 
 type RawCreatePayload = {
@@ -29,6 +31,7 @@ type RawCreatePayload = {
   /** Track filename, null for no music, or omit. */
   bgm?: unknown;
   images?: StagedImageRef[];
+  source?: unknown;
 };
 
 /** Coerce IPC BGM selection: string name, null silence, or undefined omit. */
@@ -61,6 +64,7 @@ export function createControllerArgsFromIpc(input: unknown): CreateControllerArg
   const payload = input as RawCreatePayload;
   const durationTier = parseDurationTier(payload.durationTier);
   const bgm = parseCreateBgm(payload.bgm);
+  const source = payload.source === "home" ? ("home" as const) : undefined;
   return {
     raw: payload.raw,
     images: payload.images ?? [],
@@ -70,5 +74,6 @@ export function createControllerArgsFromIpc(input: unknown): CreateControllerArg
       ...(payload.voiceProvider ? { voiceProvider: parseVoiceProvider(payload.voiceProvider) } : {}),
       ...(bgm !== undefined ? { bgm } : {}),
     },
+    ...(source ? { source } : {}),
   };
 }

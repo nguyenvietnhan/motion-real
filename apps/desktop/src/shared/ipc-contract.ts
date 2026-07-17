@@ -5,6 +5,7 @@ import type {
   ApproveResult,
   BgmTrackVM,
   CreateInput,
+  CreateProjectResult,
   DroppedImage,
   EditBatch,
   FriendlyError,
@@ -57,7 +58,7 @@ export interface DashboardApi {
     importImageBytes(files: DroppedImage[]): Promise<PickImagesResult>;
     /** Delete one staged create-time image by its `staging/<sha>.<ext>` ref when the user removes it from the attach strip, so unused bytes don't linger until the 24h sweep. Best-effort: an unknown/already-gone ref resolves cleanly. */
     removeStagedImage(ref: string): Promise<void>;
-    create(input: CreateInput): Promise<{ projectId: string }>;
+    create(input: CreateInput): Promise<CreateProjectResult>;
     list(): Promise<ProjectCardVM[]>;
     open(projectId: string): Promise<StoryboardModel>;
     stage(projectId: string): Promise<ProjectStage>;

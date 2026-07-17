@@ -4,6 +4,7 @@ import { dirname, join } from "node:path";
 import { appendEvent, createLogger, createTools, loadManifest, writeJson, projectPaths, videoToolHome, stagingDir, ensureProject, importImageBytes, reconcileStaleStates, pruneRenderCache, pruneTtsCache, readBrief, listBgmTracks, addBgmTrack, removeBgmTrack, renderThumbnail, workspaceRoot, ELEVENLABS_DEFAULT_MODEL_ID, runDoctor, readProjectDiagnostics, readProjectEvidence, type VoiceProvider } from "@motionreal/pipeline";
 import { QueueStore, queueStorePath } from "./queue/queue-store.js";
 import { QueueRunner } from "./queue/queue-runner.js";
+import { spillHomeCreateIfBusy } from "./queue/home-spill.js";
 import { createSmokeProject } from "./create/smoke-create.js";
 import type { QueueJobInput } from "../shared/queue-types.js";
 import { LockedVideoSpecSchema } from "@motionreal/schema";
@@ -575,9 +576,29 @@ const handlers: InvokeHandlers = {
   ...gatewayHandlers,
 
   "projects:list": () => workspace.list(),
-  "projects:create": (input) => {
+  "projects:create": async (input) => {
     const args = createControllerArgsFromIpc(input);
-    return create.create(args.raw, args.images, args.choices);
+    // Home create while queue runner busy → ephemeral home container (no parallel workflow).
+    const spill = spillHomeCreateIfBusy({
+      source: args.source,
+      busy: queueRunner.isBusy(),
+      raw: args.raw,
+      choices: args.choices,
+      imageCount: args.images.length,
+      store: queueStore,
+      runner: queueRunner,
+    });
+    if (spill.kind === "error") throw new Error(spill.error);
+    if (spill.kind === "queued") {
+      return {
+        kind: "queued" as const,
+        queueId: spill.queueId,
+        jobId: spill.jobId,
+        ...(spill.imagesDropped ? { imagesDropped: true } : {}),
+      };
+    }
+    const created = await create.create(args.raw, args.images, args.choices);
+    return { kind: "started" as const, projectId: created.projectId };
   },
   "projects:pickImages": () => pickImages(),
   "projects:importImageBytes": (files) => importDroppedImages(files as DroppedImage[], imageStagingDeps),
