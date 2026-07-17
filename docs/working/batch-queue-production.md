@@ -241,6 +241,7 @@ Preset “Full auto” = track 1.2; không chặn queue MVP.
 - [ ] Anti-stuck: human-wait stages → failed rõ (E2).
 - [ ] Startup reconcile zombie `running` (E3).
 - [ ] (Optional) Home images parity vào queue job.
+- [x] Home spillover end-to-end code path (bước 1–5, 2026-07-17). Manual smoke matrix owner machine TBD.
 - [x] Track 1.3: queue MVP marked shipped; Home `home` listed as follow-up.
 
 ---
@@ -287,6 +288,7 @@ Thứ tự đề xuất:
 | 2026-07-17 | **Bước 2** runner: after drain `maybeAutoDeleteHome` for ephemeral only. |
 | 2026-07-17 | **Bước 3–4** `spillHomeCreateIfBusy` + `projects:create` return `started|queued`; Home passes `source:home`; toast + no openProject when queued. |
 | 2026-07-17 | **Bước 5** list badge `Tạm · Home`; hide rename on ephemeral. |
+| 2026-07-17 | **Bước 6** final: queue unit tests + typecheck green. Manual smoke (busy Home → home → auto-delete) owner TBD. |
 
 ---
 
