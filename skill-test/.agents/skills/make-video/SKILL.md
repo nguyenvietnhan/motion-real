@@ -227,10 +227,15 @@ lời, tổng duration khớp `beats.json` (±2 frame quy đổi). Sạch mới
 
 ## Stage 6 — Render + bàn giao
 
-Từ trong `starter-hf\<slug>\` (xem scene-authoring Quy trình chuẩn):
-`npx hyperframes render --output "..\..\jobs\<slug>\output\video.mp4"`
-(video dài 4-5 phút mất 10-15 phút — BÁO TRƯỚC cho user là chạy nền
-lâu). Vì Stage 4-5 đã duyệt từng cảnh bằng snapshot, render chỉ là
+Render ẨN qua wrapper (không pop-up terminal con, log ra file):
+
+```powershell
+powershell -File starter-hf\scripts\render-hidden.ps1 -Slug <slug> -Verb render
+# poll: Get-Content starter-hf\<slug>\render.log -Tail 5 -Wait
+```
+
+Video dài 4-5 phút mất 10-15 phút render — BÁO TRƯỚC cho user là chạy
+nền lâu. Vì Stage 4-5 đã duyệt từng cảnh bằng snapshot, render chỉ là
 hình thức hóa — KHÔNG làm vòng review-sửa-re-render sau bước này.
 Kiểm kỹ thuật: ffprobe có stream video + audio, duration khớp ±0.3s.
 

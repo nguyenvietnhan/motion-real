@@ -12,3 +12,4 @@ jobs/
 starter-hf/*/
 !starter-hf/scripts/
 !starter-hf/fonts/
+*.log

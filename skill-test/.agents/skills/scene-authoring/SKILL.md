@@ -85,8 +85,11 @@ cd starter-hf\<slug>
 npx hyperframes check        # phải 0 error
 npx hyperframes snapshot --at 3,12,25 --output qa   # quét toàn timeline, ĐỌC TỪNG PNG
 
-# 4. render sau khi QA sạch (output ra job folder)
-npx hyperframes render --output "..\..\jobs\<slug>\output\video.mp4"
+# 4. render/check ẨN (không pop-up terminal con) — log ra file để poll
+#    (chạy từ GỐC TOOLBOX)
+powershell -File starter-hf\scripts\render-hidden.ps1 -Slug <slug> -Verb check
+powershell -File starter-hf\scripts\render-hidden.ps1 -Slug <slug> -Verb render
+#    log: starter-hf\<slug>\render.log — poll: Get-Content <log> -Tail 5 -Wait
 ```
 
 Lỗi bắt ở bước snapshot cảnh tốn ~5 giây; lỗi để lọt đến render tốn
