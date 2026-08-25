@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
+﻿import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join, resolve, dirname } from "node:path";
 
 const slug = process.argv[2];
@@ -60,7 +60,7 @@ const wordData = JSON.stringify(
 );
 
 const html = `<!-- ===== PASTE vao trong #root, cuoi file ===== -->
-    <audio id="vo-master" src="voice/narration.wav" data-start="0.00" data-volume="1"></audio>
+    <audio id="vo-master" src="voice/narration.m4a" data-start="0.00" data-volume="1"></audio>
 ${captionClips}
 
 <!-- ===== PASTE vao cuoi <script>, truoc khi dang ky timeline ===== -->
@@ -92,4 +92,4 @@ console.error(
 );
 console.error(`   HTML: ${htmlPath}  (paste vào trong #root + cuối <script>)`);
 console.error(`   CSS : ${cssPath}      (paste vào <style>)`);
-console.error(`   audio: 1 thẻ master narration.wav | highlight qua mảng CAPTION_WORDS`);
+console.error(`   audio: 1 thẻ master narration.m4a | highlight qua mảng CAPTION_WORDS`);
