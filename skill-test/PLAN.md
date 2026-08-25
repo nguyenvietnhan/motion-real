@@ -148,3 +148,11 @@ local trong slug folder, gen_beats_batch.py (1 lan load model), gen-captions
 v2 (mang timing + element cache), fonts/fonts.css chuan, cam inline one-liner.
 Nang chat: hero diagram tien hoa theo loi noi (3b1b), cot "Hinh dien bien"
 bat buoc. Commit: 52b9c29, f7695c8, 91d8dc2 + log.
+
+### Cleanup - ve trang thai moi tai ve (25/08/2026) ✅
+
+Bo job test (sac-pin-qua-dem, decision-tree, lightgbm), spike-hyperframes/,
+starter-hf/lightgbm + sac-pin-qua-dem, starter out/node_modules, test-out.
+Nhat ky kiem nghiem chuyen thanh E2E-LOG.md o goc. starter/ tra ve sample
+goc (SampleVideo), tsc OK sau npm install. jobs/ de trong - san sang cho
+nguoi dung moi.

@@ -40,24 +40,28 @@ HyperFrames (sync theo từ) → xuất MP4 9:16 vào `jobs/<slug>/output/`.
 
 ```text
 skill-test/
-├── .agents/skills/            # chuẩn mở - mọi agent tự thấy khi cd vào đây
+├── .agents/skills/            # 14 skill auto-load (chuẩn mở)
 │   ├── make-video/            # SKILL chính: workflow tổng (spine)
 │   ├── scene-authoring/       # Viết composition HyperFrames (HTML+GSAP)
 │   ├── voice-vieneu/          # TTS local VieNeu + word timestamps
 │   ├── research-grounding/    # Tra cứu + claim ledger chống bịa
 │   ├── frontend-design/       # (vendor Anthropic) chống AI-slop
-│   └── hyperframes*/          # 26 skill chính thức của engine
-├── starter-hf/                # KHUNG CHÍNH: fonts + scripts/gen-captions
+│   └── hyperframes*/          # 10 skill lõi của engine
+├── hf-extras/                 # 16 skill workflow mẫu HF — chỉ tham khảo
+├── starter-hf/                # KHUNG CHÍNH: fonts + fonts.css + gsap
+│   ├── fonts/                 #   + scripts/gen-captions.mjs
+│   ├── gsap.min.js
+│   └── scripts/
 ├── starter/                   # (phương án B) Remotion starter — giữ nguyên
-├── spike-hyperframes/         # spike so sánh — giữ làm ví dụ tham chiếu
 ├── tools/
-│   └── vieneu-tts/            # Runner TTS local (gen_voice.py)
+│   └── vieneu-tts/            # gen_beats_batch + merge_voice + gen_voice
 ├── styles/                    # DESIGN SYSTEM phổ quát (không gắn 1 video)
 │   ├── default/ bao-giay/ phong-lab/
-├── jobs/<slug>/               # output contract: brief → research → script
-│                              #   → beats → voice → output/video.mp4
-├── DESIGN.md PLAN.md RESEARCH.md
-└── README.md
+├── jobs/                      # OUTPUT CONTRACT (trống lúc mới tải): mỗi
+│                              #   video 1 folder brief→research→script→
+│                              #   beats→voice→output/video.mp4
+├── DESIGN.md PLAN.md RESEARCH.md E2E-LOG.md README.md
+└── .gitignore                 # loại venv/node_modules/wav/mp4 khỏi git
 ```
 
 ## Quyết định thiết kế

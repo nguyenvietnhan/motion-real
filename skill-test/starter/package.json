@@ -1,0 +1,22 @@
+{
+  "name": "motionreal-studio-starter",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "description": "Remotion starter kit cho MotionReal Skill Studio - video dọc 9:16 TikTok/Reels/Shorts",
+  "scripts": {
+    "studio": "remotion studio",
+    "render": "remotion render SampleVideo out/sample.mp4"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.515",
+    "@remotion/fonts": "^4.0.515",
+    "react": "19.2.0",
+    "react-dom": "19.2.0",
+    "remotion": "4.0.515"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.7",
+    "typescript": "^5.9.3"
+  }
+}

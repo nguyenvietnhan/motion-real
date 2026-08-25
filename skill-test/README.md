@@ -23,19 +23,22 @@ Ví dụ: `/make-video "tại sao nên học SQL" 90s phong-lab`
 
 ## Môi trường yêu cầu
 
-- Node 18+ (đã cài), Python 3.12 venv tại `tools/vieneu-tts/.venv` (đã cài)
+- Node 18+ và Python 3.12+ (chưa có venv thì chạy setup trong
+  `tools/vieneu-tts/README.md` — một lệnh duy nhất)
 - **Shell trên Windows là PowerShell 5.1** — KHÔNG dùng `||`, `&&`,
   `tr` kiểu bash. Xem luật chi tiết trong skill make-video.
-- Lần render đầu, `npx hyperframes` tự tải engine (cần mạng).
+- Lần render đầu, `npx hyperframes` tự tải engine (cần mạng, vài phút).
+- `starter/` (phương án B Remotion) cần `npm install` riêng nếu dùng.
 
 ## Cấu trúc
 
-| Folder | Vai trò |
+| Folder/File | Vai trò |
 | --- | --- |
-| `.agents/skills/` | 31 skill (make-video là spine; hyperframes* là docs engine) |
-| `starter-hf/` | Khung project video chính (fonts + gen-captions) |
-| `tools/vieneu-tts/` | Giọng đọc local (text → WAV + word timings) |
+| `.agents/skills/` | 14 skill auto-load (make-video là spine; hyperframes* là docs engine) |
+| `hf-extras/` | 16 skill workflow mẫu của HyperFrames — chỉ tham khảo |
+| `starter-hf/` | Khung project video chính (fonts + fonts.css + gsap + gen-captions) |
+| `starter/` | Phương án B — starter Remotion (`npm install` trước khi dùng) |
+| `tools/vieneu-tts/` | Giọng đọc local (batch TTS + merge master narration) |
 | `styles/` | 3 design system: default, bao-giay, phong-lab |
-| `jobs/<slug>/` | Mỗi video một folder: brief → research → script → beats → voice → output |
-| `jobs/sac-pin-qua-dem/` | Ví dụ hoàn chỉnh tham chiếu |
-| `DESIGN.md` `PLAN.md` `RESEARCH.md` | Kiến trúc, lộ trình, kiến thức nền |
+| `jobs/` | Tạo khi chạy make-video — mỗi video một folder (hiện đang trống) |
+| `DESIGN.md` `PLAN.md` `RESEARCH.md` `E2E-LOG.md` | Kiến trúc, lộ trình, kiến thức nền, nhật ký kiểm nghiệm end-to-end |
