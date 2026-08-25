@@ -166,3 +166,12 @@ bang chung that, metaphor rieng. Ta: khung bao toan man + 1 template lap
 beng engine docs). Fix: chuyen chuan dung contract engine (wrapper+hard
 kill), bo cuc cong dong + menu 6 form, thoi luong lientuc 30-600s,
 caption id, font inline, beats.json tu heal. Commit: 026e0b4, e1e2846 + log.
+
+### Phase 10 - Stage 7 tu xem video + fix 6 diem Gemini vong 2 (25/08/2026) ✅
+
+Job machine-learning-tong-quan (52 beat, 1108 tu, 4m24s) chay muot.
+Fix: gen-captions ghi file (het tro terminal), cam /* */ trong text
+hien thi, data-layout-allow-overlap cho SVG + caption, bao truoc thoi
+gian render dai. QUAN TRONG NHAT: them STAGE 7 - tu xem video thanh
+pham bang frame extraction truoc khi giao user (phat hien cua user).
+Commit: 9359e8c + log.

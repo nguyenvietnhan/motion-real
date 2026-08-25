@@ -209,3 +209,28 @@ LIENTUC 30-600s, cong thuc so tu tu thich ung, dung dung con so user.
 - styles 3 pack: bo khuyen khich panel, them luat bo cuc
 - Khong lam CLI hop nhat hf_build.py (3 lenh hien tai du - chong
   overengineering)
+
+## Vong feedback 9 (25/08 - Gemini chay lai sau moi loat fix, job machine-learning-tong-quan 52 beat / 5 phut)
+
+Ket qua: pipeline chay muot end-to-end, 1108 tu (dung cong thuc 300s x 3.7),
+4m24s video, VieNeu tu nhien, karaoke chinh xac, WCAG AA 95/95. Layout
+co dong law co hieu luc.
+
+### 6 diem Gemini bao - da kiem chung va fix
+
+| # | Van de | Fix |
+| --- | --- | --- |
+| 1 | gen-captions chi in STDOUT (1500 dong tro terminal) | Ghi thẳng ra starter-hf/<slug>/captions_snippet.html + .css (da test: 256 dong, 1022 tu) |
+| 2 | Linter visible_markup_comment: /* */ trong text hien thi (mockup code) | Cam /* */ trong text hien thi - dung // hoac # (scene-authoring contract muc 5) |
+| 3 | content_overlap voi SVG text xoay | Bat buoc data-layout-allow-overlap tren svg + text ben trong |
+| 4 | Sub-pixel flexbox overlap caption | gen-captions them data-layout-allow-overlap vao .caption-line mac dinh |
+| 5 | Render CPU 13 phut cho video 5 phut | make-video Stage 6: bao truoc user render nen lau |
+| 6 | PS 5.1 nuot nhay | Da co luat - Gemini xac nhan tuan thu tot |
+
+### PHAT HIEN CUA USER (quan trong nhat): thieu Stage "tu xem video thanh pham"
+
+Agent render xong la di tiep - khong ai quay lai NHIN san pham that.
+-> THEM STAGE 7 vao make-video: extract 16 frame tu video.mp4 da render
+(cung ky thuat watch-video) -> doc tung frame -> cham 6 bai test ->
+loi thi sua + re-render (toi da 2 vong) -> sach thi bao user kem tu
+danh gia trung thuc. Day la vong kin: lam -> xem -> sua -> lam.
