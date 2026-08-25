@@ -5,6 +5,11 @@ description: Tạo video dọc 9:16 TikTok/Reels/Shorts hoàn chỉnh từ một
 
 # Make Video — xưởng video 9:16 end-to-end
 
+> **Đây là workflow DUY NHẤT để tạo video trong toolbox.** Các skill
+> workflow mẫu của HyperFrames (faceless-explainer, general-video...)
+> KHÔNG dùng làm quy trình — chỉ `hyperframes-core/-animation/-cli/...`
+> là tài liệu kỹ thuật của engine.
+
 Từ chủ đề → MP4 dọc hoàn chỉnh có giọng Việt. Mọi đường dẫn tương đối
 tính từ GOC TOOLBOX (folder chứa `.agents/`, `starter-hf/`, `tools/`,
 `jobs/`, `styles/`).
