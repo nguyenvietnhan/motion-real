@@ -1,0 +1,10 @@
+# Runtime artifacts - khong commit
+tools/vieneu-tts/.venv/
+starter/node_modules/
+starter/out/
+**/voice/*.wav
+**/output/*.mp4
+*.mp4
+snapshot-*/
+qa/
+test-out/
