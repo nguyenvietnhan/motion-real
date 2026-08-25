@@ -6,7 +6,8 @@ description: Sinh giọng đọc tiếng Việt local bằng VieNeu-TTS (CPU, mi
 # Voice VieNeu — giọng Việt local
 
 Sinh lời đọc bằng VieNeu-TTS v3 Turbo chạy local (ONNX int8, CPU, 48kHz).
-Miễn phí, không API key. Tool: `tools/vieneu-tts/gen_voice.py`.
+Miễn phí, không API key. Tool chính: `tools/vieneu-tts/gen_beats_batch.py`
+(batch cả video); `gen_voice.py` chỉ để test nhanh một câu.
 
 ## Setup kiểm tra (một lần)
 
@@ -50,8 +51,8 @@ scene-authoring):
   <toolbox-root>\tools\vieneu-tts\merge_voice.py <slug>
 ```
 
-→ tạo `voice/narration.wav` (một file duy nhất, các beat đã đặt đúng
-mốc theo `start`).
+→ tạo `voice/narration.wav` + `voice/narration.m4a` (bản m4a nén nhẹ
+là thứ composition nhúng — WAV 5 phút nặng ~25MB gây timeout Chromium).
 
 Kết quả: `b1.wav` + `b1.json`:
 

@@ -278,3 +278,20 @@ scene-authoring them "1 BEAT = 1 CLIP", muc "Linter - error la gate,
 warning la tu van" (bang 4 warning thuong + cach ung xu), audio tag
 dung m4a, them vi du muc song can dat (k-means quet radar, cau lan
 parabol, xung neuron, typewriter code). Commit 526b368... (xem git).
+
+## Vong feedback 13 (25/08 - audit doc tung dong theo yeu cau user)
+
+Doc tung dong 5 skill chinh + gen-captions + 2 README. 12 phat hien,
+tat ca da fix:
+- make-video: phep tinh so tu lap 2 lan (M1), cot Hinh dien bien dinh
+  nghia 2 lan (M2), "sau khi render chay 6 bai test" MAU THUAN voi
+  luong snapshot truoc render (M3), narration.wav stale (M4), tan du
+  "Doi ra frame" + chu "tier" (M5)
+- scene-authoring: vi du data-duration hardcode 35.25 -> them chuoi
+  "dien totalSeconds cua job" (S1)
+- gen-captions: thong bao loi con noi narration.wav (G1)
+- voice-vieneu: header tro gen_voice lam tool chinh (V1), thieu m4a (V2)
+- starter-hf README: src="../gsap.min.js" CHINH LA path bi lint cam (H1),
+  thieu render-hidden (H2)
+- vieneu README: merge thieu m4a (R1)
+Commit: e874094, 1ca2cca-truoc, 526b368..., batch cuoi cung trong git log.

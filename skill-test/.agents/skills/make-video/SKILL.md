@@ -91,9 +91,7 @@ jobs/<slug>/
 ```
 
 `totalSeconds` = beat cuối `start + duration` + đuôi hold (~1.5-2s).
-
-`start`/`duration` tính GIÂY, lấy từ `durationSeconds` trong meta WAV.
-Đổi ra frame: `Math.round(giay * 30)`.
+HyperFrames làm việc bằng GIÂY (không cần quy đổi frame).
 
 ## Stage 0 — Brief
 
@@ -138,28 +136,22 @@ HOOK (0-3.5s) → BỐI CẢNH/CỬA THẠCH → TWIST/INSIGHT → TAKEAWAY
 - **Kết**: CTA riêng theo chủ đề (câu hỏi quyết định, gợi ý hành động
   cụ thể). Cấm "like subscribe" chung chung.
 - **Nhịp tiếng Việt (đo thực tế VieNeu): ~4.0-4.3 từ/giây.** Công thức
-  quy đổi BẮT BUỘC (dùng cái này, không tra bảng rồi đọc nhầm row):
+  quy đổi BẮT BUỘC:
 
   ```text
   tổng số từ lời đọc ≈ thời lượng mục tiêu (giây) × 3.7   (chấp nhận ±10%)
-  vd: 45s → ~167 từ | 90s → ~333 | 150s → ~555 | 210s → ~777
+  vd: 45s → ~167 từ | 90s → ~333 từ | 300s → ~1110 từ
   ```
-
-  Khi viết xong beat sheet, PHẢI in rõ phép tính cho user thấy:
-  "tổng <N> từ × (1/3.7) ≈ <M> giây speech + nghỉ ≈ <K> giây — khớp
-  mục tiêu <tier>s". Nếu M lệch ngoài ±10% mục tiêu → viết thêm/bớt
-  beat NGAY LÚC ĐÓ. CẤM tuyên bố "đúng tier" mà không kèm phép tính;
-  CẤM phép tính bịa kiểu "47.7s + 12s nghỉ ≈ 240s".
   Sau khi có WAV thật thì duration = số đo thật, không dùng ước lượng.
 - **TỰ KIỂM BẮT BUỘC trước khi sang Stage 3** (4 điểm, thiếu điểm nào
   sửa ngay tại chỗ):
   1. **Số từ**: đếm tổng số từ của cột VO. PHẢI khớp công thức
      `thời lượng user yêu cầu (giây) × 3.7 ±10%` — dùng ĐÚNG con số
-     user yêu cầu (300s = ~1110 từ), không làm tròn xuống mức chuẩn.
-     In rõ phép tính: "tổng <N> từ ≈ <M> giây speech + nghỉ ≈ <K> giây
-     — khớp mục tiêu <T>s". CẤM tuyên bố "đúng" không kèm phép tính;
-     CẤM phép tính bịa kiểu "47.7s + 12s nghỉ ≈ 240s". Thiếu từ →
-     viết thêm beat NGAY LÚC ĐÓ.
+     user yêu cầu (300s = ~1110 từ). In rõ phép tính cho user thấy:
+     "tổng <N> từ ≈ <M> giây speech + nghỉ ≈ <K> giây — khớp mục tiêu
+     <T> giây". CẤM tuyên bố "đúng" không kèm phép tính; CẤM phép tính
+     bịa kiểu "47.7s + 12s nghỉ ≈ 240s". Thiếu từ → viết thêm beat
+     NGAY LÚC ĐÓ.
   2. **Hook**: câu đầu tiên KHÔNG là định nghĩa ("X là..."), KHÔNG
      chào hỏi, KHÔNG câu hỏi chung chung — phải vào thẳng tension.
   3. **Nguồn**: mọi số liệu trong VO truy được về claim ledger có URL;
@@ -173,15 +165,13 @@ HOOK (0-3.5s) → BỐI CẢNH/CỬA THẠCH → TWIST/INSIGHT → TAKEAWAY
   trong scene-authoring (số biến đổi / bằng chứng thật / khung tuyên
   bố / step list / trích dẫn / takeaway). HAI beat kế tiếp không được
   dùng cùng một form — đây là thứ diệt cảm giác slide.
-- **Cột "Hình diễn biến" = động từ + mốc reveal**: mỗi beat ghi rõ
-  element nào xuất hiện Ở TỪ NÀO (theo word timing dự kiến) và ĐỘNG
-  TỪ của nó (SLAMS / DRAWS / TYPES ON / FLOATS...). Element không có
-  động từ = chưa được thiết kế. Sau khi render, chạy 6 bài test trong
-  scene-authoring (mute/slideshow/reveal/dead-zone/squint/safe-area).
-- **Cột "Hình diễn biến" bắt buộc** trong beat sheet: mỗi beat phải ghi
-  rõ HÌNH THAY ĐỔI GÌ (trạng thái mới của diagram, element nào xuất
-  hiện/tô đậm/vẽ thêm). Beat sheet chỉ có VO không có hình = kịch bản
-  chưa xong — đó là công thức "slide thuyết trình", cấm.
+- **Cột "Hình diễn biến" bắt buộc**: mỗi beat ghi rõ (a) element nào
+  xuất hiện Ở TỪ NÀO (theo word timing dự kiến), (b) ĐỘNG TỪ chuyển
+  động của nó (SLAMS / DRAWS / TYPES ON / FLOATS...), (c) HÌNH THAY
+  ĐỔI GÌ (trạng thái mới của diagram, element nào tô đậm/vẽ thêm).
+  Beat sheet chỉ có VO không có 2 cột này = kịch bản chưa xong — đó
+  là công thức "slide thuyết trình", cấm. 6 bài test trong
+  scene-authoring sẽ được chấm qua snapshot ở Stage 4-5, TRƯỚC render.
 
 ## Stage 3 — Voice
 
@@ -190,7 +180,7 @@ model MỘT lần, cache theo textHash, tự cập nhật `start`/`duration`/
 `totalSeconds` vào beats.json). KHÔNG gọi gen_voice.py từng beat.
 Muốn nghỉ giữa beat khác 0.45s → đặt `gapSeconds`/`tailSeconds` trong
 beats.json TRƯỚC khi chạy batch. Kết thúc bằng `merge_voice.py <slug>`
-→ `voice/narration.wav`.
+→ `voice/narration.wav` + `narration.m4a` (composition dùng bản m4a).
 
 ## Sửa kịch bản sau Stage 3 (beats.json tự heal)
 

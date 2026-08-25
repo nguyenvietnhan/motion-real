@@ -19,7 +19,7 @@ chạy offline (`$env:HF_HUB_OFFLINE="1"` để tắt kiểm tra hub).
 | Tool | Khi nào dùng |
 | --- | --- |
 | **gen_beats_batch.py** `<slug>` | **Chính thức cho pipeline** (Stage 3): đọc beats.json, load model 1 lần, cache textHash, tự cập nhật start/duration/totalSeconds |
-| **merge_voice.py** `<slug>` | Sau batch: gộp tất cả WAV thành `voice/narration.wav` (1 thẻ audio cho HyperFrames) |
+| **merge_voice.py** `<slug>` | Sau batch: gộp tất cả WAV thành `voice/narration.wav` + nén `narration.m4a` (m4a là bản composition nhúng) |
 | gen_voice.py | Test nhanh MỘT câu đơn (có cache textHash + `--force`) — không dùng cho pipeline |
 
 ## Sử dụng (pipeline chuẩn)

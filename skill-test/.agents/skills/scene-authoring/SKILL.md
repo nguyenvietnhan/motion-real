@@ -12,9 +12,10 @@ HTML/CSS/GSAP — không cần build step.
 ## Contract cốt lõi (vi phạm = lint/render fail)
 
 1. Root: `<div id="root" data-composition-id="main" data-start="0"
-   data-width="1080" data-height="1920" data-duration="35.25">` — PHẢI có
+   data-width="1080" data-height="1920" data-duration="263.21">` — PHẢI có
    `data-start="0"`, PHẢI khai báo kích thước px (root không size → content
-   đổ về góc trên trái).
+   đổ về góc trên trái). `data-duration` = `totalSeconds` trong
+   beats.json của job (đừng copy mù con số ví dụ).
 2. Mỗi cảnh là một clip: `class="clip" data-start data-duration
    data-track-index` (giây, không phải frame). **CSS `.clip` do BẠN
    tự khai báo** trong `<style>`: `.clip { position:absolute; inset:0; }`
