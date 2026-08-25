@@ -26,6 +26,12 @@ HTML/CSS/GSAP — không cần build step.
    CSS transform tĩnh trùng property tween — dùng `gsap.fromTo`.
 5. Deterministic: cấm `Math.random` không seed, clock, network,
    `repeat: -1`. Cấm `<br>` trong body text. Id duy nhất toàn trang.
+   **Cấm dùng cú pháp `/* ... */` trong BẤT KỲ text hiển thị nào trên
+   màn hình** (kể cả mockup code) — linter đọc nhầm là comment CSS
+   (`visible_markup_comment`). Code mockup hiển thị dùng `//` hoặc `#`.
+   **Mọi `<svg>` chứa sơ đồ/text nghiêng PHẢI có
+   `data-layout-allow-overlap`** trên `<svg>` và các `<text>` bên
+   trong — bounding box text xoay sẽ chạm nhau và fail layout check.
 6. Nền full-frame đặt trên con `position:absolute; inset:0`, KHÔNG đặt
    background trên root (render có thể mất nền root → đen).
 7. **Audio = MỘT thẻ duy nhất** (master đã merge):

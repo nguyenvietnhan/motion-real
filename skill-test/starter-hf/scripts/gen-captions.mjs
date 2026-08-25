@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join, resolve, dirname } from "node:path";
 
 const slug = process.argv[2];
@@ -51,7 +51,7 @@ const captionClips = lines
     const spans = l.words
       .map((w) => `<span class="cw">${esc(w.word)}</span>`)
       .join("\n          ");
-    return `      <div id="cap-line-${i}" class="clip caption-line" data-start="${l.start.toFixed(2)}" data-duration="${dur.toFixed(2)}" data-track-index="8">\n          ${spans}\n        </div>`;
+    return `      <div id="cap-line-${i}" class="clip caption-line" data-layout-allow-overlap data-start="${l.start.toFixed(2)}" data-duration="${dur.toFixed(2)}" data-track-index="8">\n          ${spans}\n        </div>`;
   })
   .join("\n");
 
@@ -80,8 +80,16 @@ const cssNote = `/* ===== CSS di kem (paste vao <style>) =====
 :root { --caption-active: #D6452C; --caption-idle: rgba(23,20,14,0.55); }
 */`;
 
-console.log(html);
-console.log(cssNote);
+const outDir = resolve(starterDir, slug);
+mkdirSync(outDir, { recursive: true });
+const htmlPath = join(outDir, "captions_snippet.html");
+const cssPath = join(outDir, "captions_snippet.css");
+writeFileSync(htmlPath, html, "utf-8");
+writeFileSync(cssPath, cssNote.replace(/\/\*+|=+$/g, "").trim() + "\n", "utf-8");
+
 console.error(
-  `OK ${lines.length} dòng caption, ${allWords.length} từ, ${totalSeconds}s | audio master: 1 thẻ | highlight qua mảng CAPTION_WORDS`,
+  `OK ${lines.length} dòng caption, ${allWords.length} từ, ${totalSeconds}s`,
 );
+console.error(`   HTML: ${htmlPath}  (paste vào trong #root + cuối <script>)`);
+console.error(`   CSS : ${cssPath}      (paste vào <style>)`);
+console.error(`   audio: 1 thẻ master narration.wav | highlight qua mảng CAPTION_WORDS`);

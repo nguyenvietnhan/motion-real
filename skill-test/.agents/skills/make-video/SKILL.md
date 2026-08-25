@@ -203,8 +203,10 @@ chồng/dán sai vị trí, tổng duration khớp `beats.json` (±2 frame quy �
 
 Từ trong `starter-hf\<slug>\` (xem scene-authoring Quy trình chuẩn):
 `npx hyperframes render --output "..\..\jobs\<slug>\output\video.mp4"`
-(chậm ~4-8× thời lượng video — chỉ render khi QA đã sạch). Kiểm thành
-phẩm: ffprobe có stream video + audio, duration khớp ±0.3s.
+(chậm ~4-8× thời lượng video — video dài 4-5 phút có thể mất 10-15
+phút: BÁO TRƯỚC cho user là render chạy nền lâu, đừng để họ tưởng
+treo). Kiểm thành phẩm: ffprobe có stream video + audio, duration
+khớp ±0.3s.
 
 Viết `output/meta.json`:
 
@@ -222,6 +224,27 @@ Viết `output/meta.json`:
   "createdAt": "2026-08-25"
 }
 ```
+
+## Stage 7 — TỰ XEM video thành phẩm (bắt buộc, không bỏ qua)
+
+Render xong CHƯA phải xong. Agent chưa từng NHÌN sản phẩm thật —
+bước này bắt buộc xem bằng frame extraction (cùng kỹ thuật skill
+watch-video):
+
+```powershell
+python "$env:USERPROFILE\.config\opencode\skills\watch-video\scripts\extract_frames.py" `
+  "jobs\<slug>\output\video.mp4" --max-frames 16 --preset balanced `
+  --output-dir "jobs\<slug>\qa-final"
+```
+
+ĐỌC TỪNG frame và chấm theo 6 bài test (mute/slideshow/reveal/
+dead-zone/squint/safe-area) + kiểm: caption khớp lời, element hiện
+đúng lúc được nhắc, có chuyển động sống, không lỗi hiển thị.
+
+- Lỗi thấy được → sửa composition → re-render → xem lại (tối đa 2
+  vòng; quá 2 vòng báo user quyết định).
+- Sạch → báo user: video xong kèm tự đánh giá trung thực điểm nào
+  tốt/điểm nào còn hạn chế.
 
 ## Done =
 
