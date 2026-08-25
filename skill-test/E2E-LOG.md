@@ -234,3 +234,13 @@ Agent render xong la di tiep - khong ai quay lai NHIN san pham that.
 (cung ky thuat watch-video) -> doc tung frame -> cham 6 bai test ->
 loi thi sua + re-render (toi da 2 vong) -> sach thi bao user kem tu
 danh gia trung thuc. Day la vong kin: lam -> xem -> sua -> lam.
+
+## Vong feedback 10 (25/08 - user phan bien ve Stage 7)
+
+User: "khong nen de buoc tu review o cuoi" - render xong 10-15 phut roi
+moi phat hien loi = phi ca loat re-render. Fix: diem kiem chuyen len
+LUC CODE - viet xong 1-2 canh -> snapshot NGAY cac moc cua canh do ->
+doc -> sua lien -> moi viet canh tiep (loi mat ~5 giay snapshot thay
+vi 10-15 phut re-render). Stage 7 (xem video sau render) BI BO - Stage 6
+chi con kiem ky thuat ffprobe + ban giao kem tu danh gia. scene-authoring
+Quy trinh chuan cap nhat nhip "vua viet vua soi". Commit 1ca2cca.

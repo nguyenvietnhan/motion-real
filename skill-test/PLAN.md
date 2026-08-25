@@ -187,3 +187,9 @@ F7 log dai = dung muc dich; F8 fonts.css/gsap/packs dong bo OK.
 Cong them: don dep git bi tro 275 file artifact Gemini loat truoc
 (jobs/ + starter-hf/*/ vao gitignore, -34957 dong). Commit: 537542e,
 562f639, 485c50c, 7e203fa.
+
+### Phase 12 - Diem kiem chuyen len luc code (25/08/2026) ✅
+
+User phan bien: review sau render = phi re-render. Bo Stage 7, chuyen
+gate chinh vao Stage 4: viet 1-2 canh -> snapshot ngay -> doc -> sua
+lien. Stage 6 chi kiem ky thuat + ban giao. Commit 1ca2cca.
