@@ -141,3 +141,29 @@ totalSeconds - C1/C2 stale claims vendor - C3 default pack format cu +
 Stage 5 - C5 vi du sac-pin con truong era Remotion - D1 16 skill HF
 workflow canh tranh - D2 context noise - E cache/verify deu dua vao
 ky luat agent thay vi code.
+
+## Vong feedback 7 (25/08 - Gemini 3.8 High / Antigravity chay THANH CONG end-to-end, job lightgbm 36 beat)
+
+Video da ra thanh pham. Gemini bao 6 diem nghen that te - da tich hop het:
+
+| # | Van de | Nguyen nhan | Fix da lam |
+| --- | --- | --- | --- |
+| 33 | 36 the <audio> treo Puppeteer (Navigation timeout) | Nhieu media pipeline cung luc + 18MB WAV rieng | gen-captions v2: 1 the audio master narration.wav (merge_voice.py gop theo start) |
+| 34 | Lint cam duong dan ../gsap.min.js | HyperFrames cam traversal | Contract: copy gsap.min.js vao <slug>/, src="gsap.min.js" |
+| 35 | TTS tung beat load lai model 36 lan (3-5 phut mat) | Moi call la 1 process Python | gen_beats_batch.py = tool chinh thuc Stage 3 (1 lan load, cache, tu cap nhat beats.json) |
+| 36 | 1500 tl.set("#cw...") chan Main Thread | Selector string qua querySelectorAll 1500 lan | gen-captions v2 xuat mang CAPTION_WORDS + element cache querySelectorAll 1 lan |
+| 37 | @font-face thieu subset latin -> fallback font | Tu viet font-face de thieu | starter-hf/fonts/fonts.css chuan (day du vi+latin), link 1 dong |
+| 38 | PowerShell 5.1 nuot nhay khi inline one-liner | Cu phap -Command phuc tap | Cam inline one-liner; viet file .mjs/.py roi chay |
+
+## Nang chat luong (phan hoi user: "gioi nhu 3blue1brown, khong phai slide")
+
+- scene-authoring: muc moi "Visualize theo loi noi" - hero diagram TON
+  TAI XUYEN SUOT va TIEN MOI BEAT (noi phan nhanh thi moc them nhanh,
+  goi ten thi to node DUNG LUC TU DO), checklist 4 diem chong "slide
+  thuyet trinh".
+- make-video Stage 2: cot "Hinh dien bien" bat buoc trong beat sheet -
+  moi beat phai ghi hinh THAY DOI TRANG THAI GI.
+
+Cac script Gemini viet da duoc generalize + dua thanh chinh thuc:
+gen_beats_batch.py (portable san), merge_voice.py (da bo hardcode
+lightgbm, nhan slug argv, xuat ca jobs/ va starter-hf/<slug>/voice/).

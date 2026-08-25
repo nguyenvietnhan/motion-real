@@ -139,3 +139,12 @@ Fix theo 7 batch, moi batch 1 commit:
 
 Trang thai: 14 skill auto-load (5 cua ta + 9 HF core), 16 HF extras tai
 hf-extras/. Cho user test lai tren agent khac.
+
+### Phase 8 - Tich hop findings Gemini E2E + nang chat luong visualize (25/08/2026) ✅
+
+Gemini 3.8 High chay thanh cong end-to-end (job lightgbm, 36 beat, 200s).
+6 diem nghen that te da tich hop: master narration (1 the audio), gsap
+local trong slug folder, gen_beats_batch.py (1 lan load model), gen-captions
+v2 (mang timing + element cache), fonts/fonts.css chuan, cam inline one-liner.
+Nang chat: hero diagram tien hoa theo loi noi (3b1b), cot "Hinh dien bien"
+bat buoc. Commit: 52b9c29, f7695c8, 91d8dc2 + log.
