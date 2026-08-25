@@ -61,7 +61,7 @@ Lệnh fail 2 lần → đổi cách + báo user, cấm lặp vô hạn.
 
 ```powershell
 # 0. từ GỐC TOOLBOX: sinh caption + audio markup (không tự gõ tay)
-node starter-hf\scripts\gen-captions.mjs <slug>   # -> in HTML + JS paste vào index.html
+node starter-hf\scripts\gen-captions.mjs <slug>   # -> ghi file captions_snippet.html/.css
 
 # 1. từ GỐC TOOLBOX: tạo project + copy voice + merge master + fonts + gsap
 New-Item -ItemType Directory -Path "starter-hf\<slug>\voice" -Force
@@ -70,16 +70,21 @@ Copy-Item "jobs\<slug>\voice\*" "starter-hf\<slug>\voice\"
 Copy-Item "starter-hf\fonts" "starter-hf\<slug>\fonts" -Recurse
 Copy-Item "starter-hf\gsap.min.js" "starter-hf\<slug>\"
 
-# 2. viết starter-hf\<slug>\index.html (scenes + timeline)
+# 2. viết starter-hf\<slug>\index.html — NHỊP: viết 1-2 cảnh -> snapshot
+#    NGAY các mốc của cảnh đó -> ĐỌC ảnh -> sửa liền -> mới viết cảnh kế.
+#    (npx hyperframes snapshot --at <giay-trong-canh> --output qa)
 
-# 3. cd VÀO project rồi mới kiểm (từ đây mọi lệnh chạy tại starter-hf\<slug>)
+# 3. cd VÀO project rồi mới kiểm tổng thể (từ đây mọi lệnh chạy tại starter-hf\<slug>)
 cd starter-hf\<slug>
 npx hyperframes check        # phải 0 error
-npx hyperframes snapshot --at 3,12,25 --output qa   # rồi ĐỌC TỪNG PNG
+npx hyperframes snapshot --at 3,12,25 --output qa   # quét toàn timeline, ĐỌC TỪNG PNG
 
 # 4. render sau khi QA sạch (output ra job folder)
 npx hyperframes render --output "..\..\jobs\<slug>\output\video.mp4"
 ```
+
+Lỗi bắt ở bước snapshot cảnh tốn ~5 giây; lỗi để lọt đến render tốn
+10-15 phút. Vì vậy soi NGAY khi viết, không dồn QA ra cuối.
 
 Lần đầu chạy `npx hyperframes` nó tải engine về cache — có thể mất
 vài phút, KHÔNG phải treo. Cấm chạy `npx hyperframes preview` trong

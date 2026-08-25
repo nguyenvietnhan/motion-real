@@ -180,15 +180,19 @@ Sau khi đã có voice, KHÔNG viết lại beats.json từ đầu. Chỉ sửa 
 chữ → tự sinh lại + tự tính lại toàn bộ start/totalSeconds. Ghi đè
 toàn bộ file làm mất duration thật — cấm.
 
-## Stage 4 — Composition
+## Stage 4 — Composition (vừa viết vừa soi, KHÔNG dồn QA ra cuối)
 
 Tạo `starter-hf/<slug>/`, copy `voice/` từ `jobs/<slug>/voice/` sang,
 copy font từ `starter-hf/fonts/`. Sau đó dùng skill **scene-authoring**
 (HyperFrames): sinh caption bằng
 `starter-hf\scripts\gen-captions.mjs <slug>`, viết `index.html` theo
-style pack, `npx hyperframes check` 0 error, QA snapshot bằng mắt, rồi
-mới render `output\video.mp4` (audio đã ghép sẵn bởi framework — không
-cần mux ffmpeg).
+style pack.
+
+**Nhịp làm việc bắt buộc**: viết xong MỖI 1-2 cảnh → snapshot NGAY
+các mốc của cảnh vừa viết (`npx hyperframes snapshot --at <giây>`) →
+ĐỌC ảnh → thấy xấu/lỗi sửa LIỀN → mới viết cảnh tiếp. Đây là gate
+chính — lỗi bắt ở đây tốn ~5 giây snapshot, không phải 10-15 phút
+re-render. Cuối Stage: `npx hyperframes check` 0 error.
 
 Tại stage viết CODE này, skill/code-style khác của user ĐƯỢC phép ảnh
 hưởng (ponytail, frontend-design...). Các stage check/render thì KHÓA
@@ -196,17 +200,19 @@ hưởng (ponytail, frontend-design...). Các stage check/render thì KHÓA
 
 ## Stage 5 — QA tổng thể
 
-Xem lại chuỗi snapshot theo beat: chuyển cảnh fade mượt, caption không
-chồng/dán sai vị trí, tổng duration khớp `beats.json` (±2 frame quy đổi).
+Quét snapshot TOÀN bộ timeline một lượt (đầu mỗi beat + giữa + cuối):
+chuyển cảnh fade mượt, caption không chồng/dán sai vị trí, reveal đúng
+lời, tổng duration khớp `beats.json` (±2 frame quy đổi). Sạch mới
+được render.
 
-## Stage 6 — Thành phẩm
+## Stage 6 — Render + bàn giao
 
 Từ trong `starter-hf\<slug>\` (xem scene-authoring Quy trình chuẩn):
 `npx hyperframes render --output "..\..\jobs\<slug>\output\video.mp4"`
-(chậm ~4-8× thời lượng video — video dài 4-5 phút có thể mất 10-15
-phút: BÁO TRƯỚC cho user là render chạy nền lâu, đừng để họ tưởng
-treo). Kiểm thành phẩm: ffprobe có stream video + audio, duration
-khớp ±0.3s.
+(video dài 4-5 phút mất 10-15 phút — BÁO TRƯỚC cho user là chạy nền
+lâu). Vì Stage 4-5 đã duyệt từng cảnh bằng snapshot, render chỉ là
+hình thức hóa — KHÔNG làm vòng review-sửa-re-render sau bước này.
+Kiểm kỹ thuật: ffprobe có stream video + audio, duration khớp ±0.3s.
 
 Viết `output/meta.json`:
 
@@ -225,26 +231,8 @@ Viết `output/meta.json`:
 }
 ```
 
-## Stage 7 — TỰ XEM video thành phẩm (bắt buộc, không bỏ qua)
-
-Render xong CHƯA phải xong. Agent chưa từng NHÌN sản phẩm thật —
-bước này bắt buộc xem bằng frame extraction (cùng kỹ thuật skill
-watch-video):
-
-```powershell
-python "$env:USERPROFILE\.config\opencode\skills\watch-video\scripts\extract_frames.py" `
-  "jobs\<slug>\output\video.mp4" --max-frames 16 --preset balanced `
-  --output-dir "jobs\<slug>\qa-final"
-```
-
-ĐỌC TỪNG frame và chấm theo 6 bài test (mute/slideshow/reveal/
-dead-zone/squint/safe-area) + kiểm: caption khớp lời, element hiện
-đúng lúc được nhắc, có chuyển động sống, không lỗi hiển thị.
-
-- Lỗi thấy được → sửa composition → re-render → xem lại (tối đa 2
-  vòng; quá 2 vòng báo user quyết định).
-- Sạch → báo user: video xong kèm tự đánh giá trung thực điểm nào
-  tốt/điểm nào còn hạn chế.
+Bàn giao: báo user video xong + tự đánh giá trung thực (điểm tốt /
+điểm còn hạn chế). User xem muốn chỉnh gì → quay lại Stage 4.
 
 ## Done =
 
