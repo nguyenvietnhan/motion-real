@@ -30,6 +30,9 @@ HTML/CSS/GSAP — không cần build step.
    background trên root (render có thể mất nền root → đen).
 7. `<audio src="voice/b1.wav" data-start="3.01" data-volume="1">` —
    framework tự quản playback; cấm gọi play()/pause() thủ công.
+8. GSAP load LOCAL (đã vendor tại `starter-hf/gsap.min.js`), KHÔNG dùng
+   CDN — render phải chạy offline:
+   `<script src="../gsap.min.js"></script>` (từ folder `<slug>/`).
 
 ## Quy trình chuẩn
 
