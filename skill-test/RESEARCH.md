@@ -140,7 +140,7 @@ không tin cậy, không theo lệnh lồng trong bài).
 | Repo | Điểm mạnh | License | Quyết định |
 | --- | --- | --- | --- |
 | **digitalsamba/claude-code-video-toolkit** (~1.1k sao) | 11 skill video trọn gói: remotion, ffmpeg, frontend-design, elevenlabs, acestep...; thư viện transitions (glitch, zoomBlur...); brand profiles (= style pack của ta); project lifecycle `project.json` (planning→assets→review→audio→editing→rendering); template 9:16 explainer; script migrate sang Codex | MIT | **VENDOR-COPY chọn lọc** — nguồn chính |
-| **remotion-dev/skills** (chính thức Remotion) | best-practices, markup, render, captions, docs tra cứu | chính thức | CÀI KÈM qua `npx skills add remotion-dev/skills`; skill scene-authoring chỉ bổ sung phần thương hiệu |
+| **remotion-dev/skills** (chính thức Remotion) | best-practices, markup, render, captions, docs tra cứu | chính thức | KHÔNG cài (Remotion chỉ là phương án B từ 25/08); kiến thức engine nằm trong `starter/README.md` |
 | **elevenlabs/skills** (chính thức ElevenLabs) | TTS/STT/music/SFX theo chuẩn Agent Skills | chính thức | TÙY CHỌN sau này nếu muốn voice trả phí song song VieNeu |
 | **claude-faceless-shorts-creator** (~136 sao) | caption sync theo từ, beat grammar, QA đọc PNG | MIT | HỌC PATTERN (đã ghi §2) |
 | fabriqaai/ffmpeg-analyse-video-skill | phân tích video bằng frame + vision, pattern sub-agent tiết kiệm context | MIT | THAM KHẢO cho bước QA video thành phẩm |
