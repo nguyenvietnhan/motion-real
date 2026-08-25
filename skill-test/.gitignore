@@ -3,8 +3,12 @@ tools/vieneu-tts/.venv/
 starter/node_modules/
 starter/out/
 **/voice/*.wav
-**/output/*.mp4
-*.mp4
-snapshot-*/
-qa/
-test-out/
+**/voice/narration.wav
+**/output/
+**/qa/
+**/qa-final/
+jobs/
+# Composition folders la runtime - chi commit khung (scripts, fonts, gsap, README)
+starter-hf/*/
+!starter-hf/scripts/
+!starter-hf/fonts/
