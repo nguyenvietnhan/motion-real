@@ -202,7 +202,8 @@ Viết `output/meta.json`:
 
 ## Ranh giới skill
 
-- Stage 1-3-4-6: làm theo skill chuyên môn tương ứng, không tự chế bước.
+- Stage 1/3/4: làm theo skill chuyên môn tương ứng, không tự chế bước.
+  Stage 5 (QA tổng thể) + Stage 6 (render/verify) làm đúng make-video.
 - Stage viết code (4): mở cho skill style/code khác của user.
-- Không bao giờ: bịa số liệu, bỏ QA, render full khi frame tĩnh còn lỗi,
+- Không bao giờ: bịa số liệu, bỏ QA, render full khi snapshot còn lỗi,
   sửa WAV tay, tự ý đổi provider giọng.
