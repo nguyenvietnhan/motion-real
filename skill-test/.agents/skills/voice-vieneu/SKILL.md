@@ -19,24 +19,39 @@ Venv tại `tools/vieneu-tts/.venv`. Nếu chưa có:
 ```powershell
 cd <toolbox-root>\tools\vieneu-tts
 uv venv --python 3.12 .venv
-uv pip install --python .venv vieneu
+uv pip install --python .venv vieneu numpy
 ```
 
 Lần chạy đầu tải model về cache HF (một lần duy nhất). Sau đó chạy được
 offline với `$env:HF_HUB_OFFLINE="1"`.
 
-## Lệnh chuẩn
+## Lệnh chuẩn — BATCH (dùng cho Stage 3, KHÔNG chạy từng beat)
 
-Luôn đặt `$env:PYTHONIOENCODING="utf-8"` trước khi chạy trên Windows.
+`gen_beats_batch.py` đọc `beats.json`, load model ONNX **một lần duy
+nhất**, sinh beat thiếu (cache theo textHash — beat đã có và chưa đổi
+sẽ CACHED), rồi **tự cập nhật** `start`/`duration`/`totalSeconds` vào
+`beats.json`:
+
+```powershell
+$env:PYTHONIOENCODING="utf-8"
+<toolbox-root>\tools\vieneu-tts\.venv\Scripts\python.exe `
+  <toolbox-root>\tools\vieneu-tts\gen_beats_batch.py <slug>
+```
+
+Cấm gọi gen_voice.py lặp 36 lần — mỗi lần gọi lại load model mất
+3-5 phút tổng. gen_voice.py chỉ dùng để test nhanh một câu đơn.
+
+Sau batch: `beats.json` đã có duration thật + totalSeconds. Kết thúc
+bằng lệnh gộp master audio (bắt buộc cho HyperFrames — xem
+scene-authoring):
 
 ```powershell
 <toolbox-root>\tools\vieneu-tts\.venv\Scripts\python.exe `
-  <toolbox-root>\tools\vieneu-tts\gen_voice.py `
-  --text "<lời đọc của beat>" `
-  --voice "Adam" `
-  --out <toolbox-root>\jobs\<slug>\voice\b1.wav `
-  --fps 30
+  <toolbox-root>\tools\vieneu-tts\merge_voice.py <slug>
 ```
+
+→ tạo `voice/narration.wav` (một file duy nhất, các beat đã đặt đúng
+mốc theo `start`).
 
 Kết quả: `b1.wav` + `b1.json`:
 

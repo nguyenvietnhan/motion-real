@@ -147,10 +147,12 @@ HOOK (0-3.5s) → BỐI CẢNH/CỬA THẠCH → TWIST/INSIGHT → TAKEAWAY
 
 ## Stage 3 — Voice
 
-Dùng skill **voice-vieneu** cho TỪNG beat theo thứ tự. Cập nhật
-`beats.json` với duration đo được; tính `start` cộng dồn (+ nghỉ 0.25-0.4s
-giữa các beat, nghỉ dài 0.6-0.8s trước twist/takeaway nếu nhịp cần).
-Voice nằm ở `jobs/<slug>/voice/`.
+Dùng skill **voice-vieneu**: chạy `gen_beats_batch.py <slug>` (load
+model MỘT lần, cache theo textHash, tự cập nhật `start`/`duration`/
+`totalSeconds` vào beats.json). KHÔNG gọi gen_voice.py từng beat.
+Muốn nghỉ giữa beat khác 0.45s → đặt `gapSeconds`/`tailSeconds` trong
+beats.json TRƯỚC khi chạy batch. Kết thúc bằng `merge_voice.py <slug>`
+→ `voice/narration.wav`.
 
 ## Stage 4 — Composition
 
