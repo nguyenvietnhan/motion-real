@@ -167,3 +167,45 @@ Video da ra thanh pham. Gemini bao 6 diem nghen that te - da tich hop het:
 Cac script Gemini viet da duoc generalize + dua thanh chinh thuc:
 gen_beats_batch.py (portable san), merge_voice.py (da bo hardcode
 lightgbm, nhan slug argv, xuat ca jobs/ va starter-hf/<slug>/voice/).
+
+## Vong feedback 8 (25/08 - phan tich 2 video doi thu ainius.net + video ML cua Gemini)
+
+### Phan tich hinh anh (60 frame, watch-video skill)
+
+Doi thu: 1 thong diep/man hinh, >=50% trong, KHONG panel bao, chapter
+counter (05/13), bang chung that (arXiv screenshot + to vang), an du
+metaphor (sticky note return ???), step list tien hoa, khung tin tuc
+BREAKING. Cua ta: dung 1 template lap (eyebrow->title->PANEL->stamp->
+content->footer), panel vien toan man = "khung bu to", stamp 4/4 beat,
+footer chrome vo nghia, 5-7 nhom element/frame. Noi dung diagram tot
+nhung chet vi khung + lap.
+
+### Kiem chung 5 bao cao ky thuat Gemini: DUNG ca 5
+
+1. Tween opacity tren .clip = vi pham engine (determinism-rules.md
+   dong 45: "Never target a .clip element") -> scene-inner wrapper +
+   hard kill tl.set
+2. StaticGuard khong resolve <link> css -> inline @font-face vao <style>
+3. Caption clip thieu id -> them id="cap-line-N"
+4. PS 5.1 nuot nhay/@/chuoi dai -> cam inline one-liner (da co tu
+   batch truoc, nhac them)
+5. beats.json 2 trang thai -> khong can 2 file: sua vo trong beats.json
+   + chay lai batch = tu heal qua cache
+
+### Them loi tu user: yeu cau 5p ra 3p22s
+
+Nguyen nhan: he muc tran 210s -> ep xuong. Fix: bo tran, thoi luong
+LIENTUC 30-600s, cong thuc so tu tu thich ung, dung dung con so user.
+
+### Da fix (commit 026e0b4, e1e2846)
+
+- scene-authoring: chuyen chuan wrapper+hard kill; muc "Bo cuc cong
+  dong" (cam panel toan man, 1-2 nhom element, >=50% trong, cam footer
+  chrome, stamp <=2/video) + menu 6 form bo cuc theo loai beat; font
+  inline @font-face
+- make-video: thoi luong lientuc 30-600s; cot "Bo cuc" bat buoc trong
+  beat sheet; luat beats.json tu heal
+- gen-captions: id="cap-line-N"
+- styles 3 pack: bo khuyen khich panel, them luat bo cuc
+- Khong lam CLI hop nhat hf_build.py (3 lenh hien tai du - chong
+  overengineering)

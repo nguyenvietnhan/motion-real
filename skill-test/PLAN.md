@@ -156,3 +156,13 @@ starter-hf/lightgbm + sac-pin-qua-dem, starter out/node_modules, test-out.
 Nhat ky kiem nghiem chuyen thanh E2E-LOG.md o goc. starter/ tra ve sample
 goc (SampleVideo), tsc OK sau npm install. jobs/ de trong - san sang cho
 nguoi dung moi.
+
+### Phase 9 - Phan tich doi thu + fix bo cuc + thoi luong lientuc (25/08/2026) ✅
+
+Coi 60 frame (2 video ainius.net + video ML cua Gemini) bang watch-video
+skill. Chuan doi thu: 1 thong diep/man, khong panel, chapter counter,
+bang chung that, metaphor rieng. Ta: khung bao toan man + 1 template lap
+= slide. Kiem chung 5/5 bao cao ky thuat cua Gemini DEU DUNG (co ban
+beng engine docs). Fix: chuyen chuan dung contract engine (wrapper+hard
+kill), bo cuc cong dong + menu 6 form, thoi luong lientuc 30-600s,
+caption id, font inline, beats.json tu heal. Commit: 026e0b4, e1e2846 + log.
