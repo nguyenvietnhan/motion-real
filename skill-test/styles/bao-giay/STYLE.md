@@ -62,9 +62,11 @@ IBMPlexMono-400/600 (subset vi + latin).
 
 ## 5. Bố cục
 
-- Lệch có chủ đích: object trái + chữ phải, số to đè góc, tránh căn
-  giữa đối xứng hoàn toàn.
-- Hairline rule để tách vùng; generous negative space.
+- **1 thông điệp/màn hình, ≥50% khoảng trống** — như một trang báo
+  dàn thoáng, không nhồi. Tối đa 2 nhóm element mỗi beat.
+- CẤM panel/khung bao toàn màn hình. Card nhỏ chỉ khi có nghĩa, ≤2/beat.
+- CẤM footer chrome. Stamp ≤2 lần/cả video (đặc trưng pack — đừng lạm).
+- Đổi hình thức bố cục theo beat (menu 6 form trong scene-authoring).
 - Safe-area: nội dung chính trong top 160 / trái 72 / phải 160 /
   trên dải caption 340px.
 

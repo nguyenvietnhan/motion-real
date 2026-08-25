@@ -49,8 +49,12 @@ CẤM dùng "sans-serif hệ thống" làm display — dùng font đã vendor
 
 ## 5. Bố cục
 
+- **1 thông điệp/màn hình, ≥50% khoảng trống.** Tối đa 2 nhóm element
+  mỗi beat. CẤM panel/khung bao toàn màn hình — content thả trên nền.
+- CẤM footer chrome (watermark, tên video, timestamp meta).
+- Stamp tối đa 1-2 lần/cả video. Eyebrow chỉ khi cần định vị.
+- Đổi hình thức bố cục theo beat (menu 6 form trong scene-authoring).
 - Safe-area: top 160 / trái 72 / phải 160 / trên caption band 340px.
-- Mỗi beat một ý; tránh căn giữa đối xứng hoàn toàn lặp lại cả video.
 
 ## 6. Cấm (anti-slop)
 

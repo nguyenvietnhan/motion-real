@@ -146,6 +146,41 @@ không đổi trong khi lời đọc chạy = hình trang trí.
 - [ ] Có ≥ 2 chỗ hình phản ứng đúng thời điểm một từ/cụm từ nói
 - [ ] Không beat nào chỉ toàn chữ không có hình tương tác
 
+## Bố cục cô đọng (chuẩn đối thủ — chống "khung bự tổ")
+
+Đối thủ chuẩn (ainius): **1 thông điệp/màn hình, ≥50% khoảng trống,
+không panel bao**. Video của ta từng chết vì: panel viền bọc toàn màn
++ 5-7 nhóm element + footer chrome + stamp lặp — người xem thấy bí
+bách và "slide".
+
+### Luật cứng
+
+1. **CẤM panel/khung bao toàn màn hình.** Content thả trực tiếp trên
+   nền. Card/panel nhỏ chỉ dùng khi nó CÓ NGHĨA (ví dụ note dán, thẻ
+   so sánh) và tối đa 1-2 cái/beat.
+2. **Tối đa 2 nhóm element/beat** (vd: 1 headline + 1 số liệu; hoặc
+   1 diagram + 1 nhãn). Mọi thứ khác = cắt.
+3. **≥50% diện tích là khoảng trống.** Đặc = sai.
+4. **CẤM footer chrome** (watermark, tên video, "210S MASTER"...) —
+   vô nghĩa với người xem.
+5. **Stamp tối đa 1-2 lần/cả video.** Dùng nhiều = mất tác dụng.
+6. Eyebrow chỉ dùng khi thực sự cần định vị — không phải beat nào
+   cũng cần.
+
+### Menu 6 hình thức bố cục — mỗi beat chọn 1, TẬN DỤNG THAY ĐỔI
+
+| Form | Khi nào dùng | Trông như |
+| --- | --- | --- |
+| **Số biến đổi** | có con số trước/sau | số cũ gạch ngang nhỏ → số mới KHỔNG LỒ accent, giữa màn |
+| **Bằng chứng thật** | có nguồn tài liệu | screenshot tài liệu thật full-screen (nghiêng nhẹ) + tô vàng câu chốt + caption bar đen |
+| **Khung tuyên bố** | tuyên bố lớn/số liệu gây sốc | banner màu + headline condensed 3 dòng, kiểu breaking news |
+| **Step list tiến hóa** | quy trình/những bước | các bước mọc dần theo lời, bước xong có ✓, nối đường chấm |
+| **Trích dẫn** | quote/định nghĩa từ nguồn | câu quote lớn + tên nguồn nhỏ dưới |
+| **Takeaway list** | kết bài | các điểm đánh số mọc dần theo lời, mỗi điểm 1 dòng |
+
+Cùng hero diagram tiến hóa (mục trên) với form bố cục thay đổi theo
+beat = hết cảm giác slide.
+
 ## Ngữ pháp motion + biến tấu chữ (bắt buộc, chống "slide chán")
 
 - Entrance nhanh 0.25-0.45s rồi hold. Semantic progression chỉ khi nội

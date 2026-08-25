@@ -149,6 +149,11 @@ HOOK (0-3.5s) → BỐI CẢNH/CỬA THẠCH → TWIST/INSIGHT → TAKEAWAY
      video cụt.
 - Chia beat: mỗi beat 1 ý, vo ≤ 25 từ cho dễ sync, role ghi rõ
   (hook/context/twist/takeaway).
+- **Cột "Bố cục" bắt buộc**: mỗi beat chọn 1 hình thức từ menu 6 form
+  trong scene-authoring (số biến đổi / bằng chứng thật / khung tuyên
+  bố / step list / trích dẫn / takeaway). HAI beat kế tiếp không được
+  dùng cùng một form — đây là thứ diệt cảm giác slide. Kèm cột "Hình
+  diễn biến" (thay đổi trạng thái của diagram).
 - **Cột "Hình diễn biến" bắt buộc** trong beat sheet: mỗi beat phải ghi
   rõ HÌNH THAY ĐỔI GÌ (trạng thái mới của diagram, element nào xuất
   hiện/tô đậm/vẽ thêm). Beat sheet chỉ có VO không có hình = kịch bản

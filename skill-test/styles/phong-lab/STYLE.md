@@ -53,7 +53,11 @@ Archivo-900, BeVietnamPro-400/600, IBMPlexMono-400/600.
 
 ## 5. Bố cục
 
-- Panel có khung, số liệu có nhãn — mọi thứ như được "đo".
+- **1 thông điệp/màn hình, ≥50% khoảng trống.** Tối đa 2 nhóm element
+  mỗi beat. CẤM panel bao toàn màn hình — thiết bị đo cũng chỉ chiếm
+  vùng nội dung, không bọc cả frame.
+- CẤM footer chrome. Stamp ≤2 lần/cả video.
+- Đổi hình thức bố cục theo beat (menu 6 form trong scene-authoring).
 - Safe-area: top 160 / trái 72 / phải 160 / trên caption band 340px.
 
 ## 6. Cấm (anti-slop)
