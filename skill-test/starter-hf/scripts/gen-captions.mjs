@@ -51,7 +51,7 @@ const captionClips = lines
     const spans = l.words
       .map((w) => `<span class="cw">${esc(w.word)}</span>`)
       .join("\n          ");
-    return `      <div class="clip caption-line" data-start="${l.start.toFixed(2)}" data-duration="${dur.toFixed(2)}" data-track-index="8">\n          ${spans}\n        </div>`;
+    return `      <div id="cap-line-${i}" class="clip caption-line" data-start="${l.start.toFixed(2)}" data-duration="${dur.toFixed(2)}" data-track-index="8">\n          ${spans}\n        </div>`;
   })
   .join("\n");
 

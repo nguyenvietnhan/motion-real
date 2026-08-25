@@ -78,10 +78,11 @@ jobs/<slug>/
 ## Stage 0 — Brief
 
 Hỏi user (hoặc nhận từ lệnh) nếu thiếu: **chủ đề**, **thời lượng**
-(mặc định 45s; các mức 45/90/150/210 — thời lượng lẻ thì chọn mức gần
-nhất và nói rõ), **giọng** (mặc định Adam), **style pack** (mặc định
-`default` — đọc `styles/<tên>/STYLE.md` ngay từ đầu và áp dụng xuyên
-suốt). Tier tính bằng GIÂY — không bịa "tier 4" hay đánh số tự chế.
+(mặc định 45s; chấp nhận MỌI thời lượng 30-600s — công thức số từ tự
+thích ứng, không giới hạn mức), **giọng** (mặc định Adam), **style
+pack** (mặc định `default` — đọc `styles/<tên>/STYLE.md` ngay từ đầu
+và áp dụng xuyên suốt). Thời lượng tính bằng GIÂY, dùng đúng con số
+user yêu cầu — KHÔNG làm tròn xuống mức chuẩn nào cả.
 
 Tạo `jobs/<slug>/brief.md`. Slug: chữ thường, gạch ngang, ngắn.
 
@@ -133,12 +134,12 @@ HOOK (0-3.5s) → BỐI CẢNH/CỬA THẠCH → TWIST/INSIGHT → TAKEAWAY
 - **TỰ KIỂM BẮT BUỘC trước khi sang Stage 3** (4 điểm, thiếu điểm nào
   sửa ngay tại chỗ):
   1. **Số từ**: đếm tổng số từ của cột VO. PHẢI khớp công thức
-     `giây × 3.7 ±10%` với thời lượng user yêu cầu. Nếu user yêu cầu
-     thời lượng lẻ (vd "cỡ 4 phút") → chọn mức gần nhất (210s), NÓI RÕ
-     cho user, và vẫn đủ số từ mức đó. In rõ phép tính: "tổng <N> từ
-     ≈ <M> giây speech + nghỉ ≈ <K> giây — khớp mục tiêu". CẤM tuyên
-     bố "đúng" không kèm phép tính; CẤM phép tính bịa kiểu "47.7s +
-     12s nghỉ ≈ 240s". Thiếu từ → viết thêm beat NGAY LÚC ĐÓ.
+     `thời lượng user yêu cầu (giây) × 3.7 ±10%` — dùng ĐÚNG con số
+     user yêu cầu (300s = ~1110 từ), không làm tròn xuống mức chuẩn.
+     In rõ phép tính: "tổng <N> từ ≈ <M> giây speech + nghỉ ≈ <K> giây
+     — khớp mục tiêu <T>s". CẤM tuyên bố "đúng" không kèm phép tính;
+     CẤM phép tính bịa kiểu "47.7s + 12s nghỉ ≈ 240s". Thiếu từ →
+     viết thêm beat NGAY LÚC ĐÓ.
   2. **Hook**: câu đầu tiên KHÔNG là định nghĩa ("X là..."), KHÔNG
      chào hỏi, KHÔNG câu hỏi chung chung — phải vào thẳng tension.
   3. **Nguồn**: mọi số liệu trong VO truy được về claim ledger có URL;
@@ -161,6 +162,14 @@ model MỘT lần, cache theo textHash, tự cập nhật `start`/`duration`/
 Muốn nghỉ giữa beat khác 0.45s → đặt `gapSeconds`/`tailSeconds` trong
 beats.json TRƯỚC khi chạy batch. Kết thúc bằng `merge_voice.py <slug>`
 → `voice/narration.wav`.
+
+## Sửa kịch bản sau Stage 3 (beats.json tự heal)
+
+Sau khi đã có voice, KHÔNG viết lại beats.json từ đầu. Chỉ sửa trường
+`vo` của beat cần đổi (giữ nguyên start/duration), rồi chạy lại
+`gen_beats_batch.py <slug>`: beat chưa đổi → CACHED (0 giây), beat đổi
+chữ → tự sinh lại + tự tính lại toàn bộ start/totalSeconds. Ghi đè
+toàn bộ file làm mất duration thật — cấm.
 
 ## Stage 4 — Composition
 

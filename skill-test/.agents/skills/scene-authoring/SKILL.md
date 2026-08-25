@@ -36,10 +36,11 @@ HTML/CSS/GSAP — không cần build step.
 8. GSAP load LOCAL, KHÔNG dùng CDN và KHÔNG dùng đường dẫn `../`
    (lint HyperFrames cấm traversal). Copy `gsap.min.js` vào thẳng
    folder `<slug>\` rồi `<script src="gsap.min.js"></script>`.
-9. Font: copy folder `fonts\` (có sẵn `fonts.css` đầy đủ subset
-   vietnamese + latin) vào `<slug>\`, link một dòng:
-   `<link rel="stylesheet" href="fonts/fonts.css">`. KHÔNG tự viết
-   @font-face từng cái — dễ thiếu subset latin cho ký tự Anh/số.
+9. Font: copy folder `fonts\` vào `<slug>\`, rồi **INLINE toàn bộ khối
+   `@font-face`** (copy từ `fonts\fonts.css`) vào `<style>` của
+   index.html — KHÔNG dùng `<link rel="stylesheet">`: StaticGuard của
+   engine không resolve CSS ngoài và sẽ báo lỗi font thiếu. Vẫn giữ
+   `src:url('fonts/...woff2')` trỏ tới file font trong folder.
 
 ## Quy trình chuẩn
 
@@ -93,14 +94,28 @@ Dùng output của `gen-captions.mjs`. Nguyên tắc nếu tự viết:
 
 ## Chuyển cảnh giữa cảnh
 
-Cắt cứng = nghiệp dư. Mỗi clip (trừ clip đầu vào, clip cuối ra):
+**Quy tắc engine (bắt buộc):** KHÔNG BAO GIỜ tween opacity trực tiếp
+lên phần tử `.clip` — HyperFrames sở hữu vòng đời + visibility của clip
+(tween trên clip = lỗi `gsap_exit_missing_hard_kill`). Cấu trúc đúng:
 
-```js
-tl.fromTo("#b2", { opacity: 0 }, { opacity: 1, duration: 0.28, ease: "none" }, START_B2);
-tl.to("#b2", { opacity: 0, duration: 0.28, ease: "none" }, START_B2 + DUR_B2 - 0.28);
+```html
+<section id="b2" class="clip" data-start="..." data-duration="..." data-track-index="1">
+  <div class="scene-inner" style="position:absolute; inset:0;">
+    <!-- toàn bộ nội dung cảnh bọc trong đây -->
+  </div>
+</section>
 ```
 
-Nền các cảnh cùng màu → fade qua nền = crossfade tự nhiên.
+```js
+// fade-in + fade-out diễn ra trên .scene-inner, KHÔNG trên .clip
+tl.fromTo("#b2 .scene-inner", { opacity: 0 }, { opacity: 1, duration: 0.28, ease: "none" }, START_B2);
+tl.to("#b2 .scene-inner", { opacity: 0, duration: 0.28, ease: "none" }, START_B2 + DUR_B2 - 0.28);
+// HARD KILL bắt buộc sau exit — chống trôi trạng thái khi seek không tuần tự
+tl.set("#b2 .scene-inner", { opacity: 0 }, START_B2 + DUR_B2);
+```
+
+- Clip đầu vào: bỏ fade-in. Clip cuối: bỏ fade-out + hard kill.
+- Nền các cảnh cùng màu → fade qua nền = crossfade tự nhiên.
 
 ## Visualize theo lời nói (chuẩn giải thích kỹ thuật — KHÔNG phải slide)
 
