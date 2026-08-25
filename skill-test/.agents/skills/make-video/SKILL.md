@@ -47,6 +47,7 @@ jobs/<slug>/
   "fps": 30,
   "voice": "Adam",
   "stylePack": "default",
+  "totalSeconds": 45.2,
   "beats": [
     {
       "id": "b1",
@@ -59,6 +60,8 @@ jobs/<slug>/
   ]
 }
 ```
+
+`totalSeconds` = beat cuối `start + duration` + đuôi hold (~1.5-2s).
 
 `start`/`duration` tính GIÂY, lấy từ `durationSeconds` trong meta WAV.
 Đổi ra frame: `Math.round(giay * 30)`.
