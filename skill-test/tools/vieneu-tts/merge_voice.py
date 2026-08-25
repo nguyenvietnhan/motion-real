@@ -68,5 +68,27 @@ def main():
             wf.writeframes(master_audio.tobytes())
         print(f"Wrote {out_p} ({total_seconds}s)")
 
+    # Nen thanh m4a cho composition (WAV 5 phut ~ 25MB gay timeout Chromium;
+    # m4a ~ 3-5MB load nhanh). Can ffmpeg tren PATH; khong co thi bo qua,
+    # van con wav nhung se cham hon khi load.
+    import shutil
+    import subprocess
+
+    ffmpeg = shutil.which("ffmpeg")
+    if ffmpeg:
+        for out_p in out_paths:
+            m4a = out_p.with_suffix(".m4a")
+            try:
+                subprocess.run(
+                    [ffmpeg, "-y", "-i", str(out_p), "-c:a", "aac", "-b:a", "128k", str(m4a)],
+                    check=True,
+                    capture_output=True,
+                )
+                print(f"Wrote {m4a} ({m4a.stat().st_size / 1024 / 1024:.1f} MB)")
+            except subprocess.CalledProcessError as e:
+                print(f"ffmpeg fail cho {m4a.name}: {e.stderr[-200:] if e.stderr else e}")
+    else:
+        print("ffmpeg khong co tren PATH - bo qua buoc nen m4a (chi co wav)")
+
 if __name__ == "__main__":
     main()

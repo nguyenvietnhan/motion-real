@@ -19,6 +19,10 @@ HTML/CSS/GSAP — không cần build step.
    data-track-index` (giây, không phải frame). **CSS `.clip` do BẠN
    tự khai báo** trong `<style>`: `.clip { position:absolute; inset:0; }`
    — framework KHÔNG cung cấp sẵn.
+   **1 BEAT = 1 CLIP — cấm gom nhiều beat vào một scene lớn.** Gom
+   cảnh để "giảm số element/tăng tốc" là nguyên nhân số một tạo ra
+   slide: cả 40-60 giây nội dung nằm lộ sẵn và bất động. Muốn nhẹ
+   thì nén audio (dùng narration.m4a), không phải cắt cảnh.
 3. Đúng MỘT timeline GSAP paused, dựng ĐỒNG BỘ lúc load:
    `window.__timelines["main"] = tl`.
 4. **Cấm tween `left/top/width/height`** (snap pixel nguyên → giật khi
@@ -34,11 +38,13 @@ HTML/CSS/GSAP — không cần build step.
    trong — bounding box text xoay sẽ chạm nhau và fail layout check.
 6. Nền full-frame đặt trên con `position:absolute; inset:0`, KHÔNG đặt
    background trên root (render có thể mất nền root → đen).
-7. **Audio = MỘT thẻ duy nhất** (master đã merge):
-   `<audio id="vo-master" src="voice/narration.wav" data-start="0.00"
-   data-volume="1"></audio>`. CẤM đặt từng thẻ `<audio>` theo beat —
-   36 thẻ audio làm Chromium treo (Navigation timeout) vì khởi tạo 36
-   media pipeline cùng lúc. narration.wav do `merge_voice.py` tạo.
+7. **Audio = MỘT thẻ duy nhất** (master đã merge), dùng bản NÉN:
+   `<audio id="vo-master" src="voice/narration.m4a" data-start="0.00"
+   data-volume="1"></audio>`. WAV gốc 5 phút nặng ~25MB → Chromium
+   timeout khi load; m4a ~3-5MB load dưới 1 giây. `merge_voice.py`
+   tự tạo cả hai. CẤM đặt từng thẻ `<audio>` theo beat — 36 thẻ audio
+   làm Chromium treo (Navigation timeout) vì khởi tạo 36 media
+   pipeline cùng lúc.
 8. GSAP load LOCAL, KHÔNG dùng CDN và KHÔNG dùng đường dẫn `../`
    (lint HyperFrames cấm traversal). Copy `gsap.min.js` vào thẳng
    folder `<slug>\` rồi `<script src="gsap.min.js"></script>`.
@@ -89,6 +95,26 @@ Lỗi bắt ở bước snapshot cảnh tốn ~5 giây; lỗi để lọt đến
 Lần đầu chạy `npx hyperframes` nó tải engine về cache — có thể mất
 vài phút, KHÔNG phải treo. Cấm chạy `npx hyperframes preview` trong
 flow tự động (nó là server chặn, không tự thoát).
+
+## Linter — error là gate, warning là tư vấn
+
+`npx hyperframes check` chỉ FAIL khi có **error**. Các warning/info
+sau đây là **TƯ VẤN** — tuyệt đối KHÔNG hy sinh motion, reveal, hay
+luật bố cục để làm chúng im:
+
+| Warning | Nghĩa thật | Ứng xử đúng |
+| --- | --- | --- |
+| `timeline_track_too_dense` | track có nhiều timed element | Bình thường với video 40+ beat. Giữ nguyên. |
+| `composition_file_too_large` | index.html nhiều dòng | Bình thường với video dài. Giữ nguyên. |
+| `content_overlap` trên `.cw` caption | sub-pixel chạm khi wrap | Đã có `data-layout-allow-overlap` sẵn từ gen-captions — bỏ qua. |
+| `studio_missing_editable_id` | thiếu id cho Studio edit | Thẩm mỹ, không chặn render. |
+
+Lần trước agent thấy 2 warning này và ĐÃ CẮT GSAP animation + gom 41
+beat thành 6 scene tĩnh để "làm linter hài lòng" → video thành slide.
+CẤM lặp lại: warning không phải lỗi; luật motion/reveal/bố cục trong
+skill này THẮNG warning trong mọi trường hợp. Chỉ `error` mới phải
+sửa. Nếu timeout khi load (audio nặng) → dùng `narration.m4a`, không
+gom cảnh.
 
 ## Karaoke captions (đã fix 2 bug thật — làm đúng công thức)
 
@@ -153,6 +179,13 @@ không đổi trong khi lời đọc chạy = hình trang trí.
   số beat có diagram THAY ĐỔI TRẠNG THÁI (không chỉ entrance); ≥ 2 chỗ
   hình phản ứng đúng thời điểm một từ/cụm từ; không beat nào chỉ toàn
   chữ không có hình tương tác.
+- **Chuẩn mức sống cần đạt** (ví dụ từ phân tích video thật): nói
+  K-Means → chùm quét quét qua đám điểm, điểm đổi màu gom cụm dần;
+  nói Gradient Descent → quả cầu LĂN thật trên đường cong theo frame,
+  số Loss nhảy liên tục; nói mạng nơ-ron → xung ánh sáng chạy qua từng
+  layer khi giọng đọc nhắc tầng; nói code lỗi → dòng if-else tự gõ
+  (typewriter) rồi dấu cảnh báo nhấp nháy. Nếu hình của bạn im hơn
+  các ví dụ này → chưa đạt.
 
 ## Bố cục cô đọng (chuẩn đối thủ — chống "khung bự tổ")
 
