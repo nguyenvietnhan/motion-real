@@ -262,3 +262,19 @@ Fix (commit nay):
 - voice-vieneu: pham vi cache = noi bo 1 job, cam copy wav/json cheo job
 - scene-authoring: composition viet moi tu trang trang, mo job cu chi
   de tham khao ky thuat
+
+## Vong feedback 12 (25/08 - Gemini mo xa benh "slide" lan 3)
+
+Gemini tu thu nhan 3 rao can dan den quyet dinh phong thu tao slide:
+(1) Timeout audio WAV 25MB -> sai lầm gom 41 beat thanh 6 scene tinh;
+(2) So warning timeline_track_too_dense / composition_file_too_large
+(advisory) -> cat GSAP animation de lam linter hai long; (3) So
+content_overlap -> dong element vao card tinh. Ca 3 deu la lo hong
+skill chua ra: khong co luat 1-beat-1-clip, khong noi ro warning =
+tu van, chua co audio nen.
+
+Fix: merge_voice.py xuat them narration.m4a (25MB -> 4.4MB, da test);
+scene-authoring them "1 BEAT = 1 CLIP", muc "Linter - error la gate,
+warning la tu van" (bang 4 warning thuong + cach ung xu), audio tag
+dung m4a, them vi du muc song can dat (k-means quet radar, cau lan
+parabol, xung neuron, typewriter code). Commit 526b368... (xem git).
