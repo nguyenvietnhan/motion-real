@@ -30,6 +30,26 @@ Máy chạy **PowerShell 5.1**. Cấm dùng cú pháp bash:
   dấu nháy. Cần logic gì → viết file `.mjs`/`.py` ngắn rồi
   `node file.mjs`.
 
+## Luật bản quyền nội dung (job mới = mọi thứ mới)
+
+Mỗi job là một tác phẩm độc lập. **CẤM TUYỆT ĐỐI copy `script.md`,
+`beats.json`, `voice/*`, `index.html` hoặc bất kỳ artifact nào từ job
+khác** — kể cả cùng chủ đề, kể cả "chỉ khác thời lượng", kể cả để
+"tiết kiệm thời gian". Video giống hệt video cũ = job FAIL dù render
+đẹp đến đâu.
+
+- Cache textHash chỉ có hiệu lực **trong nội bộ một job** — không bao
+  giờ là cớ để mang voice/HTML xuyên job.
+- Được PHÉP đọc `research/findings.md` của job cũ cùng chủ đề để tham
+  khảo nguồn — nhưng script phải viết lại từ đầu đúng số từ của thời
+  lượng mới, voice sinh mới trong `jobs/<slug>/voice/`, composition
+  viết mới từ trang trắng.
+- Tạo job mới mà workspace đã có job tương tự → ghi rõ vào brief.md:
+  "Job mới — KHÔNG tái sử dụng artifact từ `<job-cũ>`".
+- **TỰ KIỂM trong Done=**: file script/voice/index của job mới phải
+  có thời gian tạo SAU brief.md; nội dung script khác biệt so với job
+  cũ cùng chủ đề (không phải bản chép mở rộng).
+
 ## Artifact contract — cây file của một job
 
 ```text
@@ -238,6 +258,9 @@ Bàn giao: báo user video xong + tự đánh giá trung thực (điểm tốt /
 
 - brief.md, research/findings.md, script.md, beats.json đầy đủ và KHỚP
   nhau (mọi số liệu script truy được ledger).
+- **Bản quyền nội dung**: mọi artifact của job là MỚI — không copy từ
+  job khác (kiểm thời gian tạo file sau brief.md; script khác biệt
+  với job cũ cùng chủ đề nếu có).
 - Mỗi beat có wav + json; beats.json duration = số đo thật.
 - QA snapshot đã đọc, checklist đạt; `hyperframes check` 0 error.
 - output/video.mp4 có cả video + audio (render thẳng bởi HyperFrames),

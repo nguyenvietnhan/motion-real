@@ -75,6 +75,8 @@ Kết quả: `b1.wav` + `b1.json`:
    tốn thời gian sinh lại). Muốn ép sinh lại dùng `--force`. TTS là
    generative — chạy lại sẽ ra giọng hơi khác, nên SỬA MỘT CÂU CHỈ
    SINH LẠI CÂU ĐÓ (tool tự lo: câu chưa đổi sẽ CACHED).
+   **Phạm vi cache = NỘI BỘ một job.** CẤM copy wav/json từ job khác
+   sang — job mới thì voice phải sinh mới trong job mới.
 3. **Đọc `durationSeconds` từ meta, không bao giờ ước lượng** thời lượng
    beat khi đã có WAV. Chỉ ước lượng ở giai đoạn viết kịch bản, TRƯỚC
    khi có giọng: **tiếng Việt ~4.0-4.3 từ/giây** (đo thực tế giọng Adam;

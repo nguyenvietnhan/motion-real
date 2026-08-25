@@ -245,6 +245,14 @@ con trỏ nhấp nháy FLOATS".
 token màu, thang chữ, công thức component, menu biến tấu, cấm kê. Không
 hardcode theo một video cũ — pack là hệ thiết kế dùng cho mọi chủ đề.
 
+## Composition viết mới từ trang trắng
+
+Mỗi job = một `index.html` viết mới hoàn toàn. **CẤM copy index.html
+(hoặc đoạn scene/timeline) từ job khác** — kể cả cùng chủ đề, cùng
+style pack. Được phép mở job cũ chỉ để THAM KHẢO kỹ thuật (cách làm
+hiệu ứng), không phải để chép nội dung/timeline. Thuật ngữ của toolbox:
+pure AUTHOR — mỗi video là tác phẩm biên soạn mới.
+
 ## QA bắt buộc (một checklist duy nhất — không bỏ qua)
 
 `npx hyperframes check` phải 0 error. Snapshot tại: 0.5s, mốc vào từng
