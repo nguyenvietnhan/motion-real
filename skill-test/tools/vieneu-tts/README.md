@@ -14,7 +14,21 @@ uv pip install --python .venv vieneu
 Lần chạy đầu tiên sẽ tải model về cache Hugging Face. Từ lần sau có thể
 chạy offline (`$env:HF_HUB_OFFLINE="1"` để tắt kiểm tra hub).
 
-## Sử dụng
+## Ba tool — vai trò
+
+| Tool | Khi nào dùng |
+| --- | --- |
+| **gen_beats_batch.py** `<slug>` | **Chính thức cho pipeline** (Stage 3): đọc beats.json, load model 1 lần, cache textHash, tự cập nhật start/duration/totalSeconds |
+| **merge_voice.py** `<slug>` | Sau batch: gộp tất cả WAV thành `voice/narration.wav` (1 thẻ audio cho HyperFrames) |
+| gen_voice.py | Test nhanh MỘT câu đơn (có cache textHash + `--force`) — không dùng cho pipeline |
+
+## Sử dụng (pipeline chuẩn)
+
+```powershell
+$env:PYTHONIOENCODING="utf-8"
+.venv\Scripts\python.exe gen_beats_batch.py <slug>
+.venv\Scripts\python.exe merge_voice.py <slug>
+```
 
 ```powershell
 $env:PYTHONIOENCODING="utf-8"

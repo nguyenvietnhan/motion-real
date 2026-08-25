@@ -175,3 +175,15 @@ hien thi, data-layout-allow-overlap cho SVG + caption, bao truoc thoi
 gian render dai. QUAN TRONG NHAT: them STAGE 7 - tu xem video thanh
 pham bang frame extraction truoc khi giao user (phat hien cua user).
 Commit: 9359e8c + log.
+
+### Phase 11 - Audit toan dien lan 2: don dep du thua (25/08/2026) ✅
+
+8 phat hien: F1 4 file orphan starter + fonts trung 185KB (xoa, tsc OK);
+F2 sai so lieu 14->13 skill (sua README+DESIGN); F3 embedded-captions
+(talking-head) sai cho -> hf-extras; F4 scene-authoring tu trung lap
+280->225 dong, QA gop 1 checklist; F5 gen_voice vs batch = co chu dich
+(README ro vai tro); F6 shell rules lap 3 noi = chap nhan (an toan);
+F7 log dai = dung muc dich; F8 fonts.css/gsap/packs dong bo OK.
+Cong them: don dep git bi tro 275 file artifact Gemini loat truoc
+(jobs/ + starter-hf/*/ vao gitignore, -34957 dong). Commit: 537542e,
+562f639, 485c50c, 7e203fa.
