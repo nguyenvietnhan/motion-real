@@ -144,13 +144,10 @@ không đổi trong khi lời đọc chạy = hình trang trí.
   LÚC TỪ ĐÓ (dùng CAPTION_WORDS timings hoặc words[] của beat).
 - Vẽ dần (`strokeDashoffset`), mọc dần (scale/height theo progress),
   đếm số (counter) là công cụ chuẩn để "hình đi cùng lời".
-
-### Checklist chống "slide thuyết trình"
-
-- [ ] Diagram chủ xuất hiện từ hook và còn mặt ở beat cuối
-- [ ] ≥ nửa số beat có diagram THAY ĐỔI TRẠNG THÁI (không chỉ entrance)
-- [ ] Có ≥ 2 chỗ hình phản ứng đúng thời điểm một từ/cụm từ nói
-- [ ] Không beat nào chỉ toàn chữ không có hình tương tác
+- Tự kiểm diagram: chủ xuất hiện từ hook và còn mặt ở beat cuối; ≥ nửa
+  số beat có diagram THAY ĐỔI TRẠNG THÁI (không chỉ entrance); ≥ 2 chỗ
+  hình phản ứng đúng thời điểm một từ/cụm từ; không beat nào chỉ toàn
+  chữ không có hình tương tác.
 
 ## Bố cục cô đọng (chuẩn đối thủ — chống "khung bự tổ")
 
@@ -206,18 +203,7 @@ minh. Quy tắc ngược lại:
 - Cách viết: mỗi element một dòng reveal —
   `tl.fromTo(el, {autoAlpha:0, y:24}, {autoAlpha:1, y:0, duration:0.35}, t_cua_tu);`
 
-### 2. Living motion — element đã hiện phải SỐNG
-
-- Sau khi reveal, element KHÔNG đứng im: thở (scale 1↔1.02), trôi
-  nhẹ (y ±4), xoay chậm, lặp chu kỳ xác định (dùng period/phase — xem
-  cheatsheet). Ít nhất MỘT element/beat chuyển động liên tục.
-- Nhân vật/diagram có "hành động": mèo đi (x drift + chân swap),
-  nhánh cây mọc dần, đường đồ thị vẽ tiếp. Chọn hành động PHỤC VỤ
-  lời giải thích, không phải lắc lư vô nghĩa.
-- Nền có thể có lớp sống riêng (gradient trôi, hạt lơ lửng) — đặt ở
-  layer con, rất nhẹ.
-
-### 3. Motion verb — mỗi element một động từ trước khi code
+### 2. Motion verb — mỗi element một động từ trước khi code
 
 Viết beat sheet xong, liệt kê từng element kèm ĐỘNG TỪ chuyển động
 (SLAMS, DRAWS, GROWS, COUNTS UP, TYPES ON, FLOATS, ORBITS...). Không
@@ -225,23 +211,16 @@ Viết beat sheet xong, liệt kê từng element kèm ĐỘNG TỪ chuyển đ�
 Ví dụ: "số 1000 SLAMS vào → code block TYPES ON dòng từng dòng →
 con trỏ nhấp nháy FLOATS".
 
-### 4. Sáu bài test trước khi render
-
-- **Mute test**: tắt tiếng, chỉ nhìn hình vẫn hiểu câu chuyện không?
-- **Slideshow test**: có beat nào chỉ là hình tĩnh + chữ không? Có = fail.
-- **Reveal test**: có element nào hiện trước khi được nhắc đến không?
-- **Dead-zone test**: có khoảng ≥3 giây nào không có gì chuyển động
-  hay thay đổi không?
-- **Squint test**: nheo mắt vẫn thấy phân cấp chính/phụ rõ không?
-- **Safe-area test**: không gì lọt vùng cấm.
-
-Engine có công cụ audit: `hyperframes-animation` sinh
-`animation-map.json` (phát hiện dead zone, stagger) — dùng khi nghi ngờ.
-
 ## Ngữ pháp motion + biến tấu chữ (bắt buộc, chống "slide chán")
 
 - Entrance nhanh 0.25-0.45s rồi hold. Semantic progression chỉ khi nội
-  dung thật sự thay đổi theo thời gian. Living motion nhỏ, có chu kỳ.
+  dung thật sự thay đổi theo thời gian.
+- **Living motion — element đã hiện phải SỐNG, không đứng im**: thở
+  (scale 1↔1.02), trôi nhẹ (y ±4), xoay chậm, lặp chu kỳ xác định
+  (period/phase). Ít nhất MỘT element/beat chuyển động liên tục.
+  Nhân vật/diagram có "hành động" phục vụ lời giải thích (mèo đi,
+  nhánh mọc dần, đồ thị vẽ tiếp) — không lắc lư vô nghĩa. Nền có thể
+  có lớp sống riêng (gradient trôi, hạt lơ lửng), rất nhẹ.
 - **Menu biến tấu typography — mỗi video phải dùng ít nhất 3 kiểu:**
   - **Stamp/con dấu**: viền `double` 10-12px + `rotate(-4deg)` + scale
     2.1→1 bật xuống.
@@ -261,17 +240,34 @@ Engine có công cụ audit: `hyperframes-animation` sinh
 token màu, thang chữ, công thức component, menu biến tấu, cấm kê. Không
 hardcode theo một video cũ — pack là hệ thiết kế dùng cho mọi chủ đề.
 
-## QA bắt buộc (không bỏ qua)
+## QA bắt buộc (một checklist duy nhất — không bỏ qua)
 
 `npx hyperframes check` phải 0 error. Snapshot tại: 0.5s, mốc vào từng
-cảnh, giữa các cảnh, 1s cuối — **ĐỌC TỪNG PNG**:
+cảnh, giữa các cảnh, 1s cuối — **ĐỌC TỪNG PNG**, chấm đủ 3 nhóm:
 
+**Hiển thị:**
 - [ ] Frame đầu composed sẵn (thumbnail-grade), không fade từ đen
 - [ ] Caption không đè chữ, không dán lên đỉnh, không chồng dòng
-- [ ] Hiệu ứng đúng beat/từ; hero object đủ chi tiết
 - [ ] Không nội dung lọt safe-area (dưới 340px, phải 160px)
 - [ ] Chuyển cảnh mượt (không cắt cứng, không nháy nền)
+- [ ] Hero object đủ chi tiết; hiệu ứng đúng beat/từ
 
+**Kể chuyện bằng hình:**
+- [ ] Diagram chủ xuất hiện từ hook và còn mặt ở beat cuối
+- [ ] ≥ nửa số beat có diagram THAY ĐỔI TRẠNG THÁI (không chỉ entrance)
+- [ ] ≥ 2 chỗ hình phản ứng đúng thời điểm một từ/cụm từ nói
+- [ ] Không beat nào chỉ toàn chữ không có hình tương tác
+
+**Sáu bài test:**
+- [ ] Mute test — tắt tiếng vẫn hiểu câu chuyện
+- [ ] Slideshow test — không beat nào chỉ là hình tĩnh + chữ
+- [ ] Reveal test — không element nào hiện TRƯỚC khi được nhắc đến
+- [ ] Dead-zone test — không khoảng ≥3 giây im bấc
+- [ ] Squint test — nheo mắt vẫn thấy phân cấp chính/phụ
+- [ ] Safe-area test — (trùng mục hiển thị, xác nhận lần cuối)
+
+Engine có công cụ audit: `hyperframes-animation` sinh
+`animation-map.json` (phát hiện dead zone, stagger) — dùng khi nghi ngờ.
 Sửa → snapshot lại frame lỗi → sạch hết mới render.
 
 ## Done =
