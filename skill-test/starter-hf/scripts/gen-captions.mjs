@@ -4,7 +4,6 @@ import { join, resolve, dirname } from "node:path";
 const slug = process.argv[2];
 if (!slug) {
   console.error("Usage: node scripts/gen-captions.mjs <job-slug>");
-  console.error("Doc: in HTML fragment (caption clips) + JS fragment (word-highlight tweens).");
   process.exit(1);
 }
 
@@ -23,7 +22,7 @@ const voiceMeta = beats.beats.map((b) => {
   const metaPath = join(jobDir, b.wav.replace(/\.wav$/, ".json"));
   if (!existsSync(metaPath)) {
     console.error(`LOI: thieu meta voice cho beat ${b.id}: ${metaPath}`);
-    console.error("Chay voice-vieneu truoc, roi cap nhat beats.json duration = durationSeconds.");
+    console.error("Chay gen_beats_batch.py truoc, roi merge_voice.py de co narration.wav.");
     process.exit(1);
   }
   return { ...b, meta: JSON.parse(readFileSync(metaPath, "utf-8")) };
@@ -50,36 +49,39 @@ const captionClips = lines
     const isLast = i === lines.length - 1;
     const dur = l.end - l.start + (isLast ? 0.4 : 0);
     const spans = l.words
-      .map((w) => `<span id="cw${i}-${w.start.toFixed(2).replace(".", "_")}" class="cw">${esc(w.word)}</span>`)
+      .map((w) => `<span class="cw">${esc(w.word)}</span>`)
       .join("\n          ");
-    return `      <div id="cap${i}" class="clip caption-line" data-start="${l.start.toFixed(2)}" data-duration="${dur.toFixed(2)}" data-track-index="8">\n          ${spans}\n        </div>`;
+    return `      <div class="clip caption-line" data-start="${l.start.toFixed(2)}" data-duration="${dur.toFixed(2)}" data-track-index="8">\n          ${spans}\n        </div>`;
   })
   .join("\n");
 
-const audioEls = voiceMeta
-  .map((b) => `    <audio id="vo-${b.id}" src="voice/${b.id}.wav" data-start="${b.start.toFixed(2)}" data-volume="1"></audio>`)
-  .join("\n");
+const wordData = JSON.stringify(
+  lines.flatMap((l, i) => l.words.map((w, j) => [i, j, Number(w.start.toFixed(2)), Number(w.end.toFixed(2))])),
+);
 
-const captionTweens = lines
-  .map((l, i) =>
-    l.words
-      .map((w) => {
-        const id = `#cw${i}-${w.start.toFixed(2).replace(".", "_")}`;
-        return `  tl.set("${id}", { color: CAPTION_ACTIVE }, ${w.start.toFixed(2)});\n  tl.set("${id}", { color: CAPTION_IDLE }, ${w.end.toFixed(2)});`;
-      })
-      .join("\n"),
-  )
-  .join("\n");
+const html = `<!-- ===== PASTE vao trong #root, cuoi file ===== -->
+    <audio id="vo-master" src="voice/narration.wav" data-start="0.00" data-volume="1"></audio>
+${captionClips}
 
-console.log("<!-- ===== PASTE vào trong #root, cuối file ===== -->");
-console.log(captionClips);
-console.log(audioEls);
-console.log("<!-- ===== PASTE vào trong <script>, trước khi đăng ký timeline ===== -->");
-console.log('  const CAPTION_ACTIVE = "#D6452C";   // đổi theo style pack');
-console.log('  const CAPTION_IDLE = "rgba(23,20,14,0.55)";');
-console.log(captionTweens);
-console.log(`<!-- CSS đi kèm:
-      .caption-line { position:absolute; left:60px; right:60px; bottom:280px; display:flex; justify-content:center; align-items:flex-end; gap:16px; flex-wrap:wrap; }
-      .cw { font-size:54px; font-weight:700; }
--->`);
-console.error(`OK ${lines.length} dòng caption, ${allWords.length} từ, ${totalSeconds}s`);
+<!-- ===== PASTE vao cuoi <script>, truoc khi dang ky timeline ===== -->
+  const cwNodes = document.querySelectorAll(".caption-line .cw");
+  const CAPTION_WORDS = ${wordData};
+  CAPTION_WORDS.forEach(([lineIdx, wordIdx, start, end], k) => {
+    const el = cwNodes[k];
+    if (!el) return;
+    tl.set(el, { color: CAPTION_ACTIVE }, start);
+    tl.set(el, { color: CAPTION_IDLE }, end);
+  });
+`;
+
+const cssNote = `/* ===== CSS di kem (paste vao <style>) =====
+.caption-line { position:absolute; left:60px; right:60px; bottom:280px; display:flex; justify-content:center; align-items:flex-end; gap:16px; flex-wrap:wrap; }
+.cw { font-size:54px; font-weight:700; color: var(--caption-idle, rgba(23,20,14,0.55)); }
+:root { --caption-active: #D6452C; --caption-idle: rgba(23,20,14,0.55); }
+*/`;
+
+console.log(html);
+console.log(cssNote);
+console.error(
+  `OK ${lines.length} dòng caption, ${allWords.length} từ, ${totalSeconds}s | audio master: 1 thẻ | highlight qua mảng CAPTION_WORDS`,
+);

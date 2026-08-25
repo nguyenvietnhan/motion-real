@@ -28,11 +28,18 @@ HTML/CSS/GSAP — không cần build step.
    `repeat: -1`. Cấm `<br>` trong body text. Id duy nhất toàn trang.
 6. Nền full-frame đặt trên con `position:absolute; inset:0`, KHÔNG đặt
    background trên root (render có thể mất nền root → đen).
-7. `<audio src="voice/b1.wav" data-start="3.01" data-volume="1">` —
-   framework tự quản playback; cấm gọi play()/pause() thủ công.
-8. GSAP load LOCAL (đã vendor tại `starter-hf/gsap.min.js`), KHÔNG dùng
-   CDN — render phải chạy offline:
-   `<script src="../gsap.min.js"></script>` (từ folder `<slug>/`).
+7. **Audio = MỘT thẻ duy nhất** (master đã merge):
+   `<audio id="vo-master" src="voice/narration.wav" data-start="0.00"
+   data-volume="1"></audio>`. CẤM đặt từng thẻ `<audio>` theo beat —
+   36 thẻ audio làm Chromium treo (Navigation timeout) vì khởi tạo 36
+   media pipeline cùng lúc. narration.wav do `merge_voice.py` tạo.
+8. GSAP load LOCAL, KHÔNG dùng CDN và KHÔNG dùng đường dẫn `../`
+   (lint HyperFrames cấm traversal). Copy `gsap.min.js` vào thẳng
+   folder `<slug>\` rồi `<script src="gsap.min.js"></script>`.
+9. Font: copy folder `fonts\` (có sẵn `fonts.css` đầy đủ subset
+   vietnamese + latin) vào `<slug>\`, link một dòng:
+   `<link rel="stylesheet" href="fonts/fonts.css">`. KHÔNG tự viết
+   @font-face từng cái — dễ thiếu subset latin cho ký tự Anh/số.
 
 ## Quy trình chuẩn
 
@@ -49,10 +56,12 @@ Lệnh fail 2 lần → đổi cách + báo user, cấm lặp vô hạn.
 # 0. từ GỐC TOOLBOX: sinh caption + audio markup (không tự gõ tay)
 node starter-hf\scripts\gen-captions.mjs <slug>   # -> in HTML + JS paste vào index.html
 
-# 1. từ GỐC TOOLBOX: tạo project + copy voice + fonts
+# 1. từ GỐC TOOLBOX: tạo project + copy voice + merge master + fonts + gsap
 New-Item -ItemType Directory -Path "starter-hf\<slug>\voice" -Force
 Copy-Item "jobs\<slug>\voice\*" "starter-hf\<slug>\voice\"
-Copy-Item "starter-hf\fonts\*" "starter-hf\<slug>\fonts\"
+& tools\vieneu-tts\.venv\Scripts\python.exe tools\vieneu-tts\merge_voice.py <slug>
+Copy-Item "starter-hf\fonts" "starter-hf\<slug>\fonts" -Recurse
+Copy-Item "starter-hf\gsap.min.js" "starter-hf\<slug>\"
 
 # 2. viết starter-hf\<slug>\index.html (scenes + timeline)
 
