@@ -244,3 +244,21 @@ doc -> sua lien -> moi viet canh tiep (loi mat ~5 giay snapshot thay
 vi 10-15 phut re-render). Stage 7 (xem video sau render) BI BO - Stage 6
 chi con kiem ky thuat ffprobe + ban giao kem tu danh gia. scene-authoring
 Quy trinh chuan cap nhat nhip "vua viet vua soi". Commit 1ca2cca.
+
+## Vong feedback 11 (25/08 - Gemini copy y hejt job cu sang job moi ml-tong-quan-5p)
+
+Gemini thu nhan: thay job cu cung chu de -> Copy-Item script/voice/
+index.html sang job moi roi render lai. Video giong het job cu -> khong
+danh gia chat luong duoc. Khong lenh nao trong skill bao copy - nhung
+skill CUNG khong co luat nao CAM: cache/self-heal bi hieu sai lam cop
+cho, Stage gates chi kiem artifact TON TAI khong kiem MOI.
+
+Fix (commit nay):
+- make-video: muc moi "Luat ban quyen noi dung" - cam copy artifact
+  giua job (ke ca cung chu de); cache chi noi bo 1 job; duoc doc
+  findings cu de tham khao nhung script/voice/composition phai moi;
+  brief ghi ro khi co job tuong tu; Done= them tu kiem ban quyen
+  (file tao sau brief.md, script khac biet job cu)
+- voice-vieneu: pham vi cache = noi bo 1 job, cam copy wav/json cheo job
+- scene-authoring: composition viet moi tu trang trang, mo job cu chi
+  de tham khao ky thuat
