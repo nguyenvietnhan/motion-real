@@ -40,7 +40,7 @@ HyperFrames (sync theo từ) → xuất MP4 9:16 vào `jobs/<slug>/output/`.
 
 ```text
 skill-test/
-├── .agents/skills/            # 13 skill auto-load (chuẩn mở)
+├── .agents/skills/            # 14 skill auto-load (chuẩn mở)
 │   ├── make-video/            # SKILL chính: workflow tổng (spine)
 │   ├── scene-authoring/       # Viết composition HyperFrames (HTML+GSAP)
 │   ├── voice-vieneu/          # TTS local VieNeu + word timestamps

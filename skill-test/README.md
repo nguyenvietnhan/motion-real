@@ -34,7 +34,7 @@ Ví dụ: `/make-video "tại sao nên học SQL" 90s phong-lab`
 
 | Folder/File | Vai trò |
 | --- | --- |
-| `.agents/skills/` | 13 skill auto-load (make-video là spine; hyperframes* là docs engine) |
+| `.agents/skills/` | 14 skill auto-load (make-video là spine; hyperframes* là docs engine) |
 | `hf-extras/` | 16 skill workflow mẫu của HyperFrames — chỉ tham khảo |
 | `starter-hf/` | Khung project video chính (fonts + fonts.css + gsap + gen-captions) |
 | `starter/` | Phương án B — starter Remotion (`npm install` trước khi dùng) |
