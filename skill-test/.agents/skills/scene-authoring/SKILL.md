@@ -102,6 +102,35 @@ tl.to("#b2", { opacity: 0, duration: 0.28, ease: "none" }, START_B2 + DUR_B2 - 0
 
 Nền các cảnh cùng màu → fade qua nền = crossfade tự nhiên.
 
+## Visualize theo lời nói (chuẩn giải thích kỹ thuật — KHÔNG phải slide)
+
+Video giải thích phải như **3blue1brown**: hình là một phần của lời
+giải thích, không phải ảnh minh họa đứng cạnh lời đọc. Hai dấu hiệu
+bị chặn: (1) mỗi beat một hình tĩnh mới = slide trình chiếu; (2) hình
+không đổi trong khi lời đọc chạy = hình trang trí.
+
+### Nguyên tắc hero diagram tiến hóa
+
+- **MỘT diagram chủ tồn tại xuyên suốt video** (cây quyết định, đường
+  đồ thị, quy trình, hệ trục...) — mỗi beat NÓI đến đâu, diagram
+  TIẾN MỘT BƯỚC ở đó: thêm nhánh khi nói "phân nhánh", tô node khi gọi
+  tên, kéo trục khi nói so sánh. Beat sau kế thừa trạng thái beat trước.
+- **Mỗi beat = một thay đổi trạng thái có nghĩa** (lấy từ cột "Hình
+  diễn biến" của beat sheet). Nếu beat không làm diagram đổi trạng
+  thái → hỏi lại kịch bản hoặc thêm chuyển động semantic.
+- **Word-sync emphasis**: khi VO gọi tên chi tiết (vd từ "nút gốc",
+  "35 độ"), chính chi tiết đó trên diagram nhấn sáng/scale nhẹ ĐÚNG
+  LÚC TỪ ĐÓ (dùng CAPTION_WORDS timings hoặc words[] của beat).
+- Vẽ dần (`strokeDashoffset`), mọc dần (scale/height theo progress),
+  đếm số (counter) là công cụ chuẩn để "hình đi cùng lời".
+
+### Checklist chống "slide thuyết trình"
+
+- [ ] Diagram chủ xuất hiện từ hook và còn mặt ở beat cuối
+- [ ] ≥ nửa số beat có diagram THAY ĐỔI TRẠNG THÁI (không chỉ entrance)
+- [ ] Có ≥ 2 chỗ hình phản ứng đúng thời điểm một từ/cụm từ nói
+- [ ] Không beat nào chỉ toàn chữ không có hình tương tác
+
 ## Ngữ pháp motion + biến tấu chữ (bắt buộc, chống "slide chán")
 
 - Entrance nhanh 0.25-0.45s rồi hold. Semantic progression chỉ khi nội

@@ -25,6 +25,10 @@ Máy chạy **PowerShell 5.1**. Cấm dùng cú pháp bash:
 - **Giao thức thất bại**: một lệnh fail 2 lần liên tiếp → DỪNG, báo
   cho user 1 câu lỗi là gì + đề xuất hướng khác. CẤM lặp lại cùng một
   lệnh đã fail, CẤM im lặng bỏ cuộc — luôn nói đang ở Stage nào.
+- **Cấm inline one-liner phức tạp** (`node -e "..."`,
+  `powershell -Command "..."` nhiều tầng nháy) — PowerShell 5.1 nuốt
+  dấu nháy. Cần logic gì → viết file `.mjs`/`.py` ngắn rồi
+  `node file.mjs`.
 
 ## Artifact contract — cây file của một job
 
@@ -144,6 +148,10 @@ HOOK (0-3.5s) → BỐI CẢNH/CỬA THẠCH → TWIST/INSIGHT → TAKEAWAY
      video cụt.
 - Chia beat: mỗi beat 1 ý, vo ≤ 25 từ cho dễ sync, role ghi rõ
   (hook/context/twist/takeaway).
+- **Cột "Hình diễn biến" bắt buộc** trong beat sheet: mỗi beat phải ghi
+  rõ HÌNH THAY ĐỔI GÌ (trạng thái mới của diagram, element nào xuất
+  hiện/tô đậm/vẽ thêm). Beat sheet chỉ có VO không có hình = kịch bản
+  chưa xong — đó là công thức "slide thuyết trình", cấm.
 
 ## Stage 3 — Voice
 
