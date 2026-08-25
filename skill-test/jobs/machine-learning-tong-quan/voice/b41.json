@@ -1,0 +1,147 @@
+{
+  "text": "Khi đánh giá mô hình phân loại, đừng bao giờ chỉ nhìn vào mỗi chỉ số Accuracy đơn thuần.",
+  "voice": "Adam",
+  "precision": "int8",
+  "wav": "b41.wav",
+  "sampleRate": 48000,
+  "durationSeconds": 5.04,
+  "generationSeconds": 8.504,
+  "rtf": 1.687,
+  "timingMethod": "char-proportion",
+  "textHash": "5d3399b23ce62846",
+  "words": [
+    {
+      "word": "Khi",
+      "start": 0.0,
+      "end": 0.227,
+      "startFrame": 0,
+      "endFrame": 7
+    },
+    {
+      "word": "đánh",
+      "start": 0.227,
+      "end": 0.51,
+      "startFrame": 7,
+      "endFrame": 15
+    },
+    {
+      "word": "giá",
+      "start": 0.51,
+      "end": 0.736,
+      "startFrame": 15,
+      "endFrame": 22
+    },
+    {
+      "word": "mô",
+      "start": 0.736,
+      "end": 0.906,
+      "startFrame": 22,
+      "endFrame": 27
+    },
+    {
+      "word": "hình",
+      "start": 0.906,
+      "end": 1.189,
+      "startFrame": 27,
+      "endFrame": 36
+    },
+    {
+      "word": "phân",
+      "start": 1.189,
+      "end": 1.472,
+      "startFrame": 36,
+      "endFrame": 44
+    },
+    {
+      "word": "loại",
+      "start": 1.472,
+      "end": 1.812,
+      "startFrame": 44,
+      "endFrame": 54
+    },
+    {
+      "word": "đừng",
+      "start": 1.812,
+      "end": 2.095,
+      "startFrame": 54,
+      "endFrame": 63
+    },
+    {
+      "word": "bao",
+      "start": 2.095,
+      "end": 2.322,
+      "startFrame": 63,
+      "endFrame": 70
+    },
+    {
+      "word": "giờ",
+      "start": 2.322,
+      "end": 2.548,
+      "startFrame": 70,
+      "endFrame": 76
+    },
+    {
+      "word": "chỉ",
+      "start": 2.548,
+      "end": 2.775,
+      "startFrame": 76,
+      "endFrame": 83
+    },
+    {
+      "word": "nhìn",
+      "start": 2.775,
+      "end": 3.058,
+      "startFrame": 83,
+      "endFrame": 92
+    },
+    {
+      "word": "vào",
+      "start": 3.058,
+      "end": 3.284,
+      "startFrame": 92,
+      "endFrame": 99
+    },
+    {
+      "word": "mỗi",
+      "start": 3.284,
+      "end": 3.511,
+      "startFrame": 99,
+      "endFrame": 105
+    },
+    {
+      "word": "chỉ",
+      "start": 3.511,
+      "end": 3.738,
+      "startFrame": 105,
+      "endFrame": 112
+    },
+    {
+      "word": "số",
+      "start": 3.738,
+      "end": 3.907,
+      "startFrame": 112,
+      "endFrame": 117
+    },
+    {
+      "word": "Accuracy",
+      "start": 3.907,
+      "end": 4.417,
+      "startFrame": 117,
+      "endFrame": 133
+    },
+    {
+      "word": "đơn",
+      "start": 4.417,
+      "end": 4.644,
+      "startFrame": 133,
+      "endFrame": 139
+    },
+    {
+      "word": "thuần",
+      "start": 4.644,
+      "end": 5.04,
+      "startFrame": 139,
+      "endFrame": 151
+    }
+  ]
+}

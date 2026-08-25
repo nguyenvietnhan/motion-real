@@ -1,0 +1,168 @@
+{
+  "text": "Máy đối chiếu dự đoán của nó với đáp án thật, liên tục sửa lỗi để ngày càng đoán chính xác hơn.",
+  "voice": "Adam",
+  "precision": "int8",
+  "wav": "b13.wav",
+  "sampleRate": 48000,
+  "durationSeconds": 5.04,
+  "generationSeconds": 7.838,
+  "rtf": 1.555,
+  "timingMethod": "char-proportion",
+  "textHash": "956419a39437f325",
+  "words": [
+    {
+      "word": "Máy",
+      "start": 0.0,
+      "end": 0.21,
+      "startFrame": 0,
+      "endFrame": 6
+    },
+    {
+      "word": "đối",
+      "start": 0.21,
+      "end": 0.42,
+      "startFrame": 6,
+      "endFrame": 13
+    },
+    {
+      "word": "chiếu",
+      "start": 0.42,
+      "end": 0.735,
+      "startFrame": 13,
+      "endFrame": 22
+    },
+    {
+      "word": "dự",
+      "start": 0.735,
+      "end": 0.892,
+      "startFrame": 22,
+      "endFrame": 27
+    },
+    {
+      "word": "đoán",
+      "start": 0.892,
+      "end": 1.155,
+      "startFrame": 27,
+      "endFrame": 35
+    },
+    {
+      "word": "của",
+      "start": 1.155,
+      "end": 1.365,
+      "startFrame": 35,
+      "endFrame": 41
+    },
+    {
+      "word": "nó",
+      "start": 1.365,
+      "end": 1.522,
+      "startFrame": 41,
+      "endFrame": 46
+    },
+    {
+      "word": "với",
+      "start": 1.522,
+      "end": 1.732,
+      "startFrame": 46,
+      "endFrame": 52
+    },
+    {
+      "word": "đáp",
+      "start": 1.732,
+      "end": 1.942,
+      "startFrame": 52,
+      "endFrame": 58
+    },
+    {
+      "word": "án",
+      "start": 1.942,
+      "end": 2.1,
+      "startFrame": 58,
+      "endFrame": 63
+    },
+    {
+      "word": "thật",
+      "start": 2.1,
+      "end": 2.415,
+      "startFrame": 63,
+      "endFrame": 72
+    },
+    {
+      "word": "liên",
+      "start": 2.415,
+      "end": 2.678,
+      "startFrame": 72,
+      "endFrame": 80
+    },
+    {
+      "word": "tục",
+      "start": 2.678,
+      "end": 2.888,
+      "startFrame": 80,
+      "endFrame": 87
+    },
+    {
+      "word": "sửa",
+      "start": 2.888,
+      "end": 3.098,
+      "startFrame": 87,
+      "endFrame": 93
+    },
+    {
+      "word": "lỗi",
+      "start": 3.098,
+      "end": 3.308,
+      "startFrame": 93,
+      "endFrame": 99
+    },
+    {
+      "word": "để",
+      "start": 3.308,
+      "end": 3.465,
+      "startFrame": 99,
+      "endFrame": 104
+    },
+    {
+      "word": "ngày",
+      "start": 3.465,
+      "end": 3.728,
+      "startFrame": 104,
+      "endFrame": 112
+    },
+    {
+      "word": "càng",
+      "start": 3.728,
+      "end": 3.99,
+      "startFrame": 112,
+      "endFrame": 120
+    },
+    {
+      "word": "đoán",
+      "start": 3.99,
+      "end": 4.253,
+      "startFrame": 120,
+      "endFrame": 128
+    },
+    {
+      "word": "chính",
+      "start": 4.253,
+      "end": 4.568,
+      "startFrame": 128,
+      "endFrame": 137
+    },
+    {
+      "word": "xác",
+      "start": 4.568,
+      "end": 4.778,
+      "startFrame": 137,
+      "endFrame": 143
+    },
+    {
+      "word": "hơn",
+      "start": 4.778,
+      "end": 5.04,
+      "startFrame": 143,
+      "endFrame": 151
+    }
+  ]
+}

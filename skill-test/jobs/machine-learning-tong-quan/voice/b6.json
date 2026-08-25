@@ -1,0 +1,168 @@
+{
+  "text": "Hãy hình dung: AI là vũ trụ bao trùm, Machine Learning là trái tim, còn Deep Learning là mạng nơ-ron chuyên sâu.",
+  "voice": "Adam",
+  "precision": "int8",
+  "wav": "b6.wav",
+  "sampleRate": 48000,
+  "durationSeconds": 5.84,
+  "generationSeconds": 6.075,
+  "rtf": 1.04,
+  "timingMethod": "char-proportion",
+  "textHash": "f42d926ff5df8ae0",
+  "words": [
+    {
+      "word": "Hãy",
+      "start": 0.0,
+      "end": 0.207,
+      "startFrame": 0,
+      "endFrame": 6
+    },
+    {
+      "word": "hình",
+      "start": 0.207,
+      "end": 0.465,
+      "startFrame": 6,
+      "endFrame": 14
+    },
+    {
+      "word": "dung",
+      "start": 0.465,
+      "end": 0.775,
+      "startFrame": 14,
+      "endFrame": 23
+    },
+    {
+      "word": "AI",
+      "start": 0.775,
+      "end": 0.93,
+      "startFrame": 23,
+      "endFrame": 28
+    },
+    {
+      "word": "là",
+      "start": 0.93,
+      "end": 1.085,
+      "startFrame": 28,
+      "endFrame": 33
+    },
+    {
+      "word": "vũ",
+      "start": 1.085,
+      "end": 1.24,
+      "startFrame": 33,
+      "endFrame": 37
+    },
+    {
+      "word": "trụ",
+      "start": 1.24,
+      "end": 1.447,
+      "startFrame": 37,
+      "endFrame": 43
+    },
+    {
+      "word": "bao",
+      "start": 1.447,
+      "end": 1.654,
+      "startFrame": 43,
+      "endFrame": 50
+    },
+    {
+      "word": "trùm",
+      "start": 1.654,
+      "end": 1.964,
+      "startFrame": 50,
+      "endFrame": 59
+    },
+    {
+      "word": "Machine",
+      "start": 1.964,
+      "end": 2.377,
+      "startFrame": 59,
+      "endFrame": 71
+    },
+    {
+      "word": "Learning",
+      "start": 2.377,
+      "end": 2.842,
+      "startFrame": 71,
+      "endFrame": 85
+    },
+    {
+      "word": "là",
+      "start": 2.842,
+      "end": 2.998,
+      "startFrame": 85,
+      "endFrame": 90
+    },
+    {
+      "word": "trái",
+      "start": 2.998,
+      "end": 3.256,
+      "startFrame": 90,
+      "endFrame": 98
+    },
+    {
+      "word": "tim",
+      "start": 3.256,
+      "end": 3.514,
+      "startFrame": 98,
+      "endFrame": 105
+    },
+    {
+      "word": "còn",
+      "start": 3.514,
+      "end": 3.721,
+      "startFrame": 105,
+      "endFrame": 112
+    },
+    {
+      "word": "Deep",
+      "start": 3.721,
+      "end": 3.979,
+      "startFrame": 112,
+      "endFrame": 119
+    },
+    {
+      "word": "Learning",
+      "start": 3.979,
+      "end": 4.445,
+      "startFrame": 119,
+      "endFrame": 133
+    },
+    {
+      "word": "là",
+      "start": 4.445,
+      "end": 4.6,
+      "startFrame": 133,
+      "endFrame": 138
+    },
+    {
+      "word": "mạng",
+      "start": 4.6,
+      "end": 4.858,
+      "startFrame": 138,
+      "endFrame": 146
+    },
+    {
+      "word": "nơ-ron",
+      "start": 4.858,
+      "end": 5.22,
+      "startFrame": 146,
+      "endFrame": 157
+    },
+    {
+      "word": "chuyên",
+      "start": 5.22,
+      "end": 5.582,
+      "startFrame": 157,
+      "endFrame": 167
+    },
+    {
+      "word": "sâu",
+      "start": 5.582,
+      "end": 5.84,
+      "startFrame": 167,
+      "endFrame": 175
+    }
+  ]
+}

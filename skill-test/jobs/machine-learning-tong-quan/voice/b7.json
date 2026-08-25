@@ -1,0 +1,133 @@
+{
+  "text": "Toàn bộ thế giới Machine Learning vận hành dựa trên ba trường phái trụ cột kinh điển.",
+  "voice": "Adam",
+  "precision": "int8",
+  "wav": "b7.wav",
+  "sampleRate": 48000,
+  "durationSeconds": 3.92,
+  "generationSeconds": 4.851,
+  "rtf": 1.238,
+  "timingMethod": "char-proportion",
+  "textHash": "fa62c62288009538",
+  "words": [
+    {
+      "word": "Toàn",
+      "start": 0.0,
+      "end": 0.228,
+      "startFrame": 0,
+      "endFrame": 7
+    },
+    {
+      "word": "bộ",
+      "start": 0.228,
+      "end": 0.365,
+      "startFrame": 7,
+      "endFrame": 11
+    },
+    {
+      "word": "thế",
+      "start": 0.365,
+      "end": 0.547,
+      "startFrame": 11,
+      "endFrame": 16
+    },
+    {
+      "word": "giới",
+      "start": 0.547,
+      "end": 0.775,
+      "startFrame": 16,
+      "endFrame": 23
+    },
+    {
+      "word": "Machine",
+      "start": 0.775,
+      "end": 1.14,
+      "startFrame": 23,
+      "endFrame": 34
+    },
+    {
+      "word": "Learning",
+      "start": 1.14,
+      "end": 1.55,
+      "startFrame": 34,
+      "endFrame": 46
+    },
+    {
+      "word": "vận",
+      "start": 1.55,
+      "end": 1.732,
+      "startFrame": 46,
+      "endFrame": 52
+    },
+    {
+      "word": "hành",
+      "start": 1.732,
+      "end": 1.96,
+      "startFrame": 52,
+      "endFrame": 59
+    },
+    {
+      "word": "dựa",
+      "start": 1.96,
+      "end": 2.142,
+      "startFrame": 59,
+      "endFrame": 64
+    },
+    {
+      "word": "trên",
+      "start": 2.142,
+      "end": 2.37,
+      "startFrame": 64,
+      "endFrame": 71
+    },
+    {
+      "word": "ba",
+      "start": 2.37,
+      "end": 2.507,
+      "startFrame": 71,
+      "endFrame": 75
+    },
+    {
+      "word": "trường",
+      "start": 2.507,
+      "end": 2.826,
+      "startFrame": 75,
+      "endFrame": 85
+    },
+    {
+      "word": "phái",
+      "start": 2.826,
+      "end": 3.054,
+      "startFrame": 85,
+      "endFrame": 92
+    },
+    {
+      "word": "trụ",
+      "start": 3.054,
+      "end": 3.236,
+      "startFrame": 92,
+      "endFrame": 97
+    },
+    {
+      "word": "cột",
+      "start": 3.236,
+      "end": 3.419,
+      "startFrame": 97,
+      "endFrame": 103
+    },
+    {
+      "word": "kinh",
+      "start": 3.419,
+      "end": 3.647,
+      "startFrame": 103,
+      "endFrame": 109
+    },
+    {
+      "word": "điển",
+      "start": 3.647,
+      "end": 3.92,
+      "startFrame": 109,
+      "endFrame": 118
+    }
+  ]
+}

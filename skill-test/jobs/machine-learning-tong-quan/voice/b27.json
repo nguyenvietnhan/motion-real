@@ -1,0 +1,154 @@
+{
+  "text": "Trái tim của việc học là Loss Function: hàm mất mát tính toán xem máy đang đoán sai bao nhiêu.",
+  "voice": "Adam",
+  "precision": "int8",
+  "wav": "b27.wav",
+  "sampleRate": 48000,
+  "durationSeconds": 4.8,
+  "generationSeconds": 6.712,
+  "rtf": 1.398,
+  "timingMethod": "char-proportion",
+  "textHash": "f8835a21f450ddda",
+  "words": [
+    {
+      "word": "Trái",
+      "start": 0.0,
+      "end": 0.253,
+      "startFrame": 0,
+      "endFrame": 8
+    },
+    {
+      "word": "tim",
+      "start": 0.253,
+      "end": 0.455,
+      "startFrame": 8,
+      "endFrame": 14
+    },
+    {
+      "word": "của",
+      "start": 0.455,
+      "end": 0.657,
+      "startFrame": 14,
+      "endFrame": 20
+    },
+    {
+      "word": "việc",
+      "start": 0.657,
+      "end": 0.909,
+      "startFrame": 20,
+      "endFrame": 27
+    },
+    {
+      "word": "học",
+      "start": 0.909,
+      "end": 1.112,
+      "startFrame": 27,
+      "endFrame": 33
+    },
+    {
+      "word": "là",
+      "start": 1.112,
+      "end": 1.263,
+      "startFrame": 33,
+      "endFrame": 38
+    },
+    {
+      "word": "Loss",
+      "start": 1.263,
+      "end": 1.516,
+      "startFrame": 38,
+      "endFrame": 45
+    },
+    {
+      "word": "Function",
+      "start": 1.516,
+      "end": 2.021,
+      "startFrame": 45,
+      "endFrame": 61
+    },
+    {
+      "word": "hàm",
+      "start": 2.021,
+      "end": 2.223,
+      "startFrame": 61,
+      "endFrame": 67
+    },
+    {
+      "word": "mất",
+      "start": 2.223,
+      "end": 2.425,
+      "startFrame": 67,
+      "endFrame": 73
+    },
+    {
+      "word": "mát",
+      "start": 2.425,
+      "end": 2.627,
+      "startFrame": 73,
+      "endFrame": 79
+    },
+    {
+      "word": "tính",
+      "start": 2.627,
+      "end": 2.88,
+      "startFrame": 79,
+      "endFrame": 86
+    },
+    {
+      "word": "toán",
+      "start": 2.88,
+      "end": 3.133,
+      "startFrame": 86,
+      "endFrame": 94
+    },
+    {
+      "word": "xem",
+      "start": 3.133,
+      "end": 3.335,
+      "startFrame": 94,
+      "endFrame": 100
+    },
+    {
+      "word": "máy",
+      "start": 3.335,
+      "end": 3.537,
+      "startFrame": 100,
+      "endFrame": 106
+    },
+    {
+      "word": "đang",
+      "start": 3.537,
+      "end": 3.789,
+      "startFrame": 106,
+      "endFrame": 114
+    },
+    {
+      "word": "đoán",
+      "start": 3.789,
+      "end": 4.042,
+      "startFrame": 114,
+      "endFrame": 121
+    },
+    {
+      "word": "sai",
+      "start": 4.042,
+      "end": 4.244,
+      "startFrame": 121,
+      "endFrame": 127
+    },
+    {
+      "word": "bao",
+      "start": 4.244,
+      "end": 4.446,
+      "startFrame": 127,
+      "endFrame": 133
+    },
+    {
+      "word": "nhiêu",
+      "start": 4.446,
+      "end": 4.8,
+      "startFrame": 133,
+      "endFrame": 144
+    }
+  ]
+}

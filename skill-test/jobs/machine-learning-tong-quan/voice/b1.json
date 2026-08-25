@@ -1,0 +1,133 @@
+{
+  "text": "Bạn nghĩ máy tính thông minh vì con người viết sẵn từng dòng lệnh? Hoàn toàn sai.",
+  "voice": "Adam",
+  "precision": "int8",
+  "wav": "b1.wav",
+  "sampleRate": 48000,
+  "durationSeconds": 3.68,
+  "generationSeconds": 3.957,
+  "rtf": 1.075,
+  "timingMethod": "char-proportion",
+  "textHash": "4e19924da3393d9a",
+  "words": [
+    {
+      "word": "Bạn",
+      "start": 0.0,
+      "end": 0.18,
+      "startFrame": 0,
+      "endFrame": 5
+    },
+    {
+      "word": "nghĩ",
+      "start": 0.18,
+      "end": 0.404,
+      "startFrame": 5,
+      "endFrame": 12
+    },
+    {
+      "word": "máy",
+      "start": 0.404,
+      "end": 0.583,
+      "startFrame": 12,
+      "endFrame": 17
+    },
+    {
+      "word": "tính",
+      "start": 0.583,
+      "end": 0.808,
+      "startFrame": 17,
+      "endFrame": 24
+    },
+    {
+      "word": "thông",
+      "start": 0.808,
+      "end": 1.077,
+      "startFrame": 24,
+      "endFrame": 32
+    },
+    {
+      "word": "minh",
+      "start": 1.077,
+      "end": 1.301,
+      "startFrame": 32,
+      "endFrame": 39
+    },
+    {
+      "word": "vì",
+      "start": 1.301,
+      "end": 1.436,
+      "startFrame": 39,
+      "endFrame": 43
+    },
+    {
+      "word": "con",
+      "start": 1.436,
+      "end": 1.616,
+      "startFrame": 43,
+      "endFrame": 48
+    },
+    {
+      "word": "người",
+      "start": 1.616,
+      "end": 1.885,
+      "startFrame": 48,
+      "endFrame": 57
+    },
+    {
+      "word": "viết",
+      "start": 1.885,
+      "end": 2.109,
+      "startFrame": 57,
+      "endFrame": 63
+    },
+    {
+      "word": "sẵn",
+      "start": 2.109,
+      "end": 2.289,
+      "startFrame": 63,
+      "endFrame": 69
+    },
+    {
+      "word": "từng",
+      "start": 2.289,
+      "end": 2.513,
+      "startFrame": 69,
+      "endFrame": 75
+    },
+    {
+      "word": "dòng",
+      "start": 2.513,
+      "end": 2.738,
+      "startFrame": 75,
+      "endFrame": 82
+    },
+    {
+      "word": "lệnh",
+      "start": 2.738,
+      "end": 3.007,
+      "startFrame": 82,
+      "endFrame": 90
+    },
+    {
+      "word": "Hoàn",
+      "start": 3.007,
+      "end": 3.231,
+      "startFrame": 90,
+      "endFrame": 97
+    },
+    {
+      "word": "toàn",
+      "start": 3.231,
+      "end": 3.456,
+      "startFrame": 97,
+      "endFrame": 104
+    },
+    {
+      "word": "sai",
+      "start": 3.456,
+      "end": 3.68,
+      "startFrame": 104,
+      "endFrame": 110
+    }
+  ]
+}

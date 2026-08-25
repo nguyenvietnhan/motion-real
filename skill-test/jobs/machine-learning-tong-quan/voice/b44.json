@@ -1,0 +1,126 @@
+{
+  "text": "F1-Score chính là trung bình điều hòa giúp cân bằng hoàn hảo giữa Precision và Recall.",
+  "voice": "Adam",
+  "precision": "int8",
+  "wav": "b44.wav",
+  "sampleRate": 48000,
+  "durationSeconds": 4.64,
+  "generationSeconds": 7.137,
+  "rtf": 1.538,
+  "timingMethod": "char-proportion",
+  "textHash": "e199d3eb6bfcfbb3",
+  "words": [
+    {
+      "word": "F1-Score",
+      "start": 0.0,
+      "end": 0.48,
+      "startFrame": 0,
+      "endFrame": 14
+    },
+    {
+      "word": "chính",
+      "start": 0.48,
+      "end": 0.8,
+      "startFrame": 14,
+      "endFrame": 24
+    },
+    {
+      "word": "là",
+      "start": 0.8,
+      "end": 0.96,
+      "startFrame": 24,
+      "endFrame": 29
+    },
+    {
+      "word": "trung",
+      "start": 0.96,
+      "end": 1.28,
+      "startFrame": 29,
+      "endFrame": 38
+    },
+    {
+      "word": "bình",
+      "start": 1.28,
+      "end": 1.547,
+      "startFrame": 38,
+      "endFrame": 46
+    },
+    {
+      "word": "điều",
+      "start": 1.547,
+      "end": 1.813,
+      "startFrame": 46,
+      "endFrame": 54
+    },
+    {
+      "word": "hòa",
+      "start": 1.813,
+      "end": 2.027,
+      "startFrame": 54,
+      "endFrame": 61
+    },
+    {
+      "word": "giúp",
+      "start": 2.027,
+      "end": 2.293,
+      "startFrame": 61,
+      "endFrame": 69
+    },
+    {
+      "word": "cân",
+      "start": 2.293,
+      "end": 2.507,
+      "startFrame": 69,
+      "endFrame": 75
+    },
+    {
+      "word": "bằng",
+      "start": 2.507,
+      "end": 2.773,
+      "startFrame": 75,
+      "endFrame": 83
+    },
+    {
+      "word": "hoàn",
+      "start": 2.773,
+      "end": 3.04,
+      "startFrame": 83,
+      "endFrame": 91
+    },
+    {
+      "word": "hảo",
+      "start": 3.04,
+      "end": 3.253,
+      "startFrame": 91,
+      "endFrame": 98
+    },
+    {
+      "word": "giữa",
+      "start": 3.253,
+      "end": 3.52,
+      "startFrame": 98,
+      "endFrame": 106
+    },
+    {
+      "word": "Precision",
+      "start": 3.52,
+      "end": 4.053,
+      "startFrame": 106,
+      "endFrame": 122
+    },
+    {
+      "word": "và",
+      "start": 4.053,
+      "end": 4.213,
+      "startFrame": 122,
+      "endFrame": 126
+    },
+    {
+      "word": "Recall",
+      "start": 4.213,
+      "end": 4.64,
+      "startFrame": 126,
+      "endFrame": 139
+    }
+  ]
+}

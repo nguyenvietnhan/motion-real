@@ -1,0 +1,161 @@
+{
+  "text": "Bạn muốn đi sâu vào thuật toán nào tiếp theo trong các video tới? Hãy để lại bình luận phía dưới!",
+  "voice": "Adam",
+  "precision": "int8",
+  "wav": "b37.wav",
+  "sampleRate": 48000,
+  "durationSeconds": 4.8,
+  "generationSeconds": 8.818,
+  "rtf": 1.837,
+  "timingMethod": "char-proportion",
+  "textHash": "68fa1608f61773de",
+  "words": [
+    {
+      "word": "Bạn",
+      "start": 0.0,
+      "end": 0.196,
+      "startFrame": 0,
+      "endFrame": 6
+    },
+    {
+      "word": "muốn",
+      "start": 0.196,
+      "end": 0.441,
+      "startFrame": 6,
+      "endFrame": 13
+    },
+    {
+      "word": "đi",
+      "start": 0.441,
+      "end": 0.588,
+      "startFrame": 13,
+      "endFrame": 18
+    },
+    {
+      "word": "sâu",
+      "start": 0.588,
+      "end": 0.784,
+      "startFrame": 18,
+      "endFrame": 24
+    },
+    {
+      "word": "vào",
+      "start": 0.784,
+      "end": 0.98,
+      "startFrame": 24,
+      "endFrame": 29
+    },
+    {
+      "word": "thuật",
+      "start": 0.98,
+      "end": 1.273,
+      "startFrame": 29,
+      "endFrame": 38
+    },
+    {
+      "word": "toán",
+      "start": 1.273,
+      "end": 1.518,
+      "startFrame": 38,
+      "endFrame": 46
+    },
+    {
+      "word": "nào",
+      "start": 1.518,
+      "end": 1.714,
+      "startFrame": 46,
+      "endFrame": 51
+    },
+    {
+      "word": "tiếp",
+      "start": 1.714,
+      "end": 1.959,
+      "startFrame": 51,
+      "endFrame": 59
+    },
+    {
+      "word": "theo",
+      "start": 1.959,
+      "end": 2.204,
+      "startFrame": 59,
+      "endFrame": 66
+    },
+    {
+      "word": "trong",
+      "start": 2.204,
+      "end": 2.498,
+      "startFrame": 66,
+      "endFrame": 75
+    },
+    {
+      "word": "các",
+      "start": 2.498,
+      "end": 2.694,
+      "startFrame": 75,
+      "endFrame": 81
+    },
+    {
+      "word": "video",
+      "start": 2.694,
+      "end": 2.988,
+      "startFrame": 81,
+      "endFrame": 90
+    },
+    {
+      "word": "tới",
+      "start": 2.988,
+      "end": 3.233,
+      "startFrame": 90,
+      "endFrame": 97
+    },
+    {
+      "word": "Hãy",
+      "start": 3.233,
+      "end": 3.429,
+      "startFrame": 97,
+      "endFrame": 103
+    },
+    {
+      "word": "để",
+      "start": 3.429,
+      "end": 3.576,
+      "startFrame": 103,
+      "endFrame": 107
+    },
+    {
+      "word": "lại",
+      "start": 3.576,
+      "end": 3.771,
+      "startFrame": 107,
+      "endFrame": 113
+    },
+    {
+      "word": "bình",
+      "start": 3.771,
+      "end": 4.016,
+      "startFrame": 113,
+      "endFrame": 120
+    },
+    {
+      "word": "luận",
+      "start": 4.016,
+      "end": 4.261,
+      "startFrame": 120,
+      "endFrame": 128
+    },
+    {
+      "word": "phía",
+      "start": 4.261,
+      "end": 4.506,
+      "startFrame": 128,
+      "endFrame": 135
+    },
+    {
+      "word": "dưới",
+      "start": 4.506,
+      "end": 4.8,
+      "startFrame": 135,
+      "endFrame": 144
+    }
+  ]
+}

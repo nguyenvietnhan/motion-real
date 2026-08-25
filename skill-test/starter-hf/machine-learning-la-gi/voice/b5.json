@@ -1,0 +1,168 @@
+{
+  "text": "Năm 1959, Arthur Samuel định nghĩa: Học máy là ngành giúp máy tính tự học mà không cần lập trình chi tiết.",
+  "voice": "Adam",
+  "precision": "int8",
+  "wav": "b5.wav",
+  "sampleRate": 48000,
+  "durationSeconds": 6.48,
+  "generationSeconds": 11.358,
+  "rtf": 1.753,
+  "timingMethod": "char-proportion",
+  "textHash": "fdcd9a17c7256880",
+  "words": [
+    {
+      "word": "Năm",
+      "start": 0.0,
+      "end": 0.242,
+      "startFrame": 0,
+      "endFrame": 7
+    },
+    {
+      "word": "1959",
+      "start": 0.242,
+      "end": 0.606,
+      "startFrame": 7,
+      "endFrame": 18
+    },
+    {
+      "word": "Arthur",
+      "start": 0.606,
+      "end": 1.03,
+      "startFrame": 18,
+      "endFrame": 31
+    },
+    {
+      "word": "Samuel",
+      "start": 1.03,
+      "end": 1.453,
+      "startFrame": 31,
+      "endFrame": 44
+    },
+    {
+      "word": "định",
+      "start": 1.453,
+      "end": 1.756,
+      "startFrame": 44,
+      "endFrame": 53
+    },
+    {
+      "word": "nghĩa",
+      "start": 1.756,
+      "end": 2.18,
+      "startFrame": 53,
+      "endFrame": 65
+    },
+    {
+      "word": "Học",
+      "start": 2.18,
+      "end": 2.422,
+      "startFrame": 65,
+      "endFrame": 73
+    },
+    {
+      "word": "máy",
+      "start": 2.422,
+      "end": 2.665,
+      "startFrame": 73,
+      "endFrame": 80
+    },
+    {
+      "word": "là",
+      "start": 2.665,
+      "end": 2.846,
+      "startFrame": 80,
+      "endFrame": 85
+    },
+    {
+      "word": "ngành",
+      "start": 2.846,
+      "end": 3.21,
+      "startFrame": 85,
+      "endFrame": 96
+    },
+    {
+      "word": "giúp",
+      "start": 3.21,
+      "end": 3.513,
+      "startFrame": 96,
+      "endFrame": 105
+    },
+    {
+      "word": "máy",
+      "start": 3.513,
+      "end": 3.755,
+      "startFrame": 105,
+      "endFrame": 113
+    },
+    {
+      "word": "tính",
+      "start": 3.755,
+      "end": 4.058,
+      "startFrame": 113,
+      "endFrame": 122
+    },
+    {
+      "word": "tự",
+      "start": 4.058,
+      "end": 4.239,
+      "startFrame": 122,
+      "endFrame": 127
+    },
+    {
+      "word": "học",
+      "start": 4.239,
+      "end": 4.481,
+      "startFrame": 127,
+      "endFrame": 134
+    },
+    {
+      "word": "mà",
+      "start": 4.481,
+      "end": 4.663,
+      "startFrame": 134,
+      "endFrame": 140
+    },
+    {
+      "word": "không",
+      "start": 4.663,
+      "end": 5.027,
+      "startFrame": 140,
+      "endFrame": 151
+    },
+    {
+      "word": "cần",
+      "start": 5.027,
+      "end": 5.269,
+      "startFrame": 151,
+      "endFrame": 158
+    },
+    {
+      "word": "lập",
+      "start": 5.269,
+      "end": 5.511,
+      "startFrame": 158,
+      "endFrame": 165
+    },
+    {
+      "word": "trình",
+      "start": 5.511,
+      "end": 5.874,
+      "startFrame": 165,
+      "endFrame": 176
+    },
+    {
+      "word": "chi",
+      "start": 5.874,
+      "end": 6.117,
+      "startFrame": 176,
+      "endFrame": 184
+    },
+    {
+      "word": "tiết",
+      "start": 6.117,
+      "end": 6.48,
+      "startFrame": 184,
+      "endFrame": 194
+    }
+  ]
+}

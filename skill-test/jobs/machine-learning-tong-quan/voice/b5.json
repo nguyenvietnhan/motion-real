@@ -1,0 +1,175 @@
+{
+  "text": "Năm 1959, Arthur Samuel định nghĩa: Học máy giúp máy tính tự học từ kinh nghiệm mà không cần lập trình chi tiết.",
+  "voice": "Adam",
+  "precision": "int8",
+  "wav": "b5.wav",
+  "sampleRate": 48000,
+  "durationSeconds": 6.56,
+  "generationSeconds": 6.408,
+  "rtf": 0.977,
+  "timingMethod": "char-proportion",
+  "textHash": "1996a364971d019c",
+  "words": [
+    {
+      "word": "Năm",
+      "start": 0.0,
+      "end": 0.232,
+      "startFrame": 0,
+      "endFrame": 7
+    },
+    {
+      "word": "1959",
+      "start": 0.232,
+      "end": 0.581,
+      "startFrame": 7,
+      "endFrame": 17
+    },
+    {
+      "word": "Arthur",
+      "start": 0.581,
+      "end": 0.987,
+      "startFrame": 17,
+      "endFrame": 30
+    },
+    {
+      "word": "Samuel",
+      "start": 0.987,
+      "end": 1.393,
+      "startFrame": 30,
+      "endFrame": 42
+    },
+    {
+      "word": "định",
+      "start": 1.393,
+      "end": 1.684,
+      "startFrame": 42,
+      "endFrame": 51
+    },
+    {
+      "word": "nghĩa",
+      "start": 1.684,
+      "end": 2.09,
+      "startFrame": 51,
+      "endFrame": 63
+    },
+    {
+      "word": "Học",
+      "start": 2.09,
+      "end": 2.322,
+      "startFrame": 63,
+      "endFrame": 70
+    },
+    {
+      "word": "máy",
+      "start": 2.322,
+      "end": 2.554,
+      "startFrame": 70,
+      "endFrame": 77
+    },
+    {
+      "word": "giúp",
+      "start": 2.554,
+      "end": 2.845,
+      "startFrame": 77,
+      "endFrame": 85
+    },
+    {
+      "word": "máy",
+      "start": 2.845,
+      "end": 3.077,
+      "startFrame": 85,
+      "endFrame": 92
+    },
+    {
+      "word": "tính",
+      "start": 3.077,
+      "end": 3.367,
+      "startFrame": 92,
+      "endFrame": 101
+    },
+    {
+      "word": "tự",
+      "start": 3.367,
+      "end": 3.541,
+      "startFrame": 101,
+      "endFrame": 106
+    },
+    {
+      "word": "học",
+      "start": 3.541,
+      "end": 3.773,
+      "startFrame": 106,
+      "endFrame": 113
+    },
+    {
+      "word": "từ",
+      "start": 3.773,
+      "end": 3.948,
+      "startFrame": 113,
+      "endFrame": 118
+    },
+    {
+      "word": "kinh",
+      "start": 3.948,
+      "end": 4.238,
+      "startFrame": 118,
+      "endFrame": 127
+    },
+    {
+      "word": "nghiệm",
+      "start": 4.238,
+      "end": 4.644,
+      "startFrame": 127,
+      "endFrame": 139
+    },
+    {
+      "word": "mà",
+      "start": 4.644,
+      "end": 4.818,
+      "startFrame": 139,
+      "endFrame": 145
+    },
+    {
+      "word": "không",
+      "start": 4.818,
+      "end": 5.167,
+      "startFrame": 145,
+      "endFrame": 155
+    },
+    {
+      "word": "cần",
+      "start": 5.167,
+      "end": 5.399,
+      "startFrame": 155,
+      "endFrame": 162
+    },
+    {
+      "word": "lập",
+      "start": 5.399,
+      "end": 5.631,
+      "startFrame": 162,
+      "endFrame": 169
+    },
+    {
+      "word": "trình",
+      "start": 5.631,
+      "end": 5.979,
+      "startFrame": 169,
+      "endFrame": 179
+    },
+    {
+      "word": "chi",
+      "start": 5.979,
+      "end": 6.212,
+      "startFrame": 179,
+      "endFrame": 186
+    },
+    {
+      "word": "tiết",
+      "start": 6.212,
+      "end": 6.56,
+      "startFrame": 186,
+      "endFrame": 197
+    }
+  ]
+}

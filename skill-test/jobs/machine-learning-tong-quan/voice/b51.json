@@ -1,0 +1,147 @@
+{
+  "text": "Nắm vững bản chất Machine Learning là chìa khóa vàng để bạn làm chủ kỷ nguyên công nghệ mới.",
+  "voice": "Adam",
+  "precision": "int8",
+  "wav": "b51.wav",
+  "sampleRate": 48000,
+  "durationSeconds": 4.64,
+  "generationSeconds": 7.502,
+  "rtf": 1.617,
+  "timingMethod": "char-proportion",
+  "textHash": "5f0faa351afb066e",
+  "words": [
+    {
+      "word": "Nắm",
+      "start": 0.0,
+      "end": 0.2,
+      "startFrame": 0,
+      "endFrame": 6
+    },
+    {
+      "word": "vững",
+      "start": 0.2,
+      "end": 0.449,
+      "startFrame": 6,
+      "endFrame": 13
+    },
+    {
+      "word": "bản",
+      "start": 0.449,
+      "end": 0.649,
+      "startFrame": 13,
+      "endFrame": 19
+    },
+    {
+      "word": "chất",
+      "start": 0.649,
+      "end": 0.898,
+      "startFrame": 19,
+      "endFrame": 27
+    },
+    {
+      "word": "Machine",
+      "start": 0.898,
+      "end": 1.297,
+      "startFrame": 27,
+      "endFrame": 39
+    },
+    {
+      "word": "Learning",
+      "start": 1.297,
+      "end": 1.746,
+      "startFrame": 39,
+      "endFrame": 52
+    },
+    {
+      "word": "là",
+      "start": 1.746,
+      "end": 1.896,
+      "startFrame": 52,
+      "endFrame": 57
+    },
+    {
+      "word": "chìa",
+      "start": 1.896,
+      "end": 2.145,
+      "startFrame": 57,
+      "endFrame": 64
+    },
+    {
+      "word": "khóa",
+      "start": 2.145,
+      "end": 2.395,
+      "startFrame": 64,
+      "endFrame": 72
+    },
+    {
+      "word": "vàng",
+      "start": 2.395,
+      "end": 2.644,
+      "startFrame": 72,
+      "endFrame": 79
+    },
+    {
+      "word": "để",
+      "start": 2.644,
+      "end": 2.794,
+      "startFrame": 79,
+      "endFrame": 84
+    },
+    {
+      "word": "bạn",
+      "start": 2.794,
+      "end": 2.994,
+      "startFrame": 84,
+      "endFrame": 90
+    },
+    {
+      "word": "làm",
+      "start": 2.994,
+      "end": 3.193,
+      "startFrame": 90,
+      "endFrame": 96
+    },
+    {
+      "word": "chủ",
+      "start": 3.193,
+      "end": 3.393,
+      "startFrame": 96,
+      "endFrame": 102
+    },
+    {
+      "word": "kỷ",
+      "start": 3.393,
+      "end": 3.542,
+      "startFrame": 102,
+      "endFrame": 106
+    },
+    {
+      "word": "nguyên",
+      "start": 3.542,
+      "end": 3.892,
+      "startFrame": 106,
+      "endFrame": 117
+    },
+    {
+      "word": "công",
+      "start": 3.892,
+      "end": 4.141,
+      "startFrame": 117,
+      "endFrame": 124
+    },
+    {
+      "word": "nghệ",
+      "start": 4.141,
+      "end": 4.391,
+      "startFrame": 124,
+      "endFrame": 132
+    },
+    {
+      "word": "mới",
+      "start": 4.391,
+      "end": 4.64,
+      "startFrame": 132,
+      "endFrame": 139
+    }
+  ]
+}

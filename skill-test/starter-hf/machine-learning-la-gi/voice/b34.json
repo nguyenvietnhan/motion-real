@@ -1,0 +1,182 @@
+{
+  "text": "Cuộc chiến của kỹ sư AI là cân bằng Bias và Variance, giữ mô hình vừa chuẩn xác vừa có tính tổng quát cao.",
+  "voice": "Adam",
+  "precision": "int8",
+  "wav": "b34.wav",
+  "sampleRate": 48000,
+  "durationSeconds": 6.48,
+  "generationSeconds": 11.622,
+  "rtf": 1.794,
+  "timingMethod": "char-proportion",
+  "textHash": "86504ac1d1db1d5e",
+  "words": [
+    {
+      "word": "Cuộc",
+      "start": 0.0,
+      "end": 0.303,
+      "startFrame": 0,
+      "endFrame": 9
+    },
+    {
+      "word": "chiến",
+      "start": 0.303,
+      "end": 0.666,
+      "startFrame": 9,
+      "endFrame": 20
+    },
+    {
+      "word": "của",
+      "start": 0.666,
+      "end": 0.908,
+      "startFrame": 20,
+      "endFrame": 27
+    },
+    {
+      "word": "kỹ",
+      "start": 0.908,
+      "end": 1.09,
+      "startFrame": 27,
+      "endFrame": 33
+    },
+    {
+      "word": "sư",
+      "start": 1.09,
+      "end": 1.272,
+      "startFrame": 33,
+      "endFrame": 38
+    },
+    {
+      "word": "AI",
+      "start": 1.272,
+      "end": 1.453,
+      "startFrame": 38,
+      "endFrame": 44
+    },
+    {
+      "word": "là",
+      "start": 1.453,
+      "end": 1.635,
+      "startFrame": 44,
+      "endFrame": 49
+    },
+    {
+      "word": "cân",
+      "start": 1.635,
+      "end": 1.877,
+      "startFrame": 49,
+      "endFrame": 56
+    },
+    {
+      "word": "bằng",
+      "start": 1.877,
+      "end": 2.18,
+      "startFrame": 56,
+      "endFrame": 65
+    },
+    {
+      "word": "Bias",
+      "start": 2.18,
+      "end": 2.483,
+      "startFrame": 65,
+      "endFrame": 74
+    },
+    {
+      "word": "và",
+      "start": 2.483,
+      "end": 2.665,
+      "startFrame": 74,
+      "endFrame": 80
+    },
+    {
+      "word": "Variance",
+      "start": 2.665,
+      "end": 3.27,
+      "startFrame": 80,
+      "endFrame": 98
+    },
+    {
+      "word": "giữ",
+      "start": 3.27,
+      "end": 3.513,
+      "startFrame": 98,
+      "endFrame": 105
+    },
+    {
+      "word": "mô",
+      "start": 3.513,
+      "end": 3.694,
+      "startFrame": 105,
+      "endFrame": 111
+    },
+    {
+      "word": "hình",
+      "start": 3.694,
+      "end": 3.997,
+      "startFrame": 111,
+      "endFrame": 120
+    },
+    {
+      "word": "vừa",
+      "start": 3.997,
+      "end": 4.239,
+      "startFrame": 120,
+      "endFrame": 127
+    },
+    {
+      "word": "chuẩn",
+      "start": 4.239,
+      "end": 4.603,
+      "startFrame": 127,
+      "endFrame": 138
+    },
+    {
+      "word": "xác",
+      "start": 4.603,
+      "end": 4.845,
+      "startFrame": 138,
+      "endFrame": 145
+    },
+    {
+      "word": "vừa",
+      "start": 4.845,
+      "end": 5.087,
+      "startFrame": 145,
+      "endFrame": 153
+    },
+    {
+      "word": "có",
+      "start": 5.087,
+      "end": 5.269,
+      "startFrame": 153,
+      "endFrame": 158
+    },
+    {
+      "word": "tính",
+      "start": 5.269,
+      "end": 5.572,
+      "startFrame": 158,
+      "endFrame": 167
+    },
+    {
+      "word": "tổng",
+      "start": 5.572,
+      "end": 5.874,
+      "startFrame": 167,
+      "endFrame": 176
+    },
+    {
+      "word": "quát",
+      "start": 5.874,
+      "end": 6.177,
+      "startFrame": 176,
+      "endFrame": 185
+    },
+    {
+      "word": "cao",
+      "start": 6.177,
+      "end": 6.48,
+      "startFrame": 185,
+      "endFrame": 194
+    }
+  ]
+}

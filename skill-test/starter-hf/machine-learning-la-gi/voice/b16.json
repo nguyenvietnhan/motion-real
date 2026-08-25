@@ -1,0 +1,175 @@
+{
+  "text": "Thuật toán sẽ tự động phân tích cấu trúc, đo khoảng cách và tìm ra quy luật ẩn giấu bên trong dữ liệu.",
+  "voice": "Adam",
+  "precision": "int8",
+  "wav": "b16.wav",
+  "sampleRate": 48000,
+  "durationSeconds": 4.8,
+  "generationSeconds": 8.941,
+  "rtf": 1.863,
+  "timingMethod": "char-proportion",
+  "textHash": "d88d3b3a6b2a9a08",
+  "words": [
+    {
+      "word": "Thuật",
+      "start": 0.0,
+      "end": 0.28,
+      "startFrame": 0,
+      "endFrame": 8
+    },
+    {
+      "word": "toán",
+      "start": 0.28,
+      "end": 0.513,
+      "startFrame": 8,
+      "endFrame": 15
+    },
+    {
+      "word": "sẽ",
+      "start": 0.513,
+      "end": 0.652,
+      "startFrame": 15,
+      "endFrame": 20
+    },
+    {
+      "word": "tự",
+      "start": 0.652,
+      "end": 0.792,
+      "startFrame": 20,
+      "endFrame": 24
+    },
+    {
+      "word": "động",
+      "start": 0.792,
+      "end": 1.025,
+      "startFrame": 24,
+      "endFrame": 31
+    },
+    {
+      "word": "phân",
+      "start": 1.025,
+      "end": 1.258,
+      "startFrame": 31,
+      "endFrame": 38
+    },
+    {
+      "word": "tích",
+      "start": 1.258,
+      "end": 1.491,
+      "startFrame": 38,
+      "endFrame": 45
+    },
+    {
+      "word": "cấu",
+      "start": 1.491,
+      "end": 1.678,
+      "startFrame": 45,
+      "endFrame": 50
+    },
+    {
+      "word": "trúc",
+      "start": 1.678,
+      "end": 1.957,
+      "startFrame": 50,
+      "endFrame": 59
+    },
+    {
+      "word": "đo",
+      "start": 1.957,
+      "end": 2.097,
+      "startFrame": 59,
+      "endFrame": 63
+    },
+    {
+      "word": "khoảng",
+      "start": 2.097,
+      "end": 2.423,
+      "startFrame": 63,
+      "endFrame": 73
+    },
+    {
+      "word": "cách",
+      "start": 2.423,
+      "end": 2.656,
+      "startFrame": 73,
+      "endFrame": 80
+    },
+    {
+      "word": "và",
+      "start": 2.656,
+      "end": 2.796,
+      "startFrame": 80,
+      "endFrame": 84
+    },
+    {
+      "word": "tìm",
+      "start": 2.796,
+      "end": 2.983,
+      "startFrame": 84,
+      "endFrame": 89
+    },
+    {
+      "word": "ra",
+      "start": 2.983,
+      "end": 3.122,
+      "startFrame": 89,
+      "endFrame": 94
+    },
+    {
+      "word": "quy",
+      "start": 3.122,
+      "end": 3.309,
+      "startFrame": 94,
+      "endFrame": 99
+    },
+    {
+      "word": "luật",
+      "start": 3.309,
+      "end": 3.542,
+      "startFrame": 99,
+      "endFrame": 106
+    },
+    {
+      "word": "ẩn",
+      "start": 3.542,
+      "end": 3.682,
+      "startFrame": 106,
+      "endFrame": 110
+    },
+    {
+      "word": "giấu",
+      "start": 3.682,
+      "end": 3.915,
+      "startFrame": 110,
+      "endFrame": 117
+    },
+    {
+      "word": "bên",
+      "start": 3.915,
+      "end": 4.101,
+      "startFrame": 117,
+      "endFrame": 123
+    },
+    {
+      "word": "trong",
+      "start": 4.101,
+      "end": 4.381,
+      "startFrame": 123,
+      "endFrame": 131
+    },
+    {
+      "word": "dữ",
+      "start": 4.381,
+      "end": 4.52,
+      "startFrame": 131,
+      "endFrame": 136
+    },
+    {
+      "word": "liệu",
+      "start": 4.52,
+      "end": 4.8,
+      "startFrame": 136,
+      "endFrame": 144
+    }
+  ]
+}

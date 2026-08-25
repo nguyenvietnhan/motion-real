@@ -1,0 +1,182 @@
+{
+  "text": "Machine Learning không phải phép thuật huyền bí, mà là sự kết hợp tuyệt mỹ giữa đại số, xác suất và dữ liệu lớn.",
+  "voice": "Adam",
+  "precision": "int8",
+  "wav": "b35.wav",
+  "sampleRate": 48000,
+  "durationSeconds": 5.76,
+  "generationSeconds": 8.065,
+  "rtf": 1.4,
+  "timingMethod": "char-proportion",
+  "textHash": "f21a3edca2470d65",
+  "words": [
+    {
+      "word": "Machine",
+      "start": 0.0,
+      "end": 0.408,
+      "startFrame": 0,
+      "endFrame": 12
+    },
+    {
+      "word": "Learning",
+      "start": 0.408,
+      "end": 0.867,
+      "startFrame": 12,
+      "endFrame": 26
+    },
+    {
+      "word": "không",
+      "start": 0.867,
+      "end": 1.172,
+      "startFrame": 26,
+      "endFrame": 35
+    },
+    {
+      "word": "phải",
+      "start": 1.172,
+      "end": 1.427,
+      "startFrame": 35,
+      "endFrame": 43
+    },
+    {
+      "word": "phép",
+      "start": 1.427,
+      "end": 1.682,
+      "startFrame": 43,
+      "endFrame": 50
+    },
+    {
+      "word": "thuật",
+      "start": 1.682,
+      "end": 1.988,
+      "startFrame": 50,
+      "endFrame": 60
+    },
+    {
+      "word": "huyền",
+      "start": 1.988,
+      "end": 2.294,
+      "startFrame": 60,
+      "endFrame": 69
+    },
+    {
+      "word": "bí",
+      "start": 2.294,
+      "end": 2.498,
+      "startFrame": 69,
+      "endFrame": 75
+    },
+    {
+      "word": "mà",
+      "start": 2.498,
+      "end": 2.651,
+      "startFrame": 75,
+      "endFrame": 80
+    },
+    {
+      "word": "là",
+      "start": 2.651,
+      "end": 2.804,
+      "startFrame": 80,
+      "endFrame": 84
+    },
+    {
+      "word": "sự",
+      "start": 2.804,
+      "end": 2.956,
+      "startFrame": 84,
+      "endFrame": 89
+    },
+    {
+      "word": "kết",
+      "start": 2.956,
+      "end": 3.16,
+      "startFrame": 89,
+      "endFrame": 95
+    },
+    {
+      "word": "hợp",
+      "start": 3.16,
+      "end": 3.364,
+      "startFrame": 95,
+      "endFrame": 101
+    },
+    {
+      "word": "tuyệt",
+      "start": 3.364,
+      "end": 3.67,
+      "startFrame": 101,
+      "endFrame": 110
+    },
+    {
+      "word": "mỹ",
+      "start": 3.67,
+      "end": 3.823,
+      "startFrame": 110,
+      "endFrame": 115
+    },
+    {
+      "word": "giữa",
+      "start": 3.823,
+      "end": 4.078,
+      "startFrame": 115,
+      "endFrame": 122
+    },
+    {
+      "word": "đại",
+      "start": 4.078,
+      "end": 4.282,
+      "startFrame": 122,
+      "endFrame": 128
+    },
+    {
+      "word": "số",
+      "start": 4.282,
+      "end": 4.486,
+      "startFrame": 128,
+      "endFrame": 135
+    },
+    {
+      "word": "xác",
+      "start": 4.486,
+      "end": 4.69,
+      "startFrame": 135,
+      "endFrame": 141
+    },
+    {
+      "word": "suất",
+      "start": 4.69,
+      "end": 4.944,
+      "startFrame": 141,
+      "endFrame": 148
+    },
+    {
+      "word": "và",
+      "start": 4.944,
+      "end": 5.097,
+      "startFrame": 148,
+      "endFrame": 153
+    },
+    {
+      "word": "dữ",
+      "start": 5.097,
+      "end": 5.25,
+      "startFrame": 153,
+      "endFrame": 158
+    },
+    {
+      "word": "liệu",
+      "start": 5.25,
+      "end": 5.505,
+      "startFrame": 158,
+      "endFrame": 165
+    },
+    {
+      "word": "lớn",
+      "start": 5.505,
+      "end": 5.76,
+      "startFrame": 165,
+      "endFrame": 173
+    }
+  ]
+}

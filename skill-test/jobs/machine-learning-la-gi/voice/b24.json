@@ -1,0 +1,154 @@
+{
+  "text": "Vậy bên trong cỗ máy, quy trình biến dữ liệu thô thành trí thông minh diễn ra như thế nào?",
+  "voice": "Adam",
+  "precision": "int8",
+  "wav": "b24.wav",
+  "sampleRate": 48000,
+  "durationSeconds": 4.16,
+  "generationSeconds": 6.851,
+  "rtf": 1.647,
+  "timingMethod": "char-proportion",
+  "textHash": "dd6353b770f4b173",
+  "words": [
+    {
+      "word": "Vậy",
+      "start": 0.0,
+      "end": 0.183,
+      "startFrame": 0,
+      "endFrame": 5
+    },
+    {
+      "word": "bên",
+      "start": 0.183,
+      "end": 0.366,
+      "startFrame": 5,
+      "endFrame": 11
+    },
+    {
+      "word": "trong",
+      "start": 0.366,
+      "end": 0.64,
+      "startFrame": 11,
+      "endFrame": 19
+    },
+    {
+      "word": "cỗ",
+      "start": 0.64,
+      "end": 0.777,
+      "startFrame": 19,
+      "endFrame": 23
+    },
+    {
+      "word": "máy",
+      "start": 0.777,
+      "end": 1.006,
+      "startFrame": 23,
+      "endFrame": 30
+    },
+    {
+      "word": "quy",
+      "start": 1.006,
+      "end": 1.189,
+      "startFrame": 30,
+      "endFrame": 36
+    },
+    {
+      "word": "trình",
+      "start": 1.189,
+      "end": 1.463,
+      "startFrame": 36,
+      "endFrame": 44
+    },
+    {
+      "word": "biến",
+      "start": 1.463,
+      "end": 1.691,
+      "startFrame": 44,
+      "endFrame": 51
+    },
+    {
+      "word": "dữ",
+      "start": 1.691,
+      "end": 1.829,
+      "startFrame": 51,
+      "endFrame": 55
+    },
+    {
+      "word": "liệu",
+      "start": 1.829,
+      "end": 2.057,
+      "startFrame": 55,
+      "endFrame": 62
+    },
+    {
+      "word": "thô",
+      "start": 2.057,
+      "end": 2.24,
+      "startFrame": 62,
+      "endFrame": 67
+    },
+    {
+      "word": "thành",
+      "start": 2.24,
+      "end": 2.514,
+      "startFrame": 67,
+      "endFrame": 75
+    },
+    {
+      "word": "trí",
+      "start": 2.514,
+      "end": 2.697,
+      "startFrame": 75,
+      "endFrame": 81
+    },
+    {
+      "word": "thông",
+      "start": 2.697,
+      "end": 2.971,
+      "startFrame": 81,
+      "endFrame": 89
+    },
+    {
+      "word": "minh",
+      "start": 2.971,
+      "end": 3.2,
+      "startFrame": 89,
+      "endFrame": 96
+    },
+    {
+      "word": "diễn",
+      "start": 3.2,
+      "end": 3.429,
+      "startFrame": 96,
+      "endFrame": 103
+    },
+    {
+      "word": "ra",
+      "start": 3.429,
+      "end": 3.566,
+      "startFrame": 103,
+      "endFrame": 107
+    },
+    {
+      "word": "như",
+      "start": 3.566,
+      "end": 3.749,
+      "startFrame": 107,
+      "endFrame": 112
+    },
+    {
+      "word": "thế",
+      "start": 3.749,
+      "end": 3.931,
+      "startFrame": 112,
+      "endFrame": 118
+    },
+    {
+      "word": "nào",
+      "start": 3.931,
+      "end": 4.16,
+      "startFrame": 118,
+      "endFrame": 125
+    }
+  ]
+}

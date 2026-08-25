@@ -1,0 +1,140 @@
+{
+  "text": "Điển hình là Phân cụm: gom nhóm hàng triệu khách hàng theo hành vi tiêu dùng tương đồng.",
+  "voice": "Adam",
+  "precision": "int8",
+  "wav": "b16.wav",
+  "sampleRate": 48000,
+  "durationSeconds": 4.0,
+  "generationSeconds": 4.452,
+  "rtf": 1.113,
+  "timingMethod": "char-proportion",
+  "textHash": "4cd40be5a2e503df",
+  "words": [
+    {
+      "word": "Điển",
+      "start": 0.0,
+      "end": 0.225,
+      "startFrame": 0,
+      "endFrame": 7
+    },
+    {
+      "word": "hình",
+      "start": 0.225,
+      "end": 0.449,
+      "startFrame": 7,
+      "endFrame": 13
+    },
+    {
+      "word": "là",
+      "start": 0.449,
+      "end": 0.584,
+      "startFrame": 13,
+      "endFrame": 18
+    },
+    {
+      "word": "Phân",
+      "start": 0.584,
+      "end": 0.809,
+      "startFrame": 18,
+      "endFrame": 24
+    },
+    {
+      "word": "cụm",
+      "start": 0.809,
+      "end": 1.034,
+      "startFrame": 24,
+      "endFrame": 31
+    },
+    {
+      "word": "gom",
+      "start": 1.034,
+      "end": 1.213,
+      "startFrame": 31,
+      "endFrame": 36
+    },
+    {
+      "word": "nhóm",
+      "start": 1.213,
+      "end": 1.438,
+      "startFrame": 36,
+      "endFrame": 43
+    },
+    {
+      "word": "hàng",
+      "start": 1.438,
+      "end": 1.663,
+      "startFrame": 43,
+      "endFrame": 50
+    },
+    {
+      "word": "triệu",
+      "start": 1.663,
+      "end": 1.933,
+      "startFrame": 50,
+      "endFrame": 58
+    },
+    {
+      "word": "khách",
+      "start": 1.933,
+      "end": 2.202,
+      "startFrame": 58,
+      "endFrame": 66
+    },
+    {
+      "word": "hàng",
+      "start": 2.202,
+      "end": 2.427,
+      "startFrame": 66,
+      "endFrame": 73
+    },
+    {
+      "word": "theo",
+      "start": 2.427,
+      "end": 2.652,
+      "startFrame": 73,
+      "endFrame": 80
+    },
+    {
+      "word": "hành",
+      "start": 2.652,
+      "end": 2.876,
+      "startFrame": 80,
+      "endFrame": 86
+    },
+    {
+      "word": "vi",
+      "start": 2.876,
+      "end": 3.011,
+      "startFrame": 86,
+      "endFrame": 90
+    },
+    {
+      "word": "tiêu",
+      "start": 3.011,
+      "end": 3.236,
+      "startFrame": 90,
+      "endFrame": 97
+    },
+    {
+      "word": "dùng",
+      "start": 3.236,
+      "end": 3.461,
+      "startFrame": 97,
+      "endFrame": 104
+    },
+    {
+      "word": "tương",
+      "start": 3.461,
+      "end": 3.73,
+      "startFrame": 104,
+      "endFrame": 112
+    },
+    {
+      "word": "đồng",
+      "start": 3.73,
+      "end": 4.0,
+      "startFrame": 112,
+      "endFrame": 120
+    }
+  ]
+}

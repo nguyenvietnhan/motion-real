@@ -1,0 +1,182 @@
+{
+  "text": "Nó đang định hình lại mọi lĩnh vực: từ y tế, tài chính, giao thông đến các mô hình ngôn ngữ lớn hôm nay.",
+  "voice": "Adam",
+  "precision": "int8",
+  "wav": "b36.wav",
+  "sampleRate": 48000,
+  "durationSeconds": 4.96,
+  "generationSeconds": 8.772,
+  "rtf": 1.768,
+  "timingMethod": "char-proportion",
+  "textHash": "786691cb845ab0d0",
+  "words": [
+    {
+      "word": "Nó",
+      "start": 0.0,
+      "end": 0.142,
+      "startFrame": 0,
+      "endFrame": 4
+    },
+    {
+      "word": "đang",
+      "start": 0.142,
+      "end": 0.378,
+      "startFrame": 4,
+      "endFrame": 11
+    },
+    {
+      "word": "định",
+      "start": 0.378,
+      "end": 0.614,
+      "startFrame": 11,
+      "endFrame": 18
+    },
+    {
+      "word": "hình",
+      "start": 0.614,
+      "end": 0.85,
+      "startFrame": 18,
+      "endFrame": 26
+    },
+    {
+      "word": "lại",
+      "start": 0.85,
+      "end": 1.039,
+      "startFrame": 26,
+      "endFrame": 31
+    },
+    {
+      "word": "mọi",
+      "start": 1.039,
+      "end": 1.228,
+      "startFrame": 31,
+      "endFrame": 37
+    },
+    {
+      "word": "lĩnh",
+      "start": 1.228,
+      "end": 1.464,
+      "startFrame": 37,
+      "endFrame": 44
+    },
+    {
+      "word": "vực",
+      "start": 1.464,
+      "end": 1.701,
+      "startFrame": 44,
+      "endFrame": 51
+    },
+    {
+      "word": "từ",
+      "start": 1.701,
+      "end": 1.842,
+      "startFrame": 51,
+      "endFrame": 55
+    },
+    {
+      "word": "y",
+      "start": 1.842,
+      "end": 1.937,
+      "startFrame": 55,
+      "endFrame": 58
+    },
+    {
+      "word": "tế",
+      "start": 1.937,
+      "end": 2.126,
+      "startFrame": 58,
+      "endFrame": 64
+    },
+    {
+      "word": "tài",
+      "start": 2.126,
+      "end": 2.315,
+      "startFrame": 64,
+      "endFrame": 69
+    },
+    {
+      "word": "chính",
+      "start": 2.315,
+      "end": 2.645,
+      "startFrame": 69,
+      "endFrame": 79
+    },
+    {
+      "word": "giao",
+      "start": 2.645,
+      "end": 2.882,
+      "startFrame": 79,
+      "endFrame": 86
+    },
+    {
+      "word": "thông",
+      "start": 2.882,
+      "end": 3.165,
+      "startFrame": 86,
+      "endFrame": 95
+    },
+    {
+      "word": "đến",
+      "start": 3.165,
+      "end": 3.354,
+      "startFrame": 95,
+      "endFrame": 101
+    },
+    {
+      "word": "các",
+      "start": 3.354,
+      "end": 3.543,
+      "startFrame": 101,
+      "endFrame": 106
+    },
+    {
+      "word": "mô",
+      "start": 3.543,
+      "end": 3.685,
+      "startFrame": 106,
+      "endFrame": 111
+    },
+    {
+      "word": "hình",
+      "start": 3.685,
+      "end": 3.921,
+      "startFrame": 111,
+      "endFrame": 118
+    },
+    {
+      "word": "ngôn",
+      "start": 3.921,
+      "end": 4.157,
+      "startFrame": 118,
+      "endFrame": 125
+    },
+    {
+      "word": "ngữ",
+      "start": 4.157,
+      "end": 4.346,
+      "startFrame": 125,
+      "endFrame": 130
+    },
+    {
+      "word": "lớn",
+      "start": 4.346,
+      "end": 4.535,
+      "startFrame": 130,
+      "endFrame": 136
+    },
+    {
+      "word": "hôm",
+      "start": 4.535,
+      "end": 4.724,
+      "startFrame": 136,
+      "endFrame": 142
+    },
+    {
+      "word": "nay",
+      "start": 4.724,
+      "end": 4.96,
+      "startFrame": 142,
+      "endFrame": 149
+    }
+  ]
+}

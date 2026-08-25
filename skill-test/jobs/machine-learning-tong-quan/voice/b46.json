@@ -1,0 +1,147 @@
+{
+  "text": "Sau khi huấn luyện xong, mô hình được đóng gói và vận hành qua quy trình MLOps hiện đại.",
+  "voice": "Adam",
+  "precision": "int8",
+  "wav": "b46.wav",
+  "sampleRate": 48000,
+  "durationSeconds": 4.64,
+  "generationSeconds": 7.17,
+  "rtf": 1.545,
+  "timingMethod": "char-proportion",
+  "textHash": "3d67d7da9dba564c",
+  "words": [
+    {
+      "word": "Sau",
+      "start": 0.0,
+      "end": 0.209,
+      "startFrame": 0,
+      "endFrame": 6
+    },
+    {
+      "word": "khi",
+      "start": 0.209,
+      "end": 0.417,
+      "startFrame": 6,
+      "endFrame": 13
+    },
+    {
+      "word": "huấn",
+      "start": 0.417,
+      "end": 0.678,
+      "startFrame": 13,
+      "endFrame": 20
+    },
+    {
+      "word": "luyện",
+      "start": 0.678,
+      "end": 0.991,
+      "startFrame": 20,
+      "endFrame": 30
+    },
+    {
+      "word": "xong",
+      "start": 0.991,
+      "end": 1.303,
+      "startFrame": 30,
+      "endFrame": 39
+    },
+    {
+      "word": "mô",
+      "start": 1.303,
+      "end": 1.46,
+      "startFrame": 39,
+      "endFrame": 44
+    },
+    {
+      "word": "hình",
+      "start": 1.46,
+      "end": 1.72,
+      "startFrame": 44,
+      "endFrame": 52
+    },
+    {
+      "word": "được",
+      "start": 1.72,
+      "end": 1.981,
+      "startFrame": 52,
+      "endFrame": 59
+    },
+    {
+      "word": "đóng",
+      "start": 1.981,
+      "end": 2.242,
+      "startFrame": 59,
+      "endFrame": 67
+    },
+    {
+      "word": "gói",
+      "start": 2.242,
+      "end": 2.45,
+      "startFrame": 67,
+      "endFrame": 74
+    },
+    {
+      "word": "và",
+      "start": 2.45,
+      "end": 2.607,
+      "startFrame": 74,
+      "endFrame": 78
+    },
+    {
+      "word": "vận",
+      "start": 2.607,
+      "end": 2.815,
+      "startFrame": 78,
+      "endFrame": 84
+    },
+    {
+      "word": "hành",
+      "start": 2.815,
+      "end": 3.076,
+      "startFrame": 84,
+      "endFrame": 92
+    },
+    {
+      "word": "qua",
+      "start": 3.076,
+      "end": 3.284,
+      "startFrame": 92,
+      "endFrame": 99
+    },
+    {
+      "word": "quy",
+      "start": 3.284,
+      "end": 3.493,
+      "startFrame": 99,
+      "endFrame": 105
+    },
+    {
+      "word": "trình",
+      "start": 3.493,
+      "end": 3.806,
+      "startFrame": 105,
+      "endFrame": 114
+    },
+    {
+      "word": "MLOps",
+      "start": 3.806,
+      "end": 4.119,
+      "startFrame": 114,
+      "endFrame": 124
+    },
+    {
+      "word": "hiện",
+      "start": 4.119,
+      "end": 4.379,
+      "startFrame": 124,
+      "endFrame": 131
+    },
+    {
+      "word": "đại",
+      "start": 4.379,
+      "end": 4.64,
+      "startFrame": 131,
+      "endFrame": 139
+    }
+  ]
+}

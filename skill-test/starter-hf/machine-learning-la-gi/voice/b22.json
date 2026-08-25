@@ -1,0 +1,161 @@
+{
+  "text": "Qua hàng triệu ván thử và sai, Agent tự khám phá ra chiến thuật tối ưu vượt qua cả con người.",
+  "voice": "Adam",
+  "precision": "int8",
+  "wav": "b22.wav",
+  "sampleRate": 48000,
+  "durationSeconds": 4.8,
+  "generationSeconds": 6.021,
+  "rtf": 1.254,
+  "timingMethod": "char-proportion",
+  "textHash": "20744b7272b0e63c",
+  "words": [
+    {
+      "word": "Qua",
+      "start": 0.0,
+      "end": 0.204,
+      "startFrame": 0,
+      "endFrame": 6
+    },
+    {
+      "word": "hàng",
+      "start": 0.204,
+      "end": 0.46,
+      "startFrame": 6,
+      "endFrame": 14
+    },
+    {
+      "word": "triệu",
+      "start": 0.46,
+      "end": 0.766,
+      "startFrame": 14,
+      "endFrame": 23
+    },
+    {
+      "word": "ván",
+      "start": 0.766,
+      "end": 0.97,
+      "startFrame": 23,
+      "endFrame": 29
+    },
+    {
+      "word": "thử",
+      "start": 0.97,
+      "end": 1.174,
+      "startFrame": 29,
+      "endFrame": 35
+    },
+    {
+      "word": "và",
+      "start": 1.174,
+      "end": 1.328,
+      "startFrame": 35,
+      "endFrame": 40
+    },
+    {
+      "word": "sai",
+      "start": 1.328,
+      "end": 1.583,
+      "startFrame": 40,
+      "endFrame": 47
+    },
+    {
+      "word": "Agent",
+      "start": 1.583,
+      "end": 1.889,
+      "startFrame": 47,
+      "endFrame": 57
+    },
+    {
+      "word": "tự",
+      "start": 1.889,
+      "end": 2.043,
+      "startFrame": 57,
+      "endFrame": 61
+    },
+    {
+      "word": "khám",
+      "start": 2.043,
+      "end": 2.298,
+      "startFrame": 61,
+      "endFrame": 69
+    },
+    {
+      "word": "phá",
+      "start": 2.298,
+      "end": 2.502,
+      "startFrame": 69,
+      "endFrame": 75
+    },
+    {
+      "word": "ra",
+      "start": 2.502,
+      "end": 2.655,
+      "startFrame": 75,
+      "endFrame": 80
+    },
+    {
+      "word": "chiến",
+      "start": 2.655,
+      "end": 2.962,
+      "startFrame": 80,
+      "endFrame": 89
+    },
+    {
+      "word": "thuật",
+      "start": 2.962,
+      "end": 3.268,
+      "startFrame": 89,
+      "endFrame": 98
+    },
+    {
+      "word": "tối",
+      "start": 3.268,
+      "end": 3.472,
+      "startFrame": 98,
+      "endFrame": 104
+    },
+    {
+      "word": "ưu",
+      "start": 3.472,
+      "end": 3.626,
+      "startFrame": 104,
+      "endFrame": 109
+    },
+    {
+      "word": "vượt",
+      "start": 3.626,
+      "end": 3.881,
+      "startFrame": 109,
+      "endFrame": 116
+    },
+    {
+      "word": "qua",
+      "start": 3.881,
+      "end": 4.085,
+      "startFrame": 116,
+      "endFrame": 123
+    },
+    {
+      "word": "cả",
+      "start": 4.085,
+      "end": 4.238,
+      "startFrame": 123,
+      "endFrame": 127
+    },
+    {
+      "word": "con",
+      "start": 4.238,
+      "end": 4.443,
+      "startFrame": 127,
+      "endFrame": 133
+    },
+    {
+      "word": "người",
+      "start": 4.443,
+      "end": 4.8,
+      "startFrame": 133,
+      "endFrame": 144
+    }
+  ]
+}

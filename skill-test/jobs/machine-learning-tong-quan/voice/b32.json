@@ -1,0 +1,154 @@
+{
+  "text": "Thuật toán Backpropagation sau đó truyền ngược sai số từ đầu ra về từng nơ-ron để cập nhật trọng số.",
+  "voice": "Adam",
+  "precision": "int8",
+  "wav": "b32.wav",
+  "sampleRate": 48000,
+  "durationSeconds": 5.04,
+  "generationSeconds": 7.044,
+  "rtf": 1.398,
+  "timingMethod": "char-proportion",
+  "textHash": "95382db893a32006",
+  "words": [
+    {
+      "word": "Thuật",
+      "start": 0.0,
+      "end": 0.299,
+      "startFrame": 0,
+      "endFrame": 9
+    },
+    {
+      "word": "toán",
+      "start": 0.299,
+      "end": 0.549,
+      "startFrame": 9,
+      "endFrame": 16
+    },
+    {
+      "word": "Backpropagation",
+      "start": 0.549,
+      "end": 1.347,
+      "startFrame": 16,
+      "endFrame": 40
+    },
+    {
+      "word": "sau",
+      "start": 1.347,
+      "end": 1.547,
+      "startFrame": 40,
+      "endFrame": 46
+    },
+    {
+      "word": "đó",
+      "start": 1.547,
+      "end": 1.697,
+      "startFrame": 46,
+      "endFrame": 51
+    },
+    {
+      "word": "truyền",
+      "start": 1.697,
+      "end": 2.046,
+      "startFrame": 51,
+      "endFrame": 61
+    },
+    {
+      "word": "ngược",
+      "start": 2.046,
+      "end": 2.345,
+      "startFrame": 61,
+      "endFrame": 70
+    },
+    {
+      "word": "sai",
+      "start": 2.345,
+      "end": 2.545,
+      "startFrame": 70,
+      "endFrame": 76
+    },
+    {
+      "word": "số",
+      "start": 2.545,
+      "end": 2.695,
+      "startFrame": 76,
+      "endFrame": 81
+    },
+    {
+      "word": "từ",
+      "start": 2.695,
+      "end": 2.844,
+      "startFrame": 81,
+      "endFrame": 85
+    },
+    {
+      "word": "đầu",
+      "start": 2.844,
+      "end": 3.044,
+      "startFrame": 85,
+      "endFrame": 91
+    },
+    {
+      "word": "ra",
+      "start": 3.044,
+      "end": 3.194,
+      "startFrame": 91,
+      "endFrame": 96
+    },
+    {
+      "word": "về",
+      "start": 3.194,
+      "end": 3.343,
+      "startFrame": 96,
+      "endFrame": 100
+    },
+    {
+      "word": "từng",
+      "start": 3.343,
+      "end": 3.593,
+      "startFrame": 100,
+      "endFrame": 108
+    },
+    {
+      "word": "nơ-ron",
+      "start": 3.593,
+      "end": 3.942,
+      "startFrame": 108,
+      "endFrame": 118
+    },
+    {
+      "word": "để",
+      "start": 3.942,
+      "end": 4.092,
+      "startFrame": 118,
+      "endFrame": 123
+    },
+    {
+      "word": "cập",
+      "start": 4.092,
+      "end": 4.291,
+      "startFrame": 123,
+      "endFrame": 129
+    },
+    {
+      "word": "nhật",
+      "start": 4.291,
+      "end": 4.541,
+      "startFrame": 129,
+      "endFrame": 136
+    },
+    {
+      "word": "trọng",
+      "start": 4.541,
+      "end": 4.84,
+      "startFrame": 136,
+      "endFrame": 145
+    },
+    {
+      "word": "số",
+      "start": 4.84,
+      "end": 5.04,
+      "startFrame": 145,
+      "endFrame": 151
+    }
+  ]
+}

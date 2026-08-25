@@ -1,0 +1,168 @@
+{
+  "text": "Tuy nhiên, cỗ máy tự học đối mặt với một cạm bẫy chết người: đó là hiện tượng Overfitting, tức học vẹt.",
+  "voice": "Adam",
+  "precision": "int8",
+  "wav": "b31.wav",
+  "sampleRate": 48000,
+  "durationSeconds": 5.28,
+  "generationSeconds": 8.898,
+  "rtf": 1.685,
+  "timingMethod": "char-proportion",
+  "textHash": "25b21b6491352e7a",
+  "words": [
+    {
+      "word": "Tuy",
+      "start": 0.0,
+      "end": 0.203,
+      "startFrame": 0,
+      "endFrame": 6
+    },
+    {
+      "word": "nhiên",
+      "start": 0.203,
+      "end": 0.558,
+      "startFrame": 6,
+      "endFrame": 17
+    },
+    {
+      "word": "cỗ",
+      "start": 0.558,
+      "end": 0.711,
+      "startFrame": 17,
+      "endFrame": 21
+    },
+    {
+      "word": "máy",
+      "start": 0.711,
+      "end": 0.914,
+      "startFrame": 21,
+      "endFrame": 27
+    },
+    {
+      "word": "tự",
+      "start": 0.914,
+      "end": 1.066,
+      "startFrame": 27,
+      "endFrame": 32
+    },
+    {
+      "word": "học",
+      "start": 1.066,
+      "end": 1.269,
+      "startFrame": 32,
+      "endFrame": 38
+    },
+    {
+      "word": "đối",
+      "start": 1.269,
+      "end": 1.472,
+      "startFrame": 38,
+      "endFrame": 44
+    },
+    {
+      "word": "mặt",
+      "start": 1.472,
+      "end": 1.675,
+      "startFrame": 44,
+      "endFrame": 50
+    },
+    {
+      "word": "với",
+      "start": 1.675,
+      "end": 1.878,
+      "startFrame": 50,
+      "endFrame": 56
+    },
+    {
+      "word": "một",
+      "start": 1.878,
+      "end": 2.082,
+      "startFrame": 56,
+      "endFrame": 62
+    },
+    {
+      "word": "cạm",
+      "start": 2.082,
+      "end": 2.285,
+      "startFrame": 62,
+      "endFrame": 69
+    },
+    {
+      "word": "bẫy",
+      "start": 2.285,
+      "end": 2.488,
+      "startFrame": 69,
+      "endFrame": 75
+    },
+    {
+      "word": "chết",
+      "start": 2.488,
+      "end": 2.742,
+      "startFrame": 75,
+      "endFrame": 82
+    },
+    {
+      "word": "người",
+      "start": 2.742,
+      "end": 3.097,
+      "startFrame": 82,
+      "endFrame": 93
+    },
+    {
+      "word": "đó",
+      "start": 3.097,
+      "end": 3.249,
+      "startFrame": 93,
+      "endFrame": 97
+    },
+    {
+      "word": "là",
+      "start": 3.249,
+      "end": 3.402,
+      "startFrame": 97,
+      "endFrame": 102
+    },
+    {
+      "word": "hiện",
+      "start": 3.402,
+      "end": 3.655,
+      "startFrame": 102,
+      "endFrame": 110
+    },
+    {
+      "word": "tượng",
+      "start": 3.655,
+      "end": 3.96,
+      "startFrame": 110,
+      "endFrame": 119
+    },
+    {
+      "word": "Overfitting",
+      "start": 3.96,
+      "end": 4.62,
+      "startFrame": 119,
+      "endFrame": 139
+    },
+    {
+      "word": "tức",
+      "start": 4.62,
+      "end": 4.823,
+      "startFrame": 139,
+      "endFrame": 145
+    },
+    {
+      "word": "học",
+      "start": 4.823,
+      "end": 5.026,
+      "startFrame": 145,
+      "endFrame": 151
+    },
+    {
+      "word": "vẹt",
+      "start": 5.026,
+      "end": 5.28,
+      "startFrame": 151,
+      "endFrame": 158
+    }
+  ]
+}

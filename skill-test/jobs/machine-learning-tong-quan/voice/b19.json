@@ -1,0 +1,147 @@
+{
+  "text": "Không cần nhãn hay sách giải, một Agent được đưa vào môi trường để tự mình ra quyết định.",
+  "voice": "Adam",
+  "precision": "int8",
+  "wav": "b19.wav",
+  "sampleRate": 48000,
+  "durationSeconds": 4.32,
+  "generationSeconds": 5.289,
+  "rtf": 1.224,
+  "timingMethod": "char-proportion",
+  "textHash": "cb20a5cfb7724a3b",
+  "words": [
+    {
+      "word": "Không",
+      "start": 0.0,
+      "end": 0.288,
+      "startFrame": 0,
+      "endFrame": 9
+    },
+    {
+      "word": "cần",
+      "start": 0.288,
+      "end": 0.48,
+      "startFrame": 9,
+      "endFrame": 14
+    },
+    {
+      "word": "nhãn",
+      "start": 0.48,
+      "end": 0.72,
+      "startFrame": 14,
+      "endFrame": 22
+    },
+    {
+      "word": "hay",
+      "start": 0.72,
+      "end": 0.912,
+      "startFrame": 22,
+      "endFrame": 27
+    },
+    {
+      "word": "sách",
+      "start": 0.912,
+      "end": 1.152,
+      "startFrame": 27,
+      "endFrame": 35
+    },
+    {
+      "word": "giải",
+      "start": 1.152,
+      "end": 1.44,
+      "startFrame": 35,
+      "endFrame": 43
+    },
+    {
+      "word": "một",
+      "start": 1.44,
+      "end": 1.632,
+      "startFrame": 43,
+      "endFrame": 49
+    },
+    {
+      "word": "Agent",
+      "start": 1.632,
+      "end": 1.92,
+      "startFrame": 49,
+      "endFrame": 58
+    },
+    {
+      "word": "được",
+      "start": 1.92,
+      "end": 2.16,
+      "startFrame": 58,
+      "endFrame": 65
+    },
+    {
+      "word": "đưa",
+      "start": 2.16,
+      "end": 2.352,
+      "startFrame": 65,
+      "endFrame": 71
+    },
+    {
+      "word": "vào",
+      "start": 2.352,
+      "end": 2.544,
+      "startFrame": 71,
+      "endFrame": 76
+    },
+    {
+      "word": "môi",
+      "start": 2.544,
+      "end": 2.736,
+      "startFrame": 76,
+      "endFrame": 82
+    },
+    {
+      "word": "trường",
+      "start": 2.736,
+      "end": 3.072,
+      "startFrame": 82,
+      "endFrame": 92
+    },
+    {
+      "word": "để",
+      "start": 3.072,
+      "end": 3.216,
+      "startFrame": 92,
+      "endFrame": 96
+    },
+    {
+      "word": "tự",
+      "start": 3.216,
+      "end": 3.36,
+      "startFrame": 96,
+      "endFrame": 101
+    },
+    {
+      "word": "mình",
+      "start": 3.36,
+      "end": 3.6,
+      "startFrame": 101,
+      "endFrame": 108
+    },
+    {
+      "word": "ra",
+      "start": 3.6,
+      "end": 3.744,
+      "startFrame": 108,
+      "endFrame": 112
+    },
+    {
+      "word": "quyết",
+      "start": 3.744,
+      "end": 4.032,
+      "startFrame": 112,
+      "endFrame": 121
+    },
+    {
+      "word": "định",
+      "start": 4.032,
+      "end": 4.32,
+      "startFrame": 121,
+      "endFrame": 130
+    }
+  ]
+}

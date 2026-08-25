@@ -1,0 +1,168 @@
+{
+  "text": "Khi mô hình quá phức tạp, nó nhớ từng điểm nhiễu của dữ liệu cũ nhưng bất lực trước dữ liệu mới.",
+  "voice": "Adam",
+  "precision": "int8",
+  "wav": "b35.wav",
+  "sampleRate": 48000,
+  "durationSeconds": 4.64,
+  "generationSeconds": 7.261,
+  "rtf": 1.565,
+  "timingMethod": "char-proportion",
+  "textHash": "84db4b97398c2f51",
+  "words": [
+    {
+      "word": "Khi",
+      "start": 0.0,
+      "end": 0.191,
+      "startFrame": 0,
+      "endFrame": 6
+    },
+    {
+      "word": "mô",
+      "start": 0.191,
+      "end": 0.335,
+      "startFrame": 6,
+      "endFrame": 10
+    },
+    {
+      "word": "hình",
+      "start": 0.335,
+      "end": 0.574,
+      "startFrame": 10,
+      "endFrame": 17
+    },
+    {
+      "word": "quá",
+      "start": 0.574,
+      "end": 0.765,
+      "startFrame": 17,
+      "endFrame": 23
+    },
+    {
+      "word": "phức",
+      "start": 0.765,
+      "end": 1.005,
+      "startFrame": 23,
+      "endFrame": 30
+    },
+    {
+      "word": "tạp",
+      "start": 1.005,
+      "end": 1.244,
+      "startFrame": 30,
+      "endFrame": 37
+    },
+    {
+      "word": "nó",
+      "start": 1.244,
+      "end": 1.387,
+      "startFrame": 37,
+      "endFrame": 42
+    },
+    {
+      "word": "nhớ",
+      "start": 1.387,
+      "end": 1.579,
+      "startFrame": 42,
+      "endFrame": 47
+    },
+    {
+      "word": "từng",
+      "start": 1.579,
+      "end": 1.818,
+      "startFrame": 47,
+      "endFrame": 55
+    },
+    {
+      "word": "điểm",
+      "start": 1.818,
+      "end": 2.057,
+      "startFrame": 55,
+      "endFrame": 62
+    },
+    {
+      "word": "nhiễu",
+      "start": 2.057,
+      "end": 2.344,
+      "startFrame": 62,
+      "endFrame": 70
+    },
+    {
+      "word": "của",
+      "start": 2.344,
+      "end": 2.535,
+      "startFrame": 70,
+      "endFrame": 76
+    },
+    {
+      "word": "dữ",
+      "start": 2.535,
+      "end": 2.679,
+      "startFrame": 76,
+      "endFrame": 80
+    },
+    {
+      "word": "liệu",
+      "start": 2.679,
+      "end": 2.918,
+      "startFrame": 80,
+      "endFrame": 88
+    },
+    {
+      "word": "cũ",
+      "start": 2.918,
+      "end": 3.061,
+      "startFrame": 88,
+      "endFrame": 92
+    },
+    {
+      "word": "nhưng",
+      "start": 3.061,
+      "end": 3.348,
+      "startFrame": 92,
+      "endFrame": 100
+    },
+    {
+      "word": "bất",
+      "start": 3.348,
+      "end": 3.54,
+      "startFrame": 100,
+      "endFrame": 106
+    },
+    {
+      "word": "lực",
+      "start": 3.54,
+      "end": 3.731,
+      "startFrame": 106,
+      "endFrame": 112
+    },
+    {
+      "word": "trước",
+      "start": 3.731,
+      "end": 4.018,
+      "startFrame": 112,
+      "endFrame": 121
+    },
+    {
+      "word": "dữ",
+      "start": 4.018,
+      "end": 4.162,
+      "startFrame": 121,
+      "endFrame": 125
+    },
+    {
+      "word": "liệu",
+      "start": 4.162,
+      "end": 4.401,
+      "startFrame": 125,
+      "endFrame": 132
+    },
+    {
+      "word": "mới",
+      "start": 4.401,
+      "end": 4.64,
+      "startFrame": 132,
+      "endFrame": 139
+    }
+  ]
+}

@@ -1,0 +1,161 @@
+{
+  "text": "Nhưng bằng cách nào một cỗ máy có thể tự học từ dữ liệu? Nó chia làm ba trường phái chính.",
+  "voice": "Adam",
+  "precision": "int8",
+  "wav": "b8.wav",
+  "sampleRate": 48000,
+  "durationSeconds": 4.48,
+  "generationSeconds": 7.896,
+  "rtf": 1.763,
+  "timingMethod": "char-proportion",
+  "textHash": "24e2b7657915fac7",
+  "words": [
+    {
+      "word": "Nhưng",
+      "start": 0.0,
+      "end": 0.295,
+      "startFrame": 0,
+      "endFrame": 9
+    },
+    {
+      "word": "bằng",
+      "start": 0.295,
+      "end": 0.542,
+      "startFrame": 9,
+      "endFrame": 16
+    },
+    {
+      "word": "cách",
+      "start": 0.542,
+      "end": 0.788,
+      "startFrame": 16,
+      "endFrame": 24
+    },
+    {
+      "word": "nào",
+      "start": 0.788,
+      "end": 0.985,
+      "startFrame": 24,
+      "endFrame": 30
+    },
+    {
+      "word": "một",
+      "start": 0.985,
+      "end": 1.182,
+      "startFrame": 30,
+      "endFrame": 35
+    },
+    {
+      "word": "cỗ",
+      "start": 1.182,
+      "end": 1.329,
+      "startFrame": 35,
+      "endFrame": 40
+    },
+    {
+      "word": "máy",
+      "start": 1.329,
+      "end": 1.526,
+      "startFrame": 40,
+      "endFrame": 46
+    },
+    {
+      "word": "có",
+      "start": 1.526,
+      "end": 1.674,
+      "startFrame": 46,
+      "endFrame": 50
+    },
+    {
+      "word": "thể",
+      "start": 1.674,
+      "end": 1.871,
+      "startFrame": 50,
+      "endFrame": 56
+    },
+    {
+      "word": "tự",
+      "start": 1.871,
+      "end": 2.018,
+      "startFrame": 56,
+      "endFrame": 61
+    },
+    {
+      "word": "học",
+      "start": 2.018,
+      "end": 2.215,
+      "startFrame": 61,
+      "endFrame": 66
+    },
+    {
+      "word": "từ",
+      "start": 2.215,
+      "end": 2.363,
+      "startFrame": 66,
+      "endFrame": 71
+    },
+    {
+      "word": "dữ",
+      "start": 2.363,
+      "end": 2.511,
+      "startFrame": 71,
+      "endFrame": 75
+    },
+    {
+      "word": "liệu",
+      "start": 2.511,
+      "end": 2.806,
+      "startFrame": 75,
+      "endFrame": 84
+    },
+    {
+      "word": "Nó",
+      "start": 2.806,
+      "end": 2.954,
+      "startFrame": 84,
+      "endFrame": 89
+    },
+    {
+      "word": "chia",
+      "start": 2.954,
+      "end": 3.2,
+      "startFrame": 89,
+      "endFrame": 96
+    },
+    {
+      "word": "làm",
+      "start": 3.2,
+      "end": 3.397,
+      "startFrame": 96,
+      "endFrame": 102
+    },
+    {
+      "word": "ba",
+      "start": 3.397,
+      "end": 3.545,
+      "startFrame": 102,
+      "endFrame": 106
+    },
+    {
+      "word": "trường",
+      "start": 3.545,
+      "end": 3.889,
+      "startFrame": 106,
+      "endFrame": 117
+    },
+    {
+      "word": "phái",
+      "start": 3.889,
+      "end": 4.135,
+      "startFrame": 117,
+      "endFrame": 124
+    },
+    {
+      "word": "chính",
+      "start": 4.135,
+      "end": 4.48,
+      "startFrame": 124,
+      "endFrame": 134
+    }
+  ]
+}

@@ -1,0 +1,119 @@
+{
+  "text": "Mỗi quyết định đúng sẽ nhận điểm thưởng, mỗi sai lầm sẽ nhận điểm phạt.",
+  "voice": "Adam",
+  "precision": "int8",
+  "wav": "b21.wav",
+  "sampleRate": 48000,
+  "durationSeconds": 3.2,
+  "generationSeconds": 7.941,
+  "rtf": 2.482,
+  "timingMethod": "char-proportion",
+  "textHash": "353e4e12673faf12",
+  "words": [
+    {
+      "word": "Mỗi",
+      "start": 0.0,
+      "end": 0.178,
+      "startFrame": 0,
+      "endFrame": 5
+    },
+    {
+      "word": "quyết",
+      "start": 0.178,
+      "end": 0.444,
+      "startFrame": 5,
+      "endFrame": 13
+    },
+    {
+      "word": "định",
+      "start": 0.444,
+      "end": 0.667,
+      "startFrame": 13,
+      "endFrame": 20
+    },
+    {
+      "word": "đúng",
+      "start": 0.667,
+      "end": 0.889,
+      "startFrame": 20,
+      "endFrame": 27
+    },
+    {
+      "word": "sẽ",
+      "start": 0.889,
+      "end": 1.022,
+      "startFrame": 27,
+      "endFrame": 31
+    },
+    {
+      "word": "nhận",
+      "start": 1.022,
+      "end": 1.244,
+      "startFrame": 31,
+      "endFrame": 37
+    },
+    {
+      "word": "điểm",
+      "start": 1.244,
+      "end": 1.467,
+      "startFrame": 37,
+      "endFrame": 44
+    },
+    {
+      "word": "thưởng",
+      "start": 1.467,
+      "end": 1.822,
+      "startFrame": 44,
+      "endFrame": 55
+    },
+    {
+      "word": "mỗi",
+      "start": 1.822,
+      "end": 2.0,
+      "startFrame": 55,
+      "endFrame": 60
+    },
+    {
+      "word": "sai",
+      "start": 2.0,
+      "end": 2.178,
+      "startFrame": 60,
+      "endFrame": 65
+    },
+    {
+      "word": "lầm",
+      "start": 2.178,
+      "end": 2.356,
+      "startFrame": 65,
+      "endFrame": 71
+    },
+    {
+      "word": "sẽ",
+      "start": 2.356,
+      "end": 2.489,
+      "startFrame": 71,
+      "endFrame": 75
+    },
+    {
+      "word": "nhận",
+      "start": 2.489,
+      "end": 2.711,
+      "startFrame": 75,
+      "endFrame": 81
+    },
+    {
+      "word": "điểm",
+      "start": 2.711,
+      "end": 2.933,
+      "startFrame": 81,
+      "endFrame": 88
+    },
+    {
+      "word": "phạt",
+      "start": 2.933,
+      "end": 3.2,
+      "startFrame": 88,
+      "endFrame": 96
+    }
+  ]
+}

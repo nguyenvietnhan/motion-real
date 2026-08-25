@@ -1,0 +1,161 @@
+{
+  "text": "Quá trình này lặp lại qua hàng nghìn Epoch cho đến khi mô hình thực sự hội tụ và thông minh.",
+  "voice": "Adam",
+  "precision": "int8",
+  "wav": "b33.wav",
+  "sampleRate": 48000,
+  "durationSeconds": 4.32,
+  "generationSeconds": 5.452,
+  "rtf": 1.262,
+  "timingMethod": "char-proportion",
+  "textHash": "58072a5b4bbe5999",
+  "words": [
+    {
+      "word": "Quá",
+      "start": 0.0,
+      "end": 0.186,
+      "startFrame": 0,
+      "endFrame": 6
+    },
+    {
+      "word": "trình",
+      "start": 0.186,
+      "end": 0.465,
+      "startFrame": 6,
+      "endFrame": 14
+    },
+    {
+      "word": "này",
+      "start": 0.465,
+      "end": 0.65,
+      "startFrame": 14,
+      "endFrame": 20
+    },
+    {
+      "word": "lặp",
+      "start": 0.65,
+      "end": 0.836,
+      "startFrame": 20,
+      "endFrame": 25
+    },
+    {
+      "word": "lại",
+      "start": 0.836,
+      "end": 1.022,
+      "startFrame": 25,
+      "endFrame": 31
+    },
+    {
+      "word": "qua",
+      "start": 1.022,
+      "end": 1.208,
+      "startFrame": 31,
+      "endFrame": 36
+    },
+    {
+      "word": "hàng",
+      "start": 1.208,
+      "end": 1.44,
+      "startFrame": 36,
+      "endFrame": 43
+    },
+    {
+      "word": "nghìn",
+      "start": 1.44,
+      "end": 1.719,
+      "startFrame": 43,
+      "endFrame": 52
+    },
+    {
+      "word": "Epoch",
+      "start": 1.719,
+      "end": 1.997,
+      "startFrame": 52,
+      "endFrame": 60
+    },
+    {
+      "word": "cho",
+      "start": 1.997,
+      "end": 2.183,
+      "startFrame": 60,
+      "endFrame": 65
+    },
+    {
+      "word": "đến",
+      "start": 2.183,
+      "end": 2.369,
+      "startFrame": 65,
+      "endFrame": 71
+    },
+    {
+      "word": "khi",
+      "start": 2.369,
+      "end": 2.555,
+      "startFrame": 71,
+      "endFrame": 77
+    },
+    {
+      "word": "mô",
+      "start": 2.555,
+      "end": 2.694,
+      "startFrame": 77,
+      "endFrame": 81
+    },
+    {
+      "word": "hình",
+      "start": 2.694,
+      "end": 2.926,
+      "startFrame": 81,
+      "endFrame": 88
+    },
+    {
+      "word": "thực",
+      "start": 2.926,
+      "end": 3.159,
+      "startFrame": 88,
+      "endFrame": 95
+    },
+    {
+      "word": "sự",
+      "start": 3.159,
+      "end": 3.298,
+      "startFrame": 95,
+      "endFrame": 99
+    },
+    {
+      "word": "hội",
+      "start": 3.298,
+      "end": 3.484,
+      "startFrame": 99,
+      "endFrame": 105
+    },
+    {
+      "word": "tụ",
+      "start": 3.484,
+      "end": 3.623,
+      "startFrame": 105,
+      "endFrame": 109
+    },
+    {
+      "word": "và",
+      "start": 3.623,
+      "end": 3.763,
+      "startFrame": 109,
+      "endFrame": 113
+    },
+    {
+      "word": "thông",
+      "start": 3.763,
+      "end": 4.041,
+      "startFrame": 113,
+      "endFrame": 121
+    },
+    {
+      "word": "minh",
+      "start": 4.041,
+      "end": 4.32,
+      "startFrame": 121,
+      "endFrame": 130
+    }
+  ]
+}

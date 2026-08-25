@@ -1,0 +1,161 @@
+{
+  "text": "Đây chính là cách AlphaGo đánh bại kiện tướng thế giới và xe tự hành học cách giữ làn an toàn.",
+  "voice": "Adam",
+  "precision": "int8",
+  "wav": "b23.wav",
+  "sampleRate": 48000,
+  "durationSeconds": 5.04,
+  "generationSeconds": 8.217,
+  "rtf": 1.63,
+  "timingMethod": "char-proportion",
+  "textHash": "b338a808dce96e90",
+  "words": [
+    {
+      "word": "Đây",
+      "start": 0.0,
+      "end": 0.212,
+      "startFrame": 0,
+      "endFrame": 6
+    },
+    {
+      "word": "chính",
+      "start": 0.212,
+      "end": 0.531,
+      "startFrame": 6,
+      "endFrame": 16
+    },
+    {
+      "word": "là",
+      "start": 0.531,
+      "end": 0.69,
+      "startFrame": 16,
+      "endFrame": 21
+    },
+    {
+      "word": "cách",
+      "start": 0.69,
+      "end": 0.955,
+      "startFrame": 21,
+      "endFrame": 29
+    },
+    {
+      "word": "AlphaGo",
+      "start": 0.955,
+      "end": 1.379,
+      "startFrame": 29,
+      "endFrame": 41
+    },
+    {
+      "word": "đánh",
+      "start": 1.379,
+      "end": 1.645,
+      "startFrame": 41,
+      "endFrame": 49
+    },
+    {
+      "word": "bại",
+      "start": 1.645,
+      "end": 1.857,
+      "startFrame": 49,
+      "endFrame": 56
+    },
+    {
+      "word": "kiện",
+      "start": 1.857,
+      "end": 2.122,
+      "startFrame": 56,
+      "endFrame": 64
+    },
+    {
+      "word": "tướng",
+      "start": 2.122,
+      "end": 2.44,
+      "startFrame": 64,
+      "endFrame": 73
+    },
+    {
+      "word": "thế",
+      "start": 2.44,
+      "end": 2.653,
+      "startFrame": 73,
+      "endFrame": 80
+    },
+    {
+      "word": "giới",
+      "start": 2.653,
+      "end": 2.918,
+      "startFrame": 80,
+      "endFrame": 88
+    },
+    {
+      "word": "và",
+      "start": 2.918,
+      "end": 3.077,
+      "startFrame": 88,
+      "endFrame": 92
+    },
+    {
+      "word": "xe",
+      "start": 3.077,
+      "end": 3.236,
+      "startFrame": 92,
+      "endFrame": 97
+    },
+    {
+      "word": "tự",
+      "start": 3.236,
+      "end": 3.395,
+      "startFrame": 97,
+      "endFrame": 102
+    },
+    {
+      "word": "hành",
+      "start": 3.395,
+      "end": 3.661,
+      "startFrame": 102,
+      "endFrame": 110
+    },
+    {
+      "word": "học",
+      "start": 3.661,
+      "end": 3.873,
+      "startFrame": 110,
+      "endFrame": 116
+    },
+    {
+      "word": "cách",
+      "start": 3.873,
+      "end": 4.138,
+      "startFrame": 116,
+      "endFrame": 124
+    },
+    {
+      "word": "giữ",
+      "start": 4.138,
+      "end": 4.35,
+      "startFrame": 124,
+      "endFrame": 130
+    },
+    {
+      "word": "làn",
+      "start": 4.35,
+      "end": 4.563,
+      "startFrame": 130,
+      "endFrame": 137
+    },
+    {
+      "word": "an",
+      "start": 4.563,
+      "end": 4.722,
+      "startFrame": 137,
+      "endFrame": 142
+    },
+    {
+      "word": "toàn",
+      "start": 4.722,
+      "end": 5.04,
+      "startFrame": 142,
+      "endFrame": 151
+    }
+  ]
+}

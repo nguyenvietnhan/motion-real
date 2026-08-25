@@ -1,0 +1,161 @@
+{
+  "text": "Từ đề xuất phim, lọc thư rác, chẩn đoán y học đến xe tự lái và mô hình ngôn ngữ lớn.",
+  "voice": "Adam",
+  "precision": "int8",
+  "wav": "b50.wav",
+  "sampleRate": 48000,
+  "durationSeconds": 4.64,
+  "generationSeconds": 7.785,
+  "rtf": 1.678,
+  "timingMethod": "char-proportion",
+  "textHash": "ca049a114f23c99a",
+  "words": [
+    {
+      "word": "Từ",
+      "start": 0.0,
+      "end": 0.164,
+      "startFrame": 0,
+      "endFrame": 5
+    },
+    {
+      "word": "đề",
+      "start": 0.164,
+      "end": 0.328,
+      "startFrame": 5,
+      "endFrame": 10
+    },
+    {
+      "word": "xuất",
+      "start": 0.328,
+      "end": 0.6,
+      "startFrame": 10,
+      "endFrame": 18
+    },
+    {
+      "word": "phim",
+      "start": 0.6,
+      "end": 0.928,
+      "startFrame": 18,
+      "endFrame": 28
+    },
+    {
+      "word": "lọc",
+      "start": 0.928,
+      "end": 1.146,
+      "startFrame": 28,
+      "endFrame": 34
+    },
+    {
+      "word": "thư",
+      "start": 1.146,
+      "end": 1.365,
+      "startFrame": 34,
+      "endFrame": 41
+    },
+    {
+      "word": "rác",
+      "start": 1.365,
+      "end": 1.638,
+      "startFrame": 41,
+      "endFrame": 49
+    },
+    {
+      "word": "chẩn",
+      "start": 1.638,
+      "end": 1.911,
+      "startFrame": 49,
+      "endFrame": 57
+    },
+    {
+      "word": "đoán",
+      "start": 1.911,
+      "end": 2.184,
+      "startFrame": 57,
+      "endFrame": 66
+    },
+    {
+      "word": "y",
+      "start": 2.184,
+      "end": 2.293,
+      "startFrame": 66,
+      "endFrame": 69
+    },
+    {
+      "word": "học",
+      "start": 2.293,
+      "end": 2.511,
+      "startFrame": 69,
+      "endFrame": 75
+    },
+    {
+      "word": "đến",
+      "start": 2.511,
+      "end": 2.729,
+      "startFrame": 75,
+      "endFrame": 82
+    },
+    {
+      "word": "xe",
+      "start": 2.729,
+      "end": 2.893,
+      "startFrame": 82,
+      "endFrame": 87
+    },
+    {
+      "word": "tự",
+      "start": 2.893,
+      "end": 3.057,
+      "startFrame": 87,
+      "endFrame": 92
+    },
+    {
+      "word": "lái",
+      "start": 3.057,
+      "end": 3.275,
+      "startFrame": 92,
+      "endFrame": 98
+    },
+    {
+      "word": "và",
+      "start": 3.275,
+      "end": 3.439,
+      "startFrame": 98,
+      "endFrame": 103
+    },
+    {
+      "word": "mô",
+      "start": 3.439,
+      "end": 3.603,
+      "startFrame": 103,
+      "endFrame": 108
+    },
+    {
+      "word": "hình",
+      "start": 3.603,
+      "end": 3.876,
+      "startFrame": 108,
+      "endFrame": 116
+    },
+    {
+      "word": "ngôn",
+      "start": 3.876,
+      "end": 4.149,
+      "startFrame": 116,
+      "endFrame": 124
+    },
+    {
+      "word": "ngữ",
+      "start": 4.149,
+      "end": 4.367,
+      "startFrame": 124,
+      "endFrame": 131
+    },
+    {
+      "word": "lớn",
+      "start": 4.367,
+      "end": 4.64,
+      "startFrame": 131,
+      "endFrame": 139
+    }
+  ]
+}

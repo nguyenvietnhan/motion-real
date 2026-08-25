@@ -1,0 +1,140 @@
+{
+  "text": "Nhưng trong thực tế, hơn 80% dữ liệu trên thế giới không hề có sẵn nhãn đáp án.",
+  "voice": "Adam",
+  "precision": "int8",
+  "wav": "b13.wav",
+  "sampleRate": 48000,
+  "durationSeconds": 5.04,
+  "generationSeconds": 5.661,
+  "rtf": 1.123,
+  "timingMethod": "char-proportion",
+  "textHash": "095eaced760b7207",
+  "words": [
+    {
+      "word": "Nhưng",
+      "start": 0.0,
+      "end": 0.378,
+      "startFrame": 0,
+      "endFrame": 11
+    },
+    {
+      "word": "trong",
+      "start": 0.378,
+      "end": 0.756,
+      "startFrame": 11,
+      "endFrame": 23
+    },
+    {
+      "word": "thực",
+      "start": 0.756,
+      "end": 1.071,
+      "startFrame": 23,
+      "endFrame": 32
+    },
+    {
+      "word": "tế",
+      "start": 1.071,
+      "end": 1.323,
+      "startFrame": 32,
+      "endFrame": 40
+    },
+    {
+      "word": "hơn",
+      "start": 1.323,
+      "end": 1.575,
+      "startFrame": 40,
+      "endFrame": 47
+    },
+    {
+      "word": "80",
+      "start": 1.575,
+      "end": 1.827,
+      "startFrame": 47,
+      "endFrame": 55
+    },
+    {
+      "word": "dữ",
+      "start": 1.827,
+      "end": 2.016,
+      "startFrame": 55,
+      "endFrame": 60
+    },
+    {
+      "word": "liệu",
+      "start": 2.016,
+      "end": 2.331,
+      "startFrame": 60,
+      "endFrame": 70
+    },
+    {
+      "word": "trên",
+      "start": 2.331,
+      "end": 2.646,
+      "startFrame": 70,
+      "endFrame": 79
+    },
+    {
+      "word": "thế",
+      "start": 2.646,
+      "end": 2.898,
+      "startFrame": 79,
+      "endFrame": 87
+    },
+    {
+      "word": "giới",
+      "start": 2.898,
+      "end": 3.213,
+      "startFrame": 87,
+      "endFrame": 96
+    },
+    {
+      "word": "không",
+      "start": 3.213,
+      "end": 3.591,
+      "startFrame": 96,
+      "endFrame": 108
+    },
+    {
+      "word": "hề",
+      "start": 3.591,
+      "end": 3.78,
+      "startFrame": 108,
+      "endFrame": 113
+    },
+    {
+      "word": "có",
+      "start": 3.78,
+      "end": 3.969,
+      "startFrame": 113,
+      "endFrame": 119
+    },
+    {
+      "word": "sẵn",
+      "start": 3.969,
+      "end": 4.221,
+      "startFrame": 119,
+      "endFrame": 127
+    },
+    {
+      "word": "nhãn",
+      "start": 4.221,
+      "end": 4.536,
+      "startFrame": 127,
+      "endFrame": 136
+    },
+    {
+      "word": "đáp",
+      "start": 4.536,
+      "end": 4.788,
+      "startFrame": 136,
+      "endFrame": 144
+    },
+    {
+      "word": "án",
+      "start": 4.788,
+      "end": 5.04,
+      "startFrame": 144,
+      "endFrame": 151
+    }
+  ]
+}

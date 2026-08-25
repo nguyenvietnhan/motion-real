@@ -1,0 +1,140 @@
+{
+  "text": "Áp dụng K-Fold Cross-Validation để quay vòng kiểm tra chéo, đảm bảo mô hình không bị thiên lệch.",
+  "voice": "Adam",
+  "precision": "int8",
+  "wav": "b40.wav",
+  "sampleRate": 48000,
+  "durationSeconds": 4.88,
+  "generationSeconds": 7.608,
+  "rtf": 1.559,
+  "timingMethod": "char-proportion",
+  "textHash": "f6fdf5ea30f844eb",
+  "words": [
+    {
+      "word": "Áp",
+      "start": 0.0,
+      "end": 0.151,
+      "startFrame": 0,
+      "endFrame": 5
+    },
+    {
+      "word": "dụng",
+      "start": 0.151,
+      "end": 0.402,
+      "startFrame": 5,
+      "endFrame": 12
+    },
+    {
+      "word": "K-Fold",
+      "start": 0.402,
+      "end": 0.755,
+      "startFrame": 12,
+      "endFrame": 23
+    },
+    {
+      "word": "Cross-Validation",
+      "start": 0.755,
+      "end": 1.61,
+      "startFrame": 23,
+      "endFrame": 48
+    },
+    {
+      "word": "để",
+      "start": 1.61,
+      "end": 1.761,
+      "startFrame": 48,
+      "endFrame": 53
+    },
+    {
+      "word": "quay",
+      "start": 1.761,
+      "end": 2.012,
+      "startFrame": 53,
+      "endFrame": 60
+    },
+    {
+      "word": "vòng",
+      "start": 2.012,
+      "end": 2.264,
+      "startFrame": 60,
+      "endFrame": 68
+    },
+    {
+      "word": "kiểm",
+      "start": 2.264,
+      "end": 2.515,
+      "startFrame": 68,
+      "endFrame": 75
+    },
+    {
+      "word": "tra",
+      "start": 2.515,
+      "end": 2.717,
+      "startFrame": 75,
+      "endFrame": 82
+    },
+    {
+      "word": "chéo",
+      "start": 2.717,
+      "end": 3.019,
+      "startFrame": 82,
+      "endFrame": 91
+    },
+    {
+      "word": "đảm",
+      "start": 3.019,
+      "end": 3.22,
+      "startFrame": 91,
+      "endFrame": 97
+    },
+    {
+      "word": "bảo",
+      "start": 3.22,
+      "end": 3.421,
+      "startFrame": 97,
+      "endFrame": 103
+    },
+    {
+      "word": "mô",
+      "start": 3.421,
+      "end": 3.572,
+      "startFrame": 103,
+      "endFrame": 107
+    },
+    {
+      "word": "hình",
+      "start": 3.572,
+      "end": 3.824,
+      "startFrame": 107,
+      "endFrame": 115
+    },
+    {
+      "word": "không",
+      "start": 3.824,
+      "end": 4.125,
+      "startFrame": 115,
+      "endFrame": 124
+    },
+    {
+      "word": "bị",
+      "start": 4.125,
+      "end": 4.276,
+      "startFrame": 124,
+      "endFrame": 128
+    },
+    {
+      "word": "thiên",
+      "start": 4.276,
+      "end": 4.578,
+      "startFrame": 128,
+      "endFrame": 137
+    },
+    {
+      "word": "lệch",
+      "start": 4.578,
+      "end": 4.88,
+      "startFrame": 137,
+      "endFrame": 146
+    }
+  ]
+}

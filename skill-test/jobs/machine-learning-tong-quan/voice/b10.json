@@ -1,0 +1,161 @@
+{
+  "text": "Nhánh nhỏ thứ nhất là Phân loại: giúp máy nhận diện email rác, chẩn đoán bệnh án hay quét khuôn mặt.",
+  "voice": "Adam",
+  "precision": "int8",
+  "wav": "b10.wav",
+  "sampleRate": 48000,
+  "durationSeconds": 4.88,
+  "generationSeconds": 5.723,
+  "rtf": 1.173,
+  "timingMethod": "char-proportion",
+  "textHash": "68f9784efbb23056",
+  "words": [
+    {
+      "word": "Nhánh",
+      "start": 0.0,
+      "end": 0.29,
+      "startFrame": 0,
+      "endFrame": 9
+    },
+    {
+      "word": "nhỏ",
+      "start": 0.29,
+      "end": 0.483,
+      "startFrame": 9,
+      "endFrame": 14
+    },
+    {
+      "word": "thứ",
+      "start": 0.483,
+      "end": 0.676,
+      "startFrame": 14,
+      "endFrame": 20
+    },
+    {
+      "word": "nhất",
+      "start": 0.676,
+      "end": 0.918,
+      "startFrame": 20,
+      "endFrame": 28
+    },
+    {
+      "word": "là",
+      "start": 0.918,
+      "end": 1.063,
+      "startFrame": 28,
+      "endFrame": 32
+    },
+    {
+      "word": "Phân",
+      "start": 1.063,
+      "end": 1.305,
+      "startFrame": 32,
+      "endFrame": 39
+    },
+    {
+      "word": "loại",
+      "start": 1.305,
+      "end": 1.594,
+      "startFrame": 39,
+      "endFrame": 48
+    },
+    {
+      "word": "giúp",
+      "start": 1.594,
+      "end": 1.836,
+      "startFrame": 48,
+      "endFrame": 55
+    },
+    {
+      "word": "máy",
+      "start": 1.836,
+      "end": 2.029,
+      "startFrame": 55,
+      "endFrame": 61
+    },
+    {
+      "word": "nhận",
+      "start": 2.029,
+      "end": 2.271,
+      "startFrame": 61,
+      "endFrame": 68
+    },
+    {
+      "word": "diện",
+      "start": 2.271,
+      "end": 2.512,
+      "startFrame": 68,
+      "endFrame": 75
+    },
+    {
+      "word": "email",
+      "start": 2.512,
+      "end": 2.802,
+      "startFrame": 75,
+      "endFrame": 84
+    },
+    {
+      "word": "rác",
+      "start": 2.802,
+      "end": 3.044,
+      "startFrame": 84,
+      "endFrame": 91
+    },
+    {
+      "word": "chẩn",
+      "start": 3.044,
+      "end": 3.286,
+      "startFrame": 91,
+      "endFrame": 99
+    },
+    {
+      "word": "đoán",
+      "start": 3.286,
+      "end": 3.527,
+      "startFrame": 99,
+      "endFrame": 106
+    },
+    {
+      "word": "bệnh",
+      "start": 3.527,
+      "end": 3.769,
+      "startFrame": 106,
+      "endFrame": 113
+    },
+    {
+      "word": "án",
+      "start": 3.769,
+      "end": 3.914,
+      "startFrame": 113,
+      "endFrame": 117
+    },
+    {
+      "word": "hay",
+      "start": 3.914,
+      "end": 4.107,
+      "startFrame": 117,
+      "endFrame": 123
+    },
+    {
+      "word": "quét",
+      "start": 4.107,
+      "end": 4.349,
+      "startFrame": 123,
+      "endFrame": 130
+    },
+    {
+      "word": "khuôn",
+      "start": 4.349,
+      "end": 4.638,
+      "startFrame": 130,
+      "endFrame": 139
+    },
+    {
+      "word": "mặt",
+      "start": 4.638,
+      "end": 4.88,
+      "startFrame": 139,
+      "endFrame": 146
+    }
+  ]
+}

@@ -1,0 +1,175 @@
+{
+  "text": "Giống như học sinh giải bài tập có sẵn sách giải, dữ liệu đầu vào luôn đi kèm nhãn đáp án chính xác.",
+  "voice": "Adam",
+  "precision": "int8",
+  "wav": "b10.wav",
+  "sampleRate": 48000,
+  "durationSeconds": 5.12,
+  "generationSeconds": 8.95,
+  "rtf": 1.748,
+  "timingMethod": "char-proportion",
+  "textHash": "dc8874891b973572",
+  "words": [
+    {
+      "word": "Giống",
+      "start": 0.0,
+      "end": 0.304,
+      "startFrame": 0,
+      "endFrame": 9
+    },
+    {
+      "word": "như",
+      "start": 0.304,
+      "end": 0.507,
+      "startFrame": 9,
+      "endFrame": 15
+    },
+    {
+      "word": "học",
+      "start": 0.507,
+      "end": 0.71,
+      "startFrame": 15,
+      "endFrame": 21
+    },
+    {
+      "word": "sinh",
+      "start": 0.71,
+      "end": 0.963,
+      "startFrame": 21,
+      "endFrame": 29
+    },
+    {
+      "word": "giải",
+      "start": 0.963,
+      "end": 1.217,
+      "startFrame": 29,
+      "endFrame": 37
+    },
+    {
+      "word": "bài",
+      "start": 1.217,
+      "end": 1.419,
+      "startFrame": 37,
+      "endFrame": 43
+    },
+    {
+      "word": "tập",
+      "start": 1.419,
+      "end": 1.622,
+      "startFrame": 43,
+      "endFrame": 49
+    },
+    {
+      "word": "có",
+      "start": 1.622,
+      "end": 1.774,
+      "startFrame": 49,
+      "endFrame": 53
+    },
+    {
+      "word": "sẵn",
+      "start": 1.774,
+      "end": 1.977,
+      "startFrame": 53,
+      "endFrame": 59
+    },
+    {
+      "word": "sách",
+      "start": 1.977,
+      "end": 2.23,
+      "startFrame": 59,
+      "endFrame": 67
+    },
+    {
+      "word": "giải",
+      "start": 2.23,
+      "end": 2.535,
+      "startFrame": 67,
+      "endFrame": 76
+    },
+    {
+      "word": "dữ",
+      "start": 2.535,
+      "end": 2.687,
+      "startFrame": 76,
+      "endFrame": 81
+    },
+    {
+      "word": "liệu",
+      "start": 2.687,
+      "end": 2.94,
+      "startFrame": 81,
+      "endFrame": 88
+    },
+    {
+      "word": "đầu",
+      "start": 2.94,
+      "end": 3.143,
+      "startFrame": 88,
+      "endFrame": 94
+    },
+    {
+      "word": "vào",
+      "start": 3.143,
+      "end": 3.346,
+      "startFrame": 94,
+      "endFrame": 100
+    },
+    {
+      "word": "luôn",
+      "start": 3.346,
+      "end": 3.599,
+      "startFrame": 100,
+      "endFrame": 108
+    },
+    {
+      "word": "đi",
+      "start": 3.599,
+      "end": 3.751,
+      "startFrame": 108,
+      "endFrame": 113
+    },
+    {
+      "word": "kèm",
+      "start": 3.751,
+      "end": 3.954,
+      "startFrame": 113,
+      "endFrame": 119
+    },
+    {
+      "word": "nhãn",
+      "start": 3.954,
+      "end": 4.208,
+      "startFrame": 119,
+      "endFrame": 126
+    },
+    {
+      "word": "đáp",
+      "start": 4.208,
+      "end": 4.41,
+      "startFrame": 126,
+      "endFrame": 132
+    },
+    {
+      "word": "án",
+      "start": 4.41,
+      "end": 4.562,
+      "startFrame": 132,
+      "endFrame": 137
+    },
+    {
+      "word": "chính",
+      "start": 4.562,
+      "end": 4.867,
+      "startFrame": 137,
+      "endFrame": 146
+    },
+    {
+      "word": "xác",
+      "start": 4.867,
+      "end": 5.12,
+      "startFrame": 146,
+      "endFrame": 154
+    }
+  ]
+}

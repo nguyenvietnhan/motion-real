@@ -1,0 +1,161 @@
+{
+  "text": "Báo cáo Stanford AI Index 2024 chỉ ra hơn 70% doanh nghiệp toàn cầu đang ứng dụng học máy hàng ngày.",
+  "voice": "Adam",
+  "precision": "int8",
+  "wav": "b49.wav",
+  "sampleRate": 48000,
+  "durationSeconds": 6.88,
+  "generationSeconds": 11.375,
+  "rtf": 1.653,
+  "timingMethod": "char-proportion",
+  "textHash": "70df675e71425063",
+  "words": [
+    {
+      "word": "Báo",
+      "start": 0.0,
+      "end": 0.272,
+      "startFrame": 0,
+      "endFrame": 8
+    },
+    {
+      "word": "cáo",
+      "start": 0.272,
+      "end": 0.545,
+      "startFrame": 8,
+      "endFrame": 16
+    },
+    {
+      "word": "Stanford",
+      "start": 0.545,
+      "end": 1.158,
+      "startFrame": 16,
+      "endFrame": 35
+    },
+    {
+      "word": "AI",
+      "start": 1.158,
+      "end": 1.362,
+      "startFrame": 35,
+      "endFrame": 41
+    },
+    {
+      "word": "Index",
+      "start": 1.362,
+      "end": 1.771,
+      "startFrame": 41,
+      "endFrame": 53
+    },
+    {
+      "word": "2024",
+      "start": 1.771,
+      "end": 2.112,
+      "startFrame": 53,
+      "endFrame": 63
+    },
+    {
+      "word": "chỉ",
+      "start": 2.112,
+      "end": 2.384,
+      "startFrame": 63,
+      "endFrame": 72
+    },
+    {
+      "word": "ra",
+      "start": 2.384,
+      "end": 2.589,
+      "startFrame": 72,
+      "endFrame": 78
+    },
+    {
+      "word": "hơn",
+      "start": 2.589,
+      "end": 2.861,
+      "startFrame": 78,
+      "endFrame": 86
+    },
+    {
+      "word": "70",
+      "start": 2.861,
+      "end": 3.133,
+      "startFrame": 86,
+      "endFrame": 94
+    },
+    {
+      "word": "doanh",
+      "start": 3.133,
+      "end": 3.542,
+      "startFrame": 94,
+      "endFrame": 106
+    },
+    {
+      "word": "nghiệp",
+      "start": 3.542,
+      "end": 4.019,
+      "startFrame": 106,
+      "endFrame": 121
+    },
+    {
+      "word": "toàn",
+      "start": 4.019,
+      "end": 4.36,
+      "startFrame": 121,
+      "endFrame": 131
+    },
+    {
+      "word": "cầu",
+      "start": 4.36,
+      "end": 4.632,
+      "startFrame": 131,
+      "endFrame": 139
+    },
+    {
+      "word": "đang",
+      "start": 4.632,
+      "end": 4.973,
+      "startFrame": 139,
+      "endFrame": 149
+    },
+    {
+      "word": "ứng",
+      "start": 4.973,
+      "end": 5.245,
+      "startFrame": 149,
+      "endFrame": 157
+    },
+    {
+      "word": "dụng",
+      "start": 5.245,
+      "end": 5.586,
+      "startFrame": 157,
+      "endFrame": 168
+    },
+    {
+      "word": "học",
+      "start": 5.586,
+      "end": 5.858,
+      "startFrame": 168,
+      "endFrame": 176
+    },
+    {
+      "word": "máy",
+      "start": 5.858,
+      "end": 6.131,
+      "startFrame": 176,
+      "endFrame": 184
+    },
+    {
+      "word": "hàng",
+      "start": 6.131,
+      "end": 6.471,
+      "startFrame": 184,
+      "endFrame": 194
+    },
+    {
+      "word": "ngày",
+      "start": 6.471,
+      "end": 6.88,
+      "startFrame": 194,
+      "endFrame": 206
+    }
+  ]
+}

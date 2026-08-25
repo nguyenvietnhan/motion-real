@@ -1,0 +1,161 @@
+{
+  "text": "Thuật toán sẽ tự động phân tích mật độ, đo khoảng cách toán học để tìm ra quy luật tự nhiên.",
+  "voice": "Adam",
+  "precision": "int8",
+  "wav": "b15.wav",
+  "sampleRate": 48000,
+  "durationSeconds": 4.56,
+  "generationSeconds": 5.358,
+  "rtf": 1.175,
+  "timingMethod": "char-proportion",
+  "textHash": "04c9936a5c2da8c8",
+  "words": [
+    {
+      "word": "Thuật",
+      "start": 0.0,
+      "end": 0.294,
+      "startFrame": 0,
+      "endFrame": 9
+    },
+    {
+      "word": "toán",
+      "start": 0.294,
+      "end": 0.539,
+      "startFrame": 9,
+      "endFrame": 16
+    },
+    {
+      "word": "sẽ",
+      "start": 0.539,
+      "end": 0.686,
+      "startFrame": 16,
+      "endFrame": 21
+    },
+    {
+      "word": "tự",
+      "start": 0.686,
+      "end": 0.834,
+      "startFrame": 21,
+      "endFrame": 25
+    },
+    {
+      "word": "động",
+      "start": 0.834,
+      "end": 1.079,
+      "startFrame": 25,
+      "endFrame": 32
+    },
+    {
+      "word": "phân",
+      "start": 1.079,
+      "end": 1.324,
+      "startFrame": 32,
+      "endFrame": 40
+    },
+    {
+      "word": "tích",
+      "start": 1.324,
+      "end": 1.569,
+      "startFrame": 40,
+      "endFrame": 47
+    },
+    {
+      "word": "mật",
+      "start": 1.569,
+      "end": 1.765,
+      "startFrame": 47,
+      "endFrame": 53
+    },
+    {
+      "word": "độ",
+      "start": 1.765,
+      "end": 1.961,
+      "startFrame": 53,
+      "endFrame": 59
+    },
+    {
+      "word": "đo",
+      "start": 1.961,
+      "end": 2.108,
+      "startFrame": 59,
+      "endFrame": 63
+    },
+    {
+      "word": "khoảng",
+      "start": 2.108,
+      "end": 2.452,
+      "startFrame": 63,
+      "endFrame": 74
+    },
+    {
+      "word": "cách",
+      "start": 2.452,
+      "end": 2.697,
+      "startFrame": 74,
+      "endFrame": 81
+    },
+    {
+      "word": "toán",
+      "start": 2.697,
+      "end": 2.942,
+      "startFrame": 81,
+      "endFrame": 88
+    },
+    {
+      "word": "học",
+      "start": 2.942,
+      "end": 3.138,
+      "startFrame": 88,
+      "endFrame": 94
+    },
+    {
+      "word": "để",
+      "start": 3.138,
+      "end": 3.285,
+      "startFrame": 94,
+      "endFrame": 99
+    },
+    {
+      "word": "tìm",
+      "start": 3.285,
+      "end": 3.481,
+      "startFrame": 99,
+      "endFrame": 104
+    },
+    {
+      "word": "ra",
+      "start": 3.481,
+      "end": 3.628,
+      "startFrame": 104,
+      "endFrame": 109
+    },
+    {
+      "word": "quy",
+      "start": 3.628,
+      "end": 3.825,
+      "startFrame": 109,
+      "endFrame": 115
+    },
+    {
+      "word": "luật",
+      "start": 3.825,
+      "end": 4.07,
+      "startFrame": 115,
+      "endFrame": 122
+    },
+    {
+      "word": "tự",
+      "start": 4.07,
+      "end": 4.217,
+      "startFrame": 122,
+      "endFrame": 127
+    },
+    {
+      "word": "nhiên",
+      "start": 4.217,
+      "end": 4.56,
+      "startFrame": 127,
+      "endFrame": 137
+    }
+  ]
+}

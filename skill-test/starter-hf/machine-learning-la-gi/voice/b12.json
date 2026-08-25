@@ -1,0 +1,182 @@
+{
+  "text": "Nhánh thứ hai là Hồi quy: dự đoán một giá trị số liên tục như giá nhà, nhiệt độ ngày mai hay doanh thu.",
+  "voice": "Adam",
+  "precision": "int8",
+  "wav": "b12.wav",
+  "sampleRate": 48000,
+  "durationSeconds": 5.44,
+  "generationSeconds": 8.808,
+  "rtf": 1.619,
+  "timingMethod": "char-proportion",
+  "textHash": "6bade1e73522437d",
+  "words": [
+    {
+      "word": "Nhánh",
+      "start": 0.0,
+      "end": 0.314,
+      "startFrame": 0,
+      "endFrame": 9
+    },
+    {
+      "word": "thứ",
+      "start": 0.314,
+      "end": 0.523,
+      "startFrame": 9,
+      "endFrame": 16
+    },
+    {
+      "word": "hai",
+      "start": 0.523,
+      "end": 0.732,
+      "startFrame": 16,
+      "endFrame": 22
+    },
+    {
+      "word": "là",
+      "start": 0.732,
+      "end": 0.889,
+      "startFrame": 22,
+      "endFrame": 27
+    },
+    {
+      "word": "Hồi",
+      "start": 0.889,
+      "end": 1.098,
+      "startFrame": 27,
+      "endFrame": 33
+    },
+    {
+      "word": "quy",
+      "start": 1.098,
+      "end": 1.36,
+      "startFrame": 33,
+      "endFrame": 41
+    },
+    {
+      "word": "dự",
+      "start": 1.36,
+      "end": 1.517,
+      "startFrame": 41,
+      "endFrame": 46
+    },
+    {
+      "word": "đoán",
+      "start": 1.517,
+      "end": 1.778,
+      "startFrame": 46,
+      "endFrame": 53
+    },
+    {
+      "word": "một",
+      "start": 1.778,
+      "end": 1.988,
+      "startFrame": 53,
+      "endFrame": 60
+    },
+    {
+      "word": "giá",
+      "start": 1.988,
+      "end": 2.197,
+      "startFrame": 60,
+      "endFrame": 66
+    },
+    {
+      "word": "trị",
+      "start": 2.197,
+      "end": 2.406,
+      "startFrame": 66,
+      "endFrame": 72
+    },
+    {
+      "word": "số",
+      "start": 2.406,
+      "end": 2.563,
+      "startFrame": 72,
+      "endFrame": 77
+    },
+    {
+      "word": "liên",
+      "start": 2.563,
+      "end": 2.825,
+      "startFrame": 77,
+      "endFrame": 85
+    },
+    {
+      "word": "tục",
+      "start": 2.825,
+      "end": 3.034,
+      "startFrame": 85,
+      "endFrame": 91
+    },
+    {
+      "word": "như",
+      "start": 3.034,
+      "end": 3.243,
+      "startFrame": 91,
+      "endFrame": 97
+    },
+    {
+      "word": "giá",
+      "start": 3.243,
+      "end": 3.452,
+      "startFrame": 97,
+      "endFrame": 104
+    },
+    {
+      "word": "nhà",
+      "start": 3.452,
+      "end": 3.714,
+      "startFrame": 104,
+      "endFrame": 111
+    },
+    {
+      "word": "nhiệt",
+      "start": 3.714,
+      "end": 4.028,
+      "startFrame": 111,
+      "endFrame": 121
+    },
+    {
+      "word": "độ",
+      "start": 4.028,
+      "end": 4.185,
+      "startFrame": 121,
+      "endFrame": 126
+    },
+    {
+      "word": "ngày",
+      "start": 4.185,
+      "end": 4.446,
+      "startFrame": 126,
+      "endFrame": 133
+    },
+    {
+      "word": "mai",
+      "start": 4.446,
+      "end": 4.655,
+      "startFrame": 133,
+      "endFrame": 140
+    },
+    {
+      "word": "hay",
+      "start": 4.655,
+      "end": 4.865,
+      "startFrame": 140,
+      "endFrame": 146
+    },
+    {
+      "word": "doanh",
+      "start": 4.865,
+      "end": 5.178,
+      "startFrame": 146,
+      "endFrame": 155
+    },
+    {
+      "word": "thu",
+      "start": 5.178,
+      "end": 5.44,
+      "startFrame": 155,
+      "endFrame": 163
+    }
+  ]
+}

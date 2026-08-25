@@ -1,0 +1,168 @@
+{
+  "text": "Nó tính toán độ dốc và điều chỉnh trọng số ngược hướng dốc, với bước nhảy được kiểm soát bởi Learning Rate.",
+  "voice": "Adam",
+  "precision": "int8",
+  "wav": "b30.wav",
+  "sampleRate": 48000,
+  "durationSeconds": 5.6,
+  "generationSeconds": 9.685,
+  "rtf": 1.73,
+  "timingMethod": "char-proportion",
+  "textHash": "66b547ca2a5605c6",
+  "words": [
+    {
+      "word": "Nó",
+      "start": 0.0,
+      "end": 0.156,
+      "startFrame": 0,
+      "endFrame": 5
+    },
+    {
+      "word": "tính",
+      "start": 0.156,
+      "end": 0.415,
+      "startFrame": 5,
+      "endFrame": 12
+    },
+    {
+      "word": "toán",
+      "start": 0.415,
+      "end": 0.674,
+      "startFrame": 12,
+      "endFrame": 20
+    },
+    {
+      "word": "độ",
+      "start": 0.674,
+      "end": 0.83,
+      "startFrame": 20,
+      "endFrame": 25
+    },
+    {
+      "word": "dốc",
+      "start": 0.83,
+      "end": 1.037,
+      "startFrame": 25,
+      "endFrame": 31
+    },
+    {
+      "word": "và",
+      "start": 1.037,
+      "end": 1.193,
+      "startFrame": 31,
+      "endFrame": 36
+    },
+    {
+      "word": "điều",
+      "start": 1.193,
+      "end": 1.452,
+      "startFrame": 36,
+      "endFrame": 44
+    },
+    {
+      "word": "chỉnh",
+      "start": 1.452,
+      "end": 1.763,
+      "startFrame": 44,
+      "endFrame": 53
+    },
+    {
+      "word": "trọng",
+      "start": 1.763,
+      "end": 2.074,
+      "startFrame": 53,
+      "endFrame": 62
+    },
+    {
+      "word": "số",
+      "start": 2.074,
+      "end": 2.23,
+      "startFrame": 62,
+      "endFrame": 67
+    },
+    {
+      "word": "ngược",
+      "start": 2.23,
+      "end": 2.541,
+      "startFrame": 67,
+      "endFrame": 76
+    },
+    {
+      "word": "hướng",
+      "start": 2.541,
+      "end": 2.852,
+      "startFrame": 76,
+      "endFrame": 86
+    },
+    {
+      "word": "dốc",
+      "start": 2.852,
+      "end": 3.111,
+      "startFrame": 86,
+      "endFrame": 93
+    },
+    {
+      "word": "với",
+      "start": 3.111,
+      "end": 3.319,
+      "startFrame": 93,
+      "endFrame": 100
+    },
+    {
+      "word": "bước",
+      "start": 3.319,
+      "end": 3.578,
+      "startFrame": 100,
+      "endFrame": 107
+    },
+    {
+      "word": "nhảy",
+      "start": 3.578,
+      "end": 3.837,
+      "startFrame": 107,
+      "endFrame": 115
+    },
+    {
+      "word": "được",
+      "start": 3.837,
+      "end": 4.096,
+      "startFrame": 115,
+      "endFrame": 123
+    },
+    {
+      "word": "kiểm",
+      "start": 4.096,
+      "end": 4.356,
+      "startFrame": 123,
+      "endFrame": 131
+    },
+    {
+      "word": "soát",
+      "start": 4.356,
+      "end": 4.615,
+      "startFrame": 131,
+      "endFrame": 138
+    },
+    {
+      "word": "bởi",
+      "start": 4.615,
+      "end": 4.822,
+      "startFrame": 138,
+      "endFrame": 145
+    },
+    {
+      "word": "Learning",
+      "start": 4.822,
+      "end": 5.289,
+      "startFrame": 145,
+      "endFrame": 159
+    },
+    {
+      "word": "Rate",
+      "start": 5.289,
+      "end": 5.6,
+      "startFrame": 159,
+      "endFrame": 168
+    }
+  ]
+}

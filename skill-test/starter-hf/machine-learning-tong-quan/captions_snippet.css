@@ -1,0 +1,5 @@
+===== CSS di kem (paste vao <style>) =====
+.caption-line { position:absolute; left:60px; right:60px; bottom:280px; display:flex; justify-content:center; align-items:flex-end; gap:16px; flex-wrap:wrap; }
+.cw { font-size:54px; font-weight:700; color: var(--caption-idle, rgba(23,20,14,0.55)); }
+:root { --caption-active: #D6452C; --caption-idle: rgba(23,20,14,0.55); }
+*/

@@ -1,0 +1,147 @@
+{
+  "text": "Nó tính đạo hàm độ dốc và điều chỉnh trọng số ngược hướng dốc theo từng bước Learning Rate.",
+  "voice": "Adam",
+  "precision": "int8",
+  "wav": "b30.wav",
+  "sampleRate": 48000,
+  "durationSeconds": 4.24,
+  "generationSeconds": 5.898,
+  "rtf": 1.391,
+  "timingMethod": "char-proportion",
+  "textHash": "1d0853f10960ef37",
+  "words": [
+    {
+      "word": "Nó",
+      "start": 0.0,
+      "end": 0.138,
+      "startFrame": 0,
+      "endFrame": 4
+    },
+    {
+      "word": "tính",
+      "start": 0.138,
+      "end": 0.369,
+      "startFrame": 4,
+      "endFrame": 11
+    },
+    {
+      "word": "đạo",
+      "start": 0.369,
+      "end": 0.553,
+      "startFrame": 11,
+      "endFrame": 17
+    },
+    {
+      "word": "hàm",
+      "start": 0.553,
+      "end": 0.737,
+      "startFrame": 17,
+      "endFrame": 22
+    },
+    {
+      "word": "độ",
+      "start": 0.737,
+      "end": 0.876,
+      "startFrame": 22,
+      "endFrame": 26
+    },
+    {
+      "word": "dốc",
+      "start": 0.876,
+      "end": 1.06,
+      "startFrame": 26,
+      "endFrame": 32
+    },
+    {
+      "word": "và",
+      "start": 1.06,
+      "end": 1.198,
+      "startFrame": 32,
+      "endFrame": 36
+    },
+    {
+      "word": "điều",
+      "start": 1.198,
+      "end": 1.429,
+      "startFrame": 36,
+      "endFrame": 43
+    },
+    {
+      "word": "chỉnh",
+      "start": 1.429,
+      "end": 1.705,
+      "startFrame": 43,
+      "endFrame": 51
+    },
+    {
+      "word": "trọng",
+      "start": 1.705,
+      "end": 1.982,
+      "startFrame": 51,
+      "endFrame": 59
+    },
+    {
+      "word": "số",
+      "start": 1.982,
+      "end": 2.12,
+      "startFrame": 59,
+      "endFrame": 64
+    },
+    {
+      "word": "ngược",
+      "start": 2.12,
+      "end": 2.397,
+      "startFrame": 64,
+      "endFrame": 72
+    },
+    {
+      "word": "hướng",
+      "start": 2.397,
+      "end": 2.673,
+      "startFrame": 72,
+      "endFrame": 80
+    },
+    {
+      "word": "dốc",
+      "start": 2.673,
+      "end": 2.857,
+      "startFrame": 80,
+      "endFrame": 86
+    },
+    {
+      "word": "theo",
+      "start": 2.857,
+      "end": 3.088,
+      "startFrame": 86,
+      "endFrame": 93
+    },
+    {
+      "word": "từng",
+      "start": 3.088,
+      "end": 3.318,
+      "startFrame": 93,
+      "endFrame": 100
+    },
+    {
+      "word": "bước",
+      "start": 3.318,
+      "end": 3.549,
+      "startFrame": 100,
+      "endFrame": 106
+    },
+    {
+      "word": "Learning",
+      "start": 3.549,
+      "end": 3.963,
+      "startFrame": 106,
+      "endFrame": 119
+    },
+    {
+      "word": "Rate",
+      "start": 3.963,
+      "end": 4.24,
+      "startFrame": 119,
+      "endFrame": 127
+    }
+  ]
+}

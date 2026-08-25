@@ -1,0 +1,140 @@
+{
+  "text": "Thuật toán Gradient Descent hoạt động như người mù dò đường xuống đáy thung lũng giữa sương mù.",
+  "voice": "Adam",
+  "precision": "int8",
+  "wav": "b29.wav",
+  "sampleRate": 48000,
+  "durationSeconds": 4.56,
+  "generationSeconds": 7.054,
+  "rtf": 1.547,
+  "timingMethod": "char-proportion",
+  "textHash": "23cd28c61e37cf86",
+  "words": [
+    {
+      "word": "Thuật",
+      "start": 0.0,
+      "end": 0.285,
+      "startFrame": 0,
+      "endFrame": 9
+    },
+    {
+      "word": "toán",
+      "start": 0.285,
+      "end": 0.522,
+      "startFrame": 9,
+      "endFrame": 16
+    },
+    {
+      "word": "Gradient",
+      "start": 0.522,
+      "end": 0.95,
+      "startFrame": 16,
+      "endFrame": 28
+    },
+    {
+      "word": "Descent",
+      "start": 0.95,
+      "end": 1.33,
+      "startFrame": 28,
+      "endFrame": 40
+    },
+    {
+      "word": "hoạt",
+      "start": 1.33,
+      "end": 1.567,
+      "startFrame": 40,
+      "endFrame": 47
+    },
+    {
+      "word": "động",
+      "start": 1.567,
+      "end": 1.805,
+      "startFrame": 47,
+      "endFrame": 54
+    },
+    {
+      "word": "như",
+      "start": 1.805,
+      "end": 1.995,
+      "startFrame": 54,
+      "endFrame": 60
+    },
+    {
+      "word": "người",
+      "start": 1.995,
+      "end": 2.28,
+      "startFrame": 60,
+      "endFrame": 68
+    },
+    {
+      "word": "mù",
+      "start": 2.28,
+      "end": 2.422,
+      "startFrame": 68,
+      "endFrame": 73
+    },
+    {
+      "word": "dò",
+      "start": 2.422,
+      "end": 2.565,
+      "startFrame": 73,
+      "endFrame": 77
+    },
+    {
+      "word": "đường",
+      "start": 2.565,
+      "end": 2.85,
+      "startFrame": 77,
+      "endFrame": 86
+    },
+    {
+      "word": "xuống",
+      "start": 2.85,
+      "end": 3.135,
+      "startFrame": 86,
+      "endFrame": 94
+    },
+    {
+      "word": "đáy",
+      "start": 3.135,
+      "end": 3.325,
+      "startFrame": 94,
+      "endFrame": 100
+    },
+    {
+      "word": "thung",
+      "start": 3.325,
+      "end": 3.61,
+      "startFrame": 100,
+      "endFrame": 108
+    },
+    {
+      "word": "lũng",
+      "start": 3.61,
+      "end": 3.848,
+      "startFrame": 108,
+      "endFrame": 115
+    },
+    {
+      "word": "giữa",
+      "start": 3.848,
+      "end": 4.085,
+      "startFrame": 115,
+      "endFrame": 123
+    },
+    {
+      "word": "sương",
+      "start": 4.085,
+      "end": 4.37,
+      "startFrame": 123,
+      "endFrame": 131
+    },
+    {
+      "word": "mù",
+      "start": 4.37,
+      "end": 4.56,
+      "startFrame": 131,
+      "endFrame": 137
+    }
+  ]
+}

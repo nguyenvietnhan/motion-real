@@ -1,0 +1,154 @@
+{
+  "text": "Điển hình là Phân cụm: tự động gom nhóm hàng triệu khách hàng theo hành vi mua sắm tương đồng.",
+  "voice": "Adam",
+  "precision": "int8",
+  "wav": "b17.wav",
+  "sampleRate": 48000,
+  "durationSeconds": 4.64,
+  "generationSeconds": 9.55,
+  "rtf": 2.058,
+  "timingMethod": "char-proportion",
+  "textHash": "1ff9103f78b0e8ad",
+  "words": [
+    {
+      "word": "Điển",
+      "start": 0.0,
+      "end": 0.244,
+      "startFrame": 0,
+      "endFrame": 7
+    },
+    {
+      "word": "hình",
+      "start": 0.244,
+      "end": 0.488,
+      "startFrame": 7,
+      "endFrame": 15
+    },
+    {
+      "word": "là",
+      "start": 0.488,
+      "end": 0.635,
+      "startFrame": 15,
+      "endFrame": 19
+    },
+    {
+      "word": "Phân",
+      "start": 0.635,
+      "end": 0.879,
+      "startFrame": 19,
+      "endFrame": 26
+    },
+    {
+      "word": "cụm",
+      "start": 0.879,
+      "end": 1.123,
+      "startFrame": 26,
+      "endFrame": 34
+    },
+    {
+      "word": "tự",
+      "start": 1.123,
+      "end": 1.27,
+      "startFrame": 34,
+      "endFrame": 38
+    },
+    {
+      "word": "động",
+      "start": 1.27,
+      "end": 1.514,
+      "startFrame": 38,
+      "endFrame": 45
+    },
+    {
+      "word": "gom",
+      "start": 1.514,
+      "end": 1.709,
+      "startFrame": 45,
+      "endFrame": 51
+    },
+    {
+      "word": "nhóm",
+      "start": 1.709,
+      "end": 1.954,
+      "startFrame": 51,
+      "endFrame": 59
+    },
+    {
+      "word": "hàng",
+      "start": 1.954,
+      "end": 2.198,
+      "startFrame": 59,
+      "endFrame": 66
+    },
+    {
+      "word": "triệu",
+      "start": 2.198,
+      "end": 2.491,
+      "startFrame": 66,
+      "endFrame": 75
+    },
+    {
+      "word": "khách",
+      "start": 2.491,
+      "end": 2.784,
+      "startFrame": 75,
+      "endFrame": 84
+    },
+    {
+      "word": "hàng",
+      "start": 2.784,
+      "end": 3.028,
+      "startFrame": 84,
+      "endFrame": 91
+    },
+    {
+      "word": "theo",
+      "start": 3.028,
+      "end": 3.272,
+      "startFrame": 91,
+      "endFrame": 98
+    },
+    {
+      "word": "hành",
+      "start": 3.272,
+      "end": 3.517,
+      "startFrame": 98,
+      "endFrame": 106
+    },
+    {
+      "word": "vi",
+      "start": 3.517,
+      "end": 3.663,
+      "startFrame": 106,
+      "endFrame": 110
+    },
+    {
+      "word": "mua",
+      "start": 3.663,
+      "end": 3.859,
+      "startFrame": 110,
+      "endFrame": 116
+    },
+    {
+      "word": "sắm",
+      "start": 3.859,
+      "end": 4.054,
+      "startFrame": 116,
+      "endFrame": 122
+    },
+    {
+      "word": "tương",
+      "start": 4.054,
+      "end": 4.347,
+      "startFrame": 122,
+      "endFrame": 130
+    },
+    {
+      "word": "đồng",
+      "start": 4.347,
+      "end": 4.64,
+      "startFrame": 130,
+      "endFrame": 139
+    }
+  ]
+}

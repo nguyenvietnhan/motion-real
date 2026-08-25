@@ -1,0 +1,161 @@
+{
+  "text": "Còn với bài toán Hồi quy, ta đo đếm độ lệch bằng sai số tuyệt đối MAE hoặc bình phương MSE.",
+  "voice": "Adam",
+  "precision": "int8",
+  "wav": "b45.wav",
+  "sampleRate": 48000,
+  "durationSeconds": 5.6,
+  "generationSeconds": 9.123,
+  "rtf": 1.629,
+  "timingMethod": "char-proportion",
+  "textHash": "8fb64e5801589310",
+  "words": [
+    {
+      "word": "Còn",
+      "start": 0.0,
+      "end": 0.243,
+      "startFrame": 0,
+      "endFrame": 7
+    },
+    {
+      "word": "với",
+      "start": 0.243,
+      "end": 0.487,
+      "startFrame": 7,
+      "endFrame": 15
+    },
+    {
+      "word": "bài",
+      "start": 0.487,
+      "end": 0.73,
+      "startFrame": 15,
+      "endFrame": 22
+    },
+    {
+      "word": "toán",
+      "start": 0.73,
+      "end": 1.035,
+      "startFrame": 22,
+      "endFrame": 31
+    },
+    {
+      "word": "Hồi",
+      "start": 1.035,
+      "end": 1.278,
+      "startFrame": 31,
+      "endFrame": 38
+    },
+    {
+      "word": "quy",
+      "start": 1.278,
+      "end": 1.583,
+      "startFrame": 38,
+      "endFrame": 47
+    },
+    {
+      "word": "ta",
+      "start": 1.583,
+      "end": 1.765,
+      "startFrame": 47,
+      "endFrame": 53
+    },
+    {
+      "word": "đo",
+      "start": 1.765,
+      "end": 1.948,
+      "startFrame": 53,
+      "endFrame": 58
+    },
+    {
+      "word": "đếm",
+      "start": 1.948,
+      "end": 2.191,
+      "startFrame": 58,
+      "endFrame": 66
+    },
+    {
+      "word": "độ",
+      "start": 2.191,
+      "end": 2.374,
+      "startFrame": 66,
+      "endFrame": 71
+    },
+    {
+      "word": "lệch",
+      "start": 2.374,
+      "end": 2.678,
+      "startFrame": 71,
+      "endFrame": 80
+    },
+    {
+      "word": "bằng",
+      "start": 2.678,
+      "end": 2.983,
+      "startFrame": 80,
+      "endFrame": 89
+    },
+    {
+      "word": "sai",
+      "start": 2.983,
+      "end": 3.226,
+      "startFrame": 89,
+      "endFrame": 97
+    },
+    {
+      "word": "số",
+      "start": 3.226,
+      "end": 3.409,
+      "startFrame": 97,
+      "endFrame": 102
+    },
+    {
+      "word": "tuyệt",
+      "start": 3.409,
+      "end": 3.774,
+      "startFrame": 102,
+      "endFrame": 113
+    },
+    {
+      "word": "đối",
+      "start": 3.774,
+      "end": 4.017,
+      "startFrame": 113,
+      "endFrame": 121
+    },
+    {
+      "word": "MAE",
+      "start": 4.017,
+      "end": 4.261,
+      "startFrame": 121,
+      "endFrame": 128
+    },
+    {
+      "word": "hoặc",
+      "start": 4.261,
+      "end": 4.565,
+      "startFrame": 128,
+      "endFrame": 137
+    },
+    {
+      "word": "bình",
+      "start": 4.565,
+      "end": 4.87,
+      "startFrame": 137,
+      "endFrame": 146
+    },
+    {
+      "word": "phương",
+      "start": 4.87,
+      "end": 5.296,
+      "startFrame": 146,
+      "endFrame": 159
+    },
+    {
+      "word": "MSE",
+      "start": 5.296,
+      "end": 5.6,
+      "startFrame": 159,
+      "endFrame": 168
+    }
+  ]
+}

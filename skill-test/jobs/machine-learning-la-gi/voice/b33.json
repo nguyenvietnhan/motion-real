@@ -1,0 +1,161 @@
+{
+  "text": "Ngược lại, nếu mô hình quá thô sơ, ta gặp Underfitting: máy không nắm bắt nổi bất kỳ quy luật nào.",
+  "voice": "Adam",
+  "precision": "int8",
+  "wav": "b33.wav",
+  "sampleRate": 48000,
+  "durationSeconds": 5.36,
+  "generationSeconds": 9.585,
+  "rtf": 1.788,
+  "timingMethod": "char-proportion",
+  "textHash": "4d86c05bfddf5620",
+  "words": [
+    {
+      "word": "Ngược",
+      "start": 0.0,
+      "end": 0.325,
+      "startFrame": 0,
+      "endFrame": 10
+    },
+    {
+      "word": "lại",
+      "start": 0.325,
+      "end": 0.596,
+      "startFrame": 10,
+      "endFrame": 18
+    },
+    {
+      "word": "nếu",
+      "start": 0.596,
+      "end": 0.812,
+      "startFrame": 18,
+      "endFrame": 24
+    },
+    {
+      "word": "mô",
+      "start": 0.812,
+      "end": 0.975,
+      "startFrame": 24,
+      "endFrame": 29
+    },
+    {
+      "word": "hình",
+      "start": 0.975,
+      "end": 1.245,
+      "startFrame": 29,
+      "endFrame": 37
+    },
+    {
+      "word": "quá",
+      "start": 1.245,
+      "end": 1.462,
+      "startFrame": 37,
+      "endFrame": 44
+    },
+    {
+      "word": "thô",
+      "start": 1.462,
+      "end": 1.678,
+      "startFrame": 44,
+      "endFrame": 50
+    },
+    {
+      "word": "sơ",
+      "start": 1.678,
+      "end": 1.895,
+      "startFrame": 50,
+      "endFrame": 57
+    },
+    {
+      "word": "ta",
+      "start": 1.895,
+      "end": 2.057,
+      "startFrame": 57,
+      "endFrame": 62
+    },
+    {
+      "word": "gặp",
+      "start": 2.057,
+      "end": 2.274,
+      "startFrame": 62,
+      "endFrame": 68
+    },
+    {
+      "word": "Underfitting",
+      "start": 2.274,
+      "end": 3.032,
+      "startFrame": 68,
+      "endFrame": 91
+    },
+    {
+      "word": "máy",
+      "start": 3.032,
+      "end": 3.248,
+      "startFrame": 91,
+      "endFrame": 97
+    },
+    {
+      "word": "không",
+      "start": 3.248,
+      "end": 3.573,
+      "startFrame": 97,
+      "endFrame": 107
+    },
+    {
+      "word": "nắm",
+      "start": 3.573,
+      "end": 3.79,
+      "startFrame": 107,
+      "endFrame": 114
+    },
+    {
+      "word": "bắt",
+      "start": 3.79,
+      "end": 4.006,
+      "startFrame": 114,
+      "endFrame": 120
+    },
+    {
+      "word": "nổi",
+      "start": 4.006,
+      "end": 4.223,
+      "startFrame": 120,
+      "endFrame": 127
+    },
+    {
+      "word": "bất",
+      "start": 4.223,
+      "end": 4.44,
+      "startFrame": 127,
+      "endFrame": 133
+    },
+    {
+      "word": "kỳ",
+      "start": 4.44,
+      "end": 4.602,
+      "startFrame": 133,
+      "endFrame": 138
+    },
+    {
+      "word": "quy",
+      "start": 4.602,
+      "end": 4.819,
+      "startFrame": 138,
+      "endFrame": 145
+    },
+    {
+      "word": "luật",
+      "start": 4.819,
+      "end": 5.089,
+      "startFrame": 145,
+      "endFrame": 153
+    },
+    {
+      "word": "nào",
+      "start": 5.089,
+      "end": 5.36,
+      "startFrame": 153,
+      "endFrame": 161
+    }
+  ]
+}
