@@ -181,6 +181,57 @@ bách và "slide".
 Cùng hero diagram tiến hóa (mục trên) với form bố cục thay đổi theo
 beat = hết cảm giác slide.
 
+## Reveal schedule + living motion (chống "hiện hết ngay từ đầu")
+
+Bệnh kinh điển: mở đầu beat là TẤT CẢ element đã nằm sẵn trên màn,
+người dẫn đọc trong khi hình đứng im — video thành slide có thuyết
+minh. Quy tắc ngược lại:
+
+### 1. Reveal schedule — element chỉ hiện KHI lời đọc nhắc đến
+
+- **Trạng thái mặc định của mọi element là ẨN** (opacity 0 / scale 0).
+  Chỉ hiện ra tại thời điểm word-timing của từ/cụm từ mô tả nó (lấy từ
+  `words[]` trong voice meta hoặc CAPTION_WORDS).
+- Ví dụ: VO nói "con mèo" tại giây 4.2 → con mèo xuất hiện tại 4.2s,
+  kèm động tác riêng (đi, vẫy đuôi). Nói "con chó" tại 8.0s → chó mới
+  xuất hiện. Trước đó màn hình chỉ có những gì ĐÃ được nhắc.
+- Mở đầu beat: chỉ có nền + tiêu đề (hoặc gần như trống). Hook beat
+  được phép composed sẵn — các beat sau KHÔNG.
+- Cách viết: mỗi element một dòng reveal —
+  `tl.fromTo(el, {autoAlpha:0, y:24}, {autoAlpha:1, y:0, duration:0.35}, t_cua_tu);`
+
+### 2. Living motion — element đã hiện phải SỐNG
+
+- Sau khi reveal, element KHÔNG đứng im: thở (scale 1↔1.02), trôi
+  nhẹ (y ±4), xoay chậm, lặp chu kỳ xác định (dùng period/phase — xem
+  cheatsheet). Ít nhất MỘT element/beat chuyển động liên tục.
+- Nhân vật/diagram có "hành động": mèo đi (x drift + chân swap),
+  nhánh cây mọc dần, đường đồ thị vẽ tiếp. Chọn hành động PHỤC VỤ
+  lời giải thích, không phải lắc lư vô nghĩa.
+- Nền có thể có lớp sống riêng (gradient trôi, hạt lơ lửng) — đặt ở
+  layer con, rất nhẹ.
+
+### 3. Motion verb — mỗi element một động từ trước khi code
+
+Viết beat sheet xong, liệt kê từng element kèm ĐỘNG TỪ chuyển động
+(SLAMS, DRAWS, GROWS, COUNTS UP, TYPES ON, FLOATS, ORBITS...). Không
+đặt được động từ = element chưa được thiết kế — bỏ hoặc nghĩ tiếp.
+Ví dụ: "số 1000 SLAMS vào → code block TYPES ON dòng từng dòng →
+con trỏ nhấp nháy FLOATS".
+
+### 4. Sáu bài test trước khi render
+
+- **Mute test**: tắt tiếng, chỉ nhìn hình vẫn hiểu câu chuyện không?
+- **Slideshow test**: có beat nào chỉ là hình tĩnh + chữ không? Có = fail.
+- **Reveal test**: có element nào hiện trước khi được nhắc đến không?
+- **Dead-zone test**: có khoảng ≥3 giây nào không có gì chuyển động
+  hay thay đổi không?
+- **Squint test**: nheo mắt vẫn thấy phân cấp chính/phụ rõ không?
+- **Safe-area test**: không gì lọt vùng cấm.
+
+Engine có công cụ audit: `hyperframes-animation` sinh
+`animation-map.json` (phát hiện dead zone, stagger) — dùng khi nghi ngờ.
+
 ## Ngữ pháp motion + biến tấu chữ (bắt buộc, chống "slide chán")
 
 - Entrance nhanh 0.25-0.45s rồi hold. Semantic progression chỉ khi nội

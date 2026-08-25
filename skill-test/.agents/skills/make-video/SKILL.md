@@ -152,8 +152,12 @@ HOOK (0-3.5s) → BỐI CẢNH/CỬA THẠCH → TWIST/INSIGHT → TAKEAWAY
 - **Cột "Bố cục" bắt buộc**: mỗi beat chọn 1 hình thức từ menu 6 form
   trong scene-authoring (số biến đổi / bằng chứng thật / khung tuyên
   bố / step list / trích dẫn / takeaway). HAI beat kế tiếp không được
-  dùng cùng một form — đây là thứ diệt cảm giác slide. Kèm cột "Hình
-  diễn biến" (thay đổi trạng thái của diagram).
+  dùng cùng một form — đây là thứ diệt cảm giác slide.
+- **Cột "Hình diễn biến" = động từ + mốc reveal**: mỗi beat ghi rõ
+  element nào xuất hiện Ở TỪ NÀO (theo word timing dự kiến) và ĐỘNG
+  TỪ của nó (SLAMS / DRAWS / TYPES ON / FLOATS...). Element không có
+  động từ = chưa được thiết kế. Sau khi render, chạy 6 bài test trong
+  scene-authoring (mute/slideshow/reveal/dead-zone/squint/safe-area).
 - **Cột "Hình diễn biến" bắt buộc** trong beat sheet: mỗi beat phải ghi
   rõ HÌNH THAY ĐỔI GÌ (trạng thái mới của diagram, element nào xuất
   hiện/tô đậm/vẽ thêm). Beat sheet chỉ có VO không có hình = kịch bản
