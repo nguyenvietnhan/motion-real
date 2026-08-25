@@ -85,6 +85,12 @@ Báo cáo tiến độ từng Stage trong lúc chạy — nhưng không chờ du
 Dùng skill **research-grounding**. Đầu ra: `research/findings.md` với
 claim ledger có độ tin cậy. Không có research thì không có Stage 2.
 
+**VERIFY trước khi sang Stage 2** — mở findings.md và kiểm: (a) mọi
+claim định lượng đều có URL ngay trên dòng hoặc trong bảng ledger;
+(b) không claim nào gán "high" mà không có nguồn; (c) đủ 4 mục chuẩn.
+Thiếu → quay lại research bổ sung (theo giao thức thất bại nếu nguồn
+không tìm được), KHÔNG sang Stage 2 với findings rỗng nguồn.
+
 ## Stage 2 — Kịch bản
 
 Viết `script.md` + `beats.json`. Ngữ pháp beat cho video ngắn:
@@ -112,18 +118,22 @@ HOOK (0-3.5s) → BỐI CẢNH/CỬA THẠCH → TWIST/INSIGHT → TAKEAWAY
   beat NGAY LÚC ĐÓ. CẤM tuyên bố "đúng tier" mà không kèm phép tính;
   CẤM phép tính bịa kiểu "47.7s + 12s nghỉ ≈ 240s".
   Sau khi có WAV thật thì duration = số đo thật, không dùng ước lượng.
-- **TỰ KIỂM BẮT BUỘC trước khi sang Stage 3**: đếm tổng số từ của cột
-  VO trong beat sheet. Con số PHẢI nằm trong khoảng của tier tương ứng
-  thời lượng user yêu cầu. Nếu user yêu cầu thời lượng lẻ (vd "cỡ 4
-  phút") → chọn tier gần nhất (210s), NÓI RÕ cho user, và vẫn đủ số từ
-  tier đó. CẤM ghi tổng ước lượng sai lệch kiểu "47.7s + 12s nghỉ ≈
-  240s" — phép tính đó là nói dối. Thiếu từ → viết thêm beat NGAY tại
-  Stage 2, không hẹn "để sau".
-- **Cảnh báo under-budget**: nếu tổng duration beat (sau voice) dưới
-  80% tier mục tiêu → quay lại Stage 2 viết thêm beat và re-voice beat
-  mới, đừng giao video cụt.
-- Mọi số liệu trong lời đọc PHẢI truy được về claim ledger; claim low
-  chỉ được nói kèm từ giảm nhẹ và không làm hook.
+- **TỰ KIỂM BẮT BUỘC trước khi sang Stage 3** (4 điểm, thiếu điểm nào
+  sửa ngay tại chỗ):
+  1. **Số từ**: đếm tổng số từ của cột VO. PHẢI khớp công thức
+     `giây × 3.7 ±10%` với thời lượng user yêu cầu. Nếu user yêu cầu
+     thời lượng lẻ (vd "cỡ 4 phút") → chọn mức gần nhất (210s), NÓI RÕ
+     cho user, và vẫn đủ số từ mức đó. In rõ phép tính: "tổng <N> từ
+     ≈ <M> giây speech + nghỉ ≈ <K> giây — khớp mục tiêu". CẤM tuyên
+     bố "đúng" không kèm phép tính; CẤM phép tính bịa kiểu "47.7s +
+     12s nghỉ ≈ 240s". Thiếu từ → viết thêm beat NGAY LÚC ĐÓ.
+  2. **Hook**: câu đầu tiên KHÔNG là định nghĩa ("X là..."), KHÔNG
+     chào hỏi, KHÔNG câu hỏi chung chung — phải vào thẳng tension.
+  3. **Nguồn**: mọi số liệu trong VO truy được về claim ledger có URL;
+     claim low chỉ nói kèm từ giảm nhẹ, không làm hook.
+  4. **Under-budget**: tổng duration beat (sau voice) dưới 80% mục
+     tiêu → quay lại Stage 2 viết thêm beat + re-voice, đừng giao
+     video cụt.
 - Chia beat: mỗi beat 1 ý, vo ≤ 25 từ cho dễ sync, role ghi rõ
   (hook/context/twist/takeaway).
 
