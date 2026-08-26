@@ -52,19 +52,23 @@ $env:MOTIONREAL_9ROUTER_API_KEY = "your-local-9router-key"
 npm.cmd run verify:agent-preview
 ```
 
-It starts a real sidecar, verifies the exact catalog, requires the pinned model
-to use `websearch`, then requires a schema-valid `create` proposal and an
-assistant completion. It writes only a scrubbed report to
+It starts a fresh real session, verifies the exact catalog, requires a `PING`
+assistant completion, then requires the pinned model to use `websearch` and
+submit a schema-valid `create` proposal. It also fails if it cannot remove its
+own temporary session. It writes only a scrubbed report to
 `VIDEO_TOOL_HOME/.video-tool/agent-runtime/preview-verification.json`: runtime
-fingerprint, assertions, timestamp, safe failure stage and safe error text. It
+fingerprint, assertions, timestamp, safe failure stage/error text and safe
+event counts. It
 does not write raw prompts, SSE, web results, sidecar stderr, credentials or
 provider response bodies.
 
 The plugin dependency is bootstrapped once with `npm ci --ignore-scripts` into
 `VIDEO_TOOL_HOME/.video-tool/agent-runtime/`; session homes use Windows
-junctions to that cache. A valid cache does not invoke npm. If the cache or a
-junction is invalid, the Agent remains blocked rather than doing a per-session
-`npm install` fallback.
+junctions to that cache and a versioned shared Bun compile cache. Cold catalog
+bootstrap is bounded separately; normal Agent requests retain their shorter
+timeout. A valid cache does not invoke npm. If the cache or a junction is
+invalid, the Agent remains blocked rather than doing a per-session `npm
+install` fallback.
 
 ## Sessions and privacy
 

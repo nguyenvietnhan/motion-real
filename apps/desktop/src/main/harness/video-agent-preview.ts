@@ -31,6 +31,10 @@ export const VIDEO_AGENT_PROTOCOL_REVISION = "video-agent-preview-r2";
 const API_KEY_ENV = "MOTIONREAL_9ROUTER_API_KEY";
 const MAX_TAIL = 8_000;
 const VERIFY_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1_000;
+const SIDECAR_REQUEST_TIMEOUT_MS = 30_000;
+// The OpenCode tool catalog compiles a freshly linked plugin on first use.
+// Keep that one bootstrap bounded, but do not give ordinary chat requests a long timeout.
+const CATALOG_BOOTSTRAP_TIMEOUT_MS = 90_000;
 
 type StoredSession = Omit<AgentSessionVM, "compatibility"> & {
   scope: "idea" | "project";
@@ -48,12 +52,16 @@ type Active = {
   eventAbort: AbortController;
   stopping: boolean;
   tail: string;
+  failureCode?: "provider_failed" | "sidecar_failed";
 };
+type VerificationStage = "runtime" | "catalog" | "baseline" | "websearch" | "proposal";
 type VerificationRecord = {
   status: "pass" | "fail";
   completedAt: string;
   runtime: { opencode: string; ninerouter: string; model: string; protocolRevision: string; cacheFingerprint: string };
   assertions: Record<string, boolean>;
+  stage: VerificationStage;
+  eventCounts: Record<string, number>;
   failedAt?: "opencode_server" | "provider_request" | "tool_loop" | "session_resume";
   error?: string;
 };
@@ -147,6 +155,7 @@ function runtimeRoot(): string { return join(videoToolHome(), "agent-runtime"); 
 function indexPath(): string { return join(agentRoot(), "sessions.json"); }
 function sessionDir(id: string): string { return join(agentRoot(), id); }
 function cacheDir(): string { return join(runtimeRoot(), `opencode-plugin-${VIDEO_AGENT_OPENCODE_VERSION}`); }
+function bunCacheDir(): string { return join(runtimeRoot(), `opencode-bun-cache-${VIDEO_AGENT_OPENCODE_VERSION}`); }
 function verificationPath(): string { return join(runtimeRoot(), "preview-verification.json"); }
 function sourceRuntimeDir(): string { return fileURLToPath(new URL("../../../runtime/opencode-plugin/", import.meta.url)); }
 function requireId(id: string): string {
@@ -338,10 +347,13 @@ async function linkJunction(linkPath: string, target: string): Promise<void> {
 }
 
 async function linkSessionDependencies(directory: string, cache: string): Promise<void> {
+  const bunCache = bunCacheDir();
+  await mkdir(bunCache, { recursive: true });
   const nodeModules = join(cache, "node_modules");
   await Promise.all([
     linkJunction(join(directory, ".opencode", "node_modules"), nodeModules),
     linkJunction(join(directory, "opencode-home", "opencode", "node_modules"), nodeModules),
+    linkJunction(join(directory, "opencode-home", ".bun", "install", "cache"), bunCache),
   ]);
 }
 
@@ -498,7 +510,8 @@ export class VideoAgentPreview {
   async forget(id: string): Promise<void> {
     id = requireId(id);
     if (this.#active?.sessionId === id) await this.dispose();
-    await rm(sessionDir(id), { recursive: true, force: true });
+    // Windows can hold the linked plugin directory for a moment after taskkill.
+    await rm(sessionDir(id), { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
     await saveSessions((await loadSessions()).filter((row) => row.id !== id));
     this.#contexts.delete(id);
   }
@@ -546,11 +559,11 @@ export class VideoAgentPreview {
       const candidate = await this.startCandidate(row, directory, configDir, apiKey, binary);
       try {
         await this.waitHealth(candidate);
-        const doc = await this.fetchText(candidate, "/doc");
+        const doc = await this.fetchText(candidate, "/doc", undefined, CATALOG_BOOTSTRAP_TIMEOUT_MS, "documentation");
         if (!doc.includes("/session") || !doc.includes("/event")) throw new Error("OpenCode runtime thiếu route cần thiết.");
-        const effectiveConfig = await this.fetchJson<unknown>(candidate, "/config");
+        const effectiveConfig = await this.fetchJson<unknown>(candidate, "/config", undefined, CATALOG_BOOTSTRAP_TIMEOUT_MS, "configuration");
         if (JSON.stringify(effectiveConfig).includes("AI_CONTRACT.md")) throw new Error("OpenCode config isolation thất bại.");
-        const catalog = await this.fetchJson<unknown>(candidate, `/experimental/tool?provider=ninerouter&model=${encodeURIComponent(VIDEO_AGENT_MODEL)}`);
+        const catalog = await this.fetchJson<unknown>(candidate, `/experimental/tool?provider=ninerouter&model=${encodeURIComponent(VIDEO_AGENT_MODEL)}`, undefined, CATALOG_BOOTSTRAP_TIMEOUT_MS, "catalog");
         if (!isExactAgentCatalog(catalog)) throw new Error("OpenCode tool catalog không đúng allow-list Video Agent.");
         if (!row.opencodeSessionId) {
           const created = await this.fetchJson<{ id?: string }>(candidate, "/session", { method: "POST", body: JSON.stringify({ title: row.title }) });
@@ -617,15 +630,21 @@ export class VideoAgentPreview {
     return merged;
   }
 
-  private async fetchText(active: Active, path: string, init?: RequestInit): Promise<string> {
-    const response = await fetch(`${active.base}${path}`, { ...init, headers: this.headers(active, init?.headers, init?.body !== undefined), signal: AbortSignal.timeout(30_000) });
+  private async fetchText(active: Active, path: string, init?: RequestInit, timeoutMs = SIDECAR_REQUEST_TIMEOUT_MS, label = "request"): Promise<string> {
+    let response: Response;
+    try {
+      response = await fetch(`${active.base}${path}`, { ...init, headers: this.headers(active, init?.headers, init?.body !== undefined), signal: AbortSignal.timeout(timeoutMs) });
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "TimeoutError") throw new Error(`Agent runtime ${label} quá thời hạn.`);
+      throw error;
+    }
     const body = await response.text();
-    if (!response.ok) throw new Error(`Agent sidecar error (${response.status}).`);
+    if (!response.ok) throw new Error(`Agent runtime ${label} thất bại (${response.status}).`);
     return body;
   }
 
-  private async fetchJson<T>(active: Active, path: string, init?: RequestInit): Promise<T> {
-    const text = await this.fetchText(active, path, init);
+  private async fetchJson<T>(active: Active, path: string, init?: RequestInit, timeoutMs?: number, label?: string): Promise<T> {
+    const text = await this.fetchText(active, path, init, timeoutMs, label);
     return (text ? JSON.parse(text) : undefined) as T;
   }
 
@@ -644,6 +663,7 @@ export class VideoAgentPreview {
   private async waitForReply(active: Active, session: string, before: readonly AgentMessageVM[]): Promise<AgentMessageVM> {
     for (let i = 0; i < 360; i += 1) {
       if (active.eventAbort.signal.aborted) throw new Error("Agent request aborted.");
+      if (active.failureCode) throw new Error(`Agent ${active.failureCode}.`);
       const reply = latestNewAssistantReply(before, await this.messages(active, session));
       if (reply) return reply;
       await sleep(250);
@@ -684,7 +704,10 @@ export class VideoAgentPreview {
             if (data) {
               try {
                 const safe = safeAgentSse(JSON.parse(data), active.opencodeSessionId);
-                if (safe && this.#active === active) this.emit({ sessionId: active.sessionId, kind: safe.kind, text: safe.text, code: safe.code, ...(safe.tool ? { tool: safe.tool } : {}) });
+                if (safe && this.#active === active) {
+                  if (safe.kind === "error" && (safe.code === "provider_failed" || safe.code === "sidecar_failed")) active.failureCode = safe.code;
+                  this.emit({ sessionId: active.sessionId, kind: safe.kind, text: safe.text, code: safe.code, ...(safe.tool ? { tool: safe.tool } : {}) });
+                }
               } catch (error) { void error; /* malformed event cannot reach renderer */ }
             }
             end = buffered.indexOf("\n\n");
@@ -733,6 +756,8 @@ export async function runVideoAgentVerification(apiKey: string): Promise<Verific
     completedAt: new Date().toISOString(),
     runtime: { opencode: "", ninerouter: "", model: VIDEO_AGENT_MODEL, protocolRevision: VIDEO_AGENT_PROTOCOL_REVISION, cacheFingerprint: "" },
     assertions: { runtime: false, catalog: false, websearch: false, proposal: false, completion: false },
+    stage: "runtime",
+    eventCounts: {},
   };
   const events: AgentEvent[] = [];
   const preview = new VideoAgentPreview((event) => events.push(event), defaultGatewayAddresses, () => apiKey, undefined, false);
@@ -746,19 +771,42 @@ export async function runVideoAgentVerification(apiKey: string): Promise<Verific
     record.assertions.runtime = preflight.state === "ready";
     if (!record.assertions.runtime) throw new Error(preflight.message);
     session = await preview.open({ kind: "new-idea" });
-    await preview.prompt(session.id, "Use websearch once to research a recent public fact about ChatGPT, then submit exactly one create proposal in Vietnamese. Do not answer until the proposal tool has succeeded.");
+    record.stage = "catalog";
+    await preview.history(session.id);
     record.assertions.catalog = true;
-    record.assertions.websearch = events.some((event) => event.code === "websearch");
+    record.stage = "baseline";
+    await preview.prompt(session.id, "Reply with exactly PING. Do not use any tool.");
+    record.assertions.completion = (await preview.history(session.id)).some((message) => message.role === "assistant" && message.text.trim() === "PING");
+    if (!record.assertions.completion) throw new Error("Agent baseline completion failed.");
+    record.stage = "websearch";
+    const beforeWebsearch = events.length;
+    await preview.prompt(session.id, "Use websearch exactly once to search for OpenAI ChatGPT, then answer in Vietnamese with one short sentence. Do not submit a proposal.");
+    record.assertions.websearch = events.slice(beforeWebsearch).some((event) => event.code === "websearch");
+    if (!record.assertions.websearch) throw new Error("Agent websearch tool loop failed.");
+    record.stage = "proposal";
+    await preview.prompt(session.id, "Submit exactly one create proposal in Vietnamese with a title and a useful brief. Do not use websearch.");
     record.assertions.proposal = !!await preview.proposal(session.id);
-    record.assertions.completion = events.some((event) => event.kind === "message" && event.message?.role === "assistant");
     if (!Object.values(record.assertions).every(Boolean)) throw new Error("Agent verifier assertions failed.");
     record.status = "pass";
   } catch (error) {
-    const text = error instanceof Error ? error.message : String(error);
-    record.failedAt = /catalog/i.test(text) ? "opencode_server" : /proposal|websearch/i.test(text) ? "tool_loop" : "provider_request";
+    record.failedAt = record.stage === "runtime" || record.stage === "catalog"
+      ? "opencode_server"
+      : record.stage === "websearch" || record.stage === "proposal"
+        ? "tool_loop"
+        : "provider_request";
     record.error = scrubError(error);
   } finally {
-    if (session) await preview.forget(session.id).catch((error) => { void error; return undefined; });
+    for (const event of events) {
+      const key = event.code ?? event.kind;
+      record.eventCounts[key] = (record.eventCounts[key] ?? 0) + 1;
+    }
+    try {
+      if (session) await preview.forget(session.id);
+    } catch (error) {
+      record.status = "fail";
+      record.failedAt = "opencode_server";
+      record.error = "Không dọn được session Agent sau verifier.";
+    }
     await preview.dispose();
     await mkdir(runtimeRoot(), { recursive: true });
     await writeFile(verificationPath(), `${JSON.stringify(record, null, 2)}\n`, "utf8");

@@ -11,6 +11,14 @@ if (!apiKey) {
   process.exitCode = 1;
 } else {
   const report = await runVideoAgentVerification(apiKey);
-  console.log(JSON.stringify({ status: report.status, completedAt: report.completedAt, assertions: report.assertions, failedAt: report.failedAt }, null, 2));
+  console.log(JSON.stringify({
+    status: report.status,
+    completedAt: report.completedAt,
+    assertions: report.assertions,
+    stage: report.stage,
+    failedAt: report.failedAt,
+    error: report.error,
+    eventCounts: report.eventCounts,
+  }, null, 2));
   process.exitCode = report.status === "pass" ? 0 : 1;
 }

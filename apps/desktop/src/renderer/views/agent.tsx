@@ -53,9 +53,13 @@ export const AgentView: React.FC<{
   };
   const clear = async (): Promise<void> => {
     if (!session) return;
-    await dash.agent.forgetSession(session.id);
-    setSession(undefined); setMessages([]); setProposal(null); setText(""); setError(undefined); setBusy(false);
-    await refresh();
+    try {
+      await dash.agent.forgetSession(session.id);
+      setSession(undefined); setMessages([]); setProposal(null); setText(""); setError(undefined); setBusy(false);
+      await refresh();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Không thể xóa lịch sử Agent.");
+    }
   };
   const send = async (): Promise<void> => {
     if (!session || session.compatibility !== "current" || !text.trim() || busy) return;
