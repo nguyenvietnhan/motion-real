@@ -7,6 +7,9 @@ Run it from the repository root:
 
 ```powershell
 $env:VIDEO_TOOL_HOME = "V:\Projects\motion-real\.video-tool"
+# Required only for the POC. Keep this in the current shell/session; do not
+# place it in a repository file or generated POC config.
+$env:MOTIONREAL_9ROUTER_API_KEY = "your-9router-key"
 # Optional: select the exact direct 9router model advertised by /v1/models.
 $env:MOTIONREAL_9ROUTER_MODEL = "your-direct-model-id"
 npm run probe:opencode
@@ -30,8 +33,10 @@ search content.
 `report.json` is the sole diagnostic artifact to inspect. A failure may identify
 the stage and a suspected layer, but it deliberately does not claim a root cause
 without a direct-provider baseline. A `credential-bridge-needed` result means
-OpenCode or the gateway rejected the existing app policy of no bearer key; the
-POC never mints or stores one.
+OpenCode or the gateway rejected the ephemeral environment credential. The
+generated config records only `{env:MOTIONREAL_9ROUTER_API_KEY}`; OpenCode
+v1.15.11 expands it in the child process. The runner never mints or stores a
+bearer key, and `report.json` never contains it.
 
 ## Current Phase-1 result
 
@@ -41,18 +46,13 @@ logic in `ToolRegistry.tools()`, so fully denied built-ins are absent from both
 the model prompt and the experimental catalog. Its targeted registry regression
 passes. The fork is not pushed automatically.
 
-The latest native-Windows POC run reaches this boundary successfully: it loads
-the two probe tools plus `webfetch`/`websearch`, and verifies that `bash`,
-`read`, `write`, `edit`, `patch`, `task`, and `skill` are absent. It then stops
-at `provider_request` with `credential-bridge-needed`: the local 9router
-gateway responds `401 Missing API key` to OpenCode's `/v1/chat/completions`
-request. This is an intentional stop condition. The runner does not mint,
-persist, or invent a bearer key.
-
-The next phase requires an explicit credential-bridge design compatible with
-the existing app: for example, an ephemeral key handoff to the isolated child
-process, with redaction and cleanup. Only after that design is authorized can
-the POC verify the model tool loop, session resume, web, vision, and abort.
+The latest pre-bridge native-Windows run reached the catalog boundary
+successfully: it loaded the two probe tools plus `webfetch`/`websearch`, and
+verified that `bash`, `read`, `write`, `edit`, `patch`, `task`, and `skill` were
+absent. It stopped at `provider_request` because no bearer credential was then
+available. The explicit environment bridge above is now the authorized test
+mechanism; a new report is required before any conclusion about the remaining
+tool loop, session resume, web, vision, or abort checks.
 
 ## OpenCode fork
 

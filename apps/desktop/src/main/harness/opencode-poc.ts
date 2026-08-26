@@ -15,6 +15,7 @@ import { NineRouterClient } from "../gateway/ninerouter-client.js";
 const OPENCODE_VERSION = "1.15.11";
 const OPENCODE_SHA = "d2bd7ea";
 const PROBE_MARKER = "MR-PROBE-7K42";
+const NINE_ROUTER_API_KEY_ENV = "MOTIONREAL_9ROUTER_API_KEY";
 const TOOL_NAMES = ["motionreal_probe_write", "motionreal_probe_read", "webfetch", "websearch"] as const;
 const BLOCKED_TOOLS = new Set(["bash", "read", "write", "edit", "patch", "task", "skill"]);
 
@@ -27,7 +28,7 @@ export type OpenCodePocReport = {
   version: string;
   upstreamSha: string;
   modelId?: string;
-  credentialMode: "no-api-key" | "credential-bridge-needed";
+  credentialMode: "no-api-key" | "ephemeral-env-api-key" | "credential-bridge-needed";
   port?: number;
   startedAt: string;
   durationMs: number;
@@ -383,9 +384,11 @@ function makeRuntimeConfig(modelID: string): Record<string, unknown> {
     model: `ninerouter/${modelID}`,
     provider: {
       ninerouter: {
-        name: "9router local gateway (no API key)",
+        name: "9router local gateway (ephemeral environment credential)",
         npm: "@ai-sdk/openai-compatible",
-        options: { baseURL: "http://127.0.0.1:20128/v1" },
+        // OpenCode v1.15.11 expands this at runtime. The generated config never
+        // contains the credential itself.
+        options: { baseURL: "http://127.0.0.1:20128/v1", apiKey: `{env:${NINE_ROUTER_API_KEY_ENV}}` },
         models: {
           [modelID]: {
             name: modelID,
@@ -635,6 +638,14 @@ export async function runOpenCodePoc(options: OpenCodePocOptions = {}): Promise<
   let feed: EventFeed | undefined;
   try {
     await mkdir(runDir, { recursive: true });
+    if (!process.env[NINE_ROUTER_API_KEY_ENV]?.trim()) {
+      throw new PocFailure(
+        "provider_request",
+        "9router",
+        `${NINE_ROUTER_API_KEY_ENV} is required for the explicit ephemeral credential bridge`,
+      );
+    }
+    report.credentialMode = "ephemeral-env-api-key";
     const cmd = commandFor(options.opencodeBin ?? process.env.MOTIONREAL_OPENCODE_BIN);
     const actualVersion = await commandOutput(cmd.command, [...cmd.args, "--version"], runDir);
     addAssertion(report, "pinned-opencode", actualVersion === OPENCODE_VERSION, `expected ${OPENCODE_VERSION}, got ${actualVersion || "none"}`);
