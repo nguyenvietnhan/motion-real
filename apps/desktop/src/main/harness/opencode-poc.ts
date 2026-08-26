@@ -335,16 +335,21 @@ async function waitForPermissionAndApprove(base: string, feed: EventFeed, sessio
   return false;
 }
 
-async function waitForIdle(base: string, sessionID: string, directory: string, timeoutMs = 90_000): Promise<void> {
+async function waitForIdle(base: string, sessionID: string, directory: string, timeoutMs = 90_000, requireBusy = false): Promise<void> {
   const deadline = Date.now() + timeoutMs;
+  let sawBusy = false;
   while (Date.now() < deadline) {
     const status = await fetchJson<Record<string, unknown>>(`${base}/session/status`, undefined, directory);
     const current = status[sessionID];
     const text = JSON.stringify(current ?? "");
-    if (!/busy|running|pending/i.test(text)) return;
+    if (/busy|running|pending/i.test(text)) {
+      sawBusy = true;
+    } else if (!requireBusy || sawBusy) {
+      return;
+    }
     await sleep(250);
   }
-  throw new Error("session did not become idle");
+  throw new Error(requireBusy ? "session did not enter and return from a running state" : "session did not become idle");
 }
 
 function containsTool(value: unknown, tool: string): boolean {
@@ -724,7 +729,7 @@ export async function runOpenCodePoc(options: OpenCodePocOptions = {}): Promise<
     addAssertion(report, "probe-boundary", outsideRejected, "probe target validator accepted traversal");
 
     await sendPrompt(base, sessionID, model, [{ type: "text", text: "Reply exactly: SESSION-TURN-ONE" }], runDir);
-    await waitForIdle(base, sessionID, runDir);
+    await waitForIdle(base, sessionID, runDir, 90_000, true);
     await dispose(base, child, runDir);
     child = undefined;
     ({ child, base, port: report.port } = await startWithRetry(cmd.command, cmd.args, runDir, configDir));
@@ -734,11 +739,11 @@ export async function runOpenCodePoc(options: OpenCodePocOptions = {}): Promise<
     feed = new EventFeed();
     feed.start(`${base}/event`);
     await sendPrompt(base, sessionID, model, [{ type: "text", text: "Reply exactly: SESSION-TURN-TWO" }], runDir);
-    await waitForIdle(base, sessionID, runDir);
+    await waitForIdle(base, sessionID, runDir, 90_000, true);
     addAssertion(report, "session-second-turn", JSON.stringify(await messageParts(base, sessionID, runDir)).includes("SESSION-TURN-TWO"), "resumed session lost second turn");
 
     await sendPrompt(base, sessionID, model, [{ type: "text", text: "Call webfetch on https://example.com and then websearch for the exact query MotionReal OpenCode POC. State when both tool calls finish." }], runDir);
-    await waitForIdle(base, sessionID, runDir);
+    await waitForIdle(base, sessionID, runDir, 90_000, true);
     const webMessages = await messageParts(base, sessionID, runDir);
     addAssertion(report, "webfetch-and-websearch", containsTool(webMessages, "webfetch") && containsTool(webMessages, "websearch"), "one or both fixed web tools did not run");
 
@@ -747,7 +752,7 @@ export async function runOpenCodePoc(options: OpenCodePocOptions = {}): Promise<
       { type: "text", text: "Inspect the attached PNG. Reply with its exact marker and its relative position (lower-right)." },
       { type: "file", mime: "image/png", filename: "vision-mr-probe-7k42.png", url: `data:image/png;base64,${fixture.toString("base64")}` },
     ], runDir);
-    await waitForIdle(base, sessionID, runDir);
+    await waitForIdle(base, sessionID, runDir, 90_000, true);
     const visionText = JSON.stringify(await messageParts(base, sessionID, runDir)).toLowerCase();
     addAssertion(report, "vision-marker-and-position", visionText.includes(PROBE_MARKER.toLowerCase()) && /lower.{0,12}right|góc.{0,12}phải/i.test(visionText), "vision answer did not identify marker at lower-right");
 
