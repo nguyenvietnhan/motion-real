@@ -197,6 +197,9 @@ export class VideoAgentPreview {
 
 async function defaultGatewayAddresses(): Promise<string[]> {
   const command = "(Get-NetTCPConnection -LocalPort 20128 -State Listen -ErrorAction SilentlyContinue | Select-Object -ExpandProperty LocalAddress) -join ','";
-  const output = await commandOutput(process.env.ComSpec ?? "cmd.exe", ["/d", "/s", "/c", `powershell.exe -NoProfile -Command \"${command}\"`], process.cwd());
+  // Do not add a cmd.exe layer here: cmd rewrites the nested quotes and returns
+  // the PowerShell *source text* as stdout, which falsely looks like a
+  // non-loopback address. Spawn PowerShell directly with its argument array.
+  const output = await commandOutput("powershell.exe", ["-NoProfile", "-Command", command], process.cwd());
   return output.split(",").map((item) => item.trim()).filter(Boolean);
 }
