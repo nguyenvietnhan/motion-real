@@ -104,7 +104,7 @@ export function createDashboardClient(ipc: IpcLike): DashboardApi {
     agent: {
       preflight: () => inv("agent:preflight"),
       listSessions: () => inv("agent:listSessions"),
-      openSession: (projectId) => inv("agent:openSession", projectId),
+      openSession: (request) => inv("agent:openSession", request),
       history: (sessionId) => inv("agent:history", sessionId),
       prompt: (sessionId, text) => inv("agent:prompt", sessionId, text),
       abort: (sessionId) => inv("agent:abort", sessionId),

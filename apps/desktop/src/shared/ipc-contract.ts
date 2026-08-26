@@ -4,6 +4,7 @@ import type {
   AgentMessageVM,
   AgentPreflightVM,
   AgentProposalVM,
+  AgentSessionRequest,
   AgentSessionVM,
   AiProviderId,
   ApplyResult,
@@ -161,7 +162,7 @@ export interface DashboardApi {
   agent: {
     preflight(): Promise<AgentPreflightVM>;
     listSessions(): Promise<AgentSessionVM[]>;
-    openSession(projectId?: string): Promise<AgentSessionVM>;
+    openSession(request: AgentSessionRequest): Promise<AgentSessionVM>;
     history(sessionId: string): Promise<AgentMessageVM[]>;
     prompt(sessionId: string, text: string): Promise<void>;
     abort(sessionId: string): Promise<void>;

@@ -348,7 +348,12 @@ export type FriendlyError = {
 
 /** Renderer-safe state: never contains a port, sandbox path, raw SSE, or credential. */
 export type AgentPreflightVM = { state: "ready" | "blocked"; message: string; model?: string };
-export type AgentSessionVM = { id: string; projectId?: string; title: string; updatedAt: string };
+export type AgentCompatibility = "current" | "legacy";
+export type AgentSessionVM = { id: string; projectId?: string; title: string; updatedAt: string; compatibility: AgentCompatibility };
+export type AgentSessionRequest =
+  | { kind: "new-idea" }
+  | { kind: "project"; projectId: string }
+  | { kind: "resume"; sessionId: string };
 export type AgentMessageVM = { id: string; role: "user" | "assistant"; text: string; createdAt: string };
 export type AgentEdit = { sceneId: string; text: string };
 export type AgentProposalVM =
@@ -358,6 +363,9 @@ export type AgentEvent = {
   sessionId: string;
   kind: "status" | "tool" | "message" | "error";
   text: string;
+  /** Safe status only; never contains an OpenCode event body or provider error. */
+  code?: "starting" | "ready" | "thinking" | "websearch" | "proposal" | "aborted" | "provider_failed" | "sidecar_failed" | "timeout";
+  tool?: "websearch" | "motionreal_submit_proposal";
   message?: AgentMessageVM;
 };
 

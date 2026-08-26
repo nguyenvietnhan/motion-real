@@ -1,0 +1,7 @@
+{
+  "name": "motionreal-opencode-plugin-runtime",
+  "private": true,
+  "dependencies": {
+    "@opencode-ai/plugin": "1.15.11"
+  }
+}

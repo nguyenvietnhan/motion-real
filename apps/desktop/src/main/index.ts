@@ -58,6 +58,7 @@ import {
 import { readEnvFile, resolveBootVoiceEnv } from "./security/runtime-env.js";
 import { isLegacyElectronShortcut } from "./shell-identity.js";
 import { VideoAgentPreview, type AgentProjectContext } from "./harness/video-agent-preview.js";
+import type { AgentSessionRequest } from "../shared/types.js";
 
 const log = createLogger("desktop");
 
@@ -309,19 +310,19 @@ const workspace = new WorkspaceController({
   },
 });
 
-// Developer Preview only. This bridge can submit an approved proposal to the
-// existing workspace; it owns no authoring, render, crawler, or asset flow.
-const videoAgent = new VideoAgentPreview((event) => events.agent(event), undefined, () => gateway.localGatewayApiKey());
-
 async function agentProjectContext(projectId: string): Promise<AgentProjectContext> {
-  const [storyboard, stage] = await Promise.all([workspace.open(projectId), workspace.stage(projectId)]);
+  const [storyboard, stage, cards] = await Promise.all([workspace.open(projectId), workspace.stage(projectId), workspace.list()]);
   return {
     projectId,
-    title: projectId,
+    title: cards.find((card) => card.projectId === projectId)?.title ?? projectId,
     stage: stage.kind,
     scenes: storyboard.scenes.map((scene) => ({ id: scene.sceneId, narration: scene.narration ?? "", ...(scene.headline ? { headline: scene.headline } : {}), stillAvailable: existsSync(join(projectPaths(projectId).reviewDir, `${scene.sceneId}.png`)) })),
   };
 }
+
+// Developer Preview only. This bridge can submit an approved proposal to the
+// existing workspace; it owns no authoring, render, crawler, or asset flow.
+const videoAgent = new VideoAgentPreview((event) => events.agent(event), undefined, () => gateway.localGatewayApiKey(), agentProjectContext);
 
 // Fan out safe authoring failure metadata into the project event stream (best-effort).
 setAuthoringDiagnosticObserver((payload) => {
@@ -778,9 +779,13 @@ const handlers: InvokeHandlers = {
 
   "agent:preflight": () => videoAgent.preflight(),
   "agent:listSessions": () => videoAgent.list(),
-  "agent:openSession": async (projectId) => {
-    const id = typeof projectId === "string" && projectId.trim() ? projectId.trim() : undefined;
-    return videoAgent.open(id ? await agentProjectContext(id) : undefined);
+  "agent:openSession": async (request) => {
+    if (!request || typeof request !== "object") throw new Error("Yêu cầu mở phiên Agent không hợp lệ.");
+    const typed = request as AgentSessionRequest;
+    if (typed.kind === "new-idea") return videoAgent.open(typed);
+    if (typed.kind === "project" && typeof typed.projectId === "string") return videoAgent.open(typed);
+    if (typed.kind === "resume" && typeof typed.sessionId === "string") return videoAgent.open(typed);
+    throw new Error("Yêu cầu mở phiên Agent không hợp lệ.");
   },
   "agent:history": (sessionId) => videoAgent.history(String(sessionId)),
   "agent:prompt": async (sessionId, text) => { await videoAgent.prompt(String(sessionId), String(text)); return undefined; },

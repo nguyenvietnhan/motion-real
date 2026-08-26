@@ -30,6 +30,7 @@
     "test": "tsx scripts/test.ts",
     "smoke": "tsx scripts/smoke.ts",
     "probe:opencode": "tsx apps/desktop/scripts/opencode-poc.ts",
+    "verify:agent-preview": "tsx apps/desktop/scripts/verify-agent-preview.ts",
     "vendor-fonts": "tsx scripts/vendor-fonts.ts"
   },
   "devDependencies": {

@@ -110,7 +110,7 @@ describe("createDashboardClient — invoke channel mapping", () => {
     await api.tts.testVoice("elevenlabs");
     await api.agent.preflight();
     await api.agent.listSessions();
-    await api.agent.openSession("p1");
+    await api.agent.openSession({ kind: "project", projectId: "p1" });
     await api.agent.history("a1");
     await api.agent.prompt("a1", "hello");
     await api.agent.abort("a1");
