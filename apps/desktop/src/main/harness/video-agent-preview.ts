@@ -123,6 +123,15 @@ function systemPrompt(context?: AgentProjectContext): string {
 
 async function commandOutput(command: string, args: string[], cwd: string): Promise<string> { return await new Promise((resolveOutput, reject) => { const child = spawn(command, args, { cwd, shell: process.platform === "win32" && /\.cmd$/i.test(command), windowsHide: true }); let output = ""; child.stdout.on("data", (chunk: Buffer) => output += chunk.toString()); child.stderr.on("data", (chunk: Buffer) => output += chunk.toString()); child.on("error", reject); child.on("exit", (code) => code === 0 ? resolveOutput(output.trim()) : reject(new Error(output.trim() || `exit ${code}`))); }); }
 
+/** Global npm exposes 9router as a .ps1 on this Windows installation, which
+ * Node cannot execute directly.  Let PowerShell resolve it exactly as the
+ * normal desktop gateway launcher does. */
+async function nineRouterVersion(cwd: string): Promise<string> {
+  return process.platform === "win32"
+    ? commandOutput("powershell.exe", ["-NoProfile", "-Command", "& 9router --version"], cwd)
+    : commandOutput("9router", ["--version"], cwd);
+}
+
 async function prewarm(directory: string): Promise<void> {
   const args = ["install", "--ignore-scripts", "--no-audit", "--no-fund", "--save-exact", `@opencode-ai/plugin@${VIDEO_AGENT_OPENCODE_VERSION}`];
   for (const at of [join(directory, ".opencode"), join(directory, "opencode-home", "opencode")]) { await mkdir(at, { recursive: true }); if (!existsSync(join(at, "package.json"))) await writeFile(join(at, "package.json"), "{\"private\":true}\n"); await commandOutput(process.platform === "win32" ? (process.env.ComSpec ?? "cmd.exe") : "npm", process.platform === "win32" ? ["/d", "/s", "/c", `npm.cmd ${args.join(" ")}`] : args, at); }
@@ -143,11 +152,11 @@ export class VideoAgentPreview {
     if (!binary || !existsSync(binary)) return { state: "blocked", message: "Thiếu OpenCode binary đã kiểm chứng." };
     if (!this.localApiKey()?.trim()) return { state: "blocked", message: "9router chưa chuẩn bị credential nội bộ cho Agent." };
     try {
-      const [openCodeVersion, nineRouterVersion] = await Promise.all([
+      const [openCodeVersion, routerVersion] = await Promise.all([
         commandOutput(binary, ["--version"], agentRoot()),
-        commandOutput("9router", ["--version"], agentRoot()),
+        nineRouterVersion(agentRoot()),
       ]);
-      if (!isSupportedVideoAgentRuntime(openCodeVersion, nineRouterVersion)) return { state: "blocked", message: "OpenCode hoặc 9router không đúng runtime đã kiểm chứng." };
+      if (!isSupportedVideoAgentRuntime(openCodeVersion, routerVersion)) return { state: "blocked", message: "OpenCode hoặc 9router không đúng runtime đã kiểm chứng." };
     } catch (error) { void error; return { state: "blocked", message: "Không thể kiểm tra OpenCode hoặc 9router runtime." }; }
     const addresses = await this.gatewayAddresses().catch((error) => { void error; return []; });
     if (!isLoopbackOnly(addresses)) return { state: "blocked", message: "Agent bị khóa: 9router phải chỉ lắng nghe 127.0.0.1 hoặc ::1." };
