@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createVisionFixturePng, eventErrorMessages, scrubPocError, validateProbeTarget } from "./opencode-poc.js";
+import { createVisionFixturePng, eventErrorMessages, findPermissionID, scrubPocError, validateProbeTarget } from "./opencode-poc.js";
 
 describe("OpenCode POC trust boundaries", () => {
   it("only permits the one sandbox probe target", () => {
@@ -22,5 +22,9 @@ describe("OpenCode POC trust boundaries", () => {
         data: { message: "HTTP 401" },
       }),
     ).toEqual(["Missing API key", "HTTP 401"]);
+  });
+
+  it("uses only an OpenCode permission id from a permission event", () => {
+    expect(findPermissionID({ type: "permission.asked", properties: { id: "msg_wrong", tool: { callID: "call_wrong" }, nested: { id: "per_right" } } })).toBe("per_right");
   });
 });

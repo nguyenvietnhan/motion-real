@@ -298,12 +298,15 @@ function eventType(value: unknown): string {
   return "unknown";
 }
 
-function findPermissionID(value: unknown, withinPermission = false): string | undefined {
+export function findPermissionID(value: unknown, withinPermission = false): string | undefined {
   if (!value || typeof value !== "object") return undefined;
   const record = value as Record<string, unknown>;
   const permission = withinPermission || /permission/i.test(eventType(value));
   for (const key of ["permissionID", "permissionId", "id"]) {
-    if (typeof record[key] === "string" && permission) return record[key] as string;
+    // OpenCode v1.15.11 PermissionID values begin with `per`; other nested
+    // `id` values are message/part/session identifiers and must never be used
+    // on the permission-reply route.
+    if (typeof record[key] === "string" && permission && record[key].startsWith("per")) return record[key] as string;
   }
   for (const child of Object.values(record)) {
     const found = findPermissionID(child, permission);
