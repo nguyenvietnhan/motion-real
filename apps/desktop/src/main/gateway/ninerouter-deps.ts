@@ -34,7 +34,7 @@ export function buildNineRouterGatewayDeps(opts: NineRouterDepsOptions): Gateway
     opts.spawnGateway ??
     (() => {
       // -n no browser, -t tray/background (no interactive menu), skip update check.
-      const child = spawn("9router", ["-n", "-t", "--skip-update"], {
+      const child = spawn("9router", ["-n", "-t", "--skip-update", "--host", "127.0.0.1"], {
         detached: true,
         stdio: "ignore",
         shell: true, // resolve 9router.cmd on Windows
@@ -74,7 +74,7 @@ export function buildNineRouterGatewayDeps(opts: NineRouterDepsOptions): Gateway
     generateKey: undefined,
     wireKey: async () => {
       // Best-effort: mint an OpenAI-compatible key 9router will accept on /v1.
-      await client.createApiKey("news-studio");
+      return await client.createApiKey("news-studio") ?? undefined;
     },
   };
 }

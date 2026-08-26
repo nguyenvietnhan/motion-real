@@ -45,7 +45,8 @@ export type GatewayDeps = {
   /** Generate the internal Local_Gateway_Key (never returned over IPC). */
   generateKey?: () => string;
   /** Auto-wire the local key into the gateway/client. */
-  wireKey?: (key: string) => void | Promise<void>;
+  /** May return the gateway-issued API key; it remains main-process memory only. */
+  wireKey?: (key: string) => string | void | Promise<string | void>;
   maxStartAttempts?: number;
 };
 
@@ -86,8 +87,16 @@ export class ModelGatewayManager {
   /** Generate + auto-wire the local key. Returns void — the key never leaves main. */
   async ensureLocalKey(): Promise<void> {
     if (this.localKey) return;
-    this.localKey = this.deps.generateKey ? this.deps.generateKey() : `lgk_${Math.random().toString(36).slice(2)}`;
-    await this.deps.wireKey?.(this.localKey);
+    const requested = this.deps.generateKey ? this.deps.generateKey() : `lgk_${Math.random().toString(36).slice(2)}`;
+    // 9router issues the actual OpenAI-compatible credential. Keep only that
+    // value in Main memory so trusted child runtimes can use it without IPC,
+    // disk persistence, or a user-managed environment variable.
+    this.localKey = (await this.deps.wireKey?.(requested)) ?? requested;
+  }
+
+  /** Internal-only credential for a trusted local sidecar; never expose over IPC. */
+  localGatewayApiKey(): string | undefined {
+    return this.localKey ?? undefined;
   }
 
   /** Start the gateway, retrying up to 3 attempts before surfacing `unavailable`. */

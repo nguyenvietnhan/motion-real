@@ -39,6 +39,13 @@ describe("ModelGatewayManager.start", () => {
     expect(JSON.stringify(mgr.state())).not.toContain("secret-key");
   });
 
+  it("retains only the gateway-issued key for trusted local runtimes", async () => {
+    const mgr = new ModelGatewayManager(deps({ generateKey: () => "request-name", wireKey: async () => "issued-key" }));
+    await mgr.start();
+    expect(mgr.localGatewayApiKey()).toBe("issued-key");
+    expect(JSON.stringify(mgr.state())).not.toContain("issued-key");
+  });
+
   it("retries up to 3 attempts then surfaces unavailable", async () => {
     const launch = vi.fn(async () => false);
     const mgr = new ModelGatewayManager(deps({ launch }));

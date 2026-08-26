@@ -311,7 +311,7 @@ const workspace = new WorkspaceController({
 
 // Developer Preview only. This bridge can submit an approved proposal to the
 // existing workspace; it owns no authoring, render, crawler, or asset flow.
-const videoAgent = new VideoAgentPreview((event) => events.agent(event));
+const videoAgent = new VideoAgentPreview((event) => events.agent(event), undefined, () => gateway.localGatewayApiKey());
 
 async function agentProjectContext(projectId: string): Promise<AgentProjectContext> {
   const [storyboard, stage] = await Promise.all([workspace.open(projectId), workspace.stage(projectId)]);
