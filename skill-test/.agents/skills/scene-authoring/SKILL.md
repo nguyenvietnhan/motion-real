@@ -1,4 +1,4 @@
----
+﻿---
 name: scene-authoring
 description: Viết composition HyperFrames (HTML + CSS + GSAP) cho video dọc 9:16 TikTok/Reels/Shorts - contract data-attributes, karaoke captions, chuyển cảnh fade, hiệu ứng typography quảng cáo, QA bằng check + snapshot. Use when writing/editing video scenes in starter-hf/, during Stage 4-5 of make-video, or when the user mentions HyperFrames, HTML video, scene, animation code.
 ---
@@ -190,6 +190,44 @@ không đổi trong khi lời đọc chạy = hình trang trí.
   layer khi giọng đọc nhắc tầng; nói code lỗi → dòng if-else tự gõ
   (typewriter) rồi dấu cảnh báo nhấp nháy. Nếu hình của bạn im hơn
   các ví dụ này → chưa đạt.
+
+## Choreography density — mỗi beat là một CHƯƠNG TRÌNH nhiều pha
+
+Bằng chứng từ video thất bại: freezedetect đo được **55 khoang đóng
+băng 4-7 giây liên tục** — mỗi beat hiện 1 layout rồi đứng im cả beat.
+Đó là slide. Chuẩn cần đạt là kiểu choreography của scene được author
+tốt: **nhiều PHA nối tiếp kể chuyện bằng chuyển động**:
+
+```text
+vd beat "giảm 27% chi phí": Pha 1 (t=0.5s) hai cột MỌC lên tới mốc
+→ Pha 2 (t=1.2s) cột thứ hai CO DẦN 27% (spring riêng)
+→ đồng thời số % ĐẾM NGƯỢC theo tiến trình co
+→ Pha 3 (t=2s) glow pulse nhẹ giữ sự sống đến hết beat.
+```
+
+### Luật density (cứng)
+
+1. **Timeline của mỗi beat phải có 3-6 "moments" RẢI ĐỀU across toàn
+   beat** — không dồn tất cả vào 0.5s đầu rồi bất động. Moment = 1
+   reveal, 1 phase chuyển, 1 nhấn sáng theo từ, 1 counter mốc.
+2. **Tối thiểu 1 tween LIÊN TỤC kéo dài phần lớn beat**: đường vẽ dần,
+   counter chạy, quả cầu lăn, chùm quét quét — semantic progression
+   theo đúng nghĩa.
+3. **Cấm bất kỳ khoảng ≥4 giây nào không có pixel nào thay đổi** trong
+   vùng content. Gate tự động: `check-motion.ps1` (dưới đây) sẽ FAIL.
+4. **SVG/Canvas-first cho hình khái niệm**: sơ đồ/quá trình/so sánh
+   vẽ bằng SVG động (quét, vẽ nét, gom cụm), KHÔNG phải card HTML
+   chữ tĩnh. Card chỉ dùng cho trích dẫn/nhãn.
+
+### Gate tự động bắt buộc (chạy sau render, trước bàn giao)
+
+```powershell
+powershell -File starter-hf\scripts\check-motion.ps1 `
+  -VideoPath jobs\<slug>\output\video.mp4
+# FAIL nếu có freeze >= 4s trong vùng content (đã crop bỏ caption band).
+# FAIL -> quay lại timeline của beat bị freeze (t ghi trong báo cáo),
+# thêm pha/living motion cho beat đó -> re-render -> chạy lại gate.
+```
 
 ## Bố cục cô đọng (chuẩn đối thủ — chống "khung bự tổ")
 

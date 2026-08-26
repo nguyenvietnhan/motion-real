@@ -215,7 +215,7 @@ chuyển cảnh fade mượt, caption không chồng/dán sai vị trí, reveal 
 lời, tổng duration khớp `beats.json` (±2 frame quy đổi). Sạch mới
 được render.
 
-## Stage 6 — Render + bàn giao
+## Stage 6 — Render + gate chống đóng băng + bàn giao
 
 Render ẨN qua wrapper (không pop-up terminal con, log ra file):
 
@@ -225,9 +225,20 @@ powershell -File starter-hf\scripts\render-hidden.ps1 -Slug <slug> -Verb render
 ```
 
 Video dài 4-5 phút mất 10-15 phút render — BÁO TRƯỚC cho user là chạy
-nền lâu. Vì Stage 4-5 đã duyệt từng cảnh bằng snapshot, render chỉ là
-hình thức hóa — KHÔNG làm vòng review-sửa-re-render sau bước này.
-Kiểm kỹ thuật: ffprobe có stream video + audio, duration khớp ±0.3s.
+nền lâu.
+
+**Gate chống đóng băng (bắt buộc sau render)** — chuyển động chỉ đo
+được trên thành phẩm, đây là vòng kiểm duyệt nhất:
+
+```powershell
+powershell -File starter-hf\scripts\check-motion.ps1 `
+  -VideoPath jobs\<slug>\output\video.mp4
+```
+
+FAIL (có freeze ≥4s trong vùng content) → đọc thời điểm t trong báo
+cáo → quay lại Stage 4 thêm choreography cho đúng beat đó → re-render
+→ chạy lại gate (tối đa 2 vòng, quá thì báo user). PASS → Kiểm kỹ
+thuật: ffprobe có stream video + audio, duration khớp ±0.3s.
 
 Viết `output/meta.json`:
 
