@@ -426,6 +426,7 @@ export default tool({
   async execute(args, context) {
     const path = target(context.directory, args.target);
     if (Buffer.byteLength(args.content, "utf8") > MAX_BYTES) throw new Error("probe payload too large");
+    await context.ask({ permission: "motionreal_probe_write", patterns: [args.target], always: [args.target], metadata: { purpose: "Phase-1 sandbox write probe" } });
     await writeFile(path, args.content, "utf8");
     return "probe write complete";
   },
