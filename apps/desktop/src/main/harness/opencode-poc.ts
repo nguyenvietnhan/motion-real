@@ -194,7 +194,10 @@ async function fetchJson<T>(url: string, init?: RequestInit, directory?: string)
     ...(directory ? { headers: opencodeInstanceHeaders(directory, init?.headers) } : {}),
     signal: init?.signal ?? AbortSignal.timeout(15_000),
   });
-  if (!response.ok) throw new Error(`${init?.method ?? "GET"} ${new URL(url).pathname} → HTTP ${response.status}`);
+  if (!response.ok) {
+    const detail = scrubPocError(await response.text());
+    throw new Error(`${init?.method ?? "GET"} ${new URL(url).pathname} → HTTP ${response.status}${detail ? `: ${detail}` : ""}`);
+  }
   // OpenCode's asynchronous prompt and abort routes correctly return 204.
   // Treat an empty success body as `undefined` instead of trying to parse JSON.
   const body = await response.text();
