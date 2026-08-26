@@ -461,9 +461,10 @@ export class VideoAgentPreview {
     const message = cleanText(text, 12_000);
     if (!message) throw new Error("Tin nhắn Agent trống.");
     this.emit({ sessionId: id, kind: "status", text: "Đang khởi động Agent…", code: "starting" });
+    let active: Active | undefined;
     try {
       await this.ensure(row);
-      const active = this.#active!;
+      active = this.#active!;
       const before = await this.messages(active, row.opencodeSessionId!);
       const user: AgentMessageVM = { id: randomUUID(), role: "user", text: message, createdAt: new Date().toISOString() };
       this.emit({ sessionId: id, kind: "message", text: user.text, message: user });
@@ -474,7 +475,9 @@ export class VideoAgentPreview {
       if (await this.proposal(id)) this.emit({ sessionId: id, kind: "tool", text: "Agent đã tạo đề xuất để bạn duyệt.", code: "proposal", tool: "motionreal_submit_proposal" });
       this.emit({ sessionId: id, kind: "status", text: "Agent sẵn sàng.", code: "ready" });
     } catch (error) {
-      if (/aborted/i.test(error instanceof Error ? error.message : "")) return;
+      // A provider timeout may contain the word "aborted". Only the explicit
+      // user abort signal is allowed to suppress an error and a stale reply.
+      if (active?.eventAbort.signal.aborted) return;
       const message = scrubError(error);
       const code: NonNullable<AgentEvent["code"]> = /quá thời hạn/i.test(message) ? "timeout" : /khởi động Agent runtime/i.test(message) ? "sidecar_failed" : "provider_failed";
       this.emit({ sessionId: id, kind: "error", text: `Lỗi Agent chưa áp dụng thay đổi. [${code}]`, code });
