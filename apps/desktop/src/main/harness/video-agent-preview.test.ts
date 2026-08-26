@@ -7,7 +7,12 @@ import {
   isExactAgentCatalog,
   isLoopbackOnly,
   isSupportedVideoAgentRuntime,
+  latestNewAssistantReply,
   normalizeAgentProposal,
+  proposalToolSource,
+  videoAgentConfig,
+  videoAgentPromptBody,
+  visibleAgentText,
 } from "./video-agent-preview.js";
 
 describe("Video Agent Preview safety gates", () => {
@@ -48,5 +53,28 @@ describe("Video Agent Preview safety gates", () => {
     expect(agentJsonHeaders(undefined, true).get("content-type")).toBe("application/json");
     expect(agentJsonHeaders(undefined, false).has("content-type")).toBe(false);
     expect(agentJsonHeaders({ "content-type": "application/problem+json" }, true).get("content-type")).toBe("application/problem+json");
+  });
+
+  it("keeps agent instructions in OpenCode config, not in the user transcript", () => {
+    const config = videoAgentConfig() as { agent: Record<string, { prompt?: string; steps?: number }> };
+    expect(config.agent["motionreal-video"]?.prompt).toContain("MotionReal Video Agent");
+    expect(config.agent["motionreal-video"]?.steps).toBe(6);
+    expect(videoAgentPromptBody("Hãy tạo video về ChatGPT")).toMatchObject({ parts: [{ type: "text", text: "Hãy tạo video về ChatGPT" }] });
+    expect(JSON.stringify(videoAgentPromptBody("Hãy tạo video về ChatGPT"))).not.toContain("You are MotionReal Video Agent");
+    expect(visibleAgentText("user", "You are MotionReal Video Agent. New-video idea session.\n\nUser: Hãy tạo video về ChatGPT")).toBe("Hãy tạo video về ChatGPT");
+    expect(visibleAgentText("assistant", "CRITICAL - MAXIMUM STEPS REACHED\ninternal")).toBe("");
+  });
+
+  it("gives the model an explicit proposal schema instead of a JSON-string guessing loop", () => {
+    const source = proposalToolSource();
+    expect(source).toContain('tool.schema.enum(["create","edit"])');
+    expect(source).toContain("create proposal requires brief");
+    expect(source).not.toContain("proposalJson");
+  });
+
+  it("does not silently reuse an old answer after an asynchronous provider failure", () => {
+    const old = { id: "old", role: "assistant" as const, text: "Câu trả lời cũ", createdAt: "2026-01-01T00:00:00.000Z" };
+    expect(latestNewAssistantReply([old], [old, { id: "user", role: "user", text: "Tin mới", createdAt: "2026-01-01T00:01:00.000Z" }])).toBeUndefined();
+    expect(latestNewAssistantReply([old], [old, { id: "new", role: "assistant", text: "Câu trả lời mới", createdAt: "2026-01-01T00:01:01.000Z" }])?.id).toBe("new");
   });
 });
