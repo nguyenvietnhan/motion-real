@@ -246,9 +246,17 @@ class EventFeed {
   readonly counts: Record<string, number> = {};
   #controller = new AbortController();
   #task: Promise<void> | undefined;
+  #error: string | undefined;
+
+  get error(): string | undefined {
+    return this.#error;
+  }
 
   start(url: string): void {
-    this.#task = this.consume(url).catch(() => undefined);
+    this.#task = this.consume(url).catch((error) => {
+      this.#error = scrubPocError(error);
+      this.counts["sse.error"] = (this.counts["sse.error"] ?? 0) + 1;
+    });
   }
 
   stop(): void {
@@ -278,8 +286,9 @@ class EventFeed {
         let value: unknown = data;
         try {
           value = JSON.parse(data) as unknown;
-        } catch {
+        } catch (error) {
           // Only the event type/count is recorded; malformed event data is ignored.
+          void error;
         }
         const type = eventType(value);
         this.events.push({ type, value });
@@ -321,7 +330,7 @@ async function waitForPermissionAndApprove(base: string, feed: EventFeed, sessio
   while (Date.now() < deadline) {
     for (const event of feed.events.slice(seen)) {
       seen += 1;
-      if (/error/i.test(event.type)) return false;
+      if (/error/i.test(event.type) || feed.error) return false;
       if (!/permission/i.test(event.type)) continue;
       const permissionID = findPermissionID(event.value);
       if (!permissionID) continue;
@@ -581,7 +590,11 @@ function startServer(command: string, args: string[], runDir: string, configDir:
 }
 
 async function dispose(base: string, child?: ChildProcessWithoutNullStreams, directory?: string): Promise<void> {
-  await postJson<boolean>(base, "/instance/dispose", undefined, directory).catch(() => undefined);
+  await postJson<boolean>(base, "/instance/dispose", undefined, directory).catch((error) => {
+    // The instance may already be gone after an intentional abort/restart.
+    void error;
+    return undefined;
+  });
   if (!child || child.killed) return;
   if (process.platform !== "win32" || !child.pid) {
     child.kill();
@@ -726,15 +739,18 @@ export async function runOpenCodePoc(options: OpenCodePocOptions = {}): Promise<
     const approved = await waitForPermissionAndApprove(base, feed, sessionID, runDir);
     addAssertion(report, "permission-request-and-approval", approved, "no permission request received for probe write");
     await waitForIdle(base, sessionID, runDir);
-    const note = await readFile(join(runDir, "agent-note.txt"), "utf8").catch(() => "");
+    const note = await readFile(join(runDir, "agent-note.txt"), "utf8").catch((error) => {
+      void error;
+      return "";
+    });
     addAssertion(report, "sandbox-file-written", note === PROBE_MARKER, "probe file missing or marker changed");
     const loopMessages = await messageParts(base, sessionID, runDir);
     addAssertion(report, "tool-result-round-trip", containsTool(loopMessages, "motionreal_probe_read") && JSON.stringify(loopMessages).includes(PROBE_MARKER), "probe read/result absent");
     let outsideRejected = false;
     try {
       validateProbeTarget("../outside.txt");
-    } catch {
-      outsideRejected = true;
+    } catch (error) {
+      outsideRejected = error instanceof Error;
     }
     addAssertion(report, "probe-boundary", outsideRejected, "probe target validator accepted traversal");
 

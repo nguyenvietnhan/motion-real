@@ -46,13 +46,18 @@ logic in `ToolRegistry.tools()`, so fully denied built-ins are absent from both
 the model prompt and the experimental catalog. Its targeted registry regression
 passes. The fork is not pushed automatically.
 
-The latest pre-bridge native-Windows run reached the catalog boundary
-successfully: it loaded the two probe tools plus `webfetch`/`websearch`, and
-verified that `bash`, `read`, `write`, `edit`, `patch`, `task`, and `skill` were
-absent. It stopped at `provider_request` because no bearer credential was then
-available. The explicit environment bridge above is now the authorized test
-mechanism; a new report is required before any conclusion about the remaining
-tool loop, session resume, web, vision, or abort checks.
+The latest native-Windows run passed all 32 assertions with the direct 9router
+model `ag/gemini-3.7-flash-high` in 130 seconds. It recorded one
+`permission.asked` and one `permission.replied`, completed the sandbox
+write/read loop, survived a sidecar restart and second turn, ran both fixed web
+tools, identified the PNG marker in the lower-right, and completed the abort
+probe. The scrubbed report is under
+`VIDEO_TOOL_HOME/.video-tool/agent-probes/<run-id>/report.json`; it records no
+prompt, web content, raw SSE payload, or credential.
+
+This proves only the isolated Phase-1 runtime path. It does not yet authorize
+an Agent Mode UI, general filesystem tools, the replacement of the existing
+crawler, or any change to the production video workflow.
 
 ## OpenCode fork
 
