@@ -18,7 +18,7 @@ describe("OpenCode POC trust boundaries", () => {
   it("keeps only error messages from SSE payloads", () => {
     expect(
       eventErrorMessages({
-        error: { message: "Missing API key", requestBodyValues: { prompt: "must not be retained" } },
+        properties: { error: { message: "Missing API key", requestBodyValues: { prompt: "must not be retained" } } },
         data: { message: "HTTP 401" },
       }),
     ).toEqual(["Missing API key", "HTTP 401"]);

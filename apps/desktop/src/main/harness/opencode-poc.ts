@@ -89,7 +89,7 @@ export function eventErrorMessages(value: unknown, into: string[] = []): string[
   }
   for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
     if (key === "message" && typeof child === "string") into.push(scrubPocError(child));
-    else if (key === "error" || key === "data") eventErrorMessages(child, into);
+    else if (key === "error" || key === "data" || key === "properties") eventErrorMessages(child, into);
   }
   return into;
 }
