@@ -180,7 +180,10 @@ async function fetchJson<T>(url: string, init?: RequestInit, directory?: string)
     signal: init?.signal ?? AbortSignal.timeout(15_000),
   });
   if (!response.ok) throw new Error(`${init?.method ?? "GET"} ${new URL(url).pathname} → HTTP ${response.status}`);
-  return (await response.json()) as T;
+  // OpenCode's asynchronous prompt and abort routes correctly return 204.
+  // Treat an empty success body as `undefined` instead of trying to parse JSON.
+  const body = await response.text();
+  return (body.length === 0 ? undefined : JSON.parse(body)) as T;
 }
 
 async function runtimeCatalog(base: string, modelID: string, directory: string): Promise<unknown> {
