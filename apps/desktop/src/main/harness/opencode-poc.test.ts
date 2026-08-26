@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createVisionFixturePng, scrubPocError, validateProbeTarget } from "./opencode-poc.js";
+import { createVisionFixturePng, eventErrorMessages, scrubPocError, validateProbeTarget } from "./opencode-poc.js";
 
 describe("OpenCode POC trust boundaries", () => {
   it("only permits the one sandbox probe target", () => {
@@ -13,5 +13,14 @@ describe("OpenCode POC trust boundaries", () => {
     expect(scrubPocError("Bearer top-secret-token-123456789012345678901234567890")).not.toContain("top-secret");
     const image = createVisionFixturePng();
     expect(image.subarray(1, 4).toString("ascii")).toBe("PNG");
+  });
+
+  it("keeps only error messages from SSE payloads", () => {
+    expect(
+      eventErrorMessages({
+        error: { message: "Missing API key", requestBodyValues: { prompt: "must not be retained" } },
+        data: { message: "HTTP 401" },
+      }),
+    ).toEqual(["Missing API key", "HTTP 401"]);
   });
 });

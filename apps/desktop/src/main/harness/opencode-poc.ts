@@ -80,6 +80,20 @@ export function scrubPocError(error: unknown): string {
     .slice(0, 600);
 }
 
+/** Extract only error messages from an SSE payload; never retain prompts or request bodies. */
+export function eventErrorMessages(value: unknown, into: string[] = []): string[] {
+  if (!value || typeof value !== "object") return into;
+  if (Array.isArray(value)) {
+    value.forEach((item) => eventErrorMessages(item, into));
+    return into;
+  }
+  for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
+    if (key === "message" && typeof child === "string") into.push(scrubPocError(child));
+    else if (key === "error" || key === "data") eventErrorMessages(child, into);
+  }
+  return into;
+}
+
 function videoToolHome(): string {
   const configured = process.env.VIDEO_TOOL_HOME?.trim();
   const base = configured && configured.length > 0 ? configured : ".video-tool";
@@ -300,6 +314,7 @@ async function waitForPermissionAndApprove(base: string, feed: EventFeed, sessio
   while (Date.now() < deadline) {
     for (const event of feed.events.slice(seen)) {
       seen += 1;
+      if (/error/i.test(event.type)) return false;
       if (!/permission/i.test(event.type)) continue;
       const permissionID = findPermissionID(event.value);
       if (!permissionID) continue;
@@ -732,13 +747,17 @@ export async function runOpenCodePoc(options: OpenCodePocOptions = {}): Promise<
     report.status = "pass";
   } catch (error) {
     const message = scrubPocError(error);
-    if (/api key|unauthori[sz]ed|HTTP 401|HTTP 403/i.test(message)) {
+    const eventErrors = feed
+      ? feed.events.filter((event) => /error/i.test(event.type)).flatMap((event) => eventErrorMessages(event.value))
+      : [];
+    const allErrors = [...new Set([message, ...eventErrors])].slice(0, 3);
+    if (/api key|unauthori[sz]ed|HTTP 401|HTTP 403/i.test(allErrors.join(" "))) {
       report.credentialMode = "credential-bridge-needed";
     }
     const failure = error instanceof PocFailure ? error : undefined;
-    report.failedAt = failure?.failedAt ?? (message.includes("vision") ? "attachment" : message.includes("web") ? "web_tool" : "tool_loop");
+    report.failedAt = failure?.failedAt ?? (report.credentialMode === "credential-bridge-needed" ? "provider_request" : message.includes("vision") ? "attachment" : message.includes("web") ? "web_tool" : "tool_loop");
     report.suspectedLayer = failure?.suspectedLayer ?? "unknown";
-    report.errors = [message];
+    report.errors = allErrors;
   } finally {
     if (feed) {
       feed.stop();
