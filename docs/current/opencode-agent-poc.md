@@ -1,5 +1,27 @@
 # OpenCode + 9router headless POC (experimental)
 
+## Video Agent Preview (Phase 2)
+
+The desktop **Agent** tab is a deliberately restricted Developer Preview, not a
+replacement for the Create Flow or the production Remotion/TSX path. It can use
+hosted `websearch` for discovery and submit a user-reviewed proposal. It cannot
+fetch arbitrary URLs, download assets, crawl, run shell/file tools, render, or
+modify a project directly.
+
+Before the tab starts a sidecar, Main requires the exact tested runtime:
+OpenCode `v1.15.11` / `d2bd7ea` via `MOTIONREAL_OPENCODE_BIN`, 9router `0.5.55`,
+and model `ag/gemini-3.7-flash-high`. It also requires 9router to listen only on
+`127.0.0.1`/`::1`; a `0.0.0.0` listener is shown as a blocked safety state and
+does not start OpenCode. Each sidecar has an in-memory random server password,
+and its runtime catalog must equal exactly `websearch` and
+`motionreal_submit_proposal`.
+
+Agent history is local OpenCode session data and can include messages, tool
+output, web-search excerpts and any still context supplied later. **Xóa lịch
+sử** removes only that Agent session sandbox; it never deletes a MotionReal
+project or video. Image/logo URLs are displayed as unverified rights references
+for the user to choose through the existing image flow.
+
 This is a Phase-1 verification only. It does not change the desktop UI, Create
 Flow, crawler, render path, or the production Remotion/TSX contract.
 

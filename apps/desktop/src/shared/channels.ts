@@ -61,6 +61,15 @@ export const INVOKE_CHANNELS = [
   "tts:setApiKey",
   "tts:clearApiKey",
   "tts:testVoice",
+  "agent:preflight",
+  "agent:listSessions",
+  "agent:openSession",
+  "agent:history",
+  "agent:prompt",
+  "agent:abort",
+  "agent:proposal",
+  "agent:applyEditProposal",
+  "agent:forgetSession",
 ] as const;
 
 export type InvokeChannel = (typeof INVOKE_CHANNELS)[number];
@@ -70,6 +79,7 @@ export const EVENT_CHANNELS = [
   "events:scene",
   "events:status",
   "events:friendlyError",
+  "events:agent",
 ] as const;
 
 export type EventChannel = (typeof EVENT_CHANNELS)[number];

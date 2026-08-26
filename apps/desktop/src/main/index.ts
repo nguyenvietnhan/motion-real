@@ -57,6 +57,7 @@ import {
 } from "./security/runtime-security.js";
 import { readEnvFile, resolveBootVoiceEnv } from "./security/runtime-env.js";
 import { isLegacyElectronShortcut } from "./shell-identity.js";
+import { VideoAgentPreview, type AgentProjectContext } from "./harness/video-agent-preview.js";
 
 const log = createLogger("desktop");
 
@@ -307,6 +308,20 @@ const workspace = new WorkspaceController({
     }
   },
 });
+
+// Developer Preview only. This bridge can submit an approved proposal to the
+// existing workspace; it owns no authoring, render, crawler, or asset flow.
+const videoAgent = new VideoAgentPreview((event) => events.agent(event));
+
+async function agentProjectContext(projectId: string): Promise<AgentProjectContext> {
+  const [storyboard, stage] = await Promise.all([workspace.open(projectId), workspace.stage(projectId)]);
+  return {
+    projectId,
+    title: projectId,
+    stage: stage.kind,
+    scenes: storyboard.scenes.map((scene) => ({ id: scene.sceneId, narration: scene.narration ?? "", ...(scene.headline ? { headline: scene.headline } : {}), stillAvailable: existsSync(join(projectPaths(projectId).reviewDir, `${scene.sceneId}.png`)) })),
+  };
+}
 
 // Fan out safe authoring failure metadata into the project event stream (best-effort).
 setAuthoringDiagnosticObserver((payload) => {
@@ -761,6 +776,25 @@ const handlers: InvokeHandlers = {
     return { ok: true, outputPath: "" };
   },
 
+  "agent:preflight": () => videoAgent.preflight(),
+  "agent:listSessions": () => videoAgent.list(),
+  "agent:openSession": async (projectId) => {
+    const id = typeof projectId === "string" && projectId.trim() ? projectId.trim() : undefined;
+    return videoAgent.open(id ? await agentProjectContext(id) : undefined);
+  },
+  "agent:history": (sessionId) => videoAgent.history(String(sessionId)),
+  "agent:prompt": async (sessionId, text) => { await videoAgent.prompt(String(sessionId), String(text)); return undefined; },
+  "agent:abort": async (sessionId) => { await videoAgent.abort(String(sessionId)); return undefined; },
+  "agent:proposal": (sessionId) => videoAgent.proposal(String(sessionId)),
+  "agent:applyEditProposal": async (sessionId) => {
+    const proposal = await videoAgent.proposal(String(sessionId));
+    if (!proposal || proposal.kind !== "edit") throw new Error("Không có đề xuất sửa hợp lệ để áp dụng.");
+    // Exactly the existing edit path, including still/refine and rollback.
+    workspace.submitEdits(proposal.projectId, proposal.edits, proposal.globalNotes);
+    return proposal;
+  },
+  "agent:forgetSession": async (sessionId) => { await videoAgent.forget(String(sessionId)); return undefined; },
+
   ...settingsHandlers,
 };
 
@@ -989,6 +1023,8 @@ app
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();
 });
+
+app.on("before-quit", () => { void videoAgent.dispose(); });
 
 app.on("activate", () => {
   if (BrowserWindow.getAllWindows().length === 0) void createWindow();

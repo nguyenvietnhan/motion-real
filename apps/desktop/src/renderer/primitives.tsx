@@ -14,7 +14,7 @@ import { useModalFocus } from "./use-modal-focus.js";
  */
 
 /** Navigation screens. */
-export type Screen = "home" | "projects" | "queue" | "settings" | "workspace";
+export type Screen = "home" | "projects" | "queue" | "settings" | "workspace" | "agent";
 
 export function aiStatus(gateway: GatewayState, account: AiAccountState): { color: string; text: string; sub?: string } {
   if (gateway.kind === "starting") return { color: "var(--muted-foreground)", text: "Đang khởi động AI…" };

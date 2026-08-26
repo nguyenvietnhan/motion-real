@@ -101,11 +101,23 @@ export function createDashboardClient(ipc: IpcLike): DashboardApi {
       clearApiKey: (provider) => inv("tts:clearApiKey", provider),
       testVoice: (provider) => inv("tts:testVoice", provider),
     },
+    agent: {
+      preflight: () => inv("agent:preflight"),
+      listSessions: () => inv("agent:listSessions"),
+      openSession: (projectId) => inv("agent:openSession", projectId),
+      history: (sessionId) => inv("agent:history", sessionId),
+      prompt: (sessionId, text) => inv("agent:prompt", sessionId, text),
+      abort: (sessionId) => inv("agent:abort", sessionId),
+      proposal: (sessionId) => inv("agent:proposal", sessionId),
+      applyEditProposal: (sessionId) => inv("agent:applyEditProposal", sessionId),
+      forgetSession: (sessionId) => inv("agent:forgetSession", sessionId),
+    },
     events: {
       onProgress: (cb) => subscribe(ipc, "events:progress", cb),
       onScene: (cb) => subscribe(ipc, "events:scene", cb),
       onStatus: (cb) => subscribe(ipc, "events:status", cb),
       onFriendlyError: (cb) => subscribe(ipc, "events:friendlyError", cb),
+      onAgent: (cb) => subscribe(ipc, "events:agent", cb),
     },
   };
 }

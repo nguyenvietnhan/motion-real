@@ -344,6 +344,23 @@ export type FriendlyError = {
   voiceFailure?: VoiceProviderFailure;
 };
 
+// --- developer-preview video agent ---------------------------------
+
+/** Renderer-safe state: never contains a port, sandbox path, raw SSE, or credential. */
+export type AgentPreflightVM = { state: "ready" | "blocked"; message: string; model?: string };
+export type AgentSessionVM = { id: string; projectId?: string; title: string; updatedAt: string };
+export type AgentMessageVM = { id: string; role: "user" | "assistant"; text: string; createdAt: string };
+export type AgentEdit = { sceneId: string; text: string };
+export type AgentProposalVM =
+  | { kind: "create"; title: string; brief: string; sourceUrls: string[] }
+  | { kind: "edit"; title: string; projectId: string; edits: AgentEdit[]; globalNotes: string; sourceUrls: string[] };
+export type AgentEvent = {
+  sessionId: string;
+  kind: "status" | "tool" | "message" | "error";
+  text: string;
+  message?: AgentMessageVM;
+};
+
 /** A plain-language auto-fix description that may cross IPC (never an N-code). */
 export type FriendlyFix = { sceneId?: string; message: string };
 

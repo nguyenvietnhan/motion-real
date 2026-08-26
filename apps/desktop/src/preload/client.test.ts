@@ -108,6 +108,15 @@ describe("createDashboardClient — invoke channel mapping", () => {
     await api.tts.setApiKey("elevenlabs", "secret");
     await api.tts.clearApiKey("elevenlabs");
     await api.tts.testVoice("elevenlabs");
+    await api.agent.preflight();
+    await api.agent.listSessions();
+    await api.agent.openSession("p1");
+    await api.agent.history("a1");
+    await api.agent.prompt("a1", "hello");
+    await api.agent.abort("a1");
+    await api.agent.proposal("a1");
+    await api.agent.applyEditProposal("a1");
+    await api.agent.forgetSession("a1");
 
     // Every invoked channel is on the allow-list.
     for (const { channel } of invokes) {
@@ -131,7 +140,7 @@ describe("createDashboardClient — invoke channel mapping", () => {
 });
 
 describe("createDashboardClient — event subscription", () => {
-  it("subscribes onProgress/onScene/onStatus/onFriendlyError to their channels and unsubscribes with the same listener", () => {
+  it("subscribes to every event channel and unsubscribes with the same listener", () => {
     const { ipc, ons, offs } = fakeIpc();
     const api = createDashboardClient(ipc);
 
@@ -140,6 +149,7 @@ describe("createDashboardClient — event subscription", () => {
       api.events.onScene(() => {}),
       api.events.onStatus(() => {}),
       api.events.onFriendlyError(() => {}),
+      api.events.onAgent(() => {}),
     ];
 
     expect(ons.map((o) => o.channel).sort()).toEqual([...EVENT_CHANNELS].sort());

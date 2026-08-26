@@ -1,5 +1,10 @@
 import type {
   AiAccountState,
+  AgentEvent,
+  AgentMessageVM,
+  AgentPreflightVM,
+  AgentProposalVM,
+  AgentSessionVM,
   AiProviderId,
   ApplyResult,
   ApproveResult,
@@ -153,11 +158,23 @@ export interface DashboardApi {
     clearApiKey(provider: VoiceProviderChoice): Promise<SettingsModel>;
     testVoice(provider: VoiceProviderChoice): Promise<import("./types.js").VoiceTestResult>;
   };
+  agent: {
+    preflight(): Promise<AgentPreflightVM>;
+    listSessions(): Promise<AgentSessionVM[]>;
+    openSession(projectId?: string): Promise<AgentSessionVM>;
+    history(sessionId: string): Promise<AgentMessageVM[]>;
+    prompt(sessionId: string, text: string): Promise<void>;
+    abort(sessionId: string): Promise<void>;
+    proposal(sessionId: string): Promise<AgentProposalVM | null>;
+    applyEditProposal(sessionId: string): Promise<AgentProposalVM>;
+    forgetSession(sessionId: string): Promise<void>;
+  };
   events: {
     onProgress(cb: (e: ProgressEvent) => void): Unsubscribe;
     onScene(cb: (e: SceneEvent) => void): Unsubscribe;
     onStatus(cb: (e: StatusEvent) => void): Unsubscribe;
     onFriendlyError(cb: (e: FriendlyError) => void): Unsubscribe;
+    onAgent(cb: (e: AgentEvent) => void): Unsubscribe;
   };
 }
 

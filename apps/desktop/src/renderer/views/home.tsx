@@ -246,6 +246,9 @@ export const HomeView: React.FC<{
     | { ok: true; kind: "queued"; queueId: string; jobId: string }
     | { ok: false; error: string }
   >;
+  /** A reviewed Agent proposal; the user still chooses images/settings and uses Create. */
+  prefillRaw?: string;
+  onPrefillConsumed?: () => void;
 }> = ({
   gateway,
   account,
@@ -272,10 +275,19 @@ export const HomeView: React.FC<{
   onBgmSelect,
   smokeRenderEnabled = false,
   onRenderSmoke,
+  prefillRaw,
+  onPrefillConsumed,
 }) => {
   const [raw, setRaw] = useState("");
   const [smokeLoading, setSmokeLoading] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    if (!prefillRaw) return;
+    setRaw(prefillRaw);
+    onPrefillConsumed?.();
+    textareaRef.current?.focus();
+  }, [prefillRaw, onPrefillConsumed]);
 
   useEffect(() => {
     const el = textareaRef.current;

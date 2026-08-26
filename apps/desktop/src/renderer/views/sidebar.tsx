@@ -43,6 +43,7 @@ export const Sidebar: React.FC<{
       </div>
       <nav className="ns-sidebar-nav" aria-label="Màn hình">
         {NavItem("home", "Trang chủ", Icon.home({}))}
+        {NavItem("agent", "Agent", Icon.spark({}))}
         {NavItem("projects", "Dự án", Icon.film({}))}
         {NavItem("queue", "Hàng đợi", Icon.list({}))}
         {NavItem("settings", "Cài đặt", Icon.settings({}))}

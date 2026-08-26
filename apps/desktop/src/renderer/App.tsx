@@ -6,6 +6,7 @@ import { ProjectsView } from "./views/projects.js";
 import { SettingsView, type SettingsTab } from "./views/settings.js";
 import { ProjectWorkspaceView } from "./views/workspace.js";
 import { QueueView } from "./views/queue.js";
+import { AgentView } from "./views/agent.js";
 import {
   reduceDesktop,
   runSingleFlight,
@@ -56,6 +57,7 @@ const AppShell: React.FC = () => {
   const [models, setModels] = useState<ModelInfo[]>([]);
   const [preferredModelUnavailable, setPreferredModelUnavailable] = useState<string | undefined>();
   const [openProjectId, setOpenProjectId] = useState<string | null>(null);
+  const [agentCreateBrief, setAgentCreateBrief] = useState("");
   const [stage, setStage] = useState<ProjectStage>({ kind: "writing" });
   /** Home create-time BGM library + selection (written at create; not on storyboard). */
   const [bgm, setBgm] = useState<BgmTrackVM[]>([]);
@@ -469,6 +471,8 @@ const AppShell: React.FC = () => {
             onConnectPrompt={(tab?: CreatePathSettingsTab) => openSettings(tab ?? "ai")}
             defaultVoiceProvider={settings.voiceProvider}
             smokeRenderEnabled={settings.smokeRenderEnabled}
+            prefillRaw={agentCreateBrief}
+            onPrefillConsumed={() => setAgentCreateBrief("")}
             onRenderSmoke={(opts) => {
               if (!dash) return Promise.reject(new Error("Dashboard API is unavailable"));
               return dash.settings.renderSmoke(opts).then((res) => {
@@ -556,6 +560,17 @@ const AppShell: React.FC = () => {
             onReveal={onReveal}
             onRename={onRename}
             onRetry={() => void refreshGallery()}
+          />
+        )}
+
+        {screen === "agent" && (
+          <AgentView
+            cards={state.gallery.cards}
+            onUseCreate={(proposal) => {
+              setAgentCreateBrief(`${proposal.brief}${proposal.sourceUrls.length ? `\n\nNguồn tham khảo (quyền sử dụng chưa xác minh):\n${proposal.sourceUrls.join("\n")}` : ""}`);
+              setScreen("home");
+            }}
+            onOpenProject={openProject}
           />
         )}
 
