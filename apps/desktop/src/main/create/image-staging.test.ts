@@ -152,6 +152,19 @@ describe("image staging cleanup", () => {
     expect(warn).toHaveBeenCalledWith(expect.objectContaining({ entry: "stat-fail.png" }), "staging entry cleanup failed; continuing sweep");
   });
 
+  it("keeps stale entries referenced by a queue job", async () => {
+    const rm = vi.fn(async () => undefined);
+    const d = deps({
+      readdir: async () => ["queued.png", "unused.png"],
+      stat: async () => ({ mtimeMs: 0 }),
+      rm,
+      now: () => 1_000,
+    });
+    await sweepStagingDir(d, 100, new Set(["staging/queued.png"]));
+    expect(rm).toHaveBeenCalledOnce();
+    expect(rm).toHaveBeenCalledWith(join(d.stagingDir(), "unused.png"), { force: true });
+  });
+
   it("does not block startup when the staging dir cannot be listed", async () => {
     const warn = vi.fn();
     await expect(

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -11,6 +11,56 @@ import {
 } from "./queue-store.js";
 
 describe("QueueStore", () => {
+  it("reads legacy jobs without images as an empty array", () => {
+    const dir = mkdtempSync(join(tmpdir(), "mr-queue-"));
+    const filePath = join(dir, "queues.json");
+    writeFileSync(filePath, JSON.stringify({
+      version: 1,
+      queues: [{
+        id: "queue-legacy",
+        title: "legacy",
+        createdAt: "2026-08-09T00:00:00.000Z",
+        jobs: [{
+          id: "job-legacy",
+          raw: "legacy prompt",
+          durationTier: 1,
+          videoLanguage: "vi",
+          voiceProvider: "vivibe",
+          bgm: null,
+          status: "queued",
+          createdAt: "2026-08-09T00:00:00.000Z",
+        }],
+      }],
+    }));
+
+    expect(new QueueStore({ filePath }).get("queue-legacy")?.jobs[0]?.images).toEqual([]);
+  });
+
+  it("persists safe staged images and protects retryable jobs across restart", () => {
+    const dir = mkdtempSync(join(tmpdir(), "mr-queue-"));
+    const filePath = join(dir, "queues.json");
+    const store = new QueueStore({ filePath });
+    const q = store.create();
+    const after = store.addJob(q.id, {
+      raw: "ảnh",
+      durationTier: 1,
+      videoLanguage: "vi",
+      voiceProvider: "vivibe",
+      bgm: null,
+      images: [
+        { ref: "staging/good.png", width: 800, height: 600 },
+        { ref: "staging/../bad.png", width: 1, height: 1 },
+      ],
+    });
+    expect(after?.jobs[0]?.images).toEqual([{ ref: "staging/good.png", width: 800, height: 600 }]);
+
+    const reloaded = new QueueStore({ filePath });
+    expect(reloaded.stagedImageRefs()).toEqual(new Set(["staging/good.png"]));
+    const jobId = reloaded.get(q.id)!.jobs[0]!.id;
+    reloaded.updateJob(q.id, jobId, { status: "done" });
+    expect(reloaded.stagedImageRefs().size).toBe(0);
+  });
+
   it("defaults new queue titles to project-1, project-2, …", () => {
     const dir = mkdtempSync(join(tmpdir(), "mr-queue-"));
     const store = new QueueStore({
@@ -163,7 +213,7 @@ describe("QueueStore", () => {
     const after = store.get(q.id)!.jobs;
     expect(after[0]?.status).toBe("failed");
     expect(after[0]?.projectId).toBe("p-zombie");
-    expect(after[0]?.error).toMatch(/dừng giữa chừng/i);
+    expect(after[0]?.error).toMatch(/đóng giữa chừng/i);
     expect(after[1]?.status).toBe("queued");
     expect(store.reconcileStaleRunningJobs()).toBe(0);
     // Start path can requeue the failed zombie.
@@ -188,8 +238,32 @@ describe("QueueStore", () => {
     const job = store.get(q.id)?.jobs[0];
     expect(job?.status).toBe("queued");
     expect(job?.error).toBeUndefined();
-    expect(job?.projectId).toBeUndefined();
+    expect(job?.projectId).toBe("p-old");
     expect(store.requeueRetryable(q.id)).toBe(0);
+  });
+
+  it("persists FIFO Start intent and a safe global pause in version 1", () => {
+    const dir = mkdtempSync(join(tmpdir(), "mr-queue-"));
+    const filePath = join(dir, "queues.json");
+    const store = new QueueStore({ filePath });
+    const first = store.create("first");
+    const second = store.create("second");
+    expect(store.schedule(first.id)).toBe(true);
+    expect(store.schedule(second.id)).toBe(true);
+    store.pause({
+      kind: "voice_provider",
+      message: "Hết credit.",
+      voiceFailure: { provider: "vivibe", code: "insufficient_credits", retryable: false },
+    });
+
+    const loaded = new QueueStore({ filePath });
+    expect(loaded.scheduledQueueIds()).toEqual([first.id, second.id]);
+    expect(loaded.pauseState()).toMatchObject({
+      kind: "voice_provider",
+      voiceFailure: { code: "insufficient_credits" },
+    });
+    expect(loaded.delete(first.id)).toBe(true);
+    expect(loaded.scheduledQueueIds()).toEqual([second.id]);
   });
 
   it("ensureHomeQueue is idempotent with fixed id and ephemeral flag", () => {

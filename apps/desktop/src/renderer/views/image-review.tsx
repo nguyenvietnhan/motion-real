@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import type { CrawledImageVM } from "../../shared/types.js";
 import { Icon } from "../icons.js";
+import { StableButtonLabel } from "../primitives.js";
 
 /**
  * Image review (crawled-image review): a blocking screen shown BEFORE authoring when a
@@ -56,7 +57,9 @@ export const ImageReviewView: React.FC<{
             disabled={submitting || count === 0}
             title={count === 0 ? "Chọn ảnh, hoặc bấm Bỏ qua ảnh." : undefined}
           >
-            {submitting ? "Đang xử lý…" : `Dùng ảnh (${count})`}
+            <StableButtonLabel reserve={["Đang xử lý…", "Dùng ảnh (99)"]}>
+              {submitting ? "Đang xử lý…" : `Dùng ảnh (${count})`}
+            </StableButtonLabel>
           </button>
         </div>
       </div>

@@ -92,6 +92,7 @@ export class ModelGatewayManager {
 
   /** Start the gateway, retrying up to 3 attempts before surfacing `unavailable`. */
   private startInFlight: Promise<GatewayState> | null = null;
+  private healthInFlight: Promise<GatewayState> | null = null;
 
   /** Start the gateway; deduped so concurrent callers share ONE in-flight run. */
   start(): Promise<GatewayState> {
@@ -131,6 +132,27 @@ export class ModelGatewayManager {
   ensureReady(): GatewayState {
     if (this.gw.kind !== "ready" && !this.startInFlight) void this.start();
     return this.gw;
+  }
+
+  /** Verify a previously-ready gateway and restart it through the existing launcher when needed. */
+  refreshHealth(): Promise<GatewayState> {
+    if (this.healthInFlight) return this.healthInFlight;
+    this.healthInFlight = (async () => {
+      if (this.gw.kind !== "ready") return this.start();
+      const ok = await this.deps.launch().catch((error) => {
+        log.warn({ err: error }, "gateway health check failed");
+        return false;
+      });
+      if (!ok) {
+        this.gw = { kind: "unavailable" };
+        this.accounts = [];
+        this.selected = undefined;
+      }
+      return this.gw;
+    })().finally(() => {
+      this.healthInFlight = null;
+    });
+    return this.healthInFlight;
   }
 
   /** Discover providers (name, login-type, connected count) from the gateway. */

@@ -199,6 +199,12 @@ export class WorkspaceController {
   private readonly inFlight = new Set<string>();
   /** Settling promises for in-flight jobs so delete can await cancel completion. */
   private readonly inFlightTasks = new Map<string, Promise<void>>();
+  /**
+   * Process-wide FIFO for cache-sensitive workspace work. The render bundle and
+   * composition registry are shared, so different projects must not overlap.
+   * ponytail: one global lane; split only after the shared caches gain leases.
+   */
+  private processTail: Promise<void> = Promise.resolve();
 
   /**
    * Per-project AbortController for the in-flight job, so "Dừng render" can
@@ -211,12 +217,29 @@ export class WorkspaceController {
 
   constructor(private readonly deps: WorkspaceDeps) {}
 
+  isBusy(): boolean {
+    return this.inFlight.size > 0;
+  }
+
+  private enqueueProcessWork(run: () => Promise<void>): Promise<void> {
+    const queued = this.processTail.then(run, run);
+    this.processTail = queued.catch((error) => {
+      log.error({ err: error }, "workspace process lane failed");
+    });
+    return queued;
+  }
+
   /** Run an exclusive per-project job; ignored if one is already in flight. */
   private guarded(projectId: string, run: () => Promise<void>): void {
     if (this.inFlight.has(projectId)) return;
     this.inFlight.add(projectId);
-    this.aborters.set(projectId, new AbortController());
-    const task = run().finally(() => {
+    const aborter = new AbortController();
+    this.aborters.set(projectId, aborter);
+    const task = this.enqueueProcessWork(async () => {
+      if (!aborter.signal.aborted) await run();
+    }).catch((error) => {
+      log.error({ err: error, projectId }, "workspace guarded job escaped its stage handler");
+    }).finally(() => {
       this.inFlight.delete(projectId);
       this.aborters.delete(projectId);
       this.inFlightTasks.delete(projectId);
@@ -258,7 +281,8 @@ export class WorkspaceController {
     const previous = this.stages.get(projectId);
     this.stages.set(projectId, stage);
     const nextStatus = stageToFriendlyStatus(stage.kind);
-    this.deps.events.status({ projectId, status: nextStatus });
+    const prevStatus = previous ? stageToFriendlyStatus(previous.kind) : undefined;
+    if (prevStatus !== nextStatus) this.deps.events.status({ projectId, status: nextStatus });
     // Log kind/phase transitions only — percent ticks share a fingerprint and are skipped.
     if (shouldLogStageTransition(previous, stage)) {
       const from = stageFingerprint(previous);
@@ -266,7 +290,6 @@ export class WorkspaceController {
       log.info({ projectId, from, to }, "workspace stage transition");
     }
     // Terminal notify (done/error edge only) — unattended users leave the desk.
-    const prevStatus = previous ? stageToFriendlyStatus(previous.kind) : undefined;
     const kind = jobNotifyKindFromStatusTransition(prevStatus, nextStatus);
     if (kind && this.deps.onJobNotify) {
       try {
@@ -418,10 +441,44 @@ export class WorkspaceController {
    * aren't persisted, so a rehydrated retry re-authors from
    * text + links only — a degraded but functional recovery, not a dead button.
    */
-  async retry(projectId: string): Promise<void> {
+  async retry(projectId: string): Promise<boolean> {
     let input = this.inputs.get(projectId);
     if (!input) input = (await this.deps.recallInput?.(projectId)) ?? undefined;
-    if (input) this.beginScript(projectId, input);
+    if (!input) return false;
+    this.beginScript(projectId, input);
+    return true;
+  }
+
+  /** Resume an existing Queue-owned project from its recovered artifact stage. */
+  async resumeUnattended(projectId: string): Promise<{ ok: true } | { ok: false; error: string }> {
+    const stage = await this.stage(projectId);
+    if (stage.kind === "published" || stage.kind === "writing" || stage.kind === "rendering") {
+      return { ok: true };
+    }
+    if (stage.kind === "ready") {
+      this.publish(projectId);
+      return { ok: true };
+    }
+    if (stage.kind === "script") {
+      this.approve(projectId);
+      return { ok: true };
+    }
+    if (stage.kind === "error") {
+      if (stage.retry === "full") this.publish(projectId);
+      else if (stage.retry === "draft") this.fixWithAi(projectId);
+      else if (stage.retry === "create" && !(await this.retry(projectId))) {
+        return { ok: false, error: "Không đọc được brief để tiếp tục project cũ." };
+      } else if (!stage.retry) {
+        return { ok: false, error: "Project cũ không có điểm tiếp tục an toàn." };
+      }
+      return { ok: true };
+    }
+    return {
+      ok: false,
+      error: stage.kind === "draft-recovery"
+        ? "Project chỉ còn bản nháp nhưng manifest không đọc được; không tự tạo project trùng."
+        : "Project đang chờ duyệt ảnh và không thể tự tiếp tục sau khi app đóng.",
+    };
   }
 
   private async runScript(projectId: string, input: AuthorInput): Promise<void> {
@@ -486,18 +543,27 @@ export class WorkspaceController {
         this.setStage(projectId, await this.publishedStage(projectId, this.deps.toMedia(res.outputPath)));
       } else {
         const fixable = res.error ? classifyError(res.error) === "content" : false;
-        const message = res.error
-          ? toFriendlyError(res.error, { projectId, phase: "full" }).message
-          : "Xuất bản thất bại. Hãy thử lại.";
-        this.setStage(projectId, publishErrorStageOf({ message, fixable }));
-        this.deps.events.friendlyError({ projectId, message, retry: "full", fixable });
+        const friendly = res.error
+          ? toFriendlyError(res.error, { projectId, phase: "full" })
+          : { message: "Xuất bản thất bại. Hãy thử lại." };
+        this.setStage(projectId, publishErrorStageOf({
+          message: friendly.message,
+          fixable,
+          ...(friendly.voiceFailure ? { voiceFailure: friendly.voiceFailure } : {}),
+        }));
+        this.deps.events.friendlyError({ ...friendly, projectId, retry: "full", fixable });
       }
     } catch (e) {
-      const fixable = classifyError(serializeError(e, "render")) === "content";
+      const serialized = serializeError(e, "render");
+      const fixable = classifyError(serialized) === "content";
       console.error(`[workspace] publish failed for ${projectId}:`, e);
-      const message = "Có lỗi khi xuất bản video. Hãy thử lại.";
-      this.setStage(projectId, publishErrorStageOf({ message, fixable }));
-      this.deps.events.friendlyError({ projectId, message, retry: "full", fixable });
+      const friendly = toFriendlyError(serialized, { projectId, phase: "full" });
+      this.setStage(projectId, publishErrorStageOf({
+        message: friendly.message,
+        fixable,
+        ...(friendly.voiceFailure ? { voiceFailure: friendly.voiceFailure } : {}),
+      }));
+      this.deps.events.friendlyError({ ...friendly, projectId, retry: "full", fixable });
     }
   }
 
@@ -650,10 +716,11 @@ export class WorkspaceController {
         this.bumpRenderVersion(projectId);
         this.setStage(projectId, this.readyStage(projectId, await this.storyboardScenesOf(projectId), notice));
       } else if (outcome.kind === "infra") {
-        const message =
-          "Gặp trục trặc khi dựng lại (kết nối hoặc cấu hình). Hãy kiểm tra Cài đặt rồi dùng nút bên dưới để thử lại.";
-        this.setStage(projectId, { kind: "error", message, fixable: false, retry: "draft" });
-        this.deps.events.friendlyError({ projectId, message, retry: "draft", fixable: false });
+        const friendly = outcome.error
+          ? toFriendlyError(outcome.error, { projectId, phase: "draft" })
+          : { message: "Gặp trục trặc khi dựng lại (kết nối hoặc cấu hình). Hãy kiểm tra Cài đặt rồi dùng nút bên dưới để thử lại." };
+        this.setStage(projectId, { kind: "error", message: friendly.message, fixable: false, retry: "draft", ...(friendly.voiceFailure ? { voiceFailure: friendly.voiceFailure } : {}) });
+        this.deps.events.friendlyError({ ...friendly, projectId, retry: "draft", fixable: false });
       } else if (await this.restoreToPriorDraft(projectId, snapshot, hooks, restoreOpts)) {
         // The edit produced a draft we couldn't clean up (content errors after
         // every attempt). Rather than strand the user on an error screen with a
@@ -756,10 +823,7 @@ export class WorkspaceController {
     repairTrace?: WorkspaceRepairTrace,
   ): AgentHooks {
     return {
-      onProgress: (ratio) => {
-        this.setStage(projectId, renderingStageOf(phase, { ratio }));
-        this.deps.events.progress({ projectId, ratio, phase });
-      },
+      onProgress: (ratio) => this.updateRenderProgress(projectId, phase, ratio),
       onSceneProduced: (sceneId, stillPath) => this.deps.events.scene({ projectId, sceneId, stillPath: this.deps.toMedia(stillPath) }),
       onRepair: (fix) => {
         repairTrace?.noteRepair(fix);
@@ -769,6 +833,21 @@ export class WorkspaceController {
         this.setStage(projectId, { kind: "rendering", percent: 0, phase: "edit" });
       },
     };
+  }
+
+  private updateRenderProgress(
+    projectId: string,
+    phase: Extract<ProjectStage, { kind: "rendering" }>["phase"],
+    ratio: number,
+  ): void {
+    const normalized = clampRenderRatio(ratio);
+    const next = renderingStageOf(phase, { ratio: normalized });
+    const previous = this.stages.get(projectId);
+    if (previous?.kind === "rendering" && previous.phase === next.phase && previous.percent === next.percent) return;
+    this.setStage(projectId, next);
+    if (phase === "draft" || phase === "full") {
+      this.deps.events.progress({ projectId, ratio: normalized, phase });
+    }
   }
 
   private flushRepairTrace(projectId: string, trace: WorkspaceRepairTrace, outcome: "passed" | "reverted" | "exhausted" | "infra" | "cancelled"): void {
@@ -785,7 +864,7 @@ export class WorkspaceController {
   reportRenderProgress(projectId: string, ratio: number): void {
     const s = this.stages.get(projectId);
     if (s?.kind !== "rendering") return;
-    this.setStage(projectId, renderingStageOf(s.phase, { ratio: clampRenderRatio(ratio) }));
+    this.updateRenderProgress(projectId, s.phase, ratio);
   }
 
   private async runRender(projectId: string, readyNotice?: string): Promise<void> {
@@ -858,11 +937,11 @@ export class WorkspaceController {
         this.setStage(projectId, this.readyStage(projectId, await this.storyboardScenesOf(projectId), readyNotice));
       } else if (outcome.kind === "infra") {
         this.flushRepairTrace(projectId, repairTrace, "infra");
-        // Not agent-fixable: tell the user to retry / check setup, no "Sửa bằng AI".
-        const message =
-          "Gặp trục trặc khi dựng (kết nối, giọng đọc hoặc cấu hình). Hãy kiểm tra Cài đặt rồi dùng nút bên dưới để thử lại.";
-        this.setStage(projectId, { kind: "error", message, fixable: false, retry: "draft" });
-        this.deps.events.friendlyError({ projectId, message, retry: "draft", fixable: false });
+        const friendly = outcome.error
+          ? toFriendlyError(outcome.error, { projectId, phase: "draft" })
+          : { message: "Gặp trục trặc khi dựng (kết nối, giọng đọc hoặc cấu hình). Hãy kiểm tra Cài đặt rồi dùng nút bên dưới để thử lại." };
+        this.setStage(projectId, { kind: "error", message: friendly.message, fixable: false, retry: "draft", ...(friendly.voiceFailure ? { voiceFailure: friendly.voiceFailure } : {}) });
+        this.deps.events.friendlyError({ ...friendly, projectId, retry: "draft", fixable: false });
       } else {
         this.flushRepairTrace(projectId, repairTrace, "exhausted");
         // exhausted: content defects remain → offer "Sửa bằng AI" (neutral copy; button chosen by fixable).
@@ -873,13 +952,16 @@ export class WorkspaceController {
       }
     } catch (e) {
       this.flushRepairTrace(projectId, repairTrace, "infra");
-      const fixable = classifyError(serializeError(e, "render")) === "content";
+      const serialized = serializeError(e, "render");
+      const fixable = classifyError(serialized) === "content";
       console.error(`[workspace] render failed for ${projectId}:`, e);
-      const message = fixable
-        ? "Một vài cảnh cần chỉnh lại trước khi dựng xong. Hãy dùng nút bên dưới để tiếp tục."
-        : "Có lỗi khi dựng video. Hãy kiểm tra kết nối hoặc Cài đặt, rồi dùng nút bên dưới để thử lại.";
-      this.setStage(projectId, { kind: "error", message, fixable, retry: "draft" });
-      this.deps.events.friendlyError({ projectId, message, retry: "draft", fixable });
+      const friendly = serialized.voiceFailure
+        ? toFriendlyError(serialized, { projectId, phase: "draft" })
+        : { message: fixable
+          ? "Một vài cảnh cần chỉnh lại trước khi dựng xong. Hãy dùng nút bên dưới để tiếp tục."
+          : "Có lỗi khi dựng video. Hãy kiểm tra kết nối hoặc Cài đặt, rồi dùng nút bên dưới để thử lại." };
+      this.setStage(projectId, { kind: "error", message: friendly.message, fixable, retry: "draft", ...(friendly.voiceFailure ? { voiceFailure: friendly.voiceFailure } : {}) });
+      this.deps.events.friendlyError({ ...friendly, projectId, retry: "draft", fixable });
     }
   }
 
@@ -1072,7 +1154,10 @@ export class WorkspaceController {
     if (this.inFlight.has(projectId) || !renderThumbnail) return null;
     this.inFlight.add(projectId);
     try {
-      const { path } = await renderThumbnail(projectId);
+      let path = "";
+      await this.enqueueProcessWork(async () => {
+        ({ path } = await renderThumbnail(projectId));
+      });
       const thumbnailUrl = this.deps.toMedia(path);
       if (!thumbnailUrl) {
         console.warn(`[workspace] generateThumbnail produced a path mediaUrl rejected: ${projectId}`);

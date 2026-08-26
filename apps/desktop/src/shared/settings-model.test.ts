@@ -12,6 +12,9 @@ import {
   MIN_WORDS_PER_SECOND,
   MAX_WORDS_PER_SECOND,
   normalizeReviewMode,
+  normalizeSettingsUpdate,
+  FULL_AUTO_SETTINGS_PATCH,
+  isFullAutoSettings,
   reviewModeAllowsSceneEdit,
   reviewModeNeedsDraftMp4,
 
@@ -56,6 +59,29 @@ describe("reviewMode helpers", () => {
     expect(reviewModeNeedsDraftMp4("full")).toBe(true);
     expect(reviewModeNeedsDraftMp4("stills_edit")).toBe(false);
     expect(reviewModeNeedsDraftMp4("skip_edit")).toBe(false);
+  });
+});
+
+describe("settings IPC normalization", () => {
+  it("allow-lists fields and preserves only correctly typed values", () => {
+    expect(normalizeSettingsUpdate({
+      reviewMode: "skip_edit",
+      scriptGateEnabled: false,
+      maxRepairAttempts: 99,
+      voiceCredentials: { vivibe: { apiKey: "must-not-cross-ipc" } },
+      outputDir: "C:/elsewhere",
+      smokeRenderEnabled: "false",
+    })).toEqual({ reviewMode: "skip_edit", scriptGateEnabled: false, maxRepairAttempts: 10 });
+  });
+
+  it("rejects malformed top-level payloads instead of leaking a TypeError", () => {
+    expect(() => normalizeSettingsUpdate(null)).toThrow("Dữ liệu cài đặt không hợp lệ.");
+    expect(() => normalizeSettingsUpdate([])).toThrow("Dữ liệu cài đặt không hợp lệ.");
+  });
+
+  it("defines the explicit shared Full auto preset", () => {
+    expect(isFullAutoSettings({ ...FULL_AUTO_SETTINGS_PATCH })).toBe(true);
+    expect(isFullAutoSettings({ ...FULL_AUTO_SETTINGS_PATCH, scriptGateEnabled: true })).toBe(false);
   });
 });
 

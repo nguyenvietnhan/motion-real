@@ -3,8 +3,9 @@ import type { FriendlyStatus, ProjectCardVM } from "../../shared/types.js";
 import { paginate, type GalleryLoad } from "../../shared/gallery-controller.js";
 import { FRIENDLY_LABELS, FRIENDLY_SHORT_LABELS, FRIENDLY_STATUSES } from "../../shared/friendly-status.js";
 import { Icon } from "../icons.js";
-import { EmptyState, LoadingLine, PageHeader, ProjectGrid } from "../primitives.js";
+import { EmptyState, LoadingLine, PageHeader, ProjectGrid, StableButtonLabel } from "../primitives.js";
 import { useDismissable } from "../use-dismissable.js";
+import { useMenuNavigation } from "../use-menu-navigation.js";
 
 /** Scroll the shell main pane to top (gallery lives inside `.ns-main`). */
 function scrollGalleryToTop(): void {
@@ -26,13 +27,17 @@ const GalleryFilterMenu: React.FC<{
 }> = ({ value, onChange }) => {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
   const current = FILTERS.find((f) => f.id === value) ?? FILTERS[0]!;
   const close = useCallback(() => setOpen(false), []);
   useDismissable(open, close, ref);
+  const menu = useMenuNavigation(open, close, triggerRef, menuRef);
 
   return (
     <div ref={ref} className="ns-gallery-filter-wrap">
       <button
+        ref={triggerRef}
         type="button"
         className={`ns-gallery-filter-trigger${open ? " is-open" : ""}`}
         aria-haspopup="listbox"
@@ -42,10 +47,12 @@ const GalleryFilterMenu: React.FC<{
       >
         {Icon.film({ size: 14 })}
         <span className="ns-gallery-filter-caption">Lọc</span>
-        <span className="ns-gallery-filter-value">{current.label}</span>
+        <span className="ns-gallery-filter-value">
+          <StableButtonLabel reserve={FILTERS.map((filter) => filter.label)}>{current.label}</StableButtonLabel>
+        </span>
       </button>
       {open && (
-        <div className="ns-gallery-filter-menu" role="listbox" aria-label="Lọc theo trạng thái">
+        <div ref={menuRef} className="ns-gallery-filter-menu" role="listbox" aria-label="Lọc theo trạng thái" onKeyDown={menu.onKeyDown}>
           {FILTERS.map((f) => {
             const active = f.id === value;
             return (
@@ -57,7 +64,7 @@ const GalleryFilterMenu: React.FC<{
                 className={`ns-gallery-filter-opt${active ? " is-active" : ""}`}
                 onClick={() => {
                   onChange(f.id);
-                  setOpen(false);
+                  menu.close();
                 }}
                 title={f.id === "all" ? "Tất cả dự án" : FRIENDLY_LABELS[f.id]}
               >

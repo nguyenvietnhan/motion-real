@@ -80,22 +80,28 @@ for line count alone; see the composition-root charter in `architecture.md`.
 
 TTS provider clients, provider HTTP helpers, caption timing, and audio operations
 live under `packages/tts/src/`; keep `index.ts` as the public barrel and
-cache-key surface. Renderer bundle/composition preparation lives in
+cache-key surface. Provider-specific adapters map errors to
+`VoiceProviderFailure` at that boundary; friendly UI and Queue policy branch
+only on the shared code, never on vendor response strings. Adding a provider
+means adding its client/error mapper and factory entry, not another Queue branch.
+Renderer bundle/composition preparation lives in
 `packages/pipeline/src/render/composition-prep.ts`; keep render primitives in
 `renderer.ts` unless a future slice proves a narrower behavior boundary.
 
-## Parallel Render Assumption
+## Process-Wide Workflow Gate
 
-Current render code assumes one render workflow uses the process-local
-bundle/composition caches at a time. The same project is protected by
-`withProjectRenderLock`, but different projects are not documented as safe to
-render concurrently in one desktop/main-process runtime because the shared
-bundle and composition caches are small mutable eviction caches (`bundleCache`
-cap 2, `compositionCache` cap 8), not leased resources.
+`WorkspaceController` serializes every cache-sensitive author/render/edit/
+publish/thumbnail workflow through one process-wide FIFO gate. This includes
+different projects, Home, Queue containers, and thumbnails. `isBusy()` is the
+single spillover signal used by Home together with Queue runner state. Keep the
+per-project AbortController/guard semantics: cancellation while waiting must
+skip the queued work, not open a second lane.
 
-Treat this as a hard scaling boundary, not a missing UI button or queue. Do not
-enable project-level or cross-project parallel rendering until these points have
-an owner-approved design and focused tests:
+The same project is additionally protected by `withProjectRenderLock`. The
+shared bundle/composition caches are small mutable eviction caches
+(`bundleCache` cap 2, `compositionCache` cap 8), not leased resources. Treat
+the global FIFO as a hard correctness boundary; do not add a direct controller
+path that bypasses it.
 
 - Bundle cache: `composition-prep.ts` evicts Remotion bundle directories
   best-effort and has no active-user reference count. Parallel rendering needs a
@@ -105,8 +111,8 @@ an owner-approved design and focused tests:
   composition id, and input props, but their lifetime is still tied to the
   bundle `serveUrl`. Parallel rendering needs cache mutation and eviction to be
   concurrency-safe with the bundle lifecycle.
-- Project render lock: `withProjectRenderLock` is still the required boundary
-  for draft, full, stills, and thumbnail jobs. Any parallel path must keep the
+- Project render lock: `withProjectRenderLock` remains required for draft,
+  full, stills, and thumbnail jobs. Any future parallel path must keep the
   in-process and file lock semantics for the same project, and must explicitly
   decide whether different projects may render concurrently in one process.
 - Thumbnail/stills lock behavior: `renderProjectStillsUnlocked` writes a
@@ -116,7 +122,7 @@ an owner-approved design and focused tests:
   `renderProjectStills` wrappers or another job could observe the temporary
   no-audio lock.
 
-## Render Parallelism Design Gate
+## Cross-Project Parallelism Design Gate
 
 Before enabling cross-project render parallelism, approve a design that covers
 these minimum points:
@@ -128,8 +134,8 @@ these minimum points:
 - Composition cache lifetime: selected composition entries must be scoped to an
   active bundle lease or evicted only after the owning bundle is inactive.
 - Concurrency policy: same-project rendering stays serialized by
-  `withProjectRenderLock`; any cross-project rendering must declare a global
-  process limit, queue/cancel behavior, and how UI progress events are routed.
+  `withProjectRenderLock`; any replacement for the current process FIFO must
+  declare a global process limit, queue/cancel behavior, and UI progress routing.
 - Stale lock policy: keep the current stale/dead-pid lock recovery semantics
   unless a focused change updates `PROJECT_RENDER_LOCK_STALE_MS` with tests.
 - Crash cleanup: orphaned bundle/temp directories may be removed by startup or
@@ -137,7 +143,8 @@ these minimum points:
   recover through the existing stale/dead-pid path.
 - Verification: add focused tests around bundle lease eviction,
   project-lock serialization, cache pruning, and at least one render-path smoke
-  before exposing a UI queue or parallel desktop workflow.
+  before enabling parallel desktop workflows. The existing UI Queue is serial
+  and is not authorization to remove the gate.
 
 ## Cache Pruning Policy
 
@@ -294,7 +301,9 @@ a product/cost/UX decision, not a cleanup task.
 `mock` and `none` are explicit CLI/dev/offline TTS modes. Desktop production
 uses real configured providers (`vivibe` or `elevenlabs`) and must block on
 missing credentials instead of silently falling back to `mock`, `none`, or a
-different provider.
+different provider. The Settings voice test is explicit, synthesizes one short
+real sample, caps its file at 1 MiB, and removes its temporary output. It is not
+an automatic preflight and may consume a small amount of provider credit.
 
 ## Prompt Change Checklist
 
@@ -498,7 +507,7 @@ Prefer descriptive, domain-owned paths over loose root files:
 - `VIDEO_TOOL_HOME/.video-tool/<domain>/`: generated runtime state and user-added
   media;
 - `docs/current/`: durable documentation only;
-- avoid long-lived `docs/working-notes/`; if a short mid-task note exists,
+- avoid long-lived `docs/working/`; if a short mid-task note exists,
   sync outcomes into `docs/current/` or `AI_CONTRACT.md` and **delete** the note
   in the same cleanup. Agents must not implement from working notes.
 

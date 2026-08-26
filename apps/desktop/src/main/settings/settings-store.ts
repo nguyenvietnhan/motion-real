@@ -1,4 +1,4 @@
-import type { SettingsModel, VoiceProviderChoice } from "../../shared/types.js";
+import type { SettingsModel, SettingsUpdateInput, VoiceProviderChoice } from "../../shared/types.js";
 import {
   DEFAULT_REFINE_PASSES,
   ELEVENLABS_DEFAULT_MODEL_ID,
@@ -115,7 +115,15 @@ export class SettingsStore {
     merged.maxRepairAttempts = clampMaxRepairAttempts(merged.maxRepairAttempts);
     merged.refinePasses = clampRefinePasses(merged.refinePasses);
     merged.reviewMode = normalizeReviewMode(merged.reviewMode);
-    merged.smokeRenderEnabled = Boolean(merged.smokeRenderEnabled);
+    for (const key of [
+      "scriptGateEnabled",
+      "refineEarlyStop",
+      "imageCrawlAiFilter",
+      "imageCrawlHumanReview",
+      "smokeRenderEnabled",
+    ] as const) {
+      merged[key] = typeof saved[key] === "boolean" ? saved[key] : base[key];
+    }
     return merged;
   }
 
@@ -190,7 +198,8 @@ export class SettingsStore {
   get imageCrawlAiFilter(): boolean { return this.settings.imageCrawlAiFilter; }
   get imageCrawlHumanReview(): boolean { return this.settings.imageCrawlHumanReview; }
 
-  update(patch: Partial<SettingsModel>): SettingsModel {
+  update(patch: SettingsUpdateInput): SettingsModel {
+    const previous = this.settings;
     const provider = patch.voiceProvider === "elevenlabs" ? "elevenlabs"
       : patch.voiceProvider === "vivibe" ? "vivibe"
         : this.settings.voiceProvider;
@@ -204,20 +213,27 @@ export class SettingsStore {
       voiceProvider: provider,
       preferredAiModelId,
       voiceCredentials: this.settings.voiceCredentials,
-      voiceCalibrations: patch.voiceCalibrations ?? this.settings.voiceCalibrations,
+      voiceCalibrations: this.settings.voiceCalibrations,
     };
     this.settings.maxRepairAttempts = clampMaxRepairAttempts(this.settings.maxRepairAttempts);
     this.settings.refinePasses = clampRefinePasses(this.settings.refinePasses);
     this.settings.reviewMode = normalizeReviewMode(this.settings.reviewMode);
     this.settings.smokeRenderEnabled = Boolean(this.settings.smokeRenderEnabled);
     this.settings = this.withCredentialStates(this.settings);
-    this.save();
+    if (!this.save()) {
+      this.settings = previous;
+      throw new Error("Không lưu được cài đặt. Hãy kiểm tra quyền ghi rồi thử lại.");
+    }
     return this.settings;
   }
 
   setScriptGateEnabled(enabled: unknown): void {
+    const previous = this.settings;
     this.settings = { ...this.settings, scriptGateEnabled: Boolean(enabled) };
-    this.save();
+    if (!this.save()) {
+      this.settings = previous;
+      throw new Error("Không lưu được cài đặt duyệt kịch bản.");
+    }
   }
 
   setApiKey(provider: VoiceProviderChoice, apiKey: string): SettingsModel {

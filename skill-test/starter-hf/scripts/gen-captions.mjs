@@ -10,13 +10,29 @@ if (!slug) {
 const starterDir = resolve(dirname(import.meta.filename), "..");
 const jobDir = resolve(starterDir, "..", "jobs", slug);
 
+const planPath = join(jobDir, "video-plan.json");
+const timingPath = join(jobDir, "timing.json");
 const beatsPath = join(jobDir, "beats.json");
-if (!existsSync(beatsPath)) {
-  console.error(`LOI: khong tim thay ${beatsPath}`);
-  console.error("Beats.json phai ton tai va da cap nhat duration SAU khi sinh voice (Stage 3).");
+const experimental = existsSync(planPath) && existsSync(timingPath);
+if (!experimental && !existsSync(beatsPath)) {
+  console.error(`LOI: can ${planPath} + ${timingPath} (experimental) hoac ${beatsPath} (legacy).`);
   process.exit(1);
 }
-const beats = JSON.parse(readFileSync(beatsPath, "utf-8"));
+const beats = experimental
+  ? (() => {
+      const plan = JSON.parse(readFileSync(planPath, "utf-8"));
+      const timing = JSON.parse(readFileSync(timingPath, "utf-8"));
+      const timingById = new Map(timing.beats.map((beat) => [beat.id, beat]));
+      return {
+        totalSeconds: timing.total_duration,
+        beats: plan.beats.map((beat) => {
+          const time = timingById.get(beat.id);
+          if (!time) throw new Error(`Thieu timing cho ${beat.id}`);
+          return { id: beat.id, wav: time.voice_file, start: time.start, duration: time.duration };
+        }),
+      };
+    })()
+  : JSON.parse(readFileSync(beatsPath, "utf-8"));
 
 const voiceMeta = beats.beats.map((b) => {
   const metaPath = join(jobDir, b.wav.replace(/\.wav$/, ".json"));

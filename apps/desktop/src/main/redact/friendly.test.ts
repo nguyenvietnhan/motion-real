@@ -114,4 +114,23 @@ describe("Property 6: no engine internals leak", () => {
     expect(friendly.message).toContain("Cảnh 9");
     expect(friendly.message).toContain("viết lại");
   });
+
+  it.each([
+    ["invalid_api_key", /API key/i],
+    ["insufficient_credits", /hết credit/i],
+    ["rate_limited", /giới hạn/i],
+    ["voice_not_found", /Voice ID/i],
+  ] as const)("maps voice failure %s to actionable safe copy", (code, expected) => {
+    const friendly = toFriendlyError({
+      message: "RAW {secret} at fn (a.ts:1:2)",
+      stage: "tts",
+      cause: "provider body must not cross",
+      severity: "error",
+      voiceFailure: { provider: "elevenlabs", code, retryable: code === "rate_limited" },
+    });
+    expect(friendly.message).toMatch(expected);
+    expect(friendly.voiceFailure?.code).toBe(code);
+    expect(friendly.message).not.toContain("RAW");
+    assertClean(friendly.message);
+  });
 });

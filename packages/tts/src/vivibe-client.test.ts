@@ -2,7 +2,7 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { VivibeClient } from "./index.js";
+import { VivibeClient, VoiceProviderError } from "./index.js";
 
 const dirs: string[] = [];
 
@@ -50,5 +50,44 @@ describe("VivibeClient", () => {
       method: "ttsLongText",
       input: { text: "Xin chao", userVoiceId: "voice-1", speed: 1 },
     });
+  });
+
+  it("classifies nested JSON-RPC insufficient credits", async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({
+      error: {
+        code: "INTERNAL_ERROR",
+        message: "Bạn đã hết credit, cần mua gói để tiếp tục sử dụng.",
+        data: { code: "insufficient_credits", required: 195, available: -6650 },
+      },
+    }), { status: 200, headers: { "content-type": "application/json" } }));
+    const client = new VivibeClient({ apiKey: "secret", fetch: fetchMock, retryAttempts: 1 });
+    const error = await client.synthesize({ text: "x", voiceId: "v", speed: 1, outputPath: "unused" })
+      .catch((value: unknown) => value);
+
+    expect(error).toBeInstanceOf(VoiceProviderError);
+    expect((error as VoiceProviderError).failure).toMatchObject({
+      provider: "vivibe",
+      code: "insufficient_credits",
+      retryable: false,
+    });
+    expect((error as Error).message).not.toContain("-6650");
+  });
+
+  it("classifies HTTP auth, rate limit and outage without leaking response details", async () => {
+    for (const [status, code] of [[401, "invalid_api_key"], [429, "rate_limited"], [503, "provider_unavailable"]] as const) {
+      const client = new VivibeClient({
+        apiKey: "secret",
+        retryAttempts: 1,
+        fetch: vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({ message: `secret-${status}` }), {
+          status,
+          headers: { "content-type": "application/json", ...(status === 429 ? { "retry-after": "2" } : {}) },
+        })),
+      });
+      const error = await client.synthesize({ text: "x", voiceId: "v", speed: 1, outputPath: "unused" })
+        .catch((value: unknown) => value) as VoiceProviderError;
+      expect(error.failure.code).toBe(code);
+      if (status === 429) expect(error.failure.retryAfterMs).toBe(2000);
+      expect(error.message).not.toContain(`secret-${status}`);
+    }
   });
 });

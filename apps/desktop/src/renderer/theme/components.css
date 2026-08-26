@@ -17,6 +17,19 @@
   letter-spacing: -0.01em;
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
+.ns-stable-button-label {
+  display: inline-grid;
+  place-items: center;
+}
+.ns-stable-button-label > span {
+  grid-area: 1 / 1;
+  white-space: nowrap;
+}
+.ns-stable-button-label-reserve {
+  visibility: hidden;
+  pointer-events: none;
+  user-select: none;
+}
 .ns-btn:hover {
   background: rgba(255, 255, 255, 0.08);
   border-color: rgba(255, 255, 255, 0.15);

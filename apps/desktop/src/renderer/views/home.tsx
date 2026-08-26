@@ -22,18 +22,38 @@ import {
   type CreatePathSettingsTab,
 } from "../../shared/create-path-readiness.js";
 import { Icon } from "../icons.js";
-import { EmptyState, LoadingLine, PageHeader, ProjectGrid } from "../primitives.js";
+import { EmptyState, LoadingLine, PageHeader, ProjectGrid, StableButtonLabel } from "../primitives.js";
 import { compactNotificationMessage, errorDetails, useNotifications } from "../notifications.js";
 import { useDismissable } from "../use-dismissable.js";
+import { useMenuNavigation } from "../use-menu-navigation.js";
 import { BgmPicker } from "./bgm-picker.js";
 
 /** Read a File's bytes and base64-encode them (stable across the IPC boundary). */
-async function fileToBase64(file: File): Promise<string> {
-  const buf = await file.arrayBuffer();
-  const bytes = new Uint8Array(buf);
-  let binary = "";
-  for (let i = 0; i < bytes.length; i += 1) binary += String.fromCharCode(bytes[i]!);
-  return btoa(binary);
+export function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(reader.error ?? new Error("Không đọc được ảnh."));
+    reader.onabort = () => reject(new Error("Đã dừng đọc ảnh."));
+    reader.onload = () => {
+      const result = reader.result;
+      const comma = typeof result === "string" ? result.indexOf(",") : -1;
+      if (typeof result !== "string" || !result.startsWith("data:") || comma < 0) {
+        reject(new Error("Dữ liệu ảnh không hợp lệ."));
+        return;
+      }
+      resolve(result.slice(comma + 1));
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+/** Keep paste/drop memory bounded while preserving the user's file order. */
+export async function filesToDroppedImages(files: readonly File[]): Promise<DroppedImage[]> {
+  const dropped: DroppedImage[] = [];
+  for (const file of files) {
+    dropped.push({ name: file.name || "pasted-image", dataBase64: await fileToBase64(file) });
+  }
+  return dropped;
 }
 
 /** Plain-Vietnamese reason for a rejected image pick (never a raw error token). */
@@ -45,9 +65,23 @@ const REJECT_REASON: Record<string, string> = {
   empty: "tệp rỗng",
 };
 
-function rejectedImageDetails(rejected: PickImagesResult["rejected"]): string {
+export function rejectedImageDetails(rejected: PickImagesResult["rejected"]): string {
   return rejected.map((r) => REJECT_REASON[r.reason] ?? r.reason).join(", ");
 }
+
+export const StagedImageStrip: React.FC<{ images: StagedImage[]; onRemove: (ref: string) => void }> = ({ images, onRemove }) => (
+  images.length > 0 ? (
+    <div className="ns-attached-images-strip">
+      {images.map((img) => (
+        <div key={img.ref} className="ns-attached-image-thumb" style={{ backgroundImage: `url(${img.previewUrl})` }}>
+          <button type="button" aria-label={`Bỏ ảnh ${img.name}`} onClick={() => onRemove(img.ref)} className="ns-attached-image-remove">
+            <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round"><path d="M5 5l14 14M19 5L5 19" /></svg>
+          </button>
+        </div>
+      ))}
+    </div>
+  ) : null
+);
 
 /**
  * A compact delivery-knob button : a short pill showing an
@@ -56,7 +90,7 @@ function rejectedImageDetails(rejected: PickImagesResult["rejected"]): string {
  * popover. Generic over the option value so duration / language / voice stay
  * type-safe. `open`/`onToggle` are lifted so only ONE knob popover is open at a time.
  */
-function KnobButton<T extends string | number>(props: {
+export function KnobButton<T extends string | number>(props: {
   icon: React.ReactNode;
   title: string;
   value: T;
@@ -68,11 +102,15 @@ function KnobButton<T extends string | number>(props: {
 }): React.ReactElement {
   const current = props.options.find((o) => o.value === props.value);
   const ref = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const menu = useMenuNavigation(props.open, props.onClose, triggerRef, menuRef);
   // Close on outside click / Escape so a popover never lingers over the page.
   useDismissable(props.open, props.onClose, ref);
   return (
     <div ref={ref} style={{ position: "relative" }}>
       <button
+        ref={triggerRef}
         type="button"
         className={`ns-knob-chip${props.open ? " is-open" : ""}`}
         aria-haspopup="true"
@@ -81,10 +119,12 @@ function KnobButton<T extends string | number>(props: {
         onClick={props.onToggle}
       >
         {props.icon}
-        <span>{current?.label ?? String(props.value)}</span>
+        <StableButtonLabel reserve={props.options.map((option) => option.label)}>
+          {current?.label ?? String(props.value)}
+        </StableButtonLabel>
       </button>
       {props.open && (
-        <div className="ns-knob-pop" role="menu" aria-label={props.title}>
+        <div ref={menuRef} className="ns-knob-pop" role="menu" aria-label={props.title} onKeyDown={menu.onKeyDown}>
           <span className="ns-knob-pop-label">{props.title}</span>
           {props.options.map((o) => {
             const active = o.value === props.value;
@@ -97,7 +137,7 @@ function KnobButton<T extends string | number>(props: {
                 className={`ns-knob-opt${active ? " is-active" : ""}`}
                 onClick={() => {
                   props.onChange(o.value);
-                  props.onClose();
+                  menu.close();
                 }}
               >
                 <span className="ns-knob-opt-tick">{active ? Icon.check({ size: 14 }) : null}</span>
@@ -264,56 +304,6 @@ export const HomeView: React.FC<{
     }),
   });
   const createPathOk = createPath.ok;
-  // Conversational examples (not rigid labels) — typewriter suggests how to start.
-  const PLACEHOLDERS = [
-    "Hãy tạo cho tôi video về robot AI tuần này…",
-    "Từ link này: https://vnexpress.net/…",
-    "Chủ đề: vì sao startup nhỏ đang thắng lớn…",
-    "Kéo thả ảnh sản phẩm, rồi kể chuyện cho tôi…",
-  ];
-  const [currentPlaceholder, setCurrentPlaceholder] = useState("");
-  useEffect(() => {
-    let isMounted = true;
-    let placeholderIdx = 0;
-    let charIdx = 0;
-    let isDeleting = false;
-    let timeoutId: NodeJS.Timeout;
-
-    const tick = () => {
-      if (!isMounted) return;
-      const fullText = PLACEHOLDERS[placeholderIdx] || "";
-      
-      if (isDeleting) {
-        setCurrentPlaceholder(fullText.substring(0, charIdx - 1));
-        charIdx--;
-      } else {
-        setCurrentPlaceholder(fullText.substring(0, charIdx + 1));
-        charIdx++;
-      }
-
-      let speed = 40; // fast typing speed for better feel
-      if (isDeleting) {
-        speed = 20; // deleting is twice as fast
-      }
-
-      if (!isDeleting && charIdx === fullText.length) {
-        speed = 3000; // pause at full text
-        isDeleting = true;
-      } else if (isDeleting && charIdx === 0) {
-        isDeleting = false;
-        placeholderIdx = (placeholderIdx + 1) % PLACEHOLDERS.length;
-        speed = 400; // pause before typing next
-      }
-
-      timeoutId = setTimeout(tick, speed);
-    };
-
-    tick();
-    return () => {
-      isMounted = false;
-      clearTimeout(timeoutId);
-    };
-  }, []);
   // Which delivery-knob popover is open (only one at a time); null = all closed.
   // Each knob is its own inline chip next to "+", revealing its options on click.
   const [openKnob, setOpenKnob] = useState<null | "duration" | "language" | "voice">(null);
@@ -371,9 +361,7 @@ export const HomeView: React.FC<{
    */
   const importFiles = (files: File[]): void => {
     if (!onImportImageBytes || files.length === 0) return;
-    void Promise.all(
-      files.map(async (f) => ({ name: f.name || "pasted-image", dataBase64: await fileToBase64(f) })),
-    )
+    void filesToDroppedImages(files)
       .then((dropped) => onImportImageBytes(dropped))
       .then(mergeResult)
       .catch((err: unknown) => {
@@ -501,21 +489,11 @@ export const HomeView: React.FC<{
               value={raw}
               onChange={(e) => setRaw(e.target.value)}
               onPaste={onPaste}
-              placeholder={currentPlaceholder}
+              placeholder="Mô tả video, dán link hoặc kéo thả ảnh…"
               rows={2}
             />
             
-            {images.length > 0 && (
-              <div className="ns-attached-images-strip">
-                {images.map((img) => (
-                  <div key={img.ref} className="ns-attached-image-thumb" style={{ backgroundImage: `url(${img.previewUrl})` }}>
-                    <button aria-label={`Bỏ ảnh ${img.name}`} onClick={() => removeImage(img.ref)} className="ns-attached-image-remove">
-                      <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round"><path d="M5 5l14 14M19 5L5 19" /></svg>
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
+            <StagedImageStrip images={images} onRemove={removeImage} />
 
             <div className="ns-composer-bar">
               <div className="ns-composer-bar-leading">

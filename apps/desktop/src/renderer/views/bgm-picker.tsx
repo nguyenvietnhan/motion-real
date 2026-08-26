@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from
 import type { BgmTrackVM } from "../../shared/types.js";
 import { Icon } from "../icons.js";
 import { useDismissable } from "../use-dismissable.js";
+import { useMenuNavigation } from "../use-menu-navigation.js";
 import { placeDiagPanel, type DiagPanelPlacement } from "./diag-panel-placement.js";
 
 const BGM_MENU_WIDTH_PX = 268;
@@ -24,6 +25,7 @@ export const BgmPicker: React.FC<{
 }> = ({ bgm, selected, busy = false, onAdd, onRemove, onSelect, className }) => {
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
   const [open, setOpen] = useState(false);
   const [placement, setPlacement] = useState<DiagPanelPlacement | null>(null);
@@ -64,6 +66,7 @@ export const BgmPicker: React.FC<{
 
   const closeMenu = useCallback(() => setOpen(false), []);
   useDismissable(open, closeMenu, rootRef);
+  const menu = useMenuNavigation(open, closeMenu, triggerRef, menuRef);
 
   useEffect(() => () => audioRef.current?.pause(), []);
 
@@ -74,7 +77,7 @@ export const BgmPicker: React.FC<{
   const choose = (name: string | null): void => {
     stopPreview();
     void onSelect(name);
-    setOpen(false);
+    menu.close();
   };
   const togglePreview = (track: BgmTrackVM): void => {
     const audio = audioRef.current;
@@ -118,9 +121,11 @@ export const BgmPicker: React.FC<{
 
       {open && placement && (
         <div
+          ref={menuRef}
           className="ns-bgm-menu"
           role="menu"
           aria-label="Nhạc nền"
+          onKeyDown={menu.onKeyDown}
           style={{
             top: placement.top,
             left: placement.left,

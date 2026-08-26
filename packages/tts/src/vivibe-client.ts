@@ -12,11 +12,11 @@ import {
   integerEnv,
   normalizeAudioResponse,
   readState,
-  retrySuffix,
   stripDataPrefix,
   type NormalizedAudio,
 } from "./provider-http.js";
 import type { TTSRequest, TTSResult, TTSVoice, TtsClient } from "./types.js";
+import { VoiceProviderError, retryAfterMs, voiceProviderErrorFrom } from "./provider-error.js";
 
 export type VivibeClientOptions = {
   apiKey?: string;
@@ -182,7 +182,7 @@ export class VivibeClient implements TtsClient {
 
   private async call<T>(method: string, input: unknown): Promise<T> {
     if (!this.apiKey) {
-      throw new Error("Missing VIVIBE_API_KEY. Add it to .env or your shell environment.");
+      throw new VoiceProviderError({ provider: "vivibe", code: "not_configured", retryable: false });
     }
 
     const res = await fetchWithRetry(
@@ -203,13 +203,21 @@ export class VivibeClient implements TtsClient {
     );
 
     if (!res.ok) {
-      const suffix = retrySuffix(res.status, this.retryAttempts);
-      throw new Error(`Vivibe request failed${suffix}: ${res.status} ${res.statusText}`);
+      let details: unknown = res.statusText;
+      try {
+        details = await res.json();
+      } catch (_error) {}
+      const wait = retryAfterMs(res);
+      throw voiceProviderErrorFrom("vivibe", {
+        status: res.status,
+        details,
+        ...(wait !== undefined ? { retryAfterMs: wait } : {}),
+      });
     }
 
     const json = (await res.json()) as JsonRpcResponse<T>;
     if (json.error) {
-      throw new Error(`Vivibe JSON-RPC error: ${JSON.stringify(json.error)}`);
+      throw voiceProviderErrorFrom("vivibe", { details: json.error });
     }
     if (!("result" in json)) {
       throw new Error(`Vivibe response missing result: ${JSON.stringify(json)}`);

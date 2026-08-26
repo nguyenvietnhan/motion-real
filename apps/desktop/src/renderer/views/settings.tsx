@@ -1,4 +1,4 @@
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import type {
   AiAccountState,
   DesktopReadinessReport,
@@ -6,14 +6,15 @@ import type {
   ModelInfo,
   ReviewMode,
   SettingsModel,
+  SettingsUpdateInput,
   VoiceProviderChoice,
+  VoiceTestResult,
 } from "../../shared/types.js";
-import { DEFAULT_REFINE_PASSES } from "../../shared/settings-model.js";
+import { DEFAULT_REFINE_PASSES, FULL_AUTO_SETTINGS_PATCH } from "../../shared/settings-model.js";
 import { activeAccount } from "../../shared/active-account.js";
 import { Icon } from "../icons.js";
-import { ChoiceGroup, ExpandableToggle, Field, InfoHint, InfoRow, NumberRow, PageHeader, SettingsCard, Toggle } from "../primitives.js";
+import { ChoiceGroup, ExpandableToggle, Field, InfoHint, InfoRow, NumberRow, PageHeader, SettingsCard, StableButtonLabel, Toggle } from "../primitives.js";
 import { compactNotificationMessage, errorDetails, useNotifications } from "../notifications.js";
-import { useDismissable } from "../use-dismissable.js";
 
 export type SettingsTab = "ai" | "voice" | "build" | "about";
 
@@ -23,6 +24,7 @@ interface CustomSelectOption {
 }
 
 interface CustomSelectProps {
+  id?: string;
   value: string;
   onChange: (value: string) => void;
   options: CustomSelectOption[];
@@ -30,56 +32,20 @@ interface CustomSelectProps {
   style?: React.CSSProperties;
 }
 
-const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options, placeholder, style }) => {
-  const [open, setOpen] = React.useState(false);
-  const containerRef = React.useRef<HTMLDivElement>(null);
-  const close = React.useCallback(() => setOpen(false), []);
-  useDismissable(open, close, containerRef);
-
-  const selectedOption = options.find((opt) => opt.value === value);
-
+const CustomSelect: React.FC<CustomSelectProps> = ({ id, value, onChange, options, placeholder, style }) => {
   return (
-    <div ref={containerRef} className="ns-custom-select-container" style={{ position: "relative", ...style }}>
-      <button
-        type="button"
-        className={`ns-input ns-custom-select-trigger${open ? " is-open" : ""}`}
-        onClick={() => setOpen(!open)}
-        title={selectedOption?.label}
-        style={{ width: "100%", textAlign: "left", display: "flex", alignItems: "center", justifyContent: "space-between", minWidth: 0 }}
-      >
-        <span className="ns-custom-select-label">{selectedOption ? selectedOption.label : placeholder || "Chọn..."}</span>
-      </button>
-
-      {open && (
-        <div
-          className="ns-custom-select-dropdown"
-          style={{
-            position: "absolute",
-            top: "calc(100% + 4px)",
-            left: 0,
-            width: "100%",
-            zIndex: 100,
-            maxHeight: "260px",
-            overflowY: "auto"
-          }}
-        >
-          {options.map((opt) => (
-            <button
-              key={opt.value}
-              type="button"
-              className={`ns-custom-select-option${opt.value === value ? " is-active" : ""}`}
-              onClick={() => {
-                onChange(opt.value);
-                setOpen(false);
-              }}
-              style={{ width: "100%", textAlign: "left", display: "block" }}
-            >
-              {opt.label}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
+    <select
+      id={id}
+      className="ns-input"
+      value={value}
+      onChange={(event) => onChange(event.target.value)}
+      style={{ minWidth: 0, ...style }}
+    >
+      {placeholder && !value ? <option value="">{placeholder}</option> : null}
+      {options.map((option) => (
+        <option key={option.value} value={option.value}>{option.label}</option>
+      ))}
+    </select>
   );
 };
 
@@ -93,9 +59,10 @@ export const SettingsView: React.FC<{
   preferredModelUnavailable?: string;
   onManageAccounts: () => void;
   onSelectModel: (modelId: string) => void;
-  onUpdate: (patch: Partial<SettingsModel>) => void | Promise<unknown>;
+  onUpdate: (patch: SettingsUpdateInput) => void | Promise<unknown>;
   onSetApiKey: (provider: VoiceProviderChoice, apiKey: string) => Promise<SettingsModel>;
   onClearApiKey: (provider: VoiceProviderChoice) => Promise<SettingsModel>;
+  onTestVoice: (provider: VoiceProviderChoice) => Promise<VoiceTestResult>;
   onCheckReadiness?: () => Promise<DesktopReadinessReport>;
   /** Controlled tab (App owns deep-links from Home create-path checklist). */
   tab: SettingsTab;
@@ -111,6 +78,7 @@ export const SettingsView: React.FC<{
   onUpdate,
   onSetApiKey,
   onClearApiKey,
+  onTestVoice,
   onCheckReadiness,
   tab,
   onTabChange,
@@ -120,6 +88,8 @@ export const SettingsView: React.FC<{
   const [reviewModeExpanded, setReviewModeExpanded] = useState(false);
   const [showVoiceKey, setShowVoiceKey] = useState(false);
   const [voiceKeyInput, setVoiceKeyInput] = useState("");
+  const [voiceTesting, setVoiceTesting] = useState(false);
+  const [voiceSample, setVoiceSample] = useState<string | null>(null);
   const [saveState, setSaveState] = useState<"idle" | "saving" | "error">("idle");
   const [readinessLoading, setReadinessLoading] = useState(false);
   const [readiness, setReadiness] = useState<DesktopReadinessReport | null>(null);
@@ -137,6 +107,10 @@ export const SettingsView: React.FC<{
   const voiceId = voiceProvider === "vivibe" ? settings.vivibeVoiceId ?? "" : settings.elevenLabsVoiceId ?? "";
   const credentialState = settings.voiceCredentials[voiceProvider];
 
+  useEffect(() => {
+    setVoiceSample(null);
+  }, [voiceProvider, voiceId]);
+
   const TABS: { id: SettingsTab; label: string; icon: React.ReactNode }[] = [
     { id: "ai", label: "Tài khoản AI", icon: Icon.spark({ size: 16 }) },
     { id: "voice", label: "Giọng đọc", icon: Icon.film({ size: 16 }) },
@@ -144,7 +118,7 @@ export const SettingsView: React.FC<{
     { id: "about", label: "Giới thiệu", icon: Icon.home({ size: 16 }) },
   ];
 
-  const update = (patch: Partial<SettingsModel>): void => {
+  const update = (patch: SettingsUpdateInput): void => {
     const seq = saveSeq.current + 1;
     saveSeq.current = seq;
     setSaveState("saving");
@@ -189,13 +163,40 @@ export const SettingsView: React.FC<{
     });
   };
 
+  const testVoice = (): void => {
+    if (voiceTesting) return;
+    setVoiceTesting(true);
+    setVoiceSample(null);
+    void onTestVoice(voiceProvider)
+      .then((result) => {
+        if (!result.ok) {
+          notify.error({ title: "Kiểm tra giọng thất bại", message: result.error, details: result.error });
+          return;
+        }
+        setVoiceSample(result.audioDataUrl);
+      })
+      .catch((error: unknown) => {
+        const details = errorDetails(error);
+        notify.error({
+          title: "Không kiểm tra được giọng",
+          message: compactNotificationMessage(details, "Thử lại sau."),
+          details,
+        });
+      })
+      .finally(() => setVoiceTesting(false));
+  };
+
   const saveStatus = saveState === "saving" ? "Đang lưu…" : "";
 
   return (
     <div className="ns-content">
       <PageHeader
         title="Cài đặt"
-        action={saveStatus && <span className={`ns-settings-save is-${saveState}`} role="status">{saveStatus}</span>}
+        action={
+          <span className={`ns-settings-save is-${saveState}`} role="status">
+            <StableButtonLabel reserve="Đang lưu…">{saveStatus}</StableButtonLabel>
+          </span>
+        }
       />
       <div className="ns-settings">
         <nav className="ns-settings-nav">
@@ -237,8 +238,9 @@ export const SettingsView: React.FC<{
                     <button className="ns-btn ns-acct-manage" onClick={onManageAccounts}>Quản lý</button>
                   </div>
                   <div style={{ marginTop: 20 }}>
-                    <Field label="Model" hint="Model nhìn ảnh sẽ tinh chỉnh bố cục tốt hơn.">
+                    <Field htmlFor="ai-model" label="Model" hint="Model nhìn ảnh sẽ tinh chỉnh bố cục tốt hơn.">
                       <CustomSelect
+                        id="ai-model"
                         value={selectedModelId}
                         onChange={onSelectModel}
                         options={models.map((m) => ({ value: m.id, label: m.id }))}
@@ -277,7 +279,9 @@ export const SettingsView: React.FC<{
                         .finally(() => setReadinessLoading(false));
                     }}
                   >
-                    {readinessLoading ? "Đang kiểm tra…" : "Kiểm tra"}
+                    <StableButtonLabel reserve={["Đang kiểm tra…", "Kiểm tra"]}>
+                      {readinessLoading ? "Đang kiểm tra…" : "Kiểm tra"}
+                    </StableButtonLabel>
                   </button>
                   <InfoHint text="Kiểm tra cổng AI, giọng đọc và công cụ render trên máy. Không gọi model hay TTS." />
                 </div>
@@ -339,8 +343,9 @@ export const SettingsView: React.FC<{
 
           {tab === "voice" && (
             <SettingsCard title="Giọng đọc">
-              <Field label="Nhà cung cấp giọng">
+              <Field htmlFor="voice-provider" label="Nhà cung cấp giọng">
                 <CustomSelect
+                  id="voice-provider"
                   value={voiceProvider}
                   onChange={(val) => update({ voiceProvider: val as VoiceProviderChoice })}
                   options={[
@@ -350,12 +355,12 @@ export const SettingsView: React.FC<{
                   style={{ width: "100%", maxWidth: 148 }}
                 />
               </Field>
-              <Field label={`API key ${voiceProvider === "vivibe" ? "Vivibe" : "ElevenLabs"}`} hint={`Trạng thái: ${credentialState === "saved" ? "đã lưu an toàn" : credentialState === "environment" ? "đang dùng từ .env" : "chưa cấu hình"}.`}>
+              <Field htmlFor="voice-api-key" label={`API key ${voiceProvider === "vivibe" ? "Vivibe" : "ElevenLabs"}`} hint={`Trạng thái: ${credentialState === "saved" ? "đã lưu an toàn" : credentialState === "environment" ? "đang dùng từ .env" : "chưa cấu hình"}.`}>
                 <div className="ns-secret-field">
-                  <input className="ns-input" type={showVoiceKey ? "text" : "password"} placeholder={credentialState === "missing" ? "dán API key…" : "nhập key mới để thay thế…"} value={voiceKeyInput}
+                  <input id="voice-api-key" className="ns-input" type={showVoiceKey ? "text" : "password"} placeholder={credentialState === "missing" ? "dán API key…" : "nhập key mới để thay thế…"} value={voiceKeyInput}
                     onChange={(e) => setVoiceKeyInput(e.target.value)} />
                   <button type="button" className="ns-secret-toggle" onClick={() => setShowVoiceKey((v) => !v)}>
-                    {showVoiceKey ? "Ẩn" : "Hiện"}
+                    <StableButtonLabel reserve={["Ẩn", "Hiện"]}>{showVoiceKey ? "Ẩn" : "Hiện"}</StableButtonLabel>
                   </button>
                 </div>
                 <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
@@ -364,20 +369,51 @@ export const SettingsView: React.FC<{
                 </div>
               </Field>
               <Field
+                htmlFor="voice-id"
                 label="Voice ID"
                 hint={voiceProvider === "vivibe"
                   ? "Nghe thử và lấy Voice ID trên trang Vivibe, sau đó dán vào đây."
                   : "Nghe thử và lấy Voice ID trên trang ElevenLabs. Một số library voice yêu cầu gói trả phí để dùng qua API."}
               >
-                <input className="ns-input" placeholder="voice id…" value={voiceId}
+                <input id="voice-id" className="ns-input" placeholder="voice id…" value={voiceId}
                   onChange={(e) => update(voiceProvider === "vivibe" ? { vivibeVoiceId: e.target.value } : { elevenLabsVoiceId: e.target.value })} style={{ width: "100%", maxWidth: 480 }} />
               </Field>
-              {voiceProvider === "elevenlabs" && <Field label="Model ElevenLabs" hint="Model mặc định của phiên bản này."><input className="ns-input" value={settings.elevenLabsModelId} disabled style={{ width: "100%", maxWidth: 480, opacity: 0.7 }} /></Field>}
+              {voiceProvider === "elevenlabs" && <Field htmlFor="elevenlabs-model" label="Model ElevenLabs" hint="Model mặc định của phiên bản này."><input id="elevenlabs-model" className="ns-input" value={settings.elevenLabsModelId} disabled style={{ width: "100%", maxWidth: 480, opacity: 0.7 }} /></Field>}
+              <div style={{ display: "grid", gap: 8, justifyItems: "start" }}>
+                <button
+                  type="button"
+                  className="ns-btn ns-btn-primary"
+                  disabled={voiceTesting || credentialState === "missing" || !voiceId.trim()}
+                  onClick={testVoice}
+                >
+                  <StableButtonLabel reserve={["Đang kiểm tra…", "Kiểm tra giọng đọc"]}>
+                    {voiceTesting ? "Đang kiểm tra…" : "Kiểm tra giọng đọc"}
+                  </StableButtonLabel>
+                </button>
+                <span style={{ fontSize: 12, color: "var(--muted-foreground)" }}>
+                  Tạo một câu rất ngắn để kiểm tra key, Voice ID, credit và âm thanh; có thể tốn một lượng credit nhỏ.
+                </span>
+                {voiceSample ? (
+                  <audio
+                    controls
+                    src={voiceSample}
+                    aria-label="Bản nghe thử giọng đọc"
+                    onError={() => {
+                      setVoiceSample(null);
+                      notify.error({ title: "Không phát được bản thử", message: "Nhà cung cấp đã trả về tệp âm thanh không đọc được." });
+                    }}
+                  />
+                ) : null}
+              </div>
             </SettingsCard>
           )}
 
           {tab === "build" && (
             <SettingsCard title="Dựng video">
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, paddingBottom: 12 }}>
+                <span style={{ fontSize: 13, color: "var(--muted-foreground)" }}>Preset cho hàng đợi chạy không cần duyệt tay.</span>
+                <button type="button" className="ns-btn" onClick={() => update(FULL_AUTO_SETTINGS_PATCH)}>Áp dụng Full auto</button>
+              </div>
               <div className="ns-settings-group">
                 <div className="ns-settings-group-label">Trước dựng</div>
                 <Toggle checked={settings.scriptGateEnabled} onChange={(v) => update({ scriptGateEnabled: v })}
@@ -395,7 +431,7 @@ export const SettingsView: React.FC<{
                 <ChoiceGroup
                   name="reviewMode"
                   title="Mức duyệt"
-                  desc="Dừng lại trước khi xuất bản full."
+                  desc="Chọn điểm dừng duyệt, hoặc xuất full tự động."
                   value={settings.reviewMode}
                   onChange={(v) => update({ reviewMode: v as ReviewMode })}
                   expanded={reviewModeExpanded}
@@ -421,6 +457,14 @@ export const SettingsView: React.FC<{
               </div>
               <div className="ns-settings-group">
                 <div className="ns-settings-group-label">Tinh chỉnh</div>
+                <NumberRow
+                  value={settings.maxRepairAttempts}
+                  min={1}
+                  max={10}
+                  onChange={(v) => update({ maxRepairAttempts: v })}
+                  title="Số lần sửa lỗi"
+                  desc="Giới hạn số lượt AI sửa lỗi nội dung/render."
+                />
                 <ExpandableToggle
                   checked={settings.refinePasses > 0}
                   onChange={(v) => {

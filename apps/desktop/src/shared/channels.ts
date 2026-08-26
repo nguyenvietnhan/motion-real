@@ -55,9 +55,12 @@ export const INVOKE_CHANNELS = [
   "queue:deleteJob",
   "queue:cancelJob",
   "queue:start",
+  "queue:pause",
+  "queue:resume",
   "queue:status",
   "tts:setApiKey",
   "tts:clearApiKey",
+  "tts:testVoice",
 ] as const;
 
 export type InvokeChannel = (typeof INVOKE_CHANNELS)[number];

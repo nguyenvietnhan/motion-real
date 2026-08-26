@@ -338,18 +338,39 @@ async function readManifestTitle(projectId: string): Promise<string | undefined>
   }
 }
 
+const PROJECT_LIST_CONCURRENCY = 16;
+
+/** Map in input order without opening every project on disk at once. */
+export async function mapWithConcurrency<T, R>(
+  items: readonly T[],
+  limit: number,
+  mapper: (item: T, index: number) => Promise<R>,
+): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  let nextIndex = 0;
+  const worker = async (): Promise<void> => {
+    while (nextIndex < items.length) {
+      const index = nextIndex;
+      nextIndex += 1;
+      results[index] = await mapper(items[index]!, index);
+    }
+  };
+  const workerCount = Math.min(items.length, Math.max(1, Math.floor(limit)));
+  await Promise.all(Array.from({ length: workerCount }, worker));
+  return results;
+}
+
 /** List all known projects (newest first by updatedAt when available). */
 export async function listProjects(): Promise<ProjectSummary[]> {
   const root = projectsRoot();
   if (!existsSync(root)) return [];
-  const out: ProjectSummary[] = [];
-  for (const id of await readdir(root)) {
+  const summaries = await mapWithConcurrency(await readdir(root), PROJECT_LIST_CONCURRENCY, async (id): Promise<ProjectSummary | undefined> => {
     // A real project dir is always a `createProjectId` slug; skip anything else
     // (dotfiles like `.DS_Store`/`Thumbs.db`, stray folders) rather than letting
     // `projectPaths` → `assertSafeProjectId` throw and abort the whole listing.
-    if (!isSafeProjectId(id)) continue;
+    if (!isSafeProjectId(id)) return undefined;
     const p = projectPaths(id);
-    if (!existsSync(p.brief)) continue;
+    if (!existsSync(p.brief)) return undefined;
     let brief: ProjectBrief | undefined;
     try {
       brief = await readJson<ProjectBrief>(p.brief);
@@ -357,14 +378,15 @@ export async function listProjects(): Promise<ProjectSummary[]> {
       brief = undefined;
     }
     const title = await readManifestTitle(id);
-    out.push({
+    return {
       projectId: id,
       root: p.root,
       brief,
       ...(title ? { title } : {}),
       hasRender: existsSync(join(p.rendersDir, `${id}.mp4`)),
-    });
-  }
+    } satisfies ProjectSummary;
+  });
+  const out = summaries.filter((summary): summary is ProjectSummary => summary !== undefined);
   return out.sort((a, b) => (b.brief?.updatedAt ?? "").localeCompare(a.brief?.updatedAt ?? ""));
 }
 

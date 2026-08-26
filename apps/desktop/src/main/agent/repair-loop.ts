@@ -94,7 +94,7 @@ export async function generateValidateRepair(
     // A failed render whose cause is infra (missing voice key, gateway, Chromium
     // "target closed") is not agent-fixable — stop as `infra`.
     if (!render.ok && render.error && classifyError(render.error) === "infra") {
-      return { kind: "infra", attempts };
+      return { kind: "infra", attempts, error: render.error };
     }
 
     // Read the report in BOTH cases. On success it's this render's oracle report.

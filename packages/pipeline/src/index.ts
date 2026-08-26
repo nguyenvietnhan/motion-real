@@ -21,10 +21,17 @@ export {
   ELEVENLABS_DEFAULT_MODEL_ID,
   VivibeClient,
   ElevenLabsClient,
+  createTtsClient,
+  asVoiceProviderError,
+  isVoiceProviderError,
+  VoiceProviderError,
   vivibeApiKey,
   defaultVivibeVoiceId,
   elevenLabsApiKey,
   defaultElevenLabsVoiceId,
+  type VoiceProviderFailure,
+  type VoiceProviderFailureCode,
+  type TtsClient,
 } from "@motionreal/tts";
 export * from "./safety/index.js";
 export * from "./audio/captions.js";

@@ -10,6 +10,8 @@ import {
   isDurationTier,
   resolveEffectiveDuration,
   type SerializedPipelineError,
+  VoiceProviderError,
+  type VoiceProviderFailure,
 } from "@motionreal/pipeline";
 import type { AuthorInput, AuthorImageRef } from "../agent/agent-worker.js";
 import type {
@@ -86,7 +88,10 @@ export interface CreateDeps {
    * does NOT gate on gateway/model state — that stays a "guide, don't gate" chip
    * in the UI — only on a guaranteed-fatal local config gap.
    */
-  preflight?: (voiceProvider: VoiceProviderChoice, videoLanguage: VideoLanguageChoice) => string | undefined;
+  preflight?: (
+    voiceProvider: VoiceProviderChoice,
+    videoLanguage: VideoLanguageChoice,
+  ) => string | { message: string; voiceFailure: VoiceProviderFailure } | undefined;
   /**
    * Persist create-time BGM onto the project manifest (library track name, or
    * null for explicit silence). Best-effort: failure must not block create.
@@ -119,7 +124,8 @@ export class CreateController {
       throw new Error("Vivibe chỉ hỗ trợ tiếng Việt. Hãy chọn ElevenLabs để tạo video tiếng Anh.");
     }
     const block = this.deps.preflight?.(voiceProvider, videoLanguage);
-    if (block) throw new Error(block);
+    if (typeof block === "string") throw new Error(block);
+    if (block) throw new VoiceProviderError(block.voiceFailure, block.message);
     // Short-form 9:16 only. Desktop knobs always win over any length in the prompt.
     const uiTier: DurationTierChoice = isDurationTier(choices.durationTier) ? choices.durationTier : 1;
     const resolved = resolveEffectiveDuration({

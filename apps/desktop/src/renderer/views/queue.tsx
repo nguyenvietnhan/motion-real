@@ -1,7 +1,11 @@
 import React, { useEffect, useRef, useState } from "react";
 import type {
   BgmTrackVM,
+  DroppedImage,
   DurationTierChoice,
+  PickImagesResult,
+  StagedImage,
+  StagedImageRef,
   VideoLanguageChoice,
   VoiceProviderChoice,
 } from "../../shared/types.js";
@@ -14,69 +18,21 @@ import type {
 } from "../../shared/queue-types.js";
 import { validateCreateInput } from "../../shared/create-validation.js";
 import { Icon } from "../icons.js";
-import { EmptyState, LoadingLine, PageHeader, STATUS_COLOR } from "../primitives.js";
+import { EmptyState, LoadingLine, PageHeader, StableButtonLabel, STATUS_COLOR } from "../primitives.js";
 import { compactNotificationMessage, errorDetails, useNotifications } from "../notifications.js";
 import { useDismissable } from "../use-dismissable.js";
+import { useMenuNavigation } from "../use-menu-navigation.js";
+import { useModalFocus } from "../use-modal-focus.js";
 import { BgmPicker } from "./bgm-picker.js";
 import {
   applyVideoLanguageSelection,
   applyVoiceProviderSelection,
+  filesToDroppedImages,
+  KnobButton,
   languageOptionsForProvider,
+  rejectedImageDetails,
+  StagedImageStrip,
 } from "./home.js";
-
-function KnobButton<T extends string | number>(props: {
-  icon: React.ReactNode;
-  title: string;
-  value: T;
-  open: boolean;
-  onToggle: () => void;
-  onClose: () => void;
-  onChange: (next: T) => void;
-  options: readonly { value: T; label: string }[];
-}): React.ReactElement {
-  const current = props.options.find((o) => o.value === props.value);
-  const ref = useRef<HTMLDivElement>(null);
-  useDismissable(props.open, props.onClose, ref);
-  return (
-    <div ref={ref} style={{ position: "relative" }}>
-      <button
-        type="button"
-        className={`ns-knob-chip${props.open ? " is-open" : ""}`}
-        aria-haspopup="true"
-        aria-expanded={props.open}
-        title={props.title}
-        onClick={props.onToggle}
-      >
-        {props.icon}
-        <span>{current?.label ?? String(props.value)}</span>
-      </button>
-      {props.open && (
-        <div className="ns-knob-pop" role="menu" aria-label={props.title}>
-          <span className="ns-knob-pop-label">{props.title}</span>
-          {props.options.map((o) => {
-            const active = o.value === props.value;
-            return (
-              <button
-                key={String(o.value)}
-                type="button"
-                role="menuitemradio"
-                aria-checked={active}
-                className={`ns-knob-opt${active ? " is-active" : ""}`}
-                onClick={() => {
-                  props.onChange(o.value);
-                  props.onClose();
-                }}
-              >
-                <span className="ns-knob-opt-tick">{active ? Icon.check({ size: 14 }) : null}</span>
-                <span style={{ flex: 1 }}>{o.label}</span>
-              </button>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
 
 /** Map queue job status → gallery status colors (status dot only). */
 function jobStatusColor(status: QueueJobVM["status"]): string {
@@ -140,6 +96,7 @@ type JobInput = {
   voiceProvider: VoiceProviderChoice;
   bgm: string | null;
   smoke?: boolean;
+  images?: StagedImageRef[];
 };
 
 export const QueueView: React.FC<{
@@ -153,6 +110,9 @@ export const QueueView: React.FC<{
   onBgmAdd?: () => void;
   onBgmRemove?: (name: string) => Promise<void>;
   onBgmSelect?: (name: string | null) => void;
+  onPickImages?: () => Promise<PickImagesResult>;
+  onImportImageBytes?: (files: DroppedImage[]) => Promise<PickImagesResult>;
+  onUnstageImage?: (ref: string) => void;
   onRefresh: () => void;
   onCreateQueue: () => Promise<void>;
   onOpenQueue: (id: string) => void;
@@ -164,6 +124,10 @@ export const QueueView: React.FC<{
   onDeleteJob: (jobId: string) => Promise<void>;
   onCancelJob: (jobId: string) => Promise<void>;
   onStartQueue: () => Promise<QueueStartResult>;
+  onEnableFullAutoAndStart: () => Promise<QueueStartResult>;
+  onPauseQueue: () => Promise<{ ok: true } | { ok: false; error: string }>;
+  onResumeQueue: () => Promise<QueueStartResult>;
+  onOpenVoiceSettings: () => void;
   queueStatus?: QueueRunnerStatus;
 }> = (props) => {
   if (props.active) {
@@ -254,6 +218,9 @@ const QueueDetail: React.FC<{
   onBgmAdd?: () => void;
   onBgmRemove?: (name: string) => Promise<void>;
   onBgmSelect?: (name: string | null) => void;
+  onPickImages?: () => Promise<PickImagesResult>;
+  onImportImageBytes?: (files: DroppedImage[]) => Promise<PickImagesResult>;
+  onUnstageImage?: (ref: string) => void;
   onBackToList: () => void;
   onDeleteQueue: (id: string) => void | Promise<void>;
   onRenameQueue: (id: string, title: string) => Promise<void>;
@@ -262,6 +229,10 @@ const QueueDetail: React.FC<{
   onDeleteJob: (jobId: string) => Promise<void>;
   onCancelJob: (jobId: string) => Promise<void>;
   onStartQueue: () => Promise<QueueStartResult>;
+  onEnableFullAutoAndStart: () => Promise<QueueStartResult>;
+  onPauseQueue: () => Promise<{ ok: true } | { ok: false; error: string }>;
+  onResumeQueue: () => Promise<QueueStartResult>;
+  onOpenVoiceSettings: () => void;
   queueStatus?: QueueRunnerStatus;
   queues?: QueueProjectVM[];
 }> = ({
@@ -273,6 +244,9 @@ const QueueDetail: React.FC<{
   onBgmAdd,
   onBgmRemove,
   onBgmSelect,
+  onPickImages,
+  onImportImageBytes,
+  onUnstageImage,
   onBackToList,
   onDeleteQueue,
   onRenameQueue,
@@ -281,11 +255,17 @@ const QueueDetail: React.FC<{
   onDeleteJob,
   onCancelJob,
   onStartQueue,
+  onEnableFullAutoAndStart,
+  onPauseQueue,
+  onResumeQueue,
+  onOpenVoiceSettings,
   queueStatus = EMPTY_QUEUE_STATUS,
   queues = [],
 }) => {
   const notify = useNotifications();
   const [raw, setRaw] = useState("");
+  const [images, setImages] = useState<StagedImage[]>([]);
+  const [dragOver, setDragOver] = useState(false);
   const [adding, setAdding] = useState(false);
   const [durationTier, setDurationTier] = useState<DurationTierChoice>(1);
   const [videoLanguage, setVideoLanguage] = useState<VideoLanguageChoice>("vi");
@@ -295,8 +275,12 @@ const QueueDetail: React.FC<{
   const [editJob, setEditJob] = useState<QueueJobVM | null>(null);
   const [renaming, setRenaming] = useState(false);
   const [renameDraft, setRenameDraft] = useState(queue.title);
+  const [fullAutoRequired, setFullAutoRequired] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const menuTriggerRef = useRef<HTMLButtonElement>(null);
+  const menuSurfaceRef = useRef<HTMLDivElement>(null);
+  const dragDepth = useRef(0);
 
   useEffect(() => {
     setRenameDraft(queue.title);
@@ -310,9 +294,44 @@ const QueueDetail: React.FC<{
   }, [raw]);
 
   useDismissable(Boolean(menuJobId), () => setMenuJobId(null), menuRef);
+  const jobMenu = useMenuNavigation(Boolean(menuJobId), () => setMenuJobId(null), menuTriggerRef, menuSurfaceRef);
 
   const valid = validateCreateInput({ raw });
   const inputValid = valid.ok;
+  const mergeImages = (result: PickImagesResult): void => {
+    setImages((current) => {
+      const refs = new Set(current.map((image) => image.ref));
+      return [...current, ...result.staged.filter((image) => !refs.has(image.ref))];
+    });
+    if (result.rejected.length > 0) {
+      notify.warning({
+        title: "Một số ảnh bị bỏ qua",
+        message: `${result.rejected.length} ảnh không hợp lệ.`,
+        details: rejectedImageDetails(result.rejected),
+      });
+    }
+  };
+  const pickImages = (): void => {
+    if (!onPickImages) return;
+    void onPickImages().then(mergeImages).catch((error: unknown) => {
+      const details = errorDetails(error);
+      notify.error({ title: "Không nạp được ảnh", message: compactNotificationMessage(details, "Thử lại."), details });
+    });
+  };
+  const importFiles = (files: File[]): void => {
+    if (!onImportImageBytes || files.length === 0) return;
+    void filesToDroppedImages(files)
+      .then(onImportImageBytes)
+      .then(mergeImages)
+      .catch((error: unknown) => {
+        const details = errorDetails(error);
+        notify.error({ title: "Không nạp được ảnh", message: compactNotificationMessage(details, "Thử lại."), details });
+      });
+  };
+  const removeImage = (ref: string): void => {
+    setImages((current) => current.filter((image) => image.ref !== ref));
+    onUnstageImage?.(ref);
+  };
   /** Start can run fresh queued jobs or retry failed/cancelled after a fix. */
   const startableCount = queue.jobs.filter(
     (j) => j.status === "queued" || j.status === "failed" || j.status === "cancelled",
@@ -320,6 +339,7 @@ const QueueDetail: React.FC<{
   const progress = queueProgress(queue.jobs);
   const isThisActive = queueStatus.activeQueueId === queue.id;
   const isThisPending = queueStatus.pendingQueueIds.includes(queue.id);
+  const isThisPaused = Boolean(queueStatus.paused && isThisPending);
   const pendingHint =
     isThisPending && queues.length > 0
       ? queueContainerMeta(queue, queueStatus, queues)
@@ -337,9 +357,13 @@ const QueueDetail: React.FC<{
       videoLanguage,
       voiceProvider,
       bgm: smoke ? null : bgmSelected,
+      ...(!smoke && images.length > 0 ? { images: images.map(({ ref, width, height }) => ({ ref, width, height })) } : {}),
       ...(smoke ? { smoke: true } : {}),
     })
-      .then(() => setRaw(""))
+      .then(() => {
+        setRaw("");
+        setImages([]);
+      })
       .catch((error: unknown) => {
         const details = errorDetails(error);
         notify.error({
@@ -373,7 +397,7 @@ const QueueDetail: React.FC<{
     <div className="ns-content">
       <PageHeader
         title={
-          <span className="ns-queue-title-row">
+          <span className="ns-queue-title-row" role="heading" aria-level={1}>
             {renaming ? (
               <input
                 className="ns-queue-title-input"
@@ -431,17 +455,32 @@ const QueueDetail: React.FC<{
             <button
               type="button"
               className="ns-btn ns-btn-primary"
-              disabled={isThisActive || isThisPending || startableCount === 0}
+              disabled={!isThisActive && !isThisPaused && (isThisPending || startableCount === 0)}
               title={
                 isThisActive
-                  ? "Đang chạy lô này…"
-                  : isThisPending
+                  ? "Tạm dừng toàn bộ hàng đợi"
+                  : isThisPaused
+                    ? "Tiếp tục lịch hàng đợi đã lưu"
+                    : isThisPending
                     ? "Đã xếp sau hàng đợi đang chạy"
                     : "Bắt đầu chạy"
               }
               onClick={() => {
-                void onStartQueue().then((res) => {
+                if (isThisActive) {
+                  void onPauseQueue().then((result) => {
+                    if (!result.ok) throw new Error(result.error);
+                  }).catch((error: unknown) => {
+                    const details = errorDetails(error);
+                    notify.error({ title: "Không tạm dừng được", message: compactNotificationMessage(details, "Thử lại."), details });
+                  });
+                  return;
+                }
+                void (isThisPaused ? onResumeQueue() : onStartQueue()).then((res) => {
                   if (!res.ok) {
+                    if (res.code === "FULL_AUTO_REQUIRED") {
+                      setFullAutoRequired(true);
+                      return;
+                    }
                     notify.error({
                       title: "Chưa chạy được",
                       message: compactNotificationMessage(res.error, "Thử lại."),
@@ -449,6 +488,7 @@ const QueueDetail: React.FC<{
                     });
                     return;
                   }
+                  setFullAutoRequired(false);
                   if (res.mode === "scheduled") {
                     notify.info({
                       title: "Đã xếp vào hàng chờ",
@@ -465,16 +505,91 @@ const QueueDetail: React.FC<{
                       message: "Lô này đang được dựng.",
                     });
                   }
+                }).catch((error: unknown) => {
+                  const details = errorDetails(error);
+                  notify.error({ title: "Chưa chạy được", message: compactNotificationMessage(details, "Thử lại."), details });
                 });
               }}
             >
-              {isThisActive ? "Đang chạy…" : isThisPending ? "Đã xếp chờ" : "Bắt đầu"}
+              <StableButtonLabel reserve={["Tạm dừng toàn bộ", "Tiếp tục", "Đã xếp chờ", "Bắt đầu"]}>
+                {isThisActive ? "Tạm dừng toàn bộ" : isThisPaused ? "Tiếp tục" : isThisPending ? "Đã xếp chờ" : "Bắt đầu"}
+              </StableButtonLabel>
             </button>
           </div>
         }
       />
 
-      <div className="ns-card ns-create-card">
+      {fullAutoRequired || (isThisPaused && queueStatus.paused?.kind === "full_auto_required") ? (
+        <div className="ns-queue-full-auto" role="alert">
+          <span>Hàng đợi cần tắt các bước duyệt tay để có thể chạy unattended.</span>
+          <button
+            type="button"
+            className="ns-btn ns-btn-primary"
+            onClick={() => {
+              void onEnableFullAutoAndStart()
+                .then((result) => {
+                  if (!result.ok) throw new Error(result.error);
+                  setFullAutoRequired(false);
+                })
+                .catch((error: unknown) => {
+                  const details = errorDetails(error);
+                  notify.error({ title: "Không bật được Full auto", message: compactNotificationMessage(details, "Thử lại."), details });
+                });
+            }}
+          >
+            Bật Full auto và bắt đầu
+          </button>
+        </div>
+      ) : null}
+
+      {isThisPaused && queueStatus.paused?.kind !== "full_auto_required" ? (
+        <div className="ns-queue-full-auto" role="alert">
+          <span>{queueStatus.paused?.message ?? "Hàng đợi đang tạm dừng."}</span>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {queueStatus.paused?.kind === "voice_provider" ? (
+              <button type="button" className="ns-btn" onClick={onOpenVoiceSettings}>Mở cài đặt giọng</button>
+            ) : null}
+            <button
+              type="button"
+              className="ns-btn ns-btn-primary"
+              onClick={() => {
+                void onResumeQueue().then((result) => {
+                  if (!result.ok) throw new Error(result.error);
+                }).catch((error: unknown) => {
+                  const details = errorDetails(error);
+                  notify.error({ title: "Chưa tiếp tục được", message: compactNotificationMessage(details, "Kiểm tra cài đặt rồi thử lại."), details });
+                });
+              }}
+            >
+              Tiếp tục toàn bộ
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      <div
+        className={`ns-card ns-create-card${dragOver ? " is-dragging" : ""}`}
+        onDragEnter={(event) => {
+          if (!onImportImageBytes) return;
+          event.preventDefault();
+          dragDepth.current += 1;
+          setDragOver(true);
+        }}
+        onDragOver={(event) => { if (onImportImageBytes) event.preventDefault(); }}
+        onDragLeave={() => {
+          dragDepth.current = Math.max(0, dragDepth.current - 1);
+          if (dragDepth.current === 0) setDragOver(false);
+        }}
+        onDrop={(event) => {
+          dragDepth.current = 0;
+          setDragOver(false);
+          const files = Array.from(event.dataTransfer.files).filter((file) => file.type.startsWith("image/"));
+          if (files.length > 0) {
+            event.preventDefault();
+            importFiles(files);
+          }
+        }}
+      >
         <div className="ns-create-flow">
           <div className="ns-composer">
             <textarea
@@ -483,11 +598,27 @@ const QueueDetail: React.FC<{
               className="ns-composer-input"
               value={raw}
               onChange={(e) => setRaw(e.target.value)}
+              onPaste={(event) => {
+                const items = Array.from(event.clipboardData.items)
+                  .filter((item) => item.kind === "file" && item.type.startsWith("image/"))
+                  .map((item) => item.getAsFile())
+                  .filter((file): file is File => file !== null);
+                if (items.length > 0) {
+                  event.preventDefault();
+                  importFiles(items);
+                }
+              }}
               placeholder="Prompt hoặc link…"
               rows={2}
             />
+            <StagedImageStrip images={images} onRemove={removeImage} />
             <div className="ns-composer-bar">
               <div className="ns-composer-bar-leading">
+                {onPickImages ? (
+                  <button type="button" className="ns-btn-attach" onClick={pickImages} title="Thêm ảnh" aria-label="Thêm ảnh">
+                    {Icon.plus({ size: 16 })}<span className="ns-btn-attach-label">Ảnh</span>
+                  </button>
+                ) : null}
                 {!inputValid && raw.trim() !== "" ? (
                   <span className="ns-validation-warning">Nội dung chưa hợp lệ.</span>
                 ) : null}
@@ -618,6 +749,7 @@ const QueueDetail: React.FC<{
                     <span className="ns-queue-job-meta">
                       {jobStatusLabel(job.status)}
                       {job.smoke ? " · smoke" : ""}
+                      {job.images?.length ? ` · ${job.images.length} ảnh` : ""}
                       {" · "}
                       {job.videoLanguage === "en" ? "EN" : "VI"}
                       {!job.smoke ? ` · tier ${job.durationTier}` : ""}
@@ -626,17 +758,19 @@ const QueueDetail: React.FC<{
                   </span>
                   <div className="ns-queue-job-more" ref={menuOpen ? menuRef : undefined}>
                     <button
+                      ref={menuOpen ? menuTriggerRef : undefined}
                       type="button"
                       className={`ns-queue-job-more-btn${menuOpen ? " is-open" : ""}`}
                       title="Tuỳ chọn"
                       aria-label={`Tuỳ chọn video ${i + 1}`}
+                      aria-haspopup="menu"
                       aria-expanded={menuOpen}
                       onClick={() => setMenuJobId(menuOpen ? null : job.id)}
                     >
                       {Icon.more({ size: 16 })}
                     </button>
                     {menuOpen && (
-                      <div className="ns-queue-job-menu" role="menu">
+                      <div ref={menuSurfaceRef} className="ns-queue-job-menu" role="menu" onKeyDown={jobMenu.onKeyDown}>
                         {job.status === "queued" && (
                           <>
                             <button
@@ -644,7 +778,8 @@ const QueueDetail: React.FC<{
                               role="menuitem"
                               className="ns-queue-job-menu-item"
                               onClick={() => {
-                                setMenuJobId(null);
+                                jobMenu.close(false);
+                                menuTriggerRef.current?.focus();
                                 setEditJob(job);
                               }}
                             >
@@ -655,7 +790,7 @@ const QueueDetail: React.FC<{
                               role="menuitem"
                               className="ns-queue-job-menu-item danger"
                               onClick={() => {
-                                setMenuJobId(null);
+                                jobMenu.close();
                                 void onDeleteJob(job.id).catch((error: unknown) => {
                                   const details = errorDetails(error);
                                   notify.error({
@@ -676,7 +811,7 @@ const QueueDetail: React.FC<{
                             role="menuitem"
                             className="ns-queue-job-menu-item"
                             onClick={() => {
-                              setMenuJobId(null);
+                              jobMenu.close();
                               void onCancelJob(job.id).catch((error: unknown) => {
                                 const details = errorDetails(error);
                                 notify.error({
@@ -696,7 +831,7 @@ const QueueDetail: React.FC<{
                             role="menuitem"
                             className="ns-queue-job-menu-item danger"
                             onClick={() => {
-                              setMenuJobId(null);
+                              jobMenu.close();
                               void onDeleteJob(job.id).catch((error: unknown) => {
                                 const details = errorDetails(error);
                                 notify.error({
@@ -726,6 +861,7 @@ const QueueDetail: React.FC<{
           bgm={bgm}
           onBgmAdd={onBgmAdd}
           onBgmRemove={onBgmRemove}
+          onPickImages={onPickImages}
           onClose={() => setEditJob(null)}
           onSave={async (patch) => {
             await onUpdateJob(editJob.id, patch);
@@ -742,35 +878,71 @@ const JobEditDialog: React.FC<{
   bgm: BgmTrackVM[];
   onBgmAdd?: () => void;
   onBgmRemove?: (name: string) => Promise<void>;
+  onPickImages?: () => Promise<PickImagesResult>;
   onClose: () => void;
   onSave: (patch: QueueJobUpdateInput) => Promise<void>;
-}> = ({ job, bgm, onBgmAdd, onBgmRemove, onClose, onSave }) => {
+}> = ({ job, bgm, onBgmAdd, onBgmRemove, onPickImages, onClose, onSave }) => {
   const notify = useNotifications();
   const [raw, setRaw] = useState(job.raw);
   const [durationTier, setDurationTier] = useState<DurationTierChoice>(job.durationTier);
   const [videoLanguage, setVideoLanguage] = useState<VideoLanguageChoice>(job.videoLanguage);
   const [voiceProvider, setVoiceProvider] = useState<VoiceProviderChoice>(job.voiceProvider);
   const [bgmSelected, setBgmSelected] = useState<string | null>(job.bgm);
+  const [images, setImages] = useState<StagedImageRef[]>(job.images ?? []);
   const [openKnob, setOpenKnob] = useState<"duration" | "language" | "voice" | null>(null);
   const [saving, setSaving] = useState(false);
   const valid = validateCreateInput({ raw });
+  const panelRef = useRef<HTMLDivElement>(null);
+  const promptRef = useRef<HTMLTextAreaElement>(null);
+  const closeDialog = (): void => { if (!saving) onClose(); };
+  useModalFocus(true, panelRef, closeDialog, promptRef);
 
   return (
-    <div className="ns-queue-edit-overlay" role="dialog" aria-modal="true" aria-label="Sửa video trong hàng đợi">
-      <div className="ns-card ns-queue-edit-panel">
+    <div className="ns-queue-edit-overlay" role="presentation" onMouseDown={closeDialog}>
+      <div ref={panelRef} className="ns-card ns-queue-edit-panel" role="dialog" aria-modal="true" aria-label="Sửa video trong hàng đợi" onMouseDown={(event) => event.stopPropagation()} tabIndex={-1}>
         <div className="ns-queue-edit-head">
           <strong>Sửa video</strong>
-          <button type="button" className="ns-btn" onClick={onClose}>
+          <button type="button" className="ns-btn" onClick={closeDialog}>
             Đóng
           </button>
         </div>
         <textarea
+          ref={promptRef}
           className="ns-composer-input"
           value={raw}
           onChange={(e) => setRaw(e.target.value)}
           rows={3}
           aria-label="Prompt"
         />
+        {!job.smoke && (
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginTop: 10 }}>
+            {images.map((image) => (
+              <span key={image.ref} className="ns-queue-image-ref">
+                {image.ref.split("/").pop()}
+                <button type="button" aria-label="Bỏ ảnh" onClick={() => setImages((current) => current.filter((item) => item.ref !== image.ref))}>×</button>
+              </span>
+            ))}
+            {onPickImages ? (
+              <button
+                type="button"
+                className="ns-btn"
+                onClick={() => {
+                  void onPickImages().then((result) => {
+                    setImages((current) => {
+                      const refs = new Set(current.map((image) => image.ref));
+                      return [...current, ...result.staged.filter((image) => !refs.has(image.ref)).map(({ ref, width, height }) => ({ ref, width, height }))];
+                    });
+                  }).catch((error: unknown) => {
+                    const details = errorDetails(error);
+                    notify.error({ title: "Không nạp được ảnh", message: compactNotificationMessage(details, "Thử lại."), details });
+                  });
+                }}
+              >
+                Thêm ảnh
+              </button>
+            ) : null}
+          </div>
+        )}
         {!job.smoke && (
           <div className="ns-create-knobs" style={{ marginTop: 12 }}>
             <KnobButton
@@ -833,7 +1005,7 @@ const JobEditDialog: React.FC<{
           </div>
         )}
         <div className="ns-queue-edit-actions">
-          <button type="button" className="ns-btn" onClick={onClose} disabled={saving}>
+          <button type="button" className="ns-btn" onClick={closeDialog} disabled={saving}>
             Huỷ
           </button>
           <button
@@ -851,6 +1023,7 @@ const JobEditDialog: React.FC<{
                       videoLanguage,
                       voiceProvider,
                       bgm: bgmSelected,
+                      images,
                     }),
               })
                 .catch((error: unknown) => {
@@ -864,7 +1037,7 @@ const JobEditDialog: React.FC<{
                 .finally(() => setSaving(false));
             }}
           >
-            {saving ? "Đang lưu…" : "Lưu"}
+            <StableButtonLabel reserve={["Đang lưu…", "Lưu"]}>{saving ? "Đang lưu…" : "Lưu"}</StableButtonLabel>
           </button>
         </div>
       </div>

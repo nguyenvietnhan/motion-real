@@ -1,7 +1,41 @@
-import type { ReviewMode, SettingsModel, VoiceProviderChoice } from "./types.js";
+import type { ReviewMode, SettingsModel, SettingsUpdateInput, VoiceProviderChoice } from "./types.js";
 
 export const REVIEW_MODES: readonly ReviewMode[] = ["full", "stills_edit", "skip_edit"] as const;
 export const DEFAULT_REVIEW_MODE: ReviewMode = "full";
+
+export const FULL_AUTO_SETTINGS_PATCH = {
+  reviewMode: "skip_edit",
+  scriptGateEnabled: false,
+  imageCrawlHumanReview: false,
+} as const satisfies SettingsUpdateInput;
+
+export function isFullAutoSettings(
+  settings: Pick<SettingsModel, "reviewMode" | "scriptGateEnabled" | "imageCrawlHumanReview">,
+): boolean {
+  return settings.reviewMode === "skip_edit" && !settings.scriptGateEnabled && !settings.imageCrawlHumanReview;
+}
+
+/** Allow-list and normalize the renderer's settings patch at the IPC boundary. */
+export function normalizeSettingsUpdate(value: unknown): SettingsUpdateInput {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error("Dữ liệu cài đặt không hợp lệ.");
+  }
+  const raw = value as Record<string, unknown>;
+  const out: SettingsUpdateInput = {};
+  if (typeof raw.preferredAiModelId === "string") out.preferredAiModelId = raw.preferredAiModelId;
+  if (raw.voiceProvider === "vivibe" || raw.voiceProvider === "elevenlabs") out.voiceProvider = raw.voiceProvider;
+  if (typeof raw.vivibeVoiceId === "string") out.vivibeVoiceId = raw.vivibeVoiceId;
+  if (typeof raw.elevenLabsVoiceId === "string") out.elevenLabsVoiceId = raw.elevenLabsVoiceId;
+  if (typeof raw.maxRepairAttempts === "number") out.maxRepairAttempts = clampMaxRepairAttempts(raw.maxRepairAttempts);
+  if (typeof raw.scriptGateEnabled === "boolean") out.scriptGateEnabled = raw.scriptGateEnabled;
+  if (raw.reviewMode === "full" || raw.reviewMode === "stills_edit" || raw.reviewMode === "skip_edit") out.reviewMode = raw.reviewMode;
+  if (typeof raw.refinePasses === "number") out.refinePasses = clampRefinePasses(raw.refinePasses);
+  if (typeof raw.refineEarlyStop === "boolean") out.refineEarlyStop = raw.refineEarlyStop;
+  if (typeof raw.imageCrawlAiFilter === "boolean") out.imageCrawlAiFilter = raw.imageCrawlAiFilter;
+  if (typeof raw.imageCrawlHumanReview === "boolean") out.imageCrawlHumanReview = raw.imageCrawlHumanReview;
+  if (typeof raw.smokeRenderEnabled === "boolean") out.smokeRenderEnabled = raw.smokeRenderEnabled;
+  return out;
+}
 
 /** Coerce persisted/unknown values to a valid review mode; missing → full. */
 export function normalizeReviewMode(raw: unknown): ReviewMode {

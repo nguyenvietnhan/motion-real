@@ -1,6 +1,6 @@
 ---
 name: frontend-design
-description: Create distinctive, production-grade frontend interfaces with high design quality. Use this skill when the user asks to build web components, pages, or applications, or when styling video scenes that must avoid generic AI aesthetics. Generates creative, polished code that avoids generic AI aesthetics.
+description: Create distinctive frontend interfaces. Do not auto-apply to skill-test video creation; make-video and scene-authoring own experimental video art direction.
 license: Complete terms in LICENSE.txt
 metadata:
   author: anthropics (vendored via digitalsamba/claude-code-video-toolkit, MIT repo)

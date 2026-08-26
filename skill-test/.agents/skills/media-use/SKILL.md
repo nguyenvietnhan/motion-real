@@ -1,9 +1,13 @@
 ---
 name: media-use
-description: Agent Media OS, the single skill for every media need in a HyperFrames project. Resolve BGM, SFX, image, icon, brand logo, voice, color grade, or LUT into a frozen local file or paste-ready block + ledger record (one verb, `resolve`); generate via TTS / music / image models when the catalog misses; produce voiceover, transcription, captions, and background removal through one shared audio engine; operate on media (cut / reframe / transform); and reuse assets across projects. Also use for vague feedback that real footage looks dark, flat, boring, should feel retro/camcorder/print/ASCII, needs privacy, or needs a media reveal.
+description: Explicit media operation helper for an existing HyperFrames composition. In skill-test experimental jobs, make-video owns asset sourcing, rights ledger, narration, and publication policy.
 ---
 
 # media-use
+
+> Do not replace the experimental job's `assets.json`, provenance rules, or
+> VieNeu narration path. Use only when `make-video` explicitly requests a media
+> operation on an already-staged local asset.
 
 The media OS for HyperFrames: resolve · generate · operate · remember — every media type, one skill, zero context noise.
 

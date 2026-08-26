@@ -25,6 +25,48 @@ async function waitUntilIdle(runner: QueueRunner, max = 80): Promise<void> {
 }
 
 describe("QueueRunner", () => {
+  it("blocks Start until Full auto and preserves queued work", () => {
+    const dir = mkdtempSync(join(tmpdir(), "mr-qrun-"));
+    const store = new QueueStore({ filePath: join(dir, "queues.json") });
+    const q = store.create();
+    store.addJob(q.id, jobInput("blocked"));
+    const create = { create: vi.fn() } as unknown as CreateController;
+    const runner = new QueueRunner({
+      store,
+      create,
+      fullAutoReady: () => false,
+      createSmoke: async () => ({ ok: false as const, error: "not used" }),
+      stageOf: async () => ({ kind: "writing" }),
+      cancelProject: () => {},
+    });
+
+    expect(runner.start(q.id)).toEqual(expect.objectContaining({ ok: false, code: "FULL_AUTO_REQUIRED" }));
+    expect(store.get(q.id)?.jobs[0]?.status).toBe("queued");
+    expect(create.create).not.toHaveBeenCalled();
+  });
+
+  it("passes staged images to CreateController", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "mr-qrun-"));
+    const store = new QueueStore({ filePath: join(dir, "queues.json") });
+    const q = store.create();
+    const images = [{ ref: "staging/aa.png", width: 800, height: 600 }];
+    store.addJob(q.id, { ...jobInput("with image"), images });
+    const create = { create: vi.fn(async () => ({ projectId: "p-image" })) } as unknown as CreateController;
+    const runner = new QueueRunner({
+      store,
+      create,
+      fullAutoReady: () => true,
+      createSmoke: async () => ({ ok: false as const, error: "not used" }),
+      stageOf: async () => ({ kind: "published", outputPath: "/out.mp4", title: "ok" }),
+      cancelProject: () => {},
+      sleep: async () => {},
+    });
+
+    expect(runner.start(q.id).ok).toBe(true);
+    await waitUntilIdle(runner);
+    expect(create.create).toHaveBeenCalledWith("with image", images, expect.any(Object));
+  });
+
   it("fails a job stuck on human-wait stage and continues the next job", async () => {
     const dir = mkdtempSync(join(tmpdir(), "mr-qrun-"));
     const store = new QueueStore({
@@ -571,5 +613,141 @@ describe("QueueRunner", () => {
     await waitUntilIdle(runner);
     expect(store.get(q.id)?.title).toBe("keep-me");
     expect(store.get(q.id)?.jobs[0]?.status).toBe("done");
+  });
+
+  it("pauses the whole persisted chain on a voice-provider failure and resumes without duplicating its project", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "mr-qrun-"));
+    const filePath = join(dir, "queues.json");
+    const store = new QueueStore({
+      filePath,
+      id: (() => { let n = 0; return () => `v${++n}`; })(),
+    });
+    const q = store.create("voice");
+    store.addJob(q.id, jobInput("first"));
+    store.addJob(q.id, jobInput("second"));
+    const create = {
+      create: vi.fn(async (raw: string) => ({ projectId: `p-${raw}` })),
+    } as unknown as CreateController;
+    const runner = new QueueRunner({
+      store,
+      create,
+      fullAutoReady: () => true,
+      createSmoke: async () => ({ ok: false as const, error: "not used" }),
+      stageOf: async (projectId) => projectId === "p-first"
+        ? {
+            kind: "error",
+            message: "Tài khoản giọng đọc đã hết credit.",
+            fixable: false,
+            retry: "full",
+            voiceFailure: { provider: "vivibe", code: "insufficient_credits", retryable: false },
+          }
+        : { kind: "published", outputPath: "/out.mp4" },
+      cancelProject: () => {},
+      sleep: async () => {},
+    });
+
+    expect(runner.start(q.id)).toEqual({ ok: true, mode: "started" });
+    await waitUntilIdle(runner);
+    expect(create.create).toHaveBeenCalledTimes(1);
+    expect(store.get(q.id)?.jobs.map((job) => job.status)).toEqual(["failed", "queued"]);
+    expect(store.pauseState()).toMatchObject({ kind: "voice_provider", voiceFailure: { code: "insufficient_credits" } });
+    expect(store.scheduledQueueIds()).toEqual([q.id]);
+
+    const loaded = new QueueStore({ filePath });
+    const resumeProject = vi.fn(async () => ({ ok: true as const }));
+    const createAfterRestart = {
+      create: vi.fn(async () => ({ projectId: "p-second" })),
+    } as unknown as CreateController;
+    const resumed = new QueueRunner({
+      store: loaded,
+      create: createAfterRestart,
+      fullAutoReady: () => true,
+      createSmoke: async () => ({ ok: false as const, error: "not used" }),
+      projectExists: () => true,
+      resumeProject,
+      stageOf: async () => ({ kind: "published", outputPath: "/out.mp4" }),
+      cancelProject: () => {},
+      sleep: async () => {},
+    });
+
+    expect(resumed.resume().ok).toBe(true);
+    await waitUntilIdle(resumed);
+    expect(resumeProject).toHaveBeenCalledWith("p-first");
+    expect(createAfterRestart.create).toHaveBeenCalledTimes(1);
+    expect(loaded.get(q.id)?.jobs.map((job) => job.status)).toEqual(["done", "done"]);
+    expect(loaded.scheduledQueueIds()).toEqual([]);
+  });
+
+  it("auto-restores an interrupted linked project and never calls create again", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "mr-qrun-"));
+    const store = new QueueStore({ filePath: join(dir, "queues.json") });
+    const q = store.create("restore");
+    store.addJob(q.id, jobInput("existing"));
+    const job = store.get(q.id)!.jobs[0]!;
+    store.updateJob(q.id, job.id, { status: "running", projectId: "p-existing" });
+    store.schedule(q.id);
+    store.reconcileStaleRunningJobs();
+    const create = { create: vi.fn() } as unknown as CreateController;
+    const resumeProject = vi.fn(async () => ({ ok: true as const }));
+    const runner = new QueueRunner({
+      store,
+      create,
+      fullAutoReady: () => true,
+      createSmoke: async () => ({ ok: false as const, error: "not used" }),
+      projectExists: () => true,
+      resumeProject,
+      stageOf: async () => ({ kind: "published", outputPath: "/out.mp4" }),
+      cancelProject: () => {},
+      sleep: async () => {},
+    });
+
+    expect(runner.restore()?.ok).toBe(true);
+    await waitUntilIdle(runner);
+    expect(resumeProject).toHaveBeenCalledWith("p-existing");
+    expect(create.create).not.toHaveBeenCalled();
+    expect(store.get(q.id)?.jobs[0]).toMatchObject({ status: "done", projectId: "p-existing" });
+    expect(store.scheduledQueueIds()).toEqual([]);
+  });
+
+  it("clears stale Start intent after the final job was already persisted as done", () => {
+    const dir = mkdtempSync(join(tmpdir(), "mr-qrun-"));
+    const store = new QueueStore({ filePath: join(dir, "queues.json") });
+    const q = store.create("finished");
+    store.addJob(q.id, jobInput("already published"));
+    const job = store.get(q.id)!.jobs[0]!;
+    store.updateJob(q.id, job.id, { status: "done", projectId: "p-done" });
+    store.schedule(q.id);
+    const create = { create: vi.fn() } as unknown as CreateController;
+    const runner = new QueueRunner({
+      store,
+      create,
+      fullAutoReady: () => true,
+      createSmoke: async () => ({ ok: false as const, error: "not used" }),
+      stageOf: async () => ({ kind: "published", outputPath: "/out.mp4" }),
+      cancelProject: () => {},
+    });
+
+    expect(runner.restore()?.ok).toBe(false);
+    expect(create.create).not.toHaveBeenCalled();
+    expect(store.scheduledQueueIds()).toEqual([]);
+  });
+
+  it("keeps a restored schedule paused when Full auto is no longer valid", () => {
+    const dir = mkdtempSync(join(tmpdir(), "mr-qrun-"));
+    const store = new QueueStore({ filePath: join(dir, "queues.json") });
+    const q = store.create("blocked");
+    store.addJob(q.id, jobInput("waiting"));
+    store.schedule(q.id);
+    const runner = new QueueRunner({
+      store,
+      create: { create: vi.fn() } as unknown as CreateController,
+      fullAutoReady: () => false,
+      createSmoke: async () => ({ ok: false as const, error: "not used" }),
+      stageOf: async () => ({ kind: "writing" }),
+      cancelProject: () => {},
+    });
+    expect(runner.restore()).toMatchObject({ ok: false, code: "FULL_AUTO_REQUIRED" });
+    expect(store.pauseState()?.kind).toBe("full_auto_required");
+    expect(store.get(q.id)?.jobs[0]?.status).toBe("queued");
   });
 });

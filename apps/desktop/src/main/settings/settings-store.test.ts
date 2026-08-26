@@ -356,6 +356,36 @@ describe("preferredAiModelId persistence", () => {
   });
 });
 
+describe("settings persistence integrity", () => {
+  it("rolls memory back and throws when a settings update cannot be written", () => {
+    const store = new SettingsStore({
+      filePath: "settings.json",
+      defaults,
+      envApiKey: () => undefined,
+      envVoiceId: () => undefined,
+      writeText: () => { throw new Error("disk full"); },
+    });
+    expect(() => store.update({ reviewMode: "skip_edit" })).toThrow(/Không lưu được cài đặt/);
+    expect(store.current().reviewMode).toBe("full");
+  });
+
+  it("does not coerce legacy string booleans to true", () => {
+    const { store } = memStore(JSON.stringify({
+      scriptGateEnabled: "false",
+      refineEarlyStop: "false",
+      imageCrawlAiFilter: "false",
+      imageCrawlHumanReview: "false",
+      smokeRenderEnabled: "false",
+    }));
+    const current = store.current();
+    expect(current.scriptGateEnabled).toBe(defaults().scriptGateEnabled);
+    expect(current.refineEarlyStop).toBe(defaults().refineEarlyStop);
+    expect(current.imageCrawlAiFilter).toBe(defaults().imageCrawlAiFilter);
+    expect(current.imageCrawlHumanReview).toBe(defaults().imageCrawlHumanReview);
+    expect(current.smokeRenderEnabled).toBe(false);
+  });
+});
+
 // Property 6: setScriptGateEnabled is Boolean coercion + persisted
 describe("Property 6: setScriptGateEnabled Boolean coercion", () => {
   it("scriptGateEnabled === Boolean(enabled) and is persisted", () => {

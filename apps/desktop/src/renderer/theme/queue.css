@@ -108,6 +108,36 @@
   gap: 8px;
   flex-wrap: wrap;
 }
+
+.ns-queue-full-auto {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--warning) 45%, var(--border));
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--warning) 10%, var(--card));
+  font-size: 13px;
+}
+
+.ns-queue-image-ref {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 220px;
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 12px;
+}
+.ns-queue-image-ref button {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
 .ns-queue-title-row {
   display: inline-flex;
   align-items: center;

@@ -1,4 +1,4 @@
-import type { ProjectState } from "@motionreal/pipeline";
+import type { ProjectState, VoiceProviderFailure } from "@motionreal/pipeline";
 
 /**
  * UI-side view-model types shared between the main (engine host) and renderer
@@ -198,7 +198,7 @@ export type ProjectStage =
   /** Draft MP4 healthy but manifest missing/unreadable — view/reveal only. */
   | { kind: "draft-recovery"; draftPath: string; notice: string }
   | { kind: "published"; outputPath: string; title?: string; hashtags?: string[]; thumbnailPath?: string; format?: VideoFormatChoice } // full MP4 rendered (title+hashtags for Copy; thumbnailPath = caption-free first-scene cover; format drives preview/cover aspect)
-  | { kind: "error"; message: string; fixable: boolean; retry?: "create" | "draft" | "full" }; // retry = which loop "Thử lại" re-runs (re-author | re-render draft | re-publish), so it doesn't re-author on a render failure
+  | { kind: "error"; message: string; fixable: boolean; retry?: "create" | "draft" | "full"; voiceFailure?: VoiceProviderFailure }; // retry = which loop "Thử lại" re-runs (re-author | re-render draft | re-publish), so it doesn't re-author on a render failure
 
 export type EditBatch = {
   perScene: { sceneId: string; text: string }[];
@@ -245,6 +245,10 @@ export type DesktopReadinessReport = {
   ok: boolean;
   checks: DesktopReadinessCheck[];
 };
+
+export type VoiceTestResult =
+  | { ok: true; audioDataUrl: string }
+  | { ok: false; error: string; voiceFailure: VoiceProviderFailure };
 
 // --- settings -----------------------------------------------------
 
@@ -310,6 +314,22 @@ export type SettingsModel = {
   smokeRenderEnabled: boolean;
 };
 
+/** Fields the untrusted renderer may persist through `settings:update`. */
+export type SettingsUpdateInput = Partial<Pick<SettingsModel,
+  | "preferredAiModelId"
+  | "voiceProvider"
+  | "vivibeVoiceId"
+  | "elevenLabsVoiceId"
+  | "maxRepairAttempts"
+  | "scriptGateEnabled"
+  | "reviewMode"
+  | "refinePasses"
+  | "refineEarlyStop"
+  | "imageCrawlAiFilter"
+  | "imageCrawlHumanReview"
+  | "smokeRenderEnabled"
+>>;
+
 // --- streaming events ---------------------------------------
 
 export type ProgressEvent = { projectId: string; ratio: number; phase: "draft" | "full" };
@@ -321,6 +341,7 @@ export type FriendlyError = {
   retry?: "draft" | "full" | "create" | "activate" | "connect";
   /** When true, a Content_Error the agent can attempt to fix ("Sửa bằng AI"). */
   fixable?: boolean;
+  voiceFailure?: VoiceProviderFailure;
 };
 
 /** A plain-language auto-fix description that may cross IPC (never an N-code). */

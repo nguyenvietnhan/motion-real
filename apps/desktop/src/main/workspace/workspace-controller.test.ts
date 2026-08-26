@@ -40,6 +40,106 @@ function baseDeps(over: Partial<WorkspaceDeps> = {}): WorkspaceDeps {
 
 const flush = () => new Promise((r) => setTimeout(r, 0));
 
+describe("process-wide workspace lane", () => {
+  const worker = (author: AgentWorker["author"]): AgentWorker => ({
+    author,
+    reauthorScenes: async () => ({ kind: "authored", sceneIds: [] }),
+    publish: async () => ({ ok: true, outputPath: "/out.mp4" }),
+    generateValidateRepair: async () => ({ kind: "passed", attempts: 1 }),
+  });
+
+  it("runs different project author jobs FIFO without overlap", async () => {
+    let releaseFirst!: () => void;
+    const first = new Promise<void>((resolve) => { releaseFirst = resolve; });
+    let active = 0;
+    let maxActive = 0;
+    const order: string[] = [];
+    const ctrl = new WorkspaceController(baseDeps({
+      worker: worker(async ({ projectId }) => {
+        active += 1;
+        maxActive = Math.max(maxActive, active);
+        order.push(projectId);
+        if (projectId === "p1") await first;
+        active -= 1;
+        return { kind: "authored", sceneIds: ["scene-01"] };
+      }),
+    }));
+
+    ctrl.beginScript("p1", { text: "one", urls: [] });
+    ctrl.beginScript("p2", { text: "two", urls: [] });
+    await flush();
+    expect(order).toEqual(["p1"]);
+    expect(ctrl.isBusy()).toBe(true);
+    releaseFirst();
+    await flush();
+    await flush();
+    expect(order).toEqual(["p1", "p2"]);
+    expect(maxActive).toBe(1);
+  });
+
+  it("keeps thumbnail render in the same process lane", async () => {
+    let releaseThumbnail!: () => void;
+    const thumbnailGate = new Promise<void>((resolve) => { releaseThumbnail = resolve; });
+    const author = vi.fn(async (): Promise<AuthorOutcome> => ({ kind: "authored", sceneIds: ["scene-01"] }));
+    const ctrl = new WorkspaceController(baseDeps({
+      worker: worker(author),
+      renderThumbnail: async () => {
+        await thumbnailGate;
+        return { path: "/thumb.png" };
+      },
+    }));
+
+    const thumbnail = ctrl.generateThumbnail("cover");
+    await flush();
+    ctrl.beginScript("p2", { text: "two", urls: [] });
+    await flush();
+    expect(author).not.toHaveBeenCalled();
+    releaseThumbnail();
+    await thumbnail;
+    await flush();
+    expect(author).toHaveBeenCalledOnce();
+  });
+});
+
+describe("resumeUnattended", () => {
+  it.each([
+    { stage: { kind: "ready", scenes: [] } as ProjectStage, label: "ready" },
+    { stage: { kind: "error", message: "full failed", fixable: false, retry: "full" } as ProjectStage, label: "full error" },
+  ])("continues an existing $label project with publish", async ({ stage }) => {
+    const publish = vi.fn(async () => ({ ok: true as const, outputPath: "/out.mp4" }));
+    const ctrl = new WorkspaceController(baseDeps({ worker: { publish } as unknown as AgentWorker }));
+    ctrl.setStage("p-old", stage);
+    await expect(ctrl.resumeUnattended("p-old")).resolves.toEqual({ ok: true });
+    await flush();
+    expect(publish).toHaveBeenCalledTimes(1);
+    expect((await ctrl.stage("p-old")).kind).toBe("published");
+  });
+
+  it("rehydrates an interrupted pre-author project instead of creating another id", async () => {
+    const author = vi.fn(async (): Promise<AuthorOutcome> => ({ kind: "authored", sceneIds: ["scene-01"] }));
+    const ctrl = new WorkspaceController(baseDeps({
+      worker: {
+        author,
+        reauthorScenes: async () => ({ kind: "authored", sceneIds: [] }),
+        generateValidateRepair: async (): Promise<RepairOutcome> => ({ kind: "passed", attempts: 1 }),
+        publish: async () => ({ ok: true, outputPath: "/out.mp4" }),
+      },
+      recallInput: async () => ({ text: "persisted prompt", urls: [] }),
+      loadManifest: async () => { throw new Error("missing"); },
+    }));
+    ctrl.setStage("p-old", { kind: "error", message: "interrupted", fixable: false, retry: "create" });
+    await expect(ctrl.resumeUnattended("p-old")).resolves.toEqual({ ok: true });
+    await flush();
+    expect(author).toHaveBeenCalledWith(expect.objectContaining({ projectId: "p-old" }), expect.anything(), expect.any(AbortSignal));
+  });
+
+  it("refuses artifact-only recovery that cannot be continued safely", async () => {
+    const ctrl = new WorkspaceController(baseDeps());
+    ctrl.setStage("p-broken", { kind: "draft-recovery", draftPath: "media://draft.mp4", notice: "manifest missing" });
+    await expect(ctrl.resumeUnattended("p-broken")).resolves.toMatchObject({ ok: false });
+  });
+});
+
 function card(over: Partial<ProjectCardVM> = {}): ProjectCardVM {
   return {
     projectId: "p1",
@@ -212,6 +312,35 @@ describe("projects:list status recovery", () => {
   });
 });
 
+describe("workspace event backpressure", () => {
+  it("broadcasts status only when the friendly status changes", () => {
+    const events = noopEvents();
+    const ctrl = new WorkspaceController(baseDeps({ events }));
+    ctrl.setStage("p1", { kind: "rendering", phase: "draft", percent: 1 });
+    ctrl.setStage("p1", { kind: "rendering", phase: "draft", percent: 2 });
+    ctrl.setStage("p1", { kind: "ready", scenes: [] });
+    ctrl.setStage("p1", { kind: "ready", scenes: [], notice: "x" });
+
+    expect(events.status).toHaveBeenCalledTimes(2);
+    expect(events.status).toHaveBeenNthCalledWith(1, { projectId: "p1", status: "building" });
+    expect(events.status).toHaveBeenNthCalledWith(2, { projectId: "p1", status: "draft-ready" });
+  });
+
+  it("emits one progress update per visible percent and phase", () => {
+    const events = noopEvents();
+    const ctrl = new WorkspaceController(baseDeps({ events }));
+    ctrl.setStage("p1", { kind: "rendering", phase: "full", percent: 0 });
+    ctrl.reportRenderProgress("p1", 0.101);
+    ctrl.reportRenderProgress("p1", 0.104);
+    ctrl.reportRenderProgress("p1", 0.106);
+
+    expect(events.progress).toHaveBeenCalledTimes(2);
+    expect(events.progress).toHaveBeenNthCalledWith(1, { projectId: "p1", ratio: 0.101, phase: "full" });
+    expect(events.progress).toHaveBeenNthCalledWith(2, { projectId: "p1", ratio: 0.106, phase: "full" });
+    expect(events.status).toHaveBeenCalledTimes(1);
+  });
+});
+
 // Property 7: Empty-narration guard for applyEdits
 describe("Property 7: empty-narration guard (manifest order, no write on reject)", () => {
   it("rejects with the FIRST manifest-order offending scene and never writes", async () => {
@@ -325,7 +454,7 @@ describe("error-stage messages are redacted", () => {
   });
 });
 describe("Property 9: render progress mapping", () => {
-  it("percent = round(ratio*100); events.progress carries {projectId, ratio, phase:'draft'}", () => {
+  it("percent = round(ratio*100); duplicate visible percents are coalesced", () => {
     fc.assert(
       fc.asyncProperty(
         fc.array(fc.double({ min: 0, max: 1, noNaN: true }), { minLength: 1, maxLength: 6 }),
@@ -352,7 +481,10 @@ describe("Property 9: render progress mapping", () => {
           ctrl.approve("pX");
           await flush();
 
-          expect(progress).toEqual(ratios.map((r) => ({ projectId: "pX", ratio: r, phase: "draft" })));
+          const visibleRatios = ratios.filter((ratio, index) =>
+            Math.round(ratio * 100) !== (index === 0 ? 0 : Math.round(ratios[index - 1]! * 100)),
+          );
+          expect(progress).toEqual(visibleRatios.map((r) => ({ projectId: "pX", ratio: r, phase: "draft" })));
           expect(percents).toEqual(ratios.map((r) => Math.round(r * 100)));
         },
       ),
@@ -1377,6 +1509,41 @@ describe("reviewMode (stills_edit / skip_edit)", () => {
     const st = await ctrl.stage("p-full-fail");
     expect(st.kind === "error" && st.retry).toBe("full");
     expect(publish).toHaveBeenCalled();
+  });
+
+  it("keeps a full-render voice failure structured and user-actionable", async () => {
+    const events = noopEvents();
+    const publish = vi.fn(async () => ({
+      ok: false as const,
+      error: {
+        message: "[tts] raw provider body",
+        stage: "tts" as const,
+        cause: "raw response",
+        severity: "error" as const,
+        voiceFailure: { provider: "vivibe" as const, code: "insufficient_credits" as const, retryable: false },
+      },
+    }));
+    const ctrl = new WorkspaceController(baseDeps({
+      worker: stillsWorker({ publish }),
+      settings: unattendedSettings,
+      events,
+      loadManifest: async () => ({ scenes: [{ id: "scene-01" }] }),
+      hasStill: () => true,
+      hasDraft: () => false,
+    }));
+    ctrl.approve("p-credit");
+    await flush();
+    const stage = await ctrl.stage("p-credit");
+    expect(stage).toMatchObject({
+      kind: "error",
+      retry: "full",
+      voiceFailure: { provider: "vivibe", code: "insufficient_credits" },
+      message: expect.stringMatching(/hết credit/i),
+    });
+    expect(events.friendlyError).toHaveBeenCalledWith(expect.objectContaining({
+      retry: "full",
+      voiceFailure: expect.objectContaining({ code: "insufficient_credits" }),
+    }));
   });
 
   it("unattended: onJobNotify fires once on published and once on error edge", async () => {

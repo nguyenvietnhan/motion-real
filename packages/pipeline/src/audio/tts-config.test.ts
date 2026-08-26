@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { VideoSpec } from "@motionreal/schema";
+import { serializeError } from "../errors.js";
 import {
   prepareTtsText,
   resolveElevenLabsCredentials,
@@ -58,5 +59,25 @@ describe("language-aware TTS preparation", () => {
       apiKey: "key",
       voiceId: "voice",
     })).rejects.toThrow(/Vivibe.*Vietnamese|ElevenLabs/i);
+  });
+
+  it("keeps missing provider configuration as a structured tts failure", async () => {
+    const spec = {
+      version: 1,
+      title: "Vietnamese",
+      format: "tiktok",
+      language: "vi",
+      scenes: [],
+    } satisfies VideoSpec;
+    const error = await synthesizeNarration(spec, {
+      projectId: "missing-voice-config",
+      provider: "vivibe",
+      apiKey: "",
+      voiceId: "voice",
+    }).catch((value: unknown) => value);
+    expect(serializeError(error, "render")).toMatchObject({
+      stage: "tts",
+      voiceFailure: { provider: "vivibe", code: "not_configured" },
+    });
   });
 });

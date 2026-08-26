@@ -12,6 +12,18 @@ import type { FriendlyError, FriendlyFix } from "../../shared/types.js";
 
 const GENERIC = "Đã xảy ra sự cố. Vui lòng thử lại.";
 
+const VOICE_FAILURE_MESSAGE: Record<NonNullable<SerializedPipelineError["voiceFailure"]>["code"], string> = {
+  not_configured: "Chưa cấu hình giọng đọc. Hãy lưu API key và Voice ID trong Cài đặt.",
+  invalid_api_key: "API key giọng đọc không hợp lệ. Hãy cập nhật key trong Cài đặt rồi kiểm tra lại giọng.",
+  insufficient_credits: "Tài khoản giọng đọc đã hết credit. Hãy nạp thêm credit hoặc chọn nhà cung cấp khác.",
+  plan_required: "Gói hiện tại không hỗ trợ giọng hoặc model đã chọn. Hãy đổi giọng, nâng gói hoặc chọn nhà cung cấp khác.",
+  rate_limited: "Nhà cung cấp giọng đang giới hạn lượt gọi. Hãy chờ một lúc rồi thử lại.",
+  voice_not_found: "Không tìm thấy Voice ID đã chọn. Hãy cập nhật Voice ID trong Cài đặt rồi kiểm tra lại giọng.",
+  invalid_request: "Thiết lập giọng đọc chưa được nhà cung cấp chấp nhận. Hãy kiểm tra Voice ID và model.",
+  provider_unavailable: "Dịch vụ giọng đọc đang tạm thời không khả dụng. Hãy thử lại sau.",
+  unknown: "Nhà cung cấp giọng đọc gặp sự cố chưa xác định. Hãy kiểm tra giọng trong Cài đặt rồi thử lại.",
+};
+
 /** Defense-in-depth: strip any L0 internal token from a final message. */
 export function stripL0Tokens(text: string): string {
   // One cleaning pass. Structural separators are removed FIRST (as spaces) so a
@@ -77,7 +89,9 @@ export function toFriendlyError(
   error: SerializedPipelineError,
   opts: FriendlyErrorOptions = {},
 ): FriendlyError {
-  const base = STAGE_MESSAGE[error.stage] ?? GENERIC;
+  const base = error.voiceFailure
+    ? VOICE_FAILURE_MESSAGE[error.voiceFailure.code]
+    : STAGE_MESSAGE[error.stage] ?? GENERIC;
   const message = stripL0Tokens(base) || GENERIC;
   const retry =
     error.stage === "render" && opts.phase === "full" ? "full" : STAGE_RETRY[error.stage];
@@ -85,6 +99,7 @@ export function toFriendlyError(
     ...(opts.projectId !== undefined ? { projectId: opts.projectId } : {}),
     message,
     ...(retry !== undefined ? { retry } : {}),
+    ...(error.voiceFailure ? { voiceFailure: error.voiceFailure } : {}),
   };
 }
 

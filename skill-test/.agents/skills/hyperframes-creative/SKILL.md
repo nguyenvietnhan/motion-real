@@ -1,6 +1,6 @@
 ---
 name: hyperframes-creative
-description: Non-animation creative direction for HyperFrames videos. Use for design spec (frame.md / design.md) handling, palettes, typography, narration, beat planning, audio-reactive visuals, composition patterns, and brand / style decisions. For atomic motion patterns and scene blueprints, use `hyperframes-animation`.
+description: Explicit creative reference for an existing HyperFrames composition. In skill-test experimental jobs, make-video owns the visual brief and scene-authoring applies it.
 ---
 
 # HyperFrames Creative

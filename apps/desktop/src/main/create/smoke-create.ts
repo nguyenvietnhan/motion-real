@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { Tools } from "@motionreal/pipeline";
+import { createLogger, type Tools } from "@motionreal/pipeline";
 import { validateCreateInput } from "./create-controller.js";
 import { toFriendlyError } from "../redact/friendly.js";
 import type { AuthorInput } from "../agent/agent-worker.js";
@@ -21,6 +21,7 @@ export type SmokeCreateDeps = {
 };
 
 const DEFAULT_SMOKE_PROMPT = "Smoke test — video ngắn 10 giây, không tiếng.";
+const log = createLogger("smoke-create");
 
 /**
  * Scaffold + beginCreate a silent ~10s "test" project (TTS none).
@@ -49,7 +50,10 @@ export async function createSmokeProject(
   if (!res.ok) {
     return { ok: false, error: toFriendlyError(res.error).message };
   }
-  await deps.rename(projectId, "test").catch(() => null);
+  await deps.rename(projectId, "test").catch((error) => {
+    log.debug({ err: error, projectId }, "smoke project rename failed");
+    return null;
+  });
   deps.beginCreate(projectId, {
     text: validated.brief.text,
     urls: validated.brief.urls,

@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import type { StoryboardModel } from "../../shared/types.js";
 import { Icon } from "../icons.js";
-import { EmptyState, InfoHint } from "../primitives.js";
+import { EmptyState, InfoHint, StableButtonLabel } from "../primitives.js";
 import { compactNotificationMessage, errorDetails, useNotifications } from "../notifications.js";
 import { sceneIndexAtSeconds, seekSecondsForScene } from "../storyboard-timing.js";
 
@@ -184,11 +184,13 @@ export const StoryboardView: React.FC<{
               onClick={sendAll}
               title={canSend ? undefined : "Nhập yêu cầu trước khi gửi."}
             >
-              {submitting ? "Đang gửi…" : editedCount > 0 ? (
-                <span className="ns-tabular">Gửi ({editedCount})</span>
-              ) : (
-                "Gửi"
-              )}
+              <StableButtonLabel reserve={["Đang gửi…", "Gửi (99)", "Gửi"]}>
+                {submitting ? "Đang gửi…" : editedCount > 0 ? (
+                  <span className="ns-tabular">Gửi ({editedCount})</span>
+                ) : (
+                  "Gửi"
+                )}
+              </StableButtonLabel>
             </button>
           )}
           <button

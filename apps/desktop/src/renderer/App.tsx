@@ -6,12 +6,20 @@ import { ProjectsView } from "./views/projects.js";
 import { SettingsView, type SettingsTab } from "./views/settings.js";
 import { ProjectWorkspaceView } from "./views/workspace.js";
 import { QueueView } from "./views/queue.js";
-import { reduceDesktop, type DesktopState } from "./state/desktop-state.js";
+import {
+  reduceDesktop,
+  runSingleFlight,
+  sameAiAccountState,
+  sameGatewayState,
+  sameModels,
+  statusNeedsGalleryRefresh,
+  type DesktopState,
+} from "./state/desktop-state.js";
 import { aiReady } from "../shared/ai-ready.js";
 import type { CreatePathSettingsTab } from "../shared/create-path-readiness.js";
 import { preferredModelDecision } from "../shared/model-selection.js";
-import { defaultSettings, reviewModeAllowsSceneEdit } from "../shared/settings-model.js";
-import type { BgmTrackVM, ModelInfo, ProjectStage } from "../shared/types.js";
+import { defaultSettings, FULL_AUTO_SETTINGS_PATCH, reviewModeAllowsSceneEdit } from "../shared/settings-model.js";
+import type { BgmTrackVM, ModelInfo, ProjectCardVM, ProjectStage } from "../shared/types.js";
 import type { QueueProjectVM, QueueRunnerStatus } from "../shared/queue-types.js";
 import { EMPTY_QUEUE_STATUS } from "./views/queue.js";
 import { compactNotificationMessage, errorDetails, NotificationProvider, useNotifications } from "./notifications.js";
@@ -21,7 +29,7 @@ import { ConfirmDialog } from "./primitives.js";
  * Renderer root — enterprise shell: a left Sidebar + a content
  * area, Home-first. AI status lives in the sidebar; login is delegated to
  * 9router via Settings. Preferred model is restored from settings (or first-use
- * first model is selected and persisted). Gateway is polled only until AI is ready.
+ * first model is selected and persisted). Gateway health stays polled after AI is ready.
  */
 
 const initial: DesktopState = {
@@ -53,6 +61,7 @@ const AppShell: React.FC = () => {
   const [bgm, setBgm] = useState<BgmTrackVM[]>([]);
   const [createBgmSelected, setCreateBgmSelected] = useState<string | null>(null);
   const createBgmInitialized = useRef(false);
+  const bgmLoadFailed = useRef(false);
   const [queues, setQueues] = useState<QueueProjectVM[]>([]);
   const [queueLoad, setQueueLoad] = useState<"loading" | "ready" | "error">("loading");
   const [activeQueueId, setActiveQueueId] = useState<string | null>(null);
@@ -63,10 +72,27 @@ const AppShell: React.FC = () => {
   const [pendingQueueDeleteId, setPendingQueueDeleteId] = useState<string | null>(null);
   const selectingModelRef = useRef<string | null>(null);
   const preferredModelIdRef = useRef<string | undefined>(undefined);
+  const galleryCardsRef = useRef<ProjectCardVM[]>([]);
+  const galleryRequestRef = useRef<Promise<void> | null>(null);
   const notify = useNotifications();
 
   const dash = typeof window !== "undefined" ? window.dashboard : undefined;
   const ready = aiReady(gateway, account);
+
+  const refreshGallery = useCallback((): Promise<void> => {
+    if (!dash) return Promise.resolve();
+    return runSingleFlight(galleryRequestRef, async () => {
+      try {
+        const cards = await dash.projects.list();
+        galleryCardsRef.current = cards;
+        dispatch({ type: "gallery", load: cards.length === 0 ? "empty" : "populated", cards });
+      } catch (error) {
+        galleryCardsRef.current = [];
+        console.warn("[renderer] gallery refresh failed:", error);
+        dispatch({ type: "gallery", load: "error", cards: [] });
+      }
+    });
+  }, [dash]);
 
   const openSettings = useCallback((tab: SettingsTab = "ai") => {
     setSettingsTab(tab);
@@ -81,58 +107,71 @@ const AppShell: React.FC = () => {
 
   const refreshAiState = useCallback(async (): Promise<boolean> => {
     if (!dash) return false;
-    const gw = await dash.ai.gatewayState();
-    setGateway(gw);
-    if (gw.kind !== "ready") return false;
-
-    const ms = await dash.ai.listModels();
-    if (ms.length) setModels(ms);
-
-    let acc = await dash.ai.connectedAccounts();
-    // Do not auto-select before settings load — that would race past the saved preference.
-    if (!settingsLoaded) {
-      setAccount(acc);
-      return false;
-    }
-
-    if (acc.kind === "connected" && acc.accounts.length > 0 && ms.length) {
-      const decision = preferredModelDecision({
-        preferredModelId: preferredModelIdRef.current,
-        runtimeModelId: acc.selectedModel?.id,
-        availableModelIds: ms.map((m) => m.id),
-      });
-
-      if (decision.kind === "unavailable") {
-        setPreferredModelUnavailable(decision.modelId);
-        setAccount(acc);
+    try {
+      const gw = await dash.ai.gatewayState();
+      setGateway((previous) => sameGatewayState(previous, gw) ? previous : gw);
+      if (gw.kind !== "ready") {
+        setModels((previous) => previous.length === 0 ? previous : []);
+        setAccount((previous) => sameAiAccountState(previous, { kind: "disconnected" }) ? previous : { kind: "disconnected" });
         return false;
       }
 
-      setPreferredModelUnavailable(undefined);
+      const ms = await dash.ai.listModels();
+      setModels((previous) => sameModels(previous, ms) ? previous : ms);
 
-      if (decision.kind === "select-runtime" || decision.kind === "select-and-persist") {
-        if (selectingModelRef.current !== decision.modelId) {
-          selectingModelRef.current = decision.modelId;
-          try {
-            acc = await dash.ai.selectModel(decision.modelId);
-            if (decision.kind === "select-and-persist") {
-              try {
-                const next = await dash.settings.update({ preferredAiModelId: decision.modelId });
-                preferredModelIdRef.current = next.preferredAiModelId;
-                setSettings(next);
-              } catch {
-                // Runtime selection still applied; preference write failed — surface later via settings UI.
+      let acc = await dash.ai.connectedAccounts();
+      // Do not auto-select before settings load — that would race past the saved preference.
+      if (!settingsLoaded) {
+        setAccount((previous) => sameAiAccountState(previous, acc) ? previous : acc);
+        return false;
+      }
+
+      if (acc.kind === "connected" && acc.accounts.length > 0 && ms.length) {
+        const decision = preferredModelDecision({
+          preferredModelId: preferredModelIdRef.current,
+          runtimeModelId: acc.selectedModel?.id,
+          availableModelIds: ms.map((m) => m.id),
+        });
+
+        if (decision.kind === "unavailable") {
+          setPreferredModelUnavailable(decision.modelId);
+          setAccount((previous) => sameAiAccountState(previous, acc) ? previous : acc);
+          return false;
+        }
+
+        setPreferredModelUnavailable(undefined);
+
+        if (decision.kind === "select-runtime" || decision.kind === "select-and-persist") {
+          if (selectingModelRef.current !== decision.modelId) {
+            selectingModelRef.current = decision.modelId;
+            try {
+              acc = await dash.ai.selectModel(decision.modelId);
+              if (decision.kind === "select-and-persist") {
+                try {
+                  const next = await dash.settings.update({ preferredAiModelId: decision.modelId });
+                  preferredModelIdRef.current = next.preferredAiModelId;
+                  setSettings(next);
+                } catch (error) {
+                  // Runtime selection still applied. Avoid a repeating toast from the health poll.
+                  console.warn("[renderer] preferred model could not be persisted:", error);
+                }
               }
+            } finally {
+              selectingModelRef.current = null;
             }
-          } finally {
-            selectingModelRef.current = null;
           }
         }
       }
-    }
 
-    setAccount(acc);
-    return aiReady(gw, acc);
+      setAccount((previous) => sameAiAccountState(previous, acc) ? previous : acc);
+      return aiReady(gw, acc);
+    } catch (error) {
+      setGateway((previous) => sameGatewayState(previous, { kind: "unavailable" }) ? previous : { kind: "unavailable" });
+      setModels((previous) => previous.length === 0 ? previous : []);
+      setAccount((previous) => sameAiAccountState(previous, { kind: "disconnected" }) ? previous : { kind: "disconnected" });
+      console.warn("[renderer] AI state refresh failed:", error);
+      return false;
+    }
   }, [dash, settingsLoaded]);
 
   useEffect(() => {
@@ -147,22 +186,24 @@ const AppShell: React.FC = () => {
       setSettings(loaded);
       setSettingsLoaded(true);
       dispatch({ type: "gallery", load: "loading", cards: [] });
-      try {
-        const cards = await dash.projects.list();
-        dispatch({ type: "gallery", load: cards.length === 0 ? "empty" : "populated", cards });
-      } catch {
-        // A transient IPC/disk failure must not pin the gallery on "loading"
-        // forever — surface a recoverable error state with a retry (audit P1-8).
-        dispatch({ type: "gallery", load: "error", cards: [] });
-      }
-    })();
+      await refreshGallery();
+    })().catch((error) => {
+      setSettingsLoaded(true);
+      dispatch({ type: "gallery", load: "error", cards: [] });
+      console.warn("[renderer] initial settings load failed:", error);
+    });
 
     // Gallery badge + light in-app toast on terminal status so unattended jobs
     // are visible even when the user is on Home (OS toast is main-process).
     // Progress/scene/friendly-error stay on the polled stage path.
     const unsubs = [
       dash.events.onStatus((e) => {
+        const refreshMetadata = statusNeedsGalleryRefresh(galleryCardsRef.current, e);
+        galleryCardsRef.current = galleryCardsRef.current.map((card) =>
+          card.projectId === e.projectId && card.status !== e.status ? { ...card, status: e.status } : card,
+        );
         dispatch({ type: "status", event: e });
+        if (refreshMetadata) void refreshGallery();
         if (e.status === "done") {
           notify.success({
             title: "Video đã xong",
@@ -177,19 +218,20 @@ const AppShell: React.FC = () => {
       }),
     ];
 
-    // Poll only until AI is ready (gateway up + a connection + a model); restore
-    // preferred model (or first-use first model) then stop (no churn).
-    const poll = setInterval(() => {
-      void refreshAiState().then((isReady) => {
-        if (isReady) clearInterval(poll);
-      });
-    }, 1500);
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let stopped = false;
+    const poll = async (): Promise<void> => {
+      const ready = await refreshAiState();
+      if (!stopped) timer = setTimeout(() => void poll(), ready ? 10_000 : 2_000);
+    };
+    void poll();
 
     return () => {
-      clearInterval(poll);
+      stopped = true;
+      if (timer) clearTimeout(timer);
       unsubs.forEach((u) => u());
     };
-  }, [dash, refreshAiState]);
+  }, [dash, notify, refreshAiState, refreshGallery]);
 
   useEffect(() => {
     if (screen !== "settings") return;
@@ -213,16 +255,6 @@ const AppShell: React.FC = () => {
     };
   }, []);
 
-  const refreshGallery = useCallback(async () => {
-    if (!dash) return;
-    try {
-      const cards = await dash.projects.list();
-      dispatch({ type: "gallery", load: cards.length === 0 ? "empty" : "populated", cards });
-    } catch {
-      dispatch({ type: "gallery", load: "error", cards: [] });
-    }
-  }, [dash]);
-
   const openProject = (projectId: string) => {
     setOpenProjectId(projectId);
     setStage({ kind: "writing" });
@@ -236,16 +268,24 @@ const AppShell: React.FC = () => {
     try {
       const tracks = await dash.bgm.list();
       setBgm(tracks);
+      if (bgmLoadFailed.current) {
+        bgmLoadFailed.current = false;
+        notify.info({ title: "Thư viện nhạc đã phục hồi", message: "Danh sách nhạc nền đã được cập nhật lại." });
+      }
       // Default create selection to the bundled track once (user can clear to "Không nhạc").
       if (!createBgmInitialized.current) {
         createBgmInitialized.current = true;
         const builtIn = tracks.find((t) => t.builtIn);
         setCreateBgmSelected(builtIn?.name ?? null);
       }
-    } catch {
-      setBgm([]);
+    } catch (error) {
+      console.warn("[renderer] BGM library refresh failed:", error);
+      if (!bgmLoadFailed.current) {
+        bgmLoadFailed.current = true;
+        notify.error({ title: "Không tải được thư viện nhạc", message: "Đang giữ danh sách gần nhất và sẽ thử lại." });
+      }
     }
-  }, [dash]);
+  }, [dash, notify]);
 
   useEffect(() => {
     if (!dash) return;
@@ -257,9 +297,16 @@ const AppShell: React.FC = () => {
   useEffect(() => {
     if (!dash || screen !== "workspace" || !openProjectId) return;
     let alive = true;
+    let pollFailed = false;
     const tick = async () => {
-      const st = await dash.projects.stage(openProjectId);
-      if (alive) setStage(st);
+      try {
+        const st = await dash.projects.stage(openProjectId);
+        if (alive) setStage(st);
+        pollFailed = false;
+      } catch (error) {
+        if (!pollFailed) console.warn("[renderer] workspace stage poll failed:", error);
+        pollFailed = true;
+      }
     };
     void tick();
     const iv = setInterval(() => void tick(), 1500);
@@ -269,15 +316,24 @@ const AppShell: React.FC = () => {
     };
   }, [dash, screen, openProjectId]);
 
-  // Poll the gallery while on the home/projects screens, so a
-  // project's card appears + its status badge updates live without the user leaving
-  // and re-entering. Without this, a just-created project (or one whose render
-  // finished in the background) only showed up on the next mount/leaveWorkspace —
-  // a "where did my project go?" gap. Reuses the single `refreshGallery` source.
+  // Status/create/delete/rename refresh immediately. Focus + a slow fallback
+  // recover external disk changes without scanning every project every 1.5s.
   useEffect(() => {
     if (!dash || (screen !== "home" && screen !== "projects")) return;
-    const iv = setInterval(() => void refreshGallery(), 1500);
-    return () => clearInterval(iv);
+    let stopped = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const poll = async (): Promise<void> => {
+      await refreshGallery();
+      if (!stopped) timer = setTimeout(() => void poll(), 30_000);
+    };
+    const onFocus = (): void => { void refreshGallery(); };
+    window.addEventListener("focus", onFocus);
+    void poll();
+    return () => {
+      stopped = true;
+      if (timer) clearTimeout(timer);
+      window.removeEventListener("focus", onFocus);
+    };
   }, [dash, screen, refreshGallery]);
 
   const refreshQueues = useCallback(async () => {
@@ -310,11 +366,7 @@ const AppShell: React.FC = () => {
         if (!alive) return;
         setQueues(list);
         setQueueLoad("ready");
-        setQueueStatus({
-          busy: Boolean(st.busy),
-          activeQueueId: st.activeQueueId ?? null,
-          pendingQueueIds: Array.isArray(st.pendingQueueIds) ? st.pendingQueueIds.map(String) : [],
-        });
+        setQueueStatus(st);
       } catch {
         /* keep last good snapshot */
       }
@@ -326,6 +378,20 @@ const AppShell: React.FC = () => {
       clearInterval(iv);
     };
   }, [dash, screen]);
+
+  const removeBgm = useCallback(async (name: string): Promise<void> => {
+    if (!dash) return;
+    try {
+      const tracks = await dash.bgm.remove(name);
+      setBgm(tracks);
+      if (createBgmSelected === name) {
+        setCreateBgmSelected(tracks.find((track) => track.builtIn)?.name ?? null);
+      }
+    } catch (error) {
+      const details = errorDetails(error);
+      notify.error({ title: "Không xóa được nhạc", message: compactNotificationMessage(details, "Thử lại."), details });
+    }
+  }, [createBgmSelected, dash, notify]);
 
   const leaveWorkspace = () => {
     setOpenProjectId(null);
@@ -341,7 +407,10 @@ const AppShell: React.FC = () => {
     if (!dash || !pendingDeleteId) return;
     const projectId = pendingDeleteId;
     setPendingDeleteId(null);
-    void dash.projects.delete(projectId).then(refreshGallery);
+    void dash.projects.delete(projectId).then(refreshGallery).catch((error: unknown) => {
+      const details = errorDetails(error);
+      notify.error({ title: "Không xóa được dự án", message: compactNotificationMessage(details, "Thử lại."), details });
+    });
   };
   const confirmQueueDelete = (): void => {
     if (!dash?.queue || !pendingQueueDeleteId) return;
@@ -369,10 +438,19 @@ const AppShell: React.FC = () => {
         });
       });
   };
-  const onReveal = (projectId: string) => void dash?.projects.reveal(projectId);
+  const onReveal = (projectId: string) => {
+    if (!dash) return;
+    void dash.projects.reveal(projectId).catch((error: unknown) => {
+      const details = errorDetails(error);
+      notify.error({ title: "Không mở được thư mục", message: compactNotificationMessage(details, "Thử lại."), details });
+    });
+  };
   const onRename = (projectId: string, newTitle: string) => {
     if (!dash) return;
-    void dash.projects.rename(projectId, newTitle).then(refreshGallery);
+    void dash.projects.rename(projectId, newTitle).then(refreshGallery).catch((error: unknown) => {
+      const details = errorDetails(error);
+      notify.error({ title: "Không đổi được tên", message: compactNotificationMessage(details, "Thử lại."), details });
+    });
   };
 
   return (
@@ -438,12 +516,6 @@ const AppShell: React.FC = () => {
                       title: "Đã xếp vào hàng chờ",
                       message: "Đang có hàng đợi chạy — video vào lô home, sẽ chạy sau.",
                     });
-                    if (r.imagesDropped || images.length > 0) {
-                      notify.warning({
-                        title: "Ảnh chưa vào hàng đợi",
-                        message: "Chỉ prompt được xếp. Ảnh đính kèm chưa hỗ trợ trong lô home.",
-                      });
-                    }
                     void refreshQueues();
                     return;
                   }
@@ -462,21 +534,22 @@ const AppShell: React.FC = () => {
             }}
             bgm={bgm}
             bgmSelected={createBgmSelected}
-            onBgmAdd={() => void dash?.bgm.add().then((tracks) => { setBgm(tracks); })}
-            onBgmRemove={async (name) => {
+            onBgmAdd={() => {
               if (!dash) return;
-              const tracks = await dash.bgm.remove(name);
-              setBgm(tracks);
-              if (createBgmSelected === name) {
-                setCreateBgmSelected(tracks.find((t) => t.builtIn)?.name ?? null);
-              }
+              void dash.bgm.add().then(setBgm).catch((error: unknown) => {
+                const details = errorDetails(error);
+                notify.error({ title: "Không thêm được nhạc", message: compactNotificationMessage(details, "Thử lại."), details });
+              });
             }}
+            onBgmRemove={removeBgm}
             onBgmSelect={(name) => setCreateBgmSelected(name)}
             onUnstageImage={(ref) => {
               // Best-effort: free the staged bytes when the user removes a pick
               // (the 24h sweep is the backstop). A stale preload lacks the method;
               // ignore — the file just waits for the sweep.
-              if (typeof dash?.projects.removeStagedImage === "function") void dash.projects.removeStagedImage(ref).catch(() => {});
+              if (typeof dash?.projects.removeStagedImage === "function") void dash.projects.removeStagedImage(ref).catch((error) => {
+                console.warn("[renderer] staged image cleanup failed:", error);
+              });
             }}
             onOpen={openProject}
             onDelete={onDelete}
@@ -519,12 +592,16 @@ const AppShell: React.FC = () => {
                 });
               });
             }}
-            onBgmRemove={async (name) => {
-              if (!dash) return;
-              const next = await dash.bgm.remove(name);
-              setBgm(next);
-            }}
+            onBgmRemove={removeBgm}
             onBgmSelect={(name) => setCreateBgmSelected(name)}
+            onPickImages={() => dash?.projects.pickImages() ?? Promise.resolve({ staged: [], rejected: [] })}
+            onImportImageBytes={(files) => dash?.projects.importImageBytes(files) ?? Promise.resolve({ staged: [], rejected: [] })}
+            onUnstageImage={(ref) => {
+              if (dash) void dash.projects.removeStagedImage(ref).catch((error: unknown) => {
+                const details = errorDetails(error);
+                notify.error({ title: "Không dọn được ảnh", message: compactNotificationMessage(details, "Ảnh sẽ được dọn sau."), details });
+              });
+            }}
             onRefresh={() => void refreshQueues()}
             onCreateQueue={async () => {
               if (!dash?.queue) return;
@@ -579,13 +656,45 @@ const AppShell: React.FC = () => {
               if (res.ok) {
                 const [list, st] = await Promise.all([dash.queue.list(), dash.queue.status()]);
                 setQueues(list);
-                setQueueStatus({
-                  busy: Boolean(st.busy),
-                  activeQueueId: st.activeQueueId ?? null,
-                  pendingQueueIds: Array.isArray(st.pendingQueueIds) ? st.pendingQueueIds.map(String) : [],
-                });
+                setQueueStatus(st);
               }
               return res;
+            }}
+            onEnableFullAutoAndStart={async () => {
+              if (!dash?.queue || !activeQueueId) {
+                return { ok: false as const, error: "Chưa mở hàng đợi." };
+              }
+              const next = await dash.settings.update(FULL_AUTO_SETTINGS_PATCH);
+              setSettings(next);
+              const res = queueStatus.paused
+                ? await dash.queue.resume()
+                : await dash.queue.start(activeQueueId);
+              if (res.ok) {
+                const [list, st] = await Promise.all([dash.queue.list(), dash.queue.status()]);
+                setQueues(list);
+                setQueueStatus(st);
+              }
+              return res;
+            }}
+            onPauseQueue={async () => {
+              if (!dash?.queue) return { ok: false as const, error: "Dashboard API is unavailable" };
+              const result = await dash.queue.pause();
+              const [list, st] = await Promise.all([dash.queue.list(), dash.queue.status()]);
+              setQueues(list);
+              setQueueStatus(st);
+              return result;
+            }}
+            onResumeQueue={async () => {
+              if (!dash?.queue) return { ok: false as const, error: "Dashboard API is unavailable" };
+              const result = await dash.queue.resume();
+              const [list, st] = await Promise.all([dash.queue.list(), dash.queue.status()]);
+              setQueues(list);
+              setQueueStatus(st);
+              return result;
+            }}
+            onOpenVoiceSettings={() => {
+              setSettingsTab("voice");
+              setScreen("settings");
             }}
           />
         )}
@@ -601,7 +710,10 @@ const AppShell: React.FC = () => {
             onTabChange={setSettingsTab}
             onManageAccounts={() => {
               if (!dash) return;
-              void dash.ai.beginConnect("").then(() => void refreshAiState());
+              void dash.ai.beginConnect("").then(() => void refreshAiState()).catch((error: unknown) => {
+                const details = errorDetails(error);
+                notify.error({ title: "Không mở được quản lý AI", message: compactNotificationMessage(details, "Thử lại."), details });
+              });
             }}
             onSelectModel={(modelId) => {
               if (!dash) return;
@@ -646,6 +758,10 @@ const AppShell: React.FC = () => {
             onClearApiKey={(provider) => {
               if (!dash) return Promise.reject(new Error("Dashboard API is unavailable"));
               return dash.tts.clearApiKey(provider).then((next) => { setSettings(next); return next; });
+            }}
+            onTestVoice={(provider) => {
+              if (!dash) return Promise.reject(new Error("Dashboard API is unavailable"));
+              return dash.tts.testVoice(provider);
             }}
             onCheckReadiness={() => {
               if (!dash) return Promise.reject(new Error("Dashboard API is unavailable"));

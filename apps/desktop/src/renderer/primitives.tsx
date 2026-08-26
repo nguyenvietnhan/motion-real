@@ -1,9 +1,10 @@
-import React, { useEffect } from "react";
+import React, { useRef } from "react";
 import { createPortal } from "react-dom";
 import type { AiAccountState, FriendlyStatus, GatewayState, ProjectCardVM } from "../shared/types.js";
 import { FRIENDLY_LABELS } from "../shared/friendly-status.js";
 import { activeAccount } from "../shared/active-account.js";
 import { Icon } from "./icons.js";
+import { useModalFocus } from "./use-modal-focus.js";
 
 /**
  * Shared UI primitives (the app's small design-system layer): status helpers,
@@ -52,6 +53,22 @@ export const PageHeader: React.FC<{ title: React.ReactNode; subtitle?: string; a
   </div>
 );
 
+/** Reserve the widest possible label without showing it, preventing button reflow. */
+export const StableButtonLabel: React.FC<{
+  children: React.ReactNode;
+  reserve: React.ReactNode | readonly React.ReactNode[];
+}> = ({ children, reserve }) => {
+  const candidates = Array.isArray(reserve) ? reserve : [reserve];
+  return (
+    <span className="ns-stable-button-label">
+      {candidates.map((candidate, index) => (
+        <span key={index} className="ns-stable-button-label-reserve" aria-hidden="true">{candidate}</span>
+      ))}
+      <span className="ns-stable-button-label-current">{children}</span>
+    </span>
+  );
+};
+
 export const StatusPill: React.FC<{ status: FriendlyStatus }> = ({ status }) => (
   <span className="ns-pill" style={{ alignSelf: "flex-start", background: "color-mix(in srgb, transparent 84%, " + STATUS_COLOR[status] + ")", color: STATUS_COLOR[status] }}>
     <span style={{ width: 6, height: 6, borderRadius: 999, background: STATUS_COLOR[status], flexShrink: 0 }} />
@@ -93,7 +110,7 @@ export const ProjectGrid: React.FC<{
           <article key={c.projectId} className="ns-card ns-project">
             <div className={`ns-project-thumb is-${c.format}`}>
               {c.thumbnailPath ? (
-                <img className="ns-project-media" src={c.thumbnailPath} alt="" />
+                <img className="ns-project-media" src={c.thumbnailPath} alt="" loading="lazy" decoding="async" />
               ) : (
                 <span className="ns-project-placeholder" aria-hidden="true">{Icon.film({ size: 28 })}</span>
               )}
@@ -183,20 +200,17 @@ export const ConfirmDialog: React.FC<{
   onConfirm,
   onCancel,
 }) => {
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (event: KeyboardEvent): void => {
-      if (event.key === "Escape") onCancel();
-    };
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [open, onCancel]);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const cancelRef = useRef<HTMLButtonElement>(null);
+  const confirmRef = useRef<HTMLButtonElement>(null);
+  useModalFocus(open, dialogRef, onCancel, danger ? cancelRef : confirmRef);
 
   if (!open) return null;
   // Portal to body so shell overflow / stacking never hides the dialog.
   return createPortal(
     <div className="ns-modal-backdrop ns-confirm-backdrop" role="presentation" onMouseDown={onCancel}>
       <div
+        ref={dialogRef}
         className="ns-modal ns-confirm-modal"
         role="alertdialog"
         aria-modal="true"
@@ -213,14 +227,14 @@ export const ConfirmDialog: React.FC<{
           </p>
         </div>
         <div className="ns-confirm-actions">
-          <button type="button" className="ns-btn" onClick={onCancel}>
+          <button ref={cancelRef} type="button" className="ns-btn" onClick={onCancel}>
             {cancelLabel}
           </button>
           <button
+            ref={confirmRef}
             type="button"
             className={`ns-btn ${danger ? "ns-btn-danger" : "ns-btn-primary"}`}
             onClick={onConfirm}
-            autoFocus
           >
             {confirmLabel}
           </button>
@@ -246,17 +260,26 @@ export const LoadingLine: React.FC<{ label?: string }> = ({ label = "Đang tải
 /** An (i) glyph that reveals a short explanation on hover/focus — keeps setting
  * rows clean while the detail stays one pointer away. */
 export const InfoHint: React.FC<{ text: string }> = ({ text }) => (
-  <span className="ns-info" tabIndex={0} role="note" aria-label={text}>
+  <span
+    className="ns-info"
+    tabIndex={0}
+    role="note"
+    aria-label={text}
+    onClick={(event) => {
+      event.preventDefault();
+      event.stopPropagation();
+    }}
+  >
     {Icon.info({ size: 13 })}
     <span className="ns-info-tip">{text}</span>
   </span>
 );
 
 /** A labelled settings field: bold label (with an optional (i) explanation), control. */
-export const Field: React.FC<{ label: string; hint?: string; children: React.ReactNode }> = ({ label, hint, children }) => (
+export const Field: React.FC<{ label: string; hint?: string; htmlFor?: string; children: React.ReactNode }> = ({ label, hint, htmlFor, children }) => (
   <div style={{ marginBottom: 18 }}>
     <div style={{ display: "flex", alignItems: "center", marginBottom: 8 }}>
-      <label style={{ fontSize: 13, fontWeight: 600 }}>{label}</label>
+      <label htmlFor={htmlFor} style={{ fontSize: 13, fontWeight: 600 }}>{label}</label>
       {hint && <InfoHint text={hint} />}
     </div>
     {children}
@@ -439,7 +462,8 @@ export const NumberRow: React.FC<{ value: number; onChange: (v: number) => void;
         <span style={{ fontSize: 14, fontWeight: indent ? 500 : 600, color: indent ? "var(--muted-foreground)" : "var(--foreground)" }}>{title}</span>
         {desc && <InfoHint text={desc} />}
       </span>
-      <input className="ns-input ns-num" type="text" inputMode="numeric" pattern="[0-9]*" value={draft ?? String(value)} aria-label={title}
+      <input className="ns-input ns-num" type="text" inputMode="numeric" pattern="[0-9]*" value={draft ?? String(value)}
+        role="spinbutton" aria-label={title} aria-valuemin={min} aria-valuemax={max} aria-valuenow={value}
         onChange={(e) => {
           const next = e.target.value;
           if (/^-?\d*$/.test(next)) setDraft(next);

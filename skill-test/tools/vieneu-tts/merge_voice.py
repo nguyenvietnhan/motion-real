@@ -12,27 +12,28 @@ def main():
     slug = sys.argv[1]
     root = Path(__file__).resolve().parent.parent.parent
     job_dir = root / "jobs" / slug
+    timing_path = job_dir / "timing.json"
     beats_path = job_dir / "beats.json"
 
-    if not beats_path.exists():
-        print(f"Error: {beats_path} not found")
+    experimental = timing_path.exists()
+    if not experimental and not beats_path.exists():
+        print(f"Error: need {timing_path} (experimental) or {beats_path} (legacy)")
         sys.exit(1)
 
-    data = json.loads(beats_path.read_text(encoding="utf-8"))
+    data = json.loads(timing_path.read_text(encoding="utf-8")) if experimental else json.loads(beats_path.read_text(encoding="utf-8"))
     sample_rate = 48000
-    total_seconds = data.get("totalSeconds")
+    total_seconds = data.get("total_duration") if experimental else data.get("totalSeconds")
     if not total_seconds:
         last = data["beats"][-1]
-        total_seconds = round(last["start"] + last["duration"] + data.get("tailSeconds", 1.8), 2)
+        total_seconds = round(last["start"] + last["duration"] + data.get("tail_seconds" if experimental else "tailSeconds", 1.8), 2)
     total_samples = int(np.ceil(total_seconds * sample_rate))
 
     master_audio = np.zeros(total_samples, dtype=np.int16)
 
     for beat in data["beats"]:
-        wav_file = job_dir / beat["wav"]
+        wav_file = job_dir / (beat["voice_file"] if experimental else beat["wav"])
         if not wav_file.exists():
-            print(f"Missing {wav_file}")
-            continue
+            raise FileNotFoundError(f"Missing {wav_file}")
 
         with wave.open(str(wav_file), "rb") as wf:
             n_channels = wf.getnchannels()
@@ -42,8 +43,7 @@ def main():
             audio_bytes = wf.readframes(n_frames)
 
             if sampwidth != 2 or framerate != sample_rate:
-                print(f"Skip {beat['id']}: expect 16-bit {sample_rate}Hz, got {sampwidth*8}-bit {framerate}Hz")
-                continue
+                raise ValueError(f"{beat['id']}: expected 16-bit {sample_rate}Hz, got {sampwidth*8}-bit {framerate}Hz")
             samples = np.frombuffer(audio_bytes, dtype=np.int16)
             if n_channels == 2:
                 samples = samples[::2]  # mono
@@ -75,20 +75,16 @@ def main():
     import subprocess
 
     ffmpeg = shutil.which("ffmpeg")
-    if ffmpeg:
-        for out_p in out_paths:
-            m4a = out_p.with_suffix(".m4a")
-            try:
-                subprocess.run(
-                    [ffmpeg, "-y", "-i", str(out_p), "-c:a", "aac", "-b:a", "128k", str(m4a)],
-                    check=True,
-                    capture_output=True,
-                )
-                print(f"Wrote {m4a} ({m4a.stat().st_size / 1024 / 1024:.1f} MB)")
-            except subprocess.CalledProcessError as e:
-                print(f"ffmpeg fail cho {m4a.name}: {e.stderr[-200:] if e.stderr else e}")
-    else:
-        print("ffmpeg khong co tren PATH - bo qua buoc nen m4a (chi co wav)")
+    if not ffmpeg:
+        raise RuntimeError("ffmpeg not found; experimental pipeline requires narration.m4a")
+    for out_p in out_paths:
+        m4a = out_p.with_suffix(".m4a")
+        subprocess.run(
+            [ffmpeg, "-y", "-i", str(out_p), "-c:a", "aac", "-b:a", "128k", str(m4a)],
+            check=True,
+            capture_output=True,
+        )
+        print(f"Wrote {m4a} ({m4a.stat().st_size / 1024 / 1024:.1f} MB)")
 
 if __name__ == "__main__":
     main()

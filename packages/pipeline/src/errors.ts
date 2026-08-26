@@ -1,4 +1,5 @@
 import type { Severity } from "./types.js";
+import type { VoiceProviderFailure } from "@motionreal/tts";
 
 /**
  * Structured, surface-agnostic pipeline errors.
@@ -39,6 +40,7 @@ export type SerializedPipelineError = {
   remediation?: string;
   /** Hard error (blocks) vs advisory warning. */
   severity: Severity;
+  voiceFailure?: VoiceProviderFailure;
 };
 
 export type PipelineErrorInit = {
@@ -49,6 +51,7 @@ export type PipelineErrorInit = {
   remediation?: string;
   /** Defaults to "error" (hard, blocking). */
   severity?: Severity;
+  voiceFailure?: VoiceProviderFailure;
 };
 
 /** Compose the one-line message: `[stage] cause (check, sceneId)`. */
@@ -72,6 +75,7 @@ export class PipelineError extends Error {
   readonly sceneId?: string;
   readonly remediation?: string;
   readonly severity: Severity;
+  readonly voiceFailure?: VoiceProviderFailure;
 
   constructor(init: PipelineErrorInit) {
     super(buildMessage(init));
@@ -82,6 +86,7 @@ export class PipelineError extends Error {
     this.sceneId = init.sceneId;
     this.remediation = init.remediation;
     this.severity = init.severity ?? "error";
+    this.voiceFailure = init.voiceFailure;
   }
 
   /** Structured form for transport (identical detail to the CLI text). */
@@ -94,6 +99,7 @@ export class PipelineError extends Error {
       ...(this.sceneId !== undefined ? { sceneId: this.sceneId } : {}),
       ...(this.remediation !== undefined ? { remediation: this.remediation } : {}),
       severity: this.severity,
+      ...(this.voiceFailure !== undefined ? { voiceFailure: this.voiceFailure } : {}),
     };
   }
 }

@@ -1,44 +1,48 @@
-# MotionReal Skill Studio
+# MotionReal Skill Studio — experimental R&D
 
-Xưởng video 9:16 (TikTok/Reels/Shorts) điều hành bởi AI agent: mở folder
-này bằng agent bất kỳ (Claude Code, Codex, Grok, Antigravity, opencode...),
-gọi skill **make-video** với một chủ đề → tự research, viết kịch bản,
-sinh giọng Việt local, code video, QA, render MP4.
+`skill-test/` is an experimental HyperFrames pipeline for agent-authored 9:16
+video. It is separate from MotionReal's Remotion/TSX production path and does
+not claim production-contract compliance.
 
-## Bắt đầu
+Use `/make-video <topic>` for a new factual 9:16 job. V1 is validated only for
+a 75–105 second benchmark; a 240–300 second regression job is required before
+claiming longer-video support.
+
+## Runtime
+
+- Node.js 22+, Python 3.12+, FFmpeg, FFprobe, and Chrome/Chromium.
+- Install the pinned HyperFrames runtime once:
+
+  ```powershell
+  cd starter-hf
+  npm ci --ignore-scripts
+  ```
+
+- Every new job runs `python tools/video_pipeline.py preflight --job <slug>
+  --capability web-download --capability snapshot-view`. It records the tested
+  runtime version and stops when a required capability is absent.
+
+## Pipeline
 
 ```text
-/make-video <chủ đề> [thời lượng] [style pack]
+brief → claims/assets ledgers → video plan → validate → TTS timing
+→ author V1 → V1 image review → mandatory creative rewrite V2 → V2 image review
+→ standard review MP4
+→ user approval → high delivery MP4
 ```
 
-Ví dụ: `/make-video "tại sao nên học SQL" 90s phong-lab`
+`make-video` is the only end-to-end workflow. The technical skills under
+`.agents/skills/` are helpers; they do not independently render or publish.
 
-- Thời lượng: 45s / 90s / 150s / 210s (mặc định 45s)
-- Style pack: `default` / `bao-giay` / `phong-lab` (mặc định default)
+## Canonical artifacts
 
-> **`make-video` là workflow DUY NHẤT để tạo video trong toolbox này.**
-> Các skill `hyperframes-*` chỉ là tài liệu kỹ thuật của engine. 16
-> skill workflow mẫu khác của HyperFrames được để ở `hf-extras/` — chỉ
-> đọc tham khảo, không dùng làm quy trình chính.
+`jobs/<slug>/` holds `claims.json`, `assets.json`, `video-plan.json`,
+`timing.json`, `runtime.json`, `qa.json`, and `output/`. Runtime source and
+staged local media live in `starter-hf/<slug>/`.
 
-## Môi trường yêu cầu
+The reviewer must inspect PNG/contact sheets as image input, not reason from
+the plan or source code. V2 can replace V1 visual code while keeping factual
+and timing artifacts locked; V3 is only for an evidence-backed severe issue.
 
-- Node 18+ và Python 3.12+ (chưa có venv thì chạy setup trong
-  `tools/vieneu-tts/README.md` — một lệnh duy nhất)
-- **Shell trên Windows là PowerShell 5.1** — KHÔNG dùng `||`, `&&`,
-  `tr` kiểu bash. Xem luật chi tiết trong skill make-video.
-- Lần render đầu, `npx hyperframes` tự tải engine (cần mạng, vài phút).
-- `starter/` (phương án B Remotion) cần `npm install` riêng nếu dùng.
-
-## Cấu trúc
-
-| Folder/File | Vai trò |
-| --- | --- |
-| `.agents/skills/` | 14 skill auto-load (make-video là spine; hyperframes* là docs engine) |
-| `hf-extras/` | 16 skill workflow mẫu của HyperFrames — chỉ tham khảo |
-| `starter-hf/` | Khung project video chính (fonts + fonts.css + gsap + gen-captions) |
-| `starter/` | Phương án B — starter Remotion (`npm install` trước khi dùng) |
-| `tools/vieneu-tts/` | Giọng đọc local (batch TTS + merge master narration) |
-| `styles/` | 3 design system: default, bao-giay, phong-lab |
-| `jobs/` | Tạo khi chạy make-video — mỗi video một folder (hiện đang trống) |
-| `DESIGN.md` `PLAN.md` `RESEARCH.md` `E2E-LOG.md` | Kiến trúc, lộ trình, kiến thức nền, nhật ký kiểm nghiệm end-to-end |
+Old jobs and the untracked `build_index_html.py` / `scratch_build_script.py`
+are legacy artifacts. The experimental workflow never calls or rewrites them.

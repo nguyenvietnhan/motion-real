@@ -310,7 +310,7 @@ describe("Property 4: repair budget and routing", () => {
       hooks: noopHooks,
     };
     const outcome = await generateValidateRepair(deps, { maxAttempts: 5 });
-    expect(outcome).toEqual({ kind: "infra", attempts: 1 });
+    expect(outcome).toMatchObject({ kind: "infra", attempts: 1 });
     expect(reauthored).toBe(0);
   });
 

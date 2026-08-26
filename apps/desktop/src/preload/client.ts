@@ -92,11 +92,14 @@ export function createDashboardClient(ipc: IpcLike): DashboardApi {
       deleteJob: (queueId, jobId) => inv("queue:deleteJob", queueId, jobId),
       cancelJob: (queueId, jobId) => inv("queue:cancelJob", queueId, jobId),
       start: (queueId) => inv("queue:start", queueId),
+      pause: () => inv("queue:pause"),
+      resume: () => inv("queue:resume"),
       status: () => inv("queue:status"),
     },
     tts: {
       setApiKey: (provider, apiKey) => inv("tts:setApiKey", provider, apiKey),
       clearApiKey: (provider) => inv("tts:clearApiKey", provider),
+      testVoice: (provider) => inv("tts:testVoice", provider),
     },
     events: {
       onProgress: (cb) => subscribe(ipc, "events:progress", cb),

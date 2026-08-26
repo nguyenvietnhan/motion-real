@@ -320,8 +320,8 @@
   font: inherit;
 }
 .ns-bgm-trigger {
-  min-width: 7.5rem;
-  max-width: 12rem;
+  width: 10.5rem;
+  max-width: 10.5rem;
   gap: 8px;
   padding: 0 10px;
   font-size: 13px;
@@ -615,4 +615,3 @@
     min-width: 0;
   }
 }
-

@@ -6,6 +6,7 @@ import {
   ELEVENLABS_DEFAULT_MODEL_ID,
   ELEVENLABS_OUTPUT_FORMAT,
   ElevenLabsClient,
+  VoiceProviderError,
   alignmentToSrt,
   ttsCacheKey,
 } from "./index.js";
@@ -73,14 +74,21 @@ describe("ElevenLabsClient", () => {
     });
   });
 
-  it.each([401, 403, 422, 429])("surfaces HTTP %s without retrying", async (status) => {
+  it.each([
+    [401, "invalid_api_key"],
+    [403, "unknown"],
+    [422, "unknown"],
+    [429, "rate_limited"],
+  ] as const)("classifies HTTP %s as %s without retrying", async (status, code) => {
     const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(new Response(
       JSON.stringify({ detail: `failure-${status}` }),
       { status, headers: { "content-type": "application/json" } },
     ));
     const client = new ElevenLabsClient({ apiKey: "secret", fetch: fetchMock });
-    await expect(client.synthesize({ text: "x", voiceId: "v", speed: 1, outputPath: "unused" }))
-      .rejects.toThrow(`ElevenLabs synthesize speech failed (${status})`);
+    const error = await client.synthesize({ text: "x", voiceId: "v", speed: 1, outputPath: "unused" })
+      .catch((value: unknown) => value);
+    expect(error).toBeInstanceOf(VoiceProviderError);
+    expect((error as VoiceProviderError).failure.code).toBe(code);
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
@@ -95,9 +103,27 @@ describe("ElevenLabsClient", () => {
       { status: 402, headers: { "content-type": "application/json" } },
     ));
     const client = new ElevenLabsClient({ apiKey: "secret", fetch: fetchMock });
-    await expect(client.synthesize({ text: "x", voiceId: "v", speed: 1, outputPath: "unused" }))
-      .rejects.toThrow(/requires a paid ElevenLabs plan|Choose a personal\/default voice/);
+    const error = await client.synthesize({ text: "x", voiceId: "v", speed: 1, outputPath: "unused" })
+      .catch((value: unknown) => value);
+    expect((error as VoiceProviderError).failure.code).toBe("plan_required");
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    ["quota_exceeded", "insufficient_credits"],
+    ["insufficient_credits", "insufficient_credits"],
+    ["voice_not_found", "voice_not_found"],
+    ["service_unavailable", "provider_unavailable"],
+  ] as const)("maps provider code %s to %s", async (providerCode, code) => {
+    const client = new ElevenLabsClient({
+      apiKey: "secret",
+      fetch: vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({
+        detail: { type: "provider_error", code: providerCode, message: providerCode },
+      }), { status: 400, headers: { "content-type": "application/json" } })),
+    });
+    const error = await client.synthesize({ text: "x", voiceId: "v", speed: 1, outputPath: "unused" })
+      .catch((value: unknown) => value);
+    expect((error as VoiceProviderError).failure.code).toBe(code);
   });
 
   it("forwards an explicit English language code", async () => {

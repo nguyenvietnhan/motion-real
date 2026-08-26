@@ -83,7 +83,7 @@ export type AuthorOutcome =
 export type RepairOutcome =
   | { kind: "passed"; attempts: number }
   | { kind: "exhausted"; attempts: number; remainingHardErrors: number }
-  | { kind: "infra"; attempts: number }
+  | { kind: "infra"; attempts: number; error?: SerializedPipelineError }
   /** The user pressed "Dừng render" — the loop stopped on purpose, not a failure. */
   | { kind: "cancelled"; attempts: number };
 

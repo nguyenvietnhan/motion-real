@@ -1,282 +1,113 @@
 ---
 name: make-video
-description: Tạo video dọc 9:16 TikTok/Reels/Shorts hoàn chỉnh từ một chủ đề - research có nguồn, kịch bản tiếng Việt, giọng đọc local, code HyperFrames (HTML+GSAP) đồng bộ theo từ, QA snapshot, render MP4. Use when the user wants to create/make a vertical short video from a topic, e.g. "làm video về X", "tạo short về X trong 90s", "make a video about X". Đây là skill chính điều phối các skill scene-authoring, voice-vieneu, research-grounding.
+description: Create an experimental 9:16 HyperFrames R&D video from a factual topic. This is the only end-to-end creation workflow in skill-test; it owns the job contract, review render, and approval boundary. Do not use for MotionReal's Remotion production path.
 ---
 
-# Make Video — xưởng video 9:16 end-to-end
+# Make Video — experimental R&D workflow
 
-> **Đây là workflow DUY NHẤT để tạo video trong toolbox.** Các skill
-> workflow mẫu của HyperFrames (faceless-explainer, general-video...)
-> KHÔNG dùng làm quy trình — chỉ `hyperframes-core/-animation/-cli/...`
-> là tài liệu kỹ thuật của engine.
+This workflow is limited to `skill-test/`. It is not a MotionReal production
+path and must never claim Remotion/TSX production-contract compliance.
 
-Từ chủ đề → MP4 dọc hoàn chỉnh có giọng Việt. Mọi đường dẫn tương đối
-tính từ GOC TOOLBOX (folder chứa `.agents/`, `starter-hf/`, `tools/`,
-`jobs/`, `styles/`).
+Use it for a new 9:16 experimental video. Validate 75–105 seconds first; do
+not promise 300-second support until a separate 240–300 second regression job
+has passed.
 
-## Shell Windows — luật sinh tồn (bắt buộc đọc trước khi chạy lệnh)
+`make-video` owns the end-to-end flow. Load the supporting skills only at the
+named stage: `research-grounding` for ledgers, `voice-vieneu` for timing,
+`scene-authoring` for HTML/GSAP, and `motion-doctrine` only to review a motion
+plan. No supporting skill may independently render, publish, or change the
+approval policy.
 
-Máy chạy **PowerShell 5.1**. Cấm dùng cú pháp bash:
+Read before acting:
 
-- KHÔNG có `||`, `&&`, `tr`, `head`, `tail`, `2>&1 |`. Lệnh kiểu
-  `ls a || echo x && tr` sẽ ParserError ngay.
-- Chuỗi lệnh: dùng `;` (tuần tự) hoặc tách từng dòng. Điều kiện:
-  `if ($?) { ... }`. Liệt kê: `Get-ChildItem` (hoặc `ls` đơn lẻ).
-- **Giao thức thất bại**: một lệnh fail 2 lần liên tiếp → DỪNG, báo
-  cho user 1 câu lỗi là gì + đề xuất hướng khác. CẤM lặp lại cùng một
-  lệnh đã fail, CẤM im lặng bỏ cuộc — luôn nói đang ở Stage nào.
-- **Cấm inline one-liner phức tạp** (`node -e "..."`,
-  `powershell -Command "..."` nhiều tầng nháy) — PowerShell 5.1 nuốt
-  dấu nháy. Cần logic gì → viết file `.mjs`/`.py` ngắn rồi
-  `node file.mjs`.
+- [Job contract](references/job-contract.md)
+- [Asset policy](references/asset-policy.md)
+- [Snapshot QA](references/snapshot-qa.md)
+- [Authoring policy](references/authoring-policy.md)
 
-## Luật bản quyền nội dung (job mới = mọi thứ mới)
+## Stages
 
-Mỗi job là một tác phẩm độc lập. **CẤM TUYỆT ĐỐI copy `script.md`,
-`beats.json`, `voice/*`, `index.html` hoặc bất kỳ artifact nào từ job
-khác** — kể cả cùng chủ đề, kể cả "chỉ khác thời lượng", kể cả để
-"tiết kiệm thời gian". Video giống hệt video cũ = job FAIL dù render
-đẹp đến đâu.
+1. Create `jobs/<slug>/brief.json` with topic, target duration, audience,
+   viewer promise, voice, and visual direction. Keep the job new; never copy
+   a prior job's script, voice, HTML, or timeline.
+2. Run preflight before research. Declare `web-download` and `snapshot-view`
+   only when the active agent actually has both capabilities:
 
-- Cache textHash chỉ có hiệu lực **trong nội bộ một job** — không bao
-  giờ là cớ để mang voice/HTML xuyên job.
-- Được PHÉP đọc `research/findings.md` của job cũ cùng chủ đề để tham
-  khảo nguồn — nhưng script phải viết lại từ đầu đúng số từ của thời
-  lượng mới, voice sinh mới trong `jobs/<slug>/voice/`, composition
-  viết mới từ trang trắng.
-- Tạo job mới mà workspace đã có job tương tự → ghi rõ vào brief.md:
-  "Job mới — KHÔNG tái sử dụng artifact từ `<job-cũ>`".
-- **TỰ KIỂM trong Done=**: file script/voice/index của job mới phải
-  có thời gian tạo SAU brief.md; nội dung script khác biệt so với job
-  cũ cùng chủ đề (không phải bản chép mở rộng).
+   ```powershell
+   python tools/video_pipeline.py preflight --job <slug> --capability web-download --capability snapshot-view
+   ```
 
-## Artifact contract — cây file của một job
+   A failed preflight stops the workflow. Runtime state is recorded in
+   `jobs/<slug>/runtime.json`.
+3. Research into `research.md`, then write `claims.json`, stage allowed local
+   media in `starter-hf/<slug>/assets/`, and write `assets.json`.
+4. Write `video-plan.json`, which references claim/asset ids but never copies
+   their source metadata. Validate it before TTS:
 
-```text
-jobs/<slug>/
-  brief.md          yêu cầu đầu vào (chủ đề, thời lượng, giọng, style)
-  research/
-    findings.md     kết quả research + claim ledger (research-grounding)
-  script.md         kịch bản người đọc + bảng beat
-  beats.json        hợp đồng máy: timeline toàn cục tính GIÂY
-  voice/
-    b1.wav, b1.json ...  audio + word timings từng beat (voice-vieneu)
-  output/
-    video.mp4          thành phẩm có giọng (render thẳng bởi HyperFrames)
-    meta.json          thông tin để thư viện/UI đọc
-```
+   ```powershell
+   python tools/video_pipeline.py validate --job <slug>
+   ```
 
-`beats.json` schema:
+5. Generate voice and derived timing. `video-plan.json` is content-only and
+   remains unchanged after this step:
 
-```json
-{
-  "slug": "ten-job",
-  "topic": "...",
-  "targetSeconds": 45,
-  "fps": 30,
-  "voice": "Adam",
-  "stylePack": "default",
-  "totalSeconds": 45.2,
-  "beats": [
-    {
-      "id": "b1",
-      "role": "hook",
-      "vo": "lời đọc...",
-      "wav": "voice/b1.wav",
-      "start": 0.0,
-      "duration": 3.4
-    }
-  ]
-}
-```
+   ```powershell
+   python tools/vieneu-tts/gen_beats_batch.py <slug>
+   python tools/vieneu-tts/merge_voice.py <slug>
+   ```
 
-`totalSeconds` = beat cuối `start + duration` + đuôi hold (~1.5-2s).
-HyperFrames làm việc bằng GIÂY (không cần quy đổi frame).
+6. Author V1 as a fresh `starter-hf/<slug>/index.html` from the ledgers, plan
+   and `timing.json`. It is a positioning draft, not the review candidate.
+   Generate captions after timing exists. Follow `scene-authoring`; do not use
+   a layout menu, global scanline/pulse, or a copied HTML generator. Audit and
+   archive it before rewrite:
 
-## Stage 0 — Brief
+   ```powershell
+   python tools/video_pipeline.py audit-author --job <slug> --iteration v1
+   ```
+7. Generate and inspect V1 snapshot matrix and motion strips before any MP4:
 
-Hỏi user (hoặc nhận từ lệnh) nếu thiếu: **chủ đề**, **thời lượng**
-(mặc định 45s; chấp nhận MỌI thời lượng 30-600s — công thức số từ tự
-thích ứng, không giới hạn mức), **giọng** (mặc định Adam), **style
-pack** (mặc định `default` — đọc `styles/<tên>/STYLE.md` ngay từ đầu
-và áp dụng xuyên suốt). Thời lượng tính bằng GIÂY, dùng đúng con số
-user yêu cầu — KHÔNG làm tròn xuống mức chuẩn nào cả.
+   ```powershell
+   python tools/video_pipeline.py snapshots --job <slug> --iteration v1
+   cd starter-hf/<slug>
+   npx --no-install hyperframes snapshot --at <timestamps-from-qa-plan> --output qa/snapshots/v1
+   ```
 
-Tạo `jobs/<slug>/brief.md`. Slug: chữ thường, gạch ngang, ngắn.
+   Attach the resulting PNG/contact sheet files to Gemini's image context and
+   write V1 findings in `qa.json`. Do not infer a pass from plan/code text.
+   Then perform the mandatory creative V2 rewrite. V2 may replace all visual
+   code but keeps claims, narration, timing, local paths and captions. Audit,
+   snapshot, and review V2 the same way:
 
-## Luật chạy liên tục
+   ```powershell
+   python tools/video_pipeline.py audit-author --job <slug> --iteration v2
+   python tools/video_pipeline.py snapshots --job <slug> --iteration v2
+   python tools/video_pipeline.py qa-gate --job <slug> --phase pre-review
+   ```
 
-Đã có đủ input ở Stage 0 → chạy LIÊN TIẾP Stage 1→6 không dừng hỏi
-user giữa chừng (kể cả "cho tôi duyệt beat sheet"). Chỉ dừng khi: thiếu
-input bắt buộc, hoặc gặp lỗi theo giao thức thất bại (fail 2 lần).
-Báo cáo tiến độ từng Stage trong lúc chạy — nhưng không chờ duyệt.
+   A V3 rewrite is allowed only for an evidence-backed severe V2 finding. It is
+   never an automatic loop for subjective taste.
+8. Run HyperFrames check, then render a standard review MP4 only after the V2
+   gate succeeds:
 
-## Stage 1 — Research
+   ```powershell
+   powershell -File starter-hf/scripts/render-hidden.ps1 -Slug <slug> -Verb check
+   powershell -File starter-hf/scripts/render-hidden.ps1 -Slug <slug> -Verb review
+   python tools/video_pipeline.py verify-output --job <slug>
+   powershell -File starter-hf/scripts/check-motion.ps1 -VideoPath jobs/<slug>/output/review.mp4 -ReportPath jobs/<slug>/motion-diagnostic.json
+   python tools/video_pipeline.py map-motion --job <slug>
+   python tools/video_pipeline.py qa-gate --job <slug> --phase handoff
+   ```
 
-Dùng skill **research-grounding**. Đầu ra: `research/findings.md` với
-claim ledger có độ tin cậy. Không có research thì không có Stage 2.
+   `check-motion` is diagnostic only: `findings` and `inconclusive` are not a
+   visual-quality pass and must be surfaced in the review bundle.
+9. Stop for user review of `jobs/<slug>/output/review.mp4`. Only explicit
+   approval allows the high-quality delivery render:
 
-**VERIFY trước khi sang Stage 2** — mở findings.md và kiểm: (a) mọi
-claim định lượng đều có URL ngay trên dòng hoặc trong bảng ledger;
-(b) không claim nào gán "high" mà không có nguồn; (c) đủ 4 mục chuẩn.
-Thiếu → quay lại research bổ sung (theo giao thức thất bại nếu nguồn
-không tìm được), KHÔNG sang Stage 2 với findings rỗng nguồn.
+   ```powershell
+   powershell -File starter-hf/scripts/render-hidden.ps1 -Slug <slug> -Verb delivery
+   python tools/video_pipeline.py verify-output --job <slug> --video jobs/<slug>/output/video.mp4
+   ```
 
-## Stage 2 — Kịch bản
-
-Viết `script.md` + `beats.json`. Ngữ pháp beat cho video ngắn:
-
-```text
-HOOK (0-3.5s) → BỐI CẢNH/CỬA THẠCH → TWIST/INSIGHT → TAKEAWAY
-```
-
-- **Hook**: vào thẳng câu gây tension nhất có dữ liệu hỗ trợ. Cấm chào
-  hỏi, cấm "hôm nay chúng ta sẽ", cấm định nghĩa suông. Frame 0 phải
-  có sẵn hình (đã composed).
-- **Kết**: CTA riêng theo chủ đề (câu hỏi quyết định, gợi ý hành động
-  cụ thể). Cấm "like subscribe" chung chung.
-- **Nhịp tiếng Việt (đo thực tế VieNeu): ~4.0-4.3 từ/giây.** Công thức
-  quy đổi BẮT BUỘC:
-
-  ```text
-  tổng số từ lời đọc ≈ thời lượng mục tiêu (giây) × 3.7   (chấp nhận ±10%)
-  vd: 45s → ~167 từ | 90s → ~333 từ | 300s → ~1110 từ
-  ```
-  Sau khi có WAV thật thì duration = số đo thật, không dùng ước lượng.
-- **TỰ KIỂM BẮT BUỘC trước khi sang Stage 3** (4 điểm, thiếu điểm nào
-  sửa ngay tại chỗ):
-  1. **Số từ**: đếm tổng số từ của cột VO. PHẢI khớp công thức
-     `thời lượng user yêu cầu (giây) × 3.7 ±10%` — dùng ĐÚNG con số
-     user yêu cầu (300s = ~1110 từ). In rõ phép tính cho user thấy:
-     "tổng <N> từ ≈ <M> giây speech + nghỉ ≈ <K> giây — khớp mục tiêu
-     <T> giây". CẤM tuyên bố "đúng" không kèm phép tính; CẤM phép tính
-     bịa kiểu "47.7s + 12s nghỉ ≈ 240s". Thiếu từ → viết thêm beat
-     NGAY LÚC ĐÓ.
-  2. **Hook**: câu đầu tiên KHÔNG là định nghĩa ("X là..."), KHÔNG
-     chào hỏi, KHÔNG câu hỏi chung chung — phải vào thẳng tension.
-  3. **Nguồn**: mọi số liệu trong VO truy được về claim ledger có URL;
-     claim low chỉ nói kèm từ giảm nhẹ, không làm hook.
-  4. **Under-budget**: tổng duration beat (sau voice) dưới 80% mục
-     tiêu → quay lại Stage 2 viết thêm beat + re-voice, đừng giao
-     video cụt.
-- Chia beat: mỗi beat 1 ý, vo ≤ 25 từ cho dễ sync, role ghi rõ
-  (hook/context/twist/takeaway).
-- **Cột "Bố cục" bắt buộc**: mỗi beat chọn 1 hình thức từ menu 6 form
-  trong scene-authoring (số biến đổi / bằng chứng thật / khung tuyên
-  bố / step list / trích dẫn / takeaway). HAI beat kế tiếp không được
-  dùng cùng một form — đây là thứ diệt cảm giác slide.
-- **Cột "Hình diễn biến" bắt buộc**: mỗi beat ghi rõ (a) element nào
-  xuất hiện Ở TỪ NÀO (theo word timing dự kiến), (b) ĐỘNG TỪ chuyển
-  động của nó (SLAMS / DRAWS / TYPES ON / FLOATS...), (c) HÌNH THAY
-  ĐỔI GÌ (trạng thái mới của diagram, element nào tô đậm/vẽ thêm).
-  Beat sheet chỉ có VO không có 2 cột này = kịch bản chưa xong — đó
-  là công thức "slide thuyết trình", cấm. 6 bài test trong
-  scene-authoring sẽ được chấm qua snapshot ở Stage 4-5, TRƯỚC render.
-
-## Stage 3 — Voice
-
-Dùng skill **voice-vieneu**: chạy `gen_beats_batch.py <slug>` (load
-model MỘT lần, cache theo textHash, tự cập nhật `start`/`duration`/
-`totalSeconds` vào beats.json). KHÔNG gọi gen_voice.py từng beat.
-Muốn nghỉ giữa beat khác 0.45s → đặt `gapSeconds`/`tailSeconds` trong
-beats.json TRƯỚC khi chạy batch. Kết thúc bằng `merge_voice.py <slug>`
-→ `voice/narration.wav` + `narration.m4a` (composition dùng bản m4a).
-
-## Sửa kịch bản sau Stage 3 (beats.json tự heal)
-
-Sau khi đã có voice, KHÔNG viết lại beats.json từ đầu. Chỉ sửa trường
-`vo` của beat cần đổi (giữ nguyên start/duration), rồi chạy lại
-`gen_beats_batch.py <slug>`: beat chưa đổi → CACHED (0 giây), beat đổi
-chữ → tự sinh lại + tự tính lại toàn bộ start/totalSeconds. Ghi đè
-toàn bộ file làm mất duration thật — cấm.
-
-## Stage 4 — Composition (vừa viết vừa soi, KHÔNG dồn QA ra cuối)
-
-Tạo `starter-hf/<slug>/`, copy `voice/` từ `jobs/<slug>/voice/` sang,
-copy font từ `starter-hf/fonts/`. Sau đó dùng skill **scene-authoring**
-(HyperFrames): sinh caption bằng
-`starter-hf\scripts\gen-captions.mjs <slug>`, viết `index.html` theo
-style pack.
-
-**Nhịp làm việc bắt buộc**: viết xong MỖI 1-2 cảnh → snapshot NGAY
-các mốc của cảnh vừa viết (`npx hyperframes snapshot --at <giây>`) →
-ĐỌC ảnh → thấy xấu/lỗi sửa LIỀN → mới viết cảnh tiếp. Đây là gate
-chính — lỗi bắt ở đây tốn ~5 giây snapshot, không phải 10-15 phút
-re-render. Cuối Stage: `npx hyperframes check` 0 error.
-
-Tại stage viết CODE này, skill/code-style khác của user ĐƯỢC phép ảnh
-hưởng (ponytail, frontend-design...). Các stage check/render thì KHÓA
-— chỉ làm đúng lệnh ghi trong skill.
-
-## Stage 5 — QA tổng thể
-
-Quét snapshot TOÀN bộ timeline một lượt (đầu mỗi beat + giữa + cuối):
-chuyển cảnh fade mượt, caption không chồng/dán sai vị trí, reveal đúng
-lời, tổng duration khớp `beats.json` (±2 frame quy đổi). Sạch mới
-được render.
-
-## Stage 6 — Render + gate chống đóng băng + bàn giao
-
-Render ẨN qua wrapper (không pop-up terminal con, log ra file):
-
-```powershell
-powershell -File starter-hf\scripts\render-hidden.ps1 -Slug <slug> -Verb render
-# poll: Get-Content starter-hf\<slug>\render.log -Tail 5 -Wait
-```
-
-Video dài 4-5 phút mất 10-15 phút render — BÁO TRƯỚC cho user là chạy
-nền lâu.
-
-**Gate chống đóng băng (bắt buộc sau render)** — chuyển động chỉ đo
-được trên thành phẩm, đây là vòng kiểm duyệt nhất:
-
-```powershell
-powershell -File starter-hf\scripts\check-motion.ps1 `
-  -VideoPath jobs\<slug>\output\video.mp4
-```
-
-FAIL (có freeze ≥4s trong vùng content) → đọc thời điểm t trong báo
-cáo → quay lại Stage 4 thêm choreography cho đúng beat đó → re-render
-→ chạy lại gate (tối đa 2 vòng, quá thì báo user). PASS → Kiểm kỹ
-thuật: ffprobe có stream video + audio, duration khớp ±0.3s.
-
-Viết `output/meta.json`:
-
-```json
-{
-  "slug": "...",
-  "title": "...",
-  "topic": "...",
-  "durationSeconds": 45.2,
-  "fps": 30,
-  "resolution": "1080x1920",
-  "voice": "Adam",
-  "stylePack": "default",
-  "beats": 6,
-  "createdAt": "2026-08-25"
-}
-```
-
-Bàn giao: báo user video xong + tự đánh giá trung thực (điểm tốt /
-điểm còn hạn chế). User xem muốn chỉnh gì → quay lại Stage 4.
-
-## Done =
-
-- brief.md, research/findings.md, script.md, beats.json đầy đủ và KHỚP
-  nhau (mọi số liệu script truy được ledger).
-- **Bản quyền nội dung**: mọi artifact của job là MỚI — không copy từ
-  job khác (kiểm thời gian tạo file sau brief.md; script khác biệt
-  với job cũ cùng chủ đề nếu có).
-- Mỗi beat có wav + json; beats.json duration = số đo thật.
-- QA snapshot đã đọc, checklist đạt; `hyperframes check` 0 error.
-- output/video.mp4 có cả video + audio (render thẳng bởi HyperFrames),
-  duration khớp ±0.3s.
-- output/meta.json ghi đủ trường.
-
-## Ranh giới skill
-
-- Stage 1/3/4: làm theo skill chuyên môn tương ứng, không tự chế bước.
-  Stage 5 (QA tổng thể) + Stage 6 (render/verify) làm đúng make-video.
-- Stage viết code (4): mở cho skill style/code khác của user.
-- Không bao giờ: bịa số liệu, bỏ QA, render full khi snapshot còn lỗi,
-  sửa WAV tay, tự ý đổi provider giọng.
+Unknown/restricted assets are allowed by the user's policy, but remain visible
+as warnings in `qa.json`. Never publish automatically.

@@ -21,9 +21,10 @@ import { WorkspaceController } from "./workspace/workspace-controller.js";
 import { CreateController } from "./create/create-controller.js";
 import { stripL0Tokens } from "./redact/friendly.js";
 import { toCards } from "../shared/gallery-controller.js";
-import { defaultSettings } from "../shared/settings-model.js";
+import { defaultSettings, isFullAutoSettings } from "../shared/settings-model.js";
 import { SettingsStore } from "./settings/settings-store.js";
 import { createSettingsHandlers } from "./settings/settings-handlers.js";
+import { createVoiceTester } from "./settings/voice-test.js";
 import { buildDesktopReadinessReport, desktopVoiceDoctorCheck } from "./settings/desktop-readiness.js";
 import { createThumbnailHandlers } from "./thumbnail/thumbnail-handlers.js";
 import {
@@ -33,7 +34,7 @@ import {
   unstageImage,
   type ImageStagingDeps,
 } from "./create/image-staging.js";
-import { createControllerArgsFromIpc, parseVoiceProvider } from "./create/create-ipc.js";
+import { createControllerArgsFromIpc, normalizeStagedImages, parseVoiceProvider } from "./create/create-ipc.js";
 import { createBgmHandlers } from "./bgm/bgm-handlers.js";
 import {
   saveProjectThumbnail,
@@ -55,6 +56,7 @@ import {
   scrubSensitiveEnvironment,
 } from "./security/runtime-security.js";
 import { readEnvFile, resolveBootVoiceEnv } from "./security/runtime-env.js";
+import { isLegacyElectronShortcut } from "./shell-identity.js";
 
 const log = createLogger("desktop");
 
@@ -121,7 +123,7 @@ const gateway = new ModelGatewayManager(
   buildNineRouterGatewayDeps({ client: nrClient, openExternal: (url) => void shell.openExternal(url) }),
 );
 const { handlers: gatewayHandlers, getSelectedModelId } = createGatewayHandlers({
-  ensureReady: () => gateway.ensureReady(),
+  ensureReady: () => gateway.refreshHealth(),
   listProviders: () => gateway.listProviders(),
   refreshConnections: () => gateway.refreshConnections(),
   beginConnect: (providerId) => gateway.beginConnect(providerId),
@@ -361,7 +363,14 @@ const create = new CreateController({
     if (!voiceId) missing.push("giọng đọc (voice id)");
     if (missing.length === 0) return undefined;
     const label = voiceProvider === "vivibe" ? "Vivibe" : "ElevenLabs";
-    return `Chưa cấu hình ${missing.join(" và ")} cho ${label}. Mở Cài đặt để thêm rồi thử lại.`;
+    return {
+      message: `Chưa cấu hình ${missing.join(" và ")} cho ${label}. Mở Cài đặt để thêm rồi thử lại.`,
+      voiceFailure: {
+        provider: voiceProvider,
+        code: !apiKey ? "not_configured" : "voice_not_found",
+        retryable: false,
+      },
+    };
   },
   // Move each staged create-time image into the project's assetsDir by RE-importing
   // its bytes (content-addressed, so the <sha>.<ext> filename — and thus the ref —
@@ -496,21 +505,32 @@ const queueRunner = new QueueRunner({
       // Ignore placeholders; keep the user prompt on the card until a real clip title exists.
       if (!t || /^project-\d+$/i.test(t) || t === "Untitled" || t === "Smoke test") return undefined;
       return t;
-    } catch {
+    } catch (error) {
+      log.debug({ err: error, projectId }, "queue project title unavailable");
       return undefined;
     }
   },
+  fullAutoReady: () => isFullAutoSettings(settingsStore.current()),
+  resumeProject: (projectId) => workspace.resumeUnattended(projectId),
+  projectExists: (projectId) => existsSync(projectPaths(projectId).root),
   log: (msg, extra) => log.info(extra ?? {}, msg),
 });
 
 // ponytail: one smoke at a time; no queue for a test button
 let smokeRenderInFlight = false;
+const testVoice = createVoiceTester({ rootDir: join(videoToolHome(), "voice-tests") });
 
 const settingsHandlers = createSettingsHandlers({
   current: () => settingsStore.current(),
-  update: (patch) => settingsStore.update(patch),
+  update: (patch) => {
+    if (queueRunner.hasScheduledWork() && !isFullAutoSettings({ ...settingsStore.current(), ...patch })) {
+      throw new Error("Không thể bật bước duyệt tay khi hàng đợi đang chạy.");
+    }
+    return settingsStore.update(patch);
+  },
   setApiKey: (provider, apiKey) => settingsStore.setApiKey(provider, apiKey),
   clearApiKey: (provider) => settingsStore.clearApiKey(provider),
+  testVoice: (provider) => testVoice(settingsStore.voiceConfig(provider)),
   parseVoiceProvider,
   readiness: async () => {
     const current = settingsStore.current();
@@ -547,7 +567,7 @@ const settingsHandlers = createSettingsHandlers({
     const videoLanguage = args.videoLanguage === "en" ? "en" : "vi";
 
     const spill = spillHomeSmokeIfBusy({
-      busy: queueRunner.isBusy(),
+      busy: queueRunner.isBusy() || workspace.isBusy(),
       raw,
       videoLanguage,
       store: queueStore,
@@ -606,10 +626,10 @@ const handlers: InvokeHandlers = {
     // Home create while queue runner busy → ephemeral home container (no parallel workflow).
     const spill = spillHomeCreateIfBusy({
       source: args.source,
-      busy: queueRunner.isBusy(),
+      busy: queueRunner.isBusy() || workspace.isBusy(),
       raw: args.raw,
       choices: args.choices,
-      imageCount: args.images.length,
+      images: args.images,
       store: queueStore,
       runner: queueRunner,
     });
@@ -619,7 +639,6 @@ const handlers: InvokeHandlers = {
         kind: "queued" as const,
         queueId: spill.queueId,
         jobId: spill.jobId,
-        ...(spill.imagesDropped ? { imagesDropped: true } : {}),
       };
     }
     const created = await create.create(args.raw, args.images, args.choices);
@@ -627,7 +646,11 @@ const handlers: InvokeHandlers = {
   },
   "projects:pickImages": () => pickImages(),
   "projects:importImageBytes": (files) => importDroppedImages(files as DroppedImage[], imageStagingDeps),
-  "projects:removeStagedImage": (ref) => unstageImage(String(ref), imageStagingDeps),
+  "projects:removeStagedImage": (ref) => {
+    const normalized = String(ref);
+    if (queueStore.usesStagedRef(normalized)) return undefined;
+    return unstageImage(normalized, imageStagingDeps);
+  },
   "projects:stage": (projectId) => workspace.stage(String(projectId)),
   "projects:rename": (projectId, newTitle) => workspace.rename(String(projectId), String(newTitle)),
   "projects:open": (projectId) => workspace.open(String(projectId)),
@@ -670,6 +693,7 @@ const handlers: InvokeHandlers = {
   },
   "queue:rename": (queueId, title) => queueStore.rename(String(queueId), String(title ?? "")),
   "queue:addJob": (queueId, input) => {
+    if (!input || typeof input !== "object") throw new Error("Dữ liệu hàng đợi không hợp lệ.");
     const body = (input && typeof input === "object" ? input : {}) as Partial<QueueJobInput>;
     const raw = typeof body.raw === "string" ? body.raw : "";
     const durationTier = body.durationTier === 2 || body.durationTier === 3 || body.durationTier === 4 ? body.durationTier : 1;
@@ -677,6 +701,7 @@ const handlers: InvokeHandlers = {
     const voiceProvider = body.voiceProvider === "elevenlabs" ? "elevenlabs" : "vivibe";
     const bgm = typeof body.bgm === "string" ? body.bgm : null;
     const smoke = body.smoke === true;
+    const images = normalizeStagedImages(body.images);
     // Only enqueue — never start render here (including smoke jobs).
     return queueStore.addJob(String(queueId), {
       raw: smoke && !raw.trim() ? "Smoke test — video ngắn 10 giây, không tiếng." : raw,
@@ -684,10 +709,12 @@ const handlers: InvokeHandlers = {
       videoLanguage,
       voiceProvider,
       bgm: smoke ? null : bgm,
+      ...(images.length > 0 ? { images } : {}),
       ...(smoke ? { smoke: true } : {}),
     });
   },
   "queue:updateJob": (queueId, jobId, patch) => {
+    if (!patch || typeof patch !== "object") throw new Error("Dữ liệu cập nhật hàng đợi không hợp lệ.");
     const body = (patch && typeof patch === "object" ? patch : {}) as Partial<QueueJobInput>;
     return queueStore.updateJobInput(String(queueId), String(jobId), {
       ...(typeof body.raw === "string" ? { raw: body.raw } : {}),
@@ -700,11 +727,14 @@ const handlers: InvokeHandlers = {
         : {}),
       ...(body.bgm !== undefined ? { bgm: typeof body.bgm === "string" ? body.bgm : null } : {}),
       ...(body.smoke === true || body.smoke === false ? { smoke: body.smoke } : {}),
+      ...(body.images !== undefined ? { images: normalizeStagedImages(body.images) } : {}),
     });
   },
   "queue:deleteJob": (queueId, jobId) => queueStore.deleteJob(String(queueId), String(jobId)),
   "queue:cancelJob": (queueId, jobId) => queueRunner.cancelJob(String(queueId), String(jobId)),
   "queue:start": (queueId) => queueRunner.start(String(queueId)),
+  "queue:pause": () => queueRunner.pause(),
+  "queue:resume": () => queueRunner.resume(),
   "queue:status": () => queueRunner.status(),
 
   "script:get": (projectId) => workspace.scriptGate(String(projectId)),
@@ -714,6 +744,9 @@ const handlers: InvokeHandlers = {
     return undefined;
   },
   "script:setEnabled": (enabled) => {
+    if (queueRunner.hasScheduledWork() && Boolean(enabled)) {
+      throw new Error("Không thể bật duyệt kịch bản khi hàng đợi đang chạy.");
+    }
     settingsStore.setScriptGateEnabled(enabled);
     return undefined;
   },
@@ -773,9 +806,10 @@ function loadBrandNativeImage(): Electron.NativeImage | undefined {
  * must create first. Falls back to PowerShell WScript.Shell COM.
  */
 function writeBrandShortcut(lnk: string, iconPath: string): boolean {
+  const shortcutArgs = `"${desktopAppRoot}"`;
   const details = {
     target: process.execPath,
-    args: process.defaultApp ? `"${desktopAppRoot}"` : undefined,
+    args: shortcutArgs,
     cwd: desktopAppRoot,
     appUserModelId: WINDOWS_AUMID,
     icon: iconPath,
@@ -786,15 +820,15 @@ function writeBrandShortcut(lnk: string, iconPath: string): boolean {
   const op = existsSync(lnk) ? "replace" : "create";
   try {
     if (shell.writeShortcutLink(lnk, op, { ...details })) return true;
-  } catch {
-    /* try opposite op / PowerShell */
+  } catch (error) {
+    log.debug({ err: error, shortcut: lnk }, "shortcut write failed; trying fallback");
   }
   // Retry opposite op once
   try {
     const op2 = op === "create" ? "replace" : "create";
     if (shell.writeShortcutLink(lnk, op2, { ...details })) return true;
-  } catch {
-    /* fall through */
+  } catch (error) {
+    log.debug({ err: error, shortcut: lnk }, "shortcut fallback write failed; trying PowerShell");
   }
 
   // PowerShell COM fallback (proven on this machine)
@@ -803,7 +837,7 @@ function writeBrandShortcut(lnk: string, iconPath: string): boolean {
 $W = New-Object -ComObject WScript.Shell
 $S = $W.CreateShortcut(${JSON.stringify(lnk)})
 $S.TargetPath = ${JSON.stringify(process.execPath)}
-$S.Arguments = ${JSON.stringify(process.defaultApp ? `"${desktopAppRoot}"` : "")}
+$S.Arguments = ${JSON.stringify(shortcutArgs ?? "")}
 $S.WorkingDirectory = ${JSON.stringify(desktopAppRoot)}
 $S.IconLocation = ${JSON.stringify(`${iconPath},0`)}
 $S.Description = "Motion Real"
@@ -811,7 +845,8 @@ $S.Save()
 `;
     execFileSync("powershell.exe", ["-NoProfile", "-Command", ps], { stdio: "ignore" });
     return existsSync(lnk);
-  } catch {
+  } catch (error) {
+    log.debug({ err: error, shortcut: lnk }, "PowerShell shortcut write failed");
     return false;
   }
 }
@@ -826,11 +861,22 @@ function ensureWindowsBrandShellIdentity(): void {
   try {
     const programs = join(app.getPath("appData"), "Microsoft", "Windows", "Start Menu", "Programs");
     mkdirSync(programs, { recursive: true });
+    const legacyLnk = join(programs, "Electron.lnk");
+    try {
+      if (
+        existsSync(legacyLnk) &&
+        isLegacyElectronShortcut(shell.readShortcutLink(legacyLnk), WINDOWS_AUMID)
+      ) {
+        unlinkSync(legacyLnk);
+      }
+    } catch (error) {
+      log.debug({ err: error, shortcut: legacyLnk }, "legacy Electron shortcut cleanup failed");
+    }
     const lnk = join(programs, "Motion Real.lnk");
     try {
       if (existsSync(lnk)) unlinkSync(lnk);
-    } catch {
-      /* ignore */
+    } catch (error) {
+      log.debug({ err: error, shortcut: lnk }, "stale shortcut removal failed");
     }
     writeBrandShortcut(lnk, iconPath);
   } catch (error) {
@@ -870,8 +916,8 @@ async function createWindow(): Promise<void> {
     } else if (brandImg) {
       win.setIcon(brandImg);
     }
-  } catch {
-    /* title bar may fall back to PE icon */
+  } catch (error) {
+    log.debug({ err: error }, "window icon setup failed; using executable icon");
   }
   win.removeMenu();
   setEventTarget(win.webContents);
@@ -905,7 +951,7 @@ app
     }
     handleMediaProtocol();
     // Clear stale staged create-time images (picked but never used). Best-effort.
-    void sweepStagingDir(imageStagingDeps).catch((error) => {
+    void sweepStagingDir(imageStagingDeps, undefined, queueStore.stagedImageRefs()).catch((error) => {
       // eslint-disable-next-line no-console
       console.error("[desktop] staging sweep failed:", error);
     });
@@ -931,6 +977,8 @@ app
     }
     startGateway();
     await createWindow();
+    const restoredQueue = queueRunner.restore();
+    if (restoredQueue) log.info({ result: restoredQueue }, "restored persisted queue schedule");
   })
   .catch((error) => {
     // eslint-disable-next-line no-console

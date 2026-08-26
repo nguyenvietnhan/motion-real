@@ -41,7 +41,7 @@ describe("home-spill", () => {
       busy: false,
       raw: "hello",
       choices: {},
-      imageCount: 0,
+      images: [],
       store,
       runner,
     });
@@ -89,18 +89,18 @@ describe("home-spill", () => {
       busy: runner.isBusy(),
       raw: "  from homepage  ",
       choices: { durationTier: 2, videoLanguage: "en", voiceProvider: "elevenlabs", bgm: "a.mp3" },
-      imageCount: 2,
+      images: [{ ref: "staging/aa.png", width: 800, height: 600 }],
       store,
       runner,
     });
     expect(res.kind).toBe("queued");
     if (res.kind !== "queued") return;
     expect(res.queueId).toBe(HOME_QUEUE_ID);
-    expect(res.imagesDropped).toBe(true);
     const home = store.get(HOME_QUEUE_ID);
     expect(home?.jobs).toHaveLength(1);
     expect(home?.jobs[0]?.raw).toBe("from homepage");
     expect(home?.jobs[0]?.durationTier).toBe(2);
+    expect(home?.jobs[0]?.images).toEqual([{ ref: "staging/aa.png", width: 800, height: 600 }]);
     expect(runner.pendingQueues()).toContain(HOME_QUEUE_ID);
 
     // Second spill reuses same container.
@@ -109,7 +109,7 @@ describe("home-spill", () => {
       busy: true,
       raw: "second home",
       choices: {},
-      imageCount: 0,
+      images: [],
       store,
       runner,
     });

@@ -9,6 +9,16 @@ export {
   synthesizeMockAudio,
 } from "./audio-ops.js";
 export { alignmentToSrt, type ElevenLabsAlignment } from "./caption-timing.js";
+export { createTtsClient } from "./client-factory.js";
+export {
+  VoiceProviderError,
+  asVoiceProviderError,
+  isVoiceProviderError,
+  retryAfterMs,
+  voiceProviderErrorFrom,
+  type VoiceProviderFailure,
+  type VoiceProviderFailureCode,
+} from "./provider-error.js";
 export {
   ELEVENLABS_DEFAULT_MODEL_ID,
   ELEVENLABS_OUTPUT_FORMAT,

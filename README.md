@@ -20,7 +20,7 @@ short-form duration tier (~45s / ~90s / ~150s / ~210s). No YouTube / landscape f
 - **Pipeline owns** captions, TTS, timing lock, safety grid, cache, and render.
   Authored scenes never draw subtitles or call the network/filesystem.
 - **Draft before full** by default. Desktop can use stills-only review modes;
-  full export is always an explicit approval step.
+  `skip_edit` is the explicit unattended mode and auto-exports full after refine/stills.
 - **URL-grounded create** (desktop): up to 5 links, concurrent extract, bounded
   text budgets. Planner sees labeled untrusted sources; code authoring only
   sees the approved plan/claims (no raw article paste into TSX prompts).
@@ -84,6 +84,24 @@ npm --prefix apps/desktop run app
 6. On **Home**, enter a prompt (optional URLs/images), create, wait for draft,
    review, then approve full export.
 
+### Queue production
+
+The **Queue** tab stores containers and jobs in `VIDEO_TOOL_HOME/queues.json`.
+Jobs and the FIFO Start schedule survive restart. After stale project state is
+reconciled, the app resumes scheduled work automatically when Full auto is still
+valid. Queue is unattended-only and requires the shared **Full auto** preset:
+`reviewMode=skip_edit`, script review off, and crawled-image human review off.
+Apply it explicitly from Queue or Settings.
+
+Queue jobs run serially through the same process-wide workflow gate as Home,
+manual project actions, and thumbnails. Home create/smoke spills into the
+ephemeral `home` queue while another workflow is active. Picked, pasted, or
+dropped images are persisted with queued jobs and promoted into the project
+when the job starts. An interrupted job keeps its `projectId` and resumes from
+existing artifacts instead of creating a duplicate. Any structured TTS provider
+failure pauses the whole persisted chain; fix/test the voice in Settings, then
+resume the Queue.
+
 ### B. Offline-friendly checks (no paid APIs)
 
 ```bash
@@ -136,7 +154,7 @@ Other useful scripts (repo root unless noted):
 
 | Path | Role |
 | --- | --- |
-| `apps/desktop` | Electron product: create, workspace stages, settings, gateway, refine, BGM, diagnostics, export |
+| `apps/desktop` | Electron product: create, persistent Queue, workspace stages, settings, gateway, refine, BGM, diagnostics, export |
 | `apps/remotion` | Remotion root / composition entry |
 | `packages/pipeline` | Authoring admission, ingest, TTS orchestration, lock, render, safety, store, CLI, tools facade |
 | `packages/schema` | Specs, lock model, geometry, captions helpers |
@@ -169,7 +187,7 @@ Do not commit generated project trees or secrets.
 | `docs/third-party.md` | Fonts, BGM, dependency attribution |
 
 Prefer `docs/current/` over ad-hoc notes. Do not leave long-lived plans under
-`docs/working-notes/` — sync outcomes into durable docs, then delete the note.
+`docs/working/` — sync outcomes into durable docs, then delete the note.
 
 ## Development notes
 

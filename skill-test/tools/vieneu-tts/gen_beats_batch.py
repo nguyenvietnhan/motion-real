@@ -39,15 +39,31 @@ def main():
     slug = sys.argv[1]
     root = Path(__file__).resolve().parent.parent.parent
     job_dir = root / "jobs" / slug
+    plan_path = job_dir / "video-plan.json"
     beats_path = job_dir / "beats.json"
     voice_dir = job_dir / "voice"
     voice_dir.mkdir(parents=True, exist_ok=True)
     
-    if not beats_path.exists():
-        print(f"Error: {beats_path} not found")
+    experimental = plan_path.exists()
+    if not experimental and not beats_path.exists():
+        print(f"Error: need {plan_path} (experimental) or {beats_path} (legacy)")
         sys.exit(1)
-        
-    data = json.loads(beats_path.read_text(encoding="utf-8"))
+
+    if experimental:
+        plan = json.loads(plan_path.read_text(encoding="utf-8"))
+        video = plan.get("video", {})
+        data = {
+            "voice": video.get("voice", "Adam"),
+            "fps": video.get("fps", 30),
+            "gapSeconds": video.get("gap_seconds", 0.45),
+            "tailSeconds": video.get("tail_seconds", 1.8),
+            "beats": [{"id": beat["id"], "vo": beat["narration"]} for beat in plan.get("beats", [])],
+        }
+    else:
+        data = json.loads(beats_path.read_text(encoding="utf-8"))
+    if not data.get("beats"):
+        print("Error: no beats to synthesize")
+        sys.exit(1)
     voice_name = data.get("voice", "Adam")
     fps = data.get("fps", 30)
     gap_seconds = data.get("gapSeconds", 0.45)
@@ -122,8 +138,31 @@ def main():
     data["totalSeconds"] = total_sec
     data["totalFrames"] = round(total_sec * fps)
     
-    beats_path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(f"DONE batch voice: {len(data['beats'])} beats, total {total_sec}s ({data['totalFrames']} frames)", file=sys.stderr)
+    if experimental:
+        timing = {
+            "schemaVersion": 1,
+            "provider": "vieneu-tts",
+            "voice": voice_name,
+            "sampleRate": 48000,
+            "fps": fps,
+            "tail_seconds": tail_seconds,
+            "total_duration": total_sec,
+            "beats": [
+                {
+                    "id": beat["id"],
+                    "voice_file": f"voice/{beat['id']}.wav",
+                    "voice_hash": json.loads((voice_dir / f"{beat['id']}.json").read_text(encoding="utf-8"))["textHash"],
+                    "start": beat["start"],
+                    "duration": beat["duration"],
+                }
+                for beat in data["beats"]
+            ],
+        }
+        (job_dir / "timing.json").write_text(json.dumps(timing, ensure_ascii=False, indent=2), encoding="utf-8")
+        print(f"DONE experimental voice: {len(data['beats'])} beats, total {total_sec}s -> timing.json", file=sys.stderr)
+    else:
+        beats_path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+        print(f"DONE legacy batch voice: {len(data['beats'])} beats, total {total_sec}s ({data['totalFrames']} frames)", file=sys.stderr)
 
 if __name__ == "__main__":
     main()

@@ -20,6 +20,7 @@ import type {
   ScriptEdit,
   ScriptGateModel,
   SettingsModel,
+  SettingsUpdateInput,
   StatusEvent,
   StoryboardModel,
   SubmitResult,
@@ -112,7 +113,7 @@ export interface DashboardApi {
   };
   settings: {
     get(): Promise<SettingsModel>;
-    update(patch: Partial<SettingsModel>): Promise<SettingsModel>;
+    update(patch: SettingsUpdateInput): Promise<SettingsModel>;
     /** Local/gateway readiness report (no LLM/TTS call). */
     readiness(): Promise<import("./types.js").DesktopReadinessReport>;
     /**
@@ -143,11 +144,14 @@ export interface DashboardApi {
     cancelJob(queueId: string, jobId: string): Promise<{ ok: true } | { ok: false; error: string }>;
     /** Explicit start only — addJob never starts render. Schedules if another container is active. */
     start(queueId: string): Promise<QueueStartResult>;
+    pause(): Promise<{ ok: true } | { ok: false; error: string }>;
+    resume(): Promise<QueueStartResult>;
     status(): Promise<QueueRunnerStatus>;
   };
   tts: {
     setApiKey(provider: VoiceProviderChoice, apiKey: string): Promise<SettingsModel>;
     clearApiKey(provider: VoiceProviderChoice): Promise<SettingsModel>;
+    testVoice(provider: VoiceProviderChoice): Promise<import("./types.js").VoiceTestResult>;
   };
   events: {
     onProgress(cb: (e: ProgressEvent) => void): Unsubscribe;

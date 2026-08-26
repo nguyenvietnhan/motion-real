@@ -1,53 +1,56 @@
-# Starter HyperFrames — khung project video 9:16
+# HyperFrames runtime for experimental jobs
 
-Engine chính của MotionReal Skill Studio: **HyperFrames** (HTML + CSS +
-GSAP → MP4). Mỗi video là một folder con tại đây, ví dụ `<slug>/`:
+This folder is runtime source for `skill-test` experimental jobs. It is not a
+MotionReal production runtime.
 
 ```text
 starter-hf/<slug>/
-  index.html      composition (agent viết theo skill scene-authoring)
-  fonts/          font đã vendor + fonts.css (copy từ fonts/ gốc)
-  gsap.min.js     copy từ gốc (lint cấm đường dẫn ../)
-  voice/          b*.wav + narration.wav/m4a (từ jobs/<slug>/voice/)
-  output/         video.mp4 render ra
+  index.html
+  assets/              staged local web media
+  voice/               narration.m4a and source WAVs
+  qa/                  V1/V2 source archive, plans, and PNG snapshots
+
+jobs/<slug>/output/
+  review.mp4           standard-quality user review
+  video.mp4            high-quality delivery after approval
 ```
 
-## Cài một lần
+## Setup
 
-Bộ skill HyperFrames **đã có sẵn** trong `../.agents/skills/` — không
-cần cài lại. Engine `npx hyperframes` tự tải về cache ở lần chạy đầu
-(vài phút — không phải treo).
+HyperFrames is pinned in `package.json`; install exactly the lockfile contents:
 
-```bash
-npx hyperframes check   # thử lần đầu (tự tải engine)
+```powershell
+cd starter-hf
+npm ci --ignore-scripts
 ```
 
-GSAP đã vendor tại `gsap.min.js` — copy vào thẳng folder `<slug>/` và
-load `<script src="gsap.min.js"></script>` (lint CẤM `../`). Render
-offline hoàn toàn.
+Run `npx --no-install hyperframes doctor --json` before a new job. This checks
+the installed CLI, Node 22+, FFmpeg, FFprobe, and Chrome.
 
-## Lệnh
+## Commands
 
-```bash
-# từ GỐC TOOLBOX:
-node starter-hf/scripts/gen-captions.mjs <slug>    # sinh caption + audio markup (ghi file)
+```powershell
+# From skill-test root
+python tools/video_pipeline.py validate --job <slug>
+python tools/video_pipeline.py audit-author --job <slug> --iteration v1
+python tools/video_pipeline.py snapshots --job <slug> --iteration v1
+# Review actual V1 PNG/contact sheets, then write the evidence in qa.json.
+python tools/video_pipeline.py audit-author --job <slug> --iteration v2
+python tools/video_pipeline.py snapshots --job <slug> --iteration v2
+python tools/video_pipeline.py qa-gate --job <slug> --phase pre-review
+node starter-hf/scripts/gen-captions.mjs <slug>
 
-# từ TRONG starter-hf/<slug>/:
-npx hyperframes check                   # lint + runtime + layout (0 error mới qua)
-npx hyperframes snapshot --at 3,12,25 --output qa/   # frame tĩnh để QA bằng mắt
-
-# render ẨN (không pop-up terminal) — chạy từ GỐC TOOLBOX:
-powershell -File starter-hf/scripts/render-hidden.ps1 -Slug <slug> -Verb render
-# poll: Get-Content starter-hf/<slug>/render.log -Tail 5 -Wait
+# Quality checks and render lifecycle
+powershell -File starter-hf/scripts/render-hidden.ps1 -Slug <slug> -Verb check
+powershell -File starter-hf/scripts/render-hidden.ps1 -Slug <slug> -Verb review
+powershell -File starter-hf/scripts/check-motion.ps1 -VideoPath jobs/<slug>/output/review.mp4 -ReportPath jobs/<slug>/motion-diagnostic.json
+python tools/video_pipeline.py map-motion --job <slug>
+# Acknowledge every freeze finding in qa.json before delivery.
+python tools/video_pipeline.py qa-gate --job <slug> --phase handoff
+powershell -File starter-hf/scripts/render-hidden.ps1 -Slug <slug> -Verb delivery
 ```
 
-Render chậm (~4-8× thời lượng video) — QA ảnh trước, render sau.
-
-## Lưu ý
-
-- Font: copy folder `fonts/` (có fonts.css) vào project; INLINE khối
-  `@font-face` vào `<style>` (StaticGuard không đọc `<link>` ngoài).
-- Audio: dùng `voice/narration.m4a` (bản nén — WAV gây timeout); do
-  `tools/vieneu-tts/merge_voice.py` tạo. Framework quản playback.
-- Remotion starter (`../starter/`) giữ lại như phương án B — không dùng
-  trong luồng chính.
+Use snapshot plans before review render. New schemaVersion 2 jobs are blocked
+from review/delivery render until the relevant creative QA gate passes.
+`check-motion.ps1` is a diagnostic; it never proves semantic motion and returns
+`ok`, `findings`, or `inconclusive`.

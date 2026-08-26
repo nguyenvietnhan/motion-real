@@ -9,6 +9,7 @@ import {
   createProjectId,
   ensureProject,
   listProjects,
+  mapWithConcurrency,
   projectPaths,
   projectsRoot,
   pruneCacheDir,
@@ -121,6 +122,47 @@ describe("project store", () => {
     const list = await listProjects();
     expect(list.map((s) => s.projectId)).toEqual([b, a]);
     expect(list.every((s) => s.hasRender === false)).toBe(true);
+  });
+
+  it("bounds project metadata work to 16 workers and preserves input order", async () => {
+    let active = 0;
+    let maxActive = 0;
+    const values = Array.from({ length: 500 }, (_, index) => index);
+    const mapped = await mapWithConcurrency(values, 16, async (value) => {
+      active += 1;
+      maxActive = Math.max(maxActive, active);
+      await Promise.resolve();
+      active -= 1;
+      return value * 2;
+    });
+    expect(maxActive).toBe(16);
+    expect(mapped).toEqual(values.map((value) => value * 2));
+  });
+
+  it("lists a 500-project fixture and tolerates one malformed brief", async () => {
+    const root = projectsRoot();
+    await mkdir(root, { recursive: true });
+    await Promise.all(Array.from({ length: 500 }, async (_, index) => {
+      const id = `fixture-${String(index).padStart(8, "0")}`;
+      const projectRoot = join(root, id);
+      await mkdir(projectRoot, { recursive: true });
+      await writeFile(
+        join(projectRoot, "brief.json"),
+        index === 123
+          ? "{broken"
+          : JSON.stringify({
+            ...sampleBrief(id),
+            updatedAt: new Date(Date.UTC(2026, 0, 1, 0, 0, index)).toISOString(),
+          }),
+        "utf8",
+      );
+    }));
+
+    const list = await listProjects();
+    expect(list).toHaveLength(500);
+    expect(list[0]?.projectId).toBe("fixture-00000499");
+    expect(list.at(-1)?.projectId).toBe("fixture-00000123");
+    expect(list.at(-1)?.brief).toBeUndefined();
   });
 
   it("surfaces the manifest title on the summary, and omits it when there's no (valid) manifest", async () => {

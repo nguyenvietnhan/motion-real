@@ -34,6 +34,18 @@ type RawCreatePayload = {
   source?: unknown;
 };
 
+/** Normalize persisted/IPC staging refs before they reach filesystem joins. */
+export function normalizeStagedImages(value: unknown): StagedImageRef[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((raw) => {
+    if (!raw || typeof raw !== "object") return [];
+    const image = raw as Partial<StagedImageRef>;
+    if (typeof image.ref !== "string" || !/^staging\/[A-Za-z0-9._-]+$/.test(image.ref) || image.ref.includes("..")) return [];
+    if (!Number.isFinite(image.width) || !Number.isFinite(image.height) || Number(image.width) <= 0 || Number(image.height) <= 0) return [];
+    return [{ ref: image.ref, width: Math.floor(Number(image.width)), height: Math.floor(Number(image.height)) }];
+  });
+}
+
 /** Coerce IPC BGM selection: string name, null silence, or undefined omit. */
 export function parseCreateBgm(value: unknown): string | null | undefined {
   if (value === undefined) return undefined;
@@ -61,13 +73,18 @@ export function parseDurationTier(value: unknown): DurationTierChoice | undefine
 }
 
 export function createControllerArgsFromIpc(input: unknown): CreateControllerArgs {
+  if (!input || typeof input !== "object") throw new Error("Dữ liệu tạo video không hợp lệ.");
   const payload = input as RawCreatePayload;
+  if (typeof payload.raw !== "string") throw new Error("Nội dung tạo video không hợp lệ.");
+  if (payload.videoLanguage !== undefined && payload.videoLanguage !== "vi" && payload.videoLanguage !== "en") {
+    throw new Error("Ngôn ngữ video không hợp lệ.");
+  }
   const durationTier = parseDurationTier(payload.durationTier);
   const bgm = parseCreateBgm(payload.bgm);
   const source = payload.source === "home" ? ("home" as const) : undefined;
   return {
     raw: payload.raw,
-    images: payload.images ?? [],
+    images: normalizeStagedImages(payload.images),
     choices: {
       ...(durationTier ? { durationTier } : {}),
       ...(payload.videoLanguage ? { videoLanguage: payload.videoLanguage } : {}),

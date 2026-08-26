@@ -1,9 +1,10 @@
 import type { ProjectStage } from "../../shared/types.js";
+import type { VoiceProviderFailure } from "@motionreal/pipeline";
 
 export type QueueStageClass =
   | { action: "continue" }
   | { action: "published" }
-  | { action: "failed"; message: string };
+  | { action: "failed"; message: string; voiceFailure?: VoiceProviderFailure };
 
 /** Fixed VI copy when unattended queue hits a human review gate. */
 export const QUEUE_HUMAN_WAIT_MESSAGE =
@@ -19,6 +20,7 @@ export function classifyQueueWaitStage(stage: ProjectStage): QueueStageClass {
     return {
       action: "failed",
       message: (stage.message && stage.message.trim()) || "Lỗi sản xuất.",
+      ...(stage.voiceFailure ? { voiceFailure: stage.voiceFailure } : {}),
     };
   }
   if (

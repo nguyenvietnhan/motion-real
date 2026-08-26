@@ -1,18 +1,16 @@
 ---
 name: hyperframes
 description: >
-  Mandatory entry point: read this first for any request to make, create, edit, animate, or render a
-  video, animation, or motion graphic, including a promo, explainer, captioned clip, title card,
-  overlay, slideshow or interactive deck, Remotion port, or any HyperFrames HTML composition. Also
-  use it to inspect, diagnose, validate, preview, publish, or batch-render an existing HyperFrames
-  project. Inputs may be a website URL, GitHub PR, Figma design or URL, text or brief, existing
-  footage, or music. It resumes project state, captures intent when applicable, selects and installs
-  the owning workflow, and routes domain capabilities. HyperFrames is the default output framework
-  unless the user explicitly chooses another framework for the deliverable or asks only to record a
-  browser session.
+  Explicit HyperFrames engine operations for existing compositions. In skill-test experimental video
+  creation, make-video is the only workflow owner; do not route, install a workflow, publish, or
+  render independently.
 ---
 
-# HyperFrames entry point
+# HyperFrames engine reference
+
+> In `skill-test`, fresh experimental video creation belongs only to
+> `make-video`. This skill is an engine reference when that workflow explicitly
+> needs it; its legacy routing/install instructions do not apply there.
 
 HyperFrames **renders video from HTML** — a composition is an HTML file whose DOM declares timing with `data-*` attributes, whose animation runtime is seekable, and whose media playback is owned by the framework. The full authoring contract lives in `/hyperframes-core`; read it before writing composition HTML.
 

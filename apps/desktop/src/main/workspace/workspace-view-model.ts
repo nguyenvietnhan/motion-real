@@ -1,3 +1,4 @@
+import type { VoiceProviderFailure } from "@motionreal/pipeline";
 import type { ProjectStage, SceneCard, SceneTimeline, ScriptLine, VideoFormatChoice } from "../../shared/types.js";
 import { withMediaCacheBust } from "../../shared/media-cache-bust.js";
 import { buildStoryboard } from "../review/storyboard.js";
@@ -71,12 +72,13 @@ export function fullRenderStageStart(): ProjectStage {
 }
 
 /** Error stage after a failed full publish (retry re-runs publish, not re-author). */
-export function publishErrorStageOf(input: { message: string; fixable: boolean }): ProjectStage {
+export function publishErrorStageOf(input: { message: string; fixable: boolean; voiceFailure?: VoiceProviderFailure }): ProjectStage {
   return {
     kind: "error",
     message: input.message,
     fixable: input.fixable,
     retry: "full",
+    ...(input.voiceFailure ? { voiceFailure: input.voiceFailure } : {}),
   };
 }
 

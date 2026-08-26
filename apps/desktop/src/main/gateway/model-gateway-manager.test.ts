@@ -86,4 +86,13 @@ describe("gateway self-heal (ensureReady)", () => {
     expect(launch).toHaveBeenCalledTimes(1); // deduped
     resolveLaunch?.(true);
   });
+
+  it("downgrades a previously-ready gateway when the health check fails", async () => {
+    let up = true;
+    const mgr = new ModelGatewayManager(baseGwDeps(async () => up));
+    expect((await mgr.start()).kind).toBe("ready");
+    up = false;
+    expect(await mgr.refreshHealth()).toEqual({ kind: "unavailable" });
+    expect(mgr.account()).toEqual({ kind: "disconnected" });
+  });
 });

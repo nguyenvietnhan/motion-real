@@ -8,12 +8,13 @@ import {
 } from "../../shared/stage-labels.js";
 import { withMediaCacheBust } from "../../shared/media-cache-bust.js";
 import { Icon } from "../icons.js";
-import { EmptyState, PageHeader, Spinner } from "../primitives.js";
+import { EmptyState, PageHeader, Spinner, StableButtonLabel } from "../primitives.js";
 import { StoryboardView } from "./storyboard.js";
 import { ProjectDiagnosticsPanel } from "./project-diagnostics.js";
 import type { ProjectDiagnosticsVM } from "../../shared/types.js";
 import { ImageReviewView } from "./image-review.js";
 import { compactNotificationMessage, errorDetails, useNotifications } from "../notifications.js";
+import { useModalFocus } from "../use-modal-focus.js";
 
 /**
  * Project workspace: staged flow (write script → review → render → scenes).
@@ -104,7 +105,9 @@ const ScriptReview: React.FC<{
       {evidence && evidence.sources.length > 0 && (
         <div className="ns-card ns-evidence-panel">
           <button type="button" className="ns-btn" onClick={() => setShowEvidence((v) => !v)}>
-            {showEvidence ? "Ẩn căn cứ nội dung" : "Căn cứ nội dung"}
+            <StableButtonLabel reserve={["Ẩn căn cứ nội dung", "Căn cứ nội dung"]}>
+              {showEvidence ? "Ẩn căn cứ nội dung" : "Căn cứ nội dung"}
+            </StableButtonLabel>
           </button>
           {showEvidence && (
             <div className="ns-evidence-list">
@@ -235,7 +238,7 @@ const RunningJobPanel: React.FC<{
           }}
           disabled={stopping}
         >
-          {stopping ? "Đang dừng…" : "Dừng"}
+          <StableButtonLabel reserve={["Đang dừng…", "Dừng"]}>{stopping ? "Đang dừng…" : "Dừng"}</StableButtonLabel>
         </button>
       </div>
     </div>
@@ -273,15 +276,9 @@ const ThumbnailPanel: React.FC<{
   const baseUrl = freshUrl ?? thumbnailPath ?? null;
   // media:// rejects query strings (403) — fragment-only bust via shared helper.
   const shownUrl = baseUrl ? withMediaCacheBust(baseUrl, nonce) : null;
-
-  useEffect(() => {
-    if (!previewOpen) return;
-    const closeOnEscape = (event: KeyboardEvent): void => {
-      if (event.key === "Escape") setPreviewOpen(false);
-    };
-    document.addEventListener("keydown", closeOnEscape);
-    return () => document.removeEventListener("keydown", closeOnEscape);
-  }, [previewOpen]);
+  const lightboxRef = useRef<HTMLDivElement>(null);
+  const lightboxCloseRef = useRef<HTMLButtonElement>(null);
+  useModalFocus(previewOpen && Boolean(shownUrl), lightboxRef, () => setPreviewOpen(false), lightboxCloseRef);
 
   const generate = (): void => {
     if (generating) return;
@@ -344,7 +341,7 @@ const ThumbnailPanel: React.FC<{
       {!shownUrl && (
         <div className="ns-cover-actions">
           <button className="ns-btn" onClick={generate} disabled={generating}>
-            {generating ? "Đang tạo…" : "Tạo ảnh bìa"}
+            <StableButtonLabel reserve={["Đang tạo…", "Tạo ảnh bìa"]}>{generating ? "Đang tạo…" : "Tạo ảnh bìa"}</StableButtonLabel>
           </button>
         </div>
       )}
@@ -373,8 +370,8 @@ const ThumbnailPanel: React.FC<{
       )}
       {previewOpen && shownUrl && (
         <div className="ns-modal-backdrop ns-cover-lightbox" role="presentation" onMouseDown={() => setPreviewOpen(false)}>
-          <div className="ns-cover-lightbox-card" role="dialog" aria-modal="true" aria-label="Xem ảnh bìa kích thước lớn" onMouseDown={(event) => event.stopPropagation()}>
-            <button className="ns-cover-lightbox-close" onClick={() => setPreviewOpen(false)} aria-label="Đóng ảnh bìa">
+          <div ref={lightboxRef} className="ns-cover-lightbox-card" role="dialog" aria-modal="true" aria-label="Xem ảnh bìa kích thước lớn" onMouseDown={(event) => event.stopPropagation()} tabIndex={-1}>
+            <button ref={lightboxCloseRef} className="ns-cover-lightbox-close" onClick={() => setPreviewOpen(false)} aria-label="Đóng ảnh bìa">
               {Icon.close({ size: 20 })}
             </button>
             <img src={shownUrl} alt="Ảnh bìa kích thước lớn" />
@@ -532,12 +529,12 @@ export const ProjectWorkspaceView: React.FC<{
                   <button className="ns-btn ns-btn-primary" onClick={onRetry}>{Icon.refresh({ size: 14 })} Thử lại</button>
                 )}
                 <button className="ns-btn" onClick={onBack}>Về trang chủ</button>
+                {projectId && loadDiagnostics && (
+                  <ProjectDiagnosticsPanel projectId={projectId} load={loadDiagnostics} />
+                )}
               </div>
             }
           />
-          {projectId && loadDiagnostics && (
-            <ProjectDiagnosticsPanel projectId={projectId} load={loadDiagnostics} />
-          )}
         </>
       )}
     </div>

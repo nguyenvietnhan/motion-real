@@ -5,9 +5,10 @@ import {
   ELEVENLABS_DEFAULT_MODEL_ID,
   ELEVENLABS_OUTPUT_FORMAT,
   TTS_NORMALIZER_VERSION,
-  ElevenLabsClient,
-  VivibeClient,
+  VoiceProviderError,
+  asVoiceProviderError,
   concatAudioWithGaps,
+  createTtsClient,
   defaultVivibeVoiceId,
   defaultElevenLabsVoiceId,
   elevenLabsApiKey,
@@ -23,6 +24,7 @@ import type { TtsManifest, TtsManifestScene, TtsProvider } from "../types.js";
 import { projectPaths, ttsCacheDir } from "../store/store.js";
 import { parseSrt, type SrtSegment } from "./captions.js";
 import { normalizeVietnameseNumbers } from "./vi-number.js";
+import { PipelineError } from "../errors.js";
 
 /**
  * TTS synthesis + audio assembly. Per-scene narration is synthesized via
@@ -154,20 +156,18 @@ export async function synthesizeNarration(
   const voiceId = credentials.voiceId;
   if (opts.provider === "vivibe") {
     if (!credentials.apiKey) {
-      throw new Error(
-        "Vivibe TTS selected but VIVIBE_API_KEY / VIETNAMESE_API_KEY is missing. Set it in .env before rendering.",
-      );
+      throw voicePipelineError(new VoiceProviderError({ provider: "vivibe", code: "not_configured", retryable: false }));
     }
     if (!voiceId) {
-      throw new Error("Vivibe TTS requires a voice id. Set VIVIBE_VOICE_ID / VIETNAMESE_VOICEID in .env.");
+      throw voicePipelineError(new VoiceProviderError({ provider: "vivibe", code: "voice_not_found", retryable: false }));
     }
   }
   if (opts.provider === "elevenlabs") {
     if (!credentials.apiKey) {
-      throw new Error("ElevenLabs TTS selected but ELEVENLABS_API_KEY is missing. Set it before rendering.");
+      throw voicePipelineError(new VoiceProviderError({ provider: "elevenlabs", code: "not_configured", retryable: false }));
     }
     if (!voiceId) {
-      throw new Error("ElevenLabs TTS requires a voice id. Set ELEVENLABS_VOICE_ID before rendering.");
+      throw voicePipelineError(new VoiceProviderError({ provider: "elevenlabs", code: "voice_not_found", retryable: false }));
     }
   }
   const effectiveVoiceId = voiceId ?? "mock";
@@ -175,9 +175,9 @@ export async function synthesizeNarration(
     ? (credentials as ElevenLabsCredentials).modelId
     : undefined;
 
-  let client: TtsClient | null = null;
-  if (opts.provider === "vivibe") client = new VivibeClient({ apiKey: credentials.apiKey });
-  if (opts.provider === "elevenlabs") client = new ElevenLabsClient({ apiKey: credentials.apiKey });
+  const client: TtsClient | null = opts.provider === "mock"
+    ? null
+    : createTtsClient(opts.provider, credentials.apiKey);
   const byScene: Record<string, TtsManifestScene> = {};
   const orderedClips: string[] = [];
 
@@ -212,14 +212,19 @@ export async function synthesizeNarration(
         source = "cached";
         srt = await loadSrt(`${cached}.srt`);
       } else {
-        const result = await client!.synthesize({
-          text,
-          voiceId: effectiveVoiceId,
-          speed,
-          outputPath: cacheBase,
-          ...(modelId ? { modelId } : {}),
-          ...(opts.provider === "elevenlabs" ? { languageCode: spec.language } : {}),
-        });
+        let result;
+        try {
+          result = await client!.synthesize({
+            text,
+            voiceId: effectiveVoiceId,
+            speed,
+            outputPath: cacheBase,
+            ...(modelId ? { modelId } : {}),
+            ...(opts.provider === "elevenlabs" ? { languageCode: spec.language } : {}),
+          });
+        } catch (error) {
+          throw voicePipelineError(asVoiceProviderError(opts.provider, error));
+        }
         audioPath = join(p.audioDir, `${scene.id}${extname(result.audioPath)}`);
         await copyFile(result.audioPath, audioPath);
         source = "synthesized";
@@ -256,6 +261,14 @@ export async function synthesizeNarration(
     byScene,
     mixedSrc: toProjectRel(opts.projectId, mixedAbs),
   };
+}
+
+function voicePipelineError(error: VoiceProviderError): PipelineError {
+  return new PipelineError({
+    stage: "tts",
+    cause: `voice provider ${error.failure.code}`,
+    voiceFailure: error.failure,
+  });
 }
 
 /** Project-relative path (forward slashes) used as the Remotion staticFile src. */

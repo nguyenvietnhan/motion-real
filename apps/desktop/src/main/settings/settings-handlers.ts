@@ -1,5 +1,6 @@
 import type { InvokeHandlers } from "../ipc-router.js";
-import type { DesktopReadinessReport, SettingsModel, VoiceProviderChoice } from "../../shared/types.js";
+import type { DesktopReadinessReport, SettingsModel, SettingsUpdateInput, VoiceProviderChoice, VoiceTestResult } from "../../shared/types.js";
+import { normalizeSettingsUpdate } from "../../shared/settings-model.js";
 
 export type SmokeRenderResult =
   | { ok: true; kind: "started"; projectId: string }
@@ -14,13 +15,15 @@ export type SettingsHandlers = Required<Pick<
   | "settings:renderSmoke"
   | "tts:setApiKey"
   | "tts:clearApiKey"
+  | "tts:testVoice"
 >>;
 
 export type SettingsHandlerDeps = {
   current: () => SettingsModel;
-  update: (patch: Partial<SettingsModel>) => SettingsModel;
+  update: (patch: SettingsUpdateInput) => SettingsModel;
   setApiKey: (provider: VoiceProviderChoice, apiKey: string) => SettingsModel;
   clearApiKey: (provider: VoiceProviderChoice) => SettingsModel;
+  testVoice: (provider: VoiceProviderChoice) => Promise<VoiceTestResult>;
   parseVoiceProvider: (value: unknown) => VoiceProviderChoice;
   /** Explicit readiness probe; never auto-run on settings open. */
   readiness: () => Promise<DesktopReadinessReport>;
@@ -31,10 +34,11 @@ export type SettingsHandlerDeps = {
 export function createSettingsHandlers(deps: SettingsHandlerDeps): SettingsHandlers {
   return {
     "settings:get": () => deps.current(),
-    "settings:update": (patch) => deps.update(patch as Partial<SettingsModel>),
+    "settings:update": (patch) => deps.update(normalizeSettingsUpdate(patch)),
     "settings:readiness": () => deps.readiness(),
     "settings:renderSmoke": (input) => deps.renderSmoke(input),
     "tts:setApiKey": (providerRaw, apiKey) => deps.setApiKey(deps.parseVoiceProvider(providerRaw), String(apiKey)),
     "tts:clearApiKey": (providerRaw) => deps.clearApiKey(deps.parseVoiceProvider(providerRaw)),
+    "tts:testVoice": (providerRaw) => deps.testVoice(deps.parseVoiceProvider(providerRaw)),
   };
 }

@@ -102,9 +102,12 @@ describe("createDashboardClient — invoke channel mapping", () => {
     await api.queue.deleteJob("q1", "j1");
     await api.queue.cancelJob("q1", "j1");
     await api.queue.start("q1");
+    await api.queue.pause();
+    await api.queue.resume();
     await api.queue.status();
     await api.tts.setApiKey("elevenlabs", "secret");
     await api.tts.clearApiKey("elevenlabs");
+    await api.tts.testVoice("elevenlabs");
 
     // Every invoked channel is on the allow-list.
     for (const { channel } of invokes) {

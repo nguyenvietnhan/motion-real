@@ -81,4 +81,16 @@ describe("PipelineError — basics", () => {
     const pe = new PipelineError({ stage: "tts", cause: "missing voice id", remediation: "set VIETNAMESE_VOICEID" });
     expect(serializeError(pe)).toEqual(pe.toSerialized());
   });
+
+  it("preserves safe voice-provider metadata through serialization", () => {
+    const pe = new PipelineError({
+      stage: "tts",
+      cause: "voice provider insufficient_credits",
+      voiceFailure: { provider: "vivibe", code: "insufficient_credits", retryable: false },
+    });
+    expect(serializeError(pe)).toMatchObject({
+      stage: "tts",
+      voiceFailure: { provider: "vivibe", code: "insufficient_credits", retryable: false },
+    });
+  });
 });

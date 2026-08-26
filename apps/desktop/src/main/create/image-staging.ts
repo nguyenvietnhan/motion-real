@@ -101,6 +101,7 @@ export async function unstageImage(ref: string, deps: Pick<ImageStagingDeps, "st
 export async function sweepStagingDir(
   deps: Pick<ImageStagingDeps, "stagingDir" | "readdir" | "stat" | "rm" | "now" | "warn">,
   maxAgeMs = STALE_STAGING_AGE_MS,
+  protectedRefs: ReadonlySet<string> = new Set(),
 ): Promise<void> {
   const dir = deps.stagingDir();
   let entries: string[];
@@ -113,6 +114,7 @@ export async function sweepStagingDir(
 
   const now = deps.now();
   for (const name of entries) {
+    if (protectedRefs.has(`staging/${name}`)) continue;
     const abs = join(dir, name);
     try {
       const st = await deps.stat(abs);

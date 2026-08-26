@@ -7,6 +7,7 @@ import {
   fetchWithRetry,
   stripDataPrefix,
 } from "./provider-http.js";
+import { VoiceProviderError, retryAfterMs, voiceProviderErrorFrom } from "./provider-error.js";
 import type { TTSRequest, TTSResult, TTSVoice, TtsClient } from "./types.js";
 
 export const ELEVENLABS_DEFAULT_MODEL_ID = "eleven_multilingual_v2";
@@ -136,12 +137,14 @@ export class ElevenLabsClient implements TtsClient {
   }
 
   private assertConfigured(): void {
-    if (!this.apiKey) throw new Error("Missing ELEVENLABS_API_KEY.");
+    if (!this.apiKey) {
+      throw new VoiceProviderError({ provider: "elevenlabs", code: "not_configured", retryable: false });
+    }
   }
 }
 
-async function elevenLabsHttpError(res: Response, operation: string): Promise<Error> {
-  let detail = "";
+async function elevenLabsHttpError(res: Response, _operation: string): Promise<VoiceProviderError> {
+  let detail: unknown = res.statusText;
   try {
     const body = (await res.json()) as {
       detail?: unknown;
@@ -150,14 +153,12 @@ async function elevenLabsHttpError(res: Response, operation: string): Promise<Er
       type?: unknown;
       status?: unknown;
     };
-    detail = typeof body.detail === "string" ? body.detail : JSON.stringify(body.detail ?? body);
-  } catch {
-    detail = res.statusText;
-  }
-  if (res.status === 402 && /paid_plan_required|library voices?/i.test(detail)) {
-    return new Error(
-      `ElevenLabs ${operation} failed (402): selected voice requires a paid ElevenLabs plan for API use. Choose a personal/default voice allowed by your plan, or upgrade ElevenLabs.`,
-    );
-  }
-  return new Error(`ElevenLabs ${operation} failed (${res.status}): ${detail}`);
+    detail = body.detail ?? body;
+  } catch (_error) {}
+  const wait = retryAfterMs(res);
+  return voiceProviderErrorFrom("elevenlabs", {
+    status: res.status,
+    details: detail,
+    ...(wait !== undefined ? { retryAfterMs: wait } : {}),
+  });
 }

@@ -1,11 +1,12 @@
 import type { QueueJobInput } from "../../shared/queue-types.js";
+import type { StagedImageRef } from "../../shared/types.js";
 import type { CreateControllerChoices } from "../create/create-ipc.js";
 import { HOME_QUEUE_ID, type QueueStore } from "./queue-store.js";
 import type { QueueRunner } from "./queue-runner.js";
 
 export type HomeSpillResult =
   | { kind: "not_busy" }
-  | { kind: "queued"; queueId: string; jobId: string; imagesDropped: boolean }
+  | { kind: "queued"; queueId: string; jobId: string }
   | { kind: "error"; error: string };
 
 /** Home create spills only when source is home and the serial runner is busy. */
@@ -24,7 +25,6 @@ export function shouldSpillHomeSmoke(busy: boolean): boolean {
  */
 function enqueueHomeJob(input: {
   jobInput: QueueJobInput;
-  imagesDropped: boolean;
   store: QueueStore;
   runner: QueueRunner;
 }): HomeSpillResult {
@@ -48,7 +48,6 @@ function enqueueHomeJob(input: {
     kind: "queued",
     queueId: HOME_QUEUE_ID,
     jobId: job.id,
-    imagesDropped: input.imagesDropped,
   };
 }
 
@@ -61,7 +60,7 @@ export function spillHomeCreateIfBusy(input: {
   busy: boolean;
   raw: string;
   choices: CreateControllerChoices;
-  imageCount: number;
+  images: StagedImageRef[];
   store: QueueStore;
   runner: QueueRunner;
 }): HomeSpillResult {
@@ -84,8 +83,8 @@ export function spillHomeCreateIfBusy(input: {
       videoLanguage: input.choices.videoLanguage === "en" ? "en" : "vi",
       voiceProvider: input.choices.voiceProvider === "elevenlabs" ? "elevenlabs" : "vivibe",
       bgm: typeof input.choices.bgm === "string" ? input.choices.bgm : null,
+      ...(input.images.length > 0 ? { images: input.images } : {}),
     },
-    imagesDropped: input.imageCount > 0,
     store: input.store,
     runner: input.runner,
   });
@@ -117,7 +116,6 @@ export function spillHomeSmokeIfBusy(input: {
       bgm: null,
       smoke: true,
     },
-    imagesDropped: false,
     store: input.store,
     runner: input.runner,
   });

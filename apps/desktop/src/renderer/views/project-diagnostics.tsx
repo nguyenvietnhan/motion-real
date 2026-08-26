@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { ProjectDiagnosticsVM } from "../../shared/types.js";
 import { compactNotificationMessage, errorDetails, useNotifications } from "../notifications.js";
+import { StableButtonLabel } from "../primitives.js";
 import { useDismissable } from "../use-dismissable.js";
 import { placeDiagPanel, type DiagPanelPlacement } from "./diag-panel-placement.js";
 
@@ -108,7 +109,9 @@ export const ProjectDiagnosticsPanel: React.FC<{
           if (next) refresh();
         }}
       >
-        <span className="ns-diag-label-short">{open ? "Ẩn" : "Nhật ký"}</span>
+        <span className="ns-diag-label-short">
+          <StableButtonLabel reserve={["Ẩn", "Nhật ký"]}>{open ? "Ẩn" : "Nhật ký"}</StableButtonLabel>
+        </span>
       </button>
       {open && placement && (
         <div
@@ -124,7 +127,7 @@ export const ProjectDiagnosticsPanel: React.FC<{
         >
           <div className="ns-diag-toolbar">
             <button type="button" className="ns-btn" disabled={loading} onClick={refresh}>
-              {loading ? "Đang tải…" : "Làm mới"}
+              <StableButtonLabel reserve={["Đang tải…", "Làm mới"]}>{loading ? "Đang tải…" : "Làm mới"}</StableButtonLabel>
             </button>
             <button
               type="button"

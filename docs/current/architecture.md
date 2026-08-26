@@ -45,6 +45,9 @@ directly:
   Electron dialog/window adapter stays in `index.ts`.
 - `create/create-ipc.ts` owns `projects:create` payload coercion and voice
   provider validation while `CreateController.create(...)` stays root-owned.
+- `queue/queue-store.ts` persists version-1 queue containers/jobs (including
+  optional normalized staging-image refs) in `VIDEO_TOOL_HOME/queues.json`;
+  `queue-runner.ts` drains jobs and schedules containers FIFO.
 - Startup order in `index.ts`: stale-state reconciliation completes before
   gateway/window startup. Media scheme/protocol registration and app lifecycle
   hooks stay in `index.ts`.
@@ -97,6 +100,10 @@ implementation is split by media responsibility:
 - `caption-timing.ts` owns ElevenLabs alignment-to-SRT timing helpers.
 - `vivibe-client.ts` and `elevenlabs-client.ts` own provider clients and
   provider-specific configuration helpers.
+- `provider-error.ts` maps provider HTTP/RPC responses into the shared safe
+  voice-failure vocabulary; pipeline/workspace/Queue never parse vendor text.
+- `client-factory.ts` is the single provider-to-client switch reused by
+  production narration and the explicit Settings voice test.
 - `provider-http.ts` owns shared provider HTTP retry, download, and response
   normalization helpers.
 - `audio-ops.ts` owns duration measurement, mock WAV generation, concat,
@@ -111,13 +118,13 @@ instrumentation, bundle/composition cache, public-dir inference, static-audio
 validation, and the workspace webpack override. `renderer.ts` re-exports the old
 public helpers so callers keep importing from the same surface.
 
-Render/cache scaling is currently a single-workflow process assumption. The
-same-project boundary is enforced by `withProjectRenderLock`, while the
-bundle/composition caches are small in-memory eviction caches without active
-render leases. Cross-project render parallelism needs an accepted cache lifetime
-design before any UI or queue work enables it; that design must cover bundle
-leases/ref counts, composition-cache lifetime, concurrency limits, stale-lock
-recovery, crash cleanup, and focused render-path verification.
+Render/cache scaling is enforced as one cache-sensitive workflow per desktop
+main process. `WorkspaceController` owns a process-wide FIFO gate used by
+author, render, edit, publish, and thumbnail work across every project; Queue
+and Home share this controller. `withProjectRenderLock` remains the same-project
+filesystem/in-process boundary. The bundle/composition caches still have no
+active render leases, so cross-project parallel execution must not bypass the
+gate without an accepted cache-lifetime design and focused verification.
 
 ## Desktop Workspace Internals
 
@@ -151,6 +158,19 @@ gateway connection, image review, optional script review, hidden stills/refine,
 draft review, full-render approval, BGM, thumbnail, and export. Workspace stage
 kind/phase transitions are logged at `WorkspaceController.setStage` (see
 `docs/current/maintenance.md`).
+
+The Queue tab is the unattended path. Containers and jobs persist in
+`VIDEO_TOOL_HOME/queues.json` (schema version 1), including FIFO Start intent
+and global pause state. Startup restores that schedule after project
+reconciliation when Full auto remains valid. Interrupted jobs retain
+`projectId`; artifact recovery resumes the existing project and creates a new
+one only when the old project folder is confirmed missing. A structured TTS
+failure pauses the whole chain until an explicit Resume. Start requires the
+shared Full auto preset (`skip_edit`, script gate off, crawled-image human
+review off). Queue jobs, Home spillover jobs, direct project actions, and
+thumbnails all enter the same process-wide FIFO gate. Optional staging-image
+refs persist on non-done jobs; the staging sweep protects refs held by queued,
+running, failed, or cancelled jobs and releases them after completion/deletion.
 
 Runtime AI does not read repository docs directly. For fresh authoring, the
 desktop backend first asks the selected 9router-compatible model for a structured
