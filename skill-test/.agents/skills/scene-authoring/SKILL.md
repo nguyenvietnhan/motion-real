@@ -1,4 +1,4 @@
-﻿---
+---
 name: scene-authoring
 description: Viết composition HyperFrames (HTML + CSS + GSAP) cho video dọc 9:16 TikTok/Reels/Shorts - contract data-attributes, karaoke captions, chuyển cảnh fade, hiệu ứng typography quảng cáo, QA bằng check + snapshot. Use when writing/editing video scenes in starter-hf/, during Stage 4-5 of make-video, or when the user mentions HyperFrames, HTML video, scene, animation code.
 ---
