@@ -321,7 +321,6 @@ async function waitForPermissionAndApprove(base: string, feed: EventFeed, sessio
       if (!permissionID) continue;
       await postJson<boolean>(base, `/session/${encodeURIComponent(sessionID)}/permissions/${encodeURIComponent(permissionID)}`, {
         response: "once",
-        remember: false,
       }, directory);
       return true;
     }
