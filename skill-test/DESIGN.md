@@ -1,4 +1,4 @@
-﻿# Thiết kế MotionReal Skill Studio (nháp thảo luận)
+# Thiết kế MotionReal Skill Studio (nháp thảo luận)
 
 > Toàn bộ công việc xây dựng ý tưởng nằm trong folder này.
 > KHÔNG đụng vào mã nguồn motion-real gốc.

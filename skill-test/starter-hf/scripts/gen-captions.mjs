@@ -1,4 +1,4 @@
-﻿import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join, resolve, dirname } from "node:path";
 
 const slug = process.argv[2];
@@ -22,7 +22,7 @@ const voiceMeta = beats.beats.map((b) => {
   const metaPath = join(jobDir, b.wav.replace(/\.wav$/, ".json"));
   if (!existsSync(metaPath)) {
     console.error(`LOI: thieu meta voice cho beat ${b.id}: ${metaPath}`);
-    console.error("Chay gen_beats_batch.py truoc, roi merge_voice.py de co narration.wav.");
+    console.error("Chay gen_beats_batch.py truoc, roi merge_voice.py de co narration.m4a.");
     process.exit(1);
   }
   return { ...b, meta: JSON.parse(readFileSync(metaPath, "utf-8")) };

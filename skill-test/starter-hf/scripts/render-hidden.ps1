@@ -23,9 +23,9 @@ if (Test-Path $log) { Remove-Item $log -Force }
 
 if ($Verb -eq "render") {
   $outPath = "..\..\jobs\$slug\output\video.mp4"
-  $argString = "/c cd /d `"$proj`" && npx hyperframes render --output `"$outPath`" > `"$log`" 2>&1"
+  $argString = "/c cd /d `"$proj`" && npx hyperframes render --browser-timeout 120 --player-ready-timeout 90000 --output `"$outPath`" > `"$log`" 2>&1"
 } else {
-  $argString = "/c cd /d `"$proj`" && npx hyperframes check > `"$log`" 2>&1"
+  $argString = "/c cd /d `"$proj`" && npx hyperframes check --timeout 60000 > `"$log`" 2>&1"
 }
 
 $p = Start-Process -FilePath $env:ComSpec -ArgumentList $argString -WindowStyle Hidden -PassThru

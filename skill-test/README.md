@@ -1,4 +1,4 @@
-﻿# MotionReal Skill Studio
+# MotionReal Skill Studio
 
 Xưởng video 9:16 (TikTok/Reels/Shorts) điều hành bởi AI agent: mở folder
 này bằng agent bất kỳ (Claude Code, Codex, Grok, Antigravity, opencode...),
