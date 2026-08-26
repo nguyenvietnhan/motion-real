@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   VIDEO_AGENT_MODEL,
   VIDEO_AGENT_TOOLS,
+  agentJsonHeaders,
   catalogToolNames,
   isExactAgentCatalog,
   isLoopbackOnly,
@@ -41,5 +42,11 @@ describe("Video Agent Preview safety gates", () => {
     expect(isSupportedVideoAgentRuntime("1.15.11", "0.5.55")).toBe(true);
     expect(isSupportedVideoAgentRuntime("1.15.12", "0.5.55")).toBe(false);
     expect(isSupportedVideoAgentRuntime("1.15.11", "0.5.56")).toBe(false);
+  });
+
+  it("marks OpenCode JSON bodies with content-type", () => {
+    expect(agentJsonHeaders(undefined, true).get("content-type")).toBe("application/json");
+    expect(agentJsonHeaders(undefined, false).has("content-type")).toBe(false);
+    expect(agentJsonHeaders({ "content-type": "application/problem+json" }, true).get("content-type")).toBe("application/problem+json");
   });
 });

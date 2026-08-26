@@ -16,10 +16,11 @@ export const AgentView: React.FC<{
   const [proposal, setProposal] = useState<AgentProposalVM | null>(null);
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string>();
   const refresh = async (): Promise<void> => { setPreflight(await dash.agent.preflight()); setSessions(await dash.agent.listSessions()); };
   useEffect(() => { void refresh(); const off = dash.events.onAgent((event) => { if (event.sessionId !== session?.id) return; if (event.message) setMessages((current) => [...current.filter((entry) => entry.id !== event.message!.id), event.message!]); if (event.kind === "status") setBusy(!/dừng|hoàn thành/i.test(event.text)); }); return off; }, [session?.id]);
   const open = async (projectId?: string): Promise<void> => { const next = await dash.agent.openSession(projectId); setSession(next); setMessages(await dash.agent.history(next.id)); setProposal(await dash.agent.proposal(next.id)); };
-  const send = async (): Promise<void> => { if (!session || !text.trim() || busy) return; const input = text; setText(""); setBusy(true); try { await dash.agent.prompt(session.id, input); setMessages(await dash.agent.history(session.id)); setProposal(await dash.agent.proposal(session.id)); } finally { setBusy(false); } };
+  const send = async (): Promise<void> => { if (!session || !text.trim() || busy) return; const input = text; setText(""); setError(undefined); setBusy(true); try { await dash.agent.prompt(session.id, input); setMessages(await dash.agent.history(session.id)); setProposal(await dash.agent.proposal(session.id)); } catch (caught) { void caught; setError("Agent chưa gửi được yêu cầu. Không có thay đổi nào được áp dụng; hãy thử lại hoặc gửi ảnh trạng thái này."); } finally { setBusy(false); } };
   if (!preflight) return <div className="ns-page"><Spinner /></div>;
   return <div className="ns-page" style={{ maxWidth: 940 }}>
     <PageHeader title="Video Agent" subtitle="Developer Preview: nghiên cứu web và đề xuất; bạn luôn là người duyệt trước khi workflow video cũ chạy." />
@@ -38,6 +39,7 @@ export const AgentView: React.FC<{
         <div style={{ minHeight: 190, maxHeight: 410, overflow: "auto", margin: "16px 0" }}>
           {messages.map((message) => <div key={message.id} style={{ margin: "0 0 12px", whiteSpace: "pre-wrap" }}><strong>{message.role === "user" ? "Bạn" : "Agent"}</strong><div>{message.text}</div></div>)}
         </div>
+        {error && <p role="alert" style={{ color: "var(--danger)", margin: "0 0 12px" }}>{error}</p>}
         {proposal && <div className="ns-card" style={{ marginBottom: 12, padding: 14 }}><strong>Đề xuất: {proposal.title}</strong>{proposal.sourceUrls.length > 0 && <div className="ns-page-subtitle" style={{ margin: "8px 0" }}>Nguồn/ảnh URL — quyền sử dụng chưa xác minh:{proposal.sourceUrls.map((url) => <a key={url} href={url} target="_blank" rel="noreferrer" style={{ display: "block" }}>{url}</a>)}</div>}<div style={{ display: "flex", gap: 8 }}>{proposal.kind === "create" ? <button className="ns-btn ns-btn-primary" onClick={() => onUseCreate(proposal)}>Dùng brief trong Create</button> : <button className="ns-btn ns-btn-primary" onClick={() => void dash.agent.applyEditProposal(session.id).then((p) => { if (p.kind === "edit") onOpenProject(p.projectId); })}>Áp dụng sửa qua workflow cũ</button>}<button className="ns-btn" onClick={() => void dash.agent.forgetSession(session.id).then(() => { setSession(undefined); setMessages([]); setProposal(null); void refresh(); })}>Xóa lịch sử</button></div></div>}
         <textarea className="ns-input" value={text} onChange={(event) => setText(event.target.value)} placeholder="Hỏi về ý tưởng video, research, hoặc đề xuất sửa cảnh…" rows={4} style={{ width: "100%" }} />
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 10 }}><button className="ns-btn" disabled={!busy} onClick={() => void dash.agent.abort(session.id)}>Dừng</button><button className="ns-btn ns-btn-primary" disabled={busy || !text.trim()} onClick={() => void send()}>Gửi</button></div>
