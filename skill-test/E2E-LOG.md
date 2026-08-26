@@ -295,3 +295,28 @@ tat ca da fix:
   thieu render-hidden (H2)
 - vieneu README: merge thieu m4a (R1)
 Commit: e874094, 1ca2cca-truoc, 526b368..., batch cuoi cung trong git log.
+
+## Vong feedback 13 (25/08 - Gemini chay tot ve ky thuat nhung van slide + phan bien cua user)
+
+Gemini chay HOAN HAO ve ky thuat (52 beat, 1108 tu dung cong thuc, 6
+form xoay vong, WCAG 61/61, duration khop 0.01s, tu viet build script).
+Nhung user that vong: van slide. Freezedetect do duoc: 55 khoang dong
+bang 4-7s LIEN TUC — bang chung dinh luong khong the phu nhan.
+
+### Nghich ly da ro: tool goc motion-real motion "dang hoang" hon skill
+Scene author that cua motion-real (scene-06.tsx) la CHUONG TRINH NHIEU
+PHA: spring moc cot (f15) -> spring co cot (f35) -> counter dem theo
+tien trinh -> glow pulse sau f60. Motion ke chuyen theo pha, khong
+phai trang tri. Skill ta thieu chot density nay.
+
+### Da fix
+- starter-hf/scripts/check-motion.ps1: gate freezedetect (crop bo
+  caption band, freeze >=4s = FAIL). Da test tren video benh: 55
+  freeze, FAIL dung.
+- scene-authoring: muc moi "Choreography density - moi beat la chuong
+  trinh nhieu pha" (3-6 moments rai deu, >=1 tween lien tuc qua beat,
+  SVG/canvas-first, cam freeze >=4s) + gate vao Done=.
+- make-video Stage 6: gate check-motion bat buoc sau render, FAIL ->
+  sua beat do -> re-render (toi da 2 vong).
+- BOM bug: Set-Content PS5.1 them BOM lam vo frontmatter -> node strip.
+Commit: acba1b7 + BOM fix + log.
