@@ -619,6 +619,14 @@ function addAssertion(report: OpenCodePocReport, name: string, pass: boolean, de
   if (!pass) throw new Error(`${name}: ${detail ?? "failed"}`);
 }
 
+function mergeEventCounts(feeds: readonly EventFeed[]): Record<string, number> {
+  const counts: Record<string, number> = {};
+  for (const feed of feeds) {
+    for (const [type, count] of Object.entries(feed.counts)) counts[type] = (counts[type] ?? 0) + count;
+  }
+  return counts;
+}
+
 async function sendPrompt(base: string, sessionID: string, model: ModelRef, parts: unknown[], directory: string): Promise<void> {
   await postJson<unknown>(base, `/session/${encodeURIComponent(sessionID)}/prompt_async`, {
     model,
@@ -646,6 +654,7 @@ export async function runOpenCodePoc(options: OpenCodePocOptions = {}): Promise<
   let base: string | undefined;
   let child: ChildProcessWithoutNullStreams | undefined;
   let feed: EventFeed | undefined;
+  const feeds: EventFeed[] = [];
   try {
     await mkdir(runDir, { recursive: true });
     if (!process.env[NINE_ROUTER_API_KEY_ENV]?.trim()) {
@@ -701,6 +710,7 @@ export async function runOpenCodePoc(options: OpenCodePocOptions = {}): Promise<
     }
 
     feed = new EventFeed();
+    feeds.push(feed);
     feed.start(`${base}/event`);
     const session = await postJson<{ id?: string }>(base, "/session", { title: "motionreal-opencode-poc" }, runDir);
     if (!session.id) throw new PocFailure("opencode_server", "OpenCode", "OpenCode did not return a session id");
@@ -737,6 +747,7 @@ export async function runOpenCodePoc(options: OpenCodePocOptions = {}): Promise<
     addAssertion(report, "session-resume-history", resumed.id === sessionID, "session did not survive sidecar restart");
     feed.stop();
     feed = new EventFeed();
+    feeds.push(feed);
     feed.start(`${base}/event`);
     await sendPrompt(base, sessionID, model, [{ type: "text", text: "Reply exactly: SESSION-TURN-TWO" }], runDir);
     await waitForIdle(base, sessionID, runDir, 90_000, true);
@@ -763,7 +774,7 @@ export async function runOpenCodePoc(options: OpenCodePocOptions = {}): Promise<
     await messageParts(base, abortSession.id, runDir);
     addAssertion(report, "abort-and-session-integrity", true);
 
-    report.eventCounts = { ...feed.counts };
+    report.eventCounts = mergeEventCounts(feeds);
     addAssertion(report, "sse-events", Object.keys(report.eventCounts).length > 0, "no server-sent events observed");
     report.status = "pass";
   } catch (error) {
@@ -780,10 +791,8 @@ export async function runOpenCodePoc(options: OpenCodePocOptions = {}): Promise<
     report.suspectedLayer = failure?.suspectedLayer ?? "unknown";
     report.errors = allErrors;
   } finally {
-    if (feed) {
-      feed.stop();
-      report.eventCounts = { ...feed.counts };
-    }
+    for (const observed of feeds) observed.stop();
+    report.eventCounts = mergeEventCounts(feeds);
     if (base || child) await dispose(base ?? "http://127.0.0.1:0", child, runDir);
     report.durationMs = Date.now() - started;
     await mkdir(runDir, { recursive: true });
