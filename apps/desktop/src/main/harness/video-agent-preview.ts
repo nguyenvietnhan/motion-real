@@ -153,8 +153,11 @@ export class VideoAgentPreview {
     if (!this.localApiKey()?.trim()) return { state: "blocked", message: "9router chưa chuẩn bị credential nội bộ cho Agent." };
     try {
       const [openCodeVersion, routerVersion] = await Promise.all([
-        commandOutput(binary, ["--version"], agentRoot()),
-        nineRouterVersion(agentRoot()),
+        // A fresh install has no agent-sessions directory yet. `spawn` reports
+        // ENOENT for a nonexistent cwd even when the executable is valid, so
+        // runtime preflight must use the already-existing app cwd.
+        commandOutput(binary, ["--version"], process.cwd()),
+        nineRouterVersion(process.cwd()),
       ]);
       if (!isSupportedVideoAgentRuntime(openCodeVersion, routerVersion)) return { state: "blocked", message: "OpenCode hoặc 9router không đúng runtime đã kiểm chứng." };
     } catch (error) { void error; return { state: "blocked", message: "Không thể kiểm tra OpenCode hoặc 9router runtime." }; }
