@@ -114,6 +114,8 @@ When the agent writes `motionreal.create.json`, MotionReal shows an explicit
 create/author/review pipeline as Home. Deleting the video removes its Agent
 workspace and hides its Harness sessions. This is a developer preview with broad Harness tool
 access; it is not a replacement renderer or a separate video pipeline.
+The agreed target workflow and implementation boundary are recorded in
+[`docs/current/video-agent-workflow.md`](docs/current/video-agent-workflow.md).
 
 ### B. Offline-friendly checks (no paid APIs)
 
