@@ -55,9 +55,9 @@ function execution(workspace: string, signal = new AbortController().signal) {
 }
 
 describe("MotionReal Harness submission tools", () => {
-  it("registers only the two narrow structured tools", async () => {
+  it("registers the three narrow structured handoff tools", async () => {
     const { tools } = await fixture();
-    expect([...tools.keys()]).toEqual(["motionreal_submit_assets", "motionreal_submit_brief"]);
+    expect([...tools.keys()]).toEqual(["motionreal_submit_assets", "motionreal_submit_brief", "motionreal_submit_authoring"]);
     for (const tool of tools.values()) {
       expect(tool.parameters).toMatchObject({ type: "object", additionalProperties: false });
     }
@@ -167,5 +167,27 @@ describe("MotionReal Harness submission tools", () => {
     expect(saved).toMatchObject({ ...args, title: "Gemini là gì?", version: 1, brief_revision: 1, format: "tiktok" });
     await expect(tool.execute({ ...args, selected_asset_ids: ["logo"] }, execution(workspace)))
       .rejects.toThrow(/không khớp asset/);
+  });
+
+  it("accepts authored scenes only when every approved asset is actually referenced", async () => {
+    const { workspace, tools } = await fixture();
+    await mkdir(join(workspace, "project", "authored"), { recursive: true });
+    await writeFile(join(workspace, "project", "authored", "scene-01.tsx"), "export default {};\n");
+    await writeFile(join(workspace, "project", "manifest.json"), JSON.stringify({
+      scenes: [{ id: "scene-01", component: "scene-01", image: { ref: "assets/logo.png", alt: "Logo" } }],
+    }));
+    await writeFile(join(workspace, "handoff", "authoring-request.json"), JSON.stringify({
+      version: 1,
+      job_id: "job-author",
+      request_revision: 1,
+      manifest: "project/manifest.json",
+      authored_dir: "project/authored",
+      assets: [{ id: "logo", ref: "assets/logo.png" }],
+    }));
+    const tool = tools.get("motionreal_submit_authoring")!;
+    const args = { job_id: "job-author", request_revision: 1, scene_ids: ["scene-01"], used_asset_ids: ["logo"] };
+
+    await expect(tool.execute(args, execution(workspace))).resolves.toMatchObject({ kind: "authoring", status: "submitted" });
+    await expect(tool.execute({ ...args, used_asset_ids: [] }, execution(workspace))).rejects.toThrow(/đã có submission khác|Mọi asset/);
   });
 });

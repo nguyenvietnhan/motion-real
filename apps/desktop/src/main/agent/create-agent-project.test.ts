@@ -6,7 +6,7 @@ function request() {
     draftId: "agent-1",
     title: "Gemini",
     prompt: "Tạo video Gemini",
-    imagePaths: ["V:/agent/assets/gemini.png"],
+    assets: [{ id: "gemini", path: "V:/agent/assets/gemini.png" }],
     choices: { durationTier: 1 as const, videoLanguage: "vi" as const, voiceProvider: "vieneu" as const },
   };
 }
@@ -16,7 +16,10 @@ function deps(over: Record<string, unknown> = {}) {
   const base = {
     status: vi.fn(async () => ({})),
     readCreateRequest: vi.fn(async () => request()),
-    stageImages: vi.fn(async () => { calls.push("stage"); return []; }),
+    stageImages: vi.fn(async () => {
+      calls.push("stage");
+      return [{ id: "gemini", image: { ref: "staging/hash.png", width: 1, height: 1 } }];
+    }),
     create: vi.fn(async (_prompt, _images, choices) => {
       calls.push(`scaffold:${choices.creationMode}`);
       await choices.beforeBeginCreate?.("project-1");
@@ -25,6 +28,10 @@ function deps(over: Record<string, unknown> = {}) {
     linkProject: vi.fn(async () => { calls.push("link"); }),
     deleteProject: vi.fn(async () => { calls.push("delete"); }),
     renameProject: vi.fn(async () => { calls.push("rename"); }),
+    startAuthoring: vi.fn(async (_draftId, _projectId, assets) => {
+      expect(assets).toEqual([{ id: "gemini", ref: "assets/hash.png" }]);
+      calls.push("author");
+    }),
     warn: vi.fn(),
     ...over,
   };
@@ -35,13 +42,14 @@ describe("createAgentProject", () => {
   it("scaffolds one Harness-owned project without entering classic authoring", async () => {
     const { base, calls } = deps();
     await expect(createAgentProject("agent-1", base)).resolves.toEqual({ projectId: "project-1" });
-    expect(calls).toEqual(["stage", "scaffold:harness", "link", "rename"]);
+    expect(calls).toEqual(["stage", "scaffold:harness", "link", "rename", "author"]);
   });
 
-  it("reuses a linked project without staging or creating another one", async () => {
+  it("resumes Harness authoring for a linked project without creating another one", async () => {
     const { base } = deps({ status: vi.fn(async () => ({ projectId: "project-existing" })) });
     await expect(createAgentProject("agent-1", base)).resolves.toEqual({ projectId: "project-existing" });
-    expect(base.readCreateRequest).not.toHaveBeenCalled();
+    expect(base.readCreateRequest).toHaveBeenCalledOnce();
+    expect(base.startAuthoring).toHaveBeenCalledWith("agent-1", "project-existing", [{ id: "gemini", ref: "assets/hash.png" }]);
     expect(base.create).not.toHaveBeenCalled();
   });
 

@@ -88,7 +88,7 @@ describe("HarnessManager draft lifecycle", () => {
     const draftRoot = join(root, draft.id);
 
     expect(draft.title).toBe("Video về ChatGPT");
-    await expect(readFile(join(draftRoot, "AI_CONTRACT.md"), "utf8")).resolves.toMatch(/isolated research workspace/);
+    await expect(readFile(join(draftRoot, "AI_CONTRACT.md"), "utf8")).resolves.toMatch(/isolated workspace/);
     await expect(writeFile(join(draftRoot, "assets", "logo.png"), "image")).resolves.toBeUndefined();
     await expect(writeFile(join(draftRoot, "motionreal.create.json"), '{"version":1,"prompt":"Tạo video","images":["assets/logo.png"]}')).resolves.toBeUndefined();
 
@@ -395,7 +395,7 @@ describe("HarnessManager draft lifecycle", () => {
     await expect(manager.readCreateRequest(draft.id)).resolves.toMatchObject({
       prompt: expect.stringContaining("Gemini AI"),
       title: "Gemini AI là gì?",
-      imagePaths: [join(draftRoot, "assets", "one.png")],
+      assets: [{ id: "asset-01", path: join(draftRoot, "assets", "one.png") }],
       choices: { durationTier: 1, videoLanguage: "vi", voiceProvider: "vivibe" },
     });
     const frozen = JSON.parse(await readFile(join(draftRoot, "handoff", "brief.json"), "utf8"));
@@ -482,6 +482,38 @@ describe("HarnessManager draft lifecycle", () => {
       items: [{ id: "asset-01", path: ".harness/sessions/a.png" }],
     }));
     await expect(manager.readCreateRequest(draft.id)).rejects.toThrow(/assets/);
+  });
+
+  it("links the scaffolded project and asks Harness to author scenes from real assets", async () => {
+    const { manager, root, calls } = await activeManagerForTest();
+    const draft = await manager.createDraft("Harness authoring");
+    await manager.activate(draft.id, "internal-key");
+    let state = await manager.transitionWorkflow(draft.id, { expectedRevision: 0, to: "collecting_assets", jobId: "job-author" });
+    state = await manager.transitionWorkflow(draft.id, { expectedRevision: state.workflowRevision, to: "asset_review", jobId: "job-author" });
+    state = await manager.transitionWorkflow(draft.id, { expectedRevision: state.workflowRevision, to: "brief_review", jobId: "job-author" });
+    state = await manager.transitionWorkflow(draft.id, { expectedRevision: state.workflowRevision, to: "queued_create", jobId: "job-author" });
+    await manager.linkProject(draft.id, "project-1");
+    const projectRoot = join(root, "projects", "project-1");
+    await mkdir(join(projectRoot, "assets"), { recursive: true });
+    await mkdir(join(projectRoot, "authored"), { recursive: true });
+    await writeFile(join(projectRoot, "assets", "logo.png"), ONE_PIXEL_PNG);
+
+    await manager.startAuthoring(draft.id, "project-1", projectRoot, [{ id: "logo", ref: "assets/logo.png" }]);
+
+    await expect(realpath(join(root, draft.id, "project"))).resolves.toBe(await realpath(projectRoot));
+    const request = JSON.parse(await readFile(join(root, draft.id, "handoff", "authoring-request.json"), "utf8"));
+    expect(request).toMatchObject({
+      version: 1,
+      job_id: "job-author",
+      request_revision: 1,
+      phase: "initial",
+      manifest: "project/manifest.json",
+      assets: [{ id: "logo", ref: "assets/logo.png", path: "project/assets/logo.png" }],
+    });
+    expect(calls.at(-1)).toMatchObject({ method: "session.prompt" });
+    await expect(readFile(join(root, draft.id, "handoff", "authoring-contract.md"), "utf8"))
+      .resolves.toMatch(/HỢP ĐỒNG VIẾT CẢNH/);
+    await manager.dispose();
   });
 
   it("removes the video workspace when the draft is removed", async () => {

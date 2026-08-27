@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { spawn, type ChildProcess } from "node:child_process";
-import { mkdir, readFile, readdir, realpath, rm, stat, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, realpath, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { createServer } from "node:net";
 import { basename, isAbsolute, join, relative, resolve } from "node:path";
@@ -16,6 +16,7 @@ import {
   type AgentWorkflowTransition,
 } from "./agent-workflow.js";
 import { projectHarnessHistory, projectHarnessMuxEnvelope } from "./harness-chat.js";
+import { AUTHORING_CONTRACT } from "../authoring/contract-text.js";
 
 const METADATA_FILE = "motionreal-agent.json";
 const CREATE_REQUEST_FILE = "motionreal.create.json";
@@ -23,6 +24,9 @@ const ASSET_REQUEST_FILE = join("handoff", "assets-request.json");
 const ASSET_MANIFEST_FILE = join("handoff", "assets.json");
 const BRIEF_REQUEST_FILE = join("handoff", "brief-request.json");
 const BRIEF_FILE = join("handoff", "brief.json");
+const AUTHORING_REQUEST_FILE = join("handoff", "authoring-request.json");
+const AUTHORING_CONTRACT_FILE = join("handoff", "authoring-contract.md");
+const PROJECT_LINK = "project";
 const HARNESS_PATCH_FILE = "motionreal-tools.patch.yml";
 const AGENTS_FILE = "AGENTS.md";
 const AI_CONTRACT_FILE = "AI_CONTRACT.md";
@@ -40,13 +44,14 @@ type DraftRecord = Omit<AgentDraftVM, "harnessUrl" | "createReady" | "assetRevie
   sessionId?: string;
   assetRequestRevision?: number;
   briefRequestRevision?: number;
+  authoringRequestRevision?: number;
 };
 
 export type AgentCreateRequest = {
   draftId: string;
   title: string;
   prompt: string;
-  imagePaths: string[];
+  assets: Array<{ id: string; path: string }>;
   choices: {
     durationTier: DurationTierChoice;
     videoLanguage: VideoLanguageChoice;
@@ -531,12 +536,12 @@ export class HarnessManager {
     }
     if (input.prompt.length > 20_000) throw new Error("Yêu cầu dựng video quá dài.");
     const brief = validateBriefFields(input);
-    const imagePaths = await this.assetPathsForIds(record, input.selected_asset_ids);
+    const assets = await this.assetPathsForIds(record, input.selected_asset_ids);
     return {
       draftId: record.id,
       title: validBriefText(input.title, "tiêu đề", 1, 160),
       prompt: input.prompt.trim(),
-      imagePaths,
+      assets,
       choices: {
         durationTier: brief.durationTier,
         videoLanguage: brief.videoLanguage,
@@ -561,6 +566,64 @@ export class HarnessManager {
       }),
       projectId,
     });
+  }
+
+  async startAuthoring(
+    id: string,
+    projectId: string,
+    projectRoot: string,
+    assets: Array<{ id: string; ref: string }>,
+  ): Promise<void> {
+    const current = await this.mustReadRecord(id);
+    this.requireActiveSession(current);
+    if (current.productionState !== "authoring" || current.projectId !== projectId) {
+      throw new Error("Project Harness chưa sẵn sàng để author scene.");
+    }
+    const root = this.rootOf(id);
+    const link = join(root, PROJECT_LINK);
+    const expectedProjectRoot = await realpath(projectRoot);
+    if (existsSync(link)) {
+      if (await realpath(link) !== expectedProjectRoot) throw new Error("Workspace Agent đang trỏ tới project khác.");
+    } else {
+      await symlink(expectedProjectRoot, link, "junction");
+    }
+    if (current.authoringRequestRevision && existsSync(join(root, AUTHORING_REQUEST_FILE))) {
+      await this.promptSession(current, "MotionReal đang chờ authoring hiện tại. Hãy đọc lại handoff/authoring-request.json, tiếp tục sửa project/ và gọi motionreal_submit_authoring khi hoàn tất.");
+      return;
+    }
+    const usableAssets: Array<{ id: string; ref: string; path: string }> = [];
+    for (const asset of assets) {
+      const projectAsset = resolve(expectedProjectRoot, asset.ref);
+      const rel = relative(resolve(expectedProjectRoot, "assets"), projectAsset);
+      if (!rel || rel.startsWith("..") || isAbsolute(rel)) continue;
+      const info = await stat(projectAsset).catch((_error) => null);
+      if (!info?.isFile()) continue;
+      usableAssets.push({ id: asset.id, ref: asset.ref.replaceAll("\\", "/"), path: `${PROJECT_LINK}/${asset.ref.replaceAll("\\", "/")}` });
+    }
+    const next = { ...current, authoringRequestRevision: (current.authoringRequestRevision ?? 0) + 1 };
+    await mkdir(join(root, "handoff"), { recursive: true });
+    await writeFile(join(root, AUTHORING_CONTRACT_FILE), `${AUTHORING_CONTRACT}\n`, "utf8");
+    await writeJson(join(root, AUTHORING_REQUEST_FILE), {
+      version: 1,
+      job_id: current.activeJobId,
+      request_revision: next.authoringRequestRevision,
+      phase: "initial",
+      project: PROJECT_LINK,
+      brief: "handoff/brief.json",
+      asset_manifest: "handoff/assets.json",
+      contract: "handoff/authoring-contract.md",
+      manifest: `${PROJECT_LINK}/manifest.json`,
+      authored_dir: `${PROJECT_LINK}/authored`,
+      assets: usableAssets,
+      instructions: [
+        "Đọc brief, contract và xem trực tiếp từng asset trước khi author.",
+        "Viết mới manifest.json và các module authored/*.tsx cho toàn video; không gọi API authoring cũ.",
+        "Mỗi asset trong request phải xuất hiện qua scene.image.ref trong ít nhất một cảnh.",
+        "Không render video. Khi code đã hoàn chỉnh, gọi motionreal_submit_authoring để MotionReal validate và render still.",
+      ],
+    });
+    await this.writeRecord(next);
+    await this.promptSession(next, "MotionReal đã tạo project Harness. Hãy đọc handoff/authoring-request.json và handoff/authoring-contract.md, xem các asset thật, tự viết toàn bộ scene vào project/, rồi gọi motionreal_submit_authoring. Không dùng authoring API cũ.");
   }
 
   async draftForProject(projectId: string): Promise<AgentDraftVM | null> {
@@ -647,6 +710,9 @@ export class HarnessManager {
           : {}),
         ...(Number.isSafeInteger(raw.briefRequestRevision) && Number(raw.briefRequestRevision) > 0
           ? { briefRequestRevision: Number(raw.briefRequestRevision) }
+          : {}),
+        ...(Number.isSafeInteger(raw.authoringRequestRevision) && Number(raw.authoringRequestRevision) > 0
+          ? { authoringRequestRevision: Number(raw.authoringRequestRevision) }
           : {}),
         ...(Array.isArray(raw.selectedAssetIds)
           ? { selectedAssetIds: raw.selectedAssetIds.filter((value): value is string => typeof value === "string") }
@@ -814,7 +880,7 @@ export class HarnessManager {
     };
   }
 
-  private async assetPathsForIds(record: DraftRecord, value: unknown): Promise<string[]> {
+  private async assetPathsForIds(record: DraftRecord, value: unknown): Promise<Array<{ id: string; path: string }>> {
     const ids = validateBriefAssetIds(value, record.selectedAssetIds ?? []);
     const raw = parseJson(await readFile(join(this.rootOf(record.id), ASSET_MANIFEST_FILE), "utf8")) as { items?: unknown };
     if (!Array.isArray(raw.items)) throw new Error("Manifest asset không hợp lệ.");
@@ -822,7 +888,7 @@ export class HarnessManager {
       && typeof (item as { id?: unknown }).id === "string"
       ? [[(item as { id: string }).id, (item as { path?: unknown }).path] as const]
       : []));
-    return Promise.all(ids.map((id) => this.localReviewAssetPath(record.id, paths.get(id))));
+    return Promise.all(ids.map(async (id) => ({ id, path: await this.localReviewAssetPath(record.id, paths.get(id)) })));
   }
 
   private async readAssetManifest(record: DraftRecord): Promise<AgentAssetVM[] | undefined> {
@@ -1059,7 +1125,7 @@ function workspaceInfoOf(value: unknown): { id: string } {
 }
 
 function agentInstructions(title: string): string {
-  return `# MotionReal Video Agent\n\nBạn đang làm việc cho video: ${title}\n\n- Nghiên cứu, ghi chú và tải asset vào thư mục \`assets/\` của workspace này.\n- Không chạy renderer MotionReal hoặc tự sửa project MotionReal.\n- Khi MotionReal yêu cầu chuẩn bị asset, đọc \`handoff/assets-request.json\`, làm đúng job/request revision rồi gọi \`motionreal_submit_assets\`. Không tự ghi file manifest cuối.\n- Khi MotionReal yêu cầu brief, đọc \`handoff/brief-request.json\`, dùng cuộc trò chuyện và đúng asset đã chọn rồi gọi \`motionreal_submit_brief\`. Không tự ghi file brief cuối.\n- Không tự tạo project hoặc yêu cầu render; MotionReal sẽ mở từng bước duyệt bên ngoài chat.\n- Mọi đường dẫn ảnh phải tương đối và nằm trong \`assets/\`.\n`;
+  return `# MotionReal Video Agent\n\nBạn đang làm việc cho video: ${title}\n\n- Nghiên cứu, ghi chú và tải asset vào thư mục \`assets/\` của workspace này.\n- Khi MotionReal yêu cầu chuẩn bị asset, đọc \`handoff/assets-request.json\`, làm đúng job/request revision rồi gọi \`motionreal_submit_assets\`. Không tự ghi file manifest cuối.\n- Khi MotionReal yêu cầu brief, đọc \`handoff/brief-request.json\`, dùng cuộc trò chuyện và đúng asset đã chọn rồi gọi \`motionreal_submit_brief\`. Không tự ghi file brief cuối.\n- Chỉ author scene khi có \`handoff/authoring-request.json\`. Khi đó \`project/\` là project MotionReal của chính video này: đọc asset, viết \`project/manifest.json\` và \`project/authored/*.tsx\`, rồi gọi \`motionreal_submit_authoring\`.\n- Không tự tạo project hoặc render MP4; MotionReal validate, chụp still và mở từng bước duyệt bên ngoài chat.\n- Mọi đường dẫn ảnh thu thập phải tương đối và nằm trong \`assets/\`.\n`;
 }
 
 function harnessToolsPatch(pluginPath: string): string {
@@ -1067,7 +1133,7 @@ function harnessToolsPatch(pluginPath: string): string {
 }
 
 function agentContract(): string {
-  return `# MotionReal Agent Workspace\n\nThis directory is an isolated research workspace for one video.\n\n- Follow the local AGENTS.md.\n- Work only inside this directory.\n- Do not run MotionReal rendering or edit MotionReal project source.\n`;
+  return `# MotionReal Agent Workspace\n\nThis directory is an isolated workspace for one video.\n\n- Follow the local AGENTS.md.\n- Work only inside this directory, including the project/ junction created by MotionReal.\n- Edit project/ only while following the current handoff/authoring-request.json.\n- MotionReal owns validation, still capture, human review, and MP4 rendering.\n`;
 }
 
 function harnessSettings(): string {

@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { mkdir, readFile, realpath, rename, rm, stat, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, realpath, rename, rm, stat, writeFile } from "node:fs/promises";
 import { isAbsolute, join, relative, resolve } from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import { MAX_IMAGE_BYTES, MAX_IMAGE_DIM, sniffImage } from "../../../../packages/pipeline/src/assets/import-image.js";
@@ -31,7 +31,7 @@ const RESULT_SCHEMA: JsonRecord = {
   additionalProperties: false,
   required: ["kind", "status", "request_revision"],
   properties: {
-    kind: { type: "string", enum: ["assets", "brief"] },
+    kind: { type: "string", enum: ["assets", "brief", "authoring"] },
     status: { type: "string", enum: ["submitted", "unchanged"] },
     request_revision: { type: "integer" },
   },
@@ -43,6 +43,7 @@ export const inject = ["tools"];
 export function apply(ctx: HarnessContext): void {
   ctx.tools.register(assetTool());
   ctx.tools.register(briefTool());
+  ctx.tools.register(authoringTool());
 }
 
 function assetTool(): ToolDefinition {
@@ -146,7 +147,41 @@ function briefTool(): ToolDefinition {
   };
 }
 
-function submissionOutput(kind: "assets" | "brief"): ToolDefinition["output"] {
+function authoringTool(): ToolDefinition {
+  return {
+    name: "motionreal_submit_authoring",
+    description: "Submit scene code written into project/ so MotionReal can validate it and render review stills.",
+    parameters: {
+      type: "object",
+      additionalProperties: false,
+      required: ["job_id", "request_revision", "scene_ids", "used_asset_ids"],
+      properties: {
+        job_id: { type: "string", description: "Exact job_id from handoff/authoring-request.json" },
+        request_revision: { type: "integer", description: "Exact request_revision from handoff/authoring-request.json" },
+        scene_ids: { type: "array", minItems: 1, maxItems: 30, items: { type: "string" } },
+        used_asset_ids: { type: "array", items: { type: "string" }, description: "Asset ids actually referenced by scene.image.ref" },
+      },
+    },
+    output: submissionOutput("authoring"),
+    async execute(args, execution) {
+      const root = await currentWorkspace(execution);
+      const input = requireRecord(args, "Authoring submission");
+      const request = await readRequest(root, "authoring-request.json");
+      const jobId = requiredText(input.job_id, "job_id", 128);
+      const requestRevision = requiredRevision(input.request_revision);
+      assertCurrentRequest(request, jobId, requestRevision);
+      const sceneIds = uniqueIds(input.scene_ids, "scene_ids");
+      if (sceneIds.length < 1 || sceneIds.length > 30) throw new Error("scene_ids phải có từ 1 đến 30 cảnh.");
+      const usedAssetIds = uniqueIds(input.used_asset_ids, "used_asset_ids");
+      await validateAuthoredProject(root, request, sceneIds, usedAssetIds, execution.signal);
+      const payload = { version: 1, job_id: jobId, request_revision: requestRevision, scene_ids: sceneIds, used_asset_ids: usedAssetIds };
+      const status = await writeOnce(root, "authoring.json", payload, execution.signal);
+      return { kind: "authoring", status, request_revision: requestRevision };
+    },
+  };
+}
+
+function submissionOutput(kind: "assets" | "brief" | "authoring"): ToolDefinition["output"] {
   return {
     schema: RESULT_SCHEMA,
     render: (_args, value) => {
@@ -159,6 +194,39 @@ function submissionOutput(kind: "assets" | "brief"): ToolDefinition["output"] {
       }];
     },
   };
+}
+
+async function validateAuthoredProject(
+  root: string,
+  request: JsonRecord,
+  sceneIds: string[],
+  usedAssetIds: string[],
+  signal: AbortSignal,
+): Promise<void> {
+  signal.throwIfAborted();
+  if (request.manifest !== "project/manifest.json" || request.authored_dir !== "project/authored") {
+    throw new Error("Authoring request có project path không được hỗ trợ.");
+  }
+  const manifest = requireRecord(JSON.parse(await readFile(join(root, "project", "manifest.json"), "utf8")), "Project manifest");
+  if (!Array.isArray(manifest.scenes) || manifest.scenes.length < 1 || manifest.scenes.length > 30) {
+    throw new Error("Project manifest phải có từ 1 đến 30 cảnh.");
+  }
+  const manifestSceneIds = manifest.scenes.map((scene) => requiredText(requireRecord(scene, "Manifest scene").id, "scene id", 128));
+  if (!isDeepStrictEqual(manifestSceneIds, sceneIds)) throw new Error("scene_ids không khớp thứ tự cảnh trong project/manifest.json.");
+  const expectedAssets = Array.isArray(request.assets) ? request.assets.map((asset) => requireRecord(asset, "Request asset")) : [];
+  const expectedIds = expectedAssets.map((asset) => requiredText(asset.id, "request asset id", 128));
+  if (!sameIds(usedAssetIds, expectedIds)) throw new Error("Mọi asset đã duyệt trong authoring request phải được dùng trong manifest.");
+  const imageRefs = new Set(manifest.scenes.flatMap((scene) => {
+    const image = requireRecord(scene, "Manifest scene").image;
+    if (image === undefined) return [];
+    return [requiredText(requireRecord(image, "Scene image").ref, "scene image ref", 1_024)];
+  }));
+  for (const asset of expectedAssets) {
+    const ref = requiredText(asset.ref, "request asset ref", 1_024);
+    if (!imageRefs.has(ref)) throw new Error(`Asset ${String(asset.id)} chưa được tham chiếu bởi scene.image.ref.`);
+  }
+  const modules = (await readdir(join(root, "project", "authored"))).filter((file) => file.endsWith(".tsx") && !file.startsWith("_"));
+  if (modules.length < 1) throw new Error("Project chưa có module authored/*.tsx.");
 }
 
 async function currentWorkspace(execution: ToolExecution): Promise<string> {

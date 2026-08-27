@@ -441,12 +441,12 @@ async function activateHarnessDraft(draftId: string) {
   return harness.activate(draftId, key);
 }
 
-async function stageHarnessImages(paths: string[]) {
-  const staged: { ref: string; width: number; height: number }[] = [];
-  for (const path of paths) {
+async function stageHarnessImages(assets: Array<{ id: string; path: string }>) {
+  const staged: Array<{ id: string; image: { ref: string; width: number; height: number } }> = [];
+  for (const asset of assets) {
     try {
-      const result = await importImageBytes(await readFile(path), stagingDir(), { refPrefix: "staging" });
-      if (result.ok) staged.push({ ref: result.ref, width: result.width, height: result.height });
+      const result = await importImageBytes(await readFile(asset.path), stagingDir(), { refPrefix: "staging" });
+      if (result.ok) staged.push({ id: asset.id, image: { ref: result.ref, width: result.width, height: result.height } });
     } catch (error) {
       log.warn({ err: error }, "Agent asset staging failed; skipping one image");
     }
@@ -725,6 +725,12 @@ const handlers: InvokeHandlers = {
       linkProject: (id, projectId) => harness.linkProject(id, projectId),
       deleteProject: (projectId) => workspace.delete(projectId),
       renameProject: (projectId, title) => workspace.rename(projectId, title),
+      startAuthoring: (id, projectId, assets) => harness.startAuthoring(
+        id,
+        projectId,
+        projectPaths(projectId).root,
+        assets,
+      ),
       warn: (error, projectId, message) => {
         log.warn({ err: error, projectId }, message);
       },
