@@ -45,6 +45,7 @@ export const Sidebar: React.FC<{
         {NavItem("home", "Trang chủ", Icon.home({}))}
         {NavItem("projects", "Dự án", Icon.film({}))}
         {NavItem("queue", "Hàng đợi", Icon.list({}))}
+        {NavItem("agent", "Video Agent", Icon.spark({}))}
         {NavItem("settings", "Cài đặt", Icon.settings({}))}
       </nav>
       <button

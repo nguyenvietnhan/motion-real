@@ -6,6 +6,7 @@ import { ProjectsView } from "./views/projects.js";
 import { SettingsView, type SettingsTab } from "./views/settings.js";
 import { ProjectWorkspaceView } from "./views/workspace.js";
 import { QueueView } from "./views/queue.js";
+import { AgentView } from "./views/agent.js";
 import {
   reduceDesktop,
   runSingleFlight,
@@ -698,6 +699,8 @@ const AppShell: React.FC = () => {
             }}
           />
         )}
+
+        {screen === "agent" && <AgentView />}
 
         {screen === "settings" && (
           <SettingsView

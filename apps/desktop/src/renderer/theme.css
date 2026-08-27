@@ -33,6 +33,8 @@
 
 @import "./theme/queue.css";
 
+@import "./theme/agent.css";
+
 @import "./theme/workspace-script.css";
 @import "./theme/workspace-stages.css";
 @import "./theme/workspace-storyboard.css";
