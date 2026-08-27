@@ -62,4 +62,14 @@ await build({
   outfile: resolve(here, "dist-electron/preload/index.cjs"),
 });
 
-console.log("[build-electron] main (esm) + preload (cjs) bundled → dist-electron/");
+// MotionReal-owned Harness extension. It deliberately imports only Node
+// built-ins, so the fork can load the same small plugin without vendoring or
+// patching Harness source.
+await build({
+  ...common,
+  format: "esm",
+  entryPoints: [resolve(here, "src/harness/motionreal-submission-tools.ts")],
+  outfile: resolve(here, "dist-electron/harness/motionreal-submission-tools.mjs"),
+});
+
+console.log("[build-electron] main + preload + Harness tools bundled → dist-electron/");

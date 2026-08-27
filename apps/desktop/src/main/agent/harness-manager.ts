@@ -4,6 +4,7 @@ import { mkdir, readFile, readdir, realpath, rm, stat, writeFile } from "node:fs
 import { existsSync } from "node:fs";
 import { createServer } from "node:net";
 import { basename, isAbsolute, join, relative, resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 import { createLogger, MAX_IMAGE_BYTES, MAX_IMAGE_DIM, sniffImage, writeJson } from "@motionreal/pipeline";
 import type { AgentAssetVM, AgentBriefInput, AgentBriefVM, AgentChatEvent, AgentChatPageVM, AgentDraftVM, DurationTierChoice, VideoLanguageChoice, VoiceProviderChoice } from "../../shared/types.js";
 import { sanitizedChildEnvironment } from "../security/runtime-security.js";
@@ -22,6 +23,7 @@ const ASSET_REQUEST_FILE = join("handoff", "assets-request.json");
 const ASSET_MANIFEST_FILE = join("handoff", "assets.json");
 const BRIEF_REQUEST_FILE = join("handoff", "brief-request.json");
 const BRIEF_FILE = join("handoff", "brief.json");
+const HARNESS_PATCH_FILE = "motionreal-tools.patch.yml";
 const AGENTS_FILE = "AGENTS.md";
 const AI_CONTRACT_FILE = "AI_CONTRACT.md";
 // A brand-new DSH_HOME initializes the web profile on its first launch. The
@@ -60,6 +62,7 @@ export type HarnessManagerDeps = {
   draftsRoot: string;
   harnessHome: string;
   harnessCliPath: string;
+  submissionPluginPath: string;
   spawn?: typeof spawn;
   fetch?: typeof fetch;
   findPort?: () => Promise<number>;
@@ -176,20 +179,26 @@ export class HarnessManager {
     if (!existsSync(this.deps.harnessCliPath)) {
       throw new Error("Chưa tìm thấy DeepSeek Harness. Cài/built Harness hoặc đặt MOTIONREAL_DSH_CLI.");
     }
+    if (!existsSync(this.deps.submissionPluginPath)) {
+      throw new Error("Chưa build tool submission của MotionReal. Chạy lại build desktop rồi thử lại.");
+    }
     await mkdir(this.deps.draftsRoot, { recursive: true });
     await mkdir(this.deps.harnessHome, { recursive: true });
     await writeFile(join(this.deps.harnessHome, "settings.yaml"), harnessSettings(), "utf8");
+    const patchPath = join(this.deps.harnessHome, HARNESS_PATCH_FILE);
+    await writeFile(patchPath, harnessToolsPatch(this.deps.submissionPluginPath), "utf8");
     const port = await this.findPort();
     const url = `http://127.0.0.1:${port}/`;
     const child = this.spawnChild(
       this.nodeExecutable,
-      [this.deps.harnessCliPath, "web", "--host", "127.0.0.1", "--port", String(port), "--no-open"],
+      [this.deps.harnessCliPath, "web", "--patch", patchPath, "--host", "127.0.0.1", "--port", String(port), "--no-open"],
       {
         cwd: this.deps.draftsRoot,
         env: {
           ...sanitizedChildEnvironment(),
           DSH_HOME: this.deps.harnessHome,
           NINEROUTER_API_KEY: apiKey,
+          MOTIONREAL_AGENT_DRAFTS_ROOT: this.deps.draftsRoot,
         },
         stdio: ["ignore", "ignore", "pipe"],
         windowsHide: true,
@@ -318,7 +327,7 @@ export class HarnessManager {
     await this.writeAssetRequest(next, "Tìm và tải các hình ảnh phù hợp nhất với video đã trao đổi.");
     await this.writeRecord(next);
     try {
-      await this.promptSession(next, "MotionReal đã bắt đầu bước chuẩn bị asset. Hãy đọc handoff/assets-request.json và hoàn thành yêu cầu đó.");
+      await this.promptSession(next, "MotionReal đã bắt đầu bước chuẩn bị asset. Hãy đọc handoff/assets-request.json, hoàn thành yêu cầu và gọi motionreal_submit_assets; không tự ghi handoff/assets.json.");
     } catch (error) {
       await this.recordWorkflowError(next, error);
       throw error;
@@ -352,7 +361,7 @@ export class HarnessManager {
     await this.writeAssetRequest(next, request);
     await this.writeRecord(next);
     try {
-      await this.promptSession(next, "MotionReal yêu cầu bổ sung asset. Hãy đọc phiên bản mới của handoff/assets-request.json và hoàn thành yêu cầu đó.");
+      await this.promptSession(next, "MotionReal yêu cầu bổ sung asset. Hãy đọc phiên bản mới của handoff/assets-request.json, hoàn thành yêu cầu và gọi motionreal_submit_assets; không tự ghi handoff/assets.json.");
     } catch (error) {
       await this.recordWorkflowError(next, error);
       throw error;
@@ -395,7 +404,7 @@ export class HarnessManager {
     await this.writeBriefRequest(next);
     await this.writeRecord(next);
     try {
-      await this.promptSession(next, "MotionReal đã chốt asset. Hãy đọc handoff/brief-request.json và tạo brief theo đúng schema.");
+      await this.promptSession(next, "MotionReal đã chốt asset. Hãy đọc handoff/brief-request.json, tạo brief và gọi motionreal_submit_brief; không tự ghi handoff/brief.json.");
     } catch (error) {
       return this.toVm(next, assets, undefined, undefined, safeBriefError(error));
     }
@@ -413,7 +422,7 @@ export class HarnessManager {
     await this.writeBriefRequest(next);
     await this.writeRecord(next);
     try {
-      await this.promptSession(next, "MotionReal yêu cầu tạo lại brief. Hãy đọc phiên bản mới của handoff/brief-request.json và hoàn thành yêu cầu đó.");
+      await this.promptSession(next, "MotionReal yêu cầu tạo lại brief. Hãy đọc phiên bản mới của handoff/brief-request.json, hoàn thành brief và gọi motionreal_submit_brief; không tự ghi handoff/brief.json.");
     } catch (error) {
       return this.toVm(next, undefined, undefined, undefined, safeBriefError(error));
     }
@@ -718,7 +727,7 @@ export class HarnessManager {
       instructions: [
         "Tải ảnh raster PNG/JPEG/GIF/WebP vào assets/.",
         "Giữ lại các asset id được yêu cầu nếu chúng vẫn có trong manifest mới.",
-        "Ghi JSON hoàn chỉnh vào handoff/assets.draft.json rồi đổi tên thành handoff/assets.json.",
+        "Gọi motionreal_submit_assets với manifest hoàn chỉnh; không tự ghi file output.",
       ],
     });
   }
@@ -749,7 +758,7 @@ export class HarnessManager {
       instructions: [
         "Tổng hợp cuộc trò chuyện và chỉ các asset đã chọn thành brief tạo video 9:16.",
         "Prompt phải mô tả nội dung, mạch kể, art direction và cách dùng asset đủ rõ cho pipeline authoring.",
-        "Ghi JSON hoàn chỉnh vào handoff/brief.draft.json rồi đổi tên thành handoff/brief.json.",
+        "Gọi motionreal_submit_brief với brief hoàn chỉnh; không tự ghi file output.",
       ],
     });
   }
@@ -1029,7 +1038,11 @@ function workspaceInfoOf(value: unknown): { id: string } {
 }
 
 function agentInstructions(title: string): string {
-  return `# MotionReal Video Agent\n\nBạn đang làm việc cho video: ${title}\n\n- Nghiên cứu, ghi chú và tải asset vào thư mục \`assets/\` của workspace này.\n- Không chạy renderer MotionReal hoặc tự sửa project MotionReal.\n- Khi MotionReal yêu cầu chuẩn bị asset, đọc \`handoff/assets-request.json\`, làm đúng job/request revision và ghi manifest bằng quy trình draft rồi rename được mô tả trong file.\n- Khi MotionReal yêu cầu brief, đọc \`handoff/brief-request.json\`, dùng cuộc trò chuyện và đúng asset đã chọn, rồi ghi brief theo quy trình draft/rename trong file.\n- Không tự tạo project hoặc yêu cầu render; MotionReal sẽ mở từng bước duyệt bên ngoài chat.\n- Mọi đường dẫn ảnh phải tương đối và nằm trong \`assets/\`.\n`;
+  return `# MotionReal Video Agent\n\nBạn đang làm việc cho video: ${title}\n\n- Nghiên cứu, ghi chú và tải asset vào thư mục \`assets/\` của workspace này.\n- Không chạy renderer MotionReal hoặc tự sửa project MotionReal.\n- Khi MotionReal yêu cầu chuẩn bị asset, đọc \`handoff/assets-request.json\`, làm đúng job/request revision rồi gọi \`motionreal_submit_assets\`. Không tự ghi file manifest cuối.\n- Khi MotionReal yêu cầu brief, đọc \`handoff/brief-request.json\`, dùng cuộc trò chuyện và đúng asset đã chọn rồi gọi \`motionreal_submit_brief\`. Không tự ghi file brief cuối.\n- Không tự tạo project hoặc yêu cầu render; MotionReal sẽ mở từng bước duyệt bên ngoài chat.\n- Mọi đường dẫn ảnh phải tương đối và nằm trong \`assets/\`.\n`;
+}
+
+function harnessToolsPatch(pluginPath: string): string {
+  return `- insert:\n    - id: motionreal-submission-tools\n      name: ${JSON.stringify(pathToFileURL(resolve(pluginPath)).href)}\n`;
 }
 
 function agentContract(): string {

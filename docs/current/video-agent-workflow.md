@@ -19,12 +19,11 @@ Implemented today:
 - Each Agent video persists a versioned production state/revision, with strict
   transition validation and legacy records defaulting to `discovery`.
 - Validated asset and brief handoffs advance only through explicit user review.
+- Harness submits final asset and brief values through the narrow
+  `motionreal_submit_assets` and `motionreal_submit_brief` tools; MotionReal
+  validates and atomically persists the durable artifacts.
 - An approved brief is handed to the existing Create Flow, and the Agent tab
   projects authoritative Workspace progress after project creation.
-
-Not implemented yet:
-
-- Explicit asset and brief submission tools.
 
 The native chat adapter uses Harness `session.history`, `session.prompt`, and
 `session.cancel` RPCs plus the network WebSocket at `/api/events.mux`. Main
@@ -309,8 +308,9 @@ message.
 The accepted manifest/brief is persisted as JSON so app restart and debugging
 do not depend on ephemeral chat events.
 
-If the Agent writes a handoff file directly, it must write a temporary name and
-rename only after completion:
+Direct Agent file writes are retained only for recovery/debug compatibility. If
+that fallback is used, the Agent must write a temporary name and rename only
+after completion:
 
 ```text
 handoff/assets.draft.json
@@ -338,6 +338,11 @@ motionreal_submit_brief
 Each tool validates its schema and local files, writes the durable handoff, and
 notifies the MotionReal controller. The Agent cannot supply arbitrary output
 paths to these tools.
+
+The brief title is not a model-controlled tool argument. MotionReal freezes it
+in `brief-request.json`, and the submission tool copies that value into the
+accepted brief while the model supplies the narrative/visual prompt and other
+bounded choices.
 
 Do not add render tools to Harness. Rendering stays in the existing MotionReal
 controllers.

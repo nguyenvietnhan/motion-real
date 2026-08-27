@@ -422,6 +422,7 @@ const harness = new HarnessManager({
   harnessCliPath:
     process.env.MOTIONREAL_DSH_CLI ??
     join(dirname(REPO_ROOT), "deepseek-harness", "apps", "cli", "lib", "bin.js"),
+  submissionPluginPath: join(REPO_ROOT, "apps", "desktop", "dist-electron", "harness", "motionreal-submission-tools.mjs"),
   nodeExecutable: process.env.MOTIONREAL_NODE_BIN ?? process.env.npm_node_execpath ?? "node",
   mediaUrl,
   defaultVoiceProvider: () => settingsStore.current().voiceProvider,

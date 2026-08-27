@@ -16,6 +16,7 @@ async function managerForTest(): Promise<{ manager: HarnessManager; root: string
       draftsRoot: root,
       harnessHome: join(root, "harness"),
       harnessCliPath: join(root, "missing-harness.js"),
+      submissionPluginPath: join(root, "motionreal-tools.mjs"),
       mediaUrl: (path) => `media://${path}`,
     }),
   };
@@ -34,12 +35,14 @@ async function activeManagerForTest(): Promise<{
   roots.push(root);
   const cli = join(root, "dsh.js");
   await writeFile(cli, "// test placeholder\n");
+  await writeFile(join(root, "motionreal-tools.mjs"), "// test tool plugin\n");
   const child = Object.assign(new EventEmitter(), { kill: vi.fn() });
   const calls: Array<{ method: string; payload: unknown }> = [];
   const manager = new HarnessManager({
     draftsRoot: root,
     harnessHome: join(root, "harness"),
     harnessCliPath: cli,
+    submissionPluginPath: join(root, "motionreal-tools.mjs"),
     findPort: async () => 39872,
     spawn: vi.fn(() => child) as unknown as typeof import("node:child_process").spawn,
     fetch: vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
@@ -63,6 +66,22 @@ const ONE_PIXEL_PNG = Buffer.from(
 );
 
 describe("HarnessManager draft lifecycle", () => {
+  it("blocks Harness startup when the MotionReal submission plugin was not built", async () => {
+    const root = await mkdtemp(join(tmpdir(), "motionreal-agent-missing-tools-"));
+    roots.push(root);
+    const cli = join(root, "dsh.js");
+    await writeFile(cli, "// test placeholder\n");
+    const manager = new HarnessManager({
+      draftsRoot: root,
+      harnessHome: join(root, "harness"),
+      harnessCliPath: cli,
+      submissionPluginPath: join(root, "missing-motionreal-tools.mjs"),
+    });
+    const draft = await manager.createDraft("Missing tools");
+
+    await expect(manager.activate(draft.id, "internal-key")).rejects.toThrow(/Chưa build tool submission/);
+  });
+
   it("creates a video workspace with Harness instructions", async () => {
     const { manager, root } = await managerForTest();
     const draft = await manager.createDraft("Video về ChatGPT");
@@ -95,6 +114,7 @@ describe("HarnessManager draft lifecycle", () => {
       draftsRoot: root,
       harnessHome: join(root, "harness"),
       harnessCliPath: join(root, "missing-harness.js"),
+      submissionPluginPath: join(root, "motionreal-tools.mjs"),
     });
     await expect(reopened.status(draft.id)).resolves.toMatchObject({
       workflowRevision: 1,
@@ -164,6 +184,7 @@ describe("HarnessManager draft lifecycle", () => {
     roots.push(root);
     const cli = join(root, "dsh.js");
     await writeFile(cli, "// test placeholder\n");
+    await writeFile(join(root, "motionreal-tools.mjs"), "// test tool plugin\n");
     const child = Object.assign(new EventEmitter(), { kill: vi.fn(() => false) });
     const projected: unknown[] = [];
     const socket = Object.assign(new EventTarget(), { close: vi.fn() });
@@ -172,6 +193,7 @@ describe("HarnessManager draft lifecycle", () => {
       draftsRoot: root,
       harnessHome: join(root, "harness"),
       harnessCliPath: cli,
+      submissionPluginPath: join(root, "motionreal-tools.mjs"),
       findPort: async () => 39871,
       spawn: vi.fn(() => child) as unknown as typeof import("node:child_process").spawn,
       onChatEvent: (event) => projected.push(event),
@@ -284,6 +306,7 @@ describe("HarnessManager draft lifecycle", () => {
       draftsRoot: root,
       harnessHome: join(root, "harness"),
       harnessCliPath: join(root, "missing.js"),
+      submissionPluginPath: join(root, "motionreal-tools.mjs"),
       mediaUrl: (path) => `media://${path}`,
     });
     await expect(reopened.status(draft.id)).resolves.toMatchObject({ selectedAssetIds: ["asset-01"] });
@@ -453,6 +476,7 @@ describe("HarnessManager draft lifecycle", () => {
     roots.push(root);
     const cli = join(root, "dsh.js");
     await writeFile(cli, "// test placeholder\n");
+    await writeFile(join(root, "motionreal-tools.mjs"), "// test tool plugin\n");
     const child = Object.assign(new EventEmitter(), { kill: vi.fn() });
     const calls: Array<{ url: string; init?: RequestInit }> = [];
     const fakeFetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -470,6 +494,7 @@ describe("HarnessManager draft lifecycle", () => {
       draftsRoot: root,
       harnessHome: join(root, "harness"),
       harnessCliPath: cli,
+      submissionPluginPath: join(root, "motionreal-tools.mjs"),
       fetch: fakeFetch,
       findPort: async () => 39876,
       spawn: spawnChild,
@@ -502,12 +527,14 @@ describe("HarnessManager draft lifecycle", () => {
     roots.push(root);
     const cli = join(root, "dsh.js");
     await writeFile(cli, "// test placeholder\n");
+    await writeFile(join(root, "motionreal-tools.mjs"), "// test tool plugin\n");
     const child = Object.assign(new EventEmitter(), { kill: vi.fn() });
     const methods: string[] = [];
     const manager = new HarnessManager({
       draftsRoot: root,
       harnessHome: join(root, "harness"),
       harnessCliPath: cli,
+      submissionPluginPath: join(root, "motionreal-tools.mjs"),
       findPort: async () => 39875,
       spawn: vi.fn(() => child) as unknown as typeof import("node:child_process").spawn,
       fetch: vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
@@ -539,12 +566,14 @@ describe("HarnessManager draft lifecycle", () => {
     roots.push(root);
     const cli = join(root, "dsh.js");
     await writeFile(cli, "// test placeholder\n");
+    await writeFile(join(root, "motionreal-tools.mjs"), "// test tool plugin\n");
     const child = Object.assign(new EventEmitter(), { kill: vi.fn() });
     const spawnChild = vi.fn(() => child) as unknown as typeof import("node:child_process").spawn;
     const manager = new HarnessManager({
       draftsRoot: root,
       harnessHome: join(root, "harness"),
       harnessCliPath: cli,
+      submissionPluginPath: join(root, "motionreal-tools.mjs"),
       nodeExecutable: "C:\\Program Files\\nodejs\\node.exe",
       findPort: async () => 39874,
       spawn: spawnChild,
@@ -562,13 +591,18 @@ describe("HarnessManager draft lifecycle", () => {
     await manager.activate(draft.id, "internal-key");
     expect(spawnChild).toHaveBeenCalledWith(
       "C:\\Program Files\\nodejs\\node.exe",
-      [cli, "web", "--host", "127.0.0.1", "--port", "39874", "--no-open"],
+      [cli, "web", "--patch", join(root, "harness", "motionreal-tools.patch.yml"), "--host", "127.0.0.1", "--port", "39874", "--no-open"],
       expect.objectContaining({
         cwd: root,
         stdio: ["ignore", "ignore", "pipe"],
-        env: expect.objectContaining({ NINEROUTER_API_KEY: "internal-key" }),
+        env: expect.objectContaining({
+          NINEROUTER_API_KEY: "internal-key",
+          MOTIONREAL_AGENT_DRAFTS_ROOT: root,
+        }),
       }),
     );
+    await expect(readFile(join(root, "harness", "motionreal-tools.patch.yml"), "utf8"))
+      .resolves.toMatch(/motionreal-submission-tools[\s\S]*file:\/\//);
     const options = vi.mocked(spawnChild).mock.calls[0]?.[2];
     expect(options?.env).not.toHaveProperty("ELECTRON_RUN_AS_NODE");
     await manager.dispose();
@@ -579,6 +613,7 @@ describe("HarnessManager draft lifecycle", () => {
     roots.push(root);
     const cli = join(root, "dsh.js");
     await writeFile(cli, "// test placeholder\n");
+    await writeFile(join(root, "motionreal-tools.mjs"), "// test tool plugin\n");
     const stderr = new EventEmitter();
     const child = Object.assign(new EventEmitter(), {
       stderr,
@@ -590,6 +625,7 @@ describe("HarnessManager draft lifecycle", () => {
       draftsRoot: root,
       harnessHome: join(root, "harness"),
       harnessCliPath: cli,
+      submissionPluginPath: join(root, "motionreal-tools.mjs"),
       nodeExecutable: "node",
       findPort: async () => 39873,
       spawn: vi.fn(() => {

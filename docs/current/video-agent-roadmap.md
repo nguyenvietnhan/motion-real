@@ -474,6 +474,9 @@ Acceptance evidence:
 
 ## Phase 6 — Submission Tools and Hardening
 
+Status: implemented and accepted against the real native-Windows Harness/9router
+runtime on 2026-08-28.
+
 ### Goal
 
 Replace prompt-dependent final file writes with narrow first-class submission
@@ -499,6 +502,20 @@ tools after the workflow shape is stable.
   state.
 - File-handoff compatibility can remain for recovery/debug but is no longer the
   normal Agent completion mechanism.
+
+Acceptance evidence:
+
+- MotionReal loads one standalone Harness plugin through `--patch`; no Harness
+  fork patch, second service, downloader, or render path was added.
+- A real `ag/gemini-3.7-flash-high` session called
+  `motionreal_submit_assets`, received its tool result, and reached asset review
+  from the validated durable manifest.
+- After asset approval and an app/sidecar restart, the same Session resumed,
+  called `motionreal_submit_brief`, received a successful tool result, and
+  produced the current validated brief artifact.
+- Focused tests cover valid, duplicate, conflicting, stale, external-workspace,
+  and aborted submissions. The executor fixes title to the user-owned value in
+  `brief-request.json`, so it cannot drift through model arguments.
 
 ## Manual End-to-End Acceptance Scenario
 
