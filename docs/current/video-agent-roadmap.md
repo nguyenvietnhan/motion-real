@@ -289,6 +289,10 @@ Implemented V1 details:
   not create a project. The separate create action invokes the existing
   `CreateController`, promotes only selected local assets, renames the created
   project to the approved title, links its id, and moves to `authoring`.
+- Agent ownership is persisted after image promotion and immediately before the
+  existing `beginCreate` handoff. A retry returns the already-linked project;
+  failure to persist ownership deletes the unused scaffold instead of leaving a
+  duplicate project for the next retry.
 
 ### Tests
 

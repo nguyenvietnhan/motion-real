@@ -111,6 +111,8 @@ export class CreateController {
       voiceProvider?: VoiceProviderChoice;
       /** Library track name, or null for no music. */
       bgm?: string | null;
+      /** Agent-only durability seam: persist project ownership before authoring starts. */
+      beforeBeginCreate?: (projectId: string) => Promise<void>;
     } = {},
   ): Promise<{ projectId: string }> {
     const v = validateCreateInput({ raw });
@@ -172,6 +174,7 @@ export class CreateController {
           return [] as AuthorImageRef[];
         })
       : [];
+    await choices.beforeBeginCreate?.(res.projectId);
     this.deps.beginCreate(res.projectId, {
       text: v.brief.text,
       urls: v.brief.urls,

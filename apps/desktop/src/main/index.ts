@@ -17,6 +17,7 @@ import { buildNineRouterGatewayDeps } from "./gateway/ninerouter-deps.js";
 import { NineRouterClient } from "./gateway/ninerouter-client.js";
 import { NineRouterAuthoringBackend } from "./authoring/ninerouter-backend.js";
 import { CustomLoopAgentWorker } from "./agent/custom-loop-worker.js";
+import { createAgentProject } from "./agent/create-agent-project.js";
 import { WorkspaceController } from "./workspace/workspace-controller.js";
 import { CreateController } from "./create/create-controller.js";
 import { stripL0Tokens } from "./redact/friendly.js";
@@ -709,16 +710,18 @@ const handlers: InvokeHandlers = {
     input as import("../shared/types.js").AgentBriefInput,
   ),
   "agent:createVideo": async (draftId) => {
-    const request = await harness.readCreateRequest(String(draftId));
-    const images = await stageHarnessImages(request.imagePaths);
-    // This is intentionally the existing Home Create Flow, including all
-    // validation, staging promotion, authoring, still/refine, and rollback.
-    const created = await create.create(request.prompt, images, request.choices);
-    await harness.linkProject(request.draftId, created.projectId);
-    await workspace.rename(created.projectId, request.title).catch((error) => {
-      log.warn({ err: error, projectId: created.projectId }, "Agent project title update failed");
+    return createAgentProject(String(draftId), {
+      status: (id) => harness.status(id),
+      readCreateRequest: (id) => harness.readCreateRequest(id),
+      stageImages: stageHarnessImages,
+      create: (prompt, images, choices) => create.create(prompt, images, choices),
+      linkProject: (id, projectId) => harness.linkProject(id, projectId),
+      deleteProject: (projectId) => workspace.delete(projectId),
+      renameProject: (projectId, title) => workspace.rename(projectId, title),
+      warn: (error, projectId, message) => {
+        log.warn({ err: error, projectId }, message);
+      },
     });
-    return created;
   },
   "agent:deleteDraft": async (draftId) => {
     const draft = await harness.status(String(draftId));

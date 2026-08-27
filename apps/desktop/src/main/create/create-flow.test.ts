@@ -79,6 +79,31 @@ describe("CreateController.create", () => {
     expect(began[0]!.input.images).toEqual([{ ref: "assets/aa.png", width: 800, height: 600 }]);
   });
 
+  it("persists Agent project ownership after promotion and before authoring starts", async () => {
+    const order: string[] = [];
+    const { deps: d } = deps({
+      promoteImages: async () => { order.push("promote"); return []; },
+      beginCreate: () => { order.push("begin"); },
+    });
+    const ctrl = new CreateController(d);
+    await ctrl.create("chủ đề", [{ ref: "staging/aa.png", width: 10, height: 10 }], {
+      beforeBeginCreate: async (projectId) => {
+        expect(projectId).toBe("p1");
+        order.push("link");
+      },
+    });
+    expect(order).toEqual(["promote", "link", "begin"]);
+  });
+
+  it("does not start authoring when Agent project ownership cannot be persisted", async () => {
+    const { deps: d, began } = deps();
+    const ctrl = new CreateController(d);
+    await expect(ctrl.create("chủ đề", [], {
+      beforeBeginCreate: async () => { throw new Error("link failed"); },
+    })).rejects.toThrow("link failed");
+    expect(began).toEqual([]);
+  });
+
   it("with no images, the author input omits the images field entirely (no regression)", async () => {
     const { deps: d, began } = deps();
     const ctrl = new CreateController(d);
