@@ -161,6 +161,18 @@
   font-size: 13px;
 }
 
+.ns-agent-workflow progress {
+  width: min(220px, 24vw);
+  accent-color: var(--primary);
+}
+
+.ns-agent-project-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
 .ns-agent-workflow.is-error {
   border-color: var(--destructive, #ef4444);
 }

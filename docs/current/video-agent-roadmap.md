@@ -338,6 +338,9 @@ See `docs/providers/vieneu.md` for the pinned development runtime and commands.
 
 ## Phase 4 — Production Progress in Agent
 
+Status: implemented locally on 2026-08-27; native manual acceptance is
+required before Phase 5 becomes the default chat surface.
+
 ### Goal
 
 Make the Agent tab useful after project creation without reimplementing pipeline
@@ -360,6 +363,19 @@ orchestration.
   Workspace editor inside Agent.
 - Scene/global edits continue through `WorkspaceController.submitEdits`.
 - User approval continues through the existing publish/full-render handler.
+
+Implemented V1 details:
+
+- Once a draft links a project, `projects.stage()` becomes the authoritative
+  progress source; persisted Agent workflow metadata is no longer presented as
+  live render state.
+- Existing project status/progress events trigger an immediate refresh, with a
+  bounded 1.5-second poll covering restart and missed events.
+- The Agent rail reuses shared writing/render labels and exposes only the
+  existing project cancel/open actions. `Xem draft` opens the normal Workspace
+  review instead of embedding a second editor or player.
+- `published` is accepted only from WorkspaceController's artifact-validated
+  stage recovery, so Harness prose can never mark a video complete.
 
 ### Tests
 

@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
-import type { AgentBriefInput, AgentDraftVM, AgentProductionState, DurationTierChoice, VideoLanguageChoice, VoiceProviderChoice } from "../../shared/types.js";
+import { agentProjectProgress } from "../../shared/agent-project-progress.js";
+import type { AgentBriefInput, AgentDraftVM, AgentProductionState, DurationTierChoice, ProjectStage, VideoLanguageChoice, VoiceProviderChoice } from "../../shared/types.js";
 import { Icon } from "../icons.js";
 import { ConfirmDialog } from "../primitives.js";
 import { ImageReviewView } from "./image-review.js";
@@ -23,7 +24,7 @@ const PRODUCTION_LABELS: Record<AgentProductionState, string> = {
  * The Harness owns the chat, event timeline, tool cards, and history. Keeping
  * its web UI intact avoids rebuilding a partial copy in the desktop renderer.
  */
-export const AgentView: React.FC = () => {
+export const AgentView: React.FC<{ onOpenProject: (projectId: string) => void }> = ({ onOpenProject }) => {
   const [drafts, setDrafts] = useState<AgentDraftVM[]>([]);
   const [active, setActive] = useState<AgentDraftVM | null>(null);
   const [busy, setBusy] = useState(false);
@@ -34,6 +35,7 @@ export const AgentView: React.FC = () => {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [briefInput, setBriefInput] = useState<AgentBriefInput | null>(null);
   const [showBriefReview, setShowBriefReview] = useState(true);
+  const [projectStage, setProjectStage] = useState<ProjectStage | null>(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -62,6 +64,38 @@ export const AgentView: React.FC = () => {
     }, 1_500);
     return () => window.clearInterval(timer);
   }, [active?.id]);
+
+  useEffect(() => {
+    const projectId = active?.projectId;
+    if (!projectId) {
+      setProjectStage(null);
+      return;
+    }
+    setProjectStage(null);
+    let alive = true;
+    const refreshStage = async () => {
+      try {
+        const next = await window.dashboard.projects.stage(projectId);
+        if (alive) setProjectStage(next);
+      } catch {
+        // Keep the last authoritative stage during a transient IPC failure.
+      }
+    };
+    void refreshStage();
+    const interval = window.setInterval(() => void refreshStage(), 1_500);
+    const refreshForProject = (event: { projectId?: string }) => {
+      if (event.projectId === projectId) void refreshStage();
+    };
+    const unsubscribe = [
+      window.dashboard.events.onProgress(refreshForProject),
+      window.dashboard.events.onStatus(refreshForProject),
+    ];
+    return () => {
+      alive = false;
+      window.clearInterval(interval);
+      unsubscribe.forEach((stop) => stop());
+    };
+  }, [active?.projectId]);
 
   useEffect(() => {
     if (!active?.briefReview) {
@@ -123,10 +157,21 @@ export const AgentView: React.FC = () => {
     if (!active) return;
     void run(async () => {
       const created = await window.dashboard.agent.createVideo(active.id);
-      setNotice(`Đã gửi video vào Create Flow hiện có (${created.projectId}). Mở Trang chủ để theo dõi bản dựng.`);
+      setNotice("Đã tạo project. Tiến trình dựng sẽ hiển thị ngay tại đây.");
       await refresh();
     });
   };
+
+  const cancelProject = () => {
+    if (!active?.projectId) return;
+    void run(async () => {
+      await window.dashboard.projects.cancel(active.projectId!);
+      setNotice("Đã yêu cầu dừng công việc đang chạy; project và bản nháp hiện có vẫn được giữ lại.");
+    });
+  };
+
+  const liveProgress = projectStage ? agentProjectProgress(projectStage) : null;
+  const displayedState = liveProgress?.state ?? active?.productionState;
 
   const prepareAssets = () => {
     if (!active) return;
@@ -246,9 +291,20 @@ export const AgentView: React.FC = () => {
       </div>
       {notice && <p className="ns-agent-notice" role="status">{notice}</p>}
       {active && (
-        <div className={`ns-agent-workflow is-${active.productionState}`} title={`Workflow revision ${active.workflowRevision}`}>
+        <div className={`ns-agent-workflow is-${displayedState}`} title={`Workflow revision ${active.workflowRevision}`}>
           <span>Quy trình video</span>
-          <strong>{PRODUCTION_LABELS[active.productionState]}</strong>
+          <strong>{liveProgress?.label ?? PRODUCTION_LABELS[active.productionState]}</strong>
+          {liveProgress?.percent !== undefined && (
+            <progress value={liveProgress.percent} max={100} aria-label={`Tiến trình ${liveProgress.percent}%`} />
+          )}
+          {active.projectId && (
+            <div className="ns-agent-project-actions">
+              {liveProgress?.canCancel && <button type="button" className="ns-btn" onClick={cancelProject} disabled={busy}>Dừng</button>}
+              <button type="button" className="ns-btn ns-btn-primary" onClick={() => onOpenProject(active.projectId!)} disabled={busy}>
+                {liveProgress?.state === "draft_review" ? "Xem draft" : "Mở dự án"}
+              </button>
+            </div>
+          )}
         </div>
       )}
       {active?.productionState === "discovery" && (
