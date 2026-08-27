@@ -67,6 +67,8 @@ export type AgentDraftVM = {
   workflowVersion: 1;
   workflowRevision: number;
   productionState: AgentProductionState;
+  /** Old sessions can still carry Harness's workspace-write + ask policy. */
+  sessionAccess: "full" | "legacy-approval";
   activeJobId?: string;
   lastError?: string;
   /** Local Harness URL used only by the embedded renderer iframe. */
@@ -131,6 +133,7 @@ export type AgentToolActivityVM = {
   /** Workspace-relative file produced/read by the tool; Main re-validates before reveal. */
   target?: string;
   state: "running" | "success" | "error";
+  errorCode?: "search_credential_missing" | "tool_failed";
 };
 
 /** Renderer-safe projection of one Harness history page. */
@@ -146,6 +149,7 @@ export type AgentChatEvent =
   | { draftId: string; type: "changed" }
   | { draftId: string; type: "assistant-delta"; text: string }
   | { draftId: string; type: "activity" }
+  | { draftId: string; type: "approval-required"; tool: string }
   | { draftId: string; type: "idle" }
   | { draftId: string; type: "error"; code: "turn_failed" | "stream_failed" };
 

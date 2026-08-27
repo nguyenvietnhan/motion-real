@@ -85,7 +85,10 @@ export function projectHarnessHistory(value: unknown): AgentChatPageVM {
       const result = toolResult(data);
       if (!result) continue;
       const tool = tools.get(result.callId);
-      if (tool) tool.state = result.isError ? "error" : "success";
+      if (tool) {
+        tool.state = result.isError ? "error" : "success";
+        if (result.errorCode) tool.errorCode = result.errorCode;
+      }
     }
   }
 
@@ -104,6 +107,11 @@ export function projectHarnessMuxEnvelope(
 ): AgentChatEvent | undefined {
   if (!isRecord(value) || !isRecord(value.payload)) return undefined;
   const frame = value.payload;
+  if (frame.type === "approval/requested" && typeof frame.sessionId === "string") {
+    const draftId = draftIdForSession(frame.sessionId);
+    if (!draftId) return undefined;
+    return { draftId, type: "approval-required", tool: safeToolName(frame.toolName) };
+  }
   if (frame.type === "stream/error") return undefined;
   if (frame.type !== "session/event" || typeof frame.sessionId !== "string" || !isRecord(frame.event)) return undefined;
   const draftId = draftIdForSession(frame.sessionId);
@@ -124,6 +132,11 @@ export function projectHarnessMuxEnvelope(
   }
 
   if (type === "turn/start" || type === "step/start") return { draftId, type: "activity" };
+  if (type === "approval/asked") return {
+    draftId,
+    type: "approval-required",
+    tool: safeToolName(data.toolName),
+  };
   if (type === "turn/end") {
     const reason = isRecord(data.reason) ? data.reason : {};
     return reason.kind === "error"
@@ -143,12 +156,22 @@ function visibleText(value: unknown): string {
     : []).join("\n").trim().slice(0, MAX_MESSAGE_CHARS);
 }
 
-function toolResult(data: RecordValue): { callId: string; isError: boolean } | undefined {
+function toolResult(data: RecordValue): {
+  callId: string;
+  isError: boolean;
+  errorCode?: AgentToolActivityVM["errorCode"];
+} | undefined {
   const message = isRecord(data.message) ? data.message : {};
   if (!Array.isArray(message.content)) return undefined;
   const block = message.content.find((item) => isRecord(item) && item.type === "tool-result");
   if (!isRecord(block) || typeof block.toolCallId !== "string") return undefined;
-  return { callId: block.toolCallId, isError: block.isError === true || isRecord(data.error) };
+  const isError = block.isError === true || isRecord(data.error);
+  const providerCode = isRecord(data.error) && typeof data.error.code === "string" ? data.error.code : undefined;
+  return {
+    callId: block.toolCallId,
+    isError,
+    ...(isError ? { errorCode: providerCode === "WEB_PROVIDER_CREDENTIAL_MISSING" ? "search_credential_missing" : "tool_failed" } : {}),
+  };
 }
 
 function toolPresentation(name: string, rawArguments: unknown): { description: string; target?: string } {

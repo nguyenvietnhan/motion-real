@@ -276,6 +276,10 @@ by Settings `reviewMode`:
 | `stills_edit` | Stills only | Yes | After approve; `forceFull` if no draft |
 | `skip_edit` | No human review stop | No | Auto full after silent refine + stills; `forceFull` |
 
+The Agent tab displays this effective mode next to project progress. Therefore
+“no draft MP4” under `stills_edit` or `skip_edit` is a selected workflow, not a
+render failure.
+
 BGM is chosen only on **Home create knobs** (written to the project manifest
 before authoring) so `skip_edit` auto-full and storyboard approve both use that
 selection. The storyboard review UI does not re-offer a BGM picker.

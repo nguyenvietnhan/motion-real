@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { agentProjectProgress } from "../../shared/agent-project-progress.js";
-import type { AgentBriefInput, AgentChatMessageVM, AgentDraftVM, AgentProductionState, AgentToolActivityVM, DurationTierChoice, ProjectStage, VideoLanguageChoice, VoiceProviderChoice } from "../../shared/types.js";
+import type { AgentBriefInput, AgentChatMessageVM, AgentDraftVM, AgentProductionState, AgentToolActivityVM, DurationTierChoice, ProjectStage, ReviewMode, VideoLanguageChoice, VoiceProviderChoice } from "../../shared/types.js";
 import { Icon } from "../icons.js";
 import { ConfirmDialog } from "../primitives.js";
+import { AgentChatMarkdown } from "./agent-chat-markdown.js";
 import { ImageReviewView } from "./image-review.js";
 
 const PRODUCTION_LABELS: Record<AgentProductionState, string> = {
@@ -29,7 +30,16 @@ const ASSET_ROLE_LABEL = {
 
 type ChatItem = AgentChatMessageVM | AgentToolActivityVM;
 
-export const AgentView: React.FC<{ onOpenProject: (projectId: string) => void }> = ({ onOpenProject }) => {
+const REVIEW_MODE_LABELS: Record<ReviewMode, string> = {
+  full: "Draft MP4 trước final",
+  stills_edit: "Duyệt ảnh từng cảnh · không render draft MP4",
+  skip_edit: "Tự động final · không dừng ở draft",
+};
+
+export const AgentView: React.FC<{
+  onOpenProject: (projectId: string) => void;
+  reviewMode: ReviewMode;
+}> = ({ onOpenProject, reviewMode }) => {
   const [drafts, setDrafts] = useState<AgentDraftVM[]>([]);
   const [active, setActive] = useState<AgentDraftVM | null>(null);
   const [busy, setBusy] = useState(false);
@@ -109,6 +119,12 @@ export const AgentView: React.FC<{ onOpenProject: (projectId: string) => void }>
       if (event.type === "activity") {
         setChatRunning(true);
         setChatActivity(true);
+        return;
+      }
+      if (event.type === "approval-required") {
+        setChatRunning(true);
+        setChatActivity(false);
+        setNotice(`Phiên Harness cũ đang chờ duyệt quyền cho ${event.tool}. Mở Debug Harness để xử lý; video mới dùng Full access tự động.`);
         return;
       }
       if (event.type === "error") {
@@ -439,10 +455,16 @@ export const AgentView: React.FC<{ onOpenProject: (projectId: string) => void }>
         </div>
       </div>
       {notice && <p className="ns-agent-notice" role="status">{notice}</p>}
+      {active?.sessionAccess === "legacy-approval" && (
+        <p className="ns-agent-notice is-warning" role="status">
+          Phiên này được tạo trước cấu hình Full access nên có thể còn yêu cầu duyệt trong Debug Harness. Video mới sẽ dùng Full access tự động.
+        </p>
+      )}
       {active && (
         <div className={`ns-agent-workflow is-${displayedState}`} title={`Workflow revision ${active.workflowRevision}`}>
           <span>Quy trình video</span>
           <strong>{progressLabel}</strong>
+          <small className="ns-agent-review-mode">Chế độ duyệt: {REVIEW_MODE_LABELS[reviewMode]}</small>
           {liveProgress?.percent !== undefined && (
             <progress value={liveProgress.percent} max={100} aria-label={`Tiến trình ${liveProgress.percent}%`} />
           )}
@@ -590,17 +612,17 @@ export const AgentView: React.FC<{ onOpenProject: (projectId: string) => void }>
             {chatItems.map((item) => item.kind === "message" ? (
               <article key={`message-${item.id}`} className={`ns-agent-message is-${item.role}`}>
                 <strong>{item.role === "user" ? "Bạn" : "Agent"}</strong>
-                <div>{item.text}</div>
+                {item.role === "assistant" ? <AgentChatMarkdown text={item.text} /> : <div>{item.text}</div>}
                 {item.interrupted && <small>Đã dừng giữa chừng</small>}
               </article>
             ) : (
               <div key={`tool-${item.id}`} className={`ns-agent-tool is-${item.state}`}>
                 <span className="ns-agent-tool-dot" aria-hidden="true" />
-                <strong>{item.name}</strong>
+                <strong>{agentToolLabel(item.name)}</strong>
                 <span>{item.description}</span>
                 <span className="ns-agent-tool-meta">
                   {item.target && <button type="button" onClick={() => revealToolFile(item.target!)} title={item.target}>Hiện tệp</button>}
-                  <small>{item.state === "running" ? "Đang chạy" : item.state === "success" ? "Hoàn tất" : "Gặp lỗi"}</small>
+                  <small>{agentToolState(item)}</small>
                 </span>
               </div>
             ))}
@@ -664,3 +686,27 @@ export const AgentView: React.FC<{ onOpenProject: (projectId: string) => void }>
     </section>
   );
 };
+
+function agentToolLabel(name: string): string {
+  switch (name.toLowerCase()) {
+    case "web_search": return "Tìm kiếm web";
+    case "pwsh": return "PowerShell";
+    case "read": return "Đọc tệp";
+    case "read_image": return "Xem ảnh";
+    case "write": return "Ghi tệp";
+    case "edit": return "Sửa tệp";
+    case "glob": return "Tìm tệp";
+    case "grep": return "Tìm nội dung";
+    case "motionreal_submit_assets": return "Gửi asset để duyệt";
+    case "motionreal_submit_brief": return "Gửi brief để duyệt";
+    case "motionreal_submit_authoring": return "Gửi scene để kiểm tra";
+    default: return name;
+  }
+}
+
+function agentToolState(tool: AgentToolActivityVM): string {
+  if (tool.state === "running") return "Đang chạy";
+  if (tool.state === "success") return "Hoàn tất";
+  if (tool.errorCode === "search_credential_missing") return "Thiếu key tìm kiếm";
+  return "Gặp lỗi";
+}

@@ -47,16 +47,18 @@ const AI_CONTRACT_FILE = "AI_CONTRACT.md";
 const START_TIMEOUT_MS = 60_000;
 const PROCESS_OUTPUT_LIMIT = 4_096;
 const AUTHORING_POLL_MS = 500;
+const SESSION_POLICY_REVISION = 1;
 const log = createLogger("harness");
 
 export type { AgentDraftVM } from "../../shared/types.js";
 
-type DraftRecord = Omit<AgentDraftVM, "harnessUrl" | "webSearchConfigured" | "createReady" | "assetReview" | "assetCollectionError" | "briefReview" | "briefReviewError"> & AgentWorkflowRecord & {
+type DraftRecord = Omit<AgentDraftVM, "harnessUrl" | "webSearchConfigured" | "createReady" | "assetReview" | "assetCollectionError" | "briefReview" | "briefReviewError" | "sessionAccess"> & AgentWorkflowRecord & {
   workspaceId?: string;
   sessionId?: string;
   assetRequestRevision?: number;
   briefRequestRevision?: number;
   authoringRequestRevision?: number;
+  sessionPolicyRevision?: number;
 };
 
 export type AgentCreateRequest = {
@@ -155,6 +157,7 @@ export class HarnessManager {
       title: normalized,
       createdAt: this.now().toISOString(),
       sessionId: `session-${randomUUID()}`,
+      sessionPolicyRevision: SESSION_POLICY_REVISION,
       ...initialAgentWorkflow(),
     };
     await mkdir(join(root, "assets"), { recursive: true });
@@ -795,6 +798,7 @@ export class HarnessManager {
       ...(this.active && this.activeDraftId === record.id && this.webSearchConfigured !== undefined
         ? { webSearchConfigured: this.webSearchConfigured }
         : {}),
+      sessionAccess: record.sessionPolicyRevision === SESSION_POLICY_REVISION ? "full" : "legacy-approval",
       createReady,
       ...(assetReview ? { assetReview } : {}),
       ...(assetCollectionError ? { assetCollectionError } : {}),
@@ -832,6 +836,9 @@ export class HarnessManager {
           : {}),
         ...(Number.isSafeInteger(raw.authoringRequestRevision) && Number(raw.authoringRequestRevision) > 0
           ? { authoringRequestRevision: Number(raw.authoringRequestRevision) }
+          : {}),
+        ...(raw.sessionPolicyRevision === SESSION_POLICY_REVISION
+          ? { sessionPolicyRevision: SESSION_POLICY_REVISION }
           : {}),
         ...(Array.isArray(raw.selectedAssetIds)
           ? { selectedAssetIds: raw.selectedAssetIds.filter((value): value is string => typeof value === "string") }

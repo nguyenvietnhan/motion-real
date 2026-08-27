@@ -121,6 +121,7 @@ describe("HarnessManager draft lifecycle", () => {
       workflowVersion: 1,
       workflowRevision: 0,
       productionState: "discovery",
+      sessionAccess: "full",
     });
     await manager.transitionWorkflow(draft.id, {
       expectedRevision: 0,
@@ -148,6 +149,7 @@ describe("HarnessManager draft lifecycle", () => {
       workflowVersion: 1,
       workflowRevision: 0,
       productionState: "discovery",
+      sessionAccess: "legacy-approval",
     });
   });
 

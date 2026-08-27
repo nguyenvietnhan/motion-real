@@ -32,7 +32,9 @@ The native chat adapter uses Harness `session.history`, `session.prompt`, and
 projects only human/final assistant text, generic thinking activity, and tool
 lifecycle into typed IPC. Context injections, raw reasoning, tool output,
 credentials, ports, absolute tool paths, and raw provider errors do not cross to
-the renderer.
+the renderer. The renderer formats a small safe Markdown subset without parsing
+raw HTML, and translates known tools/errors into product labels (for example,
+`WEB_PROVIDER_CREDENTIAL_MISSING` becomes “Thiếu key tìm kiếm”).
 
 ## Product Boundary
 
@@ -142,7 +144,9 @@ MotionReal starts new video-scoped Harness sessions with the
 when the Agent writes through the linked `project/` junction; sessions created
 before this change can still contain older permission events. This preset does
 not remove MotionReal's product approvals for assets, brief, still review, or
-final render.
+final render. MotionReal marks those older sessions as `legacy-approval` and
+shows any live approval request instead of silently leaving the chat busy; a new
+video session receives Full access automatically.
 
 Chat and search use separate providers. Chat uses the internal 9router key.
 Harness `web_search` uses DeepSeek's native search endpoint and therefore needs
@@ -367,7 +371,9 @@ showing the updated cards. A Classic project continues through
 
 Only explicit user approval starts the existing final render path. Completion
 is based on the project artifact and WorkspaceController state, not an Agent
-message.
+message. The Agent progress bar also displays the current Settings review mode:
+`full` renders a draft MP4 before final, `stills_edit` reviews stills without a
+draft MP4, and `skip_edit` proceeds to final without a human review stop.
 
 ## Handoff Mechanism
 

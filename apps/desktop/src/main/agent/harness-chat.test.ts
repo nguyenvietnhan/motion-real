@@ -46,6 +46,23 @@ describe("Harness chat renderer-safe projection", () => {
     expect(JSON.stringify(page)).not.toMatch(/SECRET SYSTEM|hidden chain|raw output/);
   });
 
+  it("classifies a missing web-search credential without exposing provider details", () => {
+    const page = projectHarnessHistory({
+      hasMore: false,
+      events: [
+        entry(1, "tool/call", { callId: "search-1", name: "web_search", arguments: "{}" }),
+        entry(2, "tool/result", {
+          message: { content: [{ type: "tool-result", toolCallId: "search-1", isError: true, content: [{ type: "text", text: "secret raw error" }] }] },
+          error: { name: "WebError", code: "WEB_PROVIDER_CREDENTIAL_MISSING", message: "secret provider message" },
+        }),
+      ],
+    });
+    expect(page.items).toEqual([
+      expect.objectContaining({ id: "search-1", state: "error", errorCode: "search_credential_missing" }),
+    ]);
+    expect(JSON.stringify(page)).not.toMatch(/secret/);
+  });
+
   it("only projects relative non-traversing tool file targets", () => {
     const page = projectHarnessHistory({
       hasMore: false,
@@ -69,6 +86,13 @@ describe("Harness chat renderer-safe projection", () => {
 
   it("maps only safe mux events for known sessions", () => {
     const lookup = (sessionId: string) => sessionId === "session-1" ? "agent-1" : undefined;
+    expect(projectHarnessMuxEnvelope({ payload: {
+      type: "approval/requested",
+      sessionId: "session-1",
+      approvalId: "approval-1",
+      toolName: "Write",
+      reason: "secret path",
+    } }, lookup)).toEqual({ draftId: "agent-1", type: "approval-required", tool: "Write" });
     expect(projectHarnessMuxEnvelope({ payload: {
       type: "session/event",
       sessionId: "session-1",

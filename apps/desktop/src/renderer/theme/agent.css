@@ -161,6 +161,11 @@
   font-size: 13px;
 }
 
+.ns-agent-review-mode {
+  color: var(--muted-foreground);
+  white-space: nowrap;
+}
+
 .ns-agent-workflow progress {
   width: min(220px, 24vw);
   accent-color: var(--primary);
@@ -238,6 +243,10 @@
 
 .ns-agent-notice {
   margin: 8px 24px 0;
+}
+
+.ns-agent-notice.is-warning {
+  color: #fbbf24;
 }
 
 .ns-agent-create-ready {
@@ -330,6 +339,55 @@
 .ns-agent-message > div {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+
+.ns-agent-markdown {
+  display: grid;
+  gap: 8px;
+  white-space: normal !important;
+}
+
+.ns-agent-markdown h3,
+.ns-agent-markdown p,
+.ns-agent-markdown ul,
+.ns-agent-markdown ol,
+.ns-agent-markdown pre {
+  margin: 0;
+}
+
+.ns-agent-markdown h3 {
+  font-size: 15px;
+}
+
+.ns-agent-markdown ul,
+.ns-agent-markdown ol {
+  padding-left: 20px;
+}
+
+.ns-agent-markdown code {
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--muted) 70%, transparent);
+  padding: 1px 4px;
+  font-family: ui-monospace, "Cascadia Code", monospace;
+  font-size: 0.92em;
+}
+
+.ns-agent-markdown pre {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 10px;
+}
+
+.ns-agent-markdown pre code {
+  background: transparent;
+  padding: 0;
+}
+
+.ns-agent-chat-link {
+  color: var(--primary);
+  text-decoration: underline;
+  text-decoration-style: dotted;
 }
 
 .ns-agent-message small,

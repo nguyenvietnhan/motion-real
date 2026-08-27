@@ -701,7 +701,7 @@ const AppShell: React.FC = () => {
           />
         )}
 
-        {screen === "agent" && <AgentView onOpenProject={openProject} />}
+        {screen === "agent" && <AgentView onOpenProject={openProject} reviewMode={settings.reviewMode} />}
 
         {screen === "settings" && (
           <SettingsView
