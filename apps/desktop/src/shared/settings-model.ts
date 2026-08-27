@@ -23,9 +23,10 @@ export function normalizeSettingsUpdate(value: unknown): SettingsUpdateInput {
   const raw = value as Record<string, unknown>;
   const out: SettingsUpdateInput = {};
   if (typeof raw.preferredAiModelId === "string") out.preferredAiModelId = raw.preferredAiModelId;
-  if (raw.voiceProvider === "vivibe" || raw.voiceProvider === "elevenlabs") out.voiceProvider = raw.voiceProvider;
+  if (raw.voiceProvider === "vivibe" || raw.voiceProvider === "elevenlabs" || raw.voiceProvider === "vieneu") out.voiceProvider = raw.voiceProvider;
   if (typeof raw.vivibeVoiceId === "string") out.vivibeVoiceId = raw.vivibeVoiceId;
   if (typeof raw.elevenLabsVoiceId === "string") out.elevenLabsVoiceId = raw.elevenLabsVoiceId;
+  if (typeof raw.vieneuVoiceId === "string") out.vieneuVoiceId = raw.vieneuVoiceId;
   if (typeof raw.maxRepairAttempts === "number") out.maxRepairAttempts = clampMaxRepairAttempts(raw.maxRepairAttempts);
   if (typeof raw.scriptGateEnabled === "boolean") out.scriptGateEnabled = raw.scriptGateEnabled;
   if (raw.reviewMode === "full" || raw.reviewMode === "stills_edit" || raw.reviewMode === "skip_edit") out.reviewMode = raw.reviewMode;
@@ -169,6 +170,7 @@ export function defaultSettings(outputDir: string): SettingsModel {
   return {
     aiAccount: { kind: "disconnected" },
     voiceProvider: "vivibe",
+    vieneuVoiceId: "Trúc Ly",
     elevenLabsModelId: ELEVENLABS_DEFAULT_MODEL_ID,
     voiceCredentials: { vivibe: "missing", elevenlabs: "missing" },
     voiceCalibrations: {},

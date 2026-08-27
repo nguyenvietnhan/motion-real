@@ -86,6 +86,16 @@ describe("settingsTabForCreatePath", () => {
 });
 
 describe("voicePresenceFromSettings", () => {
+  it("treats a selected VieNeu preset as ready without an API key", () => {
+    expect(
+      voicePresenceFromSettings({
+        voiceProvider: "vieneu",
+        voiceCredentials: { vivibe: "missing", elevenlabs: "missing" },
+        vieneuVoiceId: "Trúc Ly",
+      }),
+    ).toEqual({ hasApiKey: true, hasVoiceId: true });
+  });
+
   it("treats saved credentials + ui voice id as ready", () => {
     expect(
       voicePresenceFromSettings({

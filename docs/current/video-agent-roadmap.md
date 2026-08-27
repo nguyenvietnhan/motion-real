@@ -299,6 +299,43 @@ Implemented V1 details:
 - The same project appears in the existing Projects/Workspace UI.
 - Home/Create behavior remains unchanged.
 
+## Phase 3.5 — VieNeu Local Narration
+
+Status: implemented locally on 2026-08-27; native manual end-to-end acceptance
+is required before Phase 4.
+
+### Goal
+
+Remove the cloud-TTS cost blocker from a real Agent-created Vietnamese video
+without creating another timing or render pipeline.
+
+### Implemented boundary
+
+- `vieneu` is an explicit Vietnamese-only provider in Settings, Home, Queue,
+  Agent brief review, persisted jobs, and the production TTS manifest.
+- A persistent JSONL Python worker loads pinned VieNeu `3.3.0` once per
+  narration job and emits 48 kHz PCM16 WAV clips.
+- The TypeScript client owns validation, timeout, worker shutdown, safe provider
+  errors, and cache identity. Missing or mismatched runtime blocks the job; it
+  never falls back to a cloud, mock, or silent provider.
+- Existing measured-duration lock, captions, TTS cache, concatenation, BGM mix,
+  CreateController, WorkspaceController, and render flow remain unchanged.
+- Development launcher uses the tested sibling `motion-china` Python environment
+  when present. Installer packaging remains out of scope.
+
+### Verification gate
+
+- Worker lifecycle tests cover repeated synthesis, bad input, missing runtime,
+  startup timeout, and disposal after Settings voice test.
+- `npm run smoke:vieneu` must synthesize and FFprobe a real WAV through the same
+  TypeScript client used by production.
+- `npm run calibrate:voice -- --provider=vieneu` records a preset-specific
+  narration rate; uncalibrated VieNeu uses `3.5` words/second.
+- Manual acceptance: choose VieNeu Local, test the preset, finish one Vietnamese
+  Agent brief, create the linked project, and reach its normal draft review.
+
+See `docs/providers/vieneu.md` for the pinned development runtime and commands.
+
 ## Phase 4 — Production Progress in Agent
 
 ### Goal

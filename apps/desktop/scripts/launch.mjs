@@ -18,6 +18,8 @@ const here = dirname(fileURLToPath(import.meta.url));
 const appDir = resolve(here, "..");
 const repoRoot = resolve(appDir, "..", "..");
 const VIDEO_TOOL_HOME = resolve(repoRoot, ".video-tool");
+const VIENEU_WORKER = resolve(repoRoot, "packages", "tts", "runtime", "vieneu_worker.py");
+const siblingVieneuPython = resolve(repoRoot, "..", "motion-china", ".venv", "Scripts", "python.exe");
 const PREFERRED_PORT = 5174;
 const NINEROUTER_URL = "http://localhost:20128/v1/models";
 // Resolved after prepare — lives next to electron resources, NOT dist-electron alone.
@@ -174,6 +176,11 @@ async function main() {
       // linked DeepSeek Harness source checkout. Pass the exact Node binary
       // that launched this development app instead of guessing from PATH.
       MOTIONREAL_NODE_BIN: process.execPath,
+      MOTIONREAL_VIENEU_WORKER: process.env.MOTIONREAL_VIENEU_WORKER || VIENEU_WORKER,
+      MOTIONREAL_VIENEU_PYTHON:
+        process.env.MOTIONREAL_VIENEU_PYTHON || (existsSync(siblingVieneuPython) ? siblingVieneuPython : "python.exe"),
+      MOTIONREAL_VIENEU_CACHE:
+        process.env.MOTIONREAL_VIENEU_CACHE || resolve(VIDEO_TOOL_HOME, "vieneu", "huggingface"),
     },
   });
 

@@ -16,6 +16,8 @@ export type DesktopVoicePresence = {
   hasApiKey: boolean;
   hasVoiceId: boolean;
   providerLabel: string;
+  requiresApiKey?: boolean;
+  runtimeAvailable?: boolean;
 };
 
 export type DesktopReadinessInput = {
@@ -30,23 +32,37 @@ export type DesktopReadinessInput = {
 };
 
 function voiceCheck(voice: DesktopVoicePresence): DesktopReadinessCheck {
+  const requiresApiKey = voice.requiresApiKey !== false;
+  if (voice.runtimeAvailable === false) {
+    return {
+      id: "voice",
+      state: "blocked",
+      label: "Giọng đọc",
+      detail: `${voice.providerLabel}: chưa tìm thấy runtime local.`,
+      remediation: "Kiểm tra Python 3.11 và VieNeu 3.3.0, rồi mở lại ứng dụng.",
+    };
+  }
   if (voice.hasApiKey && voice.hasVoiceId) {
     return {
       id: "voice",
       state: "ready",
       label: "Giọng đọc",
-      detail: `${voice.providerLabel}: đã có API key và voice id.`,
+      detail: requiresApiKey
+        ? `${voice.providerLabel}: đã có API key và voice id.`
+        : `${voice.providerLabel}: đã chọn giọng local.`,
     };
   }
   const missing: string[] = [];
-  if (!voice.hasApiKey) missing.push("API key");
+  if (requiresApiKey && !voice.hasApiKey) missing.push("API key");
   if (!voice.hasVoiceId) missing.push("voice id");
   return {
     id: "voice",
     state: "blocked",
     label: "Giọng đọc",
     detail: `${voice.providerLabel}: thiếu ${missing.join(" và ")}.`,
-    remediation: "Mở Cài đặt → Giọng đọc, nhập API key và voice id cho nhà cung cấp đã chọn.",
+    remediation: requiresApiKey
+      ? "Mở Cài đặt → Giọng đọc, nhập API key và voice id cho nhà cung cấp đã chọn."
+      : "Mở Cài đặt → Giọng đọc và chọn một giọng VieNeu Local.",
   };
 }
 
@@ -263,12 +279,16 @@ export function buildDesktopReadinessReport(input: DesktopReadinessInput): Deskt
 
 /** Desktop voice slot for runDoctor — presence only, never key/voice values. */
 export function desktopVoiceDoctorCheck(voice: DesktopVoicePresence): DoctorCheck {
+  const requiresApiKey = voice.requiresApiKey !== false;
   const missing: string[] = [];
-  if (!voice.hasApiKey) missing.push("API key");
+  if (voice.runtimeAvailable === false) missing.push("local runtime");
+  if (requiresApiKey && !voice.hasApiKey) missing.push("API key");
   if (!voice.hasVoiceId) missing.push("voice id");
   return {
     name: `${voice.providerLabel} desktop voice`,
     ok: missing.length === 0,
-    detail: missing.length === 0 ? "key and voice id present" : `missing: ${missing.join(", ")}`,
+    detail: missing.length === 0
+      ? (requiresApiKey ? "key and voice id present" : "local voice selected")
+      : `missing: ${missing.join(", ")}`,
   };
 }

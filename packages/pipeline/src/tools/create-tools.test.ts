@@ -146,6 +146,29 @@ describe("TTS provider preservation — Property 10", () => {
     });
   });
 
+  it("preserves VieNeu without requiring a fake API key", async () => {
+    let seen: Parameters<ToolDeps["renderProject"]>[1];
+    const tools = createTools({
+      ttsConfig: () => ({
+        provider: "vieneu",
+        apiKey: "",
+        voiceId: "Trúc Ly",
+        modelId: "vieneu-runtime",
+      }),
+      renderProject: async (_projectId, opts) => {
+        seen = opts;
+        return renderOk();
+      },
+    });
+    expect((await tools.render_draft({ projectId: "p" })).ok).toBe(true);
+    expect(seen).toMatchObject({
+      ttsProvider: "vieneu",
+      ttsApiKey: "",
+      voiceId: "Trúc Ly",
+      modelId: "vieneu-runtime",
+    });
+  });
+
   it("resolves a selected project BGM track into render_draft/render_full options", async () => {
     const src = join(home, "picked.mp3");
     await writeFile(src, Buffer.alloc(32, 1));

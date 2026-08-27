@@ -124,11 +124,15 @@ export function createPathReadiness(input: CreatePathReadinessInput): CreatePath
  */
 export function voicePresenceFromSettings(input: {
   voiceProvider: VoiceProviderChoice;
-  voiceCredentials: Record<VoiceProviderChoice, CredentialState>;
+  voiceCredentials: Record<"vivibe" | "elevenlabs", CredentialState>;
   vivibeVoiceId?: string;
   elevenLabsVoiceId?: string;
+  vieneuVoiceId?: string;
 }): CreatePathVoicePresence {
   const provider = input.voiceProvider;
+  if (provider === "vieneu") {
+    return { hasApiKey: true, hasVoiceId: Boolean(input.vieneuVoiceId?.trim()) };
+  }
   const cred = input.voiceCredentials[provider] ?? "missing";
   const hasApiKey = cred !== "missing";
   const uiVoiceId =

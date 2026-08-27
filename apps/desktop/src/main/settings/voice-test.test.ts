@@ -18,12 +18,13 @@ async function root(): Promise<string> {
   return value;
 }
 
-function client(synthesize: TtsClient["synthesize"]): TtsClient {
+function client(synthesize: TtsClient["synthesize"], dispose?: () => Promise<void>): TtsClient {
   return {
     provider: "vivibe",
     isConfigured: () => true,
     listVoices: async () => [],
     synthesize,
+    ...(dispose ? { dispose } : {}),
   };
 }
 
@@ -45,6 +46,25 @@ describe("createVoiceTester", () => {
       audioDataUrl: `data:audio/mpeg;base64,${Buffer.from("sample").toString("base64")}`,
     });
     expect(await readdir(base)).toEqual([]);
+  });
+
+  it("tests VieNeu without an API key and always disposes its worker", async () => {
+    const base = await root();
+    let disposed = false;
+    const testVoice = createVoiceTester({
+      rootDir: base,
+      createClient: () => ({
+        ...client(async (input) => {
+          const audioPath = `${input.outputPath}.wav`;
+          await writeFile(audioPath, Buffer.from("local sample"));
+          return { audioPath, duration: 0.2, raw: null };
+        }, async () => { disposed = true; }),
+        provider: "vieneu",
+      }),
+    });
+
+    await expect(testVoice({ provider: "vieneu", apiKey: "", voiceId: "Trúc Ly", speed: 1 })).resolves.toMatchObject({ ok: true });
+    expect(disposed).toBe(true);
   });
 
   it("returns a safe structured provider failure and cleans up", async () => {

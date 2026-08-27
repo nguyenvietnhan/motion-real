@@ -58,7 +58,7 @@ export function parseCreateBgm(value: unknown): string | null | undefined {
 }
 
 export function parseVoiceProvider(value: unknown): VoiceProviderChoice {
-  if (value === "vivibe" || value === "elevenlabs") return value;
+  if (value === "vivibe" || value === "elevenlabs" || value === "vieneu") return value;
   throw new Error("Nhà cung cấp giọng đọc không hợp lệ.");
 }
 

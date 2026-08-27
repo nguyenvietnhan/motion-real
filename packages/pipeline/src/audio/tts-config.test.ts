@@ -61,6 +61,21 @@ describe("language-aware TTS preparation", () => {
     })).rejects.toThrow(/Vivibe.*Vietnamese|ElevenLabs/i);
   });
 
+  it("rejects VieNeu for an English project before starting the local runtime", async () => {
+    const spec = {
+      version: 1,
+      title: "English",
+      format: "tiktok",
+      language: "en",
+      scenes: [],
+    } satisfies VideoSpec;
+    await expect(synthesizeNarration(spec, {
+      projectId: "english-vieneu-block",
+      provider: "vieneu",
+      voiceId: "Trúc Ly",
+    })).rejects.toThrow(/VieNeu.*Vietnamese|ElevenLabs/i);
+  });
+
   it("keeps missing provider configuration as a structured tts failure", async () => {
     const spec = {
       version: 1,

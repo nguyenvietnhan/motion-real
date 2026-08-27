@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import type { CloudTtsProvider } from "./types.js";
+import type { VoiceProvider } from "./types.js";
 
 export {
   concatAudio,
@@ -37,12 +37,22 @@ export {
   vivibeRetryBaseDelayMs,
   type VivibeClientOptions,
 } from "./vivibe-client.js";
-export type { CloudTtsProvider, TTSRequest, TTSResult, TTSVoice, TtsClient } from "./types.js";
+export {
+  VieneuClient,
+  type VieneuClientOptions,
+} from "./vieneu-client.js";
+export {
+  VIENEU_DEFAULT_VOICE_ID,
+  VIENEU_DEFAULT_WORDS_PER_SECOND,
+  VIENEU_RUNTIME_ID,
+  VIENEU_VOICES,
+} from "./vieneu-presets.js";
+export type { CloudTtsProvider, VoiceProvider, TTSRequest, TTSResult, TTSVoice, TtsClient } from "./types.js";
 
 export const TTS_NORMALIZER_VERSION = "vi-v1";
 
 export type TtsCacheIdentity = {
-  provider: CloudTtsProvider | "mock";
+  provider: VoiceProvider | "mock";
   text: string;
   voiceId: string;
   speed: number;

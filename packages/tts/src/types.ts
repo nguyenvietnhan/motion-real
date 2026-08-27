@@ -23,10 +23,12 @@ export type TTSResult = {
 };
 
 export type CloudTtsProvider = "vivibe" | "elevenlabs";
+export type VoiceProvider = CloudTtsProvider | "vieneu";
 
 export interface TtsClient {
-  readonly provider: CloudTtsProvider;
+  readonly provider: VoiceProvider;
   isConfigured(): boolean;
   listVoices(): Promise<TTSVoice[]>;
   synthesize(input: TTSRequest): Promise<TTSResult>;
+  dispose?(): Promise<void>;
 }

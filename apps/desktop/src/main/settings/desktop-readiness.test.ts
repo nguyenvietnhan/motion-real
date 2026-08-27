@@ -41,6 +41,21 @@ describe("buildDesktopReadinessReport", () => {
     expect(report.checks.find((c) => c.id === "voice")?.state).toBe("ready");
   });
 
+  it("reports VieNeu as a local preset without claiming an API key", () => {
+    const voice = { hasApiKey: true, hasVoiceId: true, providerLabel: "VieNeu Local", requiresApiKey: false, runtimeAvailable: true };
+    const report = buildDesktopReadinessReport(base({ voice }));
+    expect(report.checks.find((check) => check.id === "voice")?.detail).toMatch(/giọng local/i);
+    expect(desktopVoiceDoctorCheck(voice)).toMatchObject({ ok: true, detail: "local voice selected" });
+  });
+
+  it("blocks VieNeu before authoring when its local runtime is missing", () => {
+    const voice = { hasApiKey: true, hasVoiceId: true, providerLabel: "VieNeu Local", requiresApiKey: false, runtimeAvailable: false };
+    const report = buildDesktopReadinessReport(base({ voice }));
+    expect(report.ok).toBe(false);
+    expect(report.checks.find((check) => check.id === "voice")).toMatchObject({ state: "blocked" });
+    expect(desktopVoiceDoctorCheck(voice)).toMatchObject({ ok: false });
+  });
+
   it("missing key or voice id blocks only the voice check and reveals no value", () => {
     const report = buildDesktopReadinessReport(
       base({ voice: { hasApiKey: false, hasVoiceId: false, providerLabel: "Vivibe" } }),

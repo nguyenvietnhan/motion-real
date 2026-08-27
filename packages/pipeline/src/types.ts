@@ -17,7 +17,7 @@ export type ProjectState =
   | "done"
   | "failed";
 
-export type VoiceProvider = "vivibe" | "elevenlabs";
+export type VoiceProvider = "vivibe" | "elevenlabs" | "vieneu";
 export type TtsProvider = VoiceProvider | "mock" | "none";
 /** Legacy field on brief.json — always "mock"; desktop AI is via 9router, not this field. */
 export type AiProvider = "mock";

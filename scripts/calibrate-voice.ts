@@ -3,14 +3,15 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   ELEVENLABS_DEFAULT_MODEL_ID,
-  ElevenLabsClient,
-  VivibeClient,
+  VIENEU_DEFAULT_VOICE_ID,
+  VIENEU_RUNTIME_ID,
+  createTtsClient,
   defaultElevenLabsVoiceId,
   defaultVivibeVoiceId,
   elevenLabsApiKey,
   measureAudioDuration,
   vivibeApiKey,
-  type CloudTtsProvider,
+  type VoiceProvider,
   type TtsClient,
 } from "../packages/tts/src/index.js";
 import { videoToolHome } from "../packages/pipeline/src/index.js";
@@ -21,7 +22,7 @@ import {
 } from "../apps/desktop/src/shared/settings-model.js";
 
 /**
- * Vivibe read-rate calibration.
+ * Voice read-rate calibration for the selected MotionReal provider.
  *
  * Sends fixed-length Vietnamese passages through the configured Vivibe voice,
  * measures real audio seconds, and derives average words/second (Σ words / Σ
@@ -52,8 +53,9 @@ const PASSAGES: string[] = [
 ];
 
 type DesktopSettings = {
-  voiceProvider?: CloudTtsProvider;
+  voiceProvider?: VoiceProvider;
   vivibeVoiceId?: string;
+  vieneuVoiceId?: string;
   elevenLabsVoiceId?: string;
   elevenLabsModelId?: string;
   voiceCalibrations?: Record<string, number>;
@@ -108,36 +110,39 @@ async function main(): Promise<void> {
 
   const providerArg = process.argv.find((arg) => arg.startsWith("--provider="))?.split("=")[1]
     ?? (process.argv.includes("--provider") ? process.argv[process.argv.indexOf("--provider") + 1] : undefined);
-  const provider: CloudTtsProvider = providerArg === "elevenlabs"
+  const provider: VoiceProvider = providerArg === "elevenlabs"
     ? "elevenlabs"
-    : providerArg === "vivibe" ? "vivibe" : settings.voiceProvider ?? "vivibe";
-  const apiKey = (provider === "vivibe" ? vivibeApiKey() : elevenLabsApiKey()).trim();
+    : providerArg === "vieneu" ? "vieneu"
+      : providerArg === "vivibe" ? "vivibe" : settings.voiceProvider ?? "vivibe";
+  const apiKey = (provider === "vieneu" ? "" : provider === "vivibe" ? vivibeApiKey() : elevenLabsApiKey()).trim();
   const voiceId = ((provider === "vivibe"
     ? settings.vivibeVoiceId?.trim() || settings.voiceId?.trim() || defaultVivibeVoiceId()
-    : settings.elevenLabsVoiceId?.trim() || defaultElevenLabsVoiceId()) || "").trim();
+    : provider === "vieneu"
+      ? settings.vieneuVoiceId?.trim() || VIENEU_DEFAULT_VOICE_ID
+      : settings.elevenLabsVoiceId?.trim() || defaultElevenLabsVoiceId()) || "").trim();
   const modelId = provider === "elevenlabs"
     ? settings.elevenLabsModelId?.trim() || ELEVENLABS_DEFAULT_MODEL_ID
-    : undefined;
-  if (!apiKey) {
+    : provider === "vieneu" ? VIENEU_RUNTIME_ID : undefined;
+  if (provider !== "vieneu" && !apiKey) {
     console.error(`[calibrate] Missing ${provider === "vivibe" ? "VIVIBE_API_KEY / VIETNAMESE_API_KEY" : "ELEVENLABS_API_KEY"} in .env.`);
     process.exitCode = 1;
     return;
   }
   if (!voiceId) {
-    console.error(`[calibrate] Missing ${provider === "vivibe" ? "Vivibe" : "ElevenLabs"} voice id.`);
+    console.error(`[calibrate] Missing ${provider === "vivibe" ? "Vivibe" : provider === "vieneu" ? "VieNeu Local" : "ElevenLabs"} voice id.`);
     process.exitCode = 1;
     return;
   }
 
-  const client: TtsClient = provider === "vivibe" ? new VivibeClient({ apiKey }) : new ElevenLabsClient({ apiKey });
-  const workDir = mkdtempSync(join(tmpdir(), "vivibe-calib-"));
+  const client: TtsClient = createTtsClient(provider, apiKey);
+  const workDir = mkdtempSync(join(tmpdir(), `${provider}-calib-`));
   const samples: CalibrationSample[] = [];
 
   console.log(`[calibrate] provider=${provider} voice=${voiceId} — synthesizing ${PASSAGES.length} passages…`);
   try {
     for (let i = 0; i < PASSAGES.length; i += 1) {
       const text = PASSAGES[i]!;
-      const outputPath = join(workDir, `passage-${i + 1}.mp3`);
+      const outputPath = join(workDir, `passage-${i + 1}`);
       try {
         const result = await client.synthesize({ text, voiceId, speed: 1.0, outputPath, ...(modelId ? { modelId, languageCode: "vi" } : {}) });
         const seconds = await measureAudioDuration(result.audioPath);
@@ -151,6 +156,7 @@ async function main(): Promise<void> {
       }
     }
   } finally {
+    await client.dispose?.().catch(() => undefined);
     try {
       rmSync(workDir, { recursive: true, force: true });
     } catch {
@@ -160,7 +166,7 @@ async function main(): Promise<void> {
 
   const wps = computeWordsPerSecond(samples);
   if (wps === undefined) {
-    console.error("[calibrate] No usable measurements — settings left unchanged. Check the Vivibe key/voice/network and retry.");
+    console.error("[calibrate] No usable measurements — settings left unchanged. Check the selected voice/runtime and retry.");
     process.exitCode = 1;
     return;
   }

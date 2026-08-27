@@ -45,7 +45,7 @@ Create (prompt / URLs / images)
 | **Node.js** `>= 24`, **npm** `>= 11` | See root `package.json` `engines` |
 | **9router** (desktop AI) | External binary on `PATH`. Not vendored in this repo. App expects OpenAI-compatible chat at `http://localhost:20128/v1`. Launcher tries `9router -n -t --skip-update` if nothing is already listening. |
 | **DeepSeek Harness** (Video Agent preview) | Development checkout built next to this repo at `../deepseek-harness`, or set `MOTIONREAL_DSH_CLI` to its built `apps/cli/lib/bin.js`. The app starts it with the Node executable supplied by the dev launcher; `MOTIONREAL_NODE_BIN` can override that executable. |
-| **TTS credentials** | Vivibe (Vietnamese) and/or ElevenLabs for real narration — see `docs/providers/`. Missing credentials **block** production render; never silent fall back to `mock` / `none`. |
+| **TTS** | VieNeu Local (Vietnamese developer preview), Vivibe (Vietnamese), or ElevenLabs — see `docs/providers/`. Missing local runtime/credentials **block** production render; never silently fall back to `mock` / `none`. |
 | **Chromium / Remotion browser** | Needed for real video stills/MP4 (`npm run smoke`, desktop/CLI render). **Not** required for `npm run typecheck`, `npm test`, or `npm run build` (webpack-only). |
 
 Windows-friendly commands below may use `npm.cmd` under PowerShell execution policy.
@@ -61,7 +61,7 @@ Fill `.env` (or configure later in the desktop **Settings** UI):
 
 | Area | Notes |
 | --- | --- |
-| **TTS** | Vivibe (Vietnamese) or ElevenLabs — see `docs/providers/`. |
+| **TTS** | VieNeu Local (Vietnamese developer preview), Vivibe, or ElevenLabs — see `docs/providers/`. |
 | **AI planner** | Desktop uses a **local 9router-compatible gateway** for model chat (not an in-repo binary). CLI / env-based OpenAI-compatible vars also appear in `.env.example` for non-desktop tooling. |
 | **Storage** | `VIDEO_TOOL_HOME` (default `.video-tool`) holds projects, cache, BGM library under `.video-tool/`. |
 
@@ -198,7 +198,7 @@ Do not commit generated project trees or secrets.
 | `docs/current/authoring-contract.md` | Rules for generated scene modules |
 | `docs/current/content-guide.md` | Story, evidence, language, motion guidance |
 | `docs/current/maintenance.md` | Refactor guardrails, residual risks, log reading |
-| `docs/providers/vivibe.md` / `elevenlabs.md` | TTS credentials and API notes |
+| `docs/providers/vieneu.md` / `vivibe.md` / `elevenlabs.md` | Local runtime or cloud TTS setup |
 | `docs/third-party.md` | Fonts, BGM, dependency attribution |
 
 Prefer `docs/current/` over ad-hoc notes. Do not leave long-lived plans under

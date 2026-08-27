@@ -1,7 +1,7 @@
 import { app, BrowserWindow, dialog, ipcMain, nativeImage, Notification, safeStorage, shell } from "electron";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { appendEvent, createLogger, createTools, loadManifest, writeJson, projectPaths, videoToolHome, stagingDir, ensureProject, importImageBytes, reconcileStaleStates, pruneRenderCache, pruneTtsCache, readBrief, listBgmTracks, addBgmTrack, removeBgmTrack, renderThumbnail, workspaceRoot, ELEVENLABS_DEFAULT_MODEL_ID, runDoctor, readProjectDiagnostics, readProjectEvidence, type VoiceProvider } from "@motionreal/pipeline";
+import { appendEvent, createLogger, createTools, loadManifest, writeJson, projectPaths, videoToolHome, stagingDir, ensureProject, importImageBytes, reconcileStaleStates, pruneRenderCache, pruneTtsCache, readBrief, listBgmTracks, addBgmTrack, removeBgmTrack, renderThumbnail, workspaceRoot, ELEVENLABS_DEFAULT_MODEL_ID, VIENEU_DEFAULT_WORDS_PER_SECOND, VieneuClient, runDoctor, readProjectDiagnostics, readProjectEvidence, type VoiceProvider } from "@motionreal/pipeline";
 import { QueueStore, queueStorePath } from "./queue/queue-store.js";
 import { QueueRunner } from "./queue/queue-runner.js";
 import { spillHomeCreateIfBusy, spillHomeSmokeIfBusy } from "./queue/home-spill.js";
@@ -145,19 +145,19 @@ const authoringBackend = new NineRouterAuthoringBackend({
   model: () => getSelectedModelId(),
   apiKey: () => undefined, // 9router /v1 is open on localhost
   // Per-voice CALIBRATED narration rate for the author word-budget;
-  // undefined when uncalibrated/stale ⇒ the prompt uses its baked default (~4.7).
+  // undefined when uncalibrated/stale ⇒ the prompt uses its provider fallback.
   wordsPerSecond: async (projectId) => {
     const brief = await readBrief(projectId);
     // Existing calibrations are measured with Vietnamese passages. English uses
     // the language-specific prompt default until calibration keys include language.
     if (brief.language === "en") return undefined;
-    if (brief.tts.provider !== "vivibe" && brief.tts.provider !== "elevenlabs") return undefined;
+    if (brief.tts.provider !== "vivibe" && brief.tts.provider !== "elevenlabs" && brief.tts.provider !== "vieneu") return undefined;
     return settingsStore.calibratedWordsPerSecond({
       provider: brief.tts.provider,
       voiceId: brief.tts.voiceId,
       modelId: brief.tts.modelId,
       speed: brief.tts.speed,
-    });
+    }) ?? (brief.tts.provider === "vieneu" ? VIENEU_DEFAULT_WORDS_PER_SECOND : undefined);
   },
   onRenderProgress: (ratio, projectId) => {
     // Drive the staged rendering bar from the renderer's REAL per-frame ratio.
@@ -355,20 +355,23 @@ const create = new CreateController({
   // settings store, not env, so a key configured in the Settings UI counts. We
   // do NOT gate on gateway/model here — that stays a "guide, don't gate" chip.
   preflight: (voiceProvider, videoLanguage) => {
-    if (voiceProvider === "vivibe" && videoLanguage === "en") {
-      return "Vivibe chỉ hỗ trợ tiếng Việt. Hãy chọn ElevenLabs để tạo video tiếng Anh.";
+    if ((voiceProvider === "vivibe" || voiceProvider === "vieneu") && videoLanguage === "en") {
+      return `${voiceProvider === "vieneu" ? "VieNeu Local" : "Vivibe"} chỉ hỗ trợ tiếng Việt. Hãy chọn ElevenLabs để tạo video tiếng Anh.`;
+    }
+    if (voiceProvider === "vieneu" && !new VieneuClient().isConfigured()) {
+      return "VieNeu Local chưa sẵn sàng. Hãy kiểm tra Python 3.11 và runtime VieNeu trong Cài đặt.";
     }
     const { apiKey, voiceId } = settingsStore.voiceConfig(voiceProvider);
     const missing: string[] = [];
-    if (!apiKey) missing.push("API key giọng đọc");
+    if (voiceProvider !== "vieneu" && !apiKey) missing.push("API key giọng đọc");
     if (!voiceId) missing.push("giọng đọc (voice id)");
     if (missing.length === 0) return undefined;
-    const label = voiceProvider === "vivibe" ? "Vivibe" : "ElevenLabs";
+    const label = voiceProvider === "vivibe" ? "Vivibe" : voiceProvider === "vieneu" ? "VieNeu Local" : "ElevenLabs";
     return {
       message: `Chưa cấu hình ${missing.join(" và ")} cho ${label}. Mở Cài đặt để thêm rồi thử lại.`,
       voiceFailure: {
         provider: voiceProvider,
-        code: !apiKey ? "not_configured" : "voice_not_found",
+        code: voiceProvider !== "vieneu" && !apiKey ? "not_configured" : "voice_not_found",
         retryable: false,
       },
     };
@@ -421,6 +424,7 @@ const harness = new HarnessManager({
     join(dirname(REPO_ROOT), "deepseek-harness", "apps", "cli", "lib", "bin.js"),
   nodeExecutable: process.env.MOTIONREAL_NODE_BIN ?? process.env.npm_node_execpath ?? "node",
   mediaUrl,
+  defaultVoiceProvider: () => settingsStore.current().voiceProvider,
 });
 
 async function activateHarnessDraft(draftId: string) {
@@ -572,9 +576,11 @@ const settingsHandlers = createSettingsHandlers({
     const current = settingsStore.current();
     const voiceCfg = settingsStore.voiceConfig();
     const voice = {
-      hasApiKey: Boolean(voiceCfg.apiKey?.trim()),
+      hasApiKey: voiceCfg.provider === "vieneu" || Boolean(voiceCfg.apiKey?.trim()),
       hasVoiceId: Boolean(voiceCfg.voiceId?.trim()),
-      providerLabel: voiceCfg.provider === "elevenlabs" ? "ElevenLabs" : "Vivibe",
+      providerLabel: voiceCfg.provider === "elevenlabs" ? "ElevenLabs" : voiceCfg.provider === "vieneu" ? "VieNeu Local" : "Vivibe",
+      requiresApiKey: voiceCfg.provider !== "vieneu",
+      runtimeAvailable: voiceCfg.provider !== "vieneu" || new VieneuClient().isConfigured(),
     };
     const doctor = await runDoctor({
       checkEnv: () => desktopVoiceDoctorCheck(voice),
@@ -796,7 +802,7 @@ const handlers: InvokeHandlers = {
     const raw = typeof body.raw === "string" ? body.raw : "";
     const durationTier = body.durationTier === 2 || body.durationTier === 3 || body.durationTier === 4 ? body.durationTier : 1;
     const videoLanguage = body.videoLanguage === "en" ? "en" : "vi";
-    const voiceProvider = body.voiceProvider === "elevenlabs" ? "elevenlabs" : "vivibe";
+    const voiceProvider = body.voiceProvider === "elevenlabs" || body.voiceProvider === "vieneu" ? body.voiceProvider : "vivibe";
     const bgm = typeof body.bgm === "string" ? body.bgm : null;
     const smoke = body.smoke === true;
     const images = normalizeStagedImages(body.images);
@@ -820,7 +826,7 @@ const handlers: InvokeHandlers = {
         ? { durationTier: body.durationTier }
         : {}),
       ...(body.videoLanguage === "en" || body.videoLanguage === "vi" ? { videoLanguage: body.videoLanguage } : {}),
-      ...(body.voiceProvider === "vivibe" || body.voiceProvider === "elevenlabs"
+      ...(body.voiceProvider === "vivibe" || body.voiceProvider === "elevenlabs" || body.voiceProvider === "vieneu"
         ? { voiceProvider: body.voiceProvider }
         : {}),
       ...(body.bgm !== undefined ? { bgm: typeof body.bgm === "string" ? body.bgm : null } : {}),

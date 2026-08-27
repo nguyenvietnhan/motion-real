@@ -15,6 +15,7 @@ import { activeAccount } from "../../shared/active-account.js";
 import { Icon } from "../icons.js";
 import { ChoiceGroup, ExpandableToggle, Field, InfoHint, InfoRow, NumberRow, PageHeader, SettingsCard, StableButtonLabel, Toggle } from "../primitives.js";
 import { compactNotificationMessage, errorDetails, useNotifications } from "../notifications.js";
+import { VIENEU_VOICES } from "@motionreal/tts/vieneu-presets";
 
 export type SettingsTab = "ai" | "voice" | "build" | "about";
 
@@ -104,8 +105,10 @@ export const SettingsView: React.FC<{
   // (Same signal `aiStatus` uses for the sidebar, so the two never disagree.)
   const accountLive = gateway.kind === "ready" && connected.length > 0;
   const voiceProvider = settings.voiceProvider;
-  const voiceId = voiceProvider === "vivibe" ? settings.vivibeVoiceId ?? "" : settings.elevenLabsVoiceId ?? "";
-  const credentialState = settings.voiceCredentials[voiceProvider];
+  const voiceId = voiceProvider === "vivibe"
+    ? settings.vivibeVoiceId ?? ""
+    : voiceProvider === "vieneu" ? settings.vieneuVoiceId ?? "Trúc Ly" : settings.elevenLabsVoiceId ?? "";
+  const credentialState = voiceProvider === "vieneu" ? "not-required" : settings.voiceCredentials[voiceProvider];
 
   useEffect(() => {
     setVoiceSample(null);
@@ -350,12 +353,13 @@ export const SettingsView: React.FC<{
                   onChange={(val) => update({ voiceProvider: val as VoiceProviderChoice })}
                   options={[
                     { value: "vivibe", label: "Vivibe" },
-                    { value: "elevenlabs", label: "ElevenLabs" }
+                    { value: "elevenlabs", label: "ElevenLabs" },
+                    { value: "vieneu", label: "VieNeu Local" },
                   ]}
-                  style={{ width: "100%", maxWidth: 148 }}
+                  style={{ width: "100%", maxWidth: 180 }}
                 />
               </Field>
-              <Field htmlFor="voice-api-key" label={`API key ${voiceProvider === "vivibe" ? "Vivibe" : "ElevenLabs"}`} hint={`Trạng thái: ${credentialState === "saved" ? "đã lưu an toàn" : credentialState === "environment" ? "đang dùng từ .env" : "chưa cấu hình"}.`}>
+              {voiceProvider !== "vieneu" && <Field htmlFor="voice-api-key" label={`API key ${voiceProvider === "vivibe" ? "Vivibe" : "ElevenLabs"}`} hint={`Trạng thái: ${credentialState === "saved" ? "đã lưu an toàn" : credentialState === "environment" ? "đang dùng từ .env" : "chưa cấu hình"}.`}>
                 <div className="ns-secret-field">
                   <input id="voice-api-key" className="ns-input" type={showVoiceKey ? "text" : "password"} placeholder={credentialState === "missing" ? "dán API key…" : "nhập key mới để thay thế…"} value={voiceKeyInput}
                     onChange={(e) => setVoiceKeyInput(e.target.value)} />
@@ -367,16 +371,24 @@ export const SettingsView: React.FC<{
                   <button className="ns-btn" disabled={!voiceKeyInput.trim()} onClick={saveVoiceKey}>Lưu API key</button>
                   {credentialState === "saved" && <button className="ns-btn" onClick={clearVoiceKey}>Xóa key đã lưu</button>}
                 </div>
-              </Field>
+              </Field>}
               <Field
                 htmlFor="voice-id"
-                label="Voice ID"
-                hint={voiceProvider === "vivibe"
+                label={voiceProvider === "vieneu" ? "Giọng VieNeu" : "Voice ID"}
+                hint={voiceProvider === "vieneu"
+                  ? "Chạy local bằng VieNeu 3.3.0 ONNX; lần đầu có thể mất thời gian chuẩn bị model."
+                  : voiceProvider === "vivibe"
                   ? "Nghe thử và lấy Voice ID trên trang Vivibe, sau đó dán vào đây."
                   : "Nghe thử và lấy Voice ID trên trang ElevenLabs. Một số library voice yêu cầu gói trả phí để dùng qua API."}
               >
-                <input id="voice-id" className="ns-input" placeholder="voice id…" value={voiceId}
-                  onChange={(e) => update(voiceProvider === "vivibe" ? { vivibeVoiceId: e.target.value } : { elevenLabsVoiceId: e.target.value })} style={{ width: "100%", maxWidth: 480 }} />
+                {voiceProvider === "vieneu" ? (
+                  <CustomSelect id="voice-id" value={voiceId} onChange={(value) => update({ vieneuVoiceId: value })}
+                    options={VIENEU_VOICES.map(([value, description]) => ({ value, label: `${value} — ${description}` }))}
+                    style={{ width: "100%", maxWidth: 480 }} />
+                ) : (
+                  <input id="voice-id" className="ns-input" placeholder="voice id…" value={voiceId}
+                    onChange={(e) => update(voiceProvider === "vivibe" ? { vivibeVoiceId: e.target.value } : { elevenLabsVoiceId: e.target.value })} style={{ width: "100%", maxWidth: 480 }} />
+                )}
               </Field>
               {voiceProvider === "elevenlabs" && <Field htmlFor="elevenlabs-model" label="Model ElevenLabs" hint="Model mặc định của phiên bản này."><input id="elevenlabs-model" className="ns-input" value={settings.elevenLabsModelId} disabled style={{ width: "100%", maxWidth: 480, opacity: 0.7 }} /></Field>}
               <div style={{ display: "grid", gap: 8, justifyItems: "start" }}>
@@ -391,7 +403,9 @@ export const SettingsView: React.FC<{
                   </StableButtonLabel>
                 </button>
                 <span style={{ fontSize: 12, color: "var(--muted-foreground)" }}>
-                  Tạo một câu rất ngắn để kiểm tra key, Voice ID, credit và âm thanh; có thể tốn một lượng credit nhỏ.
+                  {voiceProvider === "vieneu"
+                    ? "Tạo một câu ngắn trên máy để kiểm tra runtime, preset và âm thanh; không tốn API credit."
+                    : "Tạo một câu rất ngắn để kiểm tra key, Voice ID, credit và âm thanh; có thể tốn một lượng credit nhỏ."}
                 </span>
                 {voiceSample ? (
                   <audio

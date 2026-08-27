@@ -65,6 +65,7 @@ export type HarnessManagerDeps = {
   now?: () => Date;
   nodeExecutable?: string;
   mediaUrl?: (path: string) => string | null;
+  defaultVoiceProvider?: () => VoiceProviderChoice;
 };
 
 /**
@@ -314,7 +315,7 @@ export class HarnessManager {
     if (!assets) throw new Error("Agent chưa gửi manifest asset hợp lệ.");
     const selectedAssetIds = validateSelectedIds(selectedIds, assets);
     if (sameIds(selectedAssetIds, current.selectedAssetIds ?? []) && current.briefRequestRevision) {
-      const previousBrief = await this.readBrief(current).catch(() => undefined);
+      const previousBrief = await this.readBrief(current).catch((_error) => undefined);
       if (previousBrief) {
         const next = {
           ...current,
@@ -624,6 +625,7 @@ export class HarnessManager {
   }
 
   private async writeBriefRequest(record: DraftRecord): Promise<void> {
+    const voiceProvider = this.deps.defaultVoiceProvider?.() ?? "vivibe";
     await mkdir(join(this.rootOf(record.id), "handoff"), { recursive: true });
     await writeJson(join(this.rootOf(record.id), BRIEF_REQUEST_FILE), {
       version: 1,
@@ -642,7 +644,7 @@ export class HarnessManager {
         format: "tiktok",
         duration_tier: 1,
         video_language: "vi",
-        voice_provider: "vivibe",
+        voice_provider: voiceProvider,
         selected_asset_ids: record.selectedAssetIds ?? [],
       },
       instructions: [
@@ -881,8 +883,8 @@ function validateBriefFields(value: Record<string, unknown>): Pick<AgentBriefVM,
     throw new Error("Brief có thời lượng không được hỗ trợ.");
   }
   if (videoLanguage !== "vi" && videoLanguage !== "en") throw new Error("Brief có ngôn ngữ không hợp lệ.");
-  if (voiceProvider !== "vivibe" && voiceProvider !== "elevenlabs") throw new Error("Brief có giọng đọc không hợp lệ.");
-  if (videoLanguage === "en" && voiceProvider === "vivibe") throw new Error("Brief tiếng Anh phải dùng ElevenLabs.");
+  if (voiceProvider !== "vivibe" && voiceProvider !== "elevenlabs" && voiceProvider !== "vieneu") throw new Error("Brief có giọng đọc không hợp lệ.");
+  if (videoLanguage === "en" && voiceProvider !== "elevenlabs") throw new Error("Brief tiếng Anh phải dùng ElevenLabs.");
   return { durationTier, videoLanguage, voiceProvider };
 }
 

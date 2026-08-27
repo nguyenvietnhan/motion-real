@@ -90,7 +90,9 @@ export function toFriendlyError(
   opts: FriendlyErrorOptions = {},
 ): FriendlyError {
   const base = error.voiceFailure
-    ? VOICE_FAILURE_MESSAGE[error.voiceFailure.code]
+    ? error.voiceFailure.provider === "vieneu" && error.voiceFailure.code === "provider_unavailable"
+      ? "VieNeu Local chưa khởi động được. Hãy kiểm tra Python 3.11 và runtime VieNeu rồi thử lại."
+      : VOICE_FAILURE_MESSAGE[error.voiceFailure.code]
     : STAGE_MESSAGE[error.stage] ?? GENERIC;
   const message = stripL0Tokens(base) || GENERIC;
   const retry =

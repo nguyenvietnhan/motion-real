@@ -214,7 +214,7 @@ export class QueueStore {
       if (patch.bgm !== undefined) job.bgm = typeof patch.bgm === "string" ? patch.bgm : null;
     }
     if (patch.videoLanguage === "en" || patch.videoLanguage === "vi") job.videoLanguage = patch.videoLanguage;
-    if (patch.voiceProvider === "vivibe" || patch.voiceProvider === "elevenlabs") {
+    if (patch.voiceProvider === "vivibe" || patch.voiceProvider === "elevenlabs" || patch.voiceProvider === "vieneu") {
       job.voiceProvider = patch.voiceProvider;
     }
     if (patch.images !== undefined) {
@@ -437,7 +437,7 @@ function normalizeJob(raw: QueueJobVM): QueueJobVM {
     raw: String(raw.raw ?? ""),
     durationTier: ([1, 2, 3, 4] as const).includes(raw.durationTier as 1) ? (raw.durationTier as 1 | 2 | 3 | 4) : 1,
     videoLanguage: raw.videoLanguage === "en" ? "en" : "vi",
-    voiceProvider: raw.voiceProvider === "elevenlabs" ? "elevenlabs" : "vivibe",
+    voiceProvider: raw.voiceProvider === "elevenlabs" || raw.voiceProvider === "vieneu" ? raw.voiceProvider : "vivibe",
     bgm: typeof raw.bgm === "string" ? raw.bgm : null,
     status:
       status === "running" || status === "done" || status === "failed" || status === "cancelled"
@@ -478,7 +478,7 @@ const VOICE_FAILURE_CODES = new Set([
 ]);
 
 function normalizeVoiceFailure(raw: QueuePauseState["voiceFailure"]): QueuePauseState["voiceFailure"] {
-  if (!raw || (raw.provider !== "vivibe" && raw.provider !== "elevenlabs") || !VOICE_FAILURE_CODES.has(raw.code)) {
+  if (!raw || (raw.provider !== "vivibe" && raw.provider !== "elevenlabs" && raw.provider !== "vieneu") || !VOICE_FAILURE_CODES.has(raw.code)) {
     return undefined;
   }
   return {

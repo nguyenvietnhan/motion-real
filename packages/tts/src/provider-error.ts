@@ -1,4 +1,4 @@
-import type { CloudTtsProvider } from "./types.js";
+import type { VoiceProvider } from "./types.js";
 
 export type VoiceProviderFailureCode =
   | "not_configured"
@@ -12,7 +12,7 @@ export type VoiceProviderFailureCode =
   | "unknown";
 
 export type VoiceProviderFailure = {
-  provider: CloudTtsProvider;
+  provider: VoiceProvider;
   code: VoiceProviderFailureCode;
   retryable: boolean;
   retryAfterMs?: number;
@@ -33,7 +33,7 @@ export function isVoiceProviderError(value: unknown): value is VoiceProviderErro
 }
 
 export function asVoiceProviderError(
-  provider: CloudTtsProvider,
+  provider: VoiceProvider,
   value: unknown,
 ): VoiceProviderError {
   if (isVoiceProviderError(value)) return value;
@@ -42,7 +42,7 @@ export function asVoiceProviderError(
 
 /** Provider adapters pass only parsed error fields here; raw responses stay local. */
 export function voiceProviderErrorFrom(
-  provider: CloudTtsProvider,
+  provider: VoiceProvider,
   input: { status?: number; details?: unknown; retryAfterMs?: number },
 ): VoiceProviderError {
   const haystack = collectStrings(input.details).join(" ").toLowerCase();

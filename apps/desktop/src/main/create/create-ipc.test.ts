@@ -5,6 +5,7 @@ describe("parseVoiceProvider", () => {
   it("passes through supported voice providers", () => {
     expect(parseVoiceProvider("vivibe")).toBe("vivibe");
     expect(parseVoiceProvider("elevenlabs")).toBe("elevenlabs");
+    expect(parseVoiceProvider("vieneu")).toBe("vieneu");
   });
 
   it("throws a Vietnamese message for unsupported providers", () => {

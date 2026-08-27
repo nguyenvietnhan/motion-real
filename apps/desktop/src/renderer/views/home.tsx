@@ -164,7 +164,7 @@ export function KnobButton<T extends string | number>(props: {
 export function languageOptionsForProvider(
   provider: VoiceProviderChoice,
 ): readonly { value: VideoLanguageChoice; label: string }[] {
-  return provider === "vivibe"
+  return provider === "vivibe" || provider === "vieneu"
     ? [{ value: "vi", label: "Việt" }]
     : [
         { value: "vi", label: "Việt" },
@@ -177,8 +177,8 @@ export function applyVideoLanguageSelection(
   next: VideoLanguageChoice,
   currentProvider: VoiceProviderChoice,
 ): { videoLanguage: VideoLanguageChoice; voiceProvider: VoiceProviderChoice } {
-  if (currentProvider === "vivibe") {
-    return { videoLanguage: "vi", voiceProvider: "vivibe" };
+  if (currentProvider === "vivibe" || currentProvider === "vieneu") {
+    return { videoLanguage: "vi", voiceProvider: currentProvider };
   }
   return { videoLanguage: next, voiceProvider: currentProvider };
 }
@@ -188,8 +188,8 @@ export function applyVoiceProviderSelection(
   next: VoiceProviderChoice,
   currentLanguage: VideoLanguageChoice,
 ): { videoLanguage: VideoLanguageChoice; voiceProvider: VoiceProviderChoice } {
-  return next === "vivibe"
-    ? { videoLanguage: "vi", voiceProvider: "vivibe" }
+  return next === "vivibe" || next === "vieneu"
+    ? { videoLanguage: "vi", voiceProvider: next }
     : { videoLanguage: currentLanguage, voiceProvider: "elevenlabs" };
 }
 
@@ -201,6 +201,7 @@ export const HomeView: React.FC<{
   voiceCredentials: SettingsModel["voiceCredentials"];
   vivibeVoiceId?: string;
   elevenLabsVoiceId?: string;
+  vieneuVoiceId?: string;
   load: GalleryLoad;
   cards: ProjectCardVM[];
   onCreate: (
@@ -252,6 +253,7 @@ export const HomeView: React.FC<{
   voiceCredentials,
   vivibeVoiceId,
   elevenLabsVoiceId,
+  vieneuVoiceId,
   load,
   cards,
   onCreate,
@@ -301,6 +303,7 @@ export const HomeView: React.FC<{
       voiceCredentials,
       vivibeVoiceId,
       elevenLabsVoiceId,
+      vieneuVoiceId,
     }),
   });
   const createPathOk = createPath.ok;
@@ -613,6 +616,7 @@ export const HomeView: React.FC<{
               options={[
                 { value: "vivibe", label: "Vivibe" },
                 { value: "elevenlabs", label: "ElevenLabs" },
+                { value: "vieneu", label: "VieNeu Local" },
               ]}
             />
             {onBgmSelect && onBgmAdd && onBgmRemove ? (

@@ -187,7 +187,7 @@ export type ProjectCardVM = {
   createdAtLabel: string;
 };
 
-export type VoiceProviderChoice = "vivibe" | "elevenlabs";
+export type VoiceProviderChoice = "vivibe" | "elevenlabs" | "vieneu";
 export type CredentialState = "saved" | "environment" | "missing";
 // --- background music library --------------------------------
 
@@ -340,8 +340,9 @@ export type SettingsModel = {
   voiceProvider: VoiceProviderChoice;
   vivibeVoiceId?: string;
   elevenLabsVoiceId?: string;
+  vieneuVoiceId?: string;
   elevenLabsModelId: string;
-  voiceCredentials: Record<VoiceProviderChoice, CredentialState>;
+  voiceCredentials: Record<"vivibe" | "elevenlabs", CredentialState>;
   /** Measured WPS keyed by provider/model/voice/speed identity. */
   voiceCalibrations: Record<string, number>;
   outputDir: string;
@@ -387,6 +388,7 @@ export type SettingsUpdateInput = Partial<Pick<SettingsModel,
   | "voiceProvider"
   | "vivibeVoiceId"
   | "elevenLabsVoiceId"
+  | "vieneuVoiceId"
   | "maxRepairAttempts"
   | "scriptGateEnabled"
   | "reviewMode"

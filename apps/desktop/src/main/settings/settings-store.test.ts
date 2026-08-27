@@ -207,6 +207,19 @@ describe("Property 4: Persistence excludes aiAccount", () => {
 
 // Property 5: Voice config resolution
 describe("Property 5: Voice config resolution", () => {
+  it("resolves VieNeu locally without a credential and persists its preset", () => {
+    const { store, readFile } = memStore(JSON.stringify({ voiceProvider: "vieneu", vieneuVoiceId: "Mai Anh" }));
+    expect(store.current().voiceProvider).toBe("vieneu");
+    expect(store.voiceConfig()).toMatchObject({
+      provider: "vieneu",
+      apiKey: "",
+      voiceId: "Mai Anh",
+    });
+    expect(() => store.setApiKey("vieneu", "unused")).toThrow(/không dùng API key/i);
+    store.update({ vieneuVoiceId: "Trúc Ly" });
+    expect(JSON.parse(readFile()!).vieneuVoiceId).toBe("Trúc Ly");
+  });
+
   it("encrypted setting wins over env and never appears in the renderer model", () => {
     const { store, readFile } = memStore(undefined, { apiKey: "env-key", voiceId: "env-voice" });
     store.update({ vivibeVoiceId: "saved-voice" });

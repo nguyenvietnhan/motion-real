@@ -315,7 +315,7 @@ export const AgentView: React.FC = () => {
             <label>Ngôn ngữ
               <select className="ns-input" value={briefInput.videoLanguage} onChange={(event) => {
                 const videoLanguage = event.target.value as VideoLanguageChoice;
-                setBriefInput({ ...briefInput, videoLanguage, ...(videoLanguage === "en" && briefInput.voiceProvider === "vivibe" ? { voiceProvider: "elevenlabs" } : {}) });
+                setBriefInput({ ...briefInput, videoLanguage, ...(videoLanguage === "en" && briefInput.voiceProvider !== "elevenlabs" ? { voiceProvider: "elevenlabs" } : {}) });
               }}>
                 <option value="vi">Tiếng Việt</option><option value="en">English</option>
               </select>
@@ -323,6 +323,7 @@ export const AgentView: React.FC = () => {
             <label>Giọng đọc
               <select className="ns-input" value={briefInput.voiceProvider} onChange={(event) => setBriefInput({ ...briefInput, voiceProvider: event.target.value as VoiceProviderChoice })}>
                 {briefInput.videoLanguage === "vi" && <option value="vivibe">Vivibe</option>}
+                {briefInput.videoLanguage === "vi" && <option value="vieneu">VieNeu Local</option>}
                 <option value="elevenlabs">ElevenLabs</option>
               </select>
             </label>

@@ -81,7 +81,9 @@ export function spillHomeCreateIfBusy(input: {
           ? input.choices.durationTier
           : 1,
       videoLanguage: input.choices.videoLanguage === "en" ? "en" : "vi",
-      voiceProvider: input.choices.voiceProvider === "elevenlabs" ? "elevenlabs" : "vivibe",
+      voiceProvider: input.choices.voiceProvider === "elevenlabs" || input.choices.voiceProvider === "vieneu"
+        ? input.choices.voiceProvider
+        : "vivibe",
       bgm: typeof input.choices.bgm === "string" ? input.choices.bgm : null,
       ...(input.images.length > 0 ? { images: input.images } : {}),
     },

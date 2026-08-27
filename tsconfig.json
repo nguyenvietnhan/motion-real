@@ -18,6 +18,7 @@
       "@motionreal/theme": ["./packages/theme/src/index.ts"],
       "@motionreal/blocks": ["./packages/blocks/src/index.ts"],
       "@motionreal/tts": ["./packages/tts/src/index.ts"],
+      "@motionreal/tts/vieneu-presets": ["./packages/tts/src/vieneu-presets.ts"],
       "@motionreal/compositions": ["./packages/compositions/src/index.ts"],
       "@motionreal/compositions/*": ["./packages/compositions/src/*"],
       "@motionreal/pipeline": ["./packages/pipeline/src/index.ts"],

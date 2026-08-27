@@ -1,4 +1,4 @@
-import type { SettingsModel, SettingsUpdateInput, VoiceProviderChoice } from "../../shared/types.js";
+import type { CredentialState, SettingsModel, SettingsUpdateInput, VoiceProviderChoice } from "../../shared/types.js";
 import {
   DEFAULT_REFINE_PASSES,
   ELEVENLABS_DEFAULT_MODEL_ID,
@@ -11,6 +11,7 @@ import {
 import { normalizePreferredAiModelId } from "../../shared/model-selection.js";
 import { existsSync, readFileSync, writeFileSync, renameSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
+import { VIENEU_DEFAULT_VOICE_ID, VIENEU_RUNTIME_ID } from "@motionreal/pipeline";
 
 export type SecretCipher = {
   isEncryptionAvailable(): boolean;
@@ -83,13 +84,14 @@ export class SettingsStore {
   private mergeSavedSettings(base: SettingsModel, saved: PersistedSettings): SettingsModel {
     this.encryptedKeys = { ...(saved.encryptedVoiceApiKeys ?? {}) };
     this.legacyVivibeApiKey = saved.voiceApiKey?.trim() || undefined;
-    const provider: VoiceProviderChoice = saved.voiceProvider === "elevenlabs" ? "elevenlabs" : "vivibe";
+    const provider: VoiceProviderChoice = saved.voiceProvider === "elevenlabs" || saved.voiceProvider === "vieneu" ? saved.voiceProvider : "vivibe";
     const merged: SettingsModel = {
       ...base,
       ...saved,
       voiceProvider: provider,
       vivibeVoiceId: saved.vivibeVoiceId ?? saved.voiceId ?? base.vivibeVoiceId,
       elevenLabsVoiceId: saved.elevenLabsVoiceId ?? base.elevenLabsVoiceId,
+      vieneuVoiceId: saved.vieneuVoiceId ?? base.vieneuVoiceId ?? VIENEU_DEFAULT_VOICE_ID,
       elevenLabsModelId: saved.elevenLabsModelId || ELEVENLABS_DEFAULT_MODEL_ID,
       voiceCalibrations: { ...(saved.voiceCalibrations ?? {}) },
       voiceCredentials: base.voiceCredentials,
@@ -164,12 +166,12 @@ export class SettingsStore {
   }
 
   private envKey(provider: VoiceProviderChoice): string {
-    return provider === "vivibe"
+    return provider === "vieneu" ? "" : provider === "vivibe"
       ? this.deps.envApiKey()?.trim() ?? ""
       : this.deps.envElevenLabsApiKey?.()?.trim() ?? "";
   }
 
-  private credentialState(provider: VoiceProviderChoice): SettingsModel["voiceCredentials"][VoiceProviderChoice] {
+  private credentialState(provider: "vivibe" | "elevenlabs"): CredentialState {
     if (this.encryptedKeys[provider]) return "saved";
     if (this.envKey(provider)) return "environment";
     return "missing";
@@ -201,6 +203,7 @@ export class SettingsStore {
   update(patch: SettingsUpdateInput): SettingsModel {
     const previous = this.settings;
     const provider = patch.voiceProvider === "elevenlabs" ? "elevenlabs"
+      : patch.voiceProvider === "vieneu" ? "vieneu"
       : patch.voiceProvider === "vivibe" ? "vivibe"
         : this.settings.voiceProvider;
     const preferredAiModelId =
@@ -237,6 +240,7 @@ export class SettingsStore {
   }
 
   setApiKey(provider: VoiceProviderChoice, apiKey: string): SettingsModel {
+    if (provider === "vieneu") throw new Error("VieNeu Local không dùng API key.");
     const trimmed = apiKey.trim();
     if (!trimmed) return this.clearApiKey(provider);
     if (!this.deps.cipher?.isEncryptionAvailable()) {
@@ -256,6 +260,7 @@ export class SettingsStore {
   }
 
   clearApiKey(provider: VoiceProviderChoice): SettingsModel {
+    if (provider === "vieneu") throw new Error("VieNeu Local không dùng API key.");
     const previous = this.encryptedKeys[provider];
     delete this.encryptedKeys[provider];
     this.settings = this.withCredentialStates(this.settings);
@@ -283,6 +288,15 @@ export class SettingsStore {
   }
 
   voiceConfig(provider: VoiceProviderChoice = this.settings.voiceProvider, selection: { voiceId?: string; modelId?: string } = {}): ResolvedVoiceConfig {
+    if (provider === "vieneu") {
+      return {
+        provider,
+        apiKey: "",
+        voiceId: selection.voiceId?.trim() || this.settings.vieneuVoiceId?.trim() || VIENEU_DEFAULT_VOICE_ID,
+        modelId: VIENEU_RUNTIME_ID,
+        speed: 1,
+      };
+    }
     const savedKey = this.savedApiKey(provider);
     const apiKey = savedKey || this.envKey(provider);
     if (provider === "elevenlabs") {

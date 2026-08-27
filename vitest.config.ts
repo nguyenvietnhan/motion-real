@@ -24,14 +24,20 @@ const testWorkers = Math.max(1, Math.min(4, availableParallelism() - 1));
 
 export default defineConfig({
   resolve: {
-    alias: {
-      "@motionreal/schema": pkg("schema"),
-      "@motionreal/theme": pkg("theme"),
-      "@motionreal/blocks": pkg("blocks"),
-      "@motionreal/tts": pkg("tts"),
-      "@motionreal/compositions": pkg("compositions"),
-      "@motionreal/pipeline": pkg("pipeline"),
-    },
+    alias: [
+      // Keep package subpaths ahead of their package-root alias. An object
+      // alias rewrites this import as `src/index.ts/vieneu-presets` in Vitest.
+      {
+        find: "@motionreal/tts/vieneu-presets",
+        replacement: resolve(rootDir, "packages", "tts", "src", "vieneu-presets.ts"),
+      },
+      { find: "@motionreal/schema", replacement: pkg("schema") },
+      { find: "@motionreal/theme", replacement: pkg("theme") },
+      { find: "@motionreal/blocks", replacement: pkg("blocks") },
+      { find: "@motionreal/tts", replacement: pkg("tts") },
+      { find: "@motionreal/compositions", replacement: pkg("compositions") },
+      { find: "@motionreal/pipeline", replacement: pkg("pipeline") },
+    ],
   },
   test: {
     globals: true,

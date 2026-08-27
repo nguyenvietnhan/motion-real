@@ -10,8 +10,9 @@ import {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("create-screen language/provider coupling", () => {
-  it("Vivibe only offers Vietnamese; ElevenLabs offers both", () => {
+  it("Vivibe and VieNeu only offer Vietnamese; ElevenLabs offers both", () => {
     expect(languageOptionsForProvider("vivibe").map((o) => o.value)).toEqual(["vi"]);
+    expect(languageOptionsForProvider("vieneu").map((o) => o.value)).toEqual(["vi"]);
     expect(languageOptionsForProvider("elevenlabs").map((o) => o.value)).toEqual(["vi", "en"]);
   });
 
@@ -33,6 +34,13 @@ describe("create-screen language/provider coupling", () => {
     expect(applyVoiceProviderSelection("vivibe", "en")).toEqual({
       videoLanguage: "vi",
       voiceProvider: "vivibe",
+    });
+  });
+
+  it("selecting VieNeu switches an English video back to Vietnamese", () => {
+    expect(applyVoiceProviderSelection("vieneu", "en")).toEqual({
+      videoLanguage: "vi",
+      voiceProvider: "vieneu",
     });
   });
 

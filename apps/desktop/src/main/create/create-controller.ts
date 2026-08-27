@@ -120,8 +120,8 @@ export class CreateController {
     // TTS. A clean (no-message) preflight — or no preflight dep — proceeds.
     const voiceProvider = choices.voiceProvider ?? "vivibe";
     const videoLanguage = choices.videoLanguage ?? "vi";
-    if (voiceProvider === "vivibe" && videoLanguage === "en") {
-      throw new Error("Vivibe chỉ hỗ trợ tiếng Việt. Hãy chọn ElevenLabs để tạo video tiếng Anh.");
+    if ((voiceProvider === "vivibe" || voiceProvider === "vieneu") && videoLanguage === "en") {
+      throw new Error(`${voiceProvider === "vieneu" ? "VieNeu Local" : "Vivibe"} chỉ hỗ trợ tiếng Việt. Hãy chọn ElevenLabs để tạo video tiếng Anh.`);
     }
     const block = this.deps.preflight?.(voiceProvider, videoLanguage);
     if (typeof block === "string") throw new Error(block);

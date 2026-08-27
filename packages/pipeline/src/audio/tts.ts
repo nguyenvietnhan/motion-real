@@ -5,6 +5,8 @@ import {
   ELEVENLABS_DEFAULT_MODEL_ID,
   ELEVENLABS_OUTPUT_FORMAT,
   TTS_NORMALIZER_VERSION,
+  VIENEU_DEFAULT_VOICE_ID,
+  VIENEU_RUNTIME_ID,
   VoiceProviderError,
   asVoiceProviderError,
   concatAudioWithGaps,
@@ -142,6 +144,9 @@ export async function synthesizeNarration(
   if (opts.provider === "vivibe" && spec.language === "en") {
     throw new Error("Vivibe only supports Vietnamese. Select ElevenLabs for English video narration.");
   }
+  if (opts.provider === "vieneu" && spec.language === "en") {
+    throw new Error("VieNeu Local currently supports Vietnamese only. Select ElevenLabs for English video narration.");
+  }
 
   const speed = opts.speed ?? DEFAULT_TTS_SPEED;
   const p = projectPaths(opts.projectId);
@@ -152,7 +157,9 @@ export async function synthesizeNarration(
   // Resolve voice + validate config up front (stop-and-report).
   const credentials = opts.provider === "elevenlabs"
     ? resolveElevenLabsCredentials(opts)
-    : resolveVivibeCredentials(opts);
+    : opts.provider === "vieneu"
+      ? { apiKey: "", voiceId: opts.voiceId?.trim() || VIENEU_DEFAULT_VOICE_ID }
+      : resolveVivibeCredentials(opts);
   const voiceId = credentials.voiceId;
   if (opts.provider === "vivibe") {
     if (!credentials.apiKey) {
@@ -170,10 +177,13 @@ export async function synthesizeNarration(
       throw voicePipelineError(new VoiceProviderError({ provider: "elevenlabs", code: "voice_not_found", retryable: false }));
     }
   }
+  if (opts.provider === "vieneu" && !voiceId) {
+    throw voicePipelineError(new VoiceProviderError({ provider: "vieneu", code: "voice_not_found", retryable: false }));
+  }
   const effectiveVoiceId = voiceId ?? "mock";
   const modelId = opts.provider === "elevenlabs"
     ? (credentials as ElevenLabsCredentials).modelId
-    : undefined;
+    : opts.provider === "vieneu" ? VIENEU_RUNTIME_ID : undefined;
 
   const client: TtsClient | null = opts.provider === "mock"
     ? null
@@ -181,60 +191,64 @@ export async function synthesizeNarration(
   const byScene: Record<string, TtsManifestScene> = {};
   const orderedClips: string[] = [];
 
-  for (let i = 0; i < spec.scenes.length; i += 1) {
-    const scene = spec.scenes[i]!;
-    const text = prepareTtsText(scene.narration, opts.provider, spec.language);
-    const key = ttsCacheKey({
-      provider: opts.provider === "mock" ? "mock" : opts.provider,
-      text,
-      voiceId: effectiveVoiceId,
-      speed,
-      ...(modelId ? { modelId } : {}),
-      languageCode: spec.language,
-      outputFormat: opts.provider === "elevenlabs" ? ELEVENLABS_OUTPUT_FORMAT : "provider-default",
-      normalizerVersion: spec.language === "vi" ? TTS_NORMALIZER_VERSION : "none-v1",
-    });
-    const cacheBase = join(cacheRoot, key);
+  try {
+    for (let i = 0; i < spec.scenes.length; i += 1) {
+      const scene = spec.scenes[i]!;
+      const text = prepareTtsText(scene.narration, opts.provider, spec.language);
+      const key = ttsCacheKey({
+        provider: opts.provider === "mock" ? "mock" : opts.provider,
+        text,
+        voiceId: effectiveVoiceId,
+        speed,
+        ...(modelId ? { modelId } : {}),
+        languageCode: spec.language,
+        outputFormat: opts.provider === "elevenlabs" ? ELEVENLABS_OUTPUT_FORMAT : opts.provider === "vieneu" ? "wav-48k-mono-pcm16" : "provider-default",
+        normalizerVersion: spec.language === "vi" ? TTS_NORMALIZER_VERSION : "none-v1",
+      });
+      const cacheBase = join(cacheRoot, key);
 
-    let audioPath: string;
-    let source: TtsManifestScene["source"];
-    let srt: SrtSegment[] | undefined;
+      let audioPath: string;
+      let source: TtsManifestScene["source"];
+      let srt: SrtSegment[] | undefined;
 
-    if (opts.provider === "mock") {
-      audioPath = join(p.audioDir, `${scene.id}.wav`);
-      await synthesizeMockAudio(text, audioPath);
-      source = "mock";
-    } else {
-      const cached = findCached(cacheBase);
-      if (cached) {
-        audioPath = join(p.audioDir, `${scene.id}${extname(cached)}`);
-        await copyFile(cached, audioPath);
-        source = "cached";
-        srt = await loadSrt(`${cached}.srt`);
+      if (opts.provider === "mock") {
+        audioPath = join(p.audioDir, `${scene.id}.wav`);
+        await synthesizeMockAudio(text, audioPath);
+        source = "mock";
       } else {
-        let result;
-        try {
-          result = await client!.synthesize({
-            text,
-            voiceId: effectiveVoiceId,
-            speed,
-            outputPath: cacheBase,
-            ...(modelId ? { modelId } : {}),
-            ...(opts.provider === "elevenlabs" ? { languageCode: spec.language } : {}),
-          });
-        } catch (error) {
-          throw voicePipelineError(asVoiceProviderError(opts.provider, error));
+        const cached = findCached(cacheBase);
+        if (cached) {
+          audioPath = join(p.audioDir, `${scene.id}${extname(cached)}`);
+          await copyFile(cached, audioPath);
+          source = "cached";
+          srt = await loadSrt(`${cached}.srt`);
+        } else {
+          let result;
+          try {
+            result = await client!.synthesize({
+              text,
+              voiceId: effectiveVoiceId,
+              speed,
+              outputPath: cacheBase,
+              ...(modelId ? { modelId } : {}),
+              ...(opts.provider === "elevenlabs" ? { languageCode: spec.language } : {}),
+            });
+          } catch (error) {
+            throw voicePipelineError(asVoiceProviderError(opts.provider, error));
+          }
+          audioPath = join(p.audioDir, `${scene.id}${extname(result.audioPath)}`);
+          await copyFile(result.audioPath, audioPath);
+          source = "synthesized";
+          srt = result.srtPath ? await loadSrt(result.srtPath) : undefined;
         }
-        audioPath = join(p.audioDir, `${scene.id}${extname(result.audioPath)}`);
-        await copyFile(result.audioPath, audioPath);
-        source = "synthesized";
-        srt = result.srtPath ? await loadSrt(result.srtPath) : undefined;
       }
-    }
 
-    const duration = await measureAudioDuration(audioPath);
-    byScene[scene.id] = { text, voiceId: effectiveVoiceId, speed, audioPath, duration, source, srt };
-    orderedClips.push(audioPath);
+      const duration = await measureAudioDuration(audioPath);
+      byScene[scene.id] = { text, voiceId: effectiveVoiceId, speed, audioPath, duration, source, srt };
+      orderedClips.push(audioPath);
+    }
+  } finally {
+    await client?.dispose?.();
   }
 
   // Concatenate into one track WITH a silent breath gap between clips, then

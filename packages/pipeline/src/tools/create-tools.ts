@@ -3,6 +3,8 @@ import { join } from "node:path";
 import { z } from "zod";
 import {
   ELEVENLABS_DEFAULT_MODEL_ID,
+  VIENEU_DEFAULT_VOICE_ID,
+  VIENEU_RUNTIME_ID,
   vivibeApiKey,
   defaultVivibeVoiceId,
   elevenLabsApiKey,
@@ -88,6 +90,14 @@ const DEFAULT_DEPS: ToolDeps = {
   ttsConfig: async (projectId) => {
     const brief = await readBrief(projectId);
     const provider = brief.tts.provider;
+    if (provider === "vieneu") {
+      return {
+        provider,
+        apiKey: "",
+        voiceId: brief.tts.voiceId ?? VIENEU_DEFAULT_VOICE_ID,
+        modelId: brief.tts.modelId ?? VIENEU_RUNTIME_ID,
+      };
+    }
     if (provider === "elevenlabs") {
       return {
         provider,
@@ -121,7 +131,7 @@ export const scaffoldProjectInput = z.object({
   durationTier: z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4)]).optional(),
   language: z.enum(["vi", "en"]).optional(),
   // none/mock: explicit CLI/dev/smoke only — never a silent production fallback.
-  ttsProvider: z.enum(["vivibe", "elevenlabs", "none", "mock"]).optional(),
+  ttsProvider: z.enum(["vivibe", "elevenlabs", "vieneu", "none", "mock"]).optional(),
   voiceId: z.string().min(1).optional(),
   modelId: z.string().min(1).optional(),
 });
@@ -196,7 +206,9 @@ export type SafetyReportView = { ok: boolean; hardErrors: SafetyIssue[]; warning
 function assertTtsConfig({ provider = "vivibe", apiKey, voiceId }: TtsConfig): PipelineError | undefined {
   if (provider === "mock" || provider === "none") return undefined;
   const missing: string[] = [];
-  if (provider === "elevenlabs") {
+  if (provider === "vieneu") {
+    if (!voiceId) missing.push("VIENEU_VOICE_ID");
+  } else if (provider === "elevenlabs") {
     if (!apiKey) missing.push("ELEVENLABS_API_KEY");
     if (!voiceId) missing.push("ELEVENLABS_VOICE_ID");
   } else {
@@ -204,7 +216,7 @@ function assertTtsConfig({ provider = "vivibe", apiKey, voiceId }: TtsConfig): P
     if (!voiceId) missing.push("VIVIBE_VOICE_ID/VIETNAMESE_VOICEID");
   }
   if (missing.length === 0) return undefined;
-  const label = provider === "elevenlabs" ? "ElevenLabs" : "Vivibe";
+  const label = provider === "elevenlabs" ? "ElevenLabs" : provider === "vieneu" ? "VieNeu Local" : "Vivibe";
   return new PipelineError({
     stage: "config",
     cause: `incomplete ${label} TTS config: missing ${missing.join(", ")}`,

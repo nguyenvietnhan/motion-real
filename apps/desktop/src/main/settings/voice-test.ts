@@ -28,15 +28,16 @@ export function createVoiceTester(deps: VoiceTesterDeps): (config: ResolvedVoice
     }
     running = true;
     const dir = join(deps.rootDir, `voice-test-${(deps.id ?? randomUUID)()}`);
+    let client: TtsClient | undefined;
     try {
-      if (!config.apiKey) {
+      if (config.provider !== "vieneu" && !config.apiKey) {
         throw new VoiceProviderError({ provider: config.provider, code: "not_configured", retryable: false });
       }
       if (!config.voiceId) {
         throw new VoiceProviderError({ provider: config.provider, code: "voice_not_found", retryable: false });
       }
       await mkdir(dir, { recursive: true });
-      const client = (deps.createClient ?? createTtsClient)(config.provider, config.apiKey);
+      client = (deps.createClient ?? createTtsClient)(config.provider, config.apiKey);
       const sample = await client.synthesize({
         text: "Xin chào, đây là giọng đọc thử.",
         voiceId: config.voiceId,
@@ -55,6 +56,7 @@ export function createVoiceTester(deps: VoiceTesterDeps): (config: ResolvedVoice
     } catch (error) {
       return voiceTestFailure(config.provider, error);
     } finally {
+      await client?.dispose?.().catch((_error) => undefined);
       running = false;
       await rm(dir, { recursive: true, force: true }).catch((_error) => undefined);
     }

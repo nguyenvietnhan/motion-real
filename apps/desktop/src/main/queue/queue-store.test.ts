@@ -110,8 +110,16 @@ describe("QueueStore", () => {
       bgm: "track.mp3",
     });
     expect(after2?.jobs.map((j) => j.raw)).toEqual(["video một", "video hai"]);
+    const after3 = store.addJob(q.id, {
+      raw: "video local",
+      durationTier: 1,
+      videoLanguage: "vi",
+      voiceProvider: "vieneu",
+      bgm: null,
+    });
+    expect(after3?.jobs[2]?.voiceProvider).toBe("vieneu");
     expect(store.list()).toHaveLength(1);
-    expect(store.get(q.id)?.jobs).toHaveLength(2);
+    expect(store.get(q.id)?.jobs).toHaveLength(3);
   });
 
   it("rejects empty raw and missing queue", () => {

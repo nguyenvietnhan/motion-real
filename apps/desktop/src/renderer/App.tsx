@@ -465,6 +465,7 @@ const AppShell: React.FC = () => {
             voiceCredentials={settings.voiceCredentials}
             vivibeVoiceId={settings.vivibeVoiceId}
             elevenLabsVoiceId={settings.elevenLabsVoiceId}
+            vieneuVoiceId={settings.vieneuVoiceId}
             load={state.gallery.load}
             cards={state.gallery.cards}
             onConnectPrompt={(tab?: CreatePathSettingsTab) => openSettings(tab ?? "ai")}

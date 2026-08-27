@@ -29,6 +29,8 @@
     "build": "tsx scripts/build.ts",
     "test": "tsx scripts/test.ts",
     "smoke": "tsx scripts/smoke.ts",
+    "smoke:vieneu": "tsx scripts/smoke-vieneu.ts",
+    "calibrate:voice": "tsx scripts/calibrate-voice.ts",
     "vendor-fonts": "tsx scripts/vendor-fonts.ts"
   },
   "devDependencies": {

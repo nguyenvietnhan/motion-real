@@ -122,6 +122,12 @@ describe("main — verbs", () => {
     expect(badTts.lines.join("\n")).toMatch(/Unknown --tts/);
     expect(badTts.lines.join("\n")).toMatch(/mock\/none.*CLI\/dev\/offline/);
   });
+
+  it("accepts VieNeu as an explicit production provider", async () => {
+    const result = await main(["author", "scaffold", "local voice topic", "--tts", "vieneu"]);
+    expect(result.exitCode).toBe(0);
+    expect(result.lines.join("\n")).toMatch(/Scaffolded project/);
+  });
 });
 
 describe("main — ingest", () => {

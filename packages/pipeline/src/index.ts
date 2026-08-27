@@ -19,6 +19,11 @@ export * from "./ingest/crawl-images.js";
 // without depending on @motionreal/tts directly.
 export {
   ELEVENLABS_DEFAULT_MODEL_ID,
+  VIENEU_DEFAULT_VOICE_ID,
+  VIENEU_DEFAULT_WORDS_PER_SECOND,
+  VIENEU_RUNTIME_ID,
+  VIENEU_VOICES,
+  VieneuClient,
   VivibeClient,
   ElevenLabsClient,
   createTtsClient,

@@ -8,6 +8,8 @@ import { fontCoverageReport } from "@motionreal/blocks";
 import {
   defaultElevenLabsVoiceId,
   defaultVivibeVoiceId,
+  VIENEU_DEFAULT_VOICE_ID,
+  VieneuClient,
   elevenLabsApiKey,
   vivibeApiKey,
 } from "@motionreal/tts";
@@ -40,8 +42,8 @@ export type CliResult = {
   lines: string[];
 };
 
-const TTS_PROVIDERS: ReadonlySet<string> = new Set<TtsProvider>(["vivibe", "elevenlabs", "mock", "none"]);
-const TTS_PROVIDER_USAGE = "vivibe|elevenlabs|mock|none";
+const TTS_PROVIDERS: ReadonlySet<string> = new Set<TtsProvider>(["vivibe", "elevenlabs", "vieneu", "mock", "none"]);
+const TTS_PROVIDER_USAGE = "vivibe|elevenlabs|vieneu|mock|none";
 const DEV_TTS_NOTE = "mock/none are explicit CLI/dev/offline modes; production must use a real configured provider";
 
 const PARSE_OPTIONS = {
@@ -123,7 +125,8 @@ async function runAuthor(
     return { exitCode: 1, lines };
   }
 
-  const provider = tts.value ?? (process.env.TTS_PROVIDER === "elevenlabs" ? "elevenlabs" : undefined);
+  const envProvider = process.env.TTS_PROVIDER;
+  const provider = tts.value ?? (envProvider === "elevenlabs" || envProvider === "vieneu" ? envProvider : undefined);
   const result = await scaffoldVideoProject({ prompt: topic, tts: provider ? { provider } : undefined });
   emit(`Scaffolded project ${result.projectId} (state: ${result.brief.state}).`);
   emit(`  manifest: ${result.manifestPath}`);
@@ -284,19 +287,23 @@ function doctorSummary(report: DoctorReport): string {
 }
 
 function defaultCheckEnv(): DoctorCheck {
-  const provider = process.env.TTS_PROVIDER === "elevenlabs" ? "elevenlabs" : "vivibe";
+  const provider = process.env.TTS_PROVIDER === "elevenlabs"
+    ? "elevenlabs"
+    : process.env.TTS_PROVIDER === "vieneu" ? "vieneu" : "vivibe";
   const missing: string[] = [];
   if (provider === "vivibe") {
     if (!vivibeApiKey()) missing.push("VIVIBE_API_KEY/VIETNAMESE_API_KEY");
     if (!defaultVivibeVoiceId()) missing.push("VIVIBE_VOICE_ID/VIETNAMESE_VOICEID");
-  } else {
+  } else if (provider === "elevenlabs") {
     if (!elevenLabsApiKey()) missing.push("ELEVENLABS_API_KEY");
     if (!defaultElevenLabsVoiceId()) missing.push("ELEVENLABS_VOICE_ID");
-  }
+  } else if (!new VieneuClient().isConfigured()) missing.push("Python 3.11 / VieNeu worker");
   return {
-    name: `${provider === "vivibe" ? "Vivibe" : "ElevenLabs"} .env`,
+    name: `${provider === "vivibe" ? "Vivibe" : provider === "vieneu" ? "VieNeu Local" : "ElevenLabs"} runtime`,
     ok: missing.length === 0,
-    detail: missing.length === 0 ? "API key + voice id configured" : `missing: ${missing.join(", ")}`,
+    detail: missing.length === 0
+      ? (provider === "vieneu" ? `local runtime + ${VIENEU_DEFAULT_VOICE_ID} preset configured` : "API key + voice id configured")
+      : `missing: ${missing.join(", ")}`,
   };
 }
 
@@ -403,7 +410,7 @@ type Emit = (line?: string) => void;
 function resolveTts(value: string | undefined): { ok: true; value?: TtsProvider } | { ok: false; message: string } {
   if (value === undefined) return { ok: true, value: undefined };
   if (!TTS_PROVIDERS.has(value)) {
-    return { ok: false, message: `Unknown --tts "${value}". Use one of: vivibe, elevenlabs, mock, none. ${DEV_TTS_NOTE}.` };
+    return { ok: false, message: `Unknown --tts "${value}". Use one of: ${TTS_PROVIDER_USAGE}. ${DEV_TTS_NOTE}.` };
   }
   return { ok: true, value: value as TtsProvider };
 }
