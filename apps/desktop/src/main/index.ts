@@ -681,13 +681,29 @@ const handlers: InvokeHandlers = {
     Number(expectedRevision),
     Array.isArray(selectedIds) ? selectedIds.map(String) : [],
   ),
+  "agent:prepareBrief": async (draftId, expectedRevision) => {
+    const opened = await activateHarnessDraft(String(draftId));
+    return harness.prepareBrief(opened.id, Number(expectedRevision));
+  },
+  "agent:returnToAssets": (draftId, expectedRevision) => harness.returnToAssets(
+    String(draftId),
+    Number(expectedRevision),
+  ),
+  "agent:approveBrief": (draftId, expectedRevision, input) => harness.approveBrief(
+    String(draftId),
+    Number(expectedRevision),
+    input as import("../shared/types.js").AgentBriefInput,
+  ),
   "agent:createVideo": async (draftId) => {
     const request = await harness.readCreateRequest(String(draftId));
     const images = await stageHarnessImages(request.imagePaths);
     // This is intentionally the existing Home Create Flow, including all
     // validation, staging promotion, authoring, still/refine, and rollback.
-    const created = await create.create(request.prompt, images);
+    const created = await create.create(request.prompt, images, request.choices);
     await harness.linkProject(request.draftId, created.projectId);
+    await workspace.rename(created.projectId, request.title).catch((error) => {
+      log.warn({ err: error, projectId: created.projectId }, "Agent project title update failed");
+    });
     return created;
   },
   "agent:deleteDraft": async (draftId) => {

@@ -140,7 +140,7 @@ Minimum production metadata:
 
 ## Phase 2 — Asset Collection Vertical Slice
 
-Status: implemented locally on 2026-08-27; native Harness/9router acceptance is still required before Phase 3.
+Status: implemented and accepted manually with a real Harness/9router job on 2026-08-27.
 
 ### Goal
 
@@ -243,6 +243,8 @@ The implemented manifest is:
 
 ## Phase 3 — Brief Review and Create Handoff
 
+Status: implemented locally on 2026-08-27; native manual acceptance is required before Phase 4.
+
 ### Goal
 
 Turn the approved conversation and assets into an explicit, editable creation
@@ -266,6 +268,18 @@ request and then reuse the existing Create Flow.
 - Promote only approved local asset files through the existing image staging /
   project promotion path.
 - Store the resulting `projectId` on the Agent record.
+
+Implemented V1 details:
+
+- MotionReal writes `handoff/brief-request.json`; Harness atomically submits
+  `handoff/brief.json` with matching job/request revisions.
+- Existing Agent videos already at `brief_review` can explicitly retry brief
+  generation without repeating asset collection.
+- The review edits title, final prompt, duration tier, language, and voice.
+- Approval writes a frozen create request and moves to `queued_create`; it does
+  not create a project. The separate create action invokes the existing
+  `CreateController`, promotes only selected local assets, renames the created
+  project to the approved title, links its id, and moves to `authoring`.
 
 ### Tests
 

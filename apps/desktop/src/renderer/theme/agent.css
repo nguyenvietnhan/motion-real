@@ -69,6 +69,79 @@
   display: none;
 }
 
+.ns-agent-brief-review {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  margin: 12px 24px;
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--card);
+}
+
+.ns-agent-brief-review + .ns-agent-frame {
+  display: none;
+}
+
+.ns-agent-brief-head,
+.ns-agent-brief-actions,
+.ns-agent-brief-settings,
+.ns-agent-brief-assets {
+  display: flex;
+  gap: 12px;
+}
+
+.ns-agent-brief-head,
+.ns-agent-brief-actions {
+  align-items: center;
+  justify-content: space-between;
+}
+
+.ns-agent-brief-head h2,
+.ns-agent-brief-head p {
+  margin: 0;
+}
+
+.ns-agent-brief-head p,
+.ns-agent-brief-review label {
+  color: var(--muted-foreground);
+  font-size: 12px;
+}
+
+.ns-agent-brief-review > label {
+  display: grid;
+  gap: 6px;
+  margin-top: 14px;
+}
+
+.ns-agent-brief-prompt {
+  min-height: 180px;
+  resize: vertical;
+}
+
+.ns-agent-brief-settings {
+  margin-top: 14px;
+}
+
+.ns-agent-brief-settings label {
+  display: grid;
+  flex: 1;
+  gap: 6px;
+}
+
+.ns-agent-brief-assets {
+  overflow-x: auto;
+  margin: 14px 0;
+}
+
+.ns-agent-brief-assets img {
+  width: 88px;
+  height: 88px;
+  border-radius: 7px;
+  object-fit: cover;
+}
+
 .ns-agent-workflow {
   display: flex;
   flex: 0 0 auto;

@@ -94,6 +94,12 @@ export interface DashboardApi {
     requestMoreAssets(draftId: string, expectedRevision: number, selectedIds: string[], note: string): Promise<AgentDraftVM>;
     /** Freeze the selected asset ids and advance to brief review. */
     approveAssets(draftId: string, expectedRevision: number, selectedIds: string[]): Promise<AgentDraftVM>;
+    /** Ask Harness to produce/retry the structured brief for the approved assets. */
+    prepareBrief(draftId: string, expectedRevision: number): Promise<AgentDraftVM>;
+    /** Return to the approved asset review without starting creation. */
+    returnToAssets(draftId: string, expectedRevision: number): Promise<AgentDraftVM>;
+    /** Freeze the edited brief and advance to queued creation. */
+    approveBrief(draftId: string, expectedRevision: number, input: import("./types.js").AgentBriefInput): Promise<AgentDraftVM>;
     /** Explicitly hand the Agent-written brief into the existing Create Flow. */
     createVideo(draftId: string): Promise<{ projectId: string }>;
     /** If a project was created, delete that project plus this Agent workspace/history. */

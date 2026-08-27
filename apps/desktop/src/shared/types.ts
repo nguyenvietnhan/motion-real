@@ -78,6 +78,10 @@ export type AgentDraftVM = {
   selectedAssetIds?: string[];
   /** Safe handoff validation error; raw paths and file contents never cross IPC. */
   assetCollectionError?: string;
+  /** Validated Agent brief awaiting user edits/approval. */
+  briefReview?: AgentBriefVM;
+  /** Safe brief validation/prompt error; raw workspace data never crosses IPC. */
+  briefReviewError?: string;
 };
 
 /** One validated image in an Agent workspace. */
@@ -90,6 +94,19 @@ export type AgentAssetVM = {
   height: number;
   bytes: number;
 };
+
+export type AgentBriefVM = {
+  revision: number;
+  title: string;
+  prompt: string;
+  format: "tiktok";
+  durationTier: DurationTierChoice;
+  videoLanguage: VideoLanguageChoice;
+  voiceProvider: VoiceProviderChoice;
+  selectedAssetIds: string[];
+};
+
+export type AgentBriefInput = Omit<AgentBriefVM, "revision" | "format" | "selectedAssetIds">;
 
 // --- create --------------------------------------------------------
 

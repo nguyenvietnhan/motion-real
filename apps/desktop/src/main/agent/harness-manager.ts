@@ -5,7 +5,7 @@ import { existsSync } from "node:fs";
 import { createServer } from "node:net";
 import { basename, isAbsolute, join, relative, resolve } from "node:path";
 import { createLogger, MAX_IMAGE_BYTES, MAX_IMAGE_DIM, sniffImage, writeJson } from "@motionreal/pipeline";
-import type { AgentAssetVM, AgentDraftVM } from "../../shared/types.js";
+import type { AgentAssetVM, AgentBriefInput, AgentBriefVM, AgentDraftVM, DurationTierChoice, VideoLanguageChoice, VoiceProviderChoice } from "../../shared/types.js";
 import { sanitizedChildEnvironment } from "../security/runtime-security.js";
 import {
   initialAgentWorkflow,
@@ -19,7 +19,8 @@ const METADATA_FILE = "motionreal-agent.json";
 const CREATE_REQUEST_FILE = "motionreal.create.json";
 const ASSET_REQUEST_FILE = join("handoff", "assets-request.json");
 const ASSET_MANIFEST_FILE = join("handoff", "assets.json");
-const HARNESS_HOME = ".harness";
+const BRIEF_REQUEST_FILE = join("handoff", "brief-request.json");
+const BRIEF_FILE = join("handoff", "brief.json");
 const AGENTS_FILE = "AGENTS.md";
 const AI_CONTRACT_FILE = "AI_CONTRACT.md";
 // A brand-new DSH_HOME initializes the web profile on its first launch. The
@@ -31,16 +32,23 @@ const log = createLogger("harness");
 
 export type { AgentDraftVM } from "../../shared/types.js";
 
-type DraftRecord = Omit<AgentDraftVM, "harnessUrl" | "createReady" | "assetReview" | "assetCollectionError"> & AgentWorkflowRecord & {
+type DraftRecord = Omit<AgentDraftVM, "harnessUrl" | "createReady" | "assetReview" | "assetCollectionError" | "briefReview" | "briefReviewError"> & AgentWorkflowRecord & {
   workspaceId?: string;
   sessionId?: string;
   assetRequestRevision?: number;
+  briefRequestRevision?: number;
 };
 
 export type AgentCreateRequest = {
   draftId: string;
+  title: string;
   prompt: string;
   imagePaths: string[];
+  choices: {
+    durationTier: DurationTierChoice;
+    videoLanguage: VideoLanguageChoice;
+    voiceProvider: VoiceProviderChoice;
+  };
 };
 
 type HarnessRpcResponse = {
@@ -217,6 +225,8 @@ export class HarnessManager {
     let record = await this.mustReadRecord(id);
     let assetReview: AgentAssetVM[] | undefined;
     let assetCollectionError: string | undefined;
+    let briefReview: AgentBriefVM | undefined;
+    let briefReviewError: string | undefined;
     if (record.productionState === "collecting_assets" || record.productionState === "asset_review" || record.productionState === "brief_review") {
       try {
         assetReview = await this.readAssetManifest(record);
@@ -232,7 +242,14 @@ export class HarnessManager {
         assetCollectionError = error instanceof Error ? error.message : "Manifest asset không hợp lệ.";
       }
     }
-    return this.toVm(record, assetReview, assetCollectionError);
+    if (record.productionState === "brief_review" || record.productionState === "queued_create") {
+      try {
+        briefReview = await this.readBrief(record);
+      } catch (error) {
+        briefReviewError = error instanceof Error ? error.message : "Brief của Agent không hợp lệ.";
+      }
+    }
+    return this.toVm(record, assetReview, assetCollectionError, briefReview, briefReviewError);
   }
 
   async prepareAssets(id: string, expectedRevision: number): Promise<AgentDraftVM> {
@@ -292,6 +309,7 @@ export class HarnessManager {
 
   async approveAssets(id: string, expectedRevision: number, selectedIds: string[]): Promise<AgentDraftVM> {
     const current = await this.mustReadRecord(id);
+    this.requireActiveSession(current);
     const assets = await this.readAssetManifest(current);
     if (!assets) throw new Error("Agent chưa gửi manifest asset hợp lệ.");
     const selectedAssetIds = validateSelectedIds(selectedIds, assets);
@@ -303,9 +321,94 @@ export class HarnessManager {
         jobId: current.activeJobId,
       }),
       selectedAssetIds,
+      briefRequestRevision: (current.briefRequestRevision ?? 0) + 1,
+    };
+    await this.writeBriefRequest(next);
+    await this.writeRecord(next);
+    try {
+      await this.promptSession(next, "MotionReal đã chốt asset. Hãy đọc handoff/brief-request.json và tạo brief theo đúng schema.");
+    } catch (error) {
+      return this.toVm(next, assets, undefined, undefined, safeBriefError(error));
+    }
+    return this.toVm(next, assets);
+  }
+
+  async prepareBrief(id: string, expectedRevision: number): Promise<AgentDraftVM> {
+    const current = await this.mustReadRecord(id);
+    this.requireActiveSession(current);
+    if (current.productionState !== "brief_review" || current.workflowRevision !== expectedRevision) {
+      throw new Error("Trạng thái duyệt brief đã thay đổi; hãy tải lại.");
+    }
+    if (!current.selectedAssetIds) throw new Error("Chưa có lựa chọn asset để tạo brief.");
+    const next = { ...current, briefRequestRevision: (current.briefRequestRevision ?? 0) + 1 };
+    await this.writeBriefRequest(next);
+    await this.writeRecord(next);
+    try {
+      await this.promptSession(next, "MotionReal yêu cầu tạo lại brief. Hãy đọc phiên bản mới của handoff/brief-request.json và hoàn thành yêu cầu đó.");
+    } catch (error) {
+      return this.toVm(next, undefined, undefined, undefined, safeBriefError(error));
+    }
+    return this.toVm(next);
+  }
+
+  async returnToAssets(id: string, expectedRevision: number): Promise<AgentDraftVM> {
+    const current = await this.mustReadRecord(id);
+    const assets = await this.readAssetManifest(current);
+    if (!assets) throw new Error("Không còn manifest asset hợp lệ để quay lại.");
+    const next = {
+      ...current,
+      ...transitionAgentWorkflow(current, {
+        expectedRevision,
+        to: "asset_review",
+        jobId: current.activeJobId,
+      }),
     };
     await this.writeRecord(next);
     return this.toVm(next, assets);
+  }
+
+  async approveBrief(id: string, expectedRevision: number, input: AgentBriefInput): Promise<AgentDraftVM> {
+    const current = await this.mustReadRecord(id);
+    if (current.productionState !== "brief_review" || current.workflowRevision !== expectedRevision) {
+      throw new Error("Trạng thái duyệt brief đã thay đổi; hãy tải lại.");
+    }
+    const generated = await this.readBrief(current);
+    if (!generated) throw new Error("Agent chưa gửi brief hợp lệ.");
+    const accepted = validateBriefInput(input);
+    const revision = generated.revision + (briefChanged(generated, accepted) ? 1 : 0);
+    await writeJson(join(this.rootOf(id), BRIEF_FILE), {
+      version: 1,
+      job_id: current.activeJobId,
+      request_revision: current.briefRequestRevision,
+      brief_revision: revision,
+      title: accepted.title,
+      prompt: accepted.prompt,
+      format: "tiktok",
+      duration_tier: accepted.durationTier,
+      video_language: accepted.videoLanguage,
+      voice_provider: accepted.voiceProvider,
+      selected_asset_ids: generated.selectedAssetIds,
+      accepted: true,
+    });
+    await writeJson(join(this.rootOf(id), CREATE_REQUEST_FILE), {
+      version: 1,
+      title: accepted.title,
+      prompt: accepted.prompt,
+      duration_tier: accepted.durationTier,
+      video_language: accepted.videoLanguage,
+      voice_provider: accepted.voiceProvider,
+      selected_asset_ids: generated.selectedAssetIds,
+    });
+    const next = {
+      ...current,
+      ...transitionAgentWorkflow(current, {
+        expectedRevision,
+        to: "queued_create",
+        jobId: current.activeJobId,
+      }),
+    };
+    await this.writeRecord(next);
+    return this.toVm(next, undefined, undefined, { ...generated, ...accepted, revision });
   }
 
   async transitionWorkflow(id: string, request: AgentWorkflowTransition): Promise<AgentDraftVM> {
@@ -328,19 +431,42 @@ export class HarnessManager {
       throw new Error("Agent chưa tạo yêu cầu dựng video hợp lệ.");
     }
     if (!raw || typeof raw !== "object") throw new Error("Yêu cầu dựng video của Agent không hợp lệ.");
-    const input = raw as { version?: unknown; prompt?: unknown; images?: unknown };
+    const input = raw as { version?: unknown; title?: unknown; prompt?: unknown; duration_tier?: unknown; video_language?: unknown; voice_provider?: unknown; selected_asset_ids?: unknown };
     if (input.version !== 1 || typeof input.prompt !== "string" || !input.prompt.trim()) {
       throw new Error("Yêu cầu dựng video của Agent thiếu nội dung.");
     }
     if (input.prompt.length > 20_000) throw new Error("Yêu cầu dựng video quá dài.");
-    if (input.images !== undefined && !Array.isArray(input.images)) throw new Error("Danh sách ảnh của Agent không hợp lệ.");
-    const imagePaths = await Promise.all((input.images ?? []).slice(0, 30).map((value) => this.localAssetPath(record.id, value)));
-    return { draftId: record.id, prompt: input.prompt.trim(), imagePaths };
+    const brief = validateBriefFields(input);
+    const imagePaths = await this.assetPathsForIds(record, input.selected_asset_ids);
+    return {
+      draftId: record.id,
+      title: validBriefText(input.title, "tiêu đề", 1, 160),
+      prompt: input.prompt.trim(),
+      imagePaths,
+      choices: {
+        durationTier: brief.durationTier,
+        videoLanguage: brief.videoLanguage,
+        voiceProvider: brief.voiceProvider,
+      },
+    };
   }
 
   async linkProject(id: string, projectId: string): Promise<void> {
     const record = await this.mustReadRecord(id);
-    await this.writeRecord({ ...record, projectId });
+    if (record.projectId) {
+      if (record.projectId === projectId) return;
+      throw new Error("Video Agent đã được liên kết với một project khác.");
+    }
+    if (record.productionState !== "queued_create") throw new Error("Brief chưa sẵn sàng để tạo project.");
+    await this.writeRecord({
+      ...record,
+      ...transitionAgentWorkflow(record, {
+        expectedRevision: record.workflowRevision,
+        to: "authoring",
+        jobId: record.activeJobId,
+      }),
+      projectId,
+    });
   }
 
   async draftForProject(projectId: string): Promise<AgentDraftVM | null> {
@@ -381,6 +507,8 @@ export class HarnessManager {
     record: DraftRecord,
     assetReview?: AgentAssetVM[],
     assetCollectionError?: string,
+    briefReview?: AgentBriefVM,
+    briefReviewError?: string,
   ): Promise<AgentDraftVM> {
     const createReady = record.productionState === "queued_create"
       && existsSync(join(this.rootOf(record.id), CREATE_REQUEST_FILE));
@@ -392,6 +520,8 @@ export class HarnessManager {
       createReady,
       ...(assetReview ? { assetReview } : {}),
       ...(assetCollectionError ? { assetCollectionError } : {}),
+      ...(briefReview ? { briefReview } : {}),
+      ...(briefReviewError ? { briefReviewError } : {}),
     };
   }
 
@@ -419,6 +549,9 @@ export class HarnessManager {
         ...(Number.isSafeInteger(raw.assetRequestRevision) && Number(raw.assetRequestRevision) > 0
           ? { assetRequestRevision: Number(raw.assetRequestRevision) }
           : {}),
+        ...(Number.isSafeInteger(raw.briefRequestRevision) && Number(raw.briefRequestRevision) > 0
+          ? { briefRequestRevision: Number(raw.briefRequestRevision) }
+          : {}),
         ...(Array.isArray(raw.selectedAssetIds)
           ? { selectedAssetIds: raw.selectedAssetIds.filter((value): value is string => typeof value === "string") }
           : {}),
@@ -434,19 +567,6 @@ export class HarnessManager {
 
   private rootOf(id: string): string {
     return join(this.deps.draftsRoot, id);
-  }
-
-  private async localAssetPath(id: string, value: unknown): Promise<string> {
-    if (typeof value !== "string" || !value.trim()) throw new Error("Đường dẫn ảnh Agent không hợp lệ.");
-    const root = resolve(this.rootOf(id));
-    const resolved = resolve(root, value);
-    const rel = relative(root, resolved);
-    if (!rel || rel.startsWith("..") || isAbsolute(rel) || rel.split(/[\\/]/).includes(HARNESS_HOME)) {
-      throw new Error("Ảnh Agent phải nằm trong workspace của video.");
-    }
-    const info = await stat(resolved).catch((_error) => null);
-    if (!info?.isFile()) throw new Error(`Không tìm thấy ảnh Agent: ${basename(value)}`);
-    return resolved;
   }
 
   private requireActiveSession(record: DraftRecord): void {
@@ -485,6 +605,77 @@ export class HarnessManager {
         "Ghi JSON hoàn chỉnh vào handoff/assets.draft.json rồi đổi tên thành handoff/assets.json.",
       ],
     });
+  }
+
+  private async writeBriefRequest(record: DraftRecord): Promise<void> {
+    await mkdir(join(this.rootOf(record.id), "handoff"), { recursive: true });
+    await writeJson(join(this.rootOf(record.id), BRIEF_REQUEST_FILE), {
+      version: 1,
+      job_id: record.activeJobId,
+      request_revision: record.briefRequestRevision,
+      selected_asset_ids: record.selectedAssetIds ?? [],
+      asset_manifest: "handoff/assets.json",
+      output: "handoff/brief.json",
+      brief: {
+        version: 1,
+        job_id: record.activeJobId,
+        request_revision: record.briefRequestRevision,
+        brief_revision: 1,
+        title: record.title,
+        prompt: "Brief hoàn chỉnh dùng trực tiếp để tạo video",
+        format: "tiktok",
+        duration_tier: 1,
+        video_language: "vi",
+        voice_provider: "vivibe",
+        selected_asset_ids: record.selectedAssetIds ?? [],
+      },
+      instructions: [
+        "Tổng hợp cuộc trò chuyện và chỉ các asset đã chọn thành brief tạo video 9:16.",
+        "Prompt phải mô tả nội dung, mạch kể, art direction và cách dùng asset đủ rõ cho pipeline authoring.",
+        "Ghi JSON hoàn chỉnh vào handoff/brief.draft.json rồi đổi tên thành handoff/brief.json.",
+      ],
+    });
+  }
+
+  private async readBrief(record: DraftRecord): Promise<AgentBriefVM | undefined> {
+    const path = join(this.rootOf(record.id), BRIEF_FILE);
+    if (!existsSync(path)) return undefined;
+    let raw: unknown;
+    try {
+      raw = JSON.parse(await readFile(path, "utf8"));
+    } catch (_error) {
+      throw new Error("Brief chưa phải JSON hoàn chỉnh.");
+    }
+    if (!raw || typeof raw !== "object") throw new Error("Brief của Agent không hợp lệ.");
+    const value = raw as Record<string, unknown>;
+    if (value.version !== 1 || value.job_id !== record.activeJobId || value.request_revision !== record.briefRequestRevision) {
+      throw new Error("Brief không khớp job hoặc lượt yêu cầu hiện tại.");
+    }
+    if (!Number.isSafeInteger(value.brief_revision) || Number(value.brief_revision) < 1) {
+      throw new Error("Brief thiếu revision hợp lệ.");
+    }
+    if (value.format !== "tiktok") throw new Error("Brief phải dùng định dạng video dọc 9:16.");
+    const fields = validateBriefFields(value);
+    const selectedAssetIds = validateBriefAssetIds(value.selected_asset_ids, record.selectedAssetIds ?? []);
+    return {
+      revision: Number(value.brief_revision),
+      title: validBriefText(value.title, "tiêu đề", 1, 160),
+      prompt: validBriefText(value.prompt, "nội dung", 20, 20_000),
+      format: "tiktok",
+      ...fields,
+      selectedAssetIds,
+    };
+  }
+
+  private async assetPathsForIds(record: DraftRecord, value: unknown): Promise<string[]> {
+    const ids = validateBriefAssetIds(value, record.selectedAssetIds ?? []);
+    const raw = JSON.parse(await readFile(join(this.rootOf(record.id), ASSET_MANIFEST_FILE), "utf8")) as { items?: unknown };
+    if (!Array.isArray(raw.items)) throw new Error("Manifest asset không hợp lệ.");
+    const paths = new Map(raw.items.flatMap((item) => item && typeof item === "object"
+      && typeof (item as { id?: unknown }).id === "string"
+      ? [[(item as { id: string }).id, (item as { path?: unknown }).path] as const]
+      : []));
+    return Promise.all(ids.map((id) => this.localReviewAssetPath(record.id, paths.get(id))));
   }
 
   private async readAssetManifest(record: DraftRecord): Promise<AgentAssetVM[] | undefined> {
@@ -638,6 +829,64 @@ function validateSelectedIds(selectedIds: string[], assets: AgentAssetVM[]): str
   return selected;
 }
 
+function validateBriefAssetIds(value: unknown, expected: string[]): string[] {
+  if (!Array.isArray(value) || value.some((id) => typeof id !== "string")) {
+    throw new Error("Brief có danh sách asset không hợp lệ.");
+  }
+  const actual = [...new Set(value as string[])];
+  if (actual.length !== value.length) throw new Error("Brief có asset id trùng.");
+  if (actual.length !== expected.length || actual.some((id) => !expected.includes(id))) {
+    throw new Error("Brief không dùng đúng tập asset đã được duyệt.");
+  }
+  return actual;
+}
+
+function validBriefText(value: unknown, label: string, min: number, max: number): string {
+  if (typeof value !== "string") throw new Error(`Brief thiếu ${label}.`);
+  const text = value.trim();
+  if (text.length < min || text.length > max) throw new Error(`Brief có ${label} không hợp lệ.`);
+  return text;
+}
+
+function validateBriefFields(value: Record<string, unknown>): Pick<AgentBriefVM, "durationTier" | "videoLanguage" | "voiceProvider"> {
+  const durationTier = value.duration_tier;
+  const videoLanguage = value.video_language;
+  const voiceProvider = value.voice_provider;
+  if (durationTier !== 1 && durationTier !== 2 && durationTier !== 3 && durationTier !== 4) {
+    throw new Error("Brief có thời lượng không được hỗ trợ.");
+  }
+  if (videoLanguage !== "vi" && videoLanguage !== "en") throw new Error("Brief có ngôn ngữ không hợp lệ.");
+  if (voiceProvider !== "vivibe" && voiceProvider !== "elevenlabs") throw new Error("Brief có giọng đọc không hợp lệ.");
+  if (videoLanguage === "en" && voiceProvider === "vivibe") throw new Error("Brief tiếng Anh phải dùng ElevenLabs.");
+  return { durationTier, videoLanguage, voiceProvider };
+}
+
+function validateBriefInput(input: AgentBriefInput): AgentBriefInput {
+  if (!input || typeof input !== "object") throw new Error("Nội dung chỉnh sửa brief không hợp lệ.");
+  const fields = validateBriefFields({
+    duration_tier: input.durationTier,
+    video_language: input.videoLanguage,
+    voice_provider: input.voiceProvider,
+  });
+  return {
+    title: validBriefText(input.title, "tiêu đề", 1, 160),
+    prompt: validBriefText(input.prompt, "nội dung", 20, 20_000),
+    ...fields,
+  };
+}
+
+function briefChanged(generated: AgentBriefVM, accepted: AgentBriefInput): boolean {
+  return generated.title !== accepted.title
+    || generated.prompt !== accepted.prompt
+    || generated.durationTier !== accepted.durationTier
+    || generated.videoLanguage !== accepted.videoLanguage
+    || generated.voiceProvider !== accepted.voiceProvider;
+}
+
+function safeBriefError(error: unknown): string {
+  return error instanceof Error ? error.message.slice(0, 500) : "Harness không nhận yêu cầu tạo brief.";
+}
+
 function workspaceInfoOf(value: unknown): { id: string } {
   const workspace = value && typeof value === "object" ? (value as { workspace?: unknown }).workspace : null;
   if (!workspace || typeof workspace !== "object" || typeof (workspace as { workspaceId?: unknown }).workspaceId !== "string") {
@@ -647,7 +896,7 @@ function workspaceInfoOf(value: unknown): { id: string } {
 }
 
 function agentInstructions(title: string): string {
-  return `# MotionReal Video Agent\n\nBạn đang làm việc cho video: ${title}\n\n- Nghiên cứu, ghi chú và tải asset vào thư mục \`assets/\` của workspace này.\n- Không chạy renderer MotionReal hoặc tự sửa project MotionReal.\n- Khi MotionReal yêu cầu chuẩn bị asset, đọc \`handoff/assets-request.json\`, làm đúng job/request revision và ghi manifest bằng quy trình draft rồi rename được mô tả trong file.\n- Không tự tạo project hoặc yêu cầu render; MotionReal sẽ mở từng bước duyệt bên ngoài chat.\n- Mọi đường dẫn ảnh phải tương đối và nằm trong \`assets/\`.\n`;
+  return `# MotionReal Video Agent\n\nBạn đang làm việc cho video: ${title}\n\n- Nghiên cứu, ghi chú và tải asset vào thư mục \`assets/\` của workspace này.\n- Không chạy renderer MotionReal hoặc tự sửa project MotionReal.\n- Khi MotionReal yêu cầu chuẩn bị asset, đọc \`handoff/assets-request.json\`, làm đúng job/request revision và ghi manifest bằng quy trình draft rồi rename được mô tả trong file.\n- Khi MotionReal yêu cầu brief, đọc \`handoff/brief-request.json\`, dùng cuộc trò chuyện và đúng asset đã chọn, rồi ghi brief theo quy trình draft/rename trong file.\n- Không tự tạo project hoặc yêu cầu render; MotionReal sẽ mở từng bước duyệt bên ngoài chat.\n- Mọi đường dẫn ảnh phải tương đối và nằm trong \`assets/\`.\n`;
 }
 
 function agentContract(): string {

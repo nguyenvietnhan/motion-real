@@ -60,6 +60,15 @@ describe("createDashboardClient — invoke channel mapping", () => {
     await api.agent.prepareAssets("agent-00000000-0000-0000-0000-000000000000", 0);
     await api.agent.requestMoreAssets("agent-00000000-0000-0000-0000-000000000000", 2, ["asset-01"], "thêm ảnh");
     await api.agent.approveAssets("agent-00000000-0000-0000-0000-000000000000", 2, ["asset-01"]);
+    await api.agent.prepareBrief("agent-00000000-0000-0000-0000-000000000000", 3);
+    await api.agent.returnToAssets("agent-00000000-0000-0000-0000-000000000000", 3);
+    await api.agent.approveBrief("agent-00000000-0000-0000-0000-000000000000", 3, {
+      title: "Video",
+      prompt: "Brief đầy đủ để tạo một video thử nghiệm.",
+      durationTier: 1,
+      videoLanguage: "vi",
+      voiceProvider: "vivibe",
+    });
     await api.agent.createVideo("agent-00000000-0000-0000-0000-000000000000");
     await api.agent.deleteDraft("agent-00000000-0000-0000-0000-000000000000");
     await api.projects.pickImages();

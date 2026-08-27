@@ -218,12 +218,16 @@ structured brief:
 ```json
 {
   "version": 1,
-  "job_id": "agent-123",
+  "job_id": "job-123",
+  "request_revision": 1,
+  "brief_revision": 1,
   "title": "ChatGPT đang thay đổi như thế nào?",
   "prompt": "Tạo video dọc giải thích các thay đổi mới của ChatGPT...",
-  "duration_seconds": 90,
-  "aspect_ratio": "9:16",
-  "asset_ids": ["asset-01"]
+  "format": "tiktok",
+  "duration_tier": 2,
+  "video_language": "vi",
+  "voice_provider": "vivibe",
+  "selected_asset_ids": ["asset-01"]
 }
 ```
 
@@ -231,6 +235,11 @@ The review card lets the user edit the title/brief, return to asset review,
 continue the conversation, or approve creation. Approval freezes a brief
 snapshot for that run; later chat messages must not silently mutate an active
 creation job.
+
+MotionReal writes the exact request/schema to `handoff/brief-request.json` and
+accepts only the final `handoff/brief.json` with the current job, request
+revision, 9:16 format, supported duration/language/voice combination, and the
+exact approved asset-id set. Invalid or stale files remain in `brief_review`.
 
 ### 5. Existing Create Flow handoff
 

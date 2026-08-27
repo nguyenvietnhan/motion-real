@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
-import type { AgentDraftVM, AgentProductionState } from "../../shared/types.js";
+import type { AgentBriefInput, AgentDraftVM, AgentProductionState, DurationTierChoice, VideoLanguageChoice, VoiceProviderChoice } from "../../shared/types.js";
 import { Icon } from "../icons.js";
 import { ConfirmDialog } from "../primitives.js";
 import { ImageReviewView } from "./image-review.js";
@@ -32,6 +32,8 @@ export const AgentView: React.FC = () => {
   const [showNewVideo, setShowNewVideo] = useState(false);
   const [newVideoTitle, setNewVideoTitle] = useState("");
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [briefInput, setBriefInput] = useState<AgentBriefInput | null>(null);
+  const [showBriefReview, setShowBriefReview] = useState(true);
 
   const refresh = useCallback(async () => {
     try {
@@ -60,6 +62,21 @@ export const AgentView: React.FC = () => {
     }, 1_500);
     return () => window.clearInterval(timer);
   }, [active?.id]);
+
+  useEffect(() => {
+    if (!active?.briefReview) {
+      setBriefInput(null);
+      return;
+    }
+    setBriefInput({
+      title: active.briefReview.title,
+      prompt: active.briefReview.prompt,
+      durationTier: active.briefReview.durationTier,
+      videoLanguage: active.briefReview.videoLanguage,
+      voiceProvider: active.briefReview.voiceProvider,
+    });
+    setShowBriefReview(true);
+  }, [active?.id, active?.briefReview?.revision]);
 
   const run = useCallback(async (work: () => Promise<void>) => {
     setBusy(true);
@@ -134,7 +151,36 @@ export const AgentView: React.FC = () => {
     void run(async () => {
       const next = await window.dashboard.agent.approveAssets(active.id, active.workflowRevision, selectedIds);
       setActive(next);
-      setNotice("Đã chốt asset. Bước duyệt brief sẽ được nối ở Phase 3.");
+      setNotice("Đã chốt asset. Agent đang chuẩn bị brief để bạn duyệt.");
+      await refresh();
+    });
+  };
+
+  const prepareBrief = () => {
+    if (!active) return;
+    void run(async () => {
+      const next = await window.dashboard.agent.prepareBrief(active.id, active.workflowRevision);
+      setActive(next);
+      setNotice("Đã yêu cầu Agent tạo brief.");
+      await refresh();
+    });
+  };
+
+  const returnToAssets = () => {
+    if (!active) return;
+    void run(async () => {
+      const next = await window.dashboard.agent.returnToAssets(active.id, active.workflowRevision);
+      setActive(next);
+      await refresh();
+    });
+  };
+
+  const approveBrief = () => {
+    if (!active || !briefInput) return;
+    void run(async () => {
+      const next = await window.dashboard.agent.approveBrief(active.id, active.workflowRevision, briefInput);
+      setActive(next);
+      setNotice("Đã đóng băng brief. MotionReal chưa tạo project cho đến khi bạn bấm Tạo video.");
       await refresh();
     });
   };
@@ -214,6 +260,9 @@ export const AgentView: React.FC = () => {
       {active?.assetCollectionError && (
         <p className="ns-agent-notice" role="alert">{active.assetCollectionError}</p>
       )}
+      {active?.briefReviewError && (
+        <p className="ns-agent-notice" role="alert">{active.briefReviewError}</p>
+      )}
       {active?.productionState === "asset_review" && active.assetReview && (
         <div className="ns-agent-asset-review">
           <ImageReviewView
@@ -232,6 +281,67 @@ export const AgentView: React.FC = () => {
             onRequestMore={requestMoreAssets}
             onSubmit={approveAssets}
           />
+        </div>
+      )}
+      {active?.productionState === "brief_review" && !active.briefReview && (
+        <div className="ns-agent-prepare">
+          <span>{active.briefReviewError ? "Brief chưa hợp lệ. Bạn có thể yêu cầu Agent tạo lại." : "Agent đang tạo brief từ cuộc trò chuyện và asset đã duyệt."}</span>
+          <button type="button" className="ns-btn" onClick={prepareBrief} disabled={busy}>Tạo lại brief</button>
+        </div>
+      )}
+      {active?.productionState === "brief_review" && active.briefReview && briefInput && showBriefReview && (
+        <section className="ns-agent-brief-review" aria-label="Duyệt brief">
+          <div className="ns-agent-brief-head">
+            <div>
+              <h2>Duyệt brief</h2>
+              <p>Revision {active.briefReview.revision} · Video dọc 9:16</p>
+            </div>
+            <button type="button" className="ns-btn" onClick={() => setShowBriefReview(false)}>Tiếp tục chat</button>
+          </div>
+          <label>
+            Tiêu đề
+            <input className="ns-input" value={briefInput.title} maxLength={160} onChange={(event) => setBriefInput({ ...briefInput, title: event.target.value })} />
+          </label>
+          <label>
+            Brief cuối
+            <textarea className="ns-input ns-agent-brief-prompt" value={briefInput.prompt} maxLength={20_000} onChange={(event) => setBriefInput({ ...briefInput, prompt: event.target.value })} />
+          </label>
+          <div className="ns-agent-brief-settings">
+            <label>Thời lượng
+              <select className="ns-input" value={briefInput.durationTier} onChange={(event) => setBriefInput({ ...briefInput, durationTier: Number(event.target.value) as DurationTierChoice })}>
+                <option value={1}>0:45</option><option value={2}>1:30</option><option value={3}>2:30</option><option value={4}>3:30</option>
+              </select>
+            </label>
+            <label>Ngôn ngữ
+              <select className="ns-input" value={briefInput.videoLanguage} onChange={(event) => {
+                const videoLanguage = event.target.value as VideoLanguageChoice;
+                setBriefInput({ ...briefInput, videoLanguage, ...(videoLanguage === "en" && briefInput.voiceProvider === "vivibe" ? { voiceProvider: "elevenlabs" } : {}) });
+              }}>
+                <option value="vi">Tiếng Việt</option><option value="en">English</option>
+              </select>
+            </label>
+            <label>Giọng đọc
+              <select className="ns-input" value={briefInput.voiceProvider} onChange={(event) => setBriefInput({ ...briefInput, voiceProvider: event.target.value as VoiceProviderChoice })}>
+                {briefInput.videoLanguage === "vi" && <option value="vivibe">Vivibe</option>}
+                <option value="elevenlabs">ElevenLabs</option>
+              </select>
+            </label>
+          </div>
+          <div className="ns-agent-brief-assets">
+            {(active.assetReview ?? []).filter((asset) => active.briefReview?.selectedAssetIds.includes(asset.id)).map((asset) => (
+              <img key={asset.id} src={asset.previewUrl} alt={asset.label} title={asset.label} />
+            ))}
+          </div>
+          <div className="ns-agent-brief-actions">
+            <button type="button" className="ns-btn" onClick={returnToAssets} disabled={busy}>Quay lại asset</button>
+            <button type="button" className="ns-btn ns-btn-primary" onClick={approveBrief} disabled={busy || briefInput.prompt.trim().length < 20 || !briefInput.title.trim()}>Chấp nhận brief</button>
+          </div>
+        </section>
+      )}
+      {active?.productionState === "brief_review" && active.briefReview && !showBriefReview && (
+        <div className="ns-agent-prepare">
+          <span>Brief đang chờ duyệt; bạn có thể tiếp tục trao đổi với Agent.</span>
+          <button type="button" className="ns-btn ns-btn-primary" onClick={() => setShowBriefReview(true)}>Mở lại brief</button>
         </div>
       )}
       {active?.createReady && (

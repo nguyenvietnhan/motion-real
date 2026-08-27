@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { EventEmitter } from "node:events";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -228,6 +228,109 @@ describe("HarnessManager draft lifecycle", () => {
     await manager.dispose();
   });
 
+  it("requests, validates, edits, and freezes a brief before create", async () => {
+    const { manager, root, calls } = await activeManagerForTest();
+    const draft = await manager.createDraft("Gemini là gì");
+    await manager.activate(draft.id, "internal-key");
+    const collecting = await manager.prepareAssets(draft.id, 0);
+    const draftRoot = join(root, draft.id);
+    await writeFile(join(draftRoot, "assets", "one.png"), ONE_PIXEL_PNG);
+    await writeFile(join(draftRoot, "handoff", "assets.json"), JSON.stringify({
+      version: 1,
+      job_id: collecting.activeJobId,
+      request_revision: 1,
+      items: [{ id: "asset-01", path: "assets/one.png", source_url: "https://example.com/one.png", label: "Gemini" }],
+    }));
+    const assets = await manager.status(draft.id);
+    const waiting = await manager.approveAssets(draft.id, assets.workflowRevision, ["asset-01"]);
+    expect(waiting).toMatchObject({ productionState: "brief_review", workflowRevision: 3 });
+    expect(calls.at(-1)).toMatchObject({ method: "session.prompt" });
+    const request = JSON.parse(await readFile(join(draftRoot, "handoff", "brief-request.json"), "utf8"));
+    expect(request).toMatchObject({ job_id: collecting.activeJobId, request_revision: 1, selected_asset_ids: ["asset-01"] });
+
+    await writeFile(join(draftRoot, "handoff", "brief.json"), JSON.stringify({
+      version: 1,
+      job_id: collecting.activeJobId,
+      request_revision: 1,
+      brief_revision: 1,
+      title: "Gemini là gì?",
+      prompt: "Giải thích Gemini bằng mạch kể rõ ràng và dùng ảnh đã chọn làm trọng tâm thị giác.",
+      format: "tiktok",
+      duration_tier: 2,
+      video_language: "vi",
+      voice_provider: "vivibe",
+      selected_asset_ids: ["asset-01"],
+    }));
+    const review = await manager.status(draft.id);
+    expect(review.briefReview).toMatchObject({ revision: 1, durationTier: 2, selectedAssetIds: ["asset-01"] });
+    expect(review.createReady).toBe(false);
+
+    const queued = await manager.approveBrief(draft.id, review.workflowRevision, {
+      title: "Gemini AI là gì?",
+      prompt: "Giải thích Gemini AI bằng mạch kể trực quan, chính xác và dùng ảnh đã chọn đúng ngữ cảnh.",
+      durationTier: 1,
+      videoLanguage: "vi",
+      voiceProvider: "vivibe",
+    });
+    expect(queued).toMatchObject({ productionState: "queued_create", workflowRevision: 4, createReady: true });
+    await expect(manager.readCreateRequest(draft.id)).resolves.toMatchObject({
+      prompt: expect.stringContaining("Gemini AI"),
+      title: "Gemini AI là gì?",
+      imagePaths: [join(draftRoot, "assets", "one.png")],
+      choices: { durationTier: 1, videoLanguage: "vi", voiceProvider: "vivibe" },
+    });
+    const frozen = JSON.parse(await readFile(join(draftRoot, "handoff", "brief.json"), "utf8"));
+    expect(frozen).toMatchObject({ brief_revision: 2, accepted: true });
+    await manager.linkProject(draft.id, "project-gemini");
+    await expect(manager.status(draft.id)).resolves.toMatchObject({
+      productionState: "authoring",
+      projectId: "project-gemini",
+      createReady: false,
+    });
+    await manager.linkProject(draft.id, "project-gemini");
+    await expect(manager.linkProject(draft.id, "project-other")).rejects.toThrow(/project khác/);
+    await manager.dispose();
+  });
+
+  it("keeps stale/invalid briefs in review and can return to the same asset selection", async () => {
+    const { manager, root } = await activeManagerForTest();
+    const draft = await manager.createDraft("Brief lỗi");
+    await manager.activate(draft.id, "internal-key");
+    const collecting = await manager.prepareAssets(draft.id, 0);
+    const draftRoot = join(root, draft.id);
+    await writeFile(join(draftRoot, "assets", "one.png"), ONE_PIXEL_PNG);
+    await writeFile(join(draftRoot, "handoff", "assets.json"), JSON.stringify({
+      version: 1,
+      job_id: collecting.activeJobId,
+      request_revision: 1,
+      items: [{ id: "asset-01", path: "assets/one.png", source_url: "https://example.com/one.png" }],
+    }));
+    const assets = await manager.status(draft.id);
+    const waiting = await manager.approveAssets(draft.id, assets.workflowRevision, ["asset-01"]);
+    await writeFile(join(draftRoot, "handoff", "brief.json"), JSON.stringify({
+      version: 1,
+      job_id: "job-stale",
+      request_revision: 1,
+      brief_revision: 1,
+      title: "Sai",
+      prompt: "Nội dung đủ dài nhưng thuộc về một job hoàn toàn khác.",
+      format: "tiktok",
+      duration_tier: 1,
+      video_language: "vi",
+      voice_provider: "vivibe",
+      selected_asset_ids: ["asset-01"],
+    }));
+    const invalid = await manager.status(draft.id);
+    expect(invalid.productionState).toBe("brief_review");
+    expect(invalid.briefReviewError).toMatch(/không khớp/);
+    await expect(manager.readCreateRequest(draft.id)).rejects.toThrow(/duyệt brief/);
+
+    const back = await manager.returnToAssets(draft.id, waiting.workflowRevision);
+    expect(back).toMatchObject({ productionState: "asset_review", selectedAssetIds: ["asset-01"] });
+    expect(back.assetReview).toHaveLength(1);
+    await manager.dispose();
+  });
+
   it("refuses a create request that reaches outside the video workspace or into Harness history", async () => {
     const { manager, root } = await managerForTest();
     const draft = await manager.createDraft("An toàn đường dẫn");
@@ -236,12 +339,30 @@ describe("HarnessManager draft lifecycle", () => {
     state = await manager.transitionWorkflow(draft.id, { expectedRevision: state.workflowRevision, to: "asset_review", jobId: "job-create" });
     state = await manager.transitionWorkflow(draft.id, { expectedRevision: state.workflowRevision, to: "brief_review", jobId: "job-create" });
     await manager.transitionWorkflow(draft.id, { expectedRevision: state.workflowRevision, to: "queued_create", jobId: "job-create" });
+    const metadataFile = join(root, draft.id, "motionreal-agent.json");
+    const metadata = JSON.parse(await readFile(metadataFile, "utf8"));
+    await writeFile(metadataFile, JSON.stringify({ ...metadata, selectedAssetIds: ["asset-01"] }));
+    const createRequest = {
+      version: 1,
+      title: "An toàn đường dẫn",
+      prompt: "x",
+      duration_tier: 1,
+      video_language: "vi",
+      voice_provider: "vivibe",
+      selected_asset_ids: ["asset-01"],
+    };
+    await mkdir(join(root, draft.id, "handoff"), { recursive: true });
 
-    await writeFile(requestFile, '{"version":1,"prompt":"x","images":["../secret.png"]}');
-    await expect(manager.readCreateRequest(draft.id)).rejects.toThrow(/workspace/);
+    await writeFile(join(root, draft.id, "handoff", "assets.json"), JSON.stringify({
+      items: [{ id: "asset-01", path: "../secret.png" }],
+    }));
+    await writeFile(requestFile, JSON.stringify(createRequest));
+    await expect(manager.readCreateRequest(draft.id)).rejects.toThrow(/assets/);
 
-    await writeFile(requestFile, '{"version":1,"prompt":"x","images":[".harness/sessions/a.png"]}');
-    await expect(manager.readCreateRequest(draft.id)).rejects.toThrow(/workspace/);
+    await writeFile(join(root, draft.id, "handoff", "assets.json"), JSON.stringify({
+      items: [{ id: "asset-01", path: ".harness/sessions/a.png" }],
+    }));
+    await expect(manager.readCreateRequest(draft.id)).rejects.toThrow(/assets/);
   });
 
   it("removes the video workspace when the draft is removed", async () => {
