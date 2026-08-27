@@ -141,6 +141,20 @@ const { handlers: gatewayHandlers, getSelectedModelId } = createGatewayHandlers(
 // `reportProgress` is a forwarder set once the WorkspaceController exists (below),
 // so the renderer's real per-frame progress drives the staged rendering bar.
 let reportProgress: (projectId: string, ratio: number) => void = () => {};
+async function wordsPerSecondForProject(projectId: string): Promise<number | undefined> {
+  const brief = await readBrief(projectId);
+  // Existing calibrations are measured with Vietnamese passages. English uses
+  // the language-specific prompt default until calibration keys include language.
+  if (brief.language === "en") return undefined;
+  if (brief.tts.provider !== "vivibe" && brief.tts.provider !== "elevenlabs" && brief.tts.provider !== "vieneu") return undefined;
+  return settingsStore.calibratedWordsPerSecond({
+    provider: brief.tts.provider,
+    voiceId: brief.tts.voiceId,
+    modelId: brief.tts.modelId,
+    speed: brief.tts.speed,
+  }) ?? (brief.tts.provider === "vieneu" ? VIENEU_DEFAULT_WORDS_PER_SECOND : undefined);
+}
+
 const authoringBackend = new NineRouterAuthoringBackend({
   client: nrClient,
   tools,
@@ -150,19 +164,7 @@ const authoringBackend = new NineRouterAuthoringBackend({
   apiKey: () => gateway.localApiKey() ?? undefined,
   // Per-voice CALIBRATED narration rate for the author word-budget;
   // undefined when uncalibrated/stale ⇒ the prompt uses its provider fallback.
-  wordsPerSecond: async (projectId) => {
-    const brief = await readBrief(projectId);
-    // Existing calibrations are measured with Vietnamese passages. English uses
-    // the language-specific prompt default until calibration keys include language.
-    if (brief.language === "en") return undefined;
-    if (brief.tts.provider !== "vivibe" && brief.tts.provider !== "elevenlabs" && brief.tts.provider !== "vieneu") return undefined;
-    return settingsStore.calibratedWordsPerSecond({
-      provider: brief.tts.provider,
-      voiceId: brief.tts.voiceId,
-      modelId: brief.tts.modelId,
-      speed: brief.tts.speed,
-    }) ?? (brief.tts.provider === "vieneu" ? VIENEU_DEFAULT_WORDS_PER_SECOND : undefined);
-  },
+  wordsPerSecond: wordsPerSecondForProject,
   onRenderProgress: (ratio, projectId) => {
     // Drive the staged rendering bar from the renderer's REAL per-frame ratio.
     // The active phase (draft/qa/edit/full) is owned by the WorkspaceController
@@ -431,6 +433,7 @@ const harness = new HarnessManager({
   nodeExecutable: process.env.MOTIONREAL_NODE_BIN ?? process.env.npm_node_execpath ?? "node",
   mediaUrl,
   defaultVoiceProvider: () => settingsStore.current().voiceProvider,
+  wordsPerSecond: wordsPerSecondForProject,
   onChatEvent: (event) => events.agentChat(event),
   renderAuthoringStills: async (projectId, sceneIds) => {
     workspace.beginHarnessStillRender(projectId);

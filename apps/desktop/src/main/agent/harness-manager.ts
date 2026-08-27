@@ -17,6 +17,11 @@ import {
 } from "./agent-workflow.js";
 import { projectHarnessHistory, projectHarnessMuxEnvelope } from "./harness-chat.js";
 import { AUTHORING_CONTRACT } from "../authoring/contract-text.js";
+import {
+  buildHarnessAuthoringPacing,
+  validateHarnessManifestPacing,
+  type HarnessAuthoringPacing,
+} from "./harness-authoring-pacing.js";
 
 const METADATA_FILE = "motionreal-agent.json";
 const CREATE_REQUEST_FILE = "motionreal.create.json";
@@ -76,6 +81,7 @@ export type HarnessManagerDeps = {
   nodeExecutable?: string;
   mediaUrl?: (path: string) => string | null;
   defaultVoiceProvider?: () => VoiceProviderChoice;
+  wordsPerSecond?: (projectId: string) => Promise<number | undefined>;
   onChatEvent?: (event: AgentChatEvent) => void;
   openWebSocket?: (url: string) => WebSocket;
   renderAuthoringStills?: (
@@ -488,6 +494,7 @@ export class HarnessManager {
     const generated = await this.readBrief(current);
     if (!generated) throw new Error("Agent chưa gửi brief hợp lệ.");
     const accepted = validateBriefInput(input);
+    const targetSeconds = resolveEffectiveDuration({ prompt: "", durationTier: accepted.durationTier }).targetSeconds;
     const revision = generated.revision + (briefChanged(generated, accepted) ? 1 : 0);
     await writeJson(join(this.rootOf(id), BRIEF_FILE), {
       version: 1,
@@ -498,6 +505,7 @@ export class HarnessManager {
       prompt: accepted.prompt,
       format: "tiktok",
       duration_tier: accepted.durationTier,
+      target_seconds: targetSeconds,
       video_language: accepted.videoLanguage,
       voice_provider: accepted.voiceProvider,
       selected_asset_ids: generated.selectedAssetIds,
@@ -508,6 +516,7 @@ export class HarnessManager {
       title: accepted.title,
       prompt: accepted.prompt,
       duration_tier: accepted.durationTier,
+      target_seconds: targetSeconds,
       video_language: accepted.videoLanguage,
       voice_provider: accepted.voiceProvider,
       selected_asset_ids: generated.selectedAssetIds,
@@ -619,6 +628,7 @@ export class HarnessManager {
       usableAssets.push({ id: asset.id, ref: asset.ref.replaceAll("\\", "/"), path: `${PROJECT_LINK}/${asset.ref.replaceAll("\\", "/")}` });
     }
     const next = { ...current, authoringRequestRevision: (current.authoringRequestRevision ?? 0) + 1 };
+    const pacing = await this.authoringPacing(current);
     await mkdir(join(root, "handoff"), { recursive: true });
     await writeFile(join(root, AUTHORING_CONTRACT_FILE), `${AUTHORING_CONTRACT}\n`, "utf8");
     await writeJson(join(root, AUTHORING_REQUEST_FILE), {
@@ -632,9 +642,12 @@ export class HarnessManager {
       contract: "handoff/authoring-contract.md",
       manifest: `${PROJECT_LINK}/manifest.json`,
       authored_dir: `${PROJECT_LINK}/authored`,
+      pacing,
       assets: usableAssets,
       instructions: [
         "Đọc brief, contract và xem trực tiếp từng asset trước khi author.",
+        "pacing là contract có thẩm quyền; bỏ qua mọi câu duration mâu thuẫn nằm trong prompt của brief.",
+        "Asset là pool tư liệu, không phải số lượng storyboard. Số cảnh và lượng narration phải theo pacing.",
         "Viết mới manifest.json và các module authored/*.tsx cho toàn video; không gọi API authoring cũ.",
         "Mỗi asset trong request phải xuất hiện qua scene.image.ref trong ít nhất một cảnh.",
         "Không render video. Khi code đã hoàn chỉnh, gọi motionreal_submit_authoring để MotionReal validate và render still.",
@@ -1048,6 +1061,12 @@ export class HarnessManager {
       throw new Error("Authoring submission thiếu scene id hợp lệ.");
     }
     const sceneIds = submission.scene_ids as string[];
+    const pacing = await this.authoringPacing(record);
+    const manifestPath = join(root, PROJECT_LINK, "manifest.json");
+    const manifest = parseJson(await readFile(manifestPath, "utf8"));
+    const paced = validateHarnessManifestPacing(manifest, sceneIds, pacing, (await this.readRequiredBrief(record)).videoLanguage);
+    if (!paced.ok) throw new Error(paced.errors.join(" "));
+    await writeJson(manifestPath, paced.manifest);
     const rendered = await this.deps.renderAuthoringStills!(record.projectId!, sceneIds);
     if (!rendered.ok || rendered.stills.length < sceneIds.length) {
       throw new Error(rendered.ok ? "MotionReal chưa render đủ still cho mọi cảnh." : rendered.error);
@@ -1092,6 +1111,7 @@ export class HarnessManager {
     if (latest.productionState !== "authoring") return;
     await this.advanceAuthoringRequest(latest, {
       phase: "repair",
+      pacing: await this.authoringPacing(latest),
       render_error: message.slice(0, 2_000),
       stills: [],
       instructions: [
@@ -1099,6 +1119,19 @@ export class HarnessManager {
         "Gọi lại motionreal_submit_authoring bằng request_revision mới sau khi sửa.",
       ],
     }, "MotionReal chưa validate/render được scene. Hãy đọc render_error trong handoff/authoring-request.json, sửa project/ rồi submit authoring revision mới.");
+  }
+
+  private async readRequiredBrief(record: DraftRecord): Promise<AgentBriefVM> {
+    const brief = await this.readBrief(record);
+    if (!brief) throw new Error("Không tìm thấy brief đã duyệt cho authoring Harness.");
+    return brief;
+  }
+
+  private async authoringPacing(record: DraftRecord): Promise<HarnessAuthoringPacing> {
+    if (!record.projectId) throw new Error("Project Harness chưa được liên kết.");
+    const brief = await this.readRequiredBrief(record);
+    const wordsPerSecond = await this.deps.wordsPerSecond?.(record.projectId);
+    return buildHarnessAuthoringPacing(brief.durationTier, brief.videoLanguage, wordsPerSecond);
   }
 
   private async advanceAuthoringRequest(

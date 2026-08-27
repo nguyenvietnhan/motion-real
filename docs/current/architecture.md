@@ -393,6 +393,11 @@ length in the prompt is ignored for pacing when a tier is set (conflicts are
 logged only). `resolveEffectiveDuration` is the pure resolver; create wires
 `AuthorInput.targetSeconds` from the selected tier. Content-plan quality also
 blocks **under-budget** total narration (far below the target word count).
+Harness-owned authoring receives the same decision as a machine-readable pacing
+contract in `handoff/authoring-request.json`; MotionReal validates the authored
+manifest against that contract before still render and stamps the approved tier
+and language onto the manifest. A stale duration sentence inside the brief is
+therefore not allowed to override the user's reviewed tier.
 
 **N10 B-minimal (crash-only):** authored typecheck still runs, but **only**
 unbound-name diagnostics (`TS2304` / “Cannot find name”) are emitted as hard

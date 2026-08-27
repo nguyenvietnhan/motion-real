@@ -255,6 +255,7 @@ structured brief:
   "prompt": "Tạo video dọc giải thích các thay đổi mới của ChatGPT...",
   "format": "tiktok",
   "duration_tier": 2,
+  "target_seconds": 90,
   "video_language": "vi",
   "voice_provider": "vivibe",
   "selected_asset_ids": ["asset-01"]
@@ -283,6 +284,17 @@ project as `project/`, and asks the same Harness Session to inspect the approved
 assets and write fresh `manifest.json` plus `authored/*.tsx`. The submission tool
 checks the project mapping and asset references before MotionReal renders PNG
 stills.
+
+The request also carries a machine-readable pacing contract derived from the
+approved duration tier and the configured/calibrated voice: target seconds,
+narration-word budget, and min/target/max scene counts. This contract overrides
+duration phrases left inside the free-form brief. Approved assets are a media
+pool, not a scene-count instruction. Before rendering any still, MotionReal
+checks that the submitted scene order matches the manifest and that scene count
+and narration meet the pacing contract; an under-budget manifest returns to the
+same Harness Session for repair. MotionReal also stamps the approved duration
+tier, language, and 9:16 format onto the manifest instead of trusting model
+metadata.
 
 The first valid scene submission is not shown to the user immediately. MotionReal
 renders one still per scene and asks Harness to open every PNG, revise weak scene

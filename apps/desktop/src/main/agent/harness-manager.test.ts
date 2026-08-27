@@ -407,8 +407,8 @@ describe("HarnessManager draft lifecycle", () => {
 
     const queued = await manager.approveBrief(draft.id, reused.workflowRevision, {
       title: "Gemini AI là gì?",
-      prompt: "Giải thích Gemini AI bằng mạch kể trực quan, chính xác và dùng ảnh đã chọn đúng ngữ cảnh.",
-      durationTier: 1,
+      prompt: "Giải thích Gemini AI trong 45 giây bằng mạch kể trực quan, chính xác và dùng ảnh đã chọn đúng ngữ cảnh.",
+      durationTier: 2,
       videoLanguage: "vi",
       voiceProvider: "vivibe",
     });
@@ -417,10 +417,10 @@ describe("HarnessManager draft lifecycle", () => {
       prompt: expect.stringContaining("Gemini AI"),
       title: "Gemini AI là gì?",
       assets: [{ id: "asset-01", path: join(draftRoot, "assets", "one.png") }],
-      choices: { durationTier: 1, videoLanguage: "vi", voiceProvider: "vivibe" },
+      choices: { durationTier: 2, videoLanguage: "vi", voiceProvider: "vivibe" },
     });
     const frozen = JSON.parse(await readFile(join(draftRoot, "handoff", "brief.json"), "utf8"));
-    expect(frozen).toMatchObject({ brief_revision: 2, accepted: true });
+    expect(frozen).toMatchObject({ brief_revision: 2, accepted: true, duration_tier: 2, target_seconds: 90 });
     await manager.linkProject(draft.id, "project-gemini");
     await expect(manager.status(draft.id)).resolves.toMatchObject({
       productionState: "authoring",
@@ -506,24 +506,47 @@ describe("HarnessManager draft lifecycle", () => {
   });
 
   it("links the scaffolded project and asks Harness to author scenes from real assets", async () => {
-    let stillPath = "";
-    const renderAuthoringStills = vi.fn(async () => ({ ok: true as const, stills: [stillPath] }));
+    let stillPaths: string[] = [];
+    const renderAuthoringStills = vi.fn(async () => ({ ok: true as const, stills: stillPaths }));
     const acceptAuthoringStills = vi.fn(async () => undefined);
-    const { manager, root, calls } = await activeManagerForTest({ renderAuthoringStills, acceptAuthoringStills });
+    const { manager, root, calls } = await activeManagerForTest({
+      renderAuthoringStills,
+      acceptAuthoringStills,
+      wordsPerSecond: async () => 1,
+    });
     const draft = await manager.createDraft("Harness authoring");
     await manager.activate(draft.id, "internal-key");
     let state = await manager.transitionWorkflow(draft.id, { expectedRevision: 0, to: "collecting_assets", jobId: "job-author" });
     state = await manager.transitionWorkflow(draft.id, { expectedRevision: state.workflowRevision, to: "asset_review", jobId: "job-author" });
     state = await manager.transitionWorkflow(draft.id, { expectedRevision: state.workflowRevision, to: "brief_review", jobId: "job-author" });
     state = await manager.transitionWorkflow(draft.id, { expectedRevision: state.workflowRevision, to: "queued_create", jobId: "job-author" });
+    const draftRoot = join(root, draft.id);
+    const metadataPath = join(draftRoot, "motionreal-agent.json");
+    const metadata = JSON.parse(await readFile(metadataPath, "utf8"));
+    await writeFile(metadataPath, JSON.stringify({ ...metadata, briefRequestRevision: 1 }));
+    await mkdir(join(draftRoot, "handoff"), { recursive: true });
+    await writeFile(join(draftRoot, "handoff", "brief.json"), JSON.stringify({
+      version: 1,
+      job_id: "job-author",
+      request_revision: 1,
+      brief_revision: 1,
+      title: "Harness authoring",
+      prompt: "Viết video Harness đủ nhịp kể, đủ narration và dùng asset theo đúng ngữ cảnh.",
+      format: "tiktok",
+      duration_tier: 1,
+      video_language: "vi",
+      voice_provider: "vivibe",
+      selected_asset_ids: [],
+    }));
     await manager.linkProject(draft.id, "project-1");
     const projectRoot = join(root, "projects", "project-1");
     await mkdir(join(projectRoot, "assets"), { recursive: true });
     await mkdir(join(projectRoot, "authored"), { recursive: true });
     await mkdir(join(projectRoot, "review"), { recursive: true });
     await writeFile(join(projectRoot, "assets", "logo.png"), ONE_PIXEL_PNG);
-    stillPath = join(projectRoot, "review", "scene-01.png");
-    await writeFile(stillPath, ONE_PIXEL_PNG);
+    const sceneIds = ["scene-01", "scene-02", "scene-03"];
+    stillPaths = sceneIds.map((sceneId) => join(projectRoot, "review", `${sceneId}.png`));
+    await Promise.all(stillPaths.map((path) => writeFile(path, ONE_PIXEL_PNG)));
 
     await manager.startAuthoring(draft.id, "project-1", projectRoot, [{ id: "logo", ref: "assets/logo.png" }]);
 
@@ -535,31 +558,82 @@ describe("HarnessManager draft lifecycle", () => {
       request_revision: 1,
       phase: "initial",
       manifest: "project/manifest.json",
+      pacing: {
+        duration_tier: 1,
+        target_seconds: 45,
+        min_narration_words: 38,
+        min_scenes: 3,
+      },
       assets: [{ id: "logo", ref: "assets/logo.png", path: "project/assets/logo.png" }],
     });
     expect(calls.at(-1)).toMatchObject({ method: "session.prompt" });
     await expect(readFile(join(root, draft.id, "handoff", "authoring-contract.md"), "utf8"))
       .resolves.toMatch(/HỢP ĐỒNG VIẾT CẢNH/);
 
+    await writeFile(join(projectRoot, "manifest.json"), JSON.stringify({
+      title: "Harness authoring",
+      durationTier: 4,
+      videoLanguage: "en",
+      scenes: sceneIds.map((id) => ({
+        id,
+        component: id,
+        headline: id,
+        narration: "ngắn",
+      })),
+    }));
+
     await writeFile(join(root, draft.id, "handoff", "authoring.json"), JSON.stringify({
       version: 1,
       job_id: "job-author",
       request_revision: 1,
-      scene_ids: ["scene-01"],
+      scene_ids: sceneIds,
       used_asset_ids: ["logo"],
     }));
-    await vi.waitFor(() => expect(renderAuthoringStills).toHaveBeenCalledWith("project-1", ["scene-01"]), { timeout: 2_000 });
     await vi.waitFor(async () => {
-      const reviewRequest = JSON.parse(await readFile(join(root, draft.id, "handoff", "authoring-request.json"), "utf8"));
-      expect(reviewRequest).toMatchObject({ request_revision: 2, phase: "self_review", stills: ["project/review/scene-01.png"] });
-    });
+      const repairRequest = JSON.parse(await readFile(join(root, draft.id, "handoff", "authoring-request.json"), "utf8"));
+      expect(repairRequest).toMatchObject({ request_revision: 2, phase: "repair" });
+      expect(repairRequest.render_error).toMatch(/Narration có 3 từ/);
+    }, { timeout: 2_000 });
+    expect(renderAuthoringStills).not.toHaveBeenCalled();
+
+    await writeFile(join(projectRoot, "manifest.json"), JSON.stringify({
+      title: "Harness authoring",
+      durationTier: 4,
+      videoLanguage: "en",
+      scenes: sceneIds.map((id) => ({
+        id,
+        component: id,
+        headline: id,
+        narration: "một hai ba bốn năm sáu bảy tám chín mười mười một mười hai mười ba",
+      })),
+    }));
     await writeFile(join(root, draft.id, "handoff", "authoring.json"), JSON.stringify({
       version: 1,
       job_id: "job-author",
       request_revision: 2,
-      scene_ids: ["scene-01"],
+      scene_ids: sceneIds,
       used_asset_ids: ["logo"],
-      reviewed_scene_ids: ["scene-01"],
+    }));
+    await vi.waitFor(() => expect(renderAuthoringStills).toHaveBeenCalledWith("project-1", sceneIds), { timeout: 2_000 });
+    await expect(readFile(join(projectRoot, "manifest.json"), "utf8").then(JSON.parse)).resolves.toMatchObject({
+      durationTier: 1,
+      videoLanguage: "vi",
+    });
+    await vi.waitFor(async () => {
+      const reviewRequest = JSON.parse(await readFile(join(root, draft.id, "handoff", "authoring-request.json"), "utf8"));
+      expect(reviewRequest).toMatchObject({
+        request_revision: 3,
+        phase: "self_review",
+        stills: sceneIds.map((sceneId) => `project/review/${sceneId}.png`),
+      });
+    });
+    await writeFile(join(root, draft.id, "handoff", "authoring.json"), JSON.stringify({
+      version: 1,
+      job_id: "job-author",
+      request_revision: 3,
+      scene_ids: sceneIds,
+      used_asset_ids: ["logo"],
+      reviewed_scene_ids: sceneIds,
       review_notes: "Đã mở PNG, kiểm tra asset và hierarchy; scene rõ ràng.",
     }));
     await vi.waitFor(() => expect(acceptAuthoringStills).toHaveBeenCalledWith("project-1"), { timeout: 2_000 });
@@ -569,7 +643,7 @@ describe("HarnessManager draft lifecycle", () => {
       .rejects.toThrow(/không hợp lệ/);
     await manager.requestSceneEdits(draft.id, "project-1", [{ sceneId: "scene-01", text: "Phóng to logo và bỏ khung trang trí." }], "Giữ nhịp hình rõ ràng.");
     await expect(readFile(join(root, draft.id, "handoff", "authoring-request.json"), "utf8").then(JSON.parse)).resolves.toMatchObject({
-      request_revision: 3,
+      request_revision: 4,
       phase: "edit",
       target_scene_ids: ["scene-01"],
       edit_request: {
