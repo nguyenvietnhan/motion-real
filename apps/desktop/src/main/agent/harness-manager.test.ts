@@ -546,6 +546,22 @@ describe("HarnessManager draft lifecycle", () => {
     await manager.status(draft.id);
     await vi.waitFor(() => expect(acceptAuthoringStills).toHaveBeenCalledWith("project-1"));
     await vi.waitFor(async () => expect(await manager.status(draft.id)).toMatchObject({ productionState: "still_review" }));
+
+    await expect(manager.requestSceneEdits(draft.id, "project-1", [{ sceneId: "scene-99", text: "Sửa cảnh lạ" }], ""))
+      .rejects.toThrow(/không hợp lệ/);
+    await manager.requestSceneEdits(draft.id, "project-1", [{ sceneId: "scene-01", text: "Phóng to logo và bỏ khung trang trí." }], "Giữ nhịp hình rõ ràng.");
+    await expect(readFile(join(root, draft.id, "handoff", "authoring-request.json"), "utf8").then(JSON.parse)).resolves.toMatchObject({
+      request_revision: 3,
+      phase: "edit",
+      target_scene_ids: ["scene-01"],
+      edit_request: {
+        per_scene: [{ sceneId: "scene-01", text: "Phóng to logo và bỏ khung trang trí." }],
+        global_notes: "Giữ nhịp hình rõ ràng.",
+      },
+    });
+    await expect(readFile(join(root, draft.id, "handoff", "authoring.json"), "utf8")).rejects.toThrow();
+    await expect(manager.status(draft.id)).resolves.toMatchObject({ productionState: "authoring" });
+    expect(calls.at(-1)).toMatchObject({ method: "session.prompt" });
     await manager.dispose();
   });
 

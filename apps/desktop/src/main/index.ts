@@ -18,6 +18,7 @@ import { NineRouterClient } from "./gateway/ninerouter-client.js";
 import { NineRouterAuthoringBackend } from "./authoring/ninerouter-backend.js";
 import { CustomLoopAgentWorker } from "./agent/custom-loop-worker.js";
 import { createAgentProject } from "./agent/create-agent-project.js";
+import { routeSceneEdits } from "./agent/route-scene-edits.js";
 import { WorkspaceController } from "./workspace/workspace-controller.js";
 import { CreateController } from "./create/create-controller.js";
 import { stripL0Tokens } from "./redact/friendly.js";
@@ -887,9 +888,21 @@ const handlers: InvokeHandlers = {
     return undefined;
   },
 
-  "review:submitEdits": (projectId, batch) => {
+  "review:submitEdits": async (projectId, batch) => {
+    const id = String(projectId);
     const b = batch as { perScene: { sceneId: string; text: string }[]; globalNotes: string };
-    workspace.submitEdits(String(projectId), b.perScene ?? [], b.globalNotes ?? "");
+    await routeSceneEdits(id, b.perScene ?? [], b.globalNotes ?? "", {
+      draftForProject: (value) => harness.draftForProject(value),
+      activate: (draftId) => activateHarnessDraft(draftId),
+      beginHarness: (value) => workspace.beginHarnessAuthoring(value),
+      requestHarness: (draftId, value, edits, notes) => harness.requestSceneEdits(draftId, value, edits, notes),
+      restoreHarnessReview: (value) => workspace.acceptHarnessStills(value),
+      submitClassic: (value, edits, notes) => workspace.submitEdits(
+        value,
+        edits as { sceneId: string; text: string }[],
+        String(notes ?? ""),
+      ),
+    });
     return { ok: true, revision: 1 };
   },
   "review:approveDraft": (projectId) => {

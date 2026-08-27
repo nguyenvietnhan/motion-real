@@ -633,6 +633,69 @@ export class HarnessManager {
     await this.promptSession(next, "MotionReal đã tạo project Harness. Hãy đọc handoff/authoring-request.json và handoff/authoring-contract.md, xem các asset thật, tự viết toàn bộ scene vào project/, rồi gọi motionreal_submit_authoring. Không dùng authoring API cũ.");
   }
 
+  async requestSceneEdits(
+    id: string,
+    projectId: string,
+    edits: unknown,
+    globalNotes: unknown,
+  ): Promise<void> {
+    const current = await this.mustReadRecord(id);
+    this.requireActiveSession(current);
+    if (current.productionState !== "still_review" || current.projectId !== projectId) {
+      throw new Error("Project Harness chưa ở bước duyệt cảnh.");
+    }
+    const root = this.rootOf(id);
+    const submission = parseJson(await readFile(join(root, "handoff", "authoring.json"), "utf8")) as Record<string, unknown>;
+    if (submission.version !== 1 || submission.job_id !== current.activeJobId
+      || submission.request_revision !== current.authoringRequestRevision
+      || !Array.isArray(submission.scene_ids)) {
+      throw new Error("Không tìm thấy bản authoring Harness đã được duyệt.");
+    }
+    const sceneIds = submission.scene_ids.filter((value): value is string => typeof value === "string");
+    if (sceneIds.length < 1 || sceneIds.length !== submission.scene_ids.length || new Set(sceneIds).size !== sceneIds.length) {
+      throw new Error("Danh sách cảnh Harness không hợp lệ.");
+    }
+    if (!Array.isArray(edits)) throw new Error("Yêu cầu sửa cảnh không hợp lệ.");
+    const perScene = edits
+      .map((value) => {
+        if (!value || typeof value !== "object") throw new Error("Yêu cầu sửa cảnh không hợp lệ.");
+        const edit = value as Record<string, unknown>;
+        if (typeof edit.sceneId !== "string" || typeof edit.text !== "string") {
+          throw new Error("Yêu cầu sửa cảnh không hợp lệ.");
+        }
+        return { sceneId: edit.sceneId, text: edit.text.trim() };
+      })
+      .filter((edit) => edit.text.length > 0);
+    if (new Set(perScene.map((edit) => edit.sceneId)).size !== perScene.length
+      || perScene.some((edit) => !sceneIds.includes(edit.sceneId) || edit.text.length > 2_000)) {
+      throw new Error("Yêu cầu sửa cảnh không hợp lệ.");
+    }
+    if (typeof globalNotes !== "string") throw new Error("Ghi chú cả video không hợp lệ.");
+    const notes = globalNotes.trim();
+    if (notes.length > 2_000) throw new Error("Ghi chú cả video vượt giới hạn 2.000 ký tự.");
+    if (perScene.length === 0 && !notes) throw new Error("Hãy nhập ít nhất một yêu cầu chỉnh sửa.");
+    const targetSceneIds = perScene.length > 0 ? perScene.map((edit) => edit.sceneId) : sceneIds;
+    const authoring = {
+      ...current,
+      ...transitionAgentWorkflow(current, {
+        expectedRevision: current.workflowRevision,
+        to: "authoring",
+        jobId: current.activeJobId,
+      }),
+    };
+    await this.advanceAuthoringRequest(authoring, {
+      phase: "edit",
+      target_scene_ids: targetSceneIds,
+      edit_request: { per_scene: perScene, global_notes: notes },
+      render_error: undefined,
+      instructions: [
+        "Đọc edit_request và mở still hiện tại của các target_scene_ids trước khi sửa.",
+        "Chỉ sửa scene được yêu cầu; giữ nguyên narration, thứ tự cảnh và các scene còn lại.",
+        "Sửa trực tiếp project/authored/*.tsx. Khi hoàn tất, gọi motionreal_submit_authoring bằng request_revision mới.",
+      ],
+    }, "MotionReal đã nhận góp ý cảnh. Hãy đọc handoff/authoring-request.json, xem still liên quan, sửa trực tiếp scene trong project/ và submit lại. Không dùng authoring API cũ.");
+  }
+
   async draftForProject(projectId: string): Promise<AgentDraftVM | null> {
     return (await this.list()).find((draft) => draft.projectId === projectId) ?? null;
   }
