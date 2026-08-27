@@ -116,4 +116,9 @@ describe("SceneImageSchema ref refinement (local-only, raster-only)", () => {
     expect(SceneImageSchema.safeParse({ ref: "assets/x.png", alt: "a chart" }).success).toBe(true);
     expect(SceneImageSchema.safeParse({ ref: "assets/x.png", alt: "x".repeat(161) }).success).toBe(false);
   });
+  it("keeps legacy images valid and validates explicit presentation roles", () => {
+    expect(SceneImageSchema.safeParse({ ref: "assets/x.png" }).success).toBe(true);
+    expect(SceneImageSchema.safeParse({ ref: "assets/logo.png", role: "logo" }).success).toBe(true);
+    expect(SceneImageSchema.safeParse({ ref: "assets/logo.png", role: "wallpaper" }).success).toBe(false);
+  });
 });

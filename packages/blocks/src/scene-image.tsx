@@ -1,5 +1,6 @@
 import React from "react";
 import { Img, staticFile } from "remotion";
+import type { SceneImageRole } from "@motionreal/schema";
 import { useTheme } from "./theme-context.js";
 
 /**
@@ -13,10 +14,10 @@ import { useTheme } from "./theme-context.js";
  * `staticFile` against the project root (exactly like narration audio) — never
  * a remote URL — so re-renders stay offline and byte-stable (N16).
  *
- * SELF-FITTING (the block owns the image's size, not the author): the `<img>`
- * FILLS the content column width (`width:100%`) and lets its height follow the
- * image's TRUE aspect ratio (`height:auto`). The frame (border + radius) is drawn
- * ON the image element itself, so it HUGS the picture with NO empty side gaps —
+ * SELF-FITTING (the block owns the image's size, not the author): hero media
+ * fills the content column, support media is slightly inset, and logo/icon
+ * media stays compact. Height always follows the image's TRUE aspect ratio.
+ * Photo chrome is drawn ON hero/support images so it HUGS the picture —
  * the bug a `width:auto` intrinsic layout caused (a 800px image floating in a
  * 1000px column left a gap each side). Crawled article images are almost always
  * landscape/square so the height stays modest; `maxHeight` + an `object-fit`
@@ -37,6 +38,8 @@ export const SceneImage: React.FC<{
   imageRef: string;
   /** Accessibility/review alt text (not rendered as an on-screen caption). */
   alt?: string;
+  /** Hero/support media fills the visual field; logos/icons stay compact. */
+  role?: SceneImageRole;
   /** Vertical cap for the image in canvas px (keeps it inside the content zone). */
   maxHeight?: number;
   /**
@@ -46,8 +49,11 @@ export const SceneImage: React.FC<{
    * so an authored fixed box can't re-introduce letterboxing.
    */
   style?: React.CSSProperties;
-}> = ({ imageRef, alt, maxHeight = 720, style }) => {
+}> = ({ imageRef, alt, role = "hero", maxHeight = 720, style }) => {
   const theme = useTheme();
+  const compact = role === "logo" || role === "icon";
+  const width = role === "hero" ? "100%" : role === "support" ? "86%" : "auto";
+  const compactMaxWidth = role === "icon" ? 180 : 420;
   return (
     <div
       style={{
@@ -63,21 +69,18 @@ export const SceneImage: React.FC<{
         alt={alt}
         style={{
           display: "block",
-          // FILL the content column width; height follows the image's true aspect
-          // ratio. This is the fix for the empty side gaps a `width:auto` intrinsic
-          // layout caused (an 800px image floated in a ~1000px column, hairline-
-          // framed, leaving a gap each side). `maxHeight` + `objectFit:contain`
-          // only kick in for a rare very-tall portrait, letterboxing it WITHIN the
-          // cap instead of pushing past the content zone.
-          width: "100%",
+          // Hero/support media uses the visual field; compact transparent brand
+          // marks keep their intrinsic aspect without photo chrome.
+          width,
           height: "auto",
-          maxHeight,
+          maxWidth: compact ? compactMaxWidth : undefined,
+          maxHeight: compact ? Math.min(maxHeight, compactMaxWidth) : maxHeight,
           objectFit: "contain",
-          border: `1px solid ${theme.surface.borderColor}`,
-          borderRadius: theme.radius.md,
+          border: compact ? "none" : `1px solid ${theme.surface.borderColor}`,
+          borderRadius: compact ? 0 : theme.radius.md,
           // Neutral plate behind a transparent PNG so it sits on the panel
           // surface rather than showing the backdrop through it.
-          backgroundColor: theme.colors.panel,
+          backgroundColor: compact ? "transparent" : theme.colors.panel,
         }}
       />
     </div>

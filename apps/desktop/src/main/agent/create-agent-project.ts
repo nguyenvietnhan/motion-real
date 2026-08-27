@@ -1,4 +1,5 @@
 import { basename } from "node:path";
+import type { SceneImageRole } from "@motionreal/schema";
 import type { StagedImageRef } from "../../shared/types.js";
 import type { CreateController } from "../create/create-controller.js";
 import type { HarnessManager } from "./harness-manager.js";
@@ -6,12 +7,12 @@ import type { HarnessManager } from "./harness-manager.js";
 type Deps = {
   status: (draftId: string) => Promise<{ projectId?: string }>;
   readCreateRequest: HarnessManager["readCreateRequest"];
-  stageImages: (assets: Array<{ id: string; path: string }>) => Promise<Array<{ id: string; image: StagedImageRef }>>;
+  stageImages: (assets: Array<{ id: string; path: string; role: SceneImageRole }>) => Promise<Array<{ id: string; image: StagedImageRef }>>;
   create: CreateController["create"];
   linkProject: HarnessManager["linkProject"];
   deleteProject: (projectId: string) => Promise<void>;
   renameProject: (projectId: string, title: string) => Promise<unknown>;
-  startAuthoring: (draftId: string, projectId: string, assets: Array<{ id: string; ref: string }>) => Promise<void>;
+  startAuthoring: (draftId: string, projectId: string, assets: Array<{ id: string; ref: string; role: SceneImageRole }>) => Promise<void>;
   warn: (error: unknown, projectId: string, message: string) => void;
 };
 
@@ -21,7 +22,12 @@ export async function createAgentProject(draftId: string, deps: Deps): Promise<{
   const request = await deps.readCreateRequest(draftId);
   const staged = await deps.stageImages(request.assets);
   const images = staged.map((asset) => asset.image);
-  const authorAssets = staged.map(({ id, image }) => ({ id, ref: `assets/${basename(image.ref)}` }));
+  const roles = new Map(request.assets.map((asset) => [asset.id, asset.role]));
+  const authorAssets = staged.map(({ id, image }) => ({
+    id,
+    ref: `assets/${basename(image.ref)}`,
+    role: roles.get(id) ?? "support",
+  }));
   if (current.projectId) {
     await deps.startAuthoring(request.draftId, current.projectId, authorAssets);
     return { projectId: current.projectId };

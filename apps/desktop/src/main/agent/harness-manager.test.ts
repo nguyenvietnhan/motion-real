@@ -167,7 +167,7 @@ describe("HarnessManager draft lifecycle", () => {
 
     const review = await manager.status(draft.id);
     expect(review).toMatchObject({ productionState: "asset_review", workflowRevision: 2 });
-    expect(review.assetReview).toEqual([expect.objectContaining({ id: "asset-01", width: 1, height: 1 })]);
+    expect(review.assetReview).toEqual([expect.objectContaining({ id: "asset-01", role: "support", width: 1, height: 1 })]);
     await expect(manager.status(draft.id)).resolves.toMatchObject({ productionState: "asset_review", workflowRevision: 2 });
     expect(calls.at(-1)).toMatchObject({
       method: "session.prompt",
@@ -548,7 +548,7 @@ describe("HarnessManager draft lifecycle", () => {
     stillPaths = sceneIds.map((sceneId) => join(projectRoot, "review", `${sceneId}.png`));
     await Promise.all(stillPaths.map((path) => writeFile(path, ONE_PIXEL_PNG)));
 
-    await manager.startAuthoring(draft.id, "project-1", projectRoot, [{ id: "logo", ref: "assets/logo.png" }]);
+    await manager.startAuthoring(draft.id, "project-1", projectRoot, [{ id: "logo", ref: "assets/logo.png", role: "logo" }]);
 
     await expect(realpath(join(root, draft.id, "project"))).resolves.toBe(await realpath(projectRoot));
     const request = JSON.parse(await readFile(join(root, draft.id, "handoff", "authoring-request.json"), "utf8"));
@@ -564,7 +564,7 @@ describe("HarnessManager draft lifecycle", () => {
         min_narration_words: 38,
         min_scenes: 3,
       },
-      assets: [{ id: "logo", ref: "assets/logo.png", path: "project/assets/logo.png" }],
+      assets: [{ id: "logo", ref: "assets/logo.png", path: "project/assets/logo.png", role: "logo" }],
     });
     expect(calls.at(-1)).toMatchObject({ method: "session.prompt" });
     await expect(readFile(join(root, draft.id, "handoff", "authoring-contract.md"), "utf8"))

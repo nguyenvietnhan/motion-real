@@ -56,6 +56,7 @@ describe("AUTHORING_CONTRACT — no-block / raw-JSX invariants", () => {
     expect(AUTHORING_CONTRACT).toMatch(/SceneImage/);
     expect(AUTHORING_CONTRACT).toMatch(/NGOẠI LỆ DUY NHẤT cho ảnh/);
     expect(AUTHORING_CONTRACT).toMatch(/from "@motionreal\/compositions"/);
+    expect(AUTHORING_CONTRACT).toMatch(/role=\{image\.role\}/);
   });
 
   /**

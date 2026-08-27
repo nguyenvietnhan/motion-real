@@ -20,6 +20,13 @@ const PRODUCTION_LABELS: Record<AgentProductionState, string> = {
   error: "Cần xử lý lỗi",
 };
 
+const ASSET_ROLE_LABEL = {
+  hero: "ảnh chính",
+  support: "ảnh bổ trợ",
+  logo: "logo",
+  icon: "icon",
+} as const;
+
 type ChatItem = AgentChatMessageVM | AgentToolActivityVM;
 
 export const AgentView: React.FC<{ onOpenProject: (projectId: string) => void }> = ({ onOpenProject }) => {
@@ -490,7 +497,7 @@ export const AgentView: React.FC<{ onOpenProject: (projectId: string) => void }>
               width: asset.width,
               height: asset.height,
               sourceUrl: asset.sourceUrl,
-              label: asset.label,
+              label: `${asset.label} · ${ASSET_ROLE_LABEL[asset.role]}`,
               suggested: active.selectedAssetIds === undefined || active.selectedAssetIds.includes(asset.id),
             }))}
             initialSelectedRefs={active.selectedAssetIds ?? active.assetReview.map((asset) => asset.id)}

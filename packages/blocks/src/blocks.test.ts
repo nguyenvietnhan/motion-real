@@ -69,4 +69,12 @@ describe("@motionreal/blocks — surviving render surface", () => {
     // The frame (border) is drawn ON the image so the chrome hugs the picture.
     expect(markup).toContain("border:");
   });
+
+  it("keeps logos compact and removes photo chrome", () => {
+    const markup = html(React.createElement(SceneImage, { imageRef: "assets/logo.png", role: "logo" }));
+    expect(markup).toContain("width:auto");
+    expect(markup).toContain("max-width:420px");
+    expect(markup).toContain("border:none");
+    expect(markup).toContain("background-color:transparent");
+  });
 });

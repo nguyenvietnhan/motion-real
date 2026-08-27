@@ -6,6 +6,7 @@ import { createServer } from "node:net";
 import { basename, isAbsolute, join, relative, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { createLogger, MAX_IMAGE_BYTES, MAX_IMAGE_DIM, resolveEffectiveDuration, sniffImage, writeJson } from "@motionreal/pipeline";
+import type { SceneImageRole } from "@motionreal/schema";
 import type { AgentAssetVM, AgentBriefInput, AgentBriefVM, AgentChatEvent, AgentChatPageVM, AgentDraftVM, DurationTierChoice, VideoLanguageChoice, VoiceProviderChoice } from "../../shared/types.js";
 import { sanitizedChildEnvironment } from "../security/runtime-security.js";
 import {
@@ -57,7 +58,7 @@ export type AgentCreateRequest = {
   draftId: string;
   title: string;
   prompt: string;
-  assets: Array<{ id: string; path: string }>;
+  assets: Array<{ id: string; path: string; role: SceneImageRole }>;
   choices: {
     durationTier: DurationTierChoice;
     videoLanguage: VideoLanguageChoice;
@@ -595,7 +596,7 @@ export class HarnessManager {
     id: string,
     projectId: string,
     projectRoot: string,
-    assets: Array<{ id: string; ref: string }>,
+    assets: Array<{ id: string; ref: string; role: SceneImageRole }>,
   ): Promise<void> {
     const current = await this.mustReadRecord(id);
     this.requireActiveSession(current);
@@ -618,14 +619,14 @@ export class HarnessManager {
       }
       return;
     }
-    const usableAssets: Array<{ id: string; ref: string; path: string }> = [];
+    const usableAssets: Array<{ id: string; ref: string; path: string; role: SceneImageRole }> = [];
     for (const asset of assets) {
       const projectAsset = resolve(expectedProjectRoot, asset.ref);
       const rel = relative(resolve(expectedProjectRoot, "assets"), projectAsset);
       if (!rel || rel.startsWith("..") || isAbsolute(rel)) continue;
       const info = await stat(projectAsset).catch((_error) => null);
       if (!info?.isFile()) continue;
-      usableAssets.push({ id: asset.id, ref: asset.ref.replaceAll("\\", "/"), path: `${PROJECT_LINK}/${asset.ref.replaceAll("\\", "/")}` });
+      usableAssets.push({ id: asset.id, ref: asset.ref.replaceAll("\\", "/"), path: `${PROJECT_LINK}/${asset.ref.replaceAll("\\", "/")}`, role: asset.role });
     }
     const next = { ...current, authoringRequestRevision: (current.authoringRequestRevision ?? 0) + 1 };
     const pacing = await this.authoringPacing(current);
@@ -649,7 +650,7 @@ export class HarnessManager {
         "pacing là contract có thẩm quyền; bỏ qua mọi câu duration mâu thuẫn nằm trong prompt của brief.",
         "Asset là pool tư liệu, không phải số lượng storyboard. Số cảnh và lượng narration phải theo pacing.",
         "Viết mới manifest.json và các module authored/*.tsx cho toàn video; không gọi API authoring cũ.",
-        "Mỗi asset trong request phải xuất hiện qua scene.image.ref trong ít nhất một cảnh.",
+        "Mỗi asset trong request phải xuất hiện qua scene.image.ref trong ít nhất một cảnh và scene.image.role phải giữ đúng role đã duyệt.",
         "Không render video. Khi code đã hoàn chỉnh, gọi motionreal_submit_authoring để MotionReal validate và render still.",
       ],
     });
@@ -937,10 +938,11 @@ export class HarnessManager {
         version: 1,
         job_id: record.activeJobId,
         request_revision: record.assetRequestRevision,
-        items: [{ id: "asset-01", path: "assets/example.png", source_url: "https://example.com/image", label: "Mô tả ngắn" }],
+        items: [{ id: "asset-01", path: "assets/example.png", source_url: "https://example.com/image", label: "Mô tả ngắn", role: "support" }],
       },
       instructions: [
-        "Tải ảnh raster PNG/JPEG/GIF/WebP vào assets/.",
+        "Tải ảnh raster PNG/JPEG/GIF/WebP vào assets/. Logo nên là PNG nền trong suốt; SVG ngoài phải rasterize an toàn sang PNG hoặc bỏ qua.",
+        "Gắn role cho từng asset: hero, support, logo hoặc icon. Role mô tả cách hiển thị, không phải kích thước file.",
         "Giữ lại các asset id được yêu cầu nếu chúng vẫn có trong manifest mới.",
         "Gọi motionreal_submit_assets với manifest hoàn chỉnh; không tự ghi file output.",
       ],
@@ -1148,15 +1150,19 @@ export class HarnessManager {
     await this.promptSession(next, prompt);
   }
 
-  private async assetPathsForIds(record: DraftRecord, value: unknown): Promise<Array<{ id: string; path: string }>> {
+  private async assetPathsForIds(record: DraftRecord, value: unknown): Promise<Array<{ id: string; path: string; role: SceneImageRole }>> {
     const ids = validateBriefAssetIds(value, record.selectedAssetIds ?? []);
     const raw = parseJson(await readFile(join(this.rootOf(record.id), ASSET_MANIFEST_FILE), "utf8")) as { items?: unknown };
     if (!Array.isArray(raw.items)) throw new Error("Manifest asset không hợp lệ.");
-    const paths = new Map(raw.items.flatMap((item) => item && typeof item === "object"
+    const items = new Map(raw.items.flatMap((item) => item && typeof item === "object"
       && typeof (item as { id?: unknown }).id === "string"
-      ? [[(item as { id: string }).id, (item as { path?: unknown }).path] as const]
+      ? [[(item as { id: string }).id, item as { path?: unknown; role?: unknown }] as const]
       : []));
-    return Promise.all(ids.map(async (id) => ({ id, path: await this.localReviewAssetPath(record.id, paths.get(id)) })));
+    return Promise.all(ids.map(async (id) => ({
+      id,
+      path: await this.localReviewAssetPath(record.id, items.get(id)?.path),
+      role: assetRole(items.get(id)?.role),
+    })));
   }
 
   private async readAssetManifest(record: DraftRecord): Promise<AgentAssetVM[] | undefined> {
@@ -1180,7 +1186,7 @@ export class HarnessManager {
     const assets: AgentAssetVM[] = [];
     for (const value of input.items) {
       if (!value || typeof value !== "object") throw new Error("Một asset trong manifest không hợp lệ.");
-      const item = value as { id?: unknown; path?: unknown; source_url?: unknown; label?: unknown };
+      const item = value as { id?: unknown; path?: unknown; source_url?: unknown; label?: unknown; role?: unknown };
       if (typeof item.id !== "string" || !/^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/.test(item.id) || seen.has(item.id)) {
         throw new Error("Asset id thiếu, trùng hoặc không hợp lệ.");
       }
@@ -1204,6 +1210,7 @@ export class HarnessManager {
         previewUrl,
         sourceUrl,
         label: typeof item.label === "string" && item.label.trim() ? item.label.trim().slice(0, 200) : basename(path),
+        role: assetRole(item.role),
         width: image.dims.width,
         height: image.dims.height,
         bytes: bytes.length,
@@ -1305,6 +1312,13 @@ function validHttpUrl(value: unknown): string | null {
   } catch (_error) {
     return null;
   }
+}
+
+/** Older asset ledgers had no role; treat them as ordinary supporting media. */
+function assetRole(value: unknown): SceneImageRole {
+  return value === "hero" || value === "support" || value === "logo" || value === "icon"
+    ? value
+    : "support";
 }
 
 function validateSelectedIds(selectedIds: string[], assets: AgentAssetVM[]): string[] {

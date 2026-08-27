@@ -29,7 +29,7 @@ CÚ PHÁP TSX BẮT BUỘC (tự kiểm như chạy TypeScript parser trước k
 
 IMPORT WHITELIST (N4) — CHỈ được import: react, remotion, @motionreal/compositions, zod.
 KHÔNG CÒN thư viện block/theme: TUYỆT ĐỐI KHÔNG import "@motionreal/blocks" hay "@motionreal/theme" (đã ngắt — import vào là lỗi N4 chặn render). Không có useTheme, không có Frame/Story/TitleBlock… nào để gọi.
-NGOẠI LỆ DUY NHẤT cho ảnh: nếu cảnh có ảnh (field image), import { SceneImage } from "@motionreal/compositions" và render <SceneImage imageRef={image.ref} alt={image.alt} /> — đây là cách DUY NHẤT được phép hiện ảnh (cấm tự dùng <img>/Img/staticFile).
+NGOẠI LỆ DUY NHẤT cho ảnh: nếu cảnh có ảnh (field image), import { SceneImage } from "@motionreal/compositions" và render <SceneImage imageRef={image.ref} alt={image.alt} role={image.role} /> — đây là cách DUY NHẤT được phép hiện ảnh (cấm tự dùng <img>/Img/staticFile). role="logo"/"icon" phải giữ asset nhỏ gọn; không phóng thành ảnh hero.
 KHÔNG: node:*, gói bên thứ ba, import tương đối ra ngoài file.
 
 API CẤM (N5) — cảnh là HÀM THUẦN của frame:

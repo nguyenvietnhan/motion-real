@@ -6,7 +6,7 @@ function request() {
     draftId: "agent-1",
     title: "Gemini",
     prompt: "Tạo video Gemini",
-    assets: [{ id: "gemini", path: "V:/agent/assets/gemini.png" }],
+    assets: [{ id: "gemini", path: "V:/agent/assets/gemini.png", role: "logo" as const }],
     choices: { durationTier: 1 as const, videoLanguage: "vi" as const, voiceProvider: "vieneu" as const },
   };
 }
@@ -29,7 +29,7 @@ function deps(over: Record<string, unknown> = {}) {
     deleteProject: vi.fn(async () => { calls.push("delete"); }),
     renameProject: vi.fn(async () => { calls.push("rename"); }),
     startAuthoring: vi.fn(async (_draftId, _projectId, assets) => {
-      expect(assets).toEqual([{ id: "gemini", ref: "assets/hash.png" }]);
+      expect(assets).toEqual([{ id: "gemini", ref: "assets/hash.png", role: "logo" }]);
       calls.push("author");
     }),
     warn: vi.fn(),
@@ -49,7 +49,7 @@ describe("createAgentProject", () => {
     const { base } = deps({ status: vi.fn(async () => ({ projectId: "project-existing" })) });
     await expect(createAgentProject("agent-1", base)).resolves.toEqual({ projectId: "project-existing" });
     expect(base.readCreateRequest).toHaveBeenCalledOnce();
-    expect(base.startAuthoring).toHaveBeenCalledWith("agent-1", "project-existing", [{ id: "gemini", ref: "assets/hash.png" }]);
+    expect(base.startAuthoring).toHaveBeenCalledWith("agent-1", "project-existing", [{ id: "gemini", ref: "assets/hash.png", role: "logo" }]);
     expect(base.create).not.toHaveBeenCalled();
   });
 

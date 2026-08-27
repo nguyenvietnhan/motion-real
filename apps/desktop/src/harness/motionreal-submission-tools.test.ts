@@ -70,6 +70,13 @@ describe("MotionReal Harness submission tools", () => {
     expect(briefParameters.properties.duration_tier).toMatchObject({
       description: "Target duration: 1=45s, 2=90s, 3=150s, 4=210s",
     });
+    const assetParameters = tools.get("motionreal_submit_assets")!.parameters as {
+      properties: { items: { items: { required: string[]; properties: Record<string, unknown> } } };
+    };
+    expect(assetParameters.properties.items.items.required).toContain("role");
+    expect(assetParameters.properties.items.items.properties.role).toMatchObject({
+      enum: ["hero", "support", "logo", "icon"],
+    });
   });
 
   it("atomically submits assets and makes an identical retry idempotent", async () => {
@@ -83,7 +90,7 @@ describe("MotionReal Harness submission tools", () => {
     const args = {
       job_id: "job-assets",
       request_revision: 2,
-      items: [{ id: "logo", path: "assets/logo.png", source_url: "https://example.com/logo.png", label: "Logo" }],
+      items: [{ id: "logo", path: "assets/logo.png", source_url: "https://example.com/logo.png", label: "Logo", role: "logo" }],
     };
     const tool = tools.get("motionreal_submit_assets")!;
 
@@ -112,7 +119,7 @@ describe("MotionReal Harness submission tools", () => {
     const base = {
       job_id: "job-old",
       request_revision: 2,
-      items: [{ id: "bad", path: "../outside.png", source_url: "https://example.com/x.png", label: "Bad" }],
+      items: [{ id: "bad", path: "../outside.png", source_url: "https://example.com/x.png", label: "Bad", role: "support" }],
     };
     await expect(tool.execute(base, execution(workspace))).rejects.toThrow(/đã cũ/);
     await expect(tool.execute({ ...base, job_id: "job-current", request_revision: 3 }, execution(workspace)))
@@ -137,7 +144,7 @@ describe("MotionReal Harness submission tools", () => {
     await expect(tools.get("motionreal_submit_assets")!.execute({
       job_id: "job-assets",
       request_revision: 1,
-      items: [{ id: "logo", path: "assets/logo.png", source_url: "https://example.com/logo.png", label: "Logo" }],
+      items: [{ id: "logo", path: "assets/logo.png", source_url: "https://example.com/logo.png", label: "Logo", role: "logo" }],
     }, execution(workspace))).rejects.toThrow(/không phải ảnh raster/);
     await expect(readFile(join(workspace, "handoff", "assets.json"), "utf8")).rejects.toMatchObject({ code: "ENOENT" });
   });
@@ -174,7 +181,7 @@ describe("MotionReal Harness submission tools", () => {
     await mkdir(join(workspace, "project", "authored"), { recursive: true });
     await writeFile(join(workspace, "project", "authored", "scene-01.tsx"), "export default {};\n");
     await writeFile(join(workspace, "project", "manifest.json"), JSON.stringify({
-      scenes: [{ id: "scene-01", component: "scene-01", image: { ref: "assets/logo.png", alt: "Logo" } }],
+      scenes: [{ id: "scene-01", component: "scene-01", image: { ref: "assets/logo.png", alt: "Logo", role: "logo" } }],
     }));
     await writeFile(join(workspace, "handoff", "authoring-request.json"), JSON.stringify({
       version: 1,
@@ -182,11 +189,18 @@ describe("MotionReal Harness submission tools", () => {
       request_revision: 1,
       manifest: "project/manifest.json",
       authored_dir: "project/authored",
-      assets: [{ id: "logo", ref: "assets/logo.png" }],
+      assets: [{ id: "logo", ref: "assets/logo.png", role: "logo" }],
     }));
     const tool = tools.get("motionreal_submit_authoring")!;
     const args = { job_id: "job-author", request_revision: 1, scene_ids: ["scene-01"], used_asset_ids: ["logo"] };
 
+    await writeFile(join(workspace, "project", "manifest.json"), JSON.stringify({
+      scenes: [{ id: "scene-01", component: "scene-01", image: { ref: "assets/logo.png", alt: "Logo", role: "hero" } }],
+    }));
+    await expect(tool.execute(args, execution(workspace))).rejects.toThrow(/scene\.image\.role="logo"/);
+    await writeFile(join(workspace, "project", "manifest.json"), JSON.stringify({
+      scenes: [{ id: "scene-01", component: "scene-01", image: { ref: "assets/logo.png", alt: "Logo", role: "logo" } }],
+    }));
     await expect(tool.execute(args, execution(workspace))).resolves.toMatchObject({ kind: "authoring", status: "submitted" });
     await expect(tool.execute({ ...args, used_asset_ids: [] }, execution(workspace))).rejects.toThrow(/đã có submission khác|Mọi asset/);
 
@@ -198,7 +212,7 @@ describe("MotionReal Harness submission tools", () => {
       phase: "self_review",
       manifest: "project/manifest.json",
       authored_dir: "project/authored",
-      assets: [{ id: "logo", ref: "assets/logo.png" }],
+      assets: [{ id: "logo", ref: "assets/logo.png", role: "logo" }],
     }));
     await expect(tool.execute({ ...args, request_revision: 2 }, execution(workspace))).rejects.toThrow(/reviewed_scene_ids/);
     await expect(tool.execute({

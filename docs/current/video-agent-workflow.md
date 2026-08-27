@@ -125,6 +125,14 @@ For the first implementation, downloaded assets are prioritized for usefulness.
 Source URLs should still be retained for traceability, but license evaluation is
 not a production gate in this phase.
 
+Every new Harness asset is classified as `hero`, `support`, `logo`, or `icon`.
+That role follows the asset through review, project promotion, and
+`scene.image.role`. `SceneImage` keeps logo/icon media compact and chrome-free;
+hero/support media can occupy the visual field. Asset count does not determine
+scene count. External SVG remains outside the render boundary because it is
+scriptable; the Agent should obtain a raster logo or rasterize it to a local
+transparent PNG before submission.
+
 MotionReal starts new video-scoped Harness sessions with the
 `danger-full-access` permission preset. This removes per-tool approval prompts
 when the Agent writes through the linked `project/` junction; sessions created
@@ -204,9 +212,10 @@ Target manifest shape:
   "assets": [
     {
       "id": "asset-01",
-      "path": "assets/chatgpt-logo.svg",
+      "path": "assets/chatgpt-logo.png",
       "label": "Logo ChatGPT",
-      "source_url": "https://example.com/logo"
+      "source_url": "https://example.com/logo",
+      "role": "logo"
     }
   ]
 }
@@ -216,6 +225,8 @@ MotionReal validates that:
 
 - the schema version and job id match;
 - asset ids are unique;
+- every asset has one supported presentation role (`hero`, `support`, `logo`, or
+  `icon`);
 - every path is relative and remains inside the video Workspace;
 - every listed file exists, is a regular supported media file, and is readable;
 - configured item and size limits are respected.

@@ -64,12 +64,13 @@ function assetTool(): ToolDefinition {
           items: {
             type: "object",
             additionalProperties: false,
-            required: ["id", "path", "source_url", "label"],
+            required: ["id", "path", "source_url", "label", "role"],
             properties: {
               id: { type: "string" },
               path: { type: "string", description: "Relative path below assets/" },
               source_url: { type: "string" },
               label: { type: "string" },
+              role: { type: "string", enum: ["hero", "support", "logo", "icon"] },
             },
           },
         },
@@ -229,14 +230,25 @@ async function validateAuthoredProject(
   const expectedAssets = Array.isArray(request.assets) ? request.assets.map((asset) => requireRecord(asset, "Request asset")) : [];
   const expectedIds = expectedAssets.map((asset) => requiredText(asset.id, "request asset id", 128));
   if (!sameIds(usedAssetIds, expectedIds)) throw new Error("Mọi asset đã duyệt trong authoring request phải được dùng trong manifest.");
-  const imageRefs = new Set(manifest.scenes.flatMap((scene) => {
+  const sceneImages = manifest.scenes.flatMap((scene) => {
     const image = requireRecord(scene, "Manifest scene").image;
     if (image === undefined) return [];
-    return [requiredText(requireRecord(image, "Scene image").ref, "scene image ref", 1_024)];
-  }));
+    const value = requireRecord(image, "Scene image");
+    return [{
+      ref: requiredText(value.ref, "scene image ref", 1_024),
+      role: value.role,
+    }];
+  });
   for (const asset of expectedAssets) {
     const ref = requiredText(asset.ref, "request asset ref", 1_024);
-    if (!imageRefs.has(ref)) throw new Error(`Asset ${String(asset.id)} chưa được tham chiếu bởi scene.image.ref.`);
+    const matches = sceneImages.filter((image) => image.ref === ref);
+    if (matches.length === 0) throw new Error(`Asset ${String(asset.id)} chưa được tham chiếu bởi scene.image.ref.`);
+    if (asset.role !== undefined) {
+      const role = enumValue(asset.role, `role của ${String(asset.id)}`, ["hero", "support", "logo", "icon"] as const);
+      if (!matches.some((image) => image.role === role)) {
+        throw new Error(`Asset ${String(asset.id)} phải giữ scene.image.role="${role}".`);
+      }
+    }
   }
   const modules = (await readdir(join(root, "project", "authored"))).filter((file) => file.endsWith(".tsx") && !file.startsWith("_"));
   if (modules.length < 1) throw new Error("Project chưa có module authored/*.tsx.");
@@ -303,7 +315,8 @@ async function validateAssets(root: string, value: unknown, signal: AbortSignal)
     }
     const sourceUrl = validHttpUrl(item.source_url, `source_url của ${id}`);
     const label = requiredText(item.label, `label của ${id}`, 200);
-    output.push({ id, path: path.replaceAll("\\", "/"), source_url: sourceUrl, label });
+    const role = enumValue(item.role, `role của ${id}`, ["hero", "support", "logo", "icon"] as const);
+    output.push({ id, path: path.replaceAll("\\", "/"), source_url: sourceUrl, label, role });
   }
   return output;
 }

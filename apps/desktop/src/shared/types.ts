@@ -1,4 +1,5 @@
 import type { ProjectState, VoiceProviderFailure } from "@motionreal/pipeline";
+import type { SceneImageRole } from "@motionreal/schema";
 
 /**
  * UI-side view-model types shared between the main (engine host) and renderer
@@ -92,6 +93,7 @@ export type AgentAssetVM = {
   previewUrl: string;
   sourceUrl: string;
   label: string;
+  role: SceneImageRole;
   width: number;
   height: number;
   bytes: number;

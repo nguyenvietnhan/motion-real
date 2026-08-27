@@ -61,7 +61,7 @@ const IMAGE_RULE = `
 
 ẢNH (NGƯỜI DÙNG ĐÍNH KÈM — PHẢI DÙNG): Người dùng đính kèm một số ẢNH, mỗi ảnh có một "ref" CỐ ĐỊNH (vd "assets/<hash>.png") kèm kích thước. Bạn ĐƯỢC XEM các ảnh này. Cách đặt ảnh:
 - thêm "image": { "ref": "<ref đã cho>" } vào MỘT cảnh phù hợp trong manifest (tối đa 1 ảnh/cảnh; cảnh KHÔNG mang ảnh thì bỏ field này — nhưng tổng thể KHÔNG được bỏ hết ảnh, xem luật bắt buộc bên dưới);
-- trong .tsx của cảnh đó, render ảnh qua block <SceneImage imageRef={image.ref} alt={image.alt} /> (image đến từ SceneComponentProps), đặt trong vùng nội dung phía trên (tránh dải phụ đề đáy) để ảnh nằm trong vùng an toàn;
+- trong .tsx của cảnh đó, render ảnh qua block <SceneImage imageRef={image.ref} alt={image.alt} role={image.role} /> (image đến từ SceneComponentProps), đặt trong vùng nội dung phía trên (tránh dải phụ đề đáy) để ảnh nằm trong vùng an toàn; role logo/icon phải giữ nhỏ gọn, không phóng thành hero;
 - import { SceneImage } from "@motionreal/compositions" (KHÔNG phải @motionreal/blocks — block layout đã bị gỡ; SceneImage là export DUY NHẤT cho ảnh, lấy từ @motionreal/compositions). Đây là NGOẠI LỆ DUY NHẤT được phép import ngoài react/remotion/zod cho phần hình.
 QUAN TRỌNG VỀ KÍCH THƯỚC: <SceneImage> TỰ canh theo đúng tỉ lệ thật của ảnh (khung ôm khít ảnh). TUYỆT ĐỐI KHÔNG bọc nó trong khung có chiều cao/rộng cố định, không dùng overflow:"hidden", height:"...px", aspectRatio hay objectFit ép quanh nó — làm vậy sẽ CẮT hoặc BÓP MÉO ảnh. Cứ đặt <SceneImage> trực tiếp trong cột nội dung; muốn giới hạn chiều cao thì truyền prop maxHeight (số px), đừng tự dựng khung.
 CHỈ dùng ref đã được cung cấp, TUYỆT ĐỐI KHÔNG bịa đường dẫn/URL ảnh. Viết nội dung sao cho ảnh khớp tổng thể.
@@ -152,7 +152,7 @@ export function buildReauthorMessages(input: ReauthorPromptInput): VisionMessage
   // <SceneImage> while the manifest still references the image — the picture
   // silently vanishes from the draft. Hard-require keeping the block + its ref.
   const keepImage = input.hasImage
-    ? `\n\nBẮT BUỘC GIỮ ẢNH: cảnh này CÓ ảnh — phải giữ nguyên block <SceneImage imageRef={image.ref} alt={image.alt} /> (image đến từ SceneComponentProps), KHÔNG được bỏ ảnh đi dù yêu cầu là "sáng tạo hơn"/"đẹp hơn". Đặt ảnh trong vùng nội dung an toàn như cũ; chỉ đổi cách trình bày xung quanh, đừng xoá ảnh.`
+    ? `\n\nBẮT BUỘC GIỮ ẢNH: cảnh này CÓ ảnh — phải giữ nguyên block <SceneImage imageRef={image.ref} alt={image.alt} role={image.role} /> (image đến từ SceneComponentProps), KHÔNG được bỏ ảnh đi dù yêu cầu là "sáng tạo hơn"/"đẹp hơn". Giữ đúng role logo/icon nhỏ gọn; đặt ảnh trong vùng nội dung an toàn như cũ; chỉ đổi cách trình bày xung quanh, đừng xoá ảnh.`
     : "";
   const text = `Cảnh "${input.sceneId}" (component id "${input.componentId}") đang lỗi:\n${problem}\n\nMÃ HIỆN TẠI:\n\`\`\`tsx\n${input.currentCode}\n\`\`\`${keepImage}\n\nVIẾT LẠI cảnh này (giữ id "${input.componentId}") để sửa lỗi trên, trả về đúng một khối \`\`\`tsx.`;
   const system = reauthorSystem();

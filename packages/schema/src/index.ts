@@ -65,6 +65,8 @@ export const DEFAULT_TTS_SPEED = 1.0;
  */
 const IMAGE_REF_EXT = /\.(png|jpe?g|webp|gif)$/i;
 const HAS_SCHEME = /^[a-z][a-z0-9+.-]*:/i;
+export const SceneImageRoleSchema = z.enum(["hero", "support", "logo", "icon"]);
+export type SceneImageRole = z.infer<typeof SceneImageRoleSchema>;
 export const SceneImageSchema = z.object({
   /** Project-relative path to a LOCAL image asset (e.g. "assets/<sha>.png"). */
   ref: z
@@ -77,6 +79,8 @@ export const SceneImageSchema = z.object({
     .refine((r) => IMAGE_REF_EXT.test(r), "image.ref must end in .png/.jpg/.jpeg/.webp/.gif (SVG and other formats are not allowed)"),
   /** Optional alt/caption text for accessibility + review (not rendered as a caption). */
   alt: z.string().max(160).optional(),
+  /** Presentation semantics decided during asset review, not inferred from file dimensions. */
+  role: SceneImageRoleSchema.optional(),
 });
 
 export type SceneImage = z.infer<typeof SceneImageSchema>;
