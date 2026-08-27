@@ -248,7 +248,7 @@ describe("HarnessManager draft lifecycle", () => {
     const request = JSON.parse(await readFile(join(draftRoot, "handoff", "brief-request.json"), "utf8"));
     expect(request).toMatchObject({ job_id: collecting.activeJobId, request_revision: 1, selected_asset_ids: ["asset-01"] });
 
-    await writeFile(join(draftRoot, "handoff", "brief.json"), JSON.stringify({
+    await writeFile(join(draftRoot, "handoff", "brief.json"), `\uFEFF${JSON.stringify({
       version: 1,
       job_id: collecting.activeJobId,
       request_revision: 1,
@@ -260,19 +260,31 @@ describe("HarnessManager draft lifecycle", () => {
       video_language: "vi",
       voice_provider: "vivibe",
       selected_asset_ids: ["asset-01"],
-    }));
+    })}`);
     const review = await manager.status(draft.id);
     expect(review.briefReview).toMatchObject({ revision: 1, durationTier: 2, selectedAssetIds: ["asset-01"] });
     expect(review.createReady).toBe(false);
 
-    const queued = await manager.approveBrief(draft.id, review.workflowRevision, {
+    const promptCount = calls.filter((call) => call.method === "session.prompt").length;
+    const back = await manager.returnToAssets(draft.id, review.workflowRevision);
+    const reused = await manager.approveAssets(draft.id, back.workflowRevision, ["asset-01"]);
+    expect(reused).toMatchObject({
+      productionState: "brief_review",
+      workflowRevision: 5,
+      briefReview: { revision: 1, title: "Gemini là gì?" },
+    });
+    expect(calls.filter((call) => call.method === "session.prompt")).toHaveLength(promptCount);
+    const unchangedRequest = JSON.parse(await readFile(join(draftRoot, "handoff", "brief-request.json"), "utf8"));
+    expect(unchangedRequest.request_revision).toBe(1);
+
+    const queued = await manager.approveBrief(draft.id, reused.workflowRevision, {
       title: "Gemini AI là gì?",
       prompt: "Giải thích Gemini AI bằng mạch kể trực quan, chính xác và dùng ảnh đã chọn đúng ngữ cảnh.",
       durationTier: 1,
       videoLanguage: "vi",
       voiceProvider: "vivibe",
     });
-    expect(queued).toMatchObject({ productionState: "queued_create", workflowRevision: 4, createReady: true });
+    expect(queued).toMatchObject({ productionState: "queued_create", workflowRevision: 6, createReady: true });
     await expect(manager.readCreateRequest(draft.id)).resolves.toMatchObject({
       prompt: expect.stringContaining("Gemini AI"),
       title: "Gemini AI là gì?",

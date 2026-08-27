@@ -208,6 +208,10 @@ Requesting changes returns the job to `collecting_assets` with a concrete note,
 for example: keep `asset-01`, reject `asset-02`, and find two newer interface
 screenshots.
 
+Returning from brief review without changing the approved asset-id set reuses
+the existing valid brief. MotionReal requests a new Agent brief only when the
+selection changed or the previous brief is missing/invalid.
+
 Approval persists the selected asset ids and advances to `brief_review`.
 
 ### 4. Brief review
@@ -309,6 +313,8 @@ handoff/assets.draft.json
 ```
 
 MotionReal never treats a partially written draft file as completion.
+Final JSON handoffs accept an optional UTF-8 BOM because PowerShell commonly
+writes one even when the resulting JSON document is otherwise valid.
 The current V1 request is written by MotionReal to
 `handoff/assets-request.json`. It carries `job_id`, `request_revision`, the
 selection to keep, and the exact manifest example. MotionReal advances only

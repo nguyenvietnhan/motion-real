@@ -313,6 +313,22 @@ export class HarnessManager {
     const assets = await this.readAssetManifest(current);
     if (!assets) throw new Error("Agent chưa gửi manifest asset hợp lệ.");
     const selectedAssetIds = validateSelectedIds(selectedIds, assets);
+    if (sameIds(selectedAssetIds, current.selectedAssetIds ?? []) && current.briefRequestRevision) {
+      const previousBrief = await this.readBrief(current).catch(() => undefined);
+      if (previousBrief) {
+        const next = {
+          ...current,
+          ...transitionAgentWorkflow(current, {
+            expectedRevision,
+            to: "brief_review",
+            jobId: current.activeJobId,
+          }),
+          selectedAssetIds,
+        };
+        await this.writeRecord(next);
+        return this.toVm(next, assets, undefined, previousBrief);
+      }
+    }
     const next = {
       ...current,
       ...transitionAgentWorkflow(current, {
@@ -426,7 +442,7 @@ export class HarnessManager {
     const path = join(this.rootOf(record.id), CREATE_REQUEST_FILE);
     let raw: unknown;
     try {
-      raw = JSON.parse(await readFile(path, "utf8"));
+      raw = parseJson(await readFile(path, "utf8"));
     } catch (_error) {
       throw new Error("Agent chưa tạo yêu cầu dựng video hợp lệ.");
     }
@@ -642,7 +658,7 @@ export class HarnessManager {
     if (!existsSync(path)) return undefined;
     let raw: unknown;
     try {
-      raw = JSON.parse(await readFile(path, "utf8"));
+      raw = parseJson(await readFile(path, "utf8"));
     } catch (_error) {
       throw new Error("Brief chưa phải JSON hoàn chỉnh.");
     }
@@ -669,7 +685,7 @@ export class HarnessManager {
 
   private async assetPathsForIds(record: DraftRecord, value: unknown): Promise<string[]> {
     const ids = validateBriefAssetIds(value, record.selectedAssetIds ?? []);
-    const raw = JSON.parse(await readFile(join(this.rootOf(record.id), ASSET_MANIFEST_FILE), "utf8")) as { items?: unknown };
+    const raw = parseJson(await readFile(join(this.rootOf(record.id), ASSET_MANIFEST_FILE), "utf8")) as { items?: unknown };
     if (!Array.isArray(raw.items)) throw new Error("Manifest asset không hợp lệ.");
     const paths = new Map(raw.items.flatMap((item) => item && typeof item === "object"
       && typeof (item as { id?: unknown }).id === "string"
@@ -683,7 +699,7 @@ export class HarnessManager {
     if (!existsSync(manifestPath)) return undefined;
     let raw: unknown;
     try {
-      raw = JSON.parse(await readFile(manifestPath, "utf8"));
+      raw = parseJson(await readFile(manifestPath, "utf8"));
     } catch (_error) {
       throw new Error("Manifest asset chưa phải JSON hoàn chỉnh.");
     }
@@ -827,6 +843,15 @@ function validateSelectedIds(selectedIds: string[], assets: AgentAssetVM[]): str
     throw new Error("Danh sách asset đã chọn không khớp manifest hiện tại.");
   }
   return selected;
+}
+
+function sameIds(left: string[], right: string[]): boolean {
+  return left.length === right.length && left.every((id) => right.includes(id));
+}
+
+/** PowerShell commonly emits UTF-8 BOM; valid Agent handoffs must tolerate it. */
+function parseJson(text: string): unknown {
+  return JSON.parse(text.replace(/^\uFEFF/, ""));
 }
 
 function validateBriefAssetIds(value: unknown, expected: string[]): string[] {
