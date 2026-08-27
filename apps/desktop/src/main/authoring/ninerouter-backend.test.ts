@@ -1271,6 +1271,16 @@ describe("authorCallErrorMessage (typed gateway failures → Vietnamese)", () =>
     expect(msg).toMatch(/tự mở lại|chờ/i);
   });
 
+  it("a bare 401 invalid_api_key reports local authentication instead of quota", () => {
+    const msg = authorCallErrorMessage(new GatewayChatError(
+      "http",
+      '9router chat → HTTP 401: {"error":{"message":"Missing API key","code":"invalid_api_key"}}',
+      { status: 401 },
+    ));
+    expect(msg).toMatch(/khóa nội bộ|khởi động lại/i);
+    expect(msg).not.toMatch(/hết hạn mức|quá tải/i);
+  });
+
   it("a non-GatewayChatError falls back to the generic connection message", () => {
     const msg = authorCallErrorMessage(new Error("boom"));
     expect(msg).toMatch(/Không nhận được phản hồi/i);

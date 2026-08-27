@@ -144,7 +144,9 @@ const authoringBackend = new NineRouterAuthoringBackend({
   client: nrClient,
   tools,
   model: () => getSelectedModelId(),
-  apiKey: () => undefined, // 9router /v1 is open on localhost
+  // 9router 0.5.x protects chat even on localhost. Reuse the same internal key
+  // already minted for Harness; it remains inside Electron Main.
+  apiKey: () => gateway.localApiKey() ?? undefined,
   // Per-voice CALIBRATED narration rate for the author word-budget;
   // undefined when uncalibrated/stale ⇒ the prompt uses its provider fallback.
   wordsPerSecond: async (projectId) => {

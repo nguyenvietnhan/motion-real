@@ -97,14 +97,17 @@ export function authorCallErrorMessage(e: unknown): string {
     if (e.kind === "transient") {
       return "Model tạm thời không phản hồi (đang khởi động). Vui lòng thử lại sau ít phút hoặc đổi model.";
     }
-    // Non-retryable HTTP (e.g. 4xx). 401/403 with a "reset after" window is the
-    // upstream provider account being rate-limited / quota-locked (NOT a wrong
-    // model id) — surface the wait window + the "switch model" escape so the user
-    // doesn't hunt through Settings for a config error that isn't there.
-    if (e.status === 401 || e.status === 403 || e.status === 429) {
+    // Upstream quota failures may arrive as 401/403 with a reset window, while a
+    // bare 401 from local 9router means our internal Bearer key is missing.
+    const quotaLimited = e.status === 429
+      || ((e.status === 401 || e.status === 403) && /reset after|quota|rate.?limit|usage.?limit/i.test(e.message));
+    if (quotaLimited) {
       const reset = /reset after ([^)"]+)/i.exec(e.message)?.[1]?.trim();
       const when = reset ? `Hạn mức sẽ mở lại sau ~${reset}.` : "Hạn mức sẽ tự mở lại sau một lúc.";
       return `Tài khoản của model đang bị giới hạn tạm thời (hết hạn mức / quá tải từ nhà cung cấp). ${when} Hãy chờ rồi thử lại, hoặc đổi sang model/tài khoản khác trong Cài đặt.`;
+    }
+    if (e.status === 401 || e.status === 403) {
+      return "9router từ chối khóa nội bộ của MotionReal. Hãy khởi động lại ứng dụng để tạo lại kết nối rồi thử lại.";
     }
     return "Model từ chối yêu cầu hoặc chưa sẵn sàng. Hãy kiểm tra lại model đã chọn trong Cài đặt rồi thử lại.";
   }
