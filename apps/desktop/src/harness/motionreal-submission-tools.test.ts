@@ -16,6 +16,11 @@ type CapturedTool = {
 const roots: string[] = [];
 let previousDraftsRoot: string | undefined;
 
+const ONE_PIXEL_PNG = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+  "base64",
+);
+
 beforeEach(() => {
   previousDraftsRoot = process.env.MOTIONREAL_AGENT_DRAFTS_ROOT;
 });
@@ -69,7 +74,7 @@ describe("MotionReal Harness submission tools", () => {
 
   it("atomically submits assets and makes an identical retry idempotent", async () => {
     const { workspace, tools } = await fixture();
-    await writeFile(join(workspace, "assets", "logo.png"), "png");
+    await writeFile(join(workspace, "assets", "logo.png"), ONE_PIXEL_PNG);
     await writeFile(join(workspace, "handoff", "assets-request.json"), JSON.stringify({
       version: 1,
       job_id: "job-assets",
@@ -117,6 +122,23 @@ describe("MotionReal Harness submission tools", () => {
     controller.abort();
     await expect(tool.execute({ ...base, job_id: "job-current", request_revision: 3 }, execution(workspace, controller.signal)))
       .rejects.toMatchObject({ name: "AbortError" });
+    await expect(readFile(join(workspace, "handoff", "assets.json"), "utf8")).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it("rejects HTML downloaded under a PNG filename before accepting the handoff", async () => {
+    const { workspace, tools } = await fixture();
+    await writeFile(join(workspace, "assets", "logo.png"), "<!DOCTYPE html><title>Download failed</title>");
+    await writeFile(join(workspace, "handoff", "assets-request.json"), JSON.stringify({
+      version: 1,
+      job_id: "job-assets",
+      request_revision: 1,
+    }));
+
+    await expect(tools.get("motionreal_submit_assets")!.execute({
+      job_id: "job-assets",
+      request_revision: 1,
+      items: [{ id: "logo", path: "assets/logo.png", source_url: "https://example.com/logo.png", label: "Logo" }],
+    }, execution(workspace))).rejects.toThrow(/không phải ảnh raster/);
     await expect(readFile(join(workspace, "handoff", "assets.json"), "utf8")).rejects.toMatchObject({ code: "ENOENT" });
   });
 

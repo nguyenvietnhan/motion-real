@@ -62,9 +62,8 @@ await build({
   outfile: resolve(here, "dist-electron/preload/index.cjs"),
 });
 
-// MotionReal-owned Harness extension. It deliberately imports only Node
-// built-ins, so the fork can load the same small plugin without vendoring or
-// patching Harness source.
+// MotionReal-owned Harness extension. First-party imports are bundled so the
+// fork can load the same small plugin without vendoring or patching Harness.
 await build({
   ...common,
   format: "esm",

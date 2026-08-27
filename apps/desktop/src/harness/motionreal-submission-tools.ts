@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { mkdir, readFile, realpath, rename, rm, stat, writeFile } from "node:fs/promises";
 import { isAbsolute, join, relative, resolve } from "node:path";
 import { isDeepStrictEqual } from "node:util";
+import { MAX_IMAGE_BYTES, MAX_IMAGE_DIM, sniffImage } from "../../../../packages/pipeline/src/assets/import-image.js";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -210,6 +211,15 @@ async function validateAssets(root: string, value: unknown, signal: AbortSignal)
     const rel = relative(assetsRoot, await realpath(target));
     if (!rel || rel.startsWith("..") || isAbsolute(rel)) throw new Error(`Asset ${id} nằm ngoài assets/.`);
     if (!(await stat(target)).isFile()) throw new Error(`Asset ${id} không phải file.`);
+    const bytes = await readFile(target);
+    if (bytes.length > MAX_IMAGE_BYTES) throw new Error(`Asset ${id} vượt giới hạn 10 MB.`);
+    const image = sniffImage(bytes);
+    if (!image?.dims || image.dims.width <= 0 || image.dims.height <= 0) {
+      throw new Error(`Asset ${id} không phải ảnh raster được hỗ trợ.`);
+    }
+    if (image.dims.width > MAX_IMAGE_DIM || image.dims.height > MAX_IMAGE_DIM) {
+      throw new Error(`Asset ${id} vượt giới hạn kích thước 4096 px.`);
+    }
     const sourceUrl = validHttpUrl(item.source_url, `source_url của ${id}`);
     const label = requiredText(item.label, `label của ${id}`, 200);
     output.push({ id, path: path.replaceAll("\\", "/"), source_url: sourceUrl, label });
