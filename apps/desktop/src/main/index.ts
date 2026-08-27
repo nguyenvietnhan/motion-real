@@ -418,6 +418,7 @@ const harness = new HarnessManager({
   harnessCliPath:
     process.env.MOTIONREAL_DSH_CLI ??
     join(dirname(REPO_ROOT), "deepseek-harness", "apps", "cli", "lib", "bin.js"),
+  nodeExecutable: process.env.MOTIONREAL_NODE_BIN ?? process.env.npm_node_execpath ?? "node",
 });
 
 async function activateHarnessDraft(draftId: string) {

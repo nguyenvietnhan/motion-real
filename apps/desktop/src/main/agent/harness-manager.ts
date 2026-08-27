@@ -4,7 +4,9 @@ import { mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises"
 import { existsSync } from "node:fs";
 import { createServer } from "node:net";
 import { basename, isAbsolute, join, relative, resolve } from "node:path";
+import { createLogger } from "@motionreal/pipeline";
 import type { AgentDraftVM } from "../../shared/types.js";
+import { sanitizedChildEnvironment } from "../security/runtime-security.js";
 
 const METADATA_FILE = "motionreal-agent.json";
 const CREATE_REQUEST_FILE = "motionreal.create.json";
@@ -14,6 +16,8 @@ const AGENTS_FILE = "AGENTS.md";
 // checked-in Harness build needs roughly 30s on this Windows machine, so 20s
 // was a false failure even though the child was about to become healthy.
 const START_TIMEOUT_MS = 60_000;
+const PROCESS_OUTPUT_LIMIT = 4_096;
+const log = createLogger("harness");
 
 export type { AgentDraftVM } from "../../shared/types.js";
 
@@ -36,7 +40,7 @@ export type HarnessManagerDeps = {
   fetch?: typeof fetch;
   findPort?: () => Promise<number>;
   now?: () => Date;
-  processExecPath?: string;
+  nodeExecutable?: string;
 };
 
 /**
@@ -50,14 +54,17 @@ export class HarnessManager {
   private readonly fetchImpl: typeof fetch;
   private readonly findPort: () => Promise<number>;
   private readonly now: () => Date;
-  private readonly execPath: string;
+  private readonly nodeExecutable: string;
 
   constructor(private readonly deps: HarnessManagerDeps) {
     this.spawnChild = deps.spawn ?? spawn;
     this.fetchImpl = deps.fetch ?? fetch;
     this.findPort = deps.findPort ?? findLoopbackPort;
     this.now = deps.now ?? (() => new Date());
-    this.execPath = deps.processExecPath ?? process.execPath;
+    // DeepSeek Harness is a Node CLI. process.execPath inside Electron points to
+    // MotionReal.exe, whose embedded Node does not resolve this source checkout's
+    // linked workspace packages correctly on Windows.
+    this.nodeExecutable = deps.nodeExecutable ?? "node";
   }
 
   async list(): Promise<AgentDraftVM[]> {
@@ -66,7 +73,7 @@ export class HarnessManager {
     const drafts: AgentDraftVM[] = [];
     for (const entry of entries) {
       if (!entry.isDirectory() || !isSafeDraftId(entry.name)) continue;
-      const record = await this.readRecord(entry.name).catch(() => null);
+      const record = await this.readRecord(entry.name).catch((_error) => null);
       if (!record) continue;
       drafts.push(await this.toVm(record));
     }
@@ -99,19 +106,39 @@ export class HarnessManager {
     const root = this.rootOf(id);
     const port = await this.findPort();
     const url = `http://127.0.0.1:${port}/`;
-    const child = this.spawnChild(this.execPath, [this.deps.harnessCliPath, "web", "--port", String(port), "--no-open"], {
-      cwd: root,
-      env: {
-        ...withoutSecrets(process.env),
-        ELECTRON_RUN_AS_NODE: "1",
-        DSH_HOME: join(root, HARNESS_HOME),
-        NINEROUTER_API_KEY: apiKey,
+    const child = this.spawnChild(
+      this.nodeExecutable,
+      [this.deps.harnessCliPath, "web", "--host", "127.0.0.1", "--port", String(port), "--no-open"],
+      {
+        cwd: root,
+        env: {
+          ...sanitizedChildEnvironment(),
+          DSH_HOME: join(root, HARNESS_HOME),
+          NINEROUTER_API_KEY: apiKey,
+        },
+        stdio: ["ignore", "ignore", "pipe"],
+        windowsHide: true,
       },
-      stdio: "ignore",
-      windowsHide: true,
+    );
+    let stderrTail = "";
+    let startupFailure: Error | null = null;
+    let started = false;
+    let stopping = false;
+    child.stderr?.on("data", (chunk: Buffer | string) => {
+      stderrTail = `${stderrTail}${String(chunk)}`.slice(-PROCESS_OUTPUT_LIMIT);
+    });
+    child.once("error", (error) => {
+      startupFailure = new Error(`Không chạy được Node cho DeepSeek Harness: ${error.message}`);
+      if (this.active?.child === child) this.active = null;
+    });
+    child.once("close", (code, signal) => {
+      if (!started && !stopping) {
+        startupFailure ??= harnessExitError(code, signal, stderrTail.replaceAll(apiKey, "[redacted]"));
+      }
+      if (this.active?.child === child) this.active = null;
     });
     try {
-      await waitForHttp(url, this.fetchImpl);
+      await waitForHttp(url, this.fetchImpl, () => startupFailure);
       const workspace = await this.rpc(url, "workspace.create", { path: root });
       const workspaceInfo = workspaceInfoOf(workspace);
       await this.rpc(url, "workspace.rename", { workspaceId: workspaceInfo.id, title: record.title });
@@ -119,15 +146,11 @@ export class HarnessManager {
       // previous DSH session/history instead of silently starting a new chat.
       if (workspaceInfo.sessionIds.length === 0) await this.rpc(url, "session.create", { workspaceId: workspaceInfo.id });
       this.active = { id, child, url };
-      child.once("exit", () => {
-        if (this.active?.child === child) this.active = null;
-      });
-      child.once("error", () => {
-        if (this.active?.child === child) this.active = null;
-      });
+      started = true;
       return this.toVm(record);
     } catch (error) {
-      child.kill();
+      stopping = true;
+      await stopChild(child);
       throw error;
     }
   }
@@ -142,7 +165,7 @@ export class HarnessManager {
     let raw: unknown;
     try {
       raw = JSON.parse(await readFile(path, "utf8"));
-    } catch {
+    } catch (_error) {
       throw new Error("Agent chưa tạo yêu cầu dựng video hợp lệ.");
     }
     if (!raw || typeof raw !== "object") throw new Error("Yêu cầu dựng video của Agent không hợp lệ.");
@@ -175,7 +198,7 @@ export class HarnessManager {
     const current = this.active;
     this.active = null;
     if (!current) return;
-    current.child.kill();
+    await stopChild(current.child);
   }
 
   private async toVm(record: DraftRecord): Promise<AgentDraftVM> {
@@ -204,7 +227,7 @@ export class HarnessManager {
         createdAt: raw.createdAt,
         ...(typeof raw.projectId === "string" ? { projectId: raw.projectId } : {}),
       };
-    } catch {
+    } catch (_error) {
       return null;
     }
   }
@@ -225,7 +248,7 @@ export class HarnessManager {
     if (!rel || rel.startsWith("..") || isAbsolute(rel) || rel.split(/[\\/]/).includes(HARNESS_HOME)) {
       throw new Error("Ảnh Agent phải nằm trong workspace của video.");
     }
-    const info = await stat(resolved).catch(() => null);
+    const info = await stat(resolved).catch((_error) => null);
     if (!info?.isFile()) throw new Error(`Không tìm thấy ảnh Agent: ${basename(value)}`);
     return resolved;
   }
@@ -270,10 +293,6 @@ function harnessSettings(): string {
   return `llm-pi-ai:\n  providers:\n    ninerouter:\n      apiKeyEnv: NINEROUTER_API_KEY\n      api: openai-completions\n      baseURL: http://127.0.0.1:20128/v1\n      compat:\n        supportsDeveloperRole: false\n        maxTokensField: max_tokens\n      models:\n        - id: ag/gemini-3.7-flash-high\nagent-default-model:\n  provider: ninerouter\n  model: ag/gemini-3.7-flash-high\n`;
 }
 
-function withoutSecrets(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
-  return Object.fromEntries(Object.entries(env).filter(([key]) => !/(?:^|_)(?:API_?KEY|TOKEN|SECRET|PASSWORD|PASSWD|PRIVATE_?KEY|ACCESS_?KEY|CREDENTIALS?)(?:$|_)/i.test(key)));
-}
-
 async function findLoopbackPort(): Promise<number> {
   return new Promise((resolvePort, reject) => {
     const server = createServer();
@@ -289,16 +308,44 @@ async function findLoopbackPort(): Promise<number> {
   });
 }
 
-async function waitForHttp(url: string, fetchImpl: typeof fetch): Promise<void> {
+async function waitForHttp(url: string, fetchImpl: typeof fetch, childFailure: () => Error | null): Promise<void> {
   const deadline = Date.now() + START_TIMEOUT_MS;
   while (Date.now() < deadline) {
+    const failure = childFailure();
+    if (failure) throw failure;
     try {
       const response = await fetchImpl(url);
       if (response.ok) return;
-    } catch {
+    } catch (_error) {
       // Child has not opened its loopback server yet.
     }
     await new Promise((resolveDelay) => setTimeout(resolveDelay, 150));
   }
   throw new Error("DeepSeek Harness khởi động quá lâu.");
+}
+
+function harnessExitError(code: number | null, signal: NodeJS.Signals | null, stderrTail: string): Error {
+  const diagnostic = stderrTail.trim();
+  log.error({ code, signal, stderr: diagnostic }, "DeepSeek Harness exited before startup completed");
+  if (diagnostic.includes("ERR_MODULE_NOT_FOUND") || diagnostic.includes("Cannot find package")) {
+    return new Error("DeepSeek Harness thiếu dependency đã build. Hãy cài/build lại checkout Harness rồi thử lại.");
+  }
+  const reason = code !== null ? `mã ${code}` : signal ? `tín hiệu ${signal}` : "không rõ mã lỗi";
+  return new Error(`DeepSeek Harness đã dừng trước khi mở giao diện (${reason}).`);
+}
+
+async function stopChild(child: ChildProcess): Promise<void> {
+  if (child.exitCode !== null && child.exitCode !== undefined) return;
+  await new Promise<void>((resolveStopped) => {
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolveStopped();
+    };
+    const timer = setTimeout(finish, 2_000);
+    child.once("exit", finish);
+    if (!child.kill()) finish();
+  });
 }

@@ -170,6 +170,10 @@ async function main() {
       ...process.env,
       VITE_DEV_SERVER_URL: devUrl,
       VIDEO_TOOL_HOME,
+      // The embedded Electron Node runtime is not a compatible host for the
+      // linked DeepSeek Harness source checkout. Pass the exact Node binary
+      // that launched this development app instead of guessing from PATH.
+      MOTIONREAL_NODE_BIN: process.execPath,
     },
   });
 

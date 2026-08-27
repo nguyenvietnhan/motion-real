@@ -80,7 +80,7 @@ describe("HarnessManager draft lifecycle", () => {
       fetch: fakeFetch,
       findPort: async () => 39876,
       spawn: vi.fn(() => child) as unknown as typeof import("node:child_process").spawn,
-      processExecPath: "node",
+      nodeExecutable: "C:\\Program Files\\nodejs\\node.exe",
     });
     const draft = await manager.createDraft("Video mới");
 
@@ -117,12 +117,83 @@ describe("HarnessManager draft lifecycle", () => {
           : {};
         return Response.json({ type: "server-response", result: { ok: true, value } });
       }) as unknown as typeof globalThis.fetch,
-      processExecPath: "node",
+      nodeExecutable: "node",
     });
     const draft = await manager.createDraft("Giữ lịch sử");
 
     await manager.activate(draft.id, "only-child-env");
     expect(methods).toEqual(["workspace.create", "workspace.rename"]);
     await manager.dispose();
+  });
+
+  it("uses a real Node executable instead of Electron run-as-node", async () => {
+    const root = await mkdtemp(join(tmpdir(), "motionreal-agent-"));
+    roots.push(root);
+    const cli = join(root, "dsh.js");
+    await writeFile(cli, "// test placeholder\n");
+    const child = Object.assign(new EventEmitter(), { kill: vi.fn() });
+    const spawnChild = vi.fn(() => child) as unknown as typeof import("node:child_process").spawn;
+    const manager = new HarnessManager({
+      draftsRoot: root,
+      harnessCliPath: cli,
+      nodeExecutable: "C:\\Program Files\\nodejs\\node.exe",
+      findPort: async () => 39874,
+      spawn: spawnChild,
+      fetch: vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+        if (!init?.method) return new Response("ok");
+        const method = JSON.parse(String(init.body)).method as string;
+        const value = method === "workspace.create"
+          ? { workspace: { workspaceId: "workspace-1", sessionIds: ["old-session"] } }
+          : {};
+        return Response.json({ type: "server-response", result: { ok: true, value } });
+      }) as unknown as typeof globalThis.fetch,
+    });
+    const draft = await manager.createDraft("Node thật");
+
+    await manager.activate(draft.id, "internal-key");
+    expect(spawnChild).toHaveBeenCalledWith(
+      "C:\\Program Files\\nodejs\\node.exe",
+      [cli, "web", "--host", "127.0.0.1", "--port", "39874", "--no-open"],
+      expect.objectContaining({
+        cwd: join(root, draft.id),
+        stdio: ["ignore", "ignore", "pipe"],
+        env: expect.objectContaining({ NINEROUTER_API_KEY: "internal-key" }),
+      }),
+    );
+    const options = vi.mocked(spawnChild).mock.calls[0]?.[2];
+    expect(options?.env).not.toHaveProperty("ELECTRON_RUN_AS_NODE");
+    await manager.dispose();
+  });
+
+  it("reports an early Harness dependency failure instead of waiting for a timeout", async () => {
+    const root = await mkdtemp(join(tmpdir(), "motionreal-agent-"));
+    roots.push(root);
+    const cli = join(root, "dsh.js");
+    await writeFile(cli, "// test placeholder\n");
+    const stderr = new EventEmitter();
+    const child = Object.assign(new EventEmitter(), {
+      stderr,
+      stdout: new EventEmitter(),
+      exitCode: null,
+      kill: vi.fn(() => false),
+    });
+    const manager = new HarnessManager({
+      draftsRoot: root,
+      harnessCliPath: cli,
+      nodeExecutable: "node",
+      findPort: async () => 39873,
+      spawn: vi.fn(() => {
+        queueMicrotask(() => {
+          stderr.emit("data", "Error [ERR_MODULE_NOT_FOUND]: Cannot find package 'example'");
+          child.emit("close", 1, null);
+        });
+        return child;
+      }) as unknown as typeof import("node:child_process").spawn,
+      fetch: vi.fn(async () => { throw new Error("not listening"); }) as unknown as typeof globalThis.fetch,
+    });
+    const draft = await manager.createDraft("Runtime hỏng");
+
+    const opening = manager.activate(draft.id, "internal-key");
+    await expect(opening).rejects.toThrow(/thiếu dependency đã build/);
   });
 });

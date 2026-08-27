@@ -65,11 +65,16 @@ export const AgentView: React.FC = () => {
       return;
     }
     void run(async () => {
-      const draft = await window.dashboard.agent.createDraft(title);
-      setActive(draft);
-      setNewVideoTitle("");
-      setShowNewVideo(false);
-      await refresh();
+      try {
+        const draft = await window.dashboard.agent.createDraft(title);
+        setActive(draft);
+        setNewVideoTitle("");
+        setShowNewVideo(false);
+      } finally {
+        // createDraft persists the workspace before starting Harness. Keep the
+        // retry/delete entry visible even when the child fails to boot.
+        await refresh();
+      }
     });
   };
 
