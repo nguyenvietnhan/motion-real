@@ -25,11 +25,13 @@ Already available:
   a debug fallback;
 - working 9router model, terminal, web access, and local file writes;
 - Agent video creation/deletion and project linking metadata;
-- schema-validated asset and brief submissions through two narrow Harness tools;
-- the existing CreateController and WorkspaceController authoring, still,
-  refine, draft, edit, rollback, final-render, and recovery paths.
+- schema-validated asset, brief, and authoring submissions through three narrow
+  Harness tools;
+- a split creation owner: Classic keeps the existing API authoring path, while
+  Harness-created projects let their Session write scene code and reuse the
+  existing still/review/TTS/final-render infrastructure.
 
-The embedded Harness client remains the rollback/debug point through Phase 6.
+The embedded Harness client remains the rollback/debug point through Phase 7.
 
 ## Non-Negotiable Boundaries
 
@@ -37,8 +39,11 @@ The embedded Harness client remains the rollback/debug point through Phase 6.
 - Agent prose, tool inactivity, and process completion never advance a product
   stage.
 - Every Agent video remains isolated by Workspace, Session, and job id.
-- Rendering and scene edits continue through the existing controllers.
-- No second TSX, authoring, render, or project-management path is introduced.
+- Rendering continues through the existing MotionReal controllers. Harness is
+  never given a render tool.
+- Both modes produce the same manifest and authored TSX contract. Harness scene
+  edits return to the owning Session; Classic scene edits remain unchanged.
+- No second render engine, TSX format, or project-management path is introduced.
 - User approval remains mandatory for assets, the final brief, and final render.
 - Existing Home, Create, Workspace, crawler, Queue, and project behavior must not
   regress.
@@ -257,7 +262,7 @@ project and reaching normal draft review remains part of the combined Phase
 ### Goal
 
 Turn the approved conversation and assets into an explicit, editable creation
-request and then reuse the existing Create Flow.
+request and reuse the existing project scaffold/asset-promotion path.
 
 ### Work
 
@@ -273,7 +278,7 @@ request and then reuse the existing Create Flow.
   - edit, return-to-assets, continue-chat, and create actions.
 - Freeze a brief revision when the user approves. Later chat must not mutate the
   queued or running creation request.
-- Convert the accepted brief to the existing CreateController input.
+- Convert the accepted brief to the existing CreateController scaffold input.
 - Promote only approved local asset files through the existing image staging /
   project promotion path.
 - Store the resulting `projectId` on the Agent record.
@@ -288,9 +293,11 @@ Implemented V1 details:
 - Approval writes a frozen create request and moves to `queued_create`; it does
   not create a project. The separate create action invokes the existing
   `CreateController`, promotes only selected local assets, renames the created
-  project to the approved title, links its id, and moves to `authoring`.
+  project to the approved title, links its id, and moves to Harness `authoring`.
+- `creationMode: harness` prevents CreateController from starting the Classic
+  one-shot authoring worker after the scaffold has been created.
 - Agent ownership is persisted after image promotion and immediately before the
-  existing `beginCreate` handoff. A retry returns the already-linked project;
+  Harness authoring handoff. A retry returns the already-linked project;
   failure to persist ownership deletes the unused scaffold instead of leaving a
   duplicate project for the next retry.
 
@@ -384,7 +391,8 @@ orchestration.
   actions.
 - Add `Mở dự án` and `Xem draft` actions rather than duplicating the complete
   Workspace editor inside Agent.
-- Scene/global edits continue through `WorkspaceController.submitEdits`.
+- Scene/global edits for Harness projects return to their owning Harness Session;
+  Classic projects continue through `WorkspaceController.submitEdits`.
 - User approval continues through the existing publish/full-render handler.
 
 Implemented V1 details:
@@ -399,6 +407,7 @@ Implemented V1 details:
   review instead of embedding a second editor or player.
 - `published` is accepted only from WorkspaceController's artifact-validated
   stage recovery, so Harness prose can never mark a video complete.
+- A Harness still-only ready stage is labeled `Duyệt từng cảnh`, not `Xem draft`.
 
 ### Tests
 
@@ -543,6 +552,50 @@ Acceptance evidence:
   and aborted submissions. The executor fixes title to the user-owned value in
   `brief-request.json`, so it cannot drift through model arguments.
 
+## Phase 7 — Harness Scene Authoring and Still Review
+
+Status: implemented in code on 2026-08-28; native user acceptance is pending.
+
+### Goal
+
+Remove the old one-shot authoring API from Harness-created videos without
+creating another render engine or review UI.
+
+### Implemented boundary
+
+- CreateController still scaffolds the project and promotes approved assets, but
+  `creationMode: harness` skips Classic `beginCreate` authoring.
+- MotionReal links that project into the existing video Workspace and writes a
+  versioned `authoring-request.json` plus the current authoring contract.
+- The owning Harness Session inspects local assets and writes the normal
+  `manifest.json` and fresh `authored/*.tsx` scene modules.
+- `motionreal_submit_authoring` validates job/revision, scene order, module
+  presence, and use of every approved asset before MotionReal renders stills.
+- MotionReal renders PNG stills, requires Harness to open/review every scene and
+  resubmit concrete notes, renders the revised stills, then reuses the existing
+  human per-scene review UI.
+- Human scene/global feedback is routed only to the same Harness Session. Classic
+  projects continue through the old edit worker without behavior changes.
+
+### Automated evidence
+
+- Focused tests cover Harness-vs-Classic routing, stale submission removal,
+  invalid scene ids, full still coverage, review notes, two still renders, and
+  the existing Workspace ready-card bridge.
+- TypeScript typecheck passes after the split.
+
+### Native acceptance gate
+
+- A new Agent video uses its approved local assets in the actual scene manifest
+  and TSX output.
+- Harness submits initial scenes, visibly performs image-backed self-review, and
+  MotionReal opens the existing per-scene cards without encoding a review MP4.
+- One user scene edit returns to the same Session, changes only the requested
+  scene(s), repeats the still/self-review loop, and never calls Classic
+  authoring.
+- After the user approves the scenes, the existing TTS/caption/full-render path
+  produces a healthy video.
+
 ## Manual End-to-End Acceptance Scenario
 
 Use one new factual video topic and perform the following on native Windows:
@@ -556,10 +609,11 @@ Use one new factual video topic and perform the following on native Windows:
 7. Approve the final asset set.
 8. Review and edit the generated brief.
 9. Approve creation and verify exactly one MotionReal project is created.
-10. Watch authoring/still/refine/draft progress from the Agent tab.
-11. Open the normal draft review, request one scene edit, and receive a new
-    draft through the existing edit path.
-12. Approve final render and verify the healthy final artifact.
+10. Watch Harness authoring and two still-review passes from the Agent tab.
+11. Open the normal scene review, request one scene edit, and receive revised
+    stills through the same Harness Session.
+12. Approve the scenes and verify the existing TTS/final-render path produces a
+    healthy artifact.
 13. Restart the app at least once during collection and once after project
     creation; verify recovery.
 14. Switch between two Agent videos and verify Workspace, Session, assets,
@@ -567,7 +621,6 @@ Use one new factual video topic and perform the following on native Windows:
 
 ## Deliberately Deferred
 
-- Agent-controlled Remotion/TSX authoring outside the existing backend.
 - Direct Harness render tools.
 - Automatic motion/temporal review.
 - Automatic publication.

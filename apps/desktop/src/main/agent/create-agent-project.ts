@@ -15,7 +15,7 @@ type Deps = {
   warn: (error: unknown, projectId: string, message: string) => void;
 };
 
-/** Reuse the normal Create Flow while making Agent project ownership durable. */
+/** Reuse the normal project scaffold/promotion path, then hand scene code to Harness. */
 export async function createAgentProject(draftId: string, deps: Deps): Promise<{ projectId: string }> {
   const current = await deps.status(draftId);
   const request = await deps.readCreateRequest(draftId);

@@ -11,8 +11,8 @@ const PRODUCTION_LABELS: Record<AgentProductionState, string> = {
   asset_review: "Chờ duyệt asset",
   brief_review: "Chờ duyệt brief",
   queued_create: "Đang chờ tạo video",
-  authoring: "Đang dựng nội dung",
-  still_review: "Đang kiểm tra cảnh",
+  authoring: "Harness đang viết và kiểm tra cảnh",
+  still_review: "Chờ bạn duyệt từng cảnh",
   draft_render: "Đang render draft",
   draft_review: "Chờ duyệt draft",
   final_render: "Đang render final",
@@ -228,8 +228,8 @@ export const AgentView: React.FC<{ onOpenProject: (projectId: string) => void }>
   const createVideo = () => {
     if (!active) return;
     void run(async () => {
-      const created = await window.dashboard.agent.createVideo(active.id);
-      setNotice("Đã tạo project. Tiến trình dựng sẽ hiển thị ngay tại đây.");
+      await window.dashboard.agent.createVideo(active.id);
+      setNotice("Đã tạo project. Harness đang đọc asset và viết các scene; tiến trình sẽ hiển thị tại đây.");
       await refresh();
     });
   };
@@ -243,7 +243,10 @@ export const AgentView: React.FC<{ onOpenProject: (projectId: string) => void }>
   };
 
   const liveProgress = projectStage ? agentProjectProgress(projectStage) : null;
-  const displayedState = liveProgress?.state ?? active?.productionState;
+  const harnessStillReview = active?.productionState === "still_review" && projectStage?.kind === "ready";
+  const displayedState = harnessStillReview ? "still_review" : liveProgress?.state ?? active?.productionState;
+  const progressLabel = harnessStillReview ? "Chờ bạn duyệt từng cảnh" : liveProgress?.label ?? (active ? PRODUCTION_LABELS[active.productionState] : "");
+  const canCancelProject = liveProgress?.canCancel && active?.productionState !== "authoring";
 
   const prepareAssets = () => {
     if (!active) return;
@@ -417,15 +420,15 @@ export const AgentView: React.FC<{ onOpenProject: (projectId: string) => void }>
       {active && (
         <div className={`ns-agent-workflow is-${displayedState}`} title={`Workflow revision ${active.workflowRevision}`}>
           <span>Quy trình video</span>
-          <strong>{liveProgress?.label ?? PRODUCTION_LABELS[active.productionState]}</strong>
+          <strong>{progressLabel}</strong>
           {liveProgress?.percent !== undefined && (
             <progress value={liveProgress.percent} max={100} aria-label={`Tiến trình ${liveProgress.percent}%`} />
           )}
           {active.projectId && (
             <div className="ns-agent-project-actions">
-              {liveProgress?.canCancel && <button type="button" className="ns-btn" onClick={cancelProject} disabled={busy}>Dừng</button>}
+              {canCancelProject && <button type="button" className="ns-btn" onClick={cancelProject} disabled={busy}>Dừng</button>}
               <button type="button" className="ns-btn ns-btn-primary" onClick={() => onOpenProject(active.projectId!)} disabled={busy}>
-                {liveProgress?.state === "draft_review" ? "Xem draft" : "Mở dự án"}
+                {harnessStillReview ? "Duyệt từng cảnh" : liveProgress?.state === "draft_review" ? "Xem draft" : "Mở dự án"}
               </button>
             </div>
           )}
@@ -527,8 +530,8 @@ export const AgentView: React.FC<{ onOpenProject: (projectId: string) => void }>
       )}
       {active?.createReady && (
         <div className="ns-agent-create-ready">
-          Agent đã chuẩn bị brief và asset local. MotionReal chưa thay đổi video nào.
-          <button type="button" className="ns-btn" onClick={createVideo} disabled={busy}>Tạo video bằng Create Flow</button>
+          Agent đã chuẩn bị brief và asset local. MotionReal chưa tạo project.
+          <button type="button" className="ns-btn" onClick={createVideo} disabled={busy}>Bắt đầu dựng bằng Harness</button>
         </div>
       )}
       {active?.harnessUrl && !reviewObscuresChat && !showHarnessDebug ? (

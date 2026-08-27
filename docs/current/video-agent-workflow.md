@@ -19,11 +19,13 @@ Implemented today:
 - Each Agent video persists a versioned production state/revision, with strict
   transition validation and legacy records defaulting to `discovery`.
 - Validated asset and brief handoffs advance only through explicit user review.
-- Harness submits final asset and brief values through the narrow
-  `motionreal_submit_assets` and `motionreal_submit_brief` tools; MotionReal
-  validates and atomically persists the durable artifacts.
-- An approved brief is handed to the existing Create Flow, and the Agent tab
-  projects authoritative Workspace progress after project creation.
+- Harness submits asset, brief, and authored-scene completion through the narrow
+  `motionreal_submit_assets`, `motionreal_submit_brief`, and
+  `motionreal_submit_authoring` tools. MotionReal validates and atomically
+  persists the durable artifacts.
+- An approved brief uses the existing project scaffold and asset-promotion path,
+  then the same Harness Session writes that project's fresh Remotion scene code.
+  The Agent tab projects authoritative Workspace progress throughout.
 
 The native chat adapter uses Harness `session.history`, `session.prompt`, and
 `session.cancel` RPCs plus the network WebSocket at `/api/events.mux`. Main
@@ -38,8 +40,9 @@ DeepSeek Harness is the Agent engine. It owns model turns, context, tool
 execution, terminal/web activity, and Agent session history.
 
 MotionReal is the product orchestrator. It owns video lifecycle state, review
-gates, project creation, authoring, still/refine, draft and final rendering,
-recovery, and user-visible progress.
+gates, project creation, the authoring contract and admission checks, still and
+final rendering, recovery, and user-visible progress. Harness owns the model
+turns that write and revise scene code only for Harness-created projects.
 
 The Agent must never advance production merely by saying that work is complete.
 A transition requires one of:
@@ -103,6 +106,10 @@ agent-drafts/<agent-id>/
   handoff/
     assets.json
     brief.json
+    authoring-contract.md
+    authoring-request.json
+    authoring.json
+  project/ -> linked MotionReal project (junction after brief approval)
 ```
 
 `motionreal-agent.json` is MotionReal-owned metadata. It records the Agent id,
@@ -110,7 +117,9 @@ title, creation time, Harness Workspace id, Harness Session id, production
 state, and optional linked MotionReal project id.
 
 The Agent may write research notes and download files inside its Workspace. It
-must not write into MotionReal project directories or invoke the renderer.
+may edit only the linked `project/` while a current authoring request explicitly
+allows it. It never invokes the renderer; MotionReal owns validation and still
+capture after each submission.
 
 For the first implementation, downloaded assets are prioritized for usefulness.
 Source URLs should still be retained for traceability, but license evaluation is
@@ -249,21 +258,29 @@ accepts only the final `handoff/brief.json` with the current job, request
 revision, 9:16 format, supported duration/language/voice combination, and the
 exact approved asset-id set. Invalid or stale files remain in `brief_review`.
 
-### 5. Existing Create Flow handoff
+### 5. Project scaffold and Harness authoring
 
-Approval moves the job to `queued_create`. MotionReal passes the approved brief,
-local approved assets, and existing Home settings into CreateController.
+Approval moves the job to `queued_create`. MotionReal reuses CreateController
+only to scaffold the normal project, promote approved local assets, persist the
+brief/settings, and link ownership. `creationMode: harness` deliberately skips
+the Classic `beginCreate` authoring call.
 
-No second authoring or rendering pipeline is introduced. Existing behavior
-remains authoritative for:
+MotionReal then writes `handoff/authoring-request.json`, exposes the linked
+project as `project/`, and asks the same Harness Session to inspect the approved
+assets and write fresh `manifest.json` plus `authored/*.tsx`. The submission tool
+checks the project mapping and asset references before MotionReal renders PNG
+stills.
 
-- content planning and script gates;
-- scene authoring;
-- still rendering and hidden creative/refine passes;
-- rollback and recovery;
-- draft rendering;
-- project review and editing;
-- approved final rendering.
+The first valid scene submission is not shown to the user immediately. MotionReal
+renders one still per scene and asks Harness to open every PNG, revise weak scene
+code, and submit concrete review notes. MotionReal renders the revised scenes
+again, then opens the existing human per-scene review UI. No MP4 is encoded for
+this self-review loop.
+
+Classic Home/Create/Queue authoring remains unchanged. Harness projects reuse the
+same authoring contract, admission/render tools, Workspace stages, human review,
+TTS, captions, full render, export, and project recovery; they do not use the old
+one-shot authoring API for scene generation or scene edits.
 
 When project creation succeeds, the Agent record stores its `projectId`.
 
@@ -288,12 +305,14 @@ Renderer-safe labels should reuse the existing shared stage-label surface. The
 Agent chat may remain usable, but it cannot independently alter the running
 project state.
 
-### 7. Draft review and edits
+### 7. Scene review and edits
 
 When WorkspaceController reaches the existing ready/review state, the Agent tab
-links to or embeds the normal draft review surface. Scene/global edit requests
-must continue through `WorkspaceController.submitEdits` so re-author, still,
-refine, rollback, and draft behavior remain unchanged.
+opens the normal scene-review surface. For a Harness-owned project, scene/global
+edit requests return to its same Harness Session through a new versioned
+authoring request; MotionReal reruns still capture and Harness self-review before
+showing the updated cards. A Classic project continues through
+`WorkspaceController.submitEdits` unchanged.
 
 ### 8. Final render
 
@@ -333,6 +352,7 @@ The target integration uses narrow custom tools:
 ```text
 motionreal_submit_assets
 motionreal_submit_brief
+motionreal_submit_authoring
 ```
 
 Each tool validates its schema and local files, writes the durable handoff, and
@@ -356,10 +376,11 @@ controllers.
 | `asset_review` | User requests more | `collecting_assets` |
 | `asset_review` | User approves selection | `brief_review` |
 | `brief_review` | User approves frozen brief | `queued_create` |
-| `queued_create` | CreateController accepts the job | `authoring` |
-| `authoring` | Real WorkspaceController stage events | `still_review` / `draft_render` |
+| `queued_create` | CreateController scaffolds and links the project | `authoring` |
+| `authoring` | Valid Harness submission, still render, and self-review | `still_review` |
 | `draft_render` | Healthy draft artifact and ready stage | `draft_review` |
-| `draft_review` | User requests an edit | existing edit/refine path |
+| `still_review` | User requests an edit | same Harness Session → `authoring` |
+| `still_review` | User approves scenes | existing full-render controller |
 | `draft_review` | User approves full render | `final_render` |
 | `final_render` | Healthy full artifact | `completed` |
 | any running state | Structured failure | `error` |
@@ -406,15 +427,15 @@ Build only:
 4. prepare-video action;
 5. asset collection submission and review;
 6. brief submission and review;
-7. handoff to existing CreateController;
-8. existing WorkspaceController progress in the Agent tab;
-9. existing draft review/edit/final flow.
+7. handoff to existing CreateController for project scaffold and asset promotion;
+8. Harness-authored scene code with MotionReal still validation/self-review;
+9. existing WorkspaceController progress and human scene review;
+10. existing TTS/final-render flow after approval.
 
 Defer:
 
 - Harness-controlled rendering;
-- Agent-authored per-scene orchestration outside the existing pipeline;
-- a second TSX/render path;
+- a second render engine or TSX format;
 - automatic temporal QA;
 - physical deletion of archived shared-home Session logs;
 - strict media-license gating;

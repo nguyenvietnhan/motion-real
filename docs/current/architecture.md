@@ -172,12 +172,21 @@ thumbnails all enter the same process-wide FIFO gate. Optional staging-image
 refs persist on non-done jobs; the staging sweep protects refs held by queued,
 running, failed, or cancelled jobs and releases them after completion/deletion.
 
-Runtime AI does not read repository docs directly. For fresh authoring, the
-desktop backend first asks the selected 9router-compatible model for a structured
-content plan with a claim ledger, then validates that plan and feeds only usable
-facts and scene-plan data into the scene-code authoring prompt built from the
-current authoring contract. Edit/refine flows use scoped repair prompts instead
-of rerunning the full fresh-authoring chain.
+Classic Home/Create/Queue AI does not read repository docs directly. For fresh
+Classic authoring, the desktop backend first asks the selected 9router-compatible
+model for a structured content plan with a claim ledger, validates that plan,
+then feeds only usable facts and scene-plan data into the scene-code authoring
+prompt built from the current authoring contract. Classic edit/refine flows use
+scoped repair prompts instead of rerunning the full fresh-authoring chain.
+
+Agent-created projects persist `creationMode: "harness"`. They reuse the same
+project scaffold, authoring contract, admission/render tools, Workspace stages,
+human review, TTS, captions, and full export, but their linked DeepSeek Harness
+Session writes `manifest.json` and `authored/*.tsx` directly through a project
+junction. MotionReal renders scene stills, requests one image-backed Harness
+self-review, and only then exposes the existing per-scene review UI. Human edit
+requests return to that same Session; Classic projects continue through the
+existing `WorkspaceController.submitEdits` path.
 
 `apps/desktop/src/main/authoring/ninerouter-backend.ts` is the public desktop
 authoring facade (`AuthoringBackend`). It keeps deps construction, `authorScenes`
