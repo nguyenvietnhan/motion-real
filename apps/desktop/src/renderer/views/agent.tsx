@@ -1,7 +1,22 @@
 import React, { useCallback, useEffect, useState } from "react";
-import type { AgentDraftVM } from "../../shared/types.js";
+import type { AgentDraftVM, AgentProductionState } from "../../shared/types.js";
 import { Icon } from "../icons.js";
 import { ConfirmDialog } from "../primitives.js";
+
+const PRODUCTION_LABELS: Record<AgentProductionState, string> = {
+  discovery: "Đang trao đổi ý tưởng",
+  collecting_assets: "Đang thu thập asset",
+  asset_review: "Chờ duyệt asset",
+  brief_review: "Chờ duyệt brief",
+  queued_create: "Đang chờ tạo video",
+  authoring: "Đang dựng nội dung",
+  still_review: "Đang kiểm tra cảnh",
+  draft_render: "Đang render draft",
+  draft_review: "Chờ duyệt draft",
+  final_render: "Đang render final",
+  completed: "Đã hoàn tất",
+  error: "Cần xử lý lỗi",
+};
 
 /**
  * The Harness owns the chat, event timeline, tool cards, and history. Keeping
@@ -155,6 +170,12 @@ export const AgentView: React.FC = () => {
         {drafts.length === 0 && <span className="ns-agent-empty">Tạo một video mới để mở Harness.</span>}
       </div>
       {notice && <p className="ns-agent-notice" role="status">{notice}</p>}
+      {active && (
+        <div className={`ns-agent-workflow is-${active.productionState}`} title={`Workflow revision ${active.workflowRevision}`}>
+          <span>Quy trình video</span>
+          <strong>{PRODUCTION_LABELS[active.productionState]}</strong>
+        </div>
+      )}
       {active?.createReady && (
         <div className="ns-agent-create-ready">
           Agent đã chuẩn bị brief và asset local. MotionReal chưa thay đổi video nào.

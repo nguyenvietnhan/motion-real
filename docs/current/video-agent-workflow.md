@@ -16,6 +16,9 @@ Implemented today:
 - Each Agent video has a separate filesystem Workspace and Harness Session.
 - The native Harness web client is embedded temporarily for chat, reasoning
   summaries, and tool activity.
+- Each Agent video persists a versioned production state/revision, with strict
+  transition validation and legacy records defaulting to `discovery`.
+- The Agent tab shows the current production state as a read-only status badge.
 - A valid `motionreal.create.json` can be handed to the existing Create Flow.
 
 Not implemented yet:
@@ -23,7 +26,6 @@ Not implemented yet:
 - MotionReal-owned chat and tool timeline UI.
 - Explicit asset and brief submission tools.
 - Asset and brief review gates inside the Agent tab.
-- A persisted Agent production state machine.
 - Create/Workspace progress projected into the Agent tab.
 
 ## Product Boundary

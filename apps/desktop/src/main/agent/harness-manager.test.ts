@@ -40,6 +40,43 @@ describe("HarnessManager draft lifecycle", () => {
     expect((await manager.status(draft.id)).createReady).toBe(true);
   });
 
+  it("persists workflow transitions and opens legacy records in discovery", async () => {
+    const { manager, root } = await managerForTest();
+    const draft = await manager.createDraft("Workflow bền vững");
+
+    expect(draft).toMatchObject({
+      workflowVersion: 1,
+      workflowRevision: 0,
+      productionState: "discovery",
+    });
+    await manager.transitionWorkflow(draft.id, {
+      expectedRevision: 0,
+      to: "collecting_assets",
+      jobId: "job-restart",
+    });
+    const reopened = new HarnessManager({
+      draftsRoot: root,
+      harnessHome: join(root, "harness"),
+      harnessCliPath: join(root, "missing-harness.js"),
+    });
+    await expect(reopened.status(draft.id)).resolves.toMatchObject({
+      workflowRevision: 1,
+      productionState: "collecting_assets",
+      activeJobId: "job-restart",
+    });
+
+    await writeFile(join(root, draft.id, "motionreal-agent.json"), JSON.stringify({
+      id: draft.id,
+      title: draft.title,
+      createdAt: draft.createdAt,
+    }));
+    await expect(reopened.status(draft.id)).resolves.toMatchObject({
+      workflowVersion: 1,
+      workflowRevision: 0,
+      productionState: "discovery",
+    });
+  });
+
   it("refuses a create request that reaches outside the video workspace or into Harness history", async () => {
     const { manager, root } = await managerForTest();
     const draft = await manager.createDraft("An toàn đường dẫn");

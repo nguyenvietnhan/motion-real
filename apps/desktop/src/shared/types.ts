@@ -43,12 +43,31 @@ export type AiAccountState =
 
 // --- DeepSeek Harness video drafts ---------------------------------
 
+export type AgentProductionState =
+  | "discovery"
+  | "collecting_assets"
+  | "asset_review"
+  | "brief_review"
+  | "queued_create"
+  | "authoring"
+  | "still_review"
+  | "draft_render"
+  | "draft_review"
+  | "final_render"
+  | "completed"
+  | "error";
+
 /** A video-scoped Harness workspace. Paths and credentials never cross IPC. */
 export type AgentDraftVM = {
   id: string;
   title: string;
   createdAt: string;
   projectId?: string;
+  workflowVersion: 1;
+  workflowRevision: number;
+  productionState: AgentProductionState;
+  activeJobId?: string;
+  lastError?: string;
   /** Local Harness URL used only by the embedded renderer iframe. */
   harnessUrl?: string;
   /** The agent has written an explicit request awaiting the user's approval. */

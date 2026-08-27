@@ -73,6 +73,8 @@ begins.
 
 ## Phase 1 — Production State Kernel
 
+Status: completed and gated on 2026-08-27. Phase 2 is next.
+
 ### Goal
 
 Give each Agent video a durable, validated production state before adding new

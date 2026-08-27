@@ -4,9 +4,16 @@ import { mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises"
 import { existsSync } from "node:fs";
 import { createServer } from "node:net";
 import { basename, isAbsolute, join, relative, resolve } from "node:path";
-import { createLogger } from "@motionreal/pipeline";
+import { createLogger, writeJson } from "@motionreal/pipeline";
 import type { AgentDraftVM } from "../../shared/types.js";
 import { sanitizedChildEnvironment } from "../security/runtime-security.js";
+import {
+  initialAgentWorkflow,
+  parseAgentWorkflow,
+  transitionAgentWorkflow,
+  type AgentWorkflowRecord,
+  type AgentWorkflowTransition,
+} from "./agent-workflow.js";
 
 const METADATA_FILE = "motionreal-agent.json";
 const CREATE_REQUEST_FILE = "motionreal.create.json";
@@ -21,7 +28,7 @@ const log = createLogger("harness");
 
 export type { AgentDraftVM } from "../../shared/types.js";
 
-type DraftRecord = Omit<AgentDraftVM, "harnessUrl" | "createReady"> & {
+type DraftRecord = Omit<AgentDraftVM, "harnessUrl" | "createReady"> & AgentWorkflowRecord & {
   workspaceId?: string;
   sessionId?: string;
 };
@@ -97,9 +104,10 @@ export class HarnessManager {
       title: normalized,
       createdAt: this.now().toISOString(),
       sessionId: `session-${randomUUID()}`,
+      ...initialAgentWorkflow(),
     };
     await mkdir(join(root, "assets"), { recursive: true });
-    await writeFile(join(root, METADATA_FILE), `${JSON.stringify(record, null, 2)}\n`, "utf8");
+    await this.writeRecord(record);
     await writeFile(join(root, AGENTS_FILE), agentInstructions(normalized), "utf8");
     return this.toVm(record);
   }
@@ -199,6 +207,13 @@ export class HarnessManager {
     return this.toVm(await this.mustReadRecord(id));
   }
 
+  async transitionWorkflow(id: string, request: AgentWorkflowTransition): Promise<AgentDraftVM> {
+    const current = await this.mustReadRecord(id);
+    const next = { ...current, ...transitionAgentWorkflow(current, request) };
+    await this.writeRecord(next);
+    return this.toVm(next);
+  }
+
   async readCreateRequest(id: string): Promise<AgentCreateRequest> {
     const record = await this.mustReadRecord(id);
     const path = join(this.rootOf(record.id), CREATE_REQUEST_FILE);
@@ -280,10 +295,13 @@ export class HarnessManager {
     try {
       const raw = JSON.parse(await readFile(join(this.rootOf(id), METADATA_FILE), "utf8")) as Partial<DraftRecord>;
       if (!raw || raw.id !== id || typeof raw.title !== "string" || typeof raw.createdAt !== "string") return null;
+      const workflow = parseAgentWorkflow(raw as Record<string, unknown>);
+      if (!workflow) return null;
       return {
         id,
         title: raw.title,
         createdAt: raw.createdAt,
+        ...workflow,
         ...(typeof raw.projectId === "string" ? { projectId: raw.projectId } : {}),
         ...(typeof raw.workspaceId === "string" ? { workspaceId: raw.workspaceId } : {}),
         ...(typeof raw.sessionId === "string" ? { sessionId: raw.sessionId } : {}),
@@ -294,7 +312,7 @@ export class HarnessManager {
   }
 
   private writeRecord(record: DraftRecord): Promise<void> {
-    return writeFile(join(this.rootOf(record.id), METADATA_FILE), `${JSON.stringify(record, null, 2)}\n`, "utf8");
+    return writeJson(join(this.rootOf(record.id), METADATA_FILE), record);
   }
 
   private rootOf(id: string): string {
