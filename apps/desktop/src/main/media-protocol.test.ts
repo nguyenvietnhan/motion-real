@@ -75,6 +75,7 @@ describe("media protocol path policy", () => {
       { path: join(home, "projects", "p1", "renders", "p1.mp4"), kind: "project-render" },
       { path: join(home, "staging", "deadbeef.jpg"), kind: "staging" },
       { path: join(home, "bgm", "track.mp3"), kind: "bgm" },
+      { path: join(home, "agent-drafts", "agent-12345678-1234-1234-1234-123456789abc", "assets", "found.png"), kind: "agent-asset" },
       {
         path: join(workspaceRoot(), "apps", "desktop", "assets", "bgm", BUNDLED_DEFAULT_BGM_FILENAME),
         kind: "bundled-asset",
@@ -115,6 +116,8 @@ describe("media protocol path policy", () => {
       join(home, "projects", "p1", "assets", "notes.txt"),
       join(home, "projects", "p1", "audio", "narration.wav"), // audio dir not allowed
       join(home, "projects", "p1", "assets", "payload.json"),
+      join(home, "agent-drafts", "agent-12345678-1234-1234-1234-123456789abc", "motionreal-agent.json"),
+      join(home, "agent-drafts", "not-an-agent", "assets", "found.png"),
       join(workspaceRoot(), "README.md"),
     ];
     for (const path of denied) {
@@ -151,6 +154,16 @@ describe("media URL route round-trip", () => {
 
     const rebuilt = absolutePathFromMediaRoute("project-review", ["proj-abc", "scene-01.png"], policy);
     expect(resolve(rebuilt!)).toBe(resolve(abs));
+  });
+
+  it("round-trips only the assets zone of a valid Agent workspace", () => {
+    const home = resolve(join(workspaceRoot(), ".video-tool-media-test"));
+    const policy = policyFor(home);
+    const draftId = "agent-12345678-1234-1234-1234-123456789abc";
+    const abs = join(home, "agent-drafts", draftId, "assets", "logo.png");
+    expect(mediaUrl(abs, policy)).toBe(`media://file/agent-asset/${draftId}/logo.png`);
+    expect(resolve(absolutePathFromMediaRoute("agent-asset", [draftId, "logo.png"], policy)!)).toBe(resolve(abs));
+    expect(absolutePathFromMediaRoute("agent-asset", ["bad", "logo.png"], policy)).toBeNull();
   });
 
   it("rejects wrong host, query, fragment, and empty routes in resolveMediaRequest", async () => {

@@ -130,6 +130,15 @@
   gap: 8px;
   flex-shrink: 0;
 }
+.ns-image-review-request-more {
+  display: flex;
+  gap: 8px;
+  padding: 12px;
+}
+.ns-image-review-request-more .ns-input {
+  min-width: 0;
+  flex: 1;
+}
 .ns-image-review-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(min(100%, 148px), 1fr));

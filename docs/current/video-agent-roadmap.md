@@ -140,6 +140,8 @@ Minimum production metadata:
 
 ## Phase 2 — Asset Collection Vertical Slice
 
+Status: implemented locally on 2026-08-27; native Harness/9router acceptance is still required before Phase 3.
+
 ### Goal
 
 Prove the first complete Agent-controlled production step:
@@ -177,9 +179,11 @@ handoff/assets.draft.json
 handoff/assets.json
 ```
 
-The preparation action sends a fixed hidden instruction to the current Harness
-Session containing the job id, required target path, and schema. The user's chat
-message is not replaced by that instruction in the visible timeline.
+The preparation action writes the job id, target path, and schema to
+`handoff/assets-request.json`, then sends a short automatic instruction through
+the public `session.prompt` RPC. Harness logs model-visible input by design, so
+the short instruction appears in history; the machine schema does not flood the
+chat and the user's preceding message is left intact.
 
 MotionReal accepts the final file only when:
 
@@ -194,6 +198,24 @@ The validator returns structured errors. Invalid handoff remains in
 
 Use one bounded status check while this phase is active. Do not build a generic
 filesystem event service.
+
+The implemented manifest is:
+
+```json
+{
+  "version": 1,
+  "job_id": "job-uuid",
+  "request_revision": 1,
+  "items": [
+    {
+      "id": "asset-01",
+      "path": "assets/example.png",
+      "source_url": "https://example.com/image",
+      "label": "Mô tả ngắn"
+    }
+  ]
+}
+```
 
 ### Review outcomes
 

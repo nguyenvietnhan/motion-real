@@ -16,13 +16,17 @@ export const ImageReviewView: React.FC<{
   images: CrawledImageVM[];
   /** Confirm the selected refs; empty array ⇒ author with no images. */
   onSubmit: (selectedRefs: string[]) => void;
-}> = ({ images, onSubmit }) => {
+  initialSelectedRefs?: string[];
+  onRequestMore?: (selectedRefs: string[], note: string) => void;
+  approveLabel?: string;
+}> = ({ images, onSubmit, initialSelectedRefs, onRequestMore, approveLabel }) => {
   // Pre-tick the AI-suggested images (when the AI-filter ran); otherwise nothing
   // is checked and the user opts images in.
   const [checked, setChecked] = useState<Record<string, boolean>>(
-    Object.fromEntries(images.map((img) => [img.ref, img.suggested])),
+    Object.fromEntries(images.map((img) => [img.ref, initialSelectedRefs ? initialSelectedRefs.includes(img.ref) : img.suggested])),
   );
   const [submitting, setSubmitting] = useState(false);
+  const [requestNote, setRequestNote] = useState("");
 
   const selectedRefs = images.filter((img) => checked[img.ref]).map((img) => img.ref);
   const count = selectedRefs.length;
@@ -57,12 +61,37 @@ export const ImageReviewView: React.FC<{
             disabled={submitting || count === 0}
             title={count === 0 ? "Chọn ảnh, hoặc bấm Bỏ qua ảnh." : undefined}
           >
-            <StableButtonLabel reserve={["Đang xử lý…", "Dùng ảnh (99)"]}>
-              {submitting ? "Đang xử lý…" : `Dùng ảnh (${count})`}
+            <StableButtonLabel reserve={["Đang xử lý…", `${approveLabel ?? "Dùng ảnh"} (99)`]}>
+              {submitting ? "Đang xử lý…" : `${approveLabel ?? "Dùng ảnh"} (${count})`}
             </StableButtonLabel>
           </button>
         </div>
       </div>
+
+      {onRequestMore && (
+        <div className="ns-card ns-image-review-request-more">
+          <input
+            className="ns-input"
+            value={requestNote}
+            onChange={(event) => setRequestNote(event.target.value)}
+            placeholder="Ví dụ: tìm thêm hai ảnh giao diện mới, giữ logo hiện tại"
+            maxLength={1_000}
+            disabled={submitting}
+          />
+          <button
+            type="button"
+            className="ns-btn"
+            disabled={submitting || !requestNote.trim()}
+            onClick={() => {
+              if (submitting) return;
+              setSubmitting(true);
+              onRequestMore(selectedRefs, requestNote.trim());
+            }}
+          >
+            Tìm thêm ảnh
+          </button>
+        </div>
+      )}
 
       <div className="ns-image-review-grid">
         {images.map((img) => {
@@ -85,7 +114,7 @@ export const ImageReviewView: React.FC<{
               </span>
               {img.suggested && <span className="ns-image-tile-badge">AI đề xuất</span>}
               <span className="ns-image-tile-caption">
-                {host(img.sourceUrl)} · {img.width}×{img.height}
+                {img.label ? `${img.label} · ` : ""}{host(img.sourceUrl)} · {img.width}×{img.height}
               </span>
             </button>
           );

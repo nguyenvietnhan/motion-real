@@ -300,6 +300,11 @@ handoff/assets.draft.json
 ```
 
 MotionReal never treats a partially written draft file as completion.
+The current V1 request is written by MotionReal to
+`handoff/assets-request.json`. It carries `job_id`, `request_revision`, the
+selection to keep, and the exact manifest example. MotionReal advances only
+when the final manifest matches both ids and every referenced local raster file
+passes containment, size, dimension, format, and media-protocol validation.
 
 ### Preferred submission path
 

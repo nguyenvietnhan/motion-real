@@ -72,6 +72,23 @@ export type AgentDraftVM = {
   harnessUrl?: string;
   /** The agent has written an explicit request awaiting the user's approval. */
   createReady: boolean;
+  /** Validated local images awaiting the user's approval. */
+  assetReview?: AgentAssetVM[];
+  /** Selected ids survive collection/review retries and app restarts. */
+  selectedAssetIds?: string[];
+  /** Safe handoff validation error; raw paths and file contents never cross IPC. */
+  assetCollectionError?: string;
+};
+
+/** One validated image in an Agent workspace. */
+export type AgentAssetVM = {
+  id: string;
+  previewUrl: string;
+  sourceUrl: string;
+  label: string;
+  width: number;
+  height: number;
+  bytes: number;
 };
 
 // --- create --------------------------------------------------------
@@ -219,7 +236,7 @@ export type ScriptEvidenceModel = {
  * `previewUrl` is a `media://` URL to the already-imported local asset;
  * `suggested` = the AI-filter pre-tick (true ⇒ checkbox starts checked).
  */
-export type CrawledImageVM = { ref: string; previewUrl: string; width: number; height: number; sourceUrl: string; suggested: boolean };
+export type CrawledImageVM = { ref: string; previewUrl: string; width: number; height: number; sourceUrl: string; suggested: boolean; label?: string };
 
 /** The live stage of a project's workspace, driving the staged UI. */
 export type ProjectStage =

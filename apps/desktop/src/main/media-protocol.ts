@@ -44,6 +44,7 @@ export type MediaPathKind =
   | "project-asset"
   | "project-review"
   | "project-render"
+  | "agent-asset"
   | "staging"
   | "bgm"
   | "bundled-asset";
@@ -137,7 +138,7 @@ function classifyUnderRoot(
 }
 
 /**
- * Pure lexical classifier: accepts only the six media locations and known MIME
+ * Pure lexical classifier: accepts only the known media locations and MIME
  * extensions. Does not touch the filesystem (realpath is the handler's job).
  */
 export function classifyMediaPath(
@@ -150,6 +151,15 @@ export function classifyMediaPath(
 
   const home = resolve(policy.videoToolHome);
   const projectsRoot = join(home, "projects");
+  const agentDraftsRoot = join(home, "agent-drafts");
+
+  if (isContainedInRoot(abs, agentDraftsRoot)) {
+    const segments = splitRelativeSegments(relative(agentDraftsRoot, abs));
+    if (!segments || segments.length < 3) return null;
+    const [draftId, zone, ...rest] = segments;
+    if (!draftId || !/^agent-[0-9a-f-]{36}$/i.test(draftId) || zone !== "assets" || rest.length === 0) return null;
+    return classifyUnderRoot(abs, join(agentDraftsRoot, draftId, "assets"), "agent-asset");
+  }
 
   if (isContainedInRoot(abs, projectsRoot)) {
     const rel = relative(projectsRoot, abs);
@@ -206,8 +216,15 @@ export function mediaUrl(
   if (
     classified.kind === "project-asset" ||
     classified.kind === "project-review" ||
-    classified.kind === "project-render"
+    classified.kind === "project-render" ||
+    classified.kind === "agent-asset"
   ) {
+    if (classified.kind === "agent-asset") {
+      const fromDrafts = relative(join(resolve(policy.videoToolHome), "agent-drafts"), classified.absolutePath);
+      const [draftId, zone, ...rest] = splitRelativeSegments(fromDrafts) ?? [];
+      if (!draftId || zone !== "assets" || rest.length === 0) return null;
+      return `${SCHEME}://${HOST}/${[classified.kind, draftId, ...rest].map(encodeURIComponent).join("/")}`;
+    }
     const zone =
       classified.kind === "project-asset"
         ? "assets"
@@ -249,6 +266,12 @@ export function absolutePathFromMediaRoute(
       kind === "project-asset" ? "assets" : kind === "project-review" ? "review" : "renders";
     return resolve(join(home, "projects", projectId, zone, ...rest));
   }
+  if (kind === "agent-asset") {
+    if (routeSegments.length < 2) return null;
+    const [draftId, ...rest] = routeSegments;
+    if (!draftId || !/^agent-[0-9a-f-]{36}$/i.test(draftId) || rest.length === 0) return null;
+    return resolve(join(home, "agent-drafts", draftId, "assets", ...rest));
+  }
 
   if (kind === "staging") {
     return resolve(join(home, "staging", ...routeSegments));
@@ -266,6 +289,7 @@ const MEDIA_KINDS = new Set<MediaPathKind>([
   "project-asset",
   "project-review",
   "project-render",
+  "agent-asset",
   "staging",
   "bgm",
   "bundled-asset",

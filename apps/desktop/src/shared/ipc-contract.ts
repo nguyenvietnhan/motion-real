@@ -88,6 +88,12 @@ export interface DashboardApi {
     /** Stop any other local Harness sidecar, then open this draft's Harness. */
     openDraft(draftId: string): Promise<AgentDraftVM>;
     status(draftId: string): Promise<AgentDraftVM>;
+    /** Start one asset-collection job in the current Harness session. */
+    prepareAssets(draftId: string, expectedRevision: number): Promise<AgentDraftVM>;
+    /** Keep the current selection and ask the Agent for replacements/additions. */
+    requestMoreAssets(draftId: string, expectedRevision: number, selectedIds: string[], note: string): Promise<AgentDraftVM>;
+    /** Freeze the selected asset ids and advance to brief review. */
+    approveAssets(draftId: string, expectedRevision: number, selectedIds: string[]): Promise<AgentDraftVM>;
     /** Explicitly hand the Agent-written brief into the existing Create Flow. */
     createVideo(draftId: string): Promise<{ projectId: string }>;
     /** If a project was created, delete that project plus this Agent workspace/history. */

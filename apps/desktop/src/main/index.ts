@@ -420,6 +420,7 @@ const harness = new HarnessManager({
     process.env.MOTIONREAL_DSH_CLI ??
     join(dirname(REPO_ROOT), "deepseek-harness", "apps", "cli", "lib", "bin.js"),
   nodeExecutable: process.env.MOTIONREAL_NODE_BIN ?? process.env.npm_node_execpath ?? "node",
+  mediaUrl,
 });
 
 async function activateHarnessDraft(draftId: string) {
@@ -662,6 +663,24 @@ const handlers: InvokeHandlers = {
   },
   "agent:openDraft": (draftId) => activateHarnessDraft(String(draftId)),
   "agent:status": (draftId) => harness.status(String(draftId)),
+  "agent:prepareAssets": async (draftId, expectedRevision) => {
+    const opened = await activateHarnessDraft(String(draftId));
+    return harness.prepareAssets(opened.id, Number(expectedRevision));
+  },
+  "agent:requestMoreAssets": async (draftId, expectedRevision, selectedIds, note) => {
+    const opened = await activateHarnessDraft(String(draftId));
+    return harness.requestMoreAssets(
+      opened.id,
+      Number(expectedRevision),
+      Array.isArray(selectedIds) ? selectedIds.map(String) : [],
+      String(note ?? ""),
+    );
+  },
+  "agent:approveAssets": (draftId, expectedRevision, selectedIds) => harness.approveAssets(
+    String(draftId),
+    Number(expectedRevision),
+    Array.isArray(selectedIds) ? selectedIds.map(String) : [],
+  ),
   "agent:createVideo": async (draftId) => {
     const request = await harness.readCreateRequest(String(draftId));
     const images = await stageHarnessImages(request.imagePaths);

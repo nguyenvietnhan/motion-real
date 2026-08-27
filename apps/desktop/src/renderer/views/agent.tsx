@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import type { AgentDraftVM, AgentProductionState } from "../../shared/types.js";
 import { Icon } from "../icons.js";
 import { ConfirmDialog } from "../primitives.js";
+import { ImageReviewView } from "./image-review.js";
 
 const PRODUCTION_LABELS: Record<AgentProductionState, string> = {
   discovery: "Đang trao đổi ý tưởng",
@@ -110,6 +111,34 @@ export const AgentView: React.FC = () => {
     });
   };
 
+  const prepareAssets = () => {
+    if (!active) return;
+    void run(async () => {
+      const next = await window.dashboard.agent.prepareAssets(active.id, active.workflowRevision);
+      setActive(next);
+      await refresh();
+    });
+  };
+
+  const requestMoreAssets = (selectedIds: string[], note: string) => {
+    if (!active) return;
+    void run(async () => {
+      const next = await window.dashboard.agent.requestMoreAssets(active.id, active.workflowRevision, selectedIds, note);
+      setActive(next);
+      await refresh();
+    });
+  };
+
+  const approveAssets = (selectedIds: string[]) => {
+    if (!active) return;
+    void run(async () => {
+      const next = await window.dashboard.agent.approveAssets(active.id, active.workflowRevision, selectedIds);
+      setActive(next);
+      setNotice("Đã chốt asset. Bước duyệt brief sẽ được nối ở Phase 3.");
+      await refresh();
+    });
+  };
+
   const deleteDraft = () => {
     if (!active) return;
     void run(async () => {
@@ -174,6 +203,35 @@ export const AgentView: React.FC = () => {
         <div className={`ns-agent-workflow is-${active.productionState}`} title={`Workflow revision ${active.workflowRevision}`}>
           <span>Quy trình video</span>
           <strong>{PRODUCTION_LABELS[active.productionState]}</strong>
+        </div>
+      )}
+      {active?.productionState === "discovery" && (
+        <div className="ns-agent-prepare">
+          <span>Khi đã trao đổi đủ ý tưởng, bắt đầu để Agent tìm và tải ảnh vào workspace video này.</span>
+          <button type="button" className="ns-btn ns-btn-primary" onClick={prepareAssets} disabled={busy}>Chuẩn bị tạo video</button>
+        </div>
+      )}
+      {active?.assetCollectionError && (
+        <p className="ns-agent-notice" role="alert">{active.assetCollectionError}</p>
+      )}
+      {active?.productionState === "asset_review" && active.assetReview && (
+        <div className="ns-agent-asset-review">
+          <ImageReviewView
+            key={`${active.id}-${active.workflowRevision}`}
+            images={active.assetReview.map((asset) => ({
+              ref: asset.id,
+              previewUrl: asset.previewUrl,
+              width: asset.width,
+              height: asset.height,
+              sourceUrl: asset.sourceUrl,
+              label: asset.label,
+              suggested: active.selectedAssetIds === undefined || active.selectedAssetIds.includes(asset.id),
+            }))}
+            initialSelectedRefs={active.selectedAssetIds ?? active.assetReview.map((asset) => asset.id)}
+            approveLabel="Chấp nhận"
+            onRequestMore={requestMoreAssets}
+            onSubmit={approveAssets}
+          />
         </div>
       )}
       {active?.createReady && (

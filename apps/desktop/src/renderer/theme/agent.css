@@ -42,10 +42,31 @@
 
 .ns-agent-actions,
 .ns-agent-drafts,
-.ns-agent-create-ready {
+.ns-agent-create-ready,
+.ns-agent-prepare {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.ns-agent-prepare {
+  justify-content: space-between;
+  margin: 8px 24px 0;
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 13px;
+}
+
+.ns-agent-asset-review {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 16px 24px;
+}
+
+.ns-agent-asset-review + .ns-agent-frame {
+  display: none;
 }
 
 .ns-agent-workflow {

@@ -1,11 +1,11 @@
 import { randomUUID } from "node:crypto";
 import { spawn, type ChildProcess } from "node:child_process";
-import { mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, realpath, rm, stat, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { createServer } from "node:net";
 import { basename, isAbsolute, join, relative, resolve } from "node:path";
-import { createLogger, writeJson } from "@motionreal/pipeline";
-import type { AgentDraftVM } from "../../shared/types.js";
+import { createLogger, MAX_IMAGE_BYTES, MAX_IMAGE_DIM, sniffImage, writeJson } from "@motionreal/pipeline";
+import type { AgentAssetVM, AgentDraftVM } from "../../shared/types.js";
 import { sanitizedChildEnvironment } from "../security/runtime-security.js";
 import {
   initialAgentWorkflow,
@@ -17,8 +17,11 @@ import {
 
 const METADATA_FILE = "motionreal-agent.json";
 const CREATE_REQUEST_FILE = "motionreal.create.json";
+const ASSET_REQUEST_FILE = join("handoff", "assets-request.json");
+const ASSET_MANIFEST_FILE = join("handoff", "assets.json");
 const HARNESS_HOME = ".harness";
 const AGENTS_FILE = "AGENTS.md";
+const AI_CONTRACT_FILE = "AI_CONTRACT.md";
 // A brand-new DSH_HOME initializes the web profile on its first launch. The
 // checked-in Harness build needs roughly 30s on this Windows machine, so 20s
 // was a false failure even though the child was about to become healthy.
@@ -28,9 +31,10 @@ const log = createLogger("harness");
 
 export type { AgentDraftVM } from "../../shared/types.js";
 
-type DraftRecord = Omit<AgentDraftVM, "harnessUrl" | "createReady"> & AgentWorkflowRecord & {
+type DraftRecord = Omit<AgentDraftVM, "harnessUrl" | "createReady" | "assetReview" | "assetCollectionError"> & AgentWorkflowRecord & {
   workspaceId?: string;
   sessionId?: string;
+  assetRequestRevision?: number;
 };
 
 export type AgentCreateRequest = {
@@ -52,6 +56,7 @@ export type HarnessManagerDeps = {
   findPort?: () => Promise<number>;
   now?: () => Date;
   nodeExecutable?: string;
+  mediaUrl?: (path: string) => string | null;
 };
 
 /**
@@ -109,6 +114,7 @@ export class HarnessManager {
     await mkdir(join(root, "assets"), { recursive: true });
     await this.writeRecord(record);
     await writeFile(join(root, AGENTS_FILE), agentInstructions(normalized), "utf8");
+    await writeFile(join(root, AI_CONTRACT_FILE), agentContract(), "utf8");
     return this.toVm(record);
   }
 
@@ -124,6 +130,10 @@ export class HarnessManager {
 
   async activate(id: string, apiKey: string): Promise<AgentDraftVM> {
     let record = await this.mustReadRecord(id);
+    // Dev VIDEO_TOOL_HOME can live below the MotionReal repository. A local
+    // contract prevents parent rule discovery from resolving AI_CONTRACT.md
+    // against the isolated Agent workspace and failing its first file read.
+    await writeFile(join(this.rootOf(id), AI_CONTRACT_FILE), agentContract(), "utf8");
     const url = await this.start(apiKey);
     const workspace = await this.rpc(url, "workspace.create", { path: this.rootOf(id) });
     const workspaceInfo = workspaceInfoOf(workspace);
@@ -204,7 +214,98 @@ export class HarnessManager {
   }
 
   async status(id: string): Promise<AgentDraftVM> {
-    return this.toVm(await this.mustReadRecord(id));
+    let record = await this.mustReadRecord(id);
+    let assetReview: AgentAssetVM[] | undefined;
+    let assetCollectionError: string | undefined;
+    if (record.productionState === "collecting_assets" || record.productionState === "asset_review" || record.productionState === "brief_review") {
+      try {
+        assetReview = await this.readAssetManifest(record);
+        if (assetReview && record.productionState === "collecting_assets") {
+          record = { ...record, ...transitionAgentWorkflow(record, {
+            expectedRevision: record.workflowRevision,
+            to: "asset_review",
+            jobId: record.activeJobId,
+          }) };
+          await this.writeRecord(record);
+        }
+      } catch (error) {
+        assetCollectionError = error instanceof Error ? error.message : "Manifest asset không hợp lệ.";
+      }
+    }
+    return this.toVm(record, assetReview, assetCollectionError);
+  }
+
+  async prepareAssets(id: string, expectedRevision: number): Promise<AgentDraftVM> {
+    const current = await this.mustReadRecord(id);
+    this.requireActiveSession(current);
+    const jobId = `job-${randomUUID()}`;
+    const next = {
+      ...current,
+      ...transitionAgentWorkflow(current, { expectedRevision, to: "collecting_assets", jobId }),
+      assetRequestRevision: 1,
+      selectedAssetIds: undefined,
+    };
+    await this.writeAssetRequest(next, "Tìm và tải các hình ảnh phù hợp nhất với video đã trao đổi.");
+    await this.writeRecord(next);
+    try {
+      await this.promptSession(next, "MotionReal đã bắt đầu bước chuẩn bị asset. Hãy đọc handoff/assets-request.json và hoàn thành yêu cầu đó.");
+    } catch (error) {
+      await this.recordWorkflowError(next, error);
+      throw error;
+    }
+    return this.toVm(next);
+  }
+
+  async requestMoreAssets(
+    id: string,
+    expectedRevision: number,
+    selectedIds: string[],
+    note: string,
+  ): Promise<AgentDraftVM> {
+    const current = await this.mustReadRecord(id);
+    this.requireActiveSession(current);
+    const assets = await this.readAssetManifest(current);
+    if (!assets) throw new Error("Agent chưa gửi manifest asset hợp lệ.");
+    const selected = validateSelectedIds(selectedIds, assets);
+    const request = note.trim().slice(0, 1_000);
+    if (!request) throw new Error("Hãy mô tả ảnh cần tìm thêm hoặc thay thế.");
+    const next = {
+      ...current,
+      ...transitionAgentWorkflow(current, {
+        expectedRevision,
+        to: "collecting_assets",
+        jobId: current.activeJobId,
+      }),
+      assetRequestRevision: (current.assetRequestRevision ?? 1) + 1,
+      selectedAssetIds: selected,
+    };
+    await this.writeAssetRequest(next, request);
+    await this.writeRecord(next);
+    try {
+      await this.promptSession(next, "MotionReal yêu cầu bổ sung asset. Hãy đọc phiên bản mới của handoff/assets-request.json và hoàn thành yêu cầu đó.");
+    } catch (error) {
+      await this.recordWorkflowError(next, error);
+      throw error;
+    }
+    return this.toVm(next);
+  }
+
+  async approveAssets(id: string, expectedRevision: number, selectedIds: string[]): Promise<AgentDraftVM> {
+    const current = await this.mustReadRecord(id);
+    const assets = await this.readAssetManifest(current);
+    if (!assets) throw new Error("Agent chưa gửi manifest asset hợp lệ.");
+    const selectedAssetIds = validateSelectedIds(selectedIds, assets);
+    const next = {
+      ...current,
+      ...transitionAgentWorkflow(current, {
+        expectedRevision,
+        to: "brief_review",
+        jobId: current.activeJobId,
+      }),
+      selectedAssetIds,
+    };
+    await this.writeRecord(next);
+    return this.toVm(next, assets);
   }
 
   async transitionWorkflow(id: string, request: AgentWorkflowTransition): Promise<AgentDraftVM> {
@@ -216,6 +317,9 @@ export class HarnessManager {
 
   async readCreateRequest(id: string): Promise<AgentCreateRequest> {
     const record = await this.mustReadRecord(id);
+    if (record.productionState !== "queued_create") {
+      throw new Error("Yêu cầu tạo video chưa qua bước duyệt brief.");
+    }
     const path = join(this.rootOf(record.id), CREATE_REQUEST_FILE);
     let raw: unknown;
     try {
@@ -273,14 +377,21 @@ export class HarnessManager {
     if (starting && starting !== current?.child) await stopChild(starting);
   }
 
-  private async toVm(record: DraftRecord): Promise<AgentDraftVM> {
-    const createReady = existsSync(join(this.rootOf(record.id), CREATE_REQUEST_FILE));
+  private async toVm(
+    record: DraftRecord,
+    assetReview?: AgentAssetVM[],
+    assetCollectionError?: string,
+  ): Promise<AgentDraftVM> {
+    const createReady = record.productionState === "queued_create"
+      && existsSync(join(this.rootOf(record.id), CREATE_REQUEST_FILE));
     return {
       ...record,
       ...(this.active && this.activeDraftId === record.id && record.sessionId
         ? { harnessUrl: `${this.active.url}?session=${encodeURIComponent(record.sessionId)}` }
         : {}),
       createReady,
+      ...(assetReview ? { assetReview } : {}),
+      ...(assetCollectionError ? { assetCollectionError } : {}),
     };
   }
 
@@ -305,6 +416,12 @@ export class HarnessManager {
         ...(typeof raw.projectId === "string" ? { projectId: raw.projectId } : {}),
         ...(typeof raw.workspaceId === "string" ? { workspaceId: raw.workspaceId } : {}),
         ...(typeof raw.sessionId === "string" ? { sessionId: raw.sessionId } : {}),
+        ...(Number.isSafeInteger(raw.assetRequestRevision) && Number(raw.assetRequestRevision) > 0
+          ? { assetRequestRevision: Number(raw.assetRequestRevision) }
+          : {}),
+        ...(Array.isArray(raw.selectedAssetIds)
+          ? { selectedAssetIds: raw.selectedAssetIds.filter((value): value is string => typeof value === "string") }
+          : {}),
       };
     } catch (_error) {
       return null;
@@ -330,6 +447,125 @@ export class HarnessManager {
     const info = await stat(resolved).catch((_error) => null);
     if (!info?.isFile()) throw new Error(`Không tìm thấy ảnh Agent: ${basename(value)}`);
     return resolved;
+  }
+
+  private requireActiveSession(record: DraftRecord): void {
+    if (!this.active || this.activeDraftId !== record.id || !record.sessionId) {
+      throw new Error("Hãy mở workspace Agent trước khi chuẩn bị asset.");
+    }
+  }
+
+  private promptSession(record: DraftRecord, text: string): Promise<unknown> {
+    this.requireActiveSession(record);
+    return this.rpc(this.active!.url, "session.prompt", {
+      sessionId: record.sessionId,
+      mode: "queue",
+      content: [{ type: "text", text }],
+    });
+  }
+
+  private async writeAssetRequest(record: DraftRecord, note: string): Promise<void> {
+    await mkdir(join(this.rootOf(record.id), "handoff"), { recursive: true });
+    await writeJson(join(this.rootOf(record.id), ASSET_REQUEST_FILE), {
+      version: 1,
+      job_id: record.activeJobId,
+      request_revision: record.assetRequestRevision,
+      note,
+      keep_asset_ids: record.selectedAssetIds ?? [],
+      output: "handoff/assets.json",
+      manifest: {
+        version: 1,
+        job_id: record.activeJobId,
+        request_revision: record.assetRequestRevision,
+        items: [{ id: "asset-01", path: "assets/example.png", source_url: "https://example.com/image", label: "Mô tả ngắn" }],
+      },
+      instructions: [
+        "Tải ảnh raster PNG/JPEG/GIF/WebP vào assets/.",
+        "Giữ lại các asset id được yêu cầu nếu chúng vẫn có trong manifest mới.",
+        "Ghi JSON hoàn chỉnh vào handoff/assets.draft.json rồi đổi tên thành handoff/assets.json.",
+      ],
+    });
+  }
+
+  private async readAssetManifest(record: DraftRecord): Promise<AgentAssetVM[] | undefined> {
+    const manifestPath = join(this.rootOf(record.id), ASSET_MANIFEST_FILE);
+    if (!existsSync(manifestPath)) return undefined;
+    let raw: unknown;
+    try {
+      raw = JSON.parse(await readFile(manifestPath, "utf8"));
+    } catch (_error) {
+      throw new Error("Manifest asset chưa phải JSON hoàn chỉnh.");
+    }
+    if (!raw || typeof raw !== "object") throw new Error("Manifest asset không hợp lệ.");
+    const input = raw as { version?: unknown; job_id?: unknown; request_revision?: unknown; items?: unknown };
+    if (input.version !== 1 || input.job_id !== record.activeJobId || input.request_revision !== record.assetRequestRevision) {
+      throw new Error("Manifest asset không khớp job hoặc lượt yêu cầu hiện tại.");
+    }
+    if (!Array.isArray(input.items) || input.items.length === 0 || input.items.length > 30) {
+      throw new Error("Manifest asset phải có từ 1 đến 30 ảnh.");
+    }
+    const seen = new Set<string>();
+    const assets: AgentAssetVM[] = [];
+    for (const value of input.items) {
+      if (!value || typeof value !== "object") throw new Error("Một asset trong manifest không hợp lệ.");
+      const item = value as { id?: unknown; path?: unknown; source_url?: unknown; label?: unknown };
+      if (typeof item.id !== "string" || !/^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/.test(item.id) || seen.has(item.id)) {
+        throw new Error("Asset id thiếu, trùng hoặc không hợp lệ.");
+      }
+      seen.add(item.id);
+      const path = await this.localReviewAssetPath(record.id, item.path);
+      const bytes = await readFile(path);
+      if (bytes.length > MAX_IMAGE_BYTES) throw new Error(`Asset ${item.id} vượt giới hạn 10 MB.`);
+      const image = sniffImage(bytes);
+      if (!image?.dims || image.dims.width <= 0 || image.dims.height <= 0) {
+        throw new Error(`Asset ${item.id} không phải ảnh raster được hỗ trợ.`);
+      }
+      if (image.dims.width > MAX_IMAGE_DIM || image.dims.height > MAX_IMAGE_DIM) {
+        throw new Error(`Asset ${item.id} vượt giới hạn kích thước 4096 px.`);
+      }
+      const sourceUrl = validHttpUrl(item.source_url);
+      if (!sourceUrl) throw new Error(`Asset ${item.id} thiếu source URL hợp lệ.`);
+      const previewUrl = this.deps.mediaUrl?.(path);
+      if (!previewUrl) throw new Error(`Asset ${item.id} không thể mở qua media boundary.`);
+      assets.push({
+        id: item.id,
+        previewUrl,
+        sourceUrl,
+        label: typeof item.label === "string" && item.label.trim() ? item.label.trim().slice(0, 200) : basename(path),
+        width: image.dims.width,
+        height: image.dims.height,
+        bytes: bytes.length,
+      });
+    }
+    return assets;
+  }
+
+  private async localReviewAssetPath(id: string, value: unknown): Promise<string> {
+    if (typeof value !== "string" || !value.trim()) throw new Error("Đường dẫn asset không hợp lệ.");
+    const assetsRoot = resolve(this.rootOf(id), "assets");
+    const resolved = resolve(this.rootOf(id), value);
+    const rel = relative(assetsRoot, resolved);
+    if (!rel || rel.startsWith("..") || isAbsolute(rel)) throw new Error("Asset phải nằm trong thư mục assets/ của video.");
+    const info = await stat(resolved).catch((_error) => null);
+    if (!info?.isFile()) throw new Error(`Không tìm thấy asset: ${basename(value)}`);
+    const [realRoot, realFile] = await Promise.all([realpath(assetsRoot), realpath(resolved)]);
+    const realRel = relative(realRoot, realFile);
+    if (!realRel || realRel.startsWith("..") || isAbsolute(realRel)) throw new Error("Asset không được trỏ ra ngoài workspace.");
+    return realFile;
+  }
+
+  private async recordWorkflowError(record: DraftRecord, error: unknown): Promise<void> {
+    const message = error instanceof Error ? error.message : "Harness không nhận yêu cầu thu thập asset.";
+    const failed = {
+      ...record,
+      ...transitionAgentWorkflow(record, {
+        expectedRevision: record.workflowRevision,
+        to: "error",
+        jobId: record.activeJobId,
+        error: message,
+      }),
+    };
+    await this.writeRecord(failed);
   }
 
   private async rpc(baseUrl: string, method: string, payload: unknown): Promise<unknown> {
@@ -382,6 +618,26 @@ function isSafeDraftId(value: string): boolean {
   return /^agent-[0-9a-f-]{36}$/i.test(value);
 }
 
+function validHttpUrl(value: unknown): string | null {
+  if (typeof value !== "string" || value.length > 2_048) return null;
+  try {
+    const url = new URL(value);
+    return url.protocol === "http:" || url.protocol === "https:" ? url.href : null;
+  } catch (_error) {
+    return null;
+  }
+}
+
+function validateSelectedIds(selectedIds: string[], assets: AgentAssetVM[]): string[] {
+  if (!Array.isArray(selectedIds)) throw new Error("Danh sách asset đã chọn không hợp lệ.");
+  const allowed = new Set(assets.map((asset) => asset.id));
+  const selected = [...new Set(selectedIds)];
+  if (selected.some((id) => typeof id !== "string" || !allowed.has(id))) {
+    throw new Error("Danh sách asset đã chọn không khớp manifest hiện tại.");
+  }
+  return selected;
+}
+
 function workspaceInfoOf(value: unknown): { id: string } {
   const workspace = value && typeof value === "object" ? (value as { workspace?: unknown }).workspace : null;
   if (!workspace || typeof workspace !== "object" || typeof (workspace as { workspaceId?: unknown }).workspaceId !== "string") {
@@ -391,7 +647,11 @@ function workspaceInfoOf(value: unknown): { id: string } {
 }
 
 function agentInstructions(title: string): string {
-  return `# MotionReal Video Agent\n\nBạn đang làm việc cho video: ${title}\n\n- Nghiên cứu, ghi chú và tải asset vào thư mục \`assets/\` của workspace này.\n- Không chạy renderer MotionReal hoặc tự sửa project MotionReal.\n- Chỉ khi người dùng nói rõ muốn tạo video, hãy ghi \`motionreal.create.json\` tại root với dạng:\n  \`{ "version": 1, "prompt": "brief cuối cùng", "images": ["assets/ten-anh.png"] }\`\n- \`images\` chỉ chứa đường dẫn tương đối trong workspace.\n`;
+  return `# MotionReal Video Agent\n\nBạn đang làm việc cho video: ${title}\n\n- Nghiên cứu, ghi chú và tải asset vào thư mục \`assets/\` của workspace này.\n- Không chạy renderer MotionReal hoặc tự sửa project MotionReal.\n- Khi MotionReal yêu cầu chuẩn bị asset, đọc \`handoff/assets-request.json\`, làm đúng job/request revision và ghi manifest bằng quy trình draft rồi rename được mô tả trong file.\n- Không tự tạo project hoặc yêu cầu render; MotionReal sẽ mở từng bước duyệt bên ngoài chat.\n- Mọi đường dẫn ảnh phải tương đối và nằm trong \`assets/\`.\n`;
+}
+
+function agentContract(): string {
+  return `# MotionReal Agent Workspace\n\nThis directory is an isolated research workspace for one video.\n\n- Follow the local AGENTS.md.\n- Work only inside this directory.\n- Do not run MotionReal rendering or edit MotionReal project source.\n`;
 }
 
 function harnessSettings(): string {
