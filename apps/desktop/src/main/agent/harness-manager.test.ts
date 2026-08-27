@@ -64,7 +64,7 @@ describe("HarnessManager draft lifecycle", () => {
     await writeFile(cli, "// test placeholder\n");
     const child = Object.assign(new EventEmitter(), { kill: vi.fn() });
     const calls: Array<{ url: string; init?: RequestInit }> = [];
-    const fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const fakeFetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
       calls.push({ url, init });
       if (!init?.method) return new Response("ok", { status: 200 });
@@ -73,11 +73,11 @@ describe("HarnessManager draft lifecycle", () => {
         ? { workspace: { workspaceId: "workspace-1" } }
         : {};
       return Response.json({ type: "server-response", result: { ok: true, value } });
-    }) as unknown as typeof fetch;
+    }) as unknown as typeof globalThis.fetch;
     const manager = new HarnessManager({
       draftsRoot: root,
       harnessCliPath: cli,
-      fetch,
+      fetch: fakeFetch,
       findPort: async () => 39876,
       spawn: vi.fn(() => child) as unknown as typeof import("node:child_process").spawn,
       processExecPath: "node",
@@ -116,7 +116,7 @@ describe("HarnessManager draft lifecycle", () => {
           ? { workspace: { workspaceId: "workspace-1", sessionIds: ["old-session"] } }
           : {};
         return Response.json({ type: "server-response", result: { ok: true, value } });
-      }) as unknown as typeof fetch,
+      }) as unknown as typeof globalThis.fetch,
       processExecPath: "node",
     });
     const draft = await manager.createDraft("Giữ lịch sử");

@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import type { AgentDraftVM } from "../../shared/types.js";
 import { Icon } from "../icons.js";
+import { ConfirmDialog } from "../primitives.js";
 
 /**
  * The Harness owns the chat, event timeline, tool cards, and history. Keeping
@@ -12,6 +13,9 @@ export const AgentView: React.FC = () => {
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [frameKey, setFrameKey] = useState(0);
+  const [showNewVideo, setShowNewVideo] = useState(false);
+  const [newVideoTitle, setNewVideoTitle] = useState("");
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const refresh = useCallback(async () => {
     try {
@@ -53,12 +57,18 @@ export const AgentView: React.FC = () => {
     }
   }, []);
 
-  const createDraft = () => {
-    const title = window.prompt("Tên video mới:")?.trim();
-    if (!title) return;
+  const createDraft = (event: React.FormEvent) => {
+    event.preventDefault();
+    const title = newVideoTitle.trim();
+    if (!title) {
+      setNotice("Hãy nhập tên video trước khi mở Agent.");
+      return;
+    }
     void run(async () => {
       const draft = await window.dashboard.agent.createDraft(title);
       setActive(draft);
+      setNewVideoTitle("");
+      setShowNewVideo(false);
       await refresh();
     });
   };
@@ -82,13 +92,10 @@ export const AgentView: React.FC = () => {
 
   const deleteDraft = () => {
     if (!active) return;
-    const warning = active.projectId
-      ? "Xóa video này sẽ xóa cả dự án MotionReal, chat Harness, research và assets của Agent. Tiếp tục?"
-      : "Xóa workspace Agent này cùng chat, research và assets đã tải?";
-    if (!window.confirm(warning)) return;
     void run(async () => {
       await window.dashboard.agent.deleteDraft(active.id);
       setActive(null);
+      setConfirmDelete(false);
       await refresh();
     });
   };
@@ -101,7 +108,7 @@ export const AgentView: React.FC = () => {
           <p className="ns-agent-subtitle">DeepSeek Harness chạy trong workspace riêng của từng video. Chat, suy luận và tool được giữ nguyên bản.</p>
         </div>
         <div className="ns-agent-actions">
-          <button type="button" className="ns-btn" onClick={createDraft} disabled={busy}>
+          <button type="button" className="ns-btn" onClick={() => setShowNewVideo(true)} disabled={busy}>
             {Icon.plus({ size: 16 })}
             Video mới
           </button>
@@ -109,9 +116,25 @@ export const AgentView: React.FC = () => {
             {Icon.refresh({ size: 16 })}
             Tải lại
           </button>}
-          {active && <button type="button" className="ns-btn ns-agent-delete" onClick={deleteDraft} disabled={busy}>Xóa video</button>}
+          {active && <button type="button" className="ns-btn ns-agent-delete" onClick={() => setConfirmDelete(true)} disabled={busy}>Xóa video</button>}
         </div>
       </header>
+      {showNewVideo && (
+        <form className="ns-agent-new-video" onSubmit={createDraft}>
+          <label htmlFor="agent-video-title">Tên video</label>
+          <input
+            id="agent-video-title"
+            className="ns-input"
+            value={newVideoTitle}
+            onChange={(event) => setNewVideoTitle(event.target.value)}
+            placeholder="Ví dụ: ChatGPT thay đổi cách học thế nào?"
+            autoFocus
+            disabled={busy}
+          />
+          <button type="button" className="ns-btn" onClick={() => setShowNewVideo(false)} disabled={busy}>Huỷ</button>
+          <button type="submit" className="ns-btn ns-btn-primary" disabled={busy}>Mở Harness</button>
+        </form>
+      )}
       <div className="ns-agent-drafts" aria-label="Workspace Video Agent">
         {drafts.map((draft) => (
           <button
@@ -147,6 +170,18 @@ export const AgentView: React.FC = () => {
           <p>{busy ? "Đang khởi động Harness…" : "Chọn hoặc tạo video để mở workspace Agent."}</p>
         </div>
       )}
+      <ConfirmDialog
+        open={confirmDelete}
+        title="Xóa video Agent?"
+        message={active?.projectId
+          ? "Xóa dự án MotionReal cùng chat Harness, research và asset của Agent. Hành động không thể hoàn tác."
+          : "Xóa workspace Agent cùng chat, research và asset đã tải. Hành động không thể hoàn tác."}
+        confirmLabel="Xóa"
+        cancelLabel="Huỷ"
+        danger
+        onConfirm={deleteDraft}
+        onCancel={() => setConfirmDelete(false)}
+      />
     </section>
   );
 };

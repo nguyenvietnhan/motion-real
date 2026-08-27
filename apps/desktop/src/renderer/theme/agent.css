@@ -59,6 +59,25 @@
   border-bottom: 1px solid var(--border);
 }
 
+.ns-agent-new-video {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 24px;
+  border-bottom: 1px solid var(--border);
+}
+
+.ns-agent-new-video label {
+  flex: 0 0 auto;
+  color: var(--muted-foreground);
+  font-size: 13px;
+}
+
+.ns-agent-new-video .ns-input {
+  min-width: 260px;
+  flex: 1;
+}
+
 .ns-agent-draft {
   max-width: 260px;
   overflow: hidden;
