@@ -53,6 +53,12 @@ describe("createDashboardClient — invoke channel mapping", () => {
     await api.ai.listModels();
     await api.ai.selectModel("kr/claude-sonnet-4.5");
     await api.ai.selectedModel();
+    await api.agent.list();
+    await api.agent.createDraft("Ý tưởng mới");
+    await api.agent.openDraft("agent-00000000-0000-0000-0000-000000000000");
+    await api.agent.status("agent-00000000-0000-0000-0000-000000000000");
+    await api.agent.createVideo("agent-00000000-0000-0000-0000-000000000000");
+    await api.agent.deleteDraft("agent-00000000-0000-0000-0000-000000000000");
     await api.projects.pickImages();
     await api.projects.importImageBytes([{ name: "x.png", dataBase64: "AQ==" }]);
     await api.projects.removeStagedImage("staging/aa.png");

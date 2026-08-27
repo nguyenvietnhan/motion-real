@@ -72,9 +72,8 @@ export function buildNineRouterGatewayDeps(opts: NineRouterDepsOptions): Gateway
     pollConnections: () => client.connectedAccounts(),
     listModels: () => client.listModels(),
     generateKey: undefined,
-    wireKey: async () => {
-      // Best-effort: mint an OpenAI-compatible key 9router will accept on /v1.
-      await client.createApiKey("news-studio");
-    },
+    // Return the real OpenAI-compatible key so an internal local child (the
+    // DeepSeek Harness) can authenticate without exposing it through IPC/disk.
+    wireKey: () => client.createApiKey("motionreal-desktop"),
   };
 }

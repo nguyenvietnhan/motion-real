@@ -1,5 +1,6 @@
 import type {
   AiAccountState,
+  AgentDraftVM,
   AiProviderId,
   ApplyResult,
   ApproveResult,
@@ -79,6 +80,18 @@ export interface DashboardApi {
     submitImageReview(projectId: string, selectedRefs: string[]): Promise<void>;
     /** Bounded, redacted project diagnostic trace (lifecycle/repair/authoring only). */
     diagnostics(projectId: string): Promise<import("./types.js").ProjectDiagnosticsVM>;
+  };
+  agent: {
+    list(): Promise<AgentDraftVM[]>;
+    /** Create a fresh isolated Harness workspace for one video idea. */
+    createDraft(title: string): Promise<AgentDraftVM>;
+    /** Stop any other local Harness sidecar, then open this draft's Harness. */
+    openDraft(draftId: string): Promise<AgentDraftVM>;
+    status(draftId: string): Promise<AgentDraftVM>;
+    /** Explicitly hand the Agent-written brief into the existing Create Flow. */
+    createVideo(draftId: string): Promise<{ projectId: string }>;
+    /** If a project was created, delete that project plus this Agent workspace/history. */
+    deleteDraft(draftId: string): Promise<void>;
   };
   bgm: {
     /** List the per-machine BGM library tracks (shared across projects). */

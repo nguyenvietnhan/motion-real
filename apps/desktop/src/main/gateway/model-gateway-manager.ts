@@ -44,8 +44,11 @@ export type GatewayDeps = {
   listModels: () => Promise<ModelInfo[]>;
   /** Generate the internal Local_Gateway_Key (never returned over IPC). */
   generateKey?: () => string;
-  /** Auto-wire the local key into the gateway/client. */
-  wireKey?: (key: string) => void | Promise<void>;
+  /**
+   * Auto-wire the local key into the gateway/client. A concrete gateway may
+   * return the OpenAI-compatible key it minted; it remains main-process-only.
+   */
+  wireKey?: (key: string) => string | null | void | Promise<string | null | void>;
   maxStartAttempts?: number;
 };
 
@@ -83,11 +86,17 @@ export class ModelGatewayManager {
     return aiReady(this.gw, this.account());
   }
 
-  /** Generate + auto-wire the local key. Returns void — the key never leaves main. */
+  /** Generate + auto-wire a local key. The value never crosses IPC. */
   async ensureLocalKey(): Promise<void> {
     if (this.localKey) return;
-    this.localKey = this.deps.generateKey ? this.deps.generateKey() : `lgk_${Math.random().toString(36).slice(2)}`;
-    await this.deps.wireKey?.(this.localKey);
+    const generated = this.deps.generateKey ? this.deps.generateKey() : `lgk_${Math.random().toString(36).slice(2)}`;
+    const wired = await this.deps.wireKey?.(generated);
+    this.localKey = typeof wired === "string" && wired.trim().length > 0 ? wired : generated;
+  }
+
+  /** Internal child-process credential; intentionally absent from the IPC contract. */
+  localApiKey(): string | null {
+    return this.localKey;
   }
 
   /** Start the gateway, retrying up to 3 attempts before surfacing `unavailable`. */

@@ -40,6 +40,69 @@
   flex: 0 0 auto;
 }
 
+.ns-agent-actions,
+.ns-agent-drafts,
+.ns-agent-create-ready {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ns-agent-delete {
+  color: var(--destructive, #ef4444);
+}
+
+.ns-agent-drafts {
+  flex: 0 0 auto;
+  overflow-x: auto;
+  padding: 8px 24px;
+  border-bottom: 1px solid var(--border);
+}
+
+.ns-agent-draft {
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 6px 10px;
+  background: transparent;
+  color: var(--muted-foreground);
+  cursor: pointer;
+}
+
+.ns-agent-draft.is-active {
+  border-color: var(--primary);
+  color: var(--foreground);
+}
+
+.ns-agent-empty,
+.ns-agent-notice {
+  color: var(--muted-foreground);
+  font-size: 13px;
+}
+
+.ns-agent-notice {
+  margin: 8px 24px 0;
+}
+
+.ns-agent-create-ready {
+  justify-content: space-between;
+  margin: 8px 24px 0;
+  padding: 9px 12px;
+  border: 1px solid var(--primary);
+  border-radius: 8px;
+  font-size: 13px;
+}
+
+.ns-agent-placeholder {
+  display: grid;
+  flex: 1;
+  place-items: center;
+  color: var(--muted-foreground);
+}
+
 .ns-agent-frame {
   width: 100%;
   height: 100%;

@@ -1,40 +1,152 @@
-import React, { useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
+import type { AgentDraftVM } from "../../shared/types.js";
 import { Icon } from "../icons.js";
 
 /**
  * The Harness owns the chat, event timeline, tool cards, and history. Keeping
  * its web UI intact avoids rebuilding a partial copy in the desktop renderer.
  */
-export const HARNESS_URL = "http://127.0.0.1:3080/";
-
 export const AgentView: React.FC = () => {
-  const [reloadKey, setReloadKey] = useState(0);
+  const [drafts, setDrafts] = useState<AgentDraftVM[]>([]);
+  const [active, setActive] = useState<AgentDraftVM | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [frameKey, setFrameKey] = useState(0);
+
+  const refresh = useCallback(async () => {
+    try {
+      const next = await window.dashboard.agent.list();
+      setDrafts(next);
+      setActive((current) => {
+        const refreshed = current ? next.find((draft) => draft.id === current.id) : null;
+        return refreshed ? { ...current, ...refreshed } : null;
+      });
+    } catch {
+      setNotice("Không đọc được các workspace Video Agent.");
+    }
+  }, []);
+
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
+
+  useEffect(() => {
+    if (!active) return;
+    const timer = window.setInterval(() => {
+      void window.dashboard.agent.status(active.id).then((next) => {
+        setActive((current) => current?.id === next.id ? { ...current, ...next } : current);
+        setDrafts((current) => current.map((draft) => draft.id === next.id ? { ...draft, ...next } : draft));
+      }).catch(() => undefined);
+    }, 1_500);
+    return () => window.clearInterval(timer);
+  }, [active?.id]);
+
+  const run = useCallback(async (work: () => Promise<void>) => {
+    setBusy(true);
+    setNotice(null);
+    try {
+      await work();
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Video Agent gặp lỗi trước khi thay đổi video.");
+    } finally {
+      setBusy(false);
+    }
+  }, []);
+
+  const createDraft = () => {
+    const title = window.prompt("Tên video mới:")?.trim();
+    if (!title) return;
+    void run(async () => {
+      const draft = await window.dashboard.agent.createDraft(title);
+      setActive(draft);
+      await refresh();
+    });
+  };
+
+  const openDraft = (draft: AgentDraftVM) => {
+    void run(async () => {
+      const opened = await window.dashboard.agent.openDraft(draft.id);
+      setActive(opened);
+      await refresh();
+    });
+  };
+
+  const createVideo = () => {
+    if (!active) return;
+    void run(async () => {
+      const created = await window.dashboard.agent.createVideo(active.id);
+      setNotice(`Đã gửi video vào Create Flow hiện có (${created.projectId}). Mở Trang chủ để theo dõi bản dựng.`);
+      await refresh();
+    });
+  };
+
+  const deleteDraft = () => {
+    if (!active) return;
+    const warning = active.projectId
+      ? "Xóa video này sẽ xóa cả dự án MotionReal, chat Harness, research và assets của Agent. Tiếp tục?"
+      : "Xóa workspace Agent này cùng chat, research và assets đã tải?";
+    if (!window.confirm(warning)) return;
+    void run(async () => {
+      await window.dashboard.agent.deleteDraft(active.id);
+      setActive(null);
+      await refresh();
+    });
+  };
 
   return (
     <section className="ns-agent-view" aria-label="Video Agent">
       <header className="ns-agent-chrome">
         <div>
           <h1 className="ns-agent-title">Video Agent</h1>
-          <p className="ns-agent-subtitle">DeepSeek Harness — chat, tiến trình suy luận và hoạt động tool được hiển thị nguyên bản.</p>
+          <p className="ns-agent-subtitle">DeepSeek Harness chạy trong workspace riêng của từng video. Chat, suy luận và tool được giữ nguyên bản.</p>
         </div>
-        <button
-          type="button"
-          className="ns-btn ns-agent-reload"
-          onClick={() => setReloadKey((current) => current + 1)}
-          title="Tải lại DeepSeek Harness"
-        >
-          {Icon.refresh({ size: 16 })}
-          Tải lại
-        </button>
+        <div className="ns-agent-actions">
+          <button type="button" className="ns-btn" onClick={createDraft} disabled={busy}>
+            {Icon.plus({ size: 16 })}
+            Video mới
+          </button>
+          {active && <button type="button" className="ns-btn ns-agent-reload" onClick={() => setFrameKey((current) => current + 1)} disabled={busy} title="Tải lại Harness">
+            {Icon.refresh({ size: 16 })}
+            Tải lại
+          </button>}
+          {active && <button type="button" className="ns-btn ns-agent-delete" onClick={deleteDraft} disabled={busy}>Xóa video</button>}
+        </div>
       </header>
-      <iframe
-        key={reloadKey}
-        className="ns-agent-frame"
-        src={HARNESS_URL}
-        title="DeepSeek Harness Video Agent"
-        allow="clipboard-read; clipboard-write"
-        referrerPolicy="no-referrer"
-      />
+      <div className="ns-agent-drafts" aria-label="Workspace Video Agent">
+        {drafts.map((draft) => (
+          <button
+            key={draft.id}
+            type="button"
+            className={`ns-agent-draft ${active?.id === draft.id ? "is-active" : ""}`}
+            onClick={() => openDraft(draft)}
+            disabled={busy}
+          >
+            {draft.title}{draft.projectId ? " · đã tạo video" : ""}
+          </button>
+        ))}
+        {drafts.length === 0 && <span className="ns-agent-empty">Tạo một video mới để mở Harness.</span>}
+      </div>
+      {notice && <p className="ns-agent-notice" role="status">{notice}</p>}
+      {active?.createReady && (
+        <div className="ns-agent-create-ready">
+          Agent đã chuẩn bị brief và asset local. MotionReal chưa thay đổi video nào.
+          <button type="button" className="ns-btn" onClick={createVideo} disabled={busy}>Tạo video bằng Create Flow</button>
+        </div>
+      )}
+      {active?.harnessUrl ? (
+        <iframe
+          key={`${active.harnessUrl}-${frameKey}`}
+          className="ns-agent-frame"
+          src={active.harnessUrl}
+          title={`DeepSeek Harness — ${active.title}`}
+          allow="clipboard-read; clipboard-write"
+          referrerPolicy="no-referrer"
+        />
+      ) : (
+        <div className="ns-agent-placeholder">
+          <p>{busy ? "Đang khởi động Harness…" : "Chọn hoặc tạo video để mở workspace Agent."}</p>
+        </div>
+      )}
     </section>
   );
 };

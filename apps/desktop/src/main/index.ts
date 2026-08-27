@@ -57,6 +57,7 @@ import {
 } from "./security/runtime-security.js";
 import { readEnvFile, resolveBootVoiceEnv } from "./security/runtime-env.js";
 import { isLegacyElectronShortcut } from "./shell-identity.js";
+import { HarnessManager } from "./agent/harness-manager.js";
 
 const log = createLogger("desktop");
 
@@ -408,6 +409,38 @@ const imageStagingDeps: ImageStagingDeps = {
   warn: (details, message) => log.warn(details, message),
 };
 
+// DeepSeek Harness is developed next to this repository. Production packaging is
+// deliberately deferred; an explicit MOTIONREAL_DSH_CLI always wins for a custom
+// install. Each Agent video owns a private DSH_HOME under agent-drafts, so its
+// chat/tool history has the same lifecycle as the video it creates.
+const harness = new HarnessManager({
+  draftsRoot: join(videoToolHome(), "agent-drafts"),
+  harnessCliPath:
+    process.env.MOTIONREAL_DSH_CLI ??
+    join(dirname(REPO_ROOT), "deepseek-harness", "apps", "cli", "lib", "bin.js"),
+});
+
+async function activateHarnessDraft(draftId: string) {
+  const state = await gateway.refreshHealth();
+  if (state.kind !== "ready") throw new Error("9router chưa sẵn sàng. Hãy mở 9router rồi thử lại.");
+  const key = gateway.localApiKey();
+  if (!key) throw new Error("Chưa lấy được khóa nội bộ từ 9router. Hãy thử lại sau ít giây.");
+  return harness.activate(draftId, key);
+}
+
+async function stageHarnessImages(paths: string[]) {
+  const staged: { ref: string; width: number; height: number }[] = [];
+  for (const path of paths) {
+    try {
+      const result = await importImageBytes(await readFile(path), stagingDir(), { refPrefix: "staging" });
+      if (result.ok) staged.push({ ref: result.ref, width: result.width, height: result.height });
+    } catch (error) {
+      log.warn({ err: error }, "Agent asset staging failed; skipping one image");
+    }
+  }
+  return staged;
+}
+
 /**
  * Native image picker for the create screen (create-time image staging). Opens a
  * multi-select file dialog, imports each pick into the home-level STAGING dir
@@ -620,6 +653,28 @@ const thumbnailHandlers = createThumbnailHandlers({
 const handlers: InvokeHandlers = {
   ...gatewayHandlers,
 
+  "agent:list": () => harness.list(),
+  "agent:createDraft": async (title) => {
+    const draft = await harness.createDraft(String(title ?? ""));
+    return activateHarnessDraft(draft.id);
+  },
+  "agent:openDraft": (draftId) => activateHarnessDraft(String(draftId)),
+  "agent:status": (draftId) => harness.status(String(draftId)),
+  "agent:createVideo": async (draftId) => {
+    const request = await harness.readCreateRequest(String(draftId));
+    const images = await stageHarnessImages(request.imagePaths);
+    // This is intentionally the existing Home Create Flow, including all
+    // validation, staging promotion, authoring, still/refine, and rollback.
+    const created = await create.create(request.prompt, images);
+    await harness.linkProject(request.draftId, created.projectId);
+    return created;
+  },
+  "agent:deleteDraft": async (draftId) => {
+    const draft = await harness.status(String(draftId));
+    if (draft.projectId) await workspace.delete(draft.projectId);
+    await harness.removeDraft(draft.id);
+  },
+
   "projects:list": () => workspace.list(),
   "projects:create": async (input) => {
     const args = createControllerArgsFromIpc(input);
@@ -654,7 +709,13 @@ const handlers: InvokeHandlers = {
   "projects:stage": (projectId) => workspace.stage(String(projectId)),
   "projects:rename": (projectId, newTitle) => workspace.rename(String(projectId), String(newTitle)),
   "projects:open": (projectId) => workspace.open(String(projectId)),
-  "projects:delete": (projectId) => workspace.delete(String(projectId)),
+  "projects:delete": async (projectId) => {
+    const id = String(projectId);
+    // A video created by Agent owns its isolated Harness state as well.
+    const draft = await harness.draftForProject(id);
+    await workspace.delete(id);
+    if (draft) await harness.removeDraft(draft.id);
+  },
   "projects:reveal": (projectId) => workspace.reveal(String(projectId)),
   "projects:save": (projectId) => saveProjectVideo(projectId, nativeSaveDeps),
   "projects:cancel": (projectId) => {
@@ -988,6 +1049,10 @@ app
 
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();
+});
+
+app.on("before-quit", () => {
+  void harness.dispose();
 });
 
 app.on("activate", () => {

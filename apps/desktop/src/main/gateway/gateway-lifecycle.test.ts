@@ -39,6 +39,13 @@ describe("ModelGatewayManager.start", () => {
     expect(JSON.stringify(mgr.state())).not.toContain("secret-key");
   });
 
+  it("keeps a concrete gateway key only in the main-process manager", async () => {
+    const mgr = new ModelGatewayManager(deps({ wireKey: async () => "9router-child-key" }));
+    await mgr.start();
+    expect(mgr.localApiKey()).toBe("9router-child-key");
+    expect(JSON.stringify(mgr.state())).not.toContain("9router-child-key");
+  });
+
   it("retries up to 3 attempts then surfaces unavailable", async () => {
     const launch = vi.fn(async () => false);
     const mgr = new ModelGatewayManager(deps({ launch }));

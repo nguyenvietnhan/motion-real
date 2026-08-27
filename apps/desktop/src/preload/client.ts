@@ -36,6 +36,14 @@ export function createDashboardClient(ipc: IpcLike): DashboardApi {
       selectModel: (modelId) => inv("ai:selectModel", modelId),
       selectedModel: () => inv("ai:selectedModel"),
     },
+    agent: {
+      list: () => inv("agent:list"),
+      createDraft: (title) => inv("agent:createDraft", title),
+      openDraft: (draftId) => inv("agent:openDraft", draftId),
+      status: (draftId) => inv("agent:status", draftId),
+      createVideo: (draftId) => inv("agent:createVideo", draftId),
+      deleteDraft: (draftId) => inv("agent:deleteDraft", draftId),
+    },
     projects: {
       pickImages: () => inv("projects:pickImages"),
       importImageBytes: (files) => inv("projects:importImageBytes", files),
