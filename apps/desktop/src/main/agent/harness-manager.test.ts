@@ -528,8 +528,7 @@ describe("HarnessManager draft lifecycle", () => {
       scene_ids: ["scene-01"],
       used_asset_ids: ["logo"],
     }));
-    await manager.status(draft.id);
-    await vi.waitFor(() => expect(renderAuthoringStills).toHaveBeenCalledWith("project-1", ["scene-01"]));
+    await vi.waitFor(() => expect(renderAuthoringStills).toHaveBeenCalledWith("project-1", ["scene-01"]), { timeout: 2_000 });
     await vi.waitFor(async () => {
       const reviewRequest = JSON.parse(await readFile(join(root, draft.id, "handoff", "authoring-request.json"), "utf8"));
       expect(reviewRequest).toMatchObject({ request_revision: 2, phase: "self_review", stills: ["project/review/scene-01.png"] });
@@ -543,8 +542,7 @@ describe("HarnessManager draft lifecycle", () => {
       reviewed_scene_ids: ["scene-01"],
       review_notes: "Đã mở PNG, kiểm tra asset và hierarchy; scene rõ ràng.",
     }));
-    await manager.status(draft.id);
-    await vi.waitFor(() => expect(acceptAuthoringStills).toHaveBeenCalledWith("project-1"));
+    await vi.waitFor(() => expect(acceptAuthoringStills).toHaveBeenCalledWith("project-1"), { timeout: 2_000 });
     await vi.waitFor(async () => expect(await manager.status(draft.id)).toMatchObject({ productionState: "still_review" }));
 
     await expect(manager.requestSceneEdits(draft.id, "project-1", [{ sceneId: "scene-99", text: "Sửa cảnh lạ" }], ""))

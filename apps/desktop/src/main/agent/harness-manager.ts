@@ -35,6 +35,7 @@ const AI_CONTRACT_FILE = "AI_CONTRACT.md";
 // was a false failure even though the child was about to become healthy.
 const START_TIMEOUT_MS = 60_000;
 const PROCESS_OUTPUT_LIMIT = 4_096;
+const AUTHORING_POLL_MS = 500;
 const log = createLogger("harness");
 
 export type { AgentDraftVM } from "../../shared/types.js";
@@ -104,6 +105,7 @@ export class HarnessManager {
   private readonly nodeExecutable: string;
   private readonly openWebSocket: (url: string) => WebSocket;
   private readonly authoringInFlight = new Set<string>();
+  private readonly authoringPolls = new Map<string, ReturnType<typeof setTimeout>>();
 
   constructor(private readonly deps: HarnessManagerDeps) {
     this.spawnChild = deps.spawn ?? spawn;
@@ -183,6 +185,7 @@ export class HarnessManager {
     await this.writeRecord(record);
     this.draftBySession.set(sessionId, id);
     this.activeDraftId = id;
+    if (record.productionState === "authoring") this.scheduleAuthoringPoll(record.id);
     return this.toVm(record);
   }
 
@@ -595,7 +598,11 @@ export class HarnessManager {
       await symlink(expectedProjectRoot, link, "junction");
     }
     if (current.authoringRequestRevision && existsSync(join(root, AUTHORING_REQUEST_FILE))) {
-      await this.promptSession(current, "MotionReal đang chờ authoring hiện tại. Hãy đọc lại handoff/authoring-request.json, tiếp tục sửa project/ và gọi motionreal_submit_authoring khi hoàn tất.");
+      try {
+        await this.promptSession(current, "MotionReal đang chờ authoring hiện tại. Hãy đọc lại handoff/authoring-request.json, tiếp tục sửa project/ và gọi motionreal_submit_authoring khi hoàn tất.");
+      } finally {
+        this.scheduleAuthoringPoll(current.id);
+      }
       return;
     }
     const usableAssets: Array<{ id: string; ref: string; path: string }> = [];
@@ -630,7 +637,11 @@ export class HarnessManager {
       ],
     });
     await this.writeRecord(next);
-    await this.promptSession(next, "MotionReal đã tạo project Harness. Hãy đọc handoff/authoring-request.json và handoff/authoring-contract.md, xem các asset thật, tự viết toàn bộ scene vào project/, rồi gọi motionreal_submit_authoring. Không dùng authoring API cũ.");
+    try {
+      await this.promptSession(next, "MotionReal đã tạo project Harness. Hãy đọc handoff/authoring-request.json và handoff/authoring-contract.md, xem các asset thật, tự viết toàn bộ scene vào project/, rồi gọi motionreal_submit_authoring. Không dùng authoring API cũ.");
+    } finally {
+      this.scheduleAuthoringPoll(next.id);
+    }
   }
 
   async requestSceneEdits(
@@ -683,17 +694,21 @@ export class HarnessManager {
         jobId: current.activeJobId,
       }),
     };
-    await this.advanceAuthoringRequest(authoring, {
-      phase: "edit",
-      target_scene_ids: targetSceneIds,
-      edit_request: { per_scene: perScene, global_notes: notes },
-      render_error: undefined,
-      instructions: [
-        "Đọc edit_request và mở still hiện tại của các target_scene_ids trước khi sửa.",
-        "Chỉ sửa scene được yêu cầu; giữ nguyên narration, thứ tự cảnh và các scene còn lại.",
-        "Sửa trực tiếp project/authored/*.tsx. Khi hoàn tất, gọi motionreal_submit_authoring bằng request_revision mới.",
-      ],
-    }, "MotionReal đã nhận góp ý cảnh. Hãy đọc handoff/authoring-request.json, xem still liên quan, sửa trực tiếp scene trong project/ và submit lại. Không dùng authoring API cũ.");
+    try {
+      await this.advanceAuthoringRequest(authoring, {
+        phase: "edit",
+        target_scene_ids: targetSceneIds,
+        edit_request: { per_scene: perScene, global_notes: notes },
+        render_error: undefined,
+        instructions: [
+          "Đọc edit_request và mở still hiện tại của các target_scene_ids trước khi sửa.",
+          "Chỉ sửa scene được yêu cầu; giữ nguyên narration, thứ tự cảnh và các scene còn lại.",
+          "Sửa trực tiếp project/authored/*.tsx. Khi hoàn tất, gọi motionreal_submit_authoring bằng request_revision mới.",
+        ],
+      }, "MotionReal đã nhận góp ý cảnh. Hãy đọc handoff/authoring-request.json, xem still liên quan, sửa trực tiếp scene trong project/ và submit lại. Không dùng authoring API cũ.");
+    } finally {
+      this.scheduleAuthoringPoll(current.id);
+    }
   }
 
   async draftForProject(projectId: string): Promise<AgentDraftVM | null> {
@@ -702,6 +717,7 @@ export class HarnessManager {
 
   async removeDraft(id: string): Promise<void> {
     const record = await this.mustReadRecord(id);
+    this.stopAuthoringPoll(record.id);
     if (this.active && record.workspaceId) {
       const sessionIds = await this.workspaceSessionIds(record.workspaceId).catch((error) => {
         log.warn({ err: error, draftId: record.id }, "failed to list Harness sessions during draft deletion");
@@ -728,6 +744,7 @@ export class HarnessManager {
     this.activeDraftId = null;
     this.startingChild = null;
     this.stopEventStream();
+    for (const id of this.authoringPolls.keys()) this.stopAuthoringPoll(id);
     if (current) await stopChild(current.child);
     if (starting && starting !== current?.child) await stopChild(starting);
   }
@@ -957,6 +974,24 @@ export class HarnessManager {
     void this.processAuthoring(record).catch(async (error) => {
       await this.requestAuthoringRepair(record, error instanceof Error ? error.message : "Không kiểm tra được scene Harness.").catch(() => undefined);
     }).finally(() => this.authoringInFlight.delete(record.id));
+  }
+
+  private scheduleAuthoringPoll(id: string): void {
+    if (!this.deps.renderAuthoringStills || !this.deps.acceptAuthoringStills || this.authoringPolls.has(id)) return;
+    const tick = async () => {
+      this.authoringPolls.delete(id);
+      const record = await this.readRecord(id).catch(() => null);
+      if (!record || record.productionState !== "authoring") return;
+      this.maybeProcessAuthoring(record);
+      this.authoringPolls.set(id, setTimeout(() => void tick(), AUTHORING_POLL_MS));
+    };
+    this.authoringPolls.set(id, setTimeout(() => void tick(), AUTHORING_POLL_MS));
+  }
+
+  private stopAuthoringPoll(id: string): void {
+    const timer = this.authoringPolls.get(id);
+    if (timer) clearTimeout(timer);
+    this.authoringPolls.delete(id);
   }
 
   private async processAuthoring(record: DraftRecord): Promise<void> {
