@@ -106,12 +106,13 @@ resume the Queue.
 ### Video Agent preview
 
 The **Video Agent** tab embeds the native DeepSeek Harness chat and tool
-timeline. Click **Video mới** to make an isolated Agent workspace for that
-video. Research, downloaded assets, and Harness history stay in that workspace.
+timeline. MotionReal starts one shared Harness runtime in the background; click
+**Video mới** to make a separate Agent workspace and chat session for that video.
+Research and downloaded assets stay in that workspace.
 When the agent writes `motionreal.create.json`, MotionReal shows an explicit
 **Tạo video bằng Create Flow** action; approving it reuses the same normal
 create/author/review pipeline as Home. Deleting the video removes its Agent
-workspace and history too. This is a developer preview with broad Harness tool
+workspace and hides its Harness sessions. This is a developer preview with broad Harness tool
 access; it is not a replacement renderer or a separate video pipeline.
 
 ### B. Offline-friendly checks (no paid APIs)

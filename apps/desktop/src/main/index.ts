@@ -411,10 +411,11 @@ const imageStagingDeps: ImageStagingDeps = {
 
 // DeepSeek Harness is developed next to this repository. Production packaging is
 // deliberately deferred; an explicit MOTIONREAL_DSH_CLI always wins for a custom
-// install. Each Agent video owns a private DSH_HOME under agent-drafts, so its
-// chat/tool history has the same lifecycle as the video it creates.
+// install. One shared DSH_HOME boots with the app; each Agent video remains a
+// separate Harness Workspace under agent-drafts.
 const harness = new HarnessManager({
   draftsRoot: join(videoToolHome(), "agent-drafts"),
+  harnessHome: join(videoToolHome(), "harness"),
   harnessCliPath:
     process.env.MOTIONREAL_DSH_CLI ??
     join(dirname(REPO_ROOT), "deepseek-harness", "apps", "cli", "lib", "bin.js"),
@@ -830,10 +831,19 @@ registerIpcRouter(ipcMain, handlers);
 
 // Start the gateway in the background once the app is ready (non-blocking).
 function startGateway(): void {
-  void gateway.start().catch((error) => {
-    // eslint-disable-next-line no-console
-    console.error("[desktop] gateway start failed:", error);
-  });
+  void gateway.start()
+    .then((state) => {
+      const key = gateway.localApiKey();
+      if (state.kind === "ready" && key) {
+        void harness.start(key).catch((error) => {
+          log.warn({ err: error }, "shared DeepSeek Harness startup failed; Agent will retry on open");
+        });
+      }
+    })
+    .catch((error) => {
+      // eslint-disable-next-line no-console
+      console.error("[desktop] gateway start failed:", error);
+    });
 }
 
 const here = dirname(fileURLToPath(import.meta.url));

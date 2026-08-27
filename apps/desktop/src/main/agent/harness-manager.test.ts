@@ -12,7 +12,11 @@ async function managerForTest(): Promise<{ manager: HarnessManager; root: string
   roots.push(root);
   return {
     root,
-    manager: new HarnessManager({ draftsRoot: root, harnessCliPath: join(root, "missing-harness.js") }),
+    manager: new HarnessManager({
+      draftsRoot: root,
+      harnessHome: join(root, "harness"),
+      harnessCliPath: join(root, "missing-harness.js"),
+    }),
   };
 }
 
@@ -21,7 +25,7 @@ afterEach(async () => {
 });
 
 describe("HarnessManager draft lifecycle", () => {
-  it("creates an isolated per-video home with Harness instructions and runtime config", async () => {
+  it("creates a video workspace with Harness instructions", async () => {
     const { manager, root } = await managerForTest();
     const draft = await manager.createDraft("Video về ChatGPT");
     const draftRoot = join(root, draft.id);
@@ -48,16 +52,16 @@ describe("HarnessManager draft lifecycle", () => {
     await expect(manager.readCreateRequest(draft.id)).rejects.toThrow(/workspace/);
   });
 
-  it("removes the complete isolated Harness home when the draft is removed", async () => {
+  it("removes the video workspace when the draft is removed", async () => {
     const { manager, root } = await managerForTest();
     const draft = await manager.createDraft("Xóa toàn bộ");
-    await writeFile(join(root, draft.id, ".harness", "sessions-note.txt"), "history");
+    await writeFile(join(root, draft.id, "assets", "research.txt"), "history");
 
     await manager.removeDraft(draft.id);
     expect(await manager.list()).toEqual([]);
   });
 
-  it("starts one Harness against its isolated home, then adopts and names the workspace through the real RPC shape", async () => {
+  it("starts one shared Harness, then adopts and selects a video workspace through the real RPC shape", async () => {
     const root = await mkdtemp(join(tmpdir(), "motionreal-agent-"));
     roots.push(root);
     const cli = join(root, "dsh.js");
@@ -74,19 +78,29 @@ describe("HarnessManager draft lifecycle", () => {
         : {};
       return Response.json({ type: "server-response", result: { ok: true, value } });
     }) as unknown as typeof globalThis.fetch;
+    const spawnChild = vi.fn(() => child) as unknown as typeof import("node:child_process").spawn;
     const manager = new HarnessManager({
       draftsRoot: root,
+      harnessHome: join(root, "harness"),
       harnessCliPath: cli,
       fetch: fakeFetch,
       findPort: async () => 39876,
-      spawn: vi.fn(() => child) as unknown as typeof import("node:child_process").spawn,
+      spawn: spawnChild,
       nodeExecutable: "C:\\Program Files\\nodejs\\node.exe",
     });
     const draft = await manager.createDraft("Video mới");
+    const otherDraft = await manager.createDraft("Video khác");
 
     const opened = await manager.activate(draft.id, "only-child-env");
-    expect(opened.harnessUrl).toBe("http://127.0.0.1:39876/");
+    const otherOpened = await manager.activate(otherDraft.id, "only-child-env");
+    expect(opened.harnessUrl).toMatch(/^http:\/\/127\.0\.0\.1:39876\/\?session=session-/);
+    expect(otherOpened.harnessUrl).toMatch(/^http:\/\/127\.0\.0\.1:39876\/\?session=session-/);
+    expect(otherOpened.harnessUrl).not.toBe(opened.harnessUrl);
+    expect(spawnChild).toHaveBeenCalledTimes(1);
     expect(calls.slice(1).map((call) => JSON.parse(String(call.init?.body)).method)).toEqual([
+      "workspace.create",
+      "workspace.rename",
+      "session.create",
       "workspace.create",
       "workspace.rename",
       "session.create",
@@ -96,7 +110,7 @@ describe("HarnessManager draft lifecycle", () => {
     expect(child.kill).toHaveBeenCalledTimes(1);
   });
 
-  it("keeps the prior Harness session on a later app launch instead of creating a blank replacement", async () => {
+  it("reuses the same preallocated session and shared process when a draft is reopened", async () => {
     const root = await mkdtemp(join(tmpdir(), "motionreal-agent-"));
     roots.push(root);
     const cli = join(root, "dsh.js");
@@ -105,6 +119,7 @@ describe("HarnessManager draft lifecycle", () => {
     const methods: string[] = [];
     const manager = new HarnessManager({
       draftsRoot: root,
+      harnessHome: join(root, "harness"),
       harnessCliPath: cli,
       findPort: async () => 39875,
       spawn: vi.fn(() => child) as unknown as typeof import("node:child_process").spawn,
@@ -121,8 +136,14 @@ describe("HarnessManager draft lifecycle", () => {
     });
     const draft = await manager.createDraft("Giữ lịch sử");
 
-    await manager.activate(draft.id, "only-child-env");
-    expect(methods).toEqual(["workspace.create", "workspace.rename"]);
+    const first = await manager.activate(draft.id, "only-child-env");
+    const second = await manager.activate(draft.id, "only-child-env");
+    expect(second.harnessUrl).toBe(first.harnessUrl);
+    expect(methods).toEqual([
+      "host.describe",
+      "workspace.create", "workspace.rename", "session.create",
+      "workspace.create", "workspace.rename", "session.create",
+    ]);
     await manager.dispose();
   });
 
@@ -135,6 +156,7 @@ describe("HarnessManager draft lifecycle", () => {
     const spawnChild = vi.fn(() => child) as unknown as typeof import("node:child_process").spawn;
     const manager = new HarnessManager({
       draftsRoot: root,
+      harnessHome: join(root, "harness"),
       harnessCliPath: cli,
       nodeExecutable: "C:\\Program Files\\nodejs\\node.exe",
       findPort: async () => 39874,
@@ -155,7 +177,7 @@ describe("HarnessManager draft lifecycle", () => {
       "C:\\Program Files\\nodejs\\node.exe",
       [cli, "web", "--host", "127.0.0.1", "--port", "39874", "--no-open"],
       expect.objectContaining({
-        cwd: join(root, draft.id),
+        cwd: root,
         stdio: ["ignore", "ignore", "pipe"],
         env: expect.objectContaining({ NINEROUTER_API_KEY: "internal-key" }),
       }),
@@ -179,6 +201,7 @@ describe("HarnessManager draft lifecycle", () => {
     });
     const manager = new HarnessManager({
       draftsRoot: root,
+      harnessHome: join(root, "harness"),
       harnessCliPath: cli,
       nodeExecutable: "node",
       findPort: async () => 39873,

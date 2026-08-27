@@ -21,7 +21,10 @@ const log = createLogger("harness");
 
 export type { AgentDraftVM } from "../../shared/types.js";
 
-type DraftRecord = Omit<AgentDraftVM, "harnessUrl" | "createReady">;
+type DraftRecord = Omit<AgentDraftVM, "harnessUrl" | "createReady"> & {
+  workspaceId?: string;
+  sessionId?: string;
+};
 
 export type AgentCreateRequest = {
   draftId: string;
@@ -35,6 +38,7 @@ type HarnessRpcResponse = {
 
 export type HarnessManagerDeps = {
   draftsRoot: string;
+  harnessHome: string;
   harnessCliPath: string;
   spawn?: typeof spawn;
   fetch?: typeof fetch;
@@ -44,12 +48,15 @@ export type HarnessManagerDeps = {
 };
 
 /**
- * One DeepSeek Harness runtime per video draft. DSH stores sessions, messages,
- * tool history, and workspace state under DSH_HOME, so keeping it below the
- * draft lets a normal draft deletion remove all of that state atomically.
+ * One DeepSeek Harness runtime shared by every video draft. Each draft remains
+ * a separate filesystem Workspace while the Harness process and profile boot
+ * only once for the desktop app.
  */
 export class HarnessManager {
-  private active: { id: string; child: ChildProcess; url: string } | null = null;
+  private active: { child: ChildProcess; url: string } | null = null;
+  private activeDraftId: string | null = null;
+  private startingChild: ChildProcess | null = null;
+  private startInFlight: Promise<string> | null = null;
   private readonly spawnChild: typeof spawn;
   private readonly fetchImpl: typeof fetch;
   private readonly findPort: () => Promise<number>;
@@ -85,41 +92,74 @@ export class HarnessManager {
     if (!normalized) throw new Error("Hãy đặt tên video trước khi mở Agent.");
     const id = `agent-${randomUUID()}`;
     const root = this.rootOf(id);
-    const record: DraftRecord = { id, title: normalized, createdAt: this.now().toISOString() };
+    const record: DraftRecord = {
+      id,
+      title: normalized,
+      createdAt: this.now().toISOString(),
+      sessionId: `session-${randomUUID()}`,
+    };
     await mkdir(join(root, "assets"), { recursive: true });
-    await mkdir(join(root, HARNESS_HOME), { recursive: true });
     await writeFile(join(root, METADATA_FILE), `${JSON.stringify(record, null, 2)}\n`, "utf8");
     await writeFile(join(root, AGENTS_FILE), agentInstructions(normalized), "utf8");
-    await writeFile(join(root, HARNESS_HOME, "settings.yaml"), harnessSettings(), "utf8");
     return this.toVm(record);
   }
 
-  async activate(id: string, apiKey: string): Promise<AgentDraftVM> {
-    const record = await this.mustReadRecord(id);
+  async start(apiKey: string): Promise<string> {
     if (!apiKey.trim()) throw new Error("Chưa lấy được khóa nội bộ của 9router để khởi động Harness.");
-    if (this.active?.id === id) return this.toVm(record);
-    await this.dispose();
+    if (this.active) return this.active.url;
+    if (this.startInFlight) return this.startInFlight;
+    this.startInFlight = this.startRuntime(apiKey).finally(() => {
+      this.startInFlight = null;
+    });
+    return this.startInFlight;
+  }
+
+  async activate(id: string, apiKey: string): Promise<AgentDraftVM> {
+    let record = await this.mustReadRecord(id);
+    const url = await this.start(apiKey);
+    const workspace = await this.rpc(url, "workspace.create", { path: this.rootOf(id) });
+    const workspaceInfo = workspaceInfoOf(workspace);
+    try {
+      await this.rpc(url, "workspace.rename", { workspaceId: workspaceInfo.id, title: record.title });
+    } catch (error) {
+      if (!isWorkspaceNameConflict(error)) throw error;
+      await this.rpc(url, "workspace.rename", {
+        workspaceId: workspaceInfo.id,
+        title: `${record.title} · ${record.id.slice(-8)}`,
+      });
+    }
+    const sessionId = record.sessionId ?? `session-${randomUUID()}`;
+    await this.rpc(url, "session.create", { workspaceId: workspaceInfo.id, sessionId });
+    record = { ...record, workspaceId: workspaceInfo.id, sessionId };
+    await this.writeRecord(record);
+    this.activeDraftId = id;
+    return this.toVm(record);
+  }
+
+  private async startRuntime(apiKey: string): Promise<string> {
     if (!existsSync(this.deps.harnessCliPath)) {
       throw new Error("Chưa tìm thấy DeepSeek Harness. Cài/built Harness hoặc đặt MOTIONREAL_DSH_CLI.");
     }
-
-    const root = this.rootOf(id);
+    await mkdir(this.deps.draftsRoot, { recursive: true });
+    await mkdir(this.deps.harnessHome, { recursive: true });
+    await writeFile(join(this.deps.harnessHome, "settings.yaml"), harnessSettings(), "utf8");
     const port = await this.findPort();
     const url = `http://127.0.0.1:${port}/`;
     const child = this.spawnChild(
       this.nodeExecutable,
       [this.deps.harnessCliPath, "web", "--host", "127.0.0.1", "--port", String(port), "--no-open"],
       {
-        cwd: root,
+        cwd: this.deps.draftsRoot,
         env: {
           ...sanitizedChildEnvironment(),
-          DSH_HOME: join(root, HARNESS_HOME),
+          DSH_HOME: this.deps.harnessHome,
           NINEROUTER_API_KEY: apiKey,
         },
         stdio: ["ignore", "ignore", "pipe"],
         windowsHide: true,
       },
     );
+    this.startingChild = child;
     let stderrTail = "";
     let startupFailure: Error | null = null;
     let started = false;
@@ -135,20 +175,20 @@ export class HarnessManager {
       if (!started && !stopping) {
         startupFailure ??= harnessExitError(code, signal, stderrTail.replaceAll(apiKey, "[redacted]"));
       }
-      if (this.active?.child === child) this.active = null;
+      if (this.active?.child === child) {
+        this.active = null;
+        this.activeDraftId = null;
+      }
+      if (this.startingChild === child) this.startingChild = null;
     });
     try {
-      await waitForHttp(url, this.fetchImpl, () => startupFailure);
-      const workspace = await this.rpc(url, "workspace.create", { path: root });
-      const workspaceInfo = workspaceInfoOf(workspace);
-      await this.rpc(url, "workspace.rename", { workspaceId: workspaceInfo.id, title: record.title });
-      // The first boot needs a blank session. Later app launches retain the
-      // previous DSH session/history instead of silently starting a new chat.
-      if (workspaceInfo.sessionIds.length === 0) await this.rpc(url, "session.create", { workspaceId: workspaceInfo.id });
-      this.active = { id, child, url };
+      await waitForHarness(url, this.fetchImpl, () => startupFailure);
+      this.startingChild = null;
+      this.active = { child, url };
       started = true;
-      return this.toVm(record);
+      return url;
     } catch (error) {
+      if (this.startingChild === child) this.startingChild = null;
       stopping = true;
       await stopChild(child);
       throw error;
@@ -190,22 +230,41 @@ export class HarnessManager {
 
   async removeDraft(id: string): Promise<void> {
     const record = await this.mustReadRecord(id);
-    if (this.active?.id === record.id) await this.dispose();
+    if (this.active && record.workspaceId) {
+      const sessionIds = await this.workspaceSessionIds(record.workspaceId).catch((error) => {
+        log.warn({ err: error, draftId: record.id }, "failed to list Harness sessions during draft deletion");
+        return [];
+      });
+      for (const sessionId of sessionIds) {
+        await this.rpc(this.active.url, "workspace.archiveSession", { sessionId }).catch((error) => {
+          log.warn({ err: error, draftId: record.id }, "failed to archive Harness session during draft deletion");
+        });
+      }
+      await this.rpc(this.active.url, "workspace.delete", { workspaceId: record.workspaceId }).catch((error) => {
+        log.warn({ err: error, draftId: record.id }, "failed to remove Harness workspace registration");
+      });
+    }
+    if (this.activeDraftId === record.id) this.activeDraftId = null;
     await rm(this.rootOf(record.id), { recursive: true, force: true });
   }
 
   async dispose(): Promise<void> {
     const current = this.active;
+    const starting = this.startingChild;
     this.active = null;
-    if (!current) return;
-    await stopChild(current.child);
+    this.activeDraftId = null;
+    this.startingChild = null;
+    if (current) await stopChild(current.child);
+    if (starting && starting !== current?.child) await stopChild(starting);
   }
 
   private async toVm(record: DraftRecord): Promise<AgentDraftVM> {
     const createReady = existsSync(join(this.rootOf(record.id), CREATE_REQUEST_FILE));
     return {
       ...record,
-      ...(this.active?.id === record.id ? { harnessUrl: this.active.url } : {}),
+      ...(this.active && this.activeDraftId === record.id && record.sessionId
+        ? { harnessUrl: `${this.active.url}?session=${encodeURIComponent(record.sessionId)}` }
+        : {}),
       createReady,
     };
   }
@@ -226,6 +285,8 @@ export class HarnessManager {
         title: raw.title,
         createdAt: raw.createdAt,
         ...(typeof raw.projectId === "string" ? { projectId: raw.projectId } : {}),
+        ...(typeof raw.workspaceId === "string" ? { workspaceId: raw.workspaceId } : {}),
+        ...(typeof raw.sessionId === "string" ? { sessionId: raw.sessionId } : {}),
       };
     } catch (_error) {
       return null;
@@ -259,30 +320,56 @@ export class HarnessManager {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ type: "client-request", rpcId: randomUUID(), method, payload }),
     });
-    if (!response.ok) throw new Error(`Harness không chấp nhận ${method}.`);
+    if (!response.ok) {
+      const detail = (await response.text()).slice(0, 500);
+      log.error({ method, status: response.status, detail }, "DeepSeek Harness RPC transport failure");
+      throw new Error(`Harness không chấp nhận ${method} (HTTP ${response.status}).`);
+    }
     const body = (await response.json()) as HarnessRpcResponse;
     if (!body.result?.ok) {
-      const detail = typeof body.result?.error?.message === "string" ? body.result.error.message : "lỗi không xác định";
-      throw new Error(`Harness ${method} thất bại: ${detail}`);
+      const rpcError = body.result?.error as { code?: unknown; message?: unknown } | undefined;
+      const detail = typeof rpcError?.message === "string" ? rpcError.message : "lỗi không xác định";
+      const code = typeof rpcError?.code === "string"
+        ? rpcError.code
+        : "unknown";
+      throw new HarnessRpcError(method, code, detail);
     }
     return body.result.value;
   }
+
+  private async workspaceSessionIds(workspaceId: string): Promise<string[]> {
+    if (!this.active) return [];
+    const value = await this.rpc(this.active.url, "workspace.list", {});
+    const items = value && typeof value === "object" ? (value as { items?: unknown }).items : undefined;
+    if (!Array.isArray(items)) return [];
+    const workspace = items.find((item) => item && typeof item === "object"
+      && (item as { workspaceId?: unknown }).workspaceId === workspaceId) as { sessionIds?: unknown } | undefined;
+    return Array.isArray(workspace?.sessionIds)
+      ? workspace.sessionIds.filter((sessionId): sessionId is string => typeof sessionId === "string")
+      : [];
+  }
+}
+
+class HarnessRpcError extends Error {
+  constructor(readonly method: string, readonly code: string, detail: string) {
+    super(`Harness ${method} thất bại: ${detail}`);
+  }
+}
+
+function isWorkspaceNameConflict(error: unknown): boolean {
+  return error instanceof HarnessRpcError && error.code === "workspace-name-conflict";
 }
 
 function isSafeDraftId(value: string): boolean {
   return /^agent-[0-9a-f-]{36}$/i.test(value);
 }
 
-function workspaceInfoOf(value: unknown): { id: string; sessionIds: string[] } {
+function workspaceInfoOf(value: unknown): { id: string } {
   const workspace = value && typeof value === "object" ? (value as { workspace?: unknown }).workspace : null;
   if (!workspace || typeof workspace !== "object" || typeof (workspace as { workspaceId?: unknown }).workspaceId !== "string") {
     throw new Error("Harness trả về workspace không hợp lệ.");
   }
-  const sessionIds = (workspace as { sessionIds?: unknown }).sessionIds;
-  return {
-    id: (workspace as { workspaceId: string }).workspaceId,
-    sessionIds: Array.isArray(sessionIds) && sessionIds.every((id) => typeof id === "string") ? sessionIds : [],
-  };
+  return { id: (workspace as { workspaceId: string }).workspaceId };
 }
 
 function agentInstructions(title: string): string {
@@ -308,14 +395,21 @@ async function findLoopbackPort(): Promise<number> {
   });
 }
 
-async function waitForHttp(url: string, fetchImpl: typeof fetch, childFailure: () => Error | null): Promise<void> {
+async function waitForHarness(url: string, fetchImpl: typeof fetch, childFailure: () => Error | null): Promise<void> {
   const deadline = Date.now() + START_TIMEOUT_MS;
   while (Date.now() < deadline) {
     const failure = childFailure();
     if (failure) throw failure;
     try {
-      const response = await fetchImpl(url);
-      if (response.ok) return;
+      const response = await fetchImpl(`${url}api/host.describe`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ type: "client-request", rpcId: randomUUID(), method: "host.describe", payload: {} }),
+      });
+      if (response.ok) {
+        const body = (await response.json()) as HarnessRpcResponse;
+        if (body.result?.ok) return;
+      }
     } catch (_error) {
       // Child has not opened its loopback server yet.
     }

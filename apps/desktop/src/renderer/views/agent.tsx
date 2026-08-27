@@ -110,7 +110,7 @@ export const AgentView: React.FC = () => {
       <header className="ns-agent-chrome">
         <div>
           <h1 className="ns-agent-title">Video Agent</h1>
-          <p className="ns-agent-subtitle">DeepSeek Harness chạy trong workspace riêng của từng video. Chat, suy luận và tool được giữ nguyên bản.</p>
+          <p className="ns-agent-subtitle">Một DeepSeek Harness dùng chung, mỗi video có workspace riêng. Chat, suy luận và tool được giữ nguyên bản.</p>
         </div>
         <div className="ns-agent-actions">
           <button type="button" className="ns-btn" onClick={() => setShowNewVideo(true)} disabled={busy}>
@@ -179,8 +179,8 @@ export const AgentView: React.FC = () => {
         open={confirmDelete}
         title="Xóa video Agent?"
         message={active?.projectId
-          ? "Xóa dự án MotionReal cùng chat Harness, research và asset của Agent. Hành động không thể hoàn tác."
-          : "Xóa workspace Agent cùng chat, research và asset đã tải. Hành động không thể hoàn tác."}
+          ? "Xóa dự án MotionReal cùng workspace, research và asset của Agent. Phiên chat sẽ được ẩn khỏi Harness. Hành động không thể hoàn tác."
+          : "Xóa workspace Agent, research và asset đã tải. Phiên chat sẽ được ẩn khỏi Harness. Hành động không thể hoàn tác."}
         confirmLabel="Xóa"
         cancelLabel="Huỷ"
         danger
