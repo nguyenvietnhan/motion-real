@@ -22,11 +22,14 @@ export type TtsProvider = VoiceProvider | "mock" | "none";
 /** Legacy field on brief.json — always "mock"; desktop AI is via 9router, not this field. */
 export type AiProvider = "mock";
 export type VideoLanguage = "vi" | "en";
+export type ProjectCreationMode = "classic" | "harness";
 
 /** Persisted project state (brief.json). */
 export type ProjectBrief = {
   projectId: string;
   prompt: string;
+  /** Authoring owner. Missing on older projects means the classic API path. */
+  creationMode?: ProjectCreationMode;
   duration: number;
   /** Delivery format selected at create time, persisted so retry after restart keeps the same prompt budget/geometry. */
   format?: VideoFormat;

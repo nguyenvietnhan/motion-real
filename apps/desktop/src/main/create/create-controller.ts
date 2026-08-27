@@ -10,6 +10,7 @@ import {
   isDurationTier,
   resolveEffectiveDuration,
   type SerializedPipelineError,
+  type ProjectCreationMode,
   VoiceProviderError,
   type VoiceProviderFailure,
 } from "@motionreal/pipeline";
@@ -62,6 +63,7 @@ export interface CreateDeps {
       durationTier: DurationTierChoice;
       /** Tier-derived pacing target (seconds). */
       targetSeconds?: number;
+      creationMode?: ProjectCreationMode;
     },
   ) => Promise<{ ok: true; projectId: string } | { ok: false; error: SerializedPipelineError }>;
   /**
@@ -113,6 +115,8 @@ export class CreateController {
       bgm?: string | null;
       /** Agent-only durability seam: persist project ownership before authoring starts. */
       beforeBeginCreate?: (projectId: string) => Promise<void>;
+      /** Harness projects stop after scaffold/promotion; Harness owns scene authoring. */
+      creationMode?: ProjectCreationMode;
     } = {},
   ): Promise<{ projectId: string }> {
     const v = validateCreateInput({ raw });
@@ -150,6 +154,7 @@ export class CreateController {
       format: "tiktok" as const,
       durationTier,
       targetSeconds: resolved.targetSeconds,
+      creationMode: choices.creationMode ?? "classic",
     };
     const res = await this.deps.scaffold(v.brief.text, voiceProvider, videoLanguage, delivery);
     if (!res.ok) throw new Error(toFriendlyError(res.error).message); // redacted friendly message
@@ -175,16 +180,18 @@ export class CreateController {
         })
       : [];
     await choices.beforeBeginCreate?.(res.projectId);
-    this.deps.beginCreate(res.projectId, {
-      text: v.brief.text,
-      urls: v.brief.urls,
-      ...(promoted.length > 0 ? { images: promoted } : {}),
-      // Fixed format + resolved duration + language for retry/recall.
-      format: "tiktok",
-      durationTier,
-      targetSeconds: resolved.targetSeconds,
-      videoLanguage,
-    }); // hand off to workspace stage 1
+    if (delivery.creationMode === "classic") {
+      this.deps.beginCreate(res.projectId, {
+        text: v.brief.text,
+        urls: v.brief.urls,
+        ...(promoted.length > 0 ? { images: promoted } : {}),
+        // Fixed format + resolved duration + language for retry/recall.
+        format: "tiktok",
+        durationTier,
+        targetSeconds: resolved.targetSeconds,
+        videoLanguage,
+      }); // hand off to workspace stage 1
+    }
     return { projectId: res.projectId };
   }
 }

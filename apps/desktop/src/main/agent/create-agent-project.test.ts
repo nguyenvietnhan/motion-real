@@ -18,9 +18,8 @@ function deps(over: Record<string, unknown> = {}) {
     readCreateRequest: vi.fn(async () => request()),
     stageImages: vi.fn(async () => { calls.push("stage"); return []; }),
     create: vi.fn(async (_prompt, _images, choices) => {
-      calls.push("scaffold");
+      calls.push(`scaffold:${choices.creationMode}`);
       await choices.beforeBeginCreate?.("project-1");
-      calls.push("begin");
       return { projectId: "project-1" };
     }),
     linkProject: vi.fn(async () => { calls.push("link"); }),
@@ -33,10 +32,10 @@ function deps(over: Record<string, unknown> = {}) {
 }
 
 describe("createAgentProject", () => {
-  it("links the one scaffolded project before authoring and then renames it", async () => {
+  it("scaffolds one Harness-owned project without entering classic authoring", async () => {
     const { base, calls } = deps();
     await expect(createAgentProject("agent-1", base)).resolves.toEqual({ projectId: "project-1" });
-    expect(calls).toEqual(["stage", "scaffold", "link", "begin", "rename"]);
+    expect(calls).toEqual(["stage", "scaffold:harness", "link", "rename"]);
   });
 
   it("reuses a linked project without staging or creating another one", async () => {

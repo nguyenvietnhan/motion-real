@@ -25,6 +25,7 @@ export async function createAgentProject(draftId: string, deps: Deps): Promise<{
   try {
     created = await deps.create(request.prompt, images, {
       ...request.choices,
+      creationMode: "harness",
       beforeBeginCreate: async (projectId) => {
         scaffoldedProjectId = projectId;
         await deps.linkProject(request.draftId, projectId);

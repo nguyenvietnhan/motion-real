@@ -130,6 +130,7 @@ export const scaffoldProjectInput = z.object({
   format: z.literal("tiktok").optional(),
   durationTier: z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4)]).optional(),
   language: z.enum(["vi", "en"]).optional(),
+  creationMode: z.enum(["classic", "harness"]).optional(),
   // none/mock: explicit CLI/dev/smoke only — never a silent production fallback.
   ttsProvider: z.enum(["vivibe", "elevenlabs", "vieneu", "none", "mock"]).optional(),
   voiceId: z.string().min(1).optional(),
@@ -252,6 +253,7 @@ export function createTools(overrides: Partial<ToolDeps> = {}) {
           ...(input.format ? { format: input.format } : {}),
           ...(input.durationTier ? { durationTier: input.durationTier } : {}),
           ...(input.language ? { language: input.language } : {}),
+          ...(input.creationMode ? { creationMode: input.creationMode } : {}),
           ...(input.ttsProvider ? {
             tts: {
               provider: input.ttsProvider,

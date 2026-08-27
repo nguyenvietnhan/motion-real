@@ -272,6 +272,7 @@ describe("tool input schemas + result shapes — 7.12", () => {
     expect(scaffoldProjectInput.safeParse({ prompt: "x", duration: 75 }).success).toBe(true);
     expect(scaffoldProjectInput.safeParse({ prompt: "x", duration: 0 }).success).toBe(false);
     expect(scaffoldProjectInput.safeParse({ prompt: "x", durationTier: 4 }).success).toBe(true);
+    expect(scaffoldProjectInput.safeParse({ prompt: "x", creationMode: "harness" }).success).toBe(true);
     expect(renderFullInput.safeParse({ projectId: "p", forceFull: true }).success).toBe(true);
   });
 
@@ -288,9 +289,9 @@ describe("tool input schemas + result shapes — 7.12", () => {
         };
       },
     });
-    const res = await tools.scaffold_project({ prompt: "Random Forest", format: "tiktok", durationTier: 3 });
+    const res = await tools.scaffold_project({ prompt: "Random Forest", format: "tiktok", durationTier: 3, creationMode: "harness" });
     expect(res.ok).toBe(true);
-    expect(received).toMatchObject({ prompt: "Random Forest", format: "tiktok", durationTier: 3 });
+    expect(received).toMatchObject({ prompt: "Random Forest", format: "tiktok", durationTier: 3, creationMode: "harness" });
   });
 
   it("ingest_url failure carries a structured error (ok:false + serialized error)", async () => {

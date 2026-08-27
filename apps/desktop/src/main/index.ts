@@ -341,6 +341,7 @@ const create = new CreateController({
       durationTier: delivery?.durationTier ?? 1,
       // Tier-derived pacing seconds (UI knobs win over prompt length).
       ...(delivery?.targetSeconds !== undefined ? { duration: delivery.targetSeconds } : {}),
+      ...(delivery?.creationMode ? { creationMode: delivery.creationMode } : {}),
       ttsProvider: voiceProvider,
       voiceId: config.voiceId,
       ...(config.modelId ? { modelId: config.modelId } : {}),

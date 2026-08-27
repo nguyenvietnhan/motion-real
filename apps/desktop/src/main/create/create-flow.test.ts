@@ -35,6 +35,7 @@ describe("CreateController.create", () => {
       format: "tiktok",
       durationTier: 1,
       targetSeconds: 45,
+      creationMode: "classic",
     });
     expect(began).toEqual([
       {
@@ -95,6 +96,23 @@ describe("CreateController.create", () => {
     expect(order).toEqual(["promote", "link", "begin"]);
   });
 
+  it("scaffolds Harness projects without entering the classic authoring backend", async () => {
+    const order: string[] = [];
+    const { deps: d, scaffold } = deps({
+      promoteImages: async () => { order.push("promote"); return []; },
+      beginCreate: () => { order.push("classic-author"); },
+    });
+    const ctrl = new CreateController(d);
+    await ctrl.create("chủ đề", [{ ref: "staging/aa.png", width: 10, height: 10 }], {
+      creationMode: "harness",
+      beforeBeginCreate: async () => { order.push("link"); },
+    });
+    expect(scaffold).toHaveBeenCalledWith("chủ đề", "vivibe", "vi", expect.objectContaining({
+      creationMode: "harness",
+    }));
+    expect(order).toEqual(["promote", "link"]);
+  });
+
   it("does not start authoring when Agent project ownership cannot be persisted", async () => {
     const { deps: d, began } = deps();
     const ctrl = new CreateController(d);
@@ -130,6 +148,7 @@ describe("CreateController.create", () => {
       format: "tiktok",
       durationTier: 2,
       targetSeconds: 90,
+      creationMode: "classic",
     });
     expect(began[0]!.input.format).toBe("tiktok");
     expect(began[0]!.input.durationTier).toBe(2);
@@ -145,6 +164,7 @@ describe("CreateController.create", () => {
       format: "tiktok",
       durationTier: 1,
       targetSeconds: 45,
+      creationMode: "classic",
     });
     expect(began[0]!.input.durationTier).toBe(1);
     expect(began[0]!.input.targetSeconds).toBe(45);
@@ -186,6 +206,7 @@ describe("CreateController.create", () => {
       format: "tiktok",
       durationTier: 1,
       targetSeconds: 45,
+      creationMode: "classic",
     });
   });
 

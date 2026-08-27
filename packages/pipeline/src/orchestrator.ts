@@ -115,6 +115,8 @@ export type ScaffoldVideoProjectOptions = {
   durationTier?: DurationTier;
   /** Authored video language; defaults to Vietnamese for older callers. */
   language?: VideoLanguage;
+  /** Authoring owner; defaults to the classic API path for older callers. */
+  creationMode?: ProjectBrief["creationMode"];
   tts?: { provider?: TtsProvider; voiceId?: string; modelId?: string; speed?: number };
 };
 
@@ -141,6 +143,7 @@ export async function scaffoldVideoProject(opts: ScaffoldVideoProjectOptions): P
   const brief: ProjectBrief = {
     projectId,
     prompt: opts.prompt,
+    creationMode: opts.creationMode ?? "classic",
     duration,
     ...(opts.format ? { format: opts.format } : {}),
     ...(opts.durationTier ? { durationTier: opts.durationTier } : {}),
