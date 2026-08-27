@@ -6,6 +6,9 @@ This document records the agreed product and integration design for Video Agent.
 It is the reference for the next implementation phase, not a claim that every
 stage below already exists.
 
+Implementation order and acceptance gates are tracked in the
+[Video Agent roadmap](video-agent-roadmap.md).
+
 Implemented today:
 
 - MotionReal starts one shared DeepSeek Harness process after the 9router gateway
