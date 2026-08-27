@@ -400,18 +400,24 @@ export class VideoAgentPreview {
     if (!apiKey) return { state: "blocked", message: "9router chưa chuẩn bị credential nội bộ cho Agent." };
     const addresses = await this.gatewayAddresses().catch((error) => { void error; return []; });
     if (!isLoopbackOnly(addresses)) return { state: "blocked", message: "Agent bị khóa: 9router phải chỉ lắng nghe 127.0.0.1 hoặc ::1." };
+    let openCodeVersion: string;
+    let routerVersion: string;
     try {
-      const [openCodeVersion, routerVersion] = await Promise.all([
+      [openCodeVersion, routerVersion] = await Promise.all([
         commandOutput(binary, ["--version"], process.cwd()),
         nineRouterVersion(process.cwd()),
       ]);
-      if (!isSupportedVideoAgentRuntime(openCodeVersion, routerVersion)) return { state: "blocked", message: "OpenCode hoặc 9router không đúng runtime đã kiểm chứng." };
-      const [models, cache] = await Promise.all([this.gatewayModels(apiKey), ensureVideoAgentPluginCache()]);
-      if (!models.includes(VIDEO_AGENT_MODEL)) return { state: "blocked", message: "9router chưa có model Video Agent đã kiểm chứng." };
-      if (this.requireVerification && !await this.hasMatchingVerification(cache.fingerprint, openCodeVersion, routerVersion)) {
-        return { state: "blocked", message: "Cần chạy npm run verify:agent-preview trước khi bật Agent." };
-      }
-    } catch (error) { void error; return { state: "blocked", message: "Không thể kiểm tra OpenCode hoặc 9router runtime." }; }
+    } catch (error) { void error; return { state: "blocked", message: "Không đọc được phiên bản OpenCode hoặc 9router." }; }
+    if (!isSupportedVideoAgentRuntime(openCodeVersion, routerVersion)) return { state: "blocked", message: "OpenCode hoặc 9router không đúng runtime đã kiểm chứng." };
+    let models: string[];
+    let cache: { directory: string; fingerprint: string };
+    try {
+      [models, cache] = await Promise.all([this.gatewayModels(apiKey), ensureVideoAgentPluginCache()]);
+    } catch (error) { void error; return { state: "blocked", message: "Không kiểm tra được model 9router hoặc cache Agent." }; }
+    if (!models.includes(VIDEO_AGENT_MODEL)) return { state: "blocked", message: "9router chưa có model Video Agent đã kiểm chứng." };
+    if (this.requireVerification && !await this.hasMatchingVerification(cache.fingerprint, openCodeVersion, routerVersion)) {
+      return { state: "blocked", message: "Cần chạy npm run verify:agent-preview trước khi bật Agent." };
+    }
     return { state: "ready", message: "Developer Preview sẵn sàng.", model: VIDEO_AGENT_MODEL };
   }
 

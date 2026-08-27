@@ -34,6 +34,12 @@ runtime gate checks the binary version and the live catalog, not a claimed SHA.
 The owned fork and its catalog patch remain POC ownership evidence outside this
 repository; the live catalog check is the actual safety boundary.
 
+For this Windows development checkout, `npm.cmd --prefix apps/desktop run app`
+automatically uses the verified sibling checkout at
+`../motionreal-opencode-v11511-test/.../opencode.exe` when present. Set
+`MOTIONREAL_OPENCODE_BIN` to override that location. Installer packaging remains
+outside this preview.
+
 Each sidecar has a random password held only in Electron Main memory. A
 candidate sidecar is not considered active until health, `/doc`, config
 isolation, exact catalog and OpenCode session creation all pass. Failed starts

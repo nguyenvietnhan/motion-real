@@ -20,7 +20,14 @@ const repoRoot = resolve(appDir, "..", "..");
 const VIDEO_TOOL_HOME = resolve(repoRoot, ".video-tool");
 const PREFERRED_PORT = 5174;
 const NINEROUTER_URL = "http://localhost:20128/v1/models";
+const DEV_OPENCODE_BINARY = resolve(repoRoot, "..", "motionreal-opencode-v11511-test", "packages", "opencode", "dist", "opencode-windows-x64", "bin", "opencode.exe");
 // Resolved after prepare — lives next to electron resources, NOT dist-electron alone.
+
+function resolveOpenCodeBinary() {
+  const configured = process.env.MOTIONREAL_OPENCODE_BIN?.trim();
+  if (configured) return configured;
+  return existsSync(DEV_OPENCODE_BINARY) ? DEV_OPENCODE_BINARY : undefined;
+}
 
 const run = (cmd, args, opts = {}) =>
   new Promise((res, rej) => {
@@ -106,9 +113,9 @@ async function ensureNineRouter() {
     console.log("[launch] 9router already running — reusing it.");
     return null;
   }
-  console.log("[launch] starting 9router (9router -n -t --skip-update)…");
+  console.log("[launch] starting 9router on loopback…");
   try {
-    const child = spawn("9router", ["-n", "-t", "--skip-update"], {
+    const child = spawn("9router", ["-n", "-t", "--skip-update", "--host", "127.0.0.1"], {
       cwd: appDir,
       detached: true,
       stdio: "ignore",
@@ -141,6 +148,9 @@ async function resolveHostExe() {
 
 async function main() {
   const hostExe = await resolveHostExe();
+  const opencodeBinary = resolveOpenCodeBinary();
+  if (opencodeBinary) console.log("[launch] verified OpenCode binary configured for Video Agent.");
+  else console.warn("[launch] Video Agent will remain disabled: verified OpenCode binary is missing.");
 
   await ensureNineRouter();
 
@@ -170,6 +180,7 @@ async function main() {
       ...process.env,
       VITE_DEV_SERVER_URL: devUrl,
       VIDEO_TOOL_HOME,
+      ...(opencodeBinary ? { MOTIONREAL_OPENCODE_BIN: opencodeBinary } : {}),
     },
   });
 
