@@ -106,6 +106,10 @@ agent-drafts/<agent-id>/
   handoff/
     assets.json
     brief.json
+    authoring-v1/
+      manifest.json
+      authored/
+      stills/
     authoring-contract.md
     authoring-request.json
     authoring.json
@@ -307,11 +311,20 @@ same Harness Session for repair. MotionReal also stamps the approved duration
 tier, language, and 9:16 format onto the manifest instead of trusting model
 metadata.
 
-The first valid scene submission is not shown to the user immediately. MotionReal
-renders one still per scene and asks Harness to open every PNG, revise weak scene
-code, and submit concrete review notes. MotionReal renders the revised scenes
-again, then opens the existing human per-scene review UI. No MP4 is encoded for
-this self-review loop.
+The first valid scene submission is a positioning pass and is not shown to the
+user immediately. Every non-final scene must explicitly choose a supported
+`transitionToNext`; MotionReal does not silently accept the runtime's default
+transition. MotionReal renders one still per scene and archives the V1 manifest,
+scene modules, and still evidence under `handoff/authoring-v1/`.
+
+Harness must then open every archived PNG and perform a creative rewrite V2 of
+every scene module. Changing only palette, glow, decorative frames, icons, or
+pulses does not satisfy this gate: MotionReal compares V2 source against the V1
+archive and rejects any scene module that remains byte-identical. Facts,
+narration, timing, and approved asset references stay fixed. MotionReal renders
+V2 again, requires concrete image-backed review notes, then opens the existing
+human per-scene review UI. No MP4 is encoded for this internal V1/V2 loop, so it
+does not claim to evaluate easing or continuous motion.
 
 Classic Home/Create/Queue authoring remains unchanged. Harness projects reuse the
 same authoring contract, admission/render tools, Workspace stages, human review,
@@ -416,7 +429,7 @@ controllers.
 | `authoring` | Valid Harness submission, still render, and self-review | `still_review` |
 | `draft_render` | Healthy draft artifact and ready stage | `draft_review` |
 | `still_review` | User requests an edit | same Harness Session → `authoring` |
-| `still_review` | User approves scenes | existing full-render controller |
+| `still_review` | User approves scenes | existing review-mode controller (`full`, `stills_edit`, or `skip_edit`) |
 | `draft_review` | User approves full render | `final_render` |
 | `final_render` | Healthy full artifact | `completed` |
 | any running state | Structured failure | `error` |

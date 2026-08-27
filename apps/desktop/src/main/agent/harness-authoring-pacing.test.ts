@@ -2,7 +2,14 @@ import { describe, expect, it } from "vitest";
 import { buildHarnessAuthoringPacing, validateHarnessManifestPacing } from "./harness-authoring-pacing.js";
 
 function scene(id: string, words: number) {
-  return { id, component: id, headline: id, narration: Array.from({ length: words }, () => "từ").join(" ") };
+  const index = Number(id.slice(-2));
+  return {
+    id,
+    component: id,
+    headline: id,
+    narration: Array.from({ length: words }, () => "từ").join(" "),
+    transitionToNext: index % 2 === 0 ? "fade" : "slide",
+  };
 }
 
 describe("Harness authoring pacing", () => {
@@ -59,5 +66,16 @@ describe("Harness authoring pacing", () => {
     );
     expect(result).toMatchObject({ ok: false });
     if (!result.ok) expect(result.errors).toContain("scene_ids đã submit phải khớp đúng thứ tự mọi scene trong manifest.");
+  });
+
+  it("requires an explicit transition between scenes", () => {
+    const pacing = buildHarnessAuthoringPacing(1, "vi", 1);
+    const scenes = Array.from({ length: 4 }, (_, index) => ({
+      ...scene(`scene-0${index + 1}`, 12),
+      transitionToNext: index === 1 ? undefined : "slide",
+    }));
+    const result = validateHarnessManifestPacing({ scenes }, scenes.map((value) => value.id), pacing, "vi");
+    expect(result).toMatchObject({ ok: false });
+    if (!result.ok) expect(result.errors.join(" ")).toMatch(/scene-02 phải khai báo transitionToNext/);
   });
 });

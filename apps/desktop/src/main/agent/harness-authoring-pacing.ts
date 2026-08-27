@@ -84,6 +84,13 @@ export function validateHarnessManifestPacing(
     if (words > pacing.max_scene_narration_words) {
       errors.push(`${id} có ${words} từ; tối đa ${pacing.max_scene_narration_words} từ để tránh một cảnh quá dài.`);
     }
+    if (index < manifest.scenes.length - 1) {
+      const transition = scene.transitionToNext;
+      if (transition !== "slide" && transition !== "fade" && transition !== "wipe"
+        && transition !== "clockWipe" && transition !== "zoom") {
+        errors.push(`${id} phải khai báo transitionToNext có chủ đích.`);
+      }
+    }
   }
 
   if (new Set(sceneIds).size !== sceneIds.length) errors.push("Manifest có scene id trùng.");

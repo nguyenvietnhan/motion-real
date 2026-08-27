@@ -557,6 +557,7 @@ describe("HarnessManager draft lifecycle", () => {
       job_id: "job-author",
       request_revision: 1,
       phase: "initial",
+      creative_stage: "v1",
       manifest: "project/manifest.json",
       pacing: {
         duration_tier: 1,
@@ -574,13 +575,15 @@ describe("HarnessManager draft lifecycle", () => {
       title: "Harness authoring",
       durationTier: 4,
       videoLanguage: "en",
-      scenes: sceneIds.map((id) => ({
+      scenes: sceneIds.map((id, index) => ({
         id,
         component: id,
         headline: id,
         narration: "ngắn",
+        ...(index < sceneIds.length - 1 ? { transitionToNext: index === 0 ? "slide" : "fade" } : {}),
       })),
     }));
+    await Promise.all(sceneIds.map((id) => writeFile(join(projectRoot, "authored", `${id}.tsx`), `export const version = "v1-${id}";\n`)));
 
     await writeFile(join(root, draft.id, "handoff", "authoring.json"), JSON.stringify({
       version: 1,
@@ -600,11 +603,12 @@ describe("HarnessManager draft lifecycle", () => {
       title: "Harness authoring",
       durationTier: 4,
       videoLanguage: "en",
-      scenes: sceneIds.map((id) => ({
+      scenes: sceneIds.map((id, index) => ({
         id,
         component: id,
         headline: id,
         narration: "một hai ba bốn năm sáu bảy tám chín mười mười một mười hai mười ba",
+        ...(index < sceneIds.length - 1 ? { transitionToNext: index === 0 ? "slide" : "fade" } : {}),
       })),
     }));
     await writeFile(join(root, draft.id, "handoff", "authoring.json"), JSON.stringify({
@@ -624,9 +628,13 @@ describe("HarnessManager draft lifecycle", () => {
       expect(reviewRequest).toMatchObject({
         request_revision: 3,
         phase: "self_review",
-        stills: sceneIds.map((sceneId) => `project/review/${sceneId}.png`),
+        creative_stage: "v2",
+        v1_baseline: "handoff/authoring-v1",
+        stills: sceneIds.map((sceneId) => `handoff/authoring-v1/stills/${sceneId}.png`),
       });
     });
+    await expect(readFile(join(root, draft.id, "handoff", "authoring-v1", "authored", "scene-01.tsx"), "utf8"))
+      .resolves.toBe('export const version = "v1-scene-01";\n');
     await writeFile(join(root, draft.id, "handoff", "authoring.json"), JSON.stringify({
       version: 1,
       job_id: "job-author",
@@ -636,6 +644,21 @@ describe("HarnessManager draft lifecycle", () => {
       reviewed_scene_ids: sceneIds,
       review_notes: "Đã mở PNG, kiểm tra asset và hierarchy; scene rõ ràng.",
     }));
+    await vi.waitFor(async () => {
+      const repairRequest = JSON.parse(await readFile(join(root, draft.id, "handoff", "authoring-request.json"), "utf8"));
+      expect(repairRequest).toMatchObject({ request_revision: 4, phase: "self_review", creative_stage: "v2" });
+      expect(repairRequest.render_error).toMatch(/chưa viết lại các scene/);
+    }, { timeout: 2_000 });
+    await Promise.all(sceneIds.map((id) => writeFile(join(projectRoot, "authored", `${id}.tsx`), `export const version = "v2-${id}";\n`)));
+    await writeFile(join(root, draft.id, "handoff", "authoring.json"), JSON.stringify({
+      version: 1,
+      job_id: "job-author",
+      request_revision: 4,
+      scene_ids: sceneIds,
+      used_asset_ids: ["logo"],
+      reviewed_scene_ids: sceneIds,
+      review_notes: "Đã mở từng PNG; viết lại hierarchy, framing, focal motion và chọn transition theo quan hệ nội dung.",
+    }));
     await vi.waitFor(() => expect(acceptAuthoringStills).toHaveBeenCalledWith("project-1"), { timeout: 2_000 });
     await vi.waitFor(async () => expect(await manager.status(draft.id)).toMatchObject({ productionState: "still_review" }));
 
@@ -643,8 +666,9 @@ describe("HarnessManager draft lifecycle", () => {
       .rejects.toThrow(/không hợp lệ/);
     await manager.requestSceneEdits(draft.id, "project-1", [{ sceneId: "scene-01", text: "Phóng to logo và bỏ khung trang trí." }], "Giữ nhịp hình rõ ràng.");
     await expect(readFile(join(root, draft.id, "handoff", "authoring-request.json"), "utf8").then(JSON.parse)).resolves.toMatchObject({
-      request_revision: 4,
+      request_revision: 5,
       phase: "edit",
+      creative_stage: "edit",
       target_scene_ids: ["scene-01"],
       edit_request: {
         per_scene: [{ sceneId: "scene-01", text: "Phóng to logo và bỏ khung trang trí." }],

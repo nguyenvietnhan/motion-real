@@ -23,6 +23,11 @@ import {
   validateHarnessManifestPacing,
   type HarnessAuthoringPacing,
 } from "./harness-authoring-pacing.js";
+import {
+  AUTHORING_V1_DIR,
+  archiveHarnessAuthoringV1,
+  assertHarnessCreativeRewrite,
+} from "./harness-creative-rewrite.js";
 
 const METADATA_FILE = "motionreal-agent.json";
 const CREATE_REQUEST_FILE = "motionreal.create.json";
@@ -637,6 +642,7 @@ export class HarnessManager {
       job_id: current.activeJobId,
       request_revision: next.authoringRequestRevision,
       phase: "initial",
+      creative_stage: "v1",
       project: PROJECT_LINK,
       brief: "handoff/brief.json",
       asset_manifest: "handoff/assets.json",
@@ -651,6 +657,9 @@ export class HarnessManager {
         "Asset là pool tư liệu, không phải số lượng storyboard. Số cảnh và lượng narration phải theo pacing.",
         "Viết mới manifest.json và các module authored/*.tsx cho toàn video; không gọi API authoring cũ.",
         "Mỗi asset trong request phải xuất hiện qua scene.image.ref trong ít nhất một cảnh và scene.image.role phải giữ đúng role đã duyệt.",
+        "Mỗi cảnh phải có một focal subject và hành động hình ảnh riêng; cấm dùng một shell/panel/HUD cố định cho toàn video.",
+        "Mỗi cảnh trừ cảnh cuối phải khai báo transitionToNext phù hợp với quan hệ nội dung; không dựa vào transition mặc định.",
+        "Đây là V1 định vị. Sau still đầu tiên, MotionReal sẽ bắt buộc một creative rewrite V2 trước khi cho người dùng duyệt.",
         "Không render video. Khi code đã hoàn chỉnh, gọi motionreal_submit_authoring để MotionReal validate và render still.",
       ],
     });
@@ -715,6 +724,7 @@ export class HarnessManager {
     try {
       await this.advanceAuthoringRequest(authoring, {
         phase: "edit",
+        creative_stage: "edit",
         target_scene_ids: targetSceneIds,
         edit_request: { per_scene: perScene, global_notes: notes },
         render_error: undefined,
@@ -1068,6 +1078,13 @@ export class HarnessManager {
     const manifest = parseJson(await readFile(manifestPath, "utf8"));
     const paced = validateHarnessManifestPacing(manifest, sceneIds, pacing, (await this.readRequiredBrief(record)).videoLanguage);
     if (!paced.ok) throw new Error(paced.errors.join(" "));
+    const creativeStage = typeof request.creative_stage === "string" ? request.creative_stage : undefined;
+    if (request.phase === "self_review" && creativeStage === "v2") {
+      await assertHarnessCreativeRewrite({
+        baselineDir: join(root, AUTHORING_V1_DIR),
+        authoredDir: join(root, PROJECT_LINK, "authored"),
+      });
+    }
     await writeJson(manifestPath, paced.manifest);
     const rendered = await this.deps.renderAuthoringStills!(record.projectId!, sceneIds);
     if (!rendered.ok || rendered.stills.length < sceneIds.length) {
@@ -1091,33 +1108,55 @@ export class HarnessManager {
       return;
     }
     const projectRoot = await realpath(join(root, PROJECT_LINK));
-    const stills = rendered.stills.map((path) => {
+    const currentStills = rendered.stills.map((path) => {
       const rel = relative(projectRoot, path);
       if (!rel || rel.startsWith("..") || isAbsolute(rel)) throw new Error("Still render nằm ngoài project Harness.");
       return `${PROJECT_LINK}/${rel.replaceAll("\\", "/")}`;
     });
+    const nextStage = creativeStage === "v1" ? "v2" : creativeStage === "edit" ? "edit-review" : undefined;
+    const archived = creativeStage === "v1"
+      ? await archiveHarnessAuthoringV1({
+        draftRoot: root,
+        manifestPath,
+        authoredDir: join(projectRoot, "authored"),
+        stills: rendered.stills.map((path, index) => ({ sceneId: sceneIds[index]!, path })),
+      })
+      : null;
     await this.advanceAuthoringRequest(record, {
       phase: "self_review",
-      stills,
+      ...(nextStage ? { creative_stage: nextStage } : {}),
+      ...(archived ? { v1_baseline: archived.baseline } : {}),
+      stills: archived?.stills ?? currentStills,
       render_error: undefined,
       instructions: [
         "Dùng khả năng xem ảnh để mở mọi PNG trong stills; không kết luận từ code.",
-        "Sửa trực tiếp project/authored/*.tsx và manifest nếu bố cục, hierarchy, asset framing hoặc motion-state còn yếu.",
+        ...(creativeStage === "v1" ? [
+          "Đây là creative rewrite V2 bắt buộc: viết lại MỌI module scene dựa trên ảnh V1, không chỉ sửa scene nhìn yếu.",
+          "Được thay toàn bộ layout, hierarchy, asset framing, transition và motion; giữ facts, narration, timing và asset ref đã duyệt.",
+          "Đổi palette/glow, thêm icon/khung hoặc pulse không được tính là rewrite có ý nghĩa.",
+        ] : ["Sửa trực tiếp scene theo quan sát cụ thể từ still; giữ nguyên phần không nằm trong yêu cầu edit."]),
+        "review_notes phải nêu quan sát và thay đổi cụ thể, gồm lý do transition giữa các cảnh.",
         "Sau khi đã xem và sửa, gọi motionreal_submit_authoring với reviewed_scene_ids đủ mọi cảnh và review_notes cụ thể.",
       ],
-    }, "MotionReal đã render still lần đầu. Hãy đọc lại handoff/authoring-request.json, mở mọi PNG thật trong stills, tự review và sửa scene trước khi submit lại.");
+    }, creativeStage === "v1"
+      ? "MotionReal đã archive V1 và render still. Hãy mở mọi PNG thật, creative rewrite toàn bộ scene thành V2 rồi submit lại. Chỉ đổi màu/glow/khung/pulse không được chấp nhận."
+      : "MotionReal đã render still. Hãy đọc lại handoff/authoring-request.json, mở mọi PNG thật, tự review và sửa scene trước khi submit lại.");
   }
 
   private async requestAuthoringRepair(record: DraftRecord, message: string): Promise<void> {
     const latest = await this.mustReadRecord(record.id);
     if (latest.productionState !== "authoring") return;
+    const requestPath = join(this.rootOf(record.id), AUTHORING_REQUEST_FILE);
+    const request = parseJson(await readFile(requestPath, "utf8")) as Record<string, unknown>;
+    const selfReview = request.phase === "self_review";
     await this.advanceAuthoringRequest(latest, {
-      phase: "repair",
+      phase: selfReview ? "self_review" : "repair",
       pacing: await this.authoringPacing(latest),
       render_error: message.slice(0, 2_000),
-      stills: [],
+      ...(selfReview ? {} : { stills: [] }),
       instructions: [
         "MotionReal không validate/render được scene hiện tại. Đọc render_error, kiểm tra manifest và mọi module TSX rồi sửa tận gốc.",
+        ...(selfReview ? ["Đây vẫn là lượt self-review/creative rewrite; phải mở lại evidence trong stills và submit đủ reviewed_scene_ids cùng review_notes."] : []),
         "Gọi lại motionreal_submit_authoring bằng request_revision mới sau khi sửa.",
       ],
     }, "MotionReal chưa validate/render được scene. Hãy đọc render_error trong handoff/authoring-request.json, sửa project/ rồi submit authoring revision mới.");
