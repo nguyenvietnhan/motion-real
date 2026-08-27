@@ -1,6 +1,6 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { agentProjectProgress } from "../../shared/agent-project-progress.js";
-import type { AgentBriefInput, AgentDraftVM, AgentProductionState, DurationTierChoice, ProjectStage, VideoLanguageChoice, VoiceProviderChoice } from "../../shared/types.js";
+import type { AgentBriefInput, AgentChatMessageVM, AgentDraftVM, AgentProductionState, AgentToolActivityVM, DurationTierChoice, ProjectStage, VideoLanguageChoice, VoiceProviderChoice } from "../../shared/types.js";
 import { Icon } from "../icons.js";
 import { ConfirmDialog } from "../primitives.js";
 import { ImageReviewView } from "./image-review.js";
@@ -20,16 +20,24 @@ const PRODUCTION_LABELS: Record<AgentProductionState, string> = {
   error: "Cần xử lý lỗi",
 };
 
-/**
- * The Harness owns the chat, event timeline, tool cards, and history. Keeping
- * its web UI intact avoids rebuilding a partial copy in the desktop renderer.
- */
+type ChatItem = AgentChatMessageVM | AgentToolActivityVM;
+
 export const AgentView: React.FC<{ onOpenProject: (projectId: string) => void }> = ({ onOpenProject }) => {
   const [drafts, setDrafts] = useState<AgentDraftVM[]>([]);
   const [active, setActive] = useState<AgentDraftVM | null>(null);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [frameKey, setFrameKey] = useState(0);
+  const [showHarnessDebug, setShowHarnessDebug] = useState(false);
+  const [chatItems, setChatItems] = useState<ChatItem[]>([]);
+  const [chatHasMore, setChatHasMore] = useState(false);
+  const [chatBeforeSeq, setChatBeforeSeq] = useState<number | undefined>();
+  const [chatRunning, setChatRunning] = useState(false);
+  const [chatActivity, setChatActivity] = useState(false);
+  const [liveAssistantText, setLiveAssistantText] = useState("");
+  const [chatInput, setChatInput] = useState("");
+  const [chatSending, setChatSending] = useState(false);
+  const chatDraftRef = useRef<string | null>(null);
   const [showNewVideo, setShowNewVideo] = useState(false);
   const [newVideoTitle, setNewVideoTitle] = useState("");
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -53,6 +61,73 @@ export const AgentView: React.FC<{ onOpenProject: (projectId: string) => void }>
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  const loadChat = useCallback(async (draftId: string, beforeSeq?: number) => {
+    const page = await window.dashboard.agent.chatHistory(draftId, beforeSeq);
+    if (chatDraftRef.current !== draftId) return;
+    setChatItems((current) => {
+      if (beforeSeq === undefined) return page.items;
+      const known = new Set(current.map((item) => `${item.kind}:${item.id}`));
+      return [...page.items.filter((item) => !known.has(`${item.kind}:${item.id}`)), ...current];
+    });
+    setChatHasMore(page.hasMore);
+    setChatBeforeSeq(page.beforeSeq);
+    setChatRunning(page.running);
+  }, []);
+
+  useEffect(() => {
+    const draftId = active?.id;
+    if (!draftId || !active.harnessUrl) {
+      chatDraftRef.current = null;
+      setChatItems([]);
+      setChatHasMore(false);
+      setChatBeforeSeq(undefined);
+      setChatRunning(false);
+      setLiveAssistantText("");
+      return;
+    }
+    let alive = true;
+    chatDraftRef.current = draftId;
+    setChatItems([]);
+    setLiveAssistantText("");
+    void loadChat(draftId).catch(() => {
+      if (alive) setNotice("Không tải được lịch sử chat của video này.");
+    });
+    const unsubscribe = window.dashboard.events.onAgentChat((event) => {
+      if (!alive || event.draftId !== draftId) return;
+      if (event.type === "assistant-delta") {
+        setChatRunning(true);
+        setChatActivity(false);
+        setLiveAssistantText((current) => `${current}${event.text}`.slice(-50_000));
+        return;
+      }
+      if (event.type === "activity") {
+        setChatRunning(true);
+        setChatActivity(true);
+        return;
+      }
+      if (event.type === "error") {
+        setChatRunning(false);
+        setChatActivity(false);
+        setLiveAssistantText("");
+        setNotice(event.code === "turn_failed"
+          ? "Agent gặp lỗi trong lượt này; chưa có thay đổi nào được áp dụng vào video."
+          : "Mất kết nối sự kiện với Harness. Hãy tải lại workspace Agent.");
+        return;
+      }
+      if (event.type === "idle") {
+        setChatRunning(false);
+        setChatActivity(false);
+      }
+      setLiveAssistantText("");
+      void loadChat(draftId).catch(() => undefined);
+    });
+    return () => {
+      alive = false;
+      if (chatDraftRef.current === draftId) chatDraftRef.current = null;
+      unsubscribe();
+    };
+  }, [active?.id, active?.harnessUrl, loadChat]);
 
   useEffect(() => {
     if (!active) return;
@@ -240,21 +315,58 @@ export const AgentView: React.FC<{ onOpenProject: (projectId: string) => void }>
     });
   };
 
+  const sendChat = (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!active || chatSending || !chatInput.trim()) return;
+    const text = chatInput.trim();
+    setChatSending(true);
+    setNotice(null);
+    void window.dashboard.agent.prompt(active.id, text).then(() => {
+      setChatInput("");
+      setChatRunning(true);
+      setChatActivity(true);
+      void loadChat(active.id).catch(() => undefined);
+    }).catch((error) => {
+      setNotice(error instanceof Error ? error.message : "Không gửi được tin nhắn cho Agent.");
+    }).finally(() => setChatSending(false));
+  };
+
+  const abortChat = () => {
+    if (!active || !chatRunning) return;
+    void window.dashboard.agent.abort(active.id).then(() => {
+      setChatRunning(false);
+      setChatActivity(false);
+      setLiveAssistantText("");
+    }).catch(() => setNotice("Không dừng được lượt Agent hiện tại."));
+  };
+
+  const loadOlderChat = () => {
+    if (!active || chatBeforeSeq === undefined) return;
+    void loadChat(active.id, chatBeforeSeq).catch(() => setNotice("Không tải được phần lịch sử cũ hơn."));
+  };
+
+  const reviewObscuresChat = Boolean(
+    active?.productionState === "asset_review" && active.assetReview
+    || active?.productionState === "brief_review" && active.briefReview && showBriefReview,
+  );
+
   return (
     <section className="ns-agent-view" aria-label="Video Agent">
       <header className="ns-agent-chrome">
         <div>
           <h1 className="ns-agent-title">Video Agent</h1>
-          <p className="ns-agent-subtitle">Một DeepSeek Harness dùng chung, mỗi video có workspace riêng. Chat, suy luận và tool được giữ nguyên bản.</p>
+          <p className="ns-agent-subtitle">Trao đổi, research và tạo video trong một workspace riêng. MotionReal giữ quyền duyệt ở từng bước.</p>
         </div>
         <div className="ns-agent-actions">
           <button type="button" className="ns-btn" onClick={() => setShowNewVideo(true)} disabled={busy}>
             {Icon.plus({ size: 16 })}
             Video mới
           </button>
-          {active && <button type="button" className="ns-btn ns-agent-reload" onClick={() => setFrameKey((current) => current + 1)} disabled={busy} title="Tải lại Harness">
-            {Icon.refresh({ size: 16 })}
-            Tải lại
+          {active?.harnessUrl && <button type="button" className="ns-btn ns-agent-reload" onClick={() => setShowHarnessDebug((current) => !current)} disabled={busy}>
+            {showHarnessDebug ? "Đóng debug" : "Debug Harness"}
+          </button>}
+          {active?.harnessUrl && showHarnessDebug && <button type="button" className="ns-btn ns-agent-reload" onClick={() => setFrameKey((current) => current + 1)} disabled={busy} title="Tải lại Harness">
+            {Icon.refresh({ size: 16 })} Tải lại
           </button>}
           {active && <button type="button" className="ns-btn ns-agent-delete" onClick={() => setConfirmDelete(true)} disabled={busy}>Xóa video</button>}
         </div>
@@ -272,7 +384,7 @@ export const AgentView: React.FC<{ onOpenProject: (projectId: string) => void }>
             disabled={busy}
           />
           <button type="button" className="ns-btn" onClick={() => setShowNewVideo(false)} disabled={busy}>Huỷ</button>
-          <button type="submit" className="ns-btn ns-btn-primary" disabled={busy}>Mở Harness</button>
+          <button type="submit" className="ns-btn ns-btn-primary" disabled={busy}>Tạo workspace</button>
         </form>
       )}
       <div className="ns-agent-drafts" aria-label="Workspace Video Agent">
@@ -287,7 +399,7 @@ export const AgentView: React.FC<{ onOpenProject: (projectId: string) => void }>
             {draft.title}{draft.projectId ? " · đã tạo video" : ""}
           </button>
         ))}
-        {drafts.length === 0 && <span className="ns-agent-empty">Tạo một video mới để mở Harness.</span>}
+        {drafts.length === 0 && <span className="ns-agent-empty">Tạo một video mới để bắt đầu trao đổi.</span>}
       </div>
       {notice && <p className="ns-agent-notice" role="status">{notice}</p>}
       {active && (
@@ -407,7 +519,64 @@ export const AgentView: React.FC<{ onOpenProject: (projectId: string) => void }>
           <button type="button" className="ns-btn" onClick={createVideo} disabled={busy}>Tạo video bằng Create Flow</button>
         </div>
       )}
-      {active?.harnessUrl ? (
+      {active?.harnessUrl && !reviewObscuresChat && !showHarnessDebug ? (
+        <section className="ns-agent-chat" aria-label={`Chat — ${active.title}`}>
+          <div className="ns-agent-chat-history" aria-live="polite">
+            {chatHasMore && chatBeforeSeq !== undefined && (
+              <button type="button" className="ns-btn ns-agent-load-older" onClick={loadOlderChat}>Tải tin cũ hơn</button>
+            )}
+            {chatItems.length === 0 && !chatRunning && (
+              <div className="ns-agent-chat-empty">
+                <strong>Bắt đầu với ý tưởng video</strong>
+                <span>Mô tả chủ đề, mục tiêu hoặc phong cách bạn muốn. Agent có thể research, tải asset và chuẩn bị brief.</span>
+              </div>
+            )}
+            {chatItems.map((item) => item.kind === "message" ? (
+              <article key={`message-${item.id}`} className={`ns-agent-message is-${item.role}`}>
+                <strong>{item.role === "user" ? "Bạn" : "Agent"}</strong>
+                <div>{item.text}</div>
+                {item.interrupted && <small>Đã dừng giữa chừng</small>}
+              </article>
+            ) : (
+              <div key={`tool-${item.id}`} className={`ns-agent-tool is-${item.state}`}>
+                <span className="ns-agent-tool-dot" aria-hidden="true" />
+                <strong>{item.name}</strong>
+                <span>{item.description}</span>
+                <small>{item.state === "running" ? "Đang chạy" : item.state === "success" ? "Hoàn tất" : "Gặp lỗi"}</small>
+              </div>
+            ))}
+            {liveAssistantText && (
+              <article className="ns-agent-message is-assistant is-streaming">
+                <strong>Agent</strong>
+                <div>{liveAssistantText}</div>
+              </article>
+            )}
+            {chatRunning && chatActivity && !liveAssistantText && (
+              <div className="ns-agent-thinking"><span aria-hidden="true" /> Agent đang suy nghĩ…</div>
+            )}
+          </div>
+          <form className="ns-agent-composer" onSubmit={sendChat}>
+            <textarea
+              value={chatInput}
+              onChange={(event) => setChatInput(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" && !event.shiftKey) {
+                  event.preventDefault();
+                  event.currentTarget.form?.requestSubmit();
+                }
+              }}
+              placeholder="Trao đổi ý tưởng, yêu cầu research hoặc điều chỉnh hướng video…"
+              maxLength={20_000}
+              disabled={chatSending}
+              aria-label="Tin nhắn cho Video Agent"
+            />
+            <div>
+              {chatRunning && <button type="button" className="ns-btn" onClick={abortChat}>Dừng</button>}
+              <button type="submit" className="ns-btn ns-btn-primary" disabled={chatSending || !chatInput.trim()}>Gửi</button>
+            </div>
+          </form>
+        </section>
+      ) : active?.harnessUrl && showHarnessDebug && !reviewObscuresChat ? (
         <iframe
           key={`${active.harnessUrl}-${frameKey}`}
           className="ns-agent-frame"
@@ -417,8 +586,8 @@ export const AgentView: React.FC<{ onOpenProject: (projectId: string) => void }>
           referrerPolicy="no-referrer"
         />
       ) : (
-        <div className="ns-agent-placeholder">
-          <p>{busy ? "Đang khởi động Harness…" : "Chọn hoặc tạo video để mở workspace Agent."}</p>
+        !reviewObscuresChat && <div className="ns-agent-placeholder">
+          <p>{busy ? "Đang khởi động Agent…" : "Chọn hoặc tạo video để mở workspace Agent."}</p>
         </div>
       )}
       <ConfirmDialog

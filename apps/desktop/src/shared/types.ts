@@ -108,6 +108,41 @@ export type AgentBriefVM = {
 
 export type AgentBriefInput = Omit<AgentBriefVM, "revision" | "format" | "selectedAssetIds">;
 
+export type AgentChatMessageVM = {
+  kind: "message";
+  id: string;
+  seq: number;
+  time: number;
+  role: "user" | "assistant";
+  text: string;
+  interrupted?: boolean;
+};
+
+export type AgentToolActivityVM = {
+  kind: "tool";
+  id: string;
+  seq: number;
+  name: string;
+  description: string;
+  state: "running" | "success" | "error";
+};
+
+/** Renderer-safe projection of one Harness history page. */
+export type AgentChatPageVM = {
+  items: Array<AgentChatMessageVM | AgentToolActivityVM>;
+  hasMore: boolean;
+  beforeSeq?: number;
+  running: boolean;
+};
+
+/** Narrow live events; raw Harness WebSocket envelopes never cross Electron IPC. */
+export type AgentChatEvent =
+  | { draftId: string; type: "changed" }
+  | { draftId: string; type: "assistant-delta"; text: string }
+  | { draftId: string; type: "activity" }
+  | { draftId: string; type: "idle" }
+  | { draftId: string; type: "error"; code: "turn_failed" | "stream_failed" };
+
 // --- create --------------------------------------------------------
 
 /**

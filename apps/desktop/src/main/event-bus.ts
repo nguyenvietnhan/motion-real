@@ -1,6 +1,6 @@
 import type { WebContents } from "electron";
 import type { EventChannel } from "../shared/channels.js";
-import type { FriendlyError, ProgressEvent, SceneEvent, StatusEvent } from "../shared/types.js";
+import type { AgentChatEvent, FriendlyError, ProgressEvent, SceneEvent, StatusEvent } from "../shared/types.js";
 
 /**
  * Streaming event bus (B6). The main process pushes already-
@@ -32,5 +32,8 @@ export const events = {
   },
   friendlyError(e: FriendlyError): void {
     send("events:friendlyError", e);
+  },
+  agentChat(e: AgentChatEvent): void {
+    send("events:agentChat", e);
   },
 };

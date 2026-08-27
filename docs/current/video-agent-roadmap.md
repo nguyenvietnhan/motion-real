@@ -21,15 +21,15 @@ Already available:
 
 - one shared DeepSeek Harness process per MotionReal app run;
 - one filesystem Workspace and one Harness Session per Agent video;
-- embedded native Harness chat/tool UI;
+- MotionReal-native chat/tool UI with the embedded Harness client retained as
+  a debug fallback;
 - working 9router model, terminal, web access, and local file writes;
 - Agent video creation/deletion and project linking metadata;
 - a basic `motionreal.create.json` handoff into the existing Create Flow;
 - the existing CreateController and WorkspaceController authoring, still,
   refine, draft, edit, rollback, final-render, and recovery paths.
 
-The baseline is the rollback point. Do not remove the embedded Harness client
-until the native MotionReal chat reaches parity.
+The embedded Harness client remains the rollback/debug point through Phase 6.
 
 ## Non-Negotiable Boundaries
 
@@ -392,6 +392,9 @@ Implemented V1 details:
 
 ## Phase 5 — MotionReal-Native Chat UI
 
+Status: implemented and accepted against the real native-Windows Harness/9router
+session on 2026-08-27.
+
 ### Goal
 
 Replace the embedded Harness frontend only after the video workflow is proven.
@@ -427,6 +430,22 @@ Harness protocol.
 6. Make native UI the default only after parity; keep iframe behind a developer
    switch for one stabilization phase.
 
+Implemented V1 details:
+
+- Main loads canonical paged history through `session.history`, sends through
+  `session.prompt`, and aborts through `session.cancel`.
+- The pinned network runtime requires WebSocket upgrade at
+  `/api/events.mux`; HTTP/SSE returns 426. The adapter therefore uses that
+  actual WebSocket carrier and reconnects after an unexpected close.
+- Typed IPC carries only final human/assistant text, text deltas, generic
+  thinking state, and tool name/description/outcome. Context injections,
+  reasoning text, command/output, absolute tool paths, provider bodies, and raw
+  frames stay inside Harness/Main.
+- The renderer re-baselines from canonical history after lifecycle events,
+  guards async loads by draft id, and keeps the iframe behind `Debug Harness`.
+- No Harness UI package, markdown dependency, alternate session store, or new
+  production/render path was added.
+
 ### Tests
 
 - Fake Harness: history, streamed message, tool start/result/error, abort,
@@ -441,6 +460,17 @@ Harness protocol.
 - The native UI completes the same real research/download/handoff scenario as
   the iframe with no missing messages or tool results.
 - The iframe can be disabled without affecting workflow or recovery.
+
+Acceptance evidence:
+
+- Focused fake-runtime tests cover history, filtering, WebSocket text/tool/error
+  projection, malformed frames, child exit, prompt, abort, and IPC allow-list.
+- A real existing Gemini session restored after app restart with its human,
+  assistant, and terminal/file/web tool outcomes; switching to the ChatGPT
+  session showed only that session and switching back restored Gemini.
+- A real 9router turn returned `MR-PHASE5-OK` in both native chat and Debug
+  Harness. A second turn was cancelled and a following retry returned
+  `MR-PHASE5-RETRY-OK`, proving the Session remained usable.
 
 ## Phase 6 — Submission Tools and Hardening
 

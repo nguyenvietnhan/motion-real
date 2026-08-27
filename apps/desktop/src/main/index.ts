@@ -425,6 +425,7 @@ const harness = new HarnessManager({
   nodeExecutable: process.env.MOTIONREAL_NODE_BIN ?? process.env.npm_node_execpath ?? "node",
   mediaUrl,
   defaultVoiceProvider: () => settingsStore.current().voiceProvider,
+  onChatEvent: (event) => events.agentChat(event),
 });
 
 async function activateHarnessDraft(draftId: string) {
@@ -669,6 +670,12 @@ const handlers: InvokeHandlers = {
   },
   "agent:openDraft": (draftId) => activateHarnessDraft(String(draftId)),
   "agent:status": (draftId) => harness.status(String(draftId)),
+  "agent:chatHistory": (draftId, beforeSeq) => harness.chatHistory(
+    String(draftId),
+    typeof beforeSeq === "number" ? beforeSeq : undefined,
+  ),
+  "agent:prompt": (draftId, text) => harness.sendChatPrompt(String(draftId), String(text ?? "")),
+  "agent:abort": (draftId) => harness.abortChat(String(draftId)),
   "agent:prepareAssets": async (draftId, expectedRevision) => {
     const opened = await activateHarnessDraft(String(draftId));
     return harness.prepareAssets(opened.id, Number(expectedRevision));

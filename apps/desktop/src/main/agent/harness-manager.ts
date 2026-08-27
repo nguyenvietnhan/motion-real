@@ -5,7 +5,7 @@ import { existsSync } from "node:fs";
 import { createServer } from "node:net";
 import { basename, isAbsolute, join, relative, resolve } from "node:path";
 import { createLogger, MAX_IMAGE_BYTES, MAX_IMAGE_DIM, sniffImage, writeJson } from "@motionreal/pipeline";
-import type { AgentAssetVM, AgentBriefInput, AgentBriefVM, AgentDraftVM, DurationTierChoice, VideoLanguageChoice, VoiceProviderChoice } from "../../shared/types.js";
+import type { AgentAssetVM, AgentBriefInput, AgentBriefVM, AgentChatEvent, AgentChatPageVM, AgentDraftVM, DurationTierChoice, VideoLanguageChoice, VoiceProviderChoice } from "../../shared/types.js";
 import { sanitizedChildEnvironment } from "../security/runtime-security.js";
 import {
   initialAgentWorkflow,
@@ -14,6 +14,7 @@ import {
   type AgentWorkflowRecord,
   type AgentWorkflowTransition,
 } from "./agent-workflow.js";
+import { projectHarnessHistory, projectHarnessMuxEnvelope } from "./harness-chat.js";
 
 const METADATA_FILE = "motionreal-agent.json";
 const CREATE_REQUEST_FILE = "motionreal.create.json";
@@ -66,6 +67,8 @@ export type HarnessManagerDeps = {
   nodeExecutable?: string;
   mediaUrl?: (path: string) => string | null;
   defaultVoiceProvider?: () => VoiceProviderChoice;
+  onChatEvent?: (event: AgentChatEvent) => void;
+  openWebSocket?: (url: string) => WebSocket;
 };
 
 /**
@@ -78,17 +81,22 @@ export class HarnessManager {
   private activeDraftId: string | null = null;
   private startingChild: ChildProcess | null = null;
   private startInFlight: Promise<string> | null = null;
+  private eventSocket: WebSocket | null = null;
+  private eventReconnect: ReturnType<typeof setTimeout> | null = null;
+  private readonly draftBySession = new Map<string, string>();
   private readonly spawnChild: typeof spawn;
   private readonly fetchImpl: typeof fetch;
   private readonly findPort: () => Promise<number>;
   private readonly now: () => Date;
   private readonly nodeExecutable: string;
+  private readonly openWebSocket: (url: string) => WebSocket;
 
   constructor(private readonly deps: HarnessManagerDeps) {
     this.spawnChild = deps.spawn ?? spawn;
     this.fetchImpl = deps.fetch ?? fetch;
     this.findPort = deps.findPort ?? findLoopbackPort;
     this.now = deps.now ?? (() => new Date());
+    this.openWebSocket = deps.openWebSocket ?? ((url) => new WebSocket(url));
     // DeepSeek Harness is a Node CLI. process.execPath inside Electron points to
     // MotionReal.exe, whose embedded Node does not resolve this source checkout's
     // linked workspace packages correctly on Windows.
@@ -159,6 +167,7 @@ export class HarnessManager {
     await this.rpc(url, "session.create", { workspaceId: workspaceInfo.id, sessionId });
     record = { ...record, workspaceId: workspaceInfo.id, sessionId };
     await this.writeRecord(record);
+    this.draftBySession.set(sessionId, id);
     this.activeDraftId = id;
     return this.toVm(record);
   }
@@ -203,8 +212,13 @@ export class HarnessManager {
         startupFailure ??= harnessExitError(code, signal, stderrTail.replaceAll(apiKey, "[redacted]"));
       }
       if (this.active?.child === child) {
+        const failedDraftId = this.activeDraftId;
         this.active = null;
         this.activeDraftId = null;
+        this.stopEventStream();
+        if (failedDraftId) {
+          this.deps.onChatEvent?.({ draftId: failedDraftId, type: "error", code: "stream_failed" });
+        }
       }
       if (this.startingChild === child) this.startingChild = null;
     });
@@ -213,6 +227,7 @@ export class HarnessManager {
       this.startingChild = null;
       this.active = { child, url };
       started = true;
+      this.startEventStream(url);
       return url;
     } catch (error) {
       if (this.startingChild === child) this.startingChild = null;
@@ -251,6 +266,43 @@ export class HarnessManager {
       }
     }
     return this.toVm(record, assetReview, assetCollectionError, briefReview, briefReviewError);
+  }
+
+  async chatHistory(id: string, beforeSeq?: number): Promise<AgentChatPageVM> {
+    const record = await this.mustReadRecord(id);
+    this.requireActiveSession(record);
+    try {
+      const value = await this.rpc(this.active!.url, "session.history", {
+        sessionId: record.sessionId,
+        maxMessages: 80,
+        ...(Number.isSafeInteger(beforeSeq) && Number(beforeSeq) >= 0 ? { beforeSeq: Number(beforeSeq) } : {}),
+      });
+      return projectHarnessHistory(value);
+    } catch (error) {
+      throw safeChatError(error, "Không tải được lịch sử Agent.");
+    }
+  }
+
+  async sendChatPrompt(id: string, text: string): Promise<void> {
+    const record = await this.mustReadRecord(id);
+    const prompt = text.trim();
+    if (!prompt) throw new Error("Hãy nhập nội dung trước khi gửi.");
+    if (prompt.length > 20_000) throw new Error("Tin nhắn vượt giới hạn 20.000 ký tự.");
+    try {
+      await this.promptSession(record, prompt);
+    } catch (error) {
+      throw safeChatError(error, "Agent chưa nhận được tin nhắn. Hãy thử lại.");
+    }
+  }
+
+  async abortChat(id: string): Promise<void> {
+    const record = await this.mustReadRecord(id);
+    this.requireActiveSession(record);
+    try {
+      await this.rpc(this.active!.url, "session.cancel", { sessionId: record.sessionId });
+    } catch (error) {
+      throw safeChatError(error, "Không dừng được lượt Agent hiện tại.");
+    }
   }
 
   async prepareAssets(id: string, expectedRevision: number): Promise<AgentDraftVM> {
@@ -507,6 +559,7 @@ export class HarnessManager {
       });
     }
     if (this.activeDraftId === record.id) this.activeDraftId = null;
+    if (record.sessionId) this.draftBySession.delete(record.sessionId);
     await rm(this.rootOf(record.id), { recursive: true, force: true });
   }
 
@@ -516,6 +569,7 @@ export class HarnessManager {
     this.active = null;
     this.activeDraftId = null;
     this.startingChild = null;
+    this.stopEventStream();
     if (current) await stopChild(current.child);
     if (starting && starting !== current?.child) await stopChild(starting);
   }
@@ -555,7 +609,7 @@ export class HarnessManager {
       if (!raw || raw.id !== id || typeof raw.title !== "string" || typeof raw.createdAt !== "string") return null;
       const workflow = parseAgentWorkflow(raw as Record<string, unknown>);
       if (!workflow) return null;
-      return {
+      const record: DraftRecord = {
         id,
         title: raw.title,
         createdAt: raw.createdAt,
@@ -573,6 +627,8 @@ export class HarnessManager {
           ? { selectedAssetIds: raw.selectedAssetIds.filter((value): value is string => typeof value === "string") }
           : {}),
       };
+      if (record.sessionId) this.draftBySession.set(record.sessionId, record.id);
+      return record;
     } catch (_error) {
       return null;
     }
@@ -599,6 +655,49 @@ export class HarnessManager {
       mode: "queue",
       content: [{ type: "text", text }],
     });
+  }
+
+  private startEventStream(url: string): void {
+    if (!this.deps.onChatEvent) return;
+    this.stopEventStream();
+    const wsUrl = new URL("api/events.mux", url);
+    wsUrl.protocol = wsUrl.protocol === "https:" ? "wss:" : "ws:";
+    const socket = this.openWebSocket(wsUrl.href);
+    this.eventSocket = socket;
+    socket.addEventListener("message", (message) => {
+      if (this.eventSocket !== socket || typeof message.data !== "string") return;
+      let envelope: unknown;
+      try {
+        envelope = JSON.parse(message.data);
+      } catch (_error) {
+        return;
+      }
+      const projected = projectHarnessMuxEnvelope(envelope, (sessionId) => this.draftBySession.get(sessionId));
+      if (projected) this.deps.onChatEvent?.(projected);
+      else if (isStreamErrorEnvelope(envelope) && this.activeDraftId) {
+        this.deps.onChatEvent?.({ draftId: this.activeDraftId, type: "error", code: "stream_failed" });
+      }
+    });
+    socket.addEventListener("close", () => {
+      if (this.eventSocket !== socket) return;
+      this.eventSocket = null;
+      if (this.active?.url !== url) return;
+      if (this.activeDraftId) {
+        this.deps.onChatEvent?.({ draftId: this.activeDraftId, type: "error", code: "stream_failed" });
+      }
+      this.eventReconnect = setTimeout(() => {
+        this.eventReconnect = null;
+        if (this.active?.url === url) this.startEventStream(url);
+      }, 750);
+    });
+  }
+
+  private stopEventStream(): void {
+    if (this.eventReconnect) clearTimeout(this.eventReconnect);
+    this.eventReconnect = null;
+    const socket = this.eventSocket;
+    this.eventSocket = null;
+    socket?.close();
   }
 
   private async writeAssetRequest(record: DraftRecord, note: string): Promise<void> {
@@ -823,6 +922,13 @@ function isWorkspaceNameConflict(error: unknown): boolean {
   return error instanceof HarnessRpcError && error.code === "workspace-name-conflict";
 }
 
+function safeChatError(error: unknown, message: string): Error {
+  if (error instanceof HarnessRpcError) {
+    log.warn({ method: error.method, code: error.code }, "Harness chat RPC failed");
+  }
+  return new Error(message);
+}
+
 function isSafeDraftId(value: string): boolean {
   return /^agent-[0-9a-f-]{36}$/i.test(value);
 }
@@ -996,4 +1102,10 @@ async function stopChild(child: ChildProcess): Promise<void> {
     child.once("exit", finish);
     if (!child.kill()) finish();
   });
+}
+
+function isStreamErrorEnvelope(value: unknown): boolean {
+  if (!value || typeof value !== "object") return false;
+  const payload = (value as { payload?: unknown }).payload;
+  return Boolean(payload && typeof payload === "object" && (payload as { type?: unknown }).type === "stream/error");
 }

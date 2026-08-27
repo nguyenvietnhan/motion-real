@@ -45,7 +45,11 @@ async function activeManagerForTest(): Promise<{
     fetch: vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
       const body = JSON.parse(String(init?.body)) as { method: string; payload: unknown };
       calls.push(body);
-      const value = body.method === "workspace.create" ? { workspace: { workspaceId: "workspace-assets" } } : {};
+      const value = body.method === "workspace.create"
+        ? { workspace: { workspaceId: "workspace-assets" } }
+        : body.method === "session.history"
+          ? { events: [], hasMore: false }
+          : {};
       return Response.json({ type: "server-response", result: { ok: true, value } });
     }) as unknown as typeof globalThis.fetch,
     mediaUrl: (path) => `media://${path}`,
@@ -135,6 +139,64 @@ describe("HarnessManager draft lifecycle", () => {
 
     const approved = await manager.approveAssets(draft.id, review.workflowRevision, ["asset-01"]);
     expect(approved).toMatchObject({ productionState: "brief_review", selectedAssetIds: ["asset-01"] });
+    await manager.dispose();
+  });
+
+  it("loads history, queues human chat, and cancels through the public Harness RPC", async () => {
+    const { manager, calls } = await activeManagerForTest();
+    const draft = await manager.createDraft("Chat native");
+    await manager.activate(draft.id, "internal-key");
+
+    await expect(manager.chatHistory(draft.id)).resolves.toEqual({ items: [], hasMore: false, running: false });
+    await manager.sendChatPrompt(draft.id, "  Hãy research Gemini  ");
+    await manager.abortChat(draft.id);
+
+    expect(calls.slice(-3)).toEqual([
+      expect.objectContaining({ method: "session.history", payload: expect.objectContaining({ maxMessages: 80 }) }),
+      expect.objectContaining({ method: "session.prompt", payload: expect.objectContaining({ content: [{ type: "text", text: "Hãy research Gemini" }] }) }),
+      expect.objectContaining({ method: "session.cancel" }),
+    ]);
+    await manager.dispose();
+  });
+
+  it("projects the Harness WebSocket stream and reports child exit without exposing raw frames", async () => {
+    const root = await mkdtemp(join(tmpdir(), "motionreal-agent-events-"));
+    roots.push(root);
+    const cli = join(root, "dsh.js");
+    await writeFile(cli, "// test placeholder\n");
+    const child = Object.assign(new EventEmitter(), { kill: vi.fn(() => false) });
+    const projected: unknown[] = [];
+    const socket = Object.assign(new EventTarget(), { close: vi.fn() });
+    const openWebSocket = vi.fn(() => socket as unknown as WebSocket);
+    const manager = new HarnessManager({
+      draftsRoot: root,
+      harnessHome: join(root, "harness"),
+      harnessCliPath: cli,
+      findPort: async () => 39871,
+      spawn: vi.fn(() => child) as unknown as typeof import("node:child_process").spawn,
+      onChatEvent: (event) => projected.push(event),
+      openWebSocket,
+      fetch: vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+        const body = JSON.parse(String(init?.body)) as { method: string };
+        const value = body.method === "workspace.create" ? { workspace: { workspaceId: "workspace-events" } } : {};
+        return Response.json({ type: "server-response", result: { ok: true, value } });
+      }) as unknown as typeof globalThis.fetch,
+    });
+    const draft = await manager.createDraft("WebSocket thật");
+    await manager.activate(draft.id, "internal-key");
+    expect(openWebSocket).toHaveBeenCalledWith("ws://127.0.0.1:39871/api/events.mux");
+    socket.dispatchEvent(new MessageEvent("message", { data: JSON.stringify({
+      type: "server-request",
+      payload: {
+        type: "session/event",
+        sessionId: (await readFile(join(root, draft.id, "motionreal-agent.json"), "utf8").then((raw) => JSON.parse(raw).sessionId)),
+        event: { type: "assistant/chunk", data: { chunk: { type: "text-delta", text: "Đang research" } } },
+      },
+    }) }));
+    expect(projected).toContainEqual({ draftId: draft.id, type: "assistant-delta", text: "Đang research" });
+
+    child.emit("close", 1, null);
+    expect(projected).toContainEqual({ draftId: draft.id, type: "error", code: "stream_failed" });
     await manager.dispose();
   });
 

@@ -2,9 +2,7 @@
 
 ## Status
 
-This document records the agreed product and integration design for Video Agent.
-It is the reference for the next implementation phase, not a claim that every
-stage below already exists.
+This document records the current product and integration design for Video Agent.
 
 Implementation order and acceptance gates are tracked in the
 [Video Agent roadmap](video-agent-roadmap.md).
@@ -14,19 +12,26 @@ Implemented today:
 - MotionReal starts one shared DeepSeek Harness process after the 9router gateway
   is ready.
 - Each Agent video has a separate filesystem Workspace and Harness Session.
-- The native Harness web client is embedded temporarily for chat, reasoning
-  summaries, and tool activity.
+- MotionReal owns the default chat, tool activity, composer, abort, asset/brief
+  review, and production-progress UI.
+- The native Harness web client remains available behind `Debug Harness` for
+  one stabilization phase.
 - Each Agent video persists a versioned production state/revision, with strict
   transition validation and legacy records defaulting to `discovery`.
-- The Agent tab shows the current production state as a read-only status badge.
-- A valid `motionreal.create.json` can be handed to the existing Create Flow.
+- Validated asset and brief handoffs advance only through explicit user review.
+- An approved brief is handed to the existing Create Flow, and the Agent tab
+  projects authoritative Workspace progress after project creation.
 
 Not implemented yet:
 
-- MotionReal-owned chat and tool timeline UI.
 - Explicit asset and brief submission tools.
-- Asset and brief review gates inside the Agent tab.
-- Create/Workspace progress projected into the Agent tab.
+
+The native chat adapter uses Harness `session.history`, `session.prompt`, and
+`session.cancel` RPCs plus the network WebSocket at `/api/events.mux`. Main
+projects only human/final assistant text, generic thinking activity, and tool
+lifecycle into typed IPC. Context injections, raw reasoning, tool output,
+credentials, ports, absolute tool paths, and raw provider errors do not cross to
+the renderer.
 
 ## Product Boundary
 

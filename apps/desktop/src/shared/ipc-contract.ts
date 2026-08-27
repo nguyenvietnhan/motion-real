@@ -1,5 +1,7 @@
 import type {
   AiAccountState,
+  AgentChatEvent,
+  AgentChatPageVM,
   AgentDraftVM,
   AiProviderId,
   ApplyResult,
@@ -88,6 +90,12 @@ export interface DashboardApi {
     /** Stop any other local Harness sidecar, then open this draft's Harness. */
     openDraft(draftId: string): Promise<AgentDraftVM>;
     status(draftId: string): Promise<AgentDraftVM>;
+    /** Load one renderer-safe page from the canonical Harness Session history. */
+    chatHistory(draftId: string, beforeSeq?: number): Promise<AgentChatPageVM>;
+    /** Queue one human chat message in the matching Harness Session. */
+    prompt(draftId: string, text: string): Promise<void>;
+    /** Stop the active turn without deleting the Session or downloaded files. */
+    abort(draftId: string): Promise<void>;
     /** Start one asset-collection job in the current Harness session. */
     prepareAssets(draftId: string, expectedRevision: number): Promise<AgentDraftVM>;
     /** Keep the current selection and ask the Agent for replacements/additions. */
@@ -183,6 +191,7 @@ export interface DashboardApi {
     onScene(cb: (e: SceneEvent) => void): Unsubscribe;
     onStatus(cb: (e: StatusEvent) => void): Unsubscribe;
     onFriendlyError(cb: (e: FriendlyError) => void): Unsubscribe;
+    onAgentChat(cb: (e: AgentChatEvent) => void): Unsubscribe;
   };
 }
 

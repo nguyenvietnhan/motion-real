@@ -57,6 +57,9 @@ describe("createDashboardClient — invoke channel mapping", () => {
     await api.agent.createDraft("Ý tưởng mới");
     await api.agent.openDraft("agent-00000000-0000-0000-0000-000000000000");
     await api.agent.status("agent-00000000-0000-0000-0000-000000000000");
+    await api.agent.chatHistory("agent-00000000-0000-0000-0000-000000000000", 42);
+    await api.agent.prompt("agent-00000000-0000-0000-0000-000000000000", "Xin chào");
+    await api.agent.abort("agent-00000000-0000-0000-0000-000000000000");
     await api.agent.prepareAssets("agent-00000000-0000-0000-0000-000000000000", 0);
     await api.agent.requestMoreAssets("agent-00000000-0000-0000-0000-000000000000", 2, ["asset-01"], "thêm ảnh");
     await api.agent.approveAssets("agent-00000000-0000-0000-0000-000000000000", 2, ["asset-01"]);
@@ -149,7 +152,7 @@ describe("createDashboardClient — invoke channel mapping", () => {
 });
 
 describe("createDashboardClient — event subscription", () => {
-  it("subscribes onProgress/onScene/onStatus/onFriendlyError to their channels and unsubscribes with the same listener", () => {
+  it("subscribes every typed event and unsubscribes with the same listener", () => {
     const { ipc, ons, offs } = fakeIpc();
     const api = createDashboardClient(ipc);
 
@@ -158,6 +161,7 @@ describe("createDashboardClient — event subscription", () => {
       api.events.onScene(() => {}),
       api.events.onStatus(() => {}),
       api.events.onFriendlyError(() => {}),
+      api.events.onAgentChat(() => {}),
     ];
 
     expect(ons.map((o) => o.channel).sort()).toEqual([...EVENT_CHANNELS].sort());
