@@ -5,7 +5,7 @@ import { existsSync } from "node:fs";
 import { createServer } from "node:net";
 import { basename, isAbsolute, join, relative, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
-import { createLogger, MAX_IMAGE_BYTES, MAX_IMAGE_DIM, sniffImage, writeJson } from "@motionreal/pipeline";
+import { createLogger, MAX_IMAGE_BYTES, MAX_IMAGE_DIM, resolveEffectiveDuration, sniffImage, writeJson } from "@motionreal/pipeline";
 import type { AgentAssetVM, AgentBriefInput, AgentBriefVM, AgentChatEvent, AgentChatPageVM, AgentDraftVM, DurationTierChoice, VideoLanguageChoice, VoiceProviderChoice } from "../../shared/types.js";
 import { sanitizedChildEnvironment } from "../security/runtime-security.js";
 import {
@@ -742,6 +742,10 @@ export class HarnessManager {
       selected_asset_ids: record.selectedAssetIds ?? [],
       asset_manifest: "handoff/assets.json",
       output: "handoff/brief.json",
+      duration_options: ([1, 2, 3, 4] as const).map((durationTier) => ({
+        duration_tier: durationTier,
+        target_seconds: resolveEffectiveDuration({ prompt: "", durationTier }).targetSeconds,
+      })),
       brief: {
         version: 1,
         job_id: record.activeJobId,
@@ -757,6 +761,7 @@ export class HarnessManager {
       },
       instructions: [
         "Tổng hợp cuộc trò chuyện và chỉ các asset đã chọn thành brief tạo video 9:16.",
+        "Chọn duration_tier theo duration_options và viết mạch kể đủ cho target_seconds tương ứng; không tự suy đoán tier 1 là 15 giây.",
         "Prompt phải mô tả nội dung, mạch kể, art direction và cách dùng asset đủ rõ cho pipeline authoring.",
         "Gọi motionreal_submit_brief với brief hoàn chỉnh; không tự ghi file output.",
       ],

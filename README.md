@@ -109,11 +109,13 @@ The **Video Agent** tab embeds the native DeepSeek Harness chat and tool
 timeline. MotionReal starts one shared Harness runtime in the background; click
 **Video mới** to make a separate Agent workspace and chat session for that video.
 Research and downloaded assets stay in that workspace.
-When the agent writes `motionreal.create.json`, MotionReal shows an explicit
-**Tạo video bằng Create Flow** action; approving it reuses the same normal
-create/author/review pipeline as Home. Deleting the video removes its Agent
-workspace and hides its Harness sessions. This is a developer preview with broad Harness tool
-access; it is not a replacement renderer or a separate video pipeline.
+The Agent submits assets and the final brief through the narrow
+`motionreal_submit_assets` and `motionreal_submit_brief` tools. MotionReal then
+validates each submission and stops for explicit asset and brief review. The
+approved brief enters the existing create/author/review pipeline used by Home;
+the Agent does not own another renderer. Deleting the video removes its Agent
+workspace and hides its Harness sessions. This remains a developer preview with
+broad built-in Harness tool access.
 The agreed target workflow and implementation boundary are recorded in
 [`docs/current/video-agent-workflow.md`](docs/current/video-agent-workflow.md).
 

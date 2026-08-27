@@ -101,7 +101,7 @@ function briefTool(): ToolDefinition {
         job_id: { type: "string", description: "Exact job_id from handoff/brief-request.json" },
         request_revision: { type: "integer", description: "Exact request_revision from handoff/brief-request.json" },
         prompt: { type: "string", description: "Complete narrative and visual brief used by the MotionReal Create Flow" },
-        duration_tier: { type: "integer", enum: [1, 2, 3, 4] },
+        duration_tier: { type: "integer", enum: [1, 2, 3, 4], description: "Target duration: 1=45s, 2=90s, 3=150s, 4=210s" },
         video_language: { type: "string", enum: ["vi", "en"] },
         voice_provider: { type: "string", enum: ["vivibe", "elevenlabs", "vieneu"] },
         selected_asset_ids: { type: "array", items: { type: "string" } },

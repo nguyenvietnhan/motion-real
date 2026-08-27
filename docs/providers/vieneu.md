@@ -14,6 +14,10 @@ back to `mock` or another voice provider.
 - 48 kHz mono PCM16 WAV, speed `1.0`, temperature `0.8`
 - Runtime identity: `vieneu-3.3.0-v3turbo-onnx-int8-48k-t08-v1`
 
+MotionReal pins the tested Python 3.11 environment even though the published
+package declares Python 3.10 or newer. VieNeu's published 3.3.0 metadata and
+runtime overview are available on [PyPI](https://pypi.org/project/vieneu/3.3.0/).
+
 The development launcher first looks for
 `../motion-china/.venv/Scripts/python.exe`. Override it with
 `MOTIONREAL_VIENEU_PYTHON` when the environment lives elsewhere. The committed

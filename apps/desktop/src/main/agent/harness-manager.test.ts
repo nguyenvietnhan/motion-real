@@ -331,7 +331,17 @@ describe("HarnessManager draft lifecycle", () => {
     expect(waiting).toMatchObject({ productionState: "brief_review", workflowRevision: 3 });
     expect(calls.at(-1)).toMatchObject({ method: "session.prompt" });
     const request = JSON.parse(await readFile(join(draftRoot, "handoff", "brief-request.json"), "utf8"));
-    expect(request).toMatchObject({ job_id: collecting.activeJobId, request_revision: 1, selected_asset_ids: ["asset-01"] });
+    expect(request).toMatchObject({
+      job_id: collecting.activeJobId,
+      request_revision: 1,
+      selected_asset_ids: ["asset-01"],
+      duration_options: [
+        { duration_tier: 1, target_seconds: 45 },
+        { duration_tier: 2, target_seconds: 90 },
+        { duration_tier: 3, target_seconds: 150 },
+        { duration_tier: 4, target_seconds: 210 },
+      ],
+    });
 
     await writeFile(join(draftRoot, "handoff", "brief.json"), `\uFEFF${JSON.stringify({
       version: 1,

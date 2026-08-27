@@ -25,7 +25,7 @@ Already available:
   a debug fallback;
 - working 9router model, terminal, web access, and local file writes;
 - Agent video creation/deletion and project linking metadata;
-- a basic `motionreal.create.json` handoff into the existing Create Flow;
+- schema-validated asset and brief submissions through two narrow Harness tools;
 - the existing CreateController and WorkspaceController authoring, still,
   refine, draft, edit, rollback, final-render, and recovery paths.
 
@@ -46,6 +46,12 @@ The embedded Harness client remains the rollback/debug point through Phase 6.
   passed real-session resume and tool-timeline tests.
 
 ## Phase 0 — Freeze and Observe the Baseline
+
+Status: accepted on 2026-08-27 against DeepSeek Harness
+`00aba2f848f7fe5828da13ee382fd42d81028b31`
+(`dsh-v0.1.1-rc.2-1-g00aba2f848`) and the MotionReal integration baseline ending
+at `0e7e226`. Later workflow commits keep the same sibling Harness checkout and
+public RPC surface.
 
 ### Goal
 
@@ -73,7 +79,7 @@ begins.
 
 ## Phase 1 — Production State Kernel
 
-Status: completed and gated on 2026-08-27. Phase 2 is next.
+Status: completed and gated on 2026-08-27.
 
 ### Goal
 
@@ -243,7 +249,10 @@ The implemented manifest is:
 
 ## Phase 3 — Brief Review and Create Handoff
 
-Status: implemented locally on 2026-08-27; native manual acceptance is required before Phase 4.
+Status: implemented on 2026-08-27. Real native acceptance has covered asset
+approval, brief generation, retry, and review restoration. Creating the linked
+project and reaching normal draft review remains part of the combined Phase
+3/3.5 end-to-end gate.
 
 ### Goal
 
@@ -301,8 +310,8 @@ Implemented V1 details:
 
 ## Phase 3.5 — VieNeu Local Narration
 
-Status: implemented locally on 2026-08-27; native manual end-to-end acceptance
-is required before Phase 4.
+Status: implemented on 2026-08-27. The real provider smoke passed on 2026-08-28;
+native Agent-created project-to-draft acceptance remains outstanding.
 
 ### Goal
 
@@ -334,12 +343,22 @@ without creating another timing or render pipeline.
 - Manual acceptance: choose VieNeu Local, test the preset, finish one Vietnamese
   Agent brief, create the linked project, and reach its normal draft review.
 
+Recorded runtime evidence (2026-08-28): Python `3.11.15`, `vieneu==3.3.0`,
+runtime id `vieneu-3.3.0-v3turbo-onnx-int8-48k-t08-v1`, preset `Trúc Ly`;
+`npm run smoke:vieneu` produced a 437,804-byte WAV measured by FFprobe at 4.56
+seconds. An isolated `npm run calibrate:voice -- --provider=vieneu` run then
+measured all five samples and persisted `3.44` words/second for the same runtime
+and preset. This proves the production TypeScript client, persistent worker,
+audio measurement and calibration write path; it does not by itself satisfy the
+project-to-draft gate.
+
 See `docs/providers/vieneu.md` for the pinned development runtime and commands.
 
 ## Phase 4 — Production Progress in Agent
 
-Status: implemented locally on 2026-08-27; native manual acceptance is
-required before Phase 5 becomes the default chat surface.
+Status: implemented on 2026-08-27. Unit coverage is complete; the combined
+project-to-draft scenario below remains the native acceptance gate for linked
+project progress.
 
 ### Goal
 

@@ -49,10 +49,7 @@ export const AgentView: React.FC<{ onOpenProject: (projectId: string) => void }>
     try {
       const next = await window.dashboard.agent.list();
       setDrafts(next);
-      setActive((current) => {
-        const refreshed = current ? next.find((draft) => draft.id === current.id) : null;
-        return refreshed ? { ...current, ...refreshed } : null;
-      });
+      setActive((current) => current && next.some((draft) => draft.id === current.id) ? current : null);
     } catch {
       setNotice("Không đọc được các workspace Video Agent.");
     }
@@ -133,8 +130,8 @@ export const AgentView: React.FC<{ onOpenProject: (projectId: string) => void }>
     if (!active) return;
     const timer = window.setInterval(() => {
       void window.dashboard.agent.status(active.id).then((next) => {
-        setActive((current) => current?.id === next.id ? { ...current, ...next } : current);
-        setDrafts((current) => current.map((draft) => draft.id === next.id ? { ...draft, ...next } : draft));
+        setActive((current) => current?.id === next.id ? next : current);
+        setDrafts((current) => current.map((draft) => draft.id === next.id ? next : draft));
       }).catch(() => undefined);
     }, 1_500);
     return () => window.clearInterval(timer);

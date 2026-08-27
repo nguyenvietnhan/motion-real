@@ -62,6 +62,9 @@ describe("MotionReal Harness submission tools", () => {
     };
     expect(briefParameters.required).not.toContain("title");
     expect(briefParameters.properties).not.toHaveProperty("title");
+    expect(briefParameters.properties.duration_tier).toMatchObject({
+      description: "Target duration: 1=45s, 2=90s, 3=150s, 4=210s",
+    });
   });
 
   it("atomically submits assets and makes an identical retry idempotent", async () => {

@@ -1,6 +1,6 @@
-import { existsSync, readFileSync, writeFileSync, renameSync, mkdtempSync, rmSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync, renameSync, mkdtempSync, mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import {
   ELEVENLABS_DEFAULT_MODEL_ID,
   VIENEU_DEFAULT_VOICE_ID,
@@ -99,6 +99,7 @@ function readSettingsWithLegacy(canonicalPath: string, legacyPath: string): Desk
 
 /** Atomic write so a crash mid-write never truncates the real settings file. */
 function writeSettings(path: string, settings: DesktopSettings): void {
+  mkdirSync(dirname(path), { recursive: true });
   const tmp = `${path}.tmp`;
   writeFileSync(tmp, `${JSON.stringify(settings, null, 2)}\n`, "utf8");
   renameSync(tmp, path);
