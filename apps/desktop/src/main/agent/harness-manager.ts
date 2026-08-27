@@ -972,7 +972,10 @@ export class HarnessManager {
     if (this.authoringInFlight.has(record.id) || !existsSync(join(this.rootOf(record.id), "handoff", "authoring.json"))) return;
     this.authoringInFlight.add(record.id);
     void this.processAuthoring(record).catch(async (error) => {
-      await this.requestAuthoringRepair(record, error instanceof Error ? error.message : "Không kiểm tra được scene Harness.").catch(() => undefined);
+      log.warn({ err: error, draftId: record.id, projectId: record.projectId }, "Harness authoring validation/render failed; requesting repair");
+      await this.requestAuthoringRepair(record, error instanceof Error ? error.message : "Không kiểm tra được scene Harness.").catch((repairError) => {
+        log.error({ err: repairError, draftId: record.id, projectId: record.projectId }, "failed to request Harness authoring repair");
+      });
     }).finally(() => this.authoringInFlight.delete(record.id));
   }
 
@@ -980,7 +983,10 @@ export class HarnessManager {
     if (!this.deps.renderAuthoringStills || !this.deps.acceptAuthoringStills || this.authoringPolls.has(id)) return;
     const tick = async () => {
       this.authoringPolls.delete(id);
-      const record = await this.readRecord(id).catch(() => null);
+      const record = await this.readRecord(id).catch((error) => {
+        log.debug({ err: error, draftId: id }, "Harness authoring poll record unreadable; stopping poll");
+        return null;
+      });
       if (!record || record.productionState !== "authoring") return;
       this.maybeProcessAuthoring(record);
       this.authoringPolls.set(id, setTimeout(() => void tick(), AUTHORING_POLL_MS));

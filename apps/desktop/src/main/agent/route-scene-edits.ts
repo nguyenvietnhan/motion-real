@@ -1,3 +1,7 @@
+import { createLogger } from "@motionreal/pipeline";
+
+const log = createLogger("harness-edits");
+
 type Deps = {
   draftForProject: (projectId: string) => Promise<{ id: string } | null>;
   activate: (draftId: string) => Promise<{ id: string }>;
@@ -24,7 +28,9 @@ export async function routeSceneEdits(
   try {
     await deps.requestHarness(opened.id, projectId, edits, globalNotes);
   } catch (error) {
-    await deps.restoreHarnessReview(projectId).catch(() => undefined);
+    await deps.restoreHarnessReview(projectId).catch((restoreError) => {
+      log.warn({ err: restoreError, projectId }, "failed to restore Harness scene review after edit rejection");
+    });
     throw error;
   }
 }

@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 import { mkdir, open, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
 import { dirname, isAbsolute, join, resolve } from "node:path";
+import { setTimeout as delay } from "node:timers/promises";
 import type { ProjectBrief, ProjectEvent, ProjectState } from "../types.js";
 import { createLogger } from "../log/logger.js";
 
@@ -146,9 +147,18 @@ export async function writeJson(path: string, value: unknown): Promise<void> {
   const tmp = `${path}.tmp-${randomUUID()}`;
   try {
     await writeFile(tmp, `${JSON.stringify(value, null, 2)}\n`, "utf8");
-    await rename(tmp, path);
+    for (let attempt = 0; ; attempt += 1) {
+      try {
+        await rename(tmp, path);
+        break;
+      } catch (error) {
+        const code = (error as NodeJS.ErrnoException).code;
+        if (process.platform !== "win32" || attempt >= 4 || !["EACCES", "EBUSY", "EPERM"].includes(code ?? "")) throw error;
+        await delay(25 * (attempt + 1));
+      }
+    }
   } catch (err) {
-    await rm(tmp, { force: true }).catch(() => {});
+    await rm(tmp, { force: true }).catch((_cleanupError) => undefined);
     throw err;
   }
 }
