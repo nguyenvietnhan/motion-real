@@ -42,6 +42,7 @@ export function createDashboardClient(ipc: IpcLike): DashboardApi {
       openDraft: (draftId) => inv("agent:openDraft", draftId),
       status: (draftId) => inv("agent:status", draftId),
       chatHistory: (draftId, beforeSeq) => inv("agent:chatHistory", draftId, beforeSeq),
+      revealFile: (draftId, target) => inv("agent:revealFile", draftId, target),
       prompt: (draftId, text) => inv("agent:prompt", draftId, text),
       abort: (draftId) => inv("agent:abort", draftId),
       prepareAssets: (draftId, expectedRevision) => inv("agent:prepareAssets", draftId, expectedRevision),

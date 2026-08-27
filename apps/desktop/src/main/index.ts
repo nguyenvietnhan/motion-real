@@ -676,6 +676,10 @@ const handlers: InvokeHandlers = {
     String(draftId),
     typeof beforeSeq === "number" ? beforeSeq : undefined,
   ),
+  "agent:revealFile": async (draftId, target) => {
+    const path = await harness.revealFilePath(String(draftId), String(target ?? ""));
+    shell.showItemInFolder(path);
+  },
   "agent:prompt": (draftId, text) => harness.sendChatPrompt(String(draftId), String(text ?? "")),
   "agent:abort": (draftId) => harness.abortChat(String(draftId)),
   "agent:prepareAssets": async (draftId, expectedRevision) => {

@@ -464,6 +464,9 @@ Implemented V1 details:
   thinking state, and tool name/description/outcome. Context injections,
   reasoning text, command/output, absolute tool paths, provider bodies, and raw
   frames stay inside Harness/Main.
+- Relative `file_path` values may render as `Hiện tệp`. Main resolves the target
+  again, checks lexical and real-path containment, and asks Explorer to reveal
+  the file; the renderer never receives an absolute path or executes the file.
 - The renderer re-baselines from canonical history after lifecycle events,
   guards async loads by draft id, and keeps the iframe behind `Debug Harness`.
 - No Harness UI package, markdown dependency, alternate session store, or new

@@ -342,6 +342,13 @@ export const AgentView: React.FC<{ onOpenProject: (projectId: string) => void }>
     void loadChat(active.id, chatBeforeSeq).catch(() => setNotice("Không tải được phần lịch sử cũ hơn."));
   };
 
+  const revealToolFile = (target: string) => {
+    if (!active) return;
+    void window.dashboard.agent.revealFile(active.id, target).catch((error) => {
+      setNotice(error instanceof Error ? error.message : "Không mở được vị trí tệp Agent.");
+    });
+  };
+
   const reviewObscuresChat = Boolean(
     active?.productionState === "asset_review" && active.assetReview
     || active?.productionState === "brief_review" && active.briefReview && showBriefReview,
@@ -539,7 +546,10 @@ export const AgentView: React.FC<{ onOpenProject: (projectId: string) => void }>
                 <span className="ns-agent-tool-dot" aria-hidden="true" />
                 <strong>{item.name}</strong>
                 <span>{item.description}</span>
-                <small>{item.state === "running" ? "Đang chạy" : item.state === "success" ? "Hoàn tất" : "Gặp lỗi"}</small>
+                <span className="ns-agent-tool-meta">
+                  {item.target && <button type="button" onClick={() => revealToolFile(item.target!)} title={item.target}>Hiện tệp</button>}
+                  <small>{item.state === "running" ? "Đang chạy" : item.state === "success" ? "Hoàn tất" : "Gặp lỗi"}</small>
+                </span>
               </div>
             ))}
             {liveAssistantText && (

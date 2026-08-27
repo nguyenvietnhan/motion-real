@@ -66,12 +66,14 @@ export function projectHarnessHistory(value: unknown): AgentChatPageVM {
       const callId = typeof data.callId === "string" ? data.callId : undefined;
       if (!callId) continue;
       const name = safeToolName(data.name);
+      const presentation = toolPresentation(name, data.arguments);
       const tool: AgentToolActivityVM = {
         kind: "tool",
         id: callId,
         seq,
         name,
-        description: toolDescription(name, data.arguments),
+        description: presentation.description,
+        ...(presentation.target ? { target: presentation.target } : {}),
         state: "running",
       };
       tools.set(callId, tool);
@@ -149,24 +151,36 @@ function toolResult(data: RecordValue): { callId: string; isError: boolean } | u
   return { callId: block.toolCallId, isError: block.isError === true || isRecord(data.error) };
 }
 
-function toolDescription(name: string, rawArguments: unknown): string {
+function toolPresentation(name: string, rawArguments: unknown): { description: string; target?: string } {
+  let args: RecordValue | undefined;
   if (typeof rawArguments === "string") {
     try {
-      const args = JSON.parse(rawArguments) as unknown;
-      if (isRecord(args) && typeof args.description === "string") {
+      const parsed = JSON.parse(rawArguments) as unknown;
+      if (isRecord(parsed)) args = parsed;
+      if (args && typeof args.description === "string") {
         const description = oneLine(args.description);
-        if (description) return description;
+        if (description) return { description, ...safeToolTarget(args.file_path) };
       }
     } catch (_error) {
       // Malformed tool arguments remain visible to Harness, but never cross IPC.
     }
   }
   const lower = name.toLowerCase();
-  if (lower.includes("search") || lower.includes("glob")) return "Đang tìm kiếm";
-  if (lower.includes("read")) return "Đang đọc dữ liệu";
-  if (lower.includes("write") || lower.includes("edit")) return "Đang cập nhật tệp";
-  if (lower.includes("pwsh") || lower.includes("bash") || lower.includes("terminal")) return "Đang chạy lệnh";
-  return "Đang dùng công cụ";
+  const description = lower.includes("search") || lower.includes("glob") ? "Đang tìm kiếm"
+    : lower.includes("read") ? "Đang đọc dữ liệu"
+    : lower.includes("write") || lower.includes("edit") ? "Đang cập nhật tệp"
+    : lower.includes("pwsh") || lower.includes("bash") || lower.includes("terminal") ? "Đang chạy lệnh"
+    : "Đang dùng công cụ";
+  return { description, ...safeToolTarget(args?.file_path) };
+}
+
+function safeToolTarget(value: unknown): { target?: string } {
+  if (typeof value !== "string") return {};
+  const normalized = value.trim().replace(/\\/g, "/");
+  if (!normalized || normalized.length > 500 || normalized.startsWith("/") || /^[A-Za-z]:\//.test(normalized)) return {};
+  const parts = normalized.split("/").filter((part) => part && part !== ".");
+  if (parts.length === 0 || parts.some((part) => part === "..")) return {};
+  return { target: parts.join("/") };
 }
 
 function safeToolName(value: unknown): string {

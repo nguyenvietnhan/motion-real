@@ -292,6 +292,22 @@ export class HarnessManager {
     }
   }
 
+  /** Resolve a renderer-projected tool path without allowing workspace escape. */
+  async revealFilePath(id: string, target: string): Promise<string> {
+    const record = await this.mustReadRecord(id);
+    if (typeof target !== "string" || !target.trim() || isAbsolute(target)) throw new Error("Đường dẫn tệp Agent không hợp lệ.");
+    const root = resolve(this.rootOf(record.id));
+    const candidate = resolve(root, target);
+    const lexical = relative(root, candidate);
+    if (!lexical || lexical.startsWith("..") || isAbsolute(lexical)) throw new Error("Tệp Agent nằm ngoài workspace.");
+    const info = await stat(candidate).catch((_error) => null);
+    if (!info?.isFile()) throw new Error("Không tìm thấy tệp Agent.");
+    const [realRoot, realFile] = await Promise.all([realpath(root), realpath(candidate)]);
+    const realRel = relative(realRoot, realFile);
+    if (!realRel || realRel.startsWith("..") || isAbsolute(realRel)) throw new Error("Tệp Agent nằm ngoài workspace.");
+    return realFile;
+  }
+
   async sendChatPrompt(id: string, text: string): Promise<void> {
     const record = await this.mustReadRecord(id);
     const prompt = text.trim();

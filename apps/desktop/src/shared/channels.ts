@@ -17,6 +17,7 @@ export const INVOKE_CHANNELS = [
   "agent:openDraft",
   "agent:status",
   "agent:chatHistory",
+  "agent:revealFile",
   "agent:prompt",
   "agent:abort",
   "agent:prepareAssets",

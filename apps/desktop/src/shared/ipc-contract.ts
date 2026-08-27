@@ -92,6 +92,8 @@ export interface DashboardApi {
     status(draftId: string): Promise<AgentDraftVM>;
     /** Load one renderer-safe page from the canonical Harness Session history. */
     chatHistory(draftId: string, beforeSeq?: number): Promise<AgentChatPageVM>;
+    /** Reveal a validated workspace-relative tool file in Explorer. */
+    revealFile(draftId: string, target: string): Promise<void>;
     /** Queue one human chat message in the matching Harness Session. */
     prompt(draftId: string, text: string): Promise<void>;
     /** Stop the active turn without deleting the Session or downloaded files. */

@@ -25,7 +25,7 @@ describe("Harness chat renderer-safe projection", () => {
             ],
           },
         }),
-        entry(5, "tool/call", { callId: "call-1", name: "Pwsh", arguments: JSON.stringify({ description: "Tải logo Gemini" }) }),
+        entry(5, "tool/call", { callId: "call-1", name: "Write", arguments: JSON.stringify({ description: "Tải logo Gemini", file_path: "assets/gemini.png" }) }),
         entry(6, "tool/result", {
           message: { content: [{ type: "tool-result", toolCallId: "call-1", content: [{ type: "text", text: "raw output" }] }] },
         }),
@@ -40,10 +40,26 @@ describe("Harness chat renderer-safe projection", () => {
       items: [
         expect.objectContaining({ kind: "message", id: "u1", role: "user", text: "Tạo video Gemini" }),
         expect.objectContaining({ kind: "message", id: "a1", role: "assistant", text: "Tôi sẽ tìm tư liệu." }),
-        expect.objectContaining({ kind: "tool", id: "call-1", name: "Pwsh", description: "Tải logo Gemini", state: "success" }),
+        expect.objectContaining({ kind: "tool", id: "call-1", name: "Write", description: "Tải logo Gemini", target: "assets/gemini.png", state: "success" }),
       ],
     });
     expect(JSON.stringify(page)).not.toMatch(/SECRET SYSTEM|hidden chain|raw output/);
+  });
+
+  it("only projects relative non-traversing tool file targets", () => {
+    const page = projectHarnessHistory({
+      hasMore: false,
+      events: [
+        entry(1, "tool/call", { callId: "safe", name: "Read", arguments: JSON.stringify({ file_path: "notes/research.md" }) }),
+        entry(2, "tool/call", { callId: "traversal", name: "Read", arguments: JSON.stringify({ file_path: "../secret.txt" }) }),
+        entry(3, "tool/call", { callId: "absolute", name: "Read", arguments: JSON.stringify({ file_path: "C:\\secret.txt" }) }),
+      ],
+    });
+    expect(page.items).toEqual([
+      expect.objectContaining({ id: "safe", target: "notes/research.md" }),
+      expect.not.objectContaining({ target: expect.anything() }),
+      expect.not.objectContaining({ target: expect.anything() }),
+    ]);
   });
 
   it("keeps an unmatched turn running and rejects malformed history", () => {

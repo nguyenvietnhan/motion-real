@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { EventEmitter } from "node:events";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -94,6 +94,18 @@ describe("HarnessManager draft lifecycle", () => {
 
     await expect(manager.readCreateRequest(draft.id)).rejects.toThrow(/duyệt brief/);
     expect((await manager.status(draft.id)).createReady).toBe(false);
+  });
+
+  it("reveals only existing regular files contained by the Agent workspace", async () => {
+    const { manager, root } = await managerForTest();
+    const draft = await manager.createDraft("Tệp chat an toàn");
+    const visible = join(root, draft.id, "assets", "logo.png");
+    await writeFile(visible, ONE_PIXEL_PNG);
+
+    await expect(manager.revealFilePath(draft.id, "assets/logo.png")).resolves.toBe(await realpath(visible));
+    await expect(manager.revealFilePath(draft.id, "../secret.txt")).rejects.toThrow(/ngoài workspace/);
+    await expect(manager.revealFilePath(draft.id, visible)).rejects.toThrow(/không hợp lệ/);
+    await expect(manager.revealFilePath(draft.id, "assets/missing.png")).rejects.toThrow(/Không tìm thấy/);
   });
 
   it("persists workflow transitions and opens legacy records in discovery", async () => {

@@ -124,6 +124,8 @@ export type AgentToolActivityVM = {
   seq: number;
   name: string;
   description: string;
+  /** Workspace-relative file produced/read by the tool; Main re-validates before reveal. */
+  target?: string;
   state: "running" | "success" | "error";
 };
 
