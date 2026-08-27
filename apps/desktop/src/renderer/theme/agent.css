@@ -16,20 +16,22 @@
   align-items: center;
   justify-content: space-between;
   gap: 24px;
-  padding: 18px 24px 16px;
+  padding: 24px 32px 18px;
   border-bottom: 1px solid var(--border);
   background: var(--background);
 }
 
 .ns-agent-title {
   margin: 0;
-  font-size: 20px;
+  font-size: 24px;
+  line-height: 1.3;
 }
 
 .ns-agent-subtitle {
   margin: 4px 0 0;
   color: var(--muted-foreground);
-  font-size: 13px;
+  font-size: 14px;
+  line-height: 1.45;
 }
 
 .ns-agent-reload {
@@ -40,7 +42,6 @@
 }
 
 .ns-agent-actions,
-.ns-agent-drafts,
 .ns-agent-create-ready,
 .ns-agent-prepare {
   display: flex;
@@ -180,11 +181,34 @@
   color: var(--destructive, #ef4444);
 }
 
-.ns-agent-drafts {
+.ns-agent-sessionbar {
   flex: 0 0 auto;
-  overflow-x: auto;
-  padding: 8px 24px;
+  display: flex;
+  align-items: end;
+  gap: 12px;
+  padding: 10px 32px;
   border-bottom: 1px solid var(--border);
+}
+
+.ns-agent-session-picker {
+  display: grid;
+  min-width: min(420px, 48vw);
+  gap: 5px;
+  color: var(--muted-foreground);
+  font-size: 12px;
+}
+
+.ns-agent-session-picker .ns-input {
+  min-height: 38px;
+  padding-top: 8px;
+  padding-bottom: 8px;
+}
+
+.ns-agent-debug-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
 }
 
 .ns-agent-new-video {
@@ -204,24 +228,6 @@
 .ns-agent-new-video .ns-input {
   min-width: 260px;
   flex: 1;
-}
-
-.ns-agent-draft {
-  max-width: 260px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  border: 1px solid var(--border);
-  border-radius: 7px;
-  padding: 6px 10px;
-  background: transparent;
-  color: var(--muted-foreground);
-  cursor: pointer;
-}
-
-.ns-agent-draft.is-active {
-  border-color: var(--primary);
-  color: var(--foreground);
 }
 
 .ns-agent-empty,
@@ -437,4 +443,52 @@
 
 @keyframes ns-agent-pulse {
   50% { opacity: 0.35; transform: scale(0.78); }
+}
+
+@media (max-width: 760px) {
+  .ns-agent-chrome,
+  .ns-agent-sessionbar,
+  .ns-agent-workflow,
+  .ns-agent-prepare,
+  .ns-agent-create-ready,
+  .ns-agent-new-video {
+    flex-wrap: wrap;
+  }
+
+  .ns-agent-chrome {
+    padding: 18px 16px 14px;
+  }
+
+  .ns-agent-sessionbar,
+  .ns-agent-new-video {
+    padding-right: 16px;
+    padding-left: 16px;
+  }
+
+  .ns-agent-session-picker {
+    min-width: 100%;
+  }
+
+  .ns-agent-debug-actions {
+    margin-left: 0;
+  }
+
+  .ns-agent-workflow,
+  .ns-agent-prepare,
+  .ns-agent-create-ready,
+  .ns-agent-notice,
+  .ns-agent-chat,
+  .ns-agent-brief-review {
+    margin-right: 16px;
+    margin-left: 16px;
+  }
+
+  .ns-agent-workflow progress {
+    width: 100%;
+  }
+
+  .ns-agent-message,
+  .ns-agent-tool {
+    max-width: 100%;
+  }
 }

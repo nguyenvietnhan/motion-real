@@ -366,12 +366,6 @@ export const AgentView: React.FC<{ onOpenProject: (projectId: string) => void }>
             {Icon.plus({ size: 16 })}
             Video mới
           </button>
-          {active?.harnessUrl && <button type="button" className="ns-btn ns-agent-reload" onClick={() => setShowHarnessDebug((current) => !current)} disabled={busy}>
-            {showHarnessDebug ? "Đóng debug" : "Debug Harness"}
-          </button>}
-          {active?.harnessUrl && showHarnessDebug && <button type="button" className="ns-btn ns-agent-reload" onClick={() => setFrameKey((current) => current + 1)} disabled={busy} title="Tải lại Harness">
-            {Icon.refresh({ size: 16 })} Tải lại
-          </button>}
           {active && <button type="button" className="ns-btn ns-agent-delete" onClick={() => setConfirmDelete(true)} disabled={busy}>Xóa video</button>}
         </div>
       </header>
@@ -391,19 +385,33 @@ export const AgentView: React.FC<{ onOpenProject: (projectId: string) => void }>
           <button type="submit" className="ns-btn ns-btn-primary" disabled={busy}>Tạo workspace</button>
         </form>
       )}
-      <div className="ns-agent-drafts" aria-label="Workspace Video Agent">
-        {drafts.map((draft) => (
-          <button
-            key={draft.id}
-            type="button"
-            className={`ns-agent-draft ${active?.id === draft.id ? "is-active" : ""}`}
-            onClick={() => openDraft(draft)}
-            disabled={busy}
+      <div className="ns-agent-sessionbar" aria-label="Workspace Video Agent">
+        <label className="ns-agent-session-picker">
+          <span>Video đang làm</span>
+          <select
+            className="ns-input"
+            value={active?.id ?? ""}
+            onChange={(event) => {
+              const draft = drafts.find((item) => item.id === event.target.value);
+              if (draft) openDraft(draft);
+            }}
+            disabled={busy || drafts.length === 0}
           >
-            {draft.title}{draft.projectId ? " · đã tạo video" : ""}
-          </button>
-        ))}
+            <option value="" disabled>{drafts.length === 0 ? "Chưa có video" : "Chọn video"}</option>
+            {drafts.map((draft) => (
+              <option key={draft.id} value={draft.id}>{draft.title}{draft.projectId ? " · đã tạo project" : ""}</option>
+            ))}
+          </select>
+        </label>
         {drafts.length === 0 && <span className="ns-agent-empty">Tạo một video mới để bắt đầu trao đổi.</span>}
+        <div className="ns-agent-debug-actions">
+          {active?.harnessUrl && <button type="button" className="ns-btn ns-agent-reload" onClick={() => setShowHarnessDebug((current) => !current)} disabled={busy}>
+            {showHarnessDebug ? "Đóng debug" : "Debug Harness"}
+          </button>}
+          {active?.harnessUrl && showHarnessDebug && <button type="button" className="ns-btn ns-agent-reload" onClick={() => setFrameKey((current) => current + 1)} disabled={busy} title="Tải lại Harness">
+            {Icon.refresh({ size: 16 })} Tải lại
+          </button>}
+        </div>
       </div>
       {notice && <p className="ns-agent-notice" role="status">{notice}</p>}
       {active && (
