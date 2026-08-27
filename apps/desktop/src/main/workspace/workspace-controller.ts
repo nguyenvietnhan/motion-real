@@ -431,6 +431,23 @@ export class WorkspaceController {
     this.guarded(projectId, () => this.runScript(projectId, input));
   }
 
+  /** Harness owns scene code; Workspace still owns progress and human still review. */
+  beginHarnessAuthoring(projectId: string): void {
+    this.setStage(projectId, { kind: "writing", phase: "author" });
+  }
+
+  beginHarnessStillRender(projectId: string): void {
+    this.setStage(projectId, { kind: "rendering", percent: 0, phase: "prepare" });
+  }
+
+  async acceptHarnessStills(projectId: string): Promise<void> {
+    this.setStage(projectId, this.readyStage(
+      projectId,
+      await this.storyboardScenesOf(projectId),
+      "Harness đã tự kiểm tra still. Hãy duyệt từng cảnh trước khi xuất video.",
+    ));
+  }
+
   /**
    * Re-run authoring for a project from its remembered input (the "Thử lại"
    * action). The in-memory input is gone after an app restart, so fall back to

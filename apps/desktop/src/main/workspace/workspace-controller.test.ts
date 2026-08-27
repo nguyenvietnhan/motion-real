@@ -101,6 +101,30 @@ describe("process-wide workspace lane", () => {
   });
 });
 
+describe("Harness still-review bridge", () => {
+  it("shows Harness authoring progress and reuses the existing ready scene review", async () => {
+    const ctrl = new WorkspaceController(baseDeps({
+      loadManifest: async () => ({ scenes: [{
+        id: "scene-01",
+        component: "scene-01",
+        headline: "Gemini",
+        narration: "Gemini xử lý đồng thời văn bản và hình ảnh.",
+      }] }),
+      hasStill: () => true,
+    }));
+
+    ctrl.beginHarnessAuthoring("p-harness");
+    expect(await ctrl.stage("p-harness")).toMatchObject({ kind: "writing", phase: "author" });
+    ctrl.beginHarnessStillRender("p-harness");
+    expect(await ctrl.stage("p-harness")).toMatchObject({ kind: "rendering", phase: "prepare" });
+    await ctrl.acceptHarnessStills("p-harness");
+    expect(await ctrl.stage("p-harness")).toMatchObject({
+      kind: "ready",
+      scenes: [{ sceneId: "scene-01", stillPath: expect.stringContaining("media://still/scene-01") }],
+    });
+  });
+});
+
 describe("resumeUnattended", () => {
   it.each([
     { stage: { kind: "ready", scenes: [] } as ProjectStage, label: "ready" },

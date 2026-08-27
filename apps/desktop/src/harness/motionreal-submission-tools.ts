@@ -160,6 +160,8 @@ function authoringTool(): ToolDefinition {
         request_revision: { type: "integer", description: "Exact request_revision from handoff/authoring-request.json" },
         scene_ids: { type: "array", minItems: 1, maxItems: 30, items: { type: "string" } },
         used_asset_ids: { type: "array", items: { type: "string" }, description: "Asset ids actually referenced by scene.image.ref" },
+        reviewed_scene_ids: { type: "array", items: { type: "string" }, description: "Required during self-review: every scene whose PNG was opened" },
+        review_notes: { type: "string", description: "Required during self-review: concrete visual observations and changes" },
       },
     },
     output: submissionOutput("authoring"),
@@ -174,7 +176,18 @@ function authoringTool(): ToolDefinition {
       if (sceneIds.length < 1 || sceneIds.length > 30) throw new Error("scene_ids phải có từ 1 đến 30 cảnh.");
       const usedAssetIds = uniqueIds(input.used_asset_ids, "used_asset_ids");
       await validateAuthoredProject(root, request, sceneIds, usedAssetIds, execution.signal);
-      const payload = { version: 1, job_id: jobId, request_revision: requestRevision, scene_ids: sceneIds, used_asset_ids: usedAssetIds };
+      const selfReview = request.phase === "self_review";
+      const reviewedSceneIds = selfReview ? uniqueIds(input.reviewed_scene_ids, "reviewed_scene_ids") : [];
+      if (selfReview && !sameIds(reviewedSceneIds, sceneIds)) throw new Error("Self-review phải mở đủ still của mọi scene.");
+      const reviewNotes = selfReview ? requiredText(input.review_notes, "review_notes", 4_000, 10) : undefined;
+      const payload = {
+        version: 1,
+        job_id: jobId,
+        request_revision: requestRevision,
+        scene_ids: sceneIds,
+        used_asset_ids: usedAssetIds,
+        ...(selfReview ? { reviewed_scene_ids: reviewedSceneIds, review_notes: reviewNotes } : {}),
+      };
       const status = await writeOnce(root, "authoring.json", payload, execution.signal);
       return { kind: "authoring", status, request_revision: requestRevision };
     },

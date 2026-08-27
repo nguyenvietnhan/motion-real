@@ -431,6 +431,16 @@ const harness = new HarnessManager({
   mediaUrl,
   defaultVoiceProvider: () => settingsStore.current().voiceProvider,
   onChatEvent: (event) => events.agentChat(event),
+  renderAuthoringStills: async (projectId, sceneIds) => {
+    workspace.beginHarnessStillRender(projectId);
+    const result = await tools.render_stills({ projectId, sceneIds });
+    if (!result.ok) {
+      workspace.beginHarnessAuthoring(projectId);
+      return { ok: false, error: `${result.error.stage}: ${result.error.cause}`.slice(0, 2_000) };
+    }
+    return { ok: true, stills: result.data.stills };
+  },
+  acceptAuthoringStills: (projectId) => workspace.acceptHarnessStills(projectId),
 });
 
 async function activateHarnessDraft(draftId: string) {
@@ -725,12 +735,10 @@ const handlers: InvokeHandlers = {
       linkProject: (id, projectId) => harness.linkProject(id, projectId),
       deleteProject: (projectId) => workspace.delete(projectId),
       renameProject: (projectId, title) => workspace.rename(projectId, title),
-      startAuthoring: (id, projectId, assets) => harness.startAuthoring(
-        id,
-        projectId,
-        projectPaths(projectId).root,
-        assets,
-      ),
+      startAuthoring: async (id, projectId, assets) => {
+        workspace.beginHarnessAuthoring(projectId);
+        await harness.startAuthoring(id, projectId, projectPaths(projectId).root, assets);
+      },
       warn: (error, projectId, message) => {
         log.warn({ err: error, projectId }, message);
       },

@@ -189,5 +189,23 @@ describe("MotionReal Harness submission tools", () => {
 
     await expect(tool.execute(args, execution(workspace))).resolves.toMatchObject({ kind: "authoring", status: "submitted" });
     await expect(tool.execute({ ...args, used_asset_ids: [] }, execution(workspace))).rejects.toThrow(/đã có submission khác|Mọi asset/);
+
+    await rm(join(workspace, "handoff", "authoring.json"), { force: true });
+    await writeFile(join(workspace, "handoff", "authoring-request.json"), JSON.stringify({
+      version: 1,
+      job_id: "job-author",
+      request_revision: 2,
+      phase: "self_review",
+      manifest: "project/manifest.json",
+      authored_dir: "project/authored",
+      assets: [{ id: "logo", ref: "assets/logo.png" }],
+    }));
+    await expect(tool.execute({ ...args, request_revision: 2 }, execution(workspace))).rejects.toThrow(/reviewed_scene_ids/);
+    await expect(tool.execute({
+      ...args,
+      request_revision: 2,
+      reviewed_scene_ids: ["scene-01"],
+      review_notes: "Đã mở still thật và kiểm tra asset, hierarchy cùng khoảng trống caption.",
+    }, execution(workspace))).resolves.toMatchObject({ kind: "authoring", status: "submitted", request_revision: 2 });
   });
 });

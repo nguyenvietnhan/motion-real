@@ -77,6 +77,11 @@ export type HarnessManagerDeps = {
   defaultVoiceProvider?: () => VoiceProviderChoice;
   onChatEvent?: (event: AgentChatEvent) => void;
   openWebSocket?: (url: string) => WebSocket;
+  renderAuthoringStills?: (
+    projectId: string,
+    sceneIds: string[],
+  ) => Promise<{ ok: true; stills: string[] } | { ok: false; error: string }>;
+  acceptAuthoringStills?: (projectId: string) => Promise<void>;
 };
 
 /**
@@ -98,6 +103,7 @@ export class HarnessManager {
   private readonly now: () => Date;
   private readonly nodeExecutable: string;
   private readonly openWebSocket: (url: string) => WebSocket;
+  private readonly authoringInFlight = new Set<string>();
 
   constructor(private readonly deps: HarnessManagerDeps) {
     this.spawnChild = deps.spawn ?? spawn;
@@ -279,6 +285,7 @@ export class HarnessManager {
         briefReviewError = error instanceof Error ? error.message : "Brief của Agent không hợp lệ.";
       }
     }
+    if (record.productionState === "authoring") this.maybeProcessAuthoring(record);
     return this.toVm(record, assetReview, assetCollectionError, briefReview, briefReviewError);
   }
 
@@ -878,6 +885,97 @@ export class HarnessManager {
       ...fields,
       selectedAssetIds,
     };
+  }
+
+  private maybeProcessAuthoring(record: DraftRecord): void {
+    if (!this.deps.renderAuthoringStills || !this.deps.acceptAuthoringStills) return;
+    if (this.authoringInFlight.has(record.id) || !existsSync(join(this.rootOf(record.id), "handoff", "authoring.json"))) return;
+    this.authoringInFlight.add(record.id);
+    void this.processAuthoring(record).catch(async (error) => {
+      await this.requestAuthoringRepair(record, error instanceof Error ? error.message : "Không kiểm tra được scene Harness.").catch(() => undefined);
+    }).finally(() => this.authoringInFlight.delete(record.id));
+  }
+
+  private async processAuthoring(record: DraftRecord): Promise<void> {
+    const root = this.rootOf(record.id);
+    const request = parseJson(await readFile(join(root, AUTHORING_REQUEST_FILE), "utf8")) as Record<string, unknown>;
+    const submission = parseJson(await readFile(join(root, "handoff", "authoring.json"), "utf8")) as Record<string, unknown>;
+    if (request.version !== 1 || submission.version !== 1
+      || request.job_id !== record.activeJobId || submission.job_id !== record.activeJobId
+      || request.request_revision !== record.authoringRequestRevision
+      || submission.request_revision !== record.authoringRequestRevision) {
+      throw new Error("Authoring submission đã cũ hoặc không khớp request hiện tại.");
+    }
+    if (!Array.isArray(submission.scene_ids) || submission.scene_ids.length < 1
+      || submission.scene_ids.some((id) => typeof id !== "string")) {
+      throw new Error("Authoring submission thiếu scene id hợp lệ.");
+    }
+    const sceneIds = submission.scene_ids as string[];
+    const rendered = await this.deps.renderAuthoringStills!(record.projectId!, sceneIds);
+    if (!rendered.ok || rendered.stills.length < sceneIds.length) {
+      throw new Error(rendered.ok ? "MotionReal chưa render đủ still cho mọi cảnh." : rendered.error);
+    }
+    if (request.phase === "self_review") {
+      const reviewed = Array.isArray(submission.reviewed_scene_ids)
+        ? submission.reviewed_scene_ids.filter((id): id is string => typeof id === "string")
+        : [];
+      if (!sameIds(reviewed, sceneIds) || typeof submission.review_notes !== "string" || !submission.review_notes.trim()) {
+        throw new Error("Harness chưa xác nhận đã xem đủ still của mọi cảnh.");
+      }
+      await this.deps.acceptAuthoringStills!(record.projectId!);
+      const latest = await this.mustReadRecord(record.id);
+      const next = { ...latest, ...transitionAgentWorkflow(latest, {
+        expectedRevision: latest.workflowRevision,
+        to: "still_review",
+        jobId: latest.activeJobId,
+      }) };
+      await this.writeRecord(next);
+      return;
+    }
+    const projectRoot = await realpath(join(root, PROJECT_LINK));
+    const stills = rendered.stills.map((path) => {
+      const rel = relative(projectRoot, path);
+      if (!rel || rel.startsWith("..") || isAbsolute(rel)) throw new Error("Still render nằm ngoài project Harness.");
+      return `${PROJECT_LINK}/${rel.replaceAll("\\", "/")}`;
+    });
+    await this.advanceAuthoringRequest(record, {
+      phase: "self_review",
+      stills,
+      render_error: undefined,
+      instructions: [
+        "Dùng khả năng xem ảnh để mở mọi PNG trong stills; không kết luận từ code.",
+        "Sửa trực tiếp project/authored/*.tsx và manifest nếu bố cục, hierarchy, asset framing hoặc motion-state còn yếu.",
+        "Sau khi đã xem và sửa, gọi motionreal_submit_authoring với reviewed_scene_ids đủ mọi cảnh và review_notes cụ thể.",
+      ],
+    }, "MotionReal đã render still lần đầu. Hãy đọc lại handoff/authoring-request.json, mở mọi PNG thật trong stills, tự review và sửa scene trước khi submit lại.");
+  }
+
+  private async requestAuthoringRepair(record: DraftRecord, message: string): Promise<void> {
+    const latest = await this.mustReadRecord(record.id);
+    if (latest.productionState !== "authoring") return;
+    await this.advanceAuthoringRequest(latest, {
+      phase: "repair",
+      render_error: message.slice(0, 2_000),
+      stills: [],
+      instructions: [
+        "MotionReal không validate/render được scene hiện tại. Đọc render_error, kiểm tra manifest và mọi module TSX rồi sửa tận gốc.",
+        "Gọi lại motionreal_submit_authoring bằng request_revision mới sau khi sửa.",
+      ],
+    }, "MotionReal chưa validate/render được scene. Hãy đọc render_error trong handoff/authoring-request.json, sửa project/ rồi submit authoring revision mới.");
+  }
+
+  private async advanceAuthoringRequest(
+    record: DraftRecord,
+    patch: Record<string, unknown>,
+    prompt: string,
+  ): Promise<void> {
+    const path = join(this.rootOf(record.id), AUTHORING_REQUEST_FILE);
+    const current = parseJson(await readFile(path, "utf8")) as Record<string, unknown>;
+    const next = { ...record, authoringRequestRevision: (record.authoringRequestRevision ?? 0) + 1 };
+    await rm(join(this.rootOf(record.id), "handoff", "authoring.json"), { force: true });
+    await writeJson(path, { ...current, ...patch, request_revision: next.authoringRequestRevision });
+    await this.writeRecord(next);
+    await this.promptSession(next, prompt);
   }
 
   private async assetPathsForIds(record: DraftRecord, value: unknown): Promise<Array<{ id: string; path: string }>> {

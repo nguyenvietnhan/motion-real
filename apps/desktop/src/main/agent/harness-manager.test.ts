@@ -3,7 +3,7 @@ import { EventEmitter } from "node:events";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { HarnessManager } from "./harness-manager.js";
+import { HarnessManager, type HarnessManagerDeps } from "./harness-manager.js";
 
 const roots: string[] = [];
 
@@ -26,7 +26,7 @@ afterEach(async () => {
   await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
 });
 
-async function activeManagerForTest(): Promise<{
+async function activeManagerForTest(over: Partial<HarnessManagerDeps> = {}): Promise<{
   manager: HarnessManager;
   root: string;
   calls: Array<{ method: string; payload: unknown }>;
@@ -56,6 +56,7 @@ async function activeManagerForTest(): Promise<{
       return Response.json({ type: "server-response", result: { ok: true, value } });
     }) as unknown as typeof globalThis.fetch,
     mediaUrl: (path) => `media://${path}`,
+    ...over,
   });
   return { manager, root, calls };
 }
@@ -485,7 +486,10 @@ describe("HarnessManager draft lifecycle", () => {
   });
 
   it("links the scaffolded project and asks Harness to author scenes from real assets", async () => {
-    const { manager, root, calls } = await activeManagerForTest();
+    let stillPath = "";
+    const renderAuthoringStills = vi.fn(async () => ({ ok: true as const, stills: [stillPath] }));
+    const acceptAuthoringStills = vi.fn(async () => undefined);
+    const { manager, root, calls } = await activeManagerForTest({ renderAuthoringStills, acceptAuthoringStills });
     const draft = await manager.createDraft("Harness authoring");
     await manager.activate(draft.id, "internal-key");
     let state = await manager.transitionWorkflow(draft.id, { expectedRevision: 0, to: "collecting_assets", jobId: "job-author" });
@@ -496,7 +500,10 @@ describe("HarnessManager draft lifecycle", () => {
     const projectRoot = join(root, "projects", "project-1");
     await mkdir(join(projectRoot, "assets"), { recursive: true });
     await mkdir(join(projectRoot, "authored"), { recursive: true });
+    await mkdir(join(projectRoot, "review"), { recursive: true });
     await writeFile(join(projectRoot, "assets", "logo.png"), ONE_PIXEL_PNG);
+    stillPath = join(projectRoot, "review", "scene-01.png");
+    await writeFile(stillPath, ONE_PIXEL_PNG);
 
     await manager.startAuthoring(draft.id, "project-1", projectRoot, [{ id: "logo", ref: "assets/logo.png" }]);
 
@@ -513,6 +520,32 @@ describe("HarnessManager draft lifecycle", () => {
     expect(calls.at(-1)).toMatchObject({ method: "session.prompt" });
     await expect(readFile(join(root, draft.id, "handoff", "authoring-contract.md"), "utf8"))
       .resolves.toMatch(/HỢP ĐỒNG VIẾT CẢNH/);
+
+    await writeFile(join(root, draft.id, "handoff", "authoring.json"), JSON.stringify({
+      version: 1,
+      job_id: "job-author",
+      request_revision: 1,
+      scene_ids: ["scene-01"],
+      used_asset_ids: ["logo"],
+    }));
+    await manager.status(draft.id);
+    await vi.waitFor(() => expect(renderAuthoringStills).toHaveBeenCalledWith("project-1", ["scene-01"]));
+    await vi.waitFor(async () => {
+      const reviewRequest = JSON.parse(await readFile(join(root, draft.id, "handoff", "authoring-request.json"), "utf8"));
+      expect(reviewRequest).toMatchObject({ request_revision: 2, phase: "self_review", stills: ["project/review/scene-01.png"] });
+    });
+    await writeFile(join(root, draft.id, "handoff", "authoring.json"), JSON.stringify({
+      version: 1,
+      job_id: "job-author",
+      request_revision: 2,
+      scene_ids: ["scene-01"],
+      used_asset_ids: ["logo"],
+      reviewed_scene_ids: ["scene-01"],
+      review_notes: "Đã mở PNG, kiểm tra asset và hierarchy; scene rõ ràng.",
+    }));
+    await manager.status(draft.id);
+    await vi.waitFor(() => expect(acceptAuthoringStills).toHaveBeenCalledWith("project-1"));
+    await vi.waitFor(async () => expect(await manager.status(draft.id)).toMatchObject({ productionState: "still_review" }));
     await manager.dispose();
   });
 
