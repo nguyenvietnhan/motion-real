@@ -38,6 +38,7 @@ async function activeManagerForTest(over: Partial<HarnessManagerDeps> = {}): Pro
   await writeFile(join(root, "motionreal-tools.mjs"), "// test tool plugin\n");
   const child = Object.assign(new EventEmitter(), { kill: vi.fn() });
   const calls: Array<{ method: string; payload: unknown }> = [];
+  let searchConfigured = false;
   const manager = new HarnessManager({
     draftsRoot: root,
     harnessHome: join(root, "harness"),
@@ -48,8 +49,11 @@ async function activeManagerForTest(over: Partial<HarnessManagerDeps> = {}): Pro
     fetch: vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
       const body = JSON.parse(String(init?.body)) as { method: string; payload: unknown };
       calls.push(body);
+      if (body.method === "credentials.set") searchConfigured = true;
       const value = body.method === "workspace.create"
         ? { workspace: { workspaceId: "workspace-assets" } }
+        : body.method === "credentials.describe"
+          ? { credentials: { DEEPSEEK_API_KEY: { configured: searchConfigured, writable: true } } }
         : body.method === "session.history"
           ? { events: [], hasMore: false }
           : {};
@@ -189,6 +193,22 @@ describe("HarnessManager draft lifecycle", () => {
       expect.objectContaining({ method: "session.prompt", payload: expect.objectContaining({ content: [{ type: "text", text: "Hãy research Gemini" }] }) }),
       expect.objectContaining({ method: "session.cancel" }),
     ]);
+    await manager.dispose();
+  });
+
+  it("reports and stores the dedicated web search credential without persisting it in MotionReal", async () => {
+    const { manager, root, calls } = await activeManagerForTest();
+    const draft = await manager.createDraft("Search credential");
+    const opened = await manager.activate(draft.id, "internal-key");
+    expect(opened.webSearchConfigured).toBe(false);
+
+    const configured = await manager.setSearchApiKey(draft.id, "deepseek-search-secret");
+    expect(configured.webSearchConfigured).toBe(true);
+    expect(calls.filter((call) => call.method === "credentials.set")).toEqual([
+      expect.objectContaining({ method: "credentials.set", payload: { ref: "DEEPSEEK_API_KEY", value: "deepseek-search-secret" } }),
+    ]);
+    await expect(readFile(join(root, draft.id, "motionreal-agent.json"), "utf8"))
+      .resolves.not.toContain("deepseek-search-secret");
     await manager.dispose();
   });
 
@@ -614,9 +634,11 @@ describe("HarnessManager draft lifecycle", () => {
       "workspace.create",
       "workspace.rename",
       "session.create",
+      "credentials.describe",
       "workspace.create",
       "workspace.rename",
       "session.create",
+      "credentials.describe",
     ]);
     expect(JSON.parse(String(calls[2]?.init?.body)).payload).toEqual({ workspaceId: "workspace-1", title: "Video mới" });
     await manager.dispose();
@@ -656,8 +678,8 @@ describe("HarnessManager draft lifecycle", () => {
     expect(second.harnessUrl).toBe(first.harnessUrl);
     expect(methods).toEqual([
       "host.describe",
-      "workspace.create", "workspace.rename", "session.create",
-      "workspace.create", "workspace.rename", "session.create",
+      "workspace.create", "workspace.rename", "session.create", "credentials.describe",
+      "workspace.create", "workspace.rename", "session.create", "credentials.describe",
     ]);
     await manager.dispose();
   });
@@ -698,12 +720,15 @@ describe("HarnessManager draft lifecycle", () => {
         stdio: ["ignore", "ignore", "pipe"],
         env: expect.objectContaining({
           NINEROUTER_API_KEY: "internal-key",
+          DSH_PERMISSION_MODE: "danger-full-access",
           MOTIONREAL_AGENT_DRAFTS_ROOT: root,
         }),
       }),
     );
     await expect(readFile(join(root, "harness", "motionreal-tools.patch.yml"), "utf8"))
       .resolves.toMatch(/motionreal-submission-tools[\s\S]*file:\/\//);
+    await expect(readFile(join(root, "harness", "settings.yaml"), "utf8"))
+      .resolves.toMatch(/web-search-deepseek:[\s\S]*apiKeyEnv: DEEPSEEK_API_KEY/);
     const options = vi.mocked(spawnChild).mock.calls[0]?.[2];
     expect(options?.env).not.toHaveProperty("ELECTRON_RUN_AS_NODE");
     await manager.dispose();

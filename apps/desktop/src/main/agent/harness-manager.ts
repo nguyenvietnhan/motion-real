@@ -40,7 +40,7 @@ const log = createLogger("harness");
 
 export type { AgentDraftVM } from "../../shared/types.js";
 
-type DraftRecord = Omit<AgentDraftVM, "harnessUrl" | "createReady" | "assetReview" | "assetCollectionError" | "briefReview" | "briefReviewError"> & AgentWorkflowRecord & {
+type DraftRecord = Omit<AgentDraftVM, "harnessUrl" | "webSearchConfigured" | "createReady" | "assetReview" | "assetCollectionError" | "briefReview" | "briefReviewError"> & AgentWorkflowRecord & {
   workspaceId?: string;
   sessionId?: string;
   assetRequestRevision?: number;
@@ -97,6 +97,7 @@ export class HarnessManager {
   private startInFlight: Promise<string> | null = null;
   private eventSocket: WebSocket | null = null;
   private eventReconnect: ReturnType<typeof setTimeout> | null = null;
+  private webSearchConfigured: boolean | undefined;
   private readonly draftBySession = new Map<string, string>();
   private readonly spawnChild: typeof spawn;
   private readonly fetchImpl: typeof fetch;
@@ -181,6 +182,7 @@ export class HarnessManager {
     }
     const sessionId = record.sessionId ?? `session-${randomUUID()}`;
     await this.rpc(url, "session.create", { workspaceId: workspaceInfo.id, sessionId });
+    this.webSearchConfigured = await this.readSearchCredentialStatus(url);
     record = { ...record, workspaceId: workspaceInfo.id, sessionId };
     await this.writeRecord(record);
     this.draftBySession.set(sessionId, id);
@@ -212,6 +214,7 @@ export class HarnessManager {
           ...sanitizedChildEnvironment(),
           DSH_HOME: this.deps.harnessHome,
           NINEROUTER_API_KEY: apiKey,
+          DSH_PERMISSION_MODE: "danger-full-access",
           MOTIONREAL_AGENT_DRAFTS_ROOT: this.deps.draftsRoot,
         },
         stdio: ["ignore", "ignore", "pipe"],
@@ -238,6 +241,7 @@ export class HarnessManager {
         const failedDraftId = this.activeDraftId;
         this.active = null;
         this.activeDraftId = null;
+        this.webSearchConfigured = undefined;
         this.stopEventStream();
         if (failedDraftId) {
           this.deps.onChatEvent?.({ draftId: failedDraftId, type: "error", code: "stream_failed" });
@@ -742,6 +746,7 @@ export class HarnessManager {
     const starting = this.startingChild;
     this.active = null;
     this.activeDraftId = null;
+    this.webSearchConfigured = undefined;
     this.startingChild = null;
     this.stopEventStream();
     for (const id of this.authoringPolls.keys()) this.stopAuthoringPoll(id);
@@ -762,6 +767,9 @@ export class HarnessManager {
       ...record,
       ...(this.active && this.activeDraftId === record.id && record.sessionId
         ? { harnessUrl: `${this.active.url}?session=${encodeURIComponent(record.sessionId)}` }
+        : {}),
+      ...(this.active && this.activeDraftId === record.id && this.webSearchConfigured !== undefined
+        ? { webSearchConfigured: this.webSearchConfigured }
         : {}),
       createReady,
       ...(assetReview ? { assetReview } : {}),
@@ -833,6 +841,31 @@ export class HarnessManager {
       mode: "queue",
       content: [{ type: "text", text }],
     });
+  }
+
+  async setSearchApiKey(id: string, apiKey: string): Promise<AgentDraftVM> {
+    const record = await this.mustReadRecord(id);
+    this.requireActiveSession(record);
+    const value = apiKey.trim();
+    if (value.length < 8 || value.length > 4_096) {
+      throw new Error("API key tìm kiếm không hợp lệ.");
+    }
+    await this.rpc(this.active!.url, "credentials.set", {
+      ref: "DEEPSEEK_API_KEY",
+      value,
+    });
+    this.webSearchConfigured = await this.readSearchCredentialStatus(this.active!.url);
+    if (!this.webSearchConfigured) throw new Error("Harness chưa lưu được API key tìm kiếm.");
+    return this.toVm(record);
+  }
+
+  private async readSearchCredentialStatus(url: string): Promise<boolean> {
+    const value = await this.rpc(url, "credentials.describe", { refs: ["DEEPSEEK_API_KEY"] });
+    if (!value || typeof value !== "object") return false;
+    const credentials = (value as { credentials?: unknown }).credentials;
+    if (!credentials || typeof credentials !== "object") return false;
+    const search = (credentials as Record<string, unknown>).DEEPSEEK_API_KEY;
+    return Boolean(search && typeof search === "object" && (search as { configured?: unknown }).configured === true);
   }
 
   private startEventStream(url: string): void {
@@ -1339,7 +1372,7 @@ function agentContract(): string {
 }
 
 function harnessSettings(): string {
-  return `llm-pi-ai:\n  providers:\n    ninerouter:\n      apiKeyEnv: NINEROUTER_API_KEY\n      api: openai-completions\n      baseURL: http://127.0.0.1:20128/v1\n      compat:\n        supportsDeveloperRole: false\n        maxTokensField: max_tokens\n      models:\n        - id: ag/gemini-3.7-flash-high\nagent-default-model:\n  provider: ninerouter\n  model: ag/gemini-3.7-flash-high\n`;
+  return `llm-pi-ai:\n  providers:\n    ninerouter:\n      apiKeyEnv: NINEROUTER_API_KEY\n      api: openai-completions\n      baseURL: http://127.0.0.1:20128/v1\n      compat:\n        supportsDeveloperRole: false\n        maxTokensField: max_tokens\n      models:\n        - id: ag/gemini-3.7-flash-high\nagent-default-model:\n  provider: ninerouter\n  model: ag/gemini-3.7-flash-high\nweb-search-deepseek:\n  apiKeyEnv: DEEPSEEK_API_KEY\n`;
 }
 
 async function findLoopbackPort(): Promise<number> {

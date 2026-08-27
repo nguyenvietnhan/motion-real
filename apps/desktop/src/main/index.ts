@@ -696,6 +696,10 @@ const handlers: InvokeHandlers = {
   },
   "agent:prompt": (draftId, text) => harness.sendChatPrompt(String(draftId), String(text ?? "")),
   "agent:abort": (draftId) => harness.abortChat(String(draftId)),
+  "agent:setSearchApiKey": (draftId, apiKey) => harness.setSearchApiKey(
+    String(draftId),
+    String(apiKey ?? ""),
+  ),
   "agent:prepareAssets": async (draftId, expectedRevision) => {
     const opened = await activateHarnessDraft(String(draftId));
     return harness.prepareAssets(opened.id, Number(expectedRevision));

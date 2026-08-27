@@ -70,6 +70,8 @@ export type AgentDraftVM = {
   lastError?: string;
   /** Local Harness URL used only by the embedded renderer iframe. */
   harnessUrl?: string;
+  /** Whether DeepSeek Harness has the separate credential required by web_search. */
+  webSearchConfigured?: boolean;
   /** The agent has written an explicit request awaiting the user's approval. */
   createReady: boolean;
   /** Validated local images awaiting the user's approval. */

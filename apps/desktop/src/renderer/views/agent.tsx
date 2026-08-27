@@ -37,6 +37,7 @@ export const AgentView: React.FC<{ onOpenProject: (projectId: string) => void }>
   const [liveAssistantText, setLiveAssistantText] = useState("");
   const [chatInput, setChatInput] = useState("");
   const [chatSending, setChatSending] = useState(false);
+  const [searchApiKey, setSearchApiKey] = useState("");
   const chatDraftRef = useRef<string | null>(null);
   const [showNewVideo, setShowNewVideo] = useState(false);
   const [newVideoTitle, setNewVideoTitle] = useState("");
@@ -184,6 +185,8 @@ export const AgentView: React.FC<{ onOpenProject: (projectId: string) => void }>
     setShowBriefReview(true);
   }, [active?.id, active?.briefReview?.revision]);
 
+  useEffect(() => setSearchApiKey(""), [active?.id]);
+
   const run = useCallback(async (work: () => Promise<void>) => {
     setBusy(true);
     setNotice(null);
@@ -222,6 +225,18 @@ export const AgentView: React.FC<{ onOpenProject: (projectId: string) => void }>
       const opened = await window.dashboard.agent.openDraft(draft.id);
       setActive(opened);
       await refresh();
+    });
+  };
+
+  const configureSearch = (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!active || !searchApiKey.trim()) return;
+    void run(async () => {
+      const next = await window.dashboard.agent.setSearchApiKey(active.id, searchApiKey);
+      setActive(next);
+      setDrafts((current) => current.map((draft) => draft.id === next.id ? next : draft));
+      setSearchApiKey("");
+      setNotice("Đã cấu hình web_search cho Harness.");
     });
   };
 
@@ -433,6 +448,25 @@ export const AgentView: React.FC<{ onOpenProject: (projectId: string) => void }>
             </div>
           )}
         </div>
+      )}
+      {active?.harnessUrl && active.webSearchConfigured === false && (
+        <form className="ns-agent-prepare" onSubmit={configureSearch}>
+          <span>
+            Chat đang dùng 9router. Công cụ <code>web_search</code> cần DeepSeek API key riêng và lưu trực tiếp trong Harness.
+          </span>
+          <input
+            className="ns-input"
+            type="password"
+            value={searchApiKey}
+            onChange={(event) => setSearchApiKey(event.target.value)}
+            placeholder="DeepSeek API key cho web_search"
+            autoComplete="off"
+            disabled={busy}
+          />
+          <button type="submit" className="ns-btn ns-btn-primary" disabled={busy || !searchApiKey.trim()}>
+            Lưu key tìm kiếm
+          </button>
+        </form>
       )}
       {active?.productionState === "discovery" && (
         <div className="ns-agent-prepare">

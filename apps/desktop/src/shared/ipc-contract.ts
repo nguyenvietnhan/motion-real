@@ -98,6 +98,8 @@ export interface DashboardApi {
     prompt(draftId: string, text: string): Promise<void>;
     /** Stop the active turn without deleting the Session or downloaded files. */
     abort(draftId: string): Promise<void>;
+    /** Store the dedicated DeepSeek search credential in Harness's credential store. */
+    setSearchApiKey(draftId: string, apiKey: string): Promise<AgentDraftVM>;
     /** Start one asset-collection job in the current Harness session. */
     prepareAssets(draftId: string, expectedRevision: number): Promise<AgentDraftVM>;
     /** Keep the current selection and ask the Agent for replacements/additions. */

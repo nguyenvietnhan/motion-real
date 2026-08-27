@@ -20,6 +20,7 @@ export const INVOKE_CHANNELS = [
   "agent:revealFile",
   "agent:prompt",
   "agent:abort",
+  "agent:setSearchApiKey",
   "agent:prepareAssets",
   "agent:requestMoreAssets",
   "agent:approveAssets",

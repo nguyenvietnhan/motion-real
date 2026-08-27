@@ -45,6 +45,7 @@ export function createDashboardClient(ipc: IpcLike): DashboardApi {
       revealFile: (draftId, target) => inv("agent:revealFile", draftId, target),
       prompt: (draftId, text) => inv("agent:prompt", draftId, text),
       abort: (draftId) => inv("agent:abort", draftId),
+      setSearchApiKey: (draftId, apiKey) => inv("agent:setSearchApiKey", draftId, apiKey),
       prepareAssets: (draftId, expectedRevision) => inv("agent:prepareAssets", draftId, expectedRevision),
       requestMoreAssets: (draftId, expectedRevision, selectedIds, note) => inv("agent:requestMoreAssets", draftId, expectedRevision, selectedIds, note),
       approveAssets: (draftId, expectedRevision, selectedIds) => inv("agent:approveAssets", draftId, expectedRevision, selectedIds),

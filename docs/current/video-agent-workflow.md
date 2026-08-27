@@ -125,6 +125,19 @@ For the first implementation, downloaded assets are prioritized for usefulness.
 Source URLs should still be retained for traceability, but license evaluation is
 not a production gate in this phase.
 
+MotionReal starts new video-scoped Harness sessions with the
+`danger-full-access` permission preset. This removes per-tool approval prompts
+when the Agent writes through the linked `project/` junction; sessions created
+before this change can still contain older permission events. This preset does
+not remove MotionReal's product approvals for assets, brief, still review, or
+final render.
+
+Chat and search use separate providers. Chat uses the internal 9router key.
+Harness `web_search` uses DeepSeek's native search endpoint and therefore needs
+a separate `DEEPSEEK_API_KEY`. The Agent tab stores that value directly through
+Harness's write-only credential RPC; MotionReal does not persist it in project
+metadata or renderer state.
+
 ## Two Independent Status Channels
 
 ### Agent activity
