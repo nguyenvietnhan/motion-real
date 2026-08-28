@@ -7,6 +7,7 @@ import { HarnessManager, type HarnessManagerDeps } from "./harness-manager.js";
 
 const roots: string[] = [];
 const activeManagers: HarnessManager[] = [];
+const heldCommits: Array<() => void> = [];
 
 function registeredSceneSource(id: string, version: string): string {
   return `import { registerComponent } from "@motionreal/compositions";
@@ -33,6 +34,7 @@ async function managerForTest(): Promise<{ manager: HarnessManager; root: string
 }
 
 afterEach(async () => {
+  for (const release of heldCommits.splice(0)) release();
   await Promise.all(activeManagers.splice(0).map((manager) => manager.dispose()));
   await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 })));
 });
@@ -42,6 +44,7 @@ async function activeManagerForTest(over: Partial<HarnessManagerDeps> = {}): Pro
   root: string;
   calls: Array<{ method: string; payload: unknown }>;
   deps: HarnessManagerDeps;
+  history: Array<{ event: { seq: number; type: string; data: Record<string, unknown> } }>;
 }> {
   const root = await mkdtemp(join(tmpdir(), "motionreal-agent-active-"));
   roots.push(root);
@@ -50,6 +53,7 @@ async function activeManagerForTest(over: Partial<HarnessManagerDeps> = {}): Pro
   await writeFile(join(root, "motionreal-tools.mjs"), "// test tool plugin\n");
   const child = Object.assign(new EventEmitter(), { kill: vi.fn() });
   const calls: Array<{ method: string; payload: unknown }> = [];
+  const history: Array<{ event: { seq: number; type: string; data: Record<string, unknown> } }> = [];
   let searchConfigured = false;
   const deps: HarnessManagerDeps = {
     draftsRoot: root,
@@ -67,7 +71,7 @@ async function activeManagerForTest(over: Partial<HarnessManagerDeps> = {}): Pro
         : body.method === "credentials.describe"
           ? { credentials: { DEEPSEEK_API_KEY: { configured: searchConfigured, writable: true } } }
         : body.method === "session.history"
-          ? { events: [], hasMore: false }
+          ? { events: history, hasMore: false }
           : {};
       return Response.json({ type: "server-response", result: { ok: true, value } });
     }) as unknown as typeof globalThis.fetch,
@@ -76,7 +80,7 @@ async function activeManagerForTest(over: Partial<HarnessManagerDeps> = {}): Pro
   };
   const manager = new HarnessManager(deps);
   activeManagers.push(manager);
-  return { manager, root, calls, deps };
+  return { manager, root, calls, deps, history };
 }
 
 const ONE_PIXEL_PNG = Buffer.from(
@@ -521,7 +525,7 @@ describe("HarnessManager draft lifecycle", () => {
     await expect(manager.readCreateRequest(draft.id)).rejects.toThrow(/assets/);
   });
 
-  it.each(["unchanged", "source-edited", "manifest-edited", "asset-edited", "still-missing", "missing-review", "stale-review", "restart", "during-render"] as const)("reviews newly rendered Harness scenes before human approval (%s)", async (reviewChange) => {
+  it.each(["unchanged", "source-edited", "manifest-edited", "asset-edited", "still-missing", "missing-review", "stale-review", "unread-images", "restart", "during-render", "during-history"] as const)("reviews newly rendered Harness scenes before human approval (%s)", async (reviewChange) => {
     let stillPaths: string[] = [];
     const renderAuthoringStills = vi.fn(async () => {
       await Promise.all(stillPaths.map((path) => writeFile(path, ONE_PIXEL_PNG)));
@@ -533,7 +537,24 @@ describe("HarnessManager draft lifecycle", () => {
       acceptAuthoringStills,
       wordsPerSecond: async () => 1,
     });
-    const { root, calls } = setup;
+    const { root, calls, history } = setup;
+    const recordImageReads = (paths: string[]) => {
+      for (const path of paths) {
+        const callId = `image-${history.length}`;
+        history.push({ event: { seq: history.length, type: "tool/call", data: {
+          callId, name: "read_image", arguments: JSON.stringify({ file_path: path }),
+        } } });
+        history.push({ event: { seq: history.length, type: "tool/result", data: { message: { content: [{
+          type: "tool-result", toolCallId: callId, isError: false,
+          content: [{ type: "image", attachment: {
+            attachmentId: callId, mediaType: "image/png", bytes: 68, width: 1, height: 1,
+          } }],
+        }] } } } });
+      }
+      history.push({ event: { seq: history.length, type: "assistant/message", data: { message: {
+        content: [{ type: "text", text: "Review observations after image tool results" }],
+      } } } });
+    };
     let manager = setup.manager;
     const draft = await manager.createDraft("Harness authoring");
     await manager.activate(draft.id, "internal-key");
@@ -676,6 +697,21 @@ describe("HarnessManager draft lifecycle", () => {
       expect(repairRequest.instructions).toEqual(expect.arrayContaining([expect.stringContaining("read_image")]));
     }, { timeout: 2_000 });
     await Promise.all(sceneIds.map((id) => writeFile(join(projectRoot, "authored", `Module-${id}.tsx`), registeredSceneSource(id, "v2"))));
+    let releaseReviewCommit: (() => void) | undefined;
+    if (reviewChange === "restart") {
+      // Hold the real persistence method between the request file and metadata writes.
+      const persistence = manager as unknown as { writeRecord(value: { authoringRequestRevision?: number }): Promise<void> };
+      const writeRecord = persistence.writeRecord.bind(manager);
+      let held = false;
+      vi.spyOn(persistence, "writeRecord").mockImplementation(async (record) => {
+        if (record.authoringRequestRevision === 5 && !held) {
+          held = true;
+          await new Promise<void>((resolve) => { releaseReviewCommit = resolve; heldCommits.push(resolve); });
+        }
+        await writeRecord(record);
+      });
+    }
+    recordImageReads(sceneIds.map((id) => `handoff/authoring-v1/stills/${id}.png`));
     await writeFile(join(root, draft.id, "handoff", "authoring.json"), JSON.stringify({
       version: 1,
       job_id: "job-author",
@@ -692,6 +728,7 @@ describe("HarnessManager draft lifecycle", () => {
         request_revision: 5, phase: "image_review", creative_stage: "v2",
         stills: sceneIds.map((sceneId) => `project/review/${sceneId}.png`),
         review_fingerprint: expect.stringMatching(/^[a-f0-9]{64}$/),
+        review_after_seq: history.at(-1)!.event.seq,
       });
     }, { timeout: 5_000 });
     expect(renderAuthoringStills).toHaveBeenCalledTimes(2);
@@ -708,7 +745,17 @@ describe("HarnessManager draft lifecycle", () => {
     if (reviewChange === "restart") {
       const savedSessionId = JSON.parse(await readFile(metadataPath, "utf8")).sessionId;
       expect(savedSessionId).toEqual(expect.stringMatching(/^session-/));
-      await manager.dispose();
+      await vi.waitFor(() => expect(releaseReviewCommit).toBeTypeOf("function"));
+      let disposed = false;
+      const closing = manager.dispose().then(() => { disposed = true; });
+      try {
+        await new Promise<void>((resolve) => setImmediate(resolve));
+        expect(disposed).toBe(false);
+      } finally {
+        releaseReviewCommit!();
+        await closing;
+      }
+      expect(JSON.parse(await readFile(metadataPath, "utf8")).authoringRequestRevision).toBe(5);
       manager = new HarnessManager(setup.deps);
       activeManagers.push(manager);
       const reopened = await manager.activate(draft.id, "internal-key");
@@ -732,36 +779,59 @@ describe("HarnessManager draft lifecycle", () => {
     } else if (reviewChange === "still-missing") {
       await rm(stillPaths[0]!);
     }
-    if (reviewChange === "missing-review" || reviewChange === "stale-review") {
+    if (reviewChange === "missing-review" || reviewChange === "stale-review" || reviewChange === "unread-images") {
       await writeFile(submissionPath, JSON.stringify({ ...reviewSubmission,
-        ...(reviewChange === "missing-review" ? { reviewed_scene_ids: [], review_notes: "" } : { request_revision: 4 }),
+        ...(reviewChange === "missing-review" ? { reviewed_scene_ids: [], review_notes: "" }
+          : reviewChange === "stale-review" ? { request_revision: 4 } : {}),
       }));
       await vi.waitFor(async () => expect(JSON.parse(await readFile(requestPath, "utf8")))
         .toMatchObject({ request_revision: 6, phase: "image_review", render_error: expect.any(String) }), { timeout: 5_000 });
       expect(acceptAuthoringStills).not.toHaveBeenCalled();
       expect(renderAuthoringStills).toHaveBeenCalledTimes(2);
       reviewRevision = 6;
+      if (reviewChange === "unread-images") {
+        expect(JSON.parse(await readFile(requestPath, "utf8")).render_error).toMatch(/read_image/);
+      }
+    }
+    recordImageReads(sceneIds.map((id) => `project/review/${id}.png`));
+    if (reviewChange === "during-history") {
+      const fetch = vi.mocked(setup.deps.fetch!);
+      const original = fetch.getMockImplementation()!;
+      fetch.mockImplementation(async (input, init) => {
+        if (JSON.parse(String(init?.body)).method === "session.history") {
+          fetch.mockImplementation(original);
+          const manifest = JSON.parse(await readFile(join(projectRoot, "manifest.json"), "utf8"));
+          manifest.scenes[0].headline = "updated-during-history";
+          await writeFile(join(projectRoot, "manifest.json"), JSON.stringify(manifest));
+        }
+        return original(input, init);
+      });
     }
     await writeFile(submissionPath, JSON.stringify({ ...reviewSubmission, request_revision: reviewRevision }));
-    if (["source-edited", "manifest-edited", "asset-edited", "still-missing", "during-render"].includes(reviewChange)) {
+    if (["source-edited", "manifest-edited", "asset-edited", "still-missing", "during-render", "during-history"].includes(reviewChange)) {
       await vi.waitFor(async () => expect(JSON.parse(await readFile(requestPath, "utf8")))
         .toMatchObject({ request_revision: 6, phase: "image_review" }), { timeout: 5_000 });
       expect(acceptAuthoringStills).not.toHaveBeenCalled();
-      expect(renderAuthoringStills).toHaveBeenCalledTimes(3);
+      expect(renderAuthoringStills).toHaveBeenCalledTimes(reviewChange === "during-history" ? 2 : 3);
       reviewRevision = 6;
       expectedRenders = 3;
+      recordImageReads(sceneIds.map((id) => `project/review/${id}.png`));
       await writeFile(submissionPath, JSON.stringify({ ...reviewSubmission, request_revision: 6 }));
-      if (reviewChange === "during-render") {
+      if (reviewChange === "during-render" || reviewChange === "during-history") {
         await vi.waitFor(async () => expect(JSON.parse(await readFile(requestPath, "utf8")))
           .toMatchObject({ request_revision: 7, phase: "image_review" }), { timeout: 5_000 });
         expect(acceptAuthoringStills).not.toHaveBeenCalled();
-        expectedRenders = 4;
+        expectedRenders = reviewChange === "during-history" ? 3 : 4;
         reviewRevision = 7;
+        recordImageReads(sceneIds.map((id) => `project/review/${id}.png`));
         await writeFile(submissionPath, JSON.stringify({ ...reviewSubmission, request_revision: 7 }));
       }
     }
     await vi.waitFor(() => expect(acceptAuthoringStills).toHaveBeenCalledWith("project-1"), { timeout: 2_000 });
     expect(renderAuthoringStills).toHaveBeenCalledTimes(expectedRenders);
+    if (reviewChange === "during-history") {
+      expect(JSON.parse(await readFile(join(projectRoot, "manifest.json"), "utf8")).scenes[0].headline).toBe("updated-during-history");
+    }
     await vi.waitFor(async () => expect(await manager.status(draft.id)).toMatchObject({ productionState: "still_review" }));
 
     await expect(manager.requestSceneEdits(draft.id, "project-1", [{ sceneId: "scene-99", text: "Sửa cảnh lạ" }], ""))
@@ -787,9 +857,12 @@ describe("HarnessManager draft lifecycle", () => {
       .toMatchObject({ request_revision: editRevision + 1, phase: "image_review", creative_stage: "edit" }), { timeout: 5_000 });
     expect(acceptAuthoringStills).toHaveBeenCalledTimes(1);
     const rendersBeforeEditReview = renderAuthoringStills.mock.calls.length;
+    recordImageReads(sceneIds.map((id) => `project/review/${id}.png`));
     await writeFile(submissionPath, JSON.stringify({ ...reviewSubmission, request_revision: editRevision + 1 }));
     await vi.waitFor(() => expect(acceptAuthoringStills).toHaveBeenCalledTimes(2), { timeout: 5_000 });
     expect(renderAuthoringStills).toHaveBeenCalledTimes(rendersBeforeEditReview);
+    await vi.waitFor(async () => expect(await manager.status(draft.id))
+      .toMatchObject({ productionState: "still_review" }), { timeout: 5_000 });
     await manager.dispose();
   });
 

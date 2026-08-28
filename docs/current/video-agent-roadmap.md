@@ -721,6 +721,51 @@ passing, including the separately run 14 authored-typecheck tests.
 `npm.cmd --prefix apps/desktop run build:main` all exited 0. Loading the built
 submission plugin confirmed the same three tools and the image-review schema.
 
+Image-read evidence follow-up (2026-08-28): Main now checks native
+`session.history` instead of accepting `reviewed_scene_ids`/notes as proof that
+images were opened. A per-request sequence marker excludes older reads;
+successful direct `read_image` results must carry an image attachment and occur
+before a later assistant message. Relative paths, absolute paths and the project
+junction resolve to the requested files. Missing/failed/text-only/wrong-file reads
+and same-step submissions cannot advance. The check covers direct JSON handoffs
+as well as submission tools, and the existing fingerprint is checked again after
+the asynchronous history inspection. Older requests without a marker receive a
+fresh review revision. No new Harness tool, dependency, provider or render path
+was introduced.
+
+The full suite exposed a graceful-restart race: the review request could be on
+disk while its metadata revision was still being written. `dispose()` now drains
+only tracked local authoring-request/metadata commits, not the model or render.
+A deterministic test holds the metadata write, closes the manager, then releases
+the write and resumes the same session/revision. This does not claim atomic
+two-file recovery after an abrupt OS/process crash. The first suite also rejected
+two unnamed catch handlers under the existing error-handling policy; those were
+corrected. Earlier failed runs are not counted as passing verification.
+The changed-during-history regression edits the manifest itself and verifies that
+retry preserves that edit: the controller must not fall through and write its
+pre-RPC manifest over a concurrent update.
+
+The installed native agent loop, session, filesystem, attachments and real
+OpenAI-compatible adapter were exercised against a local mock provider. The loop
+called `read_image`, sent the resulting PNG in the next provider request and
+produced native events accepted by the new checker. Previous-request and same-step
+evidence was rejected. Report:
+`.video-tool/verification/harness-review-evidence-utLEn7/report.json`;
+probe: `.video-tool/verification/check-harness-review-evidence.mts`.
+The probe uses native events serialized in the documented history envelope; it
+does not claim a live 9router vision test or visual-quality acceptance. Only direct
+image reads count: a nested Code Mode dispatch alone does not prove its attachment
+reached model context. Full/skip-edit review-mode parity also remains separate work;
+the user's local `stills_edit` correctly omits draft MP4.
+
+Final verification for this batch: `npm.cmd test` exited 0 with 139 files /
+1,412 tests passing (138 files / 1,398 tests, then the separately run 14
+authored-typecheck tests). `npm.cmd run typecheck`, `npm.cmd run build`, and
+`npm.cmd --prefix apps/desktop run build:main` also exited 0 on the final code.
+The new image-evidence unit cases, direct-handoff/restart integration and manifest
+edit-preservation regression are included. Native model vision, aesthetics,
+continuous motion, and a new end-to-end video remain unaccepted.
+
 ## Manual End-to-End Acceptance Scenario
 
 Use one new factual video topic and perform the following on native Windows:

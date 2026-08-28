@@ -17,6 +17,7 @@ import {
   type AgentWorkflowTransition,
 } from "./agent-workflow.js";
 import { projectHarnessHistory, projectHarnessMuxEnvelope } from "./harness-chat.js";
+import { assertHarnessImageReads, readHarnessReviewHistory } from "./harness-image-review.js";
 import { AUTHORING_CONTRACT } from "../authoring/contract-text.js";
 import {
   buildHarnessAuthoringPacing,
@@ -121,6 +122,7 @@ export class HarnessManager {
   private readonly nodeExecutable: string;
   private readonly openWebSocket: (url: string) => WebSocket;
   private readonly authoringInFlight = new Set<string>();
+  private readonly authoringWrites = new Set<Promise<void>>();
   private readonly authoringPolls = new Map<string, ReturnType<typeof setTimeout>>();
 
   constructor(private readonly deps: HarnessManagerDeps) {
@@ -780,6 +782,8 @@ export class HarnessManager {
     for (const id of this.authoringPolls.keys()) this.stopAuthoringPoll(id);
     if (current) await stopChild(current.child);
     if (starting && starting !== current?.child) await stopChild(starting);
+    // Drain only local request/metadata commits, not a model turn or still render.
+    await Promise.allSettled([...this.authoringWrites]);
   }
 
   private async toVm(
@@ -1107,6 +1111,7 @@ export class HarnessManager {
         throw new Error("Harness chưa xác nhận đã xem đủ still của mọi cảnh.");
       }
     }
+    if (request.phase === "self_review") await this.verifyImageReads(record, request);
     const projectRoot = await realpath(join(root, PROJECT_LINK));
     if (request.phase === "image_review") {
       const paths = Array.isArray(request.stills) && request.stills.length === sceneIds.length
@@ -1119,15 +1124,22 @@ export class HarnessManager {
           return null;
         }) : null;
       if (fingerprint !== null && fingerprint === request.review_fingerprint) {
-        await this.deps.acceptAuthoringStills!(record.projectId!);
-        const latest = await this.mustReadRecord(record.id);
-        const next = { ...latest, ...transitionAgentWorkflow(latest, {
-          expectedRevision: latest.workflowRevision,
-          to: "still_review",
-          jobId: latest.activeJobId,
-        }) };
-        await this.writeRecord(next);
-        return;
+        await this.verifyImageReads(record, request);
+        // History RPC/file inspection is asynchronous; do not accept inputs changed during it.
+        if (await harnessReviewFingerprint(projectRoot, paths) === fingerprint) {
+          await this.deps.acceptAuthoringStills!(record.projectId!);
+          const latest = await this.mustReadRecord(record.id);
+          const next = { ...latest, ...transitionAgentWorkflow(latest, {
+            expectedRevision: latest.workflowRevision,
+            to: "still_review",
+            jobId: latest.activeJobId,
+          }) };
+          await this.writeRecord(next);
+          return;
+        }
+        // Re-enter from a fresh manifest on retry; falling through would write the
+        // pre-RPC manifest over edits that arrived while history was being read.
+        throw new Error("Source/asset đã đổi trong lúc kiểm tra review; cần đọc lại manifest và render still mới.");
       }
     }
     await writeJson(manifestPath, paced.manifest);
@@ -1226,10 +1238,38 @@ export class HarnessManager {
     const path = join(this.rootOf(record.id), AUTHORING_REQUEST_FILE);
     const current = parseJson(await readFile(path, "utf8")) as Record<string, unknown>;
     const next = { ...record, authoringRequestRevision: (record.authoringRequestRevision ?? 0) + 1 };
-    await rm(join(this.rootOf(record.id), "handoff", "authoring.json"), { force: true });
-    await writeJson(path, { ...current, ...patch, request_revision: next.authoringRequestRevision });
-    await this.writeRecord(next);
+    const phase = patch.phase ?? current.phase;
+    const reviewAfterSeq = phase === "self_review" || phase === "image_review"
+      ? (await readHarnessReviewHistory(() => this.reviewHistoryPage(record))).lastSeq : undefined;
+    this.requireActiveSession(record);
+    const commit = (async () => {
+      await rm(join(this.rootOf(record.id), "handoff", "authoring.json"), { force: true });
+      await writeJson(path, { ...current, ...patch, request_revision: next.authoringRequestRevision, review_after_seq: reviewAfterSeq });
+      await this.writeRecord(next);
+    })();
+    this.authoringWrites.add(commit);
+    try { await commit; } finally { this.authoringWrites.delete(commit); }
     await this.promptSession(next, prompt);
+  }
+
+  private reviewHistoryPage(record: DraftRecord, beforeSeq?: number): Promise<unknown> {
+    this.requireActiveSession(record);
+    return this.rpc(this.active!.url, "session.history", {
+      sessionId: record.sessionId, maxMessages: 80,
+      ...(beforeSeq !== undefined ? { beforeSeq } : {}),
+    });
+  }
+
+  private async verifyImageReads(record: DraftRecord, request: Record<string, unknown>): Promise<void> {
+    if (!Number.isSafeInteger(request.review_after_seq) || Number(request.review_after_seq) < -1) {
+      throw new Error("Lượt review cũ thiếu mốc đọc ảnh; cần request review mới.");
+    }
+    const history = await readHarnessReviewHistory(
+      (beforeSeq) => this.reviewHistoryPage(record, beforeSeq), Number(request.review_after_seq),
+    );
+    await assertHarnessImageReads({
+      root: this.rootOf(record.id), stills: request.stills, afterSeq: request.review_after_seq, events: history.events,
+    });
   }
 
   private async assetPathsForIds(record: DraftRecord, value: unknown): Promise<Array<{ id: string; path: string; role: SceneImageRole }>> {

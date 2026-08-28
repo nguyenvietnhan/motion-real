@@ -358,9 +358,29 @@ review revision; unchanged evidence is acknowledged without rendering again.
 Inputs changing during a render invalidate that attempt. Missing review notes
 or stale submissions cannot advance human review. The request persists across
 restart. This prevents stale-image acceptance; it is not a sandbox against an
-Agent deliberately rewriting MotionReal metadata under Full access, nor proof
-that the model actually opened every PNG. The latter still needs native
-`read_image` event/model acceptance evidence.
+Agent deliberately rewriting MotionReal metadata under Full access.
+
+Each review request also captures the owning Harness session's history sequence
+before the request is published. Main reads native `session.history` and pairs
+successful direct `read_image` calls with tool-result image attachments for every
+requested PNG. Those results must follow the request's sequence and precede a
+subsequent assistant message: reading and submitting in the same model step is
+not enough. Text-only reads, failed calls, other files and previous-request reads
+do not count. This check applies even to direct JSON handoffs, not only the
+submission tool. Review requests from older builds without a sequence marker
+receive a fresh review request instead of being silently accepted. No raw history
+or image content is forwarded to the renderer or copied into a new log.
+
+This is execution/attachment evidence, not proof of visual comprehension. The
+check deliberately uses direct `read_image`; a nested Code Mode dispatch is not
+counted merely because its internal tool ran, since its image need not be returned
+to the model. Missing evidence asks for the direct read. The final fingerprint is
+checked again after reading history so changes during that RPC cannot open review
+with stale stills. Live model-image and visual-quality acceptance remain required.
+Graceful Harness shutdown drains in-progress local authoring-request/metadata
+writes before returning, so reopening cannot race that commit. It does not wait
+for a model turn or render, and is not a claim of atomic two-file recovery after
+an abrupt OS/process crash.
 
 Archive and source comparison resolve component IDs through the existing static
 admission pass, just as rendering does; a component ID is not assumed to be a
@@ -410,9 +430,13 @@ rewrite. A Classic project continues through
 
 Only explicit user approval starts the existing final render path. Completion
 is based on the project artifact and WorkspaceController state, not an Agent
-message. The Agent progress bar also displays the current Settings review mode:
-`full` renders a draft MP4 before final, `stills_edit` reviews stills without a
-draft MP4, and `skip_edit` proceeds to final without a human review stop.
+message. The Agent progress bar also displays the current Settings review mode.
+The policy is: `full` renders a draft MP4 before final, `stills_edit` reviews stills
+without a draft MP4, and `skip_edit` proceeds to final without a human review stop.
+Current Harness `acceptHarnessStills` goes straight to human still review; full
+and skip-edit parity on this bridge still needs implementation/acceptance. The
+local `stills_edit` setting correctly explains the reported absence of a draft;
+do not force a draft render for that mode.
 
 ## Handoff Mechanism
 
