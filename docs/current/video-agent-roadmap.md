@@ -607,6 +607,23 @@ These are automated structural checks, not a new native video acceptance. The
 existing Ox job predates the pacing/asset-role/V2 changes and is not evidence
 that those changes have passed an end-to-end run.
 
+Native policy evidence (2026-08-28): an isolated profile launched through the
+production `HarnessManager` against sibling Harness revision
+`00aba2f848f7fe5828da13ee382fd42d81028b31` and the built submission plugin.
+`session.history` confirmed `permission/preset=danger-full-access`,
+`sandbox/mode=danger-full-access`, and `approval/policy=never`; after disposing
+and restarting the runtime, the same session id retained all three facts.
+No prompt/model turn or video render was started. Local report:
+`.video-tool/verification/harness-policy-RfXnAT/report.json`.
+
+Keep the contrary startup evidence too: the first fresh-profile attempt hit the
+existing 60-second startup timeout before a session was created
+(`.video-tool/verification/harness-policy-N8WdVY/report.json`). A subsequent
+fresh profile passed, including restart/resume, without a code or timeout
+change. That proves the policy integration, not consistent cold-start latency;
+the first timeout's cause is not established. Native search success and a new
+video's visual/duration acceptance remain outstanding.
+
 ## Manual End-to-End Acceptance Scenario
 
 Use one new factual video topic and perform the following on native Windows:
