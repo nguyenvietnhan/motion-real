@@ -329,9 +329,12 @@ scene modules, and still evidence under `handoff/authoring-v1/`.
 
 Harness must then open every archived PNG and perform a creative rewrite V2 of
 every scene module. Changing only palette, glow, decorative frames, icons, or
-pulses does not satisfy this gate: MotionReal compares V2 source against the V1
-archive and rejects any scene module that remains byte-identical. Facts,
-narration, timing, and approved asset references stay fixed. MotionReal renders
+pulses does not meet the creative instruction. The mechanical check is narrower:
+MotionReal compares V2 source against the V1 archive, rejects any byte-identical
+module, and fails on missing/unreadable V2 source rather than counting it as a
+change. Byte differences do not prove a meaningful visual rewrite; still review
+must judge the result. Facts, narration, timing, and approved asset references
+stay fixed. MotionReal renders
 V2 again, requires concrete image-backed review notes, then opens the existing
 human per-scene review UI. No MP4 is encoded for this internal V1/V2 loop, so it
 does not claim to evaluate easing or continuous motion.

@@ -44,8 +44,9 @@ export async function assertHarnessCreativeRewrite(input: {
   for (const component of components) {
     const file = `${component}.tsx`;
     const before = await readFile(join(input.baselineDir, "authored", file));
-    const after = await readFile(join(input.authoredDir, file)).catch((_error) => null);
-    if (after?.equals(before)) unchanged.push(file);
+    // A missing/unreadable V2 module is a failure, not evidence of a rewrite.
+    const after = await readFile(join(input.authoredDir, file));
+    if (after.equals(before)) unchanged.push(file);
   }
   if (unchanged.length > 0) {
     throw new Error(`Creative rewrite V2 chưa viết lại các scene: ${unchanged.join(", ")}. Chỉ đổi màu/glow/khung/pulse không được tính là rewrite.`);

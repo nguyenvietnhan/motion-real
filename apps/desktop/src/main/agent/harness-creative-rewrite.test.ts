@@ -72,4 +72,25 @@ describe("Harness mandatory creative rewrite", () => {
       authoredDir: join(project, "authored"),
     })).resolves.toBeUndefined();
   });
+
+  it.each(["missing", "directory"] as const)("rejects %s V2 source rather than treating it as a rewrite", async (kind) => {
+    const { root, project } = await fixture();
+    await archiveHarnessAuthoringV1({
+      draftRoot: root,
+      manifestPath: join(project, "manifest.json"),
+      authoredDir: join(project, "authored"),
+      stills: ["scene-01", "scene-02"].map((sceneId) => ({ sceneId, path: join(project, "review", `${sceneId}.png`) })),
+    });
+    await writeFile(join(project, "authored", "hook.tsx"), "export const hook = 2;\n");
+    const file = join(project, "authored", "proof.tsx");
+    await rm(file);
+    if (kind === "directory") await mkdir(file);
+    await expect(assertHarnessCreativeRewrite({
+      baselineDir: join(root, "handoff", "authoring-v1"),
+      authoredDir: join(project, "authored"),
+    })).rejects.toThrow();
+    // Failure must not mutate the archived evidence.
+    await expect(readFile(join(root, "handoff", "authoring-v1", "authored", "proof.tsx"), "utf8"))
+      .resolves.toBe("export const proof = 1;\n");
+  });
 });

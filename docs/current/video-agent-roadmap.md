@@ -607,6 +607,13 @@ These are automated structural checks, not a new native video acceptance. The
 existing Ox job predates the pacing/asset-role/V2 changes and is not evidence
 that those changes have passed an end-to-end run.
 
+Creative-rewrite follow-up (2026-08-28): a missing or unreadable V2 module now
+fails the source comparison instead of being counted as changed. Regression
+cases cover a deleted module and a directory in place of a module, preserving
+the V1 archive in both cases. The full suite passed 138 files / 1,382 tests;
+typecheck, Remotion build, and desktop Main/plugin build exited 0. This is
+source-integrity evidence, not proof of image review or better visual quality.
+
 Native policy evidence (2026-08-28): an isolated profile launched through the
 production `HarnessManager` against sibling Harness revision
 `00aba2f848f7fe5828da13ee382fd42d81028b31` and the built submission plugin.
