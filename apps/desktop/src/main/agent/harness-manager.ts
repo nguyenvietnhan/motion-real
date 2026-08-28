@@ -655,7 +655,7 @@ export class HarnessManager {
       pacing,
       assets: usableAssets,
       instructions: [
-        "Đọc brief, contract và xem trực tiếp từng asset trước khi author.",
+        "Đọc brief, contract; dùng read_image với file_path của từng asset để xem ảnh thật trước khi author (read chỉ đọc văn bản).",
         "pacing là contract có thẩm quyền; bỏ qua mọi câu duration mâu thuẫn nằm trong prompt của brief.",
         "Asset là pool tư liệu, không phải số lượng storyboard. Số cảnh và lượng narration phải theo pacing.",
         "Viết mới manifest.json và các module authored/*.tsx cho toàn video; không gọi API authoring cũ.",
@@ -1136,7 +1136,7 @@ export class HarnessManager {
       stills: archived?.stills ?? currentStills,
       render_error: undefined,
       instructions: [
-        "Dùng khả năng xem ảnh để mở mọi PNG trong stills; không kết luận từ code.",
+        "Dùng read_image với file_path của mọi PNG trong stills; read chỉ đọc văn bản, không thay cho xem ảnh. Không kết luận từ code; nếu đọc ảnh lỗi, báo lỗi thay vì xác nhận đã review.",
         ...(creativeStage === "v1" ? [
           "Đây là creative rewrite V2 bắt buộc: viết lại MỌI module scene dựa trên ảnh V1, không chỉ sửa scene nhìn yếu.",
           "Được thay toàn bộ layout, hierarchy, asset framing, transition và motion; giữ facts, narration, timing và asset ref đã duyệt.",
@@ -1163,7 +1163,7 @@ export class HarnessManager {
       ...(selfReview ? {} : { stills: [] }),
       instructions: [
         "MotionReal không validate/render được scene hiện tại. Đọc render_error, kiểm tra manifest và mọi module TSX rồi sửa tận gốc.",
-        ...(selfReview ? ["Đây vẫn là lượt self-review/creative rewrite; phải mở lại evidence trong stills và submit đủ reviewed_scene_ids cùng review_notes."] : []),
+        ...(selfReview ? ["Đây vẫn là lượt self-review/creative rewrite; dùng read_image mở lại mọi PNG trong stills. Nếu đọc ảnh lỗi, báo lỗi thay vì xác nhận đã review; chỉ submit đủ reviewed_scene_ids cùng review_notes sau khi xem ảnh."] : []),
         "Gọi lại motionreal_submit_authoring bằng request_revision mới sau khi sửa.",
       ],
     }, "MotionReal chưa validate/render được scene. Hãy đọc render_error trong handoff/authoring-request.json, sửa project/ rồi submit authoring revision mới.");
@@ -1465,7 +1465,7 @@ function agentContract(): string {
 }
 
 function harnessSettings(): string {
-  return `llm-pi-ai:\n  providers:\n    ninerouter:\n      apiKeyEnv: NINEROUTER_API_KEY\n      api: openai-completions\n      baseURL: http://127.0.0.1:20128/v1\n      compat:\n        supportsDeveloperRole: false\n        maxTokensField: max_tokens\n      models:\n        - id: ag/gemini-3.7-flash-high\nagent-default-model:\n  provider: ninerouter\n  model: ag/gemini-3.7-flash-high\nweb-search-deepseek:\n  apiKeyEnv: DEEPSEEK_API_KEY\n`;
+  return `llm-pi-ai:\n  providers:\n    ninerouter:\n      apiKeyEnv: NINEROUTER_API_KEY\n      api: openai-completions\n      baseURL: http://127.0.0.1:20128/v1\n      compat:\n        supportsDeveloperRole: false\n        maxTokensField: max_tokens\n      models:\n        - id: ag/gemini-3.7-flash-high\n          input: [text, image]\nagent-default-model:\n  provider: ninerouter\n  model: ag/gemini-3.7-flash-high\nweb-search-deepseek:\n  apiKeyEnv: DEEPSEEK_API_KEY\n`;
 }
 
 async function findLoopbackPort(): Promise<number> {

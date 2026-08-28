@@ -578,6 +578,7 @@ describe("HarnessManager draft lifecycle", () => {
       },
       assets: [{ id: "logo", ref: "assets/logo.png", path: "project/assets/logo.png", role: "logo" }],
     });
+    expect(request.instructions).toEqual(expect.arrayContaining([expect.stringContaining("read_image")]));
     expect(calls.at(-1)).toMatchObject({ method: "session.prompt" });
     await expect(readFile(join(root, draft.id, "handoff", "authoring-contract.md"), "utf8"))
       .resolves.toMatch(/HỢP ĐỒNG VIẾT CẢNH/);
@@ -643,6 +644,7 @@ describe("HarnessManager draft lifecycle", () => {
         v1_baseline: "handoff/authoring-v1",
         stills: sceneIds.map((sceneId) => `handoff/authoring-v1/stills/${sceneId}.png`),
       });
+      expect(reviewRequest.instructions).toEqual(expect.arrayContaining([expect.stringContaining("read_image")]));
     });
     await expect(readFile(join(root, draft.id, "handoff", "authoring-v1", "authored", "Module-scene-01.tsx"), "utf8"))
       .resolves.toBe(registeredSceneSource("scene-01", "v1"));
@@ -659,6 +661,7 @@ describe("HarnessManager draft lifecycle", () => {
       const repairRequest = JSON.parse(await readFile(join(root, draft.id, "handoff", "authoring-request.json"), "utf8"));
       expect(repairRequest).toMatchObject({ request_revision: 4, phase: "self_review", creative_stage: "v2" });
       expect(repairRequest.render_error).toMatch(/chưa viết lại các scene/);
+      expect(repairRequest.instructions).toEqual(expect.arrayContaining([expect.stringContaining("read_image")]));
     }, { timeout: 2_000 });
     await Promise.all(sceneIds.map((id) => writeFile(join(projectRoot, "authored", `Module-${id}.tsx`), registeredSceneSource(id, "v2"))));
     await writeFile(join(root, draft.id, "handoff", "authoring.json"), JSON.stringify({
@@ -838,6 +841,11 @@ describe("HarnessManager draft lifecycle", () => {
       .resolves.toMatch(/motionreal-submission-tools[\s\S]*file:\/\//);
     await expect(readFile(join(root, "harness", "settings.yaml"), "utf8"))
       .resolves.toMatch(/web-search-deepseek:[\s\S]*apiKeyEnv: DEEPSEEK_API_KEY/);
+    const settings = await readFile(join(root, "harness", "settings.yaml"), "utf8");
+    // The custom 9router model has no upstream catalog entry to inherit vision from.
+    // Declare only this model, not a route-wide capability for unknown future models.
+    expect(settings).toContain("        - id: ag/gemini-3.7-flash-high\n          input: [text, image]\n");
+    expect(settings).not.toContain("defaultInput:");
     const options = vi.mocked(spawnChild).mock.calls[0]?.[2];
     expect(options?.env).not.toHaveProperty("ELECTRON_RUN_AS_NODE");
     await manager.dispose();

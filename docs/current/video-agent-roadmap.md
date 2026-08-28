@@ -661,6 +661,37 @@ MotionReal still uses DeepSeek search until that choice is approved. Supplying a
 DeepSeek search credential remains the other option. Neither alternative is
 marked as a completed search-in-chat acceptance.
 
+Image-route diagnosis (2026-08-28): the custom 9router model previously omitted
+`input`, so the installed Harness resolved it to text-only and `read_image`
+refused before reading a PNG. The generated config now declares `[text, image]`
+on the exact model entry, not as a default for all models. Initial asset review,
+V1-to-V2 review and self-review repair instructions name the existing
+`read_image` tool rather than relying on text-file reads.
+
+Two regression assertions failed before the fix and the focused manager/rewrite
+suite passed all 25 tests afterwards. An isolated native probe generated config
+through production `HarnessManager`, loaded the installed filesystem,
+attachment and LLM plugins, read a PNG, and passed the tool-result image through
+the actual adapter to a local mock provider. The captured request contained one
+PNG data URL and the pinned model ID; the adapter received a normal completion.
+Report: `.video-tool/verification/harness-vision-wire-G0RiU0/report.json`;
+probe: `.video-tool/verification/check-harness-vision-wire.mts`.
+The earlier negative/positive capability probe is retained at
+`.video-tool/verification/harness-vision-spZcl3/report.json`.
+Final verification for this change: `npm.cmd run typecheck`, `npm.cmd test`
+(138 files / 1,383 tests, including the isolated authored-typecheck group),
+`npm.cmd run build`, and `npm.cmd --prefix apps/desktop run build:main` all
+completed with exit code 0.
+
+This proves image transport with the installed adapter, not live model vision
+or visual quality. The real gateway's `/v1/models` check timed out after ten
+seconds while a listener still existed on port 20128; no gateway restart,
+credential mint, provider switch or existing video mutation was performed.
+Live model-image acceptance remains outstanding. A separate remaining workflow
+gap is that V2 submission renders new stills and immediately accepts notes made
+before those new stills existed; reviewing the newly rendered V2 images must be
+completed before claiming the entire creative-review loop is verified.
+
 ## Manual End-to-End Acceptance Scenario
 
 Use one new factual video topic and perform the following on native Windows:

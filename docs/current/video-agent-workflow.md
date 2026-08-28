@@ -155,6 +155,16 @@ shows any live approval request instead of silently leaving the chat busy; a new
 video session receives Full access automatically.
 
 Chat and search use separate providers. Chat uses the internal 9router key.
+The custom `ag/gemini-3.7-flash-high` entry explicitly declares `input: [text,
+image]`. It cannot inherit image capability from the upstream model catalog
+under the custom 9router ID. Harness's existing `read_image` tool needs this
+declaration to turn a local PNG into an image attachment; ordinary `read` only
+returns text. Asset inspection and still-review requests name `read_image`
+explicitly. The declaration enables the route, but does not by itself prove a
+live provider accepted an image or that a reviewer actually inspected every
+scene. Restart Harness through MotionReal to regenerate the managed settings
+after upgrading; do not edit a project's scenes to work around model metadata.
+
 Harness `web_search` uses DeepSeek's native search endpoint and therefore needs
 a separate `DEEPSEEK_API_KEY`. The Agent tab stores that value directly through
 Harness's write-only credential RPC; MotionReal does not persist it in project
