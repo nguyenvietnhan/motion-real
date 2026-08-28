@@ -10,6 +10,7 @@ describe("agentProjectProgress", () => {
     [{ kind: "rendering", percent: 20, phase: "prepare" }, "still_review"],
     [{ kind: "rendering", percent: 30, phase: "draft" }, "draft_render"],
     [{ kind: "ready", scenes: [], draftPath: "media://draft.mp4" }, "draft_review"],
+    [{ kind: "ready", scenes: [] }, "still_review"],
     [{ kind: "rendering", percent: 70, phase: "full" }, "final_render"],
     [{ kind: "published", outputPath: "media://video.mp4" }, "completed"],
     [{ kind: "error", message: "Lỗi", fixable: false }, "error"],

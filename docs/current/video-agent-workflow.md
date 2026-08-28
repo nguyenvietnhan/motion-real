@@ -428,15 +428,37 @@ rewrite. A Classic project continues through
 
 ### 8. Final render
 
-Only explicit user approval starts the existing final render path. Completion
+Explicit user approval starts the existing final render path in `full` and
+`stills_edit`; `skip_edit` is the user's opt-in to automatic final export. Completion
 is based on the project artifact and WorkspaceController state, not an Agent
 message. The Agent progress bar also displays the current Settings review mode.
 The policy is: `full` renders a draft MP4 before final, `stills_edit` reviews stills
 without a draft MP4, and `skip_edit` proceeds to final without a human review stop.
-Current Harness `acceptHarnessStills` goes straight to human still review; full
-and skip-edit parity on this bridge still needs implementation/acceptance. The
-local `stills_edit` setting correctly explains the reported absence of a draft;
-do not force a draft render for that mode.
+After Harness image review, `acceptHarnessStills` now applies that policy:
+
+- `full`: enqueue one existing draft-render/safety-report attempt, with no Classic
+  author/refine/re-author call. A successful report and a healthy draft artifact
+  are required before the ready stage exposes the draft. Content failure returns
+  to Harness through the existing edit request when the user asks to fix it.
+- `stills_edit`: show fresh per-scene stills without rendering or displaying an
+  old draft from a previous mode. The local setting correctly explains the
+  reported absence of a draft; do not force MP4 preview for this mode.
+- `skip_edit`: enqueue the existing full-publish path without a human scene-review
+  stop or a draft encode. This does not skip Harness's V1/V2 image review.
+
+Workspace owns the asynchronous MP4 work and its cancellation/serialization.
+Harness persists the accepted image review without waiting for that encode.
+Rejected edit requests restore the prior Workspace stage; they do not call the
+acceptance bridge or accidentally start a render. Retry/fix/script-approve IPC
+checks persisted Harness ownership before choosing a path, including after app
+restart. Infrastructure errors rerun rendering, content fixes return to the
+owning Session, and unaccepted Harness image review cannot enter Classic recovery.
+Still URLs receive a new revision after accepted edits. Agent review labels use
+the actual presence of a draft path, not stale Agent production metadata.
+
+These paths have automated coverage; native video acceptance of all three modes
+is still required. Existing artifact-health checks mean a nonempty regular media
+file plus successful pipeline validation, not an independent new decoder test.
 
 ## Handoff Mechanism
 
@@ -487,6 +509,11 @@ controllers.
 
 ## Transition Rules
 
+After project linking, the persisted Agent `still_review` state records accepted
+image review; live draft/full/review/completion is projected from Workspace.
+The review-mode branch runs immediately after that acceptance, not after an
+extra human still approval in `full` or `skip_edit`.
+
 | From | Trigger | To |
 | --- | --- | --- |
 | `discovery` | User clicks prepare | `collecting_assets` |
@@ -498,7 +525,7 @@ controllers.
 | `authoring` | Valid Harness submission, still render, and self-review | `still_review` |
 | `draft_render` | Healthy draft artifact and ready stage | `draft_review` |
 | `still_review` | User requests an edit | same Harness Session → `authoring` |
-| `still_review` | User approves scenes | existing review-mode controller (`full`, `stills_edit`, or `skip_edit`) |
+| `still_review` | User approves scenes in `stills_edit` | `final_render` |
 | `draft_review` | User approves full render | `final_render` |
 | `final_render` | Healthy full artifact | `completed` |
 | any running state | Structured failure | `error` |

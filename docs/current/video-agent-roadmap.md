@@ -44,7 +44,8 @@ The embedded Harness client remains the rollback/debug point through Phase 7.
 - Both modes produce the same manifest and authored TSX contract. Harness scene
   edits return to the owning Session; Classic scene edits remain unchanged.
 - No second render engine, TSX format, or project-management path is introduced.
-- User approval remains mandatory for assets, the final brief, and final render.
+- User approval remains mandatory for assets and the final brief. Final render
+  follows Settings: approval in `full`/`stills_edit`, automatic in `skip_edit`.
 - Existing Home, Create, Workspace, crawler, Queue, and project behavior must not
   regress.
 - Keep the Harness iframe as a developer fallback until the replacement UI has
@@ -767,6 +768,30 @@ edit-preservation regression are included. Native model vision, aesthetics,
 continuous motion, and a new end-to-end video remain unaccepted.
 
 ## Manual End-to-End Acceptance Scenario
+
+Review-mode stabilization (2026-08-28): the Harness bridge now branches on the
+existing Settings policy after accepted image review. `full` uses one existing
+draft render + safety check (maxAttempts=1; no Classic re-author/refine),
+`stills_edit` exposes current stills without a draft, and `skip_edit` uses existing
+full publish automatically. Rejected edits restore the prior Workspace stage,
+not the acceptance bridge. IPC recovery routes recognized Harness projects back
+to their Session or a render-only retry; Classic remains on its existing worker.
+Agent labels now distinguish an actual draft from still-only review, and accepted
+edits refresh still URL revisions. Duplicate acceptance is refused; cancellation
+also recovers a Harness render that was still queued behind another project.
+
+Final automated verification for this batch: `npm.cmd test` exited 0 with
+140 files / 1,441 tests (139 files / 1,427 tests plus the isolated 14 authored
+typecheck tests). `npm.cmd run typecheck`, `npm.cmd run build`,
+`npm.cmd --prefix apps/desktop run build:main`, and
+`npm.cmd --prefix apps/desktop run build:renderer` all exited 0. The renderer
+build reported a non-fatal CSS-plugin timing warning. Local Settings were checked
+again and remain `stills_edit` with `vieneu`; no user project was rendered/edited.
+
+Native acceptance still needs a new video: verify all three Settings modes,
+one edit, one render failure/retry and cancel, actual narration duration, and the
+quality of the final video. Automated routing tests do not prove visual quality,
+live provider image input, or successful search in the Agent chat.
 
 Use one new factual video topic and perform the following on native Windows:
 

@@ -82,6 +82,21 @@ describe("CustomLoopAgentWorker.visualQa", () => {
 });
 
 describe("CustomLoopAgentWorker.generateValidateRepair", () => {
+  it("one-attempt Harness draft checks safety but never calls Classic reauthor", async () => {
+    const reauthor = vi.fn(async () => ({ scenes: twoScenes }));
+    const renderDraft = vi.fn(async () => ({ ok: true as const }));
+    const getSafetyReport = vi.fn(async () => ({ ok: false, hardErrors: [
+      { check: "N31", severity: "error" as const, sceneId: "scene-02", message: "runtime fallback" },
+    ], warnings: [] }));
+    const worker = new CustomLoopAgentWorker(backend({ reauthor, renderDraft, getSafetyReport }));
+    const signal = new AbortController().signal;
+    expect(await worker.generateValidateRepair("harness", { maxAttempts: 1 }, recordingHooks().hooks, signal))
+      .toMatchObject({ kind: "exhausted", attempts: 1 });
+    expect(renderDraft).toHaveBeenCalledWith("harness", signal);
+    expect(getSafetyReport).toHaveBeenCalledOnce();
+    expect(reauthor).not.toHaveBeenCalled();
+  });
+
   it("delegates to the repair loop, re-authoring flagged scenes until clean", async () => {
     let renders = 0;
     const reauthor = vi.fn(async () => ({ scenes: twoScenes }));

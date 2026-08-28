@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import fc from "fast-check";
 import { WorkspaceController, type WorkspaceDeps, type WsManifest } from "./workspace-controller.js";
+import { routeSceneEdits } from "../agent/route-scene-edits.js";
 import { stripL0Tokens } from "../redact/friendly.js";
 import type { AgentHooks, AgentWorker, AuthorImageRef, AuthorOutcome, RepairOutcome } from "../agent/agent-worker.js";
 import type { ProjectCardVM, ProjectStage, ScriptEdit } from "../../shared/types.js";
@@ -104,6 +105,7 @@ describe("process-wide workspace lane", () => {
 describe("Harness still-review bridge", () => {
   it("shows Harness authoring progress and reuses the existing ready scene review", async () => {
     const ctrl = new WorkspaceController(baseDeps({
+      settings: { ...baseDeps().settings, reviewMode: "stills_edit" },
       loadManifest: async () => ({ scenes: [{
         id: "scene-01",
         component: "scene-01",
@@ -122,6 +124,128 @@ describe("Harness still-review bridge", () => {
       kind: "ready",
       scenes: [{ sceneId: "scene-01", stillPath: expect.stringContaining("media://still/scene-01") }],
     });
+  });
+
+  function harnessDeps(mode: "full" | "stills_edit" | "skip_edit") {
+    const generateValidateRepair = vi.fn(async (): Promise<RepairOutcome> => ({ kind: "passed", attempts: 1 }));
+    const publish = vi.fn(async () => ({ ok: true as const, outputPath: "out.mp4" }));
+    const worker = {
+      author: vi.fn(), reauthorScenes: vi.fn(), visualQa: vi.fn(), renderStills: vi.fn(),
+      generateValidateRepair, publish,
+    } as unknown as AgentWorker;
+    const deps = baseDeps({
+      worker,
+      settings: { ...baseDeps().settings, reviewMode: mode, refinePasses: 3 },
+      loadManifest: async () => ({ scenes: [{ id: "scene-01" }] }),
+      hasStill: () => true,
+      hasDraft: () => mode === "full",
+      inspectArtifacts: async () => ({ full: "missing", draft: mode === "full" ? "healthy" : "missing" }),
+    });
+    return { deps, worker, generateValidateRepair, publish, ctrl: new WorkspaceController(deps) };
+  }
+
+  it.each(["full", "stills_edit", "skip_edit"] as const)("honors %s without Classic author/refine", async (mode) => {
+    const { ctrl, worker, generateValidateRepair, publish } = harnessDeps(mode);
+    const stages: string[] = [];
+    const setStage = ctrl.setStage.bind(ctrl);
+    vi.spyOn(ctrl, "setStage").mockImplementation((id, stage) => { stages.push(stage.kind); setStage(id, stage); });
+    await ctrl.acceptHarnessStills("p");
+    await vi.waitFor(() => expect(ctrl.isBusy()).toBe(false));
+    if (mode === "skip_edit") {
+      expect(await ctrl.stage("p")).toMatchObject({ kind: "published" });
+      expect(stages).not.toContain("ready");
+      expect(publish).toHaveBeenCalledWith("p", expect.any(AbortSignal), { forceFull: true });
+    } else {
+      const stage = await ctrl.stage("p");
+      expect(stage).toMatchObject({ kind: "ready" });
+      if (stage.kind === "ready") expect(Boolean(stage.draftPath)).toBe(mode === "full");
+      expect(publish).not.toHaveBeenCalled();
+      ctrl.publish("p");
+      await vi.waitFor(() => expect(publish).toHaveBeenCalledOnce());
+    }
+    if (mode === "full") expect(generateValidateRepair).toHaveBeenCalledWith("p", { maxAttempts: 1 }, expect.anything(), expect.any(AbortSignal));
+    else expect(generateValidateRepair).not.toHaveBeenCalled();
+    for (const fn of [worker.author, worker.reauthorScenes, worker.visualQa, worker.renderStills]) expect(fn).not.toHaveBeenCalled();
+  });
+
+  it.each(["full", "skip_edit"] as const)("rejected edits in %s restore the prior stage without rendering", async (mode) => {
+    const { ctrl, generateValidateRepair, publish } = harnessDeps(mode);
+    const previous: ProjectStage = { kind: "error", message: "Draft lỗi", retry: "draft", fixable: true };
+    ctrl.setStage("p", previous);
+    await expect(routeSceneEdits("p", [], "Sửa cảnh", {
+      draftForProject: async () => ({ id: "agent-p" }),
+      activate: async (id) => ({ id }),
+      beginHarness: (id) => ctrl.beginHarnessAuthoring(id),
+      requestHarness: async () => { throw new Error("submission rejected"); },
+      restoreHarnessReview: async (id) => ctrl.setStage(id, previous),
+      submitClassic: vi.fn(),
+    })).rejects.toThrow("submission rejected");
+    expect(await ctrl.stage("p")).toEqual(previous);
+    expect(generateValidateRepair).not.toHaveBeenCalled();
+    expect(publish).not.toHaveBeenCalled();
+  });
+
+  it("does not show an old draft after switching to stills_edit", async () => {
+    const { ctrl, deps, generateValidateRepair } = harnessDeps("stills_edit");
+    deps.hasDraft = () => true;
+    await ctrl.acceptHarnessStills("p");
+    expect(await ctrl.stage("p")).toMatchObject({ kind: "ready" });
+    expect(await ctrl.stage("p")).not.toHaveProperty("draftPath");
+    expect(generateValidateRepair).not.toHaveBeenCalled();
+  });
+
+  it.each(["infra", "exhausted", "missing", "throw"])("does not accept a %s draft as ready", async (failure) => {
+    const { ctrl, deps, generateValidateRepair, publish } = harnessDeps("full");
+    if (failure === "infra") generateValidateRepair.mockResolvedValue({ kind: "infra", attempts: 1,
+      error: { stage: "tts", message: "Missing voice credential", cause: "missing VIETNAMESE_API_KEY", severity: "error" } });
+    if (failure === "exhausted") generateValidateRepair.mockResolvedValue({ kind: "exhausted", attempts: 1, remainingHardErrors: 1 });
+    if (failure === "missing") deps.inspectArtifacts = async () => ({ full: "missing", draft: "missing" });
+    if (failure === "throw") generateValidateRepair.mockRejectedValue(new Error("ECONNREFUSED"));
+    await ctrl.acceptHarnessStills("p");
+    await vi.waitFor(() => expect(ctrl.isBusy()).toBe(false));
+    expect(await ctrl.stage("p")).toMatchObject({ kind: "error", retry: "draft" });
+    expect(publish).not.toHaveBeenCalled();
+    expect(deps.events.friendlyError).toHaveBeenCalledOnce();
+    expect(JSON.stringify(await ctrl.stage("p"))).not.toContain("[object Object]");
+  });
+
+  it("blocks duplicate acceptance and cancels draft without publishing", async () => {
+    const { ctrl, generateValidateRepair, publish } = harnessDeps("full");
+    let release!: (outcome: RepairOutcome) => void;
+    generateValidateRepair.mockImplementation(() => new Promise((resolve) => { release = resolve; }));
+    await ctrl.acceptHarnessStills("p");
+    await vi.waitFor(() => expect(generateValidateRepair).toHaveBeenCalledOnce());
+    await expect(ctrl.acceptHarnessStills("p")).rejects.toThrow("đang render");
+    ctrl.cancel("p");
+    release({ kind: "passed", attempts: 1 });
+    await vi.waitFor(() => expect(ctrl.isBusy()).toBe(false));
+    expect(await ctrl.stage("p")).toMatchObject({ kind: "ready" });
+    expect(publish).not.toHaveBeenCalled();
+  });
+
+  it("refreshes still URLs after a Harness edit", async () => {
+    const { ctrl } = harnessDeps("stills_edit");
+    await ctrl.acceptHarnessStills("p");
+    const first = await ctrl.open("p");
+    ctrl.beginHarnessAuthoring("p");
+    await ctrl.acceptHarnessStills("p");
+    expect((await ctrl.open("p")).scenes[0]!.stillPath).not.toBe(first.scenes[0]!.stillPath);
+  });
+
+  it("cancels a Harness render queued behind another project without leaving a busy stage", async () => {
+    const { ctrl, generateValidateRepair, publish } = harnessDeps("full");
+    let release!: (outcome: RepairOutcome) => void;
+    generateValidateRepair.mockImplementationOnce(() => new Promise((resolve) => { release = resolve; }));
+    await ctrl.acceptHarnessStills("first");
+    await vi.waitFor(() => expect(generateValidateRepair).toHaveBeenCalledOnce());
+    ctrl.beginHarnessStillRender("queued");
+    await ctrl.acceptHarnessStills("queued");
+    ctrl.cancel("queued");
+    release({ kind: "passed", attempts: 1 });
+    await vi.waitFor(() => expect(ctrl.isBusy()).toBe(false));
+    expect(generateValidateRepair).toHaveBeenCalledOnce();
+    expect(await ctrl.stage("queued")).toMatchObject({ kind: "ready" });
+    expect(publish).not.toHaveBeenCalled();
   });
 });
 

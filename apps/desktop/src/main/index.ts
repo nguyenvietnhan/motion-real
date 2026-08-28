@@ -19,6 +19,7 @@ import { NineRouterAuthoringBackend } from "./authoring/ninerouter-backend.js";
 import { CustomLoopAgentWorker } from "./agent/custom-loop-worker.js";
 import { createAgentProject } from "./agent/create-agent-project.js";
 import { routeSceneEdits } from "./agent/route-scene-edits.js";
+import { routeProjectRecovery } from "./agent/route-project-recovery.js";
 import { WorkspaceController } from "./workspace/workspace-controller.js";
 import { CreateController } from "./create/create-controller.js";
 import { stripL0Tokens } from "./redact/friendly.js";
@@ -455,6 +456,40 @@ async function activateHarnessDraft(draftId: string) {
   return harness.activate(draftId, key);
 }
 
+async function submitProjectSceneEdits(id: string, edits: unknown, notes: unknown) {
+  const previousStage = await workspace.stage(id);
+  return routeSceneEdits(id, edits, notes, {
+    draftForProject: (value) => harness.draftForProject(value),
+    activate: (draftId) => activateHarnessDraft(draftId),
+    beginHarness: (value) => {
+      if (previousStage.kind !== "ready" && previousStage.kind !== "error") {
+        throw new Error("Project chưa sẵn sàng nhận yêu cầu sửa cảnh.");
+      }
+      workspace.beginHarnessAuthoring(value);
+    },
+    requestHarness: (draftId, value, changes, global) => harness.requestSceneEdits(draftId, value, changes, global),
+    restoreHarnessReview: async (value) => workspace.setStage(value, previousStage),
+    submitClassic: (value, changes, global) => workspace.submitEdits(
+      value, changes as { sceneId: string; text: string }[], String(global ?? ""),
+    ),
+  });
+}
+
+function recoverProject(id: string, action: "retry" | "fix" | "approve") {
+  return routeProjectRecovery(id, action, {
+    draftForProject: (value) => harness.draftForProject(value),
+    stage: (value) => workspace.stage(value),
+    resumeHarnessRender: (value) => workspace.acceptHarnessStills(value),
+    editHarness: (value, notes) => submitProjectSceneEdits(value, [], notes),
+    publish: (value) => workspace.publish(value),
+    classic: (value, selected) => {
+      if (selected === "approve") workspace.approve(value);
+      else if (selected === "fix") workspace.fixWithAi(value);
+      else void workspace.retry(value);
+    },
+  });
+}
+
 async function stageHarnessImages(assets: Array<{ id: string; path: string }>) {
   const staged: Array<{ id: string; image: { ref: string; width: number; height: number } }> = [];
   for (const asset of assets) {
@@ -805,14 +840,8 @@ const handlers: InvokeHandlers = {
     workspace.cancel(String(projectId));
     return undefined;
   },
-  "projects:retry": (projectId) => {
-    workspace.retry(String(projectId));
-    return undefined;
-  },
-  "projects:fixWithAi": (projectId) => {
-    workspace.fixWithAi(String(projectId));
-    return undefined;
-  },
+  "projects:retry": (projectId) => recoverProject(String(projectId), "retry"),
+  "projects:fixWithAi": (projectId) => recoverProject(String(projectId), "fix"),
   "projects:submitImageReview": (projectId, selectedRefs) => {
     workspace.submitImageReview(String(projectId), Array.isArray(selectedRefs) ? (selectedRefs as unknown[]).map(String) : []);
     return undefined;
@@ -883,10 +912,7 @@ const handlers: InvokeHandlers = {
 
   "script:get": (projectId) => workspace.scriptGate(String(projectId)),
   "script:applyEdits": (projectId, edits) => workspace.applyEdits(String(projectId), edits as ScriptEdit[]),
-  "script:approve": (projectId) => {
-    workspace.approve(String(projectId)); // stage 2: approved → render voice + draft
-    return undefined;
-  },
+  "script:approve": (projectId) => recoverProject(String(projectId), "approve"),
   "script:setEnabled": (enabled) => {
     if (queueRunner.hasScheduledWork() && Boolean(enabled)) {
       throw new Error("Không thể bật duyệt kịch bản khi hàng đợi đang chạy.");
@@ -898,18 +924,7 @@ const handlers: InvokeHandlers = {
   "review:submitEdits": async (projectId, batch) => {
     const id = String(projectId);
     const b = batch as { perScene: { sceneId: string; text: string }[]; globalNotes: string };
-    await routeSceneEdits(id, b.perScene ?? [], b.globalNotes ?? "", {
-      draftForProject: (value) => harness.draftForProject(value),
-      activate: (draftId) => activateHarnessDraft(draftId),
-      beginHarness: (value) => workspace.beginHarnessAuthoring(value),
-      requestHarness: (draftId, value, edits, notes) => harness.requestSceneEdits(draftId, value, edits, notes),
-      restoreHarnessReview: (value) => workspace.acceptHarnessStills(value),
-      submitClassic: (value, edits, notes) => workspace.submitEdits(
-        value,
-        edits as { sceneId: string; text: string }[],
-        String(notes ?? ""),
-      ),
-    });
+    await submitProjectSceneEdits(id, b.perScene ?? [], b.globalNotes ?? "");
     return { ok: true, revision: 1 };
   },
   "review:approveDraft": (projectId) => {

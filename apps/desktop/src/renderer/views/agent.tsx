@@ -281,9 +281,9 @@ export const AgentView: React.FC<{
   };
 
   const liveProgress = projectStage ? agentProjectProgress(projectStage) : null;
-  const harnessStillReview = active?.productionState === "still_review" && projectStage?.kind === "ready";
-  const displayedState = harnessStillReview ? "still_review" : liveProgress?.state ?? active?.productionState;
-  const progressLabel = harnessStillReview ? "Chờ bạn duyệt từng cảnh" : liveProgress?.label ?? (active ? PRODUCTION_LABELS[active.productionState] : "");
+  const harnessStillReview = liveProgress?.state === "still_review" && projectStage?.kind === "ready";
+  const displayedState = liveProgress?.state ?? active?.productionState;
+  const progressLabel = liveProgress?.label ?? (active ? PRODUCTION_LABELS[active.productionState] : "");
   const canCancelProject = liveProgress?.canCancel && active?.productionState !== "authoring";
 
   const prepareAssets = () => {

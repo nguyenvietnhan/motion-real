@@ -230,13 +230,14 @@ export class WorkspaceController {
   }
 
   /** Run an exclusive per-project job; ignored if one is already in flight. */
-  private guarded(projectId: string, run: () => Promise<void>): void {
+  private guarded(projectId: string, run: () => Promise<void>, onQueuedCancel?: () => Promise<void>): void {
     if (this.inFlight.has(projectId)) return;
     this.inFlight.add(projectId);
     const aborter = new AbortController();
     this.aborters.set(projectId, aborter);
     const task = this.enqueueProcessWork(async () => {
       if (!aborter.signal.aborted) await run();
+      else await onQueuedCancel?.();
     }).catch((error) => {
       log.error({ err: error, projectId }, "workspace guarded job escaped its stage handler");
     }).finally(() => {
@@ -441,11 +442,69 @@ export class WorkspaceController {
   }
 
   async acceptHarnessStills(projectId: string): Promise<void> {
-    this.setStage(projectId, this.readyStage(
-      projectId,
-      await this.storyboardScenesOf(projectId),
-      "Harness đã tự kiểm tra still. Hãy duyệt từng cảnh trước khi xuất video.",
-    ));
+    if (this.inFlight.has(projectId)) throw new Error("Project đang render; chưa thể nhận lượt review khác.");
+    this.bumpRenderVersion(projectId);
+    const mode = this.deps.settings.reviewMode;
+    if (mode === "stills_edit") {
+      // An older draft from a previous mode/edit is not the current still review.
+      this.setStage(projectId, readyStageOf(await this.storyboardScenesOf(projectId), {
+        notice: "Harness đã tự kiểm tra still. Hãy duyệt từng cảnh trước khi xuất video.",
+      }));
+      return;
+    }
+    // Enqueue, do not await an MP4 here: Harness must persist its accepted image
+    // review before another poll/restart. Workspace owns the subsequent progress.
+    this.guarded(projectId, () => this.runHarnessRender(projectId, mode), () => this.recoverAfterCancel(projectId));
+  }
+
+  private async runHarnessRender(projectId: string, mode: ReviewMode): Promise<void> {
+    if (mode === "skip_edit") {
+      await this.runPublish(projectId);
+      return;
+    }
+    const signal = this.signalOf(projectId);
+    this.setStage(projectId, { kind: "rendering", percent: 0, phase: "draft" });
+    try {
+      // One existing render + safety-report check, ZERO re-author attempts.
+      // Harness already did V1/V2 image review. Never call Classic refine here.
+      const outcome = await this.deps.worker.generateValidateRepair(
+        projectId, { maxAttempts: 1 },
+        { ...this.renderHooks(projectId), onRepair: () => {} }, signal,
+      );
+      if (signal?.aborted || outcome.kind === "cancelled") {
+        await this.recoverAfterCancel(projectId);
+        return;
+      }
+      if (outcome.kind === "passed") {
+        const { draft } = await this.inspectArtifactHealth(projectId);
+        if (draft !== "healthy") throw new Error("Draft render không tạo được MP4 hợp lệ.");
+        this.bumpRenderVersion(projectId);
+        this.setStage(projectId, this.readyStage(projectId, await this.storyboardScenesOf(projectId)));
+        return;
+      }
+      if (outcome.kind === "infra" && outcome.error) {
+        const friendly = toFriendlyError(outcome.error, { projectId, phase: "draft" });
+        this.setStage(projectId, { kind: "error", message: friendly.message, fixable: false, retry: "draft", ...(friendly.voiceFailure ? { voiceFailure: friendly.voiceFailure } : {}) });
+        this.deps.events.friendlyError({ ...friendly, projectId, fixable: false, retry: "draft" });
+        return;
+      }
+      const fixable = outcome.kind === "exhausted";
+      const message = fixable
+        ? "Bản nháp còn lỗi cần Harness sửa cảnh. Chưa xuất video final."
+        : "Chưa kiểm tra được bản nháp. Hãy kiểm tra Cài đặt rồi thử lại.";
+      this.setStage(projectId, { kind: "error", message, fixable, retry: "draft" });
+      this.deps.events.friendlyError({ projectId, message, fixable, retry: "draft" });
+    } catch (error) {
+      if (signal?.aborted) {
+        await this.recoverAfterCancel(projectId);
+        return;
+      }
+      const serialized = serializeError(error, "render");
+      const friendly = toFriendlyError(serialized, { projectId, phase: "draft" });
+      const fixable = classifyError(serialized) === "content";
+      this.setStage(projectId, { kind: "error", message: friendly.message, fixable, retry: "draft", ...(friendly.voiceFailure ? { voiceFailure: friendly.voiceFailure } : {}) });
+      this.deps.events.friendlyError({ ...friendly, projectId, fixable, retry: "draft" });
+    }
   }
 
   /**
