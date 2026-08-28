@@ -825,6 +825,18 @@ or a reason to loosen configuration checks. No listener/firewall change or
 gateway restart was made. Real-model/UI search and new-video acceptance remain
 unverified; the native mock-model reports above do not replace them.
 
+Read-only gateway diagnosis (2026-08-28): the same PID `16228` also timed out on
+`GET /`, independently of Harness. Its measured CPU increased by 2.0625 seconds
+over 2.058 seconds wall time (approximately one saturated core); memory remained
+around 250 MB. The installed package is 9router 0.5.55. These observations suggest
+a server-side busy loop, but no stack trace establishes the cause.
+[Upstream issue #3061](https://github.com/decolua/9router/issues/3061) reports a
+similar Windows/dashboard-triggered hang on 0.5.50, not proof of the same defect
+here. Do not increase Agent timeouts or patch Harness on that inference. The next
+diagnostic is a user-approved restart of the existing gateway without opening its
+dashboard, then direct HTTP and real-model acceptance. No account/key/database,
+firewall, gateway package, or running process was changed during this diagnosis.
+
 ## Manual End-to-End Acceptance Scenario
 
 Review-mode stabilization (2026-08-28): the Harness bridge now branches on the
