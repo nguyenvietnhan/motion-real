@@ -58,6 +58,8 @@ export type AgentProductionState =
   | "completed"
   | "error";
 
+export type AgentSearchProvider = "deepseek" | "exa";
+
 /** A video-scoped Harness workspace. Paths and credentials never cross IPC. */
 export type AgentDraftVM = {
   id: string;
@@ -75,6 +77,8 @@ export type AgentDraftVM = {
   harnessUrl?: string;
   /** Whether DeepSeek Harness has the separate credential required by web_search. */
   webSearchConfigured?: boolean;
+  /** Provider loaded by the running Harness, not a search-health assertion. */
+  searchProvider?: AgentSearchProvider;
   /** The agent has written an explicit request awaiting the user's approval. */
   createReady: boolean;
   /** Validated local images awaiting the user's approval. */

@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { agentProjectProgress } from "../../shared/agent-project-progress.js";
-import type { AgentBriefInput, AgentChatMessageVM, AgentDraftVM, AgentProductionState, AgentToolActivityVM, DurationTierChoice, ProjectStage, ReviewMode, VideoLanguageChoice, VoiceProviderChoice } from "../../shared/types.js";
+import type { AgentBriefInput, AgentChatMessageVM, AgentDraftVM, AgentProductionState, AgentSearchProvider, AgentToolActivityVM, DurationTierChoice, ProjectStage, ReviewMode, VideoLanguageChoice, VoiceProviderChoice } from "../../shared/types.js";
 import { Icon } from "../icons.js";
 import { ConfirmDialog } from "../primitives.js";
 import { AgentChatMarkdown } from "./agent-chat-markdown.js";
@@ -263,6 +263,15 @@ export const AgentView: React.FC<{
     });
   };
 
+  const selectSearchProvider = (provider: AgentSearchProvider) => {
+    if (!active) return;
+    void run(async () => {
+      await window.dashboard.agent.setSearchProvider(active.id, provider);
+      setSearchApiKey("");
+      setNotice(`Đã lưu lựa chọn ${provider === "exa" ? "Exa hosted" : "DeepSeek"} cho mọi video Agent. Khởi động lại MotionReal để áp dụng; phiên chat hiện tại không bị ngắt.`);
+    });
+  };
+
   const createVideo = () => {
     if (!active) return;
     void run(async () => {
@@ -478,7 +487,19 @@ export const AgentView: React.FC<{
           )}
         </div>
       )}
-      {active?.harnessUrl && active.webSearchConfigured === false && (
+      {active?.harnessUrl && (
+        <div className="ns-agent-prepare">
+          <span>
+            Tìm kiếm đang cấu hình: {active.searchProvider === "exa" ? "Exa hosted" : "DeepSeek"}.
+            {" "}Exa nhận truy vấn tìm kiếm qua mạng, có mức dùng miễn phí giới hạn; kết quả có thể lưu trong lịch sử Harness.
+          </span>
+          <button type="button" className="ns-btn" disabled={busy}
+            onClick={() => selectSearchProvider(active.searchProvider === "exa" ? "deepseek" : "exa")}>
+            {active.searchProvider === "exa" ? "Chuyển sang DeepSeek" : "Dùng Exa hosted"}
+          </button>
+        </div>
+      )}
+      {active?.harnessUrl && active.searchProvider !== "exa" && active.webSearchConfigured === false && (
         <form className="ns-agent-prepare" onSubmit={configureSearch}>
           <span>
             Chat đang dùng 9router. Công cụ <code>web_search</code> cần DeepSeek API key riêng và lưu trực tiếp trong Harness.
@@ -690,6 +711,7 @@ export const AgentView: React.FC<{
 function agentToolLabel(name: string): string {
   switch (name.toLowerCase()) {
     case "web_search": return "Tìm kiếm web";
+    case "mcp__exa__web_search_exa": return "Tìm kiếm web · Exa";
     case "pwsh": return "PowerShell";
     case "read": return "Đọc tệp";
     case "read_image": return "Xem ảnh";

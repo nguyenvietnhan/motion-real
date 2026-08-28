@@ -165,10 +165,34 @@ live provider accepted an image or that a reviewer actually inspected every
 scene. Restart Harness through MotionReal to regenerate the managed settings
 after upgrading; do not edit a project's scenes to work around model metadata.
 
-Harness `web_search` uses DeepSeek's native search endpoint and therefore needs
-a separate `DEEPSEEK_API_KEY`. The Agent tab stores that value directly through
-Harness's write-only credential RPC; MotionReal does not persist it in project
-metadata or renderer state.
+Search has an explicit provider choice in the Agent tab:
+
+- DeepSeek remains the default. Its `web_search` needs a separate
+  `DEEPSEEK_API_KEY`, stored through Harness's credential RPC rather than project
+  metadata. A 9router chat credential does not authorize this search endpoint.
+- `Dùng Exa hosted` opts into Exa's remote MCP search, with a rate-limited free
+  tier. Queries leave the machine and results may enter local Harness history.
+  No Exa key is minted and the existing DeepSeek credential is retained.
+- The choice is global to Agent videos, persisted as
+  `.video-tool/harness/motionreal-search.json`, and applied on the next Harness
+  start. Restart MotionReal after selecting it. Selection never interrupts a
+  current chat; the provider label describes the running configuration, not a
+  successful search-health test. Switching back uses the same button.
+
+Exa reuses the installed Harness MCP client with
+`https://mcp.exa.ai/mcp?tools=web_search_exa`. The existing MotionReal extension
+loads it and uses native per-agent restrictions to remove `web_search`, including
+on resumed Standard sessions. Its prompt guidance names the replacement tool,
+`mcp__exa__web_search_exa`; other tools and the pinned preset's disabled
+`web_fetch` remain unchanged. This is not a downloader or another agent loop.
+
+HTTP readiness is earlier than MCP discovery. The first prompt assembly waits
+for native initialization, honors turn cancellation, and then reassembles the
+current catalog through Harness. Later turns do not repeat that wait. Native
+MCP connection failures remain nonfatal (`failOnStartupError: false`): unavailable
+tools are not advertised and chat can continue, without silently reverting to
+DeepSeek search. A slow initial connection can delay the first turn up to the
+native client's timeout; this does not add another app startup/verifier gate.
 
 ## Two Independent Status Channels
 

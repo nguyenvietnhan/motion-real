@@ -62,6 +62,7 @@ describe("createDashboardClient — invoke channel mapping", () => {
     await api.agent.prompt("agent-00000000-0000-0000-0000-000000000000", "Xin chào");
     await api.agent.abort("agent-00000000-0000-0000-0000-000000000000");
     await api.agent.setSearchApiKey("agent-00000000-0000-0000-0000-000000000000", "search-secret");
+    await api.agent.setSearchProvider("agent-00000000-0000-0000-0000-000000000000", "exa");
     await api.agent.prepareAssets("agent-00000000-0000-0000-0000-000000000000", 0);
     await api.agent.requestMoreAssets("agent-00000000-0000-0000-0000-000000000000", 2, ["asset-01"], "thêm ảnh");
     await api.agent.approveAssets("agent-00000000-0000-0000-0000-000000000000", 2, ["asset-01"]);

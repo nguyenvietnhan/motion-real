@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { apply } from "./motionreal-submission-tools.js";
+import { apply, inject } from "./motionreal-submission-tools.js";
 
 type CapturedTool = {
   name: string;
@@ -39,7 +39,7 @@ async function fixture(): Promise<{ root: string; workspace: string; tools: Map<
   await mkdir(join(workspace, "assets"), { recursive: true });
   process.env.MOTIONREAL_AGENT_DRAFTS_ROOT = root;
   const tools = new Map<string, CapturedTool>();
-  apply({
+  await apply({
     tools: {
       register(definition) {
         tools.set(definition.name, definition as CapturedTool);
@@ -56,6 +56,7 @@ function execution(workspace: string, signal = new AbortController().signal) {
 
 describe("MotionReal Harness submission tools", () => {
   it("registers the three narrow structured handoff tools", async () => {
+    expect(inject).toContain("systemPrompt");
     const { tools } = await fixture();
     expect([...tools.keys()]).toEqual(["motionreal_submit_assets", "motionreal_submit_brief", "motionreal_submit_authoring"]);
     for (const tool of tools.values()) {

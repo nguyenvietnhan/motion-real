@@ -658,9 +658,10 @@ offers a rate-limited free plan; a successful call is not a promise of unlimited
 or keyless production service. Its remote tool name differs from the built-in
 `web_search`. Using it would be an explicit search-provider change, reusing the
 existing MCP plugin and adapting the chat label; no new crawler is needed.
-MotionReal still uses DeepSeek search until that choice is approved. Supplying a
-DeepSeek search credential remains the other option. Neither alternative is
-marked as a completed search-in-chat acceptance.
+The later search-integration batch below adds this explicit opt-in; DeepSeek
+remains the default until the user selects Exa and restarts MotionReal. Supplying
+a DeepSeek search credential remains the other option. This provider-only probe
+is not a completed search-in-chat acceptance.
 
 Image-route diagnosis (2026-08-28): the custom 9router model previously omitted
 `input`, so the installed Harness resolved it to text-only and `read_image`
@@ -766,6 +767,63 @@ authored-typecheck tests). `npm.cmd run typecheck`, `npm.cmd run build`, and
 The new image-evidence unit cases, direct-handoff/restart integration and manifest
 edit-preservation regression are included. Native model vision, aesthetics,
 continuous motion, and a new end-to-end video remain unaccepted.
+
+## Search Integration Follow-up — 2026-08-28
+
+The Agent tab now offers explicit DeepSeek/Exa selection. It persists only the
+provider choice and applies it on restart, preserving live conversations and the
+stored DeepSeek credential. No provider is silently switched and no new key is
+created. Exa uses the installed Harness MCP client, loaded by the existing
+MotionReal extension, not a new search service or downloader.
+
+Native verification caught two integration errors that configuration-string unit
+tests did not: `tool-web.search` in settings.yaml does not configure the tool
+inside Standard's preset, and the host HTTP route becomes ready before MCP
+discovery. The ineffective setting was removed. Native per-agent restrictions
+now remove DeepSeek search from the actual scope (including resumed sessions),
+and a one-time, cancellable prompt-assembly barrier reassembles the catalog after
+MCP initialization. The extension declares its `systemPrompt` dependency; native
+testing also caught that missing injection. No startup timeout was increased.
+The pinned Standard preset disables `web_fetch`; it remains disabled.
+
+Evidence from isolated profiles, with no user project/session changed:
+
+- `harness-search-chat-VA4ztx/report.json`: production `HarnessManager`, built
+  extension, pinned native Harness process, real Exa search, and a local mock
+  model. The first request contained Exa but not `web_search`; the tool succeeded,
+  source URLs reached the next model request, assistant completion reached the
+  safe chat projection, and restart resumed the same session and search catalog.
+- `harness-search-chat-riC9Hx/report.json`: an injected Exa network outage did not
+  block host/session creation; unavailable Exa was absent from the catalog,
+  DeepSeek was not used as an implicit fallback, a forced unavailable-tool call
+  appeared as an error, and the mock-model conversation could finish.
+- The earlier failed native attempts remain under `.video-tool/verification/`.
+  They are not counted as successful acceptance. Probe source:
+  `.video-tool/verification/check-harness-search-chat.mts`; it is diagnostic, not
+  an app startup requirement. The normal probe makes a fixed public Exa query;
+  `--offline` injects failure only into its own child/profile.
+
+Reports above live below `.video-tool/verification/`. These prove the native
+integration and real search service, NOT live Gemini model selection, rendered
+UI behavior, or video quality. The local 9router `/v1/models` request timed out;
+later listener inspection found none. No gateway restart, credential mint, or
+user settings mutation was performed. Live 9router chat and the new video
+acceptance below remain required.
+
+Final search-batch verification: `npm.cmd test` exited 0 with 141 files /
+1,452 tests (140 files / 1,438 tests plus the separately run 14 authored-typecheck
+tests). `npm.cmd run typecheck`, `npm.cmd run build`,
+`npm.cmd --prefix apps/desktop run build:main`, and
+`npm.cmd --prefix apps/desktop run build:renderer` all exited 0 on the final source.
+The sibling Harness checkout remained clean at the recorded revision.
+
+At the final recheck, a 9router listener had reappeared on `0.0.0.0:20128`, but
+both PowerShell and direct no-proxy curl requests to `/v1/models` timed out.
+Curl established TCP in about 3 ms but received no HTTP response within 10 s.
+This is an unavailable acceptance dependency, not evidence of a model failure
+or a reason to loosen configuration checks. No listener/firewall change or
+gateway restart was made. Real-model/UI search and new-video acceptance remain
+unverified; the native mock-model reports above do not replace them.
 
 ## Manual End-to-End Acceptance Scenario
 

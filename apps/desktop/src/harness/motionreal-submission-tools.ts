@@ -3,6 +3,7 @@ import { mkdir, readFile, readdir, realpath, rename, rm, stat, writeFile } from 
 import { isAbsolute, join, relative, resolve } from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import { MAX_IMAGE_BYTES, MAX_IMAGE_DIM, sniffImage } from "../../../../packages/pipeline/src/assets/import-image.js";
+import { enableExaSearch, type HarnessSearchContext } from "./harness-search.js";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -38,12 +39,13 @@ const RESULT_SCHEMA: JsonRecord = {
 };
 
 export const name = "motionreal-submission-tools";
-export const inject = ["tools"];
+export const inject = ["tools", "systemPrompt"];
 
-export function apply(ctx: HarnessContext): void {
+export async function apply(ctx: HarnessContext, config?: { exa?: { harnessCliPath: string } }): Promise<void> {
   ctx.tools.register(assetTool());
   ctx.tools.register(briefTool());
   ctx.tools.register(authoringTool());
+  if (config?.exa) await enableExaSearch(ctx as HarnessContext & HarnessSearchContext, config.exa.harnessCliPath);
 }
 
 function assetTool(): ToolDefinition {

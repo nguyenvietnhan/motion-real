@@ -63,6 +63,20 @@ describe("Harness chat renderer-safe projection", () => {
     expect(JSON.stringify(page)).not.toMatch(/secret/);
   });
 
+  it.each([false, true])("projects Exa MCP search success/error without leaking queries or result bodies: error=%s", (isError) => {
+    const page = projectHarnessHistory({
+      hasMore: false,
+      events: [
+        entry(1, "tool/call", { callId: "exa-1", name: "mcp__exa__web_search_exa", arguments: JSON.stringify({ query: "private-query" }) }),
+        entry(2, "tool/result", {
+          message: { content: [{ type: "tool-result", toolCallId: "exa-1", isError, content: [{ type: "text", text: "raw-provider-response" }] }] },
+        }),
+      ],
+    });
+    expect(page.items).toEqual([expect.objectContaining({ name: "mcp__exa__web_search_exa", description: "Đang tìm kiếm", state: isError ? "error" : "success", ...(isError ? { errorCode: "tool_failed" } : {}) })]);
+    expect(JSON.stringify(page)).not.toMatch(/private-query|raw-provider-response/);
+  });
+
   it("only projects relative non-traversing tool file targets", () => {
     const page = projectHarnessHistory({
       hasMore: false,

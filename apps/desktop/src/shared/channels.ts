@@ -21,6 +21,7 @@ export const INVOKE_CHANNELS = [
   "agent:prompt",
   "agent:abort",
   "agent:setSearchApiKey",
+  "agent:setSearchProvider",
   "agent:prepareAssets",
   "agent:requestMoreAssets",
   "agent:approveAssets",

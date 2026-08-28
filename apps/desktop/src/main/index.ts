@@ -734,6 +734,7 @@ const handlers: InvokeHandlers = {
   },
   "agent:prompt": (draftId, text) => harness.sendChatPrompt(String(draftId), String(text ?? "")),
   "agent:abort": (draftId) => harness.abortChat(String(draftId)),
+  "agent:setSearchProvider": (draftId, provider) => harness.setSearchProvider(String(draftId), provider),
   "agent:setSearchApiKey": (draftId, apiKey) => harness.setSearchApiKey(
     String(draftId),
     String(apiKey ?? ""),

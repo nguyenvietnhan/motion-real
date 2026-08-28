@@ -232,6 +232,60 @@ describe("HarnessManager draft lifecycle", () => {
     await manager.dispose();
   });
 
+  it("changes search only on restart, resumes the same session and preserves DeepSeek credentials", async () => {
+    const { manager, root, deps, calls } = await activeManagerForTest();
+    const draft = await manager.createDraft("Search provider selection");
+    const opened = await manager.activate(draft.id, "internal-key");
+    const sessionId = JSON.parse(await readFile(join(root, draft.id, "motionreal-agent.json"), "utf8")).sessionId;
+    expect(opened.searchProvider).toBe("deepseek");
+    await manager.setSearchApiKey(draft.id, "deepseek-search-secret");
+    const settingsBefore = await readFile(join(deps.harnessHome, "settings.yaml"), "utf8");
+    await manager.setSearchProvider(draft.id, "exa");
+
+    expect((await manager.status(draft.id)).searchProvider).toBe("deepseek");
+    expect(deps.spawn).toHaveBeenCalledTimes(1);
+    await expect(readFile(join(deps.harnessHome, "settings.yaml"), "utf8")).resolves.toBe(settingsBefore);
+    await expect(readFile(join(root, draft.id, "motionreal-agent.json"), "utf8")).resolves.not.toContain("searchProvider");
+    await manager.sendChatPrompt(draft.id, "Continue current chat");
+    expect(calls.at(-1)).toMatchObject({ method: "session.prompt", payload: { sessionId } });
+    await manager.dispose();
+
+    const resumed = new HarnessManager(deps);
+    activeManagers.push(resumed);
+    expect(await resumed.activate(draft.id, "internal-key")).toMatchObject({ searchProvider: "exa", webSearchConfigured: true });
+    expect(calls.filter((call) => call.method === "session.create").at(-1)).toMatchObject({ payload: { sessionId } });
+    const patch = await readFile(join(deps.harnessHome, "motionreal-tools.patch.yml"), "utf8");
+    expect(patch).toContain("exa:");
+    expect(patch).toContain(JSON.stringify(deps.harnessCliPath));
+    expect(patch).not.toMatch(/apiKey|headers|secret/);
+    expect(await readFile(join(deps.harnessHome, "settings.yaml"), "utf8")).toBe(settingsBefore);
+
+    await resumed.setSearchProvider(draft.id, "deepseek");
+    await resumed.dispose();
+    expect(await resumed.activate(draft.id, "internal-key")).toMatchObject({ searchProvider: "deepseek", webSearchConfigured: true });
+    expect(await readFile(join(deps.harnessHome, "settings.yaml"), "utf8")).toBe(settingsBefore);
+    expect(await readFile(join(deps.harnessHome, "motionreal-tools.patch.yml"), "utf8")).not.toContain("exa:");
+    expect(calls.filter((call) => call.method === "credentials.set")).toHaveLength(1);
+  });
+
+  it("rejects unknown search providers without changing the saved choice", async () => {
+    const { manager, deps } = await activeManagerForTest();
+    const draft = await manager.createDraft("Search validation");
+    await manager.activate(draft.id, "internal-key");
+    await manager.setSearchProvider(draft.id, "exa");
+    await expect(manager.setSearchProvider(draft.id, "https://untrusted.example")).rejects.toThrow(/không hợp lệ/);
+    await expect(manager.setSearchProvider(draft.id, { provider: "exa" })).rejects.toThrow(/không hợp lệ/);
+    expect(JSON.parse(await readFile(join(deps.harnessHome, "motionreal-search.json"), "utf8"))).toEqual({ provider: "exa" });
+  });
+
+  it.each(['{"provider":"unknown"}', '{"provider":', 'null'])("blocks malformed search config instead of silently choosing another provider: %s", async (contents) => {
+    const { manager, deps } = await activeManagerForTest();
+    await mkdir(deps.harnessHome, { recursive: true });
+    await writeFile(join(deps.harnessHome, "motionreal-search.json"), contents);
+    await expect(manager.start("internal-key")).rejects.toThrow(/Cấu hình dịch vụ tìm kiếm/);
+    expect(deps.spawn).not.toHaveBeenCalled();
+  });
+
   it("projects the Harness WebSocket stream and reports child exit without exposing raw frames", async () => {
     const root = await mkdtemp(join(tmpdir(), "motionreal-agent-events-"));
     roots.push(root);

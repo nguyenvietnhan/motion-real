@@ -7,7 +7,7 @@ import { basename, isAbsolute, join, relative, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { createLogger, MAX_IMAGE_BYTES, MAX_IMAGE_DIM, resolveEffectiveDuration, sniffImage, writeJson } from "@motionreal/pipeline";
 import type { SceneImageRole } from "@motionreal/schema";
-import type { AgentAssetVM, AgentBriefInput, AgentBriefVM, AgentChatEvent, AgentChatPageVM, AgentDraftVM, DurationTierChoice, VideoLanguageChoice, VoiceProviderChoice } from "../../shared/types.js";
+import type { AgentAssetVM, AgentBriefInput, AgentBriefVM, AgentChatEvent, AgentChatPageVM, AgentDraftVM, AgentSearchProvider, DurationTierChoice, VideoLanguageChoice, VoiceProviderChoice } from "../../shared/types.js";
 import { sanitizedChildEnvironment } from "../security/runtime-security.js";
 import {
   initialAgentWorkflow,
@@ -41,6 +41,7 @@ const AUTHORING_REQUEST_FILE = join("handoff", "authoring-request.json");
 const AUTHORING_CONTRACT_FILE = join("handoff", "authoring-contract.md");
 const PROJECT_LINK = "project";
 const HARNESS_PATCH_FILE = "motionreal-tools.patch.yml";
+const SEARCH_CONFIG_FILE = "motionreal-search.json";
 const AGENTS_FILE = "AGENTS.md";
 const AI_CONTRACT_FILE = "AI_CONTRACT.md";
 // A brand-new DSH_HOME initializes the web profile on its first launch. The
@@ -54,7 +55,7 @@ const log = createLogger("harness");
 
 export type { AgentDraftVM } from "../../shared/types.js";
 
-type DraftRecord = Omit<AgentDraftVM, "harnessUrl" | "webSearchConfigured" | "createReady" | "assetReview" | "assetCollectionError" | "briefReview" | "briefReviewError" | "sessionAccess"> & AgentWorkflowRecord & {
+type DraftRecord = Omit<AgentDraftVM, "harnessUrl" | "webSearchConfigured" | "searchProvider" | "createReady" | "assetReview" | "assetCollectionError" | "briefReview" | "briefReviewError" | "sessionAccess"> & AgentWorkflowRecord & {
   workspaceId?: string;
   sessionId?: string;
   assetRequestRevision?: number;
@@ -107,7 +108,7 @@ export type HarnessManagerDeps = {
  * only once for the desktop app.
  */
 export class HarnessManager {
-  private active: { child: ChildProcess; url: string } | null = null;
+  private active: { child: ChildProcess; url: string; searchProvider: AgentSearchProvider } | null = null;
   private activeDraftId: string | null = null;
   private startingChild: ChildProcess | null = null;
   private startInFlight: Promise<string> | null = null;
@@ -218,9 +219,10 @@ export class HarnessManager {
     }
     await mkdir(this.deps.draftsRoot, { recursive: true });
     await mkdir(this.deps.harnessHome, { recursive: true });
+    const searchProvider = await this.readSearchProvider();
     await writeFile(join(this.deps.harnessHome, "settings.yaml"), harnessSettings(), "utf8");
     const patchPath = join(this.deps.harnessHome, HARNESS_PATCH_FILE);
-    await writeFile(patchPath, harnessToolsPatch(this.deps.submissionPluginPath), "utf8");
+    await writeFile(patchPath, harnessToolsPatch(this.deps.submissionPluginPath, searchProvider, this.deps.harnessCliPath), "utf8");
     const port = await this.findPort();
     const url = `http://127.0.0.1:${port}/`;
     const child = this.spawnChild(
@@ -270,7 +272,7 @@ export class HarnessManager {
     try {
       await waitForHarness(url, this.fetchImpl, () => startupFailure);
       this.startingChild = null;
-      this.active = { child, url };
+      this.active = { child, url, searchProvider };
       started = true;
       this.startEventStream(url);
       return url;
@@ -798,7 +800,7 @@ export class HarnessManager {
     return {
       ...record,
       ...(this.active && this.activeDraftId === record.id && record.sessionId
-        ? { harnessUrl: `${this.active.url}?session=${encodeURIComponent(record.sessionId)}` }
+        ? { harnessUrl: `${this.active.url}?session=${encodeURIComponent(record.sessionId)}`, searchProvider: this.active.searchProvider }
         : {}),
       ...(this.active && this.activeDraftId === record.id && this.webSearchConfigured !== undefined
         ? { webSearchConfigured: this.webSearchConfigured }
@@ -877,6 +879,26 @@ export class HarnessManager {
       mode: "queue",
       content: [{ type: "text", text }],
     });
+  }
+
+  /** Persist only the choice. Never restart a live model turn to apply it. */
+  async setSearchProvider(id: string, provider: unknown): Promise<void> {
+    const record = await this.mustReadRecord(id);
+    this.requireActiveSession(record);
+    if (provider !== "deepseek" && provider !== "exa") throw new Error("Dịch vụ tìm kiếm không hợp lệ.");
+    await writeJson(join(this.deps.harnessHome, SEARCH_CONFIG_FILE), { provider });
+  }
+
+  private async readSearchProvider(): Promise<AgentSearchProvider> {
+    try {
+      const config: unknown = JSON.parse(await readFile(join(this.deps.harnessHome, SEARCH_CONFIG_FILE), "utf8"));
+      const provider = config && typeof config === "object" ? (config as { provider?: unknown }).provider : undefined;
+      if (provider === "deepseek" || provider === "exa") return provider;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return "deepseek";
+      log.warn({ err: error }, "Harness search configuration unreadable");
+    }
+    throw new Error("Cấu hình dịch vụ tìm kiếm Harness không hợp lệ; chưa khởi động Harness.");
   }
 
   async setSearchApiKey(id: string, apiKey: string): Promise<AgentDraftVM> {
@@ -1532,8 +1554,10 @@ function agentInstructions(title: string): string {
   return `# MotionReal Video Agent\n\nBạn đang làm việc cho video: ${title}\n\n- Nghiên cứu, ghi chú và tải asset vào thư mục \`assets/\` của workspace này.\n- Khi MotionReal yêu cầu chuẩn bị asset, đọc \`handoff/assets-request.json\`, làm đúng job/request revision rồi gọi \`motionreal_submit_assets\`. Không tự ghi file manifest cuối.\n- Khi MotionReal yêu cầu brief, đọc \`handoff/brief-request.json\`, dùng cuộc trò chuyện và đúng asset đã chọn rồi gọi \`motionreal_submit_brief\`. Không tự ghi file brief cuối.\n- Chỉ author scene khi có \`handoff/authoring-request.json\`. Khi đó \`project/\` là project MotionReal của chính video này: đọc asset, viết \`project/manifest.json\` và \`project/authored/*.tsx\`, rồi gọi \`motionreal_submit_authoring\`.\n- Không tự tạo project hoặc render MP4; MotionReal validate, chụp still và mở từng bước duyệt bên ngoài chat.\n- Mọi đường dẫn ảnh thu thập phải tương đối và nằm trong \`assets/\`.\n`;
 }
 
-function harnessToolsPatch(pluginPath: string): string {
-  return `- insert:\n    - id: motionreal-submission-tools\n      name: ${JSON.stringify(pathToFileURL(resolve(pluginPath)).href)}\n`;
+function harnessToolsPatch(pluginPath: string, searchProvider: AgentSearchProvider, harnessCliPath: string): string {
+  const submission = `- insert:\n    - id: motionreal-submission-tools\n      name: ${JSON.stringify(pathToFileURL(resolve(pluginPath)).href)}\n`;
+  if (searchProvider !== "exa") return submission;
+  return `${submission}      config:\n        exa:\n          harnessCliPath: ${JSON.stringify(resolve(harnessCliPath))}\n`;
 }
 
 function agentContract(): string {

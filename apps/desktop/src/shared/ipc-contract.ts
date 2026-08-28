@@ -3,6 +3,7 @@ import type {
   AgentChatEvent,
   AgentChatPageVM,
   AgentDraftVM,
+  AgentSearchProvider,
   AiProviderId,
   ApplyResult,
   ApproveResult,
@@ -100,6 +101,8 @@ export interface DashboardApi {
     abort(draftId: string): Promise<void>;
     /** Store the dedicated DeepSeek search credential in Harness's credential store. */
     setSearchApiKey(draftId: string, apiKey: string): Promise<AgentDraftVM>;
+    /** Select search for the next Harness start; current chats are not interrupted. */
+    setSearchProvider(draftId: string, provider: AgentSearchProvider): Promise<void>;
     /** Start one asset-collection job in the current Harness session. */
     prepareAssets(draftId: string, expectedRevision: number): Promise<AgentDraftVM>;
     /** Keep the current selection and ask the Agent for replacements/additions. */
