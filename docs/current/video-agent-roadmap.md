@@ -837,6 +837,43 @@ diagnostic is a user-approved restart of the existing gateway without opening it
 dashboard, then direct HTTP and real-model acceptance. No account/key/database,
 firewall, gateway package, or running process was changed during this diagnosis.
 
+## Live Model Checkpoint After Gateway Restart — 2026-08-28
+
+The user authorized restarting the hung gateway. After checking PID, executable
+and listener ownership again, only the existing 9router server PID 16228 was
+stopped. The installed 0.5.55 CLI restarted hidden with `-n -t --skip-update
+--host 127.0.0.1`, without opening its dashboard. The new server PID 2988 actually
+listened on `127.0.0.1:20128`; `/v1/models` returned 200 with the target model.
+No package upgrade, firewall change, account deletion or credential creation
+was performed. Recovery after restart does not establish the earlier hang's cause.
+
+Two isolated live-model checks then completed with exit code 0, using production
+`HarnessManager`, the built extension, the same pinned Harness and
+`ag/gemini-3.7-flash-high` through the real local 9router:
+
+- `.video-tool/verification/harness-search-live-Vb5AHo/report.json`: Gemini
+  selected `mcp__exa__web_search_exa`, the real Exa call succeeded, and Gemini
+  returned source URLs and the requested completion marker. Restarting Harness
+  resumed the same session and produced a second real-model completion from its
+  prior history. Startup took 7.7 seconds.
+- `.video-tool/verification/harness-search-live-aii1hW/report.json`: Gemini
+  called `read_image` on a clear PNG fixture, correctly read its marker and
+  described the green square, red circle and blue triangle in the requested
+  positions. `assertHarnessImageReads` accepted actual native history containing
+  the successful image attachment before the later assistant response. The
+  expected marker/shapes were not supplied in the prompt. Startup took 8 seconds.
+
+The diagnostic script is `.video-tool/verification/check-harness-search-live.mts`
+(`--vision` for the second check); it reuses an existing active key from the
+authenticated read-only gateway key listing, only in memory. It creates isolated
+test profiles and does not modify user chat sessions, projects or search choice.
+This is not a new startup verifier or a required user command.
+
+This checkpoint replaces the earlier missing live search/vision evidence.
+Rendered chat UI, video aesthetics, motion, real TTS duration, the V1/V2 workflow
+on a new video, and a user scene edit still need end-to-end acceptance. No claim
+that a fixture-identification pass proves creative-review quality is made.
+
 ## Manual End-to-End Acceptance Scenario
 
 Review-mode stabilization (2026-08-28): the Harness bridge now branches on the
