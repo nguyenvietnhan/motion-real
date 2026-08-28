@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { admitAuthoredSceneFiles } from "@motionreal/pipeline";
-import { archiveHarnessAuthoringV1, assertHarnessCreativeRewrite } from "./harness-creative-rewrite.js";
+import { archiveHarnessAuthoringV1, assertHarnessCreativeRewrite, harnessReviewFingerprint } from "./harness-creative-rewrite.js";
 
 const roots: string[] = [];
 
@@ -40,6 +40,32 @@ async function fixture() {
 }
 
 describe("Harness mandatory creative rewrite", () => {
+  it("binds the review to source and image bytes while ignoring generated entries", async () => {
+    const { project } = await fixture();
+    const stills = [join(project, "review", "scene-01.png"), join(project, "review", "scene-02.png")];
+    const before = await harnessReviewFingerprint(project, stills);
+    await writeFile(join(project, "authored", "_generated.tsx"), "temporary runtime entry");
+    await expect(harnessReviewFingerprint(project, stills)).resolves.toBe(before);
+    await writeFile(join(project, "authored", "hook.tsx"), sceneSource("hook", 2));
+    const afterCode = await harnessReviewFingerprint(project, stills);
+    expect(afterCode).not.toBe(before);
+    await writeFile(stills[0]!, "different pixels");
+    await expect(harnessReviewFingerprint(project, stills)).resolves.not.toBe(afterCode);
+    await rm(stills[0]!);
+    await expect(harnessReviewFingerprint(project, stills)).rejects.toThrow();
+  });
+
+  it("rejects external review files and traversal asset references", async () => {
+    const { root, project } = await fixture();
+    const external = join(root, "outside.png");
+    await writeFile(external, "external");
+    await expect(harnessReviewFingerprint(project, [external])).rejects.toThrow(/bên trong project/);
+    await writeFile(join(project, "manifest.json"), JSON.stringify({ scenes: [
+      { component: "hook", image: { ref: "assets/../../outside.png" } },
+    ] }));
+    await expect(harnessReviewFingerprint(project)).rejects.toThrow(/assets/);
+  });
+
   it("archives source and still evidence once, then detects unchanged scene modules", async () => {
     const { root, project } = await fixture();
     const result = await archiveHarnessAuthoringV1({

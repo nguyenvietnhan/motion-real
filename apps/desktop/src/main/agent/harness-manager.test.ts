@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { HarnessManager, type HarnessManagerDeps } from "./harness-manager.js";
 
 const roots: string[] = [];
+const activeManagers: HarnessManager[] = [];
 
 function registeredSceneSource(id: string, version: string): string {
   return `import { registerComponent } from "@motionreal/compositions";
@@ -32,13 +33,15 @@ async function managerForTest(): Promise<{ manager: HarnessManager; root: string
 }
 
 afterEach(async () => {
-  await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
+  await Promise.all(activeManagers.splice(0).map((manager) => manager.dispose()));
+  await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 })));
 });
 
 async function activeManagerForTest(over: Partial<HarnessManagerDeps> = {}): Promise<{
   manager: HarnessManager;
   root: string;
   calls: Array<{ method: string; payload: unknown }>;
+  deps: HarnessManagerDeps;
 }> {
   const root = await mkdtemp(join(tmpdir(), "motionreal-agent-active-"));
   roots.push(root);
@@ -48,7 +51,7 @@ async function activeManagerForTest(over: Partial<HarnessManagerDeps> = {}): Pro
   const child = Object.assign(new EventEmitter(), { kill: vi.fn() });
   const calls: Array<{ method: string; payload: unknown }> = [];
   let searchConfigured = false;
-  const manager = new HarnessManager({
+  const deps: HarnessManagerDeps = {
     draftsRoot: root,
     harnessHome: join(root, "harness"),
     harnessCliPath: cli,
@@ -70,8 +73,10 @@ async function activeManagerForTest(over: Partial<HarnessManagerDeps> = {}): Pro
     }) as unknown as typeof globalThis.fetch,
     mediaUrl: (path) => `media://${path}`,
     ...over,
-  });
-  return { manager, root, calls };
+  };
+  const manager = new HarnessManager(deps);
+  activeManagers.push(manager);
+  return { manager, root, calls, deps };
 }
 
 const ONE_PIXEL_PNG = Buffer.from(
@@ -516,15 +521,20 @@ describe("HarnessManager draft lifecycle", () => {
     await expect(manager.readCreateRequest(draft.id)).rejects.toThrow(/assets/);
   });
 
-  it("links the scaffolded project and asks Harness to author scenes from real assets", async () => {
+  it.each(["unchanged", "source-edited", "manifest-edited", "asset-edited", "still-missing", "missing-review", "stale-review", "restart", "during-render"] as const)("reviews newly rendered Harness scenes before human approval (%s)", async (reviewChange) => {
     let stillPaths: string[] = [];
-    const renderAuthoringStills = vi.fn(async () => ({ ok: true as const, stills: stillPaths }));
+    const renderAuthoringStills = vi.fn(async () => {
+      await Promise.all(stillPaths.map((path) => writeFile(path, ONE_PIXEL_PNG)));
+      return { ok: true as const, stills: stillPaths };
+    });
     const acceptAuthoringStills = vi.fn(async () => undefined);
-    const { manager, root, calls } = await activeManagerForTest({
+    const setup = await activeManagerForTest({
       renderAuthoringStills,
       acceptAuthoringStills,
       wordsPerSecond: async () => 1,
     });
+    const { root, calls } = setup;
+    let manager = setup.manager;
     const draft = await manager.createDraft("Harness authoring");
     await manager.activate(draft.id, "internal-key");
     let state = await manager.transitionWorkflow(draft.id, { expectedRevision: 0, to: "collecting_assets", jobId: "job-author" });
@@ -592,6 +602,7 @@ describe("HarnessManager draft lifecycle", () => {
         component: id,
         headline: id,
         narration: "ngắn",
+        ...(index === 0 ? { image: { ref: "assets/logo.png", role: "logo" } } : {}),
         ...(index < sceneIds.length - 1 ? { transitionToNext: index === 0 ? "slide" : "fade" } : {}),
       })),
     }));
@@ -620,6 +631,7 @@ describe("HarnessManager draft lifecycle", () => {
         component: id,
         headline: id,
         narration: "một hai ba bốn năm sáu bảy tám chín mười mười một mười hai mười ba",
+        ...(index === 0 ? { image: { ref: "assets/logo.png", role: "logo" } } : {}),
         ...(index < sceneIds.length - 1 ? { transitionToNext: index === 0 ? "slide" : "fade" } : {}),
       })),
     }));
@@ -645,7 +657,7 @@ describe("HarnessManager draft lifecycle", () => {
         stills: sceneIds.map((sceneId) => `handoff/authoring-v1/stills/${sceneId}.png`),
       });
       expect(reviewRequest.instructions).toEqual(expect.arrayContaining([expect.stringContaining("read_image")]));
-    });
+    }, { timeout: 5_000 });
     await expect(readFile(join(root, draft.id, "handoff", "authoring-v1", "authored", "Module-scene-01.tsx"), "utf8"))
       .resolves.toBe(registeredSceneSource("scene-01", "v1"));
     await writeFile(join(root, draft.id, "handoff", "authoring.json"), JSON.stringify({
@@ -673,14 +685,90 @@ describe("HarnessManager draft lifecycle", () => {
       reviewed_scene_ids: sceneIds,
       review_notes: "Đã mở từng PNG; viết lại hierarchy, framing, focal motion và chọn transition theo quan hệ nội dung.",
     }));
+    const requestPath = join(root, draft.id, "handoff", "authoring-request.json");
+    const submissionPath = join(root, draft.id, "handoff", "authoring.json");
+    await vi.waitFor(async () => {
+      expect(JSON.parse(await readFile(requestPath, "utf8"))).toMatchObject({
+        request_revision: 5, phase: "image_review", creative_stage: "v2",
+        stills: sceneIds.map((sceneId) => `project/review/${sceneId}.png`),
+        review_fingerprint: expect.stringMatching(/^[a-f0-9]{64}$/),
+      });
+    }, { timeout: 5_000 });
+    expect(renderAuthoringStills).toHaveBeenCalledTimes(2);
+    expect(acceptAuthoringStills).not.toHaveBeenCalled();
+    await expect(manager.status(draft.id)).resolves.toMatchObject({ productionState: "authoring" });
+    // Acknowledgements from the V1-to-V2 rewrite cannot finish the new image review.
+    const reviewSubmission = {
+      version: 1, job_id: "job-author", request_revision: 5, scene_ids: sceneIds,
+      used_asset_ids: ["logo"], reviewed_scene_ids: sceneIds,
+      review_notes: "Đã xem ảnh V2 mới render: logo gọn, hierarchy rõ, vẫn cần người dùng kiểm tra motion.",
+    };
+    let reviewRevision = 5;
+    let expectedRenders = 2;
+    if (reviewChange === "restart") {
+      const savedSessionId = JSON.parse(await readFile(metadataPath, "utf8")).sessionId;
+      expect(savedSessionId).toEqual(expect.stringMatching(/^session-/));
+      await manager.dispose();
+      manager = new HarnessManager(setup.deps);
+      activeManagers.push(manager);
+      const reopened = await manager.activate(draft.id, "internal-key");
+      expect(calls.filter((call) => call.method === "session.create").at(-1)?.payload)
+        .toMatchObject({ sessionId: savedSessionId });
+      expect(JSON.parse(await readFile(metadataPath, "utf8")).sessionId).toBe(savedSessionId);
+      expect(reopened.productionState).toBe("authoring");
+    }
+    if (reviewChange === "source-edited" || reviewChange === "during-render") {
+      await writeFile(join(projectRoot, "authored", "Module-scene-01.tsx"), registeredSceneSource("scene-01", "v3"));
+      if (reviewChange === "during-render") renderAuthoringStills.mockImplementationOnce(async () => {
+        await writeFile(join(projectRoot, "authored", "Module-scene-01.tsx"), registeredSceneSource("scene-01", "changed-mid-render"));
+        return { ok: true, stills: stillPaths };
+      });
+    } else if (reviewChange === "manifest-edited") {
+      const manifest = JSON.parse(await readFile(join(projectRoot, "manifest.json"), "utf8"));
+      manifest.scenes[0].headline = "A changed headline after the still";
+      await writeFile(join(projectRoot, "manifest.json"), JSON.stringify(manifest));
+    } else if (reviewChange === "asset-edited") {
+      await writeFile(join(projectRoot, "assets", "logo.png"), Buffer.concat([ONE_PIXEL_PNG, Buffer.from("changed")]));
+    } else if (reviewChange === "still-missing") {
+      await rm(stillPaths[0]!);
+    }
+    if (reviewChange === "missing-review" || reviewChange === "stale-review") {
+      await writeFile(submissionPath, JSON.stringify({ ...reviewSubmission,
+        ...(reviewChange === "missing-review" ? { reviewed_scene_ids: [], review_notes: "" } : { request_revision: 4 }),
+      }));
+      await vi.waitFor(async () => expect(JSON.parse(await readFile(requestPath, "utf8")))
+        .toMatchObject({ request_revision: 6, phase: "image_review", render_error: expect.any(String) }), { timeout: 5_000 });
+      expect(acceptAuthoringStills).not.toHaveBeenCalled();
+      expect(renderAuthoringStills).toHaveBeenCalledTimes(2);
+      reviewRevision = 6;
+    }
+    await writeFile(submissionPath, JSON.stringify({ ...reviewSubmission, request_revision: reviewRevision }));
+    if (["source-edited", "manifest-edited", "asset-edited", "still-missing", "during-render"].includes(reviewChange)) {
+      await vi.waitFor(async () => expect(JSON.parse(await readFile(requestPath, "utf8")))
+        .toMatchObject({ request_revision: 6, phase: "image_review" }), { timeout: 5_000 });
+      expect(acceptAuthoringStills).not.toHaveBeenCalled();
+      expect(renderAuthoringStills).toHaveBeenCalledTimes(3);
+      reviewRevision = 6;
+      expectedRenders = 3;
+      await writeFile(submissionPath, JSON.stringify({ ...reviewSubmission, request_revision: 6 }));
+      if (reviewChange === "during-render") {
+        await vi.waitFor(async () => expect(JSON.parse(await readFile(requestPath, "utf8")))
+          .toMatchObject({ request_revision: 7, phase: "image_review" }), { timeout: 5_000 });
+        expect(acceptAuthoringStills).not.toHaveBeenCalled();
+        expectedRenders = 4;
+        reviewRevision = 7;
+        await writeFile(submissionPath, JSON.stringify({ ...reviewSubmission, request_revision: 7 }));
+      }
+    }
     await vi.waitFor(() => expect(acceptAuthoringStills).toHaveBeenCalledWith("project-1"), { timeout: 2_000 });
+    expect(renderAuthoringStills).toHaveBeenCalledTimes(expectedRenders);
     await vi.waitFor(async () => expect(await manager.status(draft.id)).toMatchObject({ productionState: "still_review" }));
 
     await expect(manager.requestSceneEdits(draft.id, "project-1", [{ sceneId: "scene-99", text: "Sửa cảnh lạ" }], ""))
       .rejects.toThrow(/không hợp lệ/);
     await manager.requestSceneEdits(draft.id, "project-1", [{ sceneId: "scene-01", text: "Phóng to logo và bỏ khung trang trí." }], "Giữ nhịp hình rõ ràng.");
     await expect(readFile(join(root, draft.id, "handoff", "authoring-request.json"), "utf8").then(JSON.parse)).resolves.toMatchObject({
-      request_revision: 5,
+      request_revision: reviewRevision + 1,
       phase: "edit",
       creative_stage: "edit",
       target_scene_ids: ["scene-01"],
@@ -692,6 +780,16 @@ describe("HarnessManager draft lifecycle", () => {
     await expect(readFile(join(root, draft.id, "handoff", "authoring.json"), "utf8")).rejects.toThrow();
     await expect(manager.status(draft.id)).resolves.toMatchObject({ productionState: "authoring" });
     expect(calls.at(-1)).toMatchObject({ method: "session.prompt" });
+    const editRevision = reviewRevision + 1;
+    await writeFile(join(projectRoot, "authored", "Module-scene-01.tsx"), registeredSceneSource("scene-01", "user-edit"));
+    await writeFile(submissionPath, JSON.stringify({ ...reviewSubmission, request_revision: editRevision }));
+    await vi.waitFor(async () => expect(JSON.parse(await readFile(requestPath, "utf8")))
+      .toMatchObject({ request_revision: editRevision + 1, phase: "image_review", creative_stage: "edit" }), { timeout: 5_000 });
+    expect(acceptAuthoringStills).toHaveBeenCalledTimes(1);
+    const rendersBeforeEditReview = renderAuthoringStills.mock.calls.length;
+    await writeFile(submissionPath, JSON.stringify({ ...reviewSubmission, request_revision: editRevision + 1 }));
+    await vi.waitFor(() => expect(acceptAuthoringStills).toHaveBeenCalledTimes(2), { timeout: 5_000 });
+    expect(renderAuthoringStills).toHaveBeenCalledTimes(rendersBeforeEditReview);
     await manager.dispose();
   });
 

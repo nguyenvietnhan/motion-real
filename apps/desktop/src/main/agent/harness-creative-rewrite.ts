@@ -1,11 +1,43 @@
-import { randomUUID } from "node:crypto";
-import { cp, mkdir, readFile, readdir, rename, rm, stat } from "node:fs/promises";
-import { basename, join } from "node:path";
+import { createHash, randomUUID } from "node:crypto";
+import { cp, mkdir, readFile, readdir, realpath, rename, rm, stat } from "node:fs/promises";
+import { basename, isAbsolute, join, relative } from "node:path";
 import { admitAuthoredSceneFiles } from "@motionreal/pipeline";
 
 export const AUTHORING_V1_DIR = join("handoff", "authoring-v1");
 
 type SceneManifest = { scenes?: Array<{ component?: unknown }> };
+
+/** Bind a review to current source/media bytes, not filenames or agent assertions. */
+export async function harnessReviewFingerprint(projectRoot: string, stills: readonly string[] = []): Promise<string> {
+  const root = await realpath(projectRoot);
+  const manifestPath = join(root, "manifest.json");
+  const manifest = JSON.parse(await readFile(manifestPath, "utf8")) as {
+    scenes: Array<{ image?: { ref?: unknown } }>;
+  };
+  const modules = (await readdir(join(root, "authored"), { withFileTypes: true }))
+    .filter((entry) => entry.isFile() && entry.name.endsWith(".tsx") && !entry.name.startsWith("_"))
+    .map((entry) => join(root, "authored", entry.name));
+  if (modules.length === 0) throw new Error("Không có source để đối chiếu ảnh review.");
+  const assets = manifest.scenes.flatMap((scene) => {
+    if (scene.image === undefined) return [];
+    const ref = scene.image.ref;
+    if (typeof ref !== "string" || !ref.startsWith("assets/") || ref.includes("\\") || ref.split("/").includes("..")) {
+      throw new Error("Asset review phải nằm trong assets/ của project.");
+    }
+    return [join(root, ref)];
+  });
+  const digest = createHash("sha256");
+  for (const path of [...new Set([manifestPath, ...modules, ...assets, ...stills])].sort()) {
+    const actual = await realpath(path);
+    const rel = relative(root, actual);
+    if (!rel || rel.startsWith("..") || isAbsolute(rel) || !(await stat(actual)).isFile()) {
+      throw new Error("Source/ảnh review phải là file bên trong project.");
+    }
+    const contentHash = createHash("sha256").update(await readFile(actual)).digest("hex");
+    digest.update(JSON.stringify([rel.replaceAll("\\", "/"), contentHash]));
+  }
+  return digest.digest("hex");
+}
 
 export async function archiveHarnessAuthoringV1(input: {
   draftRoot: string;

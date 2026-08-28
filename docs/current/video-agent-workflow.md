@@ -344,10 +344,23 @@ MotionReal compares V2 source against the V1 archive, rejects any byte-identical
 module, and fails on missing/unreadable V2 source rather than counting it as a
 change. Byte differences do not prove a meaningful visual rewrite; still review
 must judge the result. Facts, narration, timing, and approved asset references
-stay fixed. MotionReal renders
-V2 again, requires concrete image-backed review notes, then opens the existing
-human per-scene review UI. No MP4 is encoded for this internal V1/V2 loop, so it
+stay fixed. MotionReal renders V2 again, then issues a separate `image_review`
+request with a new revision and the newly rendered PNG paths. Only an
+acknowledgement of that request can open the existing human per-scene review UI;
+notes submitted with the rewrite concern V1 and cannot approve the V2 images.
+No MP4 is encoded for this internal V1/V2 loop, so it
 does not claim to evaluate easing or continuous motion.
+
+The image-review request binds manifest, authored modules, referenced assets and
+still-image bytes with a fingerprint. Generated `_*.tsx` runtime entries are
+excluded. Changed or missing evidence triggers a fresh still render and a new
+review revision; unchanged evidence is acknowledged without rendering again.
+Inputs changing during a render invalidate that attempt. Missing review notes
+or stale submissions cannot advance human review. The request persists across
+restart. This prevents stale-image acceptance; it is not a sandbox against an
+Agent deliberately rewriting MotionReal metadata under Full access, nor proof
+that the model actually opened every PNG. The latter still needs native
+`read_image` event/model acceptance evidence.
 
 Archive and source comparison resolve component IDs through the existing static
 admission pass, just as rendering does; a component ID is not assumed to be a
@@ -387,8 +400,10 @@ project state.
 When WorkspaceController reaches the existing ready/review state, the Agent tab
 opens the normal scene-review surface. For a Harness-owned project, scene/global
 edit requests return to its same Harness Session through a new versioned
-authoring request; MotionReal reruns still capture and Harness self-review before
-showing the updated cards. A Classic project continues through
+authoring request; MotionReal renders the edited scenes and sends a new
+`image_review` request before showing the updated cards. This review-only turn
+records remaining issues for the human and does not demand another creative
+rewrite. A Classic project continues through
 `WorkspaceController.submitEdits` unchanged.
 
 ### 8. Final render

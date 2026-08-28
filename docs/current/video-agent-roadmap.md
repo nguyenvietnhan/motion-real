@@ -687,10 +687,39 @@ This proves image transport with the installed adapter, not live model vision
 or visual quality. The real gateway's `/v1/models` check timed out after ten
 seconds while a listener still existed on port 20128; no gateway restart,
 credential mint, provider switch or existing video mutation was performed.
-Live model-image acceptance remains outstanding. A separate remaining workflow
-gap is that V2 submission renders new stills and immediately accepts notes made
-before those new stills existed; reviewing the newly rendered V2 images must be
-completed before claiming the entire creative-review loop is verified.
+Live model-image acceptance remains outstanding. The audit also found that V2
+submission rendered new stills and immediately accepted notes made before those
+new stills existed. The follow-up below addresses that ordering defect.
+
+Post-render image review (2026-08-28): V2 and user-edit submissions now render
+stills and issue a separate `image_review` request/revision. A later submission
+must acknowledge every scene and include notes for those new PNGs before human
+review is opened. The existing submission tool handles both review phases; no
+new tool, render engine or workflow service was added. A fingerprint ties the
+acknowledgement to manifest/module/asset/still bytes. If those bytes change or an
+image is missing, MotionReal re-renders and requests another review instead of
+accepting old notes. Inputs changing during render invalidate the attempt.
+Unchanged acknowledgements perform no extra render. Stale or incomplete reviews
+retain the image-review phase, and restart restores the same durable request.
+Stopped runtimes no longer enqueue authoring polls or repair prompts; a failed
+in-flight prompt retains its durable request for the next activation instead
+of issuing another revision against a disposed sidecar. The broader test run
+also caught an unlogged fallback and test waits shorter than the real polling
+plus file/admission work under load. The fallback now records its error, and
+the affected tests use bounded five-second waits and dispose test managers
+before removing their temporary directories. Production timeouts are unchanged.
+
+Regression coverage includes the V1-to-V2 ordering defect, new-image review
+after user edits, source/manifest/asset changes, missing/replaced stills,
+mid-render source changes, incomplete/stale acknowledgements and manager
+restart. These are automated flow/integrity checks, not proof of actual model
+image reading, attractive design, or continuous-motion quality. Native visual
+acceptance remains outstanding.
+Final verification: `npm.cmd test` completed with 138 files / 1,394 tests
+passing, including the separately run 14 authored-typecheck tests.
+`npm.cmd run typecheck`, `npm.cmd run build`, and
+`npm.cmd --prefix apps/desktop run build:main` all exited 0. Loading the built
+submission plugin confirmed the same three tools and the image-review schema.
 
 ## Manual End-to-End Acceptance Scenario
 

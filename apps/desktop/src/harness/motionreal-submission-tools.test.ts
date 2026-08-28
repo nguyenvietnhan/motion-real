@@ -176,7 +176,7 @@ describe("MotionReal Harness submission tools", () => {
       .rejects.toThrow(/không khớp asset/);
   });
 
-  it("accepts authoring metadata only when every approved asset is referenced in the manifest", async () => {
+  it.each(["self_review", "image_review"])("requires complete image review metadata in %s", async (reviewPhase) => {
     const { workspace, tools } = await fixture();
     await mkdir(join(workspace, "project", "authored"), { recursive: true });
     await writeFile(join(workspace, "project", "authored", "scene-01.tsx"), "export default {};\n");
@@ -209,7 +209,7 @@ describe("MotionReal Harness submission tools", () => {
       version: 1,
       job_id: "job-author",
       request_revision: 2,
-      phase: "self_review",
+      phase: reviewPhase,
       manifest: "project/manifest.json",
       authored_dir: "project/authored",
       assets: [{ id: "logo", ref: "assets/logo.png", role: "logo" }],

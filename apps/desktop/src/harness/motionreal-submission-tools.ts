@@ -151,7 +151,7 @@ function briefTool(): ToolDefinition {
 function authoringTool(): ToolDefinition {
   return {
     name: "motionreal_submit_authoring",
-    description: "Submit scene code written into project/ so MotionReal can validate it and render review stills.",
+    description: "Submit scene code for validation/still rendering, or acknowledge the new still images during image_review. Follow the current authoring-request revision.",
     parameters: {
       type: "object",
       additionalProperties: false,
@@ -161,8 +161,8 @@ function authoringTool(): ToolDefinition {
         request_revision: { type: "integer", description: "Exact request_revision from handoff/authoring-request.json" },
         scene_ids: { type: "array", minItems: 1, maxItems: 30, items: { type: "string" } },
         used_asset_ids: { type: "array", items: { type: "string" }, description: "Asset ids actually referenced by scene.image.ref" },
-        reviewed_scene_ids: { type: "array", items: { type: "string" }, description: "Required during self-review: every scene whose PNG was opened" },
-        review_notes: { type: "string", description: "Required during self-review: concrete visual observations and changes" },
+        reviewed_scene_ids: { type: "array", items: { type: "string" }, description: "Required during self_review and image_review: every scene whose current PNG was opened with read_image" },
+        review_notes: { type: "string", description: "Required during review: observations of the current PNGs, changes and remaining issues" },
       },
     },
     output: submissionOutput("authoring"),
@@ -177,7 +177,7 @@ function authoringTool(): ToolDefinition {
       if (sceneIds.length < 1 || sceneIds.length > 30) throw new Error("scene_ids phải có từ 1 đến 30 cảnh.");
       const usedAssetIds = uniqueIds(input.used_asset_ids, "used_asset_ids");
       await validateAuthoredProject(root, request, sceneIds, usedAssetIds, execution.signal);
-      const selfReview = request.phase === "self_review";
+      const selfReview = request.phase === "self_review" || request.phase === "image_review";
       const reviewedSceneIds = selfReview ? uniqueIds(input.reviewed_scene_ids, "reviewed_scene_ids") : [];
       if (selfReview && !sameIds(reviewedSceneIds, sceneIds)) throw new Error("Self-review phải mở đủ still của mọi scene.");
       const reviewNotes = selfReview ? requiredText(input.review_notes, "review_notes", 4_000, 10) : undefined;
