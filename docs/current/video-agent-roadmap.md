@@ -631,6 +631,32 @@ change. That proves the policy integration, not consistent cold-start latency;
 the first timeout's cause is not established. Native search success and a new
 video's visual/duration acceptance remain outstanding.
 
+Search-provider diagnosis (2026-08-28): a native provider-level probe loaded the
+installed Harness credential provider against MotionReal's search credential
+store with watching disabled and no credential writes. It reported
+`configured: false`; the installed DeepSeek search provider returned
+`WEB_PROVIDER_CREDENTIAL_MISSING`. Chat's 9router credential does not authorize
+this separate DeepSeek request. No user session or video was changed.
+
+The same probe mounted the installed `dsh-mcp-client` with
+`transport: streamable-http` and
+`url: https://mcp.exa.ai/mcp?tools=web_search_exa`. With no API key/header, it
+registered exactly `mcp__exa__web_search_exa` and executed a fixed public query
+through Harness's tool runtime. The call succeeded with nonempty text containing
+source URLs. Report: `.video-tool/verification/harness-search-Ubn0aC/report.json`.
+This proves the native MCP bridge/provider path, not model tool selection,
+MotionReal chat rendering, or production availability. The temporary probe is
+`.video-tool/verification/check-harness-search.mts`; it is not a product launcher.
+
+Exa's [official MCP documentation](https://exa.ai/docs/reference/exa-mcp)
+offers a rate-limited free plan; a successful call is not a promise of unlimited
+or keyless production service. Its remote tool name differs from the built-in
+`web_search`. Using it would be an explicit search-provider change, reusing the
+existing MCP plugin and adapting the chat label; no new crawler is needed.
+MotionReal still uses DeepSeek search until that choice is approved. Supplying a
+DeepSeek search credential remains the other option. Neither alternative is
+marked as a completed search-in-chat acceptance.
+
 ## Manual End-to-End Acceptance Scenario
 
 Use one new factual video topic and perform the following on native Windows:
