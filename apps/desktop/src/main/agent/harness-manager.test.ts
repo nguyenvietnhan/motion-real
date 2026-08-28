@@ -7,6 +7,15 @@ import { HarnessManager, type HarnessManagerDeps } from "./harness-manager.js";
 
 const roots: string[] = [];
 
+function registeredSceneSource(id: string, version: string): string {
+  return `import { registerComponent } from "@motionreal/compositions";
+import { z } from "zod";
+export const schema = z.object({});
+export const example = {};
+export default registerComponent({ id: "${id}", displayName: "${id}", schema, example,
+  Component: () => <div>${version}</div> });\n`;
+}
+
 async function managerForTest(): Promise<{ manager: HarnessManager; root: string }> {
   const root = await mkdtemp(join(tmpdir(), "motionreal-agent-"));
   roots.push(root);
@@ -585,7 +594,7 @@ describe("HarnessManager draft lifecycle", () => {
         ...(index < sceneIds.length - 1 ? { transitionToNext: index === 0 ? "slide" : "fade" } : {}),
       })),
     }));
-    await Promise.all(sceneIds.map((id) => writeFile(join(projectRoot, "authored", `${id}.tsx`), `export const version = "v1-${id}";\n`)));
+    await Promise.all(sceneIds.map((id) => writeFile(join(projectRoot, "authored", `Module-${id}.tsx`), registeredSceneSource(id, "v1"))));
 
     await writeFile(join(root, draft.id, "handoff", "authoring.json"), JSON.stringify({
       version: 1,
@@ -635,8 +644,8 @@ describe("HarnessManager draft lifecycle", () => {
         stills: sceneIds.map((sceneId) => `handoff/authoring-v1/stills/${sceneId}.png`),
       });
     });
-    await expect(readFile(join(root, draft.id, "handoff", "authoring-v1", "authored", "scene-01.tsx"), "utf8"))
-      .resolves.toBe('export const version = "v1-scene-01";\n');
+    await expect(readFile(join(root, draft.id, "handoff", "authoring-v1", "authored", "Module-scene-01.tsx"), "utf8"))
+      .resolves.toBe(registeredSceneSource("scene-01", "v1"));
     await writeFile(join(root, draft.id, "handoff", "authoring.json"), JSON.stringify({
       version: 1,
       job_id: "job-author",
@@ -651,7 +660,7 @@ describe("HarnessManager draft lifecycle", () => {
       expect(repairRequest).toMatchObject({ request_revision: 4, phase: "self_review", creative_stage: "v2" });
       expect(repairRequest.render_error).toMatch(/chưa viết lại các scene/);
     }, { timeout: 2_000 });
-    await Promise.all(sceneIds.map((id) => writeFile(join(projectRoot, "authored", `${id}.tsx`), `export const version = "v2-${id}";\n`)));
+    await Promise.all(sceneIds.map((id) => writeFile(join(projectRoot, "authored", `Module-${id}.tsx`), registeredSceneSource(id, "v2"))));
     await writeFile(join(root, draft.id, "handoff", "authoring.json"), JSON.stringify({
       version: 1,
       job_id: "job-author",

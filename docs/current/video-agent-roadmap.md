@@ -610,9 +610,13 @@ that those changes have passed an end-to-end run.
 Creative-rewrite follow-up (2026-08-28): a missing or unreadable V2 module now
 fails the source comparison instead of being counted as changed. Regression
 cases cover a deleted module and a directory in place of a module, preserving
-the V1 archive in both cases. The full suite passed 138 files / 1,382 tests;
-typecheck, Remotion build, and desktop Main/plugin build exited 0. This is
-source-integrity evidence, not proof of image review or better visual quality.
+the V1 archive in both cases. Archive/comparison also reuse admission's actual
+component-ID-to-file mapping: valid modules whose filenames differ from their
+IDs no longer fail archive, while rename-only V2 still fails. The manager test
+uses those nonmatching filenames through the V1/V2/review flow. The latest full
+suite passed 138 files / 1,383 tests; typecheck, Remotion build, and desktop
+Main/plugin build exited 0. This is source-integrity evidence, not proof of
+image review or better visual quality.
 
 Native policy evidence (2026-08-28): an isolated profile launched through the
 production `HarnessManager` against sibling Harness revision

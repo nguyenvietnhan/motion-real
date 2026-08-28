@@ -339,6 +339,11 @@ V2 again, requires concrete image-backed review notes, then opens the existing
 human per-scene review UI. No MP4 is encoded for this internal V1/V2 loop, so it
 does not claim to evaluate easing or continuous motion.
 
+Archive and source comparison resolve component IDs through the existing static
+admission pass, just as rendering does; a component ID is not assumed to be a
+filename. Renaming an unchanged module does not count as a rewrite. Authored
+code is parsed, never executed in Main, to obtain this mapping.
+
 Classic Home/Create/Queue authoring remains unchanged. Harness projects reuse the
 same authoring contract, admission/render tools, Workspace stages, human review,
 TTS, captions, full render, export, and project recovery; they do not use the old
