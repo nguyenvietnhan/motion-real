@@ -571,6 +571,9 @@ creating another render engine or review UI.
   `manifest.json` and fresh `authored/*.tsx` scene modules.
 - `motionreal_submit_authoring` validates job/revision, scene order, module
   presence, and use of every approved asset before MotionReal renders stills.
+  Every occurrence must preserve its approved media role; unapproved refs are
+  rejected. Actual on-screen use is checked during still review, not inferred
+  from a manifest ref or a regex over source.
 - MotionReal renders PNG stills, requires Harness to open/review every scene and
   resubmit concrete notes, renders the revised stills, then reuses the existing
   human per-scene review UI.
@@ -595,6 +598,14 @@ creating another render engine or review UI.
   authoring.
 - After the user approves the scenes, the existing TTS/caption/full-render path
   produces a healthy video.
+
+Stabilization audit (2026-08-28): submission regressions now cover repeated
+asset-role mismatch, unapproved refs, corrected retries, and directories named
+`.tsx`. The full suite passed 138 files / 1,380 tests; typecheck, Remotion build,
+desktop Main/plugin build, and loading the built three-tool plugin exited 0.
+These are automated structural checks, not a new native video acceptance. The
+existing Ox job predates the pacing/asset-role/V2 changes and is not evidence
+that those changes have passed an end-to-end run.
 
 ## Manual End-to-End Acceptance Scenario
 

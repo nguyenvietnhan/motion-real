@@ -231,26 +231,36 @@ async function validateAuthoredProject(
   const expectedIds = expectedAssets.map((asset) => requiredText(asset.id, "request asset id", 128));
   if (!sameIds(usedAssetIds, expectedIds)) throw new Error("Mọi asset đã duyệt trong authoring request phải được dùng trong manifest.");
   const sceneImages = manifest.scenes.flatMap((scene) => {
-    const image = requireRecord(scene, "Manifest scene").image;
+    const manifestScene = requireRecord(scene, "Manifest scene");
+    const image = manifestScene.image;
     if (image === undefined) return [];
     const value = requireRecord(image, "Scene image");
     return [{
+      sceneId: requiredText(manifestScene.id, "scene id", 128),
       ref: requiredText(value.ref, "scene image ref", 1_024),
       role: value.role,
     }];
   });
+  const approvedRefs = new Set<string>();
   for (const asset of expectedAssets) {
     const ref = requiredText(asset.ref, "request asset ref", 1_024);
+    approvedRefs.add(ref);
     const matches = sceneImages.filter((image) => image.ref === ref);
     if (matches.length === 0) throw new Error(`Asset ${String(asset.id)} chưa được tham chiếu bởi scene.image.ref.`);
     if (asset.role !== undefined) {
       const role = enumValue(asset.role, `role của ${String(asset.id)}`, ["hero", "support", "logo", "icon"] as const);
-      if (!matches.some((image) => image.role === role)) {
-        throw new Error(`Asset ${String(asset.id)} phải giữ scene.image.role="${role}".`);
+      if (matches.some((image) => image.role !== role)) {
+        throw new Error(`Asset ${String(asset.id)} phải giữ scene.image.role="${role}" trong mọi cảnh sử dụng.`);
       }
     }
   }
-  const modules = (await readdir(join(root, "project", "authored"))).filter((file) => file.endsWith(".tsx") && !file.startsWith("_"));
+  for (const image of sceneImages) {
+    if (!approvedRefs.has(image.ref)) throw new Error(`${image.sceneId} dùng scene.image.ref chưa được duyệt.`);
+  }
+
+  // Admission maps registerComponent ids to files; filenames need not equal ids.
+  const modules = (await readdir(join(root, "project", "authored"), { withFileTypes: true }))
+    .filter((file) => file.isFile() && file.name.endsWith(".tsx") && !file.name.startsWith("_"));
   if (modules.length < 1) throw new Error("Project chưa có module authored/*.tsx.");
 }
 

@@ -139,6 +139,12 @@ scene count. External SVG remains outside the render boundary because it is
 scriptable; the Agent should obtain a raster logo or rasterize it to a local
 transparent PNG before submission.
 
+Submission checks every selected asset's manifest reference, preserves its role
+in every occurrence (not just one) and rejects unapproved image refs. Pipeline
+admission resolves each scene's registered component to its module file. This is
+structural evidence, not proof of on-screen visibility: the still review must
+verify actual image placement and size.
+
 MotionReal starts new video-scoped Harness sessions with the
 `danger-full-access` permission preset. This removes per-tool approval prompts
 when the Agent writes through the linked `project/` junction; sessions created
