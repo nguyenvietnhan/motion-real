@@ -62,6 +62,13 @@ export type AgentProductionState =
 
 export type AgentSearchProvider = "deepseek" | "exa";
 
+/** Scrubbed native Harness work item; never includes prompt, paths, URLs or tool output. */
+export type AgentActivityVM = {
+  id: string;
+  label: string;
+  status: "running" | "completed" | "failed";
+};
+
 /** A video-scoped Harness workspace. Paths and credentials never cross IPC. */
 export type AgentDraftVM = {
   id: string;
@@ -79,6 +86,8 @@ export type AgentDraftVM = {
   /** Stage that will be resumed after a user-stopped workflow is continued. */
   pausedFrom?: Exclude<AgentProductionState, "paused" | "discovery" | "asset_review" | "brief_review" | "still_review" | "draft_review" | "completed" | "error">;
   lastError?: string;
+  /** Recent, allow-listed Harness activity for the MotionReal workflow surface. */
+  activities?: AgentActivityVM[];
   /** Local native Harness conversation URL used by the embedded renderer iframe. */
   harnessUrl?: string;
   /** Whether DeepSeek Harness has the separate credential required by web_search. */

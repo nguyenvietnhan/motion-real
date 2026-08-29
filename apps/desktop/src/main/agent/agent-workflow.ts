@@ -44,7 +44,7 @@ const NEXT: Record<AgentProductionState, readonly AgentProductionState[]> = {
   // brief_review remains accepted for existing persisted/manual workflows;
   // new collection paths transition through preparing_brief.
   asset_review: ["collecting_assets", "preparing_brief", "brief_review", "error"],
-  preparing_brief: ["brief_review", "error"],
+  preparing_brief: ["asset_review", "brief_review", "error"],
   brief_review: ["asset_review", "queued_create", "error"],
   queued_create: ["authoring", "error"],
   authoring: ["still_review", "draft_render", "error"],

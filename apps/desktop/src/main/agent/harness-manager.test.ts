@@ -195,13 +195,12 @@ describe("HarnessManager draft lifecycle", () => {
     expect(review).toMatchObject({ productionState: "asset_review", workflowRevision: 2 });
     expect(review.assetReview).toEqual([expect.objectContaining({ id: "asset-01", role: "support", width: 1, height: 1 })]);
     await expect(manager.status(draft.id)).resolves.toMatchObject({ productionState: "asset_review", workflowRevision: 2 });
-    expect(calls.at(-1)).toMatchObject({
-      method: "session.prompt",
-      payload: { sessionId: expect.stringMatching(/^session-/), mode: "queue" },
-    });
+    expect(calls.some((call) => call.method === "session.prompt"
+      && (call.payload as { sessionId?: unknown; mode?: unknown }).mode === "queue"
+      && /^session-/.test(String((call.payload as { sessionId?: unknown }).sessionId)))).toBe(true);
 
     const approved = await manager.approveAssets(draft.id, review.workflowRevision, ["asset-01"]);
-    expect(approved).toMatchObject({ productionState: "brief_review", selectedAssetIds: ["asset-01"] });
+    expect(approved).toMatchObject({ productionState: "preparing_brief", selectedAssetIds: ["asset-01"] });
     await manager.dispose();
   });
 
@@ -227,6 +226,24 @@ describe("HarnessManager draft lifecycle", () => {
     const resumed = await manager.resumeWorkflow(draft.id, paused.workflowRevision);
     expect(resumed).toMatchObject({ productionState: "collecting_assets", workflowRevision: 3 });
     expect(calls.at(-1)).toMatchObject({ method: "session.prompt" });
+  });
+
+  it("projects only allow-listed native tool activity without command or provider output", async () => {
+    const { manager, history } = await activeManagerForTest();
+    const draft = await manager.createDraft("Timeline an toàn");
+    await manager.activate(draft.id, "internal-key");
+    history.push({ event: { seq: 1, type: "tool/call", data: {
+      callId: "call-search", name: "web_search", arguments: "secret query must not cross IPC",
+    } } });
+    history.push({ event: { seq: 2, type: "tool/result", data: {
+      callId: "call-search", error: "raw provider failure must not cross IPC",
+    } } });
+
+    const status = await manager.status(draft.id);
+
+    expect(status.activities).toEqual([{ id: "1", label: "Tìm kiếm web", status: "failed" }]);
+    expect(JSON.stringify(status.activities)).not.toContain("secret query");
+    expect(JSON.stringify(status.activities)).not.toContain("provider failure");
   });
 
   it("does not issue a late authoring repair after the workflow was paused", async () => {
@@ -500,7 +517,7 @@ describe("HarnessManager draft lifecycle", () => {
     }));
     const assets = await manager.status(draft.id);
     const waiting = await manager.approveAssets(draft.id, assets.workflowRevision, ["asset-01"]);
-    expect(waiting).toMatchObject({ productionState: "brief_review", workflowRevision: 3 });
+    expect(waiting).toMatchObject({ productionState: "preparing_brief", workflowRevision: 3 });
     expect(calls.at(-1)).toMatchObject({ method: "session.prompt" });
     const request = JSON.parse(await readFile(join(draftRoot, "handoff", "brief-request.json"), "utf8"));
     expect(request).toMatchObject({
@@ -529,6 +546,7 @@ describe("HarnessManager draft lifecycle", () => {
       selected_asset_ids: ["asset-01"],
     })}`);
     const review = await manager.status(draft.id);
+    expect(review.productionState).toBe("brief_review");
     expect(review.briefReview).toMatchObject({ revision: 1, durationTier: 2, selectedAssetIds: ["asset-01"] });
     expect(review.createReady).toBe(false);
 
@@ -537,7 +555,7 @@ describe("HarnessManager draft lifecycle", () => {
     const reused = await manager.approveAssets(draft.id, back.workflowRevision, ["asset-01"]);
     expect(reused).toMatchObject({
       productionState: "brief_review",
-      workflowRevision: 5,
+      workflowRevision: 6,
       briefReview: { revision: 1, title: "Gemini là gì?" },
     });
     expect(calls.filter((call) => call.method === "session.prompt")).toHaveLength(promptCount);
@@ -551,7 +569,7 @@ describe("HarnessManager draft lifecycle", () => {
       videoLanguage: "vi",
       voiceProvider: "vivibe",
     });
-    expect(queued).toMatchObject({ productionState: "queued_create", workflowRevision: 6, createReady: true });
+    expect(queued).toMatchObject({ productionState: "queued_create", workflowRevision: 7, createReady: true });
     await expect(manager.readCreateRequest(draft.id)).resolves.toMatchObject({
       prompt: expect.stringContaining("Gemini AI"),
       title: "Gemini AI là gì?",
@@ -571,7 +589,7 @@ describe("HarnessManager draft lifecycle", () => {
     await manager.dispose();
   });
 
-  it("keeps stale/invalid briefs in review and can return to the same asset selection", async () => {
+  it("keeps stale/invalid briefs in preparation and can return to the same asset selection", async () => {
     const { manager, root } = await activeManagerForTest();
     const draft = await manager.createDraft("Brief lỗi");
     await manager.activate(draft.id, "internal-key");
@@ -600,7 +618,7 @@ describe("HarnessManager draft lifecycle", () => {
       selected_asset_ids: ["asset-01"],
     }));
     const invalid = await manager.status(draft.id);
-    expect(invalid.productionState).toBe("brief_review");
+    expect(invalid.productionState).toBe("preparing_brief");
     expect(invalid.briefReviewError).toMatch(/không khớp/);
     await expect(manager.readCreateRequest(draft.id)).rejects.toThrow(/duyệt brief/);
 

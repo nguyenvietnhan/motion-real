@@ -7,7 +7,7 @@ import { basename, isAbsolute, join, relative, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { createLogger, MAX_IMAGE_BYTES, MAX_IMAGE_DIM, resolveEffectiveDuration, sniffImage, writeJson } from "@motionreal/pipeline";
 import type { SceneImageRole } from "@motionreal/schema";
-import type { AgentAssetVM, AgentBriefInput, AgentBriefVM, AgentDraftVM, AgentProductionState, AgentSearchProvider, AgentSettingsVM, DurationTierChoice, VideoLanguageChoice, VoiceProviderChoice } from "../../shared/types.js";
+import type { AgentActivityVM, AgentAssetVM, AgentBriefInput, AgentBriefVM, AgentDraftVM, AgentProductionState, AgentSearchProvider, AgentSettingsVM, DurationTierChoice, VideoLanguageChoice, VoiceProviderChoice } from "../../shared/types.js";
 import { sanitizedChildEnvironment } from "../security/runtime-security.js";
 import {
   initialAgentWorkflow,
@@ -56,7 +56,7 @@ const log = createLogger("harness");
 
 export type { AgentDraftVM } from "../../shared/types.js";
 
-type DraftRecord = Omit<AgentDraftVM, "updatedAt" | "harnessUrl" | "webSearchConfigured" | "searchProvider" | "createReady" | "assetReview" | "assetCollectionError" | "briefReview" | "briefReviewError" | "sessionAccess"> & AgentWorkflowRecord & {
+type DraftRecord = Omit<AgentDraftVM, "updatedAt" | "harnessUrl" | "webSearchConfigured" | "searchProvider" | "createReady" | "activities" | "assetReview" | "assetCollectionError" | "briefReview" | "briefReviewError" | "sessionAccess"> & AgentWorkflowRecord & {
   workspaceId?: string;
   sessionId?: string;
   assetRequestRevision?: number;
@@ -285,7 +285,7 @@ export class HarnessManager {
     let assetCollectionError: string | undefined;
     let briefReview: AgentBriefVM | undefined;
     let briefReviewError: string | undefined;
-    if (record.productionState === "collecting_assets" || record.productionState === "asset_review" || record.productionState === "brief_review") {
+    if (record.productionState === "collecting_assets" || record.productionState === "asset_review" || record.productionState === "preparing_brief" || record.productionState === "brief_review") {
       try {
         assetReview = await this.readAssetManifest(record);
         if (assetReview && record.productionState === "collecting_assets") {
@@ -300,15 +300,27 @@ export class HarnessManager {
         assetCollectionError = error instanceof Error ? error.message : "Manifest asset không hợp lệ.";
       }
     }
-    if (record.productionState === "brief_review" || record.productionState === "queued_create") {
+    if (record.productionState === "preparing_brief" || record.productionState === "brief_review" || record.productionState === "queued_create") {
       try {
         briefReview = await this.readBrief(record);
+        if (briefReview && record.productionState === "preparing_brief") {
+          record = { ...record, ...transitionAgentWorkflow(record, {
+            expectedRevision: record.workflowRevision,
+            to: "brief_review",
+            jobId: record.activeJobId,
+          }) };
+          await this.writeRecord(record);
+        }
       } catch (error) {
         briefReviewError = error instanceof Error ? error.message : "Brief của Agent không hợp lệ.";
       }
     }
     if (record.productionState === "authoring") this.maybeProcessAuthoring(record);
-    return this.toVm(record, assetReview, assetCollectionError, briefReview, briefReviewError);
+    const activities = await this.readSafeActivities(record).catch((error) => {
+      log.debug({ err: error, draftId: record.id }, "Harness activity unavailable");
+      return undefined;
+    });
+    return this.toVm(record, assetReview, assetCollectionError, briefReview, briefReviewError, activities);
   }
 
   async prepareAssets(id: string, expectedRevision: number): Promise<AgentDraftVM> {
@@ -392,7 +404,7 @@ export class HarnessManager {
       ...current,
       ...transitionAgentWorkflow(current, {
         expectedRevision,
-        to: "brief_review",
+        to: "preparing_brief",
         jobId: current.activeJobId,
       }),
       selectedAssetIds,
@@ -411,8 +423,8 @@ export class HarnessManager {
   async prepareBrief(id: string, expectedRevision: number): Promise<AgentDraftVM> {
     const current = await this.mustReadRecord(id);
     this.requireActiveSession(current);
-    if (current.productionState !== "brief_review" || current.workflowRevision !== expectedRevision) {
-      throw new Error("Trạng thái duyệt brief đã thay đổi; hãy tải lại.");
+    if (current.productionState !== "preparing_brief" || current.workflowRevision !== expectedRevision) {
+      throw new Error("Trạng thái tạo brief đã thay đổi; hãy tải lại.");
     }
     if (!current.selectedAssetIds) throw new Error("Chưa có lựa chọn asset để tạo brief.");
     const next = { ...current, briefRequestRevision: (current.briefRequestRevision ?? 0) + 1 };
@@ -764,6 +776,7 @@ export class HarnessManager {
     assetCollectionError?: string,
     briefReview?: AgentBriefVM,
     briefReviewError?: string,
+    activities?: AgentActivityVM[],
   ): Promise<AgentDraftVM> {
     const createReady = record.productionState === "queued_create"
       && existsSync(join(this.rootOf(record.id), CREATE_REQUEST_FILE));
@@ -781,6 +794,7 @@ export class HarnessManager {
         : {}),
       sessionAccess: record.sessionPolicyRevision === SESSION_POLICY_REVISION ? "full" : "legacy-approval",
       createReady,
+      ...(activities?.length ? { activities } : {}),
       ...(assetReview ? { assetReview } : {}),
       ...(assetCollectionError ? { assetCollectionError } : {}),
       ...(briefReview ? { briefReview } : {}),
@@ -852,6 +866,31 @@ export class HarnessManager {
       mode: "queue",
       content: [{ type: "text", text }],
     });
+  }
+
+  private async readSafeActivities(record: DraftRecord): Promise<AgentActivityVM[] | undefined> {
+    if (!this.active || this.activeDraftId !== record.id || !record.sessionId) return undefined;
+    const raw = await this.rpc(this.active.url, "session.history", { sessionId: record.sessionId, maxMessages: 12 });
+    const activities: AgentActivityVM[] = [];
+    const calls = new Map<string, AgentActivityVM>();
+    for (const entryValue of arrayOf(objectOf(raw).events)) {
+      const event = objectOf(objectOf(entryValue).event);
+      const seq = Number.isSafeInteger(event.seq) ? Number(event.seq) : undefined;
+      const data = objectOf(event.data);
+      if (event.type === "tool/call" && seq !== undefined) {
+        const label = safeActivityLabel(data.name);
+        const callId = stringOf(data.callId);
+        if (!label || !callId) continue;
+        const activity: AgentActivityVM = { id: String(seq), label, status: "running" };
+        activities.push(activity);
+        calls.set(callId, activity);
+      }
+      if (event.type === "tool/result") {
+        const activity = calls.get(stringOf(data.callId) ?? "");
+        if (activity) activity.status = data.error === undefined ? "completed" : "failed";
+      }
+    }
+    return activities.slice(-8);
   }
 
   /** Persist only the choice. Never restart a live model turn to apply it. */
@@ -1613,6 +1652,23 @@ function accessLabel(id: string, fallback?: string): string {
   if (id === "workspace-write") return "Ghi trong workspace";
   if (id === "danger-full-access") return "Toàn quyền";
   return fallback ?? id;
+}
+
+function safeActivityLabel(name: unknown): string | undefined {
+  switch (name) {
+    case "web_search": return "Tìm kiếm web";
+    case "bash":
+    case "pwsh":
+    case "powershell": return "Đang xử lý tệp và asset";
+    case "read":
+    case "glob": return "Đang đọc workspace";
+    case "read_image": return "Đang xem ảnh";
+    case "motionreal_submit_assets": return "Đã gửi asset";
+    case "motionreal_submit_brief": return "Đã gửi brief";
+    case "motionreal_submit_authoring": return "Đã gửi cảnh";
+    case "ask_user_question": return "Đang chờ câu trả lời";
+    default: return undefined;
+  }
 }
 
 function resumePromptFor(state: AgentProductionState): string {
