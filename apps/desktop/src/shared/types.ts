@@ -48,6 +48,7 @@ export type AgentProductionState =
   | "discovery"
   | "collecting_assets"
   | "asset_review"
+  | "preparing_brief"
   | "brief_review"
   | "queued_create"
   | "authoring"
@@ -55,6 +56,7 @@ export type AgentProductionState =
   | "draft_render"
   | "draft_review"
   | "final_render"
+  | "paused"
   | "completed"
   | "error";
 
@@ -74,6 +76,8 @@ export type AgentDraftVM = {
   /** Old sessions can still carry Harness's workspace-write + ask policy. */
   sessionAccess: "full" | "legacy-approval";
   activeJobId?: string;
+  /** Stage that will be resumed after a user-stopped workflow is continued. */
+  pausedFrom?: Exclude<AgentProductionState, "paused" | "discovery" | "asset_review" | "brief_review" | "still_review" | "draft_review" | "completed" | "error">;
   lastError?: string;
   /** Local native Harness conversation URL used by the embedded renderer iframe. */
   harnessUrl?: string;

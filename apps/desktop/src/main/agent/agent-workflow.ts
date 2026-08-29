@@ -7,6 +7,7 @@ export type AgentWorkflowRecord = {
   workflowRevision: number;
   productionState: AgentProductionState;
   activeJobId?: string;
+  pausedFrom?: PausableAgentProductionState;
   lastError?: string;
 };
 
@@ -17,10 +18,14 @@ export type AgentWorkflowTransition = {
   error?: string;
 };
 
+export type PausableAgentProductionState = Extract<AgentProductionState,
+  "collecting_assets" | "preparing_brief" | "queued_create" | "authoring" | "draft_render" | "final_render">;
+
 const STATES = new Set<AgentProductionState>([
   "discovery",
   "collecting_assets",
   "asset_review",
+  "preparing_brief",
   "brief_review",
   "queued_create",
   "authoring",
@@ -28,6 +33,7 @@ const STATES = new Set<AgentProductionState>([
   "draft_render",
   "draft_review",
   "final_render",
+  "paused",
   "completed",
   "error",
 ]);
@@ -35,7 +41,8 @@ const STATES = new Set<AgentProductionState>([
 const NEXT: Record<AgentProductionState, readonly AgentProductionState[]> = {
   discovery: ["collecting_assets"],
   collecting_assets: ["asset_review", "error"],
-  asset_review: ["collecting_assets", "brief_review", "error"],
+  asset_review: ["collecting_assets", "preparing_brief", "error"],
+  preparing_brief: ["brief_review", "error"],
   brief_review: ["asset_review", "queued_create", "error"],
   queued_create: ["authoring", "error"],
   authoring: ["still_review", "draft_render", "error"],
@@ -43,6 +50,7 @@ const NEXT: Record<AgentProductionState, readonly AgentProductionState[]> = {
   draft_render: ["draft_review", "error"],
   draft_review: ["authoring", "final_render", "error"],
   final_render: ["completed", "error"],
+  paused: [],
   completed: [],
   error: ["discovery"],
 };
@@ -77,12 +85,49 @@ export function parseAgentWorkflow(value: Record<string, unknown>): AgentWorkflo
   const lastError = typeof value.lastError === "string" ? value.lastError.trim().slice(0, 500) : undefined;
   if (productionState === "error" && !lastError) return null;
   if (productionState !== "error" && lastError) return null;
+  const pausedFrom = isPausableState(value.pausedFrom) ? value.pausedFrom : undefined;
+  if (productionState === "paused" && !pausedFrom) return null;
+  if (productionState !== "paused" && pausedFrom) return null;
   return {
     workflowVersion: AGENT_WORKFLOW_VERSION,
     workflowRevision: Number(value.workflowRevision),
     productionState,
     ...(activeJobId ? { activeJobId } : {}),
+    ...(pausedFrom ? { pausedFrom } : {}),
     ...(lastError ? { lastError } : {}),
+  };
+}
+
+export function pauseAgentWorkflow(
+  current: AgentWorkflowRecord,
+  request: Pick<AgentWorkflowTransition, "expectedRevision" | "jobId">,
+): AgentWorkflowRecord {
+  assertWorkflowRevisionAndJob(current, request);
+  if (!isPausableState(current.productionState)) {
+    throw new Error(`Không thể dừng Video Agent ở bước ${current.productionState}.`);
+  }
+  return {
+    workflowVersion: AGENT_WORKFLOW_VERSION,
+    workflowRevision: current.workflowRevision + 1,
+    productionState: "paused",
+    activeJobId: current.activeJobId,
+    pausedFrom: current.productionState,
+  };
+}
+
+export function resumeAgentWorkflow(
+  current: AgentWorkflowRecord,
+  request: Pick<AgentWorkflowTransition, "expectedRevision" | "jobId">,
+): AgentWorkflowRecord {
+  assertWorkflowRevisionAndJob(current, request);
+  if (current.productionState !== "paused" || !current.pausedFrom) {
+    throw new Error("Video Agent hiện không ở trạng thái đã dừng.");
+  }
+  return {
+    workflowVersion: AGENT_WORKFLOW_VERSION,
+    workflowRevision: current.workflowRevision + 1,
+    productionState: current.pausedFrom,
+    activeJobId: current.activeJobId,
   };
 }
 
@@ -130,4 +175,25 @@ export function transitionAgentWorkflow(
 
 function validJobId(value: unknown): value is string {
   return typeof value === "string" && /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/.test(value);
+}
+
+function isPausableState(value: unknown): value is PausableAgentProductionState {
+  return value === "collecting_assets"
+    || value === "preparing_brief"
+    || value === "queued_create"
+    || value === "authoring"
+    || value === "draft_render"
+    || value === "final_render";
+}
+
+function assertWorkflowRevisionAndJob(
+  current: AgentWorkflowRecord,
+  request: Pick<AgentWorkflowTransition, "expectedRevision" | "jobId">,
+): asserts current is AgentWorkflowRecord & { activeJobId: string } {
+  if (request.expectedRevision !== current.workflowRevision) {
+    throw new Error("Trạng thái Video Agent đã thay đổi; hãy tải lại trước khi tiếp tục.");
+  }
+  if (!current.activeJobId || request.jobId !== current.activeJobId) {
+    throw new Error("Job Video Agent không khớp với workflow hiện tại.");
+  }
 }

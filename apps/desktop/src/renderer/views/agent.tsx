@@ -9,6 +9,7 @@ const PRODUCTION_LABELS: Record<AgentProductionState, string> = {
   discovery: "Đang trao đổi ý tưởng",
   collecting_assets: "Đang thu thập asset",
   asset_review: "Chờ duyệt asset",
+  preparing_brief: "Đang chuẩn bị brief",
   brief_review: "Chờ duyệt brief",
   queued_create: "Đang chờ tạo video",
   authoring: "Agent đang viết và kiểm tra cảnh",
@@ -16,6 +17,7 @@ const PRODUCTION_LABELS: Record<AgentProductionState, string> = {
   draft_render: "Đang render draft",
   draft_review: "Chờ duyệt draft",
   final_render: "Đang render final",
+  paused: "Đã dừng",
   completed: "Đã hoàn tất",
   error: "Cần xử lý lỗi",
 };

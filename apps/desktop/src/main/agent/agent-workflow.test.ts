@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   initialAgentWorkflow,
   parseAgentWorkflow,
+  pauseAgentWorkflow,
+  resumeAgentWorkflow,
   transitionAgentWorkflow,
 } from "./agent-workflow.js";
 
@@ -86,5 +88,54 @@ describe("Agent production workflow", () => {
     })).toMatchObject({ productionState: "brief_review", workflowRevision: 4 });
     expect(parseAgentWorkflow({ workflowVersion: 2, workflowRevision: 0, productionState: "discovery" })).toBeNull();
     expect(parseAgentWorkflow({ workflowVersion: 1, workflowRevision: 0, productionState: "asset_review" })).toBeNull();
+  });
+
+  it("pauses a running job durably and resumes the exact prior stage once", () => {
+    const collecting = transitionAgentWorkflow(initialAgentWorkflow(), {
+      expectedRevision: 0,
+      to: "collecting_assets",
+      jobId: "job-1",
+    });
+    const paused = pauseAgentWorkflow(collecting, { expectedRevision: 1, jobId: "job-1" });
+    const resumed = resumeAgentWorkflow(paused, { expectedRevision: 2, jobId: "job-1" });
+
+    expect(paused).toMatchObject({
+      workflowRevision: 2,
+      productionState: "paused",
+      pausedFrom: "collecting_assets",
+      activeJobId: "job-1",
+    });
+    expect(resumed).toEqual({
+      workflowVersion: 1,
+      workflowRevision: 3,
+      productionState: "collecting_assets",
+      activeJobId: "job-1",
+    });
+  });
+
+  it("uses preparing_brief as a real running state and rejects malformed paused records", () => {
+    const collecting = transitionAgentWorkflow(initialAgentWorkflow(), {
+      expectedRevision: 0,
+      to: "collecting_assets",
+      jobId: "job-1",
+    });
+    const reviewingAssets = transitionAgentWorkflow(collecting, {
+      expectedRevision: 1,
+      to: "asset_review",
+      jobId: "job-1",
+    });
+    const preparing = transitionAgentWorkflow(reviewingAssets, {
+      expectedRevision: 2,
+      to: "preparing_brief",
+      jobId: "job-1",
+    });
+
+    expect(preparing.productionState).toBe("preparing_brief");
+    expect(parseAgentWorkflow({
+      workflowVersion: 1,
+      workflowRevision: 3,
+      productionState: "paused",
+      activeJobId: "job-1",
+    })).toBeNull();
   });
 });
