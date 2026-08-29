@@ -58,4 +58,18 @@ describe("Video Agent layout", () => {
     expect(renderToStaticMarkup(React.createElement(AgentWorkspace, { ...props, draft: authoring }))).toContain(">Dừng<");
     expect(renderToStaticMarkup(React.createElement(AgentWorkspace, { ...props, draft: paused }))).toContain(">Tiếp tục<");
   });
+
+  it("uses the MotionReal workflow surface instead of chat while the agent is working", () => {
+    const authoring = {
+      ...draft, workflowRevision: 4, productionState: "authoring" as const, projectId: "project-1",
+      activities: [{ id: "12", label: "Đang xử lý tệp và asset", status: "running" as const }],
+    };
+    const html = renderToStaticMarkup(React.createElement(AgentWorkspace, {
+      draft: authoring, reviewMode: "stills_edit", busy: false, notice: null,
+      onBack: vi.fn(), onDraftChange: vi.fn(), onOpenProject: vi.fn(), run: async (work: () => Promise<void>) => work(),
+    }));
+
+    expect(html).toContain("Đang xử lý tệp và asset");
+    expect(html).not.toContain("<iframe");
+  });
 });
