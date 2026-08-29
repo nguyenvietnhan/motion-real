@@ -87,8 +87,10 @@
 .ns-agent-row-menu button.danger { color: var(--danger); }
 
 .ns-agent-name-dialog { width: min(440px, calc(100vw - 32px)); }
-.ns-agent-name-dialog label { display: grid; gap: 7px; margin: 18px 0; color: var(--muted-foreground); font-size: 13px; }
-.ns-agent-dialog-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.ns-agent-name-dialog-body { padding: 18px 22px; }
+.ns-agent-name-dialog label { display: grid; gap: 7px; color: var(--muted-foreground); font-size: 13px; }
+.ns-agent-name-dialog label .ns-input { width: 100%; }
+.ns-agent-dialog-actions { display: flex; justify-content: flex-end; gap: 8px; padding: 0 22px 20px; }
 
 .ns-agent-workspace-bar {
   display: flex;

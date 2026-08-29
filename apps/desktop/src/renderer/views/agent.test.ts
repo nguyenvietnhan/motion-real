@@ -2,7 +2,7 @@ import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import type { AgentDraftVM } from "../../shared/types.js";
-import { AgentLibrary, AgentWorkspace } from "./agent.js";
+import { AgentLibrary, AgentNameDialog, AgentWorkspace } from "./agent.js";
 
 const draft: AgentDraftVM = {
   id: "agent-1",
@@ -31,6 +31,16 @@ describe("Video Agent layout", () => {
     expect(html).not.toContain("Trao đổi, research");
     expect(html).not.toContain("Video đang làm");
     expect(html).not.toContain("ns-btn-icon-only ns-agent-row-menu-trigger\" style");
+  });
+
+  it("keeps the video-name dialog content and actions inside padded regions", () => {
+    const html = renderToStaticMarkup(React.createElement(AgentNameDialog, {
+      open: true, title: "Tạo video mới", confirmLabel: "Tạo workspace", initialValue: "", busy: false,
+      onCancel: vi.fn(), onConfirm: vi.fn(),
+    }));
+
+    expect(html).toContain("ns-agent-name-dialog-body");
+    expect(html).toContain("ns-agent-dialog-actions");
   });
 
   it("renders a compact workspace and the MotionReal embedded iframe only", () => {

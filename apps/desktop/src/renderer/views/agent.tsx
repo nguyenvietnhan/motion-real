@@ -141,13 +141,13 @@ export const AgentLibrary: React.FC<AgentLibraryProps> = ({ drafts, loading, bus
   );
 };
 
-const AgentNameDialog: React.FC<{ open: boolean; title: string; confirmLabel: string; initialValue: string; busy: boolean; onCancel: () => void; onConfirm: (title: string) => Promise<void> | void }> = ({ open, title, confirmLabel, initialValue, busy, onCancel, onConfirm }) => {
+export const AgentNameDialog: React.FC<{ open: boolean; title: string; confirmLabel: string; initialValue: string; busy: boolean; onCancel: () => void; onConfirm: (title: string) => Promise<void> | void }> = ({ open, title, confirmLabel, initialValue, busy, onCancel, onConfirm }) => {
   const [value, setValue] = useState(initialValue);
   useEffect(() => setValue(initialValue), [initialValue, open]);
   if (!open) return null;
   return <div className="ns-modal-backdrop" role="presentation" onMouseDown={onCancel}><form className="ns-modal ns-agent-name-dialog" role="dialog" aria-modal="true" onSubmit={(event) => { event.preventDefault(); if (value.trim()) void Promise.resolve(onConfirm(value.trim())).catch((_error) => undefined); }} onMouseDown={(event) => event.stopPropagation()}>
     <div className="ns-modal-head"><h2 className="ns-modal-title">{title}</h2></div>
-    <label htmlFor="agent-name-input">Tên video<input id="agent-name-input" className="ns-input" value={value} maxLength={120} autoFocus disabled={busy} onChange={(event) => setValue(event.target.value)} /></label>
+    <div className="ns-agent-name-dialog-body"><label htmlFor="agent-name-input">Tên video<input id="agent-name-input" className="ns-input" value={value} maxLength={120} autoFocus disabled={busy} onChange={(event) => setValue(event.target.value)} /></label></div>
     <div className="ns-agent-dialog-actions"><button type="button" className="ns-btn" onClick={onCancel} disabled={busy}>Huỷ</button><button type="submit" className="ns-btn ns-btn-primary" disabled={busy || !value.trim()}>{confirmLabel}</button></div>
   </form></div>;
 };
