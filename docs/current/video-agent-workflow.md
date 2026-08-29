@@ -206,8 +206,11 @@ Agent activity answers “what is Harness doing now?” Examples:
 - reading or writing a file;
 - a tool succeeded or failed.
 
-These events feed the chat/tool timeline only. Tool inactivity, a final message,
-or prose such as “done” does not change video production state.
+MotionReal projects a bounded safe summary while automated work is active. It
+contains only an allow-listed tool family, title, sequence and status; command
+arguments, output, paths, credentials and provider error bodies remain inside
+Harness. Tool inactivity, a final message, or prose such as “done” does not
+change video production state.
 
 ### Video production state
 
@@ -218,6 +221,7 @@ states are:
 discovery
 collecting_assets
 asset_review
+preparing_brief
 brief_review
 queued_create
 authoring
@@ -225,6 +229,7 @@ still_review
 draft_render
 draft_review
 final_render
+paused
 completed
 error
 ```
@@ -278,6 +283,12 @@ MotionReal validates that:
 - every listed file exists, is a regular supported media file, and is readable;
 - configured item and size limits are respected.
 
+The approved manifest is a curated pool, not a requirement that every file
+occupy a scene. During authoring, Harness may use a purposeful subset; it must
+declare that subset, retain each used asset's approved role, and cannot use an
+asset outside the approved pool. Logos and icons are supporting elements unless
+the story gives them a clear visual reason to lead a scene.
+
 Invalid submission leaves the job in `collecting_assets` and returns actionable
 validation errors to the Agent. Only an accepted manifest moves the job to
 `asset_review`.
@@ -296,7 +307,9 @@ Returning from brief review without changing the approved asset-id set reuses
 the existing valid brief. MotionReal requests a new Agent brief only when the
 selection changed or the previous brief is missing/invalid.
 
-Approval persists the selected asset ids and advances to `brief_review`.
+Approval persists the selected asset ids and enters `preparing_brief`. Only a
+new valid `brief.json` advances to `brief_review`; no review screen is shown
+while the Agent is still writing the brief.
 
 ### 4. Brief review
 
@@ -542,7 +555,8 @@ extra human still approval in `full` or `skip_edit`.
 | `discovery` | User clicks prepare | `collecting_assets` |
 | `collecting_assets` | Valid asset submission | `asset_review` |
 | `asset_review` | User requests more | `collecting_assets` |
-| `asset_review` | User approves selection | `brief_review` |
+| `asset_review` | User approves selection | `preparing_brief` |
+| `preparing_brief` | Valid brief submission | `brief_review` |
 | `brief_review` | User approves frozen brief | `queued_create` |
 | `queued_create` | CreateController scaffolds and links the project | `authoring` |
 | `authoring` | Valid Harness submission, still render, and self-review | `still_review` |
@@ -551,6 +565,8 @@ extra human still approval in `full` or `skip_edit`.
 | `still_review` | User approves scenes in `stills_edit` | `final_render` |
 | `draft_review` | User approves full render | `final_render` |
 | `final_render` | Healthy full artifact | `completed` |
+| running Harness state | User stops | `paused` (stores its prior state) |
+| `paused` | User continues | prior running state |
 | any running state | Structured failure | `error` |
 
 Duplicate submissions must be idempotent. A manifest for another job, a stale
@@ -574,11 +590,14 @@ the Session-scoped `harnessUrl`.
 
 ## Failure, Cancellation, and Recovery
 
-- A stopped or silent Agent leaves the current production state unchanged.
+- Stopping an Agent first persists `paused`, cancels the native Harness Session
+  turn, stops authoring polling, and cancels any linked Workspace render. Late
+  authoring callbacks cannot request a repair or advance the paused workflow.
 - Validation failures return concrete corrections and do not advance a gate.
 - Aborting an Agent turn does not delete downloaded files or the video Workspace.
 - Restart reads persisted Agent metadata and handoff artifacts, reconnects the
-  matching Harness Session, and resumes the last valid production state.
+  matching Harness Session, and preserves a paused workflow until the user
+  explicitly continues it.
 - Once a `projectId` exists, MotionReal project recovery remains authoritative.
 - Deleting a video aborts in-flight Agent work before removing its Workspace;
   project deletion continues to use the existing project lifecycle.
