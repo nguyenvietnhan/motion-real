@@ -49,12 +49,19 @@ extracting or redistributing the font files alone. Re-run
 User-added BGM under `VIDEO_TOOL_HOME/.video-tool/bgm/` is **not** part of the
 repository and remains the user’s responsibility.
 
-## External services (not shipped)
+## External services and development runtimes (not shipped)
 
-Desktop AI chat depends on a **9router** (or compatible) gateway process on
-`localhost:20128`. That binary is **not** vendored in this repo; install and
-license it separately. TTS may call Vivibe/LucyLab or ElevenLabs with user
-credentials — those services are governed by their own terms of use.
+- Desktop AI chat depends on a **9router** (or compatible) gateway process on
+  `localhost:20128`. That binary is **not** vendored in this repo; install and
+  license it separately.
+- Video Agent developer preview embeds a native **DeepSeek Harness** process
+  (development checkout at `../deepseek-harness` or via `MOTIONREAL_DSH_CLI`).
+  DeepSeek Harness is governed by its own repository license.
+- Cloud TTS may call **Vivibe/LucyLab** or **ElevenLabs** with user credentials —
+  those services are governed by their own terms of use.
+- **VieNeu Local** developer preview runs `vieneu==3.3.0` via Python 3.11 with ONNX
+  runtime models cached from Hugging Face under `.video-tool/vieneu/huggingface`.
+  The package and model weights are governed by VieNeu's Apache-2.0 / open license terms.
 
 ## Questions
 

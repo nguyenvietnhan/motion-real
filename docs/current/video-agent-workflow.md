@@ -572,21 +572,30 @@ extra human still approval in `full` or `skip_edit`.
 Duplicate submissions must be idempotent. A manifest for another job, a stale
 revision, or an invalid transition is rejected rather than silently applied.
 
-## UI Ownership
+## UI Ownership and Workspace Presentations
 
-The MotionReal UI owns:
+The Agent workspace has exactly three mutually exclusive primary surfaces:
 
-- video/session selection;
-- `Chuẩn bị tạo video`;
-- asset and brief review cards;
-- product progress;
-- draft/project navigation and review actions.
+| Workflow condition | Surface | Presentation |
+| --- | --- | --- |
+| Conversation (`discovery`) or explicit `Mở chat` | Native embedded Harness chat | Embedded iframe with session-scoped URL |
+| Automated work (`collecting_assets`, `preparing_brief`, `queued_create`, `authoring`, render, `paused`) | MotionReal workflow progress | `AgentWorkflowProgress`: top-anchored fixed header (`padding-top: 64px`), spinner/paused icon, clean activity list |
+| Human decision required (`asset_review`, `brief_review`, `still_review`, `draft_review`) | MotionReal review | `AssetReview` gallery, `BriefReview` (KnobButton chips, structured scene dividers, raw prompt editor), storyboard cards |
 
 The embedded native Harness page owns the complete conversation surface,
 including chat messages, reasoning, tool activity, questions, approvals,
 attachments, composer, stop/retry, and history. MotionReal does not couple to
 its DOM or recreate those features. The only renderer-facing chat interface is
 the Session-scoped `harnessUrl`.
+
+### UI Design and Aesthetic Alignment
+
+The Video Agent tab follows MotionReal's minimalist, dark studio design system:
+- **Table / List Format:** `AgentLibrary` presents video drafts in a structured, scannable table with unboxed overflow actions (`useDismissable`), stable row targets, and clean date stamps.
+- **Minimalist Status Affordances:** Production states are displayed as clean, monochrome/subtle text (`var(--muted-foreground)` / subtle green for completed), avoiding loud or colorful pill badges.
+- **Workflow Header & Back Affordance:** The workspace top bar uses an icon-only back button (`ns-btn-icon-only` with `Icon.chevronLeft`) and renders progress state as a subtle subtitle next to the title.
+- **Progress Stability:** `AgentWorkflowProgress` uses a top-fixed card layout so that as new activity items appear or update, the progress title and spinner remain perfectly anchored and never shift vertically.
+- **Configuration Knobs & Settings:** Brief review uses compact `KnobButton` chips matching `HomeView` (duration tier, language, voice provider), and Agent Settings uses structured flat cards with radio selection and password toggle affordances.
 
 ## Failure, Cancellation, and Recovery
 

@@ -10,8 +10,8 @@ change code in this monorepo.
   CI runs on Ubuntu (`typecheck` / `test` / webpack `build` only).
 - For the **desktop AI path**: a **9router** (or compatible) binary on `PATH`,
   listening on `http://localhost:20128`. The app does **not** vendor 9router.
-- For real narration: Vivibe and/or ElevenLabs credentials (see
-  `docs/providers/`). Production paths must not silently fall back to `mock` /
+- For real narration: VieNeu Local, Vivibe, and/or ElevenLabs (see
+  `docs/current/tts-providers.md`). Production paths must not silently fall back to `mock` /
   `none`.
 
 ## Setup

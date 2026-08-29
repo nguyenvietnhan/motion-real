@@ -171,15 +171,7 @@ MCP server without a focused owner-approved slice.
 
 ## Duration Targets
 
-Product path is short-form **9:16 only** (no YouTube / landscape). Desktop create
-always scaffolds `format: "tiktok"` and a short-form `durationTier` from the
-Home knobs: **1 / 2 / 3 / 4** → ~45s / ~90s / ~150s / ~210s pacing (default **1**).
-
-Resolved `brief.duration` order for the pipeline/CLI remains: explicit tool
-`duration`, then `durationTier` via `tierSeconds` (tiktok 45/90/150/210), then
-duration parsed from the prompt, then the **45 second** default (tier 1). Desktop
-UI tier always wins when set; prompt length is conflict-logged only. Existing
-briefs are not silently migrated.
+For short-form delivery format, duration tiers (45s / 90s / 150s / 210s), and duration resolution order, see [`architecture.md#delivery-format-short-form-only`](architecture.md#delivery-format-short-form-only).
 
 ## Authoring Output Size
 
@@ -443,60 +435,14 @@ When renaming or cleaning comments only:
 - After comment-only edits: `git diff` must show comment/docs lines only, then
   `npm.cmd run typecheck`. Run focused tests if `describe`/`it` titles changed.
 
-## Outbound URL fetch (SSRF / DNS pin)
+## Architecture Cross-References
 
-Article and image ingest use `packages/pipeline/src/ingest/safe-fetch.ts` with
-address policy in `public-address.ts` (`net.BlockList`).
-
-- Resolve DNS **once per hop**, classify every candidate, fail closed if any
-  address is non-public (including mapped IPv6 and full `fe80::/10`).
-- Pin the undici transport lookup to vetted addresses — never call ordinary
-  unpinned `fetch()` after a successful resolve.
-- When both A and AAAA are public, **dial IPv4 first** (`addressesForPinnedConnect`).
-  Broken desktop IPv6 routes otherwise hang image crawls until timeout.
-- Buffer the response body before closing the per-request dispatcher (large
-  binary crawls).
-- Text and binary fetchers share one redirect/pin engine. On redirect, discard
-  the prior body and re-resolve/pin the next hop.
-- Corporate HTTP proxies are not supported on this path; do not silently route
-  through one. Changing the deny table requires tests and an explicit policy
-  decision — do not shrink it because one site misbehaved.
-
-## Fresh-author candidate transaction
-
-Do not clear-first authored TSX/manifest/evidence. Use
-`author-candidate-transaction.ts` only. Do not bypass the helper for “quick”
-writes. Order is stage → `prepared` → admit staged paths → backup → `promoting`
-→ promote → `committed`. Reconcile on `promoting` restores only when backup is
-usable; never wipe canonical from an empty backup. Startup reconciles
-`.authoring-candidate/` journals before jobs start.
-
-## Source context budgets
-
-Constants in `create-validation.ts` / `research-context.ts`: max 5 URLs,
-concurrency 2, 40k chars/source, 100k total. Change only with tests and an
-explicit product decision. Code authoring must not receive raw article bodies.
-
-## Restart recovery
-
-Use `workspace-recovery.ts` / `inspectArtifacts` for stage recovery. Do not
-require stills for a draft+manifest project to land on `ready`. Invalid/empty
-MP4s are not deliverables.
-
-## Media protocol allow-list
-
-Do not widen `media://` to all of `VIDEO_TOOL_HOME` or to project JSON/TSX/logs.
-When a new renderer preview needs a local file:
-
-1. Confirm it is a real media artifact (image/audio/video) with a known extension.
-2. Place it under an existing allow-listed root, or get owner approval for one
-   exact new location + kind in `media-protocol.ts`.
-3. Extend the classify/allow matrix tests before changing the handler.
-4. Keep URLs route-relative; never reintroduce absolute-path `media://` encoding
-   or a raw-path `toMedia` fallback.
-
-Symlink/junction escape is closed by realpath containment in the handler — do
-not replace it with a lexical-only `startsWith` check.
+The following system invariants and boundary contracts are maintained canonically in [`architecture.md`](architecture.md):
+- **Outbound URL Fetch (SSRF / DNS Pinning):** See [`architecture.md#url-ingest-egress`](architecture.md#url-ingest-egress).
+- **Fresh-Author Candidate Transactions:** See [`architecture.md#fresh-author-candidate-transaction`](architecture.md#fresh-author-candidate-transaction).
+- **Source Context Budgets (max 5 URLs, 40k chars/source):** See [`architecture.md#research-context-url-grounded-authoring`](architecture.md#research-context-url-grounded-authoring).
+- **Workspace Restart Recovery:** See [`architecture.md#workspace-restart-recovery`](architecture.md#workspace-restart-recovery).
+- **Media Protocol Boundary (`media://` scheme allow-list):** See [`architecture.md#media-protocol-boundary`](architecture.md#media-protocol-boundary).
 
 ## Repository Hygiene
 
@@ -531,7 +477,7 @@ rg -n "@motionreal/(blocks|theme)|<(/?)(Frame|Story|TitleBlock|KeyPoints|Panel|C
   --glob '!packages/pipeline/src/authoring/__fixtures__/**'
 
 rg -n "kit-based|NewsVideo|news-studio-settings" `
-  AI_CONTRACT.md README.md docs/current docs/providers apps packages scripts `
+  AI_CONTRACT.md README.md docs/current apps packages scripts `
   --glob '!**/node_modules/**' `
   --glob '!.video-tool/**' `
   --glob '!**/dist/**' `

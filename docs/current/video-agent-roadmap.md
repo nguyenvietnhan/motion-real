@@ -99,6 +99,7 @@ review UI.
 discovery
 collecting_assets
 asset_review
+preparing_brief
 brief_review
 queued_create
 authoring
@@ -106,6 +107,7 @@ still_review
 draft_render
 draft_review
 final_render
+paused
 completed
 error
 ```
@@ -365,7 +367,7 @@ and preset. This proves the production TypeScript client, persistent worker,
 audio measurement and calibration write path; it does not by itself satisfy the
 project-to-draft gate.
 
-See `docs/providers/vieneu.md` for the pinned development runtime and commands.
+See `docs/current/tts-providers.md` for the pinned development runtime and commands.
 
 ## Phase 4 — Production Progress in Agent
 
@@ -548,300 +550,30 @@ creating another render engine or review UI.
 - After the user approves the scenes, the existing TTS/caption/full-render path
   produces a healthy video.
 
-Stabilization audit (2026-08-28): submission regressions now cover repeated
-asset-role mismatch, unapproved refs, corrected retries, and directories named
-`.tsx`. The full suite passed 138 files / 1,380 tests; typecheck, Remotion build,
-desktop Main/plugin build, and loading the built three-tool plugin exited 0.
-These are automated structural checks, not a new native video acceptance. The
-existing Ox job predates the pacing/asset-role/V2 changes and is not evidence
-that those changes have passed an end-to-end run.
+## Native Vision, Search Integration & Review Stabilization — 2026-08-28
 
-Creative-rewrite follow-up (2026-08-28): a missing or unreadable V2 module now
-fails the source comparison instead of being counted as changed. Regression
-cases cover a deleted module and a directory in place of a module, preserving
-the V1 archive in both cases. Archive/comparison also reuse admission's actual
-component-ID-to-file mapping: valid modules whose filenames differ from their
-IDs no longer fail archive, while rename-only V2 still fails. The manager test
-uses those nonmatching filenames through the V1/V2/review flow. The latest full
-suite passed 138 files / 1,383 tests; typecheck, Remotion build, and desktop
-Main/plugin build exited 0. This is source-integrity evidence, not proof of
-image review or better visual quality.
+1. **Submission & Creative Rewrite Hardening:** Submission regressions cover asset-role matching, unapproved ref rejection, corrected retries, and component ID-to-file mapping. V2 rewrite comparisons require actual AST/code differentiation beyond mere color/glow adjustments.
+2. **Search Integration (DeepSeek & Exa MCP):** Added explicit selection between DeepSeek and Exa search providers. Exa integrates via native `dsh-mcp-client` over streamable-http, registering `mcp__exa__web_search_exa` with proper catalog assembly barriers.
+3. **Image Route & Capability Declarations:** Pinned model entries explicitly declare `[text, image]` capabilities, routing PNGs through `read_image` directly to model vision context.
+4. **Post-Render Image Review & History Evidence:** V2 authoring and user scene edits generate still images and enforce an `image_review` turn. Main verifies actual `session.history` for successful `read_image` events with image attachments matching byte fingerprints before human review opens.
+5. **Review-Mode Parity:** Harness bridge branches cleanly based on the project's Settings policy: `full` (draft render + single review pass), `stills_edit` (direct still cards without draft render), and `skip_edit` (automatic full publish). IPC recovery routes recognized Harness projects to their Session or a render retry.
 
-Native policy evidence (2026-08-28): an isolated profile launched through the
-production `HarnessManager` against sibling Harness revision
-`00aba2f848f7fe5828da13ee382fd42d81028b31` and the built submission plugin.
-`session.history` confirmed `permission/preset=danger-full-access`,
-`sandbox/mode=danger-full-access`, and `approval/policy=never`; after disposing
-and restarting the runtime, the same session id retained all three facts.
-No prompt/model turn or video render was started. Local report:
-`.video-tool/verification/harness-policy-RfXnAT/report.json`.
+Automated suite passed 140 files / 1,441 tests, typecheck, build, and plugin verification.
 
-Keep the contrary startup evidence too: the first fresh-profile attempt hit the
-existing 60-second startup timeout before a session was created
-(`.video-tool/verification/harness-policy-N8WdVY/report.json`). A subsequent
-fresh profile passed, including restart/resume, without a code or timeout
-change. That proves the policy integration, not consistent cold-start latency;
-the first timeout's cause is not established. Native search success and a new
-video's visual/duration acceptance remain outstanding.
+## Workflow Control and Surface Isolation — 2026-08-29
 
-Search-provider diagnosis (2026-08-28): a native provider-level probe loaded the
-installed Harness credential provider against MotionReal's search credential
-store with watching disabled and no credential writes. It reported
-`configured: false`; the installed DeepSeek search provider returned
-`WEB_PROVIDER_CREDENTIAL_MISSING`. Chat's 9router credential does not authorize
-this separate DeepSeek request. No user session or video was changed.
+The Video Agent tab now provides durable workflow control and exclusive UI surfaces:
+1. **Durable Pause & Resume:** `agent:cancelWorkflow` atomically cancels active Harness session turns via `session.cancel`, halts authoring polling, cancels any linked Workspace rendering, and writes `productionState: "paused"` along with `pausedFrom`. Late prompts and callbacks are rejected by revision check, eliminating duplicate repair prompts.
+2. **Intermediate Brief Preparation:** Added `preparing_brief` between `asset_review` and `brief_review` to ensure the brief review UI is displayed only when a valid, schema-checked brief artifact is available.
+3. **Three Exclusive Primary Surfaces:** Chat iframe is displayed exclusively during discovery or explicit chat open; automated work displays `AgentWorkflowProgress` with sanitized `session.history` activity (scrubbed of raw paths, credentials, and output); review steps display dedicated MotionReal review cards.
+4. **Design System & Studio Theme Alignment:**
+   - `AgentLibrary` list format with kebab options menu (`useDismissable`) and unboxed trigger.
+   - Minimalist, monochrome/subtle status styling (`var(--muted-foreground)`) replacing loud colored pills.
+   - Workspace header with an icon-only back button (`ns-btn-icon-only`).
+   - `AgentWorkflowProgress` with a top-anchored layout (`padding-top: 64px`) ensuring the title and spinner maintain fixed vertical positioning without layout shifting when activity items expand.
+   - Brief review featuring `KnobButton` chips and clean scene dividers, alongside flat settings dialog cards with secret visibility toggle.
 
-The same probe mounted the installed `dsh-mcp-client` with
-`transport: streamable-http` and
-`url: https://mcp.exa.ai/mcp?tools=web_search_exa`. With no API key/header, it
-registered exactly `mcp__exa__web_search_exa` and executed a fixed public query
-through Harness's tool runtime. The call succeeded with nonempty text containing
-source URLs. Report: `.video-tool/verification/harness-search-Ubn0aC/report.json`.
-This proves the native MCP bridge/provider path, not model tool selection,
-MotionReal chat rendering, or production availability. The temporary probe is
-`.video-tool/verification/check-harness-search.mts`; it is not a product launcher.
-
-Exa's [official MCP documentation](https://exa.ai/docs/reference/exa-mcp)
-offers a rate-limited free plan; a successful call is not a promise of unlimited
-or keyless production service. Its remote tool name differs from the built-in
-`web_search`. Using it would be an explicit search-provider change, reusing the
-existing MCP plugin and adapting the chat label; no new crawler is needed.
-The later search-integration batch below adds this explicit opt-in; DeepSeek
-remains the default until the user selects Exa and restarts MotionReal. Supplying
-a DeepSeek search credential remains the other option. This provider-only probe
-is not a completed search-in-chat acceptance.
-
-Image-route diagnosis (2026-08-28): the custom 9router model previously omitted
-`input`, so the installed Harness resolved it to text-only and `read_image`
-refused before reading a PNG. The generated config now declares `[text, image]`
-on the exact model entry, not as a default for all models. Initial asset review,
-V1-to-V2 review and self-review repair instructions name the existing
-`read_image` tool rather than relying on text-file reads.
-
-Two regression assertions failed before the fix and the focused manager/rewrite
-suite passed all 25 tests afterwards. An isolated native probe generated config
-through production `HarnessManager`, loaded the installed filesystem,
-attachment and LLM plugins, read a PNG, and passed the tool-result image through
-the actual adapter to a local mock provider. The captured request contained one
-PNG data URL and the pinned model ID; the adapter received a normal completion.
-Report: `.video-tool/verification/harness-vision-wire-G0RiU0/report.json`;
-probe: `.video-tool/verification/check-harness-vision-wire.mts`.
-The earlier negative/positive capability probe is retained at
-`.video-tool/verification/harness-vision-spZcl3/report.json`.
-Final verification for this change: `npm.cmd run typecheck`, `npm.cmd test`
-(138 files / 1,383 tests, including the isolated authored-typecheck group),
-`npm.cmd run build`, and `npm.cmd --prefix apps/desktop run build:main` all
-completed with exit code 0.
-
-This proves image transport with the installed adapter, not live model vision
-or visual quality. The real gateway's `/v1/models` check timed out after ten
-seconds while a listener still existed on port 20128; no gateway restart,
-credential mint, provider switch or existing video mutation was performed.
-Live model-image acceptance remains outstanding. The audit also found that V2
-submission rendered new stills and immediately accepted notes made before those
-new stills existed. The follow-up below addresses that ordering defect.
-
-Post-render image review (2026-08-28): V2 and user-edit submissions now render
-stills and issue a separate `image_review` request/revision. A later submission
-must acknowledge every scene and include notes for those new PNGs before human
-review is opened. The existing submission tool handles both review phases; no
-new tool, render engine or workflow service was added. A fingerprint ties the
-acknowledgement to manifest/module/asset/still bytes. If those bytes change or an
-image is missing, MotionReal re-renders and requests another review instead of
-accepting old notes. Inputs changing during render invalidate the attempt.
-Unchanged acknowledgements perform no extra render. Stale or incomplete reviews
-retain the image-review phase, and restart restores the same durable request.
-Stopped runtimes no longer enqueue authoring polls or repair prompts; a failed
-in-flight prompt retains its durable request for the next activation instead
-of issuing another revision against a disposed sidecar. The broader test run
-also caught an unlogged fallback and test waits shorter than the real polling
-plus file/admission work under load. The fallback now records its error, and
-the affected tests use bounded five-second waits and dispose test managers
-before removing their temporary directories. Production timeouts are unchanged.
-
-Regression coverage includes the V1-to-V2 ordering defect, new-image review
-after user edits, source/manifest/asset changes, missing/replaced stills,
-mid-render source changes, incomplete/stale acknowledgements and manager
-restart. These are automated flow/integrity checks, not proof of actual model
-image reading, attractive design, or continuous-motion quality. Native visual
-acceptance remains outstanding.
-Final verification: `npm.cmd test` completed with 138 files / 1,394 tests
-passing, including the separately run 14 authored-typecheck tests.
-`npm.cmd run typecheck`, `npm.cmd run build`, and
-`npm.cmd --prefix apps/desktop run build:main` all exited 0. Loading the built
-submission plugin confirmed the same three tools and the image-review schema.
-
-Image-read evidence follow-up (2026-08-28): Main now checks native
-`session.history` instead of accepting `reviewed_scene_ids`/notes as proof that
-images were opened. A per-request sequence marker excludes older reads;
-successful direct `read_image` results must carry an image attachment and occur
-before a later assistant message. Relative paths, absolute paths and the project
-junction resolve to the requested files. Missing/failed/text-only/wrong-file reads
-and same-step submissions cannot advance. The check covers direct JSON handoffs
-as well as submission tools, and the existing fingerprint is checked again after
-the asynchronous history inspection. Older requests without a marker receive a
-fresh review revision. No new Harness tool, dependency, provider or render path
-was introduced.
-
-The full suite exposed a graceful-restart race: the review request could be on
-disk while its metadata revision was still being written. `dispose()` now drains
-only tracked local authoring-request/metadata commits, not the model or render.
-A deterministic test holds the metadata write, closes the manager, then releases
-the write and resumes the same session/revision. This does not claim atomic
-two-file recovery after an abrupt OS/process crash. The first suite also rejected
-two unnamed catch handlers under the existing error-handling policy; those were
-corrected. Earlier failed runs are not counted as passing verification.
-The changed-during-history regression edits the manifest itself and verifies that
-retry preserves that edit: the controller must not fall through and write its
-pre-RPC manifest over a concurrent update.
-
-The installed native agent loop, session, filesystem, attachments and real
-OpenAI-compatible adapter were exercised against a local mock provider. The loop
-called `read_image`, sent the resulting PNG in the next provider request and
-produced native events accepted by the new checker. Previous-request and same-step
-evidence was rejected. Report:
-`.video-tool/verification/harness-review-evidence-utLEn7/report.json`;
-probe: `.video-tool/verification/check-harness-review-evidence.mts`.
-The probe uses native events serialized in the documented history envelope; it
-does not claim a live 9router vision test or visual-quality acceptance. Only direct
-image reads count: a nested Code Mode dispatch alone does not prove its attachment
-reached model context. Full/skip-edit review-mode parity also remains separate work;
-the user's local `stills_edit` correctly omits draft MP4.
-
-Final verification for this batch: `npm.cmd test` exited 0 with 139 files /
-1,412 tests passing (138 files / 1,398 tests, then the separately run 14
-authored-typecheck tests). `npm.cmd run typecheck`, `npm.cmd run build`, and
-`npm.cmd --prefix apps/desktop run build:main` also exited 0 on the final code.
-The new image-evidence unit cases, direct-handoff/restart integration and manifest
-edit-preservation regression are included. Native model vision, aesthetics,
-continuous motion, and a new end-to-end video remain unaccepted.
-
-## Search Integration Follow-up — 2026-08-28
-
-The Agent tab now offers explicit DeepSeek/Exa selection. It persists only the
-provider choice and applies it on restart, preserving live conversations and the
-stored DeepSeek credential. No provider is silently switched and no new key is
-created. Exa uses the installed Harness MCP client, loaded by the existing
-MotionReal extension, not a new search service or downloader.
-
-Native verification caught two integration errors that configuration-string unit
-tests did not: `tool-web.search` in settings.yaml does not configure the tool
-inside Standard's preset, and the host HTTP route becomes ready before MCP
-discovery. The ineffective setting was removed. Native per-agent restrictions
-now remove DeepSeek search from the actual scope (including resumed sessions),
-and a one-time, cancellable prompt-assembly barrier reassembles the catalog after
-MCP initialization. The extension declares its `systemPrompt` dependency; native
-testing also caught that missing injection. No startup timeout was increased.
-The pinned Standard preset disables `web_fetch`; it remains disabled.
-
-Evidence from isolated profiles, with no user project/session changed:
-
-- `harness-search-chat-VA4ztx/report.json`: production `HarnessManager`, built
-  extension, pinned native Harness process, real Exa search, and a local mock
-  model. The first request contained Exa but not `web_search`; the tool succeeded,
-  source URLs reached the next model request, assistant completion reached the
-  safe chat projection, and restart resumed the same session and search catalog.
-- `harness-search-chat-riC9Hx/report.json`: an injected Exa network outage did not
-  block host/session creation; unavailable Exa was absent from the catalog,
-  DeepSeek was not used as an implicit fallback, a forced unavailable-tool call
-  appeared as an error, and the mock-model conversation could finish.
-- The earlier failed native attempts remain under `.video-tool/verification/`.
-  They are not counted as successful acceptance. Probe source:
-  `.video-tool/verification/check-harness-search-chat.mts`; it is diagnostic, not
-  an app startup requirement. The normal probe makes a fixed public Exa query;
-  `--offline` injects failure only into its own child/profile.
-
-Reports above live below `.video-tool/verification/`. These prove the native
-integration and real search service, NOT live Gemini model selection, rendered
-UI behavior, or video quality. The local 9router `/v1/models` request timed out;
-later listener inspection found none. No gateway restart, credential mint, or
-user settings mutation was performed. Live 9router chat and the new video
-acceptance below remain required.
-
-Final search-batch verification: `npm.cmd test` exited 0 with 141 files /
-1,452 tests (140 files / 1,438 tests plus the separately run 14 authored-typecheck
-tests). `npm.cmd run typecheck`, `npm.cmd run build`,
-`npm.cmd --prefix apps/desktop run build:main`, and
-`npm.cmd --prefix apps/desktop run build:renderer` all exited 0 on the final source.
-The sibling Harness checkout remained clean at the recorded revision.
-
-At the final recheck, a 9router listener had reappeared on `0.0.0.0:20128`, but
-both PowerShell and direct no-proxy curl requests to `/v1/models` timed out.
-Curl established TCP in about 3 ms but received no HTTP response within 10 s.
-This is an unavailable acceptance dependency, not evidence of a model failure
-or a reason to loosen configuration checks. No listener/firewall change or
-gateway restart was made. Real-model/UI search and new-video acceptance remain
-unverified; the native mock-model reports above do not replace them.
-
-Read-only gateway diagnosis (2026-08-28): the same PID `16228` also timed out on
-`GET /`, independently of Harness. Its measured CPU increased by 2.0625 seconds
-over 2.058 seconds wall time (approximately one saturated core); memory remained
-around 250 MB. The installed package is 9router 0.5.55. These observations suggest
-a server-side busy loop, but no stack trace establishes the cause.
-[Upstream issue #3061](https://github.com/decolua/9router/issues/3061) reports a
-similar Windows/dashboard-triggered hang on 0.5.50, not proof of the same defect
-here. Do not increase Agent timeouts or patch Harness on that inference. The next
-diagnostic is a user-approved restart of the existing gateway without opening its
-dashboard, then direct HTTP and real-model acceptance. No account/key/database,
-firewall, gateway package, or running process was changed during this diagnosis.
-
-## Live Model Checkpoint After Gateway Restart — 2026-08-28
-
-The user authorized restarting the hung gateway. After checking PID, executable
-and listener ownership again, only the existing 9router server PID 16228 was
-stopped. The installed 0.5.55 CLI restarted hidden with `-n -t --skip-update
---host 127.0.0.1`, without opening its dashboard. The new server PID 2988 actually
-listened on `127.0.0.1:20128`; `/v1/models` returned 200 with the target model.
-No package upgrade, firewall change, account deletion or credential creation
-was performed. Recovery after restart does not establish the earlier hang's cause.
-
-Two isolated live-model checks then completed with exit code 0, using production
-`HarnessManager`, the built extension, the same pinned Harness and
-`ag/gemini-3.7-flash-high` through the real local 9router:
-
-- `.video-tool/verification/harness-search-live-Vb5AHo/report.json`: Gemini
-  selected `mcp__exa__web_search_exa`, the real Exa call succeeded, and Gemini
-  returned source URLs and the requested completion marker. Restarting Harness
-  resumed the same session and produced a second real-model completion from its
-  prior history. Startup took 7.7 seconds.
-- `.video-tool/verification/harness-search-live-aii1hW/report.json`: Gemini
-  called `read_image` on a clear PNG fixture, correctly read its marker and
-  described the green square, red circle and blue triangle in the requested
-  positions. `assertHarnessImageReads` accepted actual native history containing
-  the successful image attachment before the later assistant response. The
-  expected marker/shapes were not supplied in the prompt. Startup took 8 seconds.
-
-The diagnostic script is `.video-tool/verification/check-harness-search-live.mts`
-(`--vision` for the second check); it reuses an existing active key from the
-authenticated read-only gateway key listing, only in memory. It creates isolated
-test profiles and does not modify user chat sessions, projects or search choice.
-This is not a new startup verifier or a required user command.
-
-This checkpoint replaces the earlier missing live search/vision evidence.
-Rendered chat UI, video aesthetics, motion, real TTS duration, the V1/V2 workflow
-on a new video, and a user scene edit still need end-to-end acceptance. No claim
-that a fixture-identification pass proves creative-review quality is made.
-
-## Manual End-to-End Acceptance Scenario
-
-Review-mode stabilization (2026-08-28): the Harness bridge now branches on the
-existing Settings policy after accepted image review. `full` uses one existing
-draft render + safety check (maxAttempts=1; no Classic re-author/refine),
-`stills_edit` exposes current stills without a draft, and `skip_edit` uses existing
-full publish automatically. Rejected edits restore the prior Workspace stage,
-not the acceptance bridge. IPC recovery routes recognized Harness projects back
-to their Session or a render-only retry; Classic remains on its existing worker.
-Agent labels now distinguish an actual draft from still-only review, and accepted
-edits refresh still URL revisions. Duplicate acceptance is refused; cancellation
-also recovers a Harness render that was still queued behind another project.
-
-Final automated verification for this batch: `npm.cmd test` exited 0 with
-140 files / 1,441 tests (139 files / 1,427 tests plus the isolated 14 authored
-typecheck tests). `npm.cmd run typecheck`, `npm.cmd run build`,
-`npm.cmd --prefix apps/desktop run build:main`, and
-`npm.cmd --prefix apps/desktop run build:renderer` all exited 0. The renderer
-build reported a non-fatal CSS-plugin timing warning. Local Settings were checked
-again and remain `stills_edit` with `vieneu`; no user project was rendered/edited.
+Automated verification: `npm.cmd test` passes 140 files / 1,444 tests, `npm.cmd run typecheck` passes with 0 errors, and Remotion webpack build exits with code 0.
 
 Native acceptance still needs a new video: verify all three Settings modes,
 one edit, one render failure/retry and cancel, actual narration duration, and the

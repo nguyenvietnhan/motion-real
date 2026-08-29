@@ -25,8 +25,9 @@ Current docs live under `docs/current/`:
 - `content-guide.md` — story, language, evidence, and visual guidance.
 - `maintenance.md` — cleanup/refactor rules, residual risks, and how to read
   workspace stage / authoring failure logs.
-
-Provider setup lives in `docs/providers/`.
+- `video-agent-workflow.md` — DeepSeek Harness integration, state model, and review boundaries.
+- `video-agent-roadmap.md` — phased delivery and acceptance gates for Video Agent.
+- `tts-providers.md` — VieNeu Local, Vivibe, and ElevenLabs configuration and protocols.
 
 ## Non-Negotiable Invariants
 

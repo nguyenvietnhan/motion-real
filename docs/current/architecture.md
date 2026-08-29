@@ -83,9 +83,9 @@ stable import map plus section inventory only; domain CSS lives under
 - `components.css` for shared buttons, cards, inputs, and numeric controls.
 - `home-create.css` and `create-layout.css` for the create/home experience,
   kept separate to preserve the original cascade order.
-- `settings.css`, `projects.css`, workspace partials (`workspace-script.css`,
-  `workspace-stages.css`, `workspace-storyboard.css`), and `publish.css` for
-  their matching app surfaces.
+- `settings.css`, `projects.css`, `queue.css`, `agent.css`, workspace partials
+  (`workspace-script.css`, `workspace-stages.css`, `workspace-storyboard.css`),
+  and `publish.css` for their matching app surfaces.
 - `custom-select.css` for custom dropdowns and final native-control polish.
 
 Keep `theme.css` as the only renderer CSS import from TypeScript. New renderer

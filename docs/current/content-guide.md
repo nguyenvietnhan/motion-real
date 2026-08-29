@@ -63,9 +63,9 @@ quotes or presenting them as URL-grounded evidence.
 
 ## Language And TTS
 
-- Vietnamese projects may use Vivibe or ElevenLabs.
+- Vietnamese projects may use VieNeu Local (local development preview), Vivibe, or ElevenLabs.
 - English projects require ElevenLabs.
-- Vivibe + English is invalid.
+- Vivibe + English and VieNeu + English are invalid.
 - Do not silently change provider or voice.
 - Keep brand/model names in their natural form.
 - Do not write phonetic spellings.
