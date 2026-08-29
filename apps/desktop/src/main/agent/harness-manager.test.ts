@@ -204,7 +204,7 @@ describe("HarnessManager draft lifecycle", () => {
     await manager.dispose();
   });
 
-  it("cancels the native Harness turn, persists pause, and resumes the same workflow stage", async () => {
+  it("cancels the native Harness turn, persists a clean resume, and keeps the draft readable", async () => {
     const { manager, calls } = await activeManagerForTest();
     const draft = await manager.createDraft("Dừng workflow");
     await manager.activate(draft.id, "internal-key");
@@ -225,7 +225,39 @@ describe("HarnessManager draft lifecycle", () => {
 
     const resumed = await manager.resumeWorkflow(draft.id, paused.workflowRevision);
     expect(resumed).toMatchObject({ productionState: "collecting_assets", workflowRevision: 3 });
+    const reloaded = await manager.status(draft.id);
+    expect(reloaded).toMatchObject({
+      productionState: "collecting_assets",
+      workflowRevision: 3,
+    });
+    expect(reloaded).not.toHaveProperty("pausedFrom");
+    await expect(manager.list()).resolves.toEqual([
+      expect.objectContaining({ id: draft.id, productionState: "collecting_assets" }),
+    ]);
     expect(calls.some((call) => call.method === "session.prompt")).toBe(true);
+  });
+
+  it("repairs only the legacy pause residue left on an otherwise valid resumed workflow", async () => {
+    const { manager, root } = await activeManagerForTest();
+    const draft = await manager.createDraft("Khôi phục phiên đã resume");
+    await manager.activate(draft.id, "internal-key");
+    const collecting = await manager.prepareAssets(draft.id, draft.workflowRevision);
+    const paused = await manager.pauseWorkflow(draft.id, collecting.workflowRevision);
+    const metadataPath = join(root, draft.id, "motionreal-agent.json");
+    const corrupt = JSON.parse(await readFile(metadataPath, "utf8")) as Record<string, unknown>;
+    await writeFile(metadataPath, JSON.stringify({
+      ...corrupt,
+      workflowRevision: paused.workflowRevision + 1,
+      productionState: "collecting_assets",
+    }));
+
+    const reloaded = await manager.status(draft.id);
+    expect(reloaded).toMatchObject({
+      productionState: "collecting_assets",
+      workflowRevision: 3,
+    });
+    expect(reloaded).not.toHaveProperty("pausedFrom");
+    expect(JSON.parse(await readFile(metadataPath, "utf8"))).not.toHaveProperty("pausedFrom");
   });
 
   it("projects only allow-listed native tool activity without command or provider output", async () => {

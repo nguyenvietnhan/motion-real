@@ -526,7 +526,9 @@ export class HarnessManager {
   async resumeWorkflow(id: string, expectedRevision: number): Promise<AgentDraftVM> {
     const current = await this.mustReadRecord(id);
     this.requireActiveSession(current);
-    const next = { ...current, ...resumeAgentWorkflow(current, { expectedRevision, jobId: current.activeJobId }) };
+    const resumable = { ...current };
+    delete resumable.pausedFrom;
+    const next = { ...resumable, ...resumeAgentWorkflow(current, { expectedRevision, jobId: current.activeJobId }) };
     await this.writeRecord(next);
     try {
       await this.promptSession(next, resumePromptFor(next.productionState));
@@ -812,14 +814,25 @@ export class HarnessManager {
 
   private async readRecord(id: string): Promise<DraftRecord | null> {
     try {
-      const raw = JSON.parse(await readFile(join(this.rootOf(id), METADATA_FILE), "utf8")) as Partial<DraftRecord>;
-      if (!raw || raw.id !== id || typeof raw.title !== "string" || typeof raw.createdAt !== "string") return null;
-      const workflow = parseAgentWorkflow(raw as Record<string, unknown>);
-      if (!workflow) return null;
+      const metadataPath = join(this.rootOf(id), METADATA_FILE);
+      let raw = objectOf(JSON.parse(await readFile(metadataPath, "utf8")));
+      const title = raw.title;
+      const createdAt = raw.createdAt;
+      if (!raw || raw.id !== id || typeof title !== "string" || typeof createdAt !== "string") return null;
+      let workflow = parseAgentWorkflow(raw);
+      if (!workflow) {
+        const repaired = repairLegacyResumeResidue(raw);
+        if (!repaired) return null;
+        workflow = parseAgentWorkflow(repaired);
+        if (!workflow) return null;
+        await writeJson(metadataPath, repaired);
+        raw = repaired;
+        log.warn({ draftId: id }, "repaired legacy pausedFrom residue after resume");
+      }
       const record: DraftRecord = {
         id,
-        title: raw.title,
-        createdAt: raw.createdAt,
+        title,
+        createdAt,
         ...workflow,
         ...(typeof raw.projectId === "string" ? { projectId: raw.projectId } : {}),
         ...(typeof raw.workspaceId === "string" ? { workspaceId: raw.workspaceId } : {}),
@@ -1636,6 +1649,17 @@ function objectOf(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value)
     ? value as Record<string, unknown>
     : {};
+}
+
+/** Recover only metadata written by the pre-fix pause/resume merge. */
+function repairLegacyResumeResidue(raw: Record<string, unknown>): Record<string, unknown> | null {
+  const state = raw.productionState;
+  if ((state !== "collecting_assets" && state !== "preparing_brief" && state !== "authoring") || raw.pausedFrom !== state) {
+    return null;
+  }
+  const repaired = { ...raw };
+  delete repaired.pausedFrom;
+  return parseAgentWorkflow(repaired) ? repaired : null;
 }
 
 function arrayOf(value: unknown): unknown[] {
