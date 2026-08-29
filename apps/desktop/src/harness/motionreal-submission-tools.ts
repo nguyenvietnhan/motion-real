@@ -231,7 +231,9 @@ async function validateAuthoredProject(
   if (!isDeepStrictEqual(manifestSceneIds, sceneIds)) throw new Error("scene_ids không khớp thứ tự cảnh trong project/manifest.json.");
   const expectedAssets = Array.isArray(request.assets) ? request.assets.map((asset) => requireRecord(asset, "Request asset")) : [];
   const expectedIds = expectedAssets.map((asset) => requiredText(asset.id, "request asset id", 128));
-  if (!sameIds(usedAssetIds, expectedIds)) throw new Error("Mọi asset đã duyệt trong authoring request phải được dùng trong manifest.");
+  if (new Set(usedAssetIds).size !== usedAssetIds.length || usedAssetIds.some((id) => !expectedIds.includes(id))) {
+    throw new Error("used_asset_ids phải là tập con không trùng của asset đã duyệt.");
+  }
   const sceneImages = manifest.scenes.flatMap((scene) => {
     const manifestScene = requireRecord(scene, "Manifest scene");
     const image = manifestScene.image;
@@ -244,9 +246,13 @@ async function validateAuthoredProject(
     }];
   });
   const approvedRefs = new Set<string>();
+  const usedRefs = new Set<string>();
   for (const asset of expectedAssets) {
+    const assetId = requiredText(asset.id, "request asset id", 128);
     const ref = requiredText(asset.ref, "request asset ref", 1_024);
     approvedRefs.add(ref);
+    if (usedAssetIds.includes(assetId)) usedRefs.add(ref);
+    if (!usedAssetIds.includes(assetId)) continue;
     const matches = sceneImages.filter((image) => image.ref === ref);
     if (matches.length === 0) throw new Error(`Asset ${String(asset.id)} chưa được tham chiếu bởi scene.image.ref.`);
     if (asset.role !== undefined) {
@@ -258,6 +264,7 @@ async function validateAuthoredProject(
   }
   for (const image of sceneImages) {
     if (!approvedRefs.has(image.ref)) throw new Error(`${image.sceneId} dùng scene.image.ref chưa được duyệt.`);
+    if (!usedRefs.has(image.ref)) throw new Error(`${image.sceneId} dùng asset chưa khai báo trong used_asset_ids.`);
   }
 
   // Admission maps registerComponent ids to files; filenames need not equal ids.

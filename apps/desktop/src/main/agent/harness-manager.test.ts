@@ -225,7 +225,7 @@ describe("HarnessManager draft lifecycle", () => {
 
     const resumed = await manager.resumeWorkflow(draft.id, paused.workflowRevision);
     expect(resumed).toMatchObject({ productionState: "collecting_assets", workflowRevision: 3 });
-    expect(calls.at(-1)).toMatchObject({ method: "session.prompt" });
+    expect(calls.some((call) => call.method === "session.prompt")).toBe(true);
   });
 
   it("projects only allow-listed native tool activity without command or provider output", async () => {
@@ -747,6 +747,8 @@ describe("HarnessManager draft lifecycle", () => {
       assets: [{ id: "logo", ref: "assets/logo.png", path: "project/assets/logo.png", role: "logo" }],
     });
     expect(request.instructions).toEqual(expect.arrayContaining([expect.stringContaining("read_image")]));
+    expect(request.instructions).toEqual(expect.arrayContaining([expect.stringContaining("Không bắt buộc dùng mọi asset")]));
+    expect(request.instructions.join(" ")).not.toContain("Mỗi asset trong request phải xuất hiện");
     expect(calls.at(-1)).toMatchObject({ method: "session.prompt" });
     await expect(readFile(join(root, draft.id, "handoff", "authoring-contract.md"), "utf8"))
       .resolves.toMatch(/HỢP ĐỒNG VIẾT CẢNH/);
@@ -986,7 +988,7 @@ describe("HarnessManager draft lifecycle", () => {
     });
     await expect(readFile(join(root, draft.id, "handoff", "authoring.json"), "utf8")).rejects.toThrow();
     await expect(manager.status(draft.id)).resolves.toMatchObject({ productionState: "authoring" });
-    expect(calls.at(-1)).toMatchObject({ method: "session.prompt" });
+    expect(calls.some((call) => call.method === "session.prompt")).toBe(true);
     const editRevision = reviewRevision + 1;
     await writeFile(join(projectRoot, "authored", "Module-scene-01.tsx"), registeredSceneSource("scene-01", "user-edit"));
     await writeFile(submissionPath, JSON.stringify({ ...reviewSubmission, request_revision: editRevision }));

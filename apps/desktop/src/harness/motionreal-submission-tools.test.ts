@@ -203,7 +203,7 @@ describe("MotionReal Harness submission tools", () => {
       scenes: [{ id: "scene-01", component: "scene-01", image: { ref: "assets/logo.png", alt: "Logo", role: "logo" } }],
     }));
     await expect(tool.execute(args, execution(workspace))).resolves.toMatchObject({ kind: "authoring", status: "submitted" });
-    await expect(tool.execute({ ...args, used_asset_ids: [] }, execution(workspace))).rejects.toThrow(/đã có submission khác|Mọi asset/);
+    await expect(tool.execute({ ...args, used_asset_ids: [] }, execution(workspace))).rejects.toThrow(/đã có submission khác|used_asset_ids/);
 
     await rm(join(workspace, "handoff", "authoring.json"), { force: true });
     await writeFile(join(workspace, "handoff", "authoring-request.json"), JSON.stringify({
@@ -222,6 +222,27 @@ describe("MotionReal Harness submission tools", () => {
       reviewed_scene_ids: ["scene-01"],
       review_notes: "Đã mở still thật và kiểm tra asset, hierarchy cùng khoảng trống caption.",
     }, execution(workspace))).resolves.toMatchObject({ kind: "authoring", status: "submitted", request_revision: 2 });
+  });
+
+  it("allows an author to use a purposeful subset of the approved asset pool", async () => {
+    const { workspace, tools } = await fixture();
+    await mkdir(join(workspace, "project", "authored"), { recursive: true });
+    await writeFile(join(workspace, "project", "authored", "scene-01.tsx"), "export default {};\n");
+    await writeFile(join(workspace, "project", "manifest.json"), JSON.stringify({
+      scenes: [{ id: "scene-01", component: "scene-01", image: { ref: "assets/hero.png", role: "hero" } }],
+    }));
+    await writeFile(join(workspace, "handoff", "authoring-request.json"), JSON.stringify({
+      version: 1, job_id: "job-author", request_revision: 1,
+      manifest: "project/manifest.json", authored_dir: "project/authored",
+      assets: [
+        { id: "hero", ref: "assets/hero.png", role: "hero" },
+        { id: "logo", ref: "assets/logo.png", role: "logo" },
+      ],
+    }));
+
+    await expect(tools.get("motionreal_submit_authoring")!.execute({
+      job_id: "job-author", request_revision: 1, scene_ids: ["scene-01"], used_asset_ids: ["hero"],
+    }, execution(workspace))).resolves.toMatchObject({ kind: "authoring", status: "submitted" });
   });
 
   it.each([

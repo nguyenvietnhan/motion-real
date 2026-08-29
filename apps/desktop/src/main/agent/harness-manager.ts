@@ -648,7 +648,8 @@ export class HarnessManager {
         "pacing là contract có thẩm quyền; bỏ qua mọi câu duration mâu thuẫn nằm trong prompt của brief.",
         "Asset là pool tư liệu, không phải số lượng storyboard. Số cảnh và lượng narration phải theo pacing.",
         "Viết mới manifest.json và các module authored/*.tsx cho toàn video; không gọi API authoring cũ.",
-        "Mỗi asset trong request phải xuất hiện qua scene.image.ref trong ít nhất một cảnh và scene.image.role phải giữ đúng role đã duyệt.",
+        "Asset là pool đã duyệt, không phải checklist. Không bắt buộc dùng mọi asset: chỉ dùng asset thực sự giúp kể nội dung của cảnh; logo/icon chỉ là điểm nhấn bổ trợ và không được phóng thành ảnh nền/cảnh chính nếu không có lý do nội dung rõ ràng.",
+        "Mọi asset được dùng phải giữ đúng scene.image.role đã duyệt; không dùng asset ngoài pool đã duyệt.",
         "Mỗi cảnh phải có một focal subject và hành động hình ảnh riêng; cấm dùng một shell/panel/HUD cố định cho toàn video.",
         "Mỗi cảnh trừ cảnh cuối phải khai báo transitionToNext phù hợp với quan hệ nội dung; không dựa vào transition mặc định.",
         "Đây là V1 định vị. Sau still đầu tiên, MotionReal sẽ bắt buộc một creative rewrite V2 trước khi cho người dùng duyệt.",
@@ -1056,6 +1057,8 @@ export class HarnessManager {
       instructions: [
         "Tải ảnh raster PNG/JPEG/GIF/WebP vào assets/. Logo nên là PNG nền trong suốt; SVG ngoài phải rasterize an toàn sang PNG hoặc bỏ qua.",
         "Gắn role cho từng asset: hero, support, logo hoặc icon. Role mô tả cách hiển thị, không phải kích thước file.",
+        "Chỉ giữ asset có đóng góp nội dung/hình ảnh cụ thể cho video. Không tải hàng loạt ảnh tương tự; logo/icon chỉ bổ trợ và không thay thế ảnh minh họa hoặc motion.",
+        "Asset pool thường 3–12 tệp; chỉ vượt khi nội dung thật sự cần các hình khác biệt.",
         "Giữ lại các asset id được yêu cầu nếu chúng vẫn có trong manifest mới.",
         "Gọi motionreal_submit_assets với manifest hoàn chỉnh; không tự ghi file output.",
       ],
