@@ -89,6 +89,10 @@ export interface DashboardApi {
     /** Stop any other local Harness sidecar, then open this draft's Harness. */
     openDraft(draftId: string): Promise<AgentDraftVM>;
     status(draftId: string): Promise<AgentDraftVM>;
+    renameDraft(draftId: string, title: string): Promise<AgentDraftVM>;
+    settings(draftId: string): Promise<import("./types.js").AgentSettingsVM>;
+    selectModel(draftId: string, modelId: string): Promise<import("./types.js").AgentSettingsVM>;
+    setAccess(draftId: string, presetId: string): Promise<import("./types.js").AgentSettingsVM>;
     /** Store the dedicated DeepSeek search credential in Harness's credential store. */
     setSearchApiKey(draftId: string, apiKey: string): Promise<AgentDraftVM>;
     /** Select search for the next Harness start; current chats are not interrupted. */

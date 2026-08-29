@@ -7,7 +7,7 @@ import { basename, isAbsolute, join, relative, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { createLogger, MAX_IMAGE_BYTES, MAX_IMAGE_DIM, resolveEffectiveDuration, sniffImage, writeJson } from "@motionreal/pipeline";
 import type { SceneImageRole } from "@motionreal/schema";
-import type { AgentAssetVM, AgentBriefInput, AgentBriefVM, AgentDraftVM, AgentSearchProvider, DurationTierChoice, VideoLanguageChoice, VoiceProviderChoice } from "../../shared/types.js";
+import type { AgentAssetVM, AgentBriefInput, AgentBriefVM, AgentDraftVM, AgentSearchProvider, AgentSettingsVM, DurationTierChoice, VideoLanguageChoice, VoiceProviderChoice } from "../../shared/types.js";
 import { sanitizedChildEnvironment } from "../security/runtime-security.js";
 import {
   initialAgentWorkflow,
@@ -54,7 +54,7 @@ const log = createLogger("harness");
 
 export type { AgentDraftVM } from "../../shared/types.js";
 
-type DraftRecord = Omit<AgentDraftVM, "harnessUrl" | "webSearchConfigured" | "searchProvider" | "createReady" | "assetReview" | "assetCollectionError" | "briefReview" | "briefReviewError" | "sessionAccess"> & AgentWorkflowRecord & {
+type DraftRecord = Omit<AgentDraftVM, "updatedAt" | "harnessUrl" | "webSearchConfigured" | "searchProvider" | "createReady" | "assetReview" | "assetCollectionError" | "briefReview" | "briefReviewError" | "sessionAccess"> & AgentWorkflowRecord & {
   workspaceId?: string;
   sessionId?: string;
   assetRequestRevision?: number;
@@ -140,7 +140,7 @@ export class HarnessManager {
       if (!record) continue;
       drafts.push(await this.toVm(record));
     }
-    return drafts.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    return drafts.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   }
 
   async createDraft(title: string): Promise<AgentDraftVM> {
@@ -161,6 +161,14 @@ export class HarnessManager {
     await writeFile(join(root, AGENTS_FILE), agentInstructions(normalized), "utf8");
     await writeFile(join(root, AI_CONTRACT_FILE), agentContract(), "utf8");
     return this.toVm(record);
+  }
+
+  async renameDraft(id: string, title: string): Promise<AgentDraftVM> {
+    const record = await this.mustReadRecord(id);
+    const normalized = title.trim().slice(0, 120);
+    if (!normalized) throw new Error("Hãy đặt tên video trước khi đổi tên.");
+    await this.writeRecord({ ...record, title: normalized });
+    return this.status(id);
   }
 
   async start(apiKey: string): Promise<string> {
@@ -727,8 +735,12 @@ export class HarnessManager {
   ): Promise<AgentDraftVM> {
     const createReady = record.productionState === "queued_create"
       && existsSync(join(this.rootOf(record.id), CREATE_REQUEST_FILE));
+    const updatedAt = await stat(join(this.rootOf(record.id), METADATA_FILE))
+      .then((value) => value.mtime.toISOString())
+      .catch((_error) => record.createdAt);
     return {
       ...record,
+      updatedAt,
       ...(this.active && this.activeDraftId === record.id && record.sessionId
         ? { harnessUrl: `${this.active.url}?session=${encodeURIComponent(record.sessionId)}&embedded=motionreal`, searchProvider: this.active.searchProvider }
         : {}),
@@ -844,6 +856,106 @@ export class HarnessManager {
     this.webSearchConfigured = await this.readSearchCredentialStatus(this.active!.url);
     if (!this.webSearchConfigured) throw new Error("Harness chưa lưu được API key tìm kiếm.");
     return this.toVm(record);
+  }
+
+  async settings(id: string): Promise<AgentSettingsVM> {
+    const record = await this.mustReadRecord(id);
+    this.requireActiveSession(record);
+    const [models, access] = await Promise.all([
+      this.readModelSettings(record),
+      this.readAccessSettings(record),
+    ]);
+    return {
+      searchProvider: await this.readSearchProvider(),
+      webSearchConfigured: this.webSearchConfigured === true,
+      currentModelId: models.currentModelId,
+      modelOptions: models.options.map(({ id: optionId, label }) => ({ id: optionId, label })),
+      currentAccessId: access.currentAccessId,
+      accessOptions: access.options,
+    };
+  }
+
+  async selectModel(id: string, modelId: string): Promise<AgentSettingsVM> {
+    const record = await this.mustReadRecord(id);
+    this.requireActiveSession(record);
+    const models = await this.readModelSettings(record);
+    const selected = models.options.find((option) => option.id === modelId);
+    if (!selected) throw new Error("Model không tồn tại trong catalog của phiên Agent.");
+    await this.rpc(this.active!.url, "session.selectModel", {
+      sessionId: record.sessionId,
+      provider: selected.provider,
+      model: selected.model,
+    });
+    return this.settings(id);
+  }
+
+  async setAccess(id: string, presetId: string): Promise<AgentSettingsVM> {
+    const record = await this.mustReadRecord(id);
+    this.requireActiveSession(record);
+    const access = await this.readAccessSettings(record);
+    if (!access.options.some((option) => option.id === presetId)) {
+      throw new Error("Mức quyền không tồn tại trong catalog của phiên Agent.");
+    }
+    await this.rpc(this.active!.url, "commands/execute", {
+      args: { agentId: record.sessionId, line: `/permission ${presetId}`, images: [] },
+    });
+    return this.settings(id);
+  }
+
+  private async readModelSettings(record: DraftRecord): Promise<{
+    currentModelId?: string;
+    options: Array<{ id: string; label: string; provider: string; model: string }>;
+  }> {
+    const raw = await this.rpc(this.active!.url, "session.models", { sessionId: record.sessionId });
+    const value = objectOf(raw);
+    const current = objectOf(value.current);
+    const options: Array<{ id: string; label: string; provider: string; model: string }> = [];
+    for (const groupValue of arrayOf(value.groups)) {
+      const group = objectOf(groupValue);
+      const provider = stringOf(group.id);
+      if (!provider) continue;
+      for (const modelValue of arrayOf(group.models)) {
+        const model = objectOf(modelValue);
+        const modelName = stringOf(model.id);
+        if (!modelName) continue;
+        options.push({
+          id: modelOptionId(provider, modelName),
+          label: stringOf(model.name) ?? modelName,
+          provider,
+          model: modelName,
+        });
+      }
+    }
+    const currentProvider = stringOf(current.provider);
+    const currentModel = stringOf(current.model);
+    return {
+      ...(currentProvider && currentModel ? { currentModelId: modelOptionId(currentProvider, currentModel) } : {}),
+      options,
+    };
+  }
+
+  private async readAccessSettings(record: DraftRecord): Promise<{
+    currentAccessId?: string;
+    options: AgentSettingsVM["accessOptions"];
+  }> {
+    const raw = await this.rpc(this.active!.url, "session.history", { sessionId: record.sessionId, maxMessages: 1 });
+    const projections = objectOf(objectOf(raw).projections);
+    const permissions = objectOf(objectOf(projections.values).permissions);
+    const options = arrayOf(permissions.options).flatMap((value) => {
+      const option = objectOf(value);
+      const optionId = stringOf(option.value);
+      if (!optionId) return [];
+      return [{
+        id: optionId,
+        label: accessLabel(optionId, stringOf(option.name)),
+        ...(stringOf(option.description) ? { description: stringOf(option.description)! } : {}),
+        requiresConfirmation: optionId === "danger-full-access",
+      }];
+    });
+    return {
+      ...(stringOf(permissions.currentValue) ? { currentAccessId: stringOf(permissions.currentValue)! } : {}),
+      options,
+    };
   }
 
   private async readSearchCredentialStatus(url: string): Promise<boolean> {
@@ -1427,6 +1539,31 @@ function workspaceInfoOf(value: unknown): { id: string } {
     throw new Error("Harness trả về workspace không hợp lệ.");
   }
   return { id: (workspace as { workspaceId: string }).workspaceId };
+}
+
+function objectOf(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
+}
+
+function arrayOf(value: unknown): unknown[] {
+  return Array.isArray(value) ? value : [];
+}
+
+function stringOf(value: unknown): string | undefined {
+  return typeof value === "string" && value.length > 0 ? value : undefined;
+}
+
+function modelOptionId(provider: string, model: string): string {
+  return JSON.stringify([provider, model]);
+}
+
+function accessLabel(id: string, fallback?: string): string {
+  if (id === "read-only") return "Chỉ đọc";
+  if (id === "workspace-write") return "Ghi trong workspace";
+  if (id === "danger-full-access") return "Toàn quyền";
+  return fallback ?? id;
 }
 
 function agentInstructions(title: string): string {

@@ -65,6 +65,8 @@ export type AgentDraftVM = {
   id: string;
   title: string;
   createdAt: string;
+  /** Filesystem modification time of authoritative Agent metadata. */
+  updatedAt: string;
   projectId?: string;
   workflowVersion: 1;
   workflowRevision: number;
@@ -91,6 +93,20 @@ export type AgentDraftVM = {
   briefReview?: AgentBriefVM;
   /** Safe brief validation/prompt error; raw workspace data never crosses IPC. */
   briefReviewError?: string;
+};
+
+export type AgentSettingsVM = {
+  searchProvider: AgentSearchProvider;
+  webSearchConfigured: boolean;
+  currentModelId?: string;
+  modelOptions: Array<{ id: string; label: string }>;
+  currentAccessId?: string;
+  accessOptions: Array<{
+    id: string;
+    label: string;
+    description?: string;
+    requiresConfirmation: boolean;
+  }>;
 };
 
 /** One validated image in an Agent workspace. */

@@ -18,6 +18,7 @@ import { NineRouterClient } from "./gateway/ninerouter-client.js";
 import { NineRouterAuthoringBackend } from "./authoring/ninerouter-backend.js";
 import { CustomLoopAgentWorker } from "./agent/custom-loop-worker.js";
 import { createAgentProject } from "./agent/create-agent-project.js";
+import { deleteAgentDraft, renameAgentDraft } from "./agent/agent-draft-lifecycle.js";
 import { routeSceneEdits } from "./agent/route-scene-edits.js";
 import { routeProjectRecovery } from "./agent/route-project-recovery.js";
 import { WorkspaceController } from "./workspace/workspace-controller.js";
@@ -723,6 +724,23 @@ const handlers: InvokeHandlers = {
   },
   "agent:openDraft": (draftId) => activateHarnessDraft(String(draftId)),
   "agent:status": (draftId) => harness.status(String(draftId)),
+  "agent:renameDraft": (draftId, title) => renameAgentDraft(String(draftId), String(title ?? ""), {
+    status: (id) => harness.status(id),
+    renameProject: (projectId, nextTitle) => workspace.rename(projectId, nextTitle),
+    renameDraft: (id, nextTitle) => harness.renameDraft(id, nextTitle),
+  }),
+  "agent:settings": async (draftId) => {
+    const opened = await activateHarnessDraft(String(draftId));
+    return harness.settings(opened.id);
+  },
+  "agent:selectModel": async (draftId, modelId) => {
+    const opened = await activateHarnessDraft(String(draftId));
+    return harness.selectModel(opened.id, String(modelId));
+  },
+  "agent:setAccess": async (draftId, presetId) => {
+    const opened = await activateHarnessDraft(String(draftId));
+    return harness.setAccess(opened.id, String(presetId));
+  },
   "agent:setSearchProvider": (draftId, provider) => harness.setSearchProvider(String(draftId), provider),
   "agent:setSearchApiKey": (draftId, apiKey) => harness.setSearchApiKey(
     String(draftId),
@@ -777,11 +795,11 @@ const handlers: InvokeHandlers = {
       },
     });
   },
-  "agent:deleteDraft": async (draftId) => {
-    const draft = await harness.status(String(draftId));
-    if (draft.projectId) await workspace.delete(draft.projectId);
-    await harness.removeDraft(draft.id);
-  },
+  "agent:deleteDraft": (draftId) => deleteAgentDraft(String(draftId), {
+    status: (id) => harness.status(id),
+    deleteProject: (projectId) => workspace.delete(projectId),
+    removeDraft: (id) => harness.removeDraft(id),
+  }),
 
   "projects:list": () => workspace.list(),
   "projects:create": async (input) => {

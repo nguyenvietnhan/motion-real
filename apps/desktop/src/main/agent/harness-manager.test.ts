@@ -119,6 +119,24 @@ describe("HarnessManager draft lifecycle", () => {
     expect((await manager.status(draft.id)).createReady).toBe(false);
   });
 
+  it("uses metadata mtime for updatedAt, sorts recent drafts first and renames metadata only", async () => {
+    const { manager, root } = await managerForTest();
+    const older = await manager.createDraft("Cũ");
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    const newer = await manager.createDraft("Mới");
+
+    const listed = await manager.list();
+    expect(listed.map((draft) => draft.id)).toEqual([newer.id, older.id]);
+    expect(Date.parse(listed[0]!.updatedAt)).toBeGreaterThanOrEqual(Date.parse(listed[1]!.updatedAt));
+
+    const renamed = await manager.renameDraft(older.id, "  Tên đã đổi  ");
+    expect(renamed.title).toBe("Tên đã đổi");
+    expect(Date.parse(renamed.updatedAt)).toBeGreaterThanOrEqual(Date.parse(older.updatedAt));
+    await expect(readFile(join(root, older.id, "motionreal-agent.json"), "utf8"))
+      .resolves.toContain('"title": "Tên đã đổi"');
+    await expect(manager.renameDraft(older.id, "   ")).rejects.toThrow(/đặt tên/);
+  });
+
   it("persists workflow transitions and opens legacy records in discovery", async () => {
     const { manager, root } = await managerForTest();
     const draft = await manager.createDraft("Workflow bền vững");
@@ -201,6 +219,73 @@ describe("HarnessManager draft lifecycle", () => {
     await expect(readFile(join(root, draft.id, "motionreal-agent.json"), "utf8"))
       .resolves.not.toContain("deepseek-search-secret");
     await manager.dispose();
+  });
+
+  it("projects model and access settings, validates options, then uses native Harness RPC", async () => {
+    const setup = await activeManagerForTest();
+    const { manager, calls } = setup;
+    const fetch = vi.mocked(setup.deps.fetch!);
+    const original = fetch.getMockImplementation()!;
+    fetch.mockImplementation(async (input, init) => {
+      const body = init?.body ? JSON.parse(String(init.body)) as { method: string } : null;
+      if (body?.method === "session.models") {
+        calls.push(JSON.parse(String(init!.body)));
+        return Response.json({ type: "server-response", result: { ok: true, value: {
+          current: { provider: "ag", model: "gemini-current" },
+          routable: true,
+          groups: [{ id: "ag", name: "9router", models: [
+            { id: "gemini-current", name: "Gemini Current" },
+            { id: "gemini-next", name: "Gemini Next" },
+          ] }],
+          failures: [],
+        } } });
+      }
+      if (body?.method === "session.history") {
+        calls.push(JSON.parse(String(init!.body)));
+        return Response.json({ type: "server-response", result: { ok: true, value: {
+          events: [],
+          hasMore: false,
+          projections: { asOfSeq: 3, values: { permissions: {
+            currentValue: "workspace-write",
+            options: [
+              { value: "workspace-write", name: "Workspace write", description: "Ghi trong workspace" },
+              { value: "danger-full-access", name: "Full access", description: "Toàn quyền" },
+            ],
+          } } },
+        } } });
+      }
+      return original(input, init);
+    });
+    const draft = await manager.createDraft("Settings");
+    await manager.activate(draft.id, "internal-key");
+
+    const settings = await manager.settings(draft.id);
+    expect(settings).toMatchObject({
+      searchProvider: "deepseek",
+      webSearchConfigured: false,
+      currentAccessId: "workspace-write",
+      accessOptions: [
+        expect.objectContaining({ id: "workspace-write", requiresConfirmation: false }),
+        expect.objectContaining({ id: "danger-full-access", requiresConfirmation: true }),
+      ],
+    });
+    expect(settings.modelOptions).toEqual([
+      expect.objectContaining({ label: "Gemini Current" }),
+      expect.objectContaining({ label: "Gemini Next" }),
+    ]);
+    expect(settings.currentModelId).toBe(settings.modelOptions[0]!.id);
+
+    await manager.selectModel(draft.id, settings.modelOptions[1]!.id);
+    expect([...calls].reverse().find((call) => call.method === "session.selectModel")).toMatchObject({
+      payload: { provider: "ag", model: "gemini-next" },
+    });
+    await expect(manager.selectModel(draft.id, "not-in-catalog")).rejects.toThrow(/model/i);
+
+    await manager.setAccess(draft.id, "danger-full-access");
+    expect([...calls].reverse().find((call) => call.method === "commands/execute")).toMatchObject({
+      payload: { args: { line: "/permission danger-full-access", images: [] } },
+    });
+    await expect(manager.setAccess(draft.id, "not-in-catalog")).rejects.toThrow(/quyền/);
   });
 
   it("changes search only on restart, resumes the same session and preserves DeepSeek credentials", async () => {
