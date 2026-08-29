@@ -1,7 +1,7 @@
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
-import type { AgentDraftVM } from "../../shared/types.js";
+import type { AgentBriefVM, AgentDraftVM } from "../../shared/types.js";
 import { AgentLibrary, AgentNameDialog, AgentWorkspace } from "./agent.js";
 
 const draft: AgentDraftVM = {
@@ -59,6 +59,23 @@ describe("Video Agent layout", () => {
     expect(html).not.toContain("Xóa video");
     expect(html).not.toContain("Video đang làm");
     expect(html).not.toContain("Tải lại chat");
+    expect(html).not.toContain("<progress");
+  });
+
+  it("gives a brief review the full workspace instead of a second progress panel", () => {
+    const brief: AgentBriefVM = {
+      revision: 1, title: "Video", prompt: "# Nội dung brief đủ dài để xem",
+      format: "tiktok", durationTier: 2, videoLanguage: "vi", voiceProvider: "vieneu", selectedAssetIds: [],
+    };
+    const html = renderToStaticMarkup(React.createElement(AgentWorkspace, {
+      draft: { ...draft, productionState: "brief_review", briefReview: brief, activities: [{ id: "activity-1", label: "Đã gửi brief", status: "completed" }] },
+      reviewMode: "stills_edit", busy: false, notice: null,
+      onBack: vi.fn(), onDraftChange: vi.fn(), onOpenProject: vi.fn(),
+      run: async (work: () => Promise<void>) => work(),
+    }));
+
+    expect(html).toContain("ns-agent-brief-review");
+    expect(html).not.toContain("ns-agent-workflow-progress");
   });
 
   it("shows durable stop and resume controls for native Harness work", () => {

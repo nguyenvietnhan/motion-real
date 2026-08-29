@@ -106,7 +106,6 @@
 .ns-agent-workspace-title { display: grid; min-width: 0; gap: 2px; }
 .ns-agent-workspace-title strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; }
 .ns-agent-workspace-title span { color: var(--muted-foreground); font-size: 11px; }
-.ns-agent-workspace-bar progress { width: min(220px, 24vw); margin-left: auto; accent-color: var(--primary); }
 .ns-agent-workspace-actions { display: flex; align-items: center; gap: 8px; margin-left: auto; }
 
 .ns-agent-notice { margin: 8px 16px 0; color: var(--muted-foreground); font-size: 13px; line-height: 1.45; }
@@ -147,7 +146,7 @@
 .ns-agent-brief-review > label { display: grid; gap: 6px; margin-top: 14px; }
 .ns-agent-brief-prompt { min-height: 180px; resize: vertical; }
 .ns-agent-brief-copy { display: grid; gap: 8px; margin-top: 14px; color: var(--muted-foreground); font-size: 12px; }
-.ns-agent-brief-markdown { max-height: 280px; overflow: auto; padding: 16px; border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--foreground); background: var(--background); font-size: 14px; line-height: 1.6; }
+.ns-agent-brief-markdown { padding: 16px; border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--foreground); background: var(--background); font-size: 14px; line-height: 1.6; }
 .ns-agent-brief-markdown > :first-child { margin-top: 0; }
 .ns-agent-brief-markdown > :last-child { margin-bottom: 0; }
 .ns-agent-brief-markdown h2, .ns-agent-brief-markdown h3, .ns-agent-brief-markdown h4 { margin: 18px 0 6px; color: var(--foreground); line-height: 1.25; }
@@ -185,7 +184,6 @@
   .ns-agent-row-open { grid-column: 1; grid-template-columns: 1fr; gap: 4px; padding: 10px 8px 10px 14px; }
   .ns-agent-row time { display: none; }
   .ns-agent-workspace-bar { flex-wrap: wrap; }
-  .ns-agent-workspace-bar progress { order: 4; width: 100%; margin-left: 0; }
   .ns-agent-brief-review { margin-right: 12px; margin-left: 12px; }
   .ns-agent-brief-settings { flex-direction: column; }
   .ns-agent-search-key { grid-template-columns: 1fr; }

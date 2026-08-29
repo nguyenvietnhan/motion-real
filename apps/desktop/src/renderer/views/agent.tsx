@@ -158,7 +158,13 @@ type AgentWorkspaceProps = {
 };
 
 export const AgentWorkspace: React.FC<AgentWorkspaceProps> = ({ draft, reviewMode: _reviewMode, busy, notice, onBack, onDraftChange, onOpenProject, run }) => {
-  const [briefInput, setBriefInput] = useState<AgentBriefInput | null>(null);
+  const [briefInput, setBriefInput] = useState<AgentBriefInput | null>(() => draft.briefReview ? {
+    title: draft.briefReview.title,
+    prompt: draft.briefReview.prompt,
+    durationTier: draft.briefReview.durationTier,
+    videoLanguage: draft.briefReview.videoLanguage,
+    voiceProvider: draft.briefReview.voiceProvider,
+  } : null);
   const [showBriefReview, setShowBriefReview] = useState(true);
   const [projectStage, setProjectStage] = useState<ProjectStage | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -191,7 +197,7 @@ export const AgentWorkspace: React.FC<AgentWorkspaceProps> = ({ draft, reviewMod
   const displayedState = liveProgress?.state ?? draft.productionState;
   const progressLabel = liveProgress?.label ?? PRODUCTION_LABELS[draft.productionState];
   const reviewObscuresChat = Boolean(draft.productionState === "asset_review" && draft.assetReview || draft.productionState === "brief_review" && draft.briefReview && showBriefReview);
-  const workflowObscuresChat = ["collecting_assets", "preparing_brief", "brief_review", "queued_create", "authoring", "draft_render", "final_render", "paused"].includes(draft.productionState);
+  const workflowObscuresChat = !reviewObscuresChat && ["collecting_assets", "preparing_brief", "queued_create", "authoring", "draft_render", "final_render", "paused"].includes(draft.productionState);
 
   const openSettings = () => {
     setSettingsOpen(true); setSettingsError(null);
@@ -221,7 +227,6 @@ export const AgentWorkspace: React.FC<AgentWorkspaceProps> = ({ draft, reviewMod
     <header className={`ns-agent-workspace-bar is-${displayedState}`}>
       <button type="button" className="ns-btn ns-btn-icon-only" aria-label="Quay lại danh sách Video Agent" onClick={onBack} disabled={busy}>{Icon.chevronLeft({ size: 18 })}</button>
       <div className="ns-agent-workspace-title"><strong>{draft.title}</strong><span>{progressLabel}</span></div>
-      {liveProgress?.percent !== undefined && <progress value={liveProgress.percent} max={100} aria-label={`Tiến trình ${liveProgress.percent}%`} />}
       <div className="ns-agent-workspace-actions">{contextualAction && <button type="button" className="ns-btn ns-btn-primary" onClick={() => { void contextualAction.run().catch((_error) => undefined); }} disabled={busy}>{contextualAction.label}</button>}<button type="button" className="ns-btn ns-btn-icon-only" aria-label="Cài đặt Agent" title="Cài đặt Agent" onClick={openSettings} disabled={busy}>{Icon.settings({ size: 18 })}</button></div>
     </header>
     {notice && <p className="ns-agent-notice" role="status">{notice}</p>}
