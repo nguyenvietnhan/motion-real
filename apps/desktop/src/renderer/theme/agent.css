@@ -67,7 +67,8 @@
 .ns-agent-row-state.is-completed { color: var(--good); }
 
 .ns-agent-row-menu-wrap { position: relative; display: grid; place-items: center; }
-.ns-agent-row-menu-trigger { border-color: transparent; }
+.ns-agent-row-menu-trigger { min-width: 36px; padding: 8px; border-color: transparent; background: transparent; }
+.ns-agent-row-menu-trigger:hover, .ns-agent-row-menu-trigger:active { border-color: transparent; background: color-mix(in srgb, var(--foreground) 7%, transparent); }
 .ns-agent-row-menu {
   position: absolute;
   z-index: 20;
