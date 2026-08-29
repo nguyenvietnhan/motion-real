@@ -67,6 +67,8 @@ describe("createDashboardClient — invoke channel mapping", () => {
     await api.agent.requestMoreAssets("agent-00000000-0000-0000-0000-000000000000", 2, ["asset-01"], "thêm ảnh");
     await api.agent.approveAssets("agent-00000000-0000-0000-0000-000000000000", 2, ["asset-01"]);
     await api.agent.prepareBrief("agent-00000000-0000-0000-0000-000000000000", 3);
+    await api.agent.pauseWorkflow("agent-00000000-0000-0000-0000-000000000000", 3);
+    await api.agent.resumeWorkflow("agent-00000000-0000-0000-0000-000000000000", 4);
     await api.agent.returnToAssets("agent-00000000-0000-0000-0000-000000000000", 3);
     await api.agent.approveBrief("agent-00000000-0000-0000-0000-000000000000", 3, {
       title: "Video",

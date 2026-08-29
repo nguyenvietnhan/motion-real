@@ -19,7 +19,7 @@ export type AgentWorkflowTransition = {
 };
 
 export type PausableAgentProductionState = Extract<AgentProductionState,
-  "collecting_assets" | "preparing_brief" | "queued_create" | "authoring" | "draft_render" | "final_render">;
+  "collecting_assets" | "preparing_brief" | "authoring">;
 
 const STATES = new Set<AgentProductionState>([
   "discovery",
@@ -41,7 +41,9 @@ const STATES = new Set<AgentProductionState>([
 const NEXT: Record<AgentProductionState, readonly AgentProductionState[]> = {
   discovery: ["collecting_assets"],
   collecting_assets: ["asset_review", "error"],
-  asset_review: ["collecting_assets", "preparing_brief", "error"],
+  // brief_review remains accepted for existing persisted/manual workflows;
+  // new collection paths transition through preparing_brief.
+  asset_review: ["collecting_assets", "preparing_brief", "brief_review", "error"],
   preparing_brief: ["brief_review", "error"],
   brief_review: ["asset_review", "queued_create", "error"],
   queued_create: ["authoring", "error"],
@@ -180,10 +182,7 @@ function validJobId(value: unknown): value is string {
 function isPausableState(value: unknown): value is PausableAgentProductionState {
   return value === "collecting_assets"
     || value === "preparing_brief"
-    || value === "queued_create"
-    || value === "authoring"
-    || value === "draft_render"
-    || value === "final_render";
+    || value === "authoring";
 }
 
 function assertWorkflowRevisionAndJob(

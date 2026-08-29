@@ -205,6 +205,60 @@ describe("HarnessManager draft lifecycle", () => {
     await manager.dispose();
   });
 
+  it("cancels the native Harness turn, persists pause, and resumes the same workflow stage", async () => {
+    const { manager, calls } = await activeManagerForTest();
+    const draft = await manager.createDraft("Dừng workflow");
+    await manager.activate(draft.id, "internal-key");
+    const collecting = await manager.prepareAssets(draft.id, draft.workflowRevision);
+
+    const paused = await manager.pauseWorkflow(draft.id, collecting.workflowRevision);
+
+    expect(paused).toMatchObject({
+      productionState: "paused",
+      pausedFrom: "collecting_assets",
+      workflowRevision: 2,
+    });
+    expect(calls).toContainEqual(expect.objectContaining({
+      method: "session.cancel",
+      payload: { sessionId: expect.stringMatching(/^session-/) },
+    }));
+    await expect(manager.status(draft.id)).resolves.toMatchObject({ productionState: "paused" });
+
+    const resumed = await manager.resumeWorkflow(draft.id, paused.workflowRevision);
+    expect(resumed).toMatchObject({ productionState: "collecting_assets", workflowRevision: 3 });
+    expect(calls.at(-1)).toMatchObject({ method: "session.prompt" });
+  });
+
+  it("does not issue a late authoring repair after the workflow was paused", async () => {
+    const { manager, calls } = await activeManagerForTest();
+    const draft = await manager.createDraft("Chặn repair muộn");
+    await manager.activate(draft.id, "internal-key");
+    let current = await manager.transitionWorkflow(draft.id, {
+      expectedRevision: 0, to: "collecting_assets", jobId: "job-stop",
+    });
+    current = await manager.transitionWorkflow(draft.id, {
+      expectedRevision: current.workflowRevision, to: "asset_review", jobId: "job-stop",
+    });
+    current = await manager.transitionWorkflow(draft.id, {
+      expectedRevision: current.workflowRevision, to: "brief_review", jobId: "job-stop",
+    });
+    current = await manager.transitionWorkflow(draft.id, {
+      expectedRevision: current.workflowRevision, to: "queued_create", jobId: "job-stop",
+    });
+    const authoring = await manager.transitionWorkflow(draft.id, {
+      expectedRevision: current.workflowRevision, to: "authoring", jobId: "job-stop",
+    });
+    await manager.pauseWorkflow(draft.id, authoring.workflowRevision);
+    const promptCount = calls.filter((call) => call.method === "session.prompt").length;
+    const internal = manager as unknown as {
+      requestAuthoringRepair(record: { id: string }, message: string): Promise<void>;
+    };
+
+    await internal.requestAuthoringRepair(authoring, "validation failed");
+
+    expect(calls.filter((call) => call.method === "session.prompt")).toHaveLength(promptCount);
+  });
+
   it("reports and stores the dedicated web search credential without persisting it in MotionReal", async () => {
     const { manager, root, calls } = await activeManagerForTest();
     const draft = await manager.createDraft("Search credential");

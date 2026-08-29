@@ -49,4 +49,13 @@ describe("Video Agent layout", () => {
     expect(html).not.toContain("Video đang làm");
     expect(html).not.toContain("Tải lại chat");
   });
+
+  it("shows durable stop and resume controls for native Harness work", () => {
+    const authoring = { ...draft, workflowRevision: 4, productionState: "authoring" as const, projectId: "project-1" };
+    const paused = { ...authoring, workflowRevision: 5, productionState: "paused" as const, pausedFrom: "authoring" as const };
+    const props = { reviewMode: "stills_edit" as const, busy: false, notice: null, onBack: vi.fn(), onDraftChange: vi.fn(), onOpenProject: vi.fn(), run: async (work: () => Promise<void>) => work() };
+
+    expect(renderToStaticMarkup(React.createElement(AgentWorkspace, { ...props, draft: authoring }))).toContain(">Dừng<");
+    expect(renderToStaticMarkup(React.createElement(AgentWorkspace, { ...props, draft: paused }))).toContain(">Tiếp tục<");
+  });
 });

@@ -7,11 +7,13 @@ import { basename, isAbsolute, join, relative, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { createLogger, MAX_IMAGE_BYTES, MAX_IMAGE_DIM, resolveEffectiveDuration, sniffImage, writeJson } from "@motionreal/pipeline";
 import type { SceneImageRole } from "@motionreal/schema";
-import type { AgentAssetVM, AgentBriefInput, AgentBriefVM, AgentDraftVM, AgentSearchProvider, AgentSettingsVM, DurationTierChoice, VideoLanguageChoice, VoiceProviderChoice } from "../../shared/types.js";
+import type { AgentAssetVM, AgentBriefInput, AgentBriefVM, AgentDraftVM, AgentProductionState, AgentSearchProvider, AgentSettingsVM, DurationTierChoice, VideoLanguageChoice, VoiceProviderChoice } from "../../shared/types.js";
 import { sanitizedChildEnvironment } from "../security/runtime-security.js";
 import {
   initialAgentWorkflow,
   parseAgentWorkflow,
+  pauseAgentWorkflow,
+  resumeAgentWorkflow,
   transitionAgentWorkflow,
   type AgentWorkflowRecord,
   type AgentWorkflowTransition,
@@ -491,6 +493,36 @@ export class HarnessManager {
     const current = await this.mustReadRecord(id);
     const next = { ...current, ...transitionAgentWorkflow(current, request) };
     await this.writeRecord(next);
+    return this.toVm(next);
+  }
+
+  /** Stop the native turn before it can commit a late repair, then persist the stop. */
+  async pauseWorkflow(id: string, expectedRevision: number): Promise<AgentDraftVM> {
+    const current = await this.mustReadRecord(id);
+    const next = { ...current, ...pauseAgentWorkflow(current, { expectedRevision, jobId: current.activeJobId }) };
+    this.stopAuthoringPoll(id);
+    await this.writeRecord(next);
+    if (this.active && this.activeDraftId === id && current.sessionId) {
+      await this.rpc(this.active.url, "session.cancel", { sessionId: current.sessionId }).catch((error) => {
+        log.warn({ err: error, draftId: id }, "failed to cancel native Harness session after durable pause");
+      });
+    }
+    return this.toVm(next);
+  }
+
+  /** Continue a paused native step with a fresh, explicit Harness instruction. */
+  async resumeWorkflow(id: string, expectedRevision: number): Promise<AgentDraftVM> {
+    const current = await this.mustReadRecord(id);
+    this.requireActiveSession(current);
+    const next = { ...current, ...resumeAgentWorkflow(current, { expectedRevision, jobId: current.activeJobId }) };
+    await this.writeRecord(next);
+    try {
+      await this.promptSession(next, resumePromptFor(next.productionState));
+    } catch (error) {
+      await this.recordWorkflowError(next, error);
+      throw error;
+    }
+    if (next.productionState === "authoring") this.scheduleAuthoringPoll(next.id);
     return this.toVm(next);
   }
 
@@ -1067,6 +1099,7 @@ export class HarnessManager {
         log.debug({ err: error, draftId: record.id }, "Harness stopped; keep durable authoring request for resume");
         return;
       }
+      if (!await this.isCurrentAuthoringRecord(record)) return;
       log.warn({ err: error, draftId: record.id, projectId: record.projectId }, "Harness authoring validation/render failed; requesting repair");
       await this.requestAuthoringRepair(record, error instanceof Error ? error.message : "Không kiểm tra được scene Harness.").catch((repairError) => {
         log.error({ err: repairError, draftId: record.id, projectId: record.projectId }, "failed to request Harness authoring repair");
@@ -1147,8 +1180,10 @@ export class HarnessManager {
         await this.verifyImageReads(record, request);
         // History RPC/file inspection is asynchronous; do not accept inputs changed during it.
         if (await harnessReviewFingerprint(projectRoot, paths) === fingerprint) {
+          if (!await this.isCurrentAuthoringRecord(record)) return;
           await this.deps.acceptAuthoringStills!(record.projectId!);
           const latest = await this.mustReadRecord(record.id);
+          if (!isSameAuthoringWork(latest, record)) return;
           const next = { ...latest, ...transitionAgentWorkflow(latest, {
             expectedRevision: latest.workflowRevision,
             to: "still_review",
@@ -1162,6 +1197,7 @@ export class HarnessManager {
         throw new Error("Source/asset đã đổi trong lúc kiểm tra review; cần đọc lại manifest và render still mới.");
       }
     }
+    if (!await this.isCurrentAuthoringRecord(record)) return;
     await writeJson(manifestPath, paced.manifest);
     const sourceFingerprint = await harnessReviewFingerprint(projectRoot);
     const rendered = await this.deps.renderAuthoringStills!(record.projectId!, sceneIds);
@@ -1171,6 +1207,7 @@ export class HarnessManager {
     if (await harnessReviewFingerprint(projectRoot) !== sourceFingerprint) {
       throw new Error("Source/asset đã đổi trong lúc render still; cần render lại trước khi review.");
     }
+    if (!await this.isCurrentAuthoringRecord(record)) return;
     const currentStills = rendered.stills.map((path) => {
       const rel = relative(projectRoot, path);
       if (!rel || rel.startsWith("..") || isAbsolute(rel)) throw new Error("Still render nằm ngoài project Harness.");
@@ -1216,7 +1253,7 @@ export class HarnessManager {
 
   private async requestAuthoringRepair(record: DraftRecord, message: string): Promise<void> {
     const latest = await this.mustReadRecord(record.id);
-    if (latest.productionState !== "authoring") return;
+    if (!isSameAuthoringWork(latest, record)) return;
     const requestPath = join(this.rootOf(record.id), AUTHORING_REQUEST_FILE);
     const request = parseJson(await readFile(requestPath, "utf8")) as Record<string, unknown>;
     const selfReview = request.phase === "self_review" || request.phase === "image_review";
@@ -1255,6 +1292,8 @@ export class HarnessManager {
     patch: Record<string, unknown>,
     prompt: string,
   ): Promise<void> {
+    const latest = await this.mustReadRecord(record.id);
+    if (!isSameAuthoringWork(latest, record) && !isPendingAuthoringEdit(latest, record)) return;
     const path = join(this.rootOf(record.id), AUTHORING_REQUEST_FILE);
     const current = parseJson(await readFile(path, "utf8")) as Record<string, unknown>;
     const next = { ...record, authoringRequestRevision: (record.authoringRequestRevision ?? 0) + 1 };
@@ -1269,7 +1308,17 @@ export class HarnessManager {
     })();
     this.authoringWrites.add(commit);
     try { await commit; } finally { this.authoringWrites.delete(commit); }
+    if (!await this.isCurrentAuthoringRecord(next)) return;
     await this.promptSession(next, prompt);
+  }
+
+  private async currentAuthoringRecord(record: DraftRecord): Promise<DraftRecord | null> {
+    const latest = await this.mustReadRecord(record.id);
+    return isSameAuthoringWork(latest, record) ? latest : null;
+  }
+
+  private async isCurrentAuthoringRecord(record: DraftRecord): Promise<boolean> {
+    return (await this.currentAuthoringRecord(record)) !== null;
   }
 
   private reviewHistoryPage(record: DraftRecord, beforeSeq?: number): Promise<unknown> {
@@ -1564,6 +1613,34 @@ function accessLabel(id: string, fallback?: string): string {
   if (id === "workspace-write") return "Ghi trong workspace";
   if (id === "danger-full-access") return "Toàn quyền";
   return fallback ?? id;
+}
+
+function resumePromptFor(state: AgentProductionState): string {
+  if (state === "collecting_assets") {
+    return "MotionReal tiếp tục bước chuẩn bị asset. Hãy đọc handoff/assets-request.json hiện tại, hoàn thành yêu cầu và gọi motionreal_submit_assets; không tự ghi handoff/assets.json.";
+  }
+  if (state === "preparing_brief") {
+    return "MotionReal tiếp tục tạo brief. Hãy đọc handoff/brief-request.json hiện tại, hoàn thành brief và gọi motionreal_submit_brief; không tự ghi handoff/brief.json.";
+  }
+  if (state === "authoring") {
+    return "MotionReal tiếp tục authoring. Hãy đọc handoff/authoring-request.json hiện tại, hoàn thành yêu cầu và gọi motionreal_submit_authoring khi xong.";
+  }
+  throw new Error(`Không thể tiếp tục workflow Video Agent ở bước ${state}.`);
+}
+
+function isSameAuthoringWork(current: DraftRecord, expected: DraftRecord): boolean {
+  return current.productionState === "authoring"
+    && current.workflowRevision === expected.workflowRevision
+    && current.activeJobId === expected.activeJobId
+    && current.authoringRequestRevision === expected.authoringRequestRevision;
+}
+
+function isPendingAuthoringEdit(current: DraftRecord, expected: DraftRecord): boolean {
+  return expected.productionState === "authoring"
+    && current.productionState === "still_review"
+    && current.workflowRevision + 1 === expected.workflowRevision
+    && current.activeJobId === expected.activeJobId
+    && current.authoringRequestRevision === expected.authoringRequestRevision;
 }
 
 function agentInstructions(title: string): string {

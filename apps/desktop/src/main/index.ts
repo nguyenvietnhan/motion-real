@@ -768,6 +768,15 @@ const handlers: InvokeHandlers = {
     const opened = await activateHarnessDraft(String(draftId));
     return harness.prepareBrief(opened.id, Number(expectedRevision));
   },
+  "agent:pauseWorkflow": async (draftId, expectedRevision) => {
+    const paused = await harness.pauseWorkflow(String(draftId), Number(expectedRevision));
+    if (paused.projectId) workspace.cancel(paused.projectId);
+    return paused;
+  },
+  "agent:resumeWorkflow": async (draftId, expectedRevision) => {
+    const opened = await activateHarnessDraft(String(draftId));
+    return harness.resumeWorkflow(opened.id, Number(expectedRevision));
+  },
   "agent:returnToAssets": (draftId, expectedRevision) => harness.returnToAssets(
     String(draftId),
     Number(expectedRevision),

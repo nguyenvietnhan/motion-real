@@ -26,6 +26,8 @@ export const INVOKE_CHANNELS = [
   "agent:requestMoreAssets",
   "agent:approveAssets",
   "agent:prepareBrief",
+  "agent:pauseWorkflow",
+  "agent:resumeWorkflow",
   "agent:returnToAssets",
   "agent:approveBrief",
   "agent:createVideo",

@@ -198,7 +198,15 @@ export const AgentWorkspace: React.FC<AgentWorkspaceProps> = ({ draft, reviewMod
     void run(async () => setSettings(await window.dashboard.agent.settings(draft.id))).catch((error) => setSettingsError(error instanceof Error ? error.message : "Không đọc được cài đặt Agent."));
   };
   const contextualAction = useMemo(() => {
-    if (liveProgress?.canCancel && draft.productionState !== "authoring" && draft.projectId) return {
+    if (draft.productionState === "paused") return {
+      label: "Tiếp tục",
+      run: () => updateDraft(() => window.dashboard.agent.resumeWorkflow(draft.id, draft.workflowRevision)),
+    };
+    if (draft.productionState === "collecting_assets" || draft.productionState === "preparing_brief" || draft.productionState === "authoring") return {
+      label: "Dừng",
+      run: () => updateDraft(() => window.dashboard.agent.pauseWorkflow(draft.id, draft.workflowRevision)),
+    };
+    if (liveProgress?.canCancel && draft.projectId) return {
       label: "Dừng",
       run: () => run(async () => { await window.dashboard.projects.cancel(draft.projectId!); }),
     };

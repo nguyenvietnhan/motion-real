@@ -51,6 +51,8 @@ export function createDashboardClient(ipc: IpcLike): DashboardApi {
       requestMoreAssets: (draftId, expectedRevision, selectedIds, note) => inv("agent:requestMoreAssets", draftId, expectedRevision, selectedIds, note),
       approveAssets: (draftId, expectedRevision, selectedIds) => inv("agent:approveAssets", draftId, expectedRevision, selectedIds),
       prepareBrief: (draftId, expectedRevision) => inv("agent:prepareBrief", draftId, expectedRevision),
+      pauseWorkflow: (draftId, expectedRevision) => inv("agent:pauseWorkflow", draftId, expectedRevision),
+      resumeWorkflow: (draftId, expectedRevision) => inv("agent:resumeWorkflow", draftId, expectedRevision),
       returnToAssets: (draftId, expectedRevision) => inv("agent:returnToAssets", draftId, expectedRevision),
       approveBrief: (draftId, expectedRevision, input) => inv("agent:approveBrief", draftId, expectedRevision, input),
       createVideo: (draftId) => inv("agent:createVideo", draftId),
