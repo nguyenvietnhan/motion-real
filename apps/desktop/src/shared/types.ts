@@ -73,7 +73,7 @@ export type AgentDraftVM = {
   sessionAccess: "full" | "legacy-approval";
   activeJobId?: string;
   lastError?: string;
-  /** Local Harness URL used only by the embedded renderer iframe. */
+  /** Local native Harness conversation URL used by the embedded renderer iframe. */
   harnessUrl?: string;
   /** Whether DeepSeek Harness has the separate credential required by web_search. */
   webSearchConfigured?: boolean;
@@ -117,45 +117,6 @@ export type AgentBriefVM = {
 };
 
 export type AgentBriefInput = Omit<AgentBriefVM, "revision" | "format" | "selectedAssetIds">;
-
-export type AgentChatMessageVM = {
-  kind: "message";
-  id: string;
-  seq: number;
-  time: number;
-  role: "user" | "assistant";
-  text: string;
-  interrupted?: boolean;
-};
-
-export type AgentToolActivityVM = {
-  kind: "tool";
-  id: string;
-  seq: number;
-  name: string;
-  description: string;
-  /** Workspace-relative file produced/read by the tool; Main re-validates before reveal. */
-  target?: string;
-  state: "running" | "success" | "error";
-  errorCode?: "search_credential_missing" | "tool_failed";
-};
-
-/** Renderer-safe projection of one Harness history page. */
-export type AgentChatPageVM = {
-  items: Array<AgentChatMessageVM | AgentToolActivityVM>;
-  hasMore: boolean;
-  beforeSeq?: number;
-  running: boolean;
-};
-
-/** Narrow live events; raw Harness WebSocket envelopes never cross Electron IPC. */
-export type AgentChatEvent =
-  | { draftId: string; type: "changed" }
-  | { draftId: string; type: "assistant-delta"; text: string }
-  | { draftId: string; type: "activity" }
-  | { draftId: string; type: "approval-required"; tool: string }
-  | { draftId: string; type: "idle" }
-  | { draftId: string; type: "error"; code: "turn_failed" | "stream_failed" };
 
 // --- create --------------------------------------------------------
 

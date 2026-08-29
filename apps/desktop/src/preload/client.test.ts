@@ -57,10 +57,6 @@ describe("createDashboardClient — invoke channel mapping", () => {
     await api.agent.createDraft("Ý tưởng mới");
     await api.agent.openDraft("agent-00000000-0000-0000-0000-000000000000");
     await api.agent.status("agent-00000000-0000-0000-0000-000000000000");
-    await api.agent.chatHistory("agent-00000000-0000-0000-0000-000000000000", 42);
-    await api.agent.revealFile("agent-00000000-0000-0000-0000-000000000000", "assets/logo.png");
-    await api.agent.prompt("agent-00000000-0000-0000-0000-000000000000", "Xin chào");
-    await api.agent.abort("agent-00000000-0000-0000-0000-000000000000");
     await api.agent.setSearchApiKey("agent-00000000-0000-0000-0000-000000000000", "search-secret");
     await api.agent.setSearchProvider("agent-00000000-0000-0000-0000-000000000000", "exa");
     await api.agent.prepareAssets("agent-00000000-0000-0000-0000-000000000000", 0);
@@ -164,7 +160,6 @@ describe("createDashboardClient — event subscription", () => {
       api.events.onScene(() => {}),
       api.events.onStatus(() => {}),
       api.events.onFriendlyError(() => {}),
-      api.events.onAgentChat(() => {}),
     ];
 
     expect(ons.map((o) => o.channel).sort()).toEqual([...EVENT_CHANNELS].sort());

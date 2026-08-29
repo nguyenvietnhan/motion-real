@@ -7,10 +7,9 @@ into small, independently verifiable delivery phases.
 
 The ordering is deliberate:
 
-1. prove workflow state and handoff while the working Harness iframe remains;
+1. prove workflow state and handoff with the native Harness conversation;
 2. reuse the existing MotionReal creation/review pipeline;
-3. replace the iframe with a MotionReal-owned chat UI only after the product
-   workflow is reliable.
+3. keep chat protocol/UI ownership in Harness while MotionReal owns video gates.
 
 Do not start a later phase until the acceptance gate for the current phase
 passes with the real native-Windows Harness and 9router setup.
@@ -21,8 +20,8 @@ Already available:
 
 - one shared DeepSeek Harness process per MotionReal app run;
 - one filesystem Workspace and one Harness Session per Agent video;
-- MotionReal-native chat/tool UI with the embedded Harness client retained as
-  a debug fallback;
+- native Harness chat/tool/question/approval UI embedded below MotionReal's
+  workflow bar;
 - working 9router model, terminal, web access, and local file writes;
 - Agent video creation/deletion and project linking metadata;
 - schema-validated asset, brief, and authoring submissions through three narrow
@@ -31,7 +30,8 @@ Already available:
   Harness-created projects let their Session write scene code and reuse the
   existing still/review/TTS/final-render infrastructure.
 
-The embedded Harness client remains the rollback/debug point through Phase 7.
+The standalone Harness client remains the comparison point for conversation
+behavior; Git history is the rollback path for the removed chat projection.
 
 ## Non-Negotiable Boundaries
 
@@ -48,8 +48,8 @@ The embedded Harness client remains the rollback/debug point through Phase 7.
   follows Settings: approval in `full`/`stills_edit`, automatic in `skip_edit`.
 - Existing Home, Create, Workspace, crawler, Queue, and project behavior must not
   regress.
-- Keep the Harness iframe as a developer fallback until the replacement UI has
-  passed real-session resume and tool-timeline tests.
+- Do not reimplement Harness conversation components or protocol projection in
+  MotionReal.
 
 ## Phase 0 — Freeze and Observe the Baseline
 
@@ -73,7 +73,8 @@ begins.
   - chat, a terminal file write, and web research work;
   - switching back restores the correct conversation;
   - deleting an Agent video removes its local Workspace.
-- Keep the current iframe available as `Harness debug view` during later phases.
+- Keep the native Harness iframe available as a comparison/debug view during
+  later phases. (Historical Phase 0 decision; Phase 5 made it the default.)
 - Capture current failure messages for missing Harness, missing gateway key, and
   Harness startup/RPC failure so later UI work does not make them less useful.
 
@@ -423,90 +424,37 @@ Implemented V1 details:
   open the existing review surface, request an edit, and approve final render.
 - No stage is inferred from Harness messages.
 
-## Phase 5 — MotionReal-Native Chat UI
+## Phase 5 — Native Harness Conversation Surface
 
-Status: implemented and accepted against the real native-Windows Harness/9router
-session on 2026-08-27.
+Status: implemented on the feature branches; automated regression complete,
+native-Windows product acceptance remains required.
 
 ### Goal
 
-Replace the embedded Harness frontend only after the video workflow is proven.
+Use the complete native Harness conversation UI instead of maintaining a lossy
+MotionReal projection of its protocol.
 
-### Required parity
+### Implementation
 
-- open the correct video Session;
-- load and resume message history;
-- send a prompt and stream the response;
-- show compact thinking/activity status exposed by Harness;
-- show tool name, short description, running/success/failure state, and safe file
-  links where applicable;
-- abort the active turn;
-- survive app restart and video switching;
-- retain the existing production panel and review gates.
-
-Do not expose hidden chain-of-thought. Render only model-visible messages,
-Harness-provided summaries, and tool lifecycle data already represented by the
-Harness protocol.
-
-### Implementation sequence
-
-1. Audit the pinned Harness client protocol and reuse its public schemas/types
-   where practical.
-2. Add the smallest adapter for open/resume, prompt, event subscription, and
-   abort.
-3. Map only renderer-safe events over typed IPC; do not expose local ports,
-   credentials, raw stderr, or arbitrary RPC.
-4. Build MotionReal components for message, tool activity, composer, and session
-   loading.
-5. Run both native UI and iframe debug view against the same test Session and
-   compare history/tool outcomes.
-6. Make native UI the default only after parity; keep iframe behind a developer
-   switch for one stabilization phase.
-
-Implemented V1 details:
-
-- Main loads canonical paged history through `session.history`, sends through
-  `session.prompt`, and aborts through `session.cancel`.
-- The pinned network runtime requires WebSocket upgrade at
-  `/api/events.mux`; HTTP/SSE returns 426. The adapter therefore uses that
-  actual WebSocket carrier and reconnects after an unexpected close.
-- Typed IPC carries only final human/assistant text, text deltas, generic
-  thinking state, and tool name/description/outcome. Context injections,
-  reasoning text, command/output, absolute tool paths, provider bodies, and raw
-  frames stay inside Harness/Main.
-- Relative `file_path` values may render as `Hiện tệp`. Main resolves the target
-  again, checks lexical and real-path containment, and asks Explorer to reveal
-  the file; the renderer never receives an absolute path or executes the file.
-- The renderer re-baselines from canonical history after lifecycle events,
-  guards async loads by draft id, and keeps the iframe behind `Debug Harness`.
-- No Harness UI package, markdown dependency, alternate session store, or new
-  production/render path was added.
-
-### Tests
-
-- Fake Harness: history, streamed message, tool start/result/error, abort,
-  reconnect, malformed event, and child exit.
-- Real Harness/9router: multi-turn chat, web research, terminal download, file
-  creation, Session switch, restart/resume, and abort/retry.
-- Renderer: long history scrolling, disabled/busy composer, tool disclosure,
-  focus/accessibility, and video switch without cross-session messages.
+- The Harness fork supports `?session=<id>&embedded=motionreal`.
+- Embedded mode hides only the sidebar and resize handle, preserves every native
+  conversation plugin, and applies MotionReal theme tokens.
+- MotionReal places that native page below its existing workflow bar and review
+  surfaces.
+- The renderer opens chat only through `AgentDraftVM.harnessUrl`; there is no
+  chat-history, prompt, abort, Markdown, or tool-event projection IPC.
+- Internal Harness RPCs remain available to Main for automatic asset, brief,
+  authoring, and review handoffs.
+- Standalone Harness without the embedded query keeps its original layout.
 
 ### Acceptance gate
 
-- The native UI completes the same real research/download/handoff scenario as
-  the iframe with no missing messages or tool results.
-- The iframe can be disabled without affecting workflow or recovery.
-
-Acceptance evidence:
-
-- Focused fake-runtime tests cover history, filtering, WebSocket text/tool/error
-  projection, malformed frames, child exit, prompt, abort, and IPC allow-list.
-- A real existing Gemini session restored after app restart with its human,
-  assistant, and terminal/file/web tool outcomes; switching to the ChatGPT
-  session showed only that session and switching back restored Gemini.
-- A real 9router turn returned `MR-PHASE5-OK` in both native chat and Debug
-  Harness. A second turn was cancelled and a following retry returned
-  `MR-PHASE5-RETRY-OK`, proving the Session remained usable.
+- Correct Session resumes after video switching and app reload.
+- Native reasoning, Markdown, tool rows, questions, approvals, attachments,
+  composer, stop, and retry work inside MotionReal exactly as in standalone
+  Harness for the current provider/runtime.
+- Asset, brief, still, and production review state remains MotionReal-owned and
+  updates while the iframe is mounted.
 
 ## Phase 6 — Submission Tools and Hardening
 

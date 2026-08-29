@@ -12,10 +12,11 @@ Implemented today:
 - MotionReal starts one shared DeepSeek Harness process after the 9router gateway
   is ready.
 - Each Agent video has a separate filesystem Workspace and Harness Session.
-- MotionReal owns the default chat, tool activity, composer, abort, asset/brief
-  review, and production-progress UI.
-- The native Harness web client remains available behind `Debug Harness` for
-  one stabilization phase.
+- The native Harness conversation is the default chat surface inside a scoped
+  iframe. Harness owns messages, reasoning, tools, questions, approvals,
+  attachments, composer, stop/retry, and chat history.
+- MotionReal keeps only the video workflow bar, asset/brief/still review, and
+  production-progress UI around that conversation.
 - Each Agent video persists a versioned production state/revision, with strict
   transition validation and legacy records defaulting to `discovery`.
 - Validated asset and brief handoffs advance only through explicit user review.
@@ -27,14 +28,12 @@ Implemented today:
   then the same Harness Session writes that project's fresh Remotion scene code.
   The Agent tab projects authoritative Workspace progress throughout.
 
-The native chat adapter uses Harness `session.history`, `session.prompt`, and
-`session.cancel` RPCs plus the network WebSocket at `/api/events.mux`. Main
-projects only human/final assistant text, generic thinking activity, and tool
-lifecycle into typed IPC. Context injections, raw reasoning, tool output,
-credentials, ports, absolute tool paths, and raw provider errors do not cross to
-the renderer. The renderer formats a small safe Markdown subset without parsing
-raw HTML, and translates known tools/errors into product labels (for example,
-`WEB_PROVIDER_CREDENTIAL_MISSING` becomes “Thiếu key tìm kiếm”).
+The embedded page opens the exact Harness Session with
+`?session=<id>&embedded=motionreal`. MotionReal does not project chat history,
+tool activity, question/approval state, Markdown, or composer behavior through
+IPC. The fork's embedded mode hides only the sidebar and resize handle and
+applies MotionReal color tokens; standalone Harness behavior remains intact.
+MotionReal still uses internal Harness RPCs for automatic workflow handoffs.
 
 ## Product Boundary
 
@@ -559,21 +558,19 @@ revision, or an invalid transition is rejected rather than silently applied.
 
 ## UI Ownership
 
-The target MotionReal UI owns:
+The MotionReal UI owns:
 
 - video/session selection;
-- chat messages;
-- a compact Harness tool-activity timeline;
-- composer and abort controls;
 - `Chuẩn bị tạo video`;
 - asset and brief review cards;
 - product progress;
 - draft/project navigation and review actions.
 
-The embedded native Harness page remains a temporary debug/development surface.
-Do not copy the complete Harness frontend or couple MotionReal to its DOM. The
-long-term renderer consumes a narrow adapter/event contract while Harness keeps
-the Agent implementation.
+The embedded native Harness page owns the complete conversation surface,
+including chat messages, reasoning, tool activity, questions, approvals,
+attachments, composer, stop/retry, and history. MotionReal does not couple to
+its DOM or recreate those features. The only renderer-facing chat interface is
+the Session-scoped `harnessUrl`.
 
 ## Failure, Cancellation, and Recovery
 
@@ -590,7 +587,7 @@ the Agent implementation.
 
 Build only:
 
-1. MotionReal-owned chat/tool timeline backed by Harness;
+1. native Harness conversation embedded below the MotionReal workflow bar;
 2. persistent video Workspace/Session selection;
 3. production state persistence;
 4. prepare-video action;

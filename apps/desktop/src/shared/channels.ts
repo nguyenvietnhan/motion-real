@@ -16,10 +16,6 @@ export const INVOKE_CHANNELS = [
   "agent:createDraft",
   "agent:openDraft",
   "agent:status",
-  "agent:chatHistory",
-  "agent:revealFile",
-  "agent:prompt",
-  "agent:abort",
   "agent:setSearchApiKey",
   "agent:setSearchProvider",
   "agent:prepareAssets",
@@ -88,7 +84,6 @@ export const EVENT_CHANNELS = [
   "events:scene",
   "events:status",
   "events:friendlyError",
-  "events:agentChat",
 ] as const;
 
 export type EventChannel = (typeof EVENT_CHANNELS)[number];

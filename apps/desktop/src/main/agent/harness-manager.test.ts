@@ -119,18 +119,6 @@ describe("HarnessManager draft lifecycle", () => {
     expect((await manager.status(draft.id)).createReady).toBe(false);
   });
 
-  it("reveals only existing regular files contained by the Agent workspace", async () => {
-    const { manager, root } = await managerForTest();
-    const draft = await manager.createDraft("Tệp chat an toàn");
-    const visible = join(root, draft.id, "assets", "logo.png");
-    await writeFile(visible, ONE_PIXEL_PNG);
-
-    await expect(manager.revealFilePath(draft.id, "assets/logo.png")).resolves.toBe(await realpath(visible));
-    await expect(manager.revealFilePath(draft.id, "../secret.txt")).rejects.toThrow(/ngoài workspace/);
-    await expect(manager.revealFilePath(draft.id, visible)).rejects.toThrow(/không hợp lệ/);
-    await expect(manager.revealFilePath(draft.id, "assets/missing.png")).rejects.toThrow(/Không tìm thấy/);
-  });
-
   it("persists workflow transitions and opens legacy records in discovery", async () => {
     const { manager, root } = await managerForTest();
     const draft = await manager.createDraft("Workflow bền vững");
@@ -199,23 +187,6 @@ describe("HarnessManager draft lifecycle", () => {
     await manager.dispose();
   });
 
-  it("loads history, queues human chat, and cancels through the public Harness RPC", async () => {
-    const { manager, calls } = await activeManagerForTest();
-    const draft = await manager.createDraft("Chat native");
-    await manager.activate(draft.id, "internal-key");
-
-    await expect(manager.chatHistory(draft.id)).resolves.toEqual({ items: [], hasMore: false, running: false });
-    await manager.sendChatPrompt(draft.id, "  Hãy research Gemini  ");
-    await manager.abortChat(draft.id);
-
-    expect(calls.slice(-3)).toEqual([
-      expect.objectContaining({ method: "session.history", payload: expect.objectContaining({ maxMessages: 80 }) }),
-      expect.objectContaining({ method: "session.prompt", payload: expect.objectContaining({ content: [{ type: "text", text: "Hãy research Gemini" }] }) }),
-      expect.objectContaining({ method: "session.cancel" }),
-    ]);
-    await manager.dispose();
-  });
-
   it("reports and stores the dedicated web search credential without persisting it in MotionReal", async () => {
     const { manager, root, calls } = await activeManagerForTest();
     const draft = await manager.createDraft("Search credential");
@@ -246,8 +217,6 @@ describe("HarnessManager draft lifecycle", () => {
     expect(deps.spawn).toHaveBeenCalledTimes(1);
     await expect(readFile(join(deps.harnessHome, "settings.yaml"), "utf8")).resolves.toBe(settingsBefore);
     await expect(readFile(join(root, draft.id, "motionreal-agent.json"), "utf8")).resolves.not.toContain("searchProvider");
-    await manager.sendChatPrompt(draft.id, "Continue current chat");
-    expect(calls.at(-1)).toMatchObject({ method: "session.prompt", payload: { sessionId } });
     await manager.dispose();
 
     const resumed = new HarnessManager(deps);
@@ -284,49 +253,6 @@ describe("HarnessManager draft lifecycle", () => {
     await writeFile(join(deps.harnessHome, "motionreal-search.json"), contents);
     await expect(manager.start("internal-key")).rejects.toThrow(/Cấu hình dịch vụ tìm kiếm/);
     expect(deps.spawn).not.toHaveBeenCalled();
-  });
-
-  it("projects the Harness WebSocket stream and reports child exit without exposing raw frames", async () => {
-    const root = await mkdtemp(join(tmpdir(), "motionreal-agent-events-"));
-    roots.push(root);
-    const cli = join(root, "dsh.js");
-    await writeFile(cli, "// test placeholder\n");
-    await writeFile(join(root, "motionreal-tools.mjs"), "// test tool plugin\n");
-    const child = Object.assign(new EventEmitter(), { kill: vi.fn(() => false) });
-    const projected: unknown[] = [];
-    const socket = Object.assign(new EventTarget(), { close: vi.fn() });
-    const openWebSocket = vi.fn(() => socket as unknown as WebSocket);
-    const manager = new HarnessManager({
-      draftsRoot: root,
-      harnessHome: join(root, "harness"),
-      harnessCliPath: cli,
-      submissionPluginPath: join(root, "motionreal-tools.mjs"),
-      findPort: async () => 39871,
-      spawn: vi.fn(() => child) as unknown as typeof import("node:child_process").spawn,
-      onChatEvent: (event) => projected.push(event),
-      openWebSocket,
-      fetch: vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
-        const body = JSON.parse(String(init?.body)) as { method: string };
-        const value = body.method === "workspace.create" ? { workspace: { workspaceId: "workspace-events" } } : {};
-        return Response.json({ type: "server-response", result: { ok: true, value } });
-      }) as unknown as typeof globalThis.fetch,
-    });
-    const draft = await manager.createDraft("WebSocket thật");
-    await manager.activate(draft.id, "internal-key");
-    expect(openWebSocket).toHaveBeenCalledWith("ws://127.0.0.1:39871/api/events.mux");
-    socket.dispatchEvent(new MessageEvent("message", { data: JSON.stringify({
-      type: "server-request",
-      payload: {
-        type: "session/event",
-        sessionId: (await readFile(join(root, draft.id, "motionreal-agent.json"), "utf8").then((raw) => JSON.parse(raw).sessionId)),
-        event: { type: "assistant/chunk", data: { chunk: { type: "text-delta", text: "Đang research" } } },
-      },
-    }) }));
-    expect(projected).toContainEqual({ draftId: draft.id, type: "assistant-delta", text: "Đang research" });
-
-    child.emit("close", 1, null);
-    expect(projected).toContainEqual({ draftId: draft.id, type: "error", code: "stream_failed" });
-    await manager.dispose();
   });
 
   it("keeps invalid or stale asset handoffs in collection with a safe validation error", async () => {
@@ -965,6 +891,8 @@ describe("HarnessManager draft lifecycle", () => {
     const otherOpened = await manager.activate(otherDraft.id, "only-child-env");
     expect(opened.harnessUrl).toMatch(/^http:\/\/127\.0\.0\.1:39876\/\?session=session-/);
     expect(otherOpened.harnessUrl).toMatch(/^http:\/\/127\.0\.0\.1:39876\/\?session=session-/);
+    expect(opened.harnessUrl).toContain("&embedded=motionreal");
+    expect(otherOpened.harnessUrl).toContain("&embedded=motionreal");
     expect(otherOpened.harnessUrl).not.toBe(opened.harnessUrl);
     expect(spawnChild).toHaveBeenCalledTimes(1);
     expect(calls.slice(1).map((call) => JSON.parse(String(call.init?.body)).method)).toEqual([

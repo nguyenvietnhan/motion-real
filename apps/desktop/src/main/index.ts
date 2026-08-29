@@ -435,7 +435,6 @@ const harness = new HarnessManager({
   mediaUrl,
   defaultVoiceProvider: () => settingsStore.current().voiceProvider,
   wordsPerSecond: wordsPerSecondForProject,
-  onChatEvent: (event) => events.agentChat(event),
   renderAuthoringStills: async (projectId, sceneIds) => {
     workspace.beginHarnessStillRender(projectId);
     const result = await tools.render_stills({ projectId, sceneIds });
@@ -724,16 +723,6 @@ const handlers: InvokeHandlers = {
   },
   "agent:openDraft": (draftId) => activateHarnessDraft(String(draftId)),
   "agent:status": (draftId) => harness.status(String(draftId)),
-  "agent:chatHistory": (draftId, beforeSeq) => harness.chatHistory(
-    String(draftId),
-    typeof beforeSeq === "number" ? beforeSeq : undefined,
-  ),
-  "agent:revealFile": async (draftId, target) => {
-    const path = await harness.revealFilePath(String(draftId), String(target ?? ""));
-    shell.showItemInFolder(path);
-  },
-  "agent:prompt": (draftId, text) => harness.sendChatPrompt(String(draftId), String(text ?? "")),
-  "agent:abort": (draftId) => harness.abortChat(String(draftId)),
   "agent:setSearchProvider": (draftId, provider) => harness.setSearchProvider(String(draftId), provider),
   "agent:setSearchApiKey": (draftId, apiKey) => harness.setSearchApiKey(
     String(draftId),

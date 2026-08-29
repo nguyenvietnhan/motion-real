@@ -41,10 +41,6 @@ export function createDashboardClient(ipc: IpcLike): DashboardApi {
       createDraft: (title) => inv("agent:createDraft", title),
       openDraft: (draftId) => inv("agent:openDraft", draftId),
       status: (draftId) => inv("agent:status", draftId),
-      chatHistory: (draftId, beforeSeq) => inv("agent:chatHistory", draftId, beforeSeq),
-      revealFile: (draftId, target) => inv("agent:revealFile", draftId, target),
-      prompt: (draftId, text) => inv("agent:prompt", draftId, text),
-      abort: (draftId) => inv("agent:abort", draftId),
       setSearchApiKey: (draftId, apiKey) => inv("agent:setSearchApiKey", draftId, apiKey),
       setSearchProvider: (draftId, provider) => inv("agent:setSearchProvider", draftId, provider),
       prepareAssets: (draftId, expectedRevision) => inv("agent:prepareAssets", draftId, expectedRevision),
@@ -126,7 +122,6 @@ export function createDashboardClient(ipc: IpcLike): DashboardApi {
       onScene: (cb) => subscribe(ipc, "events:scene", cb),
       onStatus: (cb) => subscribe(ipc, "events:status", cb),
       onFriendlyError: (cb) => subscribe(ipc, "events:friendlyError", cb),
-      onAgentChat: (cb) => subscribe(ipc, "events:agentChat", cb),
     },
   };
 }
