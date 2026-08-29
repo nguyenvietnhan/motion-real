@@ -147,8 +147,7 @@ const AgentNameDialog: React.FC<{ open: boolean; title: string; confirmLabel: st
   if (!open) return null;
   return <div className="ns-modal-backdrop" role="presentation" onMouseDown={onCancel}><form className="ns-modal ns-agent-name-dialog" role="dialog" aria-modal="true" onSubmit={(event) => { event.preventDefault(); if (value.trim()) void Promise.resolve(onConfirm(value.trim())).catch((_error) => undefined); }} onMouseDown={(event) => event.stopPropagation()}>
     <div className="ns-modal-head"><h2 className="ns-modal-title">{title}</h2></div>
-    <label htmlFor="agent-name-input">Tên video</label>
-    <input id="agent-name-input" className="ns-input" value={value} maxLength={120} autoFocus disabled={busy} onChange={(event) => setValue(event.target.value)} />
+    <label htmlFor="agent-name-input">Tên video<input id="agent-name-input" className="ns-input" value={value} maxLength={120} autoFocus disabled={busy} onChange={(event) => setValue(event.target.value)} /></label>
     <div className="ns-agent-dialog-actions"><button type="button" className="ns-btn" onClick={onCancel} disabled={busy}>Huỷ</button><button type="submit" className="ns-btn ns-btn-primary" disabled={busy || !value.trim()}>{confirmLabel}</button></div>
   </form></div>;
 };
@@ -248,7 +247,8 @@ const AgentWorkflowProgress: React.FC<{ label: string; activities?: AgentDraftVM
 const BriefReview: React.FC<{ draft: AgentDraftVM; input: AgentBriefInput; busy: boolean; onInput: (value: AgentBriefInput) => void; onContinue: () => void; onReturn: () => void; onApprove: () => void }> = ({ draft, input, busy, onInput, onContinue, onReturn, onApprove }) => <section className="ns-agent-brief-review" aria-label="Duyệt brief">
   <div className="ns-agent-brief-head"><div><h2>Duyệt brief</h2><p>Revision {draft.briefReview!.revision} · Video dọc 9:16</p></div><button type="button" className="ns-btn" onClick={onContinue}>Đóng brief</button></div>
   <label>Tiêu đề<input className="ns-input" value={input.title} maxLength={160} onChange={(event) => onInput({ ...input, title: event.target.value })} /></label>
-  <label>Brief cuối<textarea className="ns-input ns-agent-brief-prompt" value={input.prompt} maxLength={20_000} onChange={(event) => onInput({ ...input, prompt: event.target.value })} /></label>
+  <div className="ns-agent-brief-copy"><span>Brief cuối</span><BriefMarkdown text={input.prompt} /></div>
+  <details className="ns-agent-brief-edit"><summary>Chỉnh sửa nội dung brief</summary><textarea className="ns-input ns-agent-brief-prompt" value={input.prompt} maxLength={20_000} onChange={(event) => onInput({ ...input, prompt: event.target.value })} /></details>
   <div className="ns-agent-brief-settings">
     <label>Thời lượng<select className="ns-input" value={input.durationTier} onChange={(event) => onInput({ ...input, durationTier: Number(event.target.value) as DurationTierChoice })}><option value={1}>0:45</option><option value={2}>1:30</option><option value={3}>2:30</option><option value={4}>3:30</option></select></label>
     <label>Ngôn ngữ<select className="ns-input" value={input.videoLanguage} onChange={(event) => { const videoLanguage = event.target.value as VideoLanguageChoice; onInput({ ...input, videoLanguage, ...(videoLanguage === "en" && input.voiceProvider !== "elevenlabs" ? { voiceProvider: "elevenlabs" } : {}) }); }}><option value="vi">Tiếng Việt</option><option value="en">English</option></select></label>
@@ -257,6 +257,16 @@ const BriefReview: React.FC<{ draft: AgentDraftVM; input: AgentBriefInput; busy:
   <div className="ns-agent-brief-assets">{(draft.assetReview ?? []).filter((asset) => draft.briefReview?.selectedAssetIds.includes(asset.id)).map((asset) => <img key={asset.id} src={asset.previewUrl} alt={asset.label} title={asset.label} />)}</div>
   <div className="ns-agent-brief-actions"><button type="button" className="ns-btn" onClick={onReturn} disabled={busy}>Quay lại asset</button><button type="button" className="ns-btn ns-btn-primary" onClick={onApprove} disabled={busy || input.prompt.trim().length < 20 || !input.title.trim()}>Chấp nhận brief</button></div>
 </section>;
+
+const BriefMarkdown: React.FC<{ text: string }> = ({ text }) => <article className="ns-agent-brief-markdown">{text.split(/\r?\n/).map((line, index) => {
+  const value = line.trim();
+  if (!value) return null;
+  if (value.startsWith("### ")) return <h4 key={index}>{value.slice(4)}</h4>;
+  if (value.startsWith("## ")) return <h3 key={index}>{value.slice(3)}</h3>;
+  if (value.startsWith("# ")) return <h2 key={index}>{value.slice(2)}</h2>;
+  if (/^[-*]\s+/.test(value)) return <p key={index} className="is-bullet">{value.replace(/^[-*]\s+/, "")}</p>;
+  return <p key={index}>{value}</p>;
+})}</article>;
 
 const AgentSettingsDialog: React.FC<{ open: boolean; busy: boolean; settings: AgentSettingsVM | null; error: string | null; searchApiKey: string; onSearchApiKeyChange: (value: string) => void; onClose: () => void; onSearchProvider: (provider: AgentSearchProvider) => void; onSaveSearchKey: () => void; onModel: (modelId: string) => void; onAccess: (presetId: string, requiresConfirmation: boolean) => void }> = ({ open, busy, settings, error, searchApiKey, onSearchApiKeyChange, onClose, onSearchProvider, onSaveSearchKey, onModel, onAccess }) => {
   if (!open) return null;

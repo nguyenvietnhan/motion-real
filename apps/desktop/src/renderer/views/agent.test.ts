@@ -30,6 +30,7 @@ describe("Video Agent layout", () => {
     expect(html).toContain("aria-label=\"Tùy chọn Gemini là gì\"");
     expect(html).not.toContain("Trao đổi, research");
     expect(html).not.toContain("Video đang làm");
+    expect(html).not.toContain("ns-btn-icon-only ns-agent-row-menu-trigger\" style");
   });
 
   it("renders a compact workspace and the MotionReal embedded iframe only", () => {
