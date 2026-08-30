@@ -486,6 +486,11 @@ export const AgentWorkspace: React.FC<AgentWorkspaceProps> = ({
   const [frameKey, setFrameKey] = useState(0);
   const [frameFailed, setFrameFailed] = useState(false);
   const [showNativeChat, setShowNativeChat] = useState(false);
+  const [createStartFailed, setCreateStartFailed] = useState(false);
+
+  useEffect(() => {
+    setCreateStartFailed(false);
+  }, [draft.id, draft.workflowRevision]);
 
   useEffect(() => {
     if (!shouldPollAgentActivities(draft.productionState, showNativeChat)) return;
@@ -576,6 +581,17 @@ export const AgentWorkspace: React.FC<AgentWorkspaceProps> = ({
 
   const updateDraft = async (work: () => Promise<AgentDraftVM>): Promise<void> => {
     await run(async () => onDraftChange(await work()));
+  };
+
+  const startProject = async (): Promise<void> => {
+    try {
+      await window.dashboard.agent.createVideo(draft.id);
+      onDraftChange(await window.dashboard.agent.status(draft.id));
+      setCreateStartFailed(false);
+    } catch (error) {
+      setCreateStartFailed(true);
+      throw error;
+    }
   };
 
   const completeBriefDiscard = (request: BriefDiscardRequest): void => {
@@ -684,16 +700,12 @@ export const AgentWorkspace: React.FC<AgentWorkspaceProps> = ({
       };
     if (draft.createReady)
       return {
-        label: "Bắt đầu dựng",
+        label: createStartFailed ? "Thử bắt đầu dựng" : "Bắt đầu dựng",
         icon: Icon.spark({ size: 15 }),
-        run: () =>
-          run(async () => {
-            await window.dashboard.agent.createVideo(draft.id);
-            onDraftChange(await window.dashboard.agent.status(draft.id));
-          }),
+        run: () => run(startProject),
       };
     return null;
-  }, [draft, liveProgress?.canCancel, liveProgress?.state]);
+  }, [createStartFailed, draft, liveProgress?.canCancel, liveProgress?.state, startProject]);
 
   return (
     <section className="ns-agent-view ns-agent-workspace" aria-label={`Video Agent ${draft.title}`}>
@@ -803,8 +815,7 @@ export const AgentWorkspace: React.FC<AgentWorkspaceProps> = ({
             void run(async () => {
               const accepted = await window.dashboard.agent.approveBrief(draft.id, draft.workflowRevision, briefInput);
               onDraftChange(accepted);
-              await window.dashboard.agent.createVideo(draft.id);
-              onDraftChange(await window.dashboard.agent.status(draft.id));
+              await startProject();
             }).catch((_error) => undefined);
           }}
           onRequestChanges={(feedback) => {
