@@ -181,18 +181,31 @@ async function persistSafetyReport(projectId: string, report: SafetyReport): Pro
 /**
  * Resolve the project's chosen BGM to an absolute path
  * for the mixer. The selection lives on the manifest's `bgm` field: a user
- * library filename or the virtual bundled-default name. Empty/stale/deleted
- * refs resolve to undefined. This boundary converts that result to null so a
- * project that says "Không nhạc" explicitly disables the bundled orchestrator
- * BGM fallback.
+ * library filename or the virtual bundled-default name. An absent value is the
+ * explicit "Không nhạc" choice. A non-empty value that no longer resolves is
+ * an input integrity error: rendering without a track the user selected would
+ * silently change the finished video.
  */
 async function resolveProjectBgm(projectId: string): Promise<string | null> {
+  let manifest: { bgm?: unknown };
   try {
-    const manifest = await readJson<{ bgm?: unknown }>(projectPaths(projectId).manifest);
-    return resolveBgmTrack(typeof manifest.bgm === "string" ? manifest.bgm : undefined) ?? null;
-  } catch {
-    return null;
+    manifest = await readJson<{ bgm?: unknown }>(projectPaths(projectId).manifest);
+  } catch (error) {
+    // The tool facade's mocked/direct callers may not have scaffolded a
+    // manifest. The orchestrator performs its own project validation; this
+    // boundary only enforces a BGM selection once the manifest is available.
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
+    throw error;
   }
+  const selected = typeof manifest.bgm === "string" ? manifest.bgm.trim() : "";
+  if (!selected) return null;
+  const path = resolveBgmTrack(selected);
+  if (path) return path;
+  throw new PipelineError({
+    stage: "tts",
+    cause: `Selected background music is unavailable: ${selected}.`,
+    remediation: "Choose an existing background-music track or select no music before rendering.",
+  });
 }
 
 /** The shape `get_safety_report` returns: the hard-error subset split from warnings. */
@@ -279,7 +292,7 @@ export function createTools(overrides: Partial<ToolDeps> = {}) {
       try {
         // Resolve the project's chosen BGM (manifest `bgm` ref) to an absolute
         // path and pass it via the `bgmPath` opt the orchestrator already mixes
-        // under the narration. Absent/stale ref ⇒ null ⇒ explicitly no BGM.
+        // under the narration. Only an absent ref means explicitly no BGM.
         const bgmPath = await resolveProjectBgm(input.projectId);
         const res = await deps.renderProject(input.projectId, {
           quality: "draft",

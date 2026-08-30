@@ -11,12 +11,14 @@ import {
   resolveBgmTrack,
 } from "./bgm-library.js";
 import { BUNDLED_DEFAULT_BGM_TRACK_NAME, bundledDefaultBgmPath } from "../assets/bundled-media.js";
+import { synthesizeMockAudio } from "@motionreal/tts";
 
 /**
  * BGM library (I2/O4): a per-machine flat audio dir shared by every project; a
  * project stores only the chosen filename. These guard the CRUD surface + the
  * traversal chokepoint (a crafted name must never escape the library dir) and
- * the render-time resolve (a stale ref to a deleted track ⇒ no BGM, never throw).
+ * the render-time resolve. Render callers distinguish an intentional empty
+ * selection from a stale one, so chosen music can never disappear silently.
  */
 
 let home: string;
@@ -35,10 +37,10 @@ afterEach(async () => {
   await rm(srcDir, { recursive: true, force: true });
 });
 
-/** Write a fake audio file of a few bytes and return its absolute path. */
-async function fakeAudio(name: string, bytes = 16): Promise<string> {
+/** Write a valid short WAV fixture and return its absolute path. */
+async function validAudio(name: string): Promise<string> {
   const p = join(srcDir, name);
-  await writeFile(p, Buffer.alloc(bytes, 1));
+  await synthesizeMockAudio("A short BGM test fixture.", p);
   return p;
 }
 
@@ -48,29 +50,30 @@ describe("BGM library", () => {
   });
 
   it("adds a picked file into the library and lists it", async () => {
-    const src = await fakeAudio("nhac nen.mp3", 100);
+    const src = await validAudio("nhac nen.mp3");
     const track = await addBgmTrack(src);
     expect(track.name).toBe("nhac nen.mp3");
-    expect(track.sizeBytes).toBe(100);
+    expect(track.sizeBytes).toBeGreaterThan(1024);
     expect(existsSync(join(bgmLibraryDir(), "nhac nen.mp3"))).toBe(true);
     const list = await listBgmTracks();
     expect(list.map((t) => t.name)).toEqual(["nhac nen.mp3"]);
   });
 
   it("rejects an unsupported extension", async () => {
-    const src = await fakeAudio("clip.ogg");
+    const src = join(srcDir, "clip.ogg");
+    await writeFile(src, Buffer.alloc(2048, 1));
     await expect(addBgmTrack(src)).rejects.toThrow(/Unsupported BGM format/);
   });
 
   it("suffixes a colliding name instead of overwriting", async () => {
-    await addBgmTrack(await fakeAudio("song.mp3", 10));
-    await addBgmTrack(await fakeAudio("song.mp3", 20));
+    await addBgmTrack(await validAudio("song.mp3"));
+    await addBgmTrack(await validAudio("song.mp3"));
     const names = (await listBgmTracks()).map((t) => t.name).sort();
     expect(names).toEqual(["song-1.mp3", "song.mp3"]);
   });
 
   it("reserves the bundled default name for the virtual built-in track", async () => {
-    const src = await fakeAudio(BUNDLED_DEFAULT_BGM_TRACK_NAME, 24);
+    const src = await validAudio(BUNDLED_DEFAULT_BGM_TRACK_NAME);
     const track = await addBgmTrack(src);
 
     expect(track.name).toBe("nhac-nen-mac-dinh-1.mp3");
@@ -81,13 +84,13 @@ describe("BGM library", () => {
     const dir = bgmLibraryDir();
     await mkdir(dir, { recursive: true });
     await writeFile(join(dir, BUNDLED_DEFAULT_BGM_TRACK_NAME), Buffer.alloc(24, 1));
-    await addBgmTrack(await fakeAudio("real.mp3"));
+    await addBgmTrack(await validAudio("real.mp3"));
 
     expect((await listBgmTracks()).map((item) => item.name)).toEqual(["real.mp3"]);
   });
 
   it("removes a track by name", async () => {
-    await addBgmTrack(await fakeAudio("drop.wav"));
+    await addBgmTrack(await validAudio("drop.wav"));
     expect((await listBgmTracks()).length).toBe(1);
     await removeBgmTrack("drop.wav");
     expect((await listBgmTracks()).length).toBe(0);
@@ -97,12 +100,12 @@ describe("BGM library", () => {
     const dir = bgmLibraryDir();
     await mkdir(dir, { recursive: true });
     await writeFile(join(dir, "notes.txt"), "x");
-    await addBgmTrack(await fakeAudio("real.mp3"));
+    await addBgmTrack(await validAudio("real.mp3"));
     expect((await listBgmTracks()).map((t) => t.name)).toEqual(["real.mp3"]);
   });
 
   it("resolveBgmTrack returns the absolute path for an existing track, undefined otherwise", async () => {
-    const track = await addBgmTrack(await fakeAudio("bg.mp3"));
+    const track = await addBgmTrack(await validAudio("bg.mp3"));
     expect(resolveBgmTrack("bg.mp3")).toBe(track.path);
     expect(resolveBgmTrack(BUNDLED_DEFAULT_BGM_TRACK_NAME)).toBe(bundledDefaultBgmPath());
     // Empty/absent ⇒ no BGM (the common no-music case).
@@ -111,6 +114,17 @@ describe("BGM library", () => {
     // A stale ref to a deleted track ⇒ undefined, never throws (render just runs
     // without music instead of crashing on a missing file).
     expect(resolveBgmTrack("gone.mp3")).toBeUndefined();
+  });
+
+  it("rejects a too-small or undecodable audio file before it enters the library", async () => {
+    const tiny = join(srcDir, "tiny.mp3");
+    const broken = join(srcDir, "broken.mp3");
+    await writeFile(tiny, Buffer.alloc(32, 1));
+    await writeFile(broken, Buffer.alloc(2048, 1));
+
+    await expect(addBgmTrack(tiny)).rejects.toThrow(/too small/);
+    await expect(addBgmTrack(broken)).rejects.toThrow();
+    expect(await listBgmTracks()).toEqual([]);
   });
 
   it("rejects a traversal/separator name at the resolve + remove chokepoints", async () => {

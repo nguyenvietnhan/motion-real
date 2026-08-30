@@ -13,6 +13,7 @@ import {
   writeJson,
   type RenderProjectResult,
 } from "@motionreal/pipeline";
+import { synthesizeMockAudio } from "@motionreal/tts";
 import {
   createTools,
   fullRenderAllowed,
@@ -170,8 +171,8 @@ describe("TTS provider preservation — Property 10", () => {
   });
 
   it("resolves a selected project BGM track into render_draft/render_full options", async () => {
-    const src = join(home, "picked.mp3");
-    await writeFile(src, Buffer.alloc(32, 1));
+    const src = join(home, "picked.wav");
+    await synthesizeMockAudio("A valid background-music fixture.", src);
     const track = await addBgmTrack(src);
     await ensureProject("p");
     await writeJson(projectPaths("p").manifest, { title: "T", bgm: track.name, scenes: [] });
@@ -226,6 +227,26 @@ describe("TTS provider preservation — Property 10", () => {
     expect((await tools.render_draft({ projectId: "p" })).ok).toBe(true);
     expect((await tools.render_full({ projectId: "p" })).ok).toBe(true);
     expect(seen.map((opts) => opts?.bgmPath)).toEqual([null, null]);
+  });
+
+  it("refuses to render when a selected BGM file has been removed", async () => {
+    await ensureProject("p");
+    await writeJson(projectPaths("p").manifest, { title: "T", bgm: "removed.mp3", scenes: [] });
+    let delegated = false;
+    const tools = createTools({
+      draftExistsFor: () => true,
+      ttsConfig: okConfig,
+      renderProject: async () => {
+        delegated = true;
+        return renderOk();
+      },
+    });
+
+    const result = await tools.render_draft({ projectId: "p" });
+
+    expect(result.ok).toBe(false);
+    expect(delegated).toBe(false);
+    if (!result.ok) expect(result.error.message).toMatch(/Selected background music is unavailable/);
   });
 });
 

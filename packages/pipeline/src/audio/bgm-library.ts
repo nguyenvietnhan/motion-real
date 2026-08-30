@@ -1,6 +1,7 @@
 import { existsSync } from "node:fs";
 import { copyFile, mkdir, readdir, rm, stat } from "node:fs/promises";
 import { basename, extname, join } from "node:path";
+import { measureAudioDuration } from "@motionreal/tts";
 import { videoToolHome } from "../store/store.js";
 import { BUNDLED_DEFAULT_BGM_TRACK_NAME, bundledDefaultBgmPath } from "../assets/bundled-media.js";
 
@@ -21,6 +22,7 @@ import { BUNDLED_DEFAULT_BGM_TRACK_NAME, bundledDefaultBgmPath } from "../assets
  */
 
 const BGM_EXTENSIONS = new Set([".mp3", ".m4a", ".wav"]);
+const MIN_BGM_BYTES = 1024;
 
 /** The per-machine BGM library directory (under the.video-tool home). */
 export function bgmLibraryDir(): string {
@@ -93,6 +95,14 @@ export async function addBgmTrack(srcPath: string): Promise<BgmTrack> {
   if (!BGM_EXTENSIONS.has(ext)) {
     throw new Error(`Unsupported BGM format: ${ext || "(none)"}. Use .mp3/.m4a/.wav.`);
   }
+  const source = await stat(srcPath);
+  if (!source.isFile() || source.size < MIN_BGM_BYTES) {
+    throw new Error("Background music file is empty or too small to be valid audio.");
+  }
+  const duration = await measureAudioDuration(srcPath);
+  if (!Number.isFinite(duration) || duration <= 0) {
+    throw new Error("Background music file has no decodable audio duration.");
+  }
   const dir = bgmLibraryDir();
   await mkdir(dir, { recursive: true });
   const base = sanitizeBgmBase(basename(srcPath, extname(srcPath))) || "track";
@@ -116,8 +126,9 @@ export async function removeBgmTrack(name: string): Promise<void> {
 
 /**
  * Resolve a project's stored BGM ref to an absolute path for the mixer, or
- * undefined when the ref is empty/invalid/missing (so the render simply runs
- * without BGM — never throws on a stale ref to a deleted track).
+ * undefined when the ref is empty, invalid, or missing. Callers must distinguish
+ * an intentional empty selection from a stale non-empty selection; silently
+ * changing a selected project to "no music" is data loss at render time.
  */
 export function resolveBgmTrack(name: string | undefined): string | undefined {
   if (!name) return undefined;
