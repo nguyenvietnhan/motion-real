@@ -1,5 +1,5 @@
 import { app, BrowserWindow, dialog, ipcMain, nativeImage, Notification, safeStorage, shell } from "electron";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { dirname, join } from "node:path";
 import { appendEvent, createLogger, createTools, loadManifest, writeJson, writeBrief, projectPaths, videoToolHome, stagingDir, ensureProject, importImageBytes, reconcileStaleStates, pruneRenderCache, pruneTtsCache, readBrief, listBgmTracks, addBgmTrack, removeBgmTrack, renderThumbnail, workspaceRoot, ELEVENLABS_DEFAULT_MODEL_ID, VIENEU_DEFAULT_WORDS_PER_SECOND, VieneuClient, runDoctor, readProjectDiagnostics, readProjectEvidence, type VoiceProvider } from "@motionreal/pipeline";
 import { QueueStore, queueStorePath } from "./queue/queue-store.js";
@@ -61,6 +61,7 @@ import { authorInputFromBrief } from "./workspace/recall-author-input.js";
 import {
   applyNonSensitiveEnvironment,
   detectProcessPrivilege,
+  isTrustedApplicationPageUrl,
   privilegeStartupError,
   scrubSensitiveEnvironment,
 } from "./security/runtime-security.js";
@@ -129,8 +130,22 @@ const tools = createTools({
   },
 });
 const nrClient = new NineRouterClient();
+async function openTrustedExternal(url: string): Promise<void> {
+  try {
+    const parsed = new URL(url);
+    const trustedHttps = parsed.protocol === "https:";
+    const trustedNineRouter = parsed.protocol === "http:" && parsed.hostname === "localhost" && parsed.port === "20128";
+    if (!trustedHttps && !trustedNineRouter) {
+      log.warn({ url }, "blocked untrusted external navigation");
+      return;
+    }
+    await shell.openExternal(parsed.href);
+  } catch (error) {
+    log.warn({ err: error, url }, "blocked invalid external navigation");
+  }
+}
 const gateway = new ModelGatewayManager(
-  buildNineRouterGatewayDeps({ client: nrClient, openExternal: (url) => void shell.openExternal(url) }),
+  buildNineRouterGatewayDeps({ client: nrClient, openExternal: openTrustedExternal }),
 );
 const { handlers: gatewayHandlers, getSelectedModelId } = createGatewayHandlers({
   ensureReady: () => gateway.refreshHealth(),
@@ -1086,7 +1101,17 @@ const handlers: InvokeHandlers = {
   ...settingsHandlers,
 };
 
-registerIpcRouter(ipcMain, handlers);
+registerIpcRouter(ipcMain, handlers, (event) => {
+  const candidate = event as {
+    senderFrame?: { url?: unknown } | null;
+    sender?: { mainFrame?: unknown };
+  };
+  const frame = candidate.senderFrame;
+  if (!frame || frame !== candidate.sender?.mainFrame || typeof frame.url !== "string") return false;
+  const devUrl = process.env.VITE_DEV_SERVER_URL;
+  const expected = devUrl ?? pathToFileURL(join(here, "../renderer/index.html")).href;
+  return isTrustedApplicationPageUrl(frame.url, expected);
+});
 
 // Start the gateway in the background once the app is ready (non-blocking).
 function startGateway(): void {
@@ -1233,7 +1258,8 @@ async function createWindow(): Promise<void> {
       preload: join(here, "../preload/index.cjs"),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false,
+      sandbox: true,
+      webviewTag: false,
     },
   });
   try {
@@ -1251,10 +1277,31 @@ async function createWindow(): Promise<void> {
     log.debug({ err: error }, "window icon setup failed; using executable icon");
   }
   win.removeMenu();
+  const devUrl = process.env.VITE_DEV_SERVER_URL;
+  const expectedRendererUrl = devUrl ?? pathToFileURL(join(here, "../renderer/index.html")).href;
+  const isTrustedRendererPage = (url: string) => isTrustedApplicationPageUrl(url, expectedRendererUrl);
+  const isTrustedHarnessFrame = (url: string) => harness.isActiveHarnessOrigin(url);
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    void openTrustedExternal(url);
+    return { action: "deny" };
+  });
+  win.webContents.on("will-navigate", (event, url) => {
+    if (!isTrustedRendererPage(url)) event.preventDefault();
+  });
+  win.webContents.on("will-frame-navigate", (event) => {
+    if (!event.isMainFrame && !isTrustedHarnessFrame(event.url)) event.preventDefault();
+  });
+  const allowsHarnessClipboardWrite = (permission: string, origin: string) =>
+    permission === "clipboard-sanitized-write" && isTrustedHarnessFrame(origin);
+  win.webContents.session.setPermissionCheckHandler((_contents, permission, requestingOrigin) =>
+    allowsHarnessClipboardWrite(permission, requestingOrigin),
+  );
+  win.webContents.session.setPermissionRequestHandler((_contents, permission, callback, details) => {
+    callback(allowsHarnessClipboardWrite(permission, details.requestingUrl));
+  });
   setEventTarget(win.webContents);
   win.on("closed", () => setEventTarget(null));
 
-  const devUrl = process.env.VITE_DEV_SERVER_URL;
   if (devUrl) {
     await win.loadURL(devUrl);
   } else {

@@ -891,7 +891,8 @@ export const AgentWorkspace: React.FC<AgentWorkspaceProps> = ({
           className="ns-agent-frame"
           src={motionrealHarnessUrl(draft.harnessUrl)}
           title={`MotionReal Agent — ${draft.title}`}
-          allow="clipboard-read; clipboard-write"
+          allow="clipboard-write"
+          sandbox="allow-scripts allow-forms allow-same-origin allow-downloads allow-popups"
           referrerPolicy="no-referrer"
           onError={() => setFrameFailed(true)}
         />

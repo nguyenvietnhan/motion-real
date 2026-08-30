@@ -105,3 +105,17 @@ export function privilegeStartupError(status: PrivilegeStatus): string | undefin
   }
   return "Không thể xác minh quyền của tiến trình. Vì an toàn, Motion Real chưa khởi động. Hãy mở lại từ terminal người dùng thông thường.";
 }
+
+/** A renderer IPC/navigation source must remain on the page Electron loaded. */
+export function isTrustedApplicationPageUrl(candidate: string, expected: string): boolean {
+  try {
+    const actualUrl = new URL(candidate);
+    const expectedUrl = new URL(expected);
+    if (expectedUrl.protocol === "file:") {
+      return actualUrl.protocol === "file:" && actualUrl.pathname === expectedUrl.pathname;
+    }
+    return actualUrl.origin === expectedUrl.origin;
+  } catch (_error) {
+    return false;
+  }
+}

@@ -242,6 +242,16 @@ export class HarnessManager {
     return this.startInFlight;
   }
 
+  /** Permission checks may trust only the one local Harness process we launched. */
+  isActiveHarnessOrigin(origin: string): boolean {
+    if (!this.active) return false;
+    try {
+      return new URL(this.active.url).origin === new URL(origin).origin;
+    } catch (_error) {
+      return false;
+    }
+  }
+
   async activate(id: string, apiKey: string): Promise<AgentDraftVM> {
     let record = await this.mustReadRecord(id);
     // Dev VIDEO_TOOL_HOME can live below the MotionReal repository. A local

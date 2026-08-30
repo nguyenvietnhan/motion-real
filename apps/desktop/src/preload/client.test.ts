@@ -134,6 +134,7 @@ describe("createDashboardClient — invoke channel mapping", () => {
     await api.queue.pause();
     await api.queue.resume();
     await api.queue.status();
+    await api.queue.recover();
     await api.tts.setApiKey("elevenlabs", "secret");
     await api.tts.clearApiKey("elevenlabs");
     await api.tts.testVoice("elevenlabs");
@@ -210,14 +211,14 @@ describe("registerIpcRouter", () => {
 
   it("registers exactly the allow-listed invoke channels", () => {
     const { ipcMain, handlers } = fakeMain();
-    registerIpcRouter(ipcMain, {});
+    registerIpcRouter(ipcMain, {}, () => true);
     expect([...handlers.keys()].sort()).toEqual([...INVOKE_CHANNELS].sort());
   });
 
   it("dispatches to the registered handler with forwarded args", () => {
     const { ipcMain, handlers } = fakeMain();
     const spy = vi.fn((..._args: unknown[]) => "ok");
-    registerIpcRouter(ipcMain, { "settings:get": spy });
+    registerIpcRouter(ipcMain, { "settings:get": spy }, () => true);
     const result = handlers.get("settings:get")!({}, "a", 1);
     expect(spy).toHaveBeenCalledWith("a", 1);
     expect(result).toBe("ok");
@@ -225,7 +226,16 @@ describe("registerIpcRouter", () => {
 
   it("throws for an allow-listed channel with no handler", () => {
     const { ipcMain, handlers } = fakeMain();
-    registerIpcRouter(ipcMain, {});
+    registerIpcRouter(ipcMain, {}, () => true);
     expect(() => handlers.get("settings:get")!({})).toThrow(/No handler registered/);
+  });
+
+  it("rejects an invoke from an untrusted frame before dispatch", () => {
+    const { ipcMain, handlers } = fakeMain();
+    const spy = vi.fn(() => "ok");
+    registerIpcRouter(ipcMain, { "settings:get": spy }, () => false);
+
+    expect(() => handlers.get("settings:get")!({})).toThrow(/untrusted frame/);
+    expect(spy).not.toHaveBeenCalled();
   });
 });

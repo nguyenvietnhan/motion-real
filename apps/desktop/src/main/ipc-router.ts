@@ -14,6 +14,9 @@ export type InvokeHandler = (...args: unknown[]) => unknown | Promise<unknown>;
 /** Partial map of channel -> handler; unregistered channels throw on call. */
 export type InvokeHandlers = Partial<Record<InvokeChannel, InvokeHandler>>;
 
+/** Main supplies the one trusted top-level renderer predicate. */
+export type IpcSenderValidator = (event: unknown) => boolean;
+
 /**
  * Register every allow-listed invoke channel on `ipcMain` (Task
  * 1.2). Each channel dispatches to its handler; a channel with no handler yet
@@ -21,10 +24,17 @@ export type InvokeHandlers = Partial<Record<InvokeChannel, InvokeHandler>>;
  * silently resolving `undefined`. Only `INVOKE_CHANNELS` are ever registered —
  * the router cannot expose anything outside the contract.
  */
-export function registerIpcRouter(ipcMain: IpcMainLike, handlers: InvokeHandlers): void {
+export function registerIpcRouter(
+  ipcMain: IpcMainLike,
+  handlers: InvokeHandlers,
+  isTrustedSender: IpcSenderValidator,
+): void {
   for (const channel of INVOKE_CHANNELS) {
     const handler = handlers[channel];
-    ipcMain.handle(channel, (_event, ...args) => {
+    ipcMain.handle(channel, (event, ...args) => {
+      if (!isTrustedSender(event)) {
+        throw new Error("IPC request rejected from an untrusted frame");
+      }
       if (!handler) {
         throw new Error(`No handler registered for IPC channel "${channel}"`);
       }

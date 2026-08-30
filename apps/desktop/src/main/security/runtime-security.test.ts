@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   applyNonSensitiveEnvironment,
   detectProcessPrivilege,
+  isTrustedApplicationPageUrl,
   privilegeStartupError,
   sanitizedChildEnvironment,
   scrubSensitiveEnvironment,
@@ -74,5 +75,27 @@ describe("runtime security privilege gate", () => {
     expect(detectProcessPrivilege({ platform: "linux", getuid: () => 1000 })).toBe("standard");
     expect(privilegeStartupError("elevated")).toMatch(/Administrator\/root/);
     expect(privilegeStartupError("standard")).toBeUndefined();
+  });
+});
+
+describe("renderer origin boundary", () => {
+  it("accepts only the loaded app page or its dev-server origin", () => {
+    expect(
+      isTrustedApplicationPageUrl(
+        "file:///V:/Projects/motion-real/apps/desktop/dist/renderer/index.html?restore=1",
+        "file:///V:/Projects/motion-real/apps/desktop/dist/renderer/index.html",
+      ),
+    ).toBe(true);
+    expect(
+      isTrustedApplicationPageUrl(
+        "file:///V:/Projects/motion-real/apps/desktop/dist/renderer/other.html",
+        "file:///V:/Projects/motion-real/apps/desktop/dist/renderer/index.html",
+      ),
+    ).toBe(false);
+    expect(
+      isTrustedApplicationPageUrl("http://localhost:5174/agent", "http://localhost:5174/"),
+    ).toBe(true);
+    expect(isTrustedApplicationPageUrl("http://127.0.0.1:5174/", "http://localhost:5174/")).toBe(false);
+    expect(isTrustedApplicationPageUrl("not a URL", "http://localhost:5174/")).toBe(false);
   });
 });
