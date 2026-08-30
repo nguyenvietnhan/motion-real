@@ -673,7 +673,9 @@ async function renderProjectUnlocked(projectId: string, opts: RenderProjectOptio
       // renderer/Remotion default unless the caller explicitly overrides it.
       // Long real projects showed a fixed cap of 4 can be slower for full encode.
       const concurrency = opts.concurrency ?? (isDraft ? defaultDraftRenderConcurrency() : undefined);
-      const partialPath = `${mp4Path}.partial-${randomUUID()}`;
+      // Remotion/FFmpeg selects the h264+aac container from the final suffix.
+      // Keep `.mp4` while rendering into the atomic temporary destination.
+      const partialPath = `${mp4Path.slice(0, -4)}.partial-${randomUUID()}.mp4`;
       try {
         await timedPipelineStage(
           "stage.render",

@@ -416,6 +416,7 @@ describe("renderProject — render pipeline (skipAuthoring)", () => {
 
     const fullRenderCall = mocks.renderMedia.mock.calls.at(-1)?.[0];
     expect(fullRenderCall?.concurrency).toBeNull();
+    expect(fullRenderCall?.outputLocation).toMatch(/\.partial-[^.]+\.mp4$/);
   });
 
   it("passes machine-level Chromium GL config through to Remotion", async () => {
