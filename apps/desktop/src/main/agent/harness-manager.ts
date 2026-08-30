@@ -214,6 +214,7 @@ export class HarnessManager {
     // contract prevents parent rule discovery from resolving AI_CONTRACT.md
     // against the isolated Agent workspace and failing its first file read.
     await writeFile(join(this.rootOf(id), AI_CONTRACT_FILE), agentContract(), "utf8");
+    const runtimeWasRunning = Boolean(this.active);
     const url = await this.start(apiKey);
     const workspace = await this.rpc(url, "workspace.create", { path: this.rootOf(id) });
     const workspaceInfo = workspaceInfoOf(workspace);
@@ -232,6 +233,16 @@ export class HarnessManager {
     record = { ...record, workspaceId: workspaceInfo.id, sessionId };
     await this.writeRecord(record);
     this.activeDraftId = id;
+    if (!runtimeWasRunning
+      && isPausableAgentProductionState(record.productionState)
+      && existsSync(join(this.rootOf(record.id), AUTHORING_REQUEST_FILE))) {
+      try {
+        await this.promptSession(record, resumePromptFor(record.productionState));
+      } catch (error) {
+        await this.recordWorkflowError(record, error);
+        record = await this.mustReadRecord(record.id);
+      }
+    }
     if (isAutomatedAuthoringState(record.productionState)) this.scheduleAuthoringPoll(record.id);
     return this.toVm(record);
   }

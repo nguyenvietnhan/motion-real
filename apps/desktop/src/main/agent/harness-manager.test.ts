@@ -346,6 +346,31 @@ describe("HarnessManager draft lifecycle", () => {
     expect(calls.filter((call) => call.method === "session.prompt")).toHaveLength(promptCount);
   });
 
+  it("resumes an outstanding authoring request after the Harness runtime restarts", async () => {
+    const { manager, root, calls } = await activeManagerForTest();
+    const draft = await manager.createDraft("Khôi phục authoring");
+    await manager.activate(draft.id, "internal-key");
+    let state = await manager.transitionWorkflow(draft.id, { expectedRevision: 0, to: "collecting_assets", jobId: "job-resume" });
+    state = await manager.transitionWorkflow(draft.id, { expectedRevision: state.workflowRevision, to: "asset_review", jobId: "job-resume" });
+    state = await manager.transitionWorkflow(draft.id, { expectedRevision: state.workflowRevision, to: "brief_review", jobId: "job-resume" });
+    state = await manager.transitionWorkflow(draft.id, { expectedRevision: state.workflowRevision, to: "queued_create", jobId: "job-resume" });
+    await manager.transitionWorkflow(draft.id, { expectedRevision: state.workflowRevision, to: "authoring", jobId: "job-resume" });
+    await mkdir(join(root, draft.id, "handoff"), { recursive: true });
+    await writeFile(join(root, draft.id, "handoff", "authoring-request.json"), JSON.stringify({ version: 1, phase: "repair" }));
+    const promptsBeforeRestart = calls.filter((call) => call.method === "session.prompt").length;
+
+    await manager.dispose();
+    await manager.activate(draft.id, "internal-key");
+
+    const prompts = calls.filter((call) => call.method === "session.prompt");
+    expect(prompts).toHaveLength(promptsBeforeRestart + 1);
+    expect(prompts.at(-1)).toMatchObject({
+      payload: expect.objectContaining({
+        content: [expect.objectContaining({ text: expect.stringContaining("authoring-request.json hiện tại") })],
+      }),
+    });
+  });
+
   it("persists a bounded authoring repair budget instead of prompting the provider forever", async () => {
     const { manager, root, calls } = await activeManagerForTest({ maxAuthoringRepairs: () => 1 });
     const draft = await manager.createDraft("Giới hạn sửa cảnh");
