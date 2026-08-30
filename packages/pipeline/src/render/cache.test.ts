@@ -1,8 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import fc from "fast-check";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import type { LockedVideoSpec } from "@motionreal/schema";
 
 /**
@@ -35,7 +36,15 @@ vi.mock("@remotion/renderer", () => ({
   renderStill: mocks.renderStill,
 }));
 
-import { specHash, renderCacheKey, stableStringify } from "./cache.js";
+import {
+  copyValidatedMp4,
+  getCachedRender,
+  promoteValidatedMp4,
+  renderCachePath,
+  specHash,
+  renderCacheKey,
+  stableStringify,
+} from "./cache.js";
 import { checkDeterminism, sampleFrame } from "./determinism.js";
 import { lintSceneSources, compositionsSrcDir, blocksSrcDir } from "../safety/forbidden-api.js";
 
@@ -275,9 +284,9 @@ describe("renderCacheKey — authored source is part of the full render key", ()
     { component: "hero", durationInFrames: 90, headline: "H", narration: "N", audioSrc: "audio/a.mp3", prop: "a" },
   ]);
 
-  it("with no authored sources reduces to specHash (back-compat)", () => {
-    expect(renderCacheKey(locked, [])).toBe(specHash(locked));
-    expect(renderCacheKey(locked)).toBe(specHash(locked));
+  it("uses a versioned renderer namespace even with no authored sources", () => {
+    expect(renderCacheKey(locked, [])).not.toBe(specHash(locked));
+    expect(renderCacheKey(locked)).toBe(renderCacheKey(locked, []));
   });
 
   it("changing authored source (same spec) changes the key — a visual edit busts the cache", () => {
@@ -300,6 +309,56 @@ describe("renderCacheKey — authored source is part of the full render key", ()
 
     expect(silent).not.toBe(withMusic);
     expect(silent).toBe(renderCacheKey(locked, [], "bgm:none"));
+  });
+});
+
+describe("MP4 cache promotion", () => {
+  const validMp4 = Buffer.concat([Buffer.from([0, 0, 0, 20]), Buffer.from("ftypisomvalid")]);
+
+  it("never replaces a canonical render when the temporary output is invalid", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "news-cache-promote-"));
+    const canonical = join(dir, "video.mp4");
+    const partial = join(dir, "video.partial.mp4");
+    try {
+      await writeFile(canonical, validMp4);
+      await writeFile(partial, "not an MP4");
+
+      await expect(promoteValidatedMp4(partial, canonical)).rejects.toThrow("valid MP4");
+      expect(await readFile(canonical)).toEqual(validMp4);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("copies a valid cache entry through a temporary file", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "news-cache-copy-"));
+    const source = join(dir, "source.mp4");
+    const destination = join(dir, "destination.mp4");
+    try {
+      await writeFile(source, validMp4);
+      await copyValidatedMp4(source, destination);
+      expect(await readFile(destination)).toEqual(validMp4);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("evicts a structurally corrupt cache entry instead of returning it", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "news-cache-corrupt-"));
+    const previousHome = process.env.VIDEO_TOOL_HOME;
+    process.env.VIDEO_TOOL_HOME = dir;
+    try {
+      const corrupt = renderCachePath("corrupt");
+      await mkdir(dirname(corrupt), { recursive: true });
+      await writeFile(corrupt, "not an MP4");
+
+      expect(getCachedRender("corrupt")).toBeNull();
+      expect(existsSync(corrupt)).toBe(false);
+    } finally {
+      if (previousHome === undefined) delete process.env.VIDEO_TOOL_HOME;
+      else process.env.VIDEO_TOOL_HOME = previousHome;
+      await rm(dir, { recursive: true, force: true });
+    }
   });
 });
 

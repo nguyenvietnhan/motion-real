@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import type { VideoSpec } from "@motionreal/schema";
@@ -117,6 +117,17 @@ describe("renderProjectStills", () => {
     const [lockedArg] = mocks.renderSceneStills.mock.calls[0]!;
     expect(lockedArg.audio?.narrationSrc).toBeUndefined();
     expect(lockedArg.captions).toEqual([]);
+  });
+
+  it("keeps the canonical TTS lock untouched while creating a separate stills lock", async () => {
+    const paths = projectPaths("proj-1");
+    await mkdir(paths.root, { recursive: true });
+    await writeFile(paths.lock, "published-audio-lock", "utf8");
+
+    await renderProjectStills("proj-1");
+
+    expect(await readFile(paths.lock, "utf8")).toBe("published-audio-lock");
+    await expect(readFile(paths.stillsLock, "utf8")).resolves.toContain('"fps"');
   });
 
   it("passes sceneIds through so a subset re-renders just those stills", async () => {

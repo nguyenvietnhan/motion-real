@@ -34,7 +34,7 @@ beforeEach(async () => {
     const still = join(paths.reviewDir, `${sceneId}.png`);
     await mkdir(paths.reviewDir, { recursive: true });
     await writeFile(still, Buffer.from("caption-free-first-scene"));
-    await writeFile(paths.lock, Buffer.from("temporary-no-tts-lock"));
+    await writeFile(paths.stillsLock, Buffer.from("temporary-no-tts-lock"));
     return { projectId, stills: [still] };
   });
 });
@@ -72,7 +72,7 @@ describe("renderThumbnail", () => {
     expect(result.format).toBe("tiktok");
   });
 
-  it("restores the published full-render lock after a successful cover render", async () => {
+  it("never changes the published full-render lock during a cover render", async () => {
     const paths = projectPaths("p1");
     await mkdir(paths.root, { recursive: true });
     await writeFile(paths.lock, Buffer.from("published-full-render-lock"));
@@ -82,12 +82,12 @@ describe("renderThumbnail", () => {
     expect(await readFile(paths.lock, "utf8")).toBe("published-full-render-lock");
   });
 
-  it("restores the published lock when the still render fails", async () => {
+  it("keeps the published lock when the still render fails", async () => {
     const paths = projectPaths("p1");
     await mkdir(paths.root, { recursive: true });
     await writeFile(paths.lock, Buffer.from("published-full-render-lock"));
     mocks.renderProjectStillsUnlocked.mockImplementationOnce(async () => {
-      await writeFile(paths.lock, Buffer.from("temporary-no-tts-lock"));
+      await writeFile(paths.stillsLock, Buffer.from("temporary-no-tts-lock"));
       throw new Error("render failed");
     });
 
@@ -95,7 +95,7 @@ describe("renderThumbnail", () => {
     expect(await readFile(paths.lock, "utf8")).toBe("published-full-render-lock");
   });
 
-  it("removes the temporary lock when the project had no lock before generation", async () => {
+  it("does not create a canonical lock when the project had no full render", async () => {
     const paths = projectPaths("p1");
     await renderThumbnail("p1");
     await expect(access(paths.lock)).rejects.toMatchObject({ code: "ENOENT" });
@@ -110,7 +110,7 @@ describe("renderThumbnail", () => {
         const still = join(paths.reviewDir, `${sceneId}.png`);
         await mkdir(paths.reviewDir, { recursive: true });
         await writeFile(still, Buffer.from("caption-free-first-scene"));
-        await writeFile(paths.lock, Buffer.from("temporary-no-tts-lock"));
+        await writeFile(paths.stillsLock, Buffer.from("temporary-no-tts-lock"));
         resolveEntered();
         return new Promise<{ projectId: string; stills: string[] }>((resolveRender) => {
           release = () => resolveRender({ projectId, stills: [still] });

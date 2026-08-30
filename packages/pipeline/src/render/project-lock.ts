@@ -1,10 +1,8 @@
 import { randomUUID } from "node:crypto";
-import { open, readFile, rm, stat } from "node:fs/promises";
+import { open, readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { PipelineError } from "../errors.js";
 import { projectPaths } from "../store/store.js";
-
-export const PROJECT_RENDER_LOCK_STALE_MS = 6 * 60 * 60 * 1000;
 
 type LockPurpose = "draft" | "full" | "stills" | "thumbnail";
 
@@ -66,7 +64,7 @@ async function acquireFileLock(projectId: string, purpose: LockPurpose): Promise
   }
 
   const existing = await readExistingLock(path);
-  if ((existing && isBreakable(existing)) || (!existing && await isUnreadableLockStale(path))) {
+  if ((existing && isBreakable(existing)) || !existing) {
     await rm(path, { force: true });
     return acquireFileLock(projectId, purpose);
   }
@@ -96,17 +94,7 @@ async function readExistingLock(path: string): Promise<LockFile | null> {
 }
 
 function isBreakable(lock: LockFile): boolean {
-  const started = Date.parse(lock.startedAt);
-  const stale = Number.isFinite(started) && Date.now() - started > PROJECT_RENDER_LOCK_STALE_MS;
-  return stale || !isProcessAlive(lock.pid);
-}
-
-async function isUnreadableLockStale(path: string): Promise<boolean> {
-  try {
-    return Date.now() - (await stat(path)).mtimeMs > PROJECT_RENDER_LOCK_STALE_MS;
-  } catch {
-    return false;
-  }
+  return !isProcessAlive(lock.pid);
 }
 
 function isProcessAlive(pid: number): boolean {

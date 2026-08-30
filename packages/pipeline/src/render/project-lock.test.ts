@@ -1,10 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { existsSync } from "node:fs";
-import { mkdtemp, rm, utimes, writeFile } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ensureProject, projectPaths } from "../store/store.js";
-import { PROJECT_RENDER_LOCK_STALE_MS, withProjectRenderLock } from "./project-lock.js";
+import { withProjectRenderLock } from "./project-lock.js";
 
 let home: string;
 const prevHome = process.env.VIDEO_TOOL_HOME;
@@ -64,25 +64,22 @@ describe("project render lock", () => {
     expect(existsSync(lockPath)).toBe(true);
   });
 
-  it("breaks an over-age lock file even when the pid still exists", async () => {
+  it("never breaks a lock held by a live process even when it is old", async () => {
     const projectId = "lock-00000003";
     await ensureProject(projectId);
     const lockPath = join(projectPaths(projectId).root, ".render.lock");
-    const old = new Date(Date.now() - PROJECT_RENDER_LOCK_STALE_MS - 1000).toISOString();
+    const old = new Date(0).toISOString();
     await writeFile(lockPath, JSON.stringify({ pid: process.pid, startedAt: old, purpose: "stills" }), "utf8");
 
-    await expect(withProjectRenderLock(projectId, "thumbnail", async () => "ok")).resolves.toBe("ok");
-    expect(existsSync(lockPath)).toBe(false);
+    await expect(withProjectRenderLock(projectId, "thumbnail", async () => "ok")).rejects.toMatchObject({ stage: "render-lock" });
+    expect(existsSync(lockPath)).toBe(true);
   });
 
-  it("recovers an old malformed lock left by a crash during metadata write", async () => {
+  it("recovers a malformed lock left by a crash during metadata write", async () => {
     const projectId = "lock-00000006";
     await ensureProject(projectId);
     const lockPath = join(projectPaths(projectId).root, ".render.lock");
     await writeFile(lockPath, "{", "utf8");
-    const old = new Date(Date.now() - PROJECT_RENDER_LOCK_STALE_MS - 1000);
-    await utimes(lockPath, old, old);
-
     await expect(withProjectRenderLock(projectId, "stills", async () => "ok")).resolves.toBe("ok");
     expect(existsSync(lockPath)).toBe(false);
   });

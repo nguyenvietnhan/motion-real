@@ -1,9 +1,9 @@
-import { copyFile, rm, readFile } from "node:fs/promises";
-import { existsSync } from "node:fs";
+import { rm, readFile } from "node:fs/promises";
+import { createReadStream, existsSync } from "node:fs";
 import { cpus } from "node:os";
 import { join, resolve } from "node:path";
 import { performance } from "node:perf_hooks";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import {
   DEFAULT_TTS_SPEED,
 
@@ -56,7 +56,13 @@ import { synthesizeNarration, type SynthesizeOptions } from "./audio/tts.js";
 import { lockSpec } from "./audio/lock.js";
 import { checkDeterminism, type DeterminismOptions } from "./render/determinism.js";
 import { checkSceneRuntimeErrors, type SceneRuntimeProbeOptions } from "./render/runtime-probe.js";
-import { renderCacheKey, getCachedRender, putCachedRender } from "./render/cache.js";
+import {
+  copyValidatedMp4,
+  getCachedRender,
+  promoteValidatedMp4,
+  putCachedRender,
+  renderCacheKey,
+} from "./render/cache.js";
 import { withProjectRenderLock } from "./render/project-lock.js";
 import {
   renderVideo,
@@ -624,13 +630,23 @@ async function renderProjectUnlocked(projectId: string, opts: RenderProjectOptio
     if (opts.bgmPath !== undefined) {
       bgmCacheDiscriminator = "bgm:none";
       if (selectedBgmPath && existsSync(selectedBgmPath)) {
-        const bytes = await readFile(selectedBgmPath);
-        bgmCacheDiscriminator = `bgm:${createHash("sha256").update(bytes).digest("hex")}`;
+        bgmCacheDiscriminator = `bgm:${await fileContentHash(selectedBgmPath)}`;
       }
     }
+    // The lock references clip paths, not their bytes. Hash the final narration
+    // inputs too, so a changed or corrupt TTS cache entry cannot reuse an MP4
+    // rendered with different audio.
+    const ttsPaths = tts
+      ? [
+          ...Object.values(tts.byScene).map((scene) => scene.audioPath),
+          ...(tts.mixedSrc ? [resolve(paths.root, tts.mixedSrc)] : []),
+        ]
+      : [];
+    const audioCacheDiscriminator = ttsPaths.length > 0 ? `tts:${await filesContentHash(ttsPaths)}` : "tts:none";
+    const runtimeDiscriminator = [bgmCacheDiscriminator, audioCacheDiscriminator].filter(Boolean).join("\u0000");
     const hash = await timedPipelineStage(
       "stage.render_cache_key",
-      () => renderCacheKey(locked, authoredSources, bgmCacheDiscriminator),
+      () => renderCacheKey(locked, authoredSources, runtimeDiscriminator),
       {
         files: authoredSources.length,
         bgm: bgmCacheDiscriminator === "" ? "legacy" : bgmCacheDiscriminator === "bgm:none" ? "none" : "selected",
@@ -638,14 +654,23 @@ async function renderProjectUnlocked(projectId: string, opts: RenderProjectOptio
     );
     const mp4Path = join(paths.rendersDir, isDraft ? `${projectId}.draft.mp4` : `${projectId}.mp4`);
     // Drafts never read/write the full-quality cache (different pixels).
-    const cachedPath = opts.noCache || isDraft ? null : getCachedRender(hash);
+    let cachedPath = opts.noCache || isDraft ? null : getCachedRender(hash);
     let cached = false;
 
     if (cachedPath) {
-      await timedPipelineStage("stage.render.cache_copy", () => copyFile(cachedPath, mp4Path), { hash });
-      cached = true;
-      await appendEvent(projectId, { type: "render.cached", hash });
-    } else {
+      try {
+        await timedPipelineStage("stage.render.cache_copy", () => copyValidatedMp4(cachedPath!, mp4Path), { hash });
+        cached = true;
+        await appendEvent(projectId, { type: "render.cached", hash });
+      } catch {
+        // A cache entry can be truncated after the first lightweight check. Do
+        // not let it overwrite a project video: evict it and render once.
+        await rm(cachedPath, { force: true });
+        cachedPath = null;
+        await appendEvent(projectId, { type: "render.cache_invalid", hash });
+      }
+    }
+    if (!cached) {
       throwIfCancelled(); // last cheap exit before the expensive encode
       await setState(projectId, { state: "rendering", currentStep: isDraft ? "rendering draft MP4" : "rendering MP4" });
       const render = deps.render ?? renderVideo;
@@ -653,29 +678,36 @@ async function renderProjectUnlocked(projectId: string, opts: RenderProjectOptio
       // renderer/Remotion default unless the caller explicitly overrides it.
       // Long real projects showed a fixed cap of 4 can be slower for full encode.
       const concurrency = opts.concurrency ?? (isDraft ? defaultDraftRenderConcurrency() : undefined);
-      const result = await timedPipelineStage(
-        "stage.render",
-        () =>
-          render({
-            spec: locked,
-            outPath: mp4Path,
-            concurrency,
-            onProgress: opts.onProgress,
-            quality: opts.quality,
-            ...renderEntry,
-            timingScope: "video",
-            ...(opts.signal ? { signal: opts.signal } : {}),
-          }),
-        {
-          draft: isDraft,
-          quality: opts.quality ?? "full",
-          concurrency: concurrency ?? "default",
-          gl: chromiumRuntime.chromiumOptions?.gl ?? "default",
-          chromeMode: chromiumRuntime.chromeMode ?? "default",
-        },
-      );
-      if (!isDraft) await timedPipelineStage("stage.render.cache_put", () => putCachedRender(hash, result.outPath), { hash });
-      await appendEvent(projectId, { type: "render.done", hash, outPath: result.outPath, draft: isDraft });
+      const partialPath = `${mp4Path}.partial-${randomUUID()}`;
+      try {
+        await timedPipelineStage(
+          "stage.render",
+          () =>
+            render({
+              spec: locked,
+              outPath: partialPath,
+              concurrency,
+              onProgress: opts.onProgress,
+              quality: opts.quality,
+              ...renderEntry,
+              timingScope: "video",
+              ...(opts.signal ? { signal: opts.signal } : {}),
+            }),
+          {
+            draft: isDraft,
+            quality: opts.quality ?? "full",
+            concurrency: concurrency ?? "default",
+            gl: chromiumRuntime.chromiumOptions?.gl ?? "default",
+            chromeMode: chromiumRuntime.chromeMode ?? "default",
+          },
+        );
+        throwIfCancelled();
+        await timedPipelineStage("stage.render.promote", () => promoteValidatedMp4(partialPath, mp4Path), { draft: isDraft });
+        if (!isDraft) await timedPipelineStage("stage.render.cache_put", () => putCachedRender(hash, mp4Path), { hash });
+        await appendEvent(projectId, { type: "render.done", hash, outPath: mp4Path, draft: isDraft });
+      } finally {
+        await rm(partialPath, { force: true });
+      }
     }
 
     // --- (6) Review loop (N24/N25). ---
@@ -1053,6 +1085,21 @@ async function readAuthoredSources(files: string[]): Promise<string[]> {
       }
     }),
   );
+}
+
+async function filesContentHash(paths: readonly string[]): Promise<string> {
+  const hash = createHash("sha256");
+  for (const path of [...new Set(paths)].sort()) {
+    hash.update("\u0000file\u0000", "utf8");
+    hash.update(await fileContentHash(path), "utf8");
+  }
+  return hash.digest("hex");
+}
+
+async function fileContentHash(path: string): Promise<string> {
+  const hash = createHash("sha256");
+  for await (const chunk of createReadStream(path)) hash.update(chunk);
+  return hash.digest("hex");
 }
 
 /**

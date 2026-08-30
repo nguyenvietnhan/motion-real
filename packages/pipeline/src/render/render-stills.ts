@@ -30,8 +30,9 @@ import type { SafetyIssue } from "../types.js";
  * `renderProject` is a sensitive orchestration seam, so this lives in its own
  * module rather than as a branch inside the orchestrator; it reuses the same
  * building blocks (`admitProjectScenes`, `generateAuthoredEntry`, `lockSpec`,
- * `renderSceneStills`) as production stills. Note: the no-TTS hold lock is not
- * the TTS-locked draft/full timeline, and PNG midpoints are not claimed
+ * `renderSceneStills`) as production stills. The no-TTS hold lock is written
+ * to `video-spec.stills.lock.json`, never the canonical TTS-locked timeline,
+ * and PNG midpoints are not claimed
  * pixel-identical to H.264 MP4 frames.
  *
  * `sceneIds` scopes the render to a subset (the scenes a refine pass just
@@ -183,7 +184,7 @@ export async function renderProjectStillsUnlocked(
       "lock",
       async () => {
         const lockedSpec = lockSpec(spec, null, { fps: STILLS_FPS });
-        await writeJson(paths.lock, lockedSpec);
+        await writeJson(paths.stillsLock, lockedSpec);
         return lockedSpec;
       },
       { fps: STILLS_FPS, scenes: spec.scenes.length },
@@ -194,7 +195,7 @@ export async function renderProjectStillsUnlocked(
     generatedEntry = join(paths.authoredDir, "_entry.stills.tsx");
     await timedStillsStage(
       "authored_entry",
-      () => generateAuthoredEntry({ entryPath: generatedEntry!, authoredFiles, lockJsonPath: paths.lock }),
+      () => generateAuthoredEntry({ entryPath: generatedEntry!, authoredFiles, lockJsonPath: paths.stillsLock }),
       { files: authoredFiles.length },
     );
 

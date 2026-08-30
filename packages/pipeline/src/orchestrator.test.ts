@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { existsSync } from "node:fs";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { cpus, tmpdir } from "node:os";
 import { join } from "node:path";
 import { tierSeconds, type DurationTier, type VideoFormat, type LockedVideoSpec, type VideoSpec } from "@motionreal/schema";
@@ -33,7 +33,6 @@ vi.mock("@remotion/renderer", () => ({
 
 import { scaffoldVideoProject, renderProject, type RenderProjectDeps } from "./orchestrator.js";
 import { projectPaths, renderCacheDir, writeJson } from "./store/store.js";
-import { specHash } from "./render/cache.js";
 import { encodePngRGBA } from "./safety/png.js";
 import type { ComposeContactSheet } from "./review.js";
 import { makeReport, type ReviewChecklist, type TtsManifest } from "./types.js";
@@ -71,7 +70,7 @@ beforeEach(async () => {
   }));
   mocks.renderMedia.mockImplementation(async ({ outputLocation, onProgress }) => {
     onProgress?.({ progress: 1 });
-    await writeFile(outputLocation, Buffer.from("fake-mp4-bytes"));
+    await writeFile(outputLocation, Buffer.concat([Buffer.from([0, 0, 0, 20]), Buffer.from("ftypisomfake-mp4-bytes")]));
     return { buffer: null, slowestFrames: [], contentType: "video/mp4" };
   });
   mocks.renderStill.mockImplementation(async ({ output }) => {
@@ -355,7 +354,7 @@ describe("renderProject — render pipeline (skipAuthoring)", () => {
     expect(existsSync(result.mp4Path)).toBe(true);
     const locked = JSON.parse(await readFile(paths.lock, "utf8")) as LockedVideoSpec;
     expect(locked.captions.length).toBeGreaterThan(0); // captions baked from narration
-    expect(existsSync(join(renderCacheDir(), `${specHash(locked)}.mp4`))).toBe(true);
+    expect((await readdir(renderCacheDir())).filter((entry) => entry.endsWith(".mp4"))).toHaveLength(1);
     expect(compose).toHaveBeenCalledTimes(1);
     expect(result.report.ok).toBe(true);
     expect(await readBriefState(projectId)).toBe("done");

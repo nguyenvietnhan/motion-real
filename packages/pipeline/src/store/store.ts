@@ -89,6 +89,8 @@ export function projectPaths(projectId: string) {
     brief: join(root, "brief.json"),
     spec: join(root, "video-spec.json"),
     manifest: join(root, "manifest.json"),
+    /** Ephemeral no-TTS timeline used only to calculate still frames. */
+    stillsLock: join(root, "video-spec.stills.lock.json"),
     lock: join(root, "video-spec.lock.json"),
     safetyReport: join(root, "safety-report.json"),
     ttsManifest: join(root, "tts-manifest.json"),
