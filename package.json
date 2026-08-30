@@ -26,7 +26,9 @@
     "studio": "npm --workspace @motionreal/remotion run studio",
     "render": "npm --workspace @motionreal/remotion run render",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "build": "tsx scripts/build.ts",
+    "build:remotion": "tsx scripts/build.ts",
+    "build:desktop": "npm --workspace @motionreal/desktop run build:main && npm --workspace @motionreal/desktop run build:renderer",
+    "build": "npm run build:remotion && npm run build:desktop",
     "test": "tsx scripts/test.ts",
     "smoke": "tsx scripts/smoke.ts",
     "smoke:vieneu": "tsx scripts/smoke-vieneu.ts",
@@ -34,6 +36,8 @@
     "vendor-fonts": "tsx scripts/vendor-fonts.ts"
   },
   "devDependencies": {
+    "@motionreal/schema": "0.1.0",
+    "@remotion/bundler": "4.0.481",
     "@remotion/google-fonts": "4.0.481",
     "@types/node": "^24.10.1",
     "@types/react": "^19.2.7",

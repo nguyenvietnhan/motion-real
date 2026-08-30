@@ -10,6 +10,7 @@
     "dev": "vite",
     "build:renderer": "vite build",
     "build:main": "node build-electron.mjs",
+    "build": "npm run build:main && npm run build:renderer",
     "stamp-icon": "node scripts/prepare-branded-electron.mjs",
     "app": "node scripts/launch.mjs",
     "smoke:gateway": "tsx scripts/gateway-smoke.ts"
@@ -18,12 +19,14 @@
     "@motionreal/pipeline": "0.1.0",
     "@motionreal/tts": "0.1.0",
     "react": "^19.2.0",
-    "react-dom": "^19.2.0"
+    "react-dom": "^19.2.0",
+    "zod": "^4.1.13"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^6.0.2",
-    "electron": "^42.4.1",
-    "png-to-ico": "^3.0.2",
+    "@motionreal/schema": "0.1.0",
+    "electron": "42.10.1",
+    "esbuild": "0.28.1",
     "rcedit": "^5.0.2",
     "vite": "^8.0.16"
   }

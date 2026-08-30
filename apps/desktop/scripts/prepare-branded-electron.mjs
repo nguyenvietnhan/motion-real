@@ -7,24 +7,11 @@ import { copyFileSync, existsSync, statSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
-import { execSync } from "node:child_process";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const appDir = resolve(here, "..");
 const ico = resolve(appDir, "assets/brand/taskbar-logo.ico");
 const png = resolve(appDir, "assets/brand/taskbar-logo.png");
-
-function killBrandedHosts() {
-  if (process.platform !== "win32") return;
-  for (const name of ["MotionReal.exe", "electron.exe"]) {
-    try {
-      execSync(`taskkill /IM ${name} /F`, { stdio: "ignore" });
-    } catch {
-      /* not running */
-    }
-  }
-  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 1000);
-}
 
 async function main() {
   if (process.platform !== "win32") process.exit(0);
@@ -43,8 +30,6 @@ async function main() {
     console.error("[prepare-branded-electron] brand icon missing under assets/brand/");
     process.exit(1);
   }
-
-  killBrandedHosts();
 
   let needCopy = !existsSync(outExe);
   if (!needCopy) {
@@ -71,18 +56,6 @@ async function main() {
   };
   await rcedit(outExe, brandMeta);
 
-  try {
-    await rcedit(electronExe, {
-      ...brandMeta,
-      "version-string": {
-        ...brandMeta["version-string"],
-        InternalName: "electron",
-        OriginalFilename: "electron.exe",
-      },
-    });
-  } catch {
-    /* stock electron may be locked; MotionReal.exe is the launch host */
-  }
 }
 
 main().catch((e) => {

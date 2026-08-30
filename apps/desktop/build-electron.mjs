@@ -30,9 +30,8 @@ const alias = {
 const common = {
   bundle: true,
   platform: "node",
-  // Electron 33 ships Node 20; node22 is the closest supported esbuild target
-  // that lets esbuild keep modern syntax instead of down-leveling unnecessarily.
-  target: "node22",
+  // Electron 42 ships Node 24; preserve the supported runtime syntax.
+  target: "node24",
   packages: "external", // keep node_modules deps external
   alias,
   // Prod: minify + NO sourcemap (smaller bundle, no readable source in app.asar).

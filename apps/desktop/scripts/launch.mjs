@@ -1,10 +1,10 @@
-import { execSync, spawn } from "node:child_process";
-import { createServer } from "node:net";
+import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 // dirname used for MotionReal.exe next to stock electron.exe
 import electronPath from "electron";
+import { findFreePort } from "./launch-utils.mjs";
 
 /**
  * Dev launcher:
@@ -31,53 +31,10 @@ const run = (cmd, args, opts = {}) =>
     p.on("error", rej);
   });
 
-function portFree(port) {
-  return new Promise((resolvePort) => {
-    const s = createServer();
-    s.once("error", () => resolvePort(false));
-    s.listen(port, "127.0.0.1", () => {
-      s.close(() => resolvePort(true));
-    });
-  });
-}
-
-function freePortWindows(port) {
-  try {
-    const out = execSync(`netstat -ano`, { encoding: "utf8" });
-    const pids = new Set();
-    for (const line of out.split(/\r?\n/)) {
-      if (!line.includes(`:${port}`) || !line.includes("LISTENING")) continue;
-      const parts = line.trim().split(/\s+/);
-      const pid = parts[parts.length - 1];
-      if (pid && /^\d+$/.test(pid) && pid !== "0") pids.add(pid);
-    }
-    for (const pid of pids) {
-      try {
-        execSync(`taskkill /PID ${pid} /F`, { stdio: "ignore" });
-        console.log(`[launch] freed port ${port} (killed pid ${pid})`);
-      } catch {
-        /* ignore */
-      }
-    }
-  } catch {
-    /* ignore */
-  }
-}
-
 async function resolveDevPort() {
-  if (await portFree(PREFERRED_PORT)) return PREFERRED_PORT;
-  if (process.platform === "win32") {
-    freePortWindows(PREFERRED_PORT);
-    await new Promise((r) => setTimeout(r, 400));
-    if (await portFree(PREFERRED_PORT)) return PREFERRED_PORT;
-  }
-  for (let p = PREFERRED_PORT + 1; p < PREFERRED_PORT + 20; p += 1) {
-    if (await portFree(p)) {
-      console.warn(`[launch] port ${PREFERRED_PORT} busy — using ${p}`);
-      return p;
-    }
-  }
-  throw new Error(`No free port near ${PREFERRED_PORT}`);
+  const port = await findFreePort(PREFERRED_PORT);
+  if (port !== PREFERRED_PORT) console.warn(`[launch] port ${PREFERRED_PORT} busy — using ${port}`);
+  return port;
 }
 
 async function waitFor(url, timeoutMs = 20_000) {
@@ -184,16 +141,23 @@ async function main() {
     },
   });
 
+  let interrupted = false;
   const shutdown = () => {
+    interrupted = true;
     vite.kill();
     electron.kill();
   };
-  electron.on("exit", () => {
+  electron.on("exit", (code, signal) => {
     vite.kill();
-    process.exit(0);
+    process.exitCode = interrupted ? 0 : code ?? (signal ? 1 : 0);
   });
-  process.on("SIGINT", shutdown);
-  process.on("SIGTERM", shutdown);
+  electron.on("error", (error) => {
+    console.error("[launch] app failed to start:", error);
+    vite.kill();
+    process.exitCode = 1;
+  });
+  process.once("SIGINT", shutdown);
+  process.once("SIGTERM", shutdown);
 }
 
 main().catch((e) => {
