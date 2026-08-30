@@ -857,11 +857,7 @@ const handlers: InvokeHandlers = {
     const opened = await activateHarnessDraft(String(draftId));
     return harness.requestBriefChanges(opened.id, Number(expectedRevision), String(feedback ?? ""));
   },
-  "agent:pauseWorkflow": async (draftId, expectedRevision) => {
-    const paused = await harness.pauseWorkflow(String(draftId), Number(expectedRevision));
-    if (paused.projectId) workspace.cancel(paused.projectId);
-    return paused;
-  },
+  "agent:pauseWorkflow": (draftId, expectedRevision) => harness.pauseWorkflow(String(draftId), Number(expectedRevision)),
   "agent:resumeWorkflow": async (draftId, expectedRevision) => {
     const opened = await activateHarnessDraft(String(draftId));
     return harness.resumeWorkflow(opened.id, Number(expectedRevision));
@@ -1295,9 +1291,22 @@ app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();
 });
 
-app.on("before-quit", () => {
-  void harness.dispose();
+let shutdownInProgress = false;
+
+app.on("before-quit", (event) => {
+  if (shutdownInProgress) return;
+  shutdownInProgress = true;
+  event.preventDefault();
+  void drainHarnessAndQuit();
 });
+
+async function drainHarnessAndQuit(): Promise<void> {
+  await Promise.race([
+    harness.dispose(),
+    new Promise<void>((resolve) => setTimeout(resolve, 5_000)),
+  ]);
+  app.quit();
+}
 
 app.on("activate", () => {
   if (BrowserWindow.getAllWindows().length === 0) void createWindow();

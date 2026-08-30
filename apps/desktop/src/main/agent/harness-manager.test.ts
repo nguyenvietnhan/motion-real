@@ -355,6 +355,41 @@ describe("HarnessManager draft lifecycle", () => {
     });
   });
 
+  it("persists pause and returns when a native cancel RPC hangs", async () => {
+    const localCancel = vi.fn();
+    let blockCancel = false;
+    const { manager, root } = await activeManagerForTest({
+      cancelAuthoringStills: localCancel,
+      cancelRpcTimeoutMs: 15,
+      fetch: vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+        const body = JSON.parse(String(init?.body)) as { method: string; payload: unknown };
+        if (blockCancel && body.method === "session.cancel") return new Promise<Response>(() => {});
+        const value = body.method === "workspace.create"
+          ? { workspace: { workspaceId: "workspace-assets" } }
+          : body.method === "credentials.describe"
+            ? { credentials: { DEEPSEEK_API_KEY: { configured: false, writable: true } } }
+            : {};
+        return Response.json({ type: "server-response", result: { ok: true, value } });
+      }) as unknown as typeof globalThis.fetch,
+    });
+    const draft = await manager.createDraft("Dừng RPC treo");
+    await manager.activate(draft.id, "internal-key");
+    await manager.prepareAssets(draft.id, draft.workflowRevision);
+    const metadataPath = join(root, draft.id, "motionreal-agent.json");
+    await writeFile(metadataPath, JSON.stringify({
+      ...JSON.parse(await readFile(metadataPath, "utf8")),
+      projectId: "project-live",
+    }));
+    const live = await manager.status(draft.id);
+    blockCancel = true;
+
+    const paused = await manager.pauseWorkflow(draft.id, live.workflowRevision);
+
+    expect(paused.productionState).toBe("paused");
+    expect(localCancel).toHaveBeenCalledWith("project-live");
+    await expect(manager.status(draft.id)).resolves.toMatchObject({ productionState: "paused" });
+  });
+
   it("does not issue a late authoring repair after the workflow was paused", async () => {
     const { manager, calls } = await activeManagerForTest();
     const draft = await manager.createDraft("Chặn repair muộn");

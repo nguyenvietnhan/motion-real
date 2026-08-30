@@ -52,6 +52,8 @@ const AI_CONTRACT_FILE = "AI_CONTRACT.md";
 // checked-in Harness build needs roughly 30s on this Windows machine, so 20s
 // was a false failure even though the child was about to become healthy.
 const START_TIMEOUT_MS = 60_000;
+const RPC_TIMEOUT_MS = 15_000;
+const CANCEL_RPC_TIMEOUT_MS = 2_000;
 const PROCESS_OUTPUT_LIMIT = 4_096;
 const AUTHORING_POLL_MS = 500;
 const SESSION_POLICY_REVISION = 1;
@@ -124,6 +126,10 @@ export type HarnessManagerDeps = {
   authoringRefinePolicy?: (projectId: string) =>
     | { refinePasses: number; refineEarlyStop: boolean }
     | Promise<{ refinePasses: number; refineEarlyStop: boolean }>;
+  /** Test seam; production uses the fixed control-plane deadline. */
+  rpcTimeoutMs?: number;
+  /** Test seam; a cancel must never hold the UI beyond this short deadline. */
+  cancelRpcTimeoutMs?: number;
 };
 
 /**
@@ -145,6 +151,8 @@ export class HarnessManager {
   private readonly findPort: () => Promise<number>;
   private readonly now: () => Date;
   private readonly nodeExecutable: string;
+  private readonly rpcTimeoutMs: number;
+  private readonly cancelRpcTimeoutMs: number;
   private readonly authoringInFlight = new Set<string>();
   private readonly authoringWrites = new Set<Promise<void>>();
   private readonly authoringPolls = new Map<string, ReturnType<typeof setTimeout>>();
@@ -154,6 +162,8 @@ export class HarnessManager {
     this.fetchImpl = deps.fetch ?? fetch;
     this.findPort = deps.findPort ?? findLoopbackPort;
     this.now = deps.now ?? (() => new Date());
+    this.rpcTimeoutMs = positiveTimeout(deps.rpcTimeoutMs, RPC_TIMEOUT_MS);
+    this.cancelRpcTimeoutMs = positiveTimeout(deps.cancelRpcTimeoutMs, CANCEL_RPC_TIMEOUT_MS);
     // DeepSeek Harness is a Node CLI. process.execPath inside Electron points to
     // MotionReal.exe, whose embedded Node does not resolve this source checkout's
     // linked workspace packages correctly on Windows.
@@ -571,18 +581,18 @@ export class HarnessManager {
     return this.toVm(next);
   }
 
-  /** Stop the native turn before it can commit a late repair, then persist the stop. */
+  /** Persist pause first, abort local work, then give native cancellation a short bounded chance. */
   async pauseWorkflow(id: string, expectedRevision: number): Promise<AgentDraftVM> {
     const current = await this.mustReadRecord(id);
     const next = { ...current, ...pauseAgentWorkflow(current, { expectedRevision, jobId: current.activeJobId }) };
     this.stopAuthoringPoll(id);
     await this.writeRecord(next);
+    if (current.projectId) this.deps.cancelAuthoringStills?.(current.projectId);
     if (this.active && current.sessionId) {
-      await this.rpc(this.active.url, "session.cancel", { sessionId: current.sessionId }).catch((error) => {
+      await this.rpc(this.active.url, "session.cancel", { sessionId: current.sessionId }, this.cancelRpcTimeoutMs).catch((error) => {
         log.warn({ err: error, draftId: id }, "failed to cancel native Harness session after durable pause");
       });
     }
-    if (current.projectId) this.deps.cancelAuthoringStills?.(current.projectId);
     return this.toVm(next);
   }
 
@@ -895,7 +905,7 @@ export class HarnessManager {
     if (current) await stopChild(current.child);
     if (starting && starting !== current?.child) await stopChild(starting);
     // Drain only local request/metadata commits, not a model turn or still render.
-    await Promise.allSettled([...this.authoringWrites]);
+    await settleBounded([...this.authoringWrites], 3_000);
   }
 
   private async toVm(
@@ -1799,27 +1809,31 @@ export class HarnessManager {
     await this.writeRecord(failed);
   }
 
-  private async rpc(baseUrl: string, method: string, payload: unknown): Promise<unknown> {
-    const response = await this.fetchImpl(`${baseUrl}api/${method}`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ type: "client-request", rpcId: randomUUID(), method, payload }),
-    });
-    if (!response.ok) {
-      const detail = (await response.text()).slice(0, 500);
-      log.error({ method, status: response.status, detail }, "DeepSeek Harness RPC transport failure");
-      throw new Error(`Harness không chấp nhận ${method} (HTTP ${response.status}).`);
-    }
-    const body = (await response.json()) as HarnessRpcResponse;
-    if (!body.result?.ok) {
-      const rpcError = body.result?.error as { code?: unknown; message?: unknown } | undefined;
-      const detail = typeof rpcError?.message === "string" ? rpcError.message : "lỗi không xác định";
-      const code = typeof rpcError?.code === "string"
-        ? rpcError.code
-        : "unknown";
-      throw new HarnessRpcError(method, code, detail);
-    }
-    return body.result.value;
+  private async rpc(baseUrl: string, method: string, payload: unknown, timeoutMs = this.rpcTimeoutMs): Promise<unknown> {
+    const controller = new AbortController();
+    return raceWithTimeout((async () => {
+      const response = await this.fetchImpl(`${baseUrl}api/${method}`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ type: "client-request", rpcId: randomUUID(), method, payload }),
+        signal: controller.signal,
+      });
+      if (!response.ok) {
+        const detail = (await response.text()).slice(0, 500);
+        log.error({ method, status: response.status, detail }, "DeepSeek Harness RPC transport failure");
+        throw new Error(`Harness không chấp nhận ${method} (HTTP ${response.status}).`);
+      }
+      const body = (await response.json()) as HarnessRpcResponse;
+      if (!body.result?.ok) {
+        const rpcError = body.result?.error as { code?: unknown; message?: unknown } | undefined;
+        const detail = typeof rpcError?.message === "string" ? rpcError.message : "lỗi không xác định";
+        const code = typeof rpcError?.code === "string"
+          ? rpcError.code
+          : "unknown";
+        throw new HarnessRpcError(method, code, detail);
+      }
+      return body.result.value;
+    })(), timeoutMs, () => controller.abort(), `Harness ${method} phản hồi quá lâu.`);
   }
 
   private async workspaceSessionIds(workspaceId: string): Promise<string[]> {
@@ -2115,6 +2129,7 @@ async function waitForHarness(url: string, fetchImpl: typeof fetch, childFailure
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ type: "client-request", rpcId: randomUUID(), method: "host.describe", payload: {} }),
+        signal: AbortSignal.timeout(1_000),
       });
       if (response.ok) {
         const body = (await response.json()) as HarnessRpcResponse;
@@ -2152,4 +2167,31 @@ async function stopChild(child: ChildProcess): Promise<void> {
     child.once("exit", finish);
     if (!child.kill()) finish();
   });
+}
+
+function positiveTimeout(value: number | undefined, fallback: number): number {
+  return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : fallback;
+}
+
+async function raceWithTimeout<T>(work: Promise<T>, timeoutMs: number, onTimeout: () => void, message: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      work,
+      new Promise<T>((_resolve, reject) => {
+        timer = setTimeout(() => {
+          onTimeout();
+          reject(new Error(message));
+        }, timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+async function settleBounded(work: readonly Promise<unknown>[], timeoutMs: number): Promise<void> {
+  if (work.length === 0) return;
+  await raceWithTimeout(Promise.allSettled(work).then(() => undefined), timeoutMs, () => {}, "Harness local cleanup timed out.")
+    .catch((error) => log.warn({ err: error }, "bounded Harness cleanup did not finish before shutdown"));
 }
