@@ -80,6 +80,13 @@ class AuthoringStillRenderError extends Error {
   }
 }
 
+/** Unknown runtime/bridge failures must never spend an AI repair attempt. */
+function isRepairableAuthoringError(error: unknown): boolean {
+  if (error instanceof AuthoringStillRenderError) return error.repairable;
+  const message = error instanceof Error ? error.message : String(error);
+  return /authoring submission|scene id|manifest|pacing|transitionToNext|visual refine|reviewed_scene_ids|review_notes|fingerprint|admission|schema|authored[\\/]|\.tsx/i.test(message);
+}
+
 export type AgentCreateRequest = {
   draftId: string;
   title: string;
@@ -1349,15 +1356,21 @@ export class HarnessManager {
         return;
       }
       if (!await this.isCurrentAuthoringRecord(record)) return;
-      if (error instanceof AuthoringStillRenderError && !error.repairable) {
-        log.warn({ err: error, draftId: record.id, projectId: record.projectId }, "Harness still render failed; preserving authoring submission for retry");
-        await this.recordWorkflowError(record, error, "rerender_stills");
+      if (!isRepairableAuthoringError(error)) {
+        log.warn({ err: error, draftId: record.id, projectId: record.projectId }, "Harness authoring infrastructure failure; preserving submission for retry");
+        await this.recordWorkflowError(record, error, error instanceof AuthoringStillRenderError ? "rerender_stills" : undefined);
         return;
       }
-      log.warn({ err: error, draftId: record.id, projectId: record.projectId }, "Harness authoring validation/render failed; requesting repair");
-      await this.requestAuthoringRepair(record, error instanceof Error ? error.message : "Không kiểm tra được scene Harness.").catch((repairError) => {
+      log.warn({ err: error, draftId: record.id, projectId: record.projectId }, "Harness authored content failed validation; requesting repair");
+      try {
+        await this.requestAuthoringRepair(record, error instanceof Error ? error.message : "Không kiểm tra được scene Harness.");
+      } catch (repairError) {
         log.error({ err: repairError, draftId: record.id, projectId: record.projectId }, "failed to request Harness authoring repair");
-      });
+        const latest = await this.readRecord(record.id);
+        if (latest && isAutomatedAuthoringState(latest.productionState)) {
+          await this.recordWorkflowError(latest, repairError);
+        }
+      }
     }).finally(() => this.authoringInFlight.delete(record.id));
   }
 
@@ -1668,15 +1681,23 @@ export class HarnessManager {
     const reviewAfterSeq = phase === "visual_refine"
       ? (await readHarnessReviewHistory(() => this.reviewHistoryPage(record))).lastSeq : undefined;
     this.requireActiveSession(record);
+    const nextRequest = { ...current, ...patch, request_revision: next.authoringRequestRevision, review_after_seq: reviewAfterSeq };
     const commit = (async () => {
+      // The old submission remains authoritative until Harness accepts the new
+      // prompt. A transient RPC/provider failure must not erase the only
+      // recoverable authoring result or advance its revision prematurely.
+      await writeJson(path, nextRequest);
+      try {
+        await this.promptSession(next, prompt);
+      } catch (error) {
+        await writeJson(path, current);
+        throw error;
+      }
       await rm(join(this.rootOf(record.id), "handoff", "authoring.json"), { force: true });
-      await writeJson(path, { ...current, ...patch, request_revision: next.authoringRequestRevision, review_after_seq: reviewAfterSeq });
       await this.writeRecord(next);
     })();
     this.authoringWrites.add(commit);
     try { await commit; } finally { this.authoringWrites.delete(commit); }
-    if (!await this.isCurrentAuthoringRecord(next)) return;
-    await this.promptSession(next, prompt);
   }
 
   private async currentAuthoringRecord(record: DraftRecord): Promise<DraftRecord | null> {

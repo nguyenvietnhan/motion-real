@@ -1065,7 +1065,7 @@ describe("HarnessManager draft lifecycle", () => {
   it("keeps a valid authoring submission and retries only still rendering when the runtime bridge fails", async () => {
     let stillResult: { ok: true; stills: string[] } | { ok: false; error: string; repairable: boolean } = {
       ok: false,
-      error: "Renderer bridge unavailable.",
+      error: "Cannot read properties of undefined (reading 'backend').",
       repairable: false,
     };
     const renderAuthoringStills = vi.fn(async () => stillResult);
@@ -1120,7 +1120,7 @@ describe("HarnessManager draft lifecycle", () => {
         productionState: "error",
         failedPhase: "authoring",
         retryAction: "rerender_stills",
-        lastError: "Renderer bridge unavailable.",
+        lastError: "Cannot read properties of undefined (reading 'backend').",
       });
     }, { timeout: 3_000 });
     await expect(readFile(join(draftRoot, "handoff", "authoring.json"), "utf8")).resolves.toContain("scene-01");
