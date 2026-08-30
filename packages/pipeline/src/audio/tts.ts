@@ -53,6 +53,8 @@ export type SynthesizeOptions = {
   bgmPath?: string;
   /** BGM gain relative to the voice (0–1); defaults to DEFAULT_BGM_VOLUME (~28%). */
   bgmVolume?: number;
+  /** Stops provider I/O, ffmpeg/ffprobe, and the remaining scene loop. */
+  signal?: AbortSignal;
 };
 
 export type VivibeCredentials = { apiKey: string; voiceId: string | undefined };
@@ -149,6 +151,7 @@ export async function synthesizeNarration(
   }
 
   const speed = opts.speed ?? DEFAULT_TTS_SPEED;
+  throwIfAborted(opts.signal);
   const p = projectPaths(opts.projectId);
   await mkdir(p.audioDir, { recursive: true });
   const cacheRoot = ttsCacheDir();
@@ -193,6 +196,7 @@ export async function synthesizeNarration(
 
   try {
     for (let i = 0; i < spec.scenes.length; i += 1) {
+      throwIfAborted(opts.signal);
       const scene = spec.scenes[i]!;
       const text = prepareTtsText(scene.narration, opts.provider, spec.language);
       const key = ttsCacheKey({
@@ -220,6 +224,7 @@ export async function synthesizeNarration(
         if (cached) {
           audioPath = join(p.audioDir, `${scene.id}${extname(cached)}`);
           await copyFile(cached, audioPath);
+          throwIfAborted(opts.signal);
           source = "cached";
           srt = await loadSrt(`${cached}.srt`);
         } else {
@@ -232,8 +237,9 @@ export async function synthesizeNarration(
               outputPath: cacheBase,
               ...(modelId ? { modelId } : {}),
               ...(opts.provider === "elevenlabs" ? { languageCode: spec.language } : {}),
-            });
+            }, { signal: opts.signal });
           } catch (error) {
+            if (opts.signal?.aborted) throw error;
             throw voicePipelineError(asVoiceProviderError(opts.provider, error));
           }
           audioPath = join(p.audioDir, `${scene.id}${extname(result.audioPath)}`);
@@ -243,7 +249,7 @@ export async function synthesizeNarration(
         }
       }
 
-      const duration = await measureAudioDuration(audioPath);
+      const duration = await measureAudioDuration(audioPath, { signal: opts.signal });
       byScene[scene.id] = { text, voiceId: effectiveVoiceId, speed, audioPath, duration, source, srt };
       orderedClips.push(audioPath);
     }
@@ -254,16 +260,17 @@ export async function synthesizeNarration(
   // Concatenate into one track WITH a silent breath gap between clips, then
   // optionally mix BGM. The gap length mirrors the lock's transition overlap.
   let mixedAbs = join(p.audioDir, "narration.mixed.wav");
-  await concatAudioWithGaps(orderedClips, BREATH_GAP_SECONDS, mixedAbs);
-  if (opts.bgmPath && existsSync(opts.bgmPath)) {
-    const withBgm = join(p.audioDir, "narration.bgm.wav");
-    try {
-      // BGM sits under the voice (DEFAULT_BGM_VOLUME) and fades out at the tail.
-      await mixBgm(mixedAbs, opts.bgmPath, withBgm, opts.bgmVolume ?? DEFAULT_BGM_VOLUME);
-      mixedAbs = withBgm;
-    } catch {
-      // Fall back to the unmixed narration if BGM mixing fails.
+  await concatAudioWithGaps(orderedClips, BREATH_GAP_SECONDS, mixedAbs, { signal: opts.signal });
+  if (opts.bgmPath) {
+    if (!existsSync(opts.bgmPath)) {
+      throw new PipelineError({ stage: "tts", cause: "Selected background music is missing. Choose another track or select no music." });
     }
+    const withBgm = join(p.audioDir, "narration.bgm.wav");
+    // BGM sits under the voice (DEFAULT_BGM_VOLUME) and fades out at the tail.
+    // A selected track is an explicit user choice: never publish a silent
+    // fallback when its import or mix fails.
+    await mixBgm(mixedAbs, opts.bgmPath, withBgm, opts.bgmVolume ?? DEFAULT_BGM_VOLUME, undefined, { signal: opts.signal });
+    mixedAbs = withBgm;
   }
 
   return {
@@ -275,6 +282,13 @@ export async function synthesizeNarration(
     byScene,
     mixedSrc: toProjectRel(opts.projectId, mixedAbs),
   };
+}
+
+function throwIfAborted(signal?: AbortSignal): void {
+  if (!signal?.aborted) return;
+  const error = new Error("TTS synthesis was cancelled.");
+  error.name = "AbortError";
+  throw error;
 }
 
 function voicePipelineError(error: VoiceProviderError): PipelineError {

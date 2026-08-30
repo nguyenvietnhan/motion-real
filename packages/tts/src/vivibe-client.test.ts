@@ -73,6 +73,27 @@ describe("VivibeClient", () => {
     expect((error as Error).message).not.toContain("-6650");
   });
 
+  it("does not retry a billable ttsLongText POST", async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(new Response("busy", { status: 503 }));
+    const client = new VivibeClient({ apiKey: "secret", fetch: fetchMock, retryAttempts: 3, retryBaseDelayMs: 0 });
+
+    await expect(client.synthesize({ text: "x", voiceId: "v", speed: 1, outputPath: "unused" })).rejects.toBeInstanceOf(VoiceProviderError);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not start a provider request after cancellation", async () => {
+    const controller = new AbortController();
+    controller.abort();
+    const fetchMock = vi.fn<typeof fetch>();
+    const client = new VivibeClient({ apiKey: "secret", fetch: fetchMock, retryAttempts: 1 });
+
+    await expect(client.synthesize(
+      { text: "x", voiceId: "v", speed: 1, outputPath: "unused" },
+      { signal: controller.signal },
+    )).rejects.toMatchObject({ name: "AbortError" });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it("classifies HTTP auth, rate limit and outage without leaking response details", async () => {
     for (const [status, code] of [[401, "invalid_api_key"], [429, "rate_limited"], [503, "provider_unavailable"]] as const) {
       const client = new VivibeClient({

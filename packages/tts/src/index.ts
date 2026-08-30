@@ -47,7 +47,7 @@ export {
   VIENEU_RUNTIME_ID,
   VIENEU_VOICES,
 } from "./vieneu-presets.js";
-export type { CloudTtsProvider, VoiceProvider, TTSRequest, TTSResult, TTSVoice, TtsClient } from "./types.js";
+export type { CloudTtsProvider, VoiceProvider, TTSRequest, TTSResult, TTSVoice, TtsCallOptions, TtsClient } from "./types.js";
 
 export const TTS_NORMALIZER_VERSION = "vi-v1";
 

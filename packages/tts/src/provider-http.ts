@@ -1,5 +1,9 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
+import { createWriteStream } from "node:fs";
+import { mkdir, rename, rm, writeFile } from "node:fs/promises";
 import { dirname, extname } from "node:path";
+import { Readable, Transform } from "node:stream";
+import { pipeline } from "node:stream/promises";
 
 export type NormalizedAudio =
   | { kind: "url"; url: string }
@@ -10,7 +14,11 @@ type DownloadOptions = {
   attempts: number;
   baseDelayMs: number;
   fetchImpl?: typeof fetch;
+  signal?: AbortSignal;
 };
+
+export const MAX_TTS_AUDIO_BYTES = 64 * 1024 * 1024;
+export const MAX_TTS_SRT_BYTES = 2 * 1024 * 1024;
 
 export function normalizeAudioResponse(
   raw: unknown,
@@ -44,18 +52,17 @@ export function normalizeAudioResponse(
 export async function downloadAudio(url: string, outputPath: string, options: DownloadOptions): Promise<void> {
   const attempts = Math.max(1, Math.floor(options.attempts));
   const fetchImpl = options.fetchImpl ?? fetch;
-  const res = await fetchWithRetry(() => fetchImpl(url), {
+  const res = await fetchWithRetry(() => fetchImpl(url, { signal: options.signal }), {
     attempts,
     baseDelayMs: options.baseDelayMs,
     label: "Vivibe audio download",
+    signal: options.signal,
   });
   if (!res.ok) {
     const suffix = retrySuffix(res.status, attempts);
     throw new Error(`Failed to download Vivibe audio${suffix}: ${res.status} ${res.statusText}`);
   }
-  const buffer = Buffer.from(await res.arrayBuffer());
-  await mkdir(dirname(outputPath), { recursive: true });
-  await writeFile(outputPath, buffer);
+  await writeResponseAtomically(res, outputPath, MAX_TTS_AUDIO_BYTES, options.signal);
 }
 
 /** Find an SRT subtitle URL anywhere in a Vivibe response (used for captions). */
@@ -75,40 +82,42 @@ export function findSrtUrl(raw: unknown): string | null {
 /** Download a text resource (e.g. an SRT file) to disk. Best-effort, with retry. */
 export async function downloadText(url: string, outputPath: string, options: DownloadOptions): Promise<void> {
   const fetchImpl = options.fetchImpl ?? fetch;
-  const res = await fetchWithRetry(() => fetchImpl(url), {
+  const res = await fetchWithRetry(() => fetchImpl(url, { signal: options.signal }), {
     attempts: options.attempts,
     baseDelayMs: options.baseDelayMs,
     label: "Vivibe SRT download",
+    signal: options.signal,
   });
   if (!res.ok) {
     throw new Error(`Failed to download SRT: ${res.status} ${res.statusText}`);
   }
-  await mkdir(dirname(outputPath), { recursive: true });
-  await writeFile(outputPath, await res.text(), "utf8");
+  await writeResponseAtomically(res, outputPath, MAX_TTS_SRT_BYTES, options.signal);
 }
 
 const RETRYABLE_HTTP_STATUSES = new Set([408, 425, 429, 500, 502, 503, 504]);
 
 export async function fetchWithRetry(
   fetcher: () => Promise<Response>,
-  options: { attempts: number; baseDelayMs: number; label: string },
+  options: { attempts: number; baseDelayMs: number; label: string; signal?: AbortSignal },
 ): Promise<Response> {
   const attempts = Math.max(1, Math.floor(options.attempts));
   const baseDelayMs = Math.max(0, Math.floor(options.baseDelayMs));
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    throwIfAborted(options.signal);
     try {
       const res = await fetcher();
       if (res.ok || !isRetryableStatus(res.status) || attempt === attempts) {
         return res;
       }
     } catch (error) {
+      if (options.signal?.aborted) throw abortError();
       if (attempt === attempts) {
         throw new Error(
           `${options.label} failed after ${attempts} attempt${attempts === 1 ? "" : "s"}: ${errorMessage(error)}`,
         );
       }
     }
-    await sleep(backoffDelayMs(baseDelayMs, attempt));
+    await sleep(backoffDelayMs(baseDelayMs, attempt), options.signal);
   }
   throw new Error(`${options.label} failed before receiving a response.`);
 }
@@ -125,8 +134,22 @@ function backoffDelayMs(baseDelayMs: number, attempt: number): number {
   return Math.min(10_000, baseDelayMs * 2 ** Math.max(0, attempt - 1));
 }
 
-function sleep(ms: number): Promise<void> {
-  return ms <= 0 ? Promise.resolve() : new Promise((resolve) => setTimeout(resolve, ms));
+function sleep(ms: number, signal?: AbortSignal): Promise<void> {
+  if (ms <= 0) return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(done, ms);
+    const onAbort = () => {
+      clearTimeout(timer);
+      signal?.removeEventListener("abort", onAbort);
+      reject(abortError());
+    };
+    function done() {
+      signal?.removeEventListener("abort", onAbort);
+      resolve();
+    }
+    if (signal?.aborted) return onAbort();
+    signal?.addEventListener("abort", onAbort, { once: true });
+  });
 }
 
 export function integerEnv(names: string[], fallback: number, range: { min: number; max: number }): number {
@@ -185,4 +208,71 @@ function detectBase64Extension(value: string): string {
 export function stripDataPrefix(value: string): string {
   const comma = value.indexOf(",");
   return value.startsWith("data:") && comma !== -1 ? value.slice(comma + 1) : value;
+}
+
+export function decodeBase64Audio(value: string): Buffer {
+  const raw = stripDataPrefix(value);
+  // Base64 expands 3 bytes into 4 characters. Reject before allocating a large
+  // Buffer; provider responses are untrusted network input.
+  if (raw.length > Math.ceil(MAX_TTS_AUDIO_BYTES / 3) * 4) {
+    throw new Error("TTS audio response exceeds the 64 MiB limit.");
+  }
+  const data = Buffer.from(raw, "base64");
+  if (data.length > MAX_TTS_AUDIO_BYTES) throw new Error("TTS audio response exceeds the 64 MiB limit.");
+  return data;
+}
+
+export async function writeFileAtomically(path: string, data: Uint8Array | string): Promise<void> {
+  await mkdir(dirname(path), { recursive: true });
+  const temp = `${path}.partial-${randomUUID()}`;
+  try {
+    await writeFile(temp, data);
+    await rename(temp, path);
+  } catch (error) {
+    await rm(temp, { force: true }).catch(() => undefined);
+    throw error;
+  }
+}
+
+async function writeResponseAtomically(
+  res: Response,
+  outputPath: string,
+  maxBytes: number,
+  signal?: AbortSignal,
+): Promise<void> {
+  throwIfAborted(signal);
+  const declared = Number(res.headers.get("content-length"));
+  if (Number.isFinite(declared) && declared > maxBytes) {
+    await res.body?.cancel().catch(() => undefined);
+    throw new Error(`Download exceeds the ${maxBytes} byte limit.`);
+  }
+  if (!res.body) throw new Error("Download response did not include a body.");
+
+  await mkdir(dirname(outputPath), { recursive: true });
+  const temp = `${outputPath}.partial-${randomUUID()}`;
+  let written = 0;
+  const limiter = new Transform({
+    transform(chunk, _encoding, callback) {
+      written += Buffer.byteLength(chunk);
+      if (written > maxBytes) callback(new Error(`Download exceeds the ${maxBytes} byte limit.`));
+      else callback(null, chunk);
+    },
+  });
+  try {
+    await pipeline(Readable.fromWeb(res.body as never), limiter, createWriteStream(temp), { signal });
+    await rename(temp, outputPath);
+  } catch (error) {
+    await rm(temp, { force: true }).catch(() => undefined);
+    throw error;
+  }
+}
+
+function throwIfAborted(signal?: AbortSignal): void {
+  if (signal?.aborted) throw abortError();
+}
+
+function abortError(): Error {
+  const error = new Error("TTS request was cancelled.");
+  error.name = "AbortError";
+  return error;
 }

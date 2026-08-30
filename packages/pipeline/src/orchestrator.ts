@@ -477,6 +477,7 @@ async function renderProjectUnlocked(projectId: string, opts: RenderProjectOptio
         modelId,
         speed,
         ...(selectedBgmPath ? { bgmPath: selectedBgmPath } : {}),
+        ...(opts.signal ? { signal: opts.signal } : {}),
       }),
       { provider, scenes: spec.scenes.length },
     );

@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { measureAudioDuration } from "./audio-ops.js";
+import { measureAudioDuration, type ProcessOptions } from "./audio-ops.js";
 import {
   downloadAudio,
   downloadText,
@@ -12,10 +12,11 @@ import {
   integerEnv,
   normalizeAudioResponse,
   readState,
-  stripDataPrefix,
+  decodeBase64Audio,
+  writeFileAtomically,
   type NormalizedAudio,
 } from "./provider-http.js";
-import type { TTSRequest, TTSResult, TTSVoice, TtsClient } from "./types.js";
+import type { TTSRequest, TTSResult, TTSVoice, TtsCallOptions, TtsClient } from "./types.js";
 import { VoiceProviderError, retryAfterMs, voiceProviderErrorFrom } from "./provider-error.js";
 
 export type VivibeClientOptions = {
@@ -26,7 +27,7 @@ export type VivibeClientOptions = {
   retryAttempts?: number;
   retryBaseDelayMs?: number;
   fetch?: typeof fetch;
-  measureDuration?: (audioPath: string) => Promise<number>;
+  measureDuration?: (audioPath: string, options?: ProcessOptions) => Promise<number>;
 };
 
 type JsonRpcResponse<T = unknown> = {
@@ -43,7 +44,7 @@ export class VivibeClient implements TtsClient {
   private retryAttempts: number;
   private retryBaseDelayMs: number;
   private fetchImpl: typeof fetch;
-  private measureDuration: (audioPath: string) => Promise<number>;
+  private measureDuration: (audioPath: string, options?: ProcessOptions) => Promise<number>;
 
   constructor(options: VivibeClientOptions = {}) {
     this.apiKey = options.apiKey ?? vivibeApiKey();
@@ -73,13 +74,13 @@ export class VivibeClient implements TtsClient {
     });
   }
 
-  async synthesize(input: TTSRequest, resumeExportId?: string): Promise<TTSResult & { exportId?: string }> {
+  async synthesize(input: TTSRequest, options: TtsCallOptions = {}): Promise<TTSResult & { exportId?: string }> {
     await mkdir(dirname(input.outputPath), { recursive: true });
 
     let resolved: Extract<NormalizedAudio, { kind: "url" | "base64" }>;
     let raw: unknown = null;
     let pollRaw: unknown = null;
-    let exportId = resumeExportId;
+    let exportId: string | undefined;
     const sidecarPath = `${input.outputPath}.export-id`;
 
     if (!exportId && existsSync(sidecarPath)) {
@@ -91,21 +92,23 @@ export class VivibeClient implements TtsClient {
     }
 
     if (exportId && exportId.length > 0) {
-      const polled = await this.pollExportStatus(exportId);
+      const polled = await this.pollExportStatus(exportId, options.signal);
       resolved = polled.audio;
       pollRaw = polled.raw;
       raw = { resumedExportId: exportId };
     } else {
+      // This POST may already have created a billable export if the connection
+      // breaks. Do not retry it without an idempotency key.
       raw = await this.call<unknown>("ttsLongText", {
         text: input.text,
         userVoiceId: input.voiceId,
         speed: input.speed,
-      });
+      }, { signal: options.signal, attempts: 1 });
       const audio = normalizeAudioResponse(raw);
       if (audio.kind === "job") {
         exportId = audio.id;
-        await writeFile(sidecarPath, exportId, "utf8");
-        const polled = await this.pollExportStatus(audio.id);
+        await writeFileAtomically(sidecarPath, exportId);
+        const polled = await this.pollExportStatus(audio.id, options.signal);
         resolved = polled.audio;
         pollRaw = polled.raw;
       } else {
@@ -122,9 +125,10 @@ export class VivibeClient implements TtsClient {
         attempts: this.retryAttempts,
         baseDelayMs: this.retryBaseDelayMs,
         fetchImpl: this.fetchImpl,
+        signal: options.signal,
       });
     } else {
-      await writeFile(finalPath, Buffer.from(stripDataPrefix(resolved.data), "base64"));
+      await writeFileAtomically(finalPath, decodeBase64Audio(resolved.data));
     }
 
     let srtPath: string | undefined;
@@ -136,9 +140,11 @@ export class VivibeClient implements TtsClient {
           attempts: this.retryAttempts,
           baseDelayMs: this.retryBaseDelayMs,
           fetchImpl: this.fetchImpl,
+          signal: options.signal,
         });
         srtPath = candidate;
       } catch (error) {
+        if (options.signal?.aborted) throw error;
         console.warn(
           `[tts] SRT caption download failed; captions will use even-split timing: ${
             error instanceof Error ? error.message : String(error)
@@ -157,7 +163,7 @@ export class VivibeClient implements TtsClient {
 
     return {
       audioPath: finalPath,
-      duration: await this.measureDuration(finalPath),
+      duration: await this.measureDuration(finalPath, { signal: options.signal }),
       raw,
       exportId,
       srtPath,
@@ -180,7 +186,11 @@ export class VivibeClient implements TtsClient {
     return { voices, sample };
   }
 
-  private async call<T>(method: string, input: unknown): Promise<T> {
+  private async call<T>(
+    method: string,
+    input: unknown,
+    options: { signal?: AbortSignal; attempts?: number } = {},
+  ): Promise<T> {
     if (!this.apiKey) {
       throw new VoiceProviderError({ provider: "vivibe", code: "not_configured", retryable: false });
     }
@@ -194,11 +204,13 @@ export class VivibeClient implements TtsClient {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({ method, input }),
+          signal: options.signal,
         }),
       {
-        attempts: this.retryAttempts,
+        attempts: options.attempts ?? this.retryAttempts,
         baseDelayMs: this.retryBaseDelayMs,
         label: `Vivibe ${method}`,
+        signal: options.signal,
       },
     );
 
@@ -227,11 +239,12 @@ export class VivibeClient implements TtsClient {
 
   private async pollExportStatus(
     projectExportId: string,
+    signal?: AbortSignal,
   ): Promise<{ audio: Extract<NormalizedAudio, { kind: "url" | "base64" }>; raw: unknown }> {
     const deadline = Date.now() + this.pollTimeoutMs;
     let lastResult: unknown = null;
     while (Date.now() < deadline) {
-      const result = await this.call<unknown>("getExportStatus", { projectExportId });
+      const result = await this.call<unknown>("getExportStatus", { projectExportId }, { signal });
       lastResult = result;
       try {
         const normalized = normalizeAudioResponse(result, { allowJob: false });
@@ -245,10 +258,33 @@ export class VivibeClient implements TtsClient {
       if (state && ["failed", "error", "canceled", "cancelled"].includes(state)) {
         throw new Error(`Vivibe export ${projectExportId} failed with state=${state}: ${JSON.stringify(result)}`);
       }
-      await new Promise((resolve) => setTimeout(resolve, this.pollIntervalMs));
+      await sleep(this.pollIntervalMs, signal);
     }
     throw new Error(`Timed out waiting for Vivibe export ${projectExportId}: ${JSON.stringify(lastResult)}`);
   }
+}
+
+function sleep(ms: number, signal?: AbortSignal): Promise<void> {
+  if (signal?.aborted) return Promise.reject(abortError());
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(done, ms);
+    const onAbort = () => {
+      clearTimeout(timer);
+      signal?.removeEventListener("abort", onAbort);
+      reject(abortError());
+    };
+    function done() {
+      signal?.removeEventListener("abort", onAbort);
+      resolve();
+    }
+    signal?.addEventListener("abort", onAbort, { once: true });
+  });
+}
+
+function abortError(): Error {
+  const error = new Error("TTS request was cancelled.");
+  error.name = "AbortError";
+  return error;
 }
 
 export function vivibeApiKey(): string {

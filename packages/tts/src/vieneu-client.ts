@@ -1,11 +1,11 @@
 import { spawn, spawnSync, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { existsSync } from "node:fs";
-import { mkdir, stat } from "node:fs/promises";
+import { mkdir, rename, rm, stat } from "node:fs/promises";
 import { createInterface } from "node:readline";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import { randomUUID } from "node:crypto";
 import { VoiceProviderError } from "./provider-error.js";
-import type { TTSRequest, TTSResult, TTSVoice, TtsClient } from "./types.js";
+import type { TTSRequest, TTSResult, TTSVoice, TtsCallOptions, TtsClient } from "./types.js";
 import { VIENEU_RUNTIME_ID, VIENEU_VOICES } from "./vieneu-presets.js";
 
 type WorkerReply = {
@@ -20,6 +20,7 @@ type Pending = {
   resolve: (value: WorkerReply) => void;
   reject: (error: Error) => void;
   timer: NodeJS.Timeout;
+  removeAbort?: () => void;
 };
 
 export type VieneuClientOptions = {
@@ -59,7 +60,8 @@ export class VieneuClient implements TtsClient {
     return VIENEU_VOICES.map(([id, description]) => ({ id, name: `${id} — ${description}`, isActive: true }));
   }
 
-  async synthesize(input: TTSRequest): Promise<TTSResult> {
+  async synthesize(input: TTSRequest, options: TtsCallOptions = {}): Promise<TTSResult> {
+    throwIfAborted(options.signal);
     const text = input.text.trim();
     if (!text) throw this.failure("invalid_request");
     if (input.speed !== 1) throw this.failure("invalid_request");
@@ -69,18 +71,25 @@ export class VieneuClient implements TtsClient {
     await mkdir(dirname(input.outputPath), { recursive: true });
     await this.ensureStarted();
     const outputPath = `${input.outputPath}.wav`;
-    const reply = await this.call({
-      op: "synthesize",
-      text,
-      voice: input.voiceId,
-      output_path: outputPath,
-    });
-    if (reply.type !== "result" || reply.audio_path !== outputPath) {
-      throw this.failure(reply.code === "voice_not_found" ? "voice_not_found" : "provider_unavailable");
+    const partialPath = `${outputPath}.partial-${randomUUID()}`;
+    try {
+      const reply = await this.call({
+        op: "synthesize",
+        text,
+        voice: input.voiceId,
+        output_path: partialPath,
+      }, options.signal);
+      throwIfAborted(options.signal);
+      if (reply.type !== "result" || reply.audio_path !== partialPath) {
+        throw this.failure(reply.code === "voice_not_found" ? "voice_not_found" : "provider_unavailable");
+      }
+      const info = await stat(partialPath).catch(() => undefined);
+      if (!info?.isFile() || info.size <= 44) throw this.failure("provider_unavailable");
+      await rename(partialPath, outputPath);
+      return { audioPath: outputPath, duration: Number(reply.duration) || 0, raw: { runtime: VIENEU_RUNTIME_ID } };
+    } finally {
+      await rm(partialPath, { force: true }).catch(() => undefined);
     }
-    const info = await stat(outputPath).catch(() => undefined);
-    if (!info?.isFile() || info.size <= 44) throw this.failure("provider_unavailable");
-    return { audioPath: outputPath, duration: Number(reply.duration) || 0, raw: { runtime: VIENEU_RUNTIME_ID } };
   }
 
   async dispose(): Promise<void> {
@@ -136,6 +145,7 @@ export class VieneuClient implements TtsClient {
         if (!pending) return;
         this.pending.delete(reply.id);
         clearTimeout(pending.timer);
+        pending.removeAbort?.();
         if (reply.type === "error") pending.reject(this.failure(reply.code === "voice_not_found" ? "voice_not_found" : "provider_unavailable"));
         else pending.resolve(reply);
       });
@@ -154,22 +164,34 @@ export class VieneuClient implements TtsClient {
     return this.ready;
   }
 
-  private call(payload: Record<string, unknown>): Promise<WorkerReply> {
+  private call(payload: Record<string, unknown>, signal?: AbortSignal): Promise<WorkerReply> {
     const child = this.child;
     if (!child || child.exitCode !== null || child.killed) return Promise.reject(this.failure("provider_unavailable"));
+    if (signal?.aborted) return Promise.reject(abortError());
     const id = randomUUID();
     return new Promise<WorkerReply>((resolveReply, rejectReply) => {
       const timer = setTimeout(() => {
         this.pending.delete(id);
+        removeAbort();
         rejectReply(this.failure("provider_unavailable"));
         child.kill();
       }, this.options.requestTimeoutMs ?? 180_000);
-      this.pending.set(id, { resolve: resolveReply, reject: rejectReply, timer });
+      const onAbort = () => {
+        clearTimeout(timer);
+        this.pending.delete(id);
+        removeAbort();
+        if (!child.killed && child.exitCode === null) child.kill();
+        rejectReply(abortError());
+      };
+      const removeAbort = () => signal?.removeEventListener("abort", onAbort);
+      this.pending.set(id, { resolve: resolveReply, reject: rejectReply, timer, removeAbort });
       const failWrite = () => {
         clearTimeout(timer);
         this.pending.delete(id);
+        removeAbort();
         rejectReply(this.failure("provider_unavailable"));
       };
+      signal?.addEventListener("abort", onAbort, { once: true });
       try {
         child.stdin.write(`${JSON.stringify({ id, ...payload })}\n`, (error) => {
           if (error) failWrite();
@@ -183,6 +205,7 @@ export class VieneuClient implements TtsClient {
   private rejectAll(error: Error): void {
     for (const pending of this.pending.values()) {
       clearTimeout(pending.timer);
+      pending.removeAbort?.();
       pending.reject(error);
     }
     this.pending.clear();
@@ -206,4 +229,14 @@ export class VieneuClient implements TtsClient {
   private failure(code: "not_configured" | "voice_not_found" | "invalid_request" | "provider_unavailable"): VoiceProviderError {
     return new VoiceProviderError({ provider: "vieneu", code, retryable: code === "provider_unavailable" });
   }
+}
+
+function throwIfAborted(signal?: AbortSignal): void {
+  if (signal?.aborted) throw abortError();
+}
+
+function abortError(): Error {
+  const error = new Error("TTS request was cancelled.");
+  error.name = "AbortError";
+  return error;
 }

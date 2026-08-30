@@ -8,41 +8,12 @@ const require = createRequire(import.meta.url);
 const ffprobeStatic = require("ffprobe-static") as { path: string };
 const ffmpegStatic = require("ffmpeg-static") as string | null;
 
-/** Measure audio duration via ffprobe (already on the dep graph for mix). */
-export async function measureAudioDuration(audioPath: string): Promise<number> {
-  const ffprobePath = ffprobeStatic.path;
-  const output = await runProcess(ffprobePath, [
-    "-v",
-    "error",
-    "-show_entries",
-    "format=duration",
-    "-of",
-    "default=nw=1:nk=1",
-    audioPath,
-  ]);
-  const duration = Number(output.trim());
-  if (!Number.isFinite(duration)) {
-    throw new Error(`Unable to measure duration for ${basename(audioPath)}.`);
-  }
-  return duration;
-}
-
 export async function synthesizeMockAudio(text: string, outputPath: string): Promise<TTSResult> {
   await mkdir(dirname(outputPath), { recursive: true });
   const seconds = Math.max(2.5, Math.min(12, text.length / 18));
   const wav = createSilentWav(seconds);
   await writeFile(outputPath, wav);
   return { audioPath: outputPath, duration: seconds, raw: { provider: "mock", seconds } };
-}
-
-export async function concatAudio(inputs: string[], outputPath: string): Promise<void> {
-  if (!inputs.length) {
-    throw new Error("Cannot concatenate zero audio files.");
-  }
-  await mkdir(dirname(outputPath), { recursive: true });
-  const listPath = join(dirname(outputPath), "concat-list.txt");
-  await writeFile(listPath, inputs.map((input) => `file '${input.replace(/'/g, "'\\''")}'`).join("\n"));
-  await runProcess(ffmpegStatic ?? "ffmpeg", ["-y", "-f", "concat", "-safe", "0", "-i", listPath, "-c", "copy", outputPath]);
 }
 
 /**
@@ -57,13 +28,14 @@ export async function concatAudioWithGaps(
   inputs: string[],
   gapSeconds: number,
   outputPath: string,
+  options: ProcessOptions = {},
 ): Promise<void> {
   if (!inputs.length) {
     throw new Error("Cannot concatenate zero audio files.");
   }
   await mkdir(dirname(outputPath), { recursive: true });
   if (inputs.length === 1 || gapSeconds <= 0) {
-    await concatAudio(inputs, outputPath);
+    await concatAudio(inputs, outputPath, options);
     return;
   }
 
@@ -101,7 +73,7 @@ export async function concatAudioWithGaps(
     "-ac",
     "2",
     outputPath,
-  ]);
+  ], options);
 }
 
 export async function mixBgm(
@@ -110,9 +82,10 @@ export async function mixBgm(
   outputPath: string,
   volume = 0.28,
   fadeDurationSeconds = 3.0,
+  options: ProcessOptions = {},
 ): Promise<void> {
   await mkdir(dirname(outputPath), { recursive: true });
-  const voiceDuration = await measureAudioDuration(voicePath);
+  const voiceDuration = await measureAudioDuration(voicePath, options);
   const bgmFadeStart = Math.max(0, voiceDuration - fadeDurationSeconds);
 
   const filterComplex =
@@ -139,11 +112,45 @@ export async function mixBgm(
     "-ac",
     "2",
     outputPath,
-  ]);
+  ], options);
 }
 
-function runProcess(command: string, args: string[]): Promise<string> {
+export type ProcessOptions = { signal?: AbortSignal };
+
+export async function measureAudioDuration(audioPath: string, options: ProcessOptions = {}): Promise<number> {
+  const ffprobePath = ffprobeStatic.path;
+  const output = await runProcess(ffprobePath, [
+    "-v",
+    "error",
+    "-show_entries",
+    "format=duration",
+    "-of",
+    "default=nw=1:nk=1",
+    audioPath,
+  ], options);
+  const duration = Number(output.trim());
+  if (!Number.isFinite(duration)) {
+    throw new Error(`Unable to measure duration for ${basename(audioPath)}.`);
+  }
+  return duration;
+}
+
+export async function concatAudio(inputs: string[], outputPath: string, options: ProcessOptions = {}): Promise<void> {
+  if (!inputs.length) {
+    throw new Error("Cannot concatenate zero audio files.");
+  }
+  await mkdir(dirname(outputPath), { recursive: true });
+  const listPath = join(dirname(outputPath), "concat-list.txt");
+  await writeFile(listPath, inputs.map((input) => `file '${input.replace(/'/g, "'\\''")}'`).join("\n"));
+  await runProcess(ffmpegStatic ?? "ffmpeg", ["-y", "-f", "concat", "-safe", "0", "-i", listPath, "-c", "copy", outputPath], options);
+}
+
+function runProcess(command: string, args: string[], options: ProcessOptions = {}): Promise<string> {
   return new Promise((resolve, reject) => {
+    if (options.signal?.aborted) {
+      reject(abortError());
+      return;
+    }
     const child = spawn(command, args, { shell: false });
     let stdout = "";
     let stderr = "";
@@ -153,12 +160,27 @@ function runProcess(command: string, args: string[]): Promise<string> {
     child.stderr?.on("data", (chunk) => {
       stderr += String(chunk);
     });
-    child.on("error", reject);
+    const onAbort = () => {
+      if (!child.killed && child.exitCode === null) child.kill();
+      reject(abortError());
+    };
+    options.signal?.addEventListener("abort", onAbort, { once: true });
+    child.on("error", (error) => {
+      options.signal?.removeEventListener("abort", onAbort);
+      reject(error);
+    });
     child.on("close", (code) => {
+      options.signal?.removeEventListener("abort", onAbort);
       if (code === 0) resolve(stdout);
       else reject(new Error(`${command} exited ${code}: ${stderr}`));
     });
   });
+}
+
+function abortError(): Error {
+  const error = new Error("Audio process was cancelled.");
+  error.name = "AbortError";
+  return error;
 }
 
 function createSilentWav(durationSeconds: number): Buffer {

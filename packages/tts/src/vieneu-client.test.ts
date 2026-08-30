@@ -124,4 +124,29 @@ describe("VieneuClient", () => {
     expect((error as VoiceProviderError).failure.code).toBe("provider_unavailable");
     await expect(client.dispose()).resolves.toBeUndefined();
   });
+
+  it("cancels an in-flight local request and leaves no output file", async () => {
+    const { dir, worker } = await fakeWorker(String.raw`
+const readline = require("node:readline");
+process.stdout.write(JSON.stringify({type:"ready"}) + "\n");
+readline.createInterface({input:process.stdin}).on("line", () => {});
+`);
+    const client = new VieneuClient({
+      pythonPath: process.execPath,
+      pythonArgs: [],
+      workerPath: worker,
+      cacheDir: join(dir, "cache"),
+      startupTimeoutMs: 2_000,
+      requestTimeoutMs: 2_000,
+      runtimeProbe: () => true,
+    });
+    const controller = new AbortController();
+    const outputPath = join(dir, "cancelled");
+    const pending = client.synthesize({ text: "Xin chào", voiceId: "Trúc Ly", speed: 1, outputPath }, { signal: controller.signal });
+    setTimeout(() => controller.abort(), 25);
+
+    await expect(pending).rejects.toMatchObject({ name: "AbortError" });
+    await expect(readFile(`${outputPath}.wav`)).rejects.toMatchObject({ code: "ENOENT" });
+    await expect(client.dispose()).resolves.toBeUndefined();
+  });
 });

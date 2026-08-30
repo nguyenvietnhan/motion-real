@@ -1,14 +1,13 @@
-import { mkdir, writeFile } from "node:fs/promises";
-import { dirname } from "node:path";
-import { measureAudioDuration } from "./audio-ops.js";
+import { measureAudioDuration, type ProcessOptions } from "./audio-ops.js";
 import { alignmentToSrt, type ElevenLabsAlignment } from "./caption-timing.js";
 import {
   ensureAudioExtension,
+  decodeBase64Audio,
   fetchWithRetry,
-  stripDataPrefix,
+  writeFileAtomically,
 } from "./provider-http.js";
 import { VoiceProviderError, retryAfterMs, voiceProviderErrorFrom } from "./provider-error.js";
-import type { TTSRequest, TTSResult, TTSVoice, TtsClient } from "./types.js";
+import type { TTSRequest, TTSResult, TTSVoice, TtsCallOptions, TtsClient } from "./types.js";
 
 export const ELEVENLABS_DEFAULT_MODEL_ID = "eleven_multilingual_v2";
 export const ELEVENLABS_OUTPUT_FORMAT = "mp3_44100_128";
@@ -29,7 +28,7 @@ export type ElevenLabsClientOptions = {
   apiKey?: string;
   baseUrl?: string;
   fetch?: typeof fetch;
-  measureDuration?: (audioPath: string) => Promise<number>;
+  measureDuration?: (audioPath: string, options?: ProcessOptions) => Promise<number>;
 };
 
 type ElevenLabsTimestampResponse = {
@@ -44,7 +43,7 @@ export class ElevenLabsClient implements TtsClient {
   private readonly apiKey: string;
   private readonly baseUrl: string;
   private readonly fetchImpl: typeof fetch;
-  private readonly measureDuration: (audioPath: string) => Promise<number>;
+  private readonly measureDuration: (audioPath: string, options?: ProcessOptions) => Promise<number>;
 
   constructor(options: ElevenLabsClientOptions = {}) {
     this.apiKey = options.apiKey ?? elevenLabsApiKey();
@@ -93,9 +92,8 @@ export class ElevenLabsClient implements TtsClient {
     return voices;
   }
 
-  async synthesize(input: TTSRequest): Promise<TTSResult> {
+  async synthesize(input: TTSRequest, options: TtsCallOptions = {}): Promise<TTSResult> {
     this.assertConfigured();
-    await mkdir(dirname(input.outputPath), { recursive: true });
     const modelId = input.modelId ?? ELEVENLABS_DEFAULT_MODEL_ID;
     const languageCode = input.languageCode ?? "vi";
     const url = new URL(`${this.baseUrl}/v1/text-to-speech/${encodeURIComponent(input.voiceId)}/with-timestamps`);
@@ -112,25 +110,26 @@ export class ElevenLabsClient implements TtsClient {
       method: "POST",
       headers: { "content-type": "application/json", "xi-api-key": this.apiKey },
       body: JSON.stringify(body),
+      signal: options.signal,
     });
     if (!res.ok) throw await elevenLabsHttpError(res, "synthesize speech");
     const json = (await res.json()) as ElevenLabsTimestampResponse;
     if (!json.audio_base64) throw new Error("ElevenLabs response did not contain audio_base64.");
 
     const audioPath = ensureAudioExtension(input.outputPath, ".mp3");
-    await writeFile(audioPath, Buffer.from(stripDataPrefix(json.audio_base64), "base64"));
+    await writeFileAtomically(audioPath, decodeBase64Audio(json.audio_base64));
     const alignment = json.alignment ?? json.normalized_alignment;
     let srtPath: string | undefined;
     if (alignment) {
       const srt = alignmentToSrt(alignment);
       if (srt) {
         srtPath = `${audioPath}.srt`;
-        await writeFile(srtPath, srt, "utf8");
+        await writeFileAtomically(srtPath, srt);
       }
     }
     return {
       audioPath,
-      duration: await this.measureDuration(audioPath),
+      duration: await this.measureDuration(audioPath, { signal: options.signal }),
       raw: { provider: "elevenlabs", modelId, languageCode, hasAlignment: Boolean(alignment) },
       ...(srtPath ? { srtPath } : {}),
     };
