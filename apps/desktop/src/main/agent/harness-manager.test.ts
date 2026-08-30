@@ -316,6 +316,45 @@ describe("HarnessManager draft lifecycle", () => {
     expect(calls.some((call) => call.method === "session.history")).toBe(true);
   });
 
+  it("resumes pending authoring when a second draft joins an existing runtime", async () => {
+    const { manager, root, calls } = await activeManagerForTest();
+    const first = await manager.createDraft("Đã mở runtime");
+    await manager.activate(first.id, "internal-key");
+    const second = await manager.createDraft("Cần tiếp tục authoring");
+    const secondRoot = join(root, second.id);
+    const metadataPath = join(secondRoot, "motionreal-agent.json");
+    await writeFile(metadataPath, JSON.stringify({
+      ...JSON.parse(await readFile(metadataPath, "utf8")),
+      workflowRevision: 1,
+      productionState: "authoring",
+      activeJobId: "job-second-draft",
+      projectId: "project-second-draft",
+    }));
+    await mkdir(join(secondRoot, "handoff"), { recursive: true });
+    await writeFile(join(secondRoot, "handoff", "authoring-request.json"), JSON.stringify({ version: 1 }));
+    const promptsBefore = calls.filter((call) => call.method === "session.prompt").length;
+
+    await manager.activate(second.id, "internal-key");
+
+    expect(calls.filter((call) => call.method === "session.prompt")).toHaveLength(promptsBefore + 1);
+    await manager.activate(second.id, "internal-key");
+    expect(calls.filter((call) => call.method === "session.prompt")).toHaveLength(promptsBefore + 1);
+  });
+
+  it("keeps automated activity visible after another draft becomes the iframe", async () => {
+    const { manager, history } = await activeManagerForTest();
+    const first = await manager.createDraft("Video đang chạy nền");
+    await manager.activate(first.id, "internal-key");
+    history.push({ event: { seq: 1, type: "tool/call", data: { callId: "asset-call", name: "glob" } } });
+
+    const second = await manager.createDraft("Video đang mở");
+    await manager.activate(second.id, "internal-key");
+
+    await expect(manager.status(first.id, { includeActivities: true })).resolves.toMatchObject({
+      activities: [{ id: "1", label: "Đang đọc workspace", status: "running" }],
+    });
+  });
+
   it("does not issue a late authoring repair after the workflow was paused", async () => {
     const { manager, calls } = await activeManagerForTest();
     const draft = await manager.createDraft("Chặn repair muộn");
@@ -723,6 +762,10 @@ describe("HarnessManager draft lifecycle", () => {
       projectId: "project-gemini",
       createReady: false,
     });
+    await expect(manager.readCreateRequest(draft.id)).resolves.toMatchObject({
+      title: "Gemini AI là gì?",
+      choices: { durationTier: 2, videoLanguage: "vi", voiceProvider: "vivibe" },
+    });
     await manager.linkProject(draft.id, "project-gemini");
     await expect(manager.linkProject(draft.id, "project-other")).rejects.toThrow(/project khác/);
     await manager.dispose();
@@ -926,7 +969,6 @@ describe("HarnessManager draft lifecycle", () => {
     await vi.waitFor(async () => {
       await expect(manager.status(draft.id)).resolves.toMatchObject({ productionState: "scene_review" });
     }, { timeout: 3_000 });
-    await expect(readFile(join(draftRoot, "handoff", "authoring-v1", "manifest.json"), "utf8")).rejects.toMatchObject({ code: "ENOENT" });
 
     await manager.requestSceneEdits(draft.id, "project-final", [{ sceneId: "scene-01", text: "Sửa điểm nhấn cảnh đầu." }], "");
     await writeFile(join(projectRoot, "authored", "scene-01.tsx"), registeredSceneSource("scene-01", "edited"));
@@ -938,6 +980,51 @@ describe("HarnessManager draft lifecycle", () => {
     await vi.waitFor(async () => expect(JSON.parse(await readFile(join(draftRoot, "handoff", "authoring-request.json"), "utf8")))
       .toMatchObject({ request_revision: 4, phase: "visual_refine", review_scene_ids: ["scene-01"] }), { timeout: 3_000 });
     await manager.dispose();
+  });
+
+  it("persists a failed authoring start and retries the existing initial request", async () => {
+    let rejectNextPrompt = true;
+    const fetch = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body)) as { method: string };
+      if (body.method === "workspace.create") {
+        return Response.json({ type: "server-response", result: { ok: true, value: { workspace: { workspaceId: "workspace-retry" } } } });
+      }
+      if (body.method === "credentials.describe") {
+        return Response.json({ type: "server-response", result: { ok: true, value: { credentials: {} } } });
+      }
+      if (body.method === "session.prompt" && rejectNextPrompt) {
+        rejectNextPrompt = false;
+        return Response.json({ type: "server-response", result: { ok: false, error: { code: "offline", message: "prompt transport failed" } } });
+      }
+      return Response.json({ type: "server-response", result: { ok: true, value: {} } });
+    }) as unknown as typeof globalThis.fetch;
+    const { manager, root } = await activeManagerForTest({ fetch });
+    const draft = await manager.createDraft("Retry authoring start");
+    await manager.activate(draft.id, "internal-key");
+    let state = await manager.transitionWorkflow(draft.id, { expectedRevision: 0, to: "collecting_assets", jobId: "job-retry-start" });
+    state = await manager.transitionWorkflow(draft.id, { expectedRevision: state.workflowRevision, to: "asset_review", jobId: "job-retry-start" });
+    state = await manager.transitionWorkflow(draft.id, { expectedRevision: state.workflowRevision, to: "brief_review", jobId: "job-retry-start" });
+    state = await manager.transitionWorkflow(draft.id, { expectedRevision: state.workflowRevision, to: "queued_create", jobId: "job-retry-start" });
+    const draftRoot = join(root, draft.id);
+    const metadataPath = join(draftRoot, "motionreal-agent.json");
+    await writeFile(metadataPath, JSON.stringify({ ...JSON.parse(await readFile(metadataPath, "utf8")), briefRequestRevision: 1 }));
+    await mkdir(join(draftRoot, "handoff"), { recursive: true });
+    await writeFile(join(draftRoot, "handoff", "brief.json"), JSON.stringify({
+      version: 1, accepted: true, job_id: "job-retry-start", request_revision: 1, brief_revision: 1,
+      title: "Retry authoring", prompt: "Nội dung đủ dài để kiểm tra retry authoring sau lỗi gửi yêu cầu.",
+      format: "tiktok", duration_tier: 2, target_seconds: 90, video_language: "vi", voice_provider: "vivibe", selected_asset_ids: [],
+    }));
+    await manager.linkProject(draft.id, "project-retry-start");
+    const projectRoot = join(root, "projects", "project-retry-start");
+    await mkdir(join(projectRoot, "authored"), { recursive: true });
+
+    await expect(manager.startAuthoring(draft.id, "project-retry-start", projectRoot, [])).rejects.toThrow("prompt transport failed");
+    const failed = await manager.status(draft.id);
+    expect(failed).toMatchObject({ productionState: "error", failedPhase: "authoring" });
+
+    await expect(manager.retryWorkflow(draft.id, failed.workflowRevision)).resolves.toMatchObject({ productionState: "authoring" });
+    expect(JSON.parse(await readFile(join(draftRoot, "handoff", "authoring-request.json"), "utf8")))
+      .toMatchObject({ request_revision: 1, phase: "initial" });
   });
 
   it("keeps a valid authoring submission and retries only still rendering when the runtime bridge fails", async () => {

@@ -96,7 +96,7 @@ describe("workspace-refine-flow", () => {
     expect(await refineBeforeDraft(depsNoVision)).toEqual([]);
   });
 
-  it("returns early when first stills are empty (no bootstrap)", async () => {
+  it("returns early when first stills are empty", async () => {
     const { deps, worker } = makeDeps({
       worker: { renderStills: vi.fn(async () => ({ stills: [] })) },
     });
@@ -104,7 +104,7 @@ describe("workspace-refine-flow", () => {
     expect(worker.reauthorScenes).not.toHaveBeenCalled();
   });
 
-  it("runs vision only on first-author path; it never rewrites every scene as a bootstrap", async () => {
+  it("runs vision only on first-author path and repairs only flagged scenes", async () => {
     const { deps, worker, stages } = makeDeps({
       worker: {
         visualQa: vi

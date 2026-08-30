@@ -134,6 +134,9 @@ export type HarnessManagerDeps = {
 export class HarnessManager {
   private active: { child: ChildProcess; url: string; searchProvider: AgentSearchProvider } | null = null;
   private activeDraftId: string | null = null;
+  /** Sessions created by the current Harness process. This distinguishes a
+   * resumed draft from merely switching the iframe to a different draft. */
+  private readonly liveSessionIds = new Set<string>();
   private startingChild: ChildProcess | null = null;
   private startInFlight: Promise<string> | null = null;
   private webSearchConfigured: boolean | undefined;
@@ -214,7 +217,6 @@ export class HarnessManager {
     // contract prevents parent rule discovery from resolving AI_CONTRACT.md
     // against the isolated Agent workspace and failing its first file read.
     await writeFile(join(this.rootOf(id), AI_CONTRACT_FILE), agentContract(), "utf8");
-    const runtimeWasRunning = Boolean(this.active);
     const url = await this.start(apiKey);
     const workspace = await this.rpc(url, "workspace.create", { path: this.rootOf(id) });
     const workspaceInfo = workspaceInfoOf(workspace);
@@ -228,12 +230,14 @@ export class HarnessManager {
       });
     }
     const sessionId = record.sessionId ?? `session-${randomUUID()}`;
+    const sessionWasLive = this.liveSessionIds.has(sessionId);
     await this.rpc(url, "session.create", { workspaceId: workspaceInfo.id, sessionId });
     this.webSearchConfigured = await this.readSearchCredentialStatus(url);
     record = { ...record, workspaceId: workspaceInfo.id, sessionId };
     await this.writeRecord(record);
+    this.liveSessionIds.add(sessionId);
     this.activeDraftId = id;
-    if (!runtimeWasRunning
+    if (!sessionWasLive
       && isPausableAgentProductionState(record.productionState)
       && existsSync(join(this.rootOf(record.id), AUTHORING_REQUEST_FILE))) {
       try {
@@ -297,6 +301,7 @@ export class HarnessManager {
       if (this.active?.child === child) {
         this.active = null;
         this.activeDraftId = null;
+        this.liveSessionIds.clear();
         this.webSearchConfigured = undefined;
       }
       if (this.startingChild === child) this.startingChild = null;
@@ -628,7 +633,8 @@ export class HarnessManager {
           || !existsSync(join(this.rootOf(next.id), "handoff", "authoring.json"))) {
           throw new Error("Không còn authoring submission để render lại ảnh xem trước.");
         }
-      } else if (phase === "authoring" || phase === "visual_refine") {
+      } else if ((phase === "authoring" || phase === "visual_refine")
+        && existsSync(join(this.rootOf(next.id), "handoff", "authoring.json"))) {
         await this.requestAuthoringRepair(next, "Người dùng yêu cầu thử lại bước này.");
       } else {
         await this.promptSession(next, resumePromptFor(phase));
@@ -643,7 +649,8 @@ export class HarnessManager {
 
   async readCreateRequest(id: string): Promise<AgentCreateRequest> {
     const record = await this.mustReadRecord(id);
-    if (record.productionState !== "queued_create") {
+    if (record.productionState !== "queued_create"
+      && !(record.productionState === "authoring" && record.projectId)) {
       throw new Error("Yêu cầu tạo video chưa qua bước duyệt brief.");
     }
     const accepted = await this.readAcceptedBrief(record);
@@ -728,9 +735,11 @@ export class HarnessManager {
     if (current.authoringRequestRevision && existsSync(join(root, AUTHORING_REQUEST_FILE))) {
       try {
         await this.promptSession(current, "MotionReal đang chờ authoring hiện tại. Hãy đọc lại handoff/authoring-request.json, tiếp tục sửa project/ và gọi motionreal_submit_authoring khi hoàn tất.");
-      } finally {
-        this.scheduleAuthoringPoll(current.id);
+      } catch (error) {
+        await this.recordWorkflowError(current, error);
+        throw error;
       }
+      this.scheduleAuthoringPoll(current.id);
       return;
     }
     const usableAssets: Array<{ id: string; ref: string; path: string; role: SceneImageRole }> = [];
@@ -775,9 +784,11 @@ export class HarnessManager {
     await this.writeRecord(next);
     try {
       await this.promptSession(next, "MotionReal đã tạo project Harness. Hãy đọc handoff/authoring-request.json và handoff/authoring-contract.md, xem các asset thật, tự viết toàn bộ scene vào project/, rồi gọi motionreal_submit_authoring. Không dùng authoring API cũ.");
-    } finally {
-      this.scheduleAuthoringPoll(next.id);
+    } catch (error) {
+      await this.recordWorkflowError(next, error);
+      throw error;
     }
+    this.scheduleAuthoringPoll(next.id);
   }
 
   async requestSceneEdits(
@@ -877,6 +888,7 @@ export class HarnessManager {
     const starting = this.startingChild;
     this.active = null;
     this.activeDraftId = null;
+    this.liveSessionIds.clear();
     this.webSearchConfigured = undefined;
     this.startingChild = null;
     for (const id of this.authoringPolls.keys()) this.stopAuthoringPoll(id);
@@ -1013,7 +1025,7 @@ export class HarnessManager {
   }
 
   private async readSafeActivities(record: DraftRecord): Promise<{ activities: AgentActivityVM[]; needsAttention: boolean } | undefined> {
-    if (!this.active || this.activeDraftId !== record.id || !record.sessionId) return undefined;
+    if (!this.active || !record.sessionId) return undefined;
     const raw = await this.rpc(this.active.url, "session.history", { sessionId: record.sessionId, maxMessages: 12 });
     const activities: AgentActivityVM[] = [];
     const calls = new Map<string, AgentActivityVM>();

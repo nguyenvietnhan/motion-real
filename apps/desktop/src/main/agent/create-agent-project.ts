@@ -11,7 +11,7 @@ type Deps = {
   create: CreateController["create"];
   persistProjectOwnership: (projectId: string, draftId: string) => Promise<void>;
   linkProject: HarnessManager["linkProject"];
-  deleteProject: (projectId: string) => Promise<void>;
+  deleteProject: (projectId: string) => Promise<boolean>;
   renameProject: (projectId: string, title: string) => Promise<unknown>;
   startAuthoring: (draftId: string, projectId: string, assets: Array<{ id: string; ref: string; role: SceneImageRole }>) => Promise<void>;
   warn: (error: unknown, projectId: string, message: string) => void;
@@ -63,9 +63,11 @@ export async function createAgentProject(draftId: string, deps: Deps): Promise<{
       }
       if (!linked?.projectId) {
         if (linked) {
-          await deps.deleteProject(scaffoldedProjectId).catch((cleanupError) => {
+          const deleted = await deps.deleteProject(scaffoldedProjectId).catch((cleanupError) => {
             deps.warn(cleanupError, scaffoldedProjectId!, "unlinked Agent scaffold cleanup failed");
+            return undefined;
           });
+          if (deleted === false) deps.warn(new Error("project deletion failed"), scaffoldedProjectId, "unlinked Agent scaffold cleanup failed");
         }
       }
     }

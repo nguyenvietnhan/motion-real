@@ -102,6 +102,16 @@ describe("process-wide workspace lane", () => {
   });
 });
 
+describe("project deletion", () => {
+  it("reports failure when the underlying project directory cannot be deleted", async () => {
+    const ctrl = new WorkspaceController(baseDeps({
+      deleteProject: async () => { throw new Error("project locked"); },
+    }));
+
+    await expect(ctrl.delete("locked-project")).resolves.toBe(false);
+  });
+});
+
 describe("Harness still-review bridge", () => {
   it("keeps the Agent worker receiver when rendering Harness stills", async () => {
     const worker = {
@@ -841,8 +851,8 @@ describe("fixWithAi + fixable flag", () => {
     // loop (the vision model is non-deterministic — it can miss a defect on one
     // glance then catch it next). With early-stop ON, two clean passes IN A ROW are
     // required; a flagged pass resets the streak. With it OFF, the loop always runs
-    // the full `refinePasses`. Driven through the first-author flow (`approve`); the
-    // creative bootstrap never calls visualQa, so the visualQa count == vision passes.
+    // the full `refinePasses`. Driven through the first-author flow (`approve`),
+    // so the visualQa count equals the number of visual review passes.
     type VisualQaResult = import("../agent/agent-worker.js").VisualQaResult;
     const clean: VisualQaResult = { kind: "checked", defects: [], checkedSceneIds: ["scene-01"] };
     const defect: VisualQaResult = {
@@ -971,8 +981,8 @@ describe("fixWithAi + fixable flag", () => {
   });
 
   it("non-regressive: if the post-refine draft can't be repaired, restore the blind pre-refine scenes (stays ready, not error)", async () => {
-    // refine (bootstrap + vision) runs on stills BEFORE the
-    // draft MP4. If the refined draft then exhausts repairs, restore the blind
+    // refine runs on stills before the draft MP4. If the refined draft then
+    // exhausts repairs, restore the prior
     // pre-refine source and re-render it — refine must never ship a draft worse
     // than the un-refined one. The draft MP4 renders at most twice (refined, then
     // restored), never a draft-before-refine.
@@ -1833,7 +1843,7 @@ describe("reviewMode (stills_edit / skip_edit)", () => {
     );
     ctrl.approve("p1");
     await flush();
-    // First stills (refine) + creative bootstrap reauthor stills + final stills refresh ≥ 2.
+    // Initial stills plus the final refresh after visual refine require at least two renders.
     expect(stills.mock.calls.length).toBeGreaterThanOrEqual(2);
     // Vision refine ran (early-stop needs 2 consecutive clean passes when earlyStop on).
     expect(visualQa).toHaveBeenCalled();

@@ -198,7 +198,7 @@ export type CreateInput = {
   voiceProvider?: VoiceProviderChoice;
   /** Always tiktok for new creates (optional for older call sites). */
   format?: VideoFormatChoice;
-  /** User-picked short-form duration tier (default 1). */
+  /** User-picked short-form duration tier (default 2, about 90 seconds). */
   durationTier?: DurationTierChoice;
   /** Authored video language (default vi). */
   videoLanguage?: VideoLanguageChoice;
@@ -312,7 +312,7 @@ export type ProjectStage =
   | { kind: "writing"; phase?: "author" | "crawl" | "image-filter" } // AI is reading sources / drafting the script
   | { kind: "image-review"; images: CrawledImageVM[] } // blocking: confirm which crawled article images to use before authoring (crawled-image review)
   | { kind: "script"; lines: ScriptLine[]; linkWarning?: string; evidence?: ScriptEvidenceModel } // awaiting user review/approval (linkWarning = brief links that couldn't be read)
-  | { kind: "rendering"; percent: number; phase?: "edit" | "draft" | "full" | "qa" | "prepare"; qaPass?: number; qaTotal?: number } // building (edit reauthor | draft | full | ai visual-qa | hidden prep). "prepare" is the NEUTRAL phase for the two hidden pre-draft renders (blind stills + creative bootstrap): the user sees a generic "Đang dựng bản nháp…" and never the raw bland take. qaPass/qaTotal annotate a "qa" phase with which vision round is running (e.g. 2/5) so the UI can say "Đang soát lỗi hình ảnh (lần 2/5)…"
+  | { kind: "rendering"; percent: number; phase?: "edit" | "draft" | "full" | "qa" | "prepare"; qaPass?: number; qaTotal?: number } // building (edit reauthor | draft | full | ai visual-qa | hidden prep). "prepare" covers hidden still rendering before visual QA; the user sees a generic "Đang dựng bản nháp…" rather than intermediate stills. qaPass/qaTotal annotate a "qa" phase with which vision round is running (e.g. 2/5) so the UI can say "Đang soát lỗi hình ảnh (lần 2/5)…"
   | { kind: "ready"; scenes: SceneCard[]; notice?: string; draftPath?: string } // draft ready, review scenes (notice = a transient message; draftPath = mediaUrl of the low-res draft MP4 for in-app preview, when it exists)
   /** Draft MP4 healthy but manifest missing/unreadable — view/reveal only. */
   | { kind: "draft-recovery"; draftPath: string; notice: string }

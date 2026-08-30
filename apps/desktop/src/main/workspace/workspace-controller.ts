@@ -1033,10 +1033,8 @@ export class WorkspaceController {
     const policy = await this.workflowPolicyOf(projectId);
     const needsDraft = reviewModeNeedsDraftMp4(policy.reviewMode);
     try {
-      // SILENT refine FIRST : render cheap stills,
-      // do the one-shot creative bootstrap + the defect-fixing vision loop — all on
-      // the no-TTS/no-MP4 path, hidden from the user — BEFORE the first real MP4
-      // draft (or stills-only ready when reviewMode skips draft).
+      // Silent visual refine runs on stills before the first MP4 draft (or
+      // stills-only ready state when reviewMode skips the draft MP4).
       const preRefine = await this.refineBeforeDraft(projectId, signal, policy);
       if (signal?.aborted) {
         this.flushRepairTrace(projectId, repairTrace, "cancelled");
@@ -1270,7 +1268,7 @@ export class WorkspaceController {
     }
   }
 
-  async delete(projectId: string): Promise<void> {
+  async delete(projectId: string): Promise<boolean> {
     // Abort then AWAIT the in-flight task so a late author write cannot recreate
     // project files/maps after delete. Then clear maps and remove on disk.
     this.aborters.get(projectId)?.abort();
@@ -1287,10 +1285,12 @@ export class WorkspaceController {
     this.renderVersions.delete(projectId);
     try {
       await this.deps.deleteProject(projectId);
+      return true;
     } catch (e) {
       // A locked MP4 (Windows EBUSY/EPERM) or fs error must not crash the
       // renderer's invoke; the gallery refresh will simply still show it.
       console.warn(`[workspace] delete failed for ${projectId}:`, e);
+      return false;
     }
   }
 

@@ -153,7 +153,7 @@ export async function refineBeforeDraft(deps: RefineFlowDeps): Promise<SceneSnap
 }
 
 /**
- * Edit-path refine: stills for edited scenes → vision only (no creative bootstrap).
+ * Edit-path refine: stills for edited scenes → scoped vision review only.
  * Returns false when first stills are empty or aborted.
  */
 export async function refineEditedScenes(deps: RefineFlowDeps, sceneIds: string[]): Promise<boolean> {

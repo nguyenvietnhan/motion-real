@@ -27,7 +27,7 @@ function deps(over: Record<string, unknown> = {}) {
     }),
     linkProject: vi.fn(async () => { calls.push("link"); }),
     persistProjectOwnership: vi.fn(async () => { calls.push("owner"); }),
-    deleteProject: vi.fn(async () => { calls.push("delete"); }),
+    deleteProject: vi.fn(async () => { calls.push("delete"); return true; }),
     renameProject: vi.fn(async () => { calls.push("rename"); }),
     startAuthoring: vi.fn(async (_draftId, _projectId, assets) => {
       expect(assets).toEqual([{ id: "gemini", ref: "assets/hash.png", role: "logo" }]);

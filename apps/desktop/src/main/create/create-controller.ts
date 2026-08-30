@@ -135,7 +135,7 @@ export class CreateController {
     if (typeof block === "string") throw new Error(block);
     if (block) throw new VoiceProviderError(block.voiceFailure, block.message);
     // Short-form 9:16 only. Desktop knobs always win over any length in the prompt.
-    const uiTier: DurationTierChoice = isDurationTier(choices.durationTier) ? choices.durationTier : 1;
+    const uiTier: DurationTierChoice = isDurationTier(choices.durationTier) ? choices.durationTier : 2;
     const resolved = resolveEffectiveDuration({
       prompt: v.brief.text,
       durationTier: uiTier,

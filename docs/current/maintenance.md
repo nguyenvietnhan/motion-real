@@ -315,7 +315,7 @@ content-plan, batch, recovery, visual-QA, image-filter, or reauthor prompts:
 ## Motion Tempo Validation
 
 Motion tempo is authoring guidance, not a hard render oracle. Automated tests
-should lock the contract/prompt/planner/bootstrap wording and the
+should lock the contract/prompt/planner/refine wording and the
 content-plan advisory behavior, but they cannot prove whether a generated
 animation feels natural.
 

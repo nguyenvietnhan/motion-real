@@ -27,11 +27,13 @@ export async function deleteAgentDraft<T extends DraftIdentity>(
   draftId: string,
   deps: {
     status(id: string): Promise<T>;
-    deleteProject(projectId: string): Promise<unknown>;
+    deleteProject(projectId: string): Promise<boolean>;
     removeDraft(id: string): Promise<void>;
   },
 ): Promise<void> {
   const draft = await deps.status(draftId);
-  if (draft.projectId) await deps.deleteProject(draft.projectId);
+  if (draft.projectId && !await deps.deleteProject(draft.projectId)) {
+    throw new Error("Không xóa được project MotionReal; giữ nguyên Agent workspace.");
+  }
   await deps.removeDraft(draft.id);
 }

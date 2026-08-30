@@ -34,4 +34,14 @@ describe("Agent draft lifecycle", () => {
     })).rejects.toThrow("project locked");
     expect(removeDraft).not.toHaveBeenCalled();
   });
+
+  it("does not remove the Agent draft when project deletion reports failure", async () => {
+    const removeDraft = vi.fn();
+    await expect(deleteAgentDraft("agent-1", {
+      status: async () => linked,
+      deleteProject: async () => false,
+      removeDraft,
+    })).rejects.toThrow(/MotionReal/);
+    expect(removeDraft).not.toHaveBeenCalled();
+  });
 });

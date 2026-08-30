@@ -141,7 +141,7 @@ The workspace controller has been split only along narrow local seams:
   authoring runner helpers.
 - `workspace-render-flow.ts` owns pure render/refine prompt and progress helpers.
 - `workspace-refine-flow.ts` owns silent pre-draft and edit-path vision refine
-  (bootstrap, vision passes, accept-gate, restore-to-prior-draft) via callbacks.
+  (vision passes, accept-gate, restore-to-prior-draft) via callbacks.
 
 Renderer-safe Vietnamese stage/phase copy lives in
 `apps/desktop/src/shared/stage-labels.ts` (not under `main/`).
@@ -259,17 +259,14 @@ Before the user sees a first draft, the desktop flow may run a hidden sequence:
 
 ```text
 author initial TSX/manifest
--> render stills
--> creative bootstrap pass
--> render stills again
--> visual QA/refine passes
+-> render stills when visual refine is enabled
+-> visual QA/refine passes, re-rendering only scenes that change
 -> render draft MP4
 ```
 
-Those rough intermediate stills are hidden from the user. After review,
-edit flows skip broad creative bootstrap and use scoped scene repair. Script
-review is optional (`scriptGateEnabled`). Post-author human review is controlled
-by Settings `reviewMode`:
+Those intermediate stills are hidden from the user. After review, edit flows
+use scoped scene repair. Script review is optional (`scriptGateEnabled`).
+Post-author human review is controlled by Settings `reviewMode`:
 
 | Mode | Preview | Scene edit | Full export |
 |------|---------|------------|-------------|

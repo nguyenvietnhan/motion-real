@@ -949,7 +949,7 @@ const handlers: InvokeHandlers = {
     const id = String(projectId);
     // A video created by Agent owns its isolated Harness state as well.
     const draft = await resolveHarnessDraftForProject(id);
-    await workspace.delete(id);
+    if (!await workspace.delete(id)) throw new Error("Không xóa được project MotionReal. Agent workspace được giữ nguyên.");
     if (draft) await harness.removeDraft(draft.id);
   },
   "projects:reveal": (projectId) => workspace.reveal(String(projectId)),
