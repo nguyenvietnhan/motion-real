@@ -14,14 +14,16 @@ const CSP_BASE = [
   "frame-src http://127.0.0.1:*",
 ];
 
-function contentSecurityPolicy(dev: boolean): string {
+export function contentSecurityPolicy(dev: boolean): string {
   return [
     ...CSP_BASE,
     dev
       ? "connect-src 'self' http://localhost:20128 http://127.0.0.1:* ws://localhost:* ws://127.0.0.1:*"
       : "connect-src 'self' http://localhost:20128 http://127.0.0.1:*",
     dev
-      ? "script-src 'self' 'unsafe-eval'"
+      // Vite injects its React-refresh preamble as an inline module in dev.
+      // Production keeps the stricter external-script-only policy below.
+      ? "script-src 'self' 'unsafe-eval' 'unsafe-inline'"
       : "script-src 'self'",
   ].join("; ");
 }
