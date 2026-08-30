@@ -187,6 +187,7 @@ const auditDashboard = {
     pause: async () => ({ ok: true as const }),
     resume: async () => ({ ok: false as const, code: "FULL_AUTO_REQUIRED" as const, error: "Không chạy audit queue." }),
     status: async () => ({ busy: false, activeQueueId: null, pendingQueueIds: [] }),
+    recover: async () => false,
   },
   tts: {
     setApiKey: async () => defaultSettings(""),

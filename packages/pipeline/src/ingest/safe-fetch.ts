@@ -260,12 +260,13 @@ export async function requestPinnedWithUndici(
     },
   });
   try {
-    const res = await undiciFetch(target.url.toString(), {
+    const nativeResponse = await undiciFetch(target.url.toString(), {
       dispatcher,
       redirect: "manual",
       headers: BROWSER_HEADERS,
       ...(signal ? { signal } : {}),
     });
+    const res = toStandardResponse(nativeResponse);
     const location = res.status >= 300 && res.status < 400 ? res.headers.get("location") : null;
     if (location) {
       await discardBody(res);
@@ -278,7 +279,9 @@ export async function requestPinnedWithUndici(
     res.headers.forEach((value, key) => {
       headers.set(key, value);
     });
-    return new Response(body, {
+    const exactBody = new Uint8Array(body.byteLength);
+    exactBody.set(body);
+    return new Response(exactBody.buffer, {
       status: res.status,
       statusText: res.statusText,
       headers,
@@ -291,6 +294,22 @@ export async function requestPinnedWithUndici(
       dispatcher.destroy();
     }
   }
+}
+
+/** Convert Undici's package-local DOM types to the runtime's global Response. */
+function toStandardResponse(res: {
+  status: number;
+  statusText: string;
+  headers: { forEach(callback: (value: string, key: string) => void): void };
+  body: unknown;
+}): Response {
+  const headers = new Headers();
+  res.headers.forEach((value, key) => headers.set(key, value));
+  return new Response(res.body as ReadableStream<Uint8Array> | null, {
+    status: res.status,
+    statusText: res.statusText,
+    headers,
+  });
 }
 
 function resolveRequestPinned(opts: SafeFetchOptions): PinnedRequestImpl {
