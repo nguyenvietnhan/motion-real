@@ -31,8 +31,10 @@ Implemented today:
 The embedded page opens the exact Harness Session with
 `?session=<id>&embedded=motionreal`. MotionReal does not project chat history,
 tool activity, question/approval state, Markdown, or composer behavior through
-IPC. The fork's embedded mode hides only the sidebar and resize handle and
-applies MotionReal color tokens; standalone Harness behavior remains intact.
+IPC. The fork's embedded mode does not mount Harness sidebar/session chrome,
+hero, workspace picker, or
+composer model/access controls. It applies MotionReal color tokens while
+standalone Harness behavior remains intact.
 MotionReal still uses internal Harness RPCs for automatic workflow handoffs.
 
 ## Product Boundary
@@ -479,7 +481,7 @@ handoff/assets.draft.json
 MotionReal never treats a partially written draft file as completion.
 Final JSON handoffs accept an optional UTF-8 BOM because PowerShell commonly
 writes one even when the resulting JSON document is otherwise valid.
-The current V1 request is written by MotionReal to
+The current asset request is written by MotionReal to
 `handoff/assets-request.json`. It carries `job_id`, `request_revision`, the
 selection to keep, and the exact manifest example. MotionReal advances only
 when the final manifest matches both ids and every referenced local raster file
@@ -499,10 +501,10 @@ Each tool validates its schema and local files, writes the durable handoff, and
 notifies the MotionReal controller. The Agent cannot supply arbitrary output
 paths to these tools.
 
-The brief title is not a model-controlled tool argument. MotionReal freezes it
-in `brief-request.json`, and the submission tool copies that value into the
-accepted brief while the model supplies the narrative/visual prompt and other
-bounded choices.
+The model proposes the generated brief title together with its narrative and
+visual prompt. The user can edit that title before approval; MotionReal stores
+the edited value only in the accepted brief. Generated briefs do not fix
+duration, voice, or scene count.
 
 Do not add render tools to Harness. Rendering stays in the existing MotionReal
 controllers.
@@ -573,7 +575,7 @@ The Video Agent tab follows MotionReal's minimalist, dark studio design system:
 - Deleting a video aborts in-flight Agent work before removing its Workspace;
   project deletion continues to use the existing project lifecycle.
 
-## V1 Scope
+## Current preview boundary
 
 Build only:
 

@@ -44,7 +44,7 @@ Create (prompt / URLs / images)
 | --- | --- |
 | **Node.js** `>= 24`, **npm** `>= 11` | See root `package.json` `engines` |
 | **9router** (desktop AI) | External binary on `PATH`. Not vendored in this repo. App expects OpenAI-compatible chat at `http://localhost:20128/v1`. Launcher tries `9router -n -t --skip-update` if nothing is already listening. |
-| **DeepSeek Harness** (Video Agent preview) | Development checkout built next to this repo at `../deepseek-harness`, or set `MOTIONREAL_DSH_CLI` to its built `apps/cli/lib/bin.js`. The app starts it with the Node executable supplied by the dev launcher; `MOTIONREAL_NODE_BIN` can override that executable. |
+| **DeepSeek Harness** (Video Agent preview) | Use the sibling checkout at commit `812a593c46` or a later compatible embedded build, and run `pnpm run build` there so `apps/cli/lib/bin.js` exists. Alternatively set `MOTIONREAL_DSH_CLI` to that built file. The app starts it with the Node executable supplied by the dev launcher; `MOTIONREAL_NODE_BIN` can override that executable. Source files alone are not a runtime verification. |
 | **TTS** | VieNeu Local (Vietnamese developer preview), Vivibe (Vietnamese), or ElevenLabs — see [`docs/current/tts-providers.md`](docs/current/tts-providers.md). Missing local runtime/credentials **block** production render; never silently fall back to `mock` / `none`. |
 | **Chromium / Remotion browser** | Needed for real video stills/MP4 (`npm run smoke`, desktop/CLI render). **Not** required for `npm run typecheck`, `npm test`, or `npm run build` (webpack-only). |
 

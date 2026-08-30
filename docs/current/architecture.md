@@ -183,11 +183,12 @@ Agent-created projects persist `creationMode: "harness"`. They reuse the same
 project scaffold, authoring contract, admission/render tools, Workspace stages,
 human review, TTS, captions, and full export, but their linked DeepSeek Harness
 Session writes `manifest.json` and `authored/*.tsx` directly through a project
-junction. MotionReal treats the first submission as V1, renders and archives
-its source/stills, then requires an image-backed V2 rewrite whose scene modules
-differ from V1 before exposing the existing per-scene review UI. This is still
-snapshot review, not temporal motion QA. Human edit requests return to that
-same Session; Classic projects continue through the existing
+junction. Initial Harness authoring is final-quality: it reads the approved
+source assets, writes the normal scene modules, and reaches still review through
+the configured visual-refine passes. Rendered stills reach the model only for
+visual refine or a user-requested visual edit, never as a mandatory first-pass
+rewrite. This is still snapshot review, not temporal motion QA. Human edit
+requests return to that same Session; Classic projects continue through the existing
 `WorkspaceController.submitEdits` path.
 
 `apps/desktop/src/main/authoring/ninerouter-backend.ts` is the public desktop
@@ -391,7 +392,9 @@ paths. Responses are buffered before the per-request dispatcher closes.
 The product ships **TikTok/Reels/Shorts 9:16** only. Specs use `format: "tiktok"`
 and `ratio: "9:16"`. Desktop create always uses short-form delivery; the Home
 duration knobs pick `durationTier` **1 / 2 / 3 / 4** (~45s / ~90s / ~150s /
-~210s pacing; default **1**). There is no landscape / YouTube format option.
+~210s pacing; fresh install defaults to **2** (~90s) and the most recently
+accepted duration tier becomes the next UI default. There is no landscape /
+YouTube format option.
 Geometry, captions, and thumbnail cover are vertical short-form only.
 
 **Duration resolution:** desktop **Settings/knobs always win**. An explicit

@@ -158,19 +158,19 @@ const auditDashboard = {
     save: async () => ({ saved: false }),
   },
   script: {
-    get: async () => ({ projectId: "project-audit", enabled: false, script: [] }),
+    get: async () => ({ projectId: "project-audit", enabled: false, scenes: [] }),
     applyEdits: async () => ({ ok: true }),
     approve: async () => {},
     setEnabled: async () => {},
   },
   review: {
-    submitEdits: async () => ({ accepted: true }),
-    approveDraft: async () => ({ started: true }),
+    submitEdits: async () => ({ ok: true, revision: 1 }),
+    approveDraft: async () => ({ ok: true, outputPath: "" }),
   },
   settings: {
     get: async () => defaultSettings(""),
     update: async () => defaultSettings(""),
-    readiness: async () => ({ ready: false, checks: [] }),
+    readiness: async () => ({ ok: false, checks: [] }),
     renderSmoke: async () => ({ ok: false as const, error: "Không chạy audit render." }),
   },
   queue: {
@@ -186,12 +186,16 @@ const auditDashboard = {
     start: async () => ({ ok: false as const, code: "FULL_AUTO_REQUIRED" as const, error: "Không chạy audit queue." }),
     pause: async () => ({ ok: true as const }),
     resume: async () => ({ ok: false as const, code: "FULL_AUTO_REQUIRED" as const, error: "Không chạy audit queue." }),
-    status: async () => ({ active: false, queueId: null, jobId: null }),
+    status: async () => ({ busy: false, activeQueueId: null, pendingQueueIds: [] }),
   },
   tts: {
     setApiKey: async () => defaultSettings(""),
     clearApiKey: async () => defaultSettings(""),
-    testVoice: async () => ({ ok: false, error: "Không chạy audit giọng." }),
+    testVoice: async () => ({
+      ok: false,
+      error: "Không chạy audit giọng.",
+      voiceFailure: { provider: "vivibe", code: "not_configured", retryable: false },
+    }),
   },
   events: {
     onProgress: () => () => {},

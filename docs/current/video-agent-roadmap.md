@@ -284,17 +284,16 @@ request and reuse the existing project scaffold/asset-promotion path.
   project promotion path.
 - Store the resulting `projectId` on the Agent record.
 
-Implemented V1 details:
+Implemented current details:
 
 - MotionReal writes `handoff/brief-request.json`; Harness atomically submits
-  `handoff/brief.json` with matching job/request revisions.
+  `handoff/brief.generated.json` with matching job/request revisions.
 - Existing Agent videos already at `brief_review` can explicitly retry brief
   generation without repeating asset collection.
 - The review edits title, final prompt, duration tier, language, and voice.
-- Approval writes a frozen create request and moves to `queued_create`; it does
-  not create a project. The separate create action invokes the existing
-  `CreateController`, promotes only selected local assets, renames the created
-  project to the approved title, links its id, and moves to Harness `authoring`.
+- Approval writes the accepted `handoff/brief.json`, moves to `queued_create`,
+  and immediately starts the scaffold transaction. If that transaction fails,
+  the accepted brief remains retryable with `Thử bắt đầu dựng`.
 - `creationMode: harness` prevents CreateController from starting the Classic
   one-shot authoring worker after the scaffold has been created.
 - Agent ownership is persisted after image promotion and immediately before the
@@ -396,7 +395,7 @@ orchestration.
   Classic projects continue through `WorkspaceController.submitEdits`.
 - User approval continues through the existing publish/full-render handler.
 
-Implemented V1 details:
+Implemented current details:
 
 - Once a draft links a project, `projects.stage()` becomes the authoritative
   progress source; persisted Agent workflow metadata is no longer presented as
@@ -436,8 +435,9 @@ MotionReal projection of its protocol.
 ### Implementation
 
 - The Harness fork supports `?session=<id>&embedded=motionreal`.
-- Embedded mode hides only the sidebar and resize handle, preserves every native
-  conversation plugin, and applies MotionReal theme tokens.
+- Embedded mode mounts only the native conversation surface: it removes sidebar,
+  session chrome, hero, workspace picker, and composer model/access controls
+  while preserving every native conversation plugin and MotionReal theme tokens.
 - MotionReal places that native page below its existing workflow bar and review
   surfaces.
 - The renderer opens chat only through `AgentDraftVM.harnessUrl`; there is no
@@ -457,8 +457,8 @@ MotionReal projection of its protocol.
 
 ## Phase 6 — Submission Tools and Hardening
 
-Status: implemented and accepted against the real native-Windows Harness/9router
-runtime on 2026-08-28.
+Status: implemented in code; native-Windows re-acceptance remains required
+after the current workflow and embedded-surface changes.
 
 ### Goal
 
@@ -486,19 +486,9 @@ tools after the workflow shape is stable.
 - File-handoff compatibility can remain for recovery/debug but is no longer the
   normal Agent completion mechanism.
 
-Acceptance evidence:
-
-- MotionReal loads one standalone Harness plugin through `--patch`; no Harness
-  fork patch, second service, downloader, or render path was added.
-- A real `ag/gemini-3.7-flash-high` session called
-  `motionreal_submit_assets`, received its tool result, and reached asset review
-  from the validated durable manifest.
-- After asset approval and an app/sidecar restart, the same Session resumed,
-  called `motionreal_submit_brief`, received a successful tool result, and
-  produced the current validated brief artifact.
-- Focused tests cover valid, duplicate, conflicting, stale, external-workspace,
-  and aborted submissions. The executor fixes title to the user-owned value in
-  `brief-request.json`, so it cannot drift through model arguments.
+Implementation evidence is limited to focused tests and local build gates.
+Native acceptance must re-run the current Harness/9router flow before claiming
+that a provider has submitted assets or briefs successfully.
 
 ## Phase 7 — Harness Scene Authoring and Still Review
 
@@ -518,12 +508,11 @@ creating another render engine or review UI.
 - The owning Harness Session inspects local assets and writes the normal
   `manifest.json` and fresh `authored/*.tsx` scene modules.
 - `motionreal_submit_authoring` validates job/revision, scene order, module
-  presence, and use of every approved asset before MotionReal renders stills.
-  Every occurrence must preserve its approved media role; unapproved refs are
-  rejected. Actual on-screen use is checked during still review, not inferred
-  from a manifest ref or a regex over source.
-- MotionReal renders PNG stills, requires Harness to open/review every scene and
-  resubmit concrete notes, renders the revised stills, then reuses the existing
+  presence, and approved-asset references before MotionReal renders stills.
+  Approved assets are a pool, not a checklist; each declared use must preserve
+  its media role, while unapproved refs are rejected.
+- MotionReal renders PNG stills through the shared FIFO. It asks Harness to
+  inspect them only when visual refine is enabled, then reuses the existing
   human per-scene review UI.
 - Human scene/global feedback is routed only to the same Harness Session. Classic
   projects continue through the old edit worker without behavior changes.
@@ -555,14 +544,15 @@ creating another render engine or review UI.
 4. **Visual Refine & History Evidence:** final-quality authoring and user scene edits generate scoped still images for at most the configured visual-refine passes. Main verifies actual `session.history` for successful `read_image` events with image attachments matching byte fingerprints before human review opens.
 5. **Review-Mode Parity:** Harness bridge branches cleanly based on the project's Settings policy: `full` (draft render + single review pass), `stills_edit` (direct still cards without draft render), and `skip_edit` (automatic full publish). IPC recovery routes recognized Harness projects to their Session or a render retry.
 
-Automated suite passed 140 files / 1,441 tests, typecheck, build, and plugin verification.
+Automated verification is reported by fresh command exit codes, not a hard-coded
+test count. Native re-acceptance remains required.
 
 ## Workflow Control and Surface Isolation — 2026-08-29
 
 The Video Agent tab now provides durable workflow control and exclusive UI surfaces:
-1. **Durable Pause & Resume:** `agent:cancelWorkflow` atomically cancels active Harness session turns via `session.cancel`, halts authoring polling, cancels any linked Workspace rendering, and writes `productionState: "paused"` along with `pausedFrom`. Late prompts and callbacks are rejected by revision check, eliminating duplicate repair prompts.
+1. **Durable Pause & Resume:** `agent:pauseWorkflow` atomically cancels active Harness session turns via `session.cancel`, halts authoring polling, cancels any linked Workspace rendering, and writes `productionState: "paused"` along with `pausedFrom`. Late prompts and callbacks are rejected by revision check, eliminating duplicate repair prompts.
 2. **Intermediate Brief Preparation:** Added `preparing_brief` between `asset_review` and `brief_review` to ensure the brief review UI is displayed only when a valid, schema-checked brief artifact is available.
-3. **Three Exclusive Primary Surfaces:** Chat iframe is displayed exclusively during discovery or explicit chat open; automated work displays `AgentWorkflowProgress` with sanitized `session.history` activity (scrubbed of raw paths, credentials, and output); review steps display dedicated MotionReal review cards.
+3. **Three Exclusive Primary Surfaces:** Chat iframe is displayed exclusively during discovery or explicit chat open; automated work displays `AgentWorkflowProgress` with sanitized `session.history` activity only while it is needed (scrubbed of raw paths, credentials, and output); review steps display dedicated MotionReal review cards.
 4. **Design System & Studio Theme Alignment:**
    - `AgentLibrary` list format with kebab options menu (`useDismissable`) and unboxed trigger.
    - Minimalist, monochrome/subtle status styling (`var(--muted-foreground)`) replacing loud colored pills.
@@ -570,7 +560,9 @@ The Video Agent tab now provides durable workflow control and exclusive UI surfa
    - `AgentWorkflowProgress` with a top-anchored layout (`padding-top: 64px`) ensuring the title and spinner maintain fixed vertical positioning without layout shifting when activity items expand.
    - Brief review featuring `KnobButton` chips and clean scene dividers, alongside flat settings dialog cards with secret visibility toggle.
 
-Automated verification: `npm.cmd test` passes 140 files / 1,444 tests, `npm.cmd run typecheck` passes with 0 errors, and Remotion webpack build exits with code 0.
+Verification uses fresh successful exit codes from `npm.cmd run typecheck`,
+`npm.cmd test`, and `npm.cmd run build`; test totals are intentionally not
+recorded because they change with coverage.
 
 Native acceptance still needs a new video: verify all three Settings modes,
 one edit, one render failure/retry and cancel, actual narration duration, and the
@@ -609,7 +601,7 @@ Use one new factual video topic and perform the following on native Windows:
 - Hard deletion of shared-home Harness logs.
 - Packaging/updating the Harness fork in the installer.
 
-Add these only after the V1 end-to-end scenario passes and a concrete product
+Add these only after the current end-to-end scenario passes and a concrete product
 need demonstrates that the existing boundary is insufficient.
 
 ## Delivery Discipline
