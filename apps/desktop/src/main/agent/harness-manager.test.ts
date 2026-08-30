@@ -898,7 +898,9 @@ describe("HarnessManager draft lifecycle", () => {
     }));
     await vi.waitFor(() => expect(acceptAuthoringStills).toHaveBeenCalledWith("project-final"), { timeout: 3_000 });
     expect(renderAuthoringStills).toHaveBeenCalledTimes(1);
-    await expect(manager.status(draft.id)).resolves.toMatchObject({ productionState: "scene_review" });
+    await vi.waitFor(async () => {
+      await expect(manager.status(draft.id)).resolves.toMatchObject({ productionState: "scene_review" });
+    }, { timeout: 3_000 });
     await expect(readFile(join(draftRoot, "handoff", "authoring-v1", "manifest.json"), "utf8")).rejects.toMatchObject({ code: "ENOENT" });
 
     await manager.requestSceneEdits(draft.id, "project-final", [{ sceneId: "scene-01", text: "Sửa điểm nhấn cảnh đầu." }], "");
@@ -911,6 +913,80 @@ describe("HarnessManager draft lifecycle", () => {
     await vi.waitFor(async () => expect(JSON.parse(await readFile(join(draftRoot, "handoff", "authoring-request.json"), "utf8")))
       .toMatchObject({ request_revision: 4, phase: "visual_refine", review_scene_ids: ["scene-01"] }), { timeout: 3_000 });
     await manager.dispose();
+  });
+
+  it("keeps a valid authoring submission and retries only still rendering when the runtime bridge fails", async () => {
+    let stillResult: { ok: true; stills: string[] } | { ok: false; error: string; repairable: boolean } = {
+      ok: false,
+      error: "Renderer bridge unavailable.",
+      repairable: false,
+    };
+    const renderAuthoringStills = vi.fn(async () => stillResult);
+    const acceptAuthoringStills = vi.fn(async () => undefined);
+    const { manager, root, calls } = await activeManagerForTest({
+      renderAuthoringStills,
+      acceptAuthoringStills,
+      authoringRefinePolicy: async () => ({ refinePasses: 0, refineEarlyStop: true }),
+      wordsPerSecond: async () => 1,
+    });
+    const draft = await manager.createDraft("Render still lỗi runtime");
+    await manager.activate(draft.id, "internal-key");
+    let state = await manager.transitionWorkflow(draft.id, { expectedRevision: 0, to: "collecting_assets", jobId: "job-runtime" });
+    state = await manager.transitionWorkflow(draft.id, { expectedRevision: state.workflowRevision, to: "asset_review", jobId: "job-runtime" });
+    state = await manager.transitionWorkflow(draft.id, { expectedRevision: state.workflowRevision, to: "brief_review", jobId: "job-runtime" });
+    await manager.transitionWorkflow(draft.id, { expectedRevision: state.workflowRevision, to: "queued_create", jobId: "job-runtime" });
+
+    const draftRoot = join(root, draft.id);
+    const metadataPath = join(draftRoot, "motionreal-agent.json");
+    await writeFile(metadataPath, JSON.stringify({
+      ...JSON.parse(await readFile(metadataPath, "utf8")),
+      briefRequestRevision: 1,
+    }));
+    await mkdir(join(draftRoot, "handoff"), { recursive: true });
+    await writeFile(join(draftRoot, "handoff", "brief.json"), JSON.stringify({
+      version: 1, accepted: true, job_id: "job-runtime", request_revision: 1, brief_revision: 1,
+      title: "Runtime bridge", prompt: "Nội dung đủ dài để kiểm tra khi bridge render still của Agent gặp lỗi runtime.",
+      format: "tiktok", duration_tier: 1, target_seconds: 45, video_language: "vi", voice_provider: "vivibe", selected_asset_ids: [],
+    }));
+    await manager.linkProject(draft.id, "project-runtime");
+    const projectRoot = join(root, "projects", "project-runtime");
+    await mkdir(join(projectRoot, "authored"), { recursive: true });
+    await manager.startAuthoring(draft.id, "project-runtime", projectRoot, []);
+    const promptCount = calls.filter((call) => call.method === "session.prompt").length;
+    const sceneIds = ["scene-01", "scene-02", "scene-03"];
+    await writeFile(join(projectRoot, "manifest.json"), JSON.stringify({
+      title: "Runtime bridge", durationTier: 1, videoLanguage: "vi",
+      scenes: sceneIds.map((id, index) => ({
+        id, component: id, headline: id,
+        narration: "một hai ba bốn năm sáu bảy tám chín mười mười một mười hai mười ba",
+        ...(index < sceneIds.length - 1 ? { transitionToNext: "fade" } : {}),
+      })),
+    }));
+    await Promise.all(sceneIds.map((id) => writeFile(join(projectRoot, "authored", `${id}.tsx`), registeredSceneSource(id, "runtime"))));
+    await writeFile(join(draftRoot, "handoff", "authoring.json"), JSON.stringify({
+      version: 1, job_id: "job-runtime", request_revision: 1, scene_ids: sceneIds, used_asset_ids: [],
+    }));
+
+    await manager.status(draft.id);
+    await vi.waitFor(async () => {
+      await expect(manager.status(draft.id)).resolves.toMatchObject({
+        productionState: "error",
+        failedPhase: "authoring",
+        retryAction: "rerender_stills",
+        lastError: "Renderer bridge unavailable.",
+      });
+    }, { timeout: 3_000 });
+    await expect(readFile(join(draftRoot, "handoff", "authoring.json"), "utf8")).resolves.toContain("scene-01");
+    expect(calls.filter((call) => call.method === "session.prompt")).toHaveLength(promptCount);
+
+    stillResult = { ok: true, stills: sceneIds.map((id) => join(projectRoot, "review", `${id}.png`)) };
+    const failed = await manager.status(draft.id);
+    await manager.retryWorkflow(draft.id, failed.workflowRevision);
+    await vi.waitFor(async () => {
+      await expect(manager.status(draft.id)).resolves.toMatchObject({ productionState: "scene_review" });
+    }, { timeout: 3_000 });
+    expect(renderAuthoringStills).toHaveBeenCalledTimes(2);
+    expect(calls.filter((call) => call.method === "session.prompt")).toHaveLength(promptCount);
   });
 
   it("removes the video workspace when the draft is removed", async () => {

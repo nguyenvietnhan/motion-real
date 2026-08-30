@@ -146,10 +146,10 @@ export interface AgentWorker {
    * Optional fast per-scene STILLS render (no TTS/MP4/heavy-oracle) — the cheap
    * inner loop the SILENT refine pass iterates on.
    * `sceneIds` scopes the render to the scenes a pass just rewrote; omit ⇒ all.
-   * Returns the rendered still paths (empty on a render failure — refine is
-   * best-effort and must never crash the author flow).
+   * Returns the rendered still paths. A structured render error is optional so
+   * interactive callers can distinguish authored-code repair from runtime retry.
    */
-  renderStills?(projectId: string, sceneIds?: string[], signal?: AbortSignal): Promise<{ stills: string[] }>;
+  renderStills?(projectId: string, sceneIds?: string[], signal?: AbortSignal): Promise<{ stills: string[]; error?: SerializedPipelineError }>;
   /**
    * Render the final full-quality MP4.
    * Pass forceFull when desktop reviewed without a draft MP4 (stills/skip modes

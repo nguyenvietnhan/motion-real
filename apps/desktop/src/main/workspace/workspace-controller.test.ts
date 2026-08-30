@@ -103,6 +103,42 @@ describe("process-wide workspace lane", () => {
 });
 
 describe("Harness still-review bridge", () => {
+  it("keeps the Agent worker receiver when rendering Harness stills", async () => {
+    const worker = {
+      root: "V:/project/review",
+      async renderStills(this: { root: string }, _projectId: string, _sceneIds?: string[]) {
+        return { stills: [`${this.root}/scene-01.png`] };
+      },
+    };
+    const ctrl = new WorkspaceController(baseDeps({ worker: worker as unknown as AgentWorker }));
+
+    await expect((ctrl as unknown as {
+      renderHarnessStills(projectId: string, sceneIds: string[]): Promise<{ ok: true; stills: string[] } | { ok: false; error: string }>;
+    }).renderHarnessStills("p-harness", ["scene-01"])).resolves.toEqual({
+      ok: true,
+      stills: ["V:/project/review/scene-01.png"],
+    });
+  });
+
+  it("marks a serialized authored-scene still error as repairable without treating bridge failures as scene errors", async () => {
+    const ctrl = new WorkspaceController(baseDeps({
+      worker: {
+        renderStills: async () => ({
+          stills: [],
+          error: { stage: "render", cause: "Transform failed in authored/scene-01.tsx", severity: "error" },
+        }),
+      } as unknown as AgentWorker,
+    }));
+
+    await expect((ctrl as unknown as {
+      renderHarnessStills(projectId: string, sceneIds: string[]): Promise<{ ok: true; stills: string[] } | { ok: false; error: string; repairable: boolean }>;
+    }).renderHarnessStills("p-harness", ["scene-01"])).resolves.toEqual({
+      ok: false,
+      error: "Transform failed in authored/scene-01.tsx",
+      repairable: true,
+    });
+  });
+
   it("renders Harness stills through the workspace lane and its cancellation signal", async () => {
     let observedSignal: AbortSignal | undefined;
     let release!: () => void;

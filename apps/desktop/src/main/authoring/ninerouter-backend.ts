@@ -469,7 +469,7 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
    * stills bundle THIS project's freshly-authored scenes. `sceneIds` scopes the
    * render to the scenes a refine pass just rewrote.
    */
-  async renderStills(projectId: string, sceneIds?: string[], signal?: AbortSignal): Promise<{ stills: string[] }> {
+  async renderStills(projectId: string, sceneIds?: string[], signal?: AbortSignal): Promise<{ stills: string[]; error?: SerializedPipelineError }> {
     return renderStillsWithTools(this.renderTools(), projectId, sceneIds, signal);
   }
 

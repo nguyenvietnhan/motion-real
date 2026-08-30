@@ -662,7 +662,7 @@ export const AgentWorkspace: React.FC<AgentWorkspaceProps> = ({
       };
     if (draft.productionState === "error")
       return {
-        label: "Thử lại bước này",
+        label: draft.retryAction === "rerender_stills" ? "Thử render ảnh" : "Thử lại bước này",
         icon: Icon.refresh({ size: 15 }),
         run: () => updateDraft(() => window.dashboard.agent.retryWorkflow(draft.id, draft.workflowRevision)),
       };

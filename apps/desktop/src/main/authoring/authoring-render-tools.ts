@@ -64,7 +64,7 @@ export async function renderStillsWithTools(
   projectId: string,
   sceneIds?: string[],
   signal?: AbortSignal,
-): Promise<{ stills: string[] }> {
+): Promise<{ stills: string[]; error?: SerializedPipelineError }> {
   await refreshAuthoredRegistry(deps, projectId);
   const res = await deps.tools.render_stills(
     { projectId, ...(sceneIds && sceneIds.length > 0 ? { sceneIds } : {}) },
@@ -73,7 +73,7 @@ export async function renderStillsWithTools(
   );
   if (!res.ok) {
     deps.logger.error({ projectId, stage: res.error.stage, cause: res.error.cause }, "render_stills failed");
-    return { stills: [] };
+    return { stills: [], error: res.error };
   }
   return { stills: res.data.stills };
 }

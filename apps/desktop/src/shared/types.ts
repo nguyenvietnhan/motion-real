@@ -83,6 +83,8 @@ export type AgentDraftVM = {
   /** Stage that will be resumed after a user-stopped workflow is continued. */
   pausedFrom?: Exclude<AgentProductionState, "paused" | "discovery" | "asset_review" | "brief_review" | "scene_review" | "error">;
   lastError?: string;
+  /** A renderer/bridge failure can retry the existing submission without asking the model to rewrite it. */
+  retryAction?: "rerender_stills";
   /** Recent, allow-listed Harness activity for the MotionReal workflow surface. */
   activities?: AgentActivityVM[];
   /** A native Harness question or approval is awaiting the user; no raw prompt crosses IPC. */

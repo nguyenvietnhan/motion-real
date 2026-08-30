@@ -35,14 +35,17 @@ describe("authoring render tools", () => {
     expect(deps.logger.error).toHaveBeenCalled();
   });
 
-  it("renderStills returns empty array on failure", async () => {
+  it("renderStills preserves the engine error for callers that need to decide retry ownership", async () => {
     const deps = baseDeps({
       render_stills: vi.fn(async () => ({
         ok: false,
         error: { stage: "stills", cause: "nope" },
       })),
     });
-    await expect(renderStillsWithTools(deps, "p1", ["scene-01"])).resolves.toEqual({ stills: [] });
+    await expect(renderStillsWithTools(deps, "p1", ["scene-01"])).resolves.toEqual({
+      stills: [],
+      error: { stage: "stills", cause: "nope" },
+    });
   });
 
   it("getSafetyReport strips N24/N25 from hardErrors", async () => {

@@ -71,6 +71,13 @@ type DraftRecord = Omit<AgentDraftVM, "updatedAt" | "harnessUrl" | "webSearchCon
   failedPhase?: "collecting_assets" | "preparing_brief" | "authoring" | "visual_refine";
 };
 
+class AuthoringStillRenderError extends Error {
+  constructor(message: string, readonly repairable: boolean) {
+    super(message);
+    this.name = "AuthoringStillRenderError";
+  }
+}
+
 export type AgentCreateRequest = {
   draftId: string;
   title: string;
@@ -108,7 +115,7 @@ export type HarnessManagerDeps = {
   renderAuthoringStills?: (
     projectId: string,
     sceneIds: string[],
-  ) => Promise<{ ok: true; stills: string[] } | { ok: false; error: string }>;
+  ) => Promise<{ ok: true; stills: string[] } | { ok: false; error: string; repairable: boolean }>;
   cancelAuthoringStills?: (projectId: string) => void;
   acceptAuthoringStills?: (projectId: string) => Promise<void>;
   /** Snapshot-aware caller; default keeps old installs bounded at three repairs. */
@@ -598,13 +605,19 @@ export class HarnessManager {
     };
     delete next.lastError;
     delete next.failedPhase;
+    delete next.retryAction;
     if (next.repairPhase === phase) {
       delete next.repairPhase;
       delete next.repairAttempts;
     }
     await this.writeRecord(next);
     try {
-      if (phase === "authoring" || phase === "visual_refine") {
+      if (current.retryAction === "rerender_stills") {
+        if ((phase !== "authoring" && phase !== "visual_refine")
+          || !existsSync(join(this.rootOf(next.id), "handoff", "authoring.json"))) {
+          throw new Error("Không còn authoring submission để render lại ảnh xem trước.");
+        }
+      } else if (phase === "authoring" || phase === "visual_refine") {
         await this.requestAuthoringRepair(next, "Người dùng yêu cầu thử lại bước này.");
       } else {
         await this.promptSession(next, resumePromptFor(phase));
@@ -954,6 +967,7 @@ export class HarnessManager {
           ? { repairPhase: raw.repairPhase, repairAttempts: Number(raw.repairAttempts) }
           : {}),
         ...(isRetryableFailurePhase(raw.failedPhase) ? { failedPhase: raw.failedPhase } : {}),
+        ...(raw.productionState === "error" && raw.retryAction === "rerender_stills" ? { retryAction: "rerender_stills" as const } : {}),
         ...(Array.isArray(raw.selectedAssetIds)
           ? { selectedAssetIds: raw.selectedAssetIds.filter((value): value is string => typeof value === "string") }
           : {}),
@@ -1302,6 +1316,11 @@ export class HarnessManager {
         return;
       }
       if (!await this.isCurrentAuthoringRecord(record)) return;
+      if (error instanceof AuthoringStillRenderError && !error.repairable) {
+        log.warn({ err: error, draftId: record.id, projectId: record.projectId }, "Harness still render failed; preserving authoring submission for retry");
+        await this.recordWorkflowError(record, error, "rerender_stills");
+        return;
+      }
       log.warn({ err: error, draftId: record.id, projectId: record.projectId }, "Harness authoring validation/render failed; requesting repair");
       await this.requestAuthoringRepair(record, error instanceof Error ? error.message : "Không kiểm tra được scene Harness.").catch((repairError) => {
         log.error({ err: repairError, draftId: record.id, projectId: record.projectId }, "failed to request Harness authoring repair");
@@ -1364,11 +1383,12 @@ export class HarnessManager {
       : sceneIds;
     const sourceFingerprint = await harnessReviewFingerprint(projectRoot);
     const rendered = await this.deps.renderAuthoringStills!(record.projectId!, renderSceneIds);
-    if (!rendered.ok || rendered.stills.length !== renderSceneIds.length || new Set(rendered.stills).size !== renderSceneIds.length) {
-      throw new Error(rendered.ok ? "MotionReal chưa render đủ still riêng cho mọi cảnh." : rendered.error);
+    if (!rendered.ok) throw new AuthoringStillRenderError(rendered.error, rendered.repairable);
+    if (rendered.stills.length !== renderSceneIds.length || new Set(rendered.stills).size !== renderSceneIds.length) {
+      throw new AuthoringStillRenderError("MotionReal chưa render đủ still riêng cho mọi cảnh.", false);
     }
     if (await harnessReviewFingerprint(projectRoot) !== sourceFingerprint) {
-      throw new Error("Source/asset đã đổi trong lúc render still; cần render lại trước khi review.");
+      throw new AuthoringStillRenderError("Source/asset đã đổi trong lúc render still; cần render lại trước khi review.", false);
     }
     if (!await this.isCurrentAuthoringRecord(record)) return;
     await this.beginVisualRefineOrSceneReview(record, sceneIds, projectRoot, rendered.stills, renderSceneIds);
@@ -1469,11 +1489,12 @@ export class HarnessManager {
     const renderScope = changedSceneIds.length > 0 ? changedSceneIds : sceneIds;
     const beforeRender = await harnessReviewFingerprint(projectRoot);
     const rendered = await this.deps.renderAuthoringStills!(record.projectId!, renderScope);
-    if (!rendered.ok || rendered.stills.length !== renderScope.length || new Set(rendered.stills).size !== renderScope.length) {
-      throw new Error(rendered.ok ? "MotionReal chưa render đủ still riêng cho các cảnh đã sửa." : rendered.error);
+    if (!rendered.ok) throw new AuthoringStillRenderError(rendered.error, rendered.repairable);
+    if (rendered.stills.length !== renderScope.length || new Set(rendered.stills).size !== renderScope.length) {
+      throw new AuthoringStillRenderError("MotionReal chưa render đủ still riêng cho các cảnh đã sửa.", false);
     }
     if (await harnessReviewFingerprint(projectRoot) !== beforeRender) {
-      throw new Error("Source/asset đã đổi trong lúc render still; cần render lại trước khi review.");
+      throw new AuthoringStillRenderError("Source/asset đã đổi trong lúc render still; cần render lại trước khi review.", false);
     }
     if (!await this.isCurrentAuthoringRecord(record)) return;
     if (pass >= policy.refinePasses) {
@@ -1737,9 +1758,9 @@ export class HarnessManager {
     return realFile;
   }
 
-  private async recordWorkflowError(record: DraftRecord, error: unknown): Promise<void> {
+  private async recordWorkflowError(record: DraftRecord, error: unknown, retryAction?: "rerender_stills"): Promise<void> {
     const message = typeof error === "string" ? error : error instanceof Error ? error.message : "Harness không nhận yêu cầu thu thập asset.";
-    const failed = {
+    const failed: DraftRecord = {
       ...record,
       ...transitionAgentWorkflow(record, {
         expectedRevision: record.workflowRevision,
@@ -1749,6 +1770,8 @@ export class HarnessManager {
       }),
       ...(isRetryableFailurePhase(record.productionState) ? { failedPhase: record.productionState } : {}),
     };
+    delete failed.retryAction;
+    if (retryAction) failed.retryAction = retryAction;
     this.stopAuthoringPoll(record.id);
     await this.writeRecord(failed);
   }
