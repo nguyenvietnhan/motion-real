@@ -193,7 +193,7 @@ describe("renderSceneStills", () => {
 
     const outputs = await renderSceneStills(spec, outDir, { extraFractions: [0.82] });
 
-    // The returned list stays midpoints-only so the contact sheet is unaffected.
+    // The returned list stays midpoints-only so oracle frame accounting is stable.
     expect(outputs).toEqual([join(resolve(outDir), "scene-01.png"), join(resolve(outDir), "scene-02.png")]);
 
     // Two stills per scene: midpoint then the late sample, in order.

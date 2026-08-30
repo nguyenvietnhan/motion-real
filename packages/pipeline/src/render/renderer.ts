@@ -81,7 +81,7 @@ export type RenderSceneStillsOptions = RenderBaseOptions & {
    * drifts out of the safe zone AFTER the midpoint (entrances settle by midpoint,
    * so the midpoint still alone never sees late drift). Each extra still is named
    * `<scene.id>.f<pct>.png` (e.g. `scene-03.f82.png`). The returned path list is
-   * unchanged (midpoints only), so the review contact sheet is unaffected.
+   * unchanged (midpoints only), so render-oracle frame accounting stays stable.
    */
   extraFractions?: number[];
   /**
@@ -220,7 +220,7 @@ export async function renderSceneStills(
 
     // Extra late samples (N14 late-drift pass): one still per requested fraction
     // through the CLEAN speech window. Named `<id>.f<pct>.png`; NOT added to the
-    // returned list, so the review contact sheet stays one-still-per-scene.
+    // returned list, so render-oracle frame accounting stays one-still-per-scene.
     for (const fraction of timingOpts.extraFractions ?? []) {
       const win = speechWindow(spec, index);
       const lateFrame = clampFrame(win.start + Math.round(fraction * win.frames), spec);

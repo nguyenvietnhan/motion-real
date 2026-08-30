@@ -29,7 +29,6 @@ import {
   makeReport,
   type AiProvider,
   type ProjectBrief,
-  type ReviewChecklist,
   type SafetyIssue,
   type SafetyReport,
   type TtsManifest,
@@ -74,8 +73,8 @@ import {
   type RenderTiming,
   type RenderVideoOptions,
   type RenderVideoResult,
+  renderSceneStills,
 } from "./render/renderer.js";
-import { buildReview, type BuildReviewOptions, type ComposeContactSheet, type ReviewArtifacts } from "./review.js";
 import { bundledDefaultBgmPath } from "./assets/bundled-media.js";
 import { sampleLockedSpec } from "./fixtures/sample-locked-spec.js";
 
@@ -97,7 +96,7 @@ const LATE_SAFE_AREA_FRACTIONS = [0.82];
  * renderProject : admit authored scenes → manifest→spec → static grid →
  * N10 authored typecheck → TTS → lock → build gate →
  * authored entry → N31 runtime probe → determinism →
- * render → review → render oracles → layout N15/N17 →
+ * render → still-based render oracles → layout N15/N17 →
  * late safe-area → aggregate report → clean scratch.
  *
  * Every runtime/render operation below bundles the PER-PROJECT authored entry,
@@ -204,7 +203,6 @@ export type RenderProjectDeps = {
   typecheckAuthored?: typeof typecheckAuthoredScenes;
   determinism?: (spec: LockedVideoSpec, opts?: DeterminismOptions) => Promise<SafetyReport>;
   sceneRuntimeProbe?: (spec: LockedVideoSpec, opts?: SceneRuntimeProbeOptions) => Promise<SafetyReport>;
-  review?: (spec: LockedVideoSpec, opts: BuildReviewOptions) => Promise<ReviewArtifacts>;
 };
 
 export type RenderProjectOptions = {
@@ -222,10 +220,8 @@ export type RenderProjectOptions = {
   /** Remotion Chrome mode. Use env `NEWS_RENDER_CHROME_MODE=chrome-for-testing` when needed. */
   chromeMode?: RenderChromeMode;
   onProgress?: (ratio: number) => void;
-  checklist?: ReviewChecklist;
   /** Lint the @motionreal/blocks + @motionreal/compositions sources for forbidden APIs (N5) in the build gate. Default on; pass `false` to skip. */
   lintSources?: boolean;
-  composeContactSheet?: ComposeContactSheet;
   /** Force a fresh render: bypass the render cache read (`--no-cache`). */
   noCache?: boolean;
   /**
@@ -267,7 +263,7 @@ export type RenderProjectResult = {
 /**
  * Render a scaffolded project end-to-end. Admits + registers every authored
  * scene, converts the manifest to a spec, runs static grid + N10, then TTS →
- * lock → build gate → authored entry → N31 → determinism → render → review →
+ * lock → build gate → authored entry → N31 → determinism → render → still-based oracles →
  * render/layout/late-sample oracles, finally cleaning up generated scratch.
  */
 export async function renderProject(projectId: string, opts: RenderProjectOptions = {}): Promise<RenderProjectResult> {
@@ -711,28 +707,19 @@ async function renderProjectUnlocked(projectId: string, opts: RenderProjectOptio
       }
     }
 
-    // --- (6) Review loop (N24/N25). ---
-    throwIfCancelled(); // a cancel during the post-encode oracles still stops promptly
-    await setState(projectId, { state: "reviewing", currentStep: "building review" });
-    const review = deps.review ?? buildReview;
-    const reviewArtifacts = await timedPipelineStage(
-      "stage.review",
-      () =>
-        review(locked, {
-          projectId,
-          mp4Path,
-          checklist: opts.checklist,
-          composeContactSheet: opts.composeContactSheet,
-          // Render the extra late-sample stills alongside the per-scene midpoint
-          // keyframes (same bundle, no extra browser/bundle) so the N14 late pass
-          // below has post-midpoint frames to scan. The returned keyframe list is
-          // unchanged, so the contact sheet stays one-still-per-scene.
-          renderOptions: { ...renderEntry, timingScope: "review-stills", extraFractions: LATE_SAFE_AREA_FRACTIONS },
-        }),
+    // --- (6) Render oracle frames. These are evidence, not a second review UI. ---
+    throwIfCancelled();
+    const oracleStills = await timedPipelineStage(
+      "stage.render_oracle_stills",
+      () => renderSceneStills(locked, paths.reviewDir, {
+        ...renderEntry,
+        timingScope: "review-stills",
+        extraFractions: LATE_SAFE_AREA_FRACTIONS,
+      }),
       { extraFractions: LATE_SAFE_AREA_FRACTIONS.length },
     );
 
-    // --- (7) Tier-3 render oracles over the review keyframes. ---
+    // --- (7) Tier-3 render oracles over the still evidence. ---
     const renderGridOptions: RenderGridOptions = {
       // Vietnamese is monosyllabic, so a higher words/sec is normal speech, not
       // rushed pacing; relax N20 for `vi` (still catches gross over-cramming).
@@ -743,7 +730,7 @@ async function renderProjectUnlocked(projectId: string, opts: RenderProjectOptio
     const renderGrid = await timedPipelineStage(
       "stage.render_oracles",
       () => runRenderGrid(locked, { framesDir: paths.reviewDir, mp4Path }, renderGridOptions),
-      { keyframes: reviewArtifacts.keyframes.length },
+      { keyframes: oracleStills.length },
     );
     await appendEvent(projectId, { type: "render.oracles", ok: renderGrid.ok, issues: renderGrid.issues.length });
 
@@ -765,20 +752,17 @@ async function renderProjectUnlocked(projectId: string, opts: RenderProjectOptio
         ...detReport.issues,
         ...renderGrid.issues,
         ...lateIssues,
-        ...reviewArtifacts.report.issues,
       ],
-      ["build", "render", "review"],
+      ["build", "render"],
     );
 
-    if (reviewArtifacts.report.ok && renderGrid.ok) {
+    if (renderGrid.ok) {
       await setState(projectId, { state: "done", currentStep: "done", error: null });
       await appendEvent(projectId, { type: "project.done", mp4Path });
     } else {
-      await setState(projectId, { state: "reviewing", currentStep: "awaiting review checklist" });
-      await appendEvent(projectId, {
-        type: "review.pending",
-        incomplete: errorCount(reviewArtifacts.report.issues) + errorCount(renderGrid.issues),
-      });
+      const message = `Render oracle phát hiện ${errorCount(renderGrid.issues)} lỗi cần sửa.`;
+      await setState(projectId, { state: "failed", currentStep: "render oracle failed", error: message });
+      await appendEvent(projectId, { type: "render.oracle_failed", incomplete: errorCount(renderGrid.issues) });
     }
 
     return { projectId, mp4Path: resolve(mp4Path), locked, report, cached };
@@ -813,7 +797,6 @@ type TimedPipelineStage = <T>(
   meta?: Record<string, unknown>,
 ) => Promise<T>;
 
-type AppendTimingEvent = (name: string, ms: number, meta?: Record<string, unknown>) => Promise<void>;
 type AppendProjectEvent = (event: { type: string } & Record<string, unknown>) => Promise<void>;
 
 type LateSafeAreaWarningPassArgs = {

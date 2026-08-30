@@ -21,7 +21,7 @@ import type { SafetyIssue } from "../types.js";
  * Fast per-scene STILLS render — the cheap inner loop the
  * silent refine pass iterates on. It is the orchestrator's `renderProject` path
  * with everything expensive STRIPPED: no TTS (so no Vivibe key needed, no audio
- * spend), no MP4 encode, no determinism double-render, no review/contact-sheet,
+ * spend), no MP4 encode, no determinism double-render, no review artifacts,
  * no heavy oracle suite. Just: admit authored scenes → manifest→spec →
  * `lockSpec(spec, null)` (a no-audio hold-timed lock, purely for the frame math)
  * → generate the per-project Remotion entry → render ONE PNG per scene at its

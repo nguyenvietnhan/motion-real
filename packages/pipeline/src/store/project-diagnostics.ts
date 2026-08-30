@@ -19,10 +19,9 @@ const LIFECYCLE_MESSAGES: Record<string, string> = {
   "determinism.ok": "Kiểm tra tính xác định đạt",
   "render.cached": "Dùng bản render đã lưu",
   "render.done": "Đã render xong",
-  review: "Đã tạo bản xem lại",
   "render.oracles": "Đã chạy kiểm tra render",
+  "render.oracle_failed": "Cần sửa lỗi render trước khi hoàn tất",
   "project.done": "Dự án hoàn tất",
-  "review.pending": "Chờ duyệt bản nháp",
   "render.cancelled": "Đã hủy render",
   "project.scaffolded": "Đã tạo khung dự án",
 };

@@ -34,8 +34,7 @@ vi.mock("@remotion/renderer", () => ({
 import { scaffoldVideoProject, renderProject, type RenderProjectDeps } from "./orchestrator.js";
 import { projectPaths, renderCacheDir, writeJson } from "./store/store.js";
 import { encodePngRGBA } from "./safety/png.js";
-import type { ComposeContactSheet } from "./review.js";
-import { makeReport, type ReviewChecklist, type TtsManifest } from "./types.js";
+import { makeReport, type TtsManifest } from "./types.js";
 
 let tempRoot: string;
 let prevHome: string | undefined;
@@ -93,23 +92,6 @@ afterEach(async () => {
   else process.env.NEWS_RENDER_CHROME_MODE = prevRenderChromeMode;
   await rm(tempRoot, { recursive: true, force: true });
 });
-
-const FULL_CHECKLIST: ReviewChecklist = {
-  safeArea: true,
-  alignment: true,
-  transitions: true,
-  clutter: true,
-  hook: true,
-  cta: true,
-  audio: true,
-  richness: true,
-};
-
-function fakeCompositor(): ComposeContactSheet {
-  return vi.fn(async ({ outPath }) => {
-    await writeFile(outPath, Buffer.from("jpg-bytes"));
-  });
-}
 
 function fakeSynthesize(): RenderProjectDeps["synthesize"] {
   return async (spec, opts) => {
@@ -314,8 +296,6 @@ describe("renderProject — render pipeline (skipAuthoring)", () => {
     const first = renderProject(projectId, {
       skipAuthoring: true,
       ttsProvider: "mock",
-      checklist: FULL_CHECKLIST,
-      composeContactSheet: fakeCompositor(),
       deps: { synthesize },
     });
     await enteredSynthesize;
@@ -324,8 +304,6 @@ describe("renderProject — render pipeline (skipAuthoring)", () => {
       renderProject(projectId, {
         skipAuthoring: true,
         ttsProvider: "mock",
-        checklist: FULL_CHECKLIST,
-        composeContactSheet: fakeCompositor(),
         deps: { synthesize: fakeSynthesize() },
       }),
     ).rejects.toMatchObject({ stage: "render-lock" });
@@ -334,15 +312,12 @@ describe("renderProject — render pipeline (skipAuthoring)", () => {
     await expect(first).resolves.toMatchObject({ projectId });
   });
 
-  it("locks, runs build gate + determinism, renders, caches, oracles + review → done", async () => {
+  it("locks, runs build gate + determinism, renders, caches and still-based oracles → done", async () => {
     const projectId = await readyProject();
-    const compose = fakeCompositor();
 
     const result = await renderProject(projectId, {
       skipAuthoring: true,
       ttsProvider: "mock",
-      checklist: FULL_CHECKLIST,
-      composeContactSheet: compose,
       deps: { synthesize: fakeSynthesize() },
     });
 
@@ -355,7 +330,6 @@ describe("renderProject — render pipeline (skipAuthoring)", () => {
     const locked = JSON.parse(await readFile(paths.lock, "utf8")) as LockedVideoSpec;
     expect(locked.captions.length).toBeGreaterThan(0); // captions baked from narration
     expect((await readdir(renderCacheDir())).filter((entry) => entry.endsWith(".mp4"))).toHaveLength(1);
-    expect(compose).toHaveBeenCalledTimes(1);
     expect(result.report.ok).toBe(true);
     expect(await readBriefState(projectId)).toBe("done");
 
@@ -373,7 +347,7 @@ describe("renderProject — render pipeline (skipAuthoring)", () => {
         "stage.build_gate",
         "stage.determinism",
         "stage.render",
-        "stage.review",
+        "stage.render_oracle_stills",
         "stage.render_oracles",
       ]),
     );
@@ -387,14 +361,14 @@ describe("renderProject — render pipeline (skipAuthoring)", () => {
         "stage.build_gate",
         "stage.determinism",
         "stage.render",
-        "stage.review",
+        "stage.render_oracle_stills",
         "stage.render_oracles",
         "stage.late_safe_area",
         "stage.render_cache_key",
         "stage.read_authored_sources",
         "video.ensureBrowser",
         "video.renderMedia",
-        "review-stills.renderStillFallback",
+        "review-stills.renderStill",
       ]),
     );
     expect(timingEvents.every((e) => typeof e.ms === "number")).toBe(true);
@@ -409,8 +383,6 @@ describe("renderProject — render pipeline (skipAuthoring)", () => {
       skipAuthoring: true,
       ttsProvider: "mock",
       bgmPath: null,
-      checklist: FULL_CHECKLIST,
-      composeContactSheet: fakeCompositor(),
       deps: {
         synthesize: async (spec, opts) => {
           seenBgmPath = opts.bgmPath;
@@ -429,8 +401,6 @@ describe("renderProject — render pipeline (skipAuthoring)", () => {
       skipAuthoring: true,
       quality: "draft",
       ttsProvider: "none",
-      checklist: FULL_CHECKLIST,
-      composeContactSheet: fakeCompositor(),
     });
 
     const logicalCpus = Math.max(1, cpus().length);
@@ -442,8 +412,6 @@ describe("renderProject — render pipeline (skipAuthoring)", () => {
     await renderProject(fullProject, {
       skipAuthoring: true,
       ttsProvider: "none",
-      checklist: FULL_CHECKLIST,
-      composeContactSheet: fakeCompositor(),
     });
 
     const fullRenderCall = mocks.renderMedia.mock.calls.at(-1)?.[0];
@@ -458,8 +426,6 @@ describe("renderProject — render pipeline (skipAuthoring)", () => {
       skipAuthoring: true,
       quality: "draft",
       ttsProvider: "none",
-      checklist: FULL_CHECKLIST,
-      composeContactSheet: fakeCompositor(),
     });
 
     expect(mocks.selectComposition).toHaveBeenCalledWith(expect.objectContaining({ chromiumOptions: { gl: "angle" } }));
@@ -473,8 +439,6 @@ describe("renderProject — render pipeline (skipAuthoring)", () => {
     const first = await renderProject(projectId, {
       skipAuthoring: true,
       ttsProvider: "mock",
-      checklist: FULL_CHECKLIST,
-      composeContactSheet: fakeCompositor(),
       deps,
     });
     expect(first.cached).toBe(false);
@@ -483,8 +447,6 @@ describe("renderProject — render pipeline (skipAuthoring)", () => {
     const second = await renderProject(projectId, {
       skipAuthoring: true,
       ttsProvider: "mock",
-      checklist: FULL_CHECKLIST,
-      composeContactSheet: fakeCompositor(),
       deps,
     });
     expect(second.cached).toBe(true);
@@ -494,12 +456,12 @@ describe("renderProject — render pipeline (skipAuthoring)", () => {
   it("--no-cache forces a fresh render even when the cache has a hit", async () => {
     const projectId = await readyProject();
     const deps: RenderProjectDeps = { synthesize: fakeSynthesize() };
-    const base = { skipAuthoring: true as const, ttsProvider: "mock" as const, checklist: FULL_CHECKLIST, deps };
+    const base = { skipAuthoring: true as const, ttsProvider: "mock" as const, deps };
 
-    await renderProject(projectId, { ...base, composeContactSheet: fakeCompositor() });
+    await renderProject(projectId, base);
     expect(mocks.renderMedia).toHaveBeenCalledTimes(1);
 
-    const second = await renderProject(projectId, { ...base, noCache: true, composeContactSheet: fakeCompositor() });
+    const second = await renderProject(projectId, { ...base, noCache: true });
     expect(second.cached).toBe(false);
     expect(mocks.renderMedia).toHaveBeenCalledTimes(2);
   });
@@ -516,24 +478,21 @@ describe("renderProject — render pipeline (skipAuthoring)", () => {
       renderProject(projectId, {
         skipAuthoring: true,
         ttsProvider: "none",
-        checklist: FULL_CHECKLIST,
-        composeContactSheet: fakeCompositor(),
       }),
     ).rejects.toThrow(/determinism/i);
     expect(await readBriefState(projectId)).toBe("failed");
     expect(mocks.renderMedia).not.toHaveBeenCalled();
   });
 
-  it("keeps the project 'reviewing' when the review checklist is incomplete", async () => {
+  it("does not create an obsolete checklist review state after rendering", async () => {
     const projectId = await readyProject();
     const result = await renderProject(projectId, {
       skipAuthoring: true,
       ttsProvider: "none",
-      composeContactSheet: fakeCompositor(),
     });
     expect(existsSync(result.mp4Path)).toBe(true);
-    expect(result.report.ok).toBe(false);
-    expect(await readBriefState(projectId)).toBe("reviewing");
+    expect(result.report.ok).toBe(true);
+    expect(await readBriefState(projectId)).toBe("done");
   });
 
   it("surfaces late-sample N14 drift as a non-gating WARNING (lands in the report, project still 'done')", async () => {
@@ -556,8 +515,6 @@ describe("renderProject — render pipeline (skipAuthoring)", () => {
     const result = await renderProject(projectId, {
       skipAuthoring: true,
       ttsProvider: "mock",
-      checklist: FULL_CHECKLIST,
-      composeContactSheet: fakeCompositor(),
       deps: { synthesize: fakeSynthesize() },
     });
 
@@ -611,8 +568,6 @@ describe("renderProject — render pipeline (skipAuthoring)", () => {
     const result = await renderProject(projectId, {
       forceFull: true,
       ttsProvider: "none",
-      checklist: FULL_CHECKLIST,
-      composeContactSheet: fakeCompositor(),
       deps: { typecheckAuthored, sceneRuntimeProbe, determinism },
     });
 
@@ -662,8 +617,6 @@ describe("renderProject — render pipeline (skipAuthoring)", () => {
       renderProject(projectId, {
         forceFull: true,
         ttsProvider: "none",
-        checklist: FULL_CHECKLIST,
-        composeContactSheet: fakeCompositor(),
         deps: { sceneRuntimeProbe, determinism },
       }),
     ).rejects.toMatchObject({ check: "N31", sceneId: "scene-01" });

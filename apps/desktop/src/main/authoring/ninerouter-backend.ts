@@ -151,10 +151,6 @@ export type NineRouterBackendDeps = {
   }>;
 };
 
-function manifestPathOf(projectId: string): string {
-  return projectPaths(projectId).manifest;
-}
-
 /** Read a rendered still into a PNG data URL, or undefined if missing/unreadable. */
 function readStillDataUrl(path: string): string | undefined {
   try {

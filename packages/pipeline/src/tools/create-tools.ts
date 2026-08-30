@@ -346,6 +346,16 @@ export function createTools(overrides: Partial<ToolDeps> = {}) {
           ...(signal ? { signal } : {}),
         });
         await persistSafetyReport(input.projectId, res.report);
+        const blocking = res.report.issues.find((issue) => issue.severity === "error");
+        if (blocking) {
+          return err(new PipelineError({
+            stage: "render-oracle",
+            cause: `full render completed but safety checks failed: ${blocking.message}`,
+            ...(blocking.check ? { check: blocking.check } : {}),
+            ...(blocking.sceneId ? { sceneId: blocking.sceneId } : {}),
+            remediation: "Sửa các lỗi render rồi xuất lại video.",
+          }).toSerialized());
+        }
         return ok(res);
       } catch (e) {
         return err(serializeError(e, "render"));

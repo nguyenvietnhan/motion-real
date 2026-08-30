@@ -130,18 +130,6 @@ export type SafetyReport = {
   ranTiers: SafetyTier[];
 };
 
-/** Perceptual review checklist — the mandatory human-eye gate before "done". */
-export type ReviewChecklist = {
-  safeArea: boolean; // nothing clipped at 9:16 edges
-  alignment: boolean; // headings/blocks aligned, no drift
-  transitions: boolean; // no hard cuts / flicker between scenes
-  clutter: boolean; // not too many simultaneous blocks
-  hook: boolean; // scene-01 hooks in first 3s, no greeting/definition
-  cta: boolean; // final scene CTA is topic-specific
-  audio: boolean; // voice complete, not cut/rushed, in sync
-  richness: boolean; // long scenes show motion, not just static fades
-};
-
 /** Convenience re-exports so pipeline consumers import from one place. */
 export type { VideoSpec, LockedVideoSpec };
 

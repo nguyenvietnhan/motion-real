@@ -496,9 +496,3 @@ export function handleMediaProtocol(
     }
   });
 }
-
-/** @deprecated Prefer defaultMediaPathPolicy; kept for narrow test call sites. */
-export function defaultMediaRoots(): string[] {
-  const policy = defaultMediaPathPolicy();
-  return [policy.videoToolHome, policy.bundledAssetsRoot];
-}

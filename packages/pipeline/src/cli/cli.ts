@@ -177,7 +177,8 @@ async function runRender(
   const kind = values.draft ? "draft" : "full";
   emit(`Rendered ${id} (${kind}) → ${result.mp4Path}${result.cached ? " (from cache)" : ""}`);
   if (!result.report.ok) {
-    emit("  Render oracles / review checklist incomplete — project is not yet 'done'.");
+    emit("  Render oracle phát hiện lỗi; project chưa hoàn tất.");
+    return { exitCode: 1, lines };
   }
   return { exitCode: 0, lines };
 }
@@ -312,7 +313,7 @@ async function defaultCheckFfmpeg(): Promise<DoctorCheck> {
   return {
     name: "ffmpeg",
     ok,
-    detail: ok ? "ffmpeg is on PATH" : "ffmpeg not found on PATH (needed for audio concat / contact sheet)",
+    detail: ok ? "ffmpeg is on PATH" : "ffmpeg not found on PATH (needed for audio concat)",
   };
 }
 

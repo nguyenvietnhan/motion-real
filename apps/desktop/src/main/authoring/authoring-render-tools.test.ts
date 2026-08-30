@@ -48,7 +48,7 @@ describe("authoring render tools", () => {
     });
   });
 
-  it("getSafetyReport strips N24/N25 from hardErrors", async () => {
+  it("getSafetyReport preserves every hard error reported by the pipeline", async () => {
     const deps = {
       tools: {
         get_safety_report: vi.fn(async () => ({
@@ -56,8 +56,7 @@ describe("authoring render tools", () => {
           data: {
             hardErrors: [
               { check: "N5", message: "bad" },
-              { check: "N24", message: "review" },
-              { check: "N25", message: "sheet" },
+              { check: "N10", message: "type error" },
             ],
             warnings: [{ check: "N1", message: "warn" }],
           },
@@ -67,17 +66,20 @@ describe("authoring render tools", () => {
     };
     const report = await getSafetyReportWithTools(deps, "p1");
     expect(report.ok).toBe(false);
-    expect(report.hardErrors).toEqual([{ check: "N5", message: "bad" }]);
+    expect(report.hardErrors).toEqual([
+      { check: "N5", message: "bad" },
+      { check: "N10", message: "type error" },
+    ]);
     expect(report.warnings).toEqual([{ check: "N1", message: "warn" }]);
   });
 
-  it("getSafetyReport returns empty hardErrors when only N24/N25 present", async () => {
+  it("getSafetyReport keeps a pipeline hard error even when it has no scene target", async () => {
     const deps = {
       tools: {
         get_safety_report: vi.fn(async () => ({
           ok: true,
           data: {
-            hardErrors: [{ check: "N24", message: "review" }],
+            hardErrors: [{ check: "N10", message: "type error" }],
             warnings: [],
           },
         })),
@@ -85,6 +87,6 @@ describe("authoring render tools", () => {
       logger: fakeLogger(),
     };
     const report = await getSafetyReportWithTools(deps, "p1");
-    expect(report).toEqual({ ok: true, hardErrors: [], warnings: [] });
+    expect(report).toEqual({ ok: false, hardErrors: [{ check: "N10", message: "type error" }], warnings: [] });
   });
 });

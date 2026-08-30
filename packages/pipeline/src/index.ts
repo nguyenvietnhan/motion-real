@@ -54,7 +54,6 @@ export * from "./render/render-thumbnail.js";
 export * from "./authoring/authored-entry.js";
 export * from "./render/cache.js";
 export * from "./render/determinism.js";
-export * from "./review.js";
 export * from "./authoring/index.js";
 export * from "./cli/cli.js";
 export * from "./orchestrator.js";

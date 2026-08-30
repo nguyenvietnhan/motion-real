@@ -99,10 +99,7 @@ export async function renderFullWithTools(
   return { ok: true, outputPath };
 }
 
-/**
- * Safety report for the draft repair loop. Strips review-tier N24/N25 so they
- * never block auto draft repair (they belong to human/approve checklist).
- */
+/** Safety report for the draft repair loop. */
 export async function getSafetyReportWithTools(
   deps: Pick<AuthoringRenderToolsDeps, "tools" | "logger">,
   projectId: string,
@@ -112,13 +109,7 @@ export async function getSafetyReportWithTools(
     deps.logger.error({ projectId, cause: res.error.cause }, "get_safety_report failed");
     return { ok: false, hardErrors: [], warnings: [] };
   }
-  // N24/N25 are the REVIEW tier (human/agent self-critique + contact sheet),
-  // confirmed before final publish — NOT auto-detectable draft defects. They
-  // are unconfirmed by default, so they must not block the draft repair loop
-  // (which only gates on the auto-run render oracles). The draft is "passed"
-  // once the real oracles are clean; the checklist belongs to the approve step.
-  const reviewTier = new Set(["N24", "N25"]);
-  const hardErrors = res.data.hardErrors.filter((e) => !reviewTier.has(e.check));
+  const hardErrors = res.data.hardErrors;
   if (hardErrors.length > 0) {
     deps.logger.error(
       { projectId, hardErrors: hardErrors.map((e) => `${e.check}${e.sceneId ? ` @${e.sceneId}` : ""}: ${e.message}`) },

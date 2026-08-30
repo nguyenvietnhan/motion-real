@@ -251,6 +251,19 @@ describe("TTS provider preservation — Property 10", () => {
 });
 
 describe("full grid in force — Property 9", () => {
+  it("does not report full export success when its safety report has a hard error", async () => {
+    const tools = createTools({
+      draftExistsFor: () => true,
+      ttsConfig: okConfig,
+      renderProject: async () => ({
+        ...renderOk(),
+        report: { ok: false, issues: [{ check: "N14", severity: "error", message: "scene overlaps" }] } as never,
+      }),
+    });
+    const result = await tools.render_full({ projectId: "p" });
+    expect(result).toMatchObject({ ok: false, error: { stage: "render-oracle", check: "N14" } });
+  });
+
   it("a hard grid defect from the orchestrator surfaces as ok:false naming the check (never done)", async () => {
     await fc.assert(
       fc.asyncProperty(fc.constantFrom("N1", "N9", "N14", "N18", "N29"), async (check) => {

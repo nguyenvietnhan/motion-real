@@ -225,8 +225,7 @@ Focused modules own bounded workflows:
   conversion and admission violation check counts.
 - `authoring-vision-chat.ts` owns per-session image-capability cache and
   chat-with-vision-fallback policy used by plan/author/reauthor/filter.
-- `authoring-render-tools.ts` owns draft/stills/full/safety-report adapters
-  (including N24/N25 strip for the draft repair loop).
+- `authoring-render-tools.ts` owns draft/stills/full/safety-report adapters.
 - `authoring-failure.ts` is the shared `failureClass` emitter for structured
   authoring fail logs (preserves legacy message strings for continuity).
 
@@ -312,7 +311,7 @@ Topic / URL / images
 -> strict N31 runtime probe
 -> determinism guard
 -> render draft MP4
--> review stills/contact sheet
+-> still evidence for render oracles
 -> render oracles
 -> user review
 -> approved full MP4

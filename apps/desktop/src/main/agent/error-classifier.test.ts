@@ -7,7 +7,7 @@ import { classifyError, classifyIssue, CONTENT_CHECKS } from "./error-classifier
  * Property + self-tests for the error classifier.
  */
 
-const ALL_CHECKS = ["N1", "N3", "N4", "N5", "N9", "N10", "N12", "N14", "N16", "N17", "N18", "N19", "N20", "N21", "N22", "N24", "N25", "N28", "N30", "N31"];
+const ALL_CHECKS = ["N1", "N3", "N4", "N5", "N9", "N10", "N12", "N14", "N16", "N17", "N18", "N19", "N20", "N21", "N22", "N28", "N30", "N31"];
 const ALL_STAGES: PipelineStage[] = ["ingest", "admission", "static-grid", "build-gate", "determinism", "render", "render-oracle", "review", "tts", "config"];
 const severityArb = fc.constantFrom<Severity>("error", "warning");
 
