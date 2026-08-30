@@ -327,6 +327,7 @@ Important files include:
 - `manifest.json`
 - `video-spec.json`
 - `video-spec.lock.json`
+- `video-spec.stills.lock.json` (temporary no-TTS still timeline; never replaces the canonical lock)
 - `safety-report.json`
 - `events.ndjson`
 - `authored/*.tsx`
@@ -343,7 +344,7 @@ example `apps/desktop/assets/bgm/default.mp3`; the default BGM is exposed as a
 virtual built-in track that resolves directly to this asset, not as a copied
 runtime-library file. Root-level media assets should not be added.
 
-Stills are the cheap visual pass: admit + no-TTS hold lock + PNG midpoints
+Stills are the cheap visual pass: admit + separate no-TTS still lock + PNG midpoints
 (refine loop). They share the same composition/admission stack as production
 stills but do **not** use the TTS-locked draft/full timeline, and are not
 pixel-identical to H.264 frames. Draft MP4s are lower-quality previews that

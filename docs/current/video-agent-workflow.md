@@ -595,7 +595,8 @@ Defer:
 - Harness-controlled rendering;
 - a second render engine or TSX format;
 - automatic temporal QA;
-- physical deletion of archived shared-home Session logs;
+- unvalidated deletion outside the exact pinned Harness session layout (the
+  supported deletion path uses a recoverable journal and exact session ids);
 - strict media-license gating;
 - completion inference from chat prose or filesystem inactivity.
 

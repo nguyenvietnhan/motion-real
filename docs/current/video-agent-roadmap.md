@@ -53,11 +53,10 @@ behavior; Git history is the rollback path for the removed chat projection.
 
 ## Phase 0 — Freeze and Observe the Baseline
 
-Status: accepted on 2026-08-27 against DeepSeek Harness
-`00aba2f848f7fe5828da13ee382fd42d81028b31`
-(`dsh-v0.1.1-rc.2-1-g00aba2f848`) and the MotionReal integration baseline ending
-at `0e7e226`. Later workflow commits keep the same sibling Harness checkout and
-public RPC surface.
+Status: historical baseline superseded. The current supported DeepSeek Harness
+checkout is `466404c927e2209ba7f242038b6922f10c0405cd`, source-verified on
+2026-08-31. This records source compatibility only; a native Harness/9router
+acceptance video is still required before declaring runtime acceptance.
 
 ### Goal
 
@@ -598,7 +597,8 @@ Use one new factual video topic and perform the following on native Windows:
 - Strict asset-rights enforcement.
 - A generic workflow engine or plugin framework.
 - Multiple concurrent Harness processes.
-- Hard deletion of shared-home Harness logs.
+- Deleting exact pinned Harness session data; this is now implemented through a
+  validated, recoverable main-process deletion journal.
 - Packaging/updating the Harness fork in the installer.
 
 Add these only after the current end-to-end scenario passes and a concrete product

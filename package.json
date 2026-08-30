@@ -26,6 +26,7 @@
     "studio": "npm --workspace @motionreal/remotion run studio",
     "render": "npm --workspace @motionreal/remotion run render",
     "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test:browser": "vitest run --config vitest.browser.config.ts --maxWorkers=1",
     "build:remotion": "tsx scripts/build.ts",
     "build:desktop": "npm --workspace @motionreal/desktop run build:main && npm --workspace @motionreal/desktop run build:renderer",
     "build": "npm run build:remotion && npm run build:desktop",
@@ -42,9 +43,11 @@
     "@types/node": "^24.10.1",
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
+    "@vitest/browser-playwright": "4.1.11",
     "fast-check": "^3.23.2",
+    "playwright": "1.58.1",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3",
-    "vitest": "^4.0.14"
+    "vitest": "4.1.11"
   }
 }

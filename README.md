@@ -44,7 +44,7 @@ Create (prompt / URLs / images)
 | --- | --- |
 | **Node.js** `>= 24`, **npm** `>= 11` | See root `package.json` `engines` |
 | **9router** (desktop AI) | External binary on `PATH`. Not vendored in this repo. App expects OpenAI-compatible chat at `http://localhost:20128/v1`. Launcher tries `9router -n -t --skip-update` if nothing is already listening. |
-| **DeepSeek Harness** (Video Agent preview) | Use the sibling checkout at commit `812a593c46` or a later compatible embedded build, and run `pnpm run build` there so `apps/cli/lib/bin.js` exists. Alternatively set `MOTIONREAL_DSH_CLI` to that built file. The app starts it with the Node executable supplied by the dev launcher; `MOTIONREAL_NODE_BIN` can override that executable. Source files alone are not a runtime verification. |
+| **DeepSeek Harness** (Video Agent preview) | Use the sibling checkout at pinned commit `466404c927e2209ba7f242038b6922f10c0405cd` (compatibility source check: 2026-08-31) and run `pnpm run build` there so `apps/cli/lib/bin.js` exists. Alternatively set `MOTIONREAL_DSH_CLI` to that built file. The app starts it with the Node executable supplied by the dev launcher; `MOTIONREAL_NODE_BIN` can override that executable. Source/build compatibility is not a substitute for native Harness/9router acceptance. |
 | **TTS** | VieNeu Local (Vietnamese developer preview), Vivibe (Vietnamese), or ElevenLabs — see [`docs/current/tts-providers.md`](docs/current/tts-providers.md). Missing local runtime/credentials **block** production render; never silently fall back to `mock` / `none`. |
 | **Chromium / Remotion browser** | Needed for real video stills/MP4 (`npm run smoke`, desktop/CLI render). **Not** required for `npm run typecheck`, `npm test`, or `npm run build` (webpack-only). |
 
@@ -107,14 +107,15 @@ resume the Queue.
 
 The **Video Agent** tab embeds the native DeepSeek Harness chat and tool
 timeline. MotionReal starts one shared Harness runtime in the background; click
-**Video mới** to make a separate Agent workspace and chat session for that video.
+**Tạo video mới** to make a separate Agent workspace and chat session for that video.
 Research and downloaded assets stay in that workspace.
 The Agent submits assets and the final brief through the narrow
 `motionreal_submit_assets` and `motionreal_submit_brief` tools. MotionReal then
 validates each submission and stops for explicit asset and brief review. The
 approved brief enters the existing create/author/review pipeline used by Home;
 the Agent does not own another renderer. Deleting the video removes its Agent
-workspace and hides its Harness sessions. This remains a developer preview with
+workspace and removes its exact Harness session data through a recoverable
+deletion journal. This remains a developer preview with
 broad built-in Harness tool access.
 The agreed target workflow and implementation boundary are recorded in
 [`docs/current/video-agent-workflow.md`](docs/current/video-agent-workflow.md).

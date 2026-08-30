@@ -1,16 +1,14 @@
 name: CI
 
-# Run the project's Required Checks (AGENTS.md) on every push + PR to main:
-# typecheck → test → build. All three are offline and need no browser — the
-# render tests mock @remotion/renderer, and `npm run build` is a webpack-only
-# bundle (no Chromium download), so a plain ubuntu runner suffices.
 on:
   push:
     branches: [main]
   pull_request:
     branches: [main]
 
-# A newer push to the same branch/PR cancels the older in-flight run.
+permissions:
+  contents: read
+
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -20,16 +18,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Set up Node 24
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: "24"
           cache: npm
 
-      # Deterministic install from the committed lockfile.
-      - name: Install dependencies
+      - name: Install from lockfile
         run: npm ci
 
       - name: Typecheck
@@ -38,8 +35,53 @@ jobs:
       - name: Test
         run: npm test
 
-      # Webpack bundle of the whole Remotion app graph — fails non-zero if any
-      # @motionreal/* source or scene component fails to type-resolve/compile. No
-      # browser is launched or downloaded here.
-      - name: Build
+      - name: Build Remotion and desktop
         run: npm run build
+
+      - name: Reject high dependency advisories
+        run: npm audit --audit-level=high
+
+  browser-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Set up Node 24
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "24"
+          cache: npm
+
+      - name: Install from lockfile
+        run: npm ci
+
+      - name: Install browser used by the embedded UI smoke
+        run: npx playwright install --with-deps chromium
+
+      - name: Browser smoke
+        run: npm run test:browser
+
+  windows-desktop:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Set up Node 24
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "24"
+          cache: npm
+
+      - name: Install from lockfile
+        run: npm ci
+
+      - name: Build desktop
+        run: npm run build:desktop
+
+      - name: Launcher port safety smoke
+        run: node --test apps/desktop/scripts/launch-utils.test.mjs
+
+      - name: Windows path and process tests
+        run: npm test -- apps/desktop/src/main/runtime-security.test.ts apps/desktop/src/main/agent/harness-manager.test.ts

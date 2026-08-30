@@ -115,12 +115,11 @@ path that bypasses it.
   full, stills, and thumbnail jobs. Any future parallel path must keep the
   in-process and file lock semantics for the same project, and must explicitly
   decide whether different projects may render concurrently in one process.
-- Thumbnail/stills lock behavior: `renderProjectStillsUnlocked` writes a
-  temporary no-audio locked spec to the normal project lock path, and
-  `renderThumbnail` snapshots/restores that path around the private stills call.
-  Parallel rendering cannot bypass the public `renderThumbnail`/
-  `renderProjectStills` wrappers or another job could observe the temporary
-  no-audio lock.
+- Thumbnail/stills lock behavior: `renderProjectStillsUnlocked` writes the
+  no-audio timeline only to `video-spec.stills.lock.json`; it never replaces
+  the canonical `video-spec.lock.json`. Parallel rendering still cannot bypass
+  the public `renderThumbnail`/`renderProjectStills` wrappers because their
+  task lease and cancellation registry protect project deletion and cleanup.
 
 ## Cross-Project Parallelism Design Gate
 

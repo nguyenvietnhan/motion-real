@@ -5,6 +5,8 @@ out/
 .mcp.json
 .video-tool/
 coverage/
+.vitest-attachments/
+apps/desktop/src/renderer/views/__screenshots__/
 .cleanup-quarantine/
 *.log
 *.tsbuildinfo
