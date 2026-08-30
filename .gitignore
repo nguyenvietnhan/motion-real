@@ -8,6 +8,8 @@ coverage/
 .cleanup-quarantine/
 *.log
 *.tsbuildinfo
+__pycache__/
+*.pyc
 .DS_Store
 
 # Remotion
