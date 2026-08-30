@@ -10,6 +10,7 @@ import type { SceneImageRole } from "@motionreal/schema";
 import type { AgentActivityVM, AgentAssetVM, AgentBriefInput, AgentBriefVM, AgentDraftVM, AgentProductionState, AgentSearchProvider, AgentSettingsVM, DurationTierChoice, VideoLanguageChoice, VoiceProviderChoice } from "../../shared/types.js";
 import { sanitizedChildEnvironment } from "../security/runtime-security.js";
 import {
+  AGENT_WORKFLOW_VERSION,
   initialAgentWorkflow,
   parseAgentWorkflow,
   pauseAgentWorkflow,
@@ -26,17 +27,18 @@ import {
   type HarnessAuthoringPacing,
 } from "./harness-authoring-pacing.js";
 import {
-  AUTHORING_V1_DIR,
-  archiveHarnessAuthoringV1,
-  assertHarnessCreativeRewrite,
   harnessReviewFingerprint,
+  harnessSceneFingerprints,
+  type HarnessSceneFingerprints,
 } from "./harness-creative-rewrite.js";
 
 const METADATA_FILE = "motionreal-agent.json";
-const CREATE_REQUEST_FILE = "motionreal.create.json";
+/** Read-only compatibility fallback for drafts queued before the brief split. */
+const LEGACY_CREATE_REQUEST_FILE = "motionreal.create.json";
 const ASSET_REQUEST_FILE = join("handoff", "assets-request.json");
 const ASSET_MANIFEST_FILE = join("handoff", "assets.json");
 const BRIEF_REQUEST_FILE = join("handoff", "brief-request.json");
+const BRIEF_GENERATED_FILE = join("handoff", "brief.generated.json");
 const BRIEF_FILE = join("handoff", "brief.json");
 const AUTHORING_REQUEST_FILE = join("handoff", "authoring-request.json");
 const AUTHORING_CONTRACT_FILE = join("handoff", "authoring-contract.md");
@@ -56,13 +58,16 @@ const log = createLogger("harness");
 
 export type { AgentDraftVM } from "../../shared/types.js";
 
-type DraftRecord = Omit<AgentDraftVM, "updatedAt" | "harnessUrl" | "webSearchConfigured" | "searchProvider" | "createReady" | "activities" | "assetReview" | "assetCollectionError" | "briefReview" | "briefReviewError" | "sessionAccess"> & AgentWorkflowRecord & {
+type DraftRecord = Omit<AgentDraftVM, "updatedAt" | "harnessUrl" | "webSearchConfigured" | "searchProvider" | "createReady" | "activities" | "needsAttention" | "assetReview" | "assetCollectionError" | "briefReview" | "briefReviewError" | "sessionAccess"> & AgentWorkflowRecord & {
   workspaceId?: string;
   sessionId?: string;
   assetRequestRevision?: number;
   briefRequestRevision?: number;
   authoringRequestRevision?: number;
   sessionPolicyRevision?: number;
+  repairPhase?: "authoring" | "visual_refine";
+  repairAttempts?: number;
+  failedPhase?: "collecting_assets" | "preparing_brief" | "authoring" | "visual_refine";
 };
 
 export type AgentCreateRequest = {
@@ -75,6 +80,11 @@ export type AgentCreateRequest = {
     videoLanguage: VideoLanguageChoice;
     voiceProvider: VoiceProviderChoice;
   };
+};
+
+type AgentAcceptedBrief = AgentBriefVM & {
+  durationTier: DurationTierChoice;
+  voiceProvider: VoiceProviderChoice;
 };
 
 type HarnessRpcResponse = {
@@ -98,7 +108,14 @@ export type HarnessManagerDeps = {
     projectId: string,
     sceneIds: string[],
   ) => Promise<{ ok: true; stills: string[] } | { ok: false; error: string }>;
+  cancelAuthoringStills?: (projectId: string) => void;
   acceptAuthoringStills?: (projectId: string) => Promise<void>;
+  /** Snapshot-aware caller; default keeps old installs bounded at three repairs. */
+  maxAuthoringRepairs?: (projectId: string) => number | Promise<number>;
+  /** Snapshot-aware visual QA policy; legacy projects retain the configured settings. */
+  authoringRefinePolicy?: (projectId: string) =>
+    | { refinePasses: number; refineEarlyStop: boolean }
+    | Promise<{ refinePasses: number; refineEarlyStop: boolean }>;
 };
 
 /**
@@ -207,7 +224,7 @@ export class HarnessManager {
     record = { ...record, workspaceId: workspaceInfo.id, sessionId };
     await this.writeRecord(record);
     this.activeDraftId = id;
-    if (record.productionState === "authoring") this.scheduleAuthoringPoll(record.id);
+    if (isAutomatedAuthoringState(record.productionState)) this.scheduleAuthoringPoll(record.id);
     return this.toVm(record);
   }
 
@@ -302,7 +319,7 @@ export class HarnessManager {
     }
     if (record.productionState === "preparing_brief" || record.productionState === "brief_review" || record.productionState === "queued_create") {
       try {
-        briefReview = await this.readBrief(record);
+        briefReview = await this.readGeneratedBrief(record);
         if (briefReview && record.productionState === "preparing_brief") {
           record = { ...record, ...transitionAgentWorkflow(record, {
             expectedRevision: record.workflowRevision,
@@ -315,12 +332,12 @@ export class HarnessManager {
         briefReviewError = error instanceof Error ? error.message : "Brief của Agent không hợp lệ.";
       }
     }
-    if (record.productionState === "authoring") this.maybeProcessAuthoring(record);
-    const activities = await this.readSafeActivities(record).catch((error) => {
+    if (isAutomatedAuthoringState(record.productionState)) this.maybeProcessAuthoring(record);
+    const activityState = await this.readSafeActivities(record).catch((error) => {
       log.debug({ err: error, draftId: record.id }, "Harness activity unavailable");
       return undefined;
     });
-    return this.toVm(record, assetReview, assetCollectionError, briefReview, briefReviewError, activities);
+    return this.toVm(record, assetReview, assetCollectionError, briefReview, briefReviewError, activityState?.activities, activityState?.needsAttention);
   }
 
   async prepareAssets(id: string, expectedRevision: number): Promise<AgentDraftVM> {
@@ -385,7 +402,7 @@ export class HarnessManager {
     if (!assets) throw new Error("Agent chưa gửi manifest asset hợp lệ.");
     const selectedAssetIds = validateSelectedIds(selectedIds, assets);
     if (sameIds(selectedAssetIds, current.selectedAssetIds ?? []) && current.briefRequestRevision) {
-      const previousBrief = await this.readBrief(current).catch((_error) => undefined);
+      const previousBrief = await this.readGeneratedBrief(current).catch((_error) => undefined);
       if (previousBrief) {
         const next = {
           ...current,
@@ -413,7 +430,7 @@ export class HarnessManager {
     await this.writeBriefRequest(next);
     await this.writeRecord(next);
     try {
-      await this.promptSession(next, "MotionReal đã chốt asset. Hãy đọc handoff/brief-request.json, tạo brief và gọi motionreal_submit_brief; không tự ghi handoff/brief.json.");
+      await this.promptSession(next, "MotionReal đã chốt asset. Hãy đọc handoff/brief-request.json, tạo brief và gọi motionreal_submit_brief; không tự ghi handoff/brief.generated.json.");
     } catch (error) {
       return this.toVm(next, assets, undefined, undefined, safeBriefError(error));
     }
@@ -431,7 +448,37 @@ export class HarnessManager {
     await this.writeBriefRequest(next);
     await this.writeRecord(next);
     try {
-      await this.promptSession(next, "MotionReal yêu cầu tạo lại brief. Hãy đọc phiên bản mới của handoff/brief-request.json, hoàn thành brief và gọi motionreal_submit_brief; không tự ghi handoff/brief.json.");
+      await this.promptSession(next, "MotionReal yêu cầu tạo lại brief. Hãy đọc phiên bản mới của handoff/brief-request.json, hoàn thành brief và gọi motionreal_submit_brief; không tự ghi handoff/brief.generated.json.");
+    } catch (error) {
+      return this.toVm(next, undefined, undefined, undefined, safeBriefError(error));
+    }
+    return this.toVm(next);
+  }
+
+  /** Reopen a generated brief with concrete user feedback; it is never an acceptance. */
+  async requestBriefChanges(id: string, expectedRevision: number, feedback: string): Promise<AgentDraftVM> {
+    const current = await this.mustReadRecord(id);
+    this.requireActiveSession(current);
+    if (current.productionState !== "brief_review" || current.workflowRevision !== expectedRevision) {
+      throw new Error("Trạng thái duyệt brief đã thay đổi; hãy tải lại.");
+    }
+    const request = feedback.trim();
+    if (!request || request.length > 2_000) throw new Error("Yêu cầu chỉnh brief phải dài từ 1 đến 2000 ký tự.");
+    const baseBrief = await this.readGeneratedBrief(current);
+    if (!baseBrief) throw new Error("Agent chưa gửi brief hợp lệ để chỉnh sửa.");
+    const next = {
+      ...current,
+      ...transitionAgentWorkflow(current, {
+        expectedRevision,
+        to: "preparing_brief",
+        jobId: current.activeJobId,
+      }),
+      briefRequestRevision: (current.briefRequestRevision ?? 0) + 1,
+    };
+    await this.writeBriefRequest(next, { baseBrief, feedback: request });
+    await this.writeRecord(next);
+    try {
+      await this.promptSession(next, "MotionReal yêu cầu chỉnh brief theo phản hồi mới. Hãy đọc handoff/brief-request.json, dùng base_brief và feedback, rồi gọi motionreal_submit_brief; không tự ghi handoff/brief.generated.json.");
     } catch (error) {
       return this.toVm(next, undefined, undefined, undefined, safeBriefError(error));
     }
@@ -459,7 +506,7 @@ export class HarnessManager {
     if (current.productionState !== "brief_review" || current.workflowRevision !== expectedRevision) {
       throw new Error("Trạng thái duyệt brief đã thay đổi; hãy tải lại.");
     }
-    const generated = await this.readBrief(current);
+    const generated = await this.readGeneratedBrief(current);
     if (!generated) throw new Error("Agent chưa gửi brief hợp lệ.");
     const accepted = validateBriefInput(input);
     const targetSeconds = resolveEffectiveDuration({ prompt: "", durationTier: accepted.durationTier }).targetSeconds;
@@ -478,16 +525,6 @@ export class HarnessManager {
       voice_provider: accepted.voiceProvider,
       selected_asset_ids: generated.selectedAssetIds,
       accepted: true,
-    });
-    await writeJson(join(this.rootOf(id), CREATE_REQUEST_FILE), {
-      version: 1,
-      title: accepted.title,
-      prompt: accepted.prompt,
-      duration_tier: accepted.durationTier,
-      target_seconds: targetSeconds,
-      video_language: accepted.videoLanguage,
-      voice_provider: accepted.voiceProvider,
-      selected_asset_ids: generated.selectedAssetIds,
     });
     const next = {
       ...current,
@@ -514,11 +551,12 @@ export class HarnessManager {
     const next = { ...current, ...pauseAgentWorkflow(current, { expectedRevision, jobId: current.activeJobId }) };
     this.stopAuthoringPoll(id);
     await this.writeRecord(next);
-    if (this.active && this.activeDraftId === id && current.sessionId) {
+    if (this.active && current.sessionId) {
       await this.rpc(this.active.url, "session.cancel", { sessionId: current.sessionId }).catch((error) => {
         log.warn({ err: error, draftId: id }, "failed to cancel native Harness session after durable pause");
       });
     }
+    if (current.projectId) this.deps.cancelAuthoringStills?.(current.projectId);
     return this.toVm(next);
   }
 
@@ -536,8 +574,44 @@ export class HarnessManager {
       await this.recordWorkflowError(next, error);
       throw error;
     }
-    if (next.productionState === "authoring") this.scheduleAuthoringPoll(next.id);
+    if (isAutomatedAuthoringState(next.productionState)) this.scheduleAuthoringPoll(next.id);
     return this.toVm(next);
+  }
+
+  /** Retry exactly the failed Agent phase; never restart a completed asset/brief/video workflow. */
+  async retryWorkflow(id: string, expectedRevision: number): Promise<AgentDraftVM> {
+    const current = await this.mustReadRecord(id);
+    this.requireActiveSession(current);
+    const phase = current.productionState === "error" ? current.failedPhase : undefined;
+    if (current.workflowRevision !== expectedRevision || !phase || !current.activeJobId) {
+      throw new Error("Không xác định được bước Agent cần thử lại. Hãy mở lại video Agent.");
+    }
+    const next: DraftRecord = {
+      ...current,
+      workflowVersion: AGENT_WORKFLOW_VERSION,
+      workflowRevision: current.workflowRevision + 1,
+      productionState: phase,
+      activeJobId: current.activeJobId,
+    };
+    delete next.lastError;
+    delete next.failedPhase;
+    if (next.repairPhase === phase) {
+      delete next.repairPhase;
+      delete next.repairAttempts;
+    }
+    await this.writeRecord(next);
+    try {
+      if (phase === "authoring" || phase === "visual_refine") {
+        await this.requestAuthoringRepair(next, "Người dùng yêu cầu thử lại bước này.");
+      } else {
+        await this.promptSession(next, resumePromptFor(phase));
+      }
+    } catch (error) {
+      await this.recordWorkflowError(next, error);
+      throw error;
+    }
+    if (isAutomatedAuthoringState(phase)) this.scheduleAuthoringPoll(next.id);
+    return this.status(id);
   }
 
   async readCreateRequest(id: string): Promise<AgentCreateRequest> {
@@ -545,20 +619,34 @@ export class HarnessManager {
     if (record.productionState !== "queued_create") {
       throw new Error("Yêu cầu tạo video chưa qua bước duyệt brief.");
     }
-    const path = join(this.rootOf(record.id), CREATE_REQUEST_FILE);
-    let raw: unknown;
-    try {
-      raw = parseJson(await readFile(path, "utf8"));
-    } catch (_error) {
-      throw new Error("Agent chưa tạo yêu cầu dựng video hợp lệ.");
+    const accepted = await this.readAcceptedBrief(record);
+    if (accepted) {
+      const assets = await this.assetPathsForIds(record, accepted.selectedAssetIds);
+      return {
+        draftId: record.id,
+        title: accepted.title,
+        prompt: accepted.prompt,
+        assets,
+        choices: {
+          durationTier: accepted.durationTier,
+          videoLanguage: accepted.videoLanguage,
+          voiceProvider: accepted.voiceProvider,
+        },
+      };
     }
+
+    // One-way compatibility for drafts queued before brief.generated.json existed.
+    const path = join(this.rootOf(record.id), LEGACY_CREATE_REQUEST_FILE);
+    let raw: unknown;
+    try { raw = parseJson(await readFile(path, "utf8")); }
+    catch (_error) { throw new Error("Agent chưa tạo brief đã duyệt hợp lệ."); }
     if (!raw || typeof raw !== "object") throw new Error("Yêu cầu dựng video của Agent không hợp lệ.");
-    const input = raw as { version?: unknown; title?: unknown; prompt?: unknown; duration_tier?: unknown; video_language?: unknown; voice_provider?: unknown; selected_asset_ids?: unknown };
+    const input = raw as Record<string, unknown>;
     if (input.version !== 1 || typeof input.prompt !== "string" || !input.prompt.trim()) {
       throw new Error("Yêu cầu dựng video của Agent thiếu nội dung.");
     }
     if (input.prompt.length > 20_000) throw new Error("Yêu cầu dựng video quá dài.");
-    const brief = validateBriefFields(input);
+    const fields = validateAcceptedBriefFields(input);
     const assets = await this.assetPathsForIds(record, input.selected_asset_ids);
     return {
       draftId: record.id,
@@ -566,9 +654,9 @@ export class HarnessManager {
       prompt: input.prompt.trim(),
       assets,
       choices: {
-        durationTier: brief.durationTier,
-        videoLanguage: brief.videoLanguage,
-        voiceProvider: brief.voiceProvider,
+        durationTier: fields.durationTier,
+        videoLanguage: fields.videoLanguage,
+        voiceProvider: fields.voiceProvider,
       },
     };
   }
@@ -636,7 +724,6 @@ export class HarnessManager {
       job_id: current.activeJobId,
       request_revision: next.authoringRequestRevision,
       phase: "initial",
-      creative_stage: "v1",
       project: PROJECT_LINK,
       brief: "handoff/brief.json",
       asset_manifest: "handoff/assets.json",
@@ -654,7 +741,7 @@ export class HarnessManager {
         "Mọi asset được dùng phải giữ đúng scene.image.role đã duyệt; không dùng asset ngoài pool đã duyệt.",
         "Mỗi cảnh phải có một focal subject và hành động hình ảnh riêng; cấm dùng một shell/panel/HUD cố định cho toàn video.",
         "Mỗi cảnh trừ cảnh cuối phải khai báo transitionToNext phù hợp với quan hệ nội dung; không dựa vào transition mặc định.",
-        "Đây là V1 định vị. Sau still đầu tiên, MotionReal sẽ bắt buộc một creative rewrite V2 trước khi cho người dùng duyệt.",
+        "Đây là bản chất lượng cuối ngay từ lượt đầu: hierarchy, visual anchor, motion và asset framing phải được hoàn thiện trước khi submit; không dựa vào một lượt viết lại V2 bắt buộc.",
         "Không render video. Khi code đã hoàn chỉnh, gọi motionreal_submit_authoring để MotionReal validate và render still.",
       ],
     });
@@ -674,7 +761,7 @@ export class HarnessManager {
   ): Promise<void> {
     const current = await this.mustReadRecord(id);
     this.requireActiveSession(current);
-    if (current.productionState !== "still_review" || current.projectId !== projectId) {
+    if (current.productionState !== "scene_review" || current.projectId !== projectId) {
       throw new Error("Project Harness chưa ở bước duyệt cảnh.");
     }
     const root = this.rootOf(id);
@@ -719,7 +806,6 @@ export class HarnessManager {
     try {
       await this.advanceAuthoringRequest(authoring, {
         phase: "edit",
-        creative_stage: "edit",
         target_scene_ids: targetSceneIds,
         edit_request: { per_scene: perScene, global_notes: notes },
         render_error: undefined,
@@ -780,9 +866,11 @@ export class HarnessManager {
     briefReview?: AgentBriefVM,
     briefReviewError?: string,
     activities?: AgentActivityVM[],
+    needsAttention?: boolean,
   ): Promise<AgentDraftVM> {
     const createReady = record.productionState === "queued_create"
-      && existsSync(join(this.rootOf(record.id), CREATE_REQUEST_FILE));
+      && (existsSync(join(this.rootOf(record.id), BRIEF_FILE))
+        || existsSync(join(this.rootOf(record.id), LEGACY_CREATE_REQUEST_FILE)));
     const updatedAt = await stat(join(this.rootOf(record.id), METADATA_FILE))
       .then((value) => value.mtime.toISOString())
       .catch((_error) => record.createdAt);
@@ -798,6 +886,7 @@ export class HarnessManager {
       sessionAccess: record.sessionPolicyRevision === SESSION_POLICY_REVISION ? "full" : "legacy-approval",
       createReady,
       ...(activities?.length ? { activities } : {}),
+      ...(needsAttention ? { needsAttention: true } : {}),
       ...(assetReview ? { assetReview } : {}),
       ...(assetCollectionError ? { assetCollectionError } : {}),
       ...(briefReview ? { briefReview } : {}),
@@ -829,6 +918,14 @@ export class HarnessManager {
         raw = repaired;
         log.warn({ draftId: id }, "repaired legacy pausedFrom residue after resume");
       }
+      if (raw.workflowVersion !== workflow.workflowVersion || raw.productionState !== workflow.productionState) {
+        const migrated = { ...raw, ...workflow };
+        if (!workflow.pausedFrom) delete migrated.pausedFrom;
+        if (!workflow.lastError) delete migrated.lastError;
+        await writeJson(metadataPath, migrated);
+        raw = migrated;
+        log.info({ draftId: id, workflowVersion: workflow.workflowVersion }, "migrated Agent workflow metadata");
+      }
       const record: DraftRecord = {
         id,
         title,
@@ -849,6 +946,11 @@ export class HarnessManager {
         ...(raw.sessionPolicyRevision === SESSION_POLICY_REVISION
           ? { sessionPolicyRevision: SESSION_POLICY_REVISION }
           : {}),
+        ...((raw.repairPhase === "authoring" || raw.repairPhase === "visual_refine")
+          && Number.isSafeInteger(raw.repairAttempts) && Number(raw.repairAttempts) > 0
+          ? { repairPhase: raw.repairPhase, repairAttempts: Number(raw.repairAttempts) }
+          : {}),
+        ...(isRetryableFailurePhase(raw.failedPhase) ? { failedPhase: raw.failedPhase } : {}),
         ...(Array.isArray(raw.selectedAssetIds)
           ? { selectedAssetIds: raw.selectedAssetIds.filter((value): value is string => typeof value === "string") }
           : {}),
@@ -868,8 +970,8 @@ export class HarnessManager {
   }
 
   private requireActiveSession(record: DraftRecord): void {
-    if (!this.active || this.activeDraftId !== record.id || !record.sessionId) {
-      throw new Error("Hãy mở workspace Agent trước khi chuẩn bị asset.");
+    if (!this.active || !record.sessionId) {
+      throw new Error("Harness chưa sẵn sàng cho phiên Agent này. Hãy mở lại workspace Agent rồi thử lại.");
     }
   }
 
@@ -882,11 +984,12 @@ export class HarnessManager {
     });
   }
 
-  private async readSafeActivities(record: DraftRecord): Promise<AgentActivityVM[] | undefined> {
+  private async readSafeActivities(record: DraftRecord): Promise<{ activities: AgentActivityVM[]; needsAttention: boolean } | undefined> {
     if (!this.active || this.activeDraftId !== record.id || !record.sessionId) return undefined;
     const raw = await this.rpc(this.active.url, "session.history", { sessionId: record.sessionId, maxMessages: 12 });
     const activities: AgentActivityVM[] = [];
     const calls = new Map<string, AgentActivityVM>();
+    let needsAttention = false;
     for (const entryValue of arrayOf(objectOf(raw).events)) {
       const event = objectOf(objectOf(entryValue).event);
       const seq = Number.isSafeInteger(event.seq) ? Number(event.seq) : undefined;
@@ -898,13 +1001,17 @@ export class HarnessManager {
         const activity: AgentActivityVM = { id: String(seq), label, status: "running" };
         activities.push(activity);
         calls.set(callId, activity);
+        if (data.name === "ask_user_question") needsAttention = true;
       }
       if (event.type === "tool/result") {
         const activity = calls.get(stringOf(data.callId) ?? "");
         if (activity) activity.status = data.error === undefined ? "completed" : "failed";
+        if (activity?.label === "Đang chờ câu trả lời") needsAttention = false;
       }
+      if (event.type === "permission/request" || event.type === "permission/pending" || event.type === "question/request" || event.type === "question/pending") needsAttention = true;
+      if (event.type === "permission/resolved" || event.type === "question/resolved") needsAttention = false;
     }
-    return activities.slice(-8);
+    return { activities: activities.slice(-8), needsAttention };
   }
 
   /** Persist only the choice. Never restart a live model turn to apply it. */
@@ -1078,8 +1185,10 @@ export class HarnessManager {
     });
   }
 
-  private async writeBriefRequest(record: DraftRecord): Promise<void> {
-    const voiceProvider = this.deps.defaultVoiceProvider?.() ?? "vivibe";
+  private async writeBriefRequest(
+    record: DraftRecord,
+    revision?: { baseBrief: AgentBriefVM; feedback: string },
+  ): Promise<void> {
     await mkdir(join(this.rootOf(record.id), "handoff"), { recursive: true });
     await writeJson(join(this.rootOf(record.id), BRIEF_REQUEST_FILE), {
       version: 1,
@@ -1087,35 +1196,42 @@ export class HarnessManager {
       request_revision: record.briefRequestRevision,
       selected_asset_ids: record.selectedAssetIds ?? [],
       asset_manifest: "handoff/assets.json",
-      output: "handoff/brief.json",
-      duration_options: ([1, 2, 3, 4] as const).map((durationTier) => ({
-        duration_tier: durationTier,
-        target_seconds: resolveEffectiveDuration({ prompt: "", durationTier }).targetSeconds,
-      })),
+      output: "handoff/brief.generated.json",
       brief: {
         version: 1,
         job_id: record.activeJobId,
         request_revision: record.briefRequestRevision,
         brief_revision: 1,
         title: record.title,
-        prompt: "Brief hoàn chỉnh dùng trực tiếp để tạo video",
+        prompt: "Brief nội dung tổng thể để người dùng duyệt trước khi chọn thời lượng và giọng đọc",
         format: "tiktok",
-        duration_tier: 1,
         video_language: "vi",
-        voice_provider: voiceProvider,
         selected_asset_ids: record.selectedAssetIds ?? [],
       },
+      ...(revision ? {
+        base_brief: {
+          title: revision.baseBrief.title,
+          prompt: revision.baseBrief.prompt,
+          video_language: revision.baseBrief.videoLanguage,
+          selected_asset_ids: revision.baseBrief.selectedAssetIds,
+        },
+        feedback: revision.feedback,
+      } : {}),
       instructions: [
-        "Tổng hợp cuộc trò chuyện và chỉ các asset đã chọn thành brief tạo video 9:16.",
-        "Chọn duration_tier theo duration_options và viết mạch kể đủ cho target_seconds tương ứng; không tự suy đoán tier 1 là 15 giây.",
-        "Prompt phải mô tả nội dung, mạch kể, art direction và cách dùng asset đủ rõ cho pipeline authoring.",
-        "Gọi motionreal_submit_brief với brief hoàn chỉnh; không tự ghi file output.",
+        "Tổng hợp cuộc trò chuyện và chỉ các asset đã chọn thành brief nội dung video 9:16.",
+        "Prompt phải mô tả mục tiêu, khán giả, fact cần truyền đạt, narrative arc, visual direction và ý định dùng asset đủ rõ cho authoring.",
+        "Không quyết định hoặc ghi duration_tier, target_seconds, voice_provider, scene count hay scene budget: người dùng chọn sau khi duyệt brief.",
+        "Asset là pool đã duyệt, không phải checklist. Chỉ mô tả cách dùng asset thực sự góp phần vào nội dung.",
+        "Gọi motionreal_submit_brief với title, prompt, video_language và selected_asset_ids; không tự ghi file output.",
       ],
     });
   }
 
-  private async readBrief(record: DraftRecord): Promise<AgentBriefVM | undefined> {
-    const path = join(this.rootOf(record.id), BRIEF_FILE);
+  private async readGeneratedBrief(record: DraftRecord): Promise<AgentBriefVM | undefined> {
+    const generatedPath = join(this.rootOf(record.id), BRIEF_GENERATED_FILE);
+    // `brief.json` was the generated handoff before the split.  Read it only
+    // when it is not an accepted brief, so old in-progress drafts remain usable.
+    const path = existsSync(generatedPath) ? generatedPath : join(this.rootOf(record.id), BRIEF_FILE);
     if (!existsSync(path)) return undefined;
     let raw: unknown;
     try {
@@ -1125,6 +1241,7 @@ export class HarnessManager {
     }
     if (!raw || typeof raw !== "object") throw new Error("Brief của Agent không hợp lệ.");
     const value = raw as Record<string, unknown>;
+    if (value.accepted === true && path !== generatedPath) return undefined;
     if (value.version !== 1 || value.job_id !== record.activeJobId || value.request_revision !== record.briefRequestRevision) {
       throw new Error("Brief không khớp job hoặc lượt yêu cầu hiện tại.");
     }
@@ -1132,15 +1249,42 @@ export class HarnessManager {
       throw new Error("Brief thiếu revision hợp lệ.");
     }
     if (value.format !== "tiktok") throw new Error("Brief phải dùng định dạng video dọc 9:16.");
-    const fields = validateBriefFields(value);
+    const videoLanguage = validateVideoLanguage(value.video_language);
     const selectedAssetIds = validateBriefAssetIds(value.selected_asset_ids, record.selectedAssetIds ?? []);
     return {
       revision: Number(value.brief_revision),
       title: validBriefText(value.title, "tiêu đề", 1, 160),
       prompt: validBriefText(value.prompt, "nội dung", 20, 20_000),
       format: "tiktok",
-      ...fields,
+      videoLanguage,
       selectedAssetIds,
+    };
+  }
+
+  private async readAcceptedBrief(record: DraftRecord): Promise<AgentAcceptedBrief | undefined> {
+    const path = join(this.rootOf(record.id), BRIEF_FILE);
+    if (!existsSync(path)) return undefined;
+    let raw: unknown;
+    try { raw = parseJson(await readFile(path, "utf8")); }
+    catch (_error) { throw new Error("Brief đã duyệt chưa phải JSON hoàn chỉnh."); }
+    if (!raw || typeof raw !== "object") throw new Error("Brief đã duyệt không hợp lệ.");
+    const value = raw as Record<string, unknown>;
+    if (value.accepted !== true) return undefined;
+    if (value.version !== 1 || value.job_id !== record.activeJobId || value.request_revision !== record.briefRequestRevision) {
+      throw new Error("Brief đã duyệt không khớp job hoặc lượt yêu cầu hiện tại.");
+    }
+    if (!Number.isSafeInteger(value.brief_revision) || Number(value.brief_revision) < 1) {
+      throw new Error("Brief đã duyệt thiếu revision hợp lệ.");
+    }
+    if (value.format !== "tiktok") throw new Error("Brief phải dùng định dạng video dọc 9:16.");
+    const fields = validateAcceptedBriefFields(value);
+    return {
+      revision: Number(value.brief_revision),
+      title: validBriefText(value.title, "tiêu đề", 1, 160),
+      prompt: validBriefText(value.prompt, "nội dung", 20, 20_000),
+      format: "tiktok",
+      ...fields,
+      selectedAssetIds: validateBriefAssetIds(value.selected_asset_ids, record.selectedAssetIds ?? []),
     };
   }
 
@@ -1171,7 +1315,7 @@ export class HarnessManager {
         log.debug({ err: error, draftId: id }, "Harness authoring poll record unreadable; stopping poll");
         return null;
       });
-      if (!this.active || !record || record.productionState !== "authoring") return;
+      if (!this.active || !record || !isAutomatedAuthoringState(record.productionState)) return;
       this.maybeProcessAuthoring(record);
       this.authoringPolls.set(id, setTimeout(() => void tick(), AUTHORING_POLL_MS));
     };
@@ -1204,106 +1348,203 @@ export class HarnessManager {
     const manifest = parseJson(await readFile(manifestPath, "utf8"));
     const paced = validateHarnessManifestPacing(manifest, sceneIds, pacing, (await this.readRequiredBrief(record)).videoLanguage);
     if (!paced.ok) throw new Error(paced.errors.join(" "));
-    const creativeStage = typeof request.creative_stage === "string" ? request.creative_stage : undefined;
-    if (creativeStage === "v2") {
-      await assertHarnessCreativeRewrite({
-        baselineDir: join(root, AUTHORING_V1_DIR),
-        authoredDir: join(root, PROJECT_LINK, "authored"),
-      });
-    }
-    if (request.phase === "self_review" || request.phase === "image_review") {
-      const reviewed = Array.isArray(submission.reviewed_scene_ids)
-        ? submission.reviewed_scene_ids.filter((id): id is string => typeof id === "string")
-        : [];
-      if (!sameIds(reviewed, sceneIds) || typeof submission.review_notes !== "string" || !submission.review_notes.trim()) {
-        throw new Error("Harness chưa xác nhận đã xem đủ still của mọi cảnh.");
-      }
-    }
-    if (request.phase === "self_review") await this.verifyImageReads(record, request);
     const projectRoot = await realpath(join(root, PROJECT_LINK));
-    if (request.phase === "image_review") {
-      const paths = Array.isArray(request.stills) && request.stills.length === sceneIds.length
-        && request.stills.every((path) => typeof path === "string" && path.startsWith("project/"))
-        ? request.stills.map((path) => join(projectRoot, (path as string).slice("project/".length))) : [];
-      // Missing/changed evidence never passes: render current inputs and request a new review.
-      const fingerprint = paths.length > 0
-        ? await harnessReviewFingerprint(projectRoot, paths).catch((error) => {
-          log.warn({ err: error, projectId: record.projectId }, "Review evidence unreadable; require a fresh still render");
-          return null;
-        }) : null;
-      if (fingerprint !== null && fingerprint === request.review_fingerprint) {
-        await this.verifyImageReads(record, request);
-        // History RPC/file inspection is asynchronous; do not accept inputs changed during it.
-        if (await harnessReviewFingerprint(projectRoot, paths) === fingerprint) {
-          if (!await this.isCurrentAuthoringRecord(record)) return;
-          await this.deps.acceptAuthoringStills!(record.projectId!);
-          const latest = await this.mustReadRecord(record.id);
-          if (!isSameAuthoringWork(latest, record)) return;
-          const next = { ...latest, ...transitionAgentWorkflow(latest, {
-            expectedRevision: latest.workflowRevision,
-            to: "still_review",
-            jobId: latest.activeJobId,
-          }) };
-          await this.writeRecord(next);
-          return;
-        }
-        // Re-enter from a fresh manifest on retry; falling through would write the
-        // pre-RPC manifest over edits that arrived while history was being read.
-        throw new Error("Source/asset đã đổi trong lúc kiểm tra review; cần đọc lại manifest và render still mới.");
-      }
+    if (request.phase === "visual_refine") {
+      await writeJson(manifestPath, paced.manifest);
+      await this.processVisualRefine(record, request, submission, sceneIds, projectRoot);
+      return;
     }
     if (!await this.isCurrentAuthoringRecord(record)) return;
     await writeJson(manifestPath, paced.manifest);
+    const renderSceneIds = request.phase === "edit"
+      ? this.requestEditSceneIds(request, sceneIds)
+      : sceneIds;
     const sourceFingerprint = await harnessReviewFingerprint(projectRoot);
-    const rendered = await this.deps.renderAuthoringStills!(record.projectId!, sceneIds);
-    if (!rendered.ok || rendered.stills.length !== sceneIds.length || new Set(rendered.stills).size !== sceneIds.length) {
+    const rendered = await this.deps.renderAuthoringStills!(record.projectId!, renderSceneIds);
+    if (!rendered.ok || rendered.stills.length !== renderSceneIds.length || new Set(rendered.stills).size !== renderSceneIds.length) {
       throw new Error(rendered.ok ? "MotionReal chưa render đủ still riêng cho mọi cảnh." : rendered.error);
     }
     if (await harnessReviewFingerprint(projectRoot) !== sourceFingerprint) {
       throw new Error("Source/asset đã đổi trong lúc render still; cần render lại trước khi review.");
     }
     if (!await this.isCurrentAuthoringRecord(record)) return;
-    const currentStills = rendered.stills.map((path) => {
+    await this.beginVisualRefineOrSceneReview(record, sceneIds, projectRoot, rendered.stills, renderSceneIds);
+  }
+
+  private async authoringRefinePolicy(projectId: string): Promise<{ refinePasses: number; refineEarlyStop: boolean }> {
+    const configured = await this.deps.authoringRefinePolicy?.(projectId);
+    const refinePasses = Number.isFinite(configured?.refinePasses)
+      ? Math.min(5, Math.max(0, Math.floor(configured!.refinePasses)))
+      : 0;
+    return { refinePasses, refineEarlyStop: configured?.refineEarlyStop === true };
+  }
+
+  private async beginVisualRefineOrSceneReview(
+    record: DraftRecord,
+    sceneIds: string[],
+    projectRoot: string,
+    stills: string[],
+    reviewSceneIds: string[] = sceneIds,
+  ): Promise<void> {
+    const policy = await this.authoringRefinePolicy(record.projectId!);
+    if (policy.refinePasses === 0) {
+      await this.finishHarnessSceneReview(record);
+      return;
+    }
+    const refining = { ...record, ...transitionAgentWorkflow(record, {
+      expectedRevision: record.workflowRevision,
+      to: "visual_refine",
+      jobId: record.activeJobId,
+    }) };
+    await this.writeRecord(refining);
+    await this.enqueueVisualRefine(refining, sceneIds, projectRoot, stills, 1, 0, reviewSceneIds);
+  }
+
+  private async enqueueVisualRefine(
+    record: DraftRecord,
+    sceneIds: string[],
+    projectRoot: string,
+    stills: string[],
+    pass: number,
+    cleanStreak: number,
+    reviewSceneIds: string[] = sceneIds,
+  ): Promise<void> {
+    const stillRefs = this.projectStillRefs(projectRoot, stills);
+    await this.advanceAuthoringRequest(record, {
+      phase: "visual_refine",
+      stills: stillRefs,
+      review_scene_ids: reviewSceneIds,
+      review_fingerprint: await harnessReviewFingerprint(projectRoot, stills),
+      scene_fingerprints: await harnessSceneFingerprints(projectRoot),
+      visual_refine_pass: pass,
+      visual_refine_clean_streak: cleanStreak,
+      render_error: undefined,
+      instructions: [
+        "Dùng read_image mở mọi PNG trong stills trước khi nhận xét. Không kết luận chỉ từ code.",
+        "Chỉ sửa các cảnh có lỗi trực quan cụ thể. Giữ nguyên cảnh đã sạch; không viết lại toàn video vì đây không phải V2 bắt buộc.",
+        "Nếu sửa source/asset, gọi motionreal_submit_authoring sau khi sửa. Nếu ảnh đã sạch, không sửa code và submit review_notes nêu rõ quan sát.",
+        "review_notes phải nêu lỗi cụ thể đã sửa hoặc lý do ảnh sạch. reviewed_scene_ids phải chứa đúng review_scene_ids.",
+      ],
+    }, `MotionReal đã render still cho visual refine lượt ${pass}. Hãy đọc handoff/authoring-request.json, dùng read_image xem ảnh thật, chỉ sửa lỗi trực quan cụ thể rồi submit lại.`);
+  }
+
+  private async processVisualRefine(
+    record: DraftRecord,
+    request: Record<string, unknown>,
+    submission: Record<string, unknown>,
+    sceneIds: string[],
+    projectRoot: string,
+  ): Promise<void> {
+    const reviewed = Array.isArray(submission.reviewed_scene_ids)
+      ? submission.reviewed_scene_ids.filter((id): id is string => typeof id === "string")
+      : [];
+    const reviewSceneIds = this.requestReviewSceneIds(request, sceneIds);
+    if (!sameIds(reviewed, reviewSceneIds) || typeof submission.review_notes !== "string" || !submission.review_notes.trim()) {
+      throw new Error("Harness chưa xác nhận đã xem đủ still trong phạm vi visual refine.");
+    }
+    const stills = this.requestStillPaths(request, reviewSceneIds, projectRoot);
+    const expectedFingerprint = typeof request.review_fingerprint === "string" ? request.review_fingerprint : "";
+    if (!expectedFingerprint) throw new Error("Visual refine thiếu fingerprint của still hiện tại.");
+    await this.verifyImageReads(record, request);
+    const sourceFingerprint = await harnessReviewFingerprint(projectRoot, stills);
+    const currentSceneFingerprints = await harnessSceneFingerprints(projectRoot);
+    const pass = validVisualRefinePass(request.visual_refine_pass);
+    const cleanStreak = validCleanStreak(request.visual_refine_clean_streak);
+    const policy = await this.authoringRefinePolicy(record.projectId!);
+
+    if (sourceFingerprint === expectedFingerprint) {
+      const nextClean = cleanStreak + 1;
+      if (pass >= policy.refinePasses || (policy.refineEarlyStop && nextClean >= 2)) {
+        await this.finishHarnessSceneReview(record);
+        return;
+      }
+      await this.enqueueVisualRefine(record, sceneIds, projectRoot, stills, pass + 1, nextClean, reviewSceneIds);
+      return;
+    }
+
+    const changedSceneIds = changedVisualSceneIds(this.requestSceneFingerprints(request, sceneIds), currentSceneFingerprints, sceneIds);
+    const renderScope = changedSceneIds.length > 0 ? changedSceneIds : sceneIds;
+    const beforeRender = await harnessReviewFingerprint(projectRoot);
+    const rendered = await this.deps.renderAuthoringStills!(record.projectId!, renderScope);
+    if (!rendered.ok || rendered.stills.length !== renderScope.length || new Set(rendered.stills).size !== renderScope.length) {
+      throw new Error(rendered.ok ? "MotionReal chưa render đủ still riêng cho các cảnh đã sửa." : rendered.error);
+    }
+    if (await harnessReviewFingerprint(projectRoot) !== beforeRender) {
+      throw new Error("Source/asset đã đổi trong lúc render still; cần render lại trước khi review.");
+    }
+    if (!await this.isCurrentAuthoringRecord(record)) return;
+    if (pass >= policy.refinePasses) {
+      await this.finishHarnessSceneReview(record);
+      return;
+    }
+    await this.enqueueVisualRefine(record, sceneIds, projectRoot, rendered.stills, pass + 1, 0, renderScope);
+  }
+
+  private projectStillRefs(projectRoot: string, stills: string[]): string[] {
+    return stills.map((path) => {
       const rel = relative(projectRoot, path);
       if (!rel || rel.startsWith("..") || isAbsolute(rel)) throw new Error("Still render nằm ngoài project Harness.");
       return `${PROJECT_LINK}/${rel.replaceAll("\\", "/")}`;
     });
-    if (creativeStage !== "v1") {
-      await this.advanceAuthoringRequest(record, {
-        phase: "image_review",
-        stills: currentStills,
-        review_fingerprint: await harnessReviewFingerprint(projectRoot, rendered.stills),
-        render_error: undefined,
-        instructions: [
-          "Đây là ảnh mới render SAU khi sửa code, không phải ảnh V1. Dùng read_image mở mọi PNG trong stills trước khi nhận xét.",
-          "Lượt này chỉ review, không sửa source/asset. Ghi quan sát cụ thể và cả vấn đề còn lại trong review_notes để người dùng quyết định.",
-          "Nếu source/ảnh thay đổi, MotionReal phải render lại và yêu cầu review revision mới; nhận xét ảnh cũ không được dùng để duyệt ảnh mới.",
-          "Nếu đọc ảnh lỗi, báo lỗi thay vì xác nhận đã review. Sau khi xem đủ, gọi motionreal_submit_authoring với reviewed_scene_ids đủ mọi cảnh và review_notes.",
-        ],
-      }, "MotionReal đã render ảnh sau chỉnh sửa. Đọc authoring-request.json mới, dùng read_image xem mọi ảnh mới rồi submit nhận xét. Không sửa code trong lượt review này.");
-      return;
+  }
+
+  private requestStillPaths(request: Record<string, unknown>, sceneIds: string[], projectRoot: string): string[] {
+    if (!Array.isArray(request.stills) || request.stills.length !== sceneIds.length
+      || request.stills.some((path) => typeof path !== "string" || !path.startsWith("project/"))) {
+      throw new Error("Visual refine không có đủ still hợp lệ.");
     }
-    const archived = await archiveHarnessAuthoringV1({
-      draftRoot: root,
-      manifestPath,
-      authoredDir: join(projectRoot, "authored"),
-      stills: rendered.stills.map((path, index) => ({ sceneId: sceneIds[index]!, path })),
-    });
-    await this.advanceAuthoringRequest(record, {
-      phase: "self_review",
-      creative_stage: "v2",
-      v1_baseline: archived.baseline,
-      stills: archived.stills,
-      render_error: undefined,
-      instructions: [
-        "Dùng read_image với file_path của mọi PNG trong stills; read chỉ đọc văn bản, không thay cho xem ảnh. Không kết luận từ code; nếu đọc ảnh lỗi, báo lỗi thay vì xác nhận đã review.",
-        "Đây là creative rewrite V2 bắt buộc: viết lại MỌI module scene dựa trên ảnh V1, không chỉ sửa scene nhìn yếu.",
-        "Được thay toàn bộ layout, hierarchy, asset framing, transition và motion; giữ facts, narration, timing và asset ref đã duyệt.",
-        "Đổi palette/glow, thêm icon/khung hoặc pulse không được tính là rewrite có ý nghĩa.",
-        "review_notes phải nêu quan sát và thay đổi cụ thể, gồm lý do transition giữa các cảnh.",
-        "Sau khi đã xem và sửa, gọi motionreal_submit_authoring với reviewed_scene_ids đủ mọi cảnh và review_notes cụ thể.",
-      ],
-    }, "MotionReal đã archive V1 và render still. Hãy mở mọi PNG thật, creative rewrite toàn bộ scene thành V2 rồi submit lại. Chỉ đổi màu/glow/khung/pulse không được chấp nhận.");
+    return request.stills.map((path) => join(projectRoot, (path as string).slice("project/".length)));
+  }
+
+  private requestReviewSceneIds(request: Record<string, unknown>, sceneIds: string[]): string[] {
+    if (request.review_scene_ids === undefined) return sceneIds;
+    if (!Array.isArray(request.review_scene_ids)
+      || request.review_scene_ids.some((id) => typeof id !== "string")) {
+      throw new Error("Visual refine có phạm vi scene không hợp lệ.");
+    }
+    const ids = request.review_scene_ids as string[];
+    if (!sameIds(ids, [...new Set(ids)]) || ids.length === 0 || ids.some((id) => !sceneIds.includes(id))) {
+      throw new Error("Visual refine có phạm vi scene không hợp lệ.");
+    }
+    return ids;
+  }
+
+  private requestEditSceneIds(request: Record<string, unknown>, sceneIds: string[]): string[] {
+    if (!Array.isArray(request.target_scene_ids)
+      || request.target_scene_ids.some((id) => typeof id !== "string")) {
+      throw new Error("Yêu cầu sửa cảnh không có phạm vi scene hợp lệ.");
+    }
+    const ids = request.target_scene_ids as string[];
+    if (!sameIds(ids, [...new Set(ids)]) || ids.length === 0 || ids.some((id) => !sceneIds.includes(id))) {
+      throw new Error("Yêu cầu sửa cảnh không có phạm vi scene hợp lệ.");
+    }
+    return ids;
+  }
+
+  private requestSceneFingerprints(request: Record<string, unknown>, sceneIds: string[]): HarnessSceneFingerprints | undefined {
+    const value = request.scene_fingerprints;
+    if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+    const candidate = value as { global?: unknown; scenes?: unknown };
+    if (typeof candidate.global !== "string" || !candidate.scenes || typeof candidate.scenes !== "object" || Array.isArray(candidate.scenes)) {
+      return undefined;
+    }
+    const scenes = candidate.scenes as Record<string, unknown>;
+    if (!sceneIds.every((id) => typeof scenes[id] === "string")) return undefined;
+    return { global: candidate.global, scenes: Object.fromEntries(sceneIds.map((id) => [id, scenes[id] as string])) };
+  }
+
+  private async finishHarnessSceneReview(record: DraftRecord): Promise<void> {
+    if (!await this.isCurrentAuthoringRecord(record)) return;
+    await this.deps.acceptAuthoringStills!(record.projectId!);
+    const latest = await this.mustReadRecord(record.id);
+    if (!isSameAuthoringWork(latest, record)) return;
+    const next = { ...latest, ...transitionAgentWorkflow(latest, {
+      expectedRevision: latest.workflowRevision,
+      to: "scene_review",
+      jobId: latest.activeJobId,
+    }) };
+    this.stopAuthoringPoll(record.id);
+    await this.writeRecord(next);
   }
 
   private async requestAuthoringRepair(record: DraftRecord, message: string): Promise<void> {
@@ -1311,26 +1552,40 @@ export class HarnessManager {
     if (!isSameAuthoringWork(latest, record)) return;
     const requestPath = join(this.rootOf(record.id), AUTHORING_REQUEST_FILE);
     const request = parseJson(await readFile(requestPath, "utf8")) as Record<string, unknown>;
-    const selfReview = request.phase === "self_review" || request.phase === "image_review";
-    await this.advanceAuthoringRequest(latest, {
-      phase: selfReview ? request.phase : "repair",
+    const visualRefine = request.phase === "visual_refine";
+    const repairPhase = visualRefine ? "visual_refine" : "authoring";
+    const previousAttempts = latest.repairPhase === repairPhase ? latest.repairAttempts ?? 0 : 0;
+    const maxAttempts = authoringRepairLimit(await this.deps.maxAuthoringRepairs?.(latest.projectId ?? ""));
+    if (previousAttempts >= maxAttempts) {
+      this.stopAuthoringPoll(latest.id);
+      await this.recordWorkflowError(latest, `Agent đã thử sửa ${maxAttempts} lần ở bước ${repairPhase} nhưng scene vẫn chưa hợp lệ. Hãy thử lại bước này.`);
+      return;
+    }
+    const repairRecord: DraftRecord = {
+      ...latest,
+      repairPhase,
+      repairAttempts: previousAttempts + 1,
+    };
+    await this.writeRecord(repairRecord);
+    await this.advanceAuthoringRequest(repairRecord, {
+      phase: visualRefine ? "visual_refine" : "repair",
       pacing: await this.authoringPacing(latest),
       render_error: message.slice(0, 2_000),
-      ...(selfReview ? {} : { stills: [] }),
+      ...(visualRefine ? {} : { stills: [] }),
       instructions: [
-        request.phase === "image_review"
-          ? "Đọc render_error và hoàn tất review ảnh mới; không sửa code nếu lỗi chỉ là thiếu reviewed_scene_ids/review_notes. Source hoặc ảnh đổi sẽ cần render và review lại."
+        visualRefine
+          ? "Đọc render_error và hoàn tất visual refine. Không sửa code nếu lỗi chỉ là thiếu reviewed_scene_ids/review_notes; source hoặc ảnh đổi sẽ được render lại theo pass còn lại."
           : "MotionReal không validate/render được scene hiện tại. Đọc render_error, kiểm tra manifest và mọi module TSX rồi sửa tận gốc.",
-        ...(selfReview ? ["Đây vẫn là lượt self-review/creative rewrite; dùng read_image mở lại mọi PNG trong stills. Nếu đọc ảnh lỗi, báo lỗi thay vì xác nhận đã review; chỉ submit đủ reviewed_scene_ids cùng review_notes sau khi xem ảnh."] : []),
+        ...(visualRefine ? ["Dùng read_image mở lại mọi PNG trong stills. Nếu đọc ảnh lỗi, báo lỗi thay vì xác nhận đã review; chỉ submit đủ reviewed_scene_ids cùng review_notes sau khi xem ảnh."] : []),
         "Gọi lại motionreal_submit_authoring bằng request_revision mới sau khi sửa.",
       ],
-    }, request.phase === "image_review"
-      ? "MotionReal chưa nhận được review hợp lệ. Đọc render_error trong authoring-request.json và hoàn tất review theo revision mới. Không sửa code nếu lỗi chỉ là thiếu xác nhận xem ảnh."
+    }, visualRefine
+      ? "MotionReal chưa nhận được visual refine hợp lệ. Đọc render_error trong authoring-request.json và hoàn tất review theo revision mới."
       : "MotionReal chưa validate/render được scene. Hãy đọc render_error trong handoff/authoring-request.json, sửa project/ rồi submit authoring revision mới.");
   }
 
-  private async readRequiredBrief(record: DraftRecord): Promise<AgentBriefVM> {
-    const brief = await this.readBrief(record);
+  private async readRequiredBrief(record: DraftRecord): Promise<AgentAcceptedBrief> {
+    const brief = await this.readAcceptedBrief(record);
     if (!brief) throw new Error("Không tìm thấy brief đã duyệt cho authoring Harness.");
     return brief;
   }
@@ -1353,7 +1608,7 @@ export class HarnessManager {
     const current = parseJson(await readFile(path, "utf8")) as Record<string, unknown>;
     const next = { ...record, authoringRequestRevision: (record.authoringRequestRevision ?? 0) + 1 };
     const phase = patch.phase ?? current.phase;
-    const reviewAfterSeq = phase === "self_review" || phase === "image_review"
+    const reviewAfterSeq = phase === "visual_refine"
       ? (await readHarnessReviewHistory(() => this.reviewHistoryPage(record))).lastSeq : undefined;
     this.requireActiveSession(record);
     const commit = (async () => {
@@ -1480,7 +1735,7 @@ export class HarnessManager {
   }
 
   private async recordWorkflowError(record: DraftRecord, error: unknown): Promise<void> {
-    const message = error instanceof Error ? error.message : "Harness không nhận yêu cầu thu thập asset.";
+    const message = typeof error === "string" ? error : error instanceof Error ? error.message : "Harness không nhận yêu cầu thu thập asset.";
     const failed = {
       ...record,
       ...transitionAgentWorkflow(record, {
@@ -1489,7 +1744,9 @@ export class HarnessManager {
         jobId: record.activeJobId,
         error: message,
       }),
+      ...(isRetryableFailurePhase(record.productionState) ? { failedPhase: record.productionState } : {}),
     };
+    this.stopAuthoringPoll(record.id);
     await this.writeRecord(failed);
   }
 
@@ -1598,14 +1855,18 @@ function validBriefText(value: unknown, label: string, min: number, max: number)
   return text;
 }
 
-function validateBriefFields(value: Record<string, unknown>): Pick<AgentBriefVM, "durationTier" | "videoLanguage" | "voiceProvider"> {
+function validateVideoLanguage(value: unknown): VideoLanguageChoice {
+  if (value !== "vi" && value !== "en") throw new Error("Brief có ngôn ngữ không hợp lệ.");
+  return value;
+}
+
+function validateAcceptedBriefFields(value: Record<string, unknown>): Pick<AgentAcceptedBrief, "durationTier" | "videoLanguage" | "voiceProvider"> {
   const durationTier = value.duration_tier;
-  const videoLanguage = value.video_language;
+  const videoLanguage = validateVideoLanguage(value.video_language);
   const voiceProvider = value.voice_provider;
   if (durationTier !== 1 && durationTier !== 2 && durationTier !== 3 && durationTier !== 4) {
     throw new Error("Brief có thời lượng không được hỗ trợ.");
   }
-  if (videoLanguage !== "vi" && videoLanguage !== "en") throw new Error("Brief có ngôn ngữ không hợp lệ.");
   if (voiceProvider !== "vivibe" && voiceProvider !== "elevenlabs" && voiceProvider !== "vieneu") throw new Error("Brief có giọng đọc không hợp lệ.");
   if (videoLanguage === "en" && voiceProvider !== "elevenlabs") throw new Error("Brief tiếng Anh phải dùng ElevenLabs.");
   return { durationTier, videoLanguage, voiceProvider };
@@ -1613,7 +1874,7 @@ function validateBriefFields(value: Record<string, unknown>): Pick<AgentBriefVM,
 
 function validateBriefInput(input: AgentBriefInput): AgentBriefInput {
   if (!input || typeof input !== "object") throw new Error("Nội dung chỉnh sửa brief không hợp lệ.");
-  const fields = validateBriefFields({
+  const fields = validateAcceptedBriefFields({
     duration_tier: input.durationTier,
     video_language: input.videoLanguage,
     voice_provider: input.voiceProvider,
@@ -1628,9 +1889,7 @@ function validateBriefInput(input: AgentBriefInput): AgentBriefInput {
 function briefChanged(generated: AgentBriefVM, accepted: AgentBriefInput): boolean {
   return generated.title !== accepted.title
     || generated.prompt !== accepted.prompt
-    || generated.durationTier !== accepted.durationTier
-    || generated.videoLanguage !== accepted.videoLanguage
-    || generated.voiceProvider !== accepted.voiceProvider;
+    || generated.videoLanguage !== accepted.videoLanguage;
 }
 
 function safeBriefError(error: unknown): string {
@@ -1703,16 +1962,17 @@ function resumePromptFor(state: AgentProductionState): string {
     return "MotionReal tiếp tục bước chuẩn bị asset. Hãy đọc handoff/assets-request.json hiện tại, hoàn thành yêu cầu và gọi motionreal_submit_assets; không tự ghi handoff/assets.json.";
   }
   if (state === "preparing_brief") {
-    return "MotionReal tiếp tục tạo brief. Hãy đọc handoff/brief-request.json hiện tại, hoàn thành brief và gọi motionreal_submit_brief; không tự ghi handoff/brief.json.";
+    return "MotionReal tiếp tục tạo brief. Hãy đọc handoff/brief-request.json hiện tại, hoàn thành brief và gọi motionreal_submit_brief; không tự ghi handoff/brief.generated.json.";
   }
-  if (state === "authoring") {
+  if (state === "authoring" || state === "visual_refine") {
     return "MotionReal tiếp tục authoring. Hãy đọc handoff/authoring-request.json hiện tại, hoàn thành yêu cầu và gọi motionreal_submit_authoring khi xong.";
   }
   throw new Error(`Không thể tiếp tục workflow Video Agent ở bước ${state}.`);
 }
 
 function isSameAuthoringWork(current: DraftRecord, expected: DraftRecord): boolean {
-  return current.productionState === "authoring"
+  return isAutomatedAuthoringState(current.productionState)
+    && isAutomatedAuthoringState(expected.productionState)
     && current.workflowRevision === expected.workflowRevision
     && current.activeJobId === expected.activeJobId
     && current.authoringRequestRevision === expected.authoringRequestRevision;
@@ -1720,14 +1980,51 @@ function isSameAuthoringWork(current: DraftRecord, expected: DraftRecord): boole
 
 function isPendingAuthoringEdit(current: DraftRecord, expected: DraftRecord): boolean {
   return expected.productionState === "authoring"
-    && current.productionState === "still_review"
+    && current.productionState === "scene_review"
     && current.workflowRevision + 1 === expected.workflowRevision
     && current.activeJobId === expected.activeJobId
     && current.authoringRequestRevision === expected.authoringRequestRevision;
 }
 
+function isAutomatedAuthoringState(state: AgentProductionState): state is "authoring" | "visual_refine" {
+  return state === "authoring" || state === "visual_refine";
+}
+
+function isRetryableFailurePhase(value: unknown): value is "collecting_assets" | "preparing_brief" | "authoring" | "visual_refine" {
+  return value === "collecting_assets"
+    || value === "preparing_brief"
+    || value === "authoring"
+    || value === "visual_refine";
+}
+
+function authoringRepairLimit(value: number | undefined): number {
+  if (!Number.isFinite(value)) return 3;
+  return Math.min(10, Math.max(1, Math.floor(value!)));
+}
+
+function validVisualRefinePass(value: unknown): number {
+  if (!Number.isSafeInteger(value) || Number(value) < 1 || Number(value) > 5) {
+    throw new Error("Visual refine có lượt kiểm tra không hợp lệ.");
+  }
+  return Number(value);
+}
+
+function validCleanStreak(value: unknown): number {
+  return Number.isSafeInteger(value) && Number(value) >= 0 && Number(value) <= 5 ? Number(value) : 0;
+}
+
+/** Return only the scenes whose authored source, manifest entry or asset changed. */
+function changedVisualSceneIds(
+  before: HarnessSceneFingerprints | undefined,
+  after: HarnessSceneFingerprints,
+  sceneIds: string[],
+): string[] {
+  if (!before || before.global !== after.global) return [...sceneIds];
+  return sceneIds.filter((id) => before.scenes[id] !== after.scenes[id]);
+}
+
 function agentInstructions(title: string): string {
-  return `# MotionReal Video Agent\n\nBạn đang làm việc cho video: ${title}\n\n- Nghiên cứu, ghi chú và tải asset vào thư mục \`assets/\` của workspace này.\n- Khi MotionReal yêu cầu chuẩn bị asset, đọc \`handoff/assets-request.json\`, làm đúng job/request revision rồi gọi \`motionreal_submit_assets\`. Không tự ghi file manifest cuối.\n- Khi MotionReal yêu cầu brief, đọc \`handoff/brief-request.json\`, dùng cuộc trò chuyện và đúng asset đã chọn rồi gọi \`motionreal_submit_brief\`. Không tự ghi file brief cuối.\n- Chỉ author scene khi có \`handoff/authoring-request.json\`. Khi đó \`project/\` là project MotionReal của chính video này: đọc asset, viết \`project/manifest.json\` và \`project/authored/*.tsx\`, rồi gọi \`motionreal_submit_authoring\`.\n- Không tự tạo project hoặc render MP4; MotionReal validate, chụp still và mở từng bước duyệt bên ngoài chat.\n- Mọi đường dẫn ảnh thu thập phải tương đối và nằm trong \`assets/\`.\n`;
+  return `# MotionReal Video Agent\n\nBạn đang làm việc cho video: ${title}\n\n- Nghiên cứu, ghi chú và tải asset vào thư mục \`assets/\` của workspace này.\n- Khi MotionReal yêu cầu chuẩn bị asset, đọc \`handoff/assets-request.json\`, làm đúng job/request revision rồi gọi \`motionreal_submit_assets\`. Không tự ghi file manifest cuối.\n- Khi MotionReal yêu cầu brief, đọc \`handoff/brief-request.json\`, dùng cuộc trò chuyện và đúng asset đã chọn rồi gọi \`motionreal_submit_brief\`. Brief chỉ mô tả nội dung; không quyết định thời lượng, số cảnh hay giọng đọc. Không tự ghi file brief cuối.\n- Chỉ author scene khi có \`handoff/authoring-request.json\`. Khi đó \`project/\` là project MotionReal của chính video này: đọc asset, viết \`project/manifest.json\` và \`project/authored/*.tsx\`, rồi gọi \`motionreal_submit_authoring\`.\n- Không tự tạo project hoặc render MP4; MotionReal validate, chụp still và mở từng bước duyệt bên ngoài chat.\n- Mọi đường dẫn ảnh thu thập phải tương đối và nằm trong \`assets/\`.\n`;
 }
 
 function harnessToolsPatch(pluginPath: string, searchProvider: AgentSearchProvider, harnessCliPath: string): string {

@@ -13,42 +13,11 @@ import type {
 import { DEFAULT_REFINE_PASSES, FULL_AUTO_SETTINGS_PATCH } from "../../shared/settings-model.js";
 import { activeAccount } from "../../shared/active-account.js";
 import { Icon } from "../icons.js";
-import { ChoiceGroup, ExpandableToggle, Field, InfoHint, InfoRow, NumberRow, PageHeader, SettingsCard, StableButtonLabel, Toggle } from "../primitives.js";
+import { ChoiceGroup, CustomSelect, ExpandableToggle, Field, InfoHint, InfoRow, NumberRow, PageHeader, SettingsCard, StableButtonLabel, Toggle } from "../primitives.js";
 import { compactNotificationMessage, errorDetails, useNotifications } from "../notifications.js";
 import { VIENEU_VOICES } from "@motionreal/tts/vieneu-presets";
 
 export type SettingsTab = "ai" | "voice" | "build" | "about";
-
-interface CustomSelectOption {
-  value: string;
-  label: string;
-}
-
-interface CustomSelectProps {
-  id?: string;
-  value: string;
-  onChange: (value: string) => void;
-  options: CustomSelectOption[];
-  placeholder?: string;
-  style?: React.CSSProperties;
-}
-
-const CustomSelect: React.FC<CustomSelectProps> = ({ id, value, onChange, options, placeholder, style }) => {
-  return (
-    <select
-      id={id}
-      className="ns-input"
-      value={value}
-      onChange={(event) => onChange(event.target.value)}
-      style={{ minWidth: 0, ...style }}
-    >
-      {placeholder && !value ? <option value="">{placeholder}</option> : null}
-      {options.map((option) => (
-        <option key={option.value} value={option.value}>{option.label}</option>
-      ))}
-    </select>
-  );
-};
 
 /** Enterprise tabbed settings: AI account / voice / video build / about. */
 export const SettingsView: React.FC<{

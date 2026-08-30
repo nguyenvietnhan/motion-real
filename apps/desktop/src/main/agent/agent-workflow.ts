@@ -1,6 +1,6 @@
 import type { AgentProductionState } from "../../shared/types.js";
 
-export const AGENT_WORKFLOW_VERSION = 1 as const;
+export const AGENT_WORKFLOW_VERSION = 2 as const;
 
 export type AgentWorkflowRecord = {
   workflowVersion: typeof AGENT_WORKFLOW_VERSION;
@@ -19,7 +19,7 @@ export type AgentWorkflowTransition = {
 };
 
 export type PausableAgentProductionState = Extract<AgentProductionState,
-  "collecting_assets" | "preparing_brief" | "authoring">;
+  "collecting_assets" | "preparing_brief" | "authoring" | "visual_refine">;
 
 const STATES = new Set<AgentProductionState>([
   "discovery",
@@ -29,12 +29,9 @@ const STATES = new Set<AgentProductionState>([
   "brief_review",
   "queued_create",
   "authoring",
-  "still_review",
-  "draft_render",
-  "draft_review",
-  "final_render",
+  "visual_refine",
+  "scene_review",
   "paused",
-  "completed",
   "error",
 ]);
 
@@ -45,15 +42,12 @@ const NEXT: Record<AgentProductionState, readonly AgentProductionState[]> = {
   // new collection paths transition through preparing_brief.
   asset_review: ["collecting_assets", "preparing_brief", "brief_review", "error"],
   preparing_brief: ["asset_review", "brief_review", "error"],
-  brief_review: ["asset_review", "queued_create", "error"],
+  brief_review: ["asset_review", "preparing_brief", "queued_create", "error"],
   queued_create: ["authoring", "error"],
-  authoring: ["still_review", "draft_render", "error"],
-  still_review: ["authoring", "draft_render", "error"],
-  draft_render: ["draft_review", "error"],
-  draft_review: ["authoring", "final_render", "error"],
-  final_render: ["completed", "error"],
+  authoring: ["visual_refine", "scene_review", "error"],
+  visual_refine: ["scene_review", "error"],
+  scene_review: ["authoring", "error"],
   paused: [],
-  completed: [],
   error: ["discovery"],
 };
 
@@ -72,14 +66,19 @@ export function parseAgentWorkflow(value: Record<string, unknown>): AgentWorkflo
     && value.productionState === undefined) {
     return initialAgentWorkflow();
   }
-  if (value.workflowVersion !== AGENT_WORKFLOW_VERSION
+  const workflowVersion = value.workflowVersion;
+  if ((workflowVersion !== AGENT_WORKFLOW_VERSION && workflowVersion !== 1)
     || !Number.isSafeInteger(value.workflowRevision)
     || Number(value.workflowRevision) < 0
-    || typeof value.productionState !== "string"
-    || !STATES.has(value.productionState as AgentProductionState)) {
+    || typeof value.productionState !== "string") {
     return null;
   }
-  const productionState = value.productionState as AgentProductionState;
+  const productionState = workflowVersion === 1
+    ? migrateV1ProductionState(value.productionState)
+    : STATES.has(value.productionState as AgentProductionState)
+      ? value.productionState as AgentProductionState
+      : undefined;
+  if (!productionState) return null;
   const activeJobId = validJobId(value.activeJobId) ? value.activeJobId : undefined;
   if (productionState === "discovery" && activeJobId !== undefined) return null;
   if (productionState !== "discovery" && activeJobId === undefined) return null;
@@ -98,6 +97,13 @@ export function parseAgentWorkflow(value: Record<string, unknown>): AgentWorkflo
     ...(pausedFrom ? { pausedFrom } : {}),
     ...(lastError ? { lastError } : {}),
   };
+}
+
+/** Post-project V1 states were never authoritative; ProjectStage already owns them. */
+function migrateV1ProductionState(value: string): AgentProductionState | undefined {
+  if (STATES.has(value as AgentProductionState)) return value as AgentProductionState;
+  if (["still_review", "draft_render", "draft_review", "final_render", "completed"].includes(value)) return "scene_review";
+  return undefined;
 }
 
 export function pauseAgentWorkflow(
@@ -182,7 +188,8 @@ function validJobId(value: unknown): value is string {
 function isPausableState(value: unknown): value is PausableAgentProductionState {
   return value === "collecting_assets"
     || value === "preparing_brief"
-    || value === "authoring";
+    || value === "authoring"
+    || value === "visual_refine";
 }
 
 function assertWorkflowRevisionAndJob(

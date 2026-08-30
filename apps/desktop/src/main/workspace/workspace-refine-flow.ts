@@ -1,6 +1,6 @@
 import type { AgentHooks, AgentWorker, SceneSnapshot, VisualQaResult } from "../agent/agent-worker.js";
 import type { ProjectStage } from "../../shared/types.js";
-import { creativeBootstrapPreprompt, visionRepairPreprompt } from "./workspace-render-flow.js";
+import { visionRepairPreprompt } from "./workspace-render-flow.js";
 
 type RefineSettings = {
   readonly refinePasses: number;
@@ -62,37 +62,6 @@ async function snapshotFresh(
   for (const entry of snap) {
     preRefine.push(entry);
     snapshotted.add(entry.sceneId);
-  }
-}
-
-/**
- * One-shot creative bootstrap (first author only): reauthor every scene with a
- * "be bolder" intent, then re-render stills. Accept-gate restores preRefine if
- * the rewrite stops rendering.
- */
-export async function creativeBootstrapPass(
-  deps: RefineFlowDeps,
-  preRefine: SceneSnapshot,
-  snapshotted: Set<string>,
-): Promise<void> {
-  if (deps.signal?.aborted) return;
-  const manifest = await deps.loadManifest(deps.projectId).catch((error) => {
-    deps.warn({ err: error, projectId: deps.projectId }, "creative-bootstrap manifest read failed; bootstrap skipped");
-    return { scenes: [] as { id: string }[] };
-  });
-  const sceneIds = manifest.scenes.map((scene) => scene.id);
-  if (sceneIds.length === 0) return;
-
-  await snapshotFresh(deps, sceneIds, preRefine, snapshotted);
-  deps.setStage({ kind: "rendering", percent: 0, phase: "prepare" });
-  await deps.worker.reauthorScenes(
-    { projectId: deps.projectId, sceneIds, preprompt: creativeBootstrapPreprompt(sceneIds) },
-    deps.editHooks(),
-    deps.signal,
-  );
-  const rendered = (await deps.worker.renderStills?.(deps.projectId, sceneIds, deps.signal)) ?? { stills: [] };
-  if (rendered.stills.length === 0 && preRefine.length > 0 && deps.worker.restoreScenes) {
-    await deps.worker.restoreScenes(deps.projectId, preRefine);
   }
 }
 
@@ -166,8 +135,8 @@ export async function runVisionPasses(
 }
 
 /**
- * Silent refine before the first real draft MP4: stills → creative bootstrap →
- * vision loop. Returns cumulative pre-refine snapshot for caller rollback.
+ * Silent refine before the first real draft MP4: stills → vision loop. Initial
+ * authoring already targets final quality; visual QA fixes only identified defects.
  */
 export async function refineBeforeDraft(deps: RefineFlowDeps): Promise<SceneSnapshot> {
   const preRefine: SceneSnapshot = [];
@@ -179,8 +148,6 @@ export async function refineBeforeDraft(deps: RefineFlowDeps): Promise<SceneSnap
   if (deps.signal?.aborted || first.stills.length === 0) return preRefine;
 
   const snapshotted = new Set<string>();
-  await creativeBootstrapPass(deps, preRefine, snapshotted);
-  if (deps.signal?.aborted) return preRefine;
   await runVisionPasses(deps, undefined, preRefine, snapshotted);
   return preRefine;
 }

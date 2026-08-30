@@ -1,7 +1,8 @@
-import type { ReviewMode, SettingsModel, SettingsUpdateInput, VoiceProviderChoice } from "./types.js";
+import type { DurationTierChoice, ReviewMode, SettingsModel, SettingsUpdateInput, VoiceProviderChoice } from "./types.js";
 
 export const REVIEW_MODES: readonly ReviewMode[] = ["full", "stills_edit", "skip_edit"] as const;
 export const DEFAULT_REVIEW_MODE: ReviewMode = "full";
+export const DEFAULT_LAST_DURATION_TIER: DurationTierChoice = 2;
 
 export const FULL_AUTO_SETTINGS_PATCH = {
   reviewMode: "skip_edit",
@@ -27,6 +28,9 @@ export function normalizeSettingsUpdate(value: unknown): SettingsUpdateInput {
   if (typeof raw.vivibeVoiceId === "string") out.vivibeVoiceId = raw.vivibeVoiceId;
   if (typeof raw.elevenLabsVoiceId === "string") out.elevenLabsVoiceId = raw.elevenLabsVoiceId;
   if (typeof raw.vieneuVoiceId === "string") out.vieneuVoiceId = raw.vieneuVoiceId;
+  if (raw.lastDurationTier === 1 || raw.lastDurationTier === 2 || raw.lastDurationTier === 3 || raw.lastDurationTier === 4) {
+    out.lastDurationTier = raw.lastDurationTier;
+  }
   if (typeof raw.maxRepairAttempts === "number") out.maxRepairAttempts = clampMaxRepairAttempts(raw.maxRepairAttempts);
   if (typeof raw.scriptGateEnabled === "boolean") out.scriptGateEnabled = raw.scriptGateEnabled;
   if (raw.reviewMode === "full" || raw.reviewMode === "stills_edit" || raw.reviewMode === "skip_edit") out.reviewMode = raw.reviewMode;
@@ -41,6 +45,10 @@ export function normalizeSettingsUpdate(value: unknown): SettingsUpdateInput {
 /** Coerce persisted/unknown values to a valid review mode; missing → full. */
 export function normalizeReviewMode(raw: unknown): ReviewMode {
   return raw === "full" || raw === "stills_edit" || raw === "skip_edit" ? raw : DEFAULT_REVIEW_MODE;
+}
+
+export function normalizeLastDurationTier(raw: unknown): DurationTierChoice {
+  return raw === 1 || raw === 2 || raw === 3 || raw === 4 ? raw : DEFAULT_LAST_DURATION_TIER;
 }
 
 export function reviewModeAllowsSceneEdit(mode: ReviewMode): boolean {
@@ -170,6 +178,7 @@ export function defaultSettings(outputDir: string): SettingsModel {
   return {
     aiAccount: { kind: "disconnected" },
     voiceProvider: "vivibe",
+    lastDurationTier: DEFAULT_LAST_DURATION_TIER,
     vieneuVoiceId: "Trúc Ly",
     elevenLabsModelId: ELEVENLABS_DEFAULT_MODEL_ID,
     voiceCredentials: { vivibe: "missing", elevenlabs: "missing" },

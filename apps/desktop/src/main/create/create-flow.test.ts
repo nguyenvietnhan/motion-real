@@ -80,10 +80,11 @@ describe("CreateController.create", () => {
     expect(began[0]!.input.images).toEqual([{ ref: "assets/aa.png", width: 800, height: 600 }]);
   });
 
-  it("persists Agent project ownership after promotion and before authoring starts", async () => {
+  it("captures workflow policy before Agent ownership and authoring starts", async () => {
     const order: string[] = [];
     const { deps: d } = deps({
       promoteImages: async () => { order.push("promote"); return []; },
+      persistWorkflowPolicy: async () => { order.push("policy"); },
       beginCreate: () => { order.push("begin"); },
     });
     const ctrl = new CreateController(d);
@@ -93,7 +94,7 @@ describe("CreateController.create", () => {
         order.push("link");
       },
     });
-    expect(order).toEqual(["promote", "link", "begin"]);
+    expect(order).toEqual(["promote", "policy", "link", "begin"]);
   });
 
   it("scaffolds Harness projects without entering the classic authoring backend", async () => {

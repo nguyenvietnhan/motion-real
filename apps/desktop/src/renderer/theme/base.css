@@ -147,21 +147,29 @@ button {
   color: #fff;
 }
 
-/* Quiet, dark scrollbars. */
+/* Quiet, minimal dark scrollbars (Item 6). */
 ::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.08);
-  border-radius: 8px;
-  border: 2px solid var(--background);
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  transition: background 0.15s ease;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.25);
 }
 ::-webkit-scrollbar-corner {
   background: transparent;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.12) transparent;
 }
 
 /* Native form controls inherit the dark theme. */

@@ -26,6 +26,7 @@ function deps(over: Record<string, unknown> = {}) {
       return { projectId: "project-1" };
     }),
     linkProject: vi.fn(async () => { calls.push("link"); }),
+    persistProjectOwnership: vi.fn(async () => { calls.push("owner"); }),
     deleteProject: vi.fn(async () => { calls.push("delete"); }),
     renameProject: vi.fn(async () => { calls.push("rename"); }),
     startAuthoring: vi.fn(async (_draftId, _projectId, assets) => {
@@ -42,7 +43,7 @@ describe("createAgentProject", () => {
   it("scaffolds one Harness-owned project without entering classic authoring", async () => {
     const { base, calls } = deps();
     await expect(createAgentProject("agent-1", base)).resolves.toEqual({ projectId: "project-1" });
-    expect(calls).toEqual(["stage", "scaffold:harness", "link", "rename", "author"]);
+    expect(calls).toEqual(["stage", "scaffold:harness", "owner", "link", "rename", "author"]);
   });
 
   it("resumes Harness authoring for a linked project without creating another one", async () => {
@@ -51,6 +52,14 @@ describe("createAgentProject", () => {
     expect(base.readCreateRequest).toHaveBeenCalledOnce();
     expect(base.startAuthoring).toHaveBeenCalledWith("agent-1", "project-existing", [{ id: "gemini", ref: "assets/hash.png", role: "logo" }]);
     expect(base.create).not.toHaveBeenCalled();
+    expect(base.persistProjectOwnership).toHaveBeenCalledWith("project-existing", "agent-1");
+  });
+
+  it("fails before scaffold when any user-approved Agent asset cannot be staged", async () => {
+    const { base } = deps({ stageImages: vi.fn(async () => []) });
+    await expect(createAgentProject("agent-1", base)).rejects.toThrow(/đủ asset đã duyệt/);
+    expect(base.create).not.toHaveBeenCalled();
+    expect(base.startAuthoring).not.toHaveBeenCalled();
   });
 
   it("deletes an unlinked scaffold when ownership persistence fails", async () => {

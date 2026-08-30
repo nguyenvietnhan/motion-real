@@ -1,56 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { AUTHORING_CONTRACT_REF } from "../agent/agent-worker.js";
 import {
-  CREATIVE_BOOTSTRAP_INTENT,
   clampRenderRatio,
-  creativeBootstrapPreprompt,
   renderPercentFromRatio,
   renderingStageOf,
   visionRepairIntent,
   visionRepairPreprompt,
 } from "./workspace-render-flow.js";
 
-const BOOTSTRAP_REQUIRED = [
-  /3 việc cụ thể/,
-  /visual anchor riêng/,
-  /không chỉ làm đẹp mơ hồ/,
-  /quick entrance\/reveal\/pop/,
-  /semantic progression/,
-  /continuous living motion/,
-  /phase\/period deterministic/,
-  /không bịa thêm số liệu/,
-  /không đổi scene id\/component id/,
-  /khuyến khích sáng tạo, KHÔNG bắt buộc/,
-  /cảnh tĩnh có chủ đích vẫn hợp lệ/,
-  /KHÔNG được biến cảnh thành title-card/,
-  /frame\/spring\/interpolate có clamp hoặc phase\/period bounded/,
-  /KHÔNG kéo một reveal đơn giản ra hết cảnh/,
-];
-
-const BOOTSTRAP_FORBIDDEN = [
-  /ĐANG DIỄN TIẾN qua phần lớn thời lượng/,
-  /KHÔNG dùng Math\.sin\(frame\)/,
-  /ANIMATION PHẢI|NHIỀU PHA|chuyển động LIÊN TỤC|mạch đập|nhịp thở chậm/,
-];
-
 describe("workspace render-flow helpers", () => {
-  it("keeps the creative bootstrap intent guard phrases", () => {
-    for (const p of BOOTSTRAP_REQUIRED) expect(CREATIVE_BOOTSTRAP_INTENT).toMatch(p);
-    for (const p of BOOTSTRAP_FORBIDDEN) expect(CREATIVE_BOOTSTRAP_INTENT).not.toMatch(p);
-  });
-
-  it("maps every scene to the creative bootstrap intent", () => {
-    expect(creativeBootstrapPreprompt(["scene-01", "scene-02"])).toEqual({
-      contractRef: AUTHORING_CONTRACT_REF,
-      affectedSceneIds: ["scene-01", "scene-02"],
-      perSceneIntent: {
-        "scene-01": CREATIVE_BOOTSTRAP_INTENT,
-        "scene-02": CREATIVE_BOOTSTRAP_INTENT,
-      },
-      globalNotes: "",
-    });
-  });
-
   it("keeps the vision repair minimal-fix and title-card guard language", () => {
     const intent = visionRepairIntent("chữ đè lên nhau");
     expect(intent).toContain("Nhìn ảnh đã dựng và SỬA đúng lỗi bố cục: chữ đè lên nhau");

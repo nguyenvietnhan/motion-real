@@ -52,8 +52,7 @@ export async function assertHarnessImageReads(input: {
   }
   const expected = await Promise.all((input.stills as string[]).map(async (path) => {
     const rel = relative(input.root, resolve(input.root, path));
-    if (isAbsolute(path) || !rel || rel.startsWith("..") || isAbsolute(rel)
-      || (!path.startsWith("project/") && !path.startsWith("handoff/authoring-v1/stills/"))) {
+    if (isAbsolute(path) || !rel || rel.startsWith("..") || isAbsolute(rel) || !path.startsWith("project/")) {
       throw new Error("Đường dẫn still review không hợp lệ.");
     }
     return realpath(resolve(input.root, path));

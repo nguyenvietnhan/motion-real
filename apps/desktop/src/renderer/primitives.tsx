@@ -1,10 +1,11 @@
-import React, { useRef } from "react";
+import React, { useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { AiAccountState, FriendlyStatus, GatewayState, ProjectCardVM } from "../shared/types.js";
 import { FRIENDLY_LABELS } from "../shared/friendly-status.js";
 import { activeAccount } from "../shared/active-account.js";
 import { Icon } from "./icons.js";
 import { useModalFocus } from "./use-modal-focus.js";
+import { useDismissable } from "./use-dismissable.js";
 
 /**
  * Shared UI primitives (the app's small design-system layer): status helpers,
@@ -363,9 +364,15 @@ export const ChoiceGroup: React.FC<{
         <span
           style={{
             display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            flexShrink: 0,
+            width: 16,
+            height: 16,
             color: "var(--muted-foreground)",
-            transform: expanded ? "rotate(90deg)" : "none",
-            transition: "transform 0.12s",
+            transformOrigin: "center center",
+            transform: expanded ? "rotate(90deg)" : "rotate(0deg)",
+            transition: "transform 0.15s cubic-bezier(0.16, 1, 0.3, 1)",
           }}
         >
           {Icon.chevronRight({ size: 16 })}
@@ -511,7 +518,20 @@ export const ExpandableToggle: React.FC<{
     >
       <span style={{ minWidth: 0, display: "flex", alignItems: "center", gap: 6 }}>
         {hasChildren && (
-          <span style={{ display: "inline-flex", color: "var(--muted-foreground)", transform: expanded ? "rotate(90deg)" : "none", transition: "transform 0.12s" }}>
+          <span
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              flexShrink: 0,
+              width: 16,
+              height: 16,
+              color: "var(--muted-foreground)",
+              transformOrigin: "center center",
+              transform: expanded ? "rotate(90deg)" : "rotate(0deg)",
+              transition: "transform 0.15s cubic-bezier(0.16, 1, 0.3, 1)",
+            }}
+          >
             {Icon.chevronRight({ size: 16 })}
           </span>
         )}
@@ -554,3 +574,144 @@ export const SettingsCard: React.FC<{ title: string; desc?: string; children: Re
     {children}
   </section>
 );
+
+export interface CustomSelectOption {
+  value: string;
+  label: string;
+  disabled?: boolean;
+}
+
+export interface CustomSelectProps {
+  id?: string;
+  value: string;
+  onChange: (value: string) => void;
+  options: CustomSelectOption[];
+  placeholder?: string;
+  disabled?: boolean;
+  style?: React.CSSProperties;
+  className?: string;
+  ariaLabel?: string;
+}
+
+export const CustomSelect: React.FC<CustomSelectProps> = ({
+  id,
+  value,
+  onChange,
+  options,
+  placeholder,
+  disabled,
+  style,
+  className,
+  ariaLabel,
+}) => {
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  useDismissable(open, () => setOpen(false), containerRef);
+
+  const selectedOption = options.find((opt) => opt.value === value);
+  const displayLabel = selectedOption ? selectedOption.label : (placeholder ?? value ?? "");
+
+  const handleSelect = (val: string) => {
+    onChange(val);
+    setOpen(false);
+  };
+
+  return (
+    <div ref={containerRef} className="ns-custom-select-container" style={style}>
+      {/* Hidden native select for accessibility and automated markup queries */}
+      <select
+        id={id}
+        value={value}
+        disabled={disabled}
+        aria-hidden="true"
+        tabIndex={-1}
+        onChange={(e) => onChange(e.target.value)}
+        style={{
+          position: "absolute",
+          width: 1,
+          height: 1,
+          padding: 0,
+          margin: -1,
+          overflow: "hidden",
+          clip: "rect(0,0,0,0)",
+          border: 0,
+          pointerEvents: "none",
+        }}
+      >
+        {placeholder && !value ? <option value="">{placeholder}</option> : null}
+        {options.map((opt) => (
+          <option key={opt.value} value={opt.value}>
+            {opt.label}
+          </option>
+        ))}
+      </select>
+
+      <button
+        type="button"
+        className={`ns-input ns-custom-select-trigger${open ? " is-open" : ""}${className ? ` ${className}` : ""}`}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-label={ariaLabel}
+        disabled={disabled}
+        onClick={() => !disabled && setOpen((prev) => !prev)}
+      >
+        <span
+          className="ns-custom-select-label"
+          style={{ color: selectedOption ? "var(--foreground)" : "var(--muted-foreground)" }}
+        >
+          {displayLabel}
+        </span>
+        <span
+          className="ns-custom-select-chevron"
+          style={{
+            position: "absolute",
+            right: 14,
+            top: "50%",
+            width: 16,
+            height: 16,
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            transformOrigin: "center center",
+            transform: `translateY(-50%) ${open ? "rotate(180deg)" : "rotate(0deg)"}`,
+            transition: "transform 0.15s cubic-bezier(0.16, 1, 0.3, 1)",
+            color: "var(--muted-foreground)",
+            pointerEvents: "none",
+          }}
+        >
+          {Icon.chevronDown({ size: 14 })}
+        </span>
+      </button>
+
+      {open && (
+        <div className="ns-custom-select-dropdown" role="listbox">
+          {placeholder && (
+            <button
+              type="button"
+              className={`ns-custom-select-option${!value ? " is-active" : ""}`}
+              role="option"
+              aria-selected={!value}
+              onClick={() => handleSelect("")}
+            >
+              <span>{placeholder}</span>
+            </button>
+          )}
+          {options.map((opt) => (
+            <button
+              key={opt.value}
+              type="button"
+              disabled={opt.disabled}
+              className={`ns-custom-select-option${opt.value === value ? " is-active" : ""}`}
+              role="option"
+              aria-selected={opt.value === value}
+              onClick={() => handleSelect(opt.value)}
+            >
+              <span>{opt.label}</span>
+              {opt.value === value && <span style={{ color: "var(--brand)", fontSize: 13, fontWeight: 700 }}>✓</span>}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};

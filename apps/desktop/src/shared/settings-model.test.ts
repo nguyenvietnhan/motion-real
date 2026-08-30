@@ -35,6 +35,7 @@ describe("defaultSettings", () => {
     expect(s.voiceProvider).toBe("vivibe");
     expect(s.outputDir).toBe("/home/.video-tool/out");
     expect(s.maxRepairAttempts).toBe(3);
+    expect(s.lastDurationTier).toBe(2);
     expect(s.scriptGateEnabled).toBe(true);
     expect(s.reviewMode).toBe(DEFAULT_REVIEW_MODE);
     expect(s.smokeRenderEnabled).toBe(false);

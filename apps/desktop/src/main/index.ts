@@ -1,7 +1,7 @@
 import { app, BrowserWindow, dialog, ipcMain, nativeImage, Notification, safeStorage, shell } from "electron";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { appendEvent, createLogger, createTools, loadManifest, writeJson, projectPaths, videoToolHome, stagingDir, ensureProject, importImageBytes, reconcileStaleStates, pruneRenderCache, pruneTtsCache, readBrief, listBgmTracks, addBgmTrack, removeBgmTrack, renderThumbnail, workspaceRoot, ELEVENLABS_DEFAULT_MODEL_ID, VIENEU_DEFAULT_WORDS_PER_SECOND, VieneuClient, runDoctor, readProjectDiagnostics, readProjectEvidence, type VoiceProvider } from "@motionreal/pipeline";
+import { appendEvent, createLogger, createTools, loadManifest, writeJson, writeBrief, projectPaths, videoToolHome, stagingDir, ensureProject, importImageBytes, reconcileStaleStates, pruneRenderCache, pruneTtsCache, readBrief, listBgmTracks, addBgmTrack, removeBgmTrack, renderThumbnail, workspaceRoot, ELEVENLABS_DEFAULT_MODEL_ID, VIENEU_DEFAULT_WORDS_PER_SECOND, VieneuClient, runDoctor, readProjectDiagnostics, readProjectEvidence, type VoiceProvider } from "@motionreal/pipeline";
 import { QueueStore, queueStorePath } from "./queue/queue-store.js";
 import { QueueRunner } from "./queue/queue-runner.js";
 import { spillHomeCreateIfBusy, spillHomeSmokeIfBusy } from "./queue/home-spill.js";
@@ -185,9 +185,22 @@ const workspace = new WorkspaceController({
   worker,
   events,
   settings: settingsStore,
+  workflowPolicy: async (projectId) => {
+    const brief = await readBrief(projectId).catch((_error) => undefined);
+    return brief?.workflowPolicy;
+  },
   listProjects: async () => {
     const res = await tools.list_projects();
-    return res.ok ? toCards(res.data).map((c) => ({ ...c, thumbnailPath: mediaUrl(c.thumbnailPath) })) : [];
+    if (!res.ok) return [];
+    return Promise.all(toCards(res.data).map(async (card) => {
+      const brief = await readBrief(card.projectId).catch((_error) => undefined);
+      return {
+        ...card,
+        thumbnailPath: mediaUrl(card.thumbnailPath),
+        creationMode: brief?.creationMode ?? "classic",
+        ...(brief?.agentDraftId ? { agentDraftId: brief.agentDraftId } : {}),
+      };
+    }));
   },
   loadManifest: (id) => loadManifest(id),
   writeManifest: (id, manifest) => writeJson(projectPaths(id).manifest, manifest),
@@ -354,6 +367,11 @@ const create = new CreateController({
     return res.ok ? { ok: true, projectId: res.data.projectId } : { ok: false, error: res.error };
   },
   beginCreate: (id, input) => workspace.beginCreate(id, input),
+  persistWorkflowPolicy: async (projectId) => {
+    const brief = await readBrief(projectId);
+    if (brief.workflowPolicy) return;
+    await writeBrief({ ...brief, workflowPolicy: projectWorkflowPolicySnapshot(), updatedAt: new Date().toISOString() });
+  },
   // Create-time BGM from Home knobs (needed before skip_edit auto-full).
   setProjectBgm: async (projectId, name) => {
     await bgmHandlers["bgm:setForProject"](projectId, name);
@@ -437,13 +455,20 @@ const harness = new HarnessManager({
   defaultVoiceProvider: () => settingsStore.current().voiceProvider,
   wordsPerSecond: wordsPerSecondForProject,
   renderAuthoringStills: async (projectId, sceneIds) => {
-    workspace.beginHarnessStillRender(projectId);
-    const result = await tools.render_stills({ projectId, sceneIds });
-    if (!result.ok) {
-      workspace.beginHarnessAuthoring(projectId);
-      return { ok: false, error: `${result.error.stage}: ${result.error.cause}`.slice(0, 2_000) };
-    }
-    return { ok: true, stills: result.data.stills };
+    return workspace.renderHarnessStills(projectId, sceneIds);
+  },
+  cancelAuthoringStills: (projectId) => workspace.cancel(projectId),
+  maxAuthoringRepairs: async (projectId) => {
+    const brief = await readBrief(projectId).catch((_error) => undefined);
+    return brief?.workflowPolicy?.maxRepairAttempts ?? settingsStore.current().maxRepairAttempts;
+  },
+  authoringRefinePolicy: async (projectId) => {
+    const brief = await readBrief(projectId).catch((_error) => undefined);
+    const policy = brief?.workflowPolicy;
+    return {
+      refinePasses: policy?.refinePasses ?? settingsStore.current().refinePasses,
+      refineEarlyStop: policy?.refineEarlyStop ?? settingsStore.current().refineEarlyStop,
+    };
   },
   acceptAuthoringStills: (projectId) => workspace.acceptHarnessStills(projectId),
 });
@@ -459,7 +484,8 @@ async function activateHarnessDraft(draftId: string) {
 async function submitProjectSceneEdits(id: string, edits: unknown, notes: unknown) {
   const previousStage = await workspace.stage(id);
   return routeSceneEdits(id, edits, notes, {
-    draftForProject: (value) => harness.draftForProject(value),
+    ownerOf: async (value) => (await readBrief(value)).creationMode ?? "classic",
+    draftForProject: resolveHarnessDraftForProject,
     activate: (draftId) => activateHarnessDraft(draftId),
     beginHarness: (value) => {
       if (previousStage.kind !== "ready" && previousStage.kind !== "error") {
@@ -477,7 +503,8 @@ async function submitProjectSceneEdits(id: string, edits: unknown, notes: unknow
 
 function recoverProject(id: string, action: "retry" | "fix" | "approve") {
   return routeProjectRecovery(id, action, {
-    draftForProject: (value) => harness.draftForProject(value),
+    ownerOf: async (value) => (await readBrief(value)).creationMode ?? "classic",
+    draftForProject: resolveHarnessDraftForProject,
     stage: (value) => workspace.stage(value),
     resumeHarnessRender: (value) => workspace.acceptHarnessStills(value),
     editHarness: (value, notes) => submitProjectSceneEdits(value, [], notes),
@@ -490,17 +517,67 @@ function recoverProject(id: string, action: "retry" | "fix" | "approve") {
   });
 }
 
+/** Resolve the persisted Harness owner first; scan only one legacy project once. */
+async function resolveHarnessDraftForProject(projectId: string) {
+  const brief = await readBrief(projectId);
+  if ((brief.creationMode ?? "classic") !== "harness") return null;
+  if (brief.agentDraftId) {
+    const draft = await harness.status(brief.agentDraftId).catch((_error) => null);
+    if (!draft || draft.projectId !== projectId) return null;
+    return draft;
+  }
+  const legacy = await harness.draftForProject(projectId);
+  if (!legacy) return null;
+  await writeBrief({ ...brief, agentDraftId: legacy.id, updatedAt: new Date().toISOString() });
+  return legacy;
+}
+
 async function stageHarnessImages(assets: Array<{ id: string; path: string }>) {
   const staged: Array<{ id: string; image: { ref: string; width: number; height: number } }> = [];
   for (const asset of assets) {
     try {
       const result = await importImageBytes(await readFile(asset.path), stagingDir(), { refPrefix: "staging" });
-      if (result.ok) staged.push({ id: asset.id, image: { ref: result.ref, width: result.width, height: result.height } });
+      if (!result.ok) throw new Error(String(result.reason));
+      staged.push({ id: asset.id, image: { ref: result.ref, width: result.width, height: result.height } });
     } catch (error) {
-      log.warn({ err: error }, "Agent asset staging failed; skipping one image");
+      throw new Error(`Không stage được asset đã duyệt “${asset.id}”: ${error instanceof Error ? error.message : "lỗi không xác định"}`);
     }
   }
   return staged;
+}
+
+/** Persist project ownership before Harness can write a scene or start a render. */
+async function persistHarnessProjectOwnership(projectId: string, draftId: string): Promise<void> {
+  const brief = await readBrief(projectId);
+  if (brief.creationMode !== "harness") {
+    throw new Error("Project mới không được scaffold cho Video Agent.");
+  }
+  if (brief.agentDraftId && brief.agentDraftId !== draftId) {
+    throw new Error("Project Agent đã thuộc về một phiên Agent khác.");
+  }
+  const workflowPolicy = brief.workflowPolicy ?? projectWorkflowPolicySnapshot();
+  if (brief.agentDraftId === draftId && brief.workflowPolicy) return;
+  await writeBrief({ ...brief, agentDraftId: draftId, workflowPolicy, updatedAt: new Date().toISOString() });
+}
+
+function projectWorkflowPolicySnapshot() {
+  const settings = settingsStore.current();
+  return {
+    version: 1 as const,
+    reviewMode: settings.reviewMode,
+    refinePasses: settings.refinePasses,
+    refineEarlyStop: settings.refineEarlyStop,
+    maxRepairAttempts: settings.maxRepairAttempts,
+  };
+}
+
+/** Preference only: every project already stores its own immutable duration. */
+function rememberDurationTier(tier: 1 | 2 | 3 | 4): void {
+  try {
+    settingsStore.update({ lastDurationTier: tier });
+  } catch (error) {
+    log.warn({ err: error }, "could not persist last selected duration tier");
+  }
 }
 
 /**
@@ -723,6 +800,12 @@ const handlers: InvokeHandlers = {
     return activateHarnessDraft(draft.id);
   },
   "agent:openDraft": (draftId) => activateHarnessDraft(String(draftId)),
+  "agent:openProject": async (projectId) => {
+    const id = String(projectId);
+    const draft = await resolveHarnessDraftForProject(id);
+    if (!draft) throw new Error("Không tìm thấy workspace Agent cho video này. Video Classic không thể mở bằng Video Agent.");
+    return activateHarnessDraft(draft.id);
+  },
   "agent:status": (draftId) => harness.status(String(draftId)),
   "agent:renameDraft": (draftId, title) => renameAgentDraft(String(draftId), String(title ?? ""), {
     status: (id) => harness.status(id),
@@ -768,6 +851,10 @@ const handlers: InvokeHandlers = {
     const opened = await activateHarnessDraft(String(draftId));
     return harness.prepareBrief(opened.id, Number(expectedRevision));
   },
+  "agent:requestBriefChanges": async (draftId, expectedRevision, feedback) => {
+    const opened = await activateHarnessDraft(String(draftId));
+    return harness.requestBriefChanges(opened.id, Number(expectedRevision), String(feedback ?? ""));
+  },
   "agent:pauseWorkflow": async (draftId, expectedRevision) => {
     const paused = await harness.pauseWorkflow(String(draftId), Number(expectedRevision));
     if (paused.projectId) workspace.cancel(paused.projectId);
@@ -777,21 +864,31 @@ const handlers: InvokeHandlers = {
     const opened = await activateHarnessDraft(String(draftId));
     return harness.resumeWorkflow(opened.id, Number(expectedRevision));
   },
+  "agent:retryWorkflow": async (draftId, expectedRevision) => {
+    const opened = await activateHarnessDraft(String(draftId));
+    return harness.retryWorkflow(opened.id, Number(expectedRevision));
+  },
   "agent:returnToAssets": (draftId, expectedRevision) => harness.returnToAssets(
     String(draftId),
     Number(expectedRevision),
   ),
-  "agent:approveBrief": (draftId, expectedRevision, input) => harness.approveBrief(
-    String(draftId),
-    Number(expectedRevision),
-    input as import("../shared/types.js").AgentBriefInput,
-  ),
+  "agent:approveBrief": async (draftId, expectedRevision, input) => {
+    const accepted = await harness.approveBrief(
+      String(draftId),
+      Number(expectedRevision),
+      input as import("../shared/types.js").AgentBriefInput,
+    );
+    const tier = (input as { durationTier?: unknown } | null)?.durationTier;
+    if (tier === 1 || tier === 2 || tier === 3 || tier === 4) rememberDurationTier(tier);
+    return accepted;
+  },
   "agent:createVideo": async (draftId) => {
     return createAgentProject(String(draftId), {
       status: (id) => harness.status(id),
       readCreateRequest: (id) => harness.readCreateRequest(id),
       stageImages: stageHarnessImages,
       create: (prompt, images, choices) => create.create(prompt, images, choices),
+      persistProjectOwnership: persistHarnessProjectOwnership,
       linkProject: (id, projectId) => harness.linkProject(id, projectId),
       deleteProject: (projectId) => workspace.delete(projectId),
       renameProject: (projectId, title) => workspace.rename(projectId, title),
@@ -825,6 +922,7 @@ const handlers: InvokeHandlers = {
     });
     if (spill.kind === "error") throw new Error(spill.error);
     if (spill.kind === "queued") {
+      if (args.choices.durationTier !== undefined) rememberDurationTier(args.choices.durationTier);
       return {
         kind: "queued" as const,
         queueId: spill.queueId,
@@ -832,6 +930,7 @@ const handlers: InvokeHandlers = {
       };
     }
     const created = await create.create(args.raw, args.images, args.choices);
+    if (args.choices.durationTier !== undefined) rememberDurationTier(args.choices.durationTier);
     return { kind: "started" as const, projectId: created.projectId };
   },
   "projects:pickImages": () => pickImages(),
@@ -847,7 +946,7 @@ const handlers: InvokeHandlers = {
   "projects:delete": async (projectId) => {
     const id = String(projectId);
     // A video created by Agent owns its isolated Harness state as well.
-    const draft = await harness.draftForProject(id);
+    const draft = await resolveHarnessDraftForProject(id);
     await workspace.delete(id);
     if (draft) await harness.removeDraft(draft.id);
   },
@@ -893,7 +992,7 @@ const handlers: InvokeHandlers = {
     const smoke = body.smoke === true;
     const images = normalizeStagedImages(body.images);
     // Only enqueue — never start render here (including smoke jobs).
-    return queueStore.addJob(String(queueId), {
+    const next = queueStore.addJob(String(queueId), {
       raw: smoke && !raw.trim() ? "Smoke test — video ngắn 10 giây, không tiếng." : raw,
       durationTier,
       videoLanguage,
@@ -902,11 +1001,13 @@ const handlers: InvokeHandlers = {
       ...(images.length > 0 ? { images } : {}),
       ...(smoke ? { smoke: true } : {}),
     });
+    rememberDurationTier(durationTier);
+    return next;
   },
   "queue:updateJob": (queueId, jobId, patch) => {
     if (!patch || typeof patch !== "object") throw new Error("Dữ liệu cập nhật hàng đợi không hợp lệ.");
     const body = (patch && typeof patch === "object" ? patch : {}) as Partial<QueueJobInput>;
-    return queueStore.updateJobInput(String(queueId), String(jobId), {
+    const next = queueStore.updateJobInput(String(queueId), String(jobId), {
       ...(typeof body.raw === "string" ? { raw: body.raw } : {}),
       ...(body.durationTier === 1 || body.durationTier === 2 || body.durationTier === 3 || body.durationTier === 4
         ? { durationTier: body.durationTier }
@@ -919,6 +1020,10 @@ const handlers: InvokeHandlers = {
       ...(body.smoke === true || body.smoke === false ? { smoke: body.smoke } : {}),
       ...(body.images !== undefined ? { images: normalizeStagedImages(body.images) } : {}),
     });
+    if (body.durationTier === 1 || body.durationTier === 2 || body.durationTier === 3 || body.durationTier === 4) {
+      rememberDurationTier(body.durationTier);
+    }
+    return next;
   },
   "queue:deleteJob": (queueId, jobId) => queueStore.deleteJob(String(queueId), String(jobId)),
   "queue:cancelJob": (queueId, jobId) => queueRunner.cancelJob(String(queueId), String(jobId)),

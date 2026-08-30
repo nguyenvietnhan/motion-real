@@ -75,19 +75,21 @@ describe("Agent production workflow", () => {
     });
 
     expect(failed.lastError).toBe("download failed");
-    expect(reset).toEqual({ workflowVersion: 1, workflowRevision: 3, productionState: "discovery" });
+    expect(reset).toEqual({ workflowVersion: 2, workflowRevision: 3, productionState: "discovery" });
   });
 
   it("migrates a legacy record but rejects explicit malformed workflow data", () => {
     expect(parseAgentWorkflow({})).toEqual(initialAgentWorkflow());
     expect(parseAgentWorkflow({
-      workflowVersion: 1,
+      workflowVersion: 2,
       workflowRevision: 4,
       productionState: "brief_review",
       activeJobId: "job-4",
     })).toMatchObject({ productionState: "brief_review", workflowRevision: 4 });
-    expect(parseAgentWorkflow({ workflowVersion: 2, workflowRevision: 0, productionState: "discovery" })).toBeNull();
-    expect(parseAgentWorkflow({ workflowVersion: 1, workflowRevision: 0, productionState: "asset_review" })).toBeNull();
+    expect(parseAgentWorkflow({ workflowVersion: 3, workflowRevision: 0, productionState: "discovery" })).toBeNull();
+    expect(parseAgentWorkflow({ workflowVersion: 2, workflowRevision: 0, productionState: "asset_review" })).toBeNull();
+    expect(parseAgentWorkflow({ workflowVersion: 1, workflowRevision: 5, productionState: "draft_review", activeJobId: "job-old" }))
+      .toMatchObject({ workflowVersion: 2, productionState: "scene_review", workflowRevision: 5 });
   });
 
   it("pauses a running job durably and resumes the exact prior stage once", () => {
@@ -106,7 +108,7 @@ describe("Agent production workflow", () => {
       activeJobId: "job-1",
     });
     expect(resumed).toEqual({
-      workflowVersion: 1,
+      workflowVersion: 2,
       workflowRevision: 3,
       productionState: "collecting_assets",
       activeJobId: "job-1",
@@ -132,7 +134,7 @@ describe("Agent production workflow", () => {
 
     expect(preparing.productionState).toBe("preparing_brief");
     expect(parseAgentWorkflow({
-      workflowVersion: 1,
+      workflowVersion: 2,
       workflowRevision: 3,
       productionState: "paused",
       activeJobId: "job-1",

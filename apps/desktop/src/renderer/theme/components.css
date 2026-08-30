@@ -285,19 +285,26 @@ textarea.ns-input {
   max-height: 40vh;
   min-height: 64px;
 }
-select.ns-input {
+select.ns-input,
+select {
   appearance: none;
+  -webkit-appearance: none;
+  background-color: var(--input);
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23a1a1aa' stroke-width='2'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M19 9l-7 7-7-7'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 14px center;
   background-size: 16px;
   padding-right: 40px;
+  cursor: pointer;
 }
-select.ns-input option {
+select.ns-input option,
+select option {
   background-color: var(--card);
   color: var(--foreground);
+  padding: 8px 12px;
 }
-.ns-input:focus {
+.ns-input:focus,
+select:focus {
   border-color: var(--brand);
   background: var(--input);
   box-shadow: 0 0 0 2px var(--ring);
@@ -309,4 +316,113 @@ select.ns-input option {
 .ns-num::-webkit-inner-spin-button {
   -webkit-appearance: none;
   margin: 0;
+}
+
+/* Custom Checkbox */
+input[type="checkbox"]:not(.ns-switch input) {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 18px;
+  height: 18px;
+  border: 1.5px solid var(--border);
+  border-radius: 4px;
+  background: var(--input);
+  cursor: pointer;
+  display: inline-grid;
+  place-content: center;
+  margin: 0;
+  transition: border-color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+input[type="checkbox"]:not(.ns-switch input):hover {
+  border-color: var(--hover-border);
+}
+input[type="checkbox"]:not(.ns-switch input):checked {
+  background: var(--brand);
+  border-color: var(--brand);
+}
+input[type="checkbox"]:not(.ns-switch input):checked::after {
+  content: "";
+  width: 5px;
+  height: 9px;
+  border: solid #ffffff;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg) translate(-0.5px, -1px);
+}
+input[type="checkbox"]:not(.ns-switch input):focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--ring);
+}
+
+/* Custom Radio */
+input[type="radio"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 18px;
+  height: 18px;
+  border: 1.5px solid var(--border);
+  border-radius: 50%;
+  background: var(--input);
+  cursor: pointer;
+  display: inline-grid;
+  place-content: center;
+  margin: 0;
+  transition: border-color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+input[type="radio"]:hover {
+  border-color: var(--hover-border);
+}
+input[type="radio"]:checked {
+  border-color: var(--brand);
+  background: var(--input);
+}
+input[type="radio"]:checked::after {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--brand);
+}
+input[type="radio"]:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--ring);
+}
+
+/* Dropdown / Popover / Modal Animation (Item 4) */
+@keyframes ns-popover-in {
+  from {
+    opacity: 0;
+    transform: translateY(-5px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+@keyframes ns-modal-scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+.ns-modal {
+  animation: ns-modal-scale-in 0.14s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.ns-modal-backdrop {
+  animation: ns-fade-in 0.12s ease-out;
+}
+@keyframes ns-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }

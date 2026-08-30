@@ -52,12 +52,9 @@ export type AgentProductionState =
   | "brief_review"
   | "queued_create"
   | "authoring"
-  | "still_review"
-  | "draft_render"
-  | "draft_review"
-  | "final_render"
+  | "visual_refine"
+  | "scene_review"
   | "paused"
-  | "completed"
   | "error";
 
 export type AgentSearchProvider = "deepseek" | "exa";
@@ -77,17 +74,19 @@ export type AgentDraftVM = {
   /** Filesystem modification time of authoritative Agent metadata. */
   updatedAt: string;
   projectId?: string;
-  workflowVersion: 1;
+  workflowVersion: 2;
   workflowRevision: number;
   productionState: AgentProductionState;
   /** Old sessions can still carry Harness's workspace-write + ask policy. */
   sessionAccess: "full" | "legacy-approval";
   activeJobId?: string;
   /** Stage that will be resumed after a user-stopped workflow is continued. */
-  pausedFrom?: Exclude<AgentProductionState, "paused" | "discovery" | "asset_review" | "brief_review" | "still_review" | "draft_review" | "completed" | "error">;
+  pausedFrom?: Exclude<AgentProductionState, "paused" | "discovery" | "asset_review" | "brief_review" | "scene_review" | "error">;
   lastError?: string;
   /** Recent, allow-listed Harness activity for the MotionReal workflow surface. */
   activities?: AgentActivityVM[];
+  /** A native Harness question or approval is awaiting the user; no raw prompt crosses IPC. */
+  needsAttention?: boolean;
   /** Local native Harness conversation URL used by the embedded renderer iframe. */
   harnessUrl?: string;
   /** Whether DeepSeek Harness has the separate credential required by web_search. */
@@ -139,13 +138,21 @@ export type AgentBriefVM = {
   title: string;
   prompt: string;
   format: "tiktok";
-  durationTier: DurationTierChoice;
   videoLanguage: VideoLanguageChoice;
-  voiceProvider: VoiceProviderChoice;
   selectedAssetIds: string[];
 };
 
-export type AgentBriefInput = Omit<AgentBriefVM, "revision" | "format" | "selectedAssetIds">;
+/**
+ * Choices made by the user when accepting an Agent-generated brief.  The model
+ * proposes content and language only; duration and voice are application policy.
+ */
+export type AgentBriefInput = {
+  title: string;
+  prompt: string;
+  durationTier: DurationTierChoice;
+  videoLanguage: VideoLanguageChoice;
+  voiceProvider: VoiceProviderChoice;
+};
 
 // --- create --------------------------------------------------------
 
@@ -224,6 +231,10 @@ export type ProjectCardVM = {
   format: VideoFormatChoice;
   status: FriendlyStatus;
   createdAtLabel: string;
+  /** Missing means legacy Classic ownership. */
+  creationMode?: "classic" | "harness";
+  /** Present only for a Harness-owned project. */
+  agentDraftId?: string;
 };
 
 export type VoiceProviderChoice = "vivibe" | "elevenlabs" | "vieneu";
@@ -377,6 +388,8 @@ export type SettingsModel = {
   preferredAiModelId?: string;
   /** Default for the create screen; each project persists its actual selection. */
   voiceProvider: VoiceProviderChoice;
+  /** Most recently accepted duration tier across Home, Queue, and Video Agent. */
+  lastDurationTier: DurationTierChoice;
   vivibeVoiceId?: string;
   elevenLabsVoiceId?: string;
   vieneuVoiceId?: string;
@@ -425,6 +438,7 @@ export type SettingsModel = {
 export type SettingsUpdateInput = Partial<Pick<SettingsModel,
   | "preferredAiModelId"
   | "voiceProvider"
+  | "lastDurationTier"
   | "vivibeVoiceId"
   | "elevenLabsVoiceId"
   | "vieneuVoiceId"

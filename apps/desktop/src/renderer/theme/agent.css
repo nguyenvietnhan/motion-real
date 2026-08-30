@@ -162,6 +162,8 @@
   border-radius: var(--radius);
   background: var(--popover, var(--card));
   box-shadow: var(--shadow-md);
+  animation: ns-popover-in 0.14s cubic-bezier(0.16, 1, 0.3, 1);
+  transform-origin: top right;
 }
 .ns-agent-row-menu button {
   display: flex;
@@ -517,6 +519,9 @@
   color: var(--foreground);
   background: var(--muted);
 }
+.ns-agent-prompt-edit-toggle.is-copied {
+  color: var(--good);
+}
 
 .ns-agent-brief-prompt-edit-wrap {
   margin-bottom: 8px;
@@ -714,8 +719,7 @@
   background: rgba(59, 130, 246, 0.08);
 }
 .ns-agent-access-card input[type="radio"] {
-  margin-top: 3px;
-  accent-color: var(--brand);
+  margin-top: 2px;
 }
 .ns-agent-access-copy {
   display: grid;

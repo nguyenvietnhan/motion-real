@@ -75,6 +75,8 @@ export const ProjectDiagnosticsPanel: React.FC<{
       .finally(() => setLoading(false));
   };
 
+  const [copied, setCopied] = useState(false);
+
   const copySummary = (): void => {
     if (!report) return;
     const lines = report.entries.map((e) => {
@@ -89,9 +91,15 @@ export const ProjectDiagnosticsPanel: React.FC<{
     ]
       .filter(Boolean)
       .join("\n");
-    void navigator.clipboard?.writeText(text).catch(() => {
-      notify.error({ title: "Không sao chép được", message: "Clipboard không khả dụng." });
-    });
+    void navigator.clipboard?.writeText(text).then(
+      () => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1500);
+      },
+      () => {
+        notify.error({ title: "Không sao chép được", message: "Clipboard không khả dụng." });
+      },
+    );
   };
 
   return (
@@ -131,11 +139,13 @@ export const ProjectDiagnosticsPanel: React.FC<{
             </button>
             <button
               type="button"
-              className="ns-btn"
+              className={`ns-btn${copied ? " is-copied" : ""}`}
               disabled={!report || report.entries.length === 0}
               onClick={copySummary}
             >
-              Sao chép
+              <StableButtonLabel reserve={["Đã sao chép", "Sao chép"]}>
+                {copied ? "Đã sao chép" : "Sao chép"}
+              </StableButtonLabel>
             </button>
             {report?.truncated && <span className="ns-diag-truncated">Đã rút gọn</span>}
           </div>

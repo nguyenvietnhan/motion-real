@@ -88,6 +88,8 @@ export interface DashboardApi {
     createDraft(title: string): Promise<AgentDraftVM>;
     /** Stop any other local Harness sidecar, then open this draft's Harness. */
     openDraft(draftId: string): Promise<AgentDraftVM>;
+    /** Resolve a Harness-owned project to its authoritative Agent draft. */
+    openProject(projectId: string): Promise<AgentDraftVM>;
     status(draftId: string): Promise<AgentDraftVM>;
     renameDraft(draftId: string, title: string): Promise<AgentDraftVM>;
     settings(draftId: string): Promise<import("./types.js").AgentSettingsVM>;
@@ -105,10 +107,14 @@ export interface DashboardApi {
     approveAssets(draftId: string, expectedRevision: number, selectedIds: string[]): Promise<AgentDraftVM>;
     /** Ask Harness to produce/retry the structured brief for the approved assets. */
     prepareBrief(draftId: string, expectedRevision: number): Promise<AgentDraftVM>;
+    /** Reopen the generated brief with bounded user feedback; it is not an approval. */
+    requestBriefChanges(draftId: string, expectedRevision: number, feedback: string): Promise<AgentDraftVM>;
     /** Stop the active native Harness turn and persist the paused workflow stage. */
     pauseWorkflow(draftId: string, expectedRevision: number): Promise<AgentDraftVM>;
     /** Continue the exact workflow stage that was paused. */
     resumeWorkflow(draftId: string, expectedRevision: number): Promise<AgentDraftVM>;
+    /** Retry the exact persisted Agent phase after a bounded workflow failure. */
+    retryWorkflow(draftId: string, expectedRevision: number): Promise<AgentDraftVM>;
     /** Return to the approved asset review without starting creation. */
     returnToAssets(draftId: string, expectedRevision: number): Promise<AgentDraftVM>;
     /** Freeze the edited brief and advance to queued creation. */

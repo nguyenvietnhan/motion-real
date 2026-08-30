@@ -104,7 +104,7 @@ describe("workspace-refine-flow", () => {
     expect(worker.reauthorScenes).not.toHaveBeenCalled();
   });
 
-  it("runs creative bootstrap then vision on first-author path", async () => {
+  it("runs vision only on first-author path; it never rewrites every scene as a bootstrap", async () => {
     const { deps, worker, stages } = makeDeps({
       worker: {
         visualQa: vi
@@ -117,9 +117,9 @@ describe("workspace-refine-flow", () => {
     const snap = await refineBeforeDraft(deps);
     expect(worker.renderStills).toHaveBeenCalled();
     expect(worker.reauthorScenes).toHaveBeenCalled();
-    const bootstrapCall = worker.reauthorScenes.mock.calls[0]!;
-    expect(bootstrapCall[0].sceneIds).toEqual(["scene-01", "scene-02"]);
-    expect(Object.keys(bootstrapCall[0].preprompt.perSceneIntent).length).toBe(2);
+    const repairCall = worker.reauthorScenes.mock.calls[0]!;
+    expect(repairCall[0].sceneIds).toEqual(["scene-01"]);
+    expect(Object.keys(repairCall[0].preprompt.perSceneIntent).length).toBe(1);
     expect(stages.some((s) => s.kind === "rendering" && s.phase === "prepare")).toBe(true);
     expect(stages.some((s) => s.kind === "rendering" && s.phase === "qa")).toBe(true);
     expect(snap.length).toBeGreaterThan(0);
@@ -190,7 +190,7 @@ describe("workspace-refine-flow", () => {
     expect(worker.reauthorScenes.mock.calls[0]![0].sceneIds).toEqual(["scene-02"]);
   });
 
-  it("edit path never runs creative bootstrap reauthor when vision is clean", async () => {
+  it("edit path does not reauthor when vision is clean", async () => {
     const { deps, worker } = makeDeps({
       worker: { visualQa: vi.fn(async () => cleanQa(["scene-01"])) },
     });

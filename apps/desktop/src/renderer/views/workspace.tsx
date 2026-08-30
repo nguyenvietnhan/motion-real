@@ -353,7 +353,7 @@ const ThumbnailPanel: React.FC<{
             onClick={() => setPreviewOpen(true)}
             aria-label="Xem ảnh bìa kích thước lớn"
           >
-            <img src={shownUrl} alt="Ảnh bìa lấy từ cảnh đầu tiên" />
+            <img src={shownUrl} alt="Ảnh bìa lấy từ cảnh đầu tiên" loading="lazy" decoding="async" />
             <span className="ns-cover-preview-hint">Xem lớn</span>
           </button>
           <button
@@ -374,7 +374,7 @@ const ThumbnailPanel: React.FC<{
             <button ref={lightboxCloseRef} className="ns-cover-lightbox-close" onClick={() => setPreviewOpen(false)} aria-label="Đóng ảnh bìa">
               {Icon.close({ size: 20 })}
             </button>
-            <img src={shownUrl} alt="Ảnh bìa kích thước lớn" />
+            <img src={shownUrl} alt="Ảnh bìa kích thước lớn" decoding="async" />
           </div>
         </div>
       )}
@@ -406,7 +406,9 @@ export const ProjectWorkspaceView: React.FC<{
   /** Copy the generated cover PNG through a native Save dialog. */
   onSaveThumbnail: () => Promise<{ saved: boolean; error?: string }>;
   loadDiagnostics?: (projectId: string) => Promise<ProjectDiagnosticsVM>;
-}> = ({ stage, projectId, onBack, onRetry, onFixWithAi, onApplyScript, onApproveScript, onSubmitEdits, onApproveDraft, allowSceneEdit = true, onReveal, onSave, onCancel, onSubmitImageReview, onGenerateThumbnail, onSaveThumbnail, loadDiagnostics }) => {
+  /** Agent keeps its own workspace bar while reusing this project-stage body. */
+  hideHeader?: boolean;
+}> = ({ stage, projectId, onBack, onRetry, onFixWithAi, onApplyScript, onApproveScript, onSubmitEdits, onApproveDraft, allowSceneEdit = true, onReveal, onSave, onCancel, onSubmitImageReview, onGenerateThumbnail, onSaveThumbnail, loadDiagnostics, hideHeader = false }) => {
   const title = workspaceStageTitle;
   if (stage.kind === "ready") {
     return (
@@ -432,7 +434,7 @@ export const ProjectWorkspaceView: React.FC<{
 
   return (
     <div className="ns-content">
-      <PageHeader title={title(stage.kind)} action={<button className="ns-btn" onClick={onBack}>Quay lại</button>} />
+      {!hideHeader && <PageHeader title={title(stage.kind)} action={<button className="ns-btn" onClick={onBack}>Quay lại</button>} />}
       {stage.kind === "writing" && writingLabel && (
         <RunningJobPanel
           label={writingLabel}
@@ -528,7 +530,7 @@ export const ProjectWorkspaceView: React.FC<{
                   // (infra blips self-heal; a fresh author attempt may succeed).
                   <button className="ns-btn ns-btn-primary" onClick={onRetry}>{Icon.refresh({ size: 14 })} Thử lại</button>
                 )}
-                <button className="ns-btn" onClick={onBack}>Về trang chủ</button>
+                <button className="ns-btn" onClick={onBack}>Quay lại</button>
                 {projectId && loadDiagnostics && (
                   <ProjectDiagnosticsPanel projectId={projectId} load={loadDiagnostics} />
                 )}

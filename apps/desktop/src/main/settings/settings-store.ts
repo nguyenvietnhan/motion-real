@@ -5,6 +5,7 @@ import {
   clampMaxRepairAttempts,
   clampRefinePasses,
   clampWordsPerSecond,
+  normalizeLastDurationTier,
   normalizeReviewMode,
   voiceCalibrationKey,
 } from "../../shared/settings-model.js";
@@ -117,6 +118,7 @@ export class SettingsStore {
     merged.maxRepairAttempts = clampMaxRepairAttempts(merged.maxRepairAttempts);
     merged.refinePasses = clampRefinePasses(merged.refinePasses);
     merged.reviewMode = normalizeReviewMode(merged.reviewMode);
+    merged.lastDurationTier = normalizeLastDurationTier(merged.lastDurationTier);
     for (const key of [
       "scriptGateEnabled",
       "refineEarlyStop",
@@ -221,6 +223,7 @@ export class SettingsStore {
     this.settings.maxRepairAttempts = clampMaxRepairAttempts(this.settings.maxRepairAttempts);
     this.settings.refinePasses = clampRefinePasses(this.settings.refinePasses);
     this.settings.reviewMode = normalizeReviewMode(this.settings.reviewMode);
+    this.settings.lastDurationTier = normalizeLastDurationTier(this.settings.lastDurationTier);
     this.settings.smokeRenderEnabled = Boolean(this.settings.smokeRenderEnabled);
     this.settings = this.withCredentialStates(this.settings);
     if (!this.save()) {

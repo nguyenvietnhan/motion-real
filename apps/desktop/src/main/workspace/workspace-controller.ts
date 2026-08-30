@@ -22,7 +22,7 @@ import {
   storyboardScenesFromScenes,
 } from "./workspace-view-model.js";
 import { WorkspaceRepairTrace } from "./workspace-repair-trace.js";
-import { createLogger, serializeError, type CrawledImage } from "@motionreal/pipeline";
+import { createLogger, serializeError, type CrawledImage, type ProjectWorkflowPolicy } from "@motionreal/pipeline";
 import { isHealthyMediaFile, recoveryDecision, type ArtifactHealth, type RecoveryDecision } from "./workspace-recovery.js";
 import { classifyError } from "../agent/error-classifier.js";
 import { toFriendlyError } from "../redact/friendly.js";
@@ -106,6 +106,11 @@ export interface WorkspaceDeps {
     readonly imageCrawlAiFilter: boolean;
     readonly imageCrawlHumanReview: boolean;
   };
+  /**
+   * Immutable policy captured when a project is created. Missing only for
+   * legacy projects, which deliberately retain the current Settings behavior.
+   */
+  workflowPolicy?: (projectId: string) => Promise<ProjectWorkflowPolicy | undefined>;
   /** Gallery cards, already mediaUrl-wrapped + fallback-to-[] at the seam. */
   listProjects: () => Promise<ProjectCardVM[]>;
   loadManifest: (projectId: string) => Promise<WsManifest>;
@@ -216,6 +221,18 @@ export class WorkspaceController {
   private readonly aborters = new Map<string, AbortController>();
 
   constructor(private readonly deps: WorkspaceDeps) {}
+
+  private async workflowPolicyOf(projectId: string): Promise<ProjectWorkflowPolicy> {
+    const stored = await this.deps.workflowPolicy?.(projectId);
+    if (stored) return stored;
+    return {
+      version: 1,
+      reviewMode: this.deps.settings.reviewMode,
+      refinePasses: this.deps.settings.refinePasses,
+      refineEarlyStop: this.deps.settings.refineEarlyStop,
+      maxRepairAttempts: this.deps.settings.maxRepairAttempts,
+    };
+  }
 
   isBusy(): boolean {
     return this.inFlight.size > 0;
@@ -441,10 +458,50 @@ export class WorkspaceController {
     this.setStage(projectId, { kind: "rendering", percent: 0, phase: "prepare" });
   }
 
+  /**
+   * Harness authors source; this controller still owns every render process so
+   * the shared component cache, FIFO and Dừng button have one authority.
+   */
+  async renderHarnessStills(
+    projectId: string,
+    sceneIds: string[],
+  ): Promise<{ ok: true; stills: string[] } | { ok: false; error: string }> {
+    if (this.inFlight.has(projectId)) {
+      return { ok: false, error: "Project đang có tác vụ dựng khác; chưa thể render ảnh xem trước." };
+    }
+    return new Promise((resolve) => {
+      this.guarded(projectId, async () => {
+        this.beginHarnessStillRender(projectId);
+        const signal = this.signalOf(projectId);
+        try {
+          const renderStills = this.deps.worker.renderStills;
+          if (!renderStills) throw new Error("Runtime chưa hỗ trợ render ảnh xem trước cho Agent.");
+          const result = await renderStills(projectId, sceneIds, signal);
+          if (signal?.aborted) {
+            await this.recoverAfterCancel(projectId);
+            resolve({ ok: false, error: "Đã dừng render ảnh xem trước." });
+            return;
+          }
+          if (result.stills.length !== sceneIds.length) {
+            throw new Error("MotionReal chưa render đủ ảnh xem trước cho các cảnh Agent.");
+          }
+          resolve({ ok: true, stills: result.stills });
+        } catch (error) {
+          if (signal?.aborted) await this.recoverAfterCancel(projectId);
+          resolve({ ok: false, error: error instanceof Error ? error.message : "Không render được ảnh xem trước cho Agent." });
+        }
+      }, async () => {
+        await this.recoverAfterCancel(projectId);
+        resolve({ ok: false, error: "Đã dừng render ảnh xem trước." });
+      });
+    });
+  }
+
   async acceptHarnessStills(projectId: string): Promise<void> {
     if (this.inFlight.has(projectId)) throw new Error("Project đang render; chưa thể nhận lượt review khác.");
     this.bumpRenderVersion(projectId);
-    const mode = this.deps.settings.reviewMode;
+    const policy = await this.workflowPolicyOf(projectId);
+    const mode = policy.reviewMode;
     if (mode === "stills_edit") {
       // An older draft from a previous mode/edit is not the current still review.
       this.setStage(projectId, readyStageOf(await this.storyboardScenesOf(projectId), {
@@ -454,10 +511,11 @@ export class WorkspaceController {
     }
     // Enqueue, do not await an MP4 here: Harness must persist its accepted image
     // review before another poll/restart. Workspace owns the subsequent progress.
-    this.guarded(projectId, () => this.runHarnessRender(projectId, mode), () => this.recoverAfterCancel(projectId));
+    this.guarded(projectId, () => this.runHarnessRender(projectId, policy), () => this.recoverAfterCancel(projectId));
   }
 
-  private async runHarnessRender(projectId: string, mode: ReviewMode): Promise<void> {
+  private async runHarnessRender(projectId: string, policy: ProjectWorkflowPolicy): Promise<void> {
+    const mode = policy.reviewMode;
     if (mode === "skip_edit") {
       await this.runPublish(projectId);
       return;
@@ -465,10 +523,10 @@ export class WorkspaceController {
     const signal = this.signalOf(projectId);
     this.setStage(projectId, { kind: "rendering", percent: 0, phase: "draft" });
     try {
-      // One existing render + safety-report check, ZERO re-author attempts.
-      // Harness already did V1/V2 image review. Never call Classic refine here.
+      // Harness authored and visually refined its source before this shared
+      // render. This bridge only validates the resulting draft.
       const outcome = await this.deps.worker.generateValidateRepair(
-        projectId, { maxAttempts: 1 },
+        projectId, { maxAttempts: policy.maxRepairAttempts },
         { ...this.renderHooks(projectId), onRepair: () => {} }, signal,
       );
       if (signal?.aborted || outcome.kind === "cancelled") {
@@ -651,17 +709,23 @@ export class WorkspaceController {
    */
   submitEdits(projectId: string, edits: { sceneId: string; text: string }[], globalNotes: string): void {
     if (this.stages.get(projectId)?.kind !== "ready") return;
-    if (!reviewModeAllowsSceneEdit(this.deps.settings.reviewMode)) return;
     const named = edits.map((e) => ({ sceneId: e.sceneId, text: e.text.trim() })).filter((e) => e.text.length > 0);
     const notes = globalNotes.trim();
     if (named.length === 0 && notes === "") return; // nothing to do
-    this.guarded(projectId, () => this.runSceneEdits(projectId, named, notes));
+    void this.workflowPolicyOf(projectId).then((policy) => {
+      if (this.stages.get(projectId)?.kind !== "ready") return;
+      if (!reviewModeAllowsSceneEdit(policy.reviewMode)) return;
+      this.guarded(projectId, () => this.runSceneEdits(projectId, named, notes, policy));
+    }).catch((error) => {
+      log.warn({ err: error, projectId }, "could not load project workflow policy for scene edit");
+    });
   }
 
   private async runSceneEdits(
     projectId: string,
     named: { sceneId: string; text: string }[],
     globalNotes: string,
+    policy: ProjectWorkflowPolicy,
   ): Promise<void> {
     this.setStage(projectId, { kind: "rendering", percent: 0, phase: "edit" });
     // The reauthor step is an AI rewrite with no measurable progress → show it
@@ -721,7 +785,7 @@ export class WorkspaceController {
       // TTS) just to give vision frames and then re-render. The single draft MP4
       // is rendered ONCE, AFTER vision is clean. A refine that breaks the render
       // (empty stills) returns false → restore the pre-edit draft the user had.
-      const stillsOk = await this.refineEditedScenes(projectId, sceneIds, signal);
+      const stillsOk = await this.refineEditedScenes(projectId, sceneIds, signal, policy);
       if (signal?.aborted) {
         await this.recoverAfterCancel(projectId);
         return;
@@ -730,7 +794,7 @@ export class WorkspaceController {
       if (!stillsOk) {
         // The edit broke admission/render on the cheap stills path. Restore the
         // known-good pre-edit source and re-preview (draft or stills per mode).
-        if (await this.restoreToPriorDraft(projectId, snapshot, hooks, restoreOpts)) {
+        if (await this.restoreToPriorDraft(projectId, snapshot, hooks, policy, restoreOpts)) {
           this.setStage(projectId, this.readyStage(
             projectId,
             await this.storyboardScenesOf(projectId),
@@ -751,17 +815,17 @@ export class WorkspaceController {
           : undefined;
 
       // Stills review: re-render stills only (no draft MP4 / oracle loop).
-      if (!reviewModeNeedsDraftMp4(this.deps.settings.reviewMode)) {
+      if (!reviewModeNeedsDraftMp4(policy.reviewMode)) {
         this.setStage(projectId, { kind: "rendering", percent: 0, phase: "prepare" });
         // When refine was off, refineEditedScenes skipped the stills pass.
-        if (this.deps.settings.refinePasses <= 0) {
+        if (policy.refinePasses <= 0) {
           const stills = (await this.deps.worker.renderStills?.(projectId, sceneIds, signal)) ?? { stills: [] };
           if (signal?.aborted) {
             await this.recoverAfterCancel(projectId);
             return;
           }
           if (stills.stills.length === 0 && this.deps.worker.renderStills) {
-            if (await this.restoreToPriorDraft(projectId, snapshot, hooks, restoreOpts)) {
+            if (await this.restoreToPriorDraft(projectId, snapshot, hooks, policy, restoreOpts)) {
               this.setStage(projectId, this.readyStage(
                 projectId,
                 await this.storyboardScenesOf(projectId),
@@ -785,7 +849,7 @@ export class WorkspaceController {
 
       // Full review: render the draft ONCE (and auto-repair any new oracle errors).
       this.setStage(projectId, { kind: "rendering", percent: 0, phase: "draft" });
-      const outcome = await this.deps.worker.generateValidateRepair(projectId, { maxAttempts: this.deps.settings.maxRepairAttempts }, hooks, signal);
+      const outcome = await this.deps.worker.generateValidateRepair(projectId, { maxAttempts: policy.maxRepairAttempts }, hooks, signal);
       if (outcome.kind === "cancelled") {
         await this.recoverAfterCancel(projectId);
       } else if (outcome.kind === "passed") {
@@ -797,7 +861,7 @@ export class WorkspaceController {
           : { message: "Gặp trục trặc khi dựng lại (kết nối hoặc cấu hình). Hãy kiểm tra Cài đặt rồi dùng nút bên dưới để thử lại." };
         this.setStage(projectId, { kind: "error", message: friendly.message, fixable: false, retry: "draft", ...(friendly.voiceFailure ? { voiceFailure: friendly.voiceFailure } : {}) });
         this.deps.events.friendlyError({ ...friendly, projectId, retry: "draft", fixable: false });
-      } else if (await this.restoreToPriorDraft(projectId, snapshot, hooks, restoreOpts)) {
+      } else if (await this.restoreToPriorDraft(projectId, snapshot, hooks, policy, restoreOpts)) {
         // The edit produced a draft we couldn't clean up (content errors after
         // every attempt). Rather than strand the user on an error screen with a
         // broken scene, we restored the pre-edit source and re-rendered the draft
@@ -844,11 +908,15 @@ export class WorkspaceController {
   }
 
   /** Build callback deps for the extracted refine flow module. */
-  private refineDeps(projectId: string, signal: AbortSignal | undefined): RefineFlowDeps {
+  private refineDeps(
+    projectId: string,
+    signal: AbortSignal | undefined,
+    policy: ProjectWorkflowPolicy,
+  ): RefineFlowDeps {
     return {
       projectId,
       ...(signal ? { signal } : {}),
-      settings: this.deps.settings,
+      settings: policy,
       worker: this.deps.worker,
       loadManifest: (id) => this.deps.loadManifest(id),
       setStage: (stage) => this.setStage(projectId, stage),
@@ -858,8 +926,12 @@ export class WorkspaceController {
   }
 
   /** Silent refine before first draft MP4 — implementation in workspace-refine-flow. */
-  private refineBeforeDraft(projectId: string, signal: AbortSignal | undefined): Promise<SceneSnapshot> {
-    return runRefineBeforeDraft(this.refineDeps(projectId, signal));
+  private refineBeforeDraft(
+    projectId: string,
+    signal: AbortSignal | undefined,
+    policy: ProjectWorkflowPolicy,
+  ): Promise<SceneSnapshot> {
+    return runRefineBeforeDraft(this.refineDeps(projectId, signal, policy));
   }
 
   /** Edit-path vision refine only — implementation in workspace-refine-flow. */
@@ -867,8 +939,9 @@ export class WorkspaceController {
     projectId: string,
     sceneIds: string[],
     signal: AbortSignal | undefined,
+    policy: ProjectWorkflowPolicy,
   ): Promise<boolean> {
-    return runRefineEditedScenes(this.refineDeps(projectId, signal), sceneIds);
+    return runRefineEditedScenes(this.refineDeps(projectId, signal, policy), sceneIds);
   }
 
   /** Restore pre-edit source and re-preview known-good state (draft or stills). */
@@ -876,13 +949,14 @@ export class WorkspaceController {
     projectId: string,
     snapshot: SceneSnapshot,
     hooks: AgentHooks,
+    policy: ProjectWorkflowPolicy,
     opts?: { sceneIds?: string[]; signal?: AbortSignal },
   ): Promise<boolean> {
-    const needsDraft = reviewModeNeedsDraftMp4(this.deps.settings.reviewMode);
+    const needsDraft = reviewModeNeedsDraftMp4(policy.reviewMode);
     return runRestoreToPriorDraft({
       projectId,
       snapshot,
-      settings: this.deps.settings,
+      settings: policy,
       worker: this.deps.worker,
       setStage: (stage) => this.setStage(projectId, stage),
       hooks,
@@ -947,13 +1021,14 @@ export class WorkspaceController {
     const repairTrace = new WorkspaceRepairTrace();
     const hooks = this.renderHooks(projectId, "draft", repairTrace);
     const signal = this.signalOf(projectId);
-    const needsDraft = reviewModeNeedsDraftMp4(this.deps.settings.reviewMode);
+    const policy = await this.workflowPolicyOf(projectId);
+    const needsDraft = reviewModeNeedsDraftMp4(policy.reviewMode);
     try {
       // SILENT refine FIRST : render cheap stills,
       // do the one-shot creative bootstrap + the defect-fixing vision loop — all on
       // the no-TTS/no-MP4 path, hidden from the user — BEFORE the first real MP4
       // draft (or stills-only ready when reviewMode skips draft).
-      const preRefine = await this.refineBeforeDraft(projectId, signal);
+      const preRefine = await this.refineBeforeDraft(projectId, signal, policy);
       if (signal?.aborted) {
         this.flushRepairTrace(projectId, repairTrace, "cancelled");
         await this.recoverAfterCancel(projectId);
@@ -982,7 +1057,7 @@ export class WorkspaceController {
         this.flushRepairTrace(projectId, repairTrace, "passed");
         this.bumpRenderVersion(projectId);
         // skip_edit: no human review stop — go straight to full export.
-        if (this.deps.settings.reviewMode === "skip_edit") {
+        if (policy.reviewMode === "skip_edit") {
           await this.runPublish(projectId);
           return;
         }
@@ -992,7 +1067,7 @@ export class WorkspaceController {
       }
 
       this.setStage(projectId, { kind: "rendering", percent: 0, phase: "draft" });
-      let outcome = await this.deps.worker.generateValidateRepair(projectId, { maxAttempts: this.deps.settings.maxRepairAttempts }, hooks, signal);
+      let outcome = await this.deps.worker.generateValidateRepair(projectId, { maxAttempts: policy.maxRepairAttempts }, hooks, signal);
       // If the refined draft regresses (the bold/QA rewrites can't be repaired) but
       // the blind source was clean, restore it and re-render — refine must never
       // ship a draft worse than the un-refined one.
@@ -1002,7 +1077,7 @@ export class WorkspaceController {
         await this.deps.worker.restoreScenes(projectId, preRefine);
         restored = true;
         this.setStage(projectId, { kind: "rendering", percent: 0, phase: "draft" });
-        outcome = await this.deps.worker.generateValidateRepair(projectId, { maxAttempts: this.deps.settings.maxRepairAttempts }, hooks, signal);
+        outcome = await this.deps.worker.generateValidateRepair(projectId, { maxAttempts: policy.maxRepairAttempts }, hooks, signal);
       }
       if (outcome.kind === "cancelled") {
         this.flushRepairTrace(projectId, repairTrace, "cancelled");

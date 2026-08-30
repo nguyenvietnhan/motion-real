@@ -24,12 +24,25 @@ export type AiProvider = "mock";
 export type VideoLanguage = "vi" | "en";
 export type ProjectCreationMode = "classic" | "harness";
 
+/** Settings frozen at video start so a later preferences edit cannot alter a running project. */
+export type ProjectWorkflowPolicy = {
+  version: 1;
+  reviewMode: "full" | "stills_edit" | "skip_edit";
+  refinePasses: number;
+  refineEarlyStop: boolean;
+  maxRepairAttempts: number;
+};
+
 /** Persisted project state (brief.json). */
 export type ProjectBrief = {
   projectId: string;
   prompt: string;
   /** Authoring owner. Missing on older projects means the classic API path. */
   creationMode?: ProjectCreationMode;
+  /** Harness draft that owns this project. Required for new Harness projects. */
+  agentDraftId?: string;
+  /** Frozen workflow settings for a started project. */
+  workflowPolicy?: ProjectWorkflowPolicy;
   duration: number;
   /** Delivery format selected at create time, persisted so retry after restart keeps the same prompt budget/geometry. */
   format?: VideoFormat;

@@ -99,6 +99,8 @@ export interface CreateDeps {
    * null for explicit silence). Best-effort: failure must not block create.
    */
   setProjectBgm?: (projectId: string, name: string | null) => Promise<void>;
+  /** Capture Settings-derived workflow policy before any authoring/render work. */
+  persistWorkflowPolicy?: (projectId: string) => Promise<void>;
 }
 
 export class CreateController {
@@ -179,6 +181,7 @@ export class CreateController {
           return [] as AuthorImageRef[];
         })
       : [];
+    await this.deps.persistWorkflowPolicy?.(res.projectId);
     await choices.beforeBeginCreate?.(res.projectId);
     if (delivery.creationMode === "classic") {
       this.deps.beginCreate(res.projectId, {

@@ -106,11 +106,8 @@ agent-drafts/<agent-id>/
     sources.json
   handoff/
     assets.json
+    brief.generated.json
     brief.json
-    authoring-v1/
-      manifest.json
-      authored/
-      stills/
     authoring-contract.md
     authoring-request.json
     authoring.json
@@ -225,12 +222,9 @@ preparing_brief
 brief_review
 queued_create
 authoring
-still_review
-draft_render
-draft_review
-final_render
+visual_refine
+scene_review
 paused
-completed
 error
 ```
 
@@ -308,7 +302,7 @@ the existing valid brief. MotionReal requests a new Agent brief only when the
 selection changed or the previous brief is missing/invalid.
 
 Approval persists the selected asset ids and enters `preparing_brief`. Only a
-new valid `brief.json` advances to `brief_review`; no review screen is shown
+new valid `brief.generated.json` advances to `brief_review`; no review screen is shown
 while the Agent is still writing the brief.
 
 ### 4. Brief review
@@ -324,24 +318,23 @@ structured brief:
   "brief_revision": 1,
   "title": "ChatGPT đang thay đổi như thế nào?",
   "prompt": "Tạo video dọc giải thích các thay đổi mới của ChatGPT...",
-  "format": "tiktok",
-  "duration_tier": 2,
-  "target_seconds": 90,
   "video_language": "vi",
-  "voice_provider": "vivibe",
   "selected_asset_ids": ["asset-01"]
 }
 ```
 
-The review card lets the user edit the title/brief, return to asset review,
-continue the conversation, or approve creation. Approval freezes a brief
-snapshot for that run; later chat messages must not silently mutate an active
-creation job.
+The review card lets the user edit the title/brief, request a regenerated brief
+with specific feedback, return to asset review, continue the conversation, or
+approve creation. The generated brief never fixes duration, scene count, target
+seconds, or voice. Those are user choices made at approval; the selected
+duration defaults to the most recently used application choice (a fresh install
+starts at tier 2 / about 90 seconds).
 
 MotionReal writes the exact request/schema to `handoff/brief-request.json` and
-accepts only the final `handoff/brief.json` with the current job, request
-revision, 9:16 format, supported duration/language/voice combination, and the
-exact approved asset-id set. Invalid or stale files remain in `brief_review`.
+accepts generated output only in `handoff/brief.generated.json`. On approval it
+writes the sole creation source, `handoff/brief.json`, with the chosen duration,
+target seconds, language, voice and the snapshot workflow policy. Invalid or
+stale files remain pending rather than surfacing as a false error.
 
 ### 5. Project scaffold and Harness authoring
 
@@ -367,61 +360,33 @@ same Harness Session for repair. MotionReal also stamps the approved duration
 tier, language, and 9:16 format onto the manifest instead of trusting model
 metadata.
 
-The first valid scene submission is a positioning pass and is not shown to the
-user immediately. Every non-final scene must explicitly choose a supported
+The first valid scene submission is final-quality authoring, not a disposable
+V1. Every non-final scene must explicitly choose a supported
 `transitionToNext`; MotionReal does not silently accept the runtime's default
-transition. MotionReal renders one still per scene and archives the V1 manifest,
-scene modules, and still evidence under `handoff/authoring-v1/`.
+transition. The authoring request requires a distinct visual anchor, purposeful
+motion and a non-repetitive layout for each scene; an approved logo or icon is a
+supporting asset, not a full-screen background by default.
 
-Harness must then open every archived PNG and perform a creative rewrite V2 of
-every scene module. Changing only palette, glow, decorative frames, icons, or
-pulses does not meet the creative instruction. The mechanical check is narrower:
-MotionReal compares V2 source against the V1 archive, rejects any byte-identical
-module, and fails on missing/unreadable V2 source rather than counting it as a
-change. Byte differences do not prove a meaningful visual rewrite; still review
-must judge the result. Facts, narration, timing, and approved asset references
-stay fixed. MotionReal renders V2 again, then issues a separate `image_review`
-request with a new revision and the newly rendered PNG paths. Only an
-acknowledgement of that request can open the existing human per-scene review UI;
-notes submitted with the rewrite concern V1 and cannot approve the V2 images.
-No MP4 is encoded for this internal V1/V2 loop, so it
-does not claim to evaluate easing or continuous motion.
+MotionReal renders stills through the shared Workspace FIFO. It then runs at
+most the persisted `refinePasses` visual-refine turns. A refine turn must open
+the actual PNGs with `read_image`, cite concrete observations, and change only
+scenes with a visual problem. A clean pass leaves source unchanged. With early
+stop enabled, two consecutive clean passes end the loop; otherwise it stops at
+the configured pass budget. `refinePasses: 0` sends no still to the model and
+opens human scene review directly.
 
-The image-review request binds manifest, authored modules, referenced assets and
-still-image bytes with a fingerprint. Generated `_*.tsx` runtime entries are
-excluded. Changed or missing evidence triggers a fresh still render and a new
-review revision; unchanged evidence is acknowledged without rendering again.
-Inputs changing during a render invalidate that attempt. Missing review notes
-or stale submissions cannot advance human review. The request persists across
-restart. This prevents stale-image acceptance; it is not a sandbox against an
-Agent deliberately rewriting MotionReal metadata under Full access.
+Still, source and approved-asset fingerprints protect against stale review. A
+visual edit re-renders only the changed scene scope; a global manifest change
+falls back safely to all scenes. The request records a native history sequence,
+and MotionReal accepts the refine result only after successful direct
+`read_image` tool evidence for every scoped PNG. Raw history, image content and
+provider errors never leave Harness.
 
-Each review request also captures the owning Harness session's history sequence
-before the request is published. Main reads native `session.history` and pairs
-successful direct `read_image` calls with tool-result image attachments for every
-requested PNG. Those results must follow the request's sequence and precede a
-subsequent assistant message: reading and submitting in the same model step is
-not enough. Text-only reads, failed calls, other files and previous-request reads
-do not count. This check applies even to direct JSON handoffs, not only the
-submission tool. Review requests from older builds without a sequence marker
-receive a fresh review request instead of being silently accepted. No raw history
-or image content is forwarded to the renderer or copied into a new log.
-
-This is execution/attachment evidence, not proof of visual comprehension. The
-check deliberately uses direct `read_image`; a nested Code Mode dispatch is not
-counted merely because its internal tool ran, since its image need not be returned
-to the model. Missing evidence asks for the direct read. The final fingerprint is
-checked again after reading history so changes during that RPC cannot open review
-with stale stills. Live model-image and visual-quality acceptance remain required.
-Graceful Harness shutdown drains in-progress local authoring-request/metadata
-writes before returning, so reopening cannot race that commit. It does not wait
-for a model turn or render, and is not a claim of atomic two-file recovery after
-an abrupt OS/process crash.
-
-Archive and source comparison resolve component IDs through the existing static
-admission pass, just as rendering does; a component ID is not assumed to be a
-filename. Renaming an unchanged module does not count as a rewrite. Authored
-code is parsed, never executed in Main, to obtain this mapping.
+Failure repair is phase-local and bounded by the project policy. Schema,
+admission, pacing and TSX problems may request another Agent submission only up
+to `maxRepairAttempts`; provider or local-render failures are reported as such,
+not misrepresented as code defects. A durable error exposes “Thử lại bước này”
+and resets only that phase's repair counter.
 
 Classic Home/Create/Queue authoring remains unchanged. Harness projects reuse the
 same authoring contract, admission/render tools, Workspace stages, human review,
@@ -454,12 +419,11 @@ project state.
 ### 7. Scene review and edits
 
 When WorkspaceController reaches the existing ready/review state, the Agent tab
-opens the normal scene-review surface. For a Harness-owned project, scene/global
-edit requests return to its same Harness Session through a new versioned
-authoring request; MotionReal renders the edited scenes and sends a new
-`image_review` request before showing the updated cards. This review-only turn
-records remaining issues for the human and does not demand another creative
-rewrite. A Classic project continues through
+keeps its own shell and opens the shared normal scene-review surface. For a
+Harness-owned project, scene/global edit requests return to the same Harness
+Session through a new versioned authoring request. MotionReal re-renders only
+the affected scene scope and, when enabled, runs the remaining bounded visual
+refine pass before showing updated cards. A Classic project continues through
 `WorkspaceController.submitEdits` unchanged.
 
 ### 8. Final render
@@ -480,7 +444,7 @@ After Harness image review, `acceptHarnessStills` now applies that policy:
   old draft from a previous mode. The local setting correctly explains the
   reported absence of a draft; do not force MP4 preview for this mode.
 - `skip_edit`: enqueue the existing full-publish path without a human scene-review
-  stop or a draft encode. This does not skip Harness's V1/V2 image review.
+  stop or a draft encode. This does not skip the configured Harness visual refine.
 
 Workspace owns the asynchronous MP4 work and its cancellation/serialization.
 Harness persists the accepted image review without waiting for that encode.
@@ -545,10 +509,10 @@ controllers.
 
 ## Transition Rules
 
-After project linking, the persisted Agent `still_review` state records accepted
-image review; live draft/full/review/completion is projected from Workspace.
-The review-mode branch runs immediately after that acceptance, not after an
-extra human still approval in `full` or `skip_edit`.
+After project linking, the persisted Agent `scene_review` state records the
+completed author/refine gate; live draft/full/review/completion is projected
+from Workspace. The review-mode branch runs immediately after that acceptance,
+not after an extra Agent-owned review state.
 
 | From | Trigger | To |
 | --- | --- | --- |
@@ -559,12 +523,10 @@ extra human still approval in `full` or `skip_edit`.
 | `preparing_brief` | Valid brief submission | `brief_review` |
 | `brief_review` | User approves frozen brief | `queued_create` |
 | `queued_create` | CreateController scaffolds and links the project | `authoring` |
-| `authoring` | Valid Harness submission, still render, and self-review | `still_review` |
-| `draft_render` | Healthy draft artifact and ready stage | `draft_review` |
-| `still_review` | User requests an edit | same Harness Session → `authoring` |
-| `still_review` | User approves scenes in `stills_edit` | `final_render` |
-| `draft_review` | User approves full render | `final_render` |
-| `final_render` | Healthy full artifact | `completed` |
+| `authoring` | Valid Harness submission and still render | `visual_refine` or `scene_review` |
+| `visual_refine` | Configured pass budget or early-stop reached | `scene_review` |
+| `scene_review` | User requests an edit | same Harness Session → `authoring` |
+| `scene_review` | User approves scenes | Workspace render/publish stage |
 | running Harness state | User stops | `paused` (stores its prior state) |
 | `paused` | User continues | prior running state |
 | any running state | Structured failure | `error` |
@@ -579,8 +541,8 @@ The Agent workspace has exactly three mutually exclusive primary surfaces:
 | Workflow condition | Surface | Presentation |
 | --- | --- | --- |
 | Conversation (`discovery`) or explicit `Mở chat` | Native embedded Harness chat | Embedded iframe with session-scoped URL |
-| Automated work (`collecting_assets`, `preparing_brief`, `queued_create`, `authoring`, render, `paused`) | MotionReal workflow progress | `AgentWorkflowProgress`: top-anchored fixed header (`padding-top: 64px`), spinner/paused icon, clean activity list |
-| Human decision required (`asset_review`, `brief_review`, `still_review`, `draft_review`) | MotionReal review | `AssetReview` gallery, `BriefReview` (KnobButton chips, structured scene dividers, raw prompt editor), storyboard cards |
+| Automated work (`collecting_assets`, `preparing_brief`, `queued_create`, `authoring`, `visual_refine`, render, `paused`) | MotionReal workflow progress | `AgentWorkflowProgress`: safe activity list and native-chat affordance for a pending question/approval |
+| Human decision required (`asset_review`, `brief_review`, `scene_review`) | MotionReal review | Asset gallery, brief editor/feedback and shared storyboard cards |
 
 The embedded native Harness page owns the complete conversation surface,
 including chat messages, reasoning, tool activity, questions, approvals,

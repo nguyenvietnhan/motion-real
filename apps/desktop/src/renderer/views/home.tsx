@@ -219,6 +219,8 @@ export const HomeView: React.FC<{
   /** Open Settings; optional tab deep-link (ai | voice) from create-path steps. */
   onConnectPrompt: (tab?: CreatePathSettingsTab) => void;
   defaultVoiceProvider: VoiceProviderChoice;
+  /** Last user-selected duration, persisted in Settings; new installs start at 90s. */
+  defaultDurationTier?: DurationTierChoice;
   /** Open the native image picker (create-time image staging); resolves staged images + rejections. */
   onPickImages?: () => Promise<PickImagesResult>;
   /** Import raw bytes from a paste (Ctrl+V) or drag-drop (create-time image staging); resolves staged images + rejections. */
@@ -260,6 +262,7 @@ export const HomeView: React.FC<{
   onOpen,
   onConnectPrompt,
   defaultVoiceProvider,
+  defaultDurationTier = 2,
   onPickImages,
   onImportImageBytes,
   onUnstageImage,
@@ -290,7 +293,7 @@ export const HomeView: React.FC<{
   const notify = useNotifications();
   // Short-form only: duration tier (TikTok pacing) + language + voice.
   // Format is always 9:16 on the backend (no YouTube option).
-  const [durationTier, setDurationTier] = useState<DurationTierChoice>(1);
+  const [durationTier, setDurationTier] = useState<DurationTierChoice>(defaultDurationTier);
   const [videoLanguage, setVideoLanguage] = useState<VideoLanguageChoice>("vi");
   const [voiceProvider, setVoiceProvider] = useState<VoiceProviderChoice>(defaultVoiceProvider);
   const [creating, setCreating] = useState(false);

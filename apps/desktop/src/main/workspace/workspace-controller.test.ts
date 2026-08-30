@@ -103,6 +103,30 @@ describe("process-wide workspace lane", () => {
 });
 
 describe("Harness still-review bridge", () => {
+  it("renders Harness stills through the workspace lane and its cancellation signal", async () => {
+    let observedSignal: AbortSignal | undefined;
+    let release!: () => void;
+    const wait = new Promise<void>((resolve) => { release = resolve; });
+    const renderStills = vi.fn(async (_projectId: string, _sceneIds?: string[], signal?: AbortSignal) => {
+      observedSignal = signal;
+      await wait;
+      return { stills: ["V:/project/review/scene-01.png"] };
+    });
+    const ctrl = new WorkspaceController(baseDeps({
+      worker: {
+        renderStills,
+      } as unknown as AgentWorker,
+    }));
+    const render = (ctrl as unknown as {
+      renderHarnessStills(projectId: string, sceneIds: string[]): Promise<{ ok: true; stills: string[] } | { ok: false; error: string }>;
+    }).renderHarnessStills("p-harness", ["scene-01"]);
+    await vi.waitFor(() => expect(renderStills).toHaveBeenCalledOnce());
+    ctrl.cancel("p-harness");
+    expect(observedSignal?.aborted).toBe(true);
+    release();
+    await expect(render).resolves.toMatchObject({ ok: false });
+  });
+
   it("shows Harness authoring progress and reuses the existing ready scene review", async () => {
     const ctrl = new WorkspaceController(baseDeps({
       settings: { ...baseDeps().settings, reviewMode: "stills_edit" },
@@ -136,6 +160,13 @@ describe("Harness still-review bridge", () => {
     const deps = baseDeps({
       worker,
       settings: { ...baseDeps().settings, reviewMode: mode, refinePasses: 3 },
+      workflowPolicy: async () => ({
+        version: 1,
+        reviewMode: mode,
+        refinePasses: 3,
+        refineEarlyStop: true,
+        maxRepairAttempts: 1,
+      }),
       loadManifest: async () => ({ scenes: [{ id: "scene-01" }] }),
       hasStill: () => true,
       hasDraft: () => mode === "full",
@@ -173,6 +204,7 @@ describe("Harness still-review bridge", () => {
     const previous: ProjectStage = { kind: "error", message: "Draft lỗi", retry: "draft", fixable: true };
     ctrl.setStage("p", previous);
     await expect(routeSceneEdits("p", [], "Sửa cảnh", {
+      ownerOf: async () => "harness",
       draftForProject: async () => ({ id: "agent-p" }),
       activate: async (id) => ({ id }),
       beginHarness: (id) => ctrl.beginHarnessAuthoring(id),
@@ -192,6 +224,16 @@ describe("Harness still-review bridge", () => {
     expect(await ctrl.stage("p")).toMatchObject({ kind: "ready" });
     expect(await ctrl.stage("p")).not.toHaveProperty("draftPath");
     expect(generateValidateRepair).not.toHaveBeenCalled();
+  });
+
+  it("uses the project policy snapshot instead of later Settings changes", async () => {
+    const { deps, generateValidateRepair } = harnessDeps("full");
+    deps.settings = { ...deps.settings, reviewMode: "stills_edit", maxRepairAttempts: 9 };
+    const ctrl = new WorkspaceController(deps);
+    await ctrl.acceptHarnessStills("p");
+    await vi.waitFor(() => expect(ctrl.isBusy()).toBe(false));
+    expect(generateValidateRepair).toHaveBeenCalledWith("p", { maxAttempts: 1 }, expect.anything(), expect.any(AbortSignal));
+    expect(await ctrl.stage("p")).toMatchObject({ kind: "ready", draftPath: expect.any(String) });
   });
 
   it.each(["infra", "exhausted", "missing", "throw"])("does not accept a %s draft as ready", async (failure) => {
@@ -654,9 +696,8 @@ function workerWith(outcome: RepairOutcome | (() => Promise<RepairOutcome>)): Ag
 describe("fixWithAi + fixable flag", () => {
   it("silent refine BEFORE the draft: vision flags a scene, reauthors + re-renders stills, then the draft renders ONCE; stops early", async () => {
     // refine now runs on the cheap stills path BEFORE the first
-    // MP4 draft (not after a 100%-complete draft). The manifest here has the flagged
-    // scene, so the creative bootstrap reauthors it too; we assert the vision loop's
-    // behavior + that the draft MP4 renders exactly ONCE (after refine).
+    // MP4 draft (not after a 100%-complete draft). The manifest here has the
+    // flagged scene; only the concrete vision defect reauthors it.
     const reauthorScenes = vi.fn(async () => ({ kind: "authored", sceneIds: ["scene-02"] }) as AuthorOutcome);
     // refinePasses=2: pass 1 flags a defect, pass 2 finds none → early stop.
     const visualQa = vi
@@ -685,19 +726,15 @@ describe("fixWithAi + fixable flag", () => {
     expect(visualQa).toHaveBeenCalledTimes(2); // pass 1 (flags) + pass 2 (clean → early stop)
     expect(visualQa.mock.calls[0]).toEqual(["p1", undefined, expect.any(AbortSignal)]); // first-author refine → ALL scenes
     expect(renderStills).toHaveBeenCalledWith("p1", ["scene-02"], expect.any(AbortSignal)); // cheap per-scene re-render in the vision pass
-    const reauthorCalls = reauthorScenes.mock.calls as unknown as [[{ preprompt: { perSceneIntent: Record<string, string> } }], [{ preprompt: { perSceneIntent: Record<string, string> } }]];
-    const visionIntent = reauthorCalls[1]![0].preprompt.perSceneIntent["scene-02"];
+    const reauthorCalls = reauthorScenes.mock.calls as unknown as [[{ preprompt: { perSceneIntent: Record<string, string> } }]];
+    const visionIntent = reauthorCalls[0]![0].preprompt.perSceneIntent["scene-02"];
     expect(visionIntent).toMatch(/Sửa tối thiểu/);
     expect(visionIntent).toMatch(/KHÔNG được biến cảnh thành title-card/);
     expect(renders).toBe(1); // the draft MP4 renders exactly ONCE, AFTER refine (no draft-before-refine)
     expect((await ctrl.stage("p1")).kind).toBe("ready");
   });
 
-  it("first-author creative bootstrap reauthors EVERY scene once before the draft, even with no vision defects", async () => {
-    // the "render lại cho sáng tạo hơn" pass — one bold rewrite
-    // over ALL scenes BEFORE any defect is flagged, so the first draft is already
-    // ambitious. With visualQa returning no defects, the bootstrap is the ONLY
-    // reauthor, and it covers every manifest scene.
+  it("does not reauthor scenes when visual QA finds no concrete defect", async () => {
     const reauthorScenes = vi.fn(async (job: { sceneIds: string[] }) => ({ kind: "authored", sceneIds: job.sceneIds }) as AuthorOutcome);
     const visualQa = vi.fn(async () => ({ kind: "checked" as const, defects: [], checkedSceneIds: [] as string[] }));
     const renderStills = vi.fn(async () => ({ stills: ["media://still/scene-01.png", "media://still/scene-02.png"] }));
@@ -715,32 +752,15 @@ describe("fixWithAi + fixable flag", () => {
     const ctrl = new WorkspaceController(baseDeps({ worker, loadManifest: async () => ({ scenes: [{ id: "scene-01" }, { id: "scene-02" }] }), settings: { scriptGateEnabled: false, reviewMode: "full", maxRepairAttempts: 3, refinePasses: 2, refineEarlyStop: true, imageCrawlAiFilter: false, imageCrawlHumanReview: false } }));
     ctrl.approve("p1");
     await flush();
-    expect(reauthorScenes).toHaveBeenCalledTimes(1); // ONE bold bootstrap (no vision defects to fix)
-    const job = (reauthorScenes.mock.calls[0] as unknown[])[0] as {
-      sceneIds: string[];
-      preprompt: { perSceneIntent: Record<string, string> };
-    };
-    expect(job.sceneIds).toEqual(["scene-01", "scene-02"]); // EVERY scene
-    const bootstrapIntent = job.preprompt.perSceneIntent["scene-01"] ?? "";
-    expect(bootstrapIntent).toMatch(/quick entrance\/reveal\/pop/);
-    expect(bootstrapIntent).toMatch(/semantic progression/);
-    expect(bootstrapIntent).toMatch(/continuous living motion/);
-    expect(bootstrapIntent).toMatch(/khuyến khích sáng tạo, KHÔNG bắt buộc/);
-    expect(bootstrapIntent).toMatch(/cảnh tĩnh có chủ đích vẫn hợp lệ/);
-    expect(bootstrapIntent).toMatch(/frame\/spring\/interpolate có clamp hoặc phase\/period bounded/);
-    expect(bootstrapIntent).toMatch(/KHÔNG kéo một reveal đơn giản ra hết cảnh/);
-    expect(bootstrapIntent).not.toMatch(/ĐANG DIỄN TIẾN qua phần lớn thời lượng/);
-    expect(bootstrapIntent).not.toMatch(/KHÔNG dùng Math\.sin\(frame\)/);
-    expect(bootstrapIntent).not.toMatch(/ANIMATION PHẢI|NHIỀU PHA|chuyển động LIÊN TỤC|mạch đập|nhịp thở chậm/);
-    expect(renderStills).toHaveBeenCalledWith("p1", ["scene-01", "scene-02"], expect.any(AbortSignal)); // re-render all after the bold rewrite
+    expect(reauthorScenes).not.toHaveBeenCalled();
+    expect(renderStills).toHaveBeenCalledWith("p1", undefined, expect.any(AbortSignal));
     expect(renders).toBe(1); // draft MP4 once, after refine
     expect((await ctrl.stage("p1")).kind).toBe("ready");
   });
 
-  it("loading status: the two hidden pre-draft renders use the neutral 'prepare' phase; vision passes carry qaPass/qaTotal", async () => {
-    // The bland bản-1 render + the creative bootstrap must NOT surface a detailed
-    // render stage (the user never sees the raw/intermediate takes) — they show as
-    // the neutral "prepare" phase. The DEFECT-fixing vision loop, by contrast,
+  it("loading status: initial still render uses neutral 'prepare'; vision passes carry qaPass/qaTotal", async () => {
+    // The first final-quality still render must not surface a fake draft stage.
+    // The DEFECT-fixing vision loop, by contrast,
     // annotates each "qa" stage with which round is running (lần N/M) so the
     // spinner isn't opaque. refinePasses=2: pass 1 flags, pass 2 clean → stops.
     const reauthorScenes = vi.fn(async (job: { sceneIds: string[] }) => ({ kind: "authored", sceneIds: job.sceneIds }) as AuthorOutcome);
@@ -772,10 +792,9 @@ describe("fixWithAi + fixable flag", () => {
     });
     ctrl.approve("p1");
     await flush();
-    // The two hidden pre-draft renders (bản-1 + bootstrap) are "prepare", never a
-    // raw "draft"/"qa" percent — so the user doesn't see the bland/bootstrap takes.
+    // Initial still render is "prepare", never a raw draft percent.
     const prepares = seen.filter((s) => s.phase === "prepare");
-    expect(prepares.length).toBeGreaterThanOrEqual(2);
+    expect(prepares.length).toBeGreaterThanOrEqual(1);
     // The vision pass that actually fixed a defect carries the round counter.
     const qaWithPass = seen.find((s) => s.phase === "qa" && s.qaPass !== undefined);
     expect(qaWithPass).toMatchObject({ phase: "qa", qaPass: 1, qaTotal: 2 });

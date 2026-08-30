@@ -9,7 +9,7 @@ const draft: AgentDraftVM = {
   title: "Gemini là gì",
   createdAt: "2026-08-29T10:00:00.000Z",
   updatedAt: "2026-08-29T11:00:00.000Z",
-  workflowVersion: 1,
+  workflowVersion: 2,
   workflowRevision: 0,
   productionState: "discovery",
   sessionAccess: "full",
@@ -46,7 +46,7 @@ describe("Video Agent layout", () => {
   it("renders a compact workspace and the MotionReal embedded iframe only", () => {
     const html = renderToStaticMarkup(React.createElement(AgentWorkspace, {
       draft, reviewMode: "stills_edit", busy: false, notice: null,
-      onBack: vi.fn(), onDraftChange: vi.fn(), onOpenProject: vi.fn(),
+      onBack: vi.fn(), onDraftChange: vi.fn(),
       run: async (work: () => Promise<void>) => work(),
     }));
 
@@ -65,12 +65,12 @@ describe("Video Agent layout", () => {
   it("gives a brief review the full workspace instead of a second progress panel", () => {
     const brief: AgentBriefVM = {
       revision: 1, title: "Video", prompt: "# Nội dung brief đủ dài để xem",
-      format: "tiktok", durationTier: 2, videoLanguage: "vi", voiceProvider: "vieneu", selectedAssetIds: [],
+      format: "tiktok", videoLanguage: "vi", selectedAssetIds: [],
     };
     const html = renderToStaticMarkup(React.createElement(AgentWorkspace, {
       draft: { ...draft, productionState: "brief_review", briefReview: brief, activities: [{ id: "activity-1", label: "Đã gửi brief", status: "completed" }] },
       reviewMode: "stills_edit", busy: false, notice: null,
-      onBack: vi.fn(), onDraftChange: vi.fn(), onOpenProject: vi.fn(),
+      onBack: vi.fn(), onDraftChange: vi.fn(),
       run: async (work: () => Promise<void>) => work(),
     }));
 
@@ -81,7 +81,7 @@ describe("Video Agent layout", () => {
   it("shows durable stop and resume controls for native Harness work", () => {
     const authoring = { ...draft, workflowRevision: 4, productionState: "authoring" as const, projectId: "project-1" };
     const paused = { ...authoring, workflowRevision: 5, productionState: "paused" as const, pausedFrom: "authoring" as const };
-    const props = { reviewMode: "stills_edit" as const, busy: false, notice: null, onBack: vi.fn(), onDraftChange: vi.fn(), onOpenProject: vi.fn(), run: async (work: () => Promise<void>) => work() };
+    const props = { reviewMode: "stills_edit" as const, busy: false, notice: null, onBack: vi.fn(), onDraftChange: vi.fn(), run: async (work: () => Promise<void>) => work() };
 
     expect(renderToStaticMarkup(React.createElement(AgentWorkspace, { ...props, draft: authoring }))).toContain(">Dừng<");
     expect(renderToStaticMarkup(React.createElement(AgentWorkspace, { ...props, draft: paused }))).toContain(">Tiếp tục<");
@@ -94,7 +94,7 @@ describe("Video Agent layout", () => {
     };
     const html = renderToStaticMarkup(React.createElement(AgentWorkspace, {
       draft: authoring, reviewMode: "stills_edit", busy: false, notice: null,
-      onBack: vi.fn(), onDraftChange: vi.fn(), onOpenProject: vi.fn(), run: async (work: () => Promise<void>) => work(),
+      onBack: vi.fn(), onDraftChange: vi.fn(), run: async (work: () => Promise<void>) => work(),
     }));
 
     expect(html).toContain("Đang xử lý tệp và asset");

@@ -9,6 +9,7 @@ import { SettingsView } from "../views/settings.js";
 import { QueueView } from "../views/queue.js";
 import { StoryboardView } from "../views/storyboard.js";
 import { ProjectWorkspaceView } from "../views/workspace.js";
+import { AgentView, AgentWorkspace, AgentSettingsDialog } from "../views/agent.js";
 import { NotificationProvider } from "../notifications.js";
 import "../theme.css";
 
@@ -32,6 +33,95 @@ const auditQueue = {
   ],
 };
 
+const mockDraft: import("../../shared/types.js").AgentDraftVM = {
+  id: "draft-audit-1",
+  title: "Đột phá mới trong công nghệ pin lượng tử",
+  createdAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString(),
+  workflowVersion: 2,
+  productionState: "brief_review",
+  workflowRevision: 1,
+  sessionAccess: "full",
+  webSearchConfigured: true,
+  searchProvider: "deepseek",
+  createReady: true,
+  briefReview: {
+    revision: 1,
+    title: "Đột phá mới trong công nghệ pin lượng tử",
+    prompt: "# Đột phá Pin Lượng Tử 2026\n\n## Cảnh 1: Giới thiệu bước ngoặt năng lượng\nPin lượng tử thế hệ mới đạt mật độ năng lượng gấp 5 lần pin lithium thông thường.\n\n## Cảnh 2: Ứng dụng thực tế\nXe điện có thể chạy hơn 2000km chỉ với 1 lần sạc 10 phút.\n\n## Cảnh 3: Tương lai và tác động\nCác hãng xe hàng đầu thế giới đang chuẩn bị thương mại hóa vào năm 2027.",
+    selectedAssetIds: ["asset-1", "asset-2"],
+    format: "tiktok",
+    videoLanguage: "vi",
+  },
+  assetReview: [
+    {
+      id: "asset-1",
+      previewUrl: "/dev-audit/audit-fixture.svg",
+      width: 1080,
+      height: 1920,
+      bytes: 1024,
+      sourceUrl: "https://example.com/battery.png",
+      label: "Pin lượng tử phòng thí nghiệm",
+      role: "hero",
+    },
+    {
+      id: "asset-2",
+      previewUrl: "/dev-audit/audit-fixture.svg",
+      width: 1080,
+      height: 1920,
+      bytes: 1024,
+      sourceUrl: "https://example.com/car.png",
+      label: "Xe điện thử nghiệm",
+      role: "support",
+    },
+  ],
+};
+
+if (typeof window !== "undefined" && !(window as any).dashboard) {
+  (window as any).dashboard = {
+    agent: {
+      list: async () => [mockDraft],
+      create: async () => mockDraft,
+      delete: async () => true,
+      openWorkspace: async () => mockDraft,
+      status: async () => mockDraft,
+      stopSession: async () => mockDraft,
+      resumeSession: async () => mockDraft,
+      settings: async () => ({
+        searchProvider: "deepseek",
+        webSearchConfigured: true,
+        currentModelId: "deepseek-chat",
+        modelOptions: [
+          { id: "deepseek-chat", label: "DeepSeek V3 (Khuyên dùng)" },
+          { id: "deepseek-reasoner", label: "DeepSeek R1 (Lý luận sâu)" },
+        ],
+        currentAccessId: "danger-full-access",
+        accessOptions: [
+          { id: "danger-full-access", label: "Toàn quyền (Terminal & Tệp)", description: "Agent có thể chạy lệnh terminal và tạo sửa tệp tự do." },
+          { id: "workspace-write", label: "Chỉ ghi tệp trong workspace", description: "Agent chỉ được sửa tệp trong thư mục dự án." },
+        ],
+      }),
+      setSearchProvider: async () => ({ searchProvider: "deepseek", webSearchConfigured: true, currentModelId: "deepseek-chat", modelOptions: [], currentAccessId: "danger-full-access", accessOptions: [] }),
+      setSearchApiKey: async () => ({ searchProvider: "deepseek", webSearchConfigured: true, currentModelId: "deepseek-chat", modelOptions: [], currentAccessId: "danger-full-access", accessOptions: [] }),
+      setModel: async () => ({ searchProvider: "deepseek", webSearchConfigured: true, currentModelId: "deepseek-chat", modelOptions: [], currentAccessId: "danger-full-access", accessOptions: [] }),
+      setAccess: async () => ({ searchProvider: "deepseek", webSearchConfigured: true, currentModelId: "deepseek-chat", modelOptions: [], currentAccessId: "danger-full-access", accessOptions: [] }),
+      updateBriefChoices: async () => mockDraft,
+      approveBrief: async () => mockDraft,
+      approveAssets: async () => mockDraft,
+      requestMoreAssets: async () => mockDraft,
+    },
+    events: {
+      onProgress: () => () => {},
+      onStatus: () => () => {},
+      onScene: () => () => {},
+      onFriendlyError: () => () => {},
+    },
+    projects: {
+      stage: async () => null,
+    },
+  };
+}
+
 const content = screen === "projects" ? (
   <ProjectsView load="populated" cards={cards} onOpen={() => {}} onNew={() => {}} onDelete={() => {}} onReveal={() => {}} onRename={() => {}} />
 ) : screen === "settings" ? (
@@ -42,6 +132,7 @@ const content = screen === "projects" ? (
     active={auditQueue}
     load="ready"
     defaultVoiceProvider="vivibe"
+    defaultDurationTier={2}
     bgm={[]}
     bgmSelected={null}
     onBgmAdd={() => {}}
@@ -65,6 +156,62 @@ const content = screen === "projects" ? (
     onResumeQueue={async () => ({ ok: true, mode: "started" })}
     onOpenVoiceSettings={() => {}}
   />
+) : screen === "agent-brief" ? (
+  <AgentWorkspace
+    draft={mockDraft}
+    reviewMode="stills_edit"
+    defaultDurationTier={2}
+    defaultVoiceProvider="vivibe"
+    busy={false}
+    notice={null}
+    onBack={() => {}}
+    onDraftChange={() => {}}
+    run={async (fn) => {
+      await fn();
+    }}
+  />
+) : screen === "agent-settings" ? (
+  <div style={{ position: "relative", width: "100%", height: "100%" }}>
+    <AgentWorkspace
+      draft={mockDraft}
+      reviewMode="stills_edit"
+      defaultDurationTier={2}
+      defaultVoiceProvider="vivibe"
+      busy={false}
+      notice={null}
+      onBack={() => {}}
+      onDraftChange={() => {}}
+      run={async (fn) => {
+        await fn();
+      }}
+    />
+    <AgentSettingsDialog
+      open={true}
+      busy={false}
+      error={null}
+      searchApiKey="sk-deepseek-mock-key-12345"
+      onSearchApiKeyChange={() => {}}
+      onClose={() => {}}
+      onSearchProvider={() => {}}
+      onSaveSearchKey={() => {}}
+      onModel={() => {}}
+      onAccess={() => {}}
+      settings={{
+        searchProvider: "deepseek",
+        webSearchConfigured: true,
+        currentModelId: "deepseek-chat",
+        modelOptions: [
+          { id: "deepseek-chat", label: "DeepSeek V3 (Khuyên dùng)" },
+          { id: "deepseek-reasoner", label: "DeepSeek R1 (Lý luận sâu)" },
+        ],
+        currentAccessId: "danger-full-access",
+        accessOptions: [
+          { id: "danger-full-access", label: "Toàn quyền (Terminal & Tệp)", description: "Agent có thể chạy lệnh terminal và tạo sửa tệp tự do.", requiresConfirmation: true },
+          { id: "workspace-write", label: "Chỉ ghi tệp trong workspace", description: "Agent chỉ được sửa tệp trong thư mục dự án.", requiresConfirmation: false },
+        ],
+      }}
+    />
+  </div>
 ) : screen === "error" ? (
   <ProjectWorkspaceView
     stage={{ kind: "error", message: "Model tạm thời không phản hồi (đang khởi động). Vui lòng thử lại sau ít phút hoặc đổi model.", fixable: false }}
@@ -97,6 +244,7 @@ const content = screen === "projects" ? (
     load="populated"
     cards={cards}
     defaultVoiceProvider="vivibe"
+    defaultDurationTier={2}
     onCreate={() => {}}
     onOpen={() => {}}
     onConnectPrompt={() => {}}
@@ -111,7 +259,7 @@ const content = screen === "projects" ? (
 createRoot(document.getElementById("root")!).render(
   <NotificationProvider>
     <div className="ns-shell">
-      <Sidebar active={screen === "projects" ? "projects" : screen === "settings" ? "settings" : screen === "queue" ? "queue" : "home"} gateway={{ kind: "ready", baseUrl: "http://127.0.0.1:20128" }} account={account} onNavigate={() => {}} />
+      <Sidebar active={screen === "projects" ? "projects" : screen.startsWith("settings") ? "settings" : screen === "queue" ? "queue" : screen.startsWith("agent") ? "agent" : "home"} gateway={{ kind: "ready", baseUrl: "http://127.0.0.1:20128" }} account={account} onNavigate={() => {}} />
       <main className="ns-main">{content}</main>
     </div>
   </NotificationProvider>,

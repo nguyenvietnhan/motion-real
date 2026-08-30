@@ -104,6 +104,7 @@ export const QueueView: React.FC<{
   active: QueueProjectVM | null;
   load: "loading" | "ready" | "error";
   defaultVoiceProvider: VoiceProviderChoice;
+  defaultDurationTier?: DurationTierChoice;
   smokeRenderEnabled?: boolean;
   bgm?: BgmTrackVM[];
   bgmSelected?: string | null;
@@ -212,6 +213,7 @@ export const QueueView: React.FC<{
 const QueueDetail: React.FC<{
   queue: QueueProjectVM;
   defaultVoiceProvider: VoiceProviderChoice;
+  defaultDurationTier?: DurationTierChoice;
   smokeRenderEnabled?: boolean;
   bgm?: BgmTrackVM[];
   bgmSelected?: string | null;
@@ -259,6 +261,7 @@ const QueueDetail: React.FC<{
   onPauseQueue,
   onResumeQueue,
   onOpenVoiceSettings,
+  defaultDurationTier = 2,
   queueStatus = EMPTY_QUEUE_STATUS,
   queues = [],
 }) => {
@@ -267,7 +270,7 @@ const QueueDetail: React.FC<{
   const [images, setImages] = useState<StagedImage[]>([]);
   const [dragOver, setDragOver] = useState(false);
   const [adding, setAdding] = useState(false);
-  const [durationTier, setDurationTier] = useState<DurationTierChoice>(1);
+  const [durationTier, setDurationTier] = useState<DurationTierChoice>(defaultDurationTier);
   const [videoLanguage, setVideoLanguage] = useState<VideoLanguageChoice>("vi");
   const [voiceProvider, setVoiceProvider] = useState<VoiceProviderChoice>(defaultVoiceProvider);
   const [openKnob, setOpenKnob] = useState<"duration" | "language" | "voice" | null>(null);

@@ -56,6 +56,7 @@ describe("createDashboardClient — invoke channel mapping", () => {
     await api.agent.list();
     await api.agent.createDraft("Ý tưởng mới");
     await api.agent.openDraft("agent-00000000-0000-0000-0000-000000000000");
+    await api.agent.openProject("project-harness");
     await api.agent.status("agent-00000000-0000-0000-0000-000000000000");
     await api.agent.renameDraft("agent-00000000-0000-0000-0000-000000000000", "Tên mới");
     await api.agent.settings("agent-00000000-0000-0000-0000-000000000000");
@@ -67,8 +68,10 @@ describe("createDashboardClient — invoke channel mapping", () => {
     await api.agent.requestMoreAssets("agent-00000000-0000-0000-0000-000000000000", 2, ["asset-01"], "thêm ảnh");
     await api.agent.approveAssets("agent-00000000-0000-0000-0000-000000000000", 2, ["asset-01"]);
     await api.agent.prepareBrief("agent-00000000-0000-0000-0000-000000000000", 3);
+    await api.agent.requestBriefChanges("agent-00000000-0000-0000-0000-000000000000", 3, "Thêm ví dụ thực tế.");
     await api.agent.pauseWorkflow("agent-00000000-0000-0000-0000-000000000000", 3);
     await api.agent.resumeWorkflow("agent-00000000-0000-0000-0000-000000000000", 4);
+    await api.agent.retryWorkflow("agent-00000000-0000-0000-0000-000000000000", 5);
     await api.agent.returnToAssets("agent-00000000-0000-0000-0000-000000000000", 3);
     await api.agent.approveBrief("agent-00000000-0000-0000-0000-000000000000", 3, {
       title: "Video",

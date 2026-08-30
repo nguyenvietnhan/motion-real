@@ -254,6 +254,14 @@ describe("Property 5: Voice config resolution", () => {
 
 // refinePasses clamp + legacy visualQaEnabled migration
 describe("refinePasses clamp + legacy migration", () => {
+  it("defaults and persists the last selected duration tier", () => {
+    const { store, readFile } = memStore(JSON.stringify({ lastDurationTier: 4 }));
+    expect(store.current().lastDurationTier).toBe(4);
+    expect(store.update({ lastDurationTier: 3 }).lastDurationTier).toBe(3);
+    expect(JSON.parse(readFile()!).lastDurationTier).toBe(3);
+    expect(memStore(JSON.stringify({ lastDurationTier: 99 })).store.current().lastDurationTier).toBe(2);
+  });
+
   it("clamps a saved refinePasses into [0,5] on load", () => {
     for (const [saved, want] of [[-3, 0], [0, 0], [2, 2], [5, 5], [9, 5]] as const) {
       const { store } = memStore(JSON.stringify({ refinePasses: saved }));

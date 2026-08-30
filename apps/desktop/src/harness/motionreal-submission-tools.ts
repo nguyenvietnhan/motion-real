@@ -97,18 +97,17 @@ function assetTool(): ToolDefinition {
 function briefTool(): ToolDefinition {
   return {
     name: "motionreal_submit_brief",
-    description: "Submit the completed 9:16 MotionReal creation brief for the current approved asset request.",
+    description: "Submit the content brief for the current approved asset request. The user chooses duration and voice after reviewing it.",
     parameters: {
       type: "object",
       additionalProperties: false,
-      required: ["job_id", "request_revision", "prompt", "duration_tier", "video_language", "voice_provider", "selected_asset_ids"],
+      required: ["job_id", "request_revision", "title", "prompt", "video_language", "selected_asset_ids"],
       properties: {
         job_id: { type: "string", description: "Exact job_id from handoff/brief-request.json" },
         request_revision: { type: "integer", description: "Exact request_revision from handoff/brief-request.json" },
-        prompt: { type: "string", description: "Complete narrative and visual brief used by the MotionReal Create Flow" },
-        duration_tier: { type: "integer", enum: [1, 2, 3, 4], description: "Target duration: 1=45s, 2=90s, 3=150s, 4=210s" },
+        title: { type: "string", description: "Concise proposed title for the video" },
+        prompt: { type: "string", description: "Content brief: audience, facts, narrative arc, visual direction, and intended asset use. Do not prescribe duration, scene count, or voice." },
         video_language: { type: "string", enum: ["vi", "en"] },
-        voice_provider: { type: "string", enum: ["vivibe", "elevenlabs", "vieneu"] },
         selected_asset_ids: { type: "array", items: { type: "string" } },
       },
     },
@@ -120,31 +119,22 @@ function briefTool(): ToolDefinition {
       const jobId = requiredText(input.job_id, "job_id", 128);
       const requestRevision = requiredRevision(input.request_revision);
       assertCurrentRequest(request, jobId, requestRevision);
-      const requestedBrief = requireRecord(request.brief, "brief trong request");
       const selectedAssetIds = uniqueIds(input.selected_asset_ids, "selected_asset_ids");
       const expectedIds = uniqueIds(request.selected_asset_ids, "selected_asset_ids trong request");
       if (!sameIds(selectedAssetIds, expectedIds)) throw new Error("selected_asset_ids không khớp asset đã được duyệt.");
       const videoLanguage = enumValue(input.video_language, "video_language", ["vi", "en"] as const);
-      const voiceProvider = enumValue(input.voice_provider, "voice_provider", ["vivibe", "elevenlabs", "vieneu"] as const);
-      if (videoLanguage === "en" && voiceProvider !== "elevenlabs") throw new Error("Brief tiếng Anh phải dùng ElevenLabs.");
-      const durationTier = input.duration_tier;
-      if (!Number.isSafeInteger(durationTier) || ![1, 2, 3, 4].includes(Number(durationTier))) {
-        throw new Error("duration_tier không hợp lệ.");
-      }
       const payload = {
         version: 1,
         job_id: jobId,
         request_revision: requestRevision,
         brief_revision: 1,
-        title: requiredText(requestedBrief.title, "title trong request", 160),
+        title: requiredText(input.title, "title", 160),
         prompt: requiredText(input.prompt, "prompt", 20_000, 20),
         format: "tiktok",
-        duration_tier: Number(durationTier),
         video_language: videoLanguage,
-        voice_provider: voiceProvider,
         selected_asset_ids: selectedAssetIds,
       };
-      const status = await writeOnce(root, "brief.json", payload, execution.signal);
+      const status = await writeOnce(root, "brief.generated.json", payload, execution.signal);
       return { kind: "brief", status, request_revision: requestRevision };
     },
   };
@@ -153,7 +143,7 @@ function briefTool(): ToolDefinition {
 function authoringTool(): ToolDefinition {
   return {
     name: "motionreal_submit_authoring",
-    description: "Submit scene code for validation/still rendering, or acknowledge the new still images during image_review. Follow the current authoring-request revision.",
+    description: "Submit scene code for validation/still rendering, or complete one bounded visual_refine pass after inspecting current stills. Follow the current authoring-request revision.",
     parameters: {
       type: "object",
       additionalProperties: false,
@@ -163,7 +153,7 @@ function authoringTool(): ToolDefinition {
         request_revision: { type: "integer", description: "Exact request_revision from handoff/authoring-request.json" },
         scene_ids: { type: "array", minItems: 1, maxItems: 30, items: { type: "string" } },
         used_asset_ids: { type: "array", items: { type: "string" }, description: "Asset ids actually referenced by scene.image.ref" },
-        reviewed_scene_ids: { type: "array", items: { type: "string" }, description: "Required during self_review and image_review: every scene whose current PNG was opened with read_image" },
+        reviewed_scene_ids: { type: "array", items: { type: "string" }, description: "Required during visual_refine: every scene whose current PNG was opened with read_image" },
         review_notes: { type: "string", description: "Required during review: observations of the current PNGs, changes and remaining issues" },
       },
     },
@@ -179,17 +169,22 @@ function authoringTool(): ToolDefinition {
       if (sceneIds.length < 1 || sceneIds.length > 30) throw new Error("scene_ids phải có từ 1 đến 30 cảnh.");
       const usedAssetIds = uniqueIds(input.used_asset_ids, "used_asset_ids");
       await validateAuthoredProject(root, request, sceneIds, usedAssetIds, execution.signal);
-      const selfReview = request.phase === "self_review" || request.phase === "image_review";
-      const reviewedSceneIds = selfReview ? uniqueIds(input.reviewed_scene_ids, "reviewed_scene_ids") : [];
-      if (selfReview && !sameIds(reviewedSceneIds, sceneIds)) throw new Error("Self-review phải mở đủ still của mọi scene.");
-      const reviewNotes = selfReview ? requiredText(input.review_notes, "review_notes", 4_000, 10) : undefined;
+      const visualRefine = request.phase === "visual_refine";
+      const reviewedSceneIds = visualRefine ? uniqueIds(input.reviewed_scene_ids, "reviewed_scene_ids") : [];
+      const requestedReviewIds = visualRefine && Array.isArray(request.review_scene_ids)
+        ? uniqueIds(request.review_scene_ids, "review_scene_ids trong request")
+        : sceneIds;
+      if (visualRefine && (requestedReviewIds.some((id) => !sceneIds.includes(id)) || !sameIds(reviewedSceneIds, requestedReviewIds))) {
+        throw new Error("Visual refine phải mở đủ still trong phạm vi được yêu cầu.");
+      }
+      const reviewNotes = visualRefine ? requiredText(input.review_notes, "review_notes", 4_000, 10) : undefined;
       const payload = {
         version: 1,
         job_id: jobId,
         request_revision: requestRevision,
         scene_ids: sceneIds,
         used_asset_ids: usedAssetIds,
-        ...(selfReview ? { reviewed_scene_ids: reviewedSceneIds, review_notes: reviewNotes } : {}),
+        ...(visualRefine ? { reviewed_scene_ids: reviewedSceneIds, review_notes: reviewNotes } : {}),
       };
       const status = await writeOnce(root, "authoring.json", payload, execution.signal);
       return { kind: "authoring", status, request_revision: requestRevision };

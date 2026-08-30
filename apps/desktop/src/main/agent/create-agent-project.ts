@@ -9,6 +9,7 @@ type Deps = {
   readCreateRequest: HarnessManager["readCreateRequest"];
   stageImages: (assets: Array<{ id: string; path: string; role: SceneImageRole }>) => Promise<Array<{ id: string; image: StagedImageRef }>>;
   create: CreateController["create"];
+  persistProjectOwnership: (projectId: string, draftId: string) => Promise<void>;
   linkProject: HarnessManager["linkProject"];
   deleteProject: (projectId: string) => Promise<void>;
   renameProject: (projectId: string, title: string) => Promise<unknown>;
@@ -21,6 +22,13 @@ export async function createAgentProject(draftId: string, deps: Deps): Promise<{
   const current = await deps.status(draftId);
   const request = await deps.readCreateRequest(draftId);
   const staged = await deps.stageImages(request.assets);
+  const requestedIds = new Set(request.assets.map((asset) => asset.id));
+  const stagedIds = new Set(staged.map((asset) => asset.id));
+  if (staged.length !== request.assets.length
+    || stagedIds.size !== staged.length
+    || [...requestedIds].some((id) => !stagedIds.has(id))) {
+    throw new Error("Không stage đủ asset đã duyệt của Agent; video chưa được dựng.");
+  }
   const images = staged.map((asset) => asset.image);
   const roles = new Map(request.assets.map((asset) => [asset.id, asset.role]));
   const authorAssets = staged.map(({ id, image }) => ({
@@ -29,6 +37,7 @@ export async function createAgentProject(draftId: string, deps: Deps): Promise<{
     role: roles.get(id) ?? "support",
   }));
   if (current.projectId) {
+    await deps.persistProjectOwnership(current.projectId, request.draftId);
     await deps.startAuthoring(request.draftId, current.projectId, authorAssets);
     return { projectId: current.projectId };
   }
@@ -40,6 +49,7 @@ export async function createAgentProject(draftId: string, deps: Deps): Promise<{
       creationMode: "harness",
       beforeBeginCreate: async (projectId) => {
         scaffoldedProjectId = projectId;
+        await deps.persistProjectOwnership(projectId, request.draftId);
         await deps.linkProject(request.draftId, projectId);
       },
     });

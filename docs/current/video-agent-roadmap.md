@@ -86,7 +86,7 @@ begins.
 
 ## Phase 1 — Production State Kernel
 
-Status: completed and gated on 2026-08-27.
+Status: superseded by workflow version 2 (2026-08-30).
 
 ### Goal
 
@@ -103,12 +103,9 @@ preparing_brief
 brief_review
 queued_create
 authoring
-still_review
-draft_render
-draft_review
-final_render
+visual_refine
+scene_review
 paused
-completed
 error
 ```
 
@@ -119,7 +116,7 @@ Minimum production metadata:
 
 ```json
 {
-  "workflowVersion": 1,
+  "workflowVersion": 2,
   "workflowRevision": 3,
   "productionState": "asset_review",
   "activeJobId": "job-uuid",
@@ -542,20 +539,20 @@ creating another render engine or review UI.
 
 - A new Agent video uses its approved local assets in the actual scene manifest
   and TSX output.
-- Harness submits initial scenes, visibly performs image-backed self-review, and
-  MotionReal opens the existing per-scene cards without encoding a review MP4.
-- One user scene edit returns to the same Session, changes only the requested
-  scene(s), repeats the still/self-review loop, and never calls Classic
+- Harness submits final-quality scenes, then performs only the configured
+  image-backed visual-refine passes before MotionReal opens per-scene cards.
+- One user scene edit returns to the same Session, re-renders only the requested
+  scene scope, and never calls Classic
   authoring.
 - After the user approves the scenes, the existing TTS/caption/full-render path
   produces a healthy video.
 
 ## Native Vision, Search Integration & Review Stabilization — 2026-08-28
 
-1. **Submission & Creative Rewrite Hardening:** Submission regressions cover asset-role matching, unapproved ref rejection, corrected retries, and component ID-to-file mapping. V2 rewrite comparisons require actual AST/code differentiation beyond mere color/glow adjustments.
+1. **Submission & Final-quality Hardening:** Submission regressions cover asset-role matching, unapproved ref rejection, corrected retries, and component ID-to-file mapping. Initial authoring must be final quality; no forced archive/rewrite stage exists.
 2. **Search Integration (DeepSeek & Exa MCP):** Added explicit selection between DeepSeek and Exa search providers. Exa integrates via native `dsh-mcp-client` over streamable-http, registering `mcp__exa__web_search_exa` with proper catalog assembly barriers.
 3. **Image Route & Capability Declarations:** Pinned model entries explicitly declare `[text, image]` capabilities, routing PNGs through `read_image` directly to model vision context.
-4. **Post-Render Image Review & History Evidence:** V2 authoring and user scene edits generate still images and enforce an `image_review` turn. Main verifies actual `session.history` for successful `read_image` events with image attachments matching byte fingerprints before human review opens.
+4. **Visual Refine & History Evidence:** final-quality authoring and user scene edits generate scoped still images for at most the configured visual-refine passes. Main verifies actual `session.history` for successful `read_image` events with image attachments matching byte fingerprints before human review opens.
 5. **Review-Mode Parity:** Harness bridge branches cleanly based on the project's Settings policy: `full` (draft render + single review pass), `stills_edit` (direct still cards without draft render), and `skip_edit` (automatic full publish). IPC recovery routes recognized Harness projects to their Session or a render retry.
 
 Automated suite passed 140 files / 1,441 tests, typecheck, build, and plugin verification.

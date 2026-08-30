@@ -74,24 +74,6 @@
   padding-right: 28px;
 }
 
-.ns-setting-item .ns-knob-chip::after {
-  content: "";
-  position: absolute;
-  right: 14px;
-  top: calc(50% - 2.5px);
-  display: inline-block;
-  width: 5px;
-  height: 5px;
-  border-right: 1.5px solid var(--muted-foreground);
-  border-bottom: 1.5px solid var(--muted-foreground);
-  transform: rotate(45deg);
-  transition: transform 0.2s ease;
-}
-
-.ns-setting-item .ns-knob-chip.is-open::after {
-  transform: rotate(-135deg) translateY(-0.5px);
-}
-
 .ns-setting-item .ns-knob-pop {
   width: 100%;
 }

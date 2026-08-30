@@ -1,8 +1,8 @@
 import { renderingPhaseLabel, workspaceStageTitle, writingPhaseCopy } from "./stage-labels.js";
-import type { AgentProductionState, ProjectStage } from "./types.js";
+import type { ProjectStage } from "./types.js";
 
 export type AgentProjectProgress = {
-  state: AgentProductionState;
+  state: "authoring" | "rendering" | "scene_review" | "published" | "error";
   label: string;
   percent?: number;
   canCancel: boolean;
@@ -16,15 +16,10 @@ export function agentProjectProgress(stage: ProjectStage): AgentProjectProgress 
       return { state: "authoring", label: writingPhaseCopy(stage.phase), canCancel: true, reviewReady: false };
     case "image-review":
     case "script":
-      return { state: "still_review", label: workspaceStageTitle(stage.kind), canCancel: false, reviewReady: true };
+      return { state: "scene_review", label: workspaceStageTitle(stage.kind), canCancel: false, reviewReady: true };
     case "rendering": {
-      const state = stage.phase === "full"
-        ? "final_render"
-        : stage.phase === "draft" || stage.phase === undefined
-          ? "draft_render"
-          : "still_review";
       return {
-        state,
+        state: "rendering",
         label: renderingPhaseLabel(stage.phase, { qaPass: stage.qaPass, qaTotal: stage.qaTotal }),
         percent: Math.max(0, Math.min(100, stage.percent)),
         canCancel: true,
@@ -32,11 +27,11 @@ export function agentProjectProgress(stage: ProjectStage): AgentProjectProgress 
       };
     }
     case "ready":
-      return { state: stage.draftPath ? "draft_review" : "still_review", label: stage.draftPath ? "Bản nháp sẵn sàng" : "Chờ bạn duyệt từng cảnh", canCancel: false, reviewReady: true };
+      return { state: "scene_review", label: stage.draftPath ? "Bản nháp sẵn sàng" : "Chờ bạn duyệt từng cảnh", canCancel: false, reviewReady: true };
     case "draft-recovery":
-      return { state: "draft_review", label: "Bản nháp cần khôi phục", canCancel: false, reviewReady: true };
+      return { state: "scene_review", label: "Bản nháp cần khôi phục", canCancel: false, reviewReady: true };
     case "published":
-      return { state: "completed", label: "Video đã hoàn tất", canCancel: false, reviewReady: true };
+      return { state: "published", label: "Video đã hoàn tất", canCancel: false, reviewReady: true };
     case "error":
       return { state: "error", label: stage.message, canCancel: false, reviewReady: true };
     default: {

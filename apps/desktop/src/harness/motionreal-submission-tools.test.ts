@@ -66,11 +66,10 @@ describe("MotionReal Harness submission tools", () => {
       required: string[];
       properties: Record<string, unknown>;
     };
-    expect(briefParameters.required).not.toContain("title");
-    expect(briefParameters.properties).not.toHaveProperty("title");
-    expect(briefParameters.properties.duration_tier).toMatchObject({
-      description: "Target duration: 1=45s, 2=90s, 3=150s, 4=210s",
-    });
+    expect(briefParameters.required).toContain("title");
+    expect(briefParameters.properties).toHaveProperty("title");
+    expect(briefParameters.properties).not.toHaveProperty("duration_tier");
+    expect(briefParameters.properties).not.toHaveProperty("voice_provider");
     const assetParameters = tools.get("motionreal_submit_assets")!.parameters as {
       properties: { items: { items: { required: string[]; properties: Record<string, unknown> } } };
     };
@@ -157,27 +156,28 @@ describe("MotionReal Harness submission tools", () => {
       job_id: "job-brief",
       request_revision: 4,
       selected_asset_ids: ["logo", "screen"],
-      brief: { title: "Gemini là gì?" },
+      brief: { title: "Tiêu đề gợi ý" },
     }));
     const tool = tools.get("motionreal_submit_brief")!;
     const args = {
       job_id: "job-brief",
       request_revision: 4,
+      title: "Gemini là gì?",
       prompt: "Giải thích Gemini bằng mạch kể rõ ràng, dùng logo làm hook và màn hình sản phẩm làm bằng chứng trực quan.",
-      duration_tier: 1,
       video_language: "vi",
-      voice_provider: "vieneu",
       selected_asset_ids: ["logo", "screen"],
     };
 
     await expect(tool.execute(args, execution(workspace))).resolves.toMatchObject({ kind: "brief", status: "submitted" });
-    const saved = JSON.parse(await readFile(join(workspace, "handoff", "brief.json"), "utf8"));
-    expect(saved).toMatchObject({ ...args, title: "Gemini là gì?", version: 1, brief_revision: 1, format: "tiktok" });
+    const saved = JSON.parse(await readFile(join(workspace, "handoff", "brief.generated.json"), "utf8"));
+    expect(saved).toMatchObject({ ...args, version: 1, brief_revision: 1, format: "tiktok" });
+    expect(saved).not.toHaveProperty("duration_tier");
+    expect(saved).not.toHaveProperty("voice_provider");
     await expect(tool.execute({ ...args, selected_asset_ids: ["logo"] }, execution(workspace)))
       .rejects.toThrow(/không khớp asset/);
   });
 
-  it.each(["self_review", "image_review"])("requires complete image review metadata in %s", async (reviewPhase) => {
+  it("requires complete image review metadata for visual refine", async () => {
     const { workspace, tools } = await fixture();
     await mkdir(join(workspace, "project", "authored"), { recursive: true });
     await writeFile(join(workspace, "project", "authored", "scene-01.tsx"), "export default {};\n");
@@ -210,7 +210,7 @@ describe("MotionReal Harness submission tools", () => {
       version: 1,
       job_id: "job-author",
       request_revision: 2,
-      phase: reviewPhase,
+      phase: "visual_refine",
       manifest: "project/manifest.json",
       authored_dir: "project/authored",
       assets: [{ id: "logo", ref: "assets/logo.png", role: "logo" }],

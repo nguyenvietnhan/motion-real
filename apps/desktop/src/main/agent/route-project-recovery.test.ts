@@ -2,8 +2,13 @@ import { describe, expect, it, vi } from "vitest";
 import type { AgentProductionState, ProjectStage } from "../../shared/types.js";
 import { routeProjectRecovery } from "./route-project-recovery.js";
 
-function deps(stage: ProjectStage, productionState: AgentProductionState = "still_review") {
+function deps(
+  stage: ProjectStage,
+  productionState: AgentProductionState = "scene_review",
+  creationMode: "classic" | "harness" = "harness",
+) {
   return {
+    ownerOf: vi.fn(async () => creationMode),
     draftForProject: vi.fn(async (): Promise<{ productionState: AgentProductionState } | null> => ({ productionState })),
     stage: vi.fn(async () => stage),
     resumeHarnessRender: vi.fn(async () => undefined),
@@ -14,7 +19,7 @@ function deps(stage: ProjectStage, productionState: AgentProductionState = "stil
 
 describe("project recovery ownership", () => {
   it.each(["retry", "fix", "approve"] as const)("leaves Classic %s unchanged", async (action) => {
-    const d = deps({ kind: "script", lines: [] });
+    const d = deps({ kind: "script", lines: [] }, "scene_review", "classic");
     d.draftForProject.mockResolvedValue(null);
     await routeProjectRecovery("classic", action, d);
     expect(d.classic).toHaveBeenCalledWith("classic", action);
@@ -70,6 +75,13 @@ describe("project recovery ownership", () => {
     const d = deps({ kind: "script", lines: [] });
     d.draftForProject.mockRejectedValue(new Error("metadata unavailable"));
     await expect(routeProjectRecovery("p", "retry", d)).rejects.toThrow("metadata unavailable");
+    expect(d.classic).not.toHaveBeenCalled();
+  });
+
+  it("does not route a Harness project without its Agent draft into Classic recovery", async () => {
+    const d = deps({ kind: "script", lines: [] });
+    d.draftForProject.mockResolvedValue(null);
+    await expect(routeProjectRecovery("p", "retry", d)).rejects.toThrow("không tìm thấy phiên Agent");
     expect(d.classic).not.toHaveBeenCalled();
   });
 });

@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { agentProjectProgress } from "../../shared/agent-project-progress.js";
+import { reviewModeAllowsSceneEdit } from "../../shared/settings-model.js";
 import type {
   AgentBriefInput,
   AgentDraftVM,
@@ -13,10 +14,11 @@ import type {
   VoiceProviderChoice,
 } from "../../shared/types.js";
 import { Icon } from "../icons.js";
-import { ConfirmDialog, EmptyState, LoadingLine, PageHeader, Spinner, StableButtonLabel } from "../primitives.js";
+import { ConfirmDialog, CustomSelect, EmptyState, LoadingLine, PageHeader, Spinner, StableButtonLabel } from "../primitives.js";
 import { useDismissable } from "../use-dismissable.js";
 import { useModalFocus } from "../use-modal-focus.js";
 import { ImageReviewView } from "./image-review.js";
+import { ProjectWorkspaceView } from "./workspace.js";
 import {
   applyVideoLanguageSelection,
   applyVoiceProviderSelection,
@@ -32,31 +34,48 @@ const PRODUCTION_LABELS: Record<AgentProductionState, string> = {
   brief_review: "Chờ duyệt brief",
   queued_create: "Đang chờ tạo video",
   authoring: "Agent đang viết cảnh",
-  still_review: "Chờ duyệt từng cảnh",
-  draft_render: "Đang render draft",
-  draft_review: "Chờ duyệt draft",
-  final_render: "Đang render full",
+  visual_refine: "Agent đang kiểm tra ảnh",
+  scene_review: "Chờ duyệt từng cảnh",
   paused: "Đã tạm dừng",
-  completed: "Đã hoàn tất",
   error: "Cần xử lý lỗi",
 };
 
 const ASSET_ROLE_LABEL = { hero: "Ảnh chính", support: "Bổ trợ", logo: "Logo", icon: "Icon" } as const;
 type Run = (work: () => Promise<void>) => Promise<void>;
 
-export const AgentView: React.FC<{ onOpenProject: (projectId: string) => void; reviewMode: ReviewMode }> = ({
-  onOpenProject,
+export const AgentView: React.FC<{
+  reviewMode: ReviewMode;
+  defaultDurationTier: DurationTierChoice;
+  defaultVoiceProvider: VoiceProviderChoice;
+  incomingDraft?: AgentDraftVM | null;
+  onIncomingDraftHandled?: () => void;
+}> = ({
   reviewMode,
+  defaultDurationTier,
+  defaultVoiceProvider,
+  incomingDraft = null,
+  onIncomingDraftHandled,
 }) => {
   const [drafts, setDrafts] = useState<AgentDraftVM[]>([]);
   const [active, setActive] = useState<AgentDraftVM | null>(null);
+  const [projectProgress, setProjectProgress] = useState<Record<string, ReturnType<typeof agentProjectProgress>>>({});
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     try {
-      setDrafts(await window.dashboard.agent.list());
+      const listed = await window.dashboard.agent.list();
+      setDrafts(listed);
+      const progress = await Promise.all(listed.map(async (draft) => {
+        if (!draft.projectId) return null;
+        try {
+          return [draft.id, agentProjectProgress(await window.dashboard.projects.stage(draft.projectId))] as const;
+        } catch (_error) {
+          return null;
+        }
+      }));
+      setProjectProgress(Object.fromEntries(progress.filter((value): value is readonly [string, ReturnType<typeof agentProjectProgress>] => value !== null)));
       setNotice(null);
     } catch (_error) {
       setNotice("Không đọc được danh sách Video Agent.");
@@ -68,6 +87,13 @@ export const AgentView: React.FC<{ onOpenProject: (projectId: string) => void; r
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  useEffect(() => {
+    if (!incomingDraft) return;
+    setActive(incomingDraft);
+    onIncomingDraftHandled?.();
+    void refresh();
+  }, [incomingDraft, onIncomingDraftHandled, refresh]);
 
   const run = useCallback<Run>(async (work) => {
     setBusy(true);
@@ -121,6 +147,7 @@ export const AgentView: React.FC<{ onOpenProject: (projectId: string) => void; r
     return (
       <AgentLibrary
         drafts={drafts}
+        projectProgress={projectProgress}
         loading={loading}
         busy={busy}
         notice={notice}
@@ -136,6 +163,8 @@ export const AgentView: React.FC<{ onOpenProject: (projectId: string) => void; r
     <AgentWorkspace
       draft={active}
       reviewMode={reviewMode}
+      defaultDurationTier={defaultDurationTier}
+      defaultVoiceProvider={defaultVoiceProvider}
       busy={busy}
       notice={notice}
       onBack={() => {
@@ -147,7 +176,6 @@ export const AgentView: React.FC<{ onOpenProject: (projectId: string) => void; r
         setActive(next);
         setDrafts((current) => current.map((item) => (item.id === next.id ? next : item)));
       }}
-      onOpenProject={onOpenProject}
       run={run}
     />
   );
@@ -155,6 +183,7 @@ export const AgentView: React.FC<{ onOpenProject: (projectId: string) => void; r
 
 type AgentLibraryProps = {
   drafts: AgentDraftVM[];
+  projectProgress?: Record<string, ReturnType<typeof agentProjectProgress>>;
   loading: boolean;
   busy: boolean;
   notice: string | null;
@@ -166,6 +195,7 @@ type AgentLibraryProps = {
 
 export const AgentLibrary: React.FC<AgentLibraryProps> = ({
   drafts,
+  projectProgress = {},
   loading,
   busy,
   notice,
@@ -239,8 +269,8 @@ export const AgentLibrary: React.FC<AgentLibraryProps> = ({
                     <span className="ns-agent-row-icon">{Icon.film({ size: 17 })}</span>
                     <strong>{draft.title}</strong>
                   </span>
-                  <span className={`ns-agent-row-state is-${draft.productionState}`}>
-                    {PRODUCTION_LABELS[draft.productionState]}
+                  <span className={`ns-agent-row-state is-${projectProgress[draft.id]?.state ?? draft.productionState}`}>
+                    {projectProgress[draft.id]?.label ?? PRODUCTION_LABELS[draft.productionState]}
                   </span>
                   <time dateTime={draft.updatedAt}>{formatUpdatedAt(draft.updatedAt)}</time>
                 </button>
@@ -397,22 +427,25 @@ export const AgentNameDialog: React.FC<{
 type AgentWorkspaceProps = {
   draft: AgentDraftVM;
   reviewMode: ReviewMode;
+  /** Defaults preserve the standalone visual-audit fixture; App always supplies Settings values. */
+  defaultDurationTier?: DurationTierChoice;
+  defaultVoiceProvider?: VoiceProviderChoice;
   busy: boolean;
   notice: string | null;
   onBack: () => void;
   onDraftChange: (draft: AgentDraftVM) => void;
-  onOpenProject: (projectId: string) => void;
   run: Run;
 };
 
 export const AgentWorkspace: React.FC<AgentWorkspaceProps> = ({
   draft,
   reviewMode: _reviewMode,
+  defaultDurationTier = 2,
+  defaultVoiceProvider = "vivibe",
   busy,
   notice,
   onBack,
   onDraftChange,
-  onOpenProject,
   run,
 }) => {
   const [briefInput, setBriefInput] = useState<AgentBriefInput | null>(() =>
@@ -420,9 +453,9 @@ export const AgentWorkspace: React.FC<AgentWorkspaceProps> = ({
       ? {
           title: draft.briefReview.title,
           prompt: draft.briefReview.prompt,
-          durationTier: draft.briefReview.durationTier,
+          durationTier: defaultDurationTier,
           videoLanguage: draft.briefReview.videoLanguage,
-          voiceProvider: draft.briefReview.voiceProvider,
+          voiceProvider: defaultVoiceProvider,
         }
       : null,
   );
@@ -435,6 +468,7 @@ export const AgentWorkspace: React.FC<AgentWorkspaceProps> = ({
   const [pendingFullAccess, setPendingFullAccess] = useState(false);
   const [frameKey, setFrameKey] = useState(0);
   const [frameFailed, setFrameFailed] = useState(false);
+  const [showNativeChat, setShowNativeChat] = useState(false);
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -451,12 +485,12 @@ export const AgentWorkspace: React.FC<AgentWorkspaceProps> = ({
     setBriefInput({
       title: draft.briefReview.title,
       prompt: draft.briefReview.prompt,
-      durationTier: draft.briefReview.durationTier,
+      durationTier: defaultDurationTier,
       videoLanguage: draft.briefReview.videoLanguage,
-      voiceProvider: draft.briefReview.voiceProvider,
+      voiceProvider: defaultVoiceProvider,
     });
     setShowBriefReview(true);
-  }, [draft.id, draft.briefReview?.revision]);
+  }, [draft.id, draft.briefReview?.revision, defaultDurationTier, defaultVoiceProvider]);
 
   useEffect(() => {
     if (!draft.projectId) {
@@ -499,17 +533,23 @@ export const AgentWorkspace: React.FC<AgentWorkspaceProps> = ({
     (draft.productionState === "asset_review" && draft.assetReview) ||
       (draft.productionState === "brief_review" && draft.briefReview && showBriefReview),
   );
+  const showProjectSurface = Boolean(
+    draft.projectId
+      && projectStage
+      && (liveProgress?.state === "scene_review" || liveProgress?.state === "published" || liveProgress?.state === "error"),
+  );
   const workflowObscuresChat =
-    !reviewObscuresChat &&
-    [
+    !showNativeChat && !reviewObscuresChat && !showProjectSurface &&
+    ([
       "collecting_assets",
       "preparing_brief",
       "queued_create",
       "authoring",
-      "draft_render",
-      "final_render",
+      "visual_refine",
       "paused",
-    ].includes(draft.productionState);
+    ].includes(draft.productionState)
+      || liveProgress?.state === "authoring"
+      || liveProgress?.state === "rendering");
 
   const openSettings = () => {
     setSettingsOpen(true);
@@ -526,10 +566,17 @@ export const AgentWorkspace: React.FC<AgentWorkspaceProps> = ({
         icon: Icon.play({ size: 15 }),
         run: () => updateDraft(() => window.dashboard.agent.resumeWorkflow(draft.id, draft.workflowRevision)),
       };
+    if (draft.productionState === "error")
+      return {
+        label: "Thử lại bước này",
+        icon: Icon.refresh({ size: 15 }),
+        run: () => updateDraft(() => window.dashboard.agent.retryWorkflow(draft.id, draft.workflowRevision)),
+      };
     if (
       draft.productionState === "collecting_assets" ||
       draft.productionState === "preparing_brief" ||
-      draft.productionState === "authoring"
+      draft.productionState === "authoring" ||
+      draft.productionState === "visual_refine"
     )
       return {
         label: "Dừng",
@@ -567,19 +614,8 @@ export const AgentWorkspace: React.FC<AgentWorkspaceProps> = ({
             onDraftChange(await window.dashboard.agent.status(draft.id));
           }),
       };
-    if (draft.projectId)
-      return {
-        label:
-          liveProgress?.state === "still_review"
-            ? "Duyệt từng cảnh"
-            : liveProgress?.state === "draft_review"
-              ? "Xem draft"
-              : "Mở dự án",
-        icon: Icon.film({ size: 15 }),
-        run: () => Promise.resolve(onOpenProject(draft.projectId!)),
-      };
     return null;
-  }, [draft, liveProgress?.state, onOpenProject]);
+  }, [draft, liveProgress?.canCancel, liveProgress?.state]);
 
   return (
     <section className="ns-agent-view ns-agent-workspace" aria-label={`Video Agent ${draft.title}`}>
@@ -688,8 +724,16 @@ export const AgentWorkspace: React.FC<AgentWorkspaceProps> = ({
             ).catch((_error) => undefined);
           }}
           onApprove={() => {
+            void run(async () => {
+              const accepted = await window.dashboard.agent.approveBrief(draft.id, draft.workflowRevision, briefInput);
+              onDraftChange(accepted);
+              await window.dashboard.agent.createVideo(draft.id);
+              onDraftChange(await window.dashboard.agent.status(draft.id));
+            }).catch((_error) => undefined);
+          }}
+          onRequestChanges={(feedback) => {
             void updateDraft(() =>
-              window.dashboard.agent.approveBrief(draft.id, draft.workflowRevision, briefInput),
+              window.dashboard.agent.requestBriefChanges(draft.id, draft.workflowRevision, feedback),
             ).catch((_error) => undefined);
           }}
         />
@@ -704,15 +748,59 @@ export const AgentWorkspace: React.FC<AgentWorkspaceProps> = ({
         </div>
       )}
 
+      {showProjectSurface && projectStage && draft.projectId && (
+        <ProjectWorkspaceView
+          stage={projectStage}
+          projectId={draft.projectId}
+          hideHeader
+          allowSceneEdit={reviewModeAllowsSceneEdit(_reviewMode)}
+          loadDiagnostics={(id) => window.dashboard.projects.diagnostics(id)}
+          onBack={onBack}
+          onRetry={() => {
+            const retry = projectStage.kind === "error" ? projectStage.retry : undefined;
+            if (retry === "full") void window.dashboard.review.approveDraft(draft.projectId!);
+            else if (retry === "draft") void window.dashboard.projects.fixWithAi(draft.projectId!);
+            else void window.dashboard.projects.retry(draft.projectId!);
+          }}
+          onFixWithAi={() => void window.dashboard.projects.fixWithAi(draft.projectId!)}
+          onApplyScript={(edits) => void window.dashboard.script.applyEdits(draft.projectId!, edits)}
+          onApproveScript={() => void window.dashboard.script.approve(draft.projectId!)}
+          onSubmitEdits={async (perScene, globalNotes) => {
+            try {
+              const result = await window.dashboard.review.submitEdits(draft.projectId!, { perScene, globalNotes });
+              return result.ok !== false;
+            } catch (_error) {
+              return false;
+            }
+          }}
+          onApproveDraft={() => void window.dashboard.review.approveDraft(draft.projectId!)}
+          onReveal={() => void window.dashboard.projects.reveal(draft.projectId!)}
+          onSave={() => void window.dashboard.projects.save(draft.projectId!)}
+          onCancel={() => void window.dashboard.projects.cancel(draft.projectId!)}
+          onSubmitImageReview={(refs) => void window.dashboard.projects.submitImageReview(draft.projectId!, refs)}
+          onGenerateThumbnail={() => window.dashboard.thumbnail.generate(draft.projectId!)}
+          onSaveThumbnail={() => window.dashboard.thumbnail.save(draft.projectId!)}
+        />
+      )}
+
       {workflowObscuresChat && (
         <AgentWorkflowProgress
           label={progressLabel}
           activities={draft.activities}
           paused={draft.productionState === "paused"}
+          needsAttention={draft.needsAttention === true}
+          onOpenChat={() => setShowNativeChat(true)}
         />
       )}
 
-      {!reviewObscuresChat && !workflowObscuresChat && draft.harnessUrl && !frameFailed && (
+      {showNativeChat && (
+        <div className="ns-agent-inline-action ns-card">
+          <span>Đang mở chat để bạn phản hồi Agent.</span>
+          <button type="button" className="ns-btn" onClick={() => setShowNativeChat(false)}>Quay lại quy trình</button>
+        </div>
+      )}
+
+      {!reviewObscuresChat && !showProjectSurface && !workflowObscuresChat && draft.harnessUrl && !frameFailed && (
         <iframe
           key={`${draft.harnessUrl}-${frameKey}`}
           className="ns-agent-frame"
@@ -724,7 +812,7 @@ export const AgentWorkspace: React.FC<AgentWorkspaceProps> = ({
         />
       )}
 
-      {!reviewObscuresChat && !workflowObscuresChat && (!draft.harnessUrl || frameFailed) && (
+      {!reviewObscuresChat && !showProjectSurface && !workflowObscuresChat && (!draft.harnessUrl || frameFailed) && (
         <div className="ns-agent-placeholder">
           <Spinner />
           <p>{frameFailed ? "Không mở được cuộc trò chuyện Agent." : "Đang khởi động Agent…"}</p>
@@ -809,7 +897,9 @@ const AgentWorkflowProgress: React.FC<{
   label: string;
   activities?: AgentDraftVM["activities"];
   paused: boolean;
-}> = ({ label, activities, paused }) => (
+  needsAttention?: boolean;
+  onOpenChat?: () => void;
+}> = ({ label, activities, paused, needsAttention = false, onOpenChat }) => (
   <section className="ns-agent-workflow-progress" aria-label="Tiến trình Video Agent">
     <div className="ns-agent-workflow-card ns-card">
       <div className="ns-agent-workflow-header">
@@ -843,6 +933,12 @@ const AgentWorkflowProgress: React.FC<{
           )}
         </ol>
       </div>
+      {needsAttention && onOpenChat && (
+        <div className="ns-agent-workflow-attention">
+          <span>Agent cần bạn phản hồi.</span>
+          <button type="button" className="ns-btn ns-btn-primary" onClick={onOpenChat}>Mở chat</button>
+        </div>
+      )}
     </div>
   </section>
 );
@@ -855,9 +951,23 @@ const BriefReview: React.FC<{
   onContinue: () => void;
   onReturn: () => void;
   onApprove: () => void;
-}> = ({ draft, input, busy, onInput, onContinue, onReturn, onApprove }) => {
+  onRequestChanges: (feedback: string) => void;
+}> = ({ draft, input, busy, onInput, onContinue, onReturn, onApprove, onRequestChanges }) => {
   const [openKnob, setOpenKnob] = useState<null | "duration" | "language" | "voice">(null);
   const [editPromptOpen, setEditPromptOpen] = useState(false);
+  const [feedback, setFeedback] = useState("");
+  const [copiedPrompt, setCopiedPrompt] = useState(false);
+
+  const copyPrompt = (): void => {
+    if (!input.prompt.trim()) return;
+    void navigator.clipboard?.writeText(input.prompt).then(
+      () => {
+        setCopiedPrompt(true);
+        setTimeout(() => setCopiedPrompt(false), 1500);
+      },
+      () => {},
+    );
+  };
 
   return (
     <section className="ns-agent-brief-review" aria-label="Duyệt brief">
@@ -944,16 +1054,40 @@ const BriefReview: React.FC<{
         <div className="ns-agent-brief-copy">
           <div className="ns-agent-brief-copy-head">
             <span className="ns-agent-brief-label">Nội dung kịch bản:</span>
-            <button
-              type="button"
-              className="ns-agent-prompt-edit-toggle"
-              onClick={() => setEditPromptOpen((prev) => !prev)}
-            >
-              <span style={{ transform: editPromptOpen ? "rotate(90deg)" : "none", transition: "transform 0.15s" }}>
-                {Icon.chevronRight({ size: 14 })}
-              </span>
-              <span>{editPromptOpen ? "Ẩn trình sửa văn bản" : "Chỉnh sửa văn bản thô"}</span>
-            </button>
+            <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+              <button
+                type="button"
+                className={`ns-agent-prompt-edit-toggle${copiedPrompt ? " is-copied" : ""}`}
+                onClick={copyPrompt}
+                title="Sao chép kịch bản brief"
+                aria-label={copiedPrompt ? "Đã sao chép kịch bản" : "Sao chép kịch bản"}
+              >
+                {copiedPrompt ? Icon.check({ size: 14 }) : Icon.copy({ size: 14 })}
+                <span>{copiedPrompt ? "Đã sao chép" : "Sao chép brief"}</span>
+              </button>
+              <button
+                type="button"
+                className="ns-agent-prompt-edit-toggle"
+                onClick={() => setEditPromptOpen((prev) => !prev)}
+              >
+                <span
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    flexShrink: 0,
+                    width: 14,
+                    height: 14,
+                    transformOrigin: "center center",
+                    transform: editPromptOpen ? "rotate(90deg)" : "rotate(0deg)",
+                    transition: "transform 0.15s cubic-bezier(0.16, 1, 0.3, 1)",
+                  }}
+                >
+                  {Icon.chevronRight({ size: 14 })}
+                </span>
+                <span>{editPromptOpen ? "Ẩn trình sửa văn bản" : "Chỉnh sửa văn bản thô"}</span>
+              </button>
+            </div>
           </div>
 
           {editPromptOpen && (
@@ -971,6 +1105,32 @@ const BriefReview: React.FC<{
           <BriefMarkdown text={input.prompt} />
         </div>
 
+        <div className="ns-agent-brief-field">
+          <label className="ns-agent-brief-label" htmlFor="agent-brief-feedback">Yêu cầu Agent chỉnh brief</label>
+          <textarea
+            id="agent-brief-feedback"
+            className="ns-input ns-agent-brief-feedback"
+            value={feedback}
+            maxLength={2000}
+            placeholder="Ví dụ: Mở đầu rõ vấn đề người mới gặp, thêm ví dụ thực tế, giảm phần kỹ thuật…"
+            onChange={(event) => setFeedback(event.target.value)}
+            disabled={busy}
+          />
+          <button
+            type="button"
+            className="ns-btn ns-btn-secondary"
+            disabled={busy || !feedback.trim()}
+            onClick={() => {
+              const next = feedback.trim();
+              if (!next) return;
+              setFeedback("");
+              onRequestChanges(next);
+            }}
+          >
+            Yêu cầu chỉnh brief
+          </button>
+        </div>
+
         {/* Approved Assets */}
         {draft.assetReview && draft.assetReview.length > 0 && (
           <div className="ns-agent-brief-assets-section">
@@ -980,7 +1140,7 @@ const BriefReview: React.FC<{
                 .filter((asset) => draft.briefReview?.selectedAssetIds.includes(asset.id))
                 .map((asset) => (
                   <div key={asset.id} className="ns-agent-brief-asset-card">
-                    <img src={asset.previewUrl} alt={asset.label} title={asset.label} />
+                    <img src={asset.previewUrl} alt={asset.label} title={asset.label} loading="lazy" decoding="async" />
                     <span className="ns-agent-brief-asset-label">{asset.label}</span>
                   </div>
                 ))}
@@ -1055,7 +1215,7 @@ const BriefMarkdown: React.FC<{ text: string }> = ({ text }) => {
   );
 };
 
-const AgentSettingsDialog: React.FC<{
+export const AgentSettingsDialog: React.FC<{
   open: boolean;
   busy: boolean;
   settings: AgentSettingsVM | null;
@@ -1135,16 +1295,16 @@ const AgentSettingsDialog: React.FC<{
                   <label htmlFor="agent-search-provider" className="ns-agent-settings-label">
                     Dịch vụ tìm kiếm
                   </label>
-                  <select
+                  <CustomSelect
                     id="agent-search-provider"
-                    className="ns-input"
                     value={settings.searchProvider}
                     disabled={busy}
-                    onChange={(event) => onSearchProvider(event.target.value as AgentSearchProvider)}
-                  >
-                    <option value="deepseek">DeepSeek Search</option>
-                    <option value="exa">Exa hosted</option>
-                  </select>
+                    onChange={(val) => onSearchProvider(val as AgentSearchProvider)}
+                    options={[
+                      { value: "deepseek", label: "DeepSeek Search" },
+                      { value: "exa", label: "Exa hosted" },
+                    ]}
+                  />
                 </div>
 
                 {settings.searchProvider === "deepseek" && (
@@ -1204,22 +1364,20 @@ const AgentSettingsDialog: React.FC<{
                     <label htmlFor="agent-model-select" className="ns-agent-settings-label">
                       Model hiện tại
                     </label>
-                    <select
+                    <CustomSelect
                       id="agent-model-select"
-                      className="ns-input"
                       value={settings.currentModelId ?? ""}
                       disabled={busy}
-                      onChange={(event) => onModel(event.target.value)}
-                    >
-                      {settings.modelOptions.map((option) => (
-                        <option key={option.id} value={option.id}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
+                      onChange={(val) => onModel(val)}
+                      options={settings.modelOptions.map((opt) => ({
+                        value: opt.id,
+                        label: opt.label,
+                      }))}
+                    />
                   </div>
-                )}
-              </div>
+          )}
+        </div>
+
             </div>
 
             {/* Access Permissions */}

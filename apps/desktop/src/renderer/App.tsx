@@ -20,7 +20,7 @@ import { aiReady } from "../shared/ai-ready.js";
 import type { CreatePathSettingsTab } from "../shared/create-path-readiness.js";
 import { preferredModelDecision } from "../shared/model-selection.js";
 import { defaultSettings, FULL_AUTO_SETTINGS_PATCH, reviewModeAllowsSceneEdit } from "../shared/settings-model.js";
-import type { BgmTrackVM, ModelInfo, ProjectCardVM, ProjectStage } from "../shared/types.js";
+import type { AgentDraftVM, BgmTrackVM, ModelInfo, ProjectCardVM, ProjectStage } from "../shared/types.js";
 import type { QueueProjectVM, QueueRunnerStatus } from "../shared/queue-types.js";
 import { EMPTY_QUEUE_STATUS } from "./views/queue.js";
 import { compactNotificationMessage, errorDetails, NotificationProvider, useNotifications } from "./notifications.js";
@@ -57,6 +57,7 @@ const AppShell: React.FC = () => {
   const [models, setModels] = useState<ModelInfo[]>([]);
   const [preferredModelUnavailable, setPreferredModelUnavailable] = useState<string | undefined>();
   const [openProjectId, setOpenProjectId] = useState<string | null>(null);
+  const [agentEntryDraft, setAgentEntryDraft] = useState<AgentDraftVM | null>(null);
   const [stage, setStage] = useState<ProjectStage>({ kind: "writing" });
   /** Home create-time BGM library + selection (written at create; not on storyboard). */
   const [bgm, setBgm] = useState<BgmTrackVM[]>([]);
@@ -257,6 +258,18 @@ const AppShell: React.FC = () => {
   }, []);
 
   const openProject = (projectId: string) => {
+    const card = galleryCardsRef.current.find((item) => item.projectId === projectId);
+    if (card?.creationMode === "harness") {
+      if (!dash) return;
+      void dash.agent.openProject(projectId).then((draft) => {
+        setAgentEntryDraft(draft);
+        setScreen("agent");
+      }).catch((error: unknown) => {
+        const details = errorDetails(error);
+        notify.error({ title: "Không mở được Video Agent", message: compactNotificationMessage(details, "Thử lại."), details });
+      });
+      return;
+    }
     setOpenProjectId(projectId);
     setStage({ kind: "writing" });
     setScreen("workspace");
@@ -470,6 +483,7 @@ const AppShell: React.FC = () => {
             cards={state.gallery.cards}
             onConnectPrompt={(tab?: CreatePathSettingsTab) => openSettings(tab ?? "ai")}
             defaultVoiceProvider={settings.voiceProvider}
+            defaultDurationTier={settings.lastDurationTier}
             smokeRenderEnabled={settings.smokeRenderEnabled}
             onRenderSmoke={(opts) => {
               if (!dash) return Promise.reject(new Error("Dashboard API is unavailable"));
@@ -580,6 +594,7 @@ const AppShell: React.FC = () => {
             active={activeQueueId ? queues.find((q) => q.id === activeQueueId) ?? null : null}
             load={queueLoad}
             defaultVoiceProvider={settings.voiceProvider}
+            defaultDurationTier={settings.lastDurationTier}
             smokeRenderEnabled={settings.smokeRenderEnabled}
             bgm={bgm}
             bgmSelected={createBgmSelected}
@@ -701,7 +716,15 @@ const AppShell: React.FC = () => {
           />
         )}
 
-        {screen === "agent" && <AgentView onOpenProject={openProject} reviewMode={settings.reviewMode} />}
+        {screen === "agent" && (
+          <AgentView
+            reviewMode={settings.reviewMode}
+            defaultDurationTier={settings.lastDurationTier}
+            defaultVoiceProvider={settings.voiceProvider}
+            incomingDraft={agentEntryDraft}
+            onIncomingDraftHandled={() => setAgentEntryDraft(null)}
+          />
+        )}
 
         {screen === "settings" && (
           <SettingsView
