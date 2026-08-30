@@ -1,7 +1,12 @@
 import assert from "node:assert/strict";
 import { createServer } from "node:net";
 import test from "node:test";
-import { findFreePort } from "./launch-utils.mjs";
+import { DEV_SERVER_HOST, devServerUrl, findFreePort } from "./launch-utils.mjs";
+
+test("dev server URL uses the same loopback address as the port probe", () => {
+  assert.equal(devServerUrl(5174), `http://${DEV_SERVER_HOST}:5174`);
+  assert.equal(DEV_SERVER_HOST, "127.0.0.1");
+});
 
 test("findFreePort leaves an occupied listener untouched", async (t) => {
   const listener = createServer();

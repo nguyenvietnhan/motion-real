@@ -1,10 +1,16 @@
 import { createServer } from "node:net";
 
+export const DEV_SERVER_HOST = "127.0.0.1";
+
+export function devServerUrl(port) {
+  return `http://${DEV_SERVER_HOST}:${port}`;
+}
+
 function portFree(port) {
   return new Promise((resolvePort) => {
     const server = createServer();
     server.once("error", () => resolvePort(false));
-    server.listen(port, "127.0.0.1", () => server.close(() => resolvePort(true)));
+    server.listen(port, DEV_SERVER_HOST, () => server.close(() => resolvePort(true)));
   });
 }
 

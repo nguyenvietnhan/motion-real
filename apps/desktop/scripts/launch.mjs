@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 // dirname used for MotionReal.exe next to stock electron.exe
 import electronPath from "electron";
-import { findFreePort } from "./launch-utils.mjs";
+import { DEV_SERVER_HOST, devServerUrl, findFreePort } from "./launch-utils.mjs";
 
 /**
  * Dev launcher:
@@ -107,9 +107,9 @@ async function main() {
   await run(process.execPath, [resolve(appDir, "build-electron.mjs")], { cwd: appDir });
 
   const port = await resolveDevPort();
-  const devUrl = `http://localhost:${port}`;
+  const devUrl = devServerUrl(port);
   console.log(`[launch] starting Vite on ${devUrl}…`);
-  const vite = spawn("npx", ["vite", "--port", String(port), "--strictPort"], {
+  const vite = spawn("npx", ["vite", "--host", DEV_SERVER_HOST, "--port", String(port), "--strictPort"], {
     cwd: appDir,
     stdio: "inherit",
     shell: process.platform === "win32",
