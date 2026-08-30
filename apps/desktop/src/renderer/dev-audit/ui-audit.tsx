@@ -1,5 +1,6 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
+import type { DashboardApi } from "../../shared/ipc-contract.js";
 import { defaultSettings } from "../../shared/settings-model.js";
 import type { AiAccountState, ProjectCardVM } from "../../shared/types.js";
 import { Sidebar } from "../views/sidebar.js";
@@ -77,49 +78,131 @@ const mockDraft: import("../../shared/types.js").AgentDraftVM = {
   ],
 };
 
-if (typeof window !== "undefined" && !(window as any).dashboard) {
-  (window as any).dashboard = {
-    agent: {
-      list: async () => [mockDraft],
-      create: async () => mockDraft,
-      delete: async () => true,
-      openWorkspace: async () => mockDraft,
-      status: async () => mockDraft,
-      stopSession: async () => mockDraft,
-      resumeSession: async () => mockDraft,
-      settings: async () => ({
-        searchProvider: "deepseek",
-        webSearchConfigured: true,
-        currentModelId: "deepseek-chat",
-        modelOptions: [
-          { id: "deepseek-chat", label: "DeepSeek V3 (Khuyên dùng)" },
-          { id: "deepseek-reasoner", label: "DeepSeek R1 (Lý luận sâu)" },
-        ],
-        currentAccessId: "danger-full-access",
-        accessOptions: [
-          { id: "danger-full-access", label: "Toàn quyền (Terminal & Tệp)", description: "Agent có thể chạy lệnh terminal và tạo sửa tệp tự do." },
-          { id: "workspace-write", label: "Chỉ ghi tệp trong workspace", description: "Agent chỉ được sửa tệp trong thư mục dự án." },
-        ],
-      }),
-      setSearchProvider: async () => ({ searchProvider: "deepseek", webSearchConfigured: true, currentModelId: "deepseek-chat", modelOptions: [], currentAccessId: "danger-full-access", accessOptions: [] }),
-      setSearchApiKey: async () => ({ searchProvider: "deepseek", webSearchConfigured: true, currentModelId: "deepseek-chat", modelOptions: [], currentAccessId: "danger-full-access", accessOptions: [] }),
-      setModel: async () => ({ searchProvider: "deepseek", webSearchConfigured: true, currentModelId: "deepseek-chat", modelOptions: [], currentAccessId: "danger-full-access", accessOptions: [] }),
-      setAccess: async () => ({ searchProvider: "deepseek", webSearchConfigured: true, currentModelId: "deepseek-chat", modelOptions: [], currentAccessId: "danger-full-access", accessOptions: [] }),
-      updateBriefChoices: async () => mockDraft,
-      approveBrief: async () => mockDraft,
-      approveAssets: async () => mockDraft,
-      requestMoreAssets: async () => mockDraft,
-    },
-    events: {
-      onProgress: () => () => {},
-      onStatus: () => () => {},
-      onScene: () => () => {},
-      onFriendlyError: () => () => {},
-    },
-    projects: {
-      stage: async () => null,
-    },
-  };
+const auditSettings = {
+  searchProvider: "deepseek" as const,
+  webSearchConfigured: true,
+  currentModelId: "deepseek-chat",
+  modelOptions: [
+    { id: "deepseek-chat", label: "DeepSeek V3 (Khuyên dùng)" },
+    { id: "deepseek-reasoner", label: "DeepSeek R1 (Lý luận sâu)" },
+  ],
+  currentAccessId: "danger-full-access",
+  accessOptions: [
+    { id: "danger-full-access", label: "Toàn quyền (Terminal & Tệp)", description: "Agent có thể chạy lệnh terminal và tạo sửa tệp tự do.", requiresConfirmation: true },
+    { id: "workspace-write", label: "Chỉ ghi tệp trong workspace", description: "Agent chỉ được sửa tệp trong thư mục dự án.", requiresConfirmation: false },
+  ],
+};
+
+const auditDashboard = {
+  ai: {
+    gatewayState: async () => ({ kind: "ready" as const, baseUrl: "http://127.0.0.1:20128" }),
+    listProviders: async () => [],
+    connectedAccounts: async () => account,
+    beginConnect: async () => ({ loginSurface: "external-browser" as const }),
+    listModels: async () => [],
+    selectModel: async () => account,
+    selectedModel: async () => account.selectedModel,
+  },
+  agent: {
+    list: async () => [mockDraft],
+    createDraft: async () => mockDraft,
+    openDraft: async () => mockDraft,
+    openProject: async () => mockDraft,
+    status: async () => mockDraft,
+    renameDraft: async () => mockDraft,
+    settings: async () => auditSettings,
+    selectModel: async () => auditSettings,
+    setAccess: async () => auditSettings,
+    setSearchApiKey: async () => mockDraft,
+    setSearchProvider: async () => {},
+    prepareAssets: async () => mockDraft,
+    requestMoreAssets: async () => mockDraft,
+    approveAssets: async () => mockDraft,
+    prepareBrief: async () => mockDraft,
+    requestBriefChanges: async () => mockDraft,
+    pauseWorkflow: async () => mockDraft,
+    resumeWorkflow: async () => mockDraft,
+    retryWorkflow: async () => mockDraft,
+    returnToAssets: async () => mockDraft,
+    approveBrief: async () => mockDraft,
+    createVideo: async () => ({ projectId: "project-audit" }),
+    deleteDraft: async () => {},
+  },
+  projects: {
+    pickImages: async () => ({ staged: [], rejected: [] }),
+    importImageBytes: async () => ({ staged: [], rejected: [] }),
+    removeStagedImage: async () => {},
+    create: async () => ({ kind: "started" as const, projectId: "project-audit" }),
+    list: async () => cards,
+    open: async () => ({ projectId: "project-audit", globalNotes: "", scenes: [] }),
+    stage: async () => ({ kind: "ready" as const, scenes: [] }),
+    rename: async () => "Tên mới",
+    delete: async () => {},
+    reveal: async () => {},
+    save: async () => ({ saved: false }),
+    cancel: async () => {},
+    retry: async () => {},
+    fixWithAi: async () => {},
+    submitImageReview: async () => {},
+    diagnostics: async () => ({ projectId: "project-audit", truncated: false, entries: [] }),
+  },
+  bgm: {
+    list: async () => [],
+    add: async () => [],
+    remove: async () => [],
+    getForProject: async () => null,
+    setForProject: async () => {},
+  },
+  thumbnail: {
+    generate: async () => null,
+    save: async () => ({ saved: false }),
+  },
+  script: {
+    get: async () => ({ projectId: "project-audit", enabled: false, script: [] }),
+    applyEdits: async () => ({ ok: true }),
+    approve: async () => {},
+    setEnabled: async () => {},
+  },
+  review: {
+    submitEdits: async () => ({ accepted: true }),
+    approveDraft: async () => ({ started: true }),
+  },
+  settings: {
+    get: async () => defaultSettings(""),
+    update: async () => defaultSettings(""),
+    readiness: async () => ({ ready: false, checks: [] }),
+    renderSmoke: async () => ({ ok: false as const, error: "Không chạy audit render." }),
+  },
+  queue: {
+    list: async () => [],
+    get: async () => null,
+    create: async () => auditQueue,
+    delete: async () => true,
+    rename: async () => auditQueue,
+    addJob: async () => auditQueue,
+    updateJob: async () => auditQueue,
+    deleteJob: async () => auditQueue,
+    cancelJob: async () => ({ ok: true as const }),
+    start: async () => ({ ok: false as const, code: "FULL_AUTO_REQUIRED" as const, error: "Không chạy audit queue." }),
+    pause: async () => ({ ok: true as const }),
+    resume: async () => ({ ok: false as const, code: "FULL_AUTO_REQUIRED" as const, error: "Không chạy audit queue." }),
+    status: async () => ({ active: false, queueId: null, jobId: null }),
+  },
+  tts: {
+    setApiKey: async () => defaultSettings(""),
+    clearApiKey: async () => defaultSettings(""),
+    testVoice: async () => ({ ok: false, error: "Không chạy audit giọng." }),
+  },
+  events: {
+    onProgress: () => () => {},
+    onStatus: () => () => {},
+    onScene: () => () => {},
+    onFriendlyError: () => () => {},
+  },
+} satisfies DashboardApi;
+
+if (typeof window !== "undefined" && !window.dashboard) {
+  window.dashboard = auditDashboard;
 }
 
 const content = screen === "projects" ? (
