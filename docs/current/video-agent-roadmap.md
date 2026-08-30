@@ -82,7 +82,7 @@ begins.
 
 - The smoke checklist passes twice without restarting Harness between videos.
 - MotionReal typecheck, tests, and build pass.
-- No existing project, Create Flow, or `skill-test` artifact changes.
+- No unrelated project or Create Flow changes.
 
 ## Phase 1 — Production State Kernel
 
