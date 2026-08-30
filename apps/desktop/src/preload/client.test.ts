@@ -57,7 +57,7 @@ describe("createDashboardClient — invoke channel mapping", () => {
     await api.agent.createDraft("Ý tưởng mới");
     await api.agent.openDraft("agent-00000000-0000-0000-0000-000000000000");
     await api.agent.openProject("project-harness");
-    await api.agent.status("agent-00000000-0000-0000-0000-000000000000");
+    await api.agent.status("agent-00000000-0000-0000-0000-000000000000", { includeActivities: true });
     await api.agent.renameDraft("agent-00000000-0000-0000-0000-000000000000", "Tên mới");
     await api.agent.settings("agent-00000000-0000-0000-0000-000000000000");
     await api.agent.selectModel("agent-00000000-0000-0000-0000-000000000000", "model-option");
@@ -155,6 +155,12 @@ describe("createDashboardClient — invoke channel mapping", () => {
     expect(invokes.find((i) => i.channel === "script:applyEdits")?.args).toEqual([
       "p9",
       [{ sceneId: "scene-02", headline: "H" }],
+    ]);
+
+    await api.agent.status("agent-activity", { includeActivities: true });
+    expect(invokes.find((i) => i.channel === "agent:status")?.args).toEqual([
+      "agent-activity",
+      { includeActivities: true },
     ]);
   });
 });

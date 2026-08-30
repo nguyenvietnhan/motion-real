@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { agentProjectProgress } from "../../shared/agent-project-progress.js";
+import { agentProjectProgress, shouldPollAgentActivities, shouldPollProjectStage } from "../../shared/agent-project-progress.js";
 import { reviewModeAllowsSceneEdit } from "../../shared/settings-model.js";
 import type {
   AgentBriefInput,
@@ -488,11 +488,16 @@ export const AgentWorkspace: React.FC<AgentWorkspaceProps> = ({
   const [showNativeChat, setShowNativeChat] = useState(false);
 
   useEffect(() => {
+    if (!shouldPollAgentActivities(draft.productionState, showNativeChat)) return;
+    const refresh = (): void => {
+      void window.dashboard.agent.status(draft.id, { includeActivities: true }).then(onDraftChange).catch((_error) => undefined);
+    };
+    refresh();
     const timer = window.setInterval(() => {
-      void window.dashboard.agent.status(draft.id).then(onDraftChange).catch((_error) => undefined);
+      refresh();
     }, 1_500);
     return () => window.clearInterval(timer);
-  }, [draft.id, onDraftChange]);
+  }, [draft.id, draft.productionState, onDraftChange, showNativeChat]);
 
   useEffect(() => {
     if (!draft.briefReview) {
@@ -522,18 +527,41 @@ export const AgentWorkspace: React.FC<AgentWorkspaceProps> = ({
       return;
     }
     let alive = true;
-    const refreshStage = async () => {
+    let refreshInFlight = false;
+    let fallbackTimer: number | undefined;
+    const clearFallback = (): void => {
+      if (fallbackTimer !== undefined) window.clearTimeout(fallbackTimer);
+      fallbackTimer = undefined;
+    };
+    const scheduleFallback = (): void => {
+      if (!alive || fallbackTimer !== undefined) return;
+      fallbackTimer = window.setTimeout(() => {
+        fallbackTimer = undefined;
+        void refreshStage();
+      }, 1_500);
+    };
+    const refreshStage = async (): Promise<void> => {
+      if (refreshInFlight) return;
+      refreshInFlight = true;
       try {
         const next = await window.dashboard.projects.stage(draft.projectId!);
-        if (alive) setProjectStage(next);
+        if (alive) {
+          setProjectStage(next);
+          if (shouldPollProjectStage(agentProjectProgress(next))) scheduleFallback();
+          else clearFallback();
+        }
       } catch (_error) {
         /* keep last authoritative stage */
+      } finally {
+        refreshInFlight = false;
       }
     };
     void refreshStage();
-    const interval = window.setInterval(() => void refreshStage(), 1_500);
     const refreshForProject = (event: { projectId?: string }) => {
-      if (event.projectId === draft.projectId) void refreshStage();
+      if (event.projectId === draft.projectId) {
+        clearFallback();
+        void refreshStage();
+      }
     };
     const unsubscribe = [
       window.dashboard.events.onProgress(refreshForProject),
@@ -541,7 +569,7 @@ export const AgentWorkspace: React.FC<AgentWorkspaceProps> = ({
     ];
     return () => {
       alive = false;
-      window.clearInterval(interval);
+      clearFallback();
       unsubscribe.forEach((stop) => stop());
     };
   }, [draft.projectId]);

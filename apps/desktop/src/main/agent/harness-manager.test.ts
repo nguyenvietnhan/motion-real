@@ -297,11 +297,23 @@ describe("HarnessManager draft lifecycle", () => {
       callId: "call-search", error: "raw provider failure must not cross IPC",
     } } });
 
-    const status = await manager.status(draft.id);
+    const status = await manager.status(draft.id, { includeActivities: true });
 
     expect(status.activities).toEqual([{ id: "1", label: "Tìm kiếm web", status: "failed" }]);
     expect(JSON.stringify(status.activities)).not.toContain("secret query");
     expect(JSON.stringify(status.activities)).not.toContain("provider failure");
+  });
+
+  it("reads native activity only when the caller explicitly requests it", async () => {
+    const { manager, calls } = await activeManagerForTest();
+    const draft = await manager.createDraft("Không poll history khi chat native đang mở");
+    await manager.activate(draft.id, "internal-key");
+
+    await manager.status(draft.id, { includeActivities: false });
+    expect(calls.some((call) => call.method === "session.history")).toBe(false);
+
+    await manager.status(draft.id, { includeActivities: true });
+    expect(calls.some((call) => call.method === "session.history")).toBe(true);
   });
 
   it("does not issue a late authoring repair after the workflow was paused", async () => {

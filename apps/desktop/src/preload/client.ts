@@ -41,7 +41,7 @@ export function createDashboardClient(ipc: IpcLike): DashboardApi {
       createDraft: (title) => inv("agent:createDraft", title),
       openDraft: (draftId) => inv("agent:openDraft", draftId),
       openProject: (projectId) => inv("agent:openProject", projectId),
-      status: (draftId) => inv("agent:status", draftId),
+      status: (draftId, options) => inv("agent:status", draftId, options),
       renameDraft: (draftId, title) => inv("agent:renameDraft", draftId, title),
       settings: (draftId) => inv("agent:settings", draftId),
       selectModel: (draftId, modelId) => inv("agent:selectModel", draftId, modelId),

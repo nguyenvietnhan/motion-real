@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { agentProjectProgress } from "./agent-project-progress.js";
+import { agentProjectProgress, shouldPollAgentActivities, shouldPollProjectStage } from "./agent-project-progress.js";
 import type { ProjectStage } from "./types.js";
 
 describe("agentProjectProgress", () => {
@@ -28,5 +28,22 @@ describe("agentProjectProgress", () => {
       canCancel: false,
       reviewReady: true,
     });
+  });
+
+  it("polls Harness activity only for hidden automated progress", () => {
+    for (const state of ["collecting_assets", "preparing_brief", "authoring", "visual_refine"] as const) {
+      expect(shouldPollAgentActivities(state, false)).toBe(true);
+      expect(shouldPollAgentActivities(state, true)).toBe(false);
+    }
+    for (const state of ["discovery", "asset_review", "brief_review", "paused", "scene_review", "error"] as const) {
+      expect(shouldPollAgentActivities(state, false)).toBe(false);
+    }
+  });
+
+  it("falls back to project stage polling only while the linked project is cancelable", () => {
+    expect(shouldPollProjectStage(agentProjectProgress({ kind: "writing", phase: "author" }))).toBe(true);
+    expect(shouldPollProjectStage(agentProjectProgress({ kind: "rendering", percent: 20, phase: "prepare" }))).toBe(true);
+    expect(shouldPollProjectStage(agentProjectProgress({ kind: "ready", scenes: [] }))).toBe(false);
+    expect(shouldPollProjectStage(agentProjectProgress({ kind: "published", outputPath: "media://video.mp4" }))).toBe(false);
   });
 });

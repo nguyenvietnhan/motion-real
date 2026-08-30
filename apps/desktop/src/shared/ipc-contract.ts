@@ -90,7 +90,7 @@ export interface DashboardApi {
     openDraft(draftId: string): Promise<AgentDraftVM>;
     /** Resolve a Harness-owned project to its authoritative Agent draft. */
     openProject(projectId: string): Promise<AgentDraftVM>;
-    status(draftId: string): Promise<AgentDraftVM>;
+    status(draftId: string, options?: { includeActivities?: boolean }): Promise<AgentDraftVM>;
     renameDraft(draftId: string, title: string): Promise<AgentDraftVM>;
     settings(draftId: string): Promise<import("./types.js").AgentSettingsVM>;
     selectModel(draftId: string, modelId: string): Promise<import("./types.js").AgentSettingsVM>;

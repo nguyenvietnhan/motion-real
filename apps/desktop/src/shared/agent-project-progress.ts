@@ -1,5 +1,5 @@
 import { renderingPhaseLabel, workspaceStageTitle, writingPhaseCopy } from "./stage-labels.js";
-import type { ProjectStage } from "./types.js";
+import type { AgentProductionState, ProjectStage } from "./types.js";
 
 export type AgentProjectProgress = {
   state: "authoring" | "rendering" | "scene_review" | "published" | "error";
@@ -8,6 +8,20 @@ export type AgentProjectProgress = {
   canCancel: boolean;
   reviewReady: boolean;
 };
+
+/** Native chat owns discovery; activity is needed only while MotionReal shows automated work. */
+export function shouldPollAgentActivities(state: AgentProductionState, nativeChatVisible: boolean): boolean {
+  return !nativeChatVisible
+    && (state === "collecting_assets"
+      || state === "preparing_brief"
+      || state === "authoring"
+      || state === "visual_refine");
+}
+
+/** Events are primary. The timer is only a recovery fallback for active work. */
+export function shouldPollProjectStage(progress: AgentProjectProgress | null): boolean {
+  return progress?.canCancel === true;
+}
 
 /** Project stage is authoritative after Agent has linked a MotionReal project. */
 export function agentProjectProgress(stage: ProjectStage): AgentProjectProgress {

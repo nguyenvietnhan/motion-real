@@ -297,7 +297,7 @@ export class HarnessManager {
     }
   }
 
-  async status(id: string): Promise<AgentDraftVM> {
+  async status(id: string, options?: { includeActivities?: boolean }): Promise<AgentDraftVM> {
     let record = await this.mustReadRecord(id);
     let assetReview: AgentAssetVM[] | undefined;
     let assetCollectionError: string | undefined;
@@ -334,10 +334,12 @@ export class HarnessManager {
       }
     }
     if (isAutomatedAuthoringState(record.productionState)) this.maybeProcessAuthoring(record);
-    const activityState = await this.readSafeActivities(record).catch((error) => {
-      log.debug({ err: error, draftId: record.id }, "Harness activity unavailable");
-      return undefined;
-    });
+    const activityState = options?.includeActivities === true
+      ? await this.readSafeActivities(record).catch((error) => {
+        log.debug({ err: error, draftId: record.id }, "Harness activity unavailable");
+        return undefined;
+      })
+      : undefined;
     return this.toVm(record, assetReview, assetCollectionError, briefReview, briefReviewError, activityState?.activities, activityState?.needsAttention);
   }
 

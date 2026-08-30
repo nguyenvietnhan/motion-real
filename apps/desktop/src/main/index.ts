@@ -806,7 +806,9 @@ const handlers: InvokeHandlers = {
     if (!draft) throw new Error("Không tìm thấy workspace Agent cho video này. Video Classic không thể mở bằng Video Agent.");
     return activateHarnessDraft(draft.id);
   },
-  "agent:status": (draftId) => harness.status(String(draftId)),
+  "agent:status": (draftId, options) => harness.status(String(draftId), {
+    includeActivities: (options as { includeActivities?: unknown } | null)?.includeActivities === true,
+  }),
   "agent:renameDraft": (draftId, title) => renameAgentDraft(String(draftId), String(title ?? ""), {
     status: (id) => harness.status(id),
     renameProject: (projectId, nextTitle) => workspace.rename(projectId, nextTitle),
