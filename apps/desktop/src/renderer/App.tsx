@@ -79,8 +79,6 @@ const AppShell: React.FC = () => {
   const notify = useNotifications();
 
   const dash = typeof window !== "undefined" ? window.dashboard : undefined;
-  const ready = aiReady(gateway, account);
-
   const refreshGallery = useCallback((): Promise<void> => {
     if (!dash) return Promise.resolve();
     return runSingleFlight(galleryRequestRef, async () => {

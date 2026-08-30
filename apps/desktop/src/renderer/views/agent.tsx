@@ -10,7 +10,6 @@ import type {
   DurationTierChoice,
   ProjectStage,
   ReviewMode,
-  VideoLanguageChoice,
   VoiceProviderChoice,
 } from "../../shared/types.js";
 import { Icon } from "../icons.js";
@@ -20,7 +19,6 @@ import { useModalFocus } from "../use-modal-focus.js";
 import { ImageReviewView } from "./image-review.js";
 import { ProjectWorkspaceView } from "./workspace.js";
 import {
-  isAgentBriefInputDirty,
   reconcileAgentBriefInput,
   requiresBriefDiscardConfirmation,
   type AgentBriefBaseline,

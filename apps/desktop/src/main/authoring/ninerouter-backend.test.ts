@@ -357,7 +357,7 @@ describe("authorScenes (pure-author)", () => {
     const projectId = "pa-content-plan-normalized";
     const logger = fakeLogger();
     const componentIds = ids(3);
-    const admitFiles = vi.fn(async (files: readonly string[]) => ({ ok: true as const, componentIds, files: [] }));
+    const admitFiles = vi.fn(async (_files: readonly string[]) => ({ ok: true as const, componentIds, files: [] }));
     const chat = chatReplies(INVALID_PURPOSE_CONTENT_PLAN_REPLY, authorReplyForIds(componentIds));
     const backend = new NineRouterAuthoringBackend({
       client: { chat } as unknown as NineRouterClient,
@@ -396,7 +396,7 @@ describe("authorScenes (pure-author)", () => {
   it("keeps normal 12-scene no-image plans on the single authoring path", async () => {
     const projectId = "pa-single-normal-long";
     const componentIds = ids(12);
-    const admitFiles = vi.fn(async (files: readonly string[]) => ({ ok: true as const, componentIds, files: [] }));
+    const admitFiles = vi.fn(async (_files: readonly string[]) => ({ ok: true as const, componentIds, files: [] }));
     const chat = chatReplies(longContentPlanReply(12), authorReplyForIds(componentIds));
     const backend = new NineRouterAuthoringBackend({
       client: { chat } as unknown as NineRouterClient,
@@ -428,7 +428,7 @@ describe("authorScenes (pure-author)", () => {
     const projectId = "pa-single-at-capacity";
     const logger = fakeLogger();
     const componentIds = ids(14);
-    const admitFiles = vi.fn(async (files: readonly string[]) => ({ ok: true as const, componentIds, files: [] }));
+    const admitFiles = vi.fn(async (_files: readonly string[]) => ({ ok: true as const, componentIds, files: [] }));
     const chat = chatReplies(longContentPlanReply(14), authorReplyForIds(componentIds));
     const backend = new NineRouterAuthoringBackend({
       client: { chat } as unknown as NineRouterClient,
@@ -454,7 +454,7 @@ describe("authorScenes (pure-author)", () => {
     const projectId = "pa-single-structured-coverage";
     const logger = fakeLogger();
     const componentIds = ids(12);
-    const admitFiles = vi.fn(async (files: readonly string[]) => ({ ok: true as const, componentIds, files: [] }));
+    const admitFiles = vi.fn(async (_files: readonly string[]) => ({ ok: true as const, componentIds, files: [] }));
     // Single-path author replies still need a manifest; modules may use bare fences.
     const manifest = {
       title: "Structured coverage",
@@ -488,7 +488,7 @@ describe("authorScenes (pure-author)", () => {
   it("keeps claim-ledger repair plus normal single authoring inside the bounded call budget", async () => {
     const projectId = "pa-single-after-plan-repair";
     const componentIds = ids(10);
-    const admitFiles = vi.fn(async (files: readonly string[]) => ({ ok: true as const, componentIds, files: [] }));
+    const admitFiles = vi.fn(async (_files: readonly string[]) => ({ ok: true as const, componentIds, files: [] }));
     const chat = chatReplies(
       longContentPlanReply(10, { unsupportedFirstScene: true }),
       longContentPlanReply(10),
@@ -516,7 +516,7 @@ describe("authorScenes (pure-author)", () => {
     // Tier 3 so a 12-scene plan passes pacing quality; fail on author reply.
     const projectId = "pa-single-missing";
     const componentIds = ids(12);
-    const admitFiles = vi.fn(async (files: readonly string[]) => ({ ok: true as const, componentIds, files: [] }));
+    const admitFiles = vi.fn(async (_files: readonly string[]) => ({ ok: true as const, componentIds, files: [] }));
     const chat = chatReplies(
       longContentPlanReply(12),
       "I cannot provide that module.",
@@ -571,7 +571,7 @@ describe("authorScenes (pure-author)", () => {
     const assetsDir = join(home, ".video-tool", "projects", projectId, "assets");
     mkdirSync(assetsDir, { recursive: true });
     writeFileSync(join(home, ".video-tool", "projects", projectId, providedRef), Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
-    const admitFiles = vi.fn(async (files: readonly string[]) => ({ ok: true as const, componentIds, files: [] }));
+    const admitFiles = vi.fn(async (_files: readonly string[]) => ({ ok: true as const, componentIds, files: [] }));
     const chat = chatReplies(longContentPlanReply(6), authorReplyForIds(componentIds, providedRef));
     const backend = new NineRouterAuthoringBackend({
       client: { chat } as unknown as NineRouterClient,
@@ -615,7 +615,7 @@ describe("authorScenes (pure-author)", () => {
   it("logs admission failure counts by safety check", async () => {
     const projectId = "pa-admission-counts";
     const logger = fakeLogger();
-    const admitFiles = vi.fn(async (files: readonly string[]) => ({
+    const admitFiles = vi.fn(async (_files: readonly string[]) => ({
       ok: false as const,
       violations: [
         { check: "N5", severity: "error" as const, path: "alpha.tsx:1", message: "forbidden API" },

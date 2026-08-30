@@ -3,7 +3,6 @@ import { Agent, fetch as undiciFetch } from "undici";
 import { PipelineError } from "../errors.js";
 import {
   addressesForPinnedConnect,
-  isPrivateAddress,
   resolvePublicTarget,
   type PublicAddress,
   type ResolvedPublicTarget,

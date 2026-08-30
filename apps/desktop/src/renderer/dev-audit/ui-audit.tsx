@@ -1,4 +1,3 @@
-import React from "react";
 import { createRoot } from "react-dom/client";
 import type { DashboardApi } from "../../shared/ipc-contract.js";
 import { defaultSettings } from "../../shared/settings-model.js";
@@ -10,7 +9,7 @@ import { SettingsView } from "../views/settings.js";
 import { QueueView } from "../views/queue.js";
 import { StoryboardView } from "../views/storyboard.js";
 import { ProjectWorkspaceView } from "../views/workspace.js";
-import { AgentView, AgentWorkspace, AgentSettingsDialog } from "../views/agent.js";
+import { AgentWorkspace, AgentSettingsDialog } from "../views/agent.js";
 import { NotificationProvider } from "../notifications.js";
 import "../theme.css";
 

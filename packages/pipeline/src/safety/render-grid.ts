@@ -21,8 +21,6 @@ import {
   contrastRatio,
   relativeLuminance,
   type Frame,
-  type FrameStats,
-  type Rgb,
 } from "./frame-stats.js";
 
 /**

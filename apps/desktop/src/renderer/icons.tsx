@@ -1,5 +1,3 @@
-import React from "react";
-
 /**
  * Inline SVG icon set (currentColor, size-prop). Kept dependency-free so any
  * view/primitive can import it without pulling in screen logic.

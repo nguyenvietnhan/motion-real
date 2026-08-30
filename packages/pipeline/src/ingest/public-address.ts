@@ -137,7 +137,7 @@ export function addressesForPinnedConnect(addresses: readonly PublicAddress[]): 
   return sorted.filter((a) => a.family === 6);
 }
 
-function deny(rawUrl: string, cause: string, remediation: string): never {
+function deny(cause: string, remediation: string): never {
   throw new PipelineError({ stage: "ingest", cause, remediation });
 }
 
@@ -153,11 +153,10 @@ export async function resolvePublicTarget(
   try {
     url = new URL(rawUrl);
   } catch {
-    deny(rawUrl, `invalid URL: ${rawUrl}`, "Provide a full http(s) URL to a public article.");
+    deny(`invalid URL: ${rawUrl}`, "Provide a full http(s) URL to a public article.");
   }
   if (url.protocol !== "http:" && url.protocol !== "https:") {
     deny(
-      rawUrl,
       `unsupported URL scheme "${url.protocol}" for ${rawUrl}`,
       "Only http(s) article URLs are allowed.",
     );
@@ -172,7 +171,6 @@ export async function resolvePublicTarget(
       candidates = await lookup(host);
     } catch {
       deny(
-        rawUrl,
         `could not resolve host "${host}"`,
         "Check the URL host is correct and reachable.",
       );
@@ -181,7 +179,6 @@ export async function resolvePublicTarget(
 
   if (candidates.length === 0) {
     deny(
-      rawUrl,
       `could not resolve host "${host}"`,
       "Check the URL host is correct and reachable.",
     );
@@ -191,7 +188,6 @@ export async function resolvePublicTarget(
   for (const addr of candidates) {
     if (classifyPublicAddress(addr) === "blocked") {
       deny(
-        rawUrl,
         `refusing to fetch a private/loopback/link-local address for ${rawUrl}`,
         "Use a public article URL — internal, localhost, and LAN addresses are not allowed.",
       );
@@ -199,7 +195,6 @@ export async function resolvePublicTarget(
     const lit = publicAddressFromLiteral(addr);
     if (!lit) {
       deny(
-        rawUrl,
         `refusing to fetch a private/loopback/link-local address for ${rawUrl}`,
         "Use a public article URL — internal, localhost, and LAN addresses are not allowed.",
       );

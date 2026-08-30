@@ -7,7 +7,6 @@ import {
   loadManifest,
   projectPaths,
   normalizeAuthoredSource,
-  writeAuthoredScene,
   unregisterComponent,
   makeSafeFetch,
   crawlArticleImagesWithStats,

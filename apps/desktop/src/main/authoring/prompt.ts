@@ -37,7 +37,7 @@ ${formatBlock()}
 
 ${tierBudgetBlock(format, tier, videoLanguage, wps)}
 
-${languageBlock(format, videoLanguage)}
+${languageBlock(videoLanguage)}
 
 ${AUTHORING_CONTRACT}
 

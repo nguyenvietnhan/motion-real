@@ -66,7 +66,7 @@ export const RemotionRoot: React.FC = () => {
         height={height}
         fps={FPS}
         durationInFrames={THUMBNAIL_DURATION}
-        calculateMetadata={({ props }) => {
+        calculateMetadata={({ props: _props }) => {
           const g = geometry();
           return { width: g.canvas.width, height: g.canvas.height, durationInFrames: THUMBNAIL_DURATION, fps: FPS };
         }}

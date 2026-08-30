@@ -27,14 +27,14 @@ describe("Property 5: localized scene-file resolution", () => {
         const target = manifest.scenes[pick % manifest.scenes.length]!;
 
         // (a) file exists ⇒ resolves to the SAME scene's component + its file.
-        const all = (p: string) => true;
+        const all = (_p: string) => true;
         const r = await resolveSceneFile("proj", target.id, load, all);
         expect(r).not.toBeNull();
         expect(r!.componentId).toBe(target.component);
         expect(r!.path.endsWith(sceneFileName(target.component))).toBe(true);
 
         // (b) file does NOT exist ⇒ null.
-        const none = (p: string) => false;
+        const none = (_p: string) => false;
         expect(await resolveSceneFile("proj", target.id, load, none)).toBeNull();
 
         // (c) sceneId not in manifest ⇒ null (regardless of exists).

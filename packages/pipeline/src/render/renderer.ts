@@ -1,12 +1,11 @@
 import { mkdir } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
-import { makeCancelSignal, renderMedia, renderStill, selectComposition } from "@remotion/renderer";
+import { makeCancelSignal, renderMedia, renderStill } from "@remotion/renderer";
 import type { CancelSignal, ChromeMode, ChromiumOptions, VideoImageFormat } from "@remotion/renderer";
 import type { LockedVideoSpec } from "@motionreal/schema";
 import { transitionFrames } from "@motionreal/schema";
 import {
   BROWSER_TIMEOUT_MS,
-  DEFAULT_COMPOSITION_ID,
   chromiumRuntimeOptions,
   prepareComposition,
   timedRender,

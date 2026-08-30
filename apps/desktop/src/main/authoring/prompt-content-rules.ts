@@ -54,7 +54,7 @@ export function tierBudgetBlock(
  * Video-language rule. The user's choice governs all viewer-facing content:
  * title, hashtags, authored display text, narration, and central captions.
  */
-export function languageBlock(format: VideoFormat, videoLanguage: VideoLanguage): string {
+export function languageBlock(videoLanguage: VideoLanguage): string {
   const cap = TITLE_MAX_CHARS;
   const lang = videoLanguage === "en" ? "TIẾNG ANH" : "TIẾNG VIỆT";
   const contentRule = videoLanguage === "en"

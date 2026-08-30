@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, type Mock } from "vitest";
-import type { AgentHooks, SceneSnapshot, VisualQaResult } from "../agent/agent-worker.js";
+import type { AgentHooks, VisualQaResult } from "../agent/agent-worker.js";
 import type { ProjectStage } from "../../shared/types.js";
 import {
   refineBeforeDraft,

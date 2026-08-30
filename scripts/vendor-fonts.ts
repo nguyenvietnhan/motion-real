@@ -1,5 +1,5 @@
 import { mkdir, writeFile } from "node:fs/promises";
-import { dirname, join, resolve } from "node:path";
+import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { getInfo as interInfo } from "@remotion/google-fonts/Inter";
 import { getInfo as cascadiaInfo } from "@remotion/google-fonts/CascadiaMono";
