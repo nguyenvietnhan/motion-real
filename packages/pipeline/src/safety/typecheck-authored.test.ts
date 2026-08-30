@@ -31,7 +31,7 @@ describe("typecheckAuthoredScenes (N10)", () => {
   // Each of these spins up a real TypeScript program over the MotionReal sources
   // (~3-5s); the default 5s vitest timeout is too tight under parallel load, so
   // give the program-creating cases explicit headroom.
-  const TS_PROGRAM_TIMEOUT = 30_000;
+  const TS_PROGRAM_TIMEOUT = 60_000;
 
   it("passes a scene that uses the current authored component surface with correct prop types", () => {
     const issues = typecheckAuthoredScenes([fixture("typecheck-clean.tsx")], root);
