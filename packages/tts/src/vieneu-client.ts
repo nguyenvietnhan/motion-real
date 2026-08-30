@@ -71,7 +71,9 @@ export class VieneuClient implements TtsClient {
     await mkdir(dirname(input.outputPath), { recursive: true });
     await this.ensureStarted();
     const outputPath = `${input.outputPath}.wav`;
-    const partialPath = `${outputPath}.partial-${randomUUID()}`;
+    // VieNeu selects the output codec from the path extension. Keep `.wav` as
+    // the final suffix even while the client holds the output atomically.
+    const partialPath = `${input.outputPath}.partial-${randomUUID()}.wav`;
     try {
       const reply = await this.call({
         op: "synthesize",

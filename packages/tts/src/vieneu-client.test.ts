@@ -26,6 +26,10 @@ readline.createInterface({input:process.stdin}).on("line", (line) => {
   const req = JSON.parse(line);
   if (req.op === "shutdown") process.exit(0);
   if (req.op !== "synthesize") return;
+  if (!req.output_path.endsWith(".wav")) {
+    process.stdout.write(JSON.stringify({id:req.id,type:"error",code:"provider_unavailable"}) + "\n");
+    return;
+  }
   fs.writeFileSync(req.output_path, Buffer.alloc(80, 1));
   process.stdout.write(JSON.stringify({id:req.id,type:"result",audio_path:req.output_path,duration:1.25}) + "\n");
 });
