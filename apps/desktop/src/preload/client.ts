@@ -120,6 +120,7 @@ export function createDashboardClient(ipc: IpcLike): DashboardApi {
       pause: () => inv("queue:pause"),
       resume: () => inv("queue:resume"),
       status: () => inv("queue:status"),
+      recover: () => inv("queue:recover"),
     },
     tts: {
       setApiKey: (provider, apiKey) => inv("tts:setApiKey", provider, apiKey),

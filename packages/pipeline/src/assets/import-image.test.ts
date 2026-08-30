@@ -40,16 +40,16 @@ function jpeg(width: number, height: number): Uint8Array {
   return new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0x00, 0x01, 0x01, 0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x00, ...sof, 0xff, 0xd9]);
 }
 
-/** GIF89a header with the given logical-screen size. */
+/** GIF89a header with the given logical-screen size. It is intentionally unsupported. */
 function gif(width: number, height: number): Uint8Array {
   return new Uint8Array([0x47, 0x49, 0x46, 0x38, 0x39, 0x61, width & 0xff, (width >> 8) & 0xff, height & 0xff, (height >> 8) & 0xff, 0x00, 0x00, 0x00]);
 }
 
 describe("sniffImage", () => {
-  it("detects each raster format by magic bytes, not extension", () => {
+  it("detects supported still raster formats by magic bytes, not extension", () => {
     expect(sniffImage(png(4, 4))?.ext).toBe("png");
     expect(sniffImage(jpeg(4, 4))?.ext).toBe("jpg");
-    expect(sniffImage(gif(4, 4))?.ext).toBe("gif");
+    expect(sniffImage(gif(4, 4))).toBeNull();
   });
   it("rejects non-raster / scriptable content (SVG, plain text)", () => {
     expect(sniffImage(new TextEncoder().encode("<svg xmlns='...'></svg>"))).toBeNull();
@@ -96,8 +96,18 @@ describe("importImageBytes", () => {
     tooBig.set(png(2, 2)); // valid magic, but over the byte cap
     expect(await importImageBytes(tooBig, dir)).toEqual({ ok: false, reason: "too-large" });
 
-    const huge = await importImageBytes(gif(MAX_IMAGE_DIM + 1, 8), dir);
+    const huge = await importImageBytes(png(MAX_IMAGE_DIM + 1, 8), dir);
     expect(huge).toEqual({ ok: false, reason: "dimensions-too-large" });
+
+    expect(await importImageBytes(gif(8, 8), dir)).toEqual({ ok: false, reason: "unsupported-format" });
+  });
+
+  it("rejects small inputs before they enter the asset store", async () => {
+    expect(await importImageBytes(png(64, 64), dir, { minEdge: 200 })).toEqual({
+      ok: false,
+      reason: "dimensions-too-small",
+    });
+    expect(await readdir(dir)).toEqual([]);
   });
 
   it("supports a custom refPrefix for staging imports", async () => {

@@ -1215,7 +1215,7 @@ export class HarnessManager {
         items: [{ id: "asset-01", path: "assets/example.png", source_url: "https://example.com/image", label: "Mô tả ngắn", role: "support" }],
       },
       instructions: [
-        "Tải ảnh raster PNG/JPEG/GIF/WebP vào assets/. Logo nên là PNG nền trong suốt; SVG ngoài phải rasterize an toàn sang PNG hoặc bỏ qua.",
+        "Tải ảnh raster PNG/JPEG/WebP tĩnh vào assets/. Logo nên là PNG nền trong suốt; SVG hoặc GIF ngoài phải rasterize an toàn sang PNG hoặc bỏ qua.",
         "Gắn role cho từng asset: hero, support, logo hoặc icon. Role mô tả cách hiển thị, không phải kích thước file.",
         "Chỉ giữ asset có đóng góp nội dung/hình ảnh cụ thể cho video. Không tải hàng loạt ảnh tương tự; logo/icon chỉ bổ trợ và không thay thế ảnh minh họa hoặc motion.",
         "Asset pool thường 3–12 tệp; chỉ vượt khi nội dung thật sự cần các hình khác biệt.",

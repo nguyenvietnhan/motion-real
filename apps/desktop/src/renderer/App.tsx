@@ -620,6 +620,11 @@ const AppShell: React.FC = () => {
               });
             }}
             onRefresh={() => void refreshQueues()}
+            onRecoverStore={async () => {
+              if (!dash?.queue) return;
+              const recovered = await dash.queue.recover();
+              if (recovered) await refreshQueues();
+            }}
             onCreateQueue={async () => {
               if (!dash?.queue) return;
               const created = await dash.queue.create();

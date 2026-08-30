@@ -61,6 +61,7 @@ export type FetchImpl = (url: string, init?: { signal?: AbortSignal }) => Promis
 export type PinnedRequestImpl = (
   target: ResolvedPublicTarget,
   signal?: AbortSignal,
+  maxBodyBytes?: number,
 ) => Promise<Response>;
 
 export type SafeFetchOptions = {
@@ -250,6 +251,7 @@ function createPinnedLookup(addresses: readonly PublicAddress[]) {
 export async function requestPinnedWithUndici(
   target: ResolvedPublicTarget,
   signal?: AbortSignal,
+  maxBodyBytes = MAX_BODY_BYTES,
 ): Promise<Response> {
   const dialAddresses = addressesForPinnedConnect(target.addresses);
   const dispatcher = new Agent({
@@ -264,8 +266,14 @@ export async function requestPinnedWithUndici(
       headers: BROWSER_HEADERS,
       ...(signal ? { signal } : {}),
     });
-    // Buffer before close so callers can still read the body after we return.
-    const body = Buffer.from(await res.arrayBuffer());
+    const location = res.status >= 300 && res.status < 400 ? res.headers.get("location") : null;
+    if (location) {
+      await discardBody(res);
+      return new Response(null, { status: res.status, statusText: res.statusText, headers: res.headers });
+    }
+    await assertContentLength(res, maxBodyBytes);
+    // Buffer a capped stream before close so callers can still read it after we return.
+    const body = await readCappedBytes(res, maxBodyBytes);
     const headers = new Headers();
     res.headers.forEach((value, key) => {
       headers.set(key, value);
@@ -302,6 +310,19 @@ async function discardBody(res: Response): Promise<void> {
   }
 }
 
+async function assertContentLength(res: Response, maxBodyBytes: number): Promise<void> {
+  const raw = res.headers.get("content-length");
+  if (!raw) return;
+  const length = Number(raw);
+  if (!Number.isFinite(length) || length < 0 || length <= maxBodyBytes) return;
+  await discardBody(res);
+  throw new PipelineError({
+    stage: "ingest",
+    cause: `response body exceeded ${maxBodyBytes} bytes`,
+    remediation: "The source is unexpectedly large; try a different URL.",
+  });
+}
+
 /**
  * Shared redirect + pin engine for text and binary fetchers.
  */
@@ -326,13 +347,14 @@ export async function followPublicRedirects<T>(
       });
     }
     const target = await resolvePublicTarget(current, opts.lookupImpl);
-    const res = await requestPinned(target, signal);
+    const res = await requestPinned(target, signal, opts.maxBodyBytes);
     const location = res.status >= 300 && res.status < 400 ? res.headers.get("location") : null;
     if (location) {
       await discardBody(res);
       current = new URL(location, current).toString();
       continue;
     }
+    await assertContentLength(res, opts.maxBodyBytes);
     const body = await readBody(res, opts.maxBodyBytes);
     return { ok: res.ok, status: res.status, body };
   }

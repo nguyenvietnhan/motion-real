@@ -1032,7 +1032,8 @@ const handlers: InvokeHandlers = {
   "queue:start": (queueId) => queueRunner.start(String(queueId)),
   "queue:pause": () => queueRunner.pause(),
   "queue:resume": () => queueRunner.resume(),
-  "queue:status": () => queueRunner.status(),
+  "queue:status": () => ({ ...queueRunner.status(), ...(queueStore.loadError() ? { storeError: queueStore.loadError() } : {}) }),
+  "queue:recover": () => queueStore.recoverCorruptStore(),
 
   "script:get": (projectId) => workspace.scriptGate(String(projectId)),
   "script:applyEdits": (projectId, edits) => workspace.applyEdits(String(projectId), edits as ScriptEdit[]),

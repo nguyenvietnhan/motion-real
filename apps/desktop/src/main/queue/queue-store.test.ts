@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -11,6 +11,23 @@ import {
 } from "./queue-store.js";
 
 describe("QueueStore", () => {
+  it("backs up corrupt JSON and refuses writes until an explicit recovery", () => {
+    const dir = mkdtempSync(join(tmpdir(), "mr-queue-"));
+    const filePath = join(dir, "queues.json");
+    writeFileSync(filePath, "{not json", "utf8");
+
+    const store = new QueueStore({ filePath });
+    expect(store.list()).toEqual([]);
+    expect(store.loadError()).toContain("Hàng đợi không đọc được");
+    expect(readdirSync(dir).some((name) => name.startsWith("queues.json.corrupt-"))).toBe(true);
+    expect(() => store.create()).toThrow(/khôi phục file hàng đợi/i);
+
+    expect(store.recoverCorruptStore()).toBe(true);
+    expect(store.loadError()).toBeUndefined();
+    expect(store.create("Sau khi khôi phục").title).toBe("Sau khi khôi phục");
+    expect(existsSync(filePath)).toBe(true);
+  });
+
   it("reads legacy jobs without images as an empty array", () => {
     const dir = mkdtempSync(join(tmpdir(), "mr-queue-"));
     const filePath = join(dir, "queues.json");

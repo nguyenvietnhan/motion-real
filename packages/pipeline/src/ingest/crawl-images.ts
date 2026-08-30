@@ -154,10 +154,8 @@ export async function crawlArticleImagesWithStats(
     try {
       const res = await fetchBytes(url);
       if (!res.ok || res.bytes.length === 0) continue;
-      const imported = await importImageBytes(res.bytes, destDir, { refPrefix: "assets" });
+      const imported = await importImageBytes(res.bytes, destDir, { refPrefix: "assets", minEdge });
       if (!imported.ok) continue;
-      // Coarse dimension filter: skip logos / icons / spacers below the min edge.
-      if (imported.width < minEdge || imported.height < minEdge) continue;
       stats.keptAfterDimFilter += 1;
       out.push({ ref: imported.ref, width: imported.width, height: imported.height, sourceUrl: url });
     } catch (error) {

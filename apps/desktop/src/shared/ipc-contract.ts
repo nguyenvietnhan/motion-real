@@ -191,6 +191,7 @@ export interface DashboardApi {
     pause(): Promise<{ ok: true } | { ok: false; error: string }>;
     resume(): Promise<QueueStartResult>;
     status(): Promise<QueueRunnerStatus>;
+    recover(): Promise<boolean>;
   };
   tts: {
     setApiKey(provider: VoiceProviderChoice, apiKey: string): Promise<SettingsModel>;

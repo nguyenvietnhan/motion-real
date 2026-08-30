@@ -18,7 +18,8 @@ import { join } from "node:path";
  * never a throw, so a single bad pick never crashes the picker. Format is decided
  * by MAGIC BYTES (not the file extension), so a mislabeled `.png` that is really
  * a JPEG is stored with the correct `.jpg` extension and still passes the schema
- * `ref` regex. SVG is rejected (no raster magic; scriptable in a Chromium render).
+ * `ref` regex. SVG and animated raster formats are rejected because the renderer
+ * expects deterministic still imagery.
  */
 
 /** Per-image byte cap (10 MB). Guards memory + keeps the bundle/render sane. */
@@ -29,7 +30,9 @@ export const MAX_IMAGE_DIM = 4096;
 export type ImportError =
   | "empty"
   | "unsupported-format"
+  | "animated-format"
   | "too-large"
+  | "dimensions-too-small"
   | "dimensions-too-large"
   | "decode-failed";
 
@@ -37,7 +40,7 @@ export type ImportResult =
   | { ok: true; ref: string; sha: string; ext: ImageExt; width: number; height: number; bytes: number }
   | { ok: false; reason: ImportError };
 
-type ImageExt = "png" | "jpg" | "gif" | "webp";
+type ImageExt = "png" | "jpg" | "webp";
 
 type Sniffed = { ext: ImageExt; dims: { width: number; height: number } | null };
 
@@ -51,11 +54,12 @@ type Sniffed = { ext: ImageExt; dims: { width: number; height: number } | null }
 export async function importImageBytes(
   bytes: Uint8Array,
   destDir: string,
-  opts: { refPrefix?: string } = {},
+  opts: { refPrefix?: string; minEdge?: number } = {},
 ): Promise<ImportResult> {
   if (bytes.length === 0) return { ok: false, reason: "empty" };
   if (bytes.length > MAX_IMAGE_BYTES) return { ok: false, reason: "too-large" };
 
+  if (isAnimatedPng(bytes) || isAnimatedWebp(bytes)) return { ok: false, reason: "animated-format" };
   const sniffed = sniffImage(bytes);
   if (!sniffed) return { ok: false, reason: "unsupported-format" };
 
@@ -65,6 +69,9 @@ export async function importImageBytes(
   const { width, height } = sniffed.dims;
   if (width <= 0 || height <= 0) return { ok: false, reason: "decode-failed" };
   if (width > MAX_IMAGE_DIM || height > MAX_IMAGE_DIM) return { ok: false, reason: "dimensions-too-large" };
+  if (opts.minEdge !== undefined && (width < opts.minEdge || height < opts.minEdge)) {
+    return { ok: false, reason: "dimensions-too-small" };
+  }
 
   const sha = createHash("sha256").update(bytes).digest("hex");
   const ext = sniffed.ext;
@@ -86,7 +93,6 @@ export async function importImageBytes(
 export function sniffImage(b: Uint8Array): Sniffed | null {
   if (isPng(b)) return { ext: "png", dims: pngDims(b) };
   if (isJpeg(b)) return { ext: "jpg", dims: jpegDims(b) };
-  if (isGif(b)) return { ext: "gif", dims: gifDims(b) };
   if (isWebp(b)) return { ext: "webp", dims: webpDims(b) };
   return null;
 }
@@ -98,9 +104,6 @@ function isPng(b: Uint8Array): boolean {
 }
 function isJpeg(b: Uint8Array): boolean {
   return b.length >= 3 && b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff;
-}
-function isGif(b: Uint8Array): boolean {
-  return b.length >= 6 && b[0] === 0x47 && b[1] === 0x49 && b[2] === 0x46 && b[3] === 0x38 && (b[4] === 0x37 || b[4] === 0x39) && b[5] === 0x61;
 }
 function isWebp(b: Uint8Array): boolean {
   return (
@@ -147,13 +150,6 @@ function jpegDims(b: Uint8Array): { width: number; height: number } | null {
   return null;
 }
 
-/** GIF: logical-screen width/height are little-endian at bytes 6/8. */
-function gifDims(b: Uint8Array): { width: number; height: number } | null {
-  if (b.length < 10) return null;
-  const dv = new DataView(b.buffer, b.byteOffset, b.byteLength);
-  return { width: dv.getUint16(6, true), height: dv.getUint16(8, true) };
-}
-
 /** WebP: VP8 (lossy), VP8L (lossless), and VP8X (extended) each carry size differently. */
 function webpDims(b: Uint8Array): { width: number; height: number } | null {
   if (b.length < 30) return null;
@@ -175,6 +171,30 @@ function webpDims(b: Uint8Array): { width: number; height: number } | null {
     return { width: w, height: h };
   }
   return null;
+}
+
+function isAnimatedPng(b: Uint8Array): boolean {
+  if (!isPng(b)) return false;
+  for (let offset = 8; offset + 12 <= b.length;) {
+    const length = new DataView(b.buffer, b.byteOffset + offset, 4).getUint32(0);
+    if (offset + 12 + length > b.length) return false;
+    if (String.fromCharCode(b[offset + 4]!, b[offset + 5]!, b[offset + 6]!, b[offset + 7]!) === "acTL") return true;
+    offset += 12 + length;
+  }
+  return false;
+}
+
+function isAnimatedWebp(b: Uint8Array): boolean {
+  if (!isWebp(b)) return false;
+  for (let offset = 12; offset + 8 <= b.length;) {
+    const type = String.fromCharCode(b[offset]!, b[offset + 1]!, b[offset + 2]!, b[offset + 3]!);
+    const length = new DataView(b.buffer, b.byteOffset + offset + 4, 4).getUint32(0, true);
+    if (type === "ANIM" || type === "ANMF") return true;
+    const padded = length + (length & 1);
+    if (offset + 8 + padded > b.length) return false;
+    offset += 8 + padded;
+  }
+  return false;
 }
 
 function safeSize(path: string): number {

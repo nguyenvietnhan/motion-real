@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { crawlArticleImages, extractImageCandidates, MAX_CRAWL_IMAGES } from "./crawl-images.js";
@@ -152,6 +152,7 @@ describe("crawlArticleImages (injected byte-fetcher)", () => {
     });
     expect(got).toHaveLength(1);
     expect(got[0]!.sourceUrl).toBe("https://cdn.example.com/photo.png");
+    expect(await readdir(dir)).toHaveLength(1);
   });
 
   it("skips a failed download without aborting the crawl", async () => {

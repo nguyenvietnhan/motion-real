@@ -7,6 +7,22 @@
   flex-direction: column;
   gap: 10px;
 }
+.ns-notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 0 16px;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--danger) 42%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--danger) 8%, var(--surface));
+  color: var(--text);
+  font-size: 13px;
+}
+.ns-notice .ns-btn {
+  flex-shrink: 0;
+}
 .ns-queue-row {
   display: flex;
   align-items: stretch;

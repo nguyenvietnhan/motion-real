@@ -81,6 +81,7 @@ export const INVOKE_CHANNELS = [
   "queue:pause",
   "queue:resume",
   "queue:status",
+  "queue:recover",
   "tts:setApiKey",
   "tts:clearApiKey",
   "tts:testVoice",

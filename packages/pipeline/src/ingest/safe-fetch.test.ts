@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
+import { createServer } from "node:http";
 import {
   assertPublicUrl,
   isFetchAbortError,
   isPrivateAddress,
   makeSafeFetch,
   makeSafeFetchBytes,
+  requestPinnedWithUndici,
   type ResolvedPublicTarget,
 } from "./safe-fetch.js";
 import { isPipelineError } from "../errors.js";
@@ -173,6 +175,39 @@ describe("makeSafeFetch", () => {
       maxBodyBytes: 100,
     });
     await expect(fetcher("https://example.com/big")).rejects.toSatisfy(isPipelineError);
+  });
+
+  it("rejects an oversized declared body before reading it", async () => {
+    const fetcher = makeSafeFetch({
+      fetchImpl: async () => new Response("x".repeat(1024), { headers: { "content-length": "1024" } }),
+      lookupImpl: async () => ["93.184.216.34"],
+      maxBodyBytes: 100,
+    });
+    await expect(fetcher("https://example.com/declared-big")).rejects.toSatisfy(isPipelineError);
+  });
+
+  it("caps chunked bodies on the production pinned Undici path", async () => {
+    const server = createServer((_request, response) => {
+      response.writeHead(200, { "transfer-encoding": "chunked" });
+      response.write("x".repeat(128));
+      response.end("x".repeat(128));
+    });
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    try {
+      const address = server.address();
+      expect(address).not.toBeNull();
+      if (!address || typeof address === "string") throw new Error("test server did not bind a TCP port");
+
+      await expect(
+        requestPinnedWithUndici(
+          { url: new URL(`http://localhost:${address.port}/big`), addresses: [{ address: "127.0.0.1", family: 4 }] },
+          undefined,
+          100,
+        ),
+      ).rejects.toSatisfy(isPipelineError);
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
   });
 
   it("rejects after too many redirects", async () => {

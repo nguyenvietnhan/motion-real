@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import type {
   QueueJobInput,
@@ -56,6 +56,7 @@ export type QueueStoreDeps = {
  */
 export class QueueStore {
   private data: StoreFile;
+  private loadFailure?: string;
 
   constructor(private readonly deps: QueueStoreDeps) {
     this.data = this.load();
@@ -70,7 +71,25 @@ export class QueueStore {
     return q ? cloneQueue(q) : null;
   }
 
+  /** Human-readable corruption state. Mutations are blocked until recovery is explicit. */
+  loadError(): string | undefined {
+    return this.loadFailure;
+  }
+
+  /**
+   * Explicitly replace a corrupt queue file only after its untouched backup was made.
+   * The caller owns the recovery decision; startup never silently writes an empty store.
+   */
+  recoverCorruptStore(): boolean {
+    if (!this.loadFailure) return false;
+    this.data = { version: 1, queues: [], runner: { requestedQueueIds: [] } };
+    this.loadFailure = undefined;
+    this.save();
+    return true;
+  }
+
   create(title?: string): QueueProjectVM {
+    this.assertWritable();
     const now = (this.deps.now ?? (() => new Date().toISOString()))();
     let suffix = (this.deps.id ?? (() => randomUUID().slice(0, 8)))();
     // Never collide with the fixed Home spillover id.
@@ -96,6 +115,7 @@ export class QueueStore {
    * Title is always `home`; id is always `queue-home`.
    */
   ensureHomeQueue(): QueueProjectVM {
+    this.assertWritable();
     const existing = this.data.queues.find((x) => x.id === HOME_QUEUE_ID);
     if (existing) {
       existing.ephemeralKind = "home";
@@ -118,6 +138,7 @@ export class QueueStore {
 
   /** Block renaming the ephemeral home container (title stays `home`). */
   rename(queueId: string, title: string): QueueProjectVM | null {
+    this.assertWritable();
     const q = this.data.queues.find((x) => x.id === queueId);
     if (!q) return null;
     if (isEphemeralHomeQueue(q)) return null;
@@ -140,6 +161,7 @@ export class QueueStore {
 
   /** Remove a queue container. Returns false if missing. */
   delete(queueId: string): boolean {
+    this.assertWritable();
     const before = this.data.queues.length;
     this.data.queues = this.data.queues.filter((q) => q.id !== queueId);
     if (this.data.queues.length === before) return false;
@@ -149,6 +171,7 @@ export class QueueStore {
   }
 
   addJob(queueId: string, input: QueueJobInput): QueueProjectVM | null {
+    this.assertWritable();
     const q = this.data.queues.find((x) => x.id === queueId);
     if (!q) return null;
     const raw = input.raw.trim();
@@ -179,6 +202,7 @@ export class QueueStore {
    * Returns null if missing or still running.
    */
   deleteJob(queueId: string, jobId: string): QueueProjectVM | null {
+    this.assertWritable();
     const q = this.data.queues.find((x) => x.id === queueId);
     if (!q) return null;
     const job = q.jobs.find((j) => j.id === jobId);
@@ -190,6 +214,7 @@ export class QueueStore {
 
   /** Update knobs/prompt only while still queued. */
   updateJobInput(queueId: string, jobId: string, patch: QueueJobUpdateInput): QueueProjectVM | null {
+    this.assertWritable();
     const q = this.data.queues.find((x) => x.id === queueId);
     if (!q) return null;
     const job = q.jobs.find((j) => j.id === jobId);
@@ -250,6 +275,7 @@ export class QueueStore {
    * (e.g. API key). Done jobs stay done. Returns how many were requeued.
    */
   requeueRetryable(queueId: string): number {
+    this.assertWritable();
     const q = this.data.queues.find((x) => x.id === queueId);
     if (!q) return 0;
     let n = 0;
@@ -268,6 +294,7 @@ export class QueueStore {
    * Mark failed so Start can requeueRetryable. Keeps projectId for gallery. Returns count.
    */
   reconcileStaleRunningJobs(): number {
+    if (this.loadFailure) return 0;
     let n = 0;
     for (const q of this.data.queues) {
       for (const job of q.jobs) {
@@ -286,6 +313,7 @@ export class QueueStore {
     jobId: string,
     patch: Partial<Pick<QueueJobVM, "status" | "projectId" | "error" | "displayTitle">>,
   ): QueueProjectVM | null {
+    this.assertWritable();
     const q = this.data.queues.find((x) => x.id === queueId);
     if (!q) return null;
     const job = q.jobs.find((j) => j.id === jobId);
@@ -305,6 +333,7 @@ export class QueueStore {
   }
 
   clearJobProjectId(queueId: string, jobId: string): boolean {
+    this.assertWritable();
     const job = this.data.queues.find((q) => q.id === queueId)?.jobs.find((item) => item.id === jobId);
     if (!job?.projectId) return false;
     delete job.projectId;
@@ -313,6 +342,7 @@ export class QueueStore {
   }
 
   schedule(queueId: string): boolean {
+    this.assertWritable();
     if (!this.data.queues.some((q) => q.id === queueId)) return false;
     const runner = this.runner();
     if (runner.requestedQueueIds.includes(queueId)) return false;
@@ -322,6 +352,7 @@ export class QueueStore {
   }
 
   unschedule(queueId: string, persist = true): boolean {
+    if (persist) this.assertWritable();
     const runner = this.runner();
     const before = runner.requestedQueueIds.length;
     runner.requestedQueueIds = runner.requestedQueueIds.filter((id) => id !== queueId);
@@ -336,11 +367,13 @@ export class QueueStore {
   }
 
   pause(state: QueuePauseState): void {
+    this.assertWritable();
     this.runner().paused = { ...state };
     this.save();
   }
 
   clearPause(): void {
+    this.assertWritable();
     const runner = this.runner();
     if (!runner.paused) return;
     delete runner.paused;
@@ -383,7 +416,7 @@ export class QueueStore {
     try {
       if (!existsSync(this.deps.filePath)) return { version: 1, queues: [], runner: { requestedQueueIds: [] } };
       const parsed = JSON.parse(readFileSync(this.deps.filePath, "utf8")) as StoreFile;
-      if (parsed?.version !== 1 || !Array.isArray(parsed.queues)) return { version: 1, queues: [], runner: { requestedQueueIds: [] } };
+      if (parsed?.version !== 1 || !Array.isArray(parsed.queues)) throw new Error("queues.json has an unsupported shape");
       const queues = parsed.queues.map(normalizeQueue);
       const known = new Set(queues.map((q) => q.id));
       const requestedQueueIds = Array.isArray(parsed.runner?.requestedQueueIds)
@@ -398,9 +431,20 @@ export class QueueStore {
         },
       };
     } catch (error) {
-      console.warn("[queue] failed to read queues file; starting with an empty queue:", error);
+      const backup = `${this.deps.filePath}.corrupt-${Date.now()}`;
+      try {
+        copyFileSync(this.deps.filePath, backup, 0);
+        this.loadFailure = `Hàng đợi không đọc được. Bản gốc đã lưu tại ${backup}.`;
+      } catch {
+        this.loadFailure = "Hàng đợi không đọc được và không thể tạo bản sao an toàn.";
+      }
+      console.warn("[queue] failed to read queues file; store is read-only:", error);
       return { version: 1, queues: [], runner: { requestedQueueIds: [] } };
     }
+  }
+
+  private assertWritable(): void {
+    if (this.loadFailure) throw new Error(`${this.loadFailure} Hãy khôi phục file hàng đợi trước khi thay đổi.`);
   }
 
   private save(): void {

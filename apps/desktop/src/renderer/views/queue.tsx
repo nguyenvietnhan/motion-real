@@ -130,6 +130,7 @@ export const QueueView: React.FC<{
   onResumeQueue: () => Promise<QueueStartResult>;
   onOpenVoiceSettings: () => void;
   queueStatus?: QueueRunnerStatus;
+  onRecoverStore?: () => Promise<void>;
 }> = (props) => {
   if (props.active) {
     return <QueueDetail {...props} queue={props.active} />;
@@ -143,6 +144,7 @@ export const QueueView: React.FC<{
     onDeleteQueue,
     onRefresh,
     queueStatus = EMPTY_QUEUE_STATUS,
+    onRecoverStore,
   } = props;
 
   return (
@@ -155,6 +157,16 @@ export const QueueView: React.FC<{
           </button>
         }
       />
+      {queueStatus.storeError && (
+        <div className="ns-notice is-error" role="alert">
+          <span>{queueStatus.storeError}</span>
+          {onRecoverStore && (
+            <button type="button" className="ns-btn" onClick={() => void onRecoverStore()}>
+              Khôi phục hàng đợi trống
+            </button>
+          )}
+        </div>
+      )}
       {load === "loading" && <LoadingLine />}
       {load === "error" && (
         <EmptyState

@@ -84,4 +84,6 @@ export type QueueRunnerStatus = {
   /** FIFO of containers waiting after the active one. */
   pendingQueueIds: string[];
   paused?: QueuePauseState;
+  /** Queue file could not be parsed; queue mutations stay disabled until recovery. */
+  storeError?: string;
 };
