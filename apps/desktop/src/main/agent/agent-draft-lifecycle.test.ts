@@ -1,7 +1,28 @@
 import { describe, expect, it, vi } from "vitest";
-import { deleteAgentDraft, renameAgentDraft } from "./agent-draft-lifecycle.js";
+import { deleteAgentDraft, renameAgentDraft, resumeAgentDraftDeletion, type AgentDeletionDeps } from "./agent-draft-lifecycle.js";
 
 const linked = { id: "agent-1", title: "Cũ", projectId: "project-1" };
+const deletionPlan = {
+  version: 1 as const,
+  draftId: "agent-11111111-1111-1111-1111-111111111111",
+  projectId: "project-1",
+  workspaceId: "workspace-1",
+  sessionIds: ["session-1"],
+  draftRoot: "C:\\agent-drafts\\agent-11111111-1111-1111-1111-111111111111",
+};
+
+function deletionDeps(calls: string[], overrides: Partial<AgentDeletionDeps> = {}): AgentDeletionDeps {
+  return {
+    prepareDraftDeletion: async () => deletionPlan,
+    cancelHarnessSessions: async () => { calls.push("cancel"); },
+    deleteHarnessData: async () => { calls.push("harness_data"); },
+    deleteProject: async () => { calls.push("project"); return true; },
+    removeDraftRoot: async () => { calls.push("draft"); },
+    writeJournal: async (entry) => { calls.push(`journal:${entry.phase}${entry.lastError ? ":error" : ""}`); },
+    removeJournal: async () => { calls.push("journal:remove"); },
+    ...overrides,
+  };
+}
 
 describe("Agent draft lifecycle", () => {
   it("renames the project and Agent metadata as one transaction", async () => {
@@ -25,23 +46,35 @@ describe("Agent draft lifecycle", () => {
     expect(renameProject.mock.calls).toEqual([["project-1", "Mới"], ["project-1", "Cũ"]]);
   });
 
-  it("does not remove the Agent draft when linked project deletion fails", async () => {
-    const removeDraft = vi.fn();
-    await expect(deleteAgentDraft("agent-1", {
-      status: async () => linked,
-      deleteProject: async () => { throw new Error("project locked"); },
-      removeDraft,
-    })).rejects.toThrow("project locked");
-    expect(removeDraft).not.toHaveBeenCalled();
+  it("journals each phase before deleting project and draft", async () => {
+    const calls: string[] = [];
+    await deleteAgentDraft(deletionPlan.draftId, deletionDeps(calls));
+    expect(calls).toEqual([
+      "journal:cancel",
+      "cancel",
+      "journal:harness_data",
+      "harness_data",
+      "journal:project",
+      "project",
+      "journal:draft",
+      "draft",
+      "journal:remove",
+    ]);
   });
 
-  it("does not remove the Agent draft when project deletion reports failure", async () => {
-    const removeDraft = vi.fn();
-    await expect(deleteAgentDraft("agent-1", {
-      status: async () => linked,
-      deleteProject: async () => false,
-      removeDraft,
-    })).rejects.toThrow(/MotionReal/);
-    expect(removeDraft).not.toHaveBeenCalled();
+  it("retains the journal and draft when project deletion fails", async () => {
+    const calls: string[] = [];
+    await expect(deleteAgentDraft(deletionPlan.draftId, deletionDeps(calls, {
+      deleteProject: async () => { calls.push("project"); return false; },
+    }))).rejects.toThrow(/MotionReal/);
+    expect(calls).toContain("journal:project:error");
+    expect(calls).not.toContain("draft");
+    expect(calls).not.toContain("journal:remove");
+  });
+
+  it("resumes only the remaining deletion phases after a crash", async () => {
+    const calls: string[] = [];
+    await resumeAgentDraftDeletion({ ...deletionPlan, phase: "project" }, deletionDeps(calls));
+    expect(calls).toEqual(["project", "journal:draft", "draft", "journal:remove"]);
   });
 });

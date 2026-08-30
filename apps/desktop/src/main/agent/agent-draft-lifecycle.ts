@@ -1,3 +1,6 @@
+import type { AgentDeletionJournalEntry } from "./agent-deletion-journal.js";
+import type { HarnessDraftDeletionPlan } from "./harness-manager.js";
+
 type DraftIdentity = { id: string; title: string; projectId?: string };
 
 export async function renameAgentDraft<T extends DraftIdentity>(
@@ -23,17 +26,61 @@ export async function renameAgentDraft<T extends DraftIdentity>(
   }
 }
 
-export async function deleteAgentDraft<T extends DraftIdentity>(
+export type AgentDeletionDeps = {
+  prepareDraftDeletion(id: string): Promise<HarnessDraftDeletionPlan>;
+  cancelHarnessSessions(plan: HarnessDraftDeletionPlan): Promise<void>;
+  deleteHarnessData(plan: HarnessDraftDeletionPlan): Promise<void>;
+  deleteProject(projectId: string): Promise<boolean>;
+  removeDraftRoot(plan: HarnessDraftDeletionPlan): Promise<void>;
+  writeJournal(entry: AgentDeletionJournalEntry): Promise<void>;
+  removeJournal(draftId: string): Promise<void>;
+};
+
+/** Start a durable deletion transaction; every irreversible phase is journaled first. */
+export async function deleteAgentDraft(
   draftId: string,
-  deps: {
-    status(id: string): Promise<T>;
-    deleteProject(projectId: string): Promise<boolean>;
-    removeDraft(id: string): Promise<void>;
-  },
+  deps: AgentDeletionDeps,
 ): Promise<void> {
-  const draft = await deps.status(draftId);
-  if (draft.projectId && !await deps.deleteProject(draft.projectId)) {
-    throw new Error("Không xóa được project MotionReal; giữ nguyên Agent workspace.");
+  const plan = await deps.prepareDraftDeletion(draftId);
+  const entry: AgentDeletionJournalEntry = { ...plan, phase: "cancel" };
+  await deps.writeJournal(entry);
+  await resumeAgentDraftDeletion(entry, deps);
+}
+
+/** Resume a partially completed deletion after a crash without guessing identities. */
+export async function resumeAgentDraftDeletion(
+  entry: AgentDeletionJournalEntry,
+  deps: AgentDeletionDeps,
+): Promise<void> {
+  let current = entry;
+  const advance = async (phase: AgentDeletionJournalEntry["phase"]) => {
+    current = { ...current, phase, lastError: undefined };
+    await deps.writeJournal(current);
+  };
+  try {
+    if (current.phase === "cancel") {
+      await deps.cancelHarnessSessions(current);
+      await advance("harness_data");
+    }
+    if (current.phase === "harness_data") {
+      await deps.deleteHarnessData(current);
+      await advance("project");
+    }
+    if (current.phase === "project") {
+      if (current.projectId && !await deps.deleteProject(current.projectId)) {
+        throw new Error("Không xóa được project MotionReal; giữ Agent workspace để có thể thử lại.");
+      }
+      await advance("draft");
+    }
+    if (current.phase === "draft") {
+      await deps.removeDraftRoot(current);
+      await deps.removeJournal(current.draftId);
+    }
+  } catch (error) {
+    await deps.writeJournal({
+      ...current,
+      lastError: error instanceof Error ? error.message.slice(0, 1_000) : String(error).slice(0, 1_000),
+    }).catch(() => undefined);
+    throw error;
   }
-  await deps.removeDraft(draft.id);
 }

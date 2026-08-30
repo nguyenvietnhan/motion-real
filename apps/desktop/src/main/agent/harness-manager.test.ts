@@ -1,7 +1,7 @@
 import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { EventEmitter } from "node:events";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { HarnessManager, type HarnessManagerDeps } from "./harness-manager.js";
 
@@ -18,7 +18,7 @@ export default registerComponent({ id: "${id}", displayName: "${id}", schema, ex
   Component: () => <div>${version}</div> });\n`;
 }
 
-async function managerForTest(): Promise<{ manager: HarnessManager; root: string }> {
+async function managerForTest(over: Partial<HarnessManagerDeps> = {}): Promise<{ manager: HarnessManager; root: string }> {
   const root = await mkdtemp(join(tmpdir(), "motionreal-agent-"));
   roots.push(root);
   return {
@@ -29,6 +29,7 @@ async function managerForTest(): Promise<{ manager: HarnessManager; root: string
       harnessCliPath: join(root, "missing-harness.js"),
       submissionPluginPath: join(root, "motionreal-tools.mjs"),
       mediaUrl: (path) => `media://${path}`,
+      ...over,
     }),
   };
 }
@@ -1143,6 +1144,40 @@ describe("HarnessManager draft lifecycle", () => {
 
     await manager.removeDraft(draft.id);
     expect(await manager.list()).toEqual([]);
+  });
+
+  it("removes only the exact pinned Harness session directory", async () => {
+    const { manager, root } = await managerForTest({
+      harnessRevision: async () => "466404c927e2209ba7f242038b6922f10c0405cd",
+    });
+    const draft = await manager.createDraft("Xóa lịch sử thật");
+    const plan = await manager.prepareDraftDeletion(draft.id);
+    const projectKey = `--${plan.draftRoot.replace(/[:\\/]+/g, "-").replace(/^-+/, "")}--`;
+    const sessionDir = join(root, "harness", "sessions", projectKey, plan.sessionIds[0]!);
+    const otherSessionDir = join(root, "harness", "sessions", projectKey, "session-other");
+    await mkdir(sessionDir, { recursive: true });
+    await mkdir(otherSessionDir, { recursive: true });
+    await writeFile(join(sessionDir, "session.jsonl"), "deleted history");
+    await writeFile(join(otherSessionDir, "session.jsonl"), "retained history");
+
+    await manager.removeDraft(draft.id);
+
+    await expect(readFile(join(sessionDir, "session.jsonl"), "utf8")).rejects.toMatchObject({ code: "ENOENT" });
+    await expect(readFile(join(otherSessionDir, "session.jsonl"), "utf8")).resolves.toBe("retained history");
+  });
+
+  it("fails closed before touching persisted history when Harness revision differs", async () => {
+    const { manager, root } = await managerForTest({ harnessRevision: async () => "0".repeat(40) });
+    const draft = await manager.createDraft("Không xóa sai history");
+    const plan = await manager.prepareDraftDeletion(draft.id);
+    const projectKey = `--${plan.draftRoot.replace(/[:\\/]+/g, "-").replace(/^-+/, "")}--`;
+    const sessionLog = join(root, "harness", "sessions", projectKey, plan.sessionIds[0]!, "session.jsonl");
+    await mkdir(dirname(sessionLog), { recursive: true });
+    await writeFile(sessionLog, "keep history");
+
+    await expect(manager.removeDraft(draft.id)).rejects.toThrow(/không khớp/i);
+    await expect(readFile(sessionLog, "utf8")).resolves.toBe("keep history");
+    expect(await manager.status(draft.id)).toMatchObject({ id: draft.id });
   });
 
   it("starts one shared Harness, then adopts and selects a video workspace through the real RPC shape", async () => {

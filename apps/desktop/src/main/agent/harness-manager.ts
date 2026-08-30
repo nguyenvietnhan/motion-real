@@ -3,7 +3,7 @@ import { spawn, type ChildProcess } from "node:child_process";
 import { mkdir, readFile, readdir, realpath, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { createServer } from "node:net";
-import { basename, isAbsolute, join, relative, resolve } from "node:path";
+import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { createLogger, MAX_IMAGE_BYTES, MAX_IMAGE_DIM, resolveEffectiveDuration, sniffImage, writeJson } from "@motionreal/pipeline";
 import type { SceneImageRole } from "@motionreal/schema";
@@ -57,6 +57,8 @@ const CANCEL_RPC_TIMEOUT_MS = 2_000;
 const PROCESS_OUTPUT_LIMIT = 4_096;
 const AUTHORING_POLL_MS = 500;
 const SESSION_POLICY_REVISION = 1;
+/** Session persistence is intentionally coupled to this reviewed Harness checkout. */
+const HARNESS_SESSION_LAYOUT_COMMIT = "466404c927e2209ba7f242038b6922f10c0405cd";
 const log = createLogger("harness");
 
 export type { AgentDraftVM } from "../../shared/types.js";
@@ -137,6 +139,18 @@ export type HarnessManagerDeps = {
   rpcTimeoutMs?: number;
   /** Test seam; a cancel must never hold the UI beyond this short deadline. */
   cancelRpcTimeoutMs?: number;
+  /** Test seam for the pinned Harness session-layout guard. */
+  harnessRevision?: () => Promise<string>;
+};
+
+/** Durable identity needed to remove only one Agent draft's Harness artifacts. */
+export type HarnessDraftDeletionPlan = {
+  version: 1;
+  draftId: string;
+  projectId?: string;
+  workspaceId?: string;
+  sessionIds: string[];
+  draftRoot: string;
 };
 
 /**
@@ -879,25 +893,70 @@ export class HarnessManager {
     return (await this.list()).find((draft) => draft.projectId === projectId) ?? null;
   }
 
-  async removeDraft(id: string): Promise<void> {
+  /** Capture all exact identities before a multi-step Agent deletion begins. */
+  async prepareDraftDeletion(id: string): Promise<HarnessDraftDeletionPlan> {
     const record = await this.mustReadRecord(id);
-    this.stopAuthoringPoll(record.id);
+    const sessionIds = new Set<string>();
+    if (record.sessionId) sessionIds.add(record.sessionId);
     if (this.active && record.workspaceId) {
-      const sessionIds = await this.workspaceSessionIds(record.workspaceId).catch((error) => {
+      const listed = await this.workspaceSessionIds(record.workspaceId).catch((error) => {
         log.warn({ err: error, draftId: record.id }, "failed to list Harness sessions during draft deletion");
         return [];
       });
-      for (const sessionId of sessionIds) {
-        await this.rpc(this.active.url, "workspace.archiveSession", { sessionId }).catch((error) => {
-          log.warn({ err: error, draftId: record.id }, "failed to archive Harness session during draft deletion");
+      for (const sessionId of listed) sessionIds.add(sessionId);
+    }
+    return {
+      version: 1,
+      draftId: record.id,
+      ...(record.projectId ? { projectId: record.projectId } : {}),
+      ...(record.workspaceId ? { workspaceId: record.workspaceId } : {}),
+      sessionIds: [...sessionIds],
+      draftRoot: this.rootOf(record.id),
+    };
+  }
+
+  /** Best-effort cancellation is a separate journal step from physical deletion. */
+  async cancelHarnessSessions(plan: HarnessDraftDeletionPlan): Promise<void> {
+    this.assertDeletionPlan(plan);
+    this.stopAuthoringPoll(plan.draftId);
+    if (plan.projectId) this.deps.cancelAuthoringStills?.(plan.projectId);
+    if (this.active) {
+      for (const sessionId of plan.sessionIds) {
+        await this.rpc(this.active.url, "session.cancel", { sessionId }, this.cancelRpcTimeoutMs).catch((error) => {
+          log.warn({ err: error, draftId: plan.draftId, sessionId }, "failed to cancel Harness session during draft deletion");
         });
       }
-      await this.rpc(this.active.url, "workspace.delete", { workspaceId: record.workspaceId }).catch((error) => {
-        log.warn({ err: error, draftId: record.id }, "failed to remove Harness workspace registration");
+    }
+  }
+
+  /** Remove only the native Harness data named in a previously persisted plan. */
+  async deleteHarnessData(plan: HarnessDraftDeletionPlan): Promise<void> {
+    this.assertDeletionPlan(plan);
+
+    const persistedSessionDirs = await this.persistedSessionDirs(plan);
+    if (persistedSessionDirs.length > 0) await this.assertPinnedHarnessSessionLayout();
+    if (this.active && plan.workspaceId) {
+      await this.rpc(this.active.url, "workspace.delete", { workspaceId: plan.workspaceId }).catch((error) => {
+        if (isMissingHarnessWorkspace(error)) return;
+        throw error;
       });
     }
-    if (this.activeDraftId === record.id) this.activeDraftId = null;
-    await rm(this.rootOf(record.id), { recursive: true, force: true });
+    for (const sessionDir of persistedSessionDirs) await rm(sessionDir, { recursive: true, force: true });
+    if (this.activeDraftId === plan.draftId) this.activeDraftId = null;
+    for (const sessionId of plan.sessionIds) this.liveSessionIds.delete(sessionId);
+  }
+
+  /** Final deletion step is deliberately separate so a journal can resume it. */
+  async removeDraftRoot(plan: HarnessDraftDeletionPlan): Promise<void> {
+    this.assertDeletionPlan(plan);
+    await rm(this.rootOf(plan.draftId), { recursive: true, force: true });
+  }
+
+  async removeDraft(id: string): Promise<void> {
+    const plan = await this.prepareDraftDeletion(id);
+    await this.cancelHarnessSessions(plan);
+    await this.deleteHarnessData(plan);
+    await this.removeDraftRoot(plan);
   }
 
   async dispose(): Promise<void> {
@@ -1024,6 +1083,47 @@ export class HarnessManager {
 
   private rootOf(id: string): string {
     return join(this.deps.draftsRoot, id);
+  }
+
+  private assertDeletionPlan(plan: HarnessDraftDeletionPlan): void {
+    if (plan.version !== 1 || !/^agent-[0-9a-f-]{36}$/i.test(plan.draftId)) {
+      throw new Error("Kế hoạch xóa Agent không hợp lệ.");
+    }
+    if (resolve(plan.draftRoot) !== resolve(this.rootOf(plan.draftId))) {
+      throw new Error("Kế hoạch xóa Agent trỏ ra ngoài thư mục draft.");
+    }
+    if (!Array.isArray(plan.sessionIds) || plan.sessionIds.some((id) => id.length === 0 || id.length > 240)) {
+      throw new Error("Kế hoạch xóa Agent có session không hợp lệ.");
+    }
+  }
+
+  /** Resolve exact session directories with the pinned Harness' encoding. */
+  private async persistedSessionDirs(plan: HarnessDraftDeletionPlan): Promise<string[]> {
+    const sessionsRoot = join(this.deps.harnessHome, "sessions");
+    const rootReal = await realpath(sessionsRoot).catch(() => null);
+    if (!rootReal) return [];
+    const projectDirectory = join(rootReal, harnessSessionProjectKey(plan.draftRoot));
+    const directories: string[] = [];
+    for (const sessionId of plan.sessionIds) {
+      const candidate = join(projectDirectory, harnessSessionSegment(sessionId));
+      const targetReal = await realpath(candidate).catch(() => null);
+      if (!targetReal) continue;
+      assertChildPath(rootReal, targetReal, "Harness session");
+      const info = await stat(targetReal);
+      if (!info.isDirectory()) throw new Error("Dữ liệu session Harness không phải thư mục.");
+      directories.push(targetReal);
+    }
+    return [...new Set(directories)];
+  }
+
+  /** Fail closed if the physical session layout has not been re-reviewed. */
+  private async assertPinnedHarnessSessionLayout(): Promise<void> {
+    const revision = this.deps.harnessRevision
+      ? await this.deps.harnessRevision()
+      : await harnessCheckoutRevision(this.deps.harnessCliPath);
+    if (revision !== HARNESS_SESSION_LAYOUT_COMMIT) {
+      throw new Error("Không xóa lịch sử Harness vì phiên bản lưu session không khớp bản đã kiểm chứng.");
+    }
   }
 
   private requireActiveSession(record: DraftRecord): void {
@@ -1868,6 +1968,76 @@ export class HarnessManager {
       ? workspace.sessionIds.filter((sessionId): sessionId is string => typeof sessionId === "string")
       : [];
   }
+}
+
+function isMissingHarnessWorkspace(error: unknown): boolean {
+  return error instanceof HarnessRpcError
+    && /not[-_ ]?found|unknown/i.test(`${error.code} ${error.message}`);
+}
+
+function assertChildPath(parent: string, target: string, label: string): void {
+  const pathFromParent = relative(parent, target);
+  if (!pathFromParent || pathFromParent === ".." || pathFromParent.startsWith(`..${"\\"}`) || isAbsolute(pathFromParent)) {
+    throw new Error(`${label} nằm ngoài thư mục Harness.`);
+  }
+}
+
+/** Exact copy of the reviewed Harness session-persistence path encoder. */
+function harnessSessionSegment(raw: string): string {
+  let encoded = "";
+  for (let index = 0; index < raw.length; index += 1) {
+    const code = raw.charCodeAt(index);
+    const character = String.fromCharCode(code);
+    encoded += character !== "~" && /^[A-Za-z0-9._-]$/.test(character)
+      ? character
+      : `~${code.toString(16).toUpperCase().padStart(4, "0")}`;
+  }
+  return encoded;
+}
+
+/** Exact copy of the reviewed Harness project-key encoder. */
+function harnessSessionProjectKey(cwd: string): string {
+  let readable = "";
+  let separatorRun = false;
+  for (let index = 0; index < cwd.length; index += 1) {
+    const code = cwd.charCodeAt(index);
+    const character = String.fromCharCode(code);
+    if (character === "/" || character === "\\" || character === ":") {
+      if (!separatorRun) readable += "-";
+      separatorRun = true;
+    } else if (character !== "~" && /^[A-Za-z0-9._-]$/.test(character)) {
+      readable += character;
+      separatorRun = false;
+    } else {
+      readable += `~${code.toString(16).toUpperCase().padStart(4, "0")}`;
+      separatorRun = false;
+    }
+  }
+  return `--${(readable.replace(/^-+/, "") || "root").slice(0, 251)}--`;
+}
+
+async function harnessCheckoutRevision(cliPath: string): Promise<string> {
+  const cli = resolve(cliPath);
+  const sourceRoot = dirname(dirname(dirname(dirname(cli))));
+  if (relative(sourceRoot, cli).replaceAll("\\", "/") !== "apps/cli/lib/bin.js") {
+    throw new Error("Không xác minh được source checkout của Harness.");
+  }
+  const gitPointer = join(sourceRoot, ".git");
+  const pointerInfo = await stat(gitPointer);
+  let gitDirectory = gitPointer;
+  if (!pointerInfo.isDirectory()) {
+    const pointer = (await readFile(gitPointer, "utf8")).trim();
+    const match = /^gitdir:\s*(.+)$/i.exec(pointer);
+    if (!match) throw new Error("Không đọc được Git directory của Harness.");
+    gitDirectory = resolve(sourceRoot, match[1]!);
+  }
+  const head = (await readFile(join(gitDirectory, "HEAD"), "utf8")).trim();
+  const reference = /^ref:\s*(refs\/[A-Za-z0-9._/-]+)$/.exec(head);
+  const revision = reference
+    ? (await readFile(join(gitDirectory, reference[1]!), "utf8")).trim()
+    : head;
+  if (!/^[a-f0-9]{40}$/i.test(revision)) throw new Error("Không đọc được revision Harness.");
+  return revision.toLowerCase();
 }
 
 class HarnessRpcError extends Error {

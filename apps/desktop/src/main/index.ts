@@ -18,7 +18,12 @@ import { NineRouterClient } from "./gateway/ninerouter-client.js";
 import { NineRouterAuthoringBackend } from "./authoring/ninerouter-backend.js";
 import { CustomLoopAgentWorker } from "./agent/custom-loop-worker.js";
 import { createAgentProject } from "./agent/create-agent-project.js";
-import { deleteAgentDraft, renameAgentDraft } from "./agent/agent-draft-lifecycle.js";
+import { deleteAgentDraft, renameAgentDraft, resumeAgentDraftDeletion } from "./agent/agent-draft-lifecycle.js";
+import {
+  listAgentDeletionJournals,
+  removeAgentDeletionJournal,
+  writeAgentDeletionJournal,
+} from "./agent/agent-deletion-journal.js";
 import { routeSceneEdits } from "./agent/route-scene-edits.js";
 import { routeProjectRecovery } from "./agent/route-project-recovery.js";
 import { WorkspaceController } from "./workspace/workspace-controller.js";
@@ -473,6 +478,35 @@ const harness = new HarnessManager({
   acceptAuthoringStills: (projectId) => workspace.acceptHarnessStills(projectId),
 });
 
+const agentDeletionJournalRoot = join(videoToolHome(), "agent-deletions");
+const agentDeletionDeps = {
+  prepareDraftDeletion: (id: string) => harness.prepareDraftDeletion(id),
+  cancelHarnessSessions: (plan: Parameters<typeof harness.cancelHarnessSessions>[0]) => harness.cancelHarnessSessions(plan),
+  deleteHarnessData: (plan: Parameters<typeof harness.deleteHarnessData>[0]) => harness.deleteHarnessData(plan),
+  deleteProject: (projectId: string) => workspace.delete(projectId),
+  removeDraftRoot: (plan: Parameters<typeof harness.removeDraftRoot>[0]) => harness.removeDraftRoot(plan),
+  writeJournal: (entry: Parameters<typeof writeAgentDeletionJournal>[1]) =>
+    writeAgentDeletionJournal(agentDeletionJournalRoot, entry),
+  removeJournal: (draftId: string) => removeAgentDeletionJournal(agentDeletionJournalRoot, draftId),
+};
+
+async function deleteManagedAgentDraft(draftId: string): Promise<void> {
+  const pending = await listAgentDeletionJournals(agentDeletionJournalRoot);
+  const entry = pending.find((candidate) => candidate.draftId === draftId);
+  if (entry) return resumeAgentDraftDeletion(entry, agentDeletionDeps);
+  return deleteAgentDraft(draftId, agentDeletionDeps);
+}
+
+async function resumePendingAgentDeletions(): Promise<void> {
+  for (const entry of await listAgentDeletionJournals(agentDeletionJournalRoot)) {
+    try {
+      await resumeAgentDraftDeletion(entry, agentDeletionDeps);
+    } catch (error) {
+      log.warn({ err: error, draftId: entry.draftId, phase: entry.phase }, "Agent deletion remains pending for retry");
+    }
+  }
+}
+
 async function activateHarnessDraft(draftId: string) {
   const state = await gateway.refreshHealth();
   if (state.kind !== "ready") throw new Error("9router chưa sẵn sàng. Hãy mở 9router rồi thử lại.");
@@ -899,11 +933,7 @@ const handlers: InvokeHandlers = {
       },
     });
   },
-  "agent:deleteDraft": (draftId) => deleteAgentDraft(String(draftId), {
-    status: (id) => harness.status(id),
-    deleteProject: (projectId) => workspace.delete(projectId),
-    removeDraft: (id) => harness.removeDraft(id),
-  }),
+  "agent:deleteDraft": (draftId) => deleteManagedAgentDraft(String(draftId)),
 
   "projects:list": () => workspace.list(),
   "projects:create": async (input) => {
@@ -945,8 +975,8 @@ const handlers: InvokeHandlers = {
     const id = String(projectId);
     // A video created by Agent owns its isolated Harness state as well.
     const draft = await resolveHarnessDraftForProject(id);
-    if (!await workspace.delete(id)) throw new Error("Không xóa được project MotionReal. Agent workspace được giữ nguyên.");
-    if (draft) await harness.removeDraft(draft.id);
+    if (draft) return deleteManagedAgentDraft(draft.id);
+    if (!await workspace.delete(id)) throw new Error("Không xóa được project MotionReal.");
   },
   "projects:reveal": (projectId) => workspace.reveal(String(projectId)),
   "projects:save": (projectId) => saveProjectVideo(projectId, nativeSaveDeps),
@@ -1275,6 +1305,11 @@ app
       await reconcileAuthoringCandidateTransactions(join(videoToolHome(), "projects"));
     } catch (error) {
       log.warn({ err: error }, "stale-state reconcile failed; desktop startup will continue");
+    }
+    try {
+      await resumePendingAgentDeletions();
+    } catch (error) {
+      log.warn({ err: error }, "could not inspect pending Agent deletions at startup");
     }
     startGateway();
     await createWindow();
