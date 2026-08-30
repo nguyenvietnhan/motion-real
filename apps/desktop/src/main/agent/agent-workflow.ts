@@ -86,7 +86,7 @@ export function parseAgentWorkflow(value: Record<string, unknown>): AgentWorkflo
   const lastError = typeof value.lastError === "string" ? value.lastError.trim().slice(0, 500) : undefined;
   if (productionState === "error" && !lastError) return null;
   if (productionState !== "error" && lastError) return null;
-  const pausedFrom = isPausableState(value.pausedFrom) ? value.pausedFrom : undefined;
+  const pausedFrom = isPausableAgentProductionState(value.pausedFrom) ? value.pausedFrom : undefined;
   if (productionState === "paused" && !pausedFrom) return null;
   if (productionState !== "paused" && pausedFrom) return null;
   return {
@@ -111,7 +111,7 @@ export function pauseAgentWorkflow(
   request: Pick<AgentWorkflowTransition, "expectedRevision" | "jobId">,
 ): AgentWorkflowRecord {
   assertWorkflowRevisionAndJob(current, request);
-  if (!isPausableState(current.productionState)) {
+  if (!isPausableAgentProductionState(current.productionState)) {
     throw new Error(`Không thể dừng Video Agent ở bước ${current.productionState}.`);
   }
   return {
@@ -185,7 +185,7 @@ function validJobId(value: unknown): value is string {
   return typeof value === "string" && /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/.test(value);
 }
 
-function isPausableState(value: unknown): value is PausableAgentProductionState {
+export function isPausableAgentProductionState(value: unknown): value is PausableAgentProductionState {
   return value === "collecting_assets"
     || value === "preparing_brief"
     || value === "authoring"

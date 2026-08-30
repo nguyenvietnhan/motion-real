@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   initialAgentWorkflow,
+  isPausableAgentProductionState,
   parseAgentWorkflow,
   pauseAgentWorkflow,
   resumeAgentWorkflow,
@@ -8,6 +9,17 @@ import {
 } from "./agent-workflow.js";
 
 describe("Agent production workflow", () => {
+  it("recognizes exactly the four pausable automated production states", () => {
+    expect([
+      "collecting_assets",
+      "preparing_brief",
+      "authoring",
+      "visual_refine",
+    ].every(isPausableAgentProductionState)).toBe(true);
+    expect(["discovery", "asset_review", "brief_review", "scene_review", "paused", "error"]
+      .some(isPausableAgentProductionState)).toBe(false);
+  });
+
   it("advances only through allowed transitions for the active job", () => {
     const collecting = transitionAgentWorkflow(initialAgentWorkflow(), {
       expectedRevision: 0,

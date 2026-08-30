@@ -260,6 +260,32 @@ describe("HarnessManager draft lifecycle", () => {
     expect(JSON.parse(await readFile(metadataPath, "utf8"))).not.toHaveProperty("pausedFrom");
   });
 
+  it("repairs legacy pause residue for every pausable automated state only", async () => {
+    const { manager, root } = await activeManagerForTest();
+    const draft = await manager.createDraft("Khôi phục tất cả trạng thái dừng");
+    await manager.activate(draft.id, "internal-key");
+    const metadataPath = join(root, draft.id, "motionreal-agent.json");
+    const baseline = JSON.parse(await readFile(metadataPath, "utf8")) as Record<string, unknown>;
+    const states = ["collecting_assets", "preparing_brief", "authoring", "visual_refine"] as const;
+
+    for (const productionState of states) {
+      await writeFile(metadataPath, JSON.stringify({
+        ...baseline,
+        id: draft.id,
+        title: draft.title,
+        createdAt: draft.createdAt,
+        workflowVersion: 2,
+        workflowRevision: 1,
+        productionState,
+        activeJobId: "job-legacy",
+        pausedFrom: productionState,
+      }));
+
+      await expect(manager.status(draft.id)).resolves.toMatchObject({ productionState, workflowRevision: 1 });
+      await expect(readFile(metadataPath, "utf8")).resolves.not.toContain("pausedFrom");
+    }
+  });
+
   it("projects only allow-listed native tool activity without command or provider output", async () => {
     const { manager, history } = await activeManagerForTest();
     const draft = await manager.createDraft("Timeline an toàn");

@@ -20,6 +20,13 @@ import { useModalFocus } from "../use-modal-focus.js";
 import { ImageReviewView } from "./image-review.js";
 import { ProjectWorkspaceView } from "./workspace.js";
 import {
+  isAgentBriefInputDirty,
+  reconcileAgentBriefInput,
+  requiresBriefDiscardConfirmation,
+  type AgentBriefBaseline,
+  type BriefDiscardAction,
+} from "./agent-brief-state.js";
+import {
   applyVideoLanguageSelection,
   applyVoiceProviderSelection,
   KnobButton,
@@ -42,6 +49,22 @@ const PRODUCTION_LABELS: Record<AgentProductionState, string> = {
 
 const ASSET_ROLE_LABEL = { hero: "Ảnh chính", support: "Bổ trợ", logo: "Logo", icon: "Icon" } as const;
 type Run = (work: () => Promise<void>) => Promise<void>;
+type BriefDiscardRequest = { action: BriefDiscardAction; feedback?: string };
+
+function briefInputFor(
+  brief: AgentDraftVM["briefReview"],
+  durationTier: DurationTierChoice,
+  voiceProvider: VoiceProviderChoice,
+): AgentBriefInput | null {
+  if (!brief) return null;
+  return {
+    title: brief.title,
+    prompt: brief.prompt,
+    durationTier,
+    videoLanguage: brief.videoLanguage,
+    voiceProvider,
+  };
+}
 
 export const AgentView: React.FC<{
   reviewMode: ReviewMode;
@@ -448,18 +471,12 @@ export const AgentWorkspace: React.FC<AgentWorkspaceProps> = ({
   onDraftChange,
   run,
 }) => {
+  const briefBaselineRef = useRef<AgentBriefBaseline | null>(null);
   const [briefInput, setBriefInput] = useState<AgentBriefInput | null>(() =>
-    draft.briefReview
-      ? {
-          title: draft.briefReview.title,
-          prompt: draft.briefReview.prompt,
-          durationTier: defaultDurationTier,
-          videoLanguage: draft.briefReview.videoLanguage,
-          voiceProvider: defaultVoiceProvider,
-        }
-      : null,
+    briefInputFor(draft.briefReview, defaultDurationTier, defaultVoiceProvider),
   );
   const [showBriefReview, setShowBriefReview] = useState(true);
+  const [pendingBriefDiscard, setPendingBriefDiscard] = useState<BriefDiscardRequest | null>(null);
   const [projectStage, setProjectStage] = useState<ProjectStage | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settings, setSettings] = useState<AgentSettingsVM | null>(null);
@@ -479,18 +496,25 @@ export const AgentWorkspace: React.FC<AgentWorkspaceProps> = ({
 
   useEffect(() => {
     if (!draft.briefReview) {
+      briefBaselineRef.current = null;
       setBriefInput(null);
       return;
     }
-    setBriefInput({
-      title: draft.briefReview.title,
-      prompt: draft.briefReview.prompt,
-      durationTier: defaultDurationTier,
-      videoLanguage: draft.briefReview.videoLanguage,
-      voiceProvider: defaultVoiceProvider,
-    });
-    setShowBriefReview(true);
-  }, [draft.id, draft.briefReview?.revision, defaultDurationTier, defaultVoiceProvider]);
+    const input = briefInputFor(draft.briefReview, defaultDurationTier, defaultVoiceProvider);
+    if (!input) return;
+    const next = reconcileAgentBriefInput(
+      briefBaselineRef.current,
+      briefInput,
+      draft.id,
+      draft.briefReview.revision,
+      input,
+    );
+    briefBaselineRef.current = next.baseline;
+    if (next.didReset) {
+      setBriefInput(next.input);
+      setShowBriefReview(true);
+    }
+  }, [draft.id, draft.briefReview?.revision]);
 
   useEffect(() => {
     if (!draft.projectId) {
@@ -524,6 +548,32 @@ export const AgentWorkspace: React.FC<AgentWorkspaceProps> = ({
 
   const updateDraft = async (work: () => Promise<AgentDraftVM>): Promise<void> => {
     await run(async () => onDraftChange(await work()));
+  };
+
+  const completeBriefDiscard = (request: BriefDiscardRequest): void => {
+    if (request.action === "back") {
+      onBack();
+      return;
+    }
+    if (request.action === "return_to_assets") {
+      void updateDraft(() =>
+        window.dashboard.agent.returnToAssets(draft.id, draft.workflowRevision),
+      ).catch((_error) => undefined);
+      return;
+    }
+    if (request.feedback) {
+      void updateDraft(() =>
+        window.dashboard.agent.requestBriefChanges(draft.id, draft.workflowRevision, request.feedback!),
+      ).catch((_error) => undefined);
+    }
+  };
+
+  const requestBriefDiscard = (request: BriefDiscardRequest): void => {
+    if (requiresBriefDiscardConfirmation(request.action, briefBaselineRef.current?.input ?? null, briefInput)) {
+      setPendingBriefDiscard(request);
+      return;
+    }
+    completeBriefDiscard(request);
   };
 
   const liveProgress = projectStage ? agentProjectProgress(projectStage) : null;
@@ -623,7 +673,7 @@ export const AgentWorkspace: React.FC<AgentWorkspaceProps> = ({
         <button
           type="button"
           className="ns-btn ns-btn-icon-only"
-          onClick={onBack}
+          onClick={() => requestBriefDiscard({ action: "back" })}
           disabled={busy}
           aria-label="Quay lại danh sách Video Agent"
           title="Quay lại danh sách Video Agent"
@@ -719,9 +769,7 @@ export const AgentWorkspace: React.FC<AgentWorkspaceProps> = ({
           onInput={setBriefInput}
           onContinue={() => setShowBriefReview(false)}
           onReturn={() => {
-            void updateDraft(() =>
-              window.dashboard.agent.returnToAssets(draft.id, draft.workflowRevision),
-            ).catch((_error) => undefined);
+            requestBriefDiscard({ action: "return_to_assets" });
           }}
           onApprove={() => {
             void run(async () => {
@@ -732,9 +780,7 @@ export const AgentWorkspace: React.FC<AgentWorkspaceProps> = ({
             }).catch((_error) => undefined);
           }}
           onRequestChanges={(feedback) => {
-            void updateDraft(() =>
-              window.dashboard.agent.requestBriefChanges(draft.id, draft.workflowRevision, feedback),
-            ).catch((_error) => undefined);
+            requestBriefDiscard({ action: "request_changes", feedback });
           }}
         />
       )}
@@ -872,6 +918,19 @@ export const AgentWorkspace: React.FC<AgentWorkspaceProps> = ({
           void run(async () => setSettings(await window.dashboard.agent.setAccess(draft.id, presetId))).catch(
             (error) => setSettingsError(error instanceof Error ? error.message : "Không đổi được quyền truy cập."),
           );
+        }}
+      />
+      <ConfirmDialog
+        open={Boolean(pendingBriefDiscard)}
+        title="Bỏ các chỉnh sửa brief?"
+        message="Các thay đổi chưa được chấp nhận sẽ mất. Bạn vẫn có thể ở lại để tiếp tục chỉnh brief."
+        confirmLabel="Bỏ chỉnh sửa"
+        cancelLabel="Ở lại"
+        onCancel={() => setPendingBriefDiscard(null)}
+        onConfirm={() => {
+          const request = pendingBriefDiscard;
+          setPendingBriefDiscard(null);
+          if (request) completeBriefDiscard(request);
         }}
       />
       <ConfirmDialog

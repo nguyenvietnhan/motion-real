@@ -12,6 +12,7 @@ import { sanitizedChildEnvironment } from "../security/runtime-security.js";
 import {
   AGENT_WORKFLOW_VERSION,
   initialAgentWorkflow,
+  isPausableAgentProductionState,
   parseAgentWorkflow,
   pauseAgentWorkflow,
   resumeAgentWorkflow,
@@ -1913,7 +1914,7 @@ function objectOf(value: unknown): Record<string, unknown> {
 /** Recover only metadata written by the pre-fix pause/resume merge. */
 function repairLegacyResumeResidue(raw: Record<string, unknown>): Record<string, unknown> | null {
   const state = raw.productionState;
-  if ((state !== "collecting_assets" && state !== "preparing_brief" && state !== "authoring") || raw.pausedFrom !== state) {
+  if (!isPausableAgentProductionState(state) || raw.pausedFrom !== state) {
     return null;
   }
   const repaired = { ...raw };
