@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { createLogger, logger } from "./logger.js";
 
 describe("createLogger", () => {
@@ -10,5 +10,16 @@ describe("createLogger", () => {
     }
     expect(() => log.warn({ projectId: "p1", err: new Error("boom") }, "something recoverable")).not.toThrow();
     expect(logger.bindings().scope).toBeUndefined();
+  });
+
+  it("honors a fatal-only threshold", async () => {
+    vi.resetModules();
+    vi.stubEnv("LOG_LEVEL", "fatal");
+    const write = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+    const isolated = await import("./logger.js");
+    isolated.createLogger("test").error("must stay quiet");
+    expect(write).not.toHaveBeenCalled();
+    write.mockRestore();
+    vi.unstubAllEnvs();
   });
 });

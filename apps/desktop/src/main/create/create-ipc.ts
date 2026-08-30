@@ -62,7 +62,7 @@ export function parseVoiceProvider(value: unknown): VoiceProviderChoice {
   throw new Error("Nhà cung cấp giọng đọc không hợp lệ.");
 }
 
-/** Coerce IPC duration tier; invalid/missing → undefined (controller defaults to 1). */
+/** Coerce IPC duration tier; invalid/missing → undefined (controller defaults to tier 2). */
 export function parseDurationTier(value: unknown): DurationTierChoice | undefined {
   if (isDurationTier(value)) return value;
   if (value === "1" || value === "2" || value === "3" || value === "4") {

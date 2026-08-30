@@ -41,7 +41,7 @@ describe("authorInputFromBrief", () => {
   it("always rehydrates short-form tiktok format", () => {
     expect(authorInputFromBrief(brief({ language: "en" }))).toMatchObject({
       format: "tiktok",
-      durationTier: 1,
+      durationTier: 2,
       videoLanguage: "en",
     });
   });

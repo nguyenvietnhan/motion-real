@@ -435,7 +435,7 @@ export class QueueStore {
       try {
         copyFileSync(this.deps.filePath, backup, 0);
         this.loadFailure = `Hàng đợi không đọc được. Bản gốc đã lưu tại ${backup}.`;
-      } catch {
+      } catch (_backupError) {
         this.loadFailure = "Hàng đợi không đọc được và không thể tạo bản sao an toàn.";
       }
       console.warn("[queue] failed to read queues file; store is read-only:", error);
@@ -479,7 +479,7 @@ function normalizeJob(raw: QueueJobVM): QueueJobVM {
   return {
     id: String(raw.id ?? ""),
     raw: String(raw.raw ?? ""),
-    durationTier: ([1, 2, 3, 4] as const).includes(raw.durationTier as 1) ? (raw.durationTier as 1 | 2 | 3 | 4) : 1,
+    durationTier: ([1, 2, 3, 4] as const).includes(raw.durationTier as 1) ? (raw.durationTier as 1 | 2 | 3 | 4) : 2,
     videoLanguage: raw.videoLanguage === "en" ? "en" : "vi",
     voiceProvider: raw.voiceProvider === "elevenlabs" || raw.voiceProvider === "vieneu" ? raw.voiceProvider : "vivibe",
     bgm: typeof raw.bgm === "string" ? raw.bgm : null,

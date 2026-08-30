@@ -63,6 +63,14 @@ describe("resolveEffectiveDuration", () => {
     expect(r.targetSeconds).toBe(90);
     expect(r.source).toBe("prompt");
   });
+
+  it("uses the fresh-install 90-second tier when neither UI nor prompt chooses one", () => {
+    expect(resolveEffectiveDuration({ prompt: "Giới thiệu app quản lý công việc" })).toMatchObject({
+      targetSeconds: 90,
+      durationTier: 2,
+      source: "default",
+    });
+  });
 });
 
 describe("nearestDurationTier", () => {

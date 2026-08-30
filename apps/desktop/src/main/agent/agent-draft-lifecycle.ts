@@ -80,7 +80,7 @@ export async function resumeAgentDraftDeletion(
     await deps.writeJournal({
       ...current,
       lastError: error instanceof Error ? error.message.slice(0, 1_000) : String(error).slice(0, 1_000),
-    }).catch(() => undefined);
+    }).catch((_journalError) => undefined);
     throw error;
   }
 }

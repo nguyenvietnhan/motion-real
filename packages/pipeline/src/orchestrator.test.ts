@@ -266,13 +266,13 @@ describe("scaffoldVideoProject — R8/R10", () => {
     });
     expect(promptOnly.brief.duration).toBe(90);
 
-    // No length stated, no tier → short-form default ~45s (tier 1).
+    // No length stated, no tier → fresh-install short-form default ~90s (tier 2).
     const fallback = await scaffoldVideoProject({
       projectId: "duration-default",
       prompt: "Make a video about bottlenecks",
       format: "tiktok",
     });
-    expect(fallback.brief.duration).toBe(45);
+    expect(fallback.brief.duration).toBe(90);
   });
 });
 

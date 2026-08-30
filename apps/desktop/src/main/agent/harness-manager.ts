@@ -1110,13 +1110,13 @@ export class HarnessManager {
   /** Resolve exact session directories with the pinned Harness' encoding. */
   private async persistedSessionDirs(plan: HarnessDraftDeletionPlan): Promise<string[]> {
     const sessionsRoot = join(this.deps.harnessHome, "sessions");
-    const rootReal = await realpath(sessionsRoot).catch(() => null);
+    const rootReal = await realpath(sessionsRoot).catch((_missingSessionsRoot) => null);
     if (!rootReal) return [];
     const projectDirectory = join(rootReal, harnessSessionProjectKey(plan.draftRoot));
     const directories: string[] = [];
     for (const sessionId of plan.sessionIds) {
       const candidate = join(projectDirectory, harnessSessionSegment(sessionId));
-      const targetReal = await realpath(candidate).catch(() => null);
+      const targetReal = await realpath(candidate).catch((_missingSession) => null);
       if (!targetReal) continue;
       assertChildPath(rootReal, targetReal, "Harness session");
       const info = await stat(targetReal);

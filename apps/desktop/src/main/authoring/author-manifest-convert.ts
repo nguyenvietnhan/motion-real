@@ -22,8 +22,8 @@ export function sanitizeTheme(theme: { dominant: string }): { dominant: string }
  *
  * `delivery` is injected by the backend (the AI never authors it — it only writes
  * `theme.dominant` + scenes). Desktop create fixes short-form
- * `format: "tiktok"` + `durationTier: 1`; `videoLanguage` is the user language
- * choice. Defaults: tiktok / tier 1 / vi.
+ * `format: "tiktok"` + `durationTier: 2`; `videoLanguage` is the user language
+ * choice. Defaults: tiktok / tier 2 / vi.
  */
 /**
  * Keep create-time BGM (or any non-empty prior `bgm`) when AI rewrites the

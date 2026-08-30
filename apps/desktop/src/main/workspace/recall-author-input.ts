@@ -19,7 +19,7 @@ export function authorInputFromBrief(brief: ProjectBrief): AuthorInput | null {
     text,
     urls: extractUrls(text),
     format: "tiktok",
-    ...(durationTier ? { durationTier } : { durationTier: 1 }),
+    ...(durationTier ? { durationTier } : { durationTier: 2 }),
     videoLanguage: languageFromBrief(brief),
   };
 }

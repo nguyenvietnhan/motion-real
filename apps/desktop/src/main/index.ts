@@ -1,7 +1,7 @@
 import { app, BrowserWindow, dialog, ipcMain, nativeImage, Notification, safeStorage, shell } from "electron";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { dirname, join } from "node:path";
-import { appendEvent, createLogger, createTools, loadManifest, writeJson, writeBrief, projectPaths, videoToolHome, stagingDir, ensureProject, importImageBytes, reconcileStaleStates, pruneRenderCache, pruneTtsCache, readBrief, listBgmTracks, addBgmTrack, removeBgmTrack, renderThumbnail, workspaceRoot, ELEVENLABS_DEFAULT_MODEL_ID, VIENEU_DEFAULT_WORDS_PER_SECOND, VieneuClient, runDoctor, readProjectDiagnostics, readProjectEvidence, type VoiceProvider } from "@motionreal/pipeline";
+import { appendEvent, createLogger, createTools, loadManifest, writeJson, writeBrief, projectPaths, videoToolHome, stagingDir, ensureProject, importImageBytes, reconcileStaleStates, pruneRenderCache, pruneTtsCache, readBrief, listBgmTracks, addBgmTrack, removeBgmTrack, renderThumbnail, workspaceRoot, VIENEU_DEFAULT_WORDS_PER_SECOND, VieneuClient, runDoctor, readProjectDiagnostics, readProjectEvidence } from "@motionreal/pipeline";
 import { QueueStore, queueStorePath } from "./queue/queue-store.js";
 import { QueueRunner } from "./queue/queue-runner.js";
 import { spillHomeCreateIfBusy, spillHomeSmokeIfBusy } from "./queue/home-spill.js";
@@ -1028,7 +1028,7 @@ const handlers: InvokeHandlers = {
     if (!input || typeof input !== "object") throw new Error("Dữ liệu hàng đợi không hợp lệ.");
     const body = (input && typeof input === "object" ? input : {}) as Partial<QueueJobInput>;
     const raw = typeof body.raw === "string" ? body.raw : "";
-    const durationTier = body.durationTier === 2 || body.durationTier === 3 || body.durationTier === 4 ? body.durationTier : 1;
+    const durationTier = body.durationTier === 1 || body.durationTier === 3 || body.durationTier === 4 ? body.durationTier : 2;
     const videoLanguage = body.videoLanguage === "en" ? "en" : "vi";
     const voiceProvider = body.voiceProvider === "elevenlabs" || body.voiceProvider === "vieneu" ? body.voiceProvider : "vivibe";
     const bgm = typeof body.bgm === "string" ? body.bgm : null;

@@ -24,9 +24,9 @@ export const AUTHORING_CONTRACT_REF = "AI_CONTRACT.md+docs/current" as const;
  * links found in it to fetch for grounding (best-effort, never a hard gate), and
  * any local images the user attached for the AI to place (create-time image staging).
  *
- * Delivery is fixed short-form 9:16 (`format: "tiktok"`, default `durationTier: 1`).
+ * Delivery is fixed short-form 9:16 (`format: "tiktok"`, default `durationTier: 2`).
  * `videoLanguage` (vi/en) is the user-facing language for title, on-screen text,
- * narration, and captions. Optional fields default to tiktok / tier 1 / vi.
+ * narration, and captions. Optional fields default to tiktok / tier 2 / vi.
  */
 export type AuthorInput = {
   text: string;

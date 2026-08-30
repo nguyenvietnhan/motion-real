@@ -112,7 +112,7 @@ export type ScaffoldVideoProjectOptions = {
   prompt: string;
   /** Explicit project id (defaults to a slug derived from the prompt). */
   projectId?: string;
-  /** Soft target duration in seconds (drives the N28 duration check); omit → tier/prompt/default 45s. */
+  /** Soft target duration in seconds (drives the N28 duration check); omit → tier/prompt/default 90s. */
   duration?: number;
   /** Delivery format selected at create time; defaults to the historical vertical path. */
   format?: VideoFormat;
@@ -143,8 +143,7 @@ export async function scaffoldVideoProject(opts: ScaffoldVideoProjectOptions): P
   await ensureProject(projectId);
 
   const now = new Date().toISOString();
-  const format = opts.format ?? "tiktok";
-  const duration = resolveBriefDuration(opts, format);
+  const duration = resolveBriefDuration(opts);
   const brief: ProjectBrief = {
     projectId,
     prompt: opts.prompt,
@@ -176,7 +175,6 @@ export async function scaffoldVideoProject(opts: ScaffoldVideoProjectOptions): P
 
 function resolveBriefDuration(
   opts: Pick<ScaffoldVideoProjectOptions, "duration" | "durationTier" | "prompt">,
-  format: VideoFormat,
 ): number {
   // Desktop: UI tier wins when set. `duration` is an explicit override
   // (highest priority). Prompt length is used only when no tier is set.

@@ -7,6 +7,7 @@
  */
 
 export type LogLevel = "debug" | "info" | "warn" | "error";
+type LogThreshold = LogLevel | "fatal";
 
 export type LogBindings = { scope?: string };
 
@@ -24,19 +25,22 @@ export type Logger = {
 export type LogMethod = (fieldsOrMsg?: unknown, msg?: string) => void;
 
 /** Resolve the log level from env, defaulting to `info` (debug in dev). */
-function resolveLevel(): LogLevel {
+function resolveLevel(): LogThreshold {
   const fromEnv = process.env.LOG_LEVEL?.trim()?.toLowerCase();
-  if (fromEnv === "debug" || fromEnv === "info" || fromEnv === "warn" || fromEnv === "error") {
+  if (fromEnv === "debug" || fromEnv === "info" || fromEnv === "warn" || fromEnv === "error" || fromEnv === "fatal") {
     return fromEnv;
   }
   return process.env.NODE_ENV === "production" ? "info" : "debug";
 }
 
-const LEVEL_RANK: Record<LogLevel, number> = {
+const LEVEL_RANK: Record<LogThreshold, number> = {
   debug: 20,
   info: 30,
   warn: 40,
   error: 50,
+  // This logger has no fatal writer. Match common logger semantics by silencing
+  // all available methods when callers request a fatal-only threshold.
+  fatal: 60,
 };
 
 const minLevel = resolveLevel();

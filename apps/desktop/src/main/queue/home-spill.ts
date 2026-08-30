@@ -77,9 +77,9 @@ export function spillHomeCreateIfBusy(input: {
     jobInput: {
       raw,
       durationTier:
-        input.choices.durationTier === 2 || input.choices.durationTier === 3 || input.choices.durationTier === 4
+        input.choices.durationTier === 1 || input.choices.durationTier === 3 || input.choices.durationTier === 4
           ? input.choices.durationTier
-          : 1,
+          : 2,
       videoLanguage: input.choices.videoLanguage === "en" ? "en" : "vi",
       voiceProvider: input.choices.voiceProvider === "elevenlabs" || input.choices.voiceProvider === "vieneu"
         ? input.choices.voiceProvider
