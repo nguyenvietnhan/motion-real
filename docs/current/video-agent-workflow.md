@@ -366,6 +366,13 @@ asks the same Harness Session to inspect the approved assets and write fresh
 mapping, exact planned scene order and asset references before MotionReal renders
 PNG stills. Legacy in-flight requests without a content plan remain resumable.
 
+Semantic plan scenes carry 2–4 narration-anchored `motionBeats`. MotionReal
+strips beat metadata authored by Harness and injects the validated plan copy;
+admission then requires every `motionCueFrames` id with a relative fallback.
+Preview timing is deterministic and full render prefers provider SRT. A stale
+anchor after narration editing removes cues only for that scene, whose authored
+relative fallbacks keep it renderable.
+
 The request also carries a machine-readable pacing contract derived from the
 approved duration tier and the configured/calibrated voice: target seconds,
 narration-word budget, and min/target/max scene counts. This contract overrides
@@ -391,6 +398,11 @@ scenes with a visual problem. A clean pass leaves source unchanged. With early
 stop enabled, two consecutive clean passes end the loop; otherwise it stops at
 the configured pass budget. `refinePasses: 0` sends no still to the model and
 opens human scene review directly.
+
+Semantic scenes retain the existing early/middle/late still set. Review compares
+those images with planned beats for early future-state reveal, simultaneous
+steps, glow-only changes, or an excessively long final hold. This is not a
+per-cue renderer or frame-by-frame motion oracle.
 
 Still, source and approved-asset fingerprints protect against stale review. A
 visual edit re-renders only the changed scene scope; a global manifest change

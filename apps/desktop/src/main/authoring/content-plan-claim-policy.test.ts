@@ -40,7 +40,7 @@ function validPlan(overrides: Partial<ContentPlan> = {}): ContentPlan {
         onScreenText: "Đắt vì khan hiếm",
         visualMetaphor: "A tiny glowing chip behind a locked factory gate.",
         motionProgression:
-          "Quick entrance: chip pops in under a second; semantic: the factory gate closes around it; living: the lock keeps a small warning pulse; final hold on the bottleneck.",
+          "Quick entrance: chip and factory gate appear together; living: the lock keeps a small warning pulse; final hold on the bottleneck.",
         layoutFamily: "signature-visual",
         evidenceClaimIds: ["claim-01"],
       },
@@ -53,7 +53,7 @@ function validPlan(overrides: Partial<ContentPlan> = {}): ContentPlan {
         onScreenText: "Cổ chai là nhà máy",
         visualMetaphor: "A queue of chips waiting outside one narrow production door.",
         motionProgression:
-          "Quick entrance: the chip queue slides in; semantic: the doorway narrows as one finished chip exits; final hold as the takeaway lands.",
+          "Quick entrance: the chip queue and narrow doorway settle together; final hold as the takeaway lands.",
         layoutFamily: "diagram",
         evidenceClaimIds: ["claim-01"],
       },

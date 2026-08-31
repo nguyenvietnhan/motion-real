@@ -105,14 +105,22 @@ tempo of the motion instead of forcing every element to move for the whole
 scene. Missing or generic motion intent is treated as authoring guidance debt,
 not as a reason to fail an otherwise safe story plan.
 
+For a scene with at least two viewer-visible states, the planner also supplies
+2–4 `motionBeats`. Each beat has a unique id, an exact 2–8 word narration
+anchor, and a meaningful visual action. MotionReal owns these beats and resolves
+their cue frames from TTS/SRT timing (or deterministic estimated word timing for
+preview); the TSX author cannot replace them. Single statements, logo reveals,
+simple hooks, and final payoffs may deliberately omit beats.
+
 Use three motion types:
 
 - Quick entrance/reveal/pop: titles, labels, cards, markers, icons, or callouts
   enter quickly and naturally, usually settling in about 0.2-0.8 seconds or a
   small early part of the scene. They may then hold still for readability.
 - Semantic progression: line, chart, path, relationship, timeline, process,
-  before/after, map, focus-shift, or cause/effect visuals can use full scene
-  progress when the beat itself develops over time. Give these beats a clear
+  terminal, list, evidence image, before/after, focus-shift, or cause/effect
+  visuals change at their narration cues. Future states stay hidden until their
+  cue; previous states may dim but remain for context. Give the last beat a clear
   final hold once the idea lands.
 - Continuous living motion: wave, shimmer, pulse, signal flow, walking cycle,
   orbit, vibration, or subtle ambient depth can continue after the entrance by

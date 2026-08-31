@@ -11,11 +11,11 @@ ${JSON.stringify(plan, null, 2)}
 LUẬT DÙNG CONTENT PLAN:
 - Giữ đúng title, viewerPromise, hook/openLoop/payoff và thứ tự sceneId/purpose/beat trừ khi cần sửa rất nhỏ để hợp TSX.
 - Mỗi cảnh phải hiện thực hóa đúng beat/narration/onScreenText/visualMetaphor/layoutFamily đã được lập kế hoạch.
-- Đọc motionProgression như motion intent, KHÔNG như lệnh kéo mọi animation ra hết cảnh:
+- Đọc motionProgression như motion intent, nhưng motionBeats (nếu có) là contract semantic có thẩm quyền:
   quick entrance/reveal/pop vào nhanh tự nhiên (thường settle 0.2–0.8 giây bằng frame/spring);
-  nếu motionProgression có nhãn "semantic:", PHẢI hiện thực 2–4 thay đổi có thứ tự bằng các khoảng progress tương đối: bước/list hiện lần lượt, terminal thêm dòng, timeline/path tiến dần, comparison đổi focus hoặc trạng thái biến đổi theo narration. Chỉ cho toàn cảnh entrance một lần rồi đứng yên là chưa đạt;
+  với mỗi motionBeat (cả beat đầu), PHẢI đọc literal motionCueFrames?.["beat-id"] ?? fallback-frame và đổi trạng thái: list lần lượt, terminal command→result, path/chart tiến dần, ảnh crop/highlight. Trước khi trả lời, kiểm mọi beat id có literal lookup; không hiện beat mặc định/tương lai, dùng một entrance chung hoặc chỉ đổi glow;
   continuous living motion dùng phase/period deterministic cho wave/pulse/signal/walking sau khi entrance đã settle.
-  Không cần khớp timestamp từng từ; dùng thứ tự và các pha tương đối của cảnh. Final hold sau khi beat chính land là hợp lệ; quick entrance + readable final hold luôn hợp lệ cho statement beat không có nhãn semantic.
+  MotionReal tự cấp cue theo narration; không tự bịa timestamp. Final hold sau beat cuối là bắt buộc đọc được; quick entrance + readable final hold luôn hợp lệ cho statement beat không có motionBeats.
 - Chỉ dùng các claims còn xuất hiện trong JSON trên. Nếu một claim không có ở đây, coi như đã bị loại vì thiếu căn cứ và KHÔNG được đưa vào narration, text, props hoặc code.
 - Không thêm số liệu/ngày/giá/phần trăm mới ngoài claim ledger đã duyệt; thiếu căn cứ thì viết lại theo hướng không cần chi tiết đó.
 - Vẫn phải tuân thủ toàn bộ AUTHORING_CONTRACT và AI_Output_Contract bên dưới.`;

@@ -187,7 +187,10 @@ junction. Initial Harness authoring is final-quality: it reads the approved
 source assets, writes the normal scene modules, and reaches still review through
 the configured visual-refine passes. Rendered stills reach the model only for
 visual refine or a user-requested visual edit, never as a mandatory first-pass
-rewrite. This is still snapshot review, not temporal motion QA. Human edit
+rewrite. Structured content-plan motion beats are carried canonically into the
+manifest and resolved by `lockSpec()` into scene-local cue frames from existing
+caption/TTS timing. Semantic refine uses early/middle/late snapshots; this is a
+bounded temporal sample, not complete frame-by-frame motion QA. Human edit
 requests return to that same Session; Classic projects continue through the existing
 `WorkspaceController.submitEdits` path.
 

@@ -3,6 +3,7 @@
 export { unregisterComponent } from "@motionreal/compositions";
 export {
   admitAuthoredComponent,
+  admitAuthoredMotionCues,
   type AdmissionResult,
 } from "./admission.js";
 export {

@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import { mkdtemp, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { getComponent, unregisterComponent } from "@motionreal/compositions";
-import { admitAuthoredComponent, admitAuthoredSceneFile } from "./index.js";
+import { admitAuthoredComponent, admitAuthoredMotionCues, admitAuthoredSceneFile } from "./index.js";
 
 /**
  * AI AUTHOR admission-gate self-tests. Non-vacuous: a clean
@@ -335,6 +335,43 @@ export default registerComponent({
       if (!r4.admitted) {
         expect(r4.violations.some((v) => v.check === "N5" && /remote\/file URL literal/.test(v.message))).toBe(true);
       }
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("admitAuthoredMotionCues", () => {
+  it("accepts every canonical cue lookup when each has a relative fallback", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "motionreal-motion-cues-"));
+    try {
+      const path = join(dir, "scene.tsx");
+      await writeFile(path, `
+const Scene = ({ motionCueFrames, durationInFrames }) => {
+  const firstAt = motionCueFrames?.["step-one"] ?? Math.round(durationInFrames * 0.25);
+  const secondAt = motionCueFrames?.["step-two"] ?? Math.round(durationInFrames * 0.65);
+  return <div>{firstAt + secondAt}</div>;
+};`);
+      expect(admitAuthoredMotionCues(path, "scene-01", ["step-one", "step-two"])).toEqual([]);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("rejects missing fallbacks and progress-only semantic scenes with a targeted N4", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "motionreal-motion-cues-bad-"));
+    try {
+      const path = join(dir, "scene.tsx");
+      await writeFile(path, `
+const Scene = ({ motionCueFrames, durationInFrames }) => {
+  const firstAt = motionCueFrames?.["step-one"];
+  const progress = durationInFrames > 1 ? 0.5 : 1;
+  return <div>{firstAt ?? progress}</div>;
+};`);
+      const issues = admitAuthoredMotionCues(path, "scene-07", ["step-one", "step-two"]);
+      expect(issues).toHaveLength(2);
+      expect(issues.every((issue) => issue.check === "N4" && issue.sceneId === "scene-07")).toBe(true);
+      expect(issues.map((issue) => issue.message).join(" ")).toMatch(/step-one.*step-two/s);
     } finally {
       await rm(dir, { recursive: true, force: true });
     }

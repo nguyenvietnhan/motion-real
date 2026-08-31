@@ -841,7 +841,7 @@ export class HarnessManager {
         "Asset là pool đã duyệt, không phải checklist. Không bắt buộc dùng mọi asset: chỉ dùng asset thực sự giúp kể nội dung của cảnh; logo/icon chỉ là điểm nhấn bổ trợ và không được phóng thành ảnh nền/cảnh chính nếu không có lý do nội dung rõ ràng.",
         "Mọi asset được dùng phải giữ đúng scene.image.role đã duyệt; không dùng asset ngoài pool đã duyệt.",
         "Mỗi cảnh phải có một focal subject và hành động hình ảnh riêng; cấm dùng một shell/panel/HUD cố định cho toàn video.",
-        "Nếu content_plan.motionProgression có nhãn semantic:, phải dựng 2–4 thay đổi theo thứ tự bằng progress tương đối của cảnh; không được chỉ cho toàn bố cục xuất hiện một lần rồi đứng yên. Không cần đồng bộ timestamp từng từ.",
+        "Nếu scene trong content_plan có motionBeats, mọi beat id (cả beat đầu) phải xuất hiện literal trong motionCueFrames?.[\"beat-id\"] ?? fallback-frame và đổi trạng thái theo lời đọc; không hiện beat mặc định/tương lai, không chỉ entrance hoặc glow. MotionReal tự cấp cue, không tự bịa timestamp.",
         "Mỗi cảnh trừ cảnh cuối phải khai báo transitionToNext phù hợp với quan hệ nội dung; không dựa vào transition mặc định.",
         "Đây là bản chất lượng cuối ngay từ lượt đầu: hierarchy, visual anchor, motion và asset framing phải được hoàn thiện trước khi submit; không dựa vào một lượt viết lại V2 bắt buộc.",
         "Không render video. Khi code đã hoàn chỉnh, gọi motionreal_submit_authoring để MotionReal validate và render still.",
@@ -1666,7 +1666,7 @@ export class HarnessManager {
       render_error: undefined,
       instructions: [
         "Dùng read_image mở mọi PNG trong stills trước khi nhận xét. Không kết luận chỉ từ code.",
-        "Nếu một scene có thêm các file .fNN, hãy so sánh ảnh đầu–giữa–cuối: nội dung gắn nhãn semantic phải thay đổi theo đúng thứ tự đã lập kế hoạch, không được chỉ entrance rồi đứng yên.",
+        "Nếu một scene có thêm các file .fNN, hãy đối chiếu ảnh đầu–giữa–cuối với motionBeats: báo lỗi khi trạng thái tương lai lộ sớm, nhiều bước xuất hiện cùng lúc, cue chỉ đổi glow, hoặc final hold chiếm gần như toàn cảnh.",
         "Chỉ sửa các cảnh có lỗi trực quan cụ thể. Giữ nguyên cảnh đã sạch; không viết lại toàn video vì đây không phải V2 bắt buộc.",
         "Nếu sửa source/asset, gọi motionreal_submit_authoring sau khi sửa. Nếu ảnh đã sạch, không sửa code và submit review_notes nêu rõ quan sát.",
         "review_notes phải nêu lỗi cụ thể đã sửa hoặc lý do ảnh sạch. reviewed_scene_ids phải chứa đúng review_scene_ids.",

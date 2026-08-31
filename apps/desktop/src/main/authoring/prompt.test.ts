@@ -519,6 +519,10 @@ describe("buildAuthorMessages", () => {
           onScreenText: "Đắt vì khan hiếm",
           visualMetaphor: "A tiny glowing chip behind a locked factory gate.",
           motionProgression: "Quick entrance: chip pops in under a second; semantic: the gate closes; living: the lock keeps a small warning pulse.",
+          motionBeats: [
+            { id: "show-chip", anchor: "Con chip không đắt", action: "Reveal the chip" },
+            { id: "close-gate", anchor: "gần như không ai", action: "Close the gate" },
+          ],
           layoutFamily: "signature-visual",
           evidenceClaimIds: ["claim-01"],
         },
@@ -541,8 +545,9 @@ describe("buildAuthorMessages", () => {
     expect(text).toContain("motion intent");
     expect(text).toContain("quick entrance/reveal/pop");
     expect(text).toContain("0.2–0.8 giây");
-    expect(text).toContain('motionProgression có nhãn "semantic:"');
-    expect(text).toContain("2–4 thay đổi có thứ tự");
+    expect(text).toContain("motionBeats");
+    expect(text).toContain('motionCueFrames?.["beat-id"] ?? fallback-frame');
+    expect(text).toContain("mọi beat id có literal lookup");
     expect(text).toContain("continuous living motion");
     expect(text).toContain("phase/period deterministic");
     expect(text).not.toContain("Unsupported $999 launch price");
@@ -683,7 +688,7 @@ describe("buildAuthorMessages", () => {
     expect(text).toMatch(/durationInFrames/);
     expect(text).toMatch(/frame \/ \(durationInFrames - 1\)/);
     expect(text).toMatch(/motionProgression/);
-    expect(text).toMatch(/final hold.*beat chính/is);
+    expect(text).toMatch(/readable final hold|final hold/is);
     expect(text).toMatch(/Quick entrance \+ readable final hold luôn hợp lệ|readable final hold/);
     expect(text).not.toMatch(/DIỄN TIẾN qua phần lớn thời lượng/);
     expect(text).not.toMatch(/đừng dùng Math\.sin\(frame\), frame%n/);

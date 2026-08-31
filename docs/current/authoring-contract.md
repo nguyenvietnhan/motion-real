@@ -42,7 +42,7 @@ export const schema = z.object({
 
 type Props = z.infer<typeof schema>;
 
-const Scene: React.FC<SceneComponentProps<Props>> = ({ headline, props, durationInFrames }) => {
+const Scene: React.FC<SceneComponentProps<Props>> = ({ headline, props, durationInFrames, motionCueFrames }) => {
   const frame = useCurrentFrame();
   const progress =
     durationInFrames > 1 ? Math.min(1, Math.max(0, frame / (durationInFrames - 1))) : 1;
@@ -134,14 +134,31 @@ transition by default. When the approved content plan includes
 scene needs multi-stage motion. The safe default is a quick entrance followed by
 a readable hold.
 
+When the approved scene has `motionBeats`, `SceneComponentProps` also carries
+scene-local `motionCueFrames`. Read every canonical beat id with a deterministic
+relative fallback:
+
+```tsx
+const receiveAt =
+  motionCueFrames?.["receive-request"] ?? Math.round(durationInFrames * 0.12);
+const resultAt =
+  motionCueFrames?.["show-result"] ?? Math.round(durationInFrames * 0.55);
+```
+
+Do not reveal a future state before its cue. A cue must change meaning—reveal,
+focus, transform, extend a path/chart, or show a result—not merely change glow.
+Earlier states may remain with less emphasis, and the final state needs a
+readable hold. Admission rejects a semantic scene that omits a beat lookup or
+its `??` fallback. If narration edits make anchors stale, MotionReal omits cues
+for that scene and these relative fallbacks keep old projects renderable.
+
 - Quick entrance/reveal/pop: for titles, labels, cards, markers, or icons
   appearing. These should usually settle in about 0.2-0.8 seconds, or a small
   early part of the scene, using `frame`, `spring`, or clamped `interpolate`.
   Do not stretch a simple opacity/translate reveal across full scene progress.
-- Semantic progression: use scene `progress` when the content itself changes
-  over time, such as a line/path/chart draw, process, timeline, before/after,
-  map movement, focus shift, or cause/effect beat. A final hold after the main
-  beat lands is valid and often desirable.
+- Semantic progression: use narration cues when the content itself changes over
+  time, such as a line/path/chart draw, process, timeline, terminal result,
+  before/after, focus shift, evidence highlight, or cause/effect beat.
 - Continuous living motion: for purposeful wave, shimmer, pulse, signal flow,
   walking cycle, orbit, or light ambient depth. Use a deterministic phase/period
   after the entrance has settled, keep it small and bounded, and avoid motion

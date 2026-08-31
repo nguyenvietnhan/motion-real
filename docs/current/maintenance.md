@@ -313,10 +313,11 @@ content-plan, batch, recovery, visual-QA, image-filter, or reauthor prompts:
 
 ## Motion Tempo Validation
 
-Motion tempo is authoring guidance, not a hard render oracle. Automated tests
-should lock the contract/prompt/planner/refine wording and the
-content-plan advisory behavior, but they cannot prove whether a generated
-animation feels natural.
+Motion quality remains contextual, but semantic structure is now a hard
+authoring contract: every planned beat must use its `motionCueFrames` id and a
+relative `??` fallback. Tests cover anchor validation, canonical transport, cue
+timing, admission, and three-still refine scope; they still cannot prove whether
+a generated animation feels natural.
 
 Do not add a regex or visual hard gate for "slow entrance" or "too much living
 motion" without owner-approved fixtures and a low false-positive criterion.
@@ -328,8 +329,8 @@ desktop run. Use a prompt that asks for all three cases in one video:
 quick title/card reveal, continuous wave/pulse/flow or walking motion, and a
 semantic path/chart/process progression. Inspect the authored TSX and draft:
 simple entrances should settle quickly, living motion should continue with a
-bounded deterministic phase/period, and semantic progress should only span the
-scene when the beat truly changes over time. Existing generated projects are not
+bounded deterministic phase/period, and semantic state changes should land near
+their narration cues without revealing future states. Existing generated projects are not
 migrated by prompt-only slices; reauthor/refine them separately if needed.
 
 ## Renderer CSS Checklist

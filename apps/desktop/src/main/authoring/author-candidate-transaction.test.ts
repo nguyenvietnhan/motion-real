@@ -123,6 +123,34 @@ describe("applyAuthoringCandidate", () => {
     expect(existsSync(join(root, ".authoring-candidate"))).toBe(false);
   });
 
+  it("rejects a semantic progress-only candidate before replacing canonical scenes", async () => {
+    await seedCanonical({
+      sceneCode: "KEEP",
+      manifest: { title: "keep", scenes: [{ id: "scene-01", component: "scene-01", narration: "n", headline: "h" }] },
+    });
+    const semantic = candidate(`
+import React from "react";
+import { z } from "zod";
+import { registerComponent, type SceneComponentProps } from "@motionreal/compositions";
+export const schema = z.object({});
+type Props = z.infer<typeof schema>;
+export const example: Props = {};
+const Scene: React.FC<SceneComponentProps<Props>> = ({ durationInFrames }) => <div>{durationInFrames}</div>;
+export default registerComponent({ id: "scene-01", displayName: "Scene", promptGuide: "Scene", schema, Component: Scene, example });
+`);
+    semantic.manifest.scenes[0]!.motionBeats = [
+      { id: "step-one", anchor: "hello world", action: "Reveal first" },
+      { id: "step-two", anchor: "world again", action: "Reveal second" },
+    ];
+    const result = await applyAuthoringCandidate({ projectId: projectId(), candidate: semantic });
+    expect(result).toMatchObject({ kind: "rejected" });
+    if (result.kind === "rejected") {
+      expect(result.violations).toContainEqual(expect.objectContaining({ check: "N4", sceneId: "scene-01" }));
+    }
+    const root = join(home, ".video-tool", "projects", projectId());
+    expect(await readFile(join(root, "authored", "scene-01.tsx"), "utf8")).toBe("KEEP");
+  });
+
   it("does not touch canonical state when aborted before admission", async () => {
     await seedCanonical({ sceneCode: "KEEP", manifest: { title: "keep", scenes: [] } });
     const ac = new AbortController();

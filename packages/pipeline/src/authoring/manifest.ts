@@ -5,6 +5,7 @@ import { VideoSpecSchema, type DurationTier, type SceneImage, type SceneMotionBe
 import type { SafetyIssue } from "../types.js";
 import { ensureProject, projectPaths, readJson, writeJson } from "../store/store.js";
 import { normalizeAuthoredSource } from "./normalize-authored-source.js";
+import { admitAuthoredMotionCues } from "./admission.js";
 import { admitAuthoredSceneFile } from "./register.js";
 
 /**
@@ -190,6 +191,7 @@ export type AdmitProjectResult =
 export async function admitAuthoredSceneFiles(
   files: readonly string[],
   emptyPathHint?: string,
+  manifest?: Manifest,
 ): Promise<AdmitProjectResult> {
   if (files.length === 0) {
     return {
@@ -226,6 +228,24 @@ export async function admitAuthoredSceneFiles(
       violations.push(...result.violations);
     }
   }
+  if (violations.length === 0 && manifest) {
+    const fileByComponent = new Map(componentIds.map((id, index) => [id, files[index]!] as const));
+    for (const scene of manifest.scenes) {
+      if (!scene.motionBeats) continue;
+      const file = fileByComponent.get(scene.component);
+      if (!file) {
+        violations.push({
+          check: "N4",
+          severity: "error",
+          sceneId: scene.id,
+          path: emptyPathHint ?? "(manifest)",
+          message: `${scene.id} không có authored component "${scene.component}" để kiểm motion cues.`,
+        });
+        continue;
+      }
+      violations.push(...admitAuthoredMotionCues(file, scene.id, scene.motionBeats.map((beat) => beat.id)));
+    }
+  }
   if (violations.length > 0) return { ok: false, violations };
   return { ok: true, componentIds, files: [...files] };
 }
@@ -234,7 +254,8 @@ export async function admitProjectScenes(
   projectId: string,
 ): Promise<AdmitProjectResult> {
   const files = await listAuthoredScenes(projectId);
-  const result = await admitAuthoredSceneFiles(files, projectPaths(projectId).authoredDir);
+  const manifest = await loadManifest(projectId).catch(() => undefined);
+  const result = await admitAuthoredSceneFiles(files, projectPaths(projectId).authoredDir, manifest);
   if (!result.ok) {
     // Stamp sceneId when we can so the draft repair loop can reauthor the
     // precise scene (contentTargets requires sceneId on hard errors).

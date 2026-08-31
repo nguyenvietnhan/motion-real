@@ -157,6 +157,7 @@ type LiveCaseResult = {
   renderStills: "passed" | "failed" | "not-run";
   stills: string[];
   error?: string;
+  diagnostics?: string[];
 };
 
 async function runLiveEval(
@@ -179,6 +180,7 @@ async function runLiveEval(
     let modelCalls = 0;
     let modelCallMs = 0;
     let repairCount = 0;
+    const diagnostics: string[] = [];
     let projectId = "";
     const measuredClient = {
       chat: async (model: string, messages: ChatMessage[], opts?: { apiKey?: string; signal?: AbortSignal }) => {
@@ -205,15 +207,21 @@ async function runLiveEval(
         }
       },
     } as unknown as NineRouterClient;
+    const captureAdmissionDiagnostics = (meta: unknown, message: string): void => {
+      if (!/admission failed/i.test(message) || !meta || typeof meta !== "object") return;
+      const violations = (meta as { violations?: unknown }).violations;
+      if (Array.isArray(violations)) diagnostics.push(...violations.filter((value): value is string => typeof value === "string"));
+    };
     const logger = {
       debug: () => undefined,
       info: (_meta: unknown, message = "") => {
         if (/repair requested|recovery attempted/i.test(message)) repairCount++;
       },
-      warn: (_meta: unknown, message = "") => {
+      warn: (meta: unknown, message = "") => {
         if (/repair requested|recovery attempted/i.test(message)) repairCount++;
+        captureAdmissionDiagnostics(meta, message);
       },
-      error: () => undefined,
+      error: (meta: unknown, message = "") => captureAdmissionDiagnostics(meta, message),
     };
     let admission: LiveCaseResult["admission"] = "not-run";
     let renderStills: LiveCaseResult["renderStills"] = "not-run";
@@ -290,6 +298,7 @@ async function runLiveEval(
       renderStills,
       stills: copiedStills,
       ...(error ? { error } : {}),
+      ...(diagnostics.length > 0 ? { diagnostics } : {}),
     });
   }
   return { ok: results.every((result) => result.ok), results };

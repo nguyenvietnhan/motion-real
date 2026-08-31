@@ -13,10 +13,10 @@ EXPORT BẮT BUỘC (mọi module):
 - import React from "react"; import { z } from "zod";
 - import { registerComponent, type SceneComponentProps } from "@motionreal/compositions";
 - export const schema = z.object({...})  // CHỈ props BESPOKE của cảnh
-  → TUYỆT ĐỐI KHÔNG khai báo headline/eyebrow/body/image/durationInFrames trong schema — đó là field TOP-LEVEL hệ thống tự truyền vào cảnh (xem SceneComponentProps), KHÔNG thuộc props. Đặt chúng vào schema là lỗi N3 ("props invalid at headline: expected string, received undefined") chặn render. schema chỉ chứa dữ liệu RIÊNG cảnh tự nghĩ ra (số liệu, nhãn, danh sách…). Cảnh không có props riêng thì để z.object({}).
+  → TUYỆT ĐỐI KHÔNG khai báo headline/eyebrow/body/image/durationInFrames/motionCueFrames trong schema — đó là field TOP-LEVEL hệ thống tự truyền vào cảnh (xem SceneComponentProps), KHÔNG thuộc props. Đặt chúng vào schema là lỗi N3 ("props invalid at headline: expected string, received undefined") chặn render. schema chỉ chứa dữ liệu RIÊNG cảnh tự nghĩ ra (số liệu, nhãn, danh sách…). Cảnh không có props riêng thì để z.object({}).
 - type Props = z.infer<typeof schema>
-- const Scene: React.FC<SceneComponentProps<Props>> = ({ headline, body, eyebrow, durationInFrames, props }) => (... )
-  → headline/body/eyebrow/image/durationInFrames lấy từ tham số top-level (đã destructure ở trên); dữ liệu bespoke lấy từ props.*.
+- const Scene: React.FC<SceneComponentProps<Props>> = ({ headline, body, eyebrow, durationInFrames, motionCueFrames, props }) => (... )
+  → headline/body/eyebrow/image/durationInFrames/motionCueFrames lấy từ tham số top-level (đã destructure ở trên); dữ liệu bespoke lấy từ props.*.
 - export const example: Props = {...}      // CỰC KỲ QUAN TRỌNG: PHẢI HOÀN TOÀN HỢP LỆ VỚI schema BẠN ĐÃ KHAI BÁO (nếu schema có các trường bắt buộc thì example PHẢI chứa các trường đó với dữ liệu mẫu cụ thể. Thiếu export const example hoặc dữ liệu mẫu không khớp với schema sẽ gây lỗi nạp "missing required export" chặn render và làm hỏng toàn dự án!).
 - export default registerComponent<Props>({ id: "ten-canh", displayName, promptGuide, schema, Component: Scene, example });
   → id là CHUỖI LITERAL (chữ thường/số/gạch-ngang), khớp manifest.scenes[].component. Riêng manifest.scenes[].id PHẢI là scene-01, scene-02… theo thứ tự, không thêm hậu tố.
@@ -66,7 +66,10 @@ const { fps } = useVideoConfig();
 const progress = durationInFrames > 1 ? Math.min(1, Math.max(0, frame / (durationInFrames - 1))) : 1;
 MOTION TEMPO: Mặc định an toàn là quick entrance 0.2–0.8 giây rồi readable hold. Đừng kéo mọi animation ra hết durationInFrames và cũng đừng bịa motion phức tạp chỉ để cảnh luôn động.
 1) quick entrance/reveal/pop: dùng cho title, label, card, marker, icon xuất hiện. Công thức an toàn: const enterEnd = Math.max(1, Math.round(fps * 0.45)); rồi interpolate(frame, [0, enterEnd], [0, 1], { extrapolateRight: "clamp" }).
-2) semantic progression: chỉ dùng progress dài khi NỘI DUNG thật sự tiến triển qua cảnh — vẽ line/path/chart, process/timeline, before-after, focus shift, map movement, cause/effect. Công thức an toàn: dùng progress đã clamp trong [0, 1], rồi inputRange cũng nằm trong [0, 1], ví dụ interpolate(progress, [0.2, 0.72], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" }). Cho final hold sau khi beat chính đã land; final hold là hợp lệ.
+2) semantic progression: CONTENT PLAN có motionBeats thì mọi beat (cả đầu) dùng cue id và fallback tương đối:
+const firstAt = motionCueFrames?.["receive-request"] ?? Math.round(durationInFrames * 0.12);
+const secondAt = motionCueFrames?.["show-result"] ?? Math.round(durationInFrames * 0.55);
+Ẩn beat trước cue; mỗi cue phải reveal/focus/transform (không chỉ glow). Beat cũ có thể dim; beat cuối phải hold. Không có motionBeats thì dùng progress [0,1].
 3) continuous living motion: chỉ dùng cho wave, shimmer, pulse, signal flow, walking cycle, orbit, vibration nhẹ, ambient depth. Được dùng loop deterministic bằng phase/period sau khi entrance đã settle, ví dụ periodFrames = Math.max(1, Math.round(fps * 1.2)); phase = ((Math.max(0, frame - enterEnd)) % periodFrames) / periodFrames. Chuyển động phải nhỏ, bounded, có chủ đích, không layout shift lớn, không che chữ.
 Nếu CONTENT PLAN có motionProgression, xem nó là gợi ý sáng tạo, không phải lệnh bắt mọi cảnh có nhiều tầng motion. Quick entrance + readable final hold luôn hợp lệ cho statement beat. Tự viết hoạt hoạ bằng useCurrentFrame() + spring()/interpolate() của remotion (KHÔNG có hook block nào nữa — không useReveal/useRamp/useTilt), giữ chuyển động mượt, có mục đích và deterministic. Với interpolate, inputRange PHẢI tăng dần nghiêm ngặt; KHÔNG dùng durationInFrames - N làm mốc cuối nếu nó có thể âm hoặc bằng mốc đầu — hãy bọc bằng Math.max(1, durationInFrames - N) hoặc dùng progress [0, 1]. KHÔNG viết vòng góc kiểu [340, 360, 60] — hãy tách thành hai interpolate có clamp (340→360 và 0→60) hoặc chuẩn hoá góc trước.`;
 

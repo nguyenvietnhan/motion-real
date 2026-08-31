@@ -1072,6 +1072,9 @@ describe("HarnessManager draft lifecycle", () => {
     expect(artifact).toMatchObject({ version: 1, job_id: "job-plan-once", request_revision: 1, content_plan: TEST_CONTENT_PLAN });
     const request = JSON.parse(await readFile(join(prepared.draftRoot, "handoff", "authoring-request.json"), "utf8"));
     expect(request).toMatchObject({ planning: false, content_plan: TEST_CONTENT_PLAN, expected_scene_ids: ["scene-01"] });
+    expect(request.instructions).toEqual(expect.arrayContaining([
+      expect.stringMatching(/mọi beat id.*motionCueFrames/),
+    ]));
   });
 
   it("persists planner failure without prompting Harness, then retries the planner", async () => {

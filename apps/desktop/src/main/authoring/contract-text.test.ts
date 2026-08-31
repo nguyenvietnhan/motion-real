@@ -138,7 +138,10 @@ describe("AUTHORING_CONTRACT — no-block / raw-JSX invariants", () => {
     expect(AUTHORING_CONTRACT).toMatch(/quick entrance\/reveal\/pop/);
     expect(AUTHORING_CONTRACT).toMatch(/0\.2–0\.8 giây/);
     expect(AUTHORING_CONTRACT).toMatch(/semantic progression/);
-    expect(AUTHORING_CONTRACT).toMatch(/chỉ dùng progress dài khi NỘI DUNG thật sự tiến triển/);
+    expect(AUTHORING_CONTRACT).toMatch(/firstAt = motionCueFrames\?\.\["receive-request"\].*\?\?/);
+    expect(AUTHORING_CONTRACT).toMatch(/secondAt = motionCueFrames\?\.\["show-result"\].*\?\?/);
+    expect(AUTHORING_CONTRACT).toContain("mọi beat (cả đầu)");
+    expect(AUTHORING_CONTRACT).toMatch(/Ẩn beat trước cue/);
     expect(AUTHORING_CONTRACT).toMatch(/continuous living motion/);
     expect(AUTHORING_CONTRACT).toMatch(/Chuyển động phải nhỏ, bounded, có chủ đích/);
     expect(AUTHORING_CONTRACT).toMatch(/phase = \(\(Math\.max\(0, frame - enterEnd\)\) % periodFrames\) \/ periodFrames/);

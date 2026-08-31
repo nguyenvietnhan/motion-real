@@ -45,7 +45,7 @@ export type CandidateApplyResult =
   | { kind: "cancelled" };
 
 export type CandidateTransactionDeps = {
-  admitFiles?: (files: readonly string[]) => Promise<AdmitProjectResult>;
+  admitFiles?: (files: readonly string[], manifest?: Manifest) => Promise<AdmitProjectResult>;
   /** After successful commit — e.g. unregister old/new component ids. */
   onCommitted?: (info: {
     projectId: string;
@@ -237,7 +237,7 @@ export async function applyAuthoringCandidate(input: {
   deps?: CandidateTransactionDeps;
 }): Promise<CandidateApplyResult> {
   const { projectId, candidate, signal, deps } = input;
-  const admit = deps?.admitFiles ?? ((files) => admitAuthoredSceneFiles(files));
+  const admit = deps?.admitFiles ?? ((files, manifest) => admitAuthoredSceneFiles(files, undefined, manifest));
   const tx = txPaths(projectId);
   const previousComponentIds = await listPreviousComponentIds(projectId);
 
@@ -269,7 +269,7 @@ export async function applyAuthoringCandidate(input: {
     throwIfAborted(signal);
 
     const stagedFiles = candidate.modules.map((m) => join(tx.candidateAuthored, m.fileName));
-    const admitted = await admit(stagedFiles);
+    const admitted = await admit(stagedFiles, candidate.manifest);
     if (!admitted.ok) {
       await cleanupTx(projectId);
       return { kind: "rejected", violations: admitted.violations };

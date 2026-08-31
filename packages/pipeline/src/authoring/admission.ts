@@ -375,6 +375,70 @@ export function admitAuthoredComponent(tsxPath: string): AdmissionResult {
 }
 
 /**
+ * N4 contract for semantic scenes: every canonical beat must read its cue using
+ * a literal `motionCueFrames?.["beat-id"] ?? relativeFallback` expression.
+ */
+export function admitAuthoredMotionCues(
+  tsxPath: string,
+  sceneId: string,
+  beatIds: readonly string[],
+): SafetyIssue[] {
+  let text: string;
+  try {
+    text = readFileSync(tsxPath, "utf8");
+  } catch (error) {
+    return [{ check: "N4", severity: "error", sceneId, path: tsxPath, message: `Cannot read authored module: ${msg(error)}` }];
+  }
+  const file = basename(tsxPath);
+  const src = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  const constantStrings = collectConstantStrings(src);
+  const covered = new Set<string>();
+
+  const cueIdsInside = (root: ts.Node): string[] => {
+    const ids: string[] = [];
+    const visit = (node: ts.Node): void => {
+      if (ts.isElementAccessExpression(node)
+        && ts.isIdentifier(node.expression)
+        && node.expression.text === "motionCueFrames") {
+        const id = resolveConstantString(node.argumentExpression, constantStrings);
+        if (id !== null) ids.push(id);
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(root);
+    return ids;
+  };
+  const containsDuration = (root: ts.Node): boolean => {
+    let found = false;
+    const visit = (node: ts.Node): void => {
+      if (ts.isIdentifier(node) && node.text === "durationInFrames") found = true;
+      if (!found) ts.forEachChild(node, visit);
+    };
+    visit(root);
+    return found;
+  };
+  const visit = (node: ts.Node): void => {
+    if (ts.isBinaryExpression(node)
+      && node.operatorToken.kind === ts.SyntaxKind.QuestionQuestionToken
+      && containsDuration(node.right)) {
+      for (const id of cueIdsInside(node.left)) covered.add(id);
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(src);
+
+  return beatIds
+    .filter((id) => !covered.has(id))
+    .map((id) => ({
+      check: "N4",
+      severity: "error",
+      sceneId,
+      path: tsxPath,
+      message: `${sceneId} phải đọc motionCueFrames?.["${id}"] với fallback tương đối bằng ??.`,
+    }));
+}
+
+/**
  * Does a computed-member key BUILD a string name at runtime (the obfuscation
  * vector `x["con"+"structor"]` / `` x[`construct${""}or`] `` / `x[atob(...)]`)?
  * Distinguished from ordinary data indexing (`arr[i]`, `arr[i+1]`, `m[k]`), which
