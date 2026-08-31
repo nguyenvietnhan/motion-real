@@ -1663,7 +1663,7 @@ export class HarnessManager {
       render_error: undefined,
       instructions: [
         "Dùng read_image mở mọi PNG trong stills trước khi nhận xét. Không kết luận chỉ từ code.",
-        "Nếu một scene có thêm file .f18/.f82, hãy so sánh ảnh đầu–giữa–cuối: nội dung gắn nhãn semantic phải thay đổi theo đúng thứ tự đã lập kế hoạch, không được chỉ entrance rồi đứng yên.",
+        "Nếu một scene có thêm các file .fNN, hãy so sánh ảnh đầu–giữa–cuối: nội dung gắn nhãn semantic phải thay đổi theo đúng thứ tự đã lập kế hoạch, không được chỉ entrance rồi đứng yên.",
         "Chỉ sửa các cảnh có lỗi trực quan cụ thể. Giữ nguyên cảnh đã sạch; không viết lại toàn video vì đây không phải V2 bắt buộc.",
         "Nếu sửa source/asset, gọi motionreal_submit_authoring sau khi sửa. Nếu ảnh đã sạch, không sửa code và submit review_notes nêu rõ quan sát.",
         "review_notes phải nêu lỗi cụ thể đã sửa hoặc lý do ảnh sạch. reviewed_scene_ids phải chứa đúng review_scene_ids.",
@@ -2257,14 +2257,14 @@ function sameIds(left: string[], right: string[]): boolean {
 }
 
 function validRenderedStillSet(paths: string[], sceneIds: string[], multiFrameSceneIds: string[]): boolean {
-  if (new Set(paths).size !== paths.length || multiFrameSceneIds.some((id) => !sceneIds.includes(id))) return false;
-  const expected = new Set(sceneIds.map((id) => `${id}.png`));
-  for (const id of multiFrameSceneIds) {
-    expected.add(`${id}.f18.png`);
-    expected.add(`${id}.f82.png`);
+  if (!validReviewStillNames(paths, sceneIds) || multiFrameSceneIds.some((id) => !sceneIds.includes(id))) return false;
+  const multi = new Set(multiFrameSceneIds);
+  const counts = new Map(sceneIds.map((id) => [id, 0]));
+  for (const path of paths) {
+    const id = stillSceneId(path)!;
+    counts.set(id, counts.get(id)! + 1);
   }
-  const actual = new Set(paths.map((path) => basename(path)));
-  return actual.size === expected.size && [...expected].every((name) => actual.has(name));
+  return sceneIds.every((id) => counts.get(id) === (multi.has(id) ? 3 : 1));
 }
 
 function validReviewStillNames(paths: string[], sceneIds: string[]): boolean {
@@ -2272,11 +2272,15 @@ function validReviewStillNames(paths: string[], sceneIds: string[]): boolean {
   const allowed = new Set(sceneIds);
   const midpoints = new Set<string>();
   for (const path of paths) {
-    const match = /^(scene-[0-9]{2})(?:\.f[0-9]{1,3})?\.png$/i.exec(basename(path));
-    if (!match || !allowed.has(match[1]!)) return false;
-    if (basename(path) === `${match[1]}.png`) midpoints.add(match[1]!);
+    const id = stillSceneId(path);
+    if (!id || !allowed.has(id)) return false;
+    if (basename(path) === `${id}.png`) midpoints.add(id);
   }
   return sceneIds.every((id) => midpoints.has(id));
+}
+
+function stillSceneId(path: string): string | undefined {
+  return /^(scene-[0-9]{2})(?:\.f[0-9]{1,3})?\.png$/i.exec(basename(path))?.[1];
 }
 
 /** PowerShell commonly emits UTF-8 BOM; valid Agent handoffs must tolerate it. */

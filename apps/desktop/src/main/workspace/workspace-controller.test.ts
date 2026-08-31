@@ -117,8 +117,8 @@ describe("Harness still-review bridge", () => {
     const renderStills = vi.fn(async () => ({
       stills: [
         "V:/project/review/scene-02.png",
-        "V:/project/review/scene-02.f18.png",
-        "V:/project/review/scene-02.f82.png",
+        "V:/project/review/scene-02.f20.png",
+        "V:/project/review/scene-02.f80.png",
       ],
     }));
     const ctrl = new WorkspaceController(baseDeps({

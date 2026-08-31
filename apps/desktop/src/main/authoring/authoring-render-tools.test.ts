@@ -49,7 +49,7 @@ describe("authoring render tools", () => {
   });
 
   it("forwards semantic multi-frame ids without changing ordinary still calls", async () => {
-    const renderStills = vi.fn(async () => ({ ok: true, data: { stills: ["scene-02.png", "scene-02.f18.png", "scene-02.f82.png"] } }));
+    const renderStills = vi.fn(async () => ({ ok: true, data: { stills: ["scene-02.png", "scene-02.f20.png", "scene-02.f80.png"] } }));
     const deps = baseDeps({ render_stills: renderStills });
     await renderStillsWithTools(deps, "p1", ["scene-02"], undefined, ["scene-02"]);
     expect(renderStills).toHaveBeenCalledWith(

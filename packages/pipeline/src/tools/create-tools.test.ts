@@ -452,7 +452,7 @@ describe("render_stills — fast per-scene stills (no TTS)", () => {
     const tools = createTools({
       renderProjectStills: async (projectId, opts) => {
         seenMultiFrameSceneIds = opts?.multiFrameSceneIds;
-        return { projectId, stills: ["/p/review/scene-02.png", "/p/review/scene-02.f18.png", "/p/review/scene-02.f82.png"] };
+        return { projectId, stills: ["/p/review/scene-02.png", "/p/review/scene-02.f20.png", "/p/review/scene-02.f80.png"] };
       },
     });
     const res = await tools.render_stills({

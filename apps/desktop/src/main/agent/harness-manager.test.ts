@@ -1117,8 +1117,8 @@ describe("HarnessManager draft lifecycle", () => {
       stills: ids.flatMap((id) => [
         stills.find((path) => path.endsWith(`${id}.png`))!,
         ...(multiFrameIds.includes(id) ? [
-          stills.find((path) => path.endsWith(`${id}.f18.png`))!,
-          stills.find((path) => path.endsWith(`${id}.f82.png`))!,
+          stills.find((path) => path.endsWith(`${id}.f20.png`))!,
+          stills.find((path) => path.endsWith(`${id}.f80.png`))!,
         ] : []),
       ]),
     }));
@@ -1160,8 +1160,8 @@ describe("HarnessManager draft lifecycle", () => {
     await mkdir(join(projectRoot, "review"), { recursive: true });
     stills.push(
       ...sceneIds.map((id) => join(projectRoot, "review", `${id}.png`)),
-      join(projectRoot, "review", "scene-02.f18.png"),
-      join(projectRoot, "review", "scene-02.f82.png"),
+      join(projectRoot, "review", "scene-02.f20.png"),
+      join(projectRoot, "review", "scene-02.f80.png"),
     );
     await Promise.all(stills.map((path) => writeFile(path, ONE_PIXEL_PNG)));
 
