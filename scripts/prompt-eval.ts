@@ -1,7 +1,14 @@
-import { mkdir, writeFile } from "node:fs/promises";
-import { join } from "node:path";
-import { videoToolHome } from "../packages/pipeline/src/index.js";
+import { copyFile, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { basename, join } from "node:path";
+import {
+  createTools,
+  projectPaths,
+  scaffoldVideoProject,
+  videoToolHome,
+} from "../packages/pipeline/src/index.js";
 import type { AuthorInput } from "../apps/desktop/src/main/agent/agent-worker.js";
+import { NineRouterAuthoringBackend } from "../apps/desktop/src/main/authoring/ninerouter-backend.js";
+import { NineRouterClient, type ChatMessage } from "../apps/desktop/src/main/gateway/ninerouter-client.js";
 import {
   buildAuthorMessages,
   buildImageFilterMessages,
@@ -63,22 +70,22 @@ function promptStats(messages: VisionMessage[]) {
   };
 }
 
-function args(): { mode: "offline" | "live"; label: string } {
+function args(): { mode: "offline" | "live"; label: string; caseId?: string } {
   const raw = process.argv.slice(2);
   const modeValue = raw.find((value) => value.startsWith("--mode="))?.slice(7) ?? "offline";
   if (modeValue !== "offline" && modeValue !== "live") throw new Error("--mode phải là offline hoặc live");
   const label = raw.find((value) => value.startsWith("--label="))?.slice(8)?.trim()
     || `${modeValue}-${new Date().toISOString().replace(/[:.]/g, "-")}`;
   if (!/^[A-Za-z0-9._-]+$/.test(label)) throw new Error("--label chỉ được chứa chữ, số, dấu chấm, gạch ngang hoặc gạch dưới");
-  return { mode: modeValue, label };
+  const caseId = raw.find((value) => value.startsWith("--case="))?.slice(7)?.trim();
+  if (caseId && !CASES.some((entry) => entry.id === caseId)) throw new Error(`Không có eval case "${caseId}"`);
+  return { mode: modeValue, label, ...(caseId ? { caseId } : {}) };
 }
 
 async function main(): Promise<void> {
   const options = args();
-  if (options.mode === "live") {
-    throw new Error("Live prompt eval cần 9router/runtime thật và được chạy qua desktop acceptance; offline report đã sẵn sàng, không giả lập live pass.");
-  }
-  const cases = CASES.map((entry) => {
+  const selectedCases = options.caseId ? CASES.filter((entry) => entry.id === options.caseId) : CASES;
+  const cases = selectedCases.map((entry) => {
     const images = imagesFor(entry.withImages);
     const planner = buildContentPlanMessages(entry.input, undefined, images);
     const author = buildAuthorMessages(entry.input, undefined, images);
@@ -112,9 +119,202 @@ async function main(): Promise<void> {
   const root = join(videoToolHome(), "prompt-evals");
   await mkdir(root, { recursive: true });
   const output = join(root, `${options.label}.json`);
+  if (options.mode === "live") {
+    const live = await runLiveEval(root, options.label, selectedCases);
+    await writeFile(output, `${JSON.stringify({ ...report, runtimeAcceptance: live.ok ? "completed" : "failed", live: live.results }, null, 2)}\n`, "utf8");
+    await writeContactSheet(root, options.label, live.results);
+    console.log(`[prompt-eval] live report: ${output}`);
+    console.log(`[prompt-eval] ${live.results.filter((result) => result.ok).length}/${selectedCases.length} cases authored and rendered to stills`);
+    if (!live.ok) process.exitCode = 1;
+    return;
+  }
   await writeFile(output, `${JSON.stringify(report, null, 2)}\n`, "utf8");
   console.log(`[prompt-eval] offline report: ${output}`);
   console.log(`[prompt-eval] ${cases.length} cases; live/runtime acceptance not run`);
+}
+
+type LiveCaseResult = {
+  id: string;
+  ok: boolean;
+  modelId: string;
+  startedAt: string;
+  elapsedMs: number;
+  modelCalls: number;
+  modelCallMs: number;
+  repairCount: number;
+  sceneCount: number;
+  stillCount: number;
+  admission: "passed" | "failed" | "not-run";
+  renderStills: "passed" | "failed" | "not-run";
+  stills: string[];
+  error?: string;
+};
+
+async function runLiveEval(
+  root: string,
+  label: string,
+  selectedCases: readonly EvalCase[],
+): Promise<{ ok: boolean; results: LiveCaseResult[] }> {
+  const rawClient = new NineRouterClient();
+  if (!(await rawClient.isReachable())) throw new Error("9router không phản hồi tại http://127.0.0.1:20128");
+  const apiKey = await rawClient.createApiKey(`motionreal-prompt-eval-${label}`);
+  if (!apiKey) throw new Error("9router không cấp được API key nội bộ cho prompt eval");
+  const modelId = await selectedModel(rawClient);
+  const outputDir = join(root, `${label}-stills`);
+  await mkdir(outputDir, { recursive: true });
+  const results: LiveCaseResult[] = [];
+
+  for (const entry of selectedCases) {
+    const startedAt = new Date().toISOString();
+    const started = performance.now();
+    let modelCalls = 0;
+    let modelCallMs = 0;
+    let repairCount = 0;
+    let projectId = "";
+    const measuredClient = {
+      chat: async (model: string, messages: ChatMessage[], opts?: { apiKey?: string; signal?: AbortSignal }) => {
+        modelCalls++;
+        const callStarted = performance.now();
+        try {
+          return await rawClient.chat(model, messages, opts);
+        } finally {
+          modelCallMs += performance.now() - callStarted;
+        }
+      },
+      chatStructured: async (
+        model: string,
+        messages: ChatMessage[],
+        format: Parameters<NineRouterClient["chatStructured"]>[2],
+        opts?: { apiKey?: string; signal?: AbortSignal },
+      ) => {
+        modelCalls++;
+        const callStarted = performance.now();
+        try {
+          return await rawClient.chatStructured(model, messages, format, opts);
+        } finally {
+          modelCallMs += performance.now() - callStarted;
+        }
+      },
+    } as unknown as NineRouterClient;
+    const logger = {
+      debug: () => undefined,
+      info: (_meta: unknown, message = "") => {
+        if (/repair requested|recovery attempted/i.test(message)) repairCount++;
+      },
+      warn: (_meta: unknown, message = "") => {
+        if (/repair requested|recovery attempted/i.test(message)) repairCount++;
+      },
+      error: () => undefined,
+    };
+    let admission: LiveCaseResult["admission"] = "not-run";
+    let renderStills: LiveCaseResult["renderStills"] = "not-run";
+    let sceneCount = 0;
+    let copiedStills: string[] = [];
+    let error: string | undefined;
+    try {
+      const scaffold = await scaffoldVideoProject({
+        prompt: `[prompt-eval:${entry.id}] ${entry.input.text}`,
+        format: entry.input.format,
+        durationTier: entry.input.durationTier,
+        language: entry.input.videoLanguage,
+        creationMode: "classic",
+        tts: { provider: "none" },
+      });
+      projectId = scaffold.projectId;
+      const images = await stageEvalImages(projectId, entry.withImages);
+      const backend = new NineRouterAuthoringBackend({
+        client: measuredClient,
+        tools: createTools(),
+        model: () => modelId,
+        apiKey: () => apiKey,
+        logger,
+      });
+      const authored = await backend.authorScenes({
+        projectId,
+        input: { ...entry.input, ...(images ? { images } : {}) },
+        scriptGate: false,
+      });
+      sceneCount = authored.scenes.length;
+      if (sceneCount === 0) throw new Error(authored.message ?? "authoring không tạo được scene");
+      admission = "passed";
+      const rendered = await backend.renderStills(projectId);
+      if (rendered.error || rendered.stills.length === 0) {
+        throw new Error(rendered.error?.cause ?? "render still không tạo được ảnh");
+      }
+      renderStills = "passed";
+      const caseDir = join(outputDir, entry.id);
+      await mkdir(caseDir, { recursive: true });
+      copiedStills = await Promise.all(rendered.stills.map(async (still) => {
+        const destination = join(caseDir, basename(still));
+        await copyFile(still, destination);
+        return destination;
+      }));
+    } catch (caught) {
+      error = caught instanceof Error ? caught.message : String(caught);
+      if (admission === "not-run" && sceneCount === 0) admission = "failed";
+      else if (renderStills === "not-run") renderStills = "failed";
+    } finally {
+      if (projectId) await rm(projectPaths(projectId).root, { recursive: true, force: true });
+    }
+    results.push({
+      id: entry.id,
+      ok: !error,
+      modelId,
+      startedAt,
+      elapsedMs: Math.round(performance.now() - started),
+      modelCalls,
+      modelCallMs: Math.round(modelCallMs),
+      repairCount,
+      sceneCount,
+      stillCount: copiedStills.length,
+      admission,
+      renderStills,
+      stills: copiedStills,
+      ...(error ? { error } : {}),
+    });
+  }
+  return { ok: results.every((result) => result.ok), results };
+}
+
+async function selectedModel(client: NineRouterClient): Promise<string> {
+  let preferred = "";
+  try {
+    const settings = JSON.parse(await readFile(join(videoToolHome(), "motionreal-settings.json"), "utf8")) as { preferredAiModelId?: unknown };
+    if (typeof settings.preferredAiModelId === "string") preferred = settings.preferredAiModelId.trim();
+  } catch {
+    // Fresh installs may not have settings yet; use the live gateway catalog.
+  }
+  const models = await client.listModels();
+  if (preferred && models.some((model) => model.id === preferred)) return preferred;
+  const first = models[0]?.id;
+  if (!first) throw new Error("9router không trả model nào cho prompt eval");
+  return first;
+}
+
+async function stageEvalImages(projectId: string, kind: EvalCase["withImages"]): Promise<AuthorInput["images"] | undefined> {
+  const images = imagesFor(kind);
+  if (!images) return undefined;
+  const assetsDir = projectPaths(projectId).assetsDir;
+  await mkdir(assetsDir, { recursive: true });
+  const bytes = Buffer.from(ONE_PIXEL_PNG.slice(ONE_PIXEL_PNG.indexOf(",") + 1), "base64");
+  await Promise.all(images.map((image) => writeFile(join(projectPaths(projectId).root, image.ref), bytes)));
+  return images.map(({ ref, width, height }) => ({ ref, width, height }));
+}
+
+async function writeContactSheet(root: string, label: string, results: readonly LiveCaseResult[]): Promise<void> {
+  const cards = results.map((result) => {
+    const images = result.stills.map((still) => {
+      const relative = still.slice(root.length + 1).replaceAll("\\", "/");
+      return `<img src="${escapeHtml(relative)}" alt="${escapeHtml(result.id)} still">`;
+    }).join("");
+    return `<section><h2>${escapeHtml(result.id)} — ${result.ok ? "PASS" : "FAIL"}</h2><p>${result.sceneCount} scenes · ${result.modelCalls} calls · ${result.elapsedMs} ms</p><div class="stills">${images}</div><p>Hierarchy __/5 · Focal balance __/5 · Scene variety __/5 · Clarity __/5 · Asset relevance __/5 · Visual originality __/5</p></section>`;
+  }).join("\n");
+  const html = `<!doctype html><meta charset="utf-8"><title>MotionReal prompt eval — ${escapeHtml(label)}</title><style>body{font:14px system-ui;background:#111;color:#eee;margin:24px}section{border:1px solid #444;border-radius:12px;padding:16px;margin:0 0 24px}.stills{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px}.stills img{width:100%;aspect-ratio:9/16;object-fit:contain;background:#000;border-radius:8px}p{color:#bbb}</style><h1>${escapeHtml(label)}</h1>${cards}`;
+  await writeFile(join(root, `${label}-contact-sheet.html`), html, "utf8");
+}
+
+function escapeHtml(value: string): string {
+  return value.replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]!);
 }
 
 main().catch((error: unknown) => {
