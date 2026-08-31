@@ -2,6 +2,7 @@ import { copyFile, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { basename, join } from "node:path";
 import {
   createTools,
+  loadManifest,
   projectPaths,
   scaffoldVideoProject,
   videoToolHome,
@@ -24,6 +25,7 @@ type EvalCase = {
   category: string;
   input: AuthorInput;
   withImages?: "hero" | "logo" | "pool";
+  motionFocused?: true;
 };
 
 const CASES: readonly EvalCase[] = [
@@ -39,6 +41,12 @@ const CASES: readonly EvalCase[] = [
   { id: "asset-pool", category: "curated asset subset", input: { text: "Kể câu chuyện về tự động hóa, chỉ dùng ảnh thực sự hỗ trợ từng ý.", urls: [], format: "tiktok", durationTier: 2, videoLanguage: "vi" }, withImages: "pool" },
   { id: "long-vietnamese", category: "long Vietnamese", input: { text: "Phân tích tác động của AI agent tới quy trình làm việc, gồm cơ hội, giới hạn và cách áp dụng có trách nhiệm.", urls: [], format: "tiktok", durationTier: 4, videoLanguage: "vi" } },
   { id: "english", category: "English", input: { text: "Explain how small language models trade capability for speed and local control.", urls: [], format: "tiktok", durationTier: 2, videoLanguage: "en" } },
+  { id: "motion-process", category: "semantic motion/process", input: { text: "Giải thích quy trình ba bước: nhận yêu cầu, xử lý dữ liệu rồi trả kết quả; từng bước phải xuất hiện theo lời đọc.", urls: [], format: "tiktok", durationTier: 1, videoLanguage: "vi" }, motionFocused: true },
+  { id: "motion-terminal", category: "semantic motion/terminal", input: { text: "Minh hoạ một lệnh terminal được gõ, kết quả trả về, rồi trạng thái hệ thống thay đổi.", urls: [], format: "tiktok", durationTier: 1, videoLanguage: "vi" }, motionFocused: true },
+  { id: "motion-list", category: "semantic motion/sequential list", input: { text: "Trình bày ba nguyên tắc bảo mật theo thứ tự; ý tiếp theo chỉ hiện khi lời đọc chuyển sang ý đó.", urls: [], format: "tiktok", durationTier: 1, videoLanguage: "vi" }, motionFocused: true },
+  { id: "motion-before-after", category: "semantic motion/before-after", input: { text: "So sánh quy trình thủ công trước đây với quy trình tự động sau cải tiến theo diễn tiến lời đọc.", urls: [], format: "tiktok", durationTier: 1, videoLanguage: "vi" }, motionFocused: true },
+  { id: "motion-counter-chart", category: "semantic motion/counter-chart", input: { text: "Giải thích một chỉ số tăng qua ba mốc và ý nghĩa của thay đổi cuối cùng, không hiện kết quả trước lời đọc.", urls: [], format: "tiktok", durationTier: 1, videoLanguage: "vi" }, motionFocused: true },
+  { id: "motion-evidence-image", category: "semantic motion/evidence image", input: { text: "Dùng ảnh bằng chứng để lần lượt chỉ ra tổng thể, vùng chi tiết và kết luận quan trọng.", urls: [], format: "tiktok", durationTier: 1, videoLanguage: "vi" }, withImages: "hero", motionFocused: true },
 ] as const;
 
 const ONE_PIXEL_PNG = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
@@ -143,6 +151,7 @@ type LiveCaseResult = {
   modelCallMs: number;
   repairCount: number;
   sceneCount: number;
+  semanticSceneCount: number;
   stillCount: number;
   admission: "passed" | "failed" | "not-run";
   renderStills: "passed" | "failed" | "not-run";
@@ -209,6 +218,7 @@ async function runLiveEval(
     let admission: LiveCaseResult["admission"] = "not-run";
     let renderStills: LiveCaseResult["renderStills"] = "not-run";
     let sceneCount = 0;
+    let semanticSceneCount = 0;
     let copiedStills: string[] = [];
     let error: string | undefined;
     try {
@@ -237,7 +247,15 @@ async function runLiveEval(
       sceneCount = authored.scenes.length;
       if (sceneCount === 0) throw new Error(authored.message ?? "authoring không tạo được scene");
       admission = "passed";
-      const rendered = await backend.renderStills(projectId);
+      const manifest = await loadManifest(projectId);
+      semanticSceneCount = manifest.scenes.filter((scene) => Array.isArray((scene as { motionBeats?: unknown }).motionBeats)
+        || /semantic\s*:/iu.test(String((scene as { motionProgression?: unknown }).motionProgression ?? ""))).length;
+      const rendered = await backend.renderStills(
+        projectId,
+        undefined,
+        undefined,
+        entry.motionFocused ? manifest.scenes.map((scene) => scene.id) : undefined,
+      );
       if (rendered.error || rendered.stills.length === 0) {
         throw new Error(rendered.error?.cause ?? "render still không tạo được ảnh");
       }
@@ -266,6 +284,7 @@ async function runLiveEval(
       modelCallMs: Math.round(modelCallMs),
       repairCount,
       sceneCount,
+      semanticSceneCount,
       stillCount: copiedStills.length,
       admission,
       renderStills,
