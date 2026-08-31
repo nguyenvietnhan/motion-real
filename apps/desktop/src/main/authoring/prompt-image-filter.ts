@@ -1,7 +1,7 @@
 import type { ContentPart, VisionMessage } from "./prompt-message-types.js";
 
 const IMAGE_FILTER_SYSTEM = `Bạn là biên tập ảnh cho video ngắn đa chủ đề. Bạn được xem các ẢNH thu thập từ một nguồn nội dung, mỗi ảnh có một "ref" cố định, kèm tóm tắt nội dung nguồn. Nhiệm vụ: chọn các ảnh THỰC SỰ minh hoạ nội dung (ảnh chụp sự kiện/nhân vật/sản phẩm/biểu đồ/địa điểm/đối tượng liên quan).
-LOẠI BỎ: logo, banner/quảng cáo, avatar tác giả, icon mạng xã hội, ảnh trang trí chung chung, ảnh không liên quan nội dung.
+GIỮ logo sản phẩm/công ty khi logo đó liên quan trực tiếp đến nội dung; downstream phải dùng role "logo" và chỉ làm nhận diện/điểm nhấn. LOẠI BỎ watermark, banner/quảng cáo, logo không liên quan, avatar tác giả, icon mạng xã hội, ảnh trang trí chung chung và ảnh không đóng góp nội dung.
 KHÔNG bịa ref. Chỉ trả ref có trong danh sách được cung cấp. Không có ảnh nào phù hợp thì trả mảng rỗng.
 
 TRẢ VỀ DUY NHẤT một khối JSON, không kèm văn bản khác:

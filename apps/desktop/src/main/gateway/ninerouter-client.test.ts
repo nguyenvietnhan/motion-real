@@ -157,6 +157,44 @@ describe("NineRouterClient.chat continuation (finish_reason: length)", () => {
   });
 });
 
+describe("NineRouterClient.chatStructured capability gate", () => {
+  const format = {
+    name: "probe",
+    schema: {
+      type: "object",
+      properties: { value: { type: "integer" } },
+      required: ["value"],
+      additionalProperties: false,
+    },
+  };
+
+  it("sends native json_schema when the selected model supports it", async () => {
+    const { client, requests } = clientWith([okReply('{"value":1}')]);
+    await expect(client.chatStructured("structured-supported", MSG, format)).resolves.toBe('{"value":1}');
+    expect(requests[0]).toMatchObject({
+      response_format: {
+        type: "json_schema",
+        json_schema: { name: "probe", strict: true, schema: format.schema },
+      },
+    });
+  });
+
+  it("falls back once on an explicit unsupported-schema 400 and caches that capability", async () => {
+    const unsupported = new Response('{"error":"response_format json_schema is not supported"}', { status: 400 });
+    const { client, calls, requests } = clientWith([
+      unsupported,
+      okReply('{"value":1}'),
+      okReply('{"value":2}'),
+    ]);
+    await expect(client.chatStructured("structured-unsupported", MSG, format)).resolves.toBe('{"value":1}');
+    await expect(client.chatStructured("structured-unsupported", MSG, format)).resolves.toBe('{"value":2}');
+    expect(calls()).toBe(3);
+    expect(requests[0]).toHaveProperty("response_format");
+    expect(requests[1]).not.toHaveProperty("response_format");
+    expect(requests[2]).not.toHaveProperty("response_format");
+  });
+});
+
 describe("NineRouterClient best-effort management fallbacks", () => {
   const failingFetch: FetchImpl = async () => { throw new Error("gateway offline"); };
 

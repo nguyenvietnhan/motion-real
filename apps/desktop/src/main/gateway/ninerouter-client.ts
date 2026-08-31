@@ -131,6 +131,20 @@ export type ContentPart = { type: "text"; text: string } | { type: "image_url"; 
 /** A chat message whose content may be plain text or multimodal parts (vision). */
 export type ChatMessage = { role: "system" | "user" | "assistant"; content: string | ContentPart[] };
 
+export type StructuredOutputFormat = {
+  name: string;
+  schema: Record<string, unknown>;
+};
+
+type ChatOptions = {
+  apiKey?: string;
+  signal?: AbortSignal;
+  responseFormat?: StructuredOutputFormat;
+};
+
+/** Capability is stable for a selected route during one desktop process. */
+const structuredOutputCapability = new Map<string, "supported" | "unsupported">();
+
 /** 9router data dir (Windows: %APPDATA%/9router; else ~/.9router). */
 function dataDir(): string {
   if (process.env.DATA_DIR) return process.env.DATA_DIR;
@@ -311,7 +325,7 @@ export class NineRouterClient {
   async chat(
     model: string,
     messages: ChatMessage[],
-    opts: { apiKey?: string; signal?: AbortSignal } = {},
+    opts: Omit<ChatOptions, "responseFormat"> = {},
   ): Promise<string> {
     // First turn (with transient-retry), then stitch continuation passes when the
     // model stopped on the token cap rather than finishing (see below).
@@ -345,11 +359,43 @@ export class NineRouterClient {
     return full;
   }
 
+  /**
+   * Request native JSON Schema output when the selected route supports it.
+   * An explicit provider rejection is cached and retried once through the
+   * ordinary chat path; parsing and semantic validation remain caller-owned.
+   */
+  async chatStructured(
+    model: string,
+    messages: ChatMessage[],
+    format: StructuredOutputFormat,
+    opts: Omit<ChatOptions, "responseFormat"> = {},
+  ): Promise<string> {
+    if (structuredOutputCapability.get(model) === "unsupported") {
+      return this.chat(model, messages, opts);
+    }
+    try {
+      const reply = await this.chatWithRetry(model, messages, { ...opts, responseFormat: format });
+      structuredOutputCapability.set(model, "supported");
+      return reply.content;
+    } catch (error) {
+      if (
+        error instanceof GatewayChatError
+        && error.kind === "http"
+        && error.status === 400
+        && /response_format|json_schema/i.test(error.message)
+      ) {
+        structuredOutputCapability.set(model, "unsupported");
+        return this.chat(model, messages, opts);
+      }
+      throw error;
+    }
+  }
+
   /** A chat turn with transient-retry/backoff; returns the text + finish reason. */
   private async chatWithRetry(
     model: string,
     messages: ChatMessage[],
-    opts: { apiKey?: string; signal?: AbortSignal },
+    opts: ChatOptions,
   ): Promise<{ content: string; finishReason: string | null }> {
     let last: GatewayChatError | undefined;
     for (let attempt = 1; attempt <= MAX_CHAT_ATTEMPTS; attempt++) {
@@ -373,7 +419,7 @@ export class NineRouterClient {
   private async chatOnce(
     model: string,
     messages: ChatMessage[],
-    opts: { apiKey?: string; signal?: AbortSignal },
+    opts: ChatOptions,
   ): Promise<{ content: string; finishReason: string | null }> {
     const headers: Record<string, string> = { "content-type": "application/json" };
     if (opts.apiKey) headers.authorization = `Bearer ${opts.apiKey}`;
@@ -385,7 +431,23 @@ export class NineRouterClient {
         // No `max_tokens`: some providers (e.g. kr/* via Kiro) reject it with a
         // 400. A reply truncated at the provider's default cap is recovered by the
         // finish_reason:"length" continuation loop in `chat` instead.
-        body: JSON.stringify({ model, messages, stream: false }),
+        body: JSON.stringify({
+          model,
+          messages,
+          stream: false,
+          ...(opts.responseFormat
+            ? {
+                response_format: {
+                  type: "json_schema",
+                  json_schema: {
+                    name: opts.responseFormat.name,
+                    strict: true,
+                    schema: opts.responseFormat.schema,
+                  },
+                },
+              }
+            : {}),
+        }),
       },
       CHAT_TIMEOUT_MS,
       this.fetchImpl,

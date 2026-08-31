@@ -195,7 +195,7 @@ describe("prompt surface baseline", () => {
     // Code authoring must not embed raw research bodies.
     expect(promptText(authorWithResearch)).toEqual(expect.stringContaining("CONTENT PLAN"));
     expect(promptText(authorWithResearch)).not.toEqual(expect.stringContaining("tư liệu baseline"));
-    expect(promptText(authorWithImages)).toEqual(expect.stringContaining("BẮT BUỘC DÙNG ẢNH"));
+    expect(promptText(authorWithImages)).toEqual(expect.stringContaining("chỉ dùng subset thực sự đóng góp nội dung"));
     expect(promptText(authorWithImages)).toEqual(expect.stringContaining('ref="assets/a.png"'));
     expect(promptText(reauthorTextOnly)).toEqual(expect.stringContaining("BẢO TOÀN"));
     expect(promptText(reauthorTextOnly)).toEqual(expect.stringContaining("sửa nhẹ"));
@@ -768,11 +768,12 @@ describe("buildAuthorMessages", () => {
     // The system prompt gains the image rule (use only provided refs via <SceneImage>).
     expect(sys.content).toContain("SceneImage");
     expect(sys.content).toMatch(/KHÔNG bịa đường dẫn/);
-    // User-attached/approved images MUST be used (not "optional, skip freely"):
-    // they came through a deliberate pick/review, so a re-roll can't silently
-    // drop them all. The rule mandates using them (at least one).
-    expect(sys.content).toMatch(/BẮT BUỘC DÙNG ẢNH/);
-    expect(sys.content).not.toMatch(/không bắt buộc dùng hết/);
+    // Approved images are a curated pool, not a checklist. Prefer at least one
+    // suitable attachment, but never distort the story to consume an irrelevant image.
+    expect(sys.content).toMatch(/chỉ dùng subset thực sự đóng góp nội dung/);
+    expect(sys.content).toMatch(/Ưu tiên dùng ít nhất một ảnh phù hợp/);
+    expect(sys.content).toMatch(/KHÔNG bẻ nội dung/);
+    expect(sys.content).not.toMatch(/BẮT BUỘC DÙNG ẢNH/);
     // One image_url per image, each preceded by a text line naming its ref + size.
     const imageParts = parts.filter((p) => p.type === "image_url");
     expect(imageParts).toHaveLength(2);
@@ -943,6 +944,9 @@ describe("buildImageFilterMessages", () => {
     const systemText = sys.content as string;
     // System prompt instructs keep-fitting / drop logo+ads, and the JSON shape.
     expect(systemText).toMatch(/logo/i);
+    expect(systemText).toMatch(/GIỮ logo sản phẩm\/công ty/);
+    expect(systemText).toMatch(/LOẠI BỎ watermark/);
+    expect(systemText).toMatch(/role "logo"/);
     expect(systemText).toContain("keep");
     expect(systemText).toMatch(/video ngắn đa chủ đề/);
     expect(systemText).toMatch(/nguồn nội dung/);
@@ -958,6 +962,17 @@ describe("buildImageFilterMessages", () => {
     expect(text).toContain("Tóm tắt nội dung nguồn");
     expect(text).toContain("assets/aaa.png");
     expect(text).toContain("assets/bbb.jpg");
+  });
+});
+
+describe("narrative opening rules", () => {
+  it("requires a hook only for scene-01 and lets later scenes follow their purpose", () => {
+    const [system] = buildAuthorMessages({ text: "Một quy trình kỹ thuật", urls: [] });
+    const text = system!.content as string;
+    expect(text).toMatch(/Chỉ scene-01 bắt buộc có HOOK mạnh/);
+    expect(text).toMatch(/context, turn, proof, contrast, payoff hoặc CTA/);
+    expect(text).not.toMatch(/câu đầu mỗi cảnh.*hook/i);
+    expect(text).not.toMatch(/AI vừa làm trong 4 giây|Trí tuệ nhân tạo đang thay đổi/i);
   });
 });
 

@@ -1,5 +1,6 @@
 import { join } from "node:path";
 import type { AuthoredRegistration } from "@motionreal/pipeline";
+import { z } from "zod";
 import type { VisualDefect, VisualQaResult, SceneSnapshot } from "../agent/agent-worker.js";
 import type { ChatMessage } from "../gateway/ninerouter-client.js";
 import { logAuthoringFailure } from "./authoring-failure.js";
@@ -16,6 +17,18 @@ type VisualQaLogger = {
 type VisualQaManifest = {
   scenes: { id: string }[];
 };
+
+export const VisualQaResponseSchema = z
+  .object({
+    issues: z.array(
+      z.object({
+        sceneId: z.string(),
+        issue: z.string(),
+        severity: z.enum(["high", "low"]),
+      }).strict(),
+    ),
+  })
+  .strict();
 
 export type VisualQaRunnerArgs = {
   model?: string;

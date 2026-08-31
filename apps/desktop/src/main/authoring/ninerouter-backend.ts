@@ -1,6 +1,7 @@
 import { join } from "node:path";
 import { existsSync, readFileSync } from "node:fs";
 import { readFile, writeFile } from "node:fs/promises";
+import { z } from "zod";
 import {
   createLogger,
   admitAuthoredSceneFile,
@@ -46,10 +47,11 @@ import { VisionChatSession } from "./authoring-vision-chat.js";
 import { type AuthorImageInput } from "./prompt.js";
 import { runContentPlan } from "./content-plan-runner.js";
 import type { ContentPlan } from "./content-plan.js";
+import { ContentPlanSchema } from "./content-plan-schema.js";
 import { buildProjectEvidence } from "./content-evidence.js";
 import { runBatchedAuthorReply, runSingleAuthorReply, type SuccessfulAuthorReply } from "./author-reply-runner.js";
 import { runReauthor } from "./reauthor-runner.js";
-import { runImageFilter } from "./image-filter-runner.js";
+import { ImageFilterResponseSchema, runImageFilter } from "./image-filter-runner.js";
 import { runArticleImageCrawler } from "./article-image-crawler-runner.js";
 import {
   AUTHOR_BATCH_BUDGET_FAILURE,
@@ -65,6 +67,7 @@ import {
   restoreAuthoredScenes,
   runVisualQa,
   snapshotAuthoredScenes,
+  VisualQaResponseSchema,
 } from "./visual-qa-runner.js";
 
 export { isLogicChanged } from "./reauthor-runner.js";
@@ -81,6 +84,19 @@ type AuthoringLogger = Pick<typeof log, "debug" | "info" | "warn" | "error">;
 
 /** Scope-tagged structured logger for the authoring backend (library-adoption pilot). */
 const log = createLogger("authoring");
+
+const CONTENT_PLAN_OUTPUT = {
+  name: "motionreal_content_plan",
+  schema: z.toJSONSchema(ContentPlanSchema) as Record<string, unknown>,
+};
+const IMAGE_FILTER_OUTPUT = {
+  name: "motionreal_image_filter",
+  schema: z.toJSONSchema(ImageFilterResponseSchema) as Record<string, unknown>,
+};
+const VISUAL_QA_OUTPUT = {
+  name: "motionreal_visual_qa",
+  schema: z.toJSONSchema(VisualQaResponseSchema) as Record<string, unknown>,
+};
 
 /**
  * Phrase an AI-call failure in plain Vietnamese, by KIND, so the user knows which
@@ -198,7 +214,8 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
       projectId,
       input,
       wordsPerSecond,
-      chat: (selectedModel, messages) => this.vision.chatWithVisionFallback(selectedModel, messages, signal),
+      chat: (selectedModel, messages) =>
+        this.vision.chatWithVisionFallback(selectedModel, messages, signal, CONTENT_PLAN_OUTPUT),
       callErrorMessage: authorCallErrorMessage,
       logger: this.logger(),
     });
@@ -253,6 +270,8 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
 
     const chat = (selectedModel: string, messages: import("../gateway/ninerouter-client.js").ChatMessage[]) =>
       this.vision.chatWithVisionFallback(selectedModel, messages, signal);
+    const planChat = (selectedModel: string, messages: import("../gateway/ninerouter-client.js").ChatMessage[]) =>
+      this.vision.chatWithVisionFallback(selectedModel, messages, signal, CONTENT_PLAN_OUTPUT);
 
     let plannedContent;
     let contentPlanAdvisories;
@@ -267,7 +286,7 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
         ...(job.input.urls.length > 0 ? { researchSources } : {}),
         offeredImages,
         wordsPerSecond,
-        chat,
+        chat: planChat,
         callErrorMessage: authorCallErrorMessage,
         logger: this.logger(),
       });
@@ -527,7 +546,7 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
       isImageUnsupported: (selectedModel) => this.vision.isImageUnsupported(selectedModel),
       buildAuthorImages: (id, imageRefs) => this.buildAuthorImages(id, imageRefs),
       chat: (selectedModel, messages, currentSignal) =>
-        this.vision.chatWithVisionFallback(selectedModel, messages, currentSignal),
+        this.vision.chatWithVisionFallback(selectedModel, messages, currentSignal, IMAGE_FILTER_OUTPUT),
       logger: log,
     });
   }
@@ -582,7 +601,7 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
       readStillDataUrl,
       // Full multimodal chat only — do not route through chatWithVisionFallback.
       chat: (selectedModel, messages, currentSignal) =>
-        this.deps.client.chat(selectedModel, messages, {
+        this.deps.client.chatStructured(selectedModel, messages, VISUAL_QA_OUTPUT, {
           apiKey: this.deps.apiKey(),
           ...(currentSignal ? { signal: currentSignal } : {}),
         }),

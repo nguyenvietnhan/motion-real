@@ -1,4 +1,9 @@
-import { GatewayChatError, type NineRouterClient, type ChatMessage } from "../gateway/ninerouter-client.js";
+import {
+  GatewayChatError,
+  type NineRouterClient,
+  type ChatMessage,
+  type StructuredOutputFormat,
+} from "../gateway/ninerouter-client.js";
 
 type VisionChatLogger = {
   warn: (meta: unknown, message: string) => void;
@@ -49,16 +54,24 @@ export class VisionChatSession {
    * the model can't take images, then retry text-only;
    * - a non-image failure (or a text-only message) is rethrown unchanged.
    */
-  async chatWithVisionFallback(model: string, messages: ChatMessage[], signal?: AbortSignal): Promise<string> {
+  async chatWithVisionFallback(
+    model: string,
+    messages: ChatMessage[],
+    signal?: AbortSignal,
+    structured?: StructuredOutputFormat,
+  ): Promise<string> {
     const apiKey = this.deps.apiKey();
     const hasImage = messages.some((m) => Array.isArray(m.content) && m.content.some((p) => p.type === "image_url"));
+    const call = (currentMessages: ChatMessage[]) => structured
+      ? this.deps.client.chatStructured(model, currentMessages, structured, { apiKey, ...(signal ? { signal } : {}) })
+      : this.deps.client.chat(model, currentMessages, { apiKey, ...(signal ? { signal } : {}) });
 
     // Known image-incapable model → don't even attempt vision (avoid the breaker).
     if (hasImage && this.imageUnsupportedModels.has(model)) {
-      return this.deps.client.chat(model, toTextOnlyMessages(messages), { apiKey, ...(signal ? { signal } : {}) });
+      return call(toTextOnlyMessages(messages));
     }
     try {
-      return await this.deps.client.chat(model, messages, { apiKey, ...(signal ? { signal } : {}) });
+      return await call(messages);
     } catch (e) {
       if (!hasImage) throw e;
       // The image part is what the provider choked on → remember it so future
@@ -69,7 +82,7 @@ export class VisionChatSession {
       } else {
         this.deps.logger.warn({ err: e }, "vision chat failed; retrying text-only");
       }
-      return this.deps.client.chat(model, toTextOnlyMessages(messages), { apiKey, ...(signal ? { signal } : {}) });
+      return call(toTextOnlyMessages(messages));
     }
   }
 }

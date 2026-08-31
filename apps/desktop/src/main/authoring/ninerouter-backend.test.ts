@@ -292,6 +292,10 @@ function fakeLogger() {
   };
 }
 
+function mockClient(chat: NineRouterClient["chat"]): NineRouterClient {
+  return { chat, chatStructured: chat } as unknown as NineRouterClient;
+}
+
 function makeBackend(
   authorReply = validReply(),
   admitFiles = vi.fn(async (files: readonly string[]) => ({
@@ -303,7 +307,7 @@ function makeBackend(
   logger?: ReturnType<typeof fakeLogger>,
 ) {
   const chat = chatReplies(planReply, authorReply);
-  const client = { chat } as unknown as NineRouterClient;
+  const client = mockClient(chat);
   const deps: NineRouterBackendDeps = {
     client,
     tools: {} as never,
@@ -381,7 +385,7 @@ describe("authorScenes (pure-author)", () => {
     const admitFiles = vi.fn(async (_files: readonly string[]) => ({ ok: true as const, componentIds, files: [] }));
     const chat = chatReplies(INVALID_PURPOSE_CONTENT_PLAN_REPLY, authorReplyForIds(componentIds));
     const backend = new NineRouterAuthoringBackend({
-      client: { chat } as unknown as NineRouterClient,
+      client: mockClient(chat),
       tools: {} as never,
       model: () => "test-model",
       apiKey: () => undefined,
@@ -420,7 +424,7 @@ describe("authorScenes (pure-author)", () => {
     const admitFiles = vi.fn(async (_files: readonly string[]) => ({ ok: true as const, componentIds, files: [] }));
     const chat = chatReplies(longContentPlanReply(12), authorReplyForIds(componentIds));
     const backend = new NineRouterAuthoringBackend({
-      client: { chat } as unknown as NineRouterClient,
+      client: mockClient(chat),
       tools: {} as never,
       model: () => "test-model",
       apiKey: () => undefined,
@@ -452,7 +456,7 @@ describe("authorScenes (pure-author)", () => {
     const admitFiles = vi.fn(async (_files: readonly string[]) => ({ ok: true as const, componentIds, files: [] }));
     const chat = chatReplies(longContentPlanReply(14), authorReplyForIds(componentIds));
     const backend = new NineRouterAuthoringBackend({
-      client: { chat } as unknown as NineRouterClient,
+      client: mockClient(chat),
       tools: {} as never,
       model: () => "test-model",
       apiKey: () => undefined,
@@ -490,7 +494,7 @@ describe("authorScenes (pure-author)", () => {
     const authorReply = "```json\n" + JSON.stringify(manifest) + "\n```\n\n" + bareBatchWithTrailingFence(componentIds);
     const chat = chatReplies(longContentPlanReply(12), authorReply);
     const backend = new NineRouterAuthoringBackend({
-      client: { chat } as unknown as NineRouterClient,
+      client: mockClient(chat),
       tools: {} as never,
       model: () => "test-model",
       apiKey: () => undefined,
@@ -516,7 +520,7 @@ describe("authorScenes (pure-author)", () => {
       authorReplyForIds(componentIds),
     );
     const backend = new NineRouterAuthoringBackend({
-      client: { chat } as unknown as NineRouterClient,
+      client: mockClient(chat),
       tools: {} as never,
       model: () => "test-model",
       apiKey: () => undefined,
@@ -544,7 +548,7 @@ describe("authorScenes (pure-author)", () => {
       "I still cannot provide that module.",
     );
     const backend = new NineRouterAuthoringBackend({
-      client: { chat } as unknown as NineRouterClient,
+      client: mockClient(chat),
       tools: {} as never,
       model: () => "test-model",
       apiKey: () => undefined,
@@ -569,7 +573,7 @@ describe("authorScenes (pure-author)", () => {
     const admitFiles = vi.fn(async (files: readonly string[]) => ({ ok: true as const, componentIds: [], files: [...files] }));
     const chat = chatReplies(longContentPlanReply(17), blocksFor(ids(4)));
     const backend = new NineRouterAuthoringBackend({
-      client: { chat } as unknown as NineRouterClient,
+      client: mockClient(chat),
       tools: {} as never,
       model: () => "test-model",
       apiKey: () => undefined,
@@ -595,7 +599,7 @@ describe("authorScenes (pure-author)", () => {
     const admitFiles = vi.fn(async (_files: readonly string[]) => ({ ok: true as const, componentIds, files: [] }));
     const chat = chatReplies(longContentPlanReply(6), authorReplyForIds(componentIds, providedRef));
     const backend = new NineRouterAuthoringBackend({
-      client: { chat } as unknown as NineRouterClient,
+      client: mockClient(chat),
       tools: {} as never,
       model: () => "test-model",
       apiKey: () => undefined,
@@ -645,7 +649,7 @@ describe("authorScenes (pure-author)", () => {
       ],
     }));
     const backend = new NineRouterAuthoringBackend({
-      client: { chat: chatReplies(validContentPlanReply(), validReply()) } as unknown as NineRouterClient,
+      client: mockClient(chatReplies(validContentPlanReply(), validReply())),
       tools: {} as never,
       model: () => "test-model",
       apiKey: () => undefined,
@@ -671,7 +675,7 @@ describe("authorScenes (pure-author)", () => {
     const admitFiles = vi.fn(async (files: readonly string[]) => ({ ok: true as const, componentIds: ["alpha", "beta"], files: [...files] }));
     const chat = chatReplies(validContentPlanReply(), manifestOnlyReply(), block("alpha") + "\n\n" + block("beta"));
     const backend = new NineRouterAuthoringBackend({
-      client: { chat } as unknown as NineRouterClient,
+      client: mockClient(chat),
       tools: {} as never,
       model: () => "test-model",
       apiKey: () => undefined,
@@ -705,7 +709,7 @@ describe("authorScenes (pure-author)", () => {
     const admitFiles = vi.fn(async (files: readonly string[]) => ({ ok: true as const, componentIds: ["alpha", "beta"], files: [...files] }));
     const chat = chatReplies(validContentPlanReply(), partialReply(), block("beta"));
     const backend = new NineRouterAuthoringBackend({
-      client: { chat } as unknown as NineRouterClient,
+      client: mockClient(chat),
       tools: {} as never,
       model: () => "test-model",
       apiKey: () => undefined,
@@ -732,7 +736,7 @@ describe("authorScenes (pure-author)", () => {
     const admitFiles = vi.fn(async (files: readonly string[]) => ({ ok: true as const, componentIds: ["alpha", "beta"], files: [...files] }));
     const chat = chatReplies(validContentPlanReply(), partialReply(), "I cannot provide TSX.");
     const backend = new NineRouterAuthoringBackend({
-      client: { chat } as unknown as NineRouterClient,
+      client: mockClient(chat),
       tools: {} as never,
       model: () => "test-model",
       apiKey: () => undefined,
@@ -795,7 +799,7 @@ describe("authorScenes (pure-author)", () => {
     const admitFiles = vi.fn(async (files: readonly string[]) => ({ ok: true as const, componentIds: ["alpha", "beta"], files: [...files] }));
     const chat = chatReplies(validContentPlanReply(), longInvalidReply);
     const backend = new NineRouterAuthoringBackend({
-      client: { chat } as unknown as NineRouterClient,
+      client: mockClient(chat),
       tools: {} as never,
       model: () => "test-model",
       apiKey: () => undefined,
@@ -847,7 +851,7 @@ describe("authorScenes (pure-author)", () => {
       const admitFiles = vi.fn(async (files: readonly string[]) => ({ ok: true as const, componentIds: ["alpha", "beta"], files: [...files] }));
       const chat = chatReplies(validContentPlanReply(), longInvalidReply);
       const backend = new NineRouterAuthoringBackend({
-        client: { chat } as unknown as NineRouterClient,
+        client: mockClient(chat),
         tools: {} as never,
         model: () => "test-model",
         apiKey: () => undefined,
@@ -904,7 +908,7 @@ describe("authorScenes (pure-author)", () => {
     const admitFiles = vi.fn(async (files: readonly string[]) => ({ ok: true as const, componentIds: ["alpha", "beta"], files: [...files] }));
     const chat = chatReplies(claimLedgerContentPlanReply(), repairedClaimLedgerContentPlanReply(), validReply());
     const backend = new NineRouterAuthoringBackend({
-      client: { chat } as unknown as NineRouterClient,
+      client: mockClient(chat),
       tools: {} as never,
       model: () => "test-model",
       apiKey: () => undefined,
@@ -927,7 +931,7 @@ describe("authorScenes (pure-author)", () => {
     const admitFiles = vi.fn(async (files: readonly string[]) => ({ ok: true as const, componentIds: ["alpha", "beta"], files: [...files] }));
     const chat = chatReplies(claimLedgerContentPlanReply(), claimLedgerContentPlanReply(), validReply());
     const backend = new NineRouterAuthoringBackend({
-      client: { chat } as unknown as NineRouterClient,
+      client: mockClient(chat),
       tools: {} as never,
       model: () => "test-model",
       apiKey: () => undefined,
@@ -971,7 +975,7 @@ describe("authorScenes (pure-author)", () => {
 
   it("continues authoring when URL ingest throws and reports the URL as unreadable", async () => {
     const projectId = "pa-ingest-fallback";
-    const client = { chat: chatReplies(validContentPlanReply(), validReply()) } as unknown as NineRouterClient;
+    const client = mockClient(chatReplies(validContentPlanReply(), validReply()));
     const extractUrl = vi.fn(async () => { throw new Error("ingest offline"); });
     const backend = new NineRouterAuthoringBackend({
       client,
@@ -1332,7 +1336,7 @@ describe("vision-incapable model hardening", () => {
       return textReplies.shift() ?? validReply();
     });
     const deps: NineRouterBackendDeps = {
-      client: { chat } as unknown as NineRouterClient,
+      client: mockClient(chat),
       tools: {} as never,
       model: () => "kr/auto",
       apiKey: () => undefined,
@@ -1364,7 +1368,7 @@ describe("vision-incapable model hardening", () => {
       return textReplies.shift() ?? validReply();
     });
     const deps: NineRouterBackendDeps = {
-      client: { chat } as unknown as NineRouterClient,
+      client: mockClient(chat),
       tools: {} as never,
       model: () => "kr/auto",
       apiKey: () => undefined,

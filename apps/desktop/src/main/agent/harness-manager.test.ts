@@ -1508,6 +1508,9 @@ describe("HarnessManager draft lifecycle", () => {
     await expect(readFile(join(root, "harness", "settings.yaml"), "utf8"))
       .resolves.toMatch(/web-search-deepseek:[\s\S]*apiKeyEnv: DEEPSEEK_API_KEY/);
     const settings = await readFile(join(root, "harness", "settings.yaml"), "utf8");
+    expect(settings).toContain("system-prompt:\n  includeHarnessIdentity: false");
+    expect(settings).toContain("You are MotionReal Agent.");
+    expect(settings).not.toContain("You are DeepSeek");
     // The custom 9router model has no upstream catalog entry to inherit vision from.
     // Declare only this model, not a route-wide capability for unknown future models.
     expect(settings).toContain("        - id: ag/gemini-3.7-flash-high\n          input: [text, image]\n");

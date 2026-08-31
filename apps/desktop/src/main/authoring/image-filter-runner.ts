@@ -1,8 +1,11 @@
 import type { AuthorImageRef } from "../agent/agent-worker.js";
 import type { ChatMessage } from "../gateway/ninerouter-client.js";
+import { z } from "zod";
 import { logAuthoringFailure } from "./authoring-failure.js";
 import { extractJsonObject } from "./manifest-schema.js";
 import { buildImageFilterMessages, type AuthorImageInput } from "./prompt.js";
+
+export const ImageFilterResponseSchema = z.object({ keep: z.array(z.string()) }).strict();
 
 type ImageFilterLogger = {
   error: (meta: unknown, message: string) => void;
@@ -54,9 +57,9 @@ export async function runImageFilter(args: ImageFilterRunnerArgs): Promise<strin
   const json = extractJsonObject(reply);
   if (!json) return [];
   try {
-    const keep = (JSON.parse(json) as { keep?: unknown }).keep;
-    if (!Array.isArray(keep)) return [];
-    return keep.filter((ref): ref is string => typeof ref === "string" && allowed.has(ref));
+    const parsed = ImageFilterResponseSchema.safeParse(JSON.parse(json));
+    if (!parsed.success) return [];
+    return parsed.data.keep.filter((ref) => allowed.has(ref));
   } catch (error) {
     logAuthoringFailure(
       args.logger,

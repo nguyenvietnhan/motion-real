@@ -53,19 +53,18 @@ export type AuthorImageInput = { ref: string; width: number; height: number; dat
  * Extra system rule appended ONLY when images are provided, so a no-image
  * authoring call stays byte-identical to today. Tells the model the images each
  * have a FIXED `ref`, that it may place at most one per scene (via the scene's
- * `image` prop rendered through `<SceneImage>`), that it must use only the
- * provided refs (never invent a path), and that — since the user deliberately
- * picked these — it must place them (at least one), not skip them all.
+ * `image` prop rendered through `<SceneImage>`), and that it must use only the
+ * provided refs (never invent a path). User-selected images get priority, but
+ * remain a curated pool rather than a checklist that can distort the story.
  */
 const IMAGE_RULE = `
 
-ẢNH (NGƯỜI DÙNG ĐÍNH KÈM — PHẢI DÙNG): Người dùng đính kèm một số ẢNH, mỗi ảnh có một "ref" CỐ ĐỊNH (vd "assets/<hash>.png") kèm kích thước. Bạn ĐƯỢC XEM các ảnh này. Cách đặt ảnh:
-- thêm "image": { "ref": "<ref đã cho>" } vào MỘT cảnh phù hợp trong manifest (tối đa 1 ảnh/cảnh; cảnh KHÔNG mang ảnh thì bỏ field này — nhưng tổng thể KHÔNG được bỏ hết ảnh, xem luật bắt buộc bên dưới);
+ẢNH NGƯỜI DÙNG ĐÍNH KÈM: Người dùng cung cấp một pool ảnh đã chọn, mỗi ảnh có một "ref" CỐ ĐỊNH (vd "assets/<hash>.png") kèm kích thước. Xem tất cả ảnh trước khi quyết định; chỉ dùng subset thực sự đóng góp nội dung. Cách đặt ảnh:
+- thêm "image": { "ref": "<ref đã cho>", "role": "hero|support|logo|icon" } vào cảnh phù hợp trong manifest (tối đa 1 ảnh/cảnh; cảnh không mang ảnh thì bỏ field này);
 - trong .tsx của cảnh đó, render ảnh qua block <SceneImage imageRef={image.ref} alt={image.alt} role={image.role} /> (image đến từ SceneComponentProps), đặt trong vùng nội dung phía trên (tránh dải phụ đề đáy) để ảnh nằm trong vùng an toàn; role logo/icon phải giữ nhỏ gọn, không phóng thành hero;
 - import { SceneImage } from "@motionreal/compositions" (KHÔNG phải @motionreal/blocks — block layout đã bị gỡ; SceneImage là export DUY NHẤT cho ảnh, lấy từ @motionreal/compositions). Đây là NGOẠI LỆ DUY NHẤT được phép import ngoài react/remotion/zod cho phần hình.
 QUAN TRỌNG VỀ KÍCH THƯỚC: <SceneImage> TỰ canh theo đúng tỉ lệ thật của ảnh (khung ôm khít ảnh). TUYỆT ĐỐI KHÔNG bọc nó trong khung có chiều cao/rộng cố định, không dùng overflow:"hidden", height:"...px", aspectRatio hay objectFit ép quanh nó — làm vậy sẽ CẮT hoặc BÓP MÉO ảnh. Cứ đặt <SceneImage> trực tiếp trong cột nội dung; muốn giới hạn chiều cao thì truyền prop maxHeight (số px), đừng tự dựng khung.
-CHỈ dùng ref đã được cung cấp, TUYỆT ĐỐI KHÔNG bịa đường dẫn/URL ảnh. Viết nội dung sao cho ảnh khớp tổng thể.
-BẮT BUỘC DÙNG ẢNH: những ảnh này do NGƯỜI DÙNG chủ động chọn/đính kèm, nên PHẢI được đưa vào video — KHÔNG được bỏ hết. Hãy đặt MỖI ảnh đã cho vào một cảnh phù hợp (mỗi cảnh tối đa 1 ảnh, nên trải ảnh ra nhiều cảnh); nếu có nhiều ảnh hơn số cảnh hợp, hãy ưu tiên những ảnh khớp nội dung nhất, nhưng TỐI THIỂU phải dùng một ảnh. Soạn nội dung/kịch bản bám theo ảnh để chúng khớp tự nhiên.`;
+CHỈ dùng ref đã được cung cấp, TUYỆT ĐỐI KHÔNG bịa đường dẫn/URL ảnh. Ưu tiên dùng ít nhất một ảnh phù hợp vì người dùng đã chủ động đính kèm, nhưng KHÔNG bẻ nội dung hay tạo cảnh gượng ép để dùng ảnh không liên quan. Logo sản phẩm/công ty liên quan phải dùng role "logo" và chỉ làm nhận diện/điểm nhấn; watermark, quảng cáo và social icon không phải asset nội dung.`;
 
 export function buildAuthorMessages(
   input: AuthorInput,
@@ -129,13 +128,12 @@ export type ReauthorPromptInput = {
  * no style pack or theme identity to restore toward.
  */
 function reauthorSystem(): string {
-  return `Bạn sửa cục bộ module .tsx Remotion. Giữ nguyên ý và chỉ vá lỗi được nêu.
+  return `Bạn sửa cục bộ module .tsx Remotion, giữ nguyên ý và chỉ vá lỗi được nêu.
 
-NGUYÊN TẮC REWRITE: đây là sửa cục bộ, KHÔNG phải viết lại thành một cảnh an toàn/rỗng.
 - BẢO TOÀN: giữ scene id/component id, ý chính, lời đọc, props dữ liệu, ảnh SceneImage, nền, bố cục, SVG/CSS tự vẽ, danh sách/số liệu, motion và visual anchor đang có.
-- VÁ ĐÚNG LỖI: sửa đúng issue/intent được nêu bằng thay đổi nhỏ nhất đủ hiệu quả: reposition/scale/spacing/font/color/chia nhóm phần tử/khai báo biến thiếu. Không xoá toàn bộ đồ hoạ để né lỗi.
-- TỰ KIỂM: trước khi trả code, tự kiểm rằng lỗi đã hết, không tạo lỗi bố cục mới, không mất ảnh/dữ liệu, không đổi ý cảnh, TSX vẫn parse được.
-KHÔNG thay cảnh bằng title-card rỗng chỉ để né lỗi. Sở thích màu/gu không phải lỗi kỹ thuật cứng.
+- VÁ ĐÚNG LỖI bằng thay đổi nhỏ nhất đủ hiệu quả: reposition/scale/spacing/font/color/chia nhóm/khai báo biến thiếu; không xoá đồ hoạ để né lỗi.
+- TỰ KIỂM: lỗi đã hết, không phát sinh lỗi bố cục, không mất ảnh/dữ liệu hay đổi ý cảnh, TSX vẫn parse được.
+KHÔNG thay cảnh bằng title-card rỗng; Sở thích màu/gu không phải lỗi kỹ thuật cứng.
 
 ${TECHNICAL_AUTHORING_CONTRACT}
 

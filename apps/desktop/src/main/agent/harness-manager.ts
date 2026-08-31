@@ -2485,7 +2485,7 @@ function agentContract(): string {
 }
 
 function harnessSettings(): string {
-  return `llm-pi-ai:\n  providers:\n    ninerouter:\n      apiKeyEnv: NINEROUTER_API_KEY\n      api: openai-completions\n      baseURL: http://127.0.0.1:20128/v1\n      compat:\n        supportsDeveloperRole: false\n        maxTokensField: max_tokens\n      models:\n        - id: ag/gemini-3.7-flash-high\n          input: [text, image]\nagent-default-model:\n  provider: ninerouter\n  model: ag/gemini-3.7-flash-high\nweb-search-deepseek:\n  apiKeyEnv: DEEPSEEK_API_KEY\n`;
+  return `system-prompt:\n  includeHarnessIdentity: false\n  persona: >-\n    You are MotionReal Agent. Follow the current workspace instructions\n    and MotionReal handoff files for video research and authoring.\nllm-pi-ai:\n  providers:\n    ninerouter:\n      apiKeyEnv: NINEROUTER_API_KEY\n      api: openai-completions\n      baseURL: http://127.0.0.1:20128/v1\n      compat:\n        supportsDeveloperRole: false\n        maxTokensField: max_tokens\n      models:\n        - id: ag/gemini-3.7-flash-high\n          input: [text, image]\nagent-default-model:\n  provider: ninerouter\n  model: ag/gemini-3.7-flash-high\nweb-search-deepseek:\n  apiKeyEnv: DEEPSEEK_API_KEY\n`;
 }
 
 async function findLoopbackPort(): Promise<number> {
