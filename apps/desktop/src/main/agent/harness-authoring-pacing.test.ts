@@ -86,4 +86,47 @@ describe("Harness authoring pacing", () => {
     expect(result).toMatchObject({ ok: false });
     if (!result.ok) expect(result.errors.join(" ")).toMatch(/scene-02 phải khai báo transitionToNext/);
   });
+
+  it("restores omitted narration from the approved content plan and normalizes transition objects", () => {
+    const pacing = buildHarnessAuthoringPacing(1, "vi", 1);
+    const ids = ["scene-01", "scene-02", "scene-03"];
+    const narration = Array.from({ length: 15 }, () => "từ").join(" ");
+    const scenes = ids.map((id, index) => ({
+      id,
+      component: id,
+      headline: id,
+      ...(index < ids.length - 1 ? { transitionToNext: { type: "fade", durationInFrames: 12 } } : {}),
+    }));
+    const result = validateHarnessManifestPacing(
+      { scenes },
+      ids,
+      pacing,
+      "vi",
+      { scenes: ids.map((sceneId) => ({ sceneId, narration })) },
+    );
+
+    expect(result).toMatchObject({ ok: true, narrationWords: 45 });
+    if (result.ok) {
+      const normalized = result.manifest.scenes as Array<Record<string, unknown>>;
+      expect(normalized.map((value) => value.narration)).toEqual([narration, narration, narration]);
+      expect(normalized[0]!.transitionToNext).toBe("fade");
+      expect(normalized[1]!.transitionToNext).toBe("fade");
+    }
+  });
+
+  it("still rejects missing narration when no approved content plan exists", () => {
+    const pacing = buildHarnessAuthoringPacing(1, "vi", 1);
+    const scenes = ["scene-01", "scene-02", "scene-03"].map((id, index) => ({
+      id,
+      component: id,
+      headline: id,
+      ...(index === 0 ? { transitionToNext: "fade" } : {}),
+    }));
+    const result = validateHarnessManifestPacing({ scenes }, scenes.map((value) => value.id), pacing, "vi");
+    expect(result).toMatchObject({ ok: false });
+    if (!result.ok) {
+      expect(result.errors.join(" ")).toMatch(/scene-01 thiếu narration/);
+      expect(result.errors.join(" ")).toMatch(/scene-02 phải khai báo transitionToNext/);
+    }
+  });
 });

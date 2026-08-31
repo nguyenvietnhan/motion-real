@@ -45,12 +45,26 @@ export type HarnessManifestPacingResult =
   | { ok: true; manifest: Record<string, unknown>; sceneIds: string[]; narrationWords: number }
   | { ok: false; errors: string[] };
 
+type HarnessNarrationPlan = {
+  scenes: ReadonlyArray<{ sceneId: string; narration: string }>;
+};
+
+const TRANSITIONS = new Set(["slide", "fade", "wipe", "clockWipe", "zoom"]);
+
+function normalizeTransition(value: unknown): string | undefined {
+  const candidate = value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>).type
+    : value;
+  return typeof candidate === "string" && TRANSITIONS.has(candidate) ? candidate : undefined;
+}
+
 /** Validate only pacing/identity here; render admission remains owned by the pipeline. */
 export function validateHarnessManifestPacing(
   value: unknown,
   submittedSceneIds: readonly string[],
   pacing: HarnessAuthoringPacing,
   videoLanguage: VideoLanguageChoice,
+  contentPlan?: HarnessNarrationPlan,
 ): HarnessManifestPacingResult {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return { ok: false, errors: ["project/manifest.json phải là JSON object."] };
@@ -63,6 +77,8 @@ export function validateHarnessManifestPacing(
   const errors: string[] = [];
   const sceneIds: string[] = [];
   const sceneWords: Array<{ id: string; words: number }> = [];
+  const plannedNarration = new Map(contentPlan?.scenes.map((scene) => [scene.sceneId, scene.narration]) ?? []);
+  const normalizedScenes: Record<string, unknown>[] = [];
   for (const [index, value] of manifest.scenes.entries()) {
     if (!value || typeof value !== "object" || Array.isArray(value)) {
       errors.push(`Scene ${index + 1} không hợp lệ.`);
@@ -78,19 +94,27 @@ export function validateHarnessManifestPacing(
     if (!/^scene-[0-9]{2}$/.test(id)) {
       errors.push(`${id} có scene id không hợp lệ; phải là scene-01, scene-02, … không thêm hậu tố.`);
     }
-    if (typeof scene.narration !== "string" || !scene.narration.trim()) {
+    const narration = typeof scene.narration === "string" && scene.narration.trim()
+      ? scene.narration
+      : plannedNarration.get(id);
+    const transition = normalizeTransition(scene.transitionToNext);
+    const { transitionToNext: _transition, ...sceneWithoutTransition } = scene;
+    normalizedScenes.push({
+      ...sceneWithoutTransition,
+      ...(narration ? { narration } : {}),
+      ...(transition ? { transitionToNext: transition } : {}),
+    });
+    if (!narration?.trim()) {
       errors.push(`${id} thiếu narration.`);
-      continue;
-    }
-    const words = countWords(scene.narration);
-    sceneWords.push({ id, words });
-    if (words > pacing.max_scene_narration_words) {
-      errors.push(`${id} có ${words} từ; tối đa ${pacing.max_scene_narration_words} từ để tránh một cảnh quá dài.`);
+    } else {
+      const words = countWords(narration);
+      sceneWords.push({ id, words });
+      if (words > pacing.max_scene_narration_words) {
+        errors.push(`${id} có ${words} từ; tối đa ${pacing.max_scene_narration_words} từ để tránh một cảnh quá dài.`);
+      }
     }
     if (index < manifest.scenes.length - 1) {
-      const transition = scene.transitionToNext;
-      if (transition !== "slide" && transition !== "fade" && transition !== "wipe"
-        && transition !== "clockWipe" && transition !== "zoom") {
+      if (!transition) {
         errors.push(`${id} phải khai báo transitionToNext có chủ đích.`);
       }
     }
@@ -119,6 +143,7 @@ export function validateHarnessManifestPacing(
     narrationWords,
     manifest: {
       ...manifest,
+      scenes: normalizedScenes,
       format: "tiktok",
       durationTier: pacing.duration_tier,
       videoLanguage,

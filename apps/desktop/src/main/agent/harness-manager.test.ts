@@ -1109,6 +1109,8 @@ describe("HarnessManager draft lifecycle", () => {
 
 
   it("authors final-quality first, then performs only the configured visual-refine pass", async () => {
+    const sceneIds = ["scene-01", "scene-02", "scene-03"];
+    const plannedNarration = "một hai ba bốn năm sáu bảy tám chín mười mười một mười hai mười ba";
     const stills: string[] = [];
     const renderAuthoringStills = vi.fn(async (_projectId: string, ids: string[]) => ({
       ok: true as const,
@@ -1120,6 +1122,14 @@ describe("HarnessManager draft lifecycle", () => {
       acceptAuthoringStills,
       authoringRefinePolicy: async () => ({ refinePasses: 1, refineEarlyStop: true }),
       wordsPerSecond: async () => 1,
+      planAuthoringContent: async () => ({
+        ...TEST_CONTENT_PLAN,
+        scenes: sceneIds.map((sceneId) => ({
+          ...TEST_CONTENT_PLAN.scenes[0]!,
+          sceneId,
+          narration: plannedNarration,
+        })),
+      }),
     });
     const draft = await manager.createDraft("Author final trực tiếp");
     await manager.activate(draft.id, "internal-key");
@@ -1141,7 +1151,6 @@ describe("HarnessManager draft lifecycle", () => {
     const projectRoot = join(root, "projects", "project-final");
     await mkdir(join(projectRoot, "authored"), { recursive: true });
     await mkdir(join(projectRoot, "review"), { recursive: true });
-    const sceneIds = ["scene-01", "scene-02", "scene-03"];
     stills.push(...sceneIds.map((id) => join(projectRoot, "review", `${id}.png`)));
     await Promise.all(stills.map((path) => writeFile(path, ONE_PIXEL_PNG)));
 
@@ -1155,8 +1164,7 @@ describe("HarnessManager draft lifecycle", () => {
       title: "Author final", durationTier: 1, videoLanguage: "vi",
       scenes: sceneIds.map((id, index) => ({
         id, component: id, headline: id,
-        narration: "một hai ba bốn năm sáu bảy tám chín mười mười một mười hai mười ba",
-        ...(index < sceneIds.length - 1 ? { transitionToNext: "fade" } : {}),
+        ...(index < sceneIds.length - 1 ? { transitionToNext: { type: "fade", durationInFrames: 12 } } : {}),
       })),
     }));
     await Promise.all(sceneIds.map((id) => writeFile(join(projectRoot, "authored", `${id}.tsx`), registeredSceneSource(id, "final"))));
@@ -1169,6 +1177,10 @@ describe("HarnessManager draft lifecycle", () => {
       expect(request).not.toHaveProperty("creative_stage");
     }, { timeout: 3_000 });
     expect(renderAuthoringStills).toHaveBeenCalledTimes(1);
+    const normalizedManifest = JSON.parse(await readFile(join(projectRoot, "manifest.json"), "utf8"));
+    expect(normalizedManifest.scenes.map((scene: { narration?: string }) => scene.narration))
+      .toEqual([plannedNarration, plannedNarration, plannedNarration]);
+    expect(normalizedManifest.scenes[0].transitionToNext).toBe("fade");
 
     for (const path of stills) {
       const callId = `read-${history.length}`;

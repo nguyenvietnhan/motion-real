@@ -91,7 +91,7 @@ class AuthoringStillRenderError extends Error {
 function isRepairableAuthoringError(error: unknown): boolean {
   if (error instanceof AuthoringStillRenderError) return error.repairable;
   const message = error instanceof Error ? error.message : String(error);
-  return /authoring submission|scene id|manifest|pacing|transitionToNext|visual refine|reviewed_scene_ids|review_notes|fingerprint|admission|schema|authored[\\/]|\.tsx/i.test(message);
+  return /authoring submission|scene id|manifest|narration|pacing|transitionToNext|visual refine|reviewed_scene_ids|review_notes|fingerprint|admission|schema|authored[\\/]|\.tsx/i.test(message);
 }
 
 export type AgentCreateRequest = {
@@ -1572,7 +1572,14 @@ export class HarnessManager {
     const pacing = await this.authoringPacing(record);
     const manifestPath = join(root, PROJECT_LINK, "manifest.json");
     const manifest = parseJson(await readFile(manifestPath, "utf8"));
-    const paced = validateHarnessManifestPacing(manifest, sceneIds, pacing, (await this.readRequiredBrief(record)).videoLanguage);
+    const parsedPlan = ContentPlanSchema.safeParse(request.content_plan);
+    const paced = validateHarnessManifestPacing(
+      manifest,
+      sceneIds,
+      pacing,
+      (await this.readRequiredBrief(record)).videoLanguage,
+      parsedPlan.success ? parsedPlan.data : undefined,
+    );
     if (!paced.ok) throw new Error(paced.errors.join(" "));
     const projectRoot = await realpath(join(root, PROJECT_LINK));
     if (request.phase === "visual_refine") {
