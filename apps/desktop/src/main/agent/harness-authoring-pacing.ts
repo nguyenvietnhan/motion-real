@@ -1,4 +1,5 @@
 import type { DurationTierChoice, VideoLanguageChoice } from "../../shared/types.js";
+import type { SceneMotionBeat } from "@motionreal/schema";
 import { computePacingBudget, countWords } from "../authoring/pacing-policy.js";
 
 /** A tier-derived contract written by MotionReal, never chosen by the authoring model. */
@@ -46,7 +47,7 @@ export type HarnessManifestPacingResult =
   | { ok: false; errors: string[] };
 
 type HarnessNarrationPlan = {
-  scenes: ReadonlyArray<{ sceneId: string; narration: string }>;
+  scenes: ReadonlyArray<{ sceneId: string; narration: string; motionBeats?: readonly SceneMotionBeat[] }>;
 };
 
 const TRANSITIONS = new Set(["slide", "fade", "wipe", "clockWipe", "zoom"]);
@@ -78,6 +79,9 @@ export function validateHarnessManifestPacing(
   const sceneIds: string[] = [];
   const sceneWords: Array<{ id: string; words: number }> = [];
   const plannedNarration = new Map(contentPlan?.scenes.map((scene) => [scene.sceneId, scene.narration]) ?? []);
+  const plannedMotionBeats = new Map(contentPlan?.scenes
+    .filter((scene) => scene.motionBeats)
+    .map((scene) => [scene.sceneId, scene.motionBeats!] as const) ?? []);
   const normalizedScenes: Record<string, unknown>[] = [];
   for (const [index, value] of manifest.scenes.entries()) {
     if (!value || typeof value !== "object" || Array.isArray(value)) {
@@ -98,10 +102,12 @@ export function validateHarnessManifestPacing(
       ? scene.narration
       : plannedNarration.get(id);
     const transition = normalizeTransition(scene.transitionToNext);
-    const { transitionToNext: _transition, ...sceneWithoutTransition } = scene;
+    const { transitionToNext: _transition, motionBeats: _modelMotionBeats, ...sceneWithoutTransition } = scene;
+    const canonicalMotionBeats = plannedMotionBeats.get(id);
     normalizedScenes.push({
       ...sceneWithoutTransition,
       ...(narration ? { narration } : {}),
+      ...(canonicalMotionBeats ? { motionBeats: [...canonicalMotionBeats] } : {}),
       ...(transition ? { transitionToNext: transition } : {}),
     });
     if (!narration?.trim()) {
@@ -121,6 +127,12 @@ export function validateHarnessManifestPacing(
   }
 
   if (new Set(sceneIds).size !== sceneIds.length) errors.push("Manifest có scene id trùng.");
+  if (contentPlan) {
+    const plannedSceneIds = contentPlan.scenes.map((scene) => scene.sceneId);
+    if (plannedSceneIds.length !== sceneIds.length || plannedSceneIds.some((id, index) => id !== sceneIds[index])) {
+      errors.push("Scene trong manifest phải khớp đúng thứ tự scene của content plan.");
+    }
+  }
   if (sceneIds.length !== submittedSceneIds.length || sceneIds.some((id, index) => id !== submittedSceneIds[index])) {
     errors.push("scene_ids đã submit phải khớp đúng thứ tự mọi scene trong manifest.");
   }

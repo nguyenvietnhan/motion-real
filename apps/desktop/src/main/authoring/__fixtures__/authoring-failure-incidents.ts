@@ -131,7 +131,7 @@ export const INVALID_PURPOSE_CONTENT_PLAN_REPLY = JSON.stringify({
         "Một cây quyết định dễ học vẹt. Cả rừng thì khó lệch hơn. Người xem thấy ngay sự khác biệt giữa một quyết định đơn lẻ và một tập hợp ý kiến độc lập. Hình ảnh rừng yên ổn đối lập với một cây lung lay giúp mở vòng lặp giải thích.",
       onScreenText: "Một cây vs cả rừng",
       visualMetaphor: "One shaky tree next to a calm forest.",
-      motionProgression: "Quick entrance: one tree appears; semantic: the forest fills in behind it; final hold on the contrast.",
+      motionProgression: "Quick entrance: one tree appears, then the forest fills in behind it; final hold on the contrast.",
       layoutFamily: "signature-visual",
       evidenceClaimIds: [],
     },

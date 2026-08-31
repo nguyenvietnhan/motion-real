@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import { mkdir, readdir, writeFile } from "node:fs/promises";
 import { basename, join } from "node:path";
-import { VideoSpecSchema, type DurationTier, type SceneImage, type VideoFormat, type VideoLanguage, type VideoSpec } from "@motionreal/schema";
+import { VideoSpecSchema, type DurationTier, type SceneImage, type SceneMotionBeat, type VideoFormat, type VideoLanguage, type VideoSpec } from "@motionreal/schema";
 import type { SafetyIssue } from "../types.js";
 import { ensureProject, projectPaths, readJson, writeJson } from "../store/store.js";
 import { normalizeAuthoredSource } from "./normalize-authored-source.js";
@@ -26,6 +26,8 @@ export type ManifestScene = {
   image?: SceneImage;
   /** Spoken narration (drives timing + captions). */
   narration: string;
+  /** MotionReal-owned narration anchors; authored TSX may consume their resolved cues. */
+  motionBeats?: SceneMotionBeat[];
   /** On-screen short headline. */
   headline: string;
   body?: string;
@@ -105,6 +107,7 @@ export function manifestToVideoSpec(manifest: Manifest): VideoSpec {
       body: scene.body,
       eyebrow: scene.eyebrow,
       narration: scene.narration,
+      ...(scene.motionBeats ? { motionBeats: scene.motionBeats } : {}),
       props: scene.props ?? {},
       ...(scene.image ? { image: scene.image } : {}),
       transitionToNext: scene.transitionToNext,

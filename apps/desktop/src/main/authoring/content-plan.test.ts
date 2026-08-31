@@ -53,6 +53,10 @@ function validPlan(overrides: Partial<ContentPlan> = {}): ContentPlan {
         onScreenText: "Đắt vì khan hiếm",
         visualMetaphor: "A tiny glowing chip behind a locked factory gate.",
         motionProgression: "Quick entrance: chip pops in under a second; semantic: the factory gate closes around it; living: the lock keeps a small warning pulse; final hold on the bottleneck.",
+        motionBeats: [
+          { id: "show-chip", anchor: "Con chip nhỏ xíu", action: "Reveal the chip" },
+          { id: "close-gate", anchor: "gần như không ai", action: "Close the factory gate" },
+        ],
         layoutFamily: "signature-visual",
         evidenceClaimIds: ["claim-01"],
       },
@@ -64,6 +68,10 @@ function validPlan(overrides: Partial<ContentPlan> = {}): ContentPlan {
         onScreenText: "Cổ chai là nhà máy",
         visualMetaphor: "A queue of chips waiting outside one narrow production door.",
         motionProgression: "Quick entrance: the chip queue slides in; semantic: the doorway narrows as one finished chip exits; final hold as the takeaway lands.",
+        motionBeats: [
+          { id: "show-bottleneck", anchor: "năng lực sản xuất", action: "Narrow the production path" },
+          { id: "cross-gate", anchor: "bước qua cánh cổng", action: "Move one chip through the gate" },
+        ],
         layoutFamily: "diagram",
         evidenceClaimIds: ["claim-01"],
       },
@@ -95,20 +103,96 @@ function pacingScene(index: number, total: number, narrationWords: number): Cont
 }
 
 describe("ContentPlanSchema", () => {
+  it("accepts ordered Vietnamese anchors after NFC/case/punctuation normalization", () => {
+    const parsed = ContentPlanSchema.safeParse(validPlan({
+      scenes: [{
+        ...validPlan().scenes[0]!,
+        narration: "ĐẦU TIÊN, hệ thống nhận yêu cầu. Sau đó, dữ liệu được xử lý!",
+        motionBeats: [
+          { id: "receive-request", anchor: "hệ thống nhận yêu cầu", action: "Reveal node one" },
+          { id: "process-data", anchor: "DỮ LIỆU ĐƯỢC XỬ LÝ", action: "Activate node two" },
+        ],
+      }],
+    }));
+    expect(parsed.success).toBe(true);
+  });
+
+  it.each([
+    ["missing", "không có trong lời đọc", "xuất hiện đúng một lần"],
+    ["ambiguous", "lặp lại hai từ", "xuất hiện đúng một lần"],
+  ])("rejects %s motion anchors", (_label, anchor, expected) => {
+    const narration = "Cụm lặp lại hai từ rồi cụm lặp lại hai từ xuất hiện lần nữa.";
+    const parsed = ContentPlanSchema.safeParse(validPlan({
+      scenes: [{
+        ...validPlan().scenes[0]!,
+        narration,
+        motionBeats: [
+          { id: "first", anchor, action: "Reveal first state" },
+          { id: "second", anchor: "xuất hiện lần nữa", action: "Reveal second state" },
+        ],
+      }],
+    }));
+    expect(parsed.success).toBe(false);
+    expect(parsed.error?.issues.map((issue) => issue.message).join(" ")).toContain(expected);
+  });
+
+  it("rejects duplicate ids and out-of-order anchors", () => {
+    const parsed = ContentPlanSchema.safeParse(validPlan({
+      scenes: [{
+        ...validPlan().scenes[0]!,
+        narration: "Bước đầu nhận dữ liệu rồi bước sau trả kết quả.",
+        motionBeats: [
+          { id: "same-id", anchor: "bước sau trả kết quả", action: "Show result" },
+          { id: "same-id", anchor: "Bước đầu nhận dữ liệu", action: "Show input" },
+        ],
+      }],
+    }));
+    expect(parsed.success).toBe(false);
+    expect(parsed.error?.issues.map((issue) => issue.message).join(" ")).toMatch(/id trùng.*theo thứ tự narration/s);
+  });
+
   it("selects only explicitly semantic motion scenes within the requested scope", () => {
     const plan = validPlan({
       scenes: [
-        { ...validPlan().scenes[0]!, sceneId: "scene-01", motionProgression: "Quick entrance, then hold." },
-        { ...validPlan().scenes[0]!, sceneId: "scene-02", motionProgression: "Quick entrance; semantic: reveal step one, then step two; final hold." },
+        { ...validPlan().scenes[0]!, sceneId: "scene-01", motionBeats: undefined, motionProgression: "Quick entrance, then hold." },
+        { ...validPlan().scenes[0]!, sceneId: "scene-02", motionBeats: undefined, motionProgression: "Quick entrance; semantic: reveal step one, then step two; final hold." },
       ],
     });
     expect(semanticMotionSceneIds(plan)).toEqual(["scene-02"]);
     expect(semanticMotionSceneIds(plan, ["scene-01"])).toEqual([]);
   });
 
+  it("prefers structured beats and falls back to semantic labels only for legacy scenes", () => {
+    const base = validPlan().scenes[0]!;
+    const plan = validPlan({
+      scenes: [
+        { ...base, sceneId: "scene-01", motionProgression: "Quick entrance, then hold." },
+        { ...base, sceneId: "scene-02", motionBeats: undefined, motionProgression: "semantic: reveal one, then two" },
+        { ...base, sceneId: "scene-03", motionBeats: undefined, motionProgression: "Quick entrance, then hold." },
+      ],
+    });
+    expect(semanticMotionSceneIds(plan)).toEqual(["scene-01", "scene-02"]);
+  });
+
   it("accepts the content-plan contract shape", () => {
     const parsed = ContentPlanSchema.safeParse(validPlan());
     expect(parsed.success).toBe(true);
+  });
+
+  it("keeps legacy and single-state plans valid without structured beats", () => {
+    const legacy = validPlan({
+      scenes: validPlan().scenes.map((scene) => ({ ...scene, motionBeats: undefined })),
+    });
+    expect(ContentPlanSchema.safeParse(legacy).success).toBe(true);
+    const statement = validPlan({
+      scenes: [{
+        ...validPlan().scenes[0]!,
+        motionBeats: undefined,
+        motionProgression: "Quick entrance, then readable hold.",
+      }],
+    });
+    expect(ContentPlanSchema.safeParse(statement).success).toBe(true);
+    expect(evaluateContentPlanQuality(statement).blockingIssues).toEqual([]);
   });
 
   it("requires viewer promise and payoff fields", () => {
@@ -355,6 +439,10 @@ describe("content quality eval fixtures", () => {
           onScreenText: "Năng lực mới là cổ chai",
           visualMetaphor: "A narrowing timeline of chips waiting at one production gate.",
           motionProgression: "Quick entrance: one chip enters the timeline; semantic: the path narrows into a gate; final hold when the queue stalls at the narrowest point.",
+          motionBeats: [
+            { id: "show-capacity", anchor: "vài nơi có thể sản xuất", action: "Reveal the limited factories" },
+            { id: "narrow-gate", anchor: "một cánh cửa hẹp", action: "Narrow the production gate" },
+          ],
           layoutFamily: "timeline",
           evidenceClaimIds: ["claim-01"],
         },
@@ -366,6 +454,10 @@ describe("content quality eval fixtures", () => {
           onScreenText: "Đắt vì biến ý tưởng thành hàng thật",
           visualMetaphor: "Blueprint lines turning into one finished glowing chip.",
           motionProgression: "Quick entrance: blueprint frame appears; semantic: traces brighten into one finished chip; living: a small glow pulse continues through the payoff.",
+          motionBeats: [
+            { id: "show-silicon", anchor: "không phải miếng silicon", action: "Dim the raw silicon" },
+            { id: "finish-chip", anchor: "thiết kế thành hàng thật", action: "Turn the blueprint into a finished chip" },
+          ],
           layoutFamily: "diagram",
           evidenceClaimIds: ["claim-01"],
         },
@@ -388,6 +480,8 @@ describe("content quality eval fixtures", () => {
           ...validPlan().scenes[0]!,
           purpose: "context",
           narration: "The prototype reached 500 cycles, which changes the whole battery race.",
+          motionBeats: undefined,
+          motionProgression: "Quick entrance, then readable hold.",
           onScreenText: "500 cycles",
           layoutFamily: "statement",
           evidenceClaimIds: [],
@@ -509,6 +603,20 @@ describe("content quality eval fixtures", () => {
     );
   });
 
+  it("blocks fresh semantic plans that omit structured motion beats", () => {
+    const plan = validPlan({
+      scenes: [{
+        ...validPlan().scenes[0]!,
+        motionBeats: undefined,
+        motionProgression: "Quick entrance; semantic: reveal step one, then step two; final hold.",
+      }],
+    });
+    expect(ContentPlanSchema.safeParse(plan).success).toBe(true);
+    expect(evaluateContentPlanQuality(plan).blockingIssues).toContainEqual(
+      expect.objectContaining({ check: "motion-beats", severity: "blocking", sceneId: "scene-01" }),
+    );
+  });
+
   it("accepts quick reveal, living motion, and final hold as specific motion intent", () => {
     const plan = validPlan({
       scenes: [
@@ -563,10 +671,10 @@ describe("buildContentPlanMessages", () => {
     expect(system).toMatch(/visualMetaphor/);
     expect(system).toMatch(/motionProgression/);
     expect(system).toMatch(/motion intent/);
-    expect(system).toMatch(/quick entrance/);
+    expect(system).toMatch(/quick entrance/i);
     expect(system).toMatch(/semantic progression/);
-    expect(system).toMatch(/2-4 relative phases/);
-    expect(system).toMatch(/single global entrance does not satisfy/);
+    expect(system).toMatch(/2-4 motionBeats/);
+    expect(system).toMatch(/single entrance, glow, ambient loop, or highlight is not semantic/);
     expect(system).toMatch(/living motion/);
     expect(system).toMatch(/schema-critical enum fields/);
     expect(system).toMatch(/Do not invent synonyms for hookType, purpose, support, confidence, action, or layoutFamily/);

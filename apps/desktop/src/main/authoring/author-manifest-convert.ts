@@ -1,5 +1,5 @@
 import { createLogger, type Manifest, type ManifestScene } from "@motionreal/pipeline";
-import type { VideoFormat, DurationTier, VideoLanguage } from "@motionreal/schema";
+import type { VideoFormat, DurationTier, SceneMotionBeat, VideoLanguage } from "@motionreal/schema";
 import type { AuthorManifest } from "./manifest-schema.js";
 
 const log = createLogger("authoring");
@@ -47,6 +47,7 @@ export function toEngineManifest(
     /** User-chosen library track; never from the model. */
     bgm?: string;
   } = {},
+  motionBeatsBySceneId: ReadonlyMap<string, readonly SceneMotionBeat[]> = new Map(),
 ): Manifest {
   const scenes: ManifestScene[] = m.scenes.map((s, i) => {
     const keepImage = s.image && allowedRefs.has(s.image.ref);
@@ -59,6 +60,9 @@ export function toEngineManifest(
       eyebrow: s.eyebrow,
       headline: s.headline,
       narration: s.narration,
+      ...(motionBeatsBySceneId.get(`scene-${String(i + 1).padStart(2, "0")}`)
+        ? { motionBeats: [...motionBeatsBySceneId.get(`scene-${String(i + 1).padStart(2, "0")}`)!] }
+        : {}),
       props: s.props ?? {},
       ...(s.body ? { body: s.body } : {}),
       ...(keepImage ? { image: { ref: s.image!.ref, ...(s.image!.alt ? { alt: s.image!.alt } : {}) } } : {}),

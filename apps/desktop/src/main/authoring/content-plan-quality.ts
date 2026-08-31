@@ -13,7 +13,8 @@ export type ContentPlanQualityCheck =
   | "claim-provenance"
   | "pacing"
   | "layout-diversity"
-  | "motion-progression";
+  | "motion-progression"
+  | "motion-beats";
 export type ContentPlanQualitySeverity = "blocking" | "advisory";
 export type ContentPlanQualityIssue = {
   check: ContentPlanQualityCheck;
@@ -78,6 +79,13 @@ export function evaluateContentPlanQuality(
         check: "motion-progression",
         sceneId: scene.sceneId,
         message: "motionProgression must describe a specific motion intent, not generic text/card appearance",
+      });
+    }
+    if (/\bsemantic\s*:/iu.test(scene.motionProgression) && !scene.motionBeats) {
+      addIssue({
+        check: "motion-beats",
+        sceneId: scene.sceneId,
+        message: "semantic motionProgression requires 2-4 narration-anchored motionBeats",
       });
     }
   }

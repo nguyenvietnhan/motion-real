@@ -364,7 +364,9 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
       ...(job.input.format ? { format: job.input.format } : {}),
       ...(job.input.durationTier ? { durationTier: job.input.durationTier } : {}),
       ...(job.input.videoLanguage ? { videoLanguage: job.input.videoLanguage } : {}),
-    });
+    }, new Map(plannedContent.scenes
+      .filter((scene) => scene.motionBeats)
+      .map((scene) => [scene.sceneId, scene.motionBeats!] as const)));
     const modules = parsed.modules.map((mod) => ({
       componentId: mod.id,
       fileName: sceneFileName(mod.id),

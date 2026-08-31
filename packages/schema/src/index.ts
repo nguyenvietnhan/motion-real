@@ -85,6 +85,61 @@ export const SceneImageSchema = z.object({
 
 export type SceneImage = z.infer<typeof SceneImageSchema>;
 
+export const SceneMotionBeatSchema = z.object({
+  id: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).max(32),
+  anchor: z.string().min(1).max(120),
+  action: z.string().min(1).max(240),
+});
+
+export type SceneMotionBeat = z.infer<typeof SceneMotionBeatSchema>;
+
+/** Normalize narration/anchor words for deterministic contiguous matching. */
+export function motionAnchorTokens(value: string): string[] {
+  return value
+    .normalize("NFC")
+    .toLocaleLowerCase()
+    .split(/\s+/u)
+    .map((token) => token.replace(/^\p{P}+|\p{P}+$/gu, ""))
+    .filter(Boolean);
+}
+
+export type ResolvedMotionBeatAnchor = { id: string; wordIndex: number; wordCount: number };
+
+/** Resolve each 2-8 word anchor exactly once and in narration order. */
+export function resolveSceneMotionBeatAnchors(
+  narration: string,
+  beats: readonly SceneMotionBeat[],
+): { ok: true; matches: ResolvedMotionBeatAnchor[] } | { ok: false; errors: string[] } {
+  const narrationWords = motionAnchorTokens(narration);
+  const errors: string[] = [];
+  const seenIds = new Set<string>();
+  const matches: ResolvedMotionBeatAnchor[] = [];
+  let previousIndex = -1;
+
+  for (const beat of beats) {
+    if (seenIds.has(beat.id)) errors.push(`motion beat id trùng: ${beat.id}`);
+    seenIds.add(beat.id);
+    const anchorWords = motionAnchorTokens(beat.anchor);
+    if (anchorWords.length < 2 || anchorWords.length > 8) {
+      errors.push(`${beat.id} anchor phải có 2-8 từ`);
+      continue;
+    }
+    const indexes: number[] = [];
+    for (let index = 0; index <= narrationWords.length - anchorWords.length; index++) {
+      if (anchorWords.every((word, offset) => narrationWords[index + offset] === word)) indexes.push(index);
+    }
+    if (indexes.length !== 1) {
+      errors.push(`${beat.id} anchor phải xuất hiện đúng một lần liên tục trong narration`);
+      continue;
+    }
+    const wordIndex = indexes[0]!;
+    if (wordIndex <= previousIndex) errors.push(`${beat.id} anchor phải theo thứ tự narration`);
+    previousIndex = wordIndex;
+    matches.push({ id: beat.id, wordIndex, wordCount: anchorWords.length });
+  }
+  return errors.length > 0 ? { ok: false, errors } : { ok: true, matches };
+}
+
 export const SceneSpecSchema = z.object({
   /** Sequential id: scene-01, scene-02,... */
   id: z.string().regex(/^scene-[0-9]{2}$/),
@@ -99,6 +154,8 @@ export const SceneSpecSchema = z.object({
   eyebrow: z.string().max(64).optional(),
   /** Spoken narration (TTS). */
   narration: z.string().min(1).max(1200),
+  /** Canonical narration anchors for authored semantic motion. */
+  motionBeats: z.array(SceneMotionBeatSchema).min(2).max(4).optional(),
   /** Free-form visual data for the component to render. */
   props: z.record(z.string(), z.unknown()).default({}),
   /**

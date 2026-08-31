@@ -1,4 +1,8 @@
 import { z } from "zod";
+import {
+  resolveSceneMotionBeatAnchors,
+  SceneMotionBeatSchema,
+} from "@motionreal/schema";
 
 const HookTypeSchema = z.enum(["surprise", "number", "contradiction", "question", "visual-shock", "stakes"]);
 const ClaimSupportSchema = z.enum(["user_brief", "source_material", "common_knowledge"]);
@@ -36,10 +40,19 @@ export const ContentPlanSceneSchema = z
     onScreenText: z.string().min(1),
     visualMetaphor: z.string().min(1),
     motionProgression: z.string().min(1),
+    motionBeats: z.array(SceneMotionBeatSchema).min(2).max(4).optional(),
     layoutFamily: LayoutFamilySchema,
     evidenceClaimIds: z.array(z.string()),
   })
-  .strict();
+  .strict()
+  .superRefine((scene, ctx) => {
+    if (!scene.motionBeats) return;
+    const resolved = resolveSceneMotionBeatAnchors(scene.narration, scene.motionBeats);
+    if (resolved.ok) return;
+    for (const message of resolved.errors) {
+      ctx.addIssue({ code: "custom", path: ["motionBeats"], message });
+    }
+  });
 
 export const ContentPlanSchema = z
   .object({
@@ -99,7 +112,10 @@ export type ScenePurpose = z.infer<typeof ScenePurposeSchema>;
 export function semanticMotionSceneIds(plan: ContentPlan, scope?: readonly string[]): string[] {
   const allowed = scope ? new Set(scope) : undefined;
   return plan.scenes
-    .filter((scene) => (!allowed || allowed.has(scene.sceneId)) && /\bsemantic\s*:/i.test(scene.motionProgression))
+    .filter((scene) => (!allowed || allowed.has(scene.sceneId)) && (
+      (scene.motionBeats?.length ?? 0) >= 2
+      || (!scene.motionBeats && /\bsemantic\s*:/i.test(scene.motionProgression))
+    ))
     .map((scene) => scene.sceneId);
 }
 

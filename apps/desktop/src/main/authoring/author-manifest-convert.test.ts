@@ -99,6 +99,20 @@ describe("toEngineManifest", () => {
     const engine = toEngineManifest(baseManifest(), new Set(), { bgm: "  nhac-nen-mac-dinh.mp3  " });
     expect(engine.bgm).toBe("nhac-nen-mac-dinh.mp3");
   });
+
+  it("injects canonical motion beats by sequential scene id", () => {
+    const beats = [
+      { id: "show-input", anchor: "nhận dữ liệu đầu vào", action: "Reveal the input" },
+      { id: "show-output", anchor: "trả kết quả đầu ra", action: "Reveal the output" },
+    ] as const;
+    const engine = toEngineManifest(
+      baseManifest(),
+      new Set(),
+      {},
+      new Map([["scene-01", beats]]),
+    );
+    expect(engine.scenes[0]!.motionBeats).toEqual(beats);
+  });
 });
 
 describe("preserveUserBgm", () => {

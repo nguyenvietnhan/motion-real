@@ -114,6 +114,48 @@ describe("Harness authoring pacing", () => {
     }
   });
 
+  it("drops model-authored beats and injects the canonical content-plan beats", () => {
+    const pacing = buildHarnessAuthoringPacing(1, "vi", 1);
+    const ids = ["scene-01", "scene-02", "scene-03"];
+    const narration = "Đầu tiên nhận yêu cầu rồi cuối cùng trả kết quả hoàn chỉnh cho người dùng ngay hôm nay";
+    const canonical = [
+      { id: "receive", anchor: "nhận yêu cầu rồi", action: "Reveal input" },
+      { id: "return", anchor: "trả kết quả hoàn chỉnh", action: "Reveal output" },
+    ];
+    const scenes = ids.map((id, index) => ({
+      ...scene(id, 15),
+      motionBeats: [{ id: "invented", anchor: "model tự ghi", action: "Ignore this" }],
+      ...(index === ids.length - 1 ? { transitionToNext: undefined } : {}),
+    }));
+    const result = validateHarnessManifestPacing(
+      { scenes },
+      ids,
+      pacing,
+      "vi",
+      { scenes: ids.map((sceneId) => ({ sceneId, narration, ...(sceneId === "scene-02" ? { motionBeats: canonical } : {}) })) },
+    );
+    expect(result).toMatchObject({ ok: true });
+    if (result.ok) {
+      const normalized = result.manifest.scenes as Array<Record<string, unknown>>;
+      expect(normalized[0]!.motionBeats).toBeUndefined();
+      expect(normalized[1]!.motionBeats).toEqual(canonical);
+    }
+  });
+
+  it("rejects a content plan whose scene order differs from the manifest", () => {
+    const pacing = buildHarnessAuthoringPacing(1, "vi", 1);
+    const scenes = [scene("scene-01", 15), scene("scene-02", 15), scene("scene-03", 15)];
+    const result = validateHarnessManifestPacing(
+      { scenes },
+      scenes.map((value) => value.id),
+      pacing,
+      "vi",
+      { scenes: [scenes[1]!, scenes[0]!, scenes[2]!].map((value) => ({ sceneId: value.id, narration: value.narration })) },
+    );
+    expect(result).toMatchObject({ ok: false });
+    if (!result.ok) expect(result.errors.join(" ")).toContain("khớp đúng thứ tự scene của content plan");
+  });
+
   it("still rejects missing narration when no approved content plan exists", () => {
     const pacing = buildHarnessAuthoringPacing(1, "vi", 1);
     const scenes = ["scene-01", "scene-02", "scene-03"].map((id, index) => ({

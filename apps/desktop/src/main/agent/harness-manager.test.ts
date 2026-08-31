@@ -1139,7 +1139,13 @@ describe("HarnessManager draft lifecycle", () => {
           ...TEST_CONTENT_PLAN.scenes[0]!,
           sceneId,
           narration: plannedNarration,
-          ...(sceneId === "scene-02" ? { motionProgression: "Quick entrance; semantic: reveal step one, then step two; final hold." } : {}),
+          ...(sceneId === "scene-02" ? {
+            motionProgression: "Quick entrance; semantic: reveal step one, then step two; final hold.",
+            motionBeats: [
+              { id: "step-one", anchor: "một hai", action: "Reveal step one" },
+              { id: "step-two", anchor: "sáu bảy", action: "Reveal step two" },
+            ],
+          } : {}),
         })),
       }),
     });
@@ -1290,6 +1296,14 @@ describe("HarnessManager draft lifecycle", () => {
       acceptAuthoringStills,
       authoringRefinePolicy: async () => ({ refinePasses: 0, refineEarlyStop: true }),
       wordsPerSecond: async () => 1,
+      planAuthoringContent: async () => ({
+        ...TEST_CONTENT_PLAN,
+        scenes: ["scene-01", "scene-02", "scene-03"].map((sceneId) => ({
+          ...TEST_CONTENT_PLAN.scenes[0]!,
+          sceneId,
+          narration: "một hai ba bốn năm sáu bảy tám chín mười mười một mười hai mười ba",
+        })),
+      }),
     });
     const draft = await manager.createDraft("Render still lỗi runtime");
     await manager.activate(draft.id, "internal-key");
