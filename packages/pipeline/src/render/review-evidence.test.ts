@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -75,6 +75,12 @@ describe("reviewFrameSamples", () => {
     expect(() => reviewFrameSamples(spec, 1, profile("stepped"))).toThrow(/motionCueFrames/);
   });
 
+  it("rejects structured cues that collapse onto the same evidence frame", () => {
+    const spec = lockedSpec();
+    spec.scenes[1] = { ...spec.scenes[1]!, motionCueFrames: { one: 30, two: 30 } };
+    expect(() => reviewFrameSamples(spec, 1, profile("stepped"))).toThrow(/distinct|riêng/i);
+  });
+
   it("samples only critical zoom/wipe boundaries", () => {
     expect(transitionReviewSamples(lockedSpec(), 0).map((sample) => sample.panel.sample))
       .toEqual(["transition-before", "transition-mid", "transition-after"]);
@@ -146,5 +152,25 @@ describe("review evidence PNG composition", () => {
       throw new Error("cancelled");
     })).rejects.toThrow("cancelled");
     await expect(readFile(join(target, "old.txt"), "utf8")).resolves.toBe("old");
+  });
+
+  it("reports both promote and restore failures without hiding the recoverable backup", async () => {
+    const root = await mkdtemp(join(tmpdir(), "motionreal-review-restore-"));
+    roots.push(root);
+    const target = join(root, "evidence");
+    await mkdir(target);
+    await writeFile(join(target, "old.txt"), "old");
+    let moves = 0;
+    await expect(replaceEvidenceDirectory(target, async (temp) => {
+      await writeFile(join(temp, "next.txt"), "next");
+    }, {
+      rename: async (from, to) => {
+        moves += 1;
+        if (moves === 1) return rename(from, to);
+        throw new Error(moves === 2 ? "promote failed" : "restore failed");
+      },
+      rm,
+    })).rejects.toThrow(/promote failed.*restore failed.*backup/is);
+    await expect(readdir(root)).resolves.toEqual(expect.arrayContaining([expect.stringMatching(/^\.evidence\.backup-/)]));
   });
 });

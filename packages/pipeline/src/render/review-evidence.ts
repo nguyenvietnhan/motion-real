@@ -21,6 +21,8 @@ export type AuthoringReviewSceneRequest = {
   sceneId: string;
   temporalMode: SceneTemporalMode;
   detailMode: SceneDetailMode;
+  /** Canonical planner-owned IDs; omitted only for legacy semantic plans. */
+  motionBeatIds?: string[];
 };
 
 export type AuthoringReviewRequest = {
@@ -106,10 +108,18 @@ export function reviewFrameSamples(
       panel: { sceneId: scene.id, sample: "after-cue", cueId: cue.id },
     });
   }
-  if (profile.temporalMode === "stepped") return uniqueSorted(samples).slice(0, 5);
+  const stepped = uniqueSorted(samples);
+  const sampledCueIds = new Set(stepped.flatMap((sample) => sample.panel.cueId ? [sample.panel.cueId] : []));
+  if (sampledCueIds.size !== cueEntries.length) {
+    throw new Error(`${scene.id} không tạo được frame riêng cho mọi structured motion beat.`);
+  }
+  if (profile.temporalMode === "stepped") return stepped.slice(0, 5);
 
   samples.push({ frame: window.end, panel: { sceneId: scene.id, sample: "final" } });
   let ordered = uniqueSorted(samples);
+  if (!ordered.some((sample) => sample.panel.sample === "final")) {
+    throw new Error(`${scene.id} không tạo được final evidence frame riêng.`);
+  }
   while (ordered.length < 5 && ordered.length < 7) {
     let gapIndex = -1;
     let gap = 1;
@@ -200,28 +210,50 @@ function blit(target: Uint8Array, targetWidth: number, source: DecodedImage, lef
 export async function replaceEvidenceDirectory(
   target: string,
   build: (temp: string) => Promise<void>,
+  ops: { rename: typeof rename; rm: typeof rm } = { rename, rm },
 ): Promise<void> {
   const parent = dirname(target);
   const temp = join(parent, `.evidence.tmp-${randomUUID()}`);
   const backup = join(parent, `.evidence.backup-${randomUUID()}`);
   await mkdir(temp, { recursive: true });
   let movedPrevious = false;
+  let operationError: unknown;
   try {
     await build(temp);
     if (await stat(target).then(() => true, () => false)) {
-      await rename(target, backup);
+      await ops.rename(target, backup);
       movedPrevious = true;
     }
     try {
-      await rename(temp, target);
+      await ops.rename(temp, target);
     } catch (error) {
-      if (movedPrevious) await rename(backup, target).catch(() => undefined);
+      if (movedPrevious) {
+        try {
+          await ops.rename(backup, target);
+        } catch (restoreError) {
+          operationError = new AggregateError(
+            [error, restoreError],
+            `Evidence promote failed (${errorMessage(error)}); restore failed (${errorMessage(restoreError)}). Recoverable backup: ${backup}`,
+          );
+          throw operationError;
+        }
+      }
+      operationError = error;
       throw error;
     }
-    if (movedPrevious) await rm(backup, { recursive: true, force: true });
+    if (movedPrevious) await ops.rm(backup, { recursive: true, force: true }).catch(() => undefined);
+  } catch (error) {
+    operationError ??= error;
+    throw error;
   } finally {
-    await rm(temp, { recursive: true, force: true });
+    await ops.rm(temp, { recursive: true, force: true }).catch((cleanupError) => {
+      if (operationError === undefined) throw cleanupError;
+    });
   }
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 export async function buildReviewEvidence(input: BuildReviewEvidenceInput): Promise<ReviewArtifact[]> {

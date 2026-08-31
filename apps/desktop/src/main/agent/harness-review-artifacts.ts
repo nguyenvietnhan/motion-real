@@ -54,14 +54,32 @@ export async function assertHarnessReviewArtifacts(input: {
     const expectedMotion = profile.temporalMode === "stepped"
       ? "cue-filmstrip"
       : profile.temporalMode === "continuous" ? "dense-filmstrip" : undefined;
-    if (expectedMotion && !input.artifacts.some((artifact) => artifact.kind === expectedMotion && artifact.sceneIds.includes(sceneId))) {
-      throw new Error(`${sceneId} thiếu ${expectedMotion}.`);
+    const motionArtifacts = expectedMotion
+      ? input.artifacts.filter((artifact) => artifact.kind === expectedMotion && artifact.sceneIds.includes(sceneId))
+      : [];
+    if (expectedMotion && motionArtifacts.length !== 1) {
+      throw new Error(`${sceneId} phải có đúng một ${expectedMotion}.`);
+    }
+    if (profile.motionBeatIds?.length) {
+      const cueIds = motionArtifacts[0]?.panels.flatMap((panel) => panel.sample === "after-cue" && panel.cueId ? [panel.cueId] : []) ?? [];
+      if (!sameUniqueIds(cueIds, profile.motionBeatIds)) {
+        throw new Error(`${sceneId} chưa có evidence riêng cho mọi motion beat.`);
+      }
+    }
+    if (profile.temporalMode === "continuous"
+      && !motionArtifacts[0]?.panels.some((panel) => panel.sample === "final")) {
+      throw new Error(`${sceneId} thiếu final evidence frame.`);
     }
     if (profile.detailMode === "fine"
       && !input.artifacts.some((artifact) => artifact.kind === "detail" && artifact.sceneIds.includes(sceneId))) {
       throw new Error(`${sceneId} thiếu detail artifact.`);
     }
   }
+}
+
+function sameUniqueIds(left: readonly string[], right: readonly string[]): boolean {
+  return left.length === right.length && new Set(left).size === left.length
+    && new Set(right).size === right.length && left.every((id) => right.includes(id));
 }
 
 function validateArtifactShape(artifact: ReviewArtifact, label: string): void {

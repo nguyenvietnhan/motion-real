@@ -24,7 +24,7 @@ async function fixture() {
     contextSceneIds: ["scene-03"],
     scenes: [
       { sceneId: "scene-01", temporalMode: "static", detailMode: "normal" },
-      { sceneId: "scene-02", temporalMode: "stepped", detailMode: "fine" },
+      { sceneId: "scene-02", temporalMode: "stepped", detailMode: "fine", motionBeatIds: ["one", "two"] },
     ],
   };
   const artifacts: ReviewArtifact[] = [
@@ -58,6 +58,12 @@ describe("assertHarnessReviewArtifacts", () => {
     const foreign = await fixture();
     foreign.artifacts[0]!.panels.push({ index: 3, sceneId: "scene-99", sample: "overview" });
     await expect(assertHarnessReviewArtifacts(foreign)).rejects.toThrow(/scene lạ/i);
+  });
+
+  it("rejects a filmstrip that duplicates one cue while omitting another", async () => {
+    const input = await fixture();
+    input.artifacts[1]!.panels[2] = { index: 2, sceneId: "scene-02", sample: "after-cue", cueId: "one" };
+    await expect(assertHarnessReviewArtifacts(input)).rejects.toThrow(/motion beat|cue/i);
   });
 
   it("rejects corrupt PNGs and paths outside review/evidence", async () => {

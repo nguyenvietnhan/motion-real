@@ -2354,6 +2354,7 @@ function buildAuthoringReviewRequest(
 ): AuthoringReviewRequest {
   const requested = new Set(reviewSceneIds);
   const profiles = new Map(sceneReviewProfiles(plan.scenes).map((profile) => [profile.sceneId, profile] as const));
+  const planScenes = new Map(plan.scenes.map((scene) => [scene.sceneId, scene] as const));
   if (reviewSceneIds.length === 0 || reviewSceneIds.some((id) => !allSceneIds.includes(id) || !profiles.has(id))) {
     throw new Error("Content plan không phân loại đủ scene trong phạm vi visual refine.");
   }
@@ -2371,7 +2372,13 @@ function buildAuthoringReviewRequest(
     contextSceneIds: allSceneIds.filter((id) => context.has(id)),
     scenes: reviewSceneIds.map((sceneId) => {
       const profile = profiles.get(sceneId)!;
-      return { sceneId, temporalMode: profile.temporalMode, detailMode: profile.detailMode };
+      const motionBeatIds = planScenes.get(sceneId)?.motionBeats?.map((beat) => beat.id);
+      return {
+        sceneId,
+        temporalMode: profile.temporalMode,
+        detailMode: profile.detailMode,
+        ...(motionBeatIds?.length ? { motionBeatIds } : {}),
+      };
     }),
   };
 }
