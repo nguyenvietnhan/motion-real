@@ -180,7 +180,7 @@ Harness chat
   - `Tìm thêm ảnh` with a user note;
   - `Chấp nhận và tiếp tục`.
 
-### Handoff V1
+### Initial file handoff (historical)
 
 For this phase, use a durable file handoff before adding a Harness plugin:
 
@@ -519,8 +519,8 @@ creating another render engine or review UI.
 ### Automated evidence
 
 - Focused tests cover Harness-vs-Classic routing, stale submission removal,
-  invalid scene ids, full still coverage, review notes, two still renders, and
-  the existing Workspace ready-card bridge.
+  invalid scene ids, complete composite-evidence coverage, review notes,
+  retry-without-rerender, and the existing Workspace ready-card bridge.
 - TypeScript typecheck passes after the split.
 
 ### Native acceptance gate
@@ -579,7 +579,8 @@ Use one new factual video topic and perform the following on native Windows:
 7. Approve the final asset set.
 8. Review and edit the generated brief.
 9. Approve creation and verify exactly one MotionReal project is created.
-10. Watch Harness authoring and two still-review passes from the Agent tab.
+10. Watch Harness authoring and the configured number of visual-refine passes
+    from the Agent tab; each pass reads composite evidence rather than every raw PNG.
 11. Open the normal scene review, request one scene edit, and receive revised
     stills through the same Harness Session.
 12. Approve the scenes and verify the existing TTS/final-render path produces a
@@ -592,13 +593,11 @@ Use one new factual video topic and perform the following on native Windows:
 ## Deliberately Deferred
 
 - Direct Harness render tools.
-- Automatic motion/temporal review.
+- A frame-by-frame motion oracle beyond the current cue-aware composite review.
 - Automatic publication.
 - Strict asset-rights enforcement.
 - A generic workflow engine or plugin framework.
 - Multiple concurrent Harness processes.
-- Deleting exact pinned Harness session data; this is now implemented through a
-  validated, recoverable main-process deletion journal.
 - Packaging/updating the Harness fork in the installer.
 
 Add these only after the current end-to-end scenario passes and a concrete product

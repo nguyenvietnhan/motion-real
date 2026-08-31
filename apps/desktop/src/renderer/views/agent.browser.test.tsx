@@ -177,4 +177,32 @@ describe("Video Agent browser smoke", () => {
     expect(frame?.sandbox.contains("allow-forms")).toBe(true);
     expect(frame?.allow).toBe("clipboard-write");
   });
+
+  it("opens the native chat from a pending-interaction progress screen", async () => {
+    await mount(
+      <AgentWorkspace
+        draft={{
+          ...draft,
+          productionState: "queued_create",
+          needsAttention: true,
+          activities: [{ id: "activity-1", label: "Agent đang chờ phản hồi", status: "running" }],
+        }}
+        reviewMode="stills_edit"
+        busy={false}
+        notice={null}
+        onBack={() => undefined}
+        onDraftChange={() => undefined}
+        run={async (work) => work()}
+      />,
+    );
+
+    expect(document.querySelector('[aria-label="Tiến trình Video Agent"]')?.textContent)
+      .toContain("Agent cần bạn phản hồi");
+    const openChat = [...document.querySelectorAll<HTMLButtonElement>("button")]
+      .find((button) => button.textContent?.includes("Mở chat"));
+    await act(async () => openChat?.click());
+    expect(document.querySelector('[aria-label="Tiến trình Video Agent"]')).toBeNull();
+    expect(document.querySelector<HTMLIFrameElement>(".ns-agent-frame")?.title)
+      .toBe("MotionReal Agent — Gemini là gì");
+  });
 });

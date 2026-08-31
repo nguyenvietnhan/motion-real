@@ -103,6 +103,12 @@ shared bundle/composition caches are small mutable eviction caches
 the global FIFO as a hard correctness boundary; do not add a direct controller
 path that bypasses it.
 
+Queue waiting is deliberately bounded without imposing a fixed total render
+deadline: a job is stopped only after its complete `ProjectStage` (including
+render percent) has not changed for 45 minutes. Keep this as stagnation
+detection; do not replace it with a short wall-clock timeout that would fail a
+healthy long render.
+
 - Bundle cache: `composition-prep.ts` evicts Remotion bundle directories
   best-effort and has no active-user reference count. Parallel rendering needs a
   per-render bundle lifetime, a reference-counted cache, or a no-delete eviction
@@ -153,6 +159,11 @@ LRU: cache hits copy the cached artifact back to the project but do not refresh
 the cached file mtime. Keep docs and tests using "oldest mtime" or "age-based"
 wording unless a later owner-approved cache design changes hit behavior and
 adds focused tests for refreshed cache entries staying warm.
+
+Prompt-eval output under `.video-tool/prompt-evals/` retains the newest 20 runs
+by default. `--retain=N` may keep 1–200 runs. Cleanup deletes only recognized
+version-1 reports whose embedded label matches the filename, plus that label's
+stills/contact sheet; foreign or malformed JSON is never removed.
 
 Renderer CSS is split by surface. `apps/desktop/src/renderer/theme.css` is the
 stable import entry and section inventory; domain/layer partials live under

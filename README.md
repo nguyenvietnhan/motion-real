@@ -44,9 +44,9 @@ Create (prompt / URLs / images)
 | --- | --- |
 | **Node.js** `>= 24`, **npm** `>= 11` | See root `package.json` `engines` |
 | **9router** (desktop AI) | External binary on `PATH`. Not vendored in this repo. App expects OpenAI-compatible chat at `http://localhost:20128/v1`. Launcher tries `9router -n -t --skip-update` if nothing is already listening. |
-| **DeepSeek Harness** (Video Agent preview) | Use the sibling checkout at pinned commit `466404c927e2209ba7f242038b6922f10c0405cd` (compatibility source check: 2026-08-31) and run `pnpm run build` there so `apps/cli/lib/bin.js` exists. Alternatively set `MOTIONREAL_DSH_CLI` to that built file. The app starts it with the Node executable supplied by the dev launcher; `MOTIONREAL_NODE_BIN` can override that executable. Source/build compatibility is not a substitute for native Harness/9router acceptance. |
+| **DeepSeek Harness** (Video Agent preview) | Use the sibling checkout at pinned commit `466404c927e2209ba7f242038b6922f10c0405cd` (compatibility rechecked: 2026-09-01) and run `pnpm run build` there so `apps/cli/lib/bin.js` exists. Alternatively set `MOTIONREAL_DSH_CLI` to that built file. The app starts it with the Node executable supplied by the dev launcher; `MOTIONREAL_NODE_BIN` can override that executable. Startup validates the `host.describe` protocol shape, while exact revision remains mandatory before deleting persisted Harness history. These checks do not replace native Harness/9router acceptance. |
 | **TTS** | VieNeu Local (Vietnamese developer preview), Vivibe (Vietnamese), or ElevenLabs — see [`docs/current/tts-providers.md`](docs/current/tts-providers.md). Missing local runtime/credentials **block** production render; never silently fall back to `mock` / `none`. |
-| **Chromium / Remotion browser** | Needed for real video stills/MP4 (`npm run smoke`, desktop/CLI render). **Not** required for `npm run typecheck`, `npm test`, or `npm run build` (webpack-only). |
+| **Chromium / Remotion browser** | Needed for real video stills/MP4 (`npm run smoke`, desktop/CLI render). **Not** required for `npm run typecheck`, `npm test`, or `npm run build`; build bundles Remotion and the Electron main/preload/renderer but does not encode a video. |
 
 Windows-friendly commands below may use `npm.cmd` under PowerShell execution policy.
 
@@ -111,9 +111,10 @@ timeline. MotionReal starts one shared Harness runtime in the background; click
 Research and downloaded assets stay in that workspace.
 The Agent submits assets and the final brief through the narrow
 `motionreal_submit_assets` and `motionreal_submit_brief` tools. MotionReal then
-validates each submission and stops for explicit asset and brief review. The
-approved brief enters the existing create/author/review pipeline used by Home;
-the Agent does not own another renderer. Deleting the video removes its Agent
+validates each submission and stops for explicit asset and brief review. After
+approval, MotionReal creates the normal project and content plan; the owning
+Harness Session writes scene TSX, while the shared Workspace engine still owns
+stills, review, TTS, and final render. Deleting the video removes its Agent
 workspace and removes its exact Harness session data through a recoverable
 deletion journal. This remains a developer preview with
 broad built-in Harness tool access.

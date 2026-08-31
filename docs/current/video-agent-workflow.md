@@ -88,9 +88,16 @@ Each Agent video owns:
 All videos share one long-lived Harness process and one Harness home. Switching
 videos selects the matching Session; it does not restart Harness.
 
-Deleting an Agent video removes its Agent Workspace directory and unregisters
-the Harness Workspace. For now its Harness Sessions are archived/hidden rather
-than physically erasing their shared-home log data.
+MotionReal considers that process usable only after `host.describe` returns the
+protocol fields it actually consumes. Exact source revision is checked
+separately before the destructive session-history cleanup path; a compatible
+runtime shape alone never authorizes deletion against an unknown layout.
+
+Deleting an Agent video uses a recoverable main-process journal: it cancels the
+active work, removes only the exact session directories verified against the
+pinned Harness layout, deletes the linked MotionReal project and Agent
+workspace, then clears the journal. A failure leaves the journal retryable and
+never reports the history as deleted while the session log remains.
 
 ## Workspace Contract
 
@@ -385,7 +392,7 @@ tier, language, and 9:16 format onto the manifest instead of trusting model
 metadata.
 
 The first valid scene submission is final-quality authoring, not a disposable
-V1. Every non-final scene must explicitly choose a supported
+intermediate draft. Every non-final scene must explicitly choose a supported
 `transitionToNext`; MotionReal does not silently accept the runtime's default
 transition. The authoring request requires a distinct visual anchor, purposeful
 motion and a non-repetitive layout for each scene; an approved logo or icon is a
@@ -610,8 +617,9 @@ The Video Agent tab follows MotionReal's minimalist, dark studio design system:
   matching Harness Session, and preserves a paused workflow until the user
   explicitly continues it.
 - Once a `projectId` exists, MotionReal project recovery remains authoritative.
-- Deleting a video aborts in-flight Agent work before removing its Workspace;
-  project deletion continues to use the existing project lifecycle.
+- Deleting a video aborts in-flight Agent work, then resumes the persisted
+  deletion journal until the exact Harness session data, linked project, Agent
+  workspace and assets have all been removed.
 
 ## Current preview boundary
 
@@ -632,7 +640,7 @@ Defer:
 
 - Harness-controlled rendering;
 - a second render engine or TSX format;
-- automatic temporal QA;
+- a frame-by-frame temporal oracle beyond the current cue-aware evidence review;
 - unvalidated deletion outside the exact pinned Harness session layout (the
   supported deletion path uses a recoverable journal and exact session ids);
 - strict media-license gating;
