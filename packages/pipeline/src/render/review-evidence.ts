@@ -86,6 +86,9 @@ export function reviewFrameSamples(
     ?.flatMap((beat) => scene.motionCueFrames?.[beat.id] === undefined
       ? []
       : [{ id: beat.id, frame: scene.startFrame + scene.motionCueFrames[beat.id]! }]) ?? [];
+  if ((scene.motionBeats?.length ?? 0) > 0 && cueEntries.length !== scene.motionBeats!.length) {
+    throw new Error(`${scene.id} thiếu motionCueFrames cho structured motion beats.`);
+  }
   if (cueEntries.length !== scene.motionBeats?.length || cueEntries.length === 0) {
     const span = Math.max(1, window.end - window.start + 1);
     return [0.18, 0.5, 0.82].map((fraction, index) => ({
@@ -225,10 +228,14 @@ export async function buildReviewEvidence(input: BuildReviewEvidenceInput): Prom
   const sceneById = new Map(input.spec.scenes.map((scene, index) => [scene.id, { scene, index }] as const));
   const profileById = new Map(input.request.scenes.map((scene) => [scene.sceneId, scene] as const));
   const reviewIds = uniqueKnownIds(input.request.reviewSceneIds, sceneById);
-  if (reviewIds.length !== input.request.reviewSceneIds.length || reviewIds.some((id) => !profileById.has(id))) {
+  if (reviewIds.length !== input.request.reviewSceneIds.length || reviewIds.some((id) => !profileById.has(id))
+    || profileById.size !== input.request.scenes.length || profileById.size !== reviewIds.length) {
     throw new Error("Review request does not classify every in-scope scene.");
   }
   const contextIds = uniqueKnownIds(input.request.contextSceneIds, sceneById);
+  if (contextIds.length !== input.request.contextSceneIds.length || contextIds.some((id) => reviewIds.includes(id))) {
+    throw new Error("Review request has invalid context scenes.");
+  }
   const overviewIds = input.spec.scenes
     .map((scene) => scene.id)
     .filter((id) => reviewIds.includes(id) || contextIds.includes(id));

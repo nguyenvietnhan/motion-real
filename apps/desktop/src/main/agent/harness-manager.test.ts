@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { HarnessManager, type HarnessManagerDeps } from "./harness-manager.js";
+import { encodePngRGBA, type AuthoringReviewRequest, type ReviewArtifact } from "@motionreal/pipeline";
 
 const roots: string[] = [];
 const activeManagers: HarnessManager[] = [];
@@ -29,6 +30,7 @@ const TEST_CONTENT_PLAN = {
     evidenceClaimIds: [],
   }],
 };
+const REVIEW_EVIDENCE_PNG = encodePngRGBA(1, 1, new Uint8Array([255, 255, 255, 255]));
 
 const testPlanAuthoringContent: HarnessManagerDeps["planAuthoringContent"] = async () => TEST_CONTENT_PLAN;
 
@@ -1136,16 +1138,21 @@ describe("HarnessManager draft lifecycle", () => {
     const sceneIds = ["scene-01", "scene-02", "scene-03"];
     const plannedNarration = "một hai ba bốn năm sáu bảy tám chín mười mười một mười hai mười ba";
     const stills: string[] = [];
-    const renderAuthoringStills = vi.fn(async (_projectId: string, ids: string[], multiFrameIds: string[] = []) => ({
-      ok: true as const,
-      stills: ids.flatMap((id) => [
-        stills.find((path) => path.endsWith(`${id}.png`))!,
-        ...(multiFrameIds.includes(id) ? [
-          stills.find((path) => path.endsWith(`${id}.f20.png`))!,
-          stills.find((path) => path.endsWith(`${id}.f80.png`))!,
-        ] : []),
-      ]),
-    }));
+    const evidencePaths: string[] = [];
+    const renderAuthoringStills = vi.fn(async (_projectId: string, ids: string[], reviewRequest?: AuthoringReviewRequest) => {
+      const artifacts: ReviewArtifact[] = reviewRequest ? [{
+        path: evidencePaths[0]!, kind: "overview", sceneIds: [...reviewRequest.reviewSceneIds, ...reviewRequest.contextSceneIds],
+        panels: [...reviewRequest.reviewSceneIds, ...reviewRequest.contextSceneIds].map((sceneId, index) => ({ index, sceneId, sample: "overview" })),
+      }, ...reviewRequest.scenes.filter((scene) => scene.temporalMode !== "static").map((scene) => ({
+        path: evidencePaths[1]!, kind: scene.temporalMode === "continuous" ? "dense-filmstrip" as const : "cue-filmstrip" as const,
+        sceneIds: [scene.sceneId], panels: [
+          { index: 0, sceneId: scene.sceneId, sample: "initial" as const },
+          { index: 1, sceneId: scene.sceneId, sample: "after-cue" as const, cueId: "step-one" },
+          { index: 2, sceneId: scene.sceneId, sample: "after-cue" as const, cueId: "step-two" },
+        ],
+      }))] : [];
+      return { ok: true as const, stills: ids.map((id) => stills.find((path) => path.endsWith(`${id}.png`))!), reviewArtifacts: artifacts };
+    });
     const acceptAuthoringStills = vi.fn(async () => undefined);
     const { manager, root, history } = await activeManagerForTest({
       renderAuthoringStills,
@@ -1158,6 +1165,9 @@ describe("HarnessManager draft lifecycle", () => {
           ...TEST_CONTENT_PLAN.scenes[0]!,
           sceneId,
           narration: plannedNarration,
+          temporalMode: sceneId === "scene-02" ? "stepped" as const : "static" as const,
+          detailMode: "normal" as const,
+          motionBeats: undefined,
           ...(sceneId === "scene-02" ? {
             motionProgression: "Quick entrance; semantic: reveal step one, then step two; final hold.",
             motionBeats: [
@@ -1190,10 +1200,14 @@ describe("HarnessManager draft lifecycle", () => {
     await mkdir(join(projectRoot, "review"), { recursive: true });
     stills.push(
       ...sceneIds.map((id) => join(projectRoot, "review", `${id}.png`)),
-      join(projectRoot, "review", "scene-02.f20.png"),
-      join(projectRoot, "review", "scene-02.f80.png"),
+    );
+    await mkdir(join(projectRoot, "review", "evidence"), { recursive: true });
+    evidencePaths.push(
+      join(projectRoot, "review", "evidence", "overview-01.png"),
+      join(projectRoot, "review", "evidence", "scene-02.motion.png"),
     );
     await Promise.all(stills.map((path) => writeFile(path, ONE_PIXEL_PNG)));
+    await Promise.all(evidencePaths.map((path) => writeFile(path, REVIEW_EVIDENCE_PNG)));
 
     await manager.startAuthoring(draft.id, "project-final", projectRoot, []);
     const initial = JSON.parse(await readFile(join(draftRoot, "handoff", "authoring-request.json"), "utf8"));
@@ -1218,16 +1232,20 @@ describe("HarnessManager draft lifecycle", () => {
       expect(request).not.toHaveProperty("creative_stage");
     }, { timeout: 3_000 });
     expect(renderAuthoringStills).toHaveBeenCalledTimes(1);
-    expect(renderAuthoringStills).toHaveBeenCalledWith("project-final", sceneIds, ["scene-02"]);
+    expect(renderAuthoringStills).toHaveBeenCalledWith("project-final", sceneIds, expect.objectContaining({
+      reviewSceneIds: sceneIds,
+      contextSceneIds: [],
+      scenes: expect.arrayContaining([expect.objectContaining({ sceneId: "scene-02", temporalMode: "stepped" })]),
+    }));
     const normalizedManifest = JSON.parse(await readFile(join(projectRoot, "manifest.json"), "utf8"));
     expect(normalizedManifest.scenes.map((scene: { narration?: string }) => scene.narration))
       .toEqual([plannedNarration, plannedNarration, plannedNarration]);
     expect(normalizedManifest.scenes[0].transitionToNext).toBe("fade");
 
-    const firstRead = stills.slice(0, 1);
+    const firstRead = evidencePaths.slice(0, 1);
     for (const path of firstRead) {
       const callId = `read-${history.length}`;
-      history.push({ event: { seq: history.length, type: "tool/call", data: { callId, name: "read_image", arguments: JSON.stringify({ file_path: `project/review/${path.split("\\").at(-1)}` }) } } });
+      history.push({ event: { seq: history.length, type: "tool/call", data: { callId, name: "read_image", arguments: JSON.stringify({ file_path: `project/review/evidence/${path.split("\\").at(-1)}` }) } } });
       history.push({ event: { seq: history.length, type: "tool/result", data: { message: { content: [{
         type: "tool-result", toolCallId: callId, isError: false,
         content: [{ type: "image", attachment: { attachmentId: callId, mediaType: "image/png", bytes: 68, width: 1, height: 1 } }],
@@ -1247,9 +1265,9 @@ describe("HarnessManager draft lifecycle", () => {
     expect(repairRequest.review_after_seq).toBe(firstReviewRequest.review_after_seq);
     expect(repairRequest.instructions.join(" ")).toMatch(/PNG còn thiếu/);
 
-    for (const path of stills.slice(1)) {
+    for (const path of evidencePaths.slice(1)) {
       const callId = `read-${history.length}`;
-      history.push({ event: { seq: history.length, type: "tool/call", data: { callId, name: "read_image", arguments: JSON.stringify({ file_path: `project/review/${path.split("\\").at(-1)}` }) } } });
+      history.push({ event: { seq: history.length, type: "tool/call", data: { callId, name: "read_image", arguments: JSON.stringify({ file_path: `project/review/evidence/${path.split("\\").at(-1)}` }) } } });
       history.push({ event: { seq: history.length, type: "tool/result", data: { message: { content: [{
         type: "tool-result", toolCallId: callId, isError: false,
         content: [{ type: "image", attachment: { attachmentId: callId, mediaType: "image/png", bytes: 68, width: 1, height: 1 } }],
@@ -1272,7 +1290,9 @@ describe("HarnessManager draft lifecycle", () => {
       version: 1, job_id: "job-final", request_revision: 4,
       scene_ids: sceneIds, used_asset_ids: [],
     }));
-    await vi.waitFor(() => expect(renderAuthoringStills).toHaveBeenLastCalledWith("project-final", ["scene-01"]), { timeout: 3_000 });
+    await vi.waitFor(() => expect(renderAuthoringStills).toHaveBeenLastCalledWith("project-final", ["scene-01"], expect.objectContaining({
+      reviewSceneIds: ["scene-01"], contextSceneIds: ["scene-02"],
+    })), { timeout: 3_000 });
     await vi.waitFor(async () => expect(JSON.parse(await readFile(join(draftRoot, "handoff", "authoring-request.json"), "utf8")))
       .toMatchObject({ request_revision: 5, phase: "visual_refine", review_scene_ids: ["scene-01"] }), { timeout: 3_000 });
     await manager.dispose();
@@ -1326,7 +1346,7 @@ describe("HarnessManager draft lifecycle", () => {
   });
 
   it("keeps a valid authoring submission and retries only still rendering when the runtime bridge fails", async () => {
-    let stillResult: { ok: true; stills: string[] } | { ok: false; error: string; repairable: boolean } = {
+    let stillResult: { ok: true; stills: string[]; reviewArtifacts: ReviewArtifact[] } | { ok: false; error: string; repairable: boolean } = {
       ok: false,
       error: "Cannot read properties of undefined (reading 'backend').",
       repairable: false,
@@ -1397,7 +1417,7 @@ describe("HarnessManager draft lifecycle", () => {
     await expect(readFile(join(draftRoot, "handoff", "authoring.json"), "utf8")).resolves.toContain("scene-01");
     expect(calls.filter((call) => call.method === "session.prompt")).toHaveLength(promptCount);
 
-    stillResult = { ok: true, stills: sceneIds.map((id) => join(projectRoot, "review", `${id}.png`)) };
+    stillResult = { ok: true, stills: sceneIds.map((id) => join(projectRoot, "review", `${id}.png`)), reviewArtifacts: [] };
     const failed = await manager.status(draft.id);
     await manager.retryWorkflow(draft.id, failed.workflowRevision);
     await vi.waitFor(async () => {

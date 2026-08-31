@@ -65,8 +65,14 @@ describe("reviewFrameSamples", () => {
 
   it("falls back to f18/mid/f82 for legacy semantic scenes without cue frames", () => {
     const spec = lockedSpec();
-    spec.scenes[1] = { ...spec.scenes[1]!, motionCueFrames: undefined };
+    spec.scenes[1] = { ...spec.scenes[1]!, motionBeats: undefined, motionCueFrames: undefined };
     expect(reviewFrameSamples(spec, 1, profile("stepped")).map((sample) => sample.frame)).toEqual([139, 173, 206]);
+  });
+
+  it("rejects a structured dynamic scene whose cue frames were not resolved", () => {
+    const spec = lockedSpec();
+    spec.scenes[1] = { ...spec.scenes[1]!, motionCueFrames: undefined };
+    expect(() => reviewFrameSamples(spec, 1, profile("stepped"))).toThrow(/motionCueFrames/);
   });
 
   it("samples only critical zoom/wipe boundaries", () => {

@@ -51,12 +51,28 @@ describe("authoring render tools", () => {
   it("forwards semantic multi-frame ids without changing ordinary still calls", async () => {
     const renderStills = vi.fn(async () => ({ ok: true, data: { stills: ["scene-02.png", "scene-02.f20.png", "scene-02.f80.png"] } }));
     const deps = baseDeps({ render_stills: renderStills });
-    await renderStillsWithTools(deps, "p1", ["scene-02"], undefined, ["scene-02"]);
+    await renderStillsWithTools(deps, "p1", ["scene-02"], undefined, { multiFrameSceneIds: ["scene-02"] });
     expect(renderStills).toHaveBeenCalledWith(
       { projectId: "p1", sceneIds: ["scene-02"], multiFrameSceneIds: ["scene-02"] },
       undefined,
       undefined,
     );
+  });
+
+  it("forwards named review evidence and preserves returned artifact metadata", async () => {
+    const reviewRequest = {
+      reviewSceneIds: ["scene-02"], contextSceneIds: ["scene-01"],
+      scenes: [{ sceneId: "scene-02", temporalMode: "continuous" as const, detailMode: "fine" as const }],
+    };
+    const reviewArtifacts = [{
+      path: "V:/p/review/evidence/overview-01.png", kind: "overview" as const, sceneIds: ["scene-01", "scene-02"],
+      panels: [{ index: 0, sceneId: "scene-01", sample: "overview" as const }, { index: 1, sceneId: "scene-02", sample: "overview" as const }],
+    }];
+    const renderStills = vi.fn(async () => ({ ok: true, data: { stills: ["scene-02.png"], reviewArtifacts } }));
+    const deps = baseDeps({ render_stills: renderStills });
+    await expect(renderStillsWithTools(deps, "p1", ["scene-02"], undefined, { reviewRequest }))
+      .resolves.toEqual({ stills: ["scene-02.png"], reviewArtifacts });
+    expect(renderStills).toHaveBeenCalledWith({ projectId: "p1", sceneIds: ["scene-02"], reviewRequest }, undefined, undefined);
   });
 
   it("getSafetyReport preserves every hard error reported by the pipeline", async () => {

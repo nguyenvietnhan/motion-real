@@ -6,7 +6,7 @@
  * depends on this interface for testability — not on NineRouter internals.
  */
 
-import type { SerializedPipelineError, CrawledImage } from "@motionreal/pipeline";
+import type { AuthoringReviewRequest, ReviewArtifact, SerializedPipelineError, CrawledImage } from "@motionreal/pipeline";
 import type { VideoFormat, DurationTier, VideoLanguage } from "@motionreal/schema";
 
 /**
@@ -112,6 +112,13 @@ export type VisualQaResult =
 
 /** A snapshot of authored scene source, used to roll back a regressive QA round. */
 export type SceneSnapshot = { sceneId: string; code: string }[];
+export type RenderStillsOptions = {
+  /** Legacy fraction sampling retained for Classic/old requests. */
+  multiFrameSceneIds?: string[];
+  /** Named model-facing evidence request used by Harness. */
+  reviewRequest?: AuthoringReviewRequest;
+};
+export type RenderStillsResult = { stills: string[]; reviewArtifacts?: ReviewArtifact[]; error?: SerializedPipelineError };
 
 /** A plain-language auto-fix description (NEVER an N-code / engine internal;. */
 export type { FriendlyFix } from "../../shared/types.js";
@@ -149,7 +156,7 @@ export interface AgentWorker {
    * Returns the rendered still paths. A structured render error is optional so
    * interactive callers can distinguish authored-code repair from runtime retry.
    */
-  renderStills?(projectId: string, sceneIds?: string[], signal?: AbortSignal, multiFrameSceneIds?: string[]): Promise<{ stills: string[]; error?: SerializedPipelineError }>;
+  renderStills?(projectId: string, sceneIds?: string[], signal?: AbortSignal, options?: RenderStillsOptions): Promise<RenderStillsResult>;
   /**
    * Render the final full-quality MP4.
    * Pass forceFull when desktop reviewed without a draft MP4 (stills/skip modes

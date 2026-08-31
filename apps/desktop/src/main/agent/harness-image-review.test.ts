@@ -40,14 +40,14 @@ describe("Harness image-read evidence", () => {
     await expect(assertHarnessImageReads({ root, stills, maxStills: 6, afterSeq: 10, events })).resolves.toBeUndefined();
   });
 
-  it("accepts 45 stills for a 15-scene multi-frame review", async () => {
-    const { root, stills } = await fixture(45);
+  it("accepts the bounded 18-artifact worst case for a 15-scene composite review", async () => {
+    const { root, stills } = await fixture(18);
     const events = stills.flatMap((path, index) => {
       const seq = 11 + index * 2;
       return [call(seq, path), result(seq + 1, `call-${seq}`)];
     });
     events.push(assistant(11 + stills.length * 2));
-    await expect(assertHarnessImageReads({ root, stills, maxStills: 45, afterSeq: 10, events })).resolves.toBeUndefined();
+    await expect(assertHarnessImageReads({ root, stills, maxStills: 18, afterSeq: 10, events })).resolves.toBeUndefined();
   });
 
   it.each(["no-reads", "old-request", "failed", "text-only", "wrong-tool", "wrong-file", "partial", "same-step", "interrupted", "missing-marker"])("rejects %s even when the model claims it reviewed every scene", async (failure) => {

@@ -5,7 +5,7 @@ import { existsSync } from "node:fs";
 import { createServer } from "node:net";
 import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
-import { createLogger, MAX_IMAGE_BYTES, MAX_IMAGE_DIM, resolveEffectiveDuration, sniffImage, writeJson } from "@motionreal/pipeline";
+import { createLogger, MAX_IMAGE_BYTES, MAX_IMAGE_DIM, resolveEffectiveDuration, sniffImage, writeJson, type AuthoringReviewRequest, type ReviewArtifact } from "@motionreal/pipeline";
 import type { SceneImageRole } from "@motionreal/schema";
 import type { AgentActivityVM, AgentAssetVM, AgentBriefInput, AgentBriefVM, AgentDraftVM, AgentProductionState, AgentSearchProvider, AgentSettingsVM, DurationTierChoice, VideoLanguageChoice, VoiceProviderChoice } from "../../shared/types.js";
 import { sanitizedChildEnvironment } from "../security/runtime-security.js";
@@ -21,9 +21,10 @@ import {
   type AgentWorkflowTransition,
 } from "./agent-workflow.js";
 import { assertHarnessImageReads, readHarnessReviewHistory } from "./harness-image-review.js";
+import { assertHarnessReviewArtifacts } from "./harness-review-artifacts.js";
 import { AUTHORING_CONTRACT } from "../authoring/contract-text.js";
 import type { AuthorInput } from "./agent-worker.js";
-import { ContentPlanSchema, semanticMotionSceneIds, type ContentPlan } from "../authoring/content-plan.js";
+import { ContentPlanSchema, sceneReviewProfiles, type ContentPlan } from "../authoring/content-plan.js";
 import {
   buildHarnessAuthoringPacing,
   validateHarnessManifestPacing,
@@ -136,8 +137,8 @@ export type HarnessManagerDeps = {
   renderAuthoringStills?: (
     projectId: string,
     sceneIds: string[],
-    multiFrameSceneIds?: string[],
-  ) => Promise<{ ok: true; stills: string[] } | { ok: false; error: string; repairable: boolean }>;
+    reviewRequest?: AuthoringReviewRequest,
+  ) => Promise<{ ok: true; stills: string[]; reviewArtifacts: ReviewArtifact[] } | { ok: false; error: string; repairable: boolean }>;
   cancelAuthoringStills?: (projectId: string) => void;
   acceptAuthoringStills?: (projectId: string) => Promise<void>;
   /** Snapshot-aware caller; default keeps old installs bounded at three repairs. */
@@ -1603,22 +1604,24 @@ export class HarnessManager {
       ? this.requestEditSceneIds(request, sceneIds)
       : sceneIds;
     const refinePolicy = await this.authoringRefinePolicy(record.projectId!);
-    const multiFrameSceneIds = refinePolicy.refinePasses > 0 && parsedPlan.success
-      ? semanticMotionSceneIds(parsedPlan.data, renderSceneIds)
-      : [];
+    const reviewRequest = refinePolicy.refinePasses > 0 && parsedPlan.success
+      ? buildAuthoringReviewRequest(parsedPlan.data, sceneIds, renderSceneIds, request.phase === "edit")
+      : undefined;
     const sourceFingerprint = await harnessReviewFingerprint(projectRoot);
-    const rendered = multiFrameSceneIds.length > 0
-      ? await this.deps.renderAuthoringStills!(record.projectId!, renderSceneIds, multiFrameSceneIds)
-      : await this.deps.renderAuthoringStills!(record.projectId!, renderSceneIds);
+    const rendered = await this.deps.renderAuthoringStills!(record.projectId!, renderSceneIds, reviewRequest);
     if (!rendered.ok) throw new AuthoringStillRenderError(rendered.error, rendered.repairable);
-    if (!validRenderedStillSet(rendered.stills, renderSceneIds, multiFrameSceneIds)) {
+    if (!validRenderedStillSet(rendered.stills, renderSceneIds, [])) {
       throw new AuthoringStillRenderError("MotionReal chưa render đủ still riêng cho mọi cảnh.", false);
     }
+    if (reviewRequest && rendered.reviewArtifacts.length === 0) {
+      throw new AuthoringStillRenderError("MotionReal chưa tạo evidence artifact cho visual refine.", false);
+    }
+    if (reviewRequest) await assertHarnessReviewArtifacts({ projectRoot, request: reviewRequest, artifacts: rendered.reviewArtifacts });
     if (await harnessReviewFingerprint(projectRoot) !== sourceFingerprint) {
       throw new AuthoringStillRenderError("Source/asset đã đổi trong lúc render still; cần render lại trước khi review.", false);
     }
     if (!await this.isCurrentAuthoringRecord(record)) return;
-    await this.beginVisualRefineOrSceneReview(record, sceneIds, projectRoot, rendered.stills, renderSceneIds);
+    await this.beginVisualRefineOrSceneReview(record, sceneIds, projectRoot, rendered.stills, rendered.reviewArtifacts, renderSceneIds);
   }
 
   private async authoringRefinePolicy(projectId: string): Promise<{ refinePasses: number; refineEarlyStop: boolean }> {
@@ -1634,6 +1637,7 @@ export class HarnessManager {
     sceneIds: string[],
     projectRoot: string,
     stills: string[],
+    reviewArtifacts: ReviewArtifact[],
     reviewSceneIds: string[] = sceneIds,
   ): Promise<void> {
     const policy = await this.authoringRefinePolicy(record.projectId!);
@@ -1647,7 +1651,7 @@ export class HarnessManager {
       jobId: record.activeJobId,
     }) };
     await this.writeRecord(refining);
-    await this.enqueueVisualRefine(refining, sceneIds, projectRoot, stills, 1, 0, reviewSceneIds);
+    await this.enqueueVisualRefine(refining, sceneIds, projectRoot, stills, reviewArtifacts, 1, 0, reviewSceneIds);
   }
 
   private async enqueueVisualRefine(
@@ -1655,23 +1659,30 @@ export class HarnessManager {
     sceneIds: string[],
     projectRoot: string,
     stills: string[],
+    reviewArtifacts: ReviewArtifact[] | undefined,
     pass: number,
     cleanStreak: number,
     reviewSceneIds: string[] = sceneIds,
   ): Promise<void> {
-    const stillRefs = this.projectStillRefs(projectRoot, stills);
+    const modelStills = reviewArtifacts?.map((artifact) => artifact.path) ?? stills;
+    const stillRefs = this.projectStillRefs(projectRoot, modelStills);
+    const serializedArtifacts = reviewArtifacts?.map((artifact) => ({
+      ...artifact,
+      path: this.projectStillRefs(projectRoot, [artifact.path])[0]!,
+    }));
     await this.advanceAuthoringRequest(record, {
       phase: "visual_refine",
       stills: stillRefs,
+      ...(serializedArtifacts ? { review_artifacts: serializedArtifacts } : {}),
       review_scene_ids: reviewSceneIds,
-      review_fingerprint: await harnessReviewFingerprint(projectRoot, stills),
+      review_fingerprint: await harnessReviewFingerprint(projectRoot, modelStills),
       scene_fingerprints: await harnessSceneFingerprints(projectRoot),
       visual_refine_pass: pass,
       visual_refine_clean_streak: cleanStreak,
       render_error: undefined,
       instructions: [
-        "Dùng read_image mở mọi PNG trong stills trước khi nhận xét. Không kết luận chỉ từ code.",
-        "Nếu một scene có thêm các file .fNN, hãy đối chiếu ảnh đầu–giữa–cuối với motionBeats: báo lỗi khi trạng thái tương lai lộ sớm, nhiều bước xuất hiện cùng lúc, cue chỉ đổi glow, hoặc final hold chiếm gần như toàn cảnh.",
+        "Dùng read_image mở từng evidence artifact trong stills trước khi nhận xét. Không kết luận chỉ từ code.",
+        "Đọc overview theo panels row-major; filmstrip theo thứ tự thời gian; detail để kiểm tra chữ/ảnh nhỏ; transition để kiểm tra continuity. Đối chiếu motion artifact với motionBeats và báo lỗi khi trạng thái tương lai lộ sớm, nhiều bước xuất hiện cùng lúc, cue chỉ đổi glow, hoặc final hold chiếm gần như toàn cảnh.",
         "Chỉ sửa các cảnh có lỗi trực quan cụ thể. Giữ nguyên cảnh đã sạch; không viết lại toàn video vì đây không phải V2 bắt buộc.",
         "Nếu sửa source/asset, gọi motionreal_submit_authoring sau khi sửa. Nếu ảnh đã sạch, không sửa code và submit review_notes nêu rõ quan sát.",
         "review_notes phải nêu lỗi cụ thể đã sửa hoặc lý do ảnh sạch. reviewed_scene_ids phải chứa đúng review_scene_ids.",
@@ -1693,10 +1704,21 @@ export class HarnessManager {
     if (!sameIds(reviewed, reviewSceneIds) || typeof submission.review_notes !== "string" || !submission.review_notes.trim()) {
       throw new Error("Harness chưa xác nhận đã xem đủ still trong phạm vi visual refine.");
     }
-    const stills = this.requestStillPaths(request, reviewSceneIds, projectRoot);
+    const reviewArtifacts = this.requestReviewArtifacts(request, projectRoot);
+    const stills = reviewArtifacts?.map((artifact) => artifact.path)
+      ?? this.requestStillPaths(request, reviewSceneIds, projectRoot);
+    if (reviewArtifacts) {
+      const parsedPlan = ContentPlanSchema.safeParse(request.content_plan);
+      if (!parsedPlan.success) throw new Error("Visual refine thiếu content plan để kiểm tra evidence.");
+      await assertHarnessReviewArtifacts({
+        projectRoot,
+        request: buildAuthoringReviewRequest(parsedPlan.data, sceneIds, reviewSceneIds, reviewSceneIds.length < sceneIds.length),
+        artifacts: reviewArtifacts,
+      });
+    }
     const expectedFingerprint = typeof request.review_fingerprint === "string" ? request.review_fingerprint : "";
     if (!expectedFingerprint) throw new Error("Visual refine thiếu fingerprint của still hiện tại.");
-    await this.verifyImageReads(record, request, reviewSceneIds.length * 3);
+    await this.verifyImageReads(record, request, reviewArtifacts ? stills.length : reviewSceneIds.length * 3);
     const sourceFingerprint = await harnessReviewFingerprint(projectRoot, stills);
     const currentSceneFingerprints = await harnessSceneFingerprints(projectRoot);
     const pass = validVisualRefinePass(request.visual_refine_pass);
@@ -1709,7 +1731,7 @@ export class HarnessManager {
         await this.finishHarnessSceneReview(record);
         return;
       }
-      await this.enqueueVisualRefine(record, sceneIds, projectRoot, stills, pass + 1, nextClean, reviewSceneIds);
+      await this.enqueueVisualRefine(record, sceneIds, projectRoot, stills, reviewArtifacts, pass + 1, nextClean, reviewSceneIds);
       return;
     }
 
@@ -1717,14 +1739,18 @@ export class HarnessManager {
     const renderScope = changedSceneIds.length > 0 ? changedSceneIds : sceneIds;
     const beforeRender = await harnessReviewFingerprint(projectRoot);
     const parsedPlan = ContentPlanSchema.safeParse(request.content_plan);
-    const multiFrameSceneIds = parsedPlan.success ? semanticMotionSceneIds(parsedPlan.data, renderScope) : [];
-    const rendered = multiFrameSceneIds.length > 0
-      ? await this.deps.renderAuthoringStills!(record.projectId!, renderScope, multiFrameSceneIds)
-      : await this.deps.renderAuthoringStills!(record.projectId!, renderScope);
+    const nextReviewRequest = parsedPlan.success
+      ? buildAuthoringReviewRequest(parsedPlan.data, sceneIds, renderScope, true)
+      : undefined;
+    const rendered = await this.deps.renderAuthoringStills!(record.projectId!, renderScope, nextReviewRequest);
     if (!rendered.ok) throw new AuthoringStillRenderError(rendered.error, rendered.repairable);
-    if (!validRenderedStillSet(rendered.stills, renderScope, multiFrameSceneIds)) {
+    if (!validRenderedStillSet(rendered.stills, renderScope, [])) {
       throw new AuthoringStillRenderError("MotionReal chưa render đủ still riêng cho các cảnh đã sửa.", false);
     }
+    if (nextReviewRequest && rendered.reviewArtifacts.length === 0) {
+      throw new AuthoringStillRenderError("MotionReal chưa tạo evidence artifact cho các cảnh đã sửa.", false);
+    }
+    if (nextReviewRequest) await assertHarnessReviewArtifacts({ projectRoot, request: nextReviewRequest, artifacts: rendered.reviewArtifacts });
     if (await harnessReviewFingerprint(projectRoot) !== beforeRender) {
       throw new AuthoringStillRenderError("Source/asset đã đổi trong lúc render still; cần render lại trước khi review.", false);
     }
@@ -1733,7 +1759,7 @@ export class HarnessManager {
       await this.finishHarnessSceneReview(record);
       return;
     }
-    await this.enqueueVisualRefine(record, sceneIds, projectRoot, rendered.stills, pass + 1, 0, renderScope);
+    await this.enqueueVisualRefine(record, sceneIds, projectRoot, rendered.stills, rendered.reviewArtifacts, pass + 1, 0, renderScope);
   }
 
   private projectStillRefs(projectRoot: string, stills: string[]): string[] {
@@ -1752,6 +1778,40 @@ export class HarnessManager {
     const paths = request.stills.map((path) => join(projectRoot, (path as string).slice("project/".length)));
     if (!validReviewStillNames(paths, sceneIds)) throw new Error("Visual refine không có đủ still hợp lệ.");
     return paths;
+  }
+
+  private requestReviewArtifacts(request: Record<string, unknown>, projectRoot: string): ReviewArtifact[] | undefined {
+    if (request.review_artifacts === undefined) return undefined;
+    if (!Array.isArray(request.review_artifacts)) throw new Error("Visual refine có review_artifacts không hợp lệ.");
+    const refs: string[] = [];
+    const artifacts = request.review_artifacts.map((value) => {
+      if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("Visual refine có review artifact không hợp lệ.");
+      const artifact = value as Record<string, unknown>;
+      if (typeof artifact.path !== "string" || !artifact.path.startsWith("project/review/evidence/")
+        || !["overview", "cue-filmstrip", "dense-filmstrip", "detail", "transition"].includes(String(artifact.kind))
+        || !Array.isArray(artifact.sceneIds) || artifact.sceneIds.some((id) => typeof id !== "string")
+        || !Array.isArray(artifact.panels) || artifact.panels.some((panel) => {
+          if (!panel || typeof panel !== "object" || Array.isArray(panel)) return true;
+          const value = panel as Record<string, unknown>;
+          return !Number.isSafeInteger(value.index) || typeof value.sceneId !== "string"
+            || !["overview", "initial", "after-cue", "between-cues", "final", "detail", "transition-before", "transition-mid", "transition-after"].includes(String(value.sample))
+            || (value.cueId !== undefined && typeof value.cueId !== "string");
+        })) {
+        throw new Error("Visual refine có review artifact không hợp lệ.");
+      }
+      refs.push(artifact.path);
+      return {
+        path: join(projectRoot, artifact.path.slice("project/".length)),
+        kind: artifact.kind as ReviewArtifact["kind"],
+        sceneIds: artifact.sceneIds as string[],
+        panels: artifact.panels as ReviewArtifact["panels"],
+      };
+    });
+    if (!Array.isArray(request.stills) || request.stills.some((path) => typeof path !== "string")
+      || !sameIds(request.stills as string[], refs)) {
+      throw new Error("Visual refine có danh sách still không khớp review_artifacts.");
+    }
+    return artifacts;
   }
 
   private requestReviewSceneIds(request: Record<string, unknown>, sceneIds: string[]): string[] {
@@ -2272,6 +2332,36 @@ function validateSelectedIds(selectedIds: string[], assets: AgentAssetVM[]): str
 
 function sameIds(left: string[], right: string[]): boolean {
   return left.length === right.length && left.every((id) => right.includes(id));
+}
+
+function buildAuthoringReviewRequest(
+  plan: ContentPlan,
+  allSceneIds: readonly string[],
+  reviewSceneIds: readonly string[],
+  includeNeighborContext: boolean,
+): AuthoringReviewRequest {
+  const requested = new Set(reviewSceneIds);
+  const profiles = new Map(sceneReviewProfiles(plan.scenes).map((profile) => [profile.sceneId, profile] as const));
+  if (reviewSceneIds.length === 0 || reviewSceneIds.some((id) => !allSceneIds.includes(id) || !profiles.has(id))) {
+    throw new Error("Content plan không phân loại đủ scene trong phạm vi visual refine.");
+  }
+  const context = new Set<string>();
+  if (includeNeighborContext) {
+    for (const id of reviewSceneIds) {
+      const index = allSceneIds.indexOf(id);
+      for (const neighbor of [allSceneIds[index - 1], allSceneIds[index + 1]]) {
+        if (neighbor && !requested.has(neighbor)) context.add(neighbor);
+      }
+    }
+  }
+  return {
+    reviewSceneIds: [...reviewSceneIds],
+    contextSceneIds: allSceneIds.filter((id) => context.has(id)),
+    scenes: reviewSceneIds.map((sceneId) => {
+      const profile = profiles.get(sceneId)!;
+      return { sceneId, temporalMode: profile.temporalMode, detailMode: profile.detailMode };
+    }),
+  };
 }
 
 function validRenderedStillSet(paths: string[], sceneIds: string[], multiFrameSceneIds: string[]): boolean {

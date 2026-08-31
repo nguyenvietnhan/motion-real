@@ -32,7 +32,7 @@ import {
 import type { createTools } from "@motionreal/pipeline";
 import type { AuthoringBackend, AuthoredScene, ReauthorTarget } from "../agent/custom-loop-worker.js";
 import type { SafetyReportView } from "../agent/repair-loop.js";
-import type { AuthorInput, AuthorJob, VisualQaResult, SceneSnapshot, AuthorImageRef } from "../agent/agent-worker.js";
+import type { AuthorInput, AuthorJob, VisualQaResult, SceneSnapshot, AuthorImageRef, RenderStillsOptions, RenderStillsResult } from "../agent/agent-worker.js";
 import { GatewayChatError, type NineRouterClient } from "../gateway/ninerouter-client.js";
 import { logAuthoringFailure } from "./authoring-failure.js";
 import { countSafetyChecks, toEngineManifest } from "./author-manifest-convert.js";
@@ -506,8 +506,8 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
    * stills bundle THIS project's freshly-authored scenes. `sceneIds` scopes the
    * render to the scenes a refine pass just rewrote.
    */
-  async renderStills(projectId: string, sceneIds?: string[], signal?: AbortSignal, multiFrameSceneIds?: string[]): Promise<{ stills: string[]; error?: SerializedPipelineError }> {
-    return renderStillsWithTools(this.renderTools(), projectId, sceneIds, signal, multiFrameSceneIds);
+  async renderStills(projectId: string, sceneIds?: string[], signal?: AbortSignal, options?: RenderStillsOptions): Promise<RenderStillsResult> {
+    return renderStillsWithTools(this.renderTools(), projectId, sceneIds, signal, options);
   }
 
   async renderFull(

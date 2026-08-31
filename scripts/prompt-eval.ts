@@ -262,7 +262,7 @@ async function runLiveEval(
         projectId,
         undefined,
         undefined,
-        entry.motionFocused ? manifest.scenes.map((scene) => scene.id) : undefined,
+        entry.motionFocused ? { multiFrameSceneIds: manifest.scenes.map((scene) => scene.id) } : undefined,
       );
       if (rendered.error || rendered.stills.length === 0) {
         throw new Error(rendered.error?.cause ?? "render still không tạo được ảnh");

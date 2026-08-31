@@ -464,6 +464,28 @@ describe("render_stills — fast per-scene stills (no TTS)", () => {
     expect(seenMultiFrameSceneIds).toEqual(["scene-02"]);
   });
 
+  it("passes a named review request and returns composite artifact metadata", async () => {
+    let seenReviewRequest: unknown;
+    const reviewArtifacts = [{
+      path: "/p/review/evidence/overview-01.png", kind: "overview" as const, sceneIds: ["scene-01"],
+      panels: [{ index: 0, sceneId: "scene-01", sample: "overview" as const }],
+    }];
+    const tools = createTools({
+      renderProjectStills: async (projectId, opts) => {
+        seenReviewRequest = opts?.reviewRequest;
+        return { projectId, stills: ["/p/review/scene-01.png"], reviewArtifacts };
+      },
+    });
+    const reviewRequest = {
+      reviewSceneIds: ["scene-01"], contextSceneIds: [],
+      scenes: [{ sceneId: "scene-01", temporalMode: "static" as const, detailMode: "normal" as const }],
+    };
+    const res = await tools.render_stills({ projectId: "st-evidence", reviewRequest });
+    expect(res.ok).toBe(true);
+    expect(seenReviewRequest).toEqual(reviewRequest);
+    if (res.ok) expect(res.data.reviewArtifacts).toEqual(reviewArtifacts);
+  });
+
   it("surfaces a pipeline failure as a structured error (never throws)", async () => {
     const tools = createTools({
       renderProjectStills: async () => {

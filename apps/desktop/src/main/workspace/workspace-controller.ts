@@ -22,7 +22,7 @@ import {
   storyboardScenesFromScenes,
 } from "./workspace-view-model.js";
 import { WorkspaceRepairTrace } from "./workspace-repair-trace.js";
-import { createLogger, serializeError, type CrawledImage, type ProjectWorkflowPolicy } from "@motionreal/pipeline";
+import { createLogger, serializeError, type AuthoringReviewRequest, type CrawledImage, type ProjectWorkflowPolicy, type ReviewArtifact } from "@motionreal/pipeline";
 import { isHealthyMediaFile, recoveryDecision, type ArtifactHealth, type RecoveryDecision } from "./workspace-recovery.js";
 import { classifyError } from "../agent/error-classifier.js";
 import { toFriendlyError } from "../redact/friendly.js";
@@ -465,8 +465,8 @@ export class WorkspaceController {
   async renderHarnessStills(
     projectId: string,
     sceneIds: string[],
-    multiFrameSceneIds?: string[],
-  ): Promise<{ ok: true; stills: string[] } | { ok: false; error: string; repairable: boolean }> {
+    reviewRequest?: AuthoringReviewRequest,
+  ): Promise<{ ok: true; stills: string[]; reviewArtifacts: ReviewArtifact[] } | { ok: false; error: string; repairable: boolean }> {
     if (this.inFlight.has(projectId)) {
       return { ok: false, error: "Project đang có tác vụ dựng khác; chưa thể render ảnh xem trước.", repairable: false };
     }
@@ -477,7 +477,7 @@ export class WorkspaceController {
         try {
           const worker = this.deps.worker;
           if (!worker.renderStills) throw new Error("Runtime chưa hỗ trợ render ảnh xem trước cho Agent.");
-          const result = await worker.renderStills(projectId, sceneIds, signal, multiFrameSceneIds);
+          const result = await worker.renderStills(projectId, sceneIds, signal, reviewRequest ? { reviewRequest } : undefined);
           if (signal?.aborted) {
             await this.recoverAfterCancel(projectId);
             resolve({ ok: false, error: "Đã dừng render ảnh xem trước.", repairable: false });
@@ -495,7 +495,7 @@ export class WorkspaceController {
             resolve({ ok: false, error: "MotionReal chưa render đủ ảnh xem trước cho các cảnh Agent.", repairable: false });
             return;
           }
-          resolve({ ok: true, stills: result.stills });
+          resolve({ ok: true, stills: result.stills, reviewArtifacts: result.reviewArtifacts ?? [] });
         } catch (error) {
           if (signal?.aborted) await this.recoverAfterCancel(projectId);
           resolve({ ok: false, error: error instanceof Error ? error.message : "Không render được ảnh xem trước cho Agent.", repairable: false });

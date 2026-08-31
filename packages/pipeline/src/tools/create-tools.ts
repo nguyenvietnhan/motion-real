@@ -158,6 +158,15 @@ export const renderStillsInput = z.object({
   sceneIds: z.array(z.string().min(1)).optional(),
   /** Scene subset that needs early/middle/late samples for semantic-motion review. */
   multiFrameSceneIds: z.array(z.string().min(1)).optional(),
+  reviewRequest: z.object({
+    reviewSceneIds: z.array(z.string().min(1)).min(1),
+    contextSceneIds: z.array(z.string().min(1)),
+    scenes: z.array(z.object({
+      sceneId: z.string().min(1),
+      temporalMode: z.enum(["static", "stepped", "continuous"]),
+      detailMode: z.enum(["normal", "fine"]),
+    }).strict()).min(1),
+  }).strict().optional(),
 });
 
 export const doctorInput = z.object({});
@@ -376,6 +385,7 @@ export function createTools(overrides: Partial<ToolDeps> = {}) {
         const res = await deps.renderProjectStills(input.projectId, {
           ...(input.sceneIds ? { sceneIds: input.sceneIds } : {}),
           ...(input.multiFrameSceneIds ? { multiFrameSceneIds: input.multiFrameSceneIds } : {}),
+          ...(input.reviewRequest ? { reviewRequest: input.reviewRequest } : {}),
           ...(onProgress ? { onProgress } : {}),
           ...(signal ? { signal } : {}),
         });

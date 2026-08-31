@@ -113,7 +113,7 @@ describe("project deletion", () => {
 });
 
 describe("Harness still-review bridge", () => {
-  it("forwards semantic multi-frame scene ids through the shared render lane", async () => {
+  it("forwards the named evidence request through the shared render lane", async () => {
     const renderStills = vi.fn(async () => ({
       stills: [
         "V:/project/review/scene-02.png",
@@ -125,13 +125,17 @@ describe("Harness still-review bridge", () => {
       worker: { renderStills } as unknown as AgentWorker,
     }));
 
-    await expect(ctrl.renderHarnessStills("p-harness", ["scene-02"], ["scene-02"]))
+    const reviewRequest = {
+      reviewSceneIds: ["scene-02"], contextSceneIds: [],
+      scenes: [{ sceneId: "scene-02", temporalMode: "stepped" as const, detailMode: "normal" as const }],
+    };
+    await expect(ctrl.renderHarnessStills("p-harness", ["scene-02"], reviewRequest))
       .resolves.toMatchObject({ ok: true });
     expect(renderStills).toHaveBeenCalledWith(
       "p-harness",
       ["scene-02"],
       expect.any(AbortSignal),
-      ["scene-02"],
+      { reviewRequest },
     );
   });
 
@@ -149,6 +153,7 @@ describe("Harness still-review bridge", () => {
     }).renderHarnessStills("p-harness", ["scene-01"])).resolves.toEqual({
       ok: true,
       stills: ["V:/project/review/scene-01.png"],
+      reviewArtifacts: [],
     });
   });
 

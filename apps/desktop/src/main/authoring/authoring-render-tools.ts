@@ -1,4 +1,4 @@
-import type { createTools, SerializedPipelineError } from "@motionreal/pipeline";
+import type { AuthoringReviewRequest, ReviewArtifact, createTools, SerializedPipelineError } from "@motionreal/pipeline";
 import type { SafetyReportView } from "../agent/repair-loop.js";
 
 type Tools = ReturnType<typeof createTools>;
@@ -64,14 +64,15 @@ export async function renderStillsWithTools(
   projectId: string,
   sceneIds?: string[],
   signal?: AbortSignal,
-  multiFrameSceneIds?: string[],
-): Promise<{ stills: string[]; error?: SerializedPipelineError }> {
+  options?: { multiFrameSceneIds?: string[]; reviewRequest?: AuthoringReviewRequest },
+): Promise<{ stills: string[]; reviewArtifacts?: ReviewArtifact[]; error?: SerializedPipelineError }> {
   await refreshAuthoredRegistry(deps, projectId);
   const res = await deps.tools.render_stills(
     {
       projectId,
       ...(sceneIds && sceneIds.length > 0 ? { sceneIds } : {}),
-      ...(multiFrameSceneIds && multiFrameSceneIds.length > 0 ? { multiFrameSceneIds } : {}),
+      ...(options?.multiFrameSceneIds?.length ? { multiFrameSceneIds: options.multiFrameSceneIds } : {}),
+      ...(options?.reviewRequest ? { reviewRequest: options.reviewRequest } : {}),
     },
     undefined,
     signal,
@@ -80,7 +81,7 @@ export async function renderStillsWithTools(
     deps.logger.error({ projectId, stage: res.error.stage, cause: res.error.cause }, "render_stills failed");
     return { stills: [], error: res.error };
   }
-  return { stills: res.data.stills };
+  return { stills: res.data.stills, ...(res.data.reviewArtifacts ? { reviewArtifacts: res.data.reviewArtifacts } : {}) };
 }
 
 export async function renderFullWithTools(
