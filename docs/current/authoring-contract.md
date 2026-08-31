@@ -211,9 +211,10 @@ For TikTok 9:16, keep primary content inside the ~18–62% content zone and leav
 the caption/platform reserve clear. The lower edge is a boundary, not a target:
 normally place the focal mass—title, hero, or key metric—around 42–46% of frame
 height, roughly two percent above the previous lower composition. Keep the top
-~18% clear of critical information where FYP/Shorts chrome may cover it. This is
-a soft composition preference—not a command to centre every scene—and deliberate
-top-aligned or asymmetric layouts remain valid. Layout checks stay advisory
+~18% clear of critical information where FYP/Shorts chrome may cover it; that
+reserve includes the eyebrow and headline, not only the lower visual anchor. This
+is a soft composition preference—not a command to centre every scene—and deliberate
+top-aligned layouts inside the content zone or asymmetric layouts remain valid. Layout checks stay advisory
 unless live code marks a class as hard render-integrity failure.
 
 The product is short-form 9:16 only; always leave the burned caption band clear.

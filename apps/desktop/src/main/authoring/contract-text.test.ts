@@ -126,6 +126,8 @@ describe("AUTHORING_CONTRACT — no-block / raw-JSX invariants", () => {
     expect(AUTHORING_CONTRACT).toMatch(/~42–46%/);
     expect(AUTHORING_CONTRACT).toMatch(/62% là GIỚI HẠN DƯỚI/);
     expect(AUTHORING_CONTRACT).toMatch(/cao hơn nhẹ khoảng 2%/);
+    expect(AUTHORING_CONTRACT).toMatch(/Top reserve áp dụng cả eyebrow\/headline/);
+    expect(AUTHORING_CONTRACT).toMatch(/top-aligned \(bên trong content-zone\)/);
     expect(AUTHORING_CONTRACT).toMatch(/không phải lệnh ép mọi cảnh vào đúng giữa/);
   });
 
