@@ -6,7 +6,6 @@ import {
   projectPaths,
   scaffoldVideoProject,
   videoToolHome,
-  type AuthoringReviewRequest,
   type ReviewArtifact,
 } from "../packages/pipeline/src/index.js";
 import type { AuthorInput } from "../apps/desktop/src/main/agent/agent-worker.js";
@@ -21,6 +20,7 @@ import {
   type VisionMessage,
 } from "../apps/desktop/src/main/authoring/prompt.js";
 import { buildContentPlanMessages } from "../apps/desktop/src/main/authoring/content-plan.js";
+import { buildEvalReviewRequest, prunePromptEvalRuns } from "./prompt-eval-support.js";
 
 type EvalCase = {
   id: string;
@@ -87,7 +87,7 @@ function promptStats(messages: VisionMessage[]) {
   };
 }
 
-function args(): { mode: "offline" | "live"; label: string; caseId?: string } {
+function args(): { mode: "offline" | "live"; label: string; retain: number; caseId?: string } {
   const raw = process.argv.slice(2);
   const modeValue = raw.find((value) => value.startsWith("--mode="))?.slice(7) ?? "offline";
   if (modeValue !== "offline" && modeValue !== "live") throw new Error("--mode phải là offline hoặc live");
@@ -96,7 +96,10 @@ function args(): { mode: "offline" | "live"; label: string; caseId?: string } {
   if (!/^[A-Za-z0-9._-]+$/.test(label)) throw new Error("--label chỉ được chứa chữ, số, dấu chấm, gạch ngang hoặc gạch dưới");
   const caseId = raw.find((value) => value.startsWith("--case="))?.slice(7)?.trim();
   if (caseId && !CASES.some((entry) => entry.id === caseId)) throw new Error(`Không có eval case "${caseId}"`);
-  return { mode: modeValue, label, ...(caseId ? { caseId } : {}) };
+  const retainRaw = raw.find((value) => value.startsWith("--retain="))?.slice(9) ?? "20";
+  const retain = Number(retainRaw);
+  if (!Number.isInteger(retain) || retain < 1 || retain > 200) throw new Error("--retain phải là số nguyên từ 1 đến 200");
+  return { mode: modeValue, label, retain, ...(caseId ? { caseId } : {}) };
 }
 
 async function main(): Promise<void> {
@@ -141,12 +144,14 @@ async function main(): Promise<void> {
     const live = await runLiveEval(root, options.label, selectedCases);
     await writeFile(output, `${JSON.stringify({ ...report, runtimeAcceptance: live.ok ? "completed" : "failed", live: live.results }, null, 2)}\n`, "utf8");
     await writeContactSheet(root, options.label, live.results);
+    await prunePromptEvalRuns(root, options.retain);
     console.log(`[prompt-eval] live report: ${output}`);
     console.log(`[prompt-eval] ${live.results.filter((result) => result.ok).length}/${selectedCases.length} cases authored and rendered to stills`);
     if (!live.ok) process.exitCode = 1;
     return;
   }
   await writeFile(output, `${JSON.stringify(report, null, 2)}\n`, "utf8");
+  await prunePromptEvalRuns(root, options.retain);
   console.log(`[prompt-eval] offline report: ${output}`);
   console.log(`[prompt-eval] ${cases.length} cases; live/runtime acceptance not run`);
 }
@@ -275,7 +280,7 @@ async function runLiveEval(
       const manifest = await loadManifest(projectId);
       semanticSceneCount = manifest.scenes.filter((scene) => Array.isArray((scene as { motionBeats?: unknown }).motionBeats)
         || /semantic\s*:/iu.test(String((scene as { motionProgression?: unknown }).motionProgression ?? ""))).length;
-      const reviewRequest = reviewRequestForEval(entry, manifest.scenes);
+      const reviewRequest = buildEvalReviewRequest(authored.contentPlan?.scenes, manifest.scenes);
       const rendered = await backend.renderStills(
         projectId,
         undefined,
@@ -332,24 +337,6 @@ async function runLiveEval(
     });
   }
   return { ok: results.every((result) => result.ok), results };
-}
-
-function reviewRequestForEval(
-  entry: EvalCase,
-  scenes: readonly { id: string; motionBeats?: readonly unknown[]; motionProgression?: string }[],
-): AuthoringReviewRequest {
-  return {
-    reviewSceneIds: scenes.map((scene) => scene.id),
-    contextSceneIds: [],
-    scenes: scenes.map((scene) => {
-      const legacySemantic = (scene.motionBeats?.length ?? 0) >= 2 || /\bsemantic\s*:/iu.test(scene.motionProgression ?? "");
-      return {
-        sceneId: scene.id,
-        temporalMode: legacySemantic ? (entry.expectedReview?.temporalMode ?? "stepped") : "static",
-        detailMode: entry.expectedReview?.detailMode ?? "normal",
-      };
-    }),
-  };
 }
 
 function countArtifactKinds(artifacts: readonly ReviewArtifact[]): Record<ReviewArtifact["kind"], number> {

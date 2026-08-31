@@ -152,10 +152,6 @@ export async function synthesizeNarration(
 
   const speed = opts.speed ?? DEFAULT_TTS_SPEED;
   throwIfAborted(opts.signal);
-  const p = projectPaths(opts.projectId);
-  await mkdir(p.audioDir, { recursive: true });
-  const cacheRoot = ttsCacheDir();
-  await mkdir(cacheRoot, { recursive: true });
 
   // Resolve voice + validate config up front (stop-and-report).
   const credentials = opts.provider === "elevenlabs"
@@ -191,6 +187,10 @@ export async function synthesizeNarration(
   const client: TtsClient | null = opts.provider === "mock"
     ? null
     : createTtsClient(opts.provider, credentials.apiKey);
+  const p = projectPaths(opts.projectId);
+  const cacheRoot = ttsCacheDir();
+  await mkdir(p.audioDir, { recursive: true });
+  await mkdir(cacheRoot, { recursive: true });
   const byScene: Record<string, TtsManifestScene> = {};
   const orderedClips: string[] = [];
 

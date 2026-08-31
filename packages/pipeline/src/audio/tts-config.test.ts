@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
+import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import type { VideoSpec } from "@motionreal/schema";
 import { serializeError } from "../errors.js";
+import { projectPaths } from "../store/store.js";
 import {
   prepareTtsText,
   resolveElevenLabsCredentials,
@@ -77,6 +81,9 @@ describe("language-aware TTS preparation", () => {
   });
 
   it("keeps missing provider configuration as a structured tts failure", async () => {
+    const home = mkdtempSync(join(tmpdir(), "mr-tts-config-"));
+    const previousHome = process.env.VIDEO_TOOL_HOME;
+    process.env.VIDEO_TOOL_HOME = home;
     const spec = {
       version: 1,
       title: "Vietnamese",
@@ -84,15 +91,22 @@ describe("language-aware TTS preparation", () => {
       language: "vi",
       scenes: [],
     } satisfies VideoSpec;
-    const error = await synthesizeNarration(spec, {
-      projectId: "missing-voice-config",
-      provider: "vivibe",
-      apiKey: "",
-      voiceId: "voice",
-    }).catch((value: unknown) => value);
-    expect(serializeError(error, "render")).toMatchObject({
-      stage: "tts",
-      voiceFailure: { provider: "vivibe", code: "not_configured" },
-    });
+    try {
+      const error = await synthesizeNarration(spec, {
+        projectId: "missing-voice-config",
+        provider: "vivibe",
+        apiKey: "",
+        voiceId: "voice",
+      }).catch((value: unknown) => value);
+      expect(serializeError(error, "render")).toMatchObject({
+        stage: "tts",
+        voiceFailure: { provider: "vivibe", code: "not_configured" },
+      });
+      expect(existsSync(projectPaths("missing-voice-config").root)).toBe(false);
+    } finally {
+      if (previousHome === undefined) delete process.env.VIDEO_TOOL_HOME;
+      else process.env.VIDEO_TOOL_HOME = previousHome;
+      rmSync(home, { recursive: true, force: true });
+    }
   });
 });

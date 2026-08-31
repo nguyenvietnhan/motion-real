@@ -227,7 +227,7 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
   async authorScenes(
     job: AuthorJob,
     signal?: AbortSignal,
-  ): Promise<{ scenes: AuthoredScene[]; message?: string; unreadableUrls?: string[]; cancelled?: boolean }> {
+  ): Promise<{ scenes: AuthoredScene[]; message?: string; unreadableUrls?: string[]; cancelled?: boolean; contentPlan?: ContentPlan }> {
     const model = this.deps.model();
     if (!model) return { scenes: [], message: "Chưa chọn model AI." };
     if (isCancelled(signal)) return { scenes: [], cancelled: true };
@@ -433,6 +433,7 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
     }));
     return {
       scenes,
+      contentPlan: plannedContent,
       ...(unreadableUrls.length > 0 ? { unreadableUrls } : {}),
       ...(researchWarning ? { sourceWarning: researchWarning } : {}),
     };

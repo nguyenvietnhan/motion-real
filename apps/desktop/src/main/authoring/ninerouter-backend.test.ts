@@ -442,6 +442,7 @@ describe("authorScenes (pure-author)", () => {
     const out = await backend.authorScenes({ projectId, input: { text: "long topic", urls: [], format: "tiktok", durationTier: 3 }, scriptGate: false });
 
     expect(out.scenes).toHaveLength(12);
+    expect(out.contentPlan?.scenes).toHaveLength(12);
     expect(chat).toHaveBeenCalledTimes(2);
     const authorText = messageText(chat.mock.calls[1]![1] as ChatMessage[]);
     expect(authorText).toContain("AI_Output_Contract");

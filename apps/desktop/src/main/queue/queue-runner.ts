@@ -22,6 +22,8 @@ export type QueueRunnerDeps = {
   /** Best-effort title after full render (manifest). */
   projectTitle?: (projectId: string) => Promise<string | undefined>;
   sleep?: (ms: number) => Promise<void>;
+  /** Monotonic-enough wall clock seam for stagnant-progress detection. */
+  now?: () => number;
   log?: (msg: string, extra?: Record<string, unknown>) => void;
   /** Queue is unattended-only; false blocks Start before retrying any job. */
   fullAutoReady?: () => boolean;
@@ -441,6 +443,10 @@ export class QueueRunner {
     | { kind: "failed"; message?: string; voiceFailure?: NonNullable<QueuePauseState["voiceFailure"]> }
     | { kind: "cancelled" }
   > {
+    const now = this.deps.now ?? Date.now;
+    const stagnantAfterMs = 45 * 60 * 1000;
+    let lastStage = "";
+    let lastChangeAt = now();
     for (;;) {
       if (this.cancelRequested) return { kind: "cancelled" };
       const stage = await this.deps.stageOf(projectId);
@@ -448,6 +454,21 @@ export class QueueRunner {
       if (classified.action === "published") return { kind: "published" };
       if (classified.action === "failed") {
         return { kind: "failed", message: classified.message, ...(classified.voiceFailure ? { voiceFailure: classified.voiceFailure } : {}) };
+      }
+      const stageFingerprint = JSON.stringify(stage);
+      if (stageFingerprint !== lastStage) {
+        lastStage = stageFingerprint;
+        lastChangeAt = now();
+      } else if (now() - lastChangeAt >= stagnantAfterMs) {
+        try {
+          this.deps.cancelProject(projectId);
+        } catch (error) {
+          this.deps.log?.("queue stagnant project cancel failed", { error: String(error), projectId });
+        }
+        return {
+          kind: "failed",
+          message: "Project không cập nhật tiến độ trong 45 phút. Tác vụ đã được dừng để hàng đợi có thể tiếp tục.",
+        };
       }
       await sleep(2000);
     }

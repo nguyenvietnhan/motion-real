@@ -750,4 +750,41 @@ describe("QueueRunner", () => {
     expect(store.pauseState()?.kind).toBe("full_auto_required");
     expect(store.get(q.id)?.jobs[0]?.status).toBe("queued");
   });
+
+  it("fails a project whose stage stops changing and continues the queue", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "mr-qrun-"));
+    const store = new QueueStore({ filePath: join(dir, "queues.json") });
+    const q = store.create("stalled");
+    store.addJob(q.id, jobInput("stalled"));
+    store.addJob(q.id, jobInput("next"));
+    const create = {
+      create: vi.fn(async (raw: string) => ({ projectId: `p-${raw}` })),
+    } as unknown as CreateController;
+    const cancelProject = vi.fn();
+    let now = 0;
+    let stalledPolls = 0;
+    const runner = new QueueRunner({
+      store,
+      create,
+      fullAutoReady: () => true,
+      createSmoke: async () => ({ ok: false as const, error: "not used" }),
+      stageOf: async (projectId) => {
+        if (projectId === "p-next") return { kind: "published", outputPath: "/out.mp4" };
+        stalledPolls++;
+        if (stalledPolls > 3) throw new Error("red-stop: waiter did not detect stagnant progress");
+        return { kind: "writing", phase: "author" };
+      },
+      cancelProject,
+      sleep: async () => { now += 46 * 60 * 1000; },
+      now: () => now,
+    });
+
+    expect(runner.start(q.id).ok).toBe(true);
+    await waitUntilIdle(runner);
+
+    expect(store.get(q.id)?.jobs.map((job) => job.status)).toEqual(["failed", "done"]);
+    expect(store.get(q.id)?.jobs[0]?.error).toMatch(/không cập nhật tiến độ/i);
+    expect(cancelProject).toHaveBeenCalledWith("p-stalled");
+    expect(create.create).toHaveBeenCalledTimes(2);
+  });
 });
