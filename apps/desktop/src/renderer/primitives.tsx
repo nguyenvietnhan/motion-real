@@ -102,16 +102,30 @@ export const ProjectGrid: React.FC<{
         const statusLabel = FRIENDLY_LABELS[c.status];
         return (
           <article key={c.projectId} className="ns-card ns-project">
-            <div className={`ns-project-thumb is-${c.format}`}>
-              {c.thumbnailPath ? (
-                <img className="ns-project-media" src={c.thumbnailPath} alt="" loading="lazy" decoding="async" />
-              ) : (
-                <span className="ns-project-placeholder" aria-hidden="true">{Icon.film({ size: 28 })}</span>
+            <button
+              type="button"
+              className="ns-project-open"
+              onClick={() => onOpen(c.projectId)}
+              aria-label={`Mở dự án ${c.title}. ${statusLabel}${c.createdAtLabel ? `. ${c.createdAtLabel}` : ""}`}
+              disabled={editing}
+            >
+              <div className={`ns-project-thumb is-${c.format}`}>
+                {c.thumbnailPath ? (
+                  <img className="ns-project-media" src={c.thumbnailPath} alt="" loading="lazy" decoding="async" />
+                ) : (
+                  <span className="ns-project-placeholder" aria-hidden="true">{Icon.film({ size: 28 })}</span>
+                )}
+                <span className="ns-project-dot" style={{ background: STATUS_COLOR[c.status] }} title={statusLabel} aria-hidden="true" />
+              </div>
+              {!editing && (
+                <span className="ns-project-body">
+                  <strong className="ns-project-title" title={c.title}>{c.title}</strong>
+                  {c.createdAtLabel && <span className="ns-project-date">{c.createdAtLabel}</span>}
+                </span>
               )}
-              <span className="ns-project-dot" style={{ background: STATUS_COLOR[c.status] }} title={statusLabel} aria-hidden="true" />
-            </div>
-            <div className="ns-project-body">
-              {editing ? (
+            </button>
+            {editing && (
+              <div className="ns-project-body">
                 <input
                   className="ns-input ns-project-title-input"
                   value={renameDraft}
@@ -126,18 +140,9 @@ export const ProjectGrid: React.FC<{
                     if (e.key === "Escape") cancelRename();
                   }}
                 />
-              ) : (
-                <strong className="ns-project-title" title={c.title}>{c.title}</strong>
-              )}
-              {c.createdAtLabel && <span className="ns-project-date">{c.createdAtLabel}</span>}
-            </div>
-            <button
-              type="button"
-              className="ns-project-open"
-              onClick={() => { if (!editing) onOpen(c.projectId); }}
-              aria-label={`Mở dự án ${c.title}. ${statusLabel}${c.createdAtLabel ? `. ${c.createdAtLabel}` : ""}`}
-              disabled={editing}
-            />
+                {c.createdAtLabel && <span className="ns-project-date">{c.createdAtLabel}</span>}
+              </div>
+            )}
             {(onReveal || onDelete || onRename) && (
               <div className="ns-project-actions">
                 {onRename && (

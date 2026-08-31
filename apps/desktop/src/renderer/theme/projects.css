@@ -273,24 +273,21 @@
   color: #fff;
 }
 .ns-project-body {
-  position: relative;
-  z-index: 3;
-  pointer-events: none;
   padding: 14px 16px 16px;
   display: flex;
   flex-direction: column;
   gap: 6px;
 }
 .ns-project-open {
-  position: absolute;
-  inset: 0;
-  z-index: 1;
+  display: block;
   width: 100%;
-  height: 100%;
   padding: 0;
   border: 0;
   border-radius: inherit;
   background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
   cursor: pointer;
 }
 .ns-project-open:disabled {

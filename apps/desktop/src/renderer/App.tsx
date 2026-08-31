@@ -26,6 +26,20 @@ import { EMPTY_QUEUE_STATUS } from "./views/queue.js";
 import { compactNotificationMessage, errorDetails, NotificationProvider, useNotifications } from "./notifications.js";
 import { ConfirmDialog } from "./primitives.js";
 
+export type GalleryProjectOpenTarget =
+  | { kind: "agent-draft"; draftId: string }
+  | { kind: "agent-project"; projectId: string }
+  | { kind: "workspace"; projectId: string };
+
+export function galleryProjectOpenTarget(
+  projectId: string,
+  card: ProjectCardVM | undefined,
+): GalleryProjectOpenTarget {
+  if (card?.creationMode !== "harness") return { kind: "workspace", projectId };
+  if (card.agentDraftId) return { kind: "agent-draft", draftId: card.agentDraftId };
+  return { kind: "agent-project", projectId };
+}
+
 /**
  * Renderer root — enterprise shell: a left Sidebar + a content
  * area, Home-first. AI status lives in the sidebar; login is delegated to
@@ -257,9 +271,13 @@ const AppShell: React.FC = () => {
 
   const openProject = (projectId: string) => {
     const card = galleryCardsRef.current.find((item) => item.projectId === projectId);
-    if (card?.creationMode === "harness") {
+    const target = galleryProjectOpenTarget(projectId, card);
+    if (target.kind !== "workspace") {
       if (!dash) return;
-      void dash.agent.openProject(projectId).then((draft) => {
+      const draftRequest = target.kind === "agent-draft"
+        ? dash.agent.openDraft(target.draftId)
+        : dash.agent.openProject(target.projectId);
+      void draftRequest.then((draft) => {
         setAgentEntryDraft(draft);
         setScreen("agent");
       }).catch((error: unknown) => {
@@ -268,7 +286,7 @@ const AppShell: React.FC = () => {
       });
       return;
     }
-    setOpenProjectId(projectId);
+    setOpenProjectId(target.projectId);
     setStage({ kind: "writing" });
     setScreen("workspace");
   };
