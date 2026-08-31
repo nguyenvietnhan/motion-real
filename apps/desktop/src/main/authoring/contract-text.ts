@@ -42,7 +42,7 @@ TỰ DỰNG MỌI THỨ (KHÔNG có block dựng sẵn): viết toàn bộ cản
 SVG được dùng <defs> nội bộ với fill/stroke/marker/filter kiểu url(#id). KHÔNG dùng url(http...), url(file...), data:, blob: hay ảnh ngoài.
 
 LAYOUT ZONES:
-- Nội dung chính ở content-zone trung tâm-thấp (~18–62% chiều cao). Ưu tiên đặt focal mass (title/hero/số liệu chính) quanh trung tâm thị giác, thấp hơn phần đỉnh; đừng dồn eyebrow/title/hero vào khoảng 18% đầu khung vì UI FYP/Shorts có thể che. Đây là hướng dẫn bố cục mềm, không phải lệnh ép mọi cảnh vào đúng giữa; chỉ đặt sát đỉnh khi có ý đồ thị giác rõ ràng.
+- Nội dung chính vẫn ở content-zone ~18–62% chiều cao, nhưng 62% là GIỚI HẠN DƯỚI chứ không phải vị trí cần lấp đầy. Thường đặt tâm của focal mass (title/hero/số liệu chính) quanh ~40–44% chiều cao khung — cao hơn nhẹ khoảng 4% so với bố cục dồn thấp — và phân bố cụm nội dung quanh mốc đó. Đừng dồn eyebrow/title/hero vào khoảng 18% đầu khung vì UI FYP/Shorts có thể che. Đây là hướng dẫn bố cục mềm, không phải lệnh ép mọi cảnh vào đúng giữa; bố cục top-aligned hoặc bất đối xứng vẫn hợp lệ khi có ý đồ thị giác rõ ràng.
 - Chừa dải phụ đề (~64–84%) + UI reserve (đáy ~16%) TRỐNG cho phụ đề karaoke + UI nền tảng — đừng đặt nội dung quan trọng sát đáy.
 - Giữ nội dung chính PHÍA TRÊN dải phụ đề; tràn xuống là cảnh báo N14 (advisory — KHÔNG chặn render), nhưng vẫn nên tránh để phụ đề đọc rõ. (Không có đường kẻ nào do hệ thống vẽ; cần ngăn cách thì tự dùng khoảng trắng/viền tự vẽ/đổi nền.)
 - Cân bằng vùng: cảnh chỉ một tiêu đề + một dòng đọc TRỐNG/đầu nặng; cho beat thưa một mỏ neo (số lớn/đồ hoạ nhỏ).
@@ -62,6 +62,7 @@ CAPTIONS: phụ đề tiếng Việt một dòng sinh TRUNG TÂM từ narration 
 
 DETERMINISM + MOTION: Dùng useCurrentFrame() và durationInFrames (từ SceneComponentProps top-level) để tính tiến trình cục bộ của cảnh, rồi dựng motion theo progress này:
 const frame = useCurrentFrame();
+const { fps } = useVideoConfig();
 const progress = durationInFrames > 1 ? Math.min(1, Math.max(0, frame / (durationInFrames - 1))) : 1;
 MOTION TEMPO: Mặc định an toàn là quick entrance 0.2–0.8 giây rồi readable hold. Đừng kéo mọi animation ra hết durationInFrames và cũng đừng bịa motion phức tạp chỉ để cảnh luôn động.
 1) quick entrance/reveal/pop: dùng cho title, label, card, marker, icon xuất hiện. Công thức an toàn: const enterEnd = Math.max(1, Math.round(fps * 0.45)); rồi interpolate(frame, [0, enterEnd], [0, 1], { extrapolateRight: "clamp" }).

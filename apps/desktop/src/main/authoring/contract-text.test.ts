@@ -108,9 +108,11 @@ describe("AUTHORING_CONTRACT — no-block / raw-JSX invariants", () => {
     expect(AUTHORING_CONTRACT).toMatch(/Không có đường kẻ nào do hệ thống vẽ/);
   });
 
-  it("places the primary visual mass lower, around the optical centre, without a hard layout gate", () => {
-    expect(AUTHORING_CONTRACT).toMatch(/content-zone trung tâm-thấp/);
-    expect(AUTHORING_CONTRACT).toMatch(/trung tâm thị giác/);
+  it("places the primary visual mass slightly above the old low composition without a hard layout gate", () => {
+    expect(AUTHORING_CONTRACT).toMatch(/content-zone ~18–62%/);
+    expect(AUTHORING_CONTRACT).toMatch(/~40–44%/);
+    expect(AUTHORING_CONTRACT).toMatch(/62% là GIỚI HẠN DƯỚI/);
+    expect(AUTHORING_CONTRACT).toMatch(/cao hơn nhẹ khoảng 4%/);
     expect(AUTHORING_CONTRACT).toMatch(/không phải lệnh ép mọi cảnh vào đúng giữa/);
   });
 

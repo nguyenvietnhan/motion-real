@@ -17,24 +17,14 @@ Mỗi scene trong manifest BẮT BUỘC có field "component". KHÔNG dùng "sce
 // component: id-canh
 import React from "react";
 import { z } from "zod";
-import { useCurrentFrame, interpolate, useVideoConfig } from "remotion";
 import { registerComponent, type SceneComponentProps } from "@motionreal/compositions";
 export const schema = z.object({ /* props */ });
 type Props = z.infer<typeof schema>;
-const Scene: React.FC<SceneComponentProps<Props>> = ({ headline, eyebrow, durationInFrames }) => {
-  const frame = useCurrentFrame();
-  const { fps } = useVideoConfig();
-  const enterEnd = Math.max(1, Math.round(fps * 0.45));
-  const enter = interpolate(frame, [0, enterEnd], [0, 1], { extrapolateRight: "clamp" });
-  const y = interpolate(frame, [0, enterEnd], [24, 0], { extrapolateRight: "clamp" });
+const Scene: React.FC<SceneComponentProps<Props>> = ({ headline }) => {
   return (
-    <div style={{ position: "absolute", inset: 0, background: "transparent", display: "flex", flexDirection: "column", justifyContent: "center", padding: 80, opacity: enter, transform: \`translateY(\${y}px)\` }}>
-      <span style={{ fontSize: 28, letterSpacing: 4, color: "#7dd3fc" }}>{eyebrow ?? "TIN"}</span>
-      <h1 style={{ fontSize: 96, lineHeight: 1.05, color: "#fff", margin: 0, fontWeight: 800 }}>{headline}</h1>
-      <svg width="720" height="160" viewBox="0 0 720 160" style={{ marginTop: 40 }}>
-        <path d="M24 120 C180 20 360 20 696 88" stroke="#7dd3fc" strokeWidth="12" fill="none" strokeLinecap="round" />
-        <circle cx="696" cy="88" r="18" fill="#7dd3fc" opacity="0.45" />
-      </svg>
+    <div style={{ position: "absolute", inset: 0, background: "transparent" }}>
+      {/* Tự dựng bố cục, typography, đồ hoạ và motion phù hợp riêng với beat này. */}
+      <div>{headline}</div>
     </div>
   );
 };
@@ -59,16 +49,15 @@ Khung module tối thiểu:
 // component: id-canh
 import React from "react";
 import { z } from "zod";
-import { useCurrentFrame, interpolate, useVideoConfig } from "remotion";
 import { registerComponent, type SceneComponentProps } from "@motionreal/compositions";
 export const schema = z.object({});
 type Props = z.infer<typeof schema>;
-const Scene: React.FC<SceneComponentProps<Props>> = ({ headline, eyebrow, durationInFrames }) => {
-  const frame = useCurrentFrame();
-  const { fps } = useVideoConfig();
-  const enter = interpolate(frame, [0, Math.max(1, Math.round(fps * 0.45))], [0, 1], { extrapolateRight: "clamp" });
-  return <div style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", opacity: enter }}><h1>{headline}</h1><p>{eyebrow}</p></div>;
-};
+const Scene: React.FC<SceneComponentProps<Props>> = ({ headline }) => (
+  <div style={{ position: "absolute", inset: 0, background: "transparent" }}>
+    {/* Tự dựng hình thức riêng cho scene trong batch này. */}
+    <div>{headline}</div>
+  </div>
+);
 export const example: Props = {};
 export default registerComponent<Props>({ id: "id-canh", displayName: "Scene", promptGuide: "Fresh authored scene", schema, Component: Scene, example });
 \`\`\``;

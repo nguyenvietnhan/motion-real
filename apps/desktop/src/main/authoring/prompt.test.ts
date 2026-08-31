@@ -51,8 +51,8 @@ function expectContainsInOrder(text: string, anchors: string[]): void {
 const PROMPT_SIZE_BASELINES = {
   mainAuthor: 19539,
   tsxBatch: 19056,
-  missingTsxRecovery: 12201,
-  reauthor: 12482,
+  missingTsxRecovery: 13483,
+  reauthor: 13818,
   visualQa: 1305,
 } as const;
 
@@ -715,12 +715,12 @@ describe("buildAuthorMessages", () => {
     expect(text).toMatch(/chỉ minh hoạ CẤU TRÚC|KHÔNG phải mẫu thẩm mỹ/);
   });
 
-  it("keeps the main TSX example on the safe quick-entrance default", () => {
+  it("keeps the main TSX example technical and aesthetically neutral", () => {
     const [sys] = buildAuthorMessages({ text: "Chủ đề bất kỳ", urls: [] });
     const text = sys!.content;
 
-    expect(text).toMatch(/const enterEnd = Math\.max\(1, Math\.round\(fps \* 0\.45\)\)/);
-    expect(text).toMatch(/const y = interpolate\(frame, \[0, enterEnd\], \[24, 0\]/);
+    expect(text).not.toMatch(/fontSize: 96|#7dd3fc|justifyContent: "center"|placeItems: "center"/);
+    expect(text).not.toMatch(/const y = interpolate\(frame, \[0, enterEnd\]/);
     expect(text).not.toMatch(/const lineDraw =/);
     expect(text).not.toMatch(/const pulse =/);
   });
