@@ -443,6 +443,7 @@ describe("buildMissingTsxRecoveryMessages", () => {
     expect(text).toContain("registerComponent id khớp");
     expect(text).not.toContain("CONTENT PLAN ĐÃ DUYỆT");
     expect(text).not.toContain("Yêu cầu gốc của người dùng");
+    expect(text).not.toMatch(/ART DIRECTION CẢ VIDEO|VISUALIZE SÁNG TẠO|DÁM VẼ ẨN DỤ/);
   });
 });
 
@@ -873,15 +874,25 @@ describe("buildReauthorMessages", () => {
     expect(msgs[0]!.content as string).toMatch(/BẢO TOÀN/);
     expect(msgs[0]!.content as string).toMatch(/VÁ ĐÚNG LỖI/);
     expect(msgs[0]!.content as string).toMatch(/TỰ KIỂM/);
-    expect(msgs[0]!.content as string).toMatch(/KHÔNG được thay cảnh bằng title-card/);
+    expect(msgs[0]!.content as string).toMatch(/KHÔNG thay cảnh bằng title-card/);
     expect(msgs[0]!.content as string).toMatch(/khai báo biến thiếu/);
-    expect(msgs[0]!.content as string).toMatch(/KHÔNG coi sở thích màu\/gu\/thẩm mỹ là lỗi cứng/);
+    expect(msgs[0]!.content as string).toMatch(/Sở thích màu\/gu không phải lỗi kỹ thuật cứng/);
     const user = msgs[1]!;
     expect(typeof user.content).toBe("string");
     const text = user.content as string;
     expect(text).toContain("hook-eye");
     expect(text).toContain("bị cắt chữ");
     expect(text).toContain(base.currentCode);
+  });
+
+  it("keeps repair focused and at least 30% shorter than the pre-split baseline", () => {
+    const messages = buildReauthorMessages({
+      ...base,
+      issues: [{ check: "N14", severity: "error", message: "tràn vùng" }],
+    });
+    const system = messages[0]!.content as string;
+    expect(system).not.toMatch(/ART DIRECTION CẢ VIDEO|VISUALIZE SÁNG TẠO|DÁM VẼ ẨN DỤ/);
+    expect(promptText(messages).length).toBeLessThanOrEqual(Math.floor(13_818 * 0.7));
   });
 
   it("carries the same soft motion direction into user-requested scene rewrites", () => {

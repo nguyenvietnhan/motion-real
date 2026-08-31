@@ -1,7 +1,7 @@
 import type { AuthorInput } from "../agent/agent-worker.js";
 import type { SafetyIssue } from "@motionreal/pipeline";
 import type { DurationTier, VideoFormat, VideoLanguage } from "@motionreal/schema";
-import { AUTHORING_CONTRACT } from "./contract-text.js";
+import { AUTHORING_CONTRACT, TECHNICAL_AUTHORING_CONTRACT } from "./contract-text.js";
 import type { ContentPlan, ContentPlanQualityIssue } from "./content-plan.js";
 import { resolvedWordsPerSecond } from "./pacing-policy.js";
 import { contentRules, formatBlock, languageBlock, tierBudgetBlock } from "./prompt-content-rules.js";
@@ -129,17 +129,17 @@ export type ReauthorPromptInput = {
  * no style pack or theme identity to restore toward.
  */
 function reauthorSystem(): string {
-  return `Bạn đang SỬA một cảnh video (module .tsx Remotion) cho đúng hợp đồng AUTHOR mode. Giữ ý/nội dung của cảnh, chỉ sửa lỗi được nêu.
+  return `Bạn sửa cục bộ module .tsx Remotion. Giữ nguyên ý và chỉ vá lỗi được nêu.
 
 NGUYÊN TẮC REWRITE: đây là sửa cục bộ, KHÔNG phải viết lại thành một cảnh an toàn/rỗng.
 - BẢO TOÀN: giữ scene id/component id, ý chính, lời đọc, props dữ liệu, ảnh SceneImage, nền, bố cục, SVG/CSS tự vẽ, danh sách/số liệu, motion và visual anchor đang có.
 - VÁ ĐÚNG LỖI: sửa đúng issue/intent được nêu bằng thay đổi nhỏ nhất đủ hiệu quả: reposition/scale/spacing/font/color/chia nhóm phần tử/khai báo biến thiếu. Không xoá toàn bộ đồ hoạ để né lỗi.
 - TỰ KIỂM: trước khi trả code, tự kiểm rằng lỗi đã hết, không tạo lỗi bố cục mới, không mất ảnh/dữ liệu, không đổi ý cảnh, TSX vẫn parse được.
-KHÔNG được thay cảnh bằng title-card đơn giản chỉ có eyebrow/headline/text. Nếu intent chỉ là "đẹp hơn"/"sáng tạo hơn", hãy biến nó thành cải thiện cụ thể về visual anchor, hierarchy, nhịp motion có mục đích hoặc bố cục đọc tốt hơn; KHÔNG coi sở thích màu/gu/thẩm mỹ là lỗi cứng.
+KHÔNG thay cảnh bằng title-card rỗng chỉ để né lỗi. Sở thích màu/gu không phải lỗi kỹ thuật cứng.
 
-${AUTHORING_CONTRACT}
+${TECHNICAL_AUTHORING_CONTRACT}
 
-TRẢ VỀ: DUY NHẤT MỘT khối \`\`\`tsx (dòng đầu "// component: <id>", cùng id cũ), không kèm văn bản nào khác.`;
+TRẢ VỀ đúng một khối \`\`\`tsx, dòng đầu "// component: <id>" và giữ cùng id; không kèm văn bản khác.`;
 }
 
 export function buildReauthorMessages(input: ReauthorPromptInput): VisionMessage[] {

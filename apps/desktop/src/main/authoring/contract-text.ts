@@ -2,12 +2,12 @@
  * The pure-AUTHOR contract, inlined. A condensed
  * but faithful version of `docs/current/authoring-contract.md` — inlined as a
  * constant so the bundled Electron main never reads it from disk (deterministic,
- * no fs in the hot path). Embedded into the author + reauthor prompts so the AI
- * writes `.tsx` scene modules that pass the admission gate (N4/N5) and look
- * on-brand. Keep this in sync with `docs/current/authoring-contract.md` when the contract changes.
+ * no fs in the hot path). Initial authoring receives both the technical and
+ * creative sections; targeted repair receives only the technical invariants.
+ * Keep this in sync with `docs/current/authoring-contract.md` when the contract changes.
  */
 
-export const AUTHORING_CONTRACT = `HỢP ĐỒNG VIẾT CẢNH (AUTHOR mode — KHÔNG CÓ THƯ VIỆN BLOCK) — mỗi cảnh là MỘT module .tsx Remotion bạn TỰ VIẾT MỚI 100% bằng JSX/SVG trần.
+const TECHNICAL_CORE = `HỢP ĐỒNG VIẾT CẢNH (AUTHOR mode — KHÔNG CÓ THƯ VIỆN BLOCK) — mỗi cảnh là MỘT module .tsx Remotion bạn TỰ VIẾT MỚI 100% bằng JSX/SVG trần.
 
 EXPORT BẮT BUỘC (mọi module):
 - import React from "react"; import { z } from "zod";
@@ -45,16 +45,16 @@ LAYOUT ZONES:
 - Nội dung chính vẫn ở content-zone ~18–62% chiều cao, nhưng 62% là GIỚI HẠN DƯỚI chứ không phải vị trí cần lấp đầy. Thường đặt tâm của focal mass (title/hero/số liệu chính) quanh ~40–44% chiều cao khung — cao hơn nhẹ khoảng 4% so với bố cục dồn thấp — và phân bố cụm nội dung quanh mốc đó. Đừng dồn eyebrow/title/hero vào khoảng 18% đầu khung vì UI FYP/Shorts có thể che. Đây là hướng dẫn bố cục mềm, không phải lệnh ép mọi cảnh vào đúng giữa; bố cục top-aligned hoặc bất đối xứng vẫn hợp lệ khi có ý đồ thị giác rõ ràng.
 - Chừa dải phụ đề (~64–84%) + UI reserve (đáy ~16%) TRỐNG cho phụ đề karaoke + UI nền tảng — đừng đặt nội dung quan trọng sát đáy.
 - Giữ nội dung chính PHÍA TRÊN dải phụ đề; tràn xuống là cảnh báo N14 (advisory — KHÔNG chặn render), nhưng vẫn nên tránh để phụ đề đọc rõ. (Không có đường kẻ nào do hệ thống vẽ; cần ngăn cách thì tự dùng khoảng trắng/viền tự vẽ/đổi nền.)
-- Cân bằng vùng: cảnh chỉ một tiêu đề + một dòng đọc TRỐNG/đầu nặng; cho beat thưa một mỏ neo (số lớn/đồ hoạ nhỏ).
+- Cân bằng vùng: cảnh chỉ một tiêu đề + một dòng đọc TRỐNG/đầu nặng; cho beat thưa một mỏ neo (số lớn/đồ hoạ nhỏ).`;
 
-ART DIRECTION CẢ VIDEO — trước khi viết code, TỰ CHỌN NGẦM ngôn ngữ thị giác đúng chủ đề: nền sâu nhưng lùi, palette hẹp (nền/chữ/accent), motif mảnh, typography/khoảng thở. Giữ nó xuyên video; KHÔNG đổi style vô cớ hay sao chép palette/diện mạo của thương hiệu/video có sẵn.
+const CREATIVE_COMPOSITION = `ART DIRECTION CẢ VIDEO — trước khi viết code, TỰ CHỌN NGẦM ngôn ngữ thị giác đúng chủ đề: nền sâu nhưng lùi, palette hẹp (nền/chữ/accent), motif mảnh, typography/khoảng thở. Giữ nó xuyên video; KHÔNG đổi style vô cớ hay sao chép palette/diện mạo của thương hiệu/video có sẵn.
 - Mỗi cảnh là MỘT bố cục biên tập có focal structure rõ (evidence, timeline, process, comparison, metric, diagram, metaphor), không mặc định "eyebrow + headline + card + ảnh trong khung". Chi tiết phụ phải làm rõ focal structure; dùng khoảng trống có chủ đích.
 - Hook, điểm ngoặt và payoff cần signature beat bespoke; cảnh giải thích yên hơn nhưng vẫn có visual anchor. Đa dạng layout trong cùng ngôn ngữ đó, không lặp shell/panel/HUD.
 - Asset thật là evidence/subject trong bố cục, không mặc định ảnh trong card; logo/icon chỉ là accent.
 
-DESIGN — BẠN TỰ DO quyết định TOÀN BỘ hình ảnh ngay trong code cảnh: tự chọn màu, nền, gradient, bố cục, bo góc, font, đồ hoạ SVG/CSS. HARDCODE tất cả — không có theme/token nào để đọc nữa. Mỗi cảnh tự dựng từ <div>+<svg> trần. Ưu tiên hierarchy cao, tương phản dễ đọc (N18) và nội dung nằm trong content-zone (mục LAYOUT ZONES ở trên).
+DESIGN — BẠN TỰ DO quyết định TOÀN BỘ hình ảnh ngay trong code cảnh: tự chọn màu, nền, gradient, bố cục, bo góc, font, đồ hoạ SVG/CSS. HARDCODE tất cả — không có theme/token nào để đọc nữa. Mỗi cảnh tự dựng từ <div>+<svg> trần. Ưu tiên hierarchy cao, tương phản dễ đọc (N18) và nội dung nằm trong content-zone (mục LAYOUT ZONES ở trên).`;
 
-CỠ CHỮ (canvas 1080×1920, xem trên điện thoại — chữ nhỏ là lỗi hay gặp nhất): tiêu đề chính ≥ 64px; câu/đoạn nội dung chính ≥ 40px; nhãn/đơn vị/chú thích phụ ≥ 24px. TUYỆT ĐỐI không để text dưới 18px (không đọc nổi). Số liệu nổi bật nên RẤT lớn (80–160px). Khi nghi ngờ, để chữ TO hơn — ưu tiên ít chữ + lớn hơn nhiều chữ + nhỏ.
+const TECHNICAL_RUNTIME = `CỠ CHỮ (canvas 1080×1920, xem trên điện thoại — chữ nhỏ là lỗi hay gặp nhất): tiêu đề chính ≥ 64px; câu/đoạn nội dung chính ≥ 40px; nhãn/đơn vị/chú thích phụ ≥ 24px. TUYỆT ĐỐI không để text dưới 18px (không đọc nổi). Số liệu nổi bật nên RẤT lớn (80–160px). Khi nghi ngờ, để chữ TO hơn — ưu tiên ít chữ + lớn hơn nhiều chữ + nhỏ.
 
 CHỮ TRÊN CẢNH ≠ LỜI ĐỌC (lỗi hay gặp: bê NGUYÊN câu narration lên màn hình). Cả câu đầy đủ đã chạy ở phụ đề karaoke đáy khung rồi — nên chữ VẼ trên cảnh chỉ là Ý CHÍNH cô đọng: headline là một CỤM ngắn (≈3–7 từ), không phải cả câu; body/nhãn chỉ vài từ khoá. KHÔNG chép cả narration vào headline/body/Panel. Một cảnh chỉ nên có một-hai mẩu chữ to, KHÔNG phải một đoạn văn nhỏ. Để phụ đề kể câu đầy đủ; màn hình giữ thoáng.
 
@@ -68,9 +68,9 @@ MOTION TEMPO: Mặc định an toàn là quick entrance 0.2–0.8 giây rồi re
 1) quick entrance/reveal/pop: dùng cho title, label, card, marker, icon xuất hiện. Công thức an toàn: const enterEnd = Math.max(1, Math.round(fps * 0.45)); rồi interpolate(frame, [0, enterEnd], [0, 1], { extrapolateRight: "clamp" }).
 2) semantic progression: chỉ dùng progress dài khi NỘI DUNG thật sự tiến triển qua cảnh — vẽ line/path/chart, process/timeline, before-after, focus shift, map movement, cause/effect. Công thức an toàn: dùng progress đã clamp trong [0, 1], rồi inputRange cũng nằm trong [0, 1], ví dụ interpolate(progress, [0.2, 0.72], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" }). Cho final hold sau khi beat chính đã land; final hold là hợp lệ.
 3) continuous living motion: chỉ dùng cho wave, shimmer, pulse, signal flow, walking cycle, orbit, vibration nhẹ, ambient depth. Được dùng loop deterministic bằng phase/period sau khi entrance đã settle, ví dụ periodFrames = Math.max(1, Math.round(fps * 1.2)); phase = ((Math.max(0, frame - enterEnd)) % periodFrames) / periodFrames. Chuyển động phải nhỏ, bounded, có chủ đích, không layout shift lớn, không che chữ.
-Nếu CONTENT PLAN có motionProgression, xem nó là gợi ý sáng tạo, không phải lệnh bắt mọi cảnh có nhiều tầng motion. Quick entrance + readable final hold luôn hợp lệ cho statement beat. Tự viết hoạt hoạ bằng useCurrentFrame() + spring()/interpolate() của remotion (KHÔNG có hook block nào nữa — không useReveal/useRamp/useTilt), giữ chuyển động mượt, có mục đích và deterministic. Với interpolate, inputRange PHẢI tăng dần nghiêm ngặt; KHÔNG dùng durationInFrames - N làm mốc cuối nếu nó có thể âm hoặc bằng mốc đầu — hãy bọc bằng Math.max(1, durationInFrames - N) hoặc dùng progress [0, 1]. KHÔNG viết vòng góc kiểu [340, 360, 60] — hãy tách thành hai interpolate có clamp (340→360 và 0→60) hoặc chuẩn hoá góc trước.
+Nếu CONTENT PLAN có motionProgression, xem nó là gợi ý sáng tạo, không phải lệnh bắt mọi cảnh có nhiều tầng motion. Quick entrance + readable final hold luôn hợp lệ cho statement beat. Tự viết hoạt hoạ bằng useCurrentFrame() + spring()/interpolate() của remotion (KHÔNG có hook block nào nữa — không useReveal/useRamp/useTilt), giữ chuyển động mượt, có mục đích và deterministic. Với interpolate, inputRange PHẢI tăng dần nghiêm ngặt; KHÔNG dùng durationInFrames - N làm mốc cuối nếu nó có thể âm hoặc bằng mốc đầu — hãy bọc bằng Math.max(1, durationInFrames - N) hoặc dùng progress [0, 1]. KHÔNG viết vòng góc kiểu [340, 360, 60] — hãy tách thành hai interpolate có clamp (340→360 và 0→60) hoặc chuẩn hoá góc trước.`;
 
-ĐA DẠNG HÌNH THỨC + VISUALIZE SÁNG TẠO (QUAN TRỌNG — lỗi hay gặp nhất là MỌI cảnh chỉ là một tiêu đề + một panel chữ ở giữa, video nào cũng một khuôn). Đừng chỉ ĐẶT CHỮ lên cảnh — hãy BIẾN Ý của cảnh thành HÌNH: tự vẽ đồ hoạ/sơ đồ/ẩn dụ thị giác riêng cho nội dung đó bằng SVG/CSS. Mỗi cảnh CHỌN cách trình bày theo KIỂU nội dung; khi ý có chủ thể cụ thể, ưu tiên một hình tự vẽ hơn là thêm một hộp chữ. Bản đồ nội dung → hình thức (gợi ý, KHÔNG phải khuôn buộc):
+const CREATIVE_VISUALIZATION = `ĐA DẠNG HÌNH THỨC + VISUALIZE SÁNG TẠO (QUAN TRỌNG — lỗi hay gặp nhất là MỌI cảnh chỉ là một tiêu đề + một panel chữ ở giữa, video nào cũng một khuôn). Đừng chỉ ĐẶT CHỮ lên cảnh — hãy BIẾN Ý của cảnh thành HÌNH: tự vẽ đồ hoạ/sơ đồ/ẩn dụ thị giác riêng cho nội dung đó bằng SVG/CSS. Mỗi cảnh CHỌN cách trình bày theo KIỂU nội dung; khi ý có chủ thể cụ thể, ưu tiên một hình tự vẽ hơn là thêm một hộp chữ. Bản đồ nội dung → hình thức (gợi ý, KHÔNG phải khuôn buộc):
 - Con số/chỉ số THẬT (%, tiền, lượng) → số RẤT lớn (80–160px, tự dựng bằng <div> chữ to + đếm lên bằng interpolate), hoặc TỰ VẼ con số thành hình: vòng tròn tiến trình, cột/thanh tỉ lệ, lưới chấm "x trên 100", kim đồng hồ đo. KHÔNG nhét số vào câu chữ thường.
 - So sánh A với B / trước-sau / hai phe → HAI CỘT cạnh nhau (hai <div> khung tự dựng song song trong một flex row, mỗi bên một nhãn), hoặc tự vẽ đối lập trực quan: hai thanh dài-ngắn, hai vòng to-nhỏ, một mũi tên trước→sau, cán cân nghiêng.
 - Quá trình/các bước/dòng thời gian → chuỗi bước DỌC/NGANG có số thứ tự + mũi tên nối, hoặc tự vẽ một timeline/luồng (node nối bằng đường) thay cho list chữ.
@@ -83,3 +83,7 @@ LUẬT CHỐNG LẶP (đếm được, tự kiểm trước khi trả về):
 2) Trong toàn video, một video 9–12 cảnh nên dùng ÍT NHẤT 3 dạng bố cục khác nhau VÀ có ÍT NHẤT 1–2 cảnh mang đồ hoạ/ẩn dụ TỰ VẼ (SVG/CSS), không phải toàn cảnh card chữ (vd: vài cảnh tiêu đề, ≥1 cảnh số lớn, ≥1 cảnh hai-cột hoặc list, ≥1 beat hình tự vẽ).
 3) Số lớn/đếm-lên chỉ cho số THẬT có trong tư liệu — không có số thật thì đừng bịa ra để "có dạng stat".
 Text/list thuần là lựa chọn CÓ CHỦ ĐÍCH cho nội dung chữ, KHÔNG phải khuôn mặc định cho mọi cảnh.`;
+
+export const TECHNICAL_AUTHORING_CONTRACT = `${TECHNICAL_CORE}\n\n${TECHNICAL_RUNTIME}`;
+export const CREATIVE_AUTHORING_DIRECTION = `${CREATIVE_COMPOSITION}\n\n${CREATIVE_VISUALIZATION}`;
+export const AUTHORING_CONTRACT = `${TECHNICAL_AUTHORING_CONTRACT}\n\n${CREATIVE_AUTHORING_DIRECTION}`;

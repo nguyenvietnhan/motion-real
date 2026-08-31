@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { AUTHORING_CONTRACT } from "./contract-text.js";
+import {
+  AUTHORING_CONTRACT,
+  CREATIVE_AUTHORING_DIRECTION,
+  TECHNICAL_AUTHORING_CONTRACT,
+} from "./contract-text.js";
 
 /**
  * block removal — the inlined AUTHORING_CONTRACT is the text the model
@@ -10,6 +14,15 @@ import { AUTHORING_CONTRACT } from "./contract-text.js";
  * contract IN so a future edit can't silently re-introduce the block crutch.
  */
 describe("AUTHORING_CONTRACT — no-block / raw-JSX invariants", () => {
+  it("keeps technical invariants separate from broad creative direction", () => {
+    expect(TECHNICAL_AUTHORING_CONTRACT).toMatch(/EXPORT BẮT BUỘC|IMPORT WHITELIST/);
+    expect(TECHNICAL_AUTHORING_CONTRACT).toMatch(/LAYOUT ZONES|DETERMINISM \+ MOTION/);
+    expect(TECHNICAL_AUTHORING_CONTRACT).not.toMatch(/ART DIRECTION CẢ VIDEO|VISUALIZE SÁNG TẠO/);
+    expect(CREATIVE_AUTHORING_DIRECTION).toMatch(/ART DIRECTION CẢ VIDEO|VISUALIZE SÁNG TẠO/);
+    expect(AUTHORING_CONTRACT).toContain(TECHNICAL_AUTHORING_CONTRACT);
+    expect(AUTHORING_CONTRACT).toContain(CREATIVE_AUTHORING_DIRECTION);
+  });
+
   it("keeps hard safety/module sections before visual ambition guidance", () => {
     const importIndex = AUTHORING_CONTRACT.indexOf("IMPORT WHITELIST");
     const syntaxIndex = AUTHORING_CONTRACT.indexOf("CÚ PHÁP TSX BẮT BUỘC");

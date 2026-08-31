@@ -1,5 +1,5 @@
 import type { AuthorInput } from "../agent/agent-worker.js";
-import { AUTHORING_CONTRACT } from "./contract-text.js";
+import { AUTHORING_CONTRACT, TECHNICAL_AUTHORING_CONTRACT } from "./contract-text.js";
 import type { ContentPlan, ContentPlanQualityIssue } from "./content-plan.js";
 import type { AuthorManifest } from "./manifest-schema.js";
 import { resolvedWordsPerSecond } from "./pacing-policy.js";
@@ -100,7 +100,7 @@ export type MissingTsxRecoveryInput = {
 function missingTsxRecoverySystem(): string {
   return `Bạn đang sửa một reply authoring bị thiếu module .tsx. Manifest đã hợp lệ và KHÔNG được thay đổi.
 
-${AUTHORING_CONTRACT}
+${TECHNICAL_AUTHORING_CONTRACT}
 
 TRẢ VỀ: chỉ các khối \`\`\`tsx còn thiếu, mỗi khối có dòng đầu "// component: <id>" và registerComponent id khớp. KHÔNG trả lại manifest JSON, KHÔNG thêm văn bản ngoài code fences.`;
 }
