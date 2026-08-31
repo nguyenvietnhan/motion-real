@@ -645,6 +645,15 @@ describe("buildAuthorMessages", () => {
     expect(text).toMatch(/ÍT NHẤT 3 dạng/);
   });
 
+  it("sets one video-level editorial grammar without turning it into a fixed style", () => {
+    const [sys] = buildAuthorMessages({ text: "Chủ đề bất kỳ", urls: [] });
+    const text = sys!.content;
+    expect(text).toMatch(/ART DIRECTION CẢ VIDEO/);
+    expect(text).toMatch(/ngôn ngữ thị giác/);
+    expect(text).toMatch(/MỘT bố cục biên tập.*focal structure/);
+    expect(text).toMatch(/sao chép palette\/diện mạo/);
+  });
+
   it("demands a bold FIRST draft (not 'play safe then wait for the user to ask')", () => {
     // The observed behavior: the first draft came out timid (every scene a plain
     // title card); only a manual "be more creative" reauthor produced something
@@ -774,20 +783,22 @@ describe("buildAuthorMessages", () => {
 
   // --- format / tier / video-language are prompt-driven ---
 
-  it("is de-styled: no leftover design-language / style-selection wording in the prompt", () => {
+  it("does not reintroduce a style menu or named visual treatment", () => {
     // The multi-style design system was deleted (D1). The prompt must no longer
-    // tell the model to author "on a design language" or pick a style — there is
-    // only the delivery format's geometry now.
+    // tell the model to choose a named style pack. A video-level visual grammar
+    // is intentional; a menu of branded visual treatments is not.
     const [sys] = buildAuthorMessages({ text: "Chủ đề bất kỳ", urls: [] });
     const text = sys!.content;
-    expect(text).not.toMatch(/style.?pack|design language|galaxy|editorial|ngôn ngữ thiết kế/i);
+    expect(text).not.toMatch(/style.?pack|design language|galaxy|ngôn ngữ thiết kế/i);
   });
 
-  it("TikTok (default): vertical 9:16 framing + reserve the burned caption band", () => {
+  it("TikTok (default): reserves captions and keeps the visual mass below FYP chrome", () => {
     const [sys] = buildAuthorMessages({ text: "Chủ đề", urls: [] });
     const text = sys!.content;
     expect(text).toMatch(/9:16/);
     expect(text).toMatch(/phụ đề/i); // caption band the author must keep clear of
+    expect(text).toMatch(/FYP\/Shorts/i);
+    expect(text).toMatch(/hướng dẫn bố cục mềm/i);
   });
 
   it("word budget scales with the chosen duration tier (seconds × measured rate)", () => {

@@ -75,6 +75,9 @@ export function validateHarnessManifestPacing(
     }
     const id = scene.id.trim();
     sceneIds.push(id);
+    if (!/^scene-[0-9]{2}$/.test(id)) {
+      errors.push(`${id} có scene id không hợp lệ; phải là scene-01, scene-02, … không thêm hậu tố.`);
+    }
     if (typeof scene.narration !== "string" || !scene.narration.trim()) {
       errors.push(`${id} thiếu narration.`);
       continue;

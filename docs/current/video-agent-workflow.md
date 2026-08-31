@@ -289,6 +289,12 @@ Invalid submission leaves the job in `collecting_assets` and returns actionable
 validation errors to the Agent. Only an accepted manifest moves the job to
 `asset_review`.
 
+If the exact native turn requested by MotionReal ends without a valid manifest
+or brief, MotionReal records a retryable workflow error instead of leaving the
+progress screen running forever. Downloaded assets and the current handoff stay
+in place; “Thử lại bước này” sends one new request and never retries the model
+silently.
+
 ### 3. Asset review
 
 MotionReal displays thumbnails, labels, local file status, and source URLs. The

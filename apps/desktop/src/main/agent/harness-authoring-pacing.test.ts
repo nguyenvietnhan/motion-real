@@ -68,6 +68,14 @@ describe("Harness authoring pacing", () => {
     if (!result.ok) expect(result.errors).toContain("scene_ids đã submit phải khớp đúng thứ tự mọi scene trong manifest.");
   });
 
+  it("rejects a descriptive timeline id before still rendering", () => {
+    const pacing = buildHarnessAuthoringPacing(1, "vi", 1);
+    const scenes = [scene("scene-01-hook", 15), scene("scene-02", 15), scene("scene-03", 15)];
+    const result = validateHarnessManifestPacing({ scenes }, scenes.map((value) => value.id), pacing, "vi");
+    expect(result).toMatchObject({ ok: false });
+    if (!result.ok) expect(result.errors.join(" ")).toMatch(/scene id không hợp lệ; phải là scene-01/);
+  });
+
   it("requires an explicit transition between scenes", () => {
     const pacing = buildHarnessAuthoringPacing(1, "vi", 1);
     const scenes = Array.from({ length: 4 }, (_, index) => ({

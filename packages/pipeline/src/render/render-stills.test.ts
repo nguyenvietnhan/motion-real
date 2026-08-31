@@ -182,6 +182,18 @@ describe("renderProjectStills", () => {
     expect(mocks.renderSceneStills).not.toHaveBeenCalled();
   });
 
+  it("normalizes an invalid manifest schema before any still is rendered", async () => {
+    mocks.loadManifestAsSpec.mockRejectedValueOnce(new Error('Invalid string: must match pattern /^scene-[0-9]{2}$/'));
+
+    await expect(renderProjectStills("proj-1")).rejects.toMatchObject({
+      name: "PipelineError",
+      stage: "build-gate",
+      cause: expect.stringContaining("manifest schema invalid"),
+    });
+    expect(mocks.checkSceneRuntimeErrors).not.toHaveBeenCalled();
+    expect(mocks.renderSceneStills).not.toHaveBeenCalled();
+  });
+
   it("throws a scene-targeted N31 PipelineError when the strict stills probe fails", async () => {
     mocks.checkSceneRuntimeErrors.mockResolvedValueOnce({
       ok: false,

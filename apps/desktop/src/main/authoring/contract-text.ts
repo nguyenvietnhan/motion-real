@@ -19,7 +19,7 @@ EXPORT BẮT BUỘC (mọi module):
   → headline/body/eyebrow/image/durationInFrames lấy từ tham số top-level (đã destructure ở trên); dữ liệu bespoke lấy từ props.*.
 - export const example: Props = {...}      // CỰC KỲ QUAN TRỌNG: PHẢI HOÀN TOÀN HỢP LỆ VỚI schema BẠN ĐÃ KHAI BÁO (nếu schema có các trường bắt buộc thì example PHẢI chứa các trường đó với dữ liệu mẫu cụ thể. Thiếu export const example hoặc dữ liệu mẫu không khớp với schema sẽ gây lỗi nạp "missing required export" chặn render và làm hỏng toàn dự án!).
 - export default registerComponent<Props>({ id: "ten-canh", displayName, promptGuide, schema, Component: Scene, example });
-  → id là CHUỖI LITERAL (chữ thường/số/gạch-ngang), trùng id trong manifest.
+  → id là CHUỖI LITERAL (chữ thường/số/gạch-ngang), khớp manifest.scenes[].component. Riêng manifest.scenes[].id PHẢI là scene-01, scene-02… theo thứ tự, không thêm hậu tố.
 
 CÚ PHÁP TSX BẮT BUỘC (tự kiểm như chạy TypeScript parser trước khi trả lời):
 - Mỗi module phải là TypeScript/TSX parse được hoàn chỉnh: import/export hợp lệ, JSX tag đóng đủ, ngoặc (), {}, [], dấu phẩy và dấu nháy cân bằng.
@@ -42,12 +42,17 @@ TỰ DỰNG MỌI THỨ (KHÔNG có block dựng sẵn): viết toàn bộ cản
 SVG được dùng <defs> nội bộ với fill/stroke/marker/filter kiểu url(#id). KHÔNG dùng url(http...), url(file...), data:, blob: hay ảnh ngoài.
 
 LAYOUT ZONES:
-- Nội dung chính ở content-zone phía TRÊN (~tới 62% chiều cao); tự căn nội dung vào vùng này.
+- Nội dung chính ở content-zone trung tâm-thấp (~18–62% chiều cao). Ưu tiên đặt focal mass (title/hero/số liệu chính) quanh trung tâm thị giác, thấp hơn phần đỉnh; đừng dồn eyebrow/title/hero vào khoảng 18% đầu khung vì UI FYP/Shorts có thể che. Đây là hướng dẫn bố cục mềm, không phải lệnh ép mọi cảnh vào đúng giữa; chỉ đặt sát đỉnh khi có ý đồ thị giác rõ ràng.
 - Chừa dải phụ đề (~64–84%) + UI reserve (đáy ~16%) TRỐNG cho phụ đề karaoke + UI nền tảng — đừng đặt nội dung quan trọng sát đáy.
 - Giữ nội dung chính PHÍA TRÊN dải phụ đề; tràn xuống là cảnh báo N14 (advisory — KHÔNG chặn render), nhưng vẫn nên tránh để phụ đề đọc rõ. (Không có đường kẻ nào do hệ thống vẽ; cần ngăn cách thì tự dùng khoảng trắng/viền tự vẽ/đổi nền.)
 - Cân bằng vùng: cảnh chỉ một tiêu đề + một dòng đọc TRỐNG/đầu nặng; cho beat thưa một mỏ neo (số lớn/đồ hoạ nhỏ).
 
-DESIGN — BẠN TỰ DO quyết định TOÀN BỘ hình ảnh ngay trong code cảnh: tự chọn màu, nền, gradient, bố cục, bo góc, font, đồ hoạ SVG/CSS. HARDCODE tất cả — không có theme/token nào để đọc nữa. Mỗi cảnh tự dựng từ <div>+<svg> trần. Mục tiêu là SÁNG TẠO — đừng để mọi cảnh hay mọi video trông giống nhau một khuôn. Hai điều duy nhất phải giữ vì người xem: chữ tương phản cao, dễ đọc trên nền bạn chọn (N18); và nội dung nằm trong content-zone (mục LAYOUT ZONES ở trên).
+ART DIRECTION CẢ VIDEO — trước khi viết code, TỰ CHỌN NGẦM ngôn ngữ thị giác đúng chủ đề: nền sâu nhưng lùi, palette hẹp (nền/chữ/accent), motif mảnh, typography/khoảng thở. Giữ nó xuyên video; KHÔNG đổi style vô cớ hay sao chép palette/diện mạo của thương hiệu/video có sẵn.
+- Mỗi cảnh là MỘT bố cục biên tập có focal structure rõ (evidence, timeline, process, comparison, metric, diagram, metaphor), không mặc định "eyebrow + headline + card + ảnh trong khung". Chi tiết phụ phải làm rõ focal structure; dùng khoảng trống có chủ đích.
+- Hook, điểm ngoặt và payoff cần signature beat bespoke; cảnh giải thích yên hơn nhưng vẫn có visual anchor. Đa dạng layout trong cùng ngôn ngữ đó, không lặp shell/panel/HUD.
+- Asset thật là evidence/subject trong bố cục, không mặc định ảnh trong card; logo/icon chỉ là accent.
+
+DESIGN — BẠN TỰ DO quyết định TOÀN BỘ hình ảnh ngay trong code cảnh: tự chọn màu, nền, gradient, bố cục, bo góc, font, đồ hoạ SVG/CSS. HARDCODE tất cả — không có theme/token nào để đọc nữa. Mỗi cảnh tự dựng từ <div>+<svg> trần. Ưu tiên hierarchy cao, tương phản dễ đọc (N18) và nội dung nằm trong content-zone (mục LAYOUT ZONES ở trên).
 
 CỠ CHỮ (canvas 1080×1920, xem trên điện thoại — chữ nhỏ là lỗi hay gặp nhất): tiêu đề chính ≥ 64px; câu/đoạn nội dung chính ≥ 40px; nhãn/đơn vị/chú thích phụ ≥ 24px. TUYỆT ĐỐI không để text dưới 18px (không đọc nổi). Số liệu nổi bật nên RẤT lớn (80–160px). Khi nghi ngờ, để chữ TO hơn — ưu tiên ít chữ + lớn hơn nhiều chữ + nhỏ.
 

@@ -14,13 +14,16 @@ import { INVALID_PURPOSE_CONTENT_PLAN_REPLY } from "./__fixtures__/authoring-fai
  */
 
 let home: string;
+let previousHome: string | undefined;
 beforeAll(() => {
   home = mkdtempSync(join(tmpdir(), "nrt-author-"));
+  previousHome = process.env.VIDEO_TOOL_HOME;
   process.env.VIDEO_TOOL_HOME = home;
 });
 afterAll(() => {
   rmSync(home, { recursive: true, force: true });
-  delete process.env.VIDEO_TOOL_HOME;
+  if (previousHome === undefined) delete process.env.VIDEO_TOOL_HOME;
+  else process.env.VIDEO_TOOL_HOME = previousHome;
 });
 
 function block(id: string): string {

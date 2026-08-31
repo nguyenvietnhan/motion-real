@@ -23,6 +23,11 @@ Every authored module must:
 - use a literal string component id;
 - render deterministic React/Remotion code.
 
+`manifest.scenes[].id` is the timeline identity and must be exactly sequential:
+`scene-01`, `scene-02`, and so on, with no descriptive suffix. The literal id passed
+to `registerComponent(...)` is the component identity and must match
+`manifest.scenes[].component`; it may be descriptive, such as `market-hook`.
+
 Minimal shape:
 
 ```tsx
@@ -202,8 +207,30 @@ centrally from scene narration and TTS timing.
 
 ## Layout
 
-For TikTok 9:16, keep primary content in the upper content zone and leave the
-caption/platform reserve clear. These layout checks are advisory warnings for
+For TikTok 9:16, keep primary content in the middle-lower content zone and
+leave the caption/platform reserve clear. Place the focal mass—title, hero, or
+key metric—around the optical centre, below the top ~18% of the frame where
+FYP/Shorts chrome may cover it. This is a soft composition preference—not a
+command to centre every scene—and top-aligned content remains valid when it is
+a deliberate visual choice. These layout checks are advisory warnings for
 refine unless live code marks a class as hard render-integrity failure.
 
 The product is short-form 9:16 only; always leave the burned caption band clear.
+
+## Art direction
+
+Before authoring the scene modules, silently choose one video-level visual
+grammar suited to the subject: a recessed background treatment, a narrow
+background/text/accent palette, one restrained recurring motif, and a coherent
+typography/spacing rhythm. Carry that grammar across the video, while adapting
+the actual layout to each beat; do not copy the palette or look of an existing
+publisher or product.
+
+Each scene should be an editorial composition with one clear focal structure
+(for example an evidence sheet, timeline, process, comparison, metric, diagram,
+or visual metaphor). Supporting elements exist to clarify that structure—not to
+fill space—and negative space is deliberate. Give the hook, turning point, and
+payoff a stronger bespoke signature beat; keep explanatory scenes quieter but
+still visually anchored. Real assets should participate as evidence or subjects
+inside the composition, not default to a framed illustration. Logos and icons
+remain supporting accents.

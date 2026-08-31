@@ -59,6 +59,11 @@ describe("AUTHORING_CONTRACT — no-block / raw-JSX invariants", () => {
     expect(AUTHORING_CONTRACT).toMatch(/role=\{image\.role\}/);
   });
 
+  it("distinguishes sequential timeline scene ids from authored component ids", () => {
+    expect(AUTHORING_CONTRACT).toMatch(/manifest\.scenes\[\]\.component/);
+    expect(AUTHORING_CONTRACT).toMatch(/manifest\.scenes\[\]\.id PHẢI là scene-01, scene-02/);
+  });
+
   /**
    * three defects seen by eye on a real desktop render
    * (content, not code), fixed by sharpening the contract the model reads:
@@ -101,6 +106,12 @@ describe("AUTHORING_CONTRACT — no-block / raw-JSX invariants", () => {
     // It states the truth instead: N14 is advisory and no line is drawn.
     expect(AUTHORING_CONTRACT).toMatch(/advisory — KHÔNG chặn render/);
     expect(AUTHORING_CONTRACT).toMatch(/Không có đường kẻ nào do hệ thống vẽ/);
+  });
+
+  it("places the primary visual mass lower, around the optical centre, without a hard layout gate", () => {
+    expect(AUTHORING_CONTRACT).toMatch(/content-zone trung tâm-thấp/);
+    expect(AUTHORING_CONTRACT).toMatch(/trung tâm thị giác/);
+    expect(AUTHORING_CONTRACT).toMatch(/không phải lệnh ép mọi cảnh vào đúng giữa/);
   });
 
   it("separates motion tempo classes without making motion mandatory", () => {

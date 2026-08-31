@@ -173,9 +173,23 @@ export async function renderProjectStillsUnlocked(
       { files: admitted.files.length, scenes: manifest.scenes.length },
     );
 
-    const spec: VideoSpec = await timedStillsStage("authoring.resolve_spec", () => loadManifestAsSpec(projectId), {
-      scenes: manifest.scenes.length,
-    });
+    const spec: VideoSpec = await timedStillsStage(
+      "authoring.resolve_spec",
+      async () => {
+        try {
+          return await loadManifestAsSpec(projectId);
+        } catch (error) {
+          if (error instanceof PipelineError) throw error;
+          const cause = error instanceof Error ? error.message : String(error);
+          throw new PipelineError({
+            stage: "build-gate",
+            cause: `manifest schema invalid: ${cause}`,
+            remediation: "Fix the manifest scene ids and required fields before rendering stills.",
+          });
+        }
+      },
+      { scenes: manifest.scenes.length },
+    );
 
     // No-TTS lock: lockSpec(spec, null) lays scenes on a hold-timed timeline (each
     // scene gets DEFAULT_HOLD_SECONDS), which is all the frame math a midpoint

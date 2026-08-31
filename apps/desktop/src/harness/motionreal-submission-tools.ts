@@ -223,6 +223,9 @@ async function validateAuthoredProject(
     throw new Error("Project manifest phải có từ 1 đến 30 cảnh.");
   }
   const manifestSceneIds = manifest.scenes.map((scene) => requiredText(requireRecord(scene, "Manifest scene").id, "scene id", 128));
+  if (manifestSceneIds.some((id) => !/^scene-[0-9]{2}$/.test(id))) {
+    throw new Error("Mỗi scene id trong project/manifest.json phải có dạng scene-01, scene-02, … không thêm hậu tố.");
+  }
   if (!isDeepStrictEqual(manifestSceneIds, sceneIds)) throw new Error("scene_ids không khớp thứ tự cảnh trong project/manifest.json.");
   const expectedAssets = Array.isArray(request.assets) ? request.assets.map((asset) => requireRecord(asset, "Request asset")) : [];
   const expectedIds = expectedAssets.map((asset) => requiredText(asset.id, "request asset id", 128));

@@ -16,7 +16,8 @@ import { easeOut } from "./motion.js";
  * Pure function of the frame (N16).
  *
  * ONE shared caption band (`CAPTION_BAND`) — the N29 oracle reads the same
- * constant, so the caption is drawn and measured in the same place.
+ * constant, so the caption is drawn and measured in the same place. The band
+ * stays transparent: legibility comes from the text halo, never a panel.
  */
 export const Captions: React.FC<{ cues: CaptionCue[] }> = ({ cues }) => {
   const theme = useTheme();
@@ -60,9 +61,6 @@ export const Captions: React.FC<{ cues: CaptionCue[] }> = ({ cues }) => {
         justifyContent: "center",
         overflow: "hidden",
         pointerEvents: "none",
-        // Soft legibility wash — keeps karaoke readable when the authored
-        // scene paints full-bleed near-black under the band (common AUTHOR mode).
-        background: `linear-gradient(180deg, transparent 0%, ${withAlpha(theme.colors.bg, 0.45)} 55%, ${withAlpha(theme.colors.bg, 0.72)} 100%)`,
       }}
     >
       <div

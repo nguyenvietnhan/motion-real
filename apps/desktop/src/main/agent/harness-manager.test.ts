@@ -43,7 +43,7 @@ afterEach(async () => {
 async function activeManagerForTest(over: Partial<HarnessManagerDeps> = {}): Promise<{
   manager: HarnessManager;
   root: string;
-  calls: Array<{ method: string; payload: unknown }>;
+  calls: Array<{ method: string; payload: unknown; rpcId?: string }>;
   deps: HarnessManagerDeps;
   history: Array<{ event: { seq: number; type: string; data: Record<string, unknown> } }>;
 }> {
@@ -53,7 +53,7 @@ async function activeManagerForTest(over: Partial<HarnessManagerDeps> = {}): Pro
   await writeFile(cli, "// test placeholder\n");
   await writeFile(join(root, "motionreal-tools.mjs"), "// test tool plugin\n");
   const child = Object.assign(new EventEmitter(), { kill: vi.fn() });
-  const calls: Array<{ method: string; payload: unknown }> = [];
+  const calls: Array<{ method: string; payload: unknown; rpcId?: string }> = [];
   const history: Array<{ event: { seq: number; type: string; data: Record<string, unknown> } }> = [];
   let searchConfigured = false;
   const deps: HarnessManagerDeps = {
@@ -64,7 +64,7 @@ async function activeManagerForTest(over: Partial<HarnessManagerDeps> = {}): Pro
     findPort: async () => 39872,
     spawn: vi.fn(() => child) as unknown as typeof import("node:child_process").spawn,
     fetch: vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
-      const body = JSON.parse(String(init?.body)) as { method: string; payload: unknown };
+      const body = JSON.parse(String(init?.body)) as { method: string; payload: unknown; rpcId?: string };
       calls.push(body);
       if (body.method === "credentials.set") searchConfigured = true;
       const value = body.method === "workspace.create"
@@ -303,6 +303,73 @@ describe("HarnessManager draft lifecycle", () => {
     expect(status.activities).toEqual([{ id: "1", label: "Tìm kiếm web", status: "failed" }]);
     expect(JSON.stringify(status.activities)).not.toContain("secret query");
     expect(JSON.stringify(status.activities)).not.toContain("provider failure");
+  });
+
+  it("marks nested native tool results as completed", async () => {
+    const { manager, history } = await activeManagerForTest();
+    const draft = await manager.createDraft("Kết quả tool native");
+    await manager.activate(draft.id, "internal-key");
+    history.push({ event: { seq: 1, type: "tool/call", data: { callId: "call-image", name: "read_image" } } });
+    history.push({ event: { seq: 2, type: "tool/result", data: {
+      message: {
+        source: { kind: "tool", callId: "call-image" },
+        content: [{ type: "tool-result", toolCallId: "call-image", isError: false }],
+      },
+    } } });
+
+    await expect(manager.status(draft.id, { includeActivities: true })).resolves.toMatchObject({
+      activities: [{ id: "1", label: "Đang xem ảnh", status: "completed" }],
+    });
+  });
+
+  it("fails a completed asset turn without a manifest and retries without losing downloaded assets", async () => {
+    const { manager, root, calls, history } = await activeManagerForTest();
+    const draft = await manager.createDraft("Thiếu manifest");
+    await manager.activate(draft.id, "internal-key");
+    const collecting = await manager.prepareAssets(draft.id, draft.workflowRevision);
+    const firstPrompt = calls.filter((call) => call.method === "session.prompt").at(-1);
+    expect(firstPrompt?.rpcId).toMatch(/^[0-9a-f-]{36}$/i);
+    await writeFile(join(root, draft.id, "assets", "kept.jpg"), ONE_PIXEL_PNG);
+    history.push({ event: { seq: 1, type: "turn/start", data: { turn: 4 } } });
+    history.push({ event: { seq: 2, type: "user/message", data: { source: { rpcId: firstPrompt?.rpcId } } } });
+    history.push({ event: { seq: 3, type: "turn/end", data: { turn: 4, reason: { kind: "completed" } } } });
+
+    const failed = await manager.status(draft.id, { includeActivities: true });
+    expect(failed).toMatchObject({
+      productionState: "error",
+      failedPhase: "collecting_assets",
+      activeJobId: collecting.activeJobId,
+      lastError: expect.stringMatching(/chưa gửi manifest asset/i),
+    });
+    await expect(readFile(join(root, draft.id, "assets", "kept.jpg"))).resolves.toEqual(ONE_PIXEL_PNG);
+
+    const retried = await manager.retryWorkflow(draft.id, failed.workflowRevision);
+    const retryPrompt = calls.filter((call) => call.method === "session.prompt").at(-1);
+    expect(retried).toMatchObject({ productionState: "collecting_assets", activeJobId: collecting.activeJobId });
+    expect(retryPrompt?.rpcId).toMatch(/^[0-9a-f-]{36}$/i);
+    expect(retryPrompt?.rpcId).not.toBe(firstPrompt?.rpcId);
+  });
+
+  it("recovers a pre-marker asset draft when its native submission turn has already completed", async () => {
+    const { manager, root, calls, history } = await activeManagerForTest();
+    const draft = await manager.createDraft("Khôi phục draft cũ");
+    await manager.activate(draft.id, "internal-key");
+    await manager.prepareAssets(draft.id, draft.workflowRevision);
+    const prompt = calls.filter((call) => call.method === "session.prompt").at(-1);
+    const metadataPath = join(root, draft.id, "motionreal-agent.json");
+    const legacy = JSON.parse(await readFile(metadataPath, "utf8")) as Record<string, unknown>;
+    delete legacy.awaitingArtifactPromptId;
+    await writeFile(metadataPath, JSON.stringify(legacy));
+    history.push({ event: { seq: 1, type: "turn/start", data: { turn: 6 } } });
+    history.push({ event: { seq: 2, type: "user/message", data: {
+      message: { source: { kind: "rpc", rpcId: prompt?.rpcId }, content: [{ type: "text", text: "Hãy gọi motionreal_submit_assets." }] },
+    } } });
+    history.push({ event: { seq: 3, type: "turn/end", data: { turn: 6, reason: { kind: "completed" } } } });
+
+    await expect(manager.status(draft.id, { includeActivities: true })).resolves.toMatchObject({
+      productionState: "error",
+      lastError: expect.stringMatching(/chưa gửi manifest asset/i),
+    });
   });
 
   it("reads native activity only when the caller explicitly requests it", async () => {

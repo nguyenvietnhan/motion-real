@@ -1,4 +1,6 @@
 import { spawn } from "node:child_process";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { createRequire } from "node:module";
 
@@ -23,7 +25,14 @@ const cwd = process.cwd().replace(/^([a-z]):/, (_m, d: string) => `${d.toUpperCa
 const require = createRequire(import.meta.url);
 const vitestBin = join(dirname(require.resolve("vitest/package.json")), "vitest.mjs");
 const heavyTest = "packages/pipeline/src/safety/typecheck-authored.test.ts";
-const testEnv = { ...process.env, LOG_LEVEL: process.env.LOG_LEVEL ?? "fatal" };
+// A test that forgets to isolate VIDEO_TOOL_HOME must never write artifacts into
+// the developer's real .video-tool directory.
+const testHome = await mkdtemp(join(tmpdir(), "motionreal-test-"));
+const testEnv = {
+  ...process.env,
+  LOG_LEVEL: process.env.LOG_LEVEL ?? "fatal",
+  VIDEO_TOOL_HOME: join(testHome, ".video-tool"),
+};
 
 function runVitest(runArgs: string[]): Promise<number> {
   return new Promise((resolveCode) => {
@@ -46,12 +55,15 @@ function runVitest(runArgs: string[]): Promise<number> {
   });
 }
 
-let code: number;
-if (args.length === 0) {
-  code = await runVitest(["--exclude", heavyTest]);
-  if (code === 0) code = await runVitest(["--maxWorkers=1", heavyTest]);
-} else {
-  code = await runVitest(args);
+try {
+  let code: number;
+  if (args.length === 0) {
+    code = await runVitest(["--exclude", heavyTest]);
+    if (code === 0) code = await runVitest(["--maxWorkers=1", heavyTest]);
+  } else {
+    code = await runVitest(args);
+  }
+  process.exitCode = code;
+} finally {
+  await rm(testHome, { recursive: true, force: true });
 }
-
-process.exit(code);

@@ -73,6 +73,8 @@ type DraftRecord = Omit<AgentDraftVM, "updatedAt" | "harnessUrl" | "webSearchCon
   repairPhase?: "authoring" | "visual_refine";
   repairAttempts?: number;
   failedPhase?: "collecting_assets" | "preparing_brief" | "authoring" | "visual_refine";
+  /** RPC id of the native turn that must submit the next workflow artifact. */
+  awaitingArtifactPromptId?: string;
 };
 
 class AuthoringStillRenderError extends Error {
@@ -376,6 +378,7 @@ export class HarnessManager {
             to: "asset_review",
             jobId: record.activeJobId,
           }) };
+          delete record.awaitingArtifactPromptId;
           await this.writeRecord(record);
         }
       } catch (error) {
@@ -391,6 +394,7 @@ export class HarnessManager {
             to: "brief_review",
             jobId: record.activeJobId,
           }) };
+          delete record.awaitingArtifactPromptId;
           await this.writeRecord(record);
         }
       } catch (error) {
@@ -404,6 +408,11 @@ export class HarnessManager {
         return undefined;
       })
       : undefined;
+    if (activityState?.artifactPromptEnded && isArtifactAwaitingState(record.productionState)) {
+      const artifact = record.productionState === "collecting_assets" ? "manifest asset" : "brief";
+      await this.recordWorkflowError(record, `Agent đã kết thúc lượt nhưng chưa gửi ${artifact} hợp lệ. Dữ liệu đã tải vẫn được giữ; hãy thử lại bước này.`);
+      record = await this.mustReadRecord(record.id);
+    }
     return this.toVm(record, assetReview, assetCollectionError, briefReview, briefReviewError, activityState?.activities, activityState?.needsAttention);
   }
 
@@ -1076,6 +1085,9 @@ export class HarnessManager {
           ? { repairPhase: raw.repairPhase, repairAttempts: Number(raw.repairAttempts) }
           : {}),
         ...(isRetryableFailurePhase(raw.failedPhase) ? { failedPhase: raw.failedPhase } : {}),
+        ...(typeof raw.awaitingArtifactPromptId === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(raw.awaitingArtifactPromptId)
+          ? { awaitingArtifactPromptId: raw.awaitingArtifactPromptId }
+          : {}),
         ...(raw.productionState === "error" && raw.retryAction === "rerender_stills" ? { retryAction: "rerender_stills" as const } : {}),
         ...(Array.isArray(raw.selectedAssetIds)
           ? { selectedAssetIds: raw.selectedAssetIds.filter((value): value is string => typeof value === "string") }
@@ -1142,25 +1154,44 @@ export class HarnessManager {
     }
   }
 
-  private promptSession(record: DraftRecord, text: string): Promise<unknown> {
+  private async promptSession(record: DraftRecord, text: string): Promise<unknown> {
     this.requireActiveSession(record);
+    const rpcId = randomUUID();
+    if (isArtifactAwaitingState(record.productionState)) {
+      await this.writeRecord({ ...record, awaitingArtifactPromptId: rpcId });
+    }
     return this.rpc(this.active!.url, "session.prompt", {
       sessionId: record.sessionId,
       mode: "queue",
       content: [{ type: "text", text }],
-    });
+    }, this.rpcTimeoutMs, rpcId);
   }
 
-  private async readSafeActivities(record: DraftRecord): Promise<{ activities: AgentActivityVM[]; needsAttention: boolean } | undefined> {
+  private async readSafeActivities(record: DraftRecord): Promise<{ activities: AgentActivityVM[]; needsAttention: boolean; artifactPromptEnded: boolean } | undefined> {
     if (!this.active || !record.sessionId) return undefined;
-    const raw = await this.rpc(this.active.url, "session.history", { sessionId: record.sessionId, maxMessages: 12 });
+    const raw = await this.rpc(this.active.url, "session.history", {
+      sessionId: record.sessionId,
+      // Asset and brief turns can contain many image reads. This bounded window
+      // keeps the originating prompt and its terminal turn event together.
+      maxMessages: isArtifactAwaitingState(record.productionState) ? 80 : 12,
+    });
     const activities: AgentActivityVM[] = [];
     const calls = new Map<string, AgentActivityVM>();
     let needsAttention = false;
+    let currentTurn: number | undefined;
+    let awaitedTurn: number | undefined;
+    let artifactPromptEnded = false;
     for (const entryValue of arrayOf(objectOf(raw).events)) {
       const event = objectOf(objectOf(entryValue).event);
       const seq = Number.isSafeInteger(event.seq) ? Number(event.seq) : undefined;
       const data = objectOf(event.data);
+      if (event.type === "turn/start" && Number.isSafeInteger(data.turn)) currentTurn = Number(data.turn);
+      if (event.type === "user/message" && isAwaitedArtifactPrompt(data, record)) {
+        awaitedTurn = currentTurn;
+      }
+      if (event.type === "turn/end" && awaitedTurn !== undefined && data.turn === awaitedTurn) {
+        artifactPromptEnded = true;
+      }
       if (event.type === "tool/call" && seq !== undefined) {
         const label = safeActivityLabel(data.name);
         const callId = stringOf(data.callId);
@@ -1171,14 +1202,19 @@ export class HarnessManager {
         if (data.name === "ask_user_question") needsAttention = true;
       }
       if (event.type === "tool/result") {
-        const activity = calls.get(stringOf(data.callId) ?? "");
-        if (activity) activity.status = data.error === undefined ? "completed" : "failed";
+        const message = objectOf(data.message);
+        const source = objectOf(message.source);
+        const nested = objectOf(arrayOf(message.content)[0]);
+        const callId = stringOf(data.callId) ?? stringOf(source.callId) ?? stringOf(nested.toolCallId);
+        const failed = data.error !== undefined || nested.isError === true;
+        const activity = calls.get(callId ?? "");
+        if (activity) activity.status = failed ? "failed" : "completed";
         if (activity?.label === "Đang chờ câu trả lời") needsAttention = false;
       }
       if (event.type === "permission/request" || event.type === "permission/pending" || event.type === "question/request" || event.type === "question/pending") needsAttention = true;
       if (event.type === "permission/resolved" || event.type === "question/resolved") needsAttention = false;
     }
-    return { activities: activities.slice(-8), needsAttention };
+    return { activities: activities.slice(-8), needsAttention, artifactPromptEnded };
   }
 
   /** Persist only the choice. Never restart a live model turn to apply it. */
@@ -1934,19 +1970,20 @@ export class HarnessManager {
       }),
       ...(isRetryableFailurePhase(record.productionState) ? { failedPhase: record.productionState } : {}),
     };
+    delete failed.awaitingArtifactPromptId;
     delete failed.retryAction;
     if (retryAction) failed.retryAction = retryAction;
     this.stopAuthoringPoll(record.id);
     await this.writeRecord(failed);
   }
 
-  private async rpc(baseUrl: string, method: string, payload: unknown, timeoutMs = this.rpcTimeoutMs): Promise<unknown> {
+  private async rpc(baseUrl: string, method: string, payload: unknown, timeoutMs = this.rpcTimeoutMs, rpcId = randomUUID()): Promise<unknown> {
     const controller = new AbortController();
     return raceWithTimeout((async () => {
       const response = await this.fetchImpl(`${baseUrl}api/${method}`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ type: "client-request", rpcId: randomUUID(), method, payload }),
+        body: JSON.stringify({ type: "client-request", rpcId, method, payload }),
         signal: controller.signal,
       });
       if (!response.ok) {
@@ -2252,6 +2289,25 @@ function isPendingAuthoringEdit(current: DraftRecord, expected: DraftRecord): bo
 
 function isAutomatedAuthoringState(state: AgentProductionState): state is "authoring" | "visual_refine" {
   return state === "authoring" || state === "visual_refine";
+}
+
+function isArtifactAwaitingState(state: AgentProductionState): state is "collecting_assets" | "preparing_brief" {
+  return state === "collecting_assets" || state === "preparing_brief";
+}
+
+/** Supports existing drafts created before the per-prompt marker was persisted. */
+function isAwaitedArtifactPrompt(data: Record<string, unknown>, record: DraftRecord): boolean {
+  if (!isArtifactAwaitingState(record.productionState)) return false;
+  const message = objectOf(data.message);
+  const source = { ...objectOf(message.source), ...objectOf(data.source) };
+  const rpcId = stringOf(source.rpcId);
+  if (!rpcId) return false;
+  if (record.awaitingArtifactPromptId) return rpcId === record.awaitingArtifactPromptId;
+  const content = [...arrayOf(data.content), ...arrayOf(message.content)];
+  const text = content.map((item) => stringOf(objectOf(item).text) ?? "").join("\n");
+  return record.productionState === "collecting_assets"
+    ? text.includes("motionreal_submit_assets")
+    : text.includes("motionreal_submit_brief");
 }
 
 function isRetryableFailurePhase(value: unknown): value is "collecting_assets" | "preparing_brief" | "authoring" | "visual_refine" {

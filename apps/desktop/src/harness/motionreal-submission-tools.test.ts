@@ -245,6 +245,24 @@ describe("MotionReal Harness submission tools", () => {
     }, execution(workspace))).resolves.toMatchObject({ kind: "authoring", status: "submitted" });
   });
 
+  it("rejects a descriptive timeline id before persisting an authoring submission", async () => {
+    const { workspace, tools } = await fixture();
+    await mkdir(join(workspace, "project", "authored"), { recursive: true });
+    await writeFile(join(workspace, "project", "authored", "hook.tsx"), "export default {};\n");
+    await writeFile(join(workspace, "project", "manifest.json"), JSON.stringify({
+      scenes: [{ id: "scene-01-hook", component: "hook" }],
+    }));
+    await writeFile(join(workspace, "handoff", "authoring-request.json"), JSON.stringify({
+      version: 1, job_id: "job-author", request_revision: 1,
+      manifest: "project/manifest.json", authored_dir: "project/authored", assets: [],
+    }));
+
+    await expect(tools.get("motionreal_submit_authoring")!.execute({
+      job_id: "job-author", request_revision: 1, scene_ids: ["scene-01-hook"], used_asset_ids: [],
+    }, execution(workspace))).rejects.toThrow(/scene-01, scene-02/);
+    await expect(readFile(join(workspace, "handoff", "authoring.json"))).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
   it.each([
     { name: "a repeated logo enlarged to hero", ref: "assets/logo.png", role: "hero", expected: /trong mọi cảnh sử dụng/ },
     { name: "a repeated logo with its role omitted", ref: "assets/logo.png", role: undefined, expected: /trong mọi cảnh sử dụng/ },
