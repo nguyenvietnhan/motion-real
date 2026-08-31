@@ -32,6 +32,7 @@
     "build": "npm run build:remotion && npm run build:desktop",
     "test": "tsx scripts/test.ts",
     "smoke": "tsx scripts/smoke.ts",
+    "eval:prompts": "tsx scripts/prompt-eval.ts",
     "smoke:vieneu": "tsx scripts/smoke-vieneu.ts",
     "calibrate:voice": "tsx scripts/calibrate-voice.ts",
     "vendor-fonts": "tsx scripts/vendor-fonts.ts"
