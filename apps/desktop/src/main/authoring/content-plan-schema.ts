@@ -11,6 +11,8 @@ const ClaimActionSchema = z.enum(["use", "omit"]);
 export const SCENE_PURPOSE_VALUES = ["hook", "context", "turn", "proof", "contrast", "payoff", "cta"] as const;
 export const ScenePurposeSchema = z.enum(SCENE_PURPOSE_VALUES);
 const LayoutFamilySchema = z.enum(["big-number", "two-column", "timeline", "diagram", "list", "signature-visual", "statement"]);
+export const SceneTemporalModeSchema = z.enum(["static", "stepped", "continuous"]);
+export const SceneDetailModeSchema = z.enum(["normal", "fine"]);
 
 export const SourceRefSchema = z
   .object({
@@ -41,6 +43,8 @@ export const ContentPlanSceneSchema = z
     visualMetaphor: z.string().min(1),
     motionProgression: z.string().min(1),
     motionBeats: z.array(SceneMotionBeatSchema).min(2).max(4).optional(),
+    temporalMode: SceneTemporalModeSchema.optional(),
+    detailMode: SceneDetailModeSchema.optional(),
     layoutFamily: LayoutFamilySchema,
     evidenceClaimIds: z.array(z.string()),
   })
@@ -107,14 +111,18 @@ export type ContentPlanClaim = z.infer<typeof ContentPlanClaimSchema>;
 export type ContentPlanScene = z.infer<typeof ContentPlanSceneSchema>;
 export type ContentPlan = z.infer<typeof ContentPlanSchema>;
 export type ScenePurpose = z.infer<typeof ScenePurposeSchema>;
+export type SceneTemporalMode = z.infer<typeof SceneTemporalModeSchema>;
+export type SceneDetailMode = z.infer<typeof SceneDetailModeSchema>;
 
 /** Scenes whose approved motion intent explicitly requires ordered visual change. */
 export function semanticMotionSceneIds(plan: ContentPlan, scope?: readonly string[]): string[] {
   const allowed = scope ? new Set(scope) : undefined;
   return plan.scenes
     .filter((scene) => (!allowed || allowed.has(scene.sceneId)) && (
-      (scene.motionBeats?.length ?? 0) >= 2
-      || (!scene.motionBeats && /\bsemantic\s*:/i.test(scene.motionProgression))
+      scene.temporalMode !== undefined
+        ? scene.temporalMode !== "static"
+        : (scene.motionBeats?.length ?? 0) >= 2
+          || (!scene.motionBeats && /\bsemantic\s*:/i.test(scene.motionProgression))
     ))
     .map((scene) => scene.sceneId);
 }

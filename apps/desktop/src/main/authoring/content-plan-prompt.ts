@@ -49,6 +49,8 @@ function outputShape(): string {
       "onScreenText": "...",
       "visualMetaphor": "...",
       "motionProgression": "...",
+      "temporalMode": "static|stepped|continuous",
+      "detailMode": "normal|fine",
       "motionBeats": [
         { "id": "lower-kebab-id", "anchor": "2-8 exact narration words", "action": "meaningful visual state change" }
       ],
@@ -85,6 +87,8 @@ Strong:
   motionProgression: "Quick entrance: the split battery snaps into view; semantic: morning gain fills while an afternoon debt line grows; final hold once the tradeoff balances."
 
 Sequential beat:
+  temporalMode: "stepped"
+  detailMode: "normal"
   beat: "Walk through three stages without showing them all at once."
   narration: "Đầu tiên hệ thống nhận yêu cầu. Sau đó dữ liệu được xử lý. Cuối cùng kết quả được trả về."
   visualMetaphor: "A three-node path that activates in narration order."
@@ -92,6 +96,8 @@ Sequential beat:
   motionBeats: [{"id":"receive-request","anchor":"hệ thống nhận yêu cầu","action":"Reveal and activate node one"},{"id":"process-data","anchor":"dữ liệu được xử lý","action":"Connect and activate node two"},{"id":"return-result","anchor":"kết quả được trả về","action":"Complete node three and hold the full path"}]
 
 Terminal/process beat:
+  temporalMode: "continuous"
+  detailMode: "fine"
   beat: "Show a command changing the system rather than presenting a static screenshot."
   narration: "Chạy lệnh kiểm tra cấu hình. Terminal trả về kết quả hợp lệ. Trạng thái hệ thống chuyển sang sẵn sàng."
   visualMetaphor: "A terminal where commands and results build line by line."
@@ -99,9 +105,17 @@ Terminal/process beat:
   motionBeats: [{"id":"type-command","anchor":"lệnh kiểm tra cấu hình","action":"Type the command"},{"id":"show-result","anchor":"trả về kết quả hợp lệ","action":"Reveal the terminal result"},{"id":"ready-state","anchor":"chuyển sang sẵn sàng","action":"Highlight the changed system state"}]
 
 Non-semantic statement beat:
+  temporalMode: "static"
+  detailMode: "normal"
   narration: "Công cụ tốt khuếch đại tư duy tốt, nhưng không thể thay thế nó."
   motionProgression: "Quick entrance: the statement settles into focus; final readable hold."
-  motionBeats: omitted because there is only one viewer-facing state.`;
+  motionBeats: omitted because there is only one viewer-facing state.
+
+Continuous terminal/chart:
+  temporalMode: "continuous" when intermediate states matter, such as typed commands, a growing chart, a drawn path, crop/pan, or morph. Entrance, particles, glow, and ambient motion do not qualify.
+
+Fine-detail evidence:
+  detailMode: "fine" for code, terminal text, tables, small chart labels, or an evidence image whose crop/highlight must remain readable; otherwise use "normal".`;
 
 function claimLedgerRules(hasLabeledSources: boolean): string {
   const provenance = hasLabeledSources
@@ -158,6 +172,7 @@ TASK:
 - Keep the opening aligned with the title and the payoff.
 - Use specific visual metaphors and layout families so later code authoring does not collapse into generic title cards.
 - For each scene, write a short motionProgression as non-code motion intent. Use the exact label "semantic:" only when narration contains at least two viewer-visible states (steps, list items, comparison, timeline, terminal/code, data flow, transformation, or cause/effect). Such a scene MUST include 2-4 motionBeats in narration order. A single entrance, glow, ambient loop, or highlight is not semantic. Omit motionBeats for a statement, logo reveal, single hook, or final payoff with only one state.
+- Classify every scene with temporalMode and detailMode. Use temporalMode:"static" for one-state scenes with no motionBeats; "stepped" for 2-4 discrete narration-led states; "continuous" only when intermediate states are visually important. Use detailMode:"fine" only for code, terminal, tables, small chart labels, or evidence crop/highlight; otherwise "normal".
 - Each motionBeat has a unique lower-kebab id (max 32 chars), an anchor copied exactly from one unique contiguous 2-8 word phrase in narration, and a non-code action describing a meaningful visual state change. Anchors must be ordered as spoken. Do not write timestamps.
 - Every scene advances exactly one viewer-facing idea.
 
@@ -194,6 +209,7 @@ QUALITY SELF-CHECK BEFORE FINAL JSON:
   + readable hold, semantic progression, living motion, or an intentional
   mostly-static statement beat. Avoid generic "text appears".
 - Every scene labeled "semantic:" must include 2-4 valid motionBeats. The final major beat should land near the final part of narration while leaving a readable hold; this is a soft direction, not a timestamp rule.
+- Every scene must use exactly one temporalMode value (static|stepped|continuous) and one detailMode value (normal|fine). static must omit motionBeats; stepped and continuous must include 2-4 valid motionBeats.
 - action:"omit" claims are safety notes only; never use them in title, narration, on-screen text, payoff, or evidenceClaimIds.
 ${
   hasLabeledSources

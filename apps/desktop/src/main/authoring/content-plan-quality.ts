@@ -14,7 +14,8 @@ export type ContentPlanQualityCheck =
   | "pacing"
   | "layout-diversity"
   | "motion-progression"
-  | "motion-beats";
+  | "motion-beats"
+  | "review-intent";
 export type ContentPlanQualitySeverity = "blocking" | "advisory";
 export type ContentPlanQualityIssue = {
   check: ContentPlanQualityCheck;
@@ -65,6 +66,7 @@ export function evaluateContentPlanQuality(
     }
   }
 
+  const hasReviewIntentContract = plan.scenes.some((scene) => scene.temporalMode !== undefined || scene.detailMode !== undefined);
   for (const scene of plan.scenes) {
     const sceneText = `${scene.beat}\n${scene.narration}\n${scene.onScreenText}`;
     if (hasConcreteFact(sceneText) && scene.evidenceClaimIds.length === 0) {
@@ -86,6 +88,25 @@ export function evaluateContentPlanQuality(
         check: "motion-beats",
         sceneId: scene.sceneId,
         message: "semantic motionProgression requires 2-4 narration-anchored motionBeats",
+      });
+    }
+    if (hasReviewIntentContract && (!scene.temporalMode || !scene.detailMode)) {
+      addIssue({
+        check: "review-intent",
+        sceneId: scene.sceneId,
+        message: "generated scenes must declare both temporalMode and detailMode",
+      });
+    } else if (scene.temporalMode === "static" && scene.motionBeats) {
+      addIssue({
+        check: "review-intent",
+        sceneId: scene.sceneId,
+        message: "static scenes must not declare motionBeats",
+      });
+    } else if ((scene.temporalMode === "stepped" || scene.temporalMode === "continuous") && !scene.motionBeats) {
+      addIssue({
+        check: "review-intent",
+        sceneId: scene.sceneId,
+        message: `${scene.temporalMode} scenes require 2-4 motionBeats`,
       });
     }
   }

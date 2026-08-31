@@ -12,7 +12,11 @@ export type {
   ContentPlanClaim,
   ContentPlanScene,
   ScenePurpose,
+  SceneTemporalMode,
+  SceneDetailMode,
 } from "./content-plan-schema.js";
+export { sceneReviewProfiles } from "./scene-review-profile.js";
+export type { SceneReviewProfile } from "./scene-review-profile.js";
 
 export type { ContentPlanNormalizationDiagnostic } from "./content-plan-normalize.js";
 

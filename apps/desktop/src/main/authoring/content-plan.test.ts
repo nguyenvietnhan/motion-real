@@ -103,6 +103,18 @@ function pacingScene(index: number, total: number, narrationWords: number): Cont
 }
 
 describe("ContentPlanSchema", () => {
+  it("accepts legacy plans without review modes and parses generated review intent", () => {
+    expect(ContentPlanSchema.safeParse(validPlan()).success).toBe(true);
+    const generated = validPlan({
+      scenes: validPlan().scenes.map((scene, index) => ({
+        ...scene,
+        temporalMode: index === 0 ? "stepped" as const : "continuous" as const,
+        detailMode: index === 0 ? "normal" as const : "fine" as const,
+      })),
+    });
+    expect(ContentPlanSchema.safeParse(generated).success).toBe(true);
+  });
+
   it("accepts ordered Vietnamese anchors after NFC/case/punctuation normalization", () => {
     const parsed = ContentPlanSchema.safeParse(validPlan({
       scenes: [{
@@ -172,6 +184,17 @@ describe("ContentPlanSchema", () => {
       ],
     });
     expect(semanticMotionSceneIds(plan)).toEqual(["scene-01", "scene-02"]);
+  });
+
+  it("uses temporalMode instead of regex for plans with explicit review intent", () => {
+    const base = validPlan().scenes[0]!;
+    const plan = validPlan({
+      scenes: [
+        { ...base, sceneId: "scene-01", temporalMode: "static", detailMode: "normal" },
+        { ...base, sceneId: "scene-02", temporalMode: "continuous", detailMode: "fine" },
+      ],
+    });
+    expect(semanticMotionSceneIds(plan)).toEqual(["scene-02"]);
   });
 
   it("accepts the content-plan contract shape", () => {
@@ -416,6 +439,29 @@ describe("content-plan helpers", () => {
 });
 
 describe("content quality eval fixtures", () => {
+  it.each([
+    ["missing modes", (scene: ContentPlan["scenes"][number]) => ({ ...scene, temporalMode: "stepped" as const, detailMode: undefined })],
+    ["static with beats", (scene: ContentPlan["scenes"][number]) => ({ ...scene, temporalMode: "static" as const, detailMode: "normal" as const })],
+    ["stepped without beats", (scene: ContentPlan["scenes"][number]) => ({ ...scene, temporalMode: "stepped" as const, detailMode: "normal" as const, motionBeats: undefined, motionProgression: "Quick entrance, then hold." })],
+  ])("blocks generated review intent with %s", (_label, mutate) => {
+    const plan = validPlan({ scenes: [mutate(validPlan().scenes[0]!)] });
+    expect(evaluateContentPlanQuality(plan).blockingIssues).toContainEqual(
+      expect.objectContaining({ check: "review-intent", sceneId: "scene-01" }),
+    );
+  });
+
+  it("accepts valid static, stepped and continuous review intent", () => {
+    const base = validPlan().scenes[0]!;
+    const plan = validPlan({
+      scenes: [
+        { ...base, sceneId: "scene-01", temporalMode: "static", detailMode: "normal", motionBeats: undefined, motionProgression: "Quick entrance, then hold." },
+        { ...base, sceneId: "scene-02", purpose: "context", temporalMode: "stepped", detailMode: "normal" },
+        { ...base, sceneId: "scene-03", purpose: "payoff", temporalMode: "continuous", detailMode: "fine" },
+      ],
+    });
+    expect(evaluateContentPlanQuality(plan).blockingIssues.filter((issue) => issue.check === "review-intent")).toEqual([]);
+  });
+
   it("incident fixture: concrete facts without usable evidence claim ids stay claim-ledger blocking", () => {
     const parsed = ContentPlanSchema.safeParse(CLAIM_LEDGER_MISSING_EVIDENCE_PLAN);
     expect(parsed.success).toBe(true);
@@ -675,6 +721,12 @@ describe("buildContentPlanMessages", () => {
     expect(system).toMatch(/semantic progression/);
     expect(system).toMatch(/2-4 motionBeats/);
     expect(system).toMatch(/single entrance, glow, ambient loop, or highlight is not semantic/);
+    expect(system).toMatch(/temporalMode/);
+    expect(system).toMatch(/static\|stepped\|continuous/);
+    expect(system).toMatch(/detailMode/);
+    expect(system).toMatch(/normal\|fine/);
+    expect(system).toMatch(/Continuous terminal\/chart/);
+    expect(system).toMatch(/Fine-detail evidence/);
     expect(system).toMatch(/living motion/);
     expect(system).toMatch(/schema-critical enum fields/);
     expect(system).toMatch(/Do not invent synonyms for hookType, purpose, support, confidence, action, or layoutFamily/);
