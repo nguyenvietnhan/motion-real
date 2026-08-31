@@ -91,7 +91,7 @@ class AuthoringStillRenderError extends Error {
 function isRepairableAuthoringError(error: unknown): boolean {
   if (error instanceof AuthoringStillRenderError) return error.repairable;
   const message = error instanceof Error ? error.message : String(error);
-  return /authoring submission|scene id|manifest|narration|pacing|transitionToNext|visual refine|reviewed_scene_ids|review_notes|fingerprint|admission|schema|authored[\\/]|\.tsx/i.test(message);
+  return /authoring submission|scene id|manifest|narration|pacing|transitionToNext|visual refine|reviewed_scene_ids|review_notes|read_image|đọc ảnh|lượt nhận xét|fingerprint|admission|schema|authored[\\/]|\.tsx/i.test(message);
 }
 
 export type AgentCreateRequest = {
@@ -418,8 +418,12 @@ export class HarnessManager {
         return undefined;
       })
       : undefined;
-    if (activityState?.artifactPromptEnded && isArtifactAwaitingState(record.productionState)) {
-      const artifact = record.productionState === "collecting_assets" ? "manifest asset" : "brief";
+    if (activityState?.artifactPromptEnded && isArtifactAwaitingState(record.productionState)
+      && !(isAutomatedAuthoringState(record.productionState)
+        && existsSync(join(this.rootOf(record.id), "handoff", "authoring.json")))) {
+      const artifact = record.productionState === "collecting_assets"
+        ? "manifest asset"
+        : record.productionState === "preparing_brief" ? "brief" : "authoring";
       await this.recordWorkflowError(record, `Agent đã kết thúc lượt nhưng chưa gửi ${artifact} hợp lệ. Dữ liệu đã tải vẫn được giữ; hãy thử lại bước này.`);
       record = await this.mustReadRecord(record.id);
     }
@@ -1168,17 +1172,18 @@ export class HarnessManager {
     }
   }
 
-  private async promptSession(record: DraftRecord, text: string): Promise<unknown> {
+  private async promptSession(record: DraftRecord, text: string): Promise<string> {
     this.requireActiveSession(record);
     const rpcId = randomUUID();
     if (isArtifactAwaitingState(record.productionState)) {
       await this.writeRecord({ ...record, awaitingArtifactPromptId: rpcId });
     }
-    return this.rpc(this.active!.url, "session.prompt", {
+    await this.rpc(this.active!.url, "session.prompt", {
       sessionId: record.sessionId,
       mode: "queue",
       content: [{ type: "text", text }],
     }, this.rpcTimeoutMs, rpcId);
+    return rpcId;
   }
 
   private async readSafeActivities(record: DraftRecord): Promise<{ activities: AgentActivityVM[]; needsAttention: boolean; artifactPromptEnded: boolean } | undefined> {
@@ -1796,6 +1801,9 @@ export class HarnessManager {
       to: "scene_review",
       jobId: latest.activeJobId,
     }) };
+    delete next.awaitingArtifactPromptId;
+    delete next.repairPhase;
+    delete next.repairAttempts;
     this.stopAuthoringPoll(record.id);
     await this.writeRecord(next);
   }
@@ -1824,12 +1832,12 @@ export class HarnessManager {
       phase: visualRefine ? "visual_refine" : "repair",
       pacing: await this.authoringPacing(latest),
       render_error: message.slice(0, 2_000),
-      ...(visualRefine ? {} : { stills: [] }),
+      ...(visualRefine ? { review_after_seq: request.review_after_seq } : { stills: [] }),
       instructions: [
         visualRefine
           ? "Đọc render_error và hoàn tất visual refine. Không sửa code nếu lỗi chỉ là thiếu reviewed_scene_ids/review_notes; source hoặc ảnh đổi sẽ được render lại theo pass còn lại."
           : "MotionReal không validate/render được scene hiện tại. Đọc render_error, kiểm tra manifest và mọi module TSX rồi sửa tận gốc.",
-        ...(visualRefine ? ["Dùng read_image mở lại mọi PNG trong stills. Nếu đọc ảnh lỗi, báo lỗi thay vì xác nhận đã review; chỉ submit đủ reviewed_scene_ids cùng review_notes sau khi xem ảnh."] : []),
+        ...(visualRefine ? ["Dùng read_image mở các PNG còn thiếu được liệt kê trong render_error. Bằng chứng đọc ảnh thành công từ cùng lượt review vẫn được giữ; chỉ submit đủ reviewed_scene_ids cùng review_notes sau khi xem ảnh."] : []),
         "Gọi lại motionreal_submit_authoring bằng request_revision mới sau khi sửa.",
       ],
     }, visualRefine
@@ -1951,8 +1959,13 @@ export class HarnessManager {
     const current = parseJson(await readFile(path, "utf8")) as Record<string, unknown>;
     const next = { ...record, authoringRequestRevision: (record.authoringRequestRevision ?? 0) + 1 };
     const phase = patch.phase ?? current.phase;
+    const preservedReviewAfterSeq = Number.isSafeInteger(patch.review_after_seq)
+      && Number(patch.review_after_seq) >= -1
+      ? Number(patch.review_after_seq)
+      : undefined;
     const reviewAfterSeq = phase === "visual_refine"
-      ? (await readHarnessReviewHistory(() => this.reviewHistoryPage(record))).lastSeq : undefined;
+      ? preservedReviewAfterSeq ?? (await readHarnessReviewHistory(() => this.reviewHistoryPage(record))).lastSeq
+      : undefined;
     this.requireActiveSession(record);
     const nextRequest = { ...current, ...patch, request_revision: next.authoringRequestRevision, review_after_seq: reviewAfterSeq };
     const commit = (async () => {
@@ -1961,7 +1974,8 @@ export class HarnessManager {
       // recoverable authoring result or advance its revision prematurely.
       await writeJson(path, nextRequest);
       try {
-        await this.promptSession(next, prompt);
+        const promptId = await this.promptSession(next, prompt);
+        next.awaitingArtifactPromptId = promptId;
       } catch (error) {
         await writeJson(path, current);
         throw error;
@@ -2471,8 +2485,8 @@ function isAutomatedAuthoringState(state: AgentProductionState): state is "autho
   return state === "authoring" || state === "visual_refine";
 }
 
-function isArtifactAwaitingState(state: AgentProductionState): state is "collecting_assets" | "preparing_brief" {
-  return state === "collecting_assets" || state === "preparing_brief";
+function isArtifactAwaitingState(state: AgentProductionState): state is "collecting_assets" | "preparing_brief" | "authoring" | "visual_refine" {
+  return state === "collecting_assets" || state === "preparing_brief" || isAutomatedAuthoringState(state);
 }
 
 /** Supports existing drafts created before the per-prompt marker was persisted. */
@@ -2487,7 +2501,9 @@ function isAwaitedArtifactPrompt(data: Record<string, unknown>, record: DraftRec
   const text = content.map((item) => stringOf(objectOf(item).text) ?? "").join("\n");
   return record.productionState === "collecting_assets"
     ? text.includes("motionreal_submit_assets")
-    : text.includes("motionreal_submit_brief");
+    : record.productionState === "preparing_brief"
+      ? text.includes("motionreal_submit_brief")
+      : text.includes("motionreal_submit_authoring") || text.includes("authoring-request.json");
 }
 
 function isRetryableFailurePhase(value: unknown): value is "collecting_assets" | "preparing_brief" | "authoring" | "visual_refine" {

@@ -431,6 +431,22 @@ describe("HarnessManager draft lifecycle", () => {
     });
   });
 
+  it("fails a completed authoring turn that did not submit an artifact", async () => {
+    const { manager, root, calls, history } = await activeManagerForTest();
+    const prepared = await prepareLinkedAuthoringDraft(manager, root, "job-missing-authoring", "project-missing-authoring");
+    await manager.startAuthoring(prepared.draftId, "project-missing-authoring", prepared.projectRoot, []);
+    const prompt = calls.filter((call) => call.method === "session.prompt").at(-1);
+    history.push({ event: { seq: 1, type: "turn/start", data: { turn: 8 } } });
+    history.push({ event: { seq: 2, type: "user/message", data: { source: { rpcId: prompt?.rpcId } } } });
+    history.push({ event: { seq: 3, type: "turn/end", data: { turn: 8, reason: { kind: "completed" } } } });
+
+    await expect(manager.status(prepared.draftId, { includeActivities: true })).resolves.toMatchObject({
+      productionState: "error",
+      failedPhase: "authoring",
+      lastError: expect.stringMatching(/chưa gửi authoring/i),
+    });
+  });
+
   it("reads native activity only when the caller explicitly requests it", async () => {
     const { manager, calls } = await activeManagerForTest();
     const draft = await manager.createDraft("Không poll history khi chat native đang mở");
@@ -1208,7 +1224,8 @@ describe("HarnessManager draft lifecycle", () => {
       .toEqual([plannedNarration, plannedNarration, plannedNarration]);
     expect(normalizedManifest.scenes[0].transitionToNext).toBe("fade");
 
-    for (const path of stills) {
+    const firstRead = stills.slice(0, 1);
+    for (const path of firstRead) {
       const callId = `read-${history.length}`;
       history.push({ event: { seq: history.length, type: "tool/call", data: { callId, name: "read_image", arguments: JSON.stringify({ file_path: `project/review/${path.split("\\").at(-1)}` }) } } });
       history.push({ event: { seq: history.length, type: "tool/result", data: { message: { content: [{
@@ -1221,6 +1238,28 @@ describe("HarnessManager draft lifecycle", () => {
       version: 1, job_id: "job-final", request_revision: 2, scene_ids: sceneIds, used_asset_ids: [],
       reviewed_scene_ids: sceneIds, review_notes: "Đã xem đủ still; hierarchy rõ và không có lỗi trực quan cần sửa.",
     }));
+    const firstReviewRequest = JSON.parse(await readFile(join(draftRoot, "handoff", "authoring-request.json"), "utf8"));
+    await vi.waitFor(async () => {
+      await expect(readFile(join(draftRoot, "handoff", "authoring-request.json"), "utf8"))
+        .resolves.toContain('"request_revision": 3');
+    }, { timeout: 3_000 });
+    const repairRequest = JSON.parse(await readFile(join(draftRoot, "handoff", "authoring-request.json"), "utf8"));
+    expect(repairRequest.review_after_seq).toBe(firstReviewRequest.review_after_seq);
+    expect(repairRequest.instructions.join(" ")).toMatch(/PNG còn thiếu/);
+
+    for (const path of stills.slice(1)) {
+      const callId = `read-${history.length}`;
+      history.push({ event: { seq: history.length, type: "tool/call", data: { callId, name: "read_image", arguments: JSON.stringify({ file_path: `project/review/${path.split("\\").at(-1)}` }) } } });
+      history.push({ event: { seq: history.length, type: "tool/result", data: { message: { content: [{
+        type: "tool-result", toolCallId: callId, isError: false,
+        content: [{ type: "image", attachment: { attachmentId: callId, mediaType: "image/png", bytes: 68, width: 1, height: 1 } }],
+      }] } } } });
+    }
+    history.push({ event: { seq: history.length, type: "assistant/message", data: { message: { content: [{ type: "text", text: "Đã mở nốt các ảnh còn thiếu." }] } } } });
+    await writeFile(join(draftRoot, "handoff", "authoring.json"), JSON.stringify({
+      version: 1, job_id: "job-final", request_revision: 3, scene_ids: sceneIds, used_asset_ids: [],
+      reviewed_scene_ids: sceneIds, review_notes: "Đã xem đủ still; hierarchy rõ và không có lỗi trực quan cần sửa.",
+    }));
     await vi.waitFor(() => expect(acceptAuthoringStills).toHaveBeenCalledWith("project-final"), { timeout: 3_000 });
     expect(renderAuthoringStills).toHaveBeenCalledTimes(1);
     await vi.waitFor(async () => {
@@ -1230,12 +1269,12 @@ describe("HarnessManager draft lifecycle", () => {
     await manager.requestSceneEdits(draft.id, "project-final", [{ sceneId: "scene-01", text: "Sửa điểm nhấn cảnh đầu." }], "");
     await writeFile(join(projectRoot, "authored", "scene-01.tsx"), registeredSceneSource("scene-01", "edited"));
     await writeFile(join(draftRoot, "handoff", "authoring.json"), JSON.stringify({
-      version: 1, job_id: "job-final", request_revision: 3,
+      version: 1, job_id: "job-final", request_revision: 4,
       scene_ids: sceneIds, used_asset_ids: [],
     }));
     await vi.waitFor(() => expect(renderAuthoringStills).toHaveBeenLastCalledWith("project-final", ["scene-01"]), { timeout: 3_000 });
     await vi.waitFor(async () => expect(JSON.parse(await readFile(join(draftRoot, "handoff", "authoring-request.json"), "utf8")))
-      .toMatchObject({ request_revision: 4, phase: "visual_refine", review_scene_ids: ["scene-01"] }), { timeout: 3_000 });
+      .toMatchObject({ request_revision: 5, phase: "visual_refine", review_scene_ids: ["scene-01"] }), { timeout: 3_000 });
     await manager.dispose();
   });
 
