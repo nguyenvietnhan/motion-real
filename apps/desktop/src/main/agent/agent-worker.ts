@@ -149,7 +149,7 @@ export interface AgentWorker {
    * Returns the rendered still paths. A structured render error is optional so
    * interactive callers can distinguish authored-code repair from runtime retry.
    */
-  renderStills?(projectId: string, sceneIds?: string[], signal?: AbortSignal): Promise<{ stills: string[]; error?: SerializedPipelineError }>;
+  renderStills?(projectId: string, sceneIds?: string[], signal?: AbortSignal, multiFrameSceneIds?: string[]): Promise<{ stills: string[]; error?: SerializedPipelineError }>;
   /**
    * Render the final full-quality MP4.
    * Pass forceFull when desktop reviewed without a draft MP4 (stills/skip modes

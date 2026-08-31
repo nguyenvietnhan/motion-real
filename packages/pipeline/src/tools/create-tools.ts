@@ -156,6 +156,8 @@ export const renderStillsInput = z.object({
   projectId: z.string().min(1),
   /** Render only these scene ids (the scenes a refine pass touched); absent ⇒ all. */
   sceneIds: z.array(z.string().min(1)).optional(),
+  /** Scene subset that needs early/middle/late samples for semantic-motion review. */
+  multiFrameSceneIds: z.array(z.string().min(1)).optional(),
 });
 
 export const doctorInput = z.object({});
@@ -373,6 +375,7 @@ export function createTools(overrides: Partial<ToolDeps> = {}) {
       try {
         const res = await deps.renderProjectStills(input.projectId, {
           ...(input.sceneIds ? { sceneIds: input.sceneIds } : {}),
+          ...(input.multiFrameSceneIds ? { multiFrameSceneIds: input.multiFrameSceneIds } : {}),
           ...(onProgress ? { onProgress } : {}),
           ...(signal ? { signal } : {}),
         });

@@ -4,6 +4,7 @@ export {
   ContentPlanSchema,
   ScenePurposeSchema,
   contentPlanForAuthoring,
+  semanticMotionSceneIds,
   usableClaims,
 } from "./content-plan-schema.js";
 export type {

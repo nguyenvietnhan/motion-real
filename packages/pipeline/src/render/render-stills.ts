@@ -24,8 +24,8 @@ import type { SafetyIssue } from "../types.js";
  * spend), no MP4 encode, no determinism double-render, no review artifacts,
  * no heavy oracle suite. Just: admit authored scenes → manifest→spec →
  * `lockSpec(spec, null)` (a no-audio hold-timed lock, purely for the frame math)
- * → generate the per-project Remotion entry → render ONE PNG per scene at its
- * midpoint into the project `review/` dir.
+ * → generate the per-project Remotion entry → render one midpoint PNG per scene
+ * into `review/`, plus early/late samples only for requested semantic scenes.
  *
  * `renderProject` is a sensitive orchestration seam, so this lives in its own
  * module rather than as a branch inside the orchestrator; it reuses the same
@@ -47,6 +47,8 @@ const STILLS_FPS = FPS;
 export type RenderProjectStillsOptions = {
   /** Render only these scene ids (the scenes a refine pass touched); absent ⇒ all. */
   sceneIds?: string[];
+  /** Scenes that need early/middle/late visual review instead of midpoint only. */
+  multiFrameSceneIds?: string[];
   /** User-cancel signal ("Dừng"): aborts the in-flight still render. */
   signal?: AbortSignal;
   onProgress?: (done: number, total: number) => void;
@@ -263,6 +265,11 @@ export async function renderProjectStillsUnlocked(
           timingScope: "stills",
           onTiming: recordRenderTiming,
           ...(opts.sceneIds ? { sceneIds: opts.sceneIds } : {}),
+          ...(opts.multiFrameSceneIds && opts.multiFrameSceneIds.length > 0 ? {
+            extraFractions: [0.18, 0.82],
+            extraFractionSceneIds: opts.multiFrameSceneIds,
+            includeExtraStills: true,
+          } : {}),
           ...(opts.signal ? { signal: opts.signal } : {}),
           ...(opts.onProgress ? { onProgress: opts.onProgress } : {}),
         }),

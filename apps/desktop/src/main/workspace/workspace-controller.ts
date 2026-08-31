@@ -465,6 +465,7 @@ export class WorkspaceController {
   async renderHarnessStills(
     projectId: string,
     sceneIds: string[],
+    multiFrameSceneIds?: string[],
   ): Promise<{ ok: true; stills: string[] } | { ok: false; error: string; repairable: boolean }> {
     if (this.inFlight.has(projectId)) {
       return { ok: false, error: "Project đang có tác vụ dựng khác; chưa thể render ảnh xem trước.", repairable: false };
@@ -476,7 +477,7 @@ export class WorkspaceController {
         try {
           const worker = this.deps.worker;
           if (!worker.renderStills) throw new Error("Runtime chưa hỗ trợ render ảnh xem trước cho Agent.");
-          const result = await worker.renderStills(projectId, sceneIds, signal);
+          const result = await worker.renderStills(projectId, sceneIds, signal, multiFrameSceneIds);
           if (signal?.aborted) {
             await this.recoverAfterCancel(projectId);
             resolve({ ok: false, error: "Đã dừng render ảnh xem trước.", repairable: false });
@@ -490,7 +491,7 @@ export class WorkspaceController {
             });
             return;
           }
-          if (result.stills.length !== sceneIds.length) {
+          if (result.stills.length < sceneIds.length) {
             resolve({ ok: false, error: "MotionReal chưa render đủ ảnh xem trước cho các cảnh Agent.", repairable: false });
             return;
           }

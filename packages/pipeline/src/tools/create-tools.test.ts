@@ -447,6 +447,23 @@ describe("render_stills — fast per-scene stills (no TTS)", () => {
     expect(seenSceneIds).toEqual(["scene-02"]);
   });
 
+  it("passes semantic multi-frame scene ids through to the still renderer", async () => {
+    let seenMultiFrameSceneIds: string[] | undefined;
+    const tools = createTools({
+      renderProjectStills: async (projectId, opts) => {
+        seenMultiFrameSceneIds = opts?.multiFrameSceneIds;
+        return { projectId, stills: ["/p/review/scene-02.png", "/p/review/scene-02.f18.png", "/p/review/scene-02.f82.png"] };
+      },
+    });
+    const res = await tools.render_stills({
+      projectId: "st-semantic",
+      sceneIds: ["scene-02"],
+      multiFrameSceneIds: ["scene-02"],
+    });
+    expect(res.ok).toBe(true);
+    expect(seenMultiFrameSceneIds).toEqual(["scene-02"]);
+  });
+
   it("surfaces a pipeline failure as a structured error (never throws)", async () => {
     const tools = createTools({
       renderProjectStills: async () => {

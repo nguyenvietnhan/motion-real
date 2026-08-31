@@ -541,7 +541,8 @@ describe("buildAuthorMessages", () => {
     expect(text).toContain("motion intent");
     expect(text).toContain("quick entrance/reveal/pop");
     expect(text).toContain("0.2–0.8 giây");
-    expect(text).toContain("semantic progression");
+    expect(text).toContain('motionProgression có nhãn "semantic:"');
+    expect(text).toContain("2–4 thay đổi có thứ tự");
     expect(text).toContain("continuous living motion");
     expect(text).toContain("phase/period deterministic");
     expect(text).not.toContain("Unsupported $999 launch price");

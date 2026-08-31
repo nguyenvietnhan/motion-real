@@ -79,7 +79,17 @@ Strong:
   first3SecondsLine: "The second cup does not give you more focus. It borrows focus from later."
   beat: "Turn a familiar habit into a visible tradeoff."
   visualMetaphor: "A glowing battery split into morning gain and afternoon debt."
-  motionProgression: "Quick entrance: the split battery snaps into view; semantic: morning gain fills while an afternoon debt line grows; final hold once the tradeoff balances."`;
+  motionProgression: "Quick entrance: the split battery snaps into view; semantic: morning gain fills while an afternoon debt line grows; final hold once the tradeoff balances."
+
+Sequential beat:
+  beat: "Walk through three stages without showing them all at once."
+  visualMetaphor: "A three-node path that activates in narration order."
+  motionProgression: "Quick entrance: the path frame lands; semantic: phase 1 reveals the first node, phase 2 moves focus to the second, phase 3 completes the third and connection; final hold on the completed path."
+
+Terminal/process beat:
+  beat: "Show a command changing the system rather than presenting a static screenshot."
+  visualMetaphor: "A terminal where commands and results build line by line."
+  motionProgression: "Quick entrance: terminal opens; semantic: phase 1 types the command, phase 2 reveals its result, phase 3 highlights the changed state; final hold on the outcome."`;
 
 function claimLedgerRules(hasLabeledSources: boolean): string {
   const provenance = hasLabeledSources
@@ -124,6 +134,9 @@ function systemPrompt(
     wordsPerSecond,
   );
   const titleCap = TITLE_MAX_CHARS;
+  const longFormSceneHint = pacing.targetSeconds >= 200
+    ? "\n- For a ~210-second video, prefer about 14-16 meaningful scenes when the narrative supports it. This is a soft target: never split one coherent beat merely to hit a count."
+    : "";
   return `You are MotionReal's CONTENT PLANNER, not the Remotion code author.
 Plan a short-form video before any TSX is written. Return only valid JSON. Do not include markdown fences, commentary, JSX, imports, or component code.
 
@@ -132,14 +145,14 @@ TASK:
 - Make Scene 1 deliver a concrete content proposition in the first 3 seconds.
 - Keep the opening aligned with the title and the payoff.
 - Use specific visual metaphors and layout families so later code authoring does not collapse into generic title cards.
-- For each scene, prefer a short motionProgression as non-code motion intent. A simple "quick entrance, then readable hold" is valid when the beat is mostly a statement; use semantic progression only when the idea truly changes over time.
+- For each scene, write a short motionProgression as non-code motion intent. Use the exact label "semantic:" when the scene contains ordered change (steps, list items, comparison, timeline, terminal/code, data flow, transformation, or cause/effect), followed by 2-4 relative phases in narration order. A single global entrance does not satisfy such a beat. A simple "quick entrance, then readable hold" remains valid for a mostly static statement.
 - Every scene advances exactly one viewer-facing idea.
 
 DELIVERY LOCKS (already chosen by the app; do not change them):
 - Format: ${geometryLabel()}.
 - Duration TARGET (authoritative): ${pacing.targetSeconds} seconds of spoken video, around ${pacing.targetWords} spoken words at ~${roundRate(wordsPerSecond)} words/second. Ignore any other length mentioned in the user brief if it conflicts — this number is the single source of truth.
 - Total narration across ALL scenes must land near ${pacing.targetWords} words (at least ~${pacing.minTotalNarrationWords}). Do not plan ${pacing.maxScenes}+ micro-scenes with 1-line narration when the target is longer, and do not plan a long scene count when the target is very short.
-- Pacing: plan ${pacing.minScenes}-${pacing.maxScenes} scenes, aim around ${pacing.targetScenes}; keep average narration at or below ${pacing.maxAvgWordsPerScene} words/scene and split any scene that grows past ${pacing.maxSceneNarrationWords} words.
+- Pacing: plan ${pacing.minScenes}-${pacing.maxScenes} scenes, aim around ${pacing.targetScenes}; keep average narration at or below ${pacing.maxAvgWordsPerScene} words/scene and split any scene that grows past ${pacing.maxSceneNarrationWords} words.${longFormSceneHint}
 - Video language: ${languageLabel(language)} for title, narration, on-screen text, and final viewer-facing wording.
 - Publish title cap: under ${titleCap} characters.
 
@@ -151,7 +164,7 @@ STORY RUBRIC:
 - On-screen text must be short enough to scan quickly.
 - Avoid scenes that are only "headline + body text" unless purpose is deliberately "statement".
 - Vary layoutFamily across scenes when the story needs contrast.
-- motionProgression must describe how motion should serve the beat without stretching every transition.
+- motionProgression must describe how motion should serve the beat without stretching every transition. For ordered content, specify 2-4 relative semantic phases that reveal, focus, or transform in narration order; do not request exact audio timestamps.
   Good: quick title/card entrance, line/path/chart drawing when the content evolves,
   focus shifts, small bounded wave/pulse/signal loops, or a deliberate static hold
   after the main beat lands. Bad: "text appears", "title fades in", or generic card movement.

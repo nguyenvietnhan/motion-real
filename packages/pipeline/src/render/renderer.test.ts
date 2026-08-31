@@ -203,6 +203,25 @@ describe("renderSceneStills", () => {
     expect(calls[1]!.output).toBe(join(resolve(outDir), "scene-01.f82.png"));
     expect(calls[3]!.output).toBe(join(resolve(outDir), "scene-02.f82.png"));
   });
+
+  it("returns early and late samples only for semantic review scenes when requested", async () => {
+    const spec = lockedSpec();
+    const outDir = join(tempRoot, "projects", "demo-12345678", "review");
+
+    const outputs = await renderSceneStills(spec, outDir, {
+      extraFractions: [0.18, 0.82],
+      extraFractionSceneIds: ["scene-02"],
+      includeExtraStills: true,
+    });
+
+    expect(outputs).toEqual([
+      join(resolve(outDir), "scene-01.png"),
+      join(resolve(outDir), "scene-02.png"),
+      join(resolve(outDir), "scene-02.f18.png"),
+      join(resolve(outDir), "scene-02.f82.png"),
+    ]);
+    expect(mocks.renderStill).toHaveBeenCalledTimes(4);
+  });
 });
 
 describe("renderSceneRuntimeProbe", () => {

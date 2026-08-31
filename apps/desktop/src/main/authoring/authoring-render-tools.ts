@@ -64,10 +64,15 @@ export async function renderStillsWithTools(
   projectId: string,
   sceneIds?: string[],
   signal?: AbortSignal,
+  multiFrameSceneIds?: string[],
 ): Promise<{ stills: string[]; error?: SerializedPipelineError }> {
   await refreshAuthoredRegistry(deps, projectId);
   const res = await deps.tools.render_stills(
-    { projectId, ...(sceneIds && sceneIds.length > 0 ? { sceneIds } : {}) },
+    {
+      projectId,
+      ...(sceneIds && sceneIds.length > 0 ? { sceneIds } : {}),
+      ...(multiFrameSceneIds && multiFrameSceneIds.length > 0 ? { multiFrameSceneIds } : {}),
+    },
     undefined,
     signal,
   );

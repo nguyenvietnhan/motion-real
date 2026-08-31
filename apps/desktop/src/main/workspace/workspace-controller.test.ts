@@ -113,6 +113,28 @@ describe("project deletion", () => {
 });
 
 describe("Harness still-review bridge", () => {
+  it("forwards semantic multi-frame scene ids through the shared render lane", async () => {
+    const renderStills = vi.fn(async () => ({
+      stills: [
+        "V:/project/review/scene-02.png",
+        "V:/project/review/scene-02.f18.png",
+        "V:/project/review/scene-02.f82.png",
+      ],
+    }));
+    const ctrl = new WorkspaceController(baseDeps({
+      worker: { renderStills } as unknown as AgentWorker,
+    }));
+
+    await expect(ctrl.renderHarnessStills("p-harness", ["scene-02"], ["scene-02"]))
+      .resolves.toMatchObject({ ok: true });
+    expect(renderStills).toHaveBeenCalledWith(
+      "p-harness",
+      ["scene-02"],
+      expect.any(AbortSignal),
+      ["scene-02"],
+    );
+  });
+
   it("keeps the Agent worker receiver when rendering Harness stills", async () => {
     const worker = {
       root: "V:/project/review",

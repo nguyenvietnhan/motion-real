@@ -475,8 +475,8 @@ const harness = new HarnessManager({
   defaultVoiceProvider: () => settingsStore.current().voiceProvider,
   wordsPerSecond: wordsPerSecondForProject,
   planAuthoringContent: (projectId, input, signal) => authoringBackend.planContent(projectId, input, signal),
-  renderAuthoringStills: async (projectId, sceneIds) => {
-    return workspace.renderHarnessStills(projectId, sceneIds);
+  renderAuthoringStills: async (projectId, sceneIds, multiFrameSceneIds) => {
+    return workspace.renderHarnessStills(projectId, sceneIds, multiFrameSceneIds);
   },
   cancelAuthoringStills: (projectId) => workspace.cancel(projectId),
   maxAuthoringRepairs: async (projectId) => {

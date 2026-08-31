@@ -52,7 +52,7 @@ export interface AuthoringBackend {
   /** Render one draft (pipeline `render_draft` / renderProject quality draft). */
   renderDraft(projectId: string, signal?: AbortSignal): Promise<RenderResult>;
   /** Optional fast per-scene STILLS render (no TTS/MP4) — the cheap loop the silent refine pass iterates on. */
-  renderStills?(projectId: string, sceneIds?: string[], signal?: AbortSignal): Promise<{ stills: string[]; error?: SerializedPipelineError }>;
+  renderStills?(projectId: string, sceneIds?: string[], signal?: AbortSignal, multiFrameSceneIds?: string[]): Promise<{ stills: string[]; error?: SerializedPipelineError }>;
   /** Render the final full-quality MP4 (pipeline `render_full`); draft-first unless forceFull. */
   renderFull(projectId: string, signal?: AbortSignal, opts?: { forceFull?: boolean }): Promise<PublishResult>;
   /** Read the safety report for the just-rendered draft (`get_safety_report`). */
@@ -115,8 +115,8 @@ export class CustomLoopAgentWorker implements AgentWorker {
     return this.backend.renderFull(projectId, signal, opts);
   }
 
-  renderStills(projectId: string, sceneIds?: string[], signal?: AbortSignal): Promise<{ stills: string[]; error?: SerializedPipelineError }> {
-    return this.backend.renderStills?.(projectId, sceneIds, signal) ?? Promise.resolve({ stills: [] });
+  renderStills(projectId: string, sceneIds?: string[], signal?: AbortSignal, multiFrameSceneIds?: string[]): Promise<{ stills: string[]; error?: SerializedPipelineError }> {
+    return this.backend.renderStills?.(projectId, sceneIds, signal, multiFrameSceneIds) ?? Promise.resolve({ stills: [] });
   }
 
   visualQa(projectId: string, sceneIds?: string[], signal?: AbortSignal): Promise<VisualQaResult> {

@@ -95,6 +95,14 @@ export type ContentPlanScene = z.infer<typeof ContentPlanSceneSchema>;
 export type ContentPlan = z.infer<typeof ContentPlanSchema>;
 export type ScenePurpose = z.infer<typeof ScenePurposeSchema>;
 
+/** Scenes whose approved motion intent explicitly requires ordered visual change. */
+export function semanticMotionSceneIds(plan: ContentPlan, scope?: readonly string[]): string[] {
+  const allowed = scope ? new Set(scope) : undefined;
+  return plan.scenes
+    .filter((scene) => (!allowed || allowed.has(scene.sceneId)) && /\bsemantic\s*:/i.test(scene.motionProgression))
+    .map((scene) => scene.sceneId);
+}
+
 export function usableClaims(plan: ContentPlan): ContentPlanClaim[] {
   return plan.claims.filter((claim) => claim.confidence === "supported" && claim.action === "use");
 }

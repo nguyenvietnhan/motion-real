@@ -75,14 +75,15 @@ export type RenderSceneStillsOptions = RenderBaseOptions & {
   onProgress?: (done: number, total: number) => void;
   /**
    * Extra per-scene still samples, as fractions (0..1) through the scene's CLEAN
-   * SPEECH window (between the head/tail transition overlaps), in ADDITION to the
-   * midpoint keyframe. Used by the late-sample N14 pass to catch content that
-   * drifts out of the safe zone AFTER the midpoint (entrances settle by midpoint,
-   * so the midpoint still alone never sees late drift). Each extra still is named
-   * `<scene.id>.f<pct>.png` (e.g. `scene-03.f82.png`). The returned path list is
-   * unchanged (midpoints only), so render-oracle frame accounting stays stable.
+   * SPEECH window, in addition to the midpoint keyframe. Each extra still is named
+   * `<scene.id>.f<pct>.png` (for example `scene-03.f82.png`). They stay out of the
+   * returned path list unless includeExtraStills is enabled.
    */
   extraFractions?: number[];
+  /** Apply extraFractions only to this subset; absent means every rendered scene. */
+  extraFractionSceneIds?: string[];
+  /** Include extra-sample paths in the returned list for model visual review. */
+  includeExtraStills?: boolean;
   /**
    * Render stills for ONLY these scene ids (the fast refine loop re-renders just
    * the scenes it edited). The composition still bundles + lays out
@@ -171,7 +172,7 @@ function fractionTag(fraction: number): string {
   return `f${Math.round(fraction * 100)}`;
 }
 
-/** Render one PNG per scene at the scene midpoint for the later review loop. */
+/** Render midpoint PNGs plus optional sampled frames for selected scenes. */
 export async function renderSceneStills(
   spec: LockedVideoSpec,
   outDir: string,
@@ -190,6 +191,9 @@ export async function renderSceneStills(
   // edited. The composition still lays out the whole video (frame math unchanged);
   // we just skip writing a PNG for scenes outside the set. Empty/absent ⇒ all.
   const onlyIds = timingOpts.sceneIds && timingOpts.sceneIds.length > 0 ? new Set(timingOpts.sceneIds) : null;
+  const extraIds = timingOpts.extraFractionSceneIds && timingOpts.extraFractionSceneIds.length > 0
+    ? new Set(timingOpts.extraFractionSceneIds)
+    : null;
   const outputs: string[] = [];
   for (const [index, scene] of spec.scenes.entries()) {
     if (onlyIds && !onlyIds.has(scene.id)) continue;
@@ -217,12 +221,12 @@ export async function renderSceneStills(
     );
     outputs.push(output);
 
-    // Extra late samples (N14 late-drift pass): one still per requested fraction
-    // through the CLEAN speech window. Named `<id>.f<pct>.png`; NOT added to the
-    // returned list, so render-oracle frame accounting stays one-still-per-scene.
-    for (const fraction of timingOpts.extraFractions ?? []) {
+    // Extra samples through the CLEAN speech window. The normal render oracle
+    // leaves them out of the result; semantic-motion review opts into the paths.
+    for (const fraction of extraIds && !extraIds.has(scene.id) ? [] : timingOpts.extraFractions ?? []) {
       const win = speechWindow(spec, index);
       const lateFrame = clampFrame(win.start + Math.round(fraction * win.frames), spec);
+      const extraOutput = join(stillDir, `${scene.id}.${fractionTag(fraction)}.png`);
       await timedRender(
         timingOpts,
         "renderStill",
@@ -230,7 +234,7 @@ export async function renderSceneStills(
           renderStill({
             composition: prepared.composition,
             serveUrl: prepared.serveUrl,
-            output: join(stillDir, `${scene.id}.${fractionTag(fraction)}.png`),
+            output: extraOutput,
             frame: lateFrame,
             inputProps: prepared.inputProps,
             imageFormat: "png",
@@ -242,6 +246,7 @@ export async function renderSceneStills(
           }),
         { sceneId: scene.id, frame: lateFrame, kind: "late", fraction },
       );
+      if (timingOpts.includeExtraStills) outputs.push(extraOutput);
     }
 
     timingOpts.onProgress?.(index + 1, spec.scenes.length);

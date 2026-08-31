@@ -48,6 +48,17 @@ describe("authoring render tools", () => {
     });
   });
 
+  it("forwards semantic multi-frame ids without changing ordinary still calls", async () => {
+    const renderStills = vi.fn(async () => ({ ok: true, data: { stills: ["scene-02.png", "scene-02.f18.png", "scene-02.f82.png"] } }));
+    const deps = baseDeps({ render_stills: renderStills });
+    await renderStillsWithTools(deps, "p1", ["scene-02"], undefined, ["scene-02"]);
+    expect(renderStills).toHaveBeenCalledWith(
+      { projectId: "p1", sceneIds: ["scene-02"], multiFrameSceneIds: ["scene-02"] },
+      undefined,
+      undefined,
+    );
+  });
+
   it("getSafetyReport preserves every hard error reported by the pipeline", async () => {
     const deps = {
       tools: {

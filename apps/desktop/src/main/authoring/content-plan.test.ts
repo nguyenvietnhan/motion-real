@@ -6,6 +6,7 @@ import {
   contentPlanForAuthoring,
   evaluateContentPlanQuality,
   parseContentPlan,
+  semanticMotionSceneIds,
   usableClaims,
   type ContentPlan,
 } from "./content-plan.js";
@@ -94,6 +95,17 @@ function pacingScene(index: number, total: number, narrationWords: number): Cont
 }
 
 describe("ContentPlanSchema", () => {
+  it("selects only explicitly semantic motion scenes within the requested scope", () => {
+    const plan = validPlan({
+      scenes: [
+        { ...validPlan().scenes[0]!, sceneId: "scene-01", motionProgression: "Quick entrance, then hold." },
+        { ...validPlan().scenes[0]!, sceneId: "scene-02", motionProgression: "Quick entrance; semantic: reveal step one, then step two; final hold." },
+      ],
+    });
+    expect(semanticMotionSceneIds(plan)).toEqual(["scene-02"]);
+    expect(semanticMotionSceneIds(plan, ["scene-01"])).toEqual([]);
+  });
+
   it("accepts the content-plan contract shape", () => {
     const parsed = ContentPlanSchema.safeParse(validPlan());
     expect(parsed.success).toBe(true);
@@ -553,6 +565,8 @@ describe("buildContentPlanMessages", () => {
     expect(system).toMatch(/motion intent/);
     expect(system).toMatch(/quick entrance/);
     expect(system).toMatch(/semantic progression/);
+    expect(system).toMatch(/2-4 relative phases/);
+    expect(system).toMatch(/single global entrance does not satisfy/);
     expect(system).toMatch(/living motion/);
     expect(system).toMatch(/schema-critical enum fields/);
     expect(system).toMatch(/Do not invent synonyms for hookType, purpose, support, confidence, action, or layoutFamily/);
@@ -566,6 +580,18 @@ describe("buildContentPlanMessages", () => {
     expect(system).not.toMatch(/registerComponent|@motionreal\/compositions|```tsx/);
     expect(user).toContain("No external source material was provided");
     expect(user).toContain("Giải thích vì sao cà phê");
+  });
+
+  it("gives 210-second plans a soft 14-16 scene preference", () => {
+    const [system] = buildContentPlanMessages({
+      text: "Giải thích một quy trình dài",
+      urls: [],
+      durationTier: 4,
+      targetSeconds: 210,
+    });
+    expect(system!.content).toMatch(/prefer about 14-16 meaningful scenes/);
+    expect(system!.content).toMatch(/soft target/);
+    expect(system!.content).toMatch(/never split one coherent beat merely to hit a count/);
   });
 
   it("builds an English short-form prompt with readable source material", () => {

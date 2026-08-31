@@ -1112,9 +1112,15 @@ describe("HarnessManager draft lifecycle", () => {
     const sceneIds = ["scene-01", "scene-02", "scene-03"];
     const plannedNarration = "một hai ba bốn năm sáu bảy tám chín mười mười một mười hai mười ba";
     const stills: string[] = [];
-    const renderAuthoringStills = vi.fn(async (_projectId: string, ids: string[]) => ({
+    const renderAuthoringStills = vi.fn(async (_projectId: string, ids: string[], multiFrameIds: string[] = []) => ({
       ok: true as const,
-      stills: ids.map((id) => stills.find((path) => path.endsWith(`${id}.png`))!),
+      stills: ids.flatMap((id) => [
+        stills.find((path) => path.endsWith(`${id}.png`))!,
+        ...(multiFrameIds.includes(id) ? [
+          stills.find((path) => path.endsWith(`${id}.f18.png`))!,
+          stills.find((path) => path.endsWith(`${id}.f82.png`))!,
+        ] : []),
+      ]),
     }));
     const acceptAuthoringStills = vi.fn(async () => undefined);
     const { manager, root, history } = await activeManagerForTest({
@@ -1128,6 +1134,7 @@ describe("HarnessManager draft lifecycle", () => {
           ...TEST_CONTENT_PLAN.scenes[0]!,
           sceneId,
           narration: plannedNarration,
+          ...(sceneId === "scene-02" ? { motionProgression: "Quick entrance; semantic: reveal step one, then step two; final hold." } : {}),
         })),
       }),
     });
@@ -1151,7 +1158,11 @@ describe("HarnessManager draft lifecycle", () => {
     const projectRoot = join(root, "projects", "project-final");
     await mkdir(join(projectRoot, "authored"), { recursive: true });
     await mkdir(join(projectRoot, "review"), { recursive: true });
-    stills.push(...sceneIds.map((id) => join(projectRoot, "review", `${id}.png`)));
+    stills.push(
+      ...sceneIds.map((id) => join(projectRoot, "review", `${id}.png`)),
+      join(projectRoot, "review", "scene-02.f18.png"),
+      join(projectRoot, "review", "scene-02.f82.png"),
+    );
     await Promise.all(stills.map((path) => writeFile(path, ONE_PIXEL_PNG)));
 
     await manager.startAuthoring(draft.id, "project-final", projectRoot, []);
@@ -1177,6 +1188,7 @@ describe("HarnessManager draft lifecycle", () => {
       expect(request).not.toHaveProperty("creative_stage");
     }, { timeout: 3_000 });
     expect(renderAuthoringStills).toHaveBeenCalledTimes(1);
+    expect(renderAuthoringStills).toHaveBeenCalledWith("project-final", sceneIds, ["scene-02"]);
     const normalizedManifest = JSON.parse(await readFile(join(projectRoot, "manifest.json"), "utf8"));
     expect(normalizedManifest.scenes.map((scene: { narration?: string }) => scene.narration))
       .toEqual([plannedNarration, plannedNarration, plannedNarration]);

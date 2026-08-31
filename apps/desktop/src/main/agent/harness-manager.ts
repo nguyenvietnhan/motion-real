@@ -23,7 +23,7 @@ import {
 import { assertHarnessImageReads, readHarnessReviewHistory } from "./harness-image-review.js";
 import { AUTHORING_CONTRACT } from "../authoring/contract-text.js";
 import type { AuthorInput } from "./agent-worker.js";
-import { ContentPlanSchema, type ContentPlan } from "../authoring/content-plan.js";
+import { ContentPlanSchema, semanticMotionSceneIds, type ContentPlan } from "../authoring/content-plan.js";
 import {
   buildHarnessAuthoringPacing,
   validateHarnessManifestPacing,
@@ -136,6 +136,7 @@ export type HarnessManagerDeps = {
   renderAuthoringStills?: (
     projectId: string,
     sceneIds: string[],
+    multiFrameSceneIds?: string[],
   ) => Promise<{ ok: true; stills: string[] } | { ok: false; error: string; repairable: boolean }>;
   cancelAuthoringStills?: (projectId: string) => void;
   acceptAuthoringStills?: (projectId: string) => Promise<void>;
@@ -840,6 +841,7 @@ export class HarnessManager {
         "Asset là pool đã duyệt, không phải checklist. Không bắt buộc dùng mọi asset: chỉ dùng asset thực sự giúp kể nội dung của cảnh; logo/icon chỉ là điểm nhấn bổ trợ và không được phóng thành ảnh nền/cảnh chính nếu không có lý do nội dung rõ ràng.",
         "Mọi asset được dùng phải giữ đúng scene.image.role đã duyệt; không dùng asset ngoài pool đã duyệt.",
         "Mỗi cảnh phải có một focal subject và hành động hình ảnh riêng; cấm dùng một shell/panel/HUD cố định cho toàn video.",
+        "Nếu content_plan.motionProgression có nhãn semantic:, phải dựng 2–4 thay đổi theo thứ tự bằng progress tương đối của cảnh; không được chỉ cho toàn bố cục xuất hiện một lần rồi đứng yên. Không cần đồng bộ timestamp từng từ.",
         "Mỗi cảnh trừ cảnh cuối phải khai báo transitionToNext phù hợp với quan hệ nội dung; không dựa vào transition mặc định.",
         "Đây là bản chất lượng cuối ngay từ lượt đầu: hierarchy, visual anchor, motion và asset framing phải được hoàn thiện trước khi submit; không dựa vào một lượt viết lại V2 bắt buộc.",
         "Không render video. Khi code đã hoàn chỉnh, gọi motionreal_submit_authoring để MotionReal validate và render still.",
@@ -1592,10 +1594,16 @@ export class HarnessManager {
     const renderSceneIds = request.phase === "edit"
       ? this.requestEditSceneIds(request, sceneIds)
       : sceneIds;
+    const refinePolicy = await this.authoringRefinePolicy(record.projectId!);
+    const multiFrameSceneIds = refinePolicy.refinePasses > 0 && parsedPlan.success
+      ? semanticMotionSceneIds(parsedPlan.data, renderSceneIds)
+      : [];
     const sourceFingerprint = await harnessReviewFingerprint(projectRoot);
-    const rendered = await this.deps.renderAuthoringStills!(record.projectId!, renderSceneIds);
+    const rendered = multiFrameSceneIds.length > 0
+      ? await this.deps.renderAuthoringStills!(record.projectId!, renderSceneIds, multiFrameSceneIds)
+      : await this.deps.renderAuthoringStills!(record.projectId!, renderSceneIds);
     if (!rendered.ok) throw new AuthoringStillRenderError(rendered.error, rendered.repairable);
-    if (rendered.stills.length !== renderSceneIds.length || new Set(rendered.stills).size !== renderSceneIds.length) {
+    if (!validRenderedStillSet(rendered.stills, renderSceneIds, multiFrameSceneIds)) {
       throw new AuthoringStillRenderError("MotionReal chưa render đủ still riêng cho mọi cảnh.", false);
     }
     if (await harnessReviewFingerprint(projectRoot) !== sourceFingerprint) {
@@ -1655,6 +1663,7 @@ export class HarnessManager {
       render_error: undefined,
       instructions: [
         "Dùng read_image mở mọi PNG trong stills trước khi nhận xét. Không kết luận chỉ từ code.",
+        "Nếu một scene có thêm file .f18/.f82, hãy so sánh ảnh đầu–giữa–cuối: nội dung gắn nhãn semantic phải thay đổi theo đúng thứ tự đã lập kế hoạch, không được chỉ entrance rồi đứng yên.",
         "Chỉ sửa các cảnh có lỗi trực quan cụ thể. Giữ nguyên cảnh đã sạch; không viết lại toàn video vì đây không phải V2 bắt buộc.",
         "Nếu sửa source/asset, gọi motionreal_submit_authoring sau khi sửa. Nếu ảnh đã sạch, không sửa code và submit review_notes nêu rõ quan sát.",
         "review_notes phải nêu lỗi cụ thể đã sửa hoặc lý do ảnh sạch. reviewed_scene_ids phải chứa đúng review_scene_ids.",
@@ -1699,9 +1708,13 @@ export class HarnessManager {
     const changedSceneIds = changedVisualSceneIds(this.requestSceneFingerprints(request, sceneIds), currentSceneFingerprints, sceneIds);
     const renderScope = changedSceneIds.length > 0 ? changedSceneIds : sceneIds;
     const beforeRender = await harnessReviewFingerprint(projectRoot);
-    const rendered = await this.deps.renderAuthoringStills!(record.projectId!, renderScope);
+    const parsedPlan = ContentPlanSchema.safeParse(request.content_plan);
+    const multiFrameSceneIds = parsedPlan.success ? semanticMotionSceneIds(parsedPlan.data, renderScope) : [];
+    const rendered = multiFrameSceneIds.length > 0
+      ? await this.deps.renderAuthoringStills!(record.projectId!, renderScope, multiFrameSceneIds)
+      : await this.deps.renderAuthoringStills!(record.projectId!, renderScope);
     if (!rendered.ok) throw new AuthoringStillRenderError(rendered.error, rendered.repairable);
-    if (rendered.stills.length !== renderScope.length || new Set(rendered.stills).size !== renderScope.length) {
+    if (!validRenderedStillSet(rendered.stills, renderScope, multiFrameSceneIds)) {
       throw new AuthoringStillRenderError("MotionReal chưa render đủ still riêng cho các cảnh đã sửa.", false);
     }
     if (await harnessReviewFingerprint(projectRoot) !== beforeRender) {
@@ -1724,11 +1737,13 @@ export class HarnessManager {
   }
 
   private requestStillPaths(request: Record<string, unknown>, sceneIds: string[], projectRoot: string): string[] {
-    if (!Array.isArray(request.stills) || request.stills.length !== sceneIds.length
+    if (!Array.isArray(request.stills) || request.stills.length < sceneIds.length
       || request.stills.some((path) => typeof path !== "string" || !path.startsWith("project/"))) {
       throw new Error("Visual refine không có đủ still hợp lệ.");
     }
-    return request.stills.map((path) => join(projectRoot, (path as string).slice("project/".length)));
+    const paths = request.stills.map((path) => join(projectRoot, (path as string).slice("project/".length)));
+    if (!validReviewStillNames(paths, sceneIds)) throw new Error("Visual refine không có đủ still hợp lệ.");
+    return paths;
   }
 
   private requestReviewSceneIds(request: Record<string, unknown>, sceneIds: string[]): string[] {
@@ -2239,6 +2254,29 @@ function validateSelectedIds(selectedIds: string[], assets: AgentAssetVM[]): str
 
 function sameIds(left: string[], right: string[]): boolean {
   return left.length === right.length && left.every((id) => right.includes(id));
+}
+
+function validRenderedStillSet(paths: string[], sceneIds: string[], multiFrameSceneIds: string[]): boolean {
+  if (new Set(paths).size !== paths.length || multiFrameSceneIds.some((id) => !sceneIds.includes(id))) return false;
+  const expected = new Set(sceneIds.map((id) => `${id}.png`));
+  for (const id of multiFrameSceneIds) {
+    expected.add(`${id}.f18.png`);
+    expected.add(`${id}.f82.png`);
+  }
+  const actual = new Set(paths.map((path) => basename(path)));
+  return actual.size === expected.size && [...expected].every((name) => actual.has(name));
+}
+
+function validReviewStillNames(paths: string[], sceneIds: string[]): boolean {
+  if (new Set(paths).size !== paths.length) return false;
+  const allowed = new Set(sceneIds);
+  const midpoints = new Set<string>();
+  for (const path of paths) {
+    const match = /^(scene-[0-9]{2})(?:\.f[0-9]{1,3})?\.png$/i.exec(basename(path));
+    if (!match || !allowed.has(match[1]!)) return false;
+    if (basename(path) === `${match[1]}.png`) midpoints.add(match[1]!);
+  }
+  return sceneIds.every((id) => midpoints.has(id));
 }
 
 /** PowerShell commonly emits UTF-8 BOM; valid Agent handoffs must tolerate it. */
