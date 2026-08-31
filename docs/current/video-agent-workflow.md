@@ -110,6 +110,7 @@ agent-drafts/<agent-id>/
     assets.json
     brief.generated.json
     brief.json
+    content-plan.json
     authoring-contract.md
     authoring-request.json
     authoring.json
@@ -351,11 +352,19 @@ only to scaffold the normal project, promote approved local assets, persist the
 brief/settings, and link ownership. `creationMode: harness` deliberately skips
 the Classic `beginCreate` authoring call.
 
-MotionReal then writes `handoff/authoring-request.json`, exposes the linked
-project as `project/`, and asks the same Harness Session to inspect the approved
-assets and write fresh `manifest.json` plus `authored/*.tsx`. The submission tool
-checks the project mapping and asset references before MotionReal renders PNG
-stills.
+Before Harness writes TSX, MotionReal runs the existing production content
+planner once from the accepted brief, duration tier and language. The validated
+plan is stored atomically in `handoff/content-plan.json`; retry and restart reuse
+the same artifact for the current job/revision instead of spending another model
+call. This planning call uses the accepted brief as user-approved content and
+does not pretend it has raw-article provenance.
+
+MotionReal then writes the plan and its ordered `expected_scene_ids` into
+`handoff/authoring-request.json`, exposes the linked project as `project/`, and
+asks the same Harness Session to inspect the approved assets and write fresh
+`manifest.json` plus `authored/*.tsx`. The submission tool checks the project
+mapping, exact planned scene order and asset references before MotionReal renders
+PNG stills. Legacy in-flight requests without a content plan remain resumable.
 
 The request also carries a machine-readable pacing contract derived from the
 approved duration tier and the configured/calibrated voice: target seconds,

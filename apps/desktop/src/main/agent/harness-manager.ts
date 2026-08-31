@@ -22,6 +22,8 @@ import {
 } from "./agent-workflow.js";
 import { assertHarnessImageReads, readHarnessReviewHistory } from "./harness-image-review.js";
 import { AUTHORING_CONTRACT } from "../authoring/contract-text.js";
+import type { AuthorInput } from "./agent-worker.js";
+import { ContentPlanSchema, type ContentPlan } from "../authoring/content-plan.js";
 import {
   buildHarnessAuthoringPacing,
   validateHarnessManifestPacing,
@@ -42,6 +44,7 @@ const BRIEF_REQUEST_FILE = join("handoff", "brief-request.json");
 const BRIEF_GENERATED_FILE = join("handoff", "brief.generated.json");
 const BRIEF_FILE = join("handoff", "brief.json");
 const AUTHORING_REQUEST_FILE = join("handoff", "authoring-request.json");
+const CONTENT_PLAN_FILE = join("handoff", "content-plan.json");
 const AUTHORING_CONTRACT_FILE = join("handoff", "authoring-contract.md");
 const PROJECT_LINK = "project";
 const HARNESS_PATCH_FILE = "motionreal-tools.patch.yml";
@@ -125,6 +128,11 @@ export type HarnessManagerDeps = {
   mediaUrl?: (path: string) => string | null;
   defaultVoiceProvider?: () => VoiceProviderChoice;
   wordsPerSecond?: (projectId: string) => Promise<number | undefined>;
+  planAuthoringContent: (
+    projectId: string,
+    input: AuthorInput,
+    signal: AbortSignal,
+  ) => Promise<ContentPlan>;
   renderAuthoringStills?: (
     projectId: string,
     sceneIds: string[],
@@ -179,6 +187,7 @@ export class HarnessManager {
   private readonly authoringInFlight = new Set<string>();
   private readonly authoringWrites = new Set<Promise<void>>();
   private readonly authoringPolls = new Map<string, ReturnType<typeof setTimeout>>();
+  private readonly authoringPlans = new Map<string, { controller: AbortController; promise: Promise<ContentPlan> }>();
 
   constructor(private readonly deps: HarnessManagerDeps) {
     this.spawnChild = deps.spawn ?? spawn;
@@ -627,6 +636,7 @@ export class HarnessManager {
     const next = { ...current, ...pauseAgentWorkflow(current, { expectedRevision, jobId: current.activeJobId }) };
     this.stopAuthoringPoll(id);
     await this.writeRecord(next);
+    this.abortAuthoringPlan(id);
     if (current.projectId) this.deps.cancelAuthoringStills?.(current.projectId);
     if (this.active && current.sessionId) {
       await this.rpc(this.active.url, "session.cancel", { sessionId: current.sessionId }, this.cancelRpcTimeoutMs).catch((error) => {
@@ -686,6 +696,14 @@ export class HarnessManager {
       } else if ((phase === "authoring" || phase === "visual_refine")
         && existsSync(join(this.rootOf(next.id), "handoff", "authoring.json"))) {
         await this.requestAuthoringRepair(next, "Người dùng yêu cầu thử lại bước này.");
+      } else if (phase === "authoring" && existsSync(join(this.rootOf(next.id), AUTHORING_REQUEST_FILE))) {
+        const request = parseJson(await readFile(join(this.rootOf(next.id), AUTHORING_REQUEST_FILE), "utf8")) as Record<string, unknown>;
+        if (request.phase === "initial" && request.planning === true) {
+          await this.completeInitialContentPlan(next, request);
+        }
+        if (await this.isCurrentAuthoringRecord(next)) {
+          await this.promptSession(next, resumePromptFor(phase));
+        }
       } else {
         await this.promptSession(next, resumePromptFor(phase));
       }
@@ -783,13 +801,7 @@ export class HarnessManager {
       await symlink(expectedProjectRoot, link, "junction");
     }
     if (current.authoringRequestRevision && existsSync(join(root, AUTHORING_REQUEST_FILE))) {
-      try {
-        await this.promptSession(current, "MotionReal đang chờ authoring hiện tại. Hãy đọc lại handoff/authoring-request.json, tiếp tục sửa project/ và gọi motionreal_submit_authoring khi hoàn tất.");
-      } catch (error) {
-        await this.recordWorkflowError(current, error);
-        throw error;
-      }
-      this.scheduleAuthoringPoll(current.id);
+      await this.finishInitialAuthoringStart(current);
       return;
     }
     const usableAssets: Array<{ id: string; ref: string; path: string; role: SceneImageRole }> = [];
@@ -810,6 +822,7 @@ export class HarnessManager {
       job_id: current.activeJobId,
       request_revision: next.authoringRequestRevision,
       phase: "initial",
+      planning: true,
       project: PROJECT_LINK,
       brief: "handoff/brief.json",
       asset_manifest: "handoff/assets.json",
@@ -820,6 +833,7 @@ export class HarnessManager {
       assets: usableAssets,
       instructions: [
         "Đọc brief, contract; dùng read_image với file_path của từng asset để xem ảnh thật trước khi author (read chỉ đọc văn bản).",
+        "Đọc content_plan trong request và giữ đúng expected_scene_ids theo thứ tự; đây là narrative/pacing plan đã được MotionReal kiểm tra.",
         "pacing là contract có thẩm quyền; bỏ qua mọi câu duration mâu thuẫn nằm trong prompt của brief.",
         "Asset là pool tư liệu, không phải số lượng storyboard. Số cảnh và lượng narration phải theo pacing.",
         "Viết mới manifest.json và các module authored/*.tsx cho toàn video; không gọi API authoring cũ.",
@@ -832,13 +846,7 @@ export class HarnessManager {
       ],
     });
     await this.writeRecord(next);
-    try {
-      await this.promptSession(next, "MotionReal đã tạo project Harness. Hãy đọc handoff/authoring-request.json và handoff/authoring-contract.md, xem các asset thật, tự viết toàn bộ scene vào project/, rồi gọi motionreal_submit_authoring. Không dùng authoring API cũ.");
-    } catch (error) {
-      await this.recordWorkflowError(next, error);
-      throw error;
-    }
-    this.scheduleAuthoringPoll(next.id);
+    await this.finishInitialAuthoringStart(next);
   }
 
   async requestSceneEdits(
@@ -938,6 +946,7 @@ export class HarnessManager {
   async cancelHarnessSessions(plan: HarnessDraftDeletionPlan): Promise<void> {
     this.assertDeletionPlan(plan);
     this.stopAuthoringPoll(plan.draftId);
+    this.abortAuthoringPlan(plan.draftId);
     if (plan.projectId) this.deps.cancelAuthoringStills?.(plan.projectId);
     if (this.active) {
       for (const sessionId of plan.sessionIds) {
@@ -987,10 +996,13 @@ export class HarnessManager {
     this.webSearchConfigured = undefined;
     this.startingChild = null;
     for (const id of this.authoringPolls.keys()) this.stopAuthoringPoll(id);
+    const planning = [...this.authoringPlans.values()].map((entry) => entry.promise);
+    for (const id of this.authoringPlans.keys()) this.abortAuthoringPlan(id);
     if (current) await stopChild(current.child);
     if (starting && starting !== current?.child) await stopChild(starting);
     // Drain only local request/metadata commits, not a model turn or still render.
     await settleBounded([...this.authoringWrites], 3_000);
+    await settleBounded(planning, 3_000);
   }
 
   private async toVm(
@@ -1813,6 +1825,96 @@ export class HarnessManager {
     return buildHarnessAuthoringPacing(brief.durationTier, brief.videoLanguage, wordsPerSecond);
   }
 
+  private async finishInitialAuthoringStart(record: DraftRecord): Promise<void> {
+    try {
+      const requestPath = join(this.rootOf(record.id), AUTHORING_REQUEST_FILE);
+      const request = parseJson(await readFile(requestPath, "utf8")) as Record<string, unknown>;
+      // Requests created before content planning remain resumable through the
+      // legacy path. Only the explicit planning checkpoint spends a model call.
+      if (request.planning === true) await this.completeInitialContentPlan(record, request);
+      if (!await this.isCurrentAuthoringRecord(record)) return;
+      const hasPlan = request.planning === true || ContentPlanSchema.safeParse(request.content_plan).success;
+      await this.promptSession(record, hasPlan
+        ? "MotionReal đã chuẩn bị content plan và project Harness. Hãy đọc handoff/authoring-request.json cùng contract, xem các asset thật, viết scene vào project/ rồi gọi motionreal_submit_authoring."
+        : "MotionReal đang chờ authoring legacy hiện tại. Hãy đọc handoff/authoring-request.json, tiếp tục sửa project/ và gọi motionreal_submit_authoring khi hoàn tất.");
+    } catch (error) {
+      const latest = await this.readRecord(record.id).catch((_readError) => null);
+      if (!latest || !isSameAuthoringWork(latest, record)) return;
+      await this.recordWorkflowError(latest, error);
+      throw error;
+    }
+    this.scheduleAuthoringPoll(record.id);
+  }
+
+  private async completeInitialContentPlan(record: DraftRecord, request: Record<string, unknown>): Promise<void> {
+    if (request.version !== 1 || request.phase !== "initial"
+      || request.job_id !== record.activeJobId
+      || request.request_revision !== record.authoringRequestRevision) {
+      throw new Error("Authoring request không khớp job hoặc revision hiện tại.");
+    }
+    const plan = await this.authoringContentPlan(record);
+    if (!await this.isCurrentAuthoringRecord(record)) return;
+    const expectedSceneIds = plan.scenes.map((scene) => scene.sceneId);
+    const requestPath = join(this.rootOf(record.id), AUTHORING_REQUEST_FILE);
+    await writeJson(requestPath, {
+      ...request,
+      planning: false,
+      content_plan: plan,
+      expected_scene_ids: expectedSceneIds,
+    });
+    if (!await this.isCurrentAuthoringRecord(record)) {
+      const written = parseJson(await readFile(requestPath, "utf8")) as Record<string, unknown>;
+      if (written.job_id === record.activeJobId && written.request_revision === record.authoringRequestRevision) {
+        await writeJson(requestPath, request);
+      }
+    }
+  }
+
+  private async authoringContentPlan(record: DraftRecord): Promise<ContentPlan> {
+    const artifactPath = join(this.rootOf(record.id), CONTENT_PLAN_FILE);
+    const persisted = await readContentPlanArtifact(artifactPath, record);
+    if (persisted) return persisted;
+
+    const existing = this.authoringPlans.get(record.id);
+    if (existing) return existing.promise;
+
+    const controller = new AbortController();
+    const promise = (async () => {
+      const brief = await this.readRequiredBrief(record);
+      const targetSeconds = resolveEffectiveDuration({ prompt: "", durationTier: brief.durationTier }).targetSeconds;
+      const input: AuthorInput = {
+        text: brief.prompt,
+        urls: [],
+        format: "tiktok",
+        durationTier: brief.durationTier,
+        targetSeconds,
+        videoLanguage: brief.videoLanguage,
+      };
+      const plan = await this.deps.planAuthoringContent(record.projectId!, input, controller.signal);
+      controller.signal.throwIfAborted();
+      if (!await this.isCurrentAuthoringRecord(record)) throw new Error("Lượt lập content plan đã cũ.");
+      await writeJson(artifactPath, {
+        version: 1,
+        job_id: record.activeJobId,
+        request_revision: record.authoringRequestRevision,
+        content_plan: plan,
+      });
+      if (!await this.isCurrentAuthoringRecord(record)) {
+        await removeMatchingContentPlanArtifact(artifactPath, record);
+        throw new Error("Lượt lập content plan đã cũ.");
+      }
+      return plan;
+    })().finally(() => {
+      if (this.authoringPlans.get(record.id)?.controller === controller) this.authoringPlans.delete(record.id);
+    });
+    this.authoringPlans.set(record.id, { controller, promise });
+    return promise;
+  }
+
+  private abortAuthoringPlan(id: string): void {
+    this.authoringPlans.get(id)?.controller.abort();
+  }
+
   private async advanceAuthoringRequest(
     record: DraftRecord,
     patch: Record<string, unknown>,
@@ -2271,6 +2373,31 @@ function resumePromptFor(state: AgentProductionState): string {
   throw new Error(`Không thể tiếp tục workflow Video Agent ở bước ${state}.`);
 }
 
+async function readContentPlanArtifact(path: string, record: DraftRecord): Promise<ContentPlan | null> {
+  if (!existsSync(path)) return null;
+  let raw: unknown;
+  try { raw = parseJson(await readFile(path, "utf8")); }
+  catch (_error) { return null; }
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const artifact = raw as Record<string, unknown>;
+  if (artifact.version !== 1
+    || artifact.job_id !== record.activeJobId
+    || artifact.request_revision !== record.authoringRequestRevision) return null;
+  const parsed = ContentPlanSchema.safeParse(artifact.content_plan);
+  return parsed.success ? parsed.data : null;
+}
+
+async function removeMatchingContentPlanArtifact(path: string, record: DraftRecord): Promise<void> {
+  let raw: unknown;
+  try { raw = parseJson(await readFile(path, "utf8")); }
+  catch (_error) { return; }
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return;
+  const artifact = raw as Record<string, unknown>;
+  if (artifact.job_id === record.activeJobId && artifact.request_revision === record.authoringRequestRevision) {
+    await rm(path, { force: true });
+  }
+}
+
 function isSameAuthoringWork(current: DraftRecord, expected: DraftRecord): boolean {
   return isAutomatedAuthoringState(current.productionState)
     && isAutomatedAuthoringState(expected.productionState)
@@ -2344,7 +2471,7 @@ function changedVisualSceneIds(
 }
 
 function agentInstructions(title: string): string {
-  return `# MotionReal Video Agent\n\nBạn đang làm việc cho video: ${title}\n\n- Nghiên cứu, ghi chú và tải asset vào thư mục \`assets/\` của workspace này.\n- Khi MotionReal yêu cầu chuẩn bị asset, đọc \`handoff/assets-request.json\`, làm đúng job/request revision rồi gọi \`motionreal_submit_assets\`. Không tự ghi file manifest cuối.\n- Khi MotionReal yêu cầu brief, đọc \`handoff/brief-request.json\`, dùng cuộc trò chuyện và đúng asset đã chọn rồi gọi \`motionreal_submit_brief\`. Brief chỉ mô tả nội dung; không quyết định thời lượng, số cảnh hay giọng đọc. Không tự ghi file brief cuối.\n- Chỉ author scene khi có \`handoff/authoring-request.json\`. Khi đó \`project/\` là project MotionReal của chính video này: đọc asset, viết \`project/manifest.json\` và \`project/authored/*.tsx\`, rồi gọi \`motionreal_submit_authoring\`.\n- Không tự tạo project hoặc render MP4; MotionReal validate, chụp still và mở từng bước duyệt bên ngoài chat.\n- Mọi đường dẫn ảnh thu thập phải tương đối và nằm trong \`assets/\`.\n`;
+  return `# MotionReal Video Agent\n\nBạn đang làm việc cho video: ${title}\n\n- Nghiên cứu, ghi chú và tải asset vào thư mục \`assets/\` của workspace này.\n- Khi MotionReal yêu cầu chuẩn bị asset, đọc \`handoff/assets-request.json\`, làm đúng job/request revision rồi gọi \`motionreal_submit_assets\`. Không tự ghi file manifest cuối.\n- Khi MotionReal yêu cầu brief, đọc \`handoff/brief-request.json\`, dùng cuộc trò chuyện và đúng asset đã chọn rồi gọi \`motionreal_submit_brief\`. Brief chỉ mô tả nội dung; không quyết định thời lượng, số cảnh hay giọng đọc. Không tự ghi file brief cuối.\n- Chỉ author scene khi có \`handoff/authoring-request.json\`. Khi đó đọc content_plan, giữ đúng expected_scene_ids, xem asset thật, viết \`project/manifest.json\` và \`project/authored/*.tsx\`, rồi gọi \`motionreal_submit_authoring\`.\n- Không tự tạo project hoặc render MP4; MotionReal validate, chụp still và mở từng bước duyệt bên ngoài chat.\n- Mọi đường dẫn ảnh thu thập phải tương đối và nằm trong \`assets/\`.\n`;
 }
 
 function harnessToolsPatch(pluginPath: string, searchProvider: AgentSearchProvider, harnessCliPath: string): string {

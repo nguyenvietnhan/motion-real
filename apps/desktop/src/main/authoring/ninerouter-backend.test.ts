@@ -319,6 +319,24 @@ function authoredDir(projectId: string): string {
   return join(home, ".video-tool", "projects", projectId, "authored");
 }
 
+describe("planContent", () => {
+  it("uses the existing production planner without starting TSX authoring", async () => {
+    const { backend, chat } = makeBackend();
+    const plan = await backend.planContent("agent-plan", {
+      text: "Giải thích vì sao chip AI đắt",
+      urls: [],
+      format: "tiktok",
+      durationTier: 1,
+      targetSeconds: 45,
+      videoLanguage: "vi",
+    }, new AbortController().signal);
+
+    expect(plan.scenes.map((scene) => scene.sceneId)).toEqual(["scene-01", "scene-02", "scene-03"]);
+    expect(chat).toHaveBeenCalledTimes(1);
+    expect(messageText(chat.mock.calls[0]![1])).toMatch(/CONTENT PLAN|kế hoạch/i);
+  });
+});
+
 describe("authorScenes (pure-author)", () => {
   it("admits staged candidate module paths under .authoring-candidate, not the project root", async () => {
     const projectId = "pa-staged-admit";

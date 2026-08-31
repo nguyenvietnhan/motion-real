@@ -31,7 +31,7 @@ import {
 import type { createTools } from "@motionreal/pipeline";
 import type { AuthoringBackend, AuthoredScene, ReauthorTarget } from "../agent/custom-loop-worker.js";
 import type { SafetyReportView } from "../agent/repair-loop.js";
-import type { AuthorJob, VisualQaResult, SceneSnapshot, AuthorImageRef } from "../agent/agent-worker.js";
+import type { AuthorInput, AuthorJob, VisualQaResult, SceneSnapshot, AuthorImageRef } from "../agent/agent-worker.js";
 import { GatewayChatError, type NineRouterClient } from "../gateway/ninerouter-client.js";
 import { logAuthoringFailure } from "./authoring-failure.js";
 import { countSafetyChecks, toEngineManifest } from "./author-manifest-convert.js";
@@ -45,6 +45,7 @@ import {
 import { VisionChatSession } from "./authoring-vision-chat.js";
 import { type AuthorImageInput } from "./prompt.js";
 import { runContentPlan } from "./content-plan-runner.js";
+import type { ContentPlan } from "./content-plan.js";
 import { buildProjectEvidence } from "./content-evidence.js";
 import { runBatchedAuthorReply, runSingleAuthorReply, type SuccessfulAuthorReply } from "./author-reply-runner.js";
 import { runReauthor } from "./reauthor-runner.js";
@@ -184,6 +185,26 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
       unregisterComponent,
       logger: this.logger(),
     };
+  }
+
+  /** Reuse the production planner for Agent-owned authoring before Harness writes TSX. */
+  async planContent(projectId: string, input: AuthorInput, signal?: AbortSignal): Promise<ContentPlan> {
+    const model = this.deps.model();
+    if (!model) throw new Error("Chưa chọn model AI.");
+    signal?.throwIfAborted();
+    const wordsPerSecond = await this.deps.wordsPerSecond?.(projectId);
+    const result = await runContentPlan({
+      model,
+      projectId,
+      input,
+      wordsPerSecond,
+      chat: (selectedModel, messages) => this.vision.chatWithVisionFallback(selectedModel, messages, signal),
+      callErrorMessage: authorCallErrorMessage,
+      logger: this.logger(),
+    });
+    signal?.throwIfAborted();
+    if (!result.ok) throw new Error(result.message);
+    return result.contentPlan;
   }
 
   async authorScenes(

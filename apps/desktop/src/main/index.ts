@@ -474,6 +474,7 @@ const harness = new HarnessManager({
   mediaUrl,
   defaultVoiceProvider: () => settingsStore.current().voiceProvider,
   wordsPerSecond: wordsPerSecondForProject,
+  planAuthoringContent: (projectId, input, signal) => authoringBackend.planContent(projectId, input, signal),
   renderAuthoringStills: async (projectId, sceneIds) => {
     return workspace.renderHarnessStills(projectId, sceneIds);
   },

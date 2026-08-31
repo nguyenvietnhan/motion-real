@@ -227,6 +227,12 @@ async function validateAuthoredProject(
     throw new Error("Mỗi scene id trong project/manifest.json phải có dạng scene-01, scene-02, … không thêm hậu tố.");
   }
   if (!isDeepStrictEqual(manifestSceneIds, sceneIds)) throw new Error("scene_ids không khớp thứ tự cảnh trong project/manifest.json.");
+  if (Array.isArray(request.expected_scene_ids)) {
+    const expectedSceneIds = uniqueIds(request.expected_scene_ids, "expected_scene_ids trong request");
+    if (!isDeepStrictEqual(manifestSceneIds, expectedSceneIds)) {
+      throw new Error("Project manifest không khớp thứ tự scene trong content plan đã duyệt.");
+    }
+  }
   const expectedAssets = Array.isArray(request.assets) ? request.assets.map((asset) => requireRecord(asset, "Request asset")) : [];
   const expectedIds = expectedAssets.map((asset) => requiredText(asset.id, "request asset id", 128));
   if (new Set(usedAssetIds).size !== usedAssetIds.length || usedAssetIds.some((id) => !expectedIds.includes(id))) {

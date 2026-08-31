@@ -9,6 +9,29 @@ const roots: string[] = [];
 const activeManagers: HarnessManager[] = [];
 const heldCommits: Array<() => void> = [];
 
+const TEST_CONTENT_PLAN = {
+  title: "Kế hoạch thử nghiệm",
+  viewerPromise: "Hiểu chủ đề",
+  hookType: "question" as const,
+  first3SecondsLine: "Điều gì đang xảy ra?",
+  openLoop: "Câu trả lời ở phần cuối.",
+  payoff: "Người xem hiểu điểm chính.",
+  claims: [],
+  scenes: [{
+    sceneId: "scene-01",
+    purpose: "hook" as const,
+    beat: "Mở vấn đề",
+    narration: "Điều gì đang xảy ra và vì sao nó đáng chú ý?",
+    onScreenText: "Điều gì xảy ra?",
+    visualMetaphor: "Một dấu hỏi mở ra",
+    motionProgression: "Dấu hỏi hiện nhanh rồi giữ",
+    layoutFamily: "signature-visual" as const,
+    evidenceClaimIds: [],
+  }],
+};
+
+const testPlanAuthoringContent: HarnessManagerDeps["planAuthoringContent"] = async () => TEST_CONTENT_PLAN;
+
 function registeredSceneSource(id: string, version: string): string {
   return `import { registerComponent } from "@motionreal/compositions";
 import { z } from "zod";
@@ -30,6 +53,7 @@ async function managerForTest(over: Partial<HarnessManagerDeps> = {}): Promise<{
       submissionPluginPath: join(root, "motionreal-tools.mjs"),
       mediaUrl: (path) => `media://${path}`,
       ...over,
+      planAuthoringContent: over.planAuthoringContent ?? testPlanAuthoringContent,
     }),
   };
 }
@@ -78,6 +102,7 @@ async function activeManagerForTest(over: Partial<HarnessManagerDeps> = {}): Pro
     }) as unknown as typeof globalThis.fetch,
     mediaUrl: (path) => `media://${path}`,
     ...over,
+    planAuthoringContent: over.planAuthoringContent ?? testPlanAuthoringContent,
   };
   const manager = new HarnessManager(deps);
   activeManagers.push(manager);
@@ -88,6 +113,33 @@ const ONE_PIXEL_PNG = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
   "base64",
 );
+
+async function prepareLinkedAuthoringDraft(
+  manager: HarnessManager,
+  root: string,
+  jobId: string,
+  projectId: string,
+): Promise<{ draftId: string; draftRoot: string; projectRoot: string }> {
+  const draft = await manager.createDraft("Agent content plan");
+  await manager.activate(draft.id, "internal-key");
+  let state = await manager.transitionWorkflow(draft.id, { expectedRevision: 0, to: "collecting_assets", jobId });
+  state = await manager.transitionWorkflow(draft.id, { expectedRevision: state.workflowRevision, to: "asset_review", jobId });
+  state = await manager.transitionWorkflow(draft.id, { expectedRevision: state.workflowRevision, to: "brief_review", jobId });
+  await manager.transitionWorkflow(draft.id, { expectedRevision: state.workflowRevision, to: "queued_create", jobId });
+  const draftRoot = join(root, draft.id);
+  const metadataPath = join(draftRoot, "motionreal-agent.json");
+  await writeFile(metadataPath, JSON.stringify({ ...JSON.parse(await readFile(metadataPath, "utf8")), briefRequestRevision: 1 }));
+  await mkdir(join(draftRoot, "handoff"), { recursive: true });
+  await writeFile(join(draftRoot, "handoff", "brief.json"), JSON.stringify({
+    version: 1, accepted: true, job_id: jobId, request_revision: 1, brief_revision: 1,
+    title: "Agent content plan", prompt: "Giải thích chủ đề bằng một mạch kể rõ ràng và có điểm kết luận hữu ích.",
+    format: "tiktok", duration_tier: 2, target_seconds: 90, video_language: "vi", voice_provider: "vivibe", selected_asset_ids: [],
+  }));
+  await manager.linkProject(draft.id, projectId);
+  const projectRoot = join(root, "projects", projectId);
+  await mkdir(join(projectRoot, "authored"), { recursive: true });
+  return { draftId: draft.id, draftRoot, projectRoot };
+}
 
 describe("HarnessManager draft lifecycle", () => {
   it("blocks Harness startup when the MotionReal submission plugin was not built", async () => {
@@ -100,6 +152,7 @@ describe("HarnessManager draft lifecycle", () => {
       harnessHome: join(root, "harness"),
       harnessCliPath: cli,
       submissionPluginPath: join(root, "missing-motionreal-tools.mjs"),
+      planAuthoringContent: testPlanAuthoringContent,
     });
     const draft = await manager.createDraft("Missing tools");
 
@@ -158,6 +211,7 @@ describe("HarnessManager draft lifecycle", () => {
       harnessHome: join(root, "harness"),
       harnessCliPath: join(root, "missing-harness.js"),
       submissionPluginPath: join(root, "motionreal-tools.mjs"),
+      planAuthoringContent: testPlanAuthoringContent,
     });
     await expect(reopened.status(draft.id)).resolves.toMatchObject({
       workflowRevision: 1,
@@ -780,6 +834,7 @@ describe("HarnessManager draft lifecycle", () => {
       harnessCliPath: join(root, "missing.js"),
       submissionPluginPath: join(root, "motionreal-tools.mjs"),
       mediaUrl: (path) => `media://${path}`,
+      planAuthoringContent: testPlanAuthoringContent,
     });
     await expect(reopened.status(draft.id)).resolves.toMatchObject({ selectedAssetIds: ["asset-01"] });
     await manager.dispose();
@@ -991,6 +1046,67 @@ describe("HarnessManager draft lifecycle", () => {
     await expect(manager.readCreateRequest(draft.id)).rejects.toThrow(/assets/);
   });
 
+  it("persists one Agent content plan and reuses it when initial authoring is started again", async () => {
+    const planAuthoringContent = vi.fn(testPlanAuthoringContent);
+    const { manager, root } = await activeManagerForTest({ planAuthoringContent });
+    const prepared = await prepareLinkedAuthoringDraft(manager, root, "job-plan-once", "project-plan-once");
+
+    await manager.startAuthoring(prepared.draftId, "project-plan-once", prepared.projectRoot, []);
+    await manager.startAuthoring(prepared.draftId, "project-plan-once", prepared.projectRoot, []);
+
+    expect(planAuthoringContent).toHaveBeenCalledTimes(1);
+    expect(planAuthoringContent).toHaveBeenCalledWith("project-plan-once", expect.objectContaining({
+      text: "Giải thích chủ đề bằng một mạch kể rõ ràng và có điểm kết luận hữu ích.",
+      urls: [],
+      format: "tiktok",
+      durationTier: 2,
+      targetSeconds: 90,
+      videoLanguage: "vi",
+    }), expect.any(AbortSignal));
+    const artifact = JSON.parse(await readFile(join(prepared.draftRoot, "handoff", "content-plan.json"), "utf8"));
+    expect(artifact).toMatchObject({ version: 1, job_id: "job-plan-once", request_revision: 1, content_plan: TEST_CONTENT_PLAN });
+    const request = JSON.parse(await readFile(join(prepared.draftRoot, "handoff", "authoring-request.json"), "utf8"));
+    expect(request).toMatchObject({ planning: false, content_plan: TEST_CONTENT_PLAN, expected_scene_ids: ["scene-01"] });
+  });
+
+  it("persists planner failure without prompting Harness, then retries the planner", async () => {
+    const planAuthoringContent = vi.fn()
+      .mockRejectedValueOnce(new Error("planner unavailable"))
+      .mockResolvedValue(TEST_CONTENT_PLAN);
+    const { manager, root, calls } = await activeManagerForTest({ planAuthoringContent });
+    const prepared = await prepareLinkedAuthoringDraft(manager, root, "job-plan-retry", "project-plan-retry");
+    const promptCountBefore = calls.filter((call) => call.method === "session.prompt").length;
+
+    await expect(manager.startAuthoring(prepared.draftId, "project-plan-retry", prepared.projectRoot, []))
+      .rejects.toThrow("planner unavailable");
+    const failed = await manager.status(prepared.draftId);
+    expect(failed).toMatchObject({ productionState: "error", failedPhase: "authoring" });
+    expect(calls.filter((call) => call.method === "session.prompt")).toHaveLength(promptCountBefore);
+
+    await expect(manager.retryWorkflow(prepared.draftId, failed.workflowRevision))
+      .resolves.toMatchObject({ productionState: "authoring" });
+    expect(planAuthoringContent).toHaveBeenCalledTimes(2);
+    expect(calls.filter((call) => call.method === "session.prompt")).toHaveLength(promptCountBefore + 1);
+  });
+
+  it("aborts an in-flight Agent content plan on pause and ignores its late completion", async () => {
+    let release: (() => void) | undefined;
+    const planAuthoringContent = vi.fn((_projectId, _input, _signal: AbortSignal) => new Promise<typeof TEST_CONTENT_PLAN>((resolve) => {
+      release = () => resolve(TEST_CONTENT_PLAN);
+    }));
+    const { manager, root } = await activeManagerForTest({ planAuthoringContent });
+    const prepared = await prepareLinkedAuthoringDraft(manager, root, "job-plan-pause", "project-plan-pause");
+
+    const starting = manager.startAuthoring(prepared.draftId, "project-plan-pause", prepared.projectRoot, []);
+    await vi.waitFor(() => expect(planAuthoringContent).toHaveBeenCalledTimes(1));
+    const authoring = await manager.status(prepared.draftId);
+    await manager.pauseWorkflow(prepared.draftId, authoring.workflowRevision);
+    release?.();
+    await expect(starting).resolves.toBeUndefined();
+    await expect(readFile(join(prepared.draftRoot, "handoff", "content-plan.json"))).rejects.toMatchObject({ code: "ENOENT" });
+    await expect(manager.status(prepared.draftId)).resolves.toMatchObject({ productionState: "paused" });
+  });
+
 
   it("authors final-quality first, then performs only the configured visual-refine pass", async () => {
     const stills: string[] = [];
@@ -1101,7 +1217,8 @@ describe("HarnessManager draft lifecycle", () => {
       }
       return Response.json({ type: "server-response", result: { ok: true, value: {} } });
     }) as unknown as typeof globalThis.fetch;
-    const { manager, root } = await activeManagerForTest({ fetch });
+    const planAuthoringContent = vi.fn(testPlanAuthoringContent);
+    const { manager, root } = await activeManagerForTest({ fetch, planAuthoringContent });
     const draft = await manager.createDraft("Retry authoring start");
     await manager.activate(draft.id, "internal-key");
     let state = await manager.transitionWorkflow(draft.id, { expectedRevision: 0, to: "collecting_assets", jobId: "job-retry-start" });
@@ -1126,6 +1243,7 @@ describe("HarnessManager draft lifecycle", () => {
     expect(failed).toMatchObject({ productionState: "error", failedPhase: "authoring" });
 
     await expect(manager.retryWorkflow(draft.id, failed.workflowRevision)).resolves.toMatchObject({ productionState: "authoring" });
+    expect(planAuthoringContent).toHaveBeenCalledTimes(1);
     expect(JSON.parse(await readFile(join(draftRoot, "handoff", "authoring-request.json"), "utf8")))
       .toMatchObject({ request_revision: 1, phase: "initial" });
   });
@@ -1271,6 +1389,7 @@ describe("HarnessManager draft lifecycle", () => {
       harnessHome: join(root, "harness"),
       harnessCliPath: cli,
       submissionPluginPath: join(root, "motionreal-tools.mjs"),
+      planAuthoringContent: testPlanAuthoringContent,
       fetch: fakeFetch,
       findPort: async () => 39876,
       spawn: spawnChild,
@@ -1315,6 +1434,7 @@ describe("HarnessManager draft lifecycle", () => {
       harnessHome: join(root, "harness"),
       harnessCliPath: cli,
       submissionPluginPath: join(root, "motionreal-tools.mjs"),
+      planAuthoringContent: testPlanAuthoringContent,
       findPort: async () => 39875,
       spawn: vi.fn(() => child) as unknown as typeof import("node:child_process").spawn,
       fetch: vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
@@ -1354,6 +1474,7 @@ describe("HarnessManager draft lifecycle", () => {
       harnessHome: join(root, "harness"),
       harnessCliPath: cli,
       submissionPluginPath: join(root, "motionreal-tools.mjs"),
+      planAuthoringContent: testPlanAuthoringContent,
       nodeExecutable: "C:\\Program Files\\nodejs\\node.exe",
       findPort: async () => 39874,
       spawn: spawnChild,
@@ -1414,6 +1535,7 @@ describe("HarnessManager draft lifecycle", () => {
       harnessHome: join(root, "harness"),
       harnessCliPath: cli,
       submissionPluginPath: join(root, "motionreal-tools.mjs"),
+      planAuthoringContent: testPlanAuthoringContent,
       nodeExecutable: "node",
       findPort: async () => 39873,
       spawn: vi.fn(() => {
