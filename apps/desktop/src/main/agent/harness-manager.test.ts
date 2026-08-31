@@ -3,7 +3,13 @@ import { EventEmitter } from "node:events";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { HarnessManager, type HarnessManagerDeps } from "./harness-manager.js";
+import {
+  AuthoringValidationError,
+  HarnessManager,
+  isRepairableAuthoringError,
+  sameIds,
+  type HarnessManagerDeps,
+} from "./harness-manager.js";
 import { encodePngRGBA, type AuthoringReviewRequest, type ReviewArtifact } from "@motionreal/pipeline";
 
 const roots: string[] = [];
@@ -31,6 +37,19 @@ const TEST_CONTENT_PLAN = {
   }],
 };
 const REVIEW_EVIDENCE_PNG = encodePngRGBA(1, 1, new Uint8Array([255, 255, 255, 255]));
+
+describe("authoring error and exact-ID classification", () => {
+  it("does not treat infrastructure messages mentioning authored files as AI-repairable", () => {
+    expect(isRepairableAuthoringError(new Error("ENOENT: no such file, open project/manifest.json"))).toBe(false);
+    expect(isRepairableAuthoringError(new Error("read_image RPC timed out while opening scene-01.tsx"))).toBe(false);
+    expect(isRepairableAuthoringError(new AuthoringValidationError("scene-01 thiếu narration"))).toBe(true);
+  });
+
+  it("rejects duplicate IDs that hide a missing reviewed scene or still", () => {
+    expect(sameIds(["scene-01", "scene-01"], ["scene-01", "scene-02"])).toBe(false);
+    expect(sameIds(["scene-02", "scene-01"], ["scene-01", "scene-02"])).toBe(true);
+  });
+});
 
 const testPlanAuthoringContent: HarnessManagerDeps["planAuthoringContent"] = async () => TEST_CONTENT_PLAN;
 

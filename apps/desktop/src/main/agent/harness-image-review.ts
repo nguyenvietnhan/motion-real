@@ -4,6 +4,13 @@ import { isAbsolute, relative, resolve } from "node:path";
 type ReviewEvent = { seq: number; type: string; data: Record<string, unknown> };
 type ReadPage = (beforeSeq?: number) => Promise<unknown>;
 
+export class HarnessImageReadEvidenceError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "HarnessImageReadEvidenceError";
+  }
+}
+
 /** Native session.history is paged by messages, not event count. Keep raw data in Main only. */
 export async function readHarnessReviewHistory(readPage: ReadPage, afterSeq?: number): Promise<{
   events: ReviewEvent[]; lastSeq: number;
@@ -92,7 +99,7 @@ export async function assertHarnessImageReads(input: {
   }
   const missing = (input.stills as string[]).filter((_path, index) => !seen.has(expected[index]!));
   if (missing.length) {
-    throw new Error(`Chưa có read_image thành công trước lượt nhận xét cho: ${missing.join(", ")}. Mở các PNG này bằng read_image rồi submit lại ở lượt model tiếp theo.`);
+    throw new HarnessImageReadEvidenceError(`Chưa có read_image thành công trước lượt nhận xét cho: ${missing.join(", ")}. Mở các PNG này bằng read_image rồi submit lại ở lượt model tiếp theo.`);
   }
 }
 

@@ -20,7 +20,7 @@ import {
   type AgentWorkflowRecord,
   type AgentWorkflowTransition,
 } from "./agent-workflow.js";
-import { assertHarnessImageReads, readHarnessReviewHistory } from "./harness-image-review.js";
+import { assertHarnessImageReads, HarnessImageReadEvidenceError, readHarnessReviewHistory } from "./harness-image-review.js";
 import { assertHarnessReviewArtifacts } from "./harness-review-artifacts.js";
 import { AUTHORING_CONTRACT } from "../authoring/contract-text.js";
 import type { AuthorInput } from "./agent-worker.js";
@@ -88,11 +88,18 @@ class AuthoringStillRenderError extends Error {
   }
 }
 
+export class AuthoringValidationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "AuthoringValidationError";
+  }
+}
+
 /** Unknown runtime/bridge failures must never spend an AI repair attempt. */
-function isRepairableAuthoringError(error: unknown): boolean {
-  if (error instanceof AuthoringStillRenderError) return error.repairable;
-  const message = error instanceof Error ? error.message : String(error);
-  return /authoring submission|scene id|manifest|narration|pacing|transitionToNext|visual refine|reviewed_scene_ids|review_notes|read_image|đọc ảnh|lượt nhận xét|fingerprint|admission|schema|authored[\\/]|\.tsx/i.test(message);
+export function isRepairableAuthoringError(error: unknown): boolean {
+  return error instanceof AuthoringValidationError
+    || error instanceof HarnessImageReadEvidenceError
+    || (error instanceof AuthoringStillRenderError && error.repairable);
 }
 
 export type AgentCreateRequest = {
@@ -1573,11 +1580,11 @@ export class HarnessManager {
       || request.job_id !== record.activeJobId || submission.job_id !== record.activeJobId
       || request.request_revision !== record.authoringRequestRevision
       || submission.request_revision !== record.authoringRequestRevision) {
-      throw new Error("Authoring submission đã cũ hoặc không khớp request hiện tại.");
+      throw new AuthoringValidationError("Authoring submission đã cũ hoặc không khớp request hiện tại.");
     }
     if (!Array.isArray(submission.scene_ids) || submission.scene_ids.length < 1
       || submission.scene_ids.some((id) => typeof id !== "string")) {
-      throw new Error("Authoring submission thiếu scene id hợp lệ.");
+      throw new AuthoringValidationError("Authoring submission thiếu scene id hợp lệ.");
     }
     const sceneIds = submission.scene_ids as string[];
     const pacing = await this.authoringPacing(record);
@@ -1591,7 +1598,7 @@ export class HarnessManager {
       (await this.readRequiredBrief(record)).videoLanguage,
       parsedPlan.success ? parsedPlan.data : undefined,
     );
-    if (!paced.ok) throw new Error(paced.errors.join(" "));
+    if (!paced.ok) throw new AuthoringValidationError(paced.errors.join(" "));
     const projectRoot = await realpath(join(root, PROJECT_LINK));
     if (request.phase === "visual_refine") {
       await writeJson(manifestPath, paced.manifest);
@@ -1702,7 +1709,7 @@ export class HarnessManager {
       : [];
     const reviewSceneIds = this.requestReviewSceneIds(request, sceneIds);
     if (!sameIds(reviewed, reviewSceneIds) || typeof submission.review_notes !== "string" || !submission.review_notes.trim()) {
-      throw new Error("Harness chưa xác nhận đã xem đủ still trong phạm vi visual refine.");
+      throw new AuthoringValidationError("Harness chưa xác nhận đã xem đủ still trong phạm vi visual refine.");
     }
     const reviewArtifacts = this.requestReviewArtifacts(request, projectRoot);
     const stills = reviewArtifacts?.map((artifact) => artifact.path)
@@ -2330,8 +2337,12 @@ function validateSelectedIds(selectedIds: string[], assets: AgentAssetVM[]): str
   return selected;
 }
 
-function sameIds(left: string[], right: string[]): boolean {
-  return left.length === right.length && left.every((id) => right.includes(id));
+export function sameIds(left: string[], right: string[]): boolean {
+  if (left.length !== right.length) return false;
+  const leftSet = new Set(left);
+  const rightSet = new Set(right);
+  return leftSet.size === left.length && rightSet.size === right.length
+    && leftSet.size === rightSet.size && [...leftSet].every((id) => rightSet.has(id));
 }
 
 function buildAuthoringReviewRequest(
