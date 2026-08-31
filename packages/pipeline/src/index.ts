@@ -44,6 +44,7 @@ export * from "./audio/lock.js";
 export * from "./audio/tts.js";
 export * from "./audio/bgm-library.js";
 export * from "./render/renderer.js";
+export * from "./render/review-evidence.js";
 export * from "./render/runtime-probe.js";
 export {
   renderProjectStills,

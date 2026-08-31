@@ -1,9 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { existsSync } from "node:fs";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import type { LockedVideoSpec } from "@motionreal/schema";
+import { encodePngRGBA } from "../safety/png.js";
 
 const mocks = vi.hoisted(() => ({
   bundle: vi.fn(),
@@ -151,6 +152,38 @@ describe("renderVideo", () => {
 });
 
 describe("renderSceneStills", () => {
+  it("keeps human midpoints while producing named composite review artifacts", async () => {
+    const spec = lockedSpec();
+    spec.scenes[1] = {
+      ...spec.scenes[1]!,
+      motionBeats: [{ id: "first", anchor: "Một câu", action: "first" }, { id: "second", anchor: "kết ngắn", action: "second" }],
+      motionCueFrames: { first: 16, second: 24 },
+    };
+    const png = encodePngRGBA(4, 8, new Uint8Array(4 * 8 * 4).fill(255));
+    mocks.renderStill.mockImplementation(async ({ output }) => {
+      if (typeof output === "string") await writeFile(output, png);
+      return { buffer: null, contentType: "image/png" };
+    });
+    const artifacts: import("./review-evidence.js").ReviewArtifact[] = [];
+    const outDir = join(tempRoot, "projects", "demo-12345678", "review");
+
+    const outputs = await renderSceneStills(spec, outDir, {
+      reviewRequest: {
+        reviewSceneIds: ["scene-01", "scene-02"],
+        contextSceneIds: [],
+        scenes: [
+          { sceneId: "scene-01", temporalMode: "static", detailMode: "normal" },
+          { sceneId: "scene-02", temporalMode: "stepped", detailMode: "fine" },
+        ],
+      },
+      onReviewArtifacts: (value) => artifacts.push(...value),
+    });
+
+    expect(outputs).toEqual([join(resolve(outDir), "scene-01.png"), join(resolve(outDir), "scene-02.png")]);
+    expect(artifacts.map((artifact) => artifact.kind)).toEqual(["overview", "cue-filmstrip", "detail"]);
+    expect(artifacts.every((artifact) => existsSync(artifact.path))).toBe(true);
+  });
+
   it("renders one PNG at each scene midpoint", async () => {
     const spec = lockedSpec();
     const outDir = join(tempRoot, "projects", "demo-12345678", "review");

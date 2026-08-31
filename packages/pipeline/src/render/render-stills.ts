@@ -13,6 +13,7 @@ import { generateAuthoredEntry } from "../authoring/authored-entry.js";
 import { lockSpec } from "../audio/lock.js";
 import { checkSceneRuntimeErrors, type SceneRuntimeProbeOptions } from "./runtime-probe.js";
 import { renderSceneStills, remotionAppRoot, RUNTIME_PROBE_FRACTIONS, type RenderTiming } from "./renderer.js";
+import type { AuthoringReviewRequest, ReviewArtifact } from "./review-evidence.js";
 import { PipelineError } from "../errors.js";
 import { withProjectRenderLock } from "./project-lock.js";
 import type { SafetyIssue } from "../types.js";
@@ -49,6 +50,8 @@ export type RenderProjectStillsOptions = {
   sceneIds?: string[];
   /** Scenes that need early/middle/late visual review instead of midpoint only. */
   multiFrameSceneIds?: string[];
+  /** Deterministic, named request for model-facing composite evidence. */
+  reviewRequest?: AuthoringReviewRequest;
   /** User-cancel signal ("Dừng"): aborts the in-flight still render. */
   signal?: AbortSignal;
   onProgress?: (done: number, total: number) => void;
@@ -68,6 +71,8 @@ export type RenderProjectStillsResult = {
   projectId: string;
   /** Absolute paths to the rendered per-scene PNG stills (midpoints only). */
   stills: string[];
+  /** Composite artifacts for Agent visual review; human midpoints remain in stills. */
+  reviewArtifacts?: ReviewArtifact[];
 };
 
 /**
@@ -255,6 +260,7 @@ export async function renderProjectStillsUnlocked(
       await appendEvent(projectId, { type: "stills.scene_runtime_probe", ok: true, issues: 0, strict: false });
     }
 
+    let reviewArtifacts: ReviewArtifact[] = [];
     const stills = await timedStillsStage(
       "render_scene_stills",
       () =>
@@ -270,13 +276,17 @@ export async function renderProjectStillsUnlocked(
             extraFractionSceneIds: opts.multiFrameSceneIds,
             includeExtraStills: true,
           } : {}),
+          ...(opts.reviewRequest ? {
+            reviewRequest: opts.reviewRequest,
+            onReviewArtifacts: (artifacts: ReviewArtifact[]) => { reviewArtifacts = artifacts; },
+          } : {}),
           ...(opts.signal ? { signal: opts.signal } : {}),
           ...(opts.onProgress ? { onProgress: opts.onProgress } : {}),
         }),
       { scenes: locked.scenes.length, requestedSceneIds: opts.sceneIds?.length ?? locked.scenes.length },
     );
 
-    return { projectId, stills };
+    return { projectId, stills, reviewArtifacts };
   } finally {
     if (generatedEntry) {
       try {

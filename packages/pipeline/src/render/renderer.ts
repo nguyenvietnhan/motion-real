@@ -11,6 +11,11 @@ import {
   timedRender,
   type RenderBaseOptions,
 } from "./composition-prep.js";
+import {
+  buildReviewEvidence,
+  type AuthoringReviewRequest,
+  type ReviewArtifact,
+} from "./review-evidence.js";
 
 export {
   __resetBundleCache,
@@ -92,6 +97,10 @@ export type RenderSceneStillsOptions = RenderBaseOptions & {
    * historical behavior). An id not in the spec is ignored.
    */
   sceneIds?: string[];
+  /** Named, deterministic evidence request for model-facing visual review. */
+  reviewRequest?: AuthoringReviewRequest;
+  /** Receives composite evidence separately from human midpoint stills. */
+  onReviewArtifacts?: (artifacts: ReviewArtifact[]) => void;
 };
 
 /** Node API path: ensure Chromium, bundle the Remotion app, select composition, render h264 MP4. */
@@ -250,6 +259,32 @@ export async function renderSceneStills(
     }
 
     timingOpts.onProgress?.(index + 1, spec.scenes.length);
+  }
+  if (timingOpts.reviewRequest) {
+    const artifacts = await buildReviewEvidence({
+      spec,
+      reviewDir: stillDir,
+      request: timingOpts.reviewRequest,
+      renderFrame: (frame, output) => timedRender(
+        timingOpts,
+        "renderStill",
+        () => renderStill({
+          composition: prepared.composition,
+          serveUrl: prepared.serveUrl,
+          output,
+          frame,
+          inputProps: prepared.inputProps,
+          imageFormat: "png",
+          overwrite: true,
+          timeoutInMilliseconds: BROWSER_TIMEOUT_MS,
+          logLevel: timingOpts.logLevel ?? "warn",
+          ...chromiumRuntimeOptions(timingOpts),
+          ...(cancelSignal ? { cancelSignal } : {}),
+        }).then(() => undefined),
+        { frame, kind: "review-evidence" },
+      ),
+    });
+    timingOpts.onReviewArtifacts?.(artifacts);
   }
   return outputs;
 }

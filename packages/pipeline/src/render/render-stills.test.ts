@@ -85,6 +85,12 @@ beforeEach(async () => {
       ms: 12.34,
       meta: { sceneId: ids[0] },
     });
+    opts?.onReviewArtifacts?.([{
+      path: join(resolve(outDir), "evidence", "overview-01.png"),
+      kind: "overview",
+      sceneIds: ids,
+      panels: ids.map((sceneId: string, index: number) => ({ index, sceneId, sample: "overview" })),
+    }]);
     return ids.map((id: string) => join(resolve(outDir), `${id}.png`));
   });
 });
@@ -138,6 +144,20 @@ describe("renderProjectStills", () => {
     expect(opts.sceneIds).toEqual(["scene-02"]);
     const reviewDir = projectPaths("proj-1").reviewDir;
     expect(res.stills).toEqual([join(resolve(reviewDir), "scene-02.png")]);
+  });
+
+  it("forwards the named review request and returns model-facing artifacts separately", async () => {
+    const reviewRequest = {
+      reviewSceneIds: ["scene-02"],
+      contextSceneIds: ["scene-01"],
+      scenes: [{ sceneId: "scene-02", temporalMode: "stepped" as const, detailMode: "normal" as const }],
+    };
+    const res = await renderProjectStills("proj-1", { sceneIds: ["scene-02"], reviewRequest });
+    const [, , opts] = mocks.renderSceneStills.mock.calls[0]!;
+    expect(opts.reviewRequest).toEqual(reviewRequest);
+    expect(res.reviewArtifacts).toEqual([
+      expect.objectContaining({ kind: "overview", sceneIds: ["scene-02"] }),
+    ]);
   });
 
   it("records timing events for the stills pipeline and Remotion still render", async () => {
