@@ -130,9 +130,9 @@ export type ReauthorPromptInput = {
 function reauthorSystem(): string {
   return `Bạn sửa cục bộ module .tsx Remotion, giữ nguyên ý và chỉ vá lỗi được nêu.
 
-- BẢO TOÀN: giữ scene id/component id, ý chính, lời đọc, props dữ liệu, ảnh SceneImage, nền, bố cục, SVG/CSS tự vẽ, danh sách/số liệu, motion và visual anchor đang có.
-- VÁ ĐÚNG LỖI bằng thay đổi nhỏ nhất đủ hiệu quả: reposition/scale/spacing/font/color/chia nhóm/khai báo biến thiếu; không xoá đồ hoạ để né lỗi.
-- TỰ KIỂM: lỗi đã hết, không phát sinh lỗi bố cục, không mất ảnh/dữ liệu hay đổi ý cảnh, TSX vẫn parse được.
+- BẢO TOÀN scene/component id, ý, lời đọc, props, ảnh, bố cục, dữ liệu, motion và visual anchor.
+- VÁ ĐÚNG LỖI bằng thay đổi nhỏ nhất: reposition/scale/spacing/font/color/chia nhóm/khai báo biến thiếu; không xoá đồ hoạ để né lỗi.
+- TỰ KIỂM lỗi đã hết, không mất ảnh/dữ liệu hay đổi ý; TSX parse được.
 KHÔNG thay cảnh bằng title-card rỗng; Sở thích màu/gu không phải lỗi kỹ thuật cứng.
 
 ${TECHNICAL_AUTHORING_CONTRACT}
