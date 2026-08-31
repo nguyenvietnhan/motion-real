@@ -1204,7 +1204,7 @@ export class HarnessManager {
     });
     const activities: AgentActivityVM[] = [];
     const calls = new Map<string, AgentActivityVM>();
-    let needsAttention = false;
+    const pendingInteractions = new Set<string>();
     let currentTurn: number | undefined;
     let awaitedTurn: number | undefined;
     let artifactPromptEnded = false;
@@ -1226,7 +1226,7 @@ export class HarnessManager {
         const activity: AgentActivityVM = { id: String(seq), label, status: "running" };
         activities.push(activity);
         calls.set(callId, activity);
-        if (data.name === "ask_user_question") needsAttention = true;
+        if (data.name === "ask_user_question") pendingInteractions.add(`question:${callId}`);
       }
       if (event.type === "tool/result") {
         const message = objectOf(data.message);
@@ -1236,12 +1236,13 @@ export class HarnessManager {
         const failed = data.error !== undefined || nested.isError === true;
         const activity = calls.get(callId ?? "");
         if (activity) activity.status = failed ? "failed" : "completed";
-        if (activity?.label === "Đang chờ câu trả lời") needsAttention = false;
+        if (activity?.label === "Đang chờ câu trả lời" && callId) pendingInteractions.delete(`question:${callId}`);
       }
-      if (event.type === "permission/request" || event.type === "permission/pending" || event.type === "question/request" || event.type === "question/pending") needsAttention = true;
-      if (event.type === "permission/resolved" || event.type === "question/resolved") needsAttention = false;
+      const approvalId = stringOf(data.id);
+      if (event.type === "approval/asked" && approvalId) pendingInteractions.add(`approval:${approvalId}`);
+      if (event.type === "approval/decided" && approvalId) pendingInteractions.delete(`approval:${approvalId}`);
     }
-    return { activities: activities.slice(-8), needsAttention, artifactPromptEnded };
+    return { activities: activities.slice(-8), needsAttention: pendingInteractions.size > 0, artifactPromptEnded };
   }
 
   /** Persist only the choice. Never restart a live model turn to apply it. */

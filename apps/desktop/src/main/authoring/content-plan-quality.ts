@@ -28,6 +28,7 @@ export type ContentPlanQualityResult = {
   blockingIssues: ContentPlanQualityIssue[];
   advisoryIssues: ContentPlanQualityIssue[];
 };
+export type ContentPlanQualityOptions = { requireReviewIntent?: boolean };
 
 function contentPlanQualitySeverity(check: ContentPlanQualityCheck): ContentPlanQualitySeverity {
   return check === "layout-diversity" || check === "motion-progression" ? "advisory" : "blocking";
@@ -43,6 +44,7 @@ export function evaluateContentPlanQuality(
   pacing?: PacingBudget,
   /** When provided (including empty), enforce claim-provenance against readable sources. */
   sources?: readonly ResearchSource[],
+  options?: ContentPlanQualityOptions,
 ): ContentPlanQualityResult {
   const issues: ContentPlanQualityIssue[] = [];
   const addIssue = (issue: Omit<ContentPlanQualityIssue, "severity">) => {
@@ -66,7 +68,8 @@ export function evaluateContentPlanQuality(
     }
   }
 
-  const hasReviewIntentContract = plan.scenes.some((scene) => scene.temporalMode !== undefined || scene.detailMode !== undefined);
+  const hasReviewIntentContract = options?.requireReviewIntent === true
+    || plan.scenes.some((scene) => scene.temporalMode !== undefined || scene.detailMode !== undefined);
   for (const scene of plan.scenes) {
     const sceneText = `${scene.beat}\n${scene.narration}\n${scene.onScreenText}`;
     if (hasConcreteFact(sceneText) && scene.evidenceClaimIds.length === 0) {

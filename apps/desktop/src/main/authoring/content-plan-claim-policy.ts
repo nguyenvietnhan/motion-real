@@ -6,6 +6,7 @@
 import type { ContentPlan } from "./content-plan-schema.js";
 import {
   evaluateContentPlanQuality,
+  type ContentPlanQualityOptions,
   type ContentPlanQualityIssue,
   type ContentPlanQualityResult,
 } from "./content-plan-quality.js";
@@ -86,6 +87,7 @@ export function finalizeAfterClaimRepair(
   plan: ContentPlan,
   sources: readonly ResearchSource[] | undefined,
   pacing?: PacingBudget,
+  qualityOptions?: ContentPlanQualityOptions,
 ): {
   plan: ContentPlan;
   quality: ContentPlanQualityResult;
@@ -95,7 +97,7 @@ export function finalizeAfterClaimRepair(
   if (sources === undefined) {
     return {
       plan,
-      quality: evaluateContentPlanQuality(plan, pacing, sources),
+      quality: evaluateContentPlanQuality(plan, pacing, sources, qualityOptions),
       demotedClaimIds: [],
       softenedClaimLedger: false,
     };
@@ -103,7 +105,7 @@ export function finalizeAfterClaimRepair(
 
   const demoted = demoteInvalidProvenanceClaims(plan, sources);
   const nextPlan = demoted.demotedClaimIds.length > 0 ? demoted.plan : plan;
-  let quality = evaluateContentPlanQuality(nextPlan, pacing, sources);
+  let quality = evaluateContentPlanQuality(nextPlan, pacing, sources, qualityOptions);
   let softenedClaimLedger = false;
 
   if (

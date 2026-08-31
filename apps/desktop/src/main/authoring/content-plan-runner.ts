@@ -86,7 +86,8 @@ export async function runContentPlan(args: RunContentPlanInput): Promise<RunCont
 
     let planned = parsedPlan.plan;
     const sources = args.researchSources;
-    let quality = evaluateContentPlanQuality(planned, pacing, sources);
+    const qualityOptions = { requireReviewIntent: true } as const;
+    let quality = evaluateContentPlanQuality(planned, pacing, sources, qualityOptions);
 
     /**
      * Claim-only blockers: optional AI repair, then deterministic finalize.
@@ -112,7 +113,7 @@ export async function runContentPlan(args: RunContentPlanInput): Promise<RunCont
       }
 
       if (sources !== undefined) {
-        const finalized = finalizeAfterClaimRepair(planned, sources, pacing);
+        const finalized = finalizeAfterClaimRepair(planned, sources, pacing, qualityOptions);
         if (finalized.demotedClaimIds.length > 0 || finalized.softenedClaimLedger) {
           args.logger.warn(
             {
@@ -128,7 +129,7 @@ export async function runContentPlan(args: RunContentPlanInput): Promise<RunCont
         quality = finalized.quality;
       } else {
         // Text-only: re-evaluate after optional AI repair; no demote/soften.
-        quality = evaluateContentPlanQuality(planned, pacing, sources);
+        quality = evaluateContentPlanQuality(planned, pacing, sources, qualityOptions);
       }
 
       if (quality.blockingIssues.length > 0) {

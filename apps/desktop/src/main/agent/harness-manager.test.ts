@@ -402,6 +402,24 @@ describe("HarnessManager draft lifecycle", () => {
     });
   });
 
+  it("keeps attention visible until every native question and approval is resolved", async () => {
+    const { manager, history } = await activeManagerForTest();
+    const draft = await manager.createDraft("Nhiều tương tác đang chờ");
+    await manager.activate(draft.id, "internal-key");
+    history.push(
+      { event: { seq: 1, type: "tool/call", data: { callId: "ask-a", name: "ask_user_question" } } },
+      { event: { seq: 2, type: "tool/call", data: { callId: "ask-b", name: "ask_user_question" } } },
+      { event: { seq: 3, type: "approval/asked", data: { id: "approval-a", toolName: "bash" } } },
+      { event: { seq: 4, type: "tool/result", data: { callId: "ask-a" } } },
+      { event: { seq: 5, type: "approval/decided", data: { id: "approval-a", outcome: "allowed-once" } } },
+    );
+
+    await expect(manager.status(draft.id, { includeActivities: true })).resolves.toMatchObject({ needsAttention: true });
+
+    history.push({ event: { seq: 6, type: "tool/result", data: { callId: "ask-b" } } });
+    expect((await manager.status(draft.id, { includeActivities: true })).needsAttention).toBeUndefined();
+  });
+
   it("fails a completed asset turn without a manifest and retries without losing downloaded assets", async () => {
     const { manager, root, calls, history } = await activeManagerForTest();
     const draft = await manager.createDraft("Thiếu manifest");

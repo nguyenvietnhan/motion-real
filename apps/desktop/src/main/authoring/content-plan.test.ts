@@ -439,6 +439,15 @@ describe("content-plan helpers", () => {
 });
 
 describe("content quality eval fixtures", () => {
+  it("blocks an all-missing review contract for fresh model output but keeps legacy artifacts readable", () => {
+    const legacy = validPlan({
+      scenes: validPlan().scenes.map((scene) => ({ ...scene, temporalMode: undefined, detailMode: undefined })),
+    });
+    expect(evaluateContentPlanQuality(legacy).blockingIssues.filter((issue) => issue.check === "review-intent")).toEqual([]);
+    expect(evaluateContentPlanQuality(legacy, undefined, undefined, { requireReviewIntent: true }).blockingIssues)
+      .toContainEqual(expect.objectContaining({ check: "review-intent", sceneId: "scene-01" }));
+  });
+
   it.each([
     ["missing modes", (scene: ContentPlan["scenes"][number]) => ({ ...scene, temporalMode: "stepped" as const, detailMode: undefined })],
     ["static with beats", (scene: ContentPlan["scenes"][number]) => ({ ...scene, temporalMode: "static" as const, detailMode: "normal" as const })],

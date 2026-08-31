@@ -27,6 +27,7 @@ export { evaluateContentPlanQuality } from "./content-plan-quality.js";
 export type {
   ContentPlanQualityCheck,
   ContentPlanQualityIssue,
+  ContentPlanQualityOptions,
   ContentPlanQualityResult,
   ContentPlanQualitySeverity,
 } from "./content-plan-quality.js";
