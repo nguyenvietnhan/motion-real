@@ -236,3 +236,7 @@ payoff a stronger bespoke signature beat; keep explanatory scenes quieter but
 still visually anchored. Real assets should participate as evidence or subjects
 inside the composition, not default to a framed illustration. Logos and icons
 remain supporting accents.
+Every literal number, price, date, or percentage rendered through props, JSX,
+SVG, or on-screen copy must come from the approved brief or content plan. Never
+invent a decorative number just to make a visual look specific; use a qualitative
+label when the approved material has no real number.
