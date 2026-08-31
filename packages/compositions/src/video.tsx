@@ -153,6 +153,7 @@ export const SceneContent: React.FC<{ scene: LockedSceneSpec; strictSceneErrors?
       body={scene.body}
       eyebrow={scene.eyebrow}
       durationInFrames={scene.durationInFrames}
+      motionCueFrames={scene.motionCueFrames}
       props={scene.props}
       image={scene.image}
     />

@@ -3,6 +3,8 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { makeTheme } from "@motionreal/theme";
 import type { LockedSceneSpec } from "@motionreal/schema";
+import { z } from "zod";
+import { registerComponent, unregisterComponent } from "./registry.js";
 import { CompositionBackdrop, SceneContent, crossfadeOpacity } from "./video.js";
 
 describe("VideoComposition missing-component fallback", () => {
@@ -23,6 +25,35 @@ describe("VideoComposition missing-component fallback", () => {
     expect(html).toContain("scene-01");
     expect(html).toContain("unknown component");
     expect(html).toContain("not-registered");
+  });
+});
+
+describe("SceneContent motion cue runtime context", () => {
+  it("passes locked scene-local cue frames to authored components", () => {
+    registerComponent({
+      id: "motion-cue-test",
+      displayName: "Motion cue test",
+      promptGuide: "test",
+      schema: z.object({}),
+      example: {},
+      Component: ({ motionCueFrames }) => React.createElement("span", null, motionCueFrames?.["show-result"]),
+    });
+    try {
+      const scene: LockedSceneSpec = {
+        id: "scene-01",
+        component: "motion-cue-test",
+        durationInSeconds: 3,
+        headline: "Cue",
+        narration: "Hiện kết quả đúng lúc.",
+        props: {},
+        startFrame: 0,
+        durationInFrames: 90,
+        motionCueFrames: { "show-result": 42 },
+      };
+      expect(renderToStaticMarkup(React.createElement(SceneContent, { scene }))).toContain("42");
+    } finally {
+      unregisterComponent("motion-cue-test");
+    }
   });
 });
 

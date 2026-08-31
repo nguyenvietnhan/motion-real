@@ -109,3 +109,70 @@ describe("secondsToFrames — Property 6: duration monotonicity", () => {
     expect(secondsToFrames(2, FPS)).toBe(2 * FPS);
   });
 });
+
+describe("lockSpec — narration motion cues", () => {
+  const narration = "Đầu tiên nhận yêu cầu rồi sau đó xử lý dữ liệu và cuối cùng trả kết quả.";
+  const beats = [
+    { id: "receive", anchor: "nhận yêu cầu", action: "Reveal input" },
+    { id: "process", anchor: "xử lý dữ liệu", action: "Reveal processing" },
+    { id: "return", anchor: "trả kết quả", action: "Reveal output" },
+  ];
+
+  function motionSpec(sceneCount = 1): VideoSpec {
+    return {
+      version: 1,
+      title: "Motion cues",
+      format: "tiktok",
+      language: "vi",
+      scenes: Array.from({ length: sceneCount }, (_, index) => ({
+        id: `scene-${String(index + 1).padStart(2, "0")}`,
+        component: `motion-${index + 1}`,
+        durationInSeconds: 6,
+        headline: "Motion",
+        narration,
+        motionBeats: beats,
+        props: {},
+      })),
+    };
+  }
+
+  it("creates deterministic increasing cues for no-TTS still locks without captions", () => {
+    const first = lockSpec(motionSpec(), null);
+    const second = lockSpec(motionSpec(), null);
+    expect(first.scenes[0]!.motionCueFrames).toEqual(second.scenes[0]!.motionCueFrames);
+    const cues = first.scenes[0]!.motionCueFrames!;
+    expect(cues.receive).toBeLessThan(cues.process!);
+    expect(cues.process).toBeLessThan(cues.return!);
+    expect(first.captions).toEqual([]);
+  });
+
+  it("uses SRT timing and includes the head transition in scene-local cues", () => {
+    const spec = motionSpec(2);
+    const manifest = manifestFor(spec, [6, 6]);
+    manifest.byScene["scene-02"]!.srt = [
+      { startSec: 1, endSec: 2, text: "đầu tiên nhận yêu cầu" },
+      { startSec: 3, endSec: 4, text: "xử lý dữ liệu" },
+      { startSec: 5, endSec: 6, text: "trả kết quả" },
+    ];
+    const locked = lockSpec(spec, manifest);
+    const second = locked.scenes[1]!;
+    expect(second.motionCueFrames?.receive).toBeGreaterThanOrEqual(T_TRANSITION + FPS);
+    expect(second.motionCueFrames?.return).toBeLessThan(second.durationInFrames);
+  });
+
+  it("recomputes cues for fps and duration changes", () => {
+    const at30 = lockSpec(motionSpec(), null, { fps: 30 });
+    const longer = motionSpec();
+    longer.scenes[0]!.durationInSeconds = 10;
+    const at60 = lockSpec(longer, null, { fps: 60 });
+    expect(at60.scenes[0]!.motionCueFrames?.process).toBeGreaterThan(at30.scenes[0]!.motionCueFrames?.process ?? 0);
+  });
+
+  it("drops every cue for one scene when narration edits make an anchor stale", () => {
+    const spec = motionSpec(2);
+    spec.scenes[1]!.narration = "Nội dung đã được người dùng sửa và không còn cụm neo cũ.";
+    const locked = lockSpec(spec, null);
+    expect(locked.scenes[0]!.motionCueFrames).toBeDefined();
+    expect(locked.scenes[1]!.motionCueFrames).toBeUndefined();
+  });
+});

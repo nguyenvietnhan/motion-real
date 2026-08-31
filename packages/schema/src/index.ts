@@ -287,6 +287,8 @@ export type VideoSpec = z.infer<typeof VideoSpecSchema>;
 export const LockedSceneSpecSchema = SceneSpecSchema.extend({
   startFrame: z.number().int().min(0),
   durationInFrames: z.number().int().positive(),
+  /** Scene-local frames resolved from narration anchors; absent when anchors are stale. */
+  motionCueFrames: z.record(z.string(), z.number().int().min(0)).optional(),
   audio: z
     .object({
       src: z.string(),

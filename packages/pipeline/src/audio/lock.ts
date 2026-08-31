@@ -2,6 +2,8 @@ import {
   DEFAULT_HOLD_SECONDS,
   FPS,
   LockedVideoSpecSchema,
+  motionAnchorTokens,
+  resolveSceneMotionBeatAnchors,
   transitionFrames,
   secondsToFrames,
   validateLockedTimings,
@@ -57,27 +59,40 @@ export function lockSpec(spec: VideoSpec, tts: TtsManifest | null, opts: LockOpt
     const durationInFrames = s + headT + tailT;
 
     const measured = tts?.byScene[scene.id];
+    const sceneCues = buildSceneCaptionCues({
+      sceneId: scene.id,
+      narration: scene.narration,
+      srt: measured?.srt,
+      audioStartFrame: audioCursor,
+      speechFrames: s,
+      fps,
+      totalFrames: Number.MAX_SAFE_INTEGER,
+    });
+    const resolvedAnchors = scene.motionBeats
+      ? resolveSceneMotionBeatAnchors(scene.narration, scene.motionBeats)
+      : undefined;
+    const timedWords = sceneCues
+      .flatMap((cue) => cue.words ?? [])
+      .filter((word) => motionAnchorTokens(word.text).length > 0);
+    const motionCueFrames = resolvedAnchors?.ok
+      && resolvedAnchors.matches.every((match) => timedWords[match.wordIndex])
+      ? Object.fromEntries(resolvedAnchors.matches.map((match) => [
+        match.id,
+        Math.min(durationInFrames - 1, Math.max(0, timedWords[match.wordIndex]!.startFrame - visualStart)),
+      ]))
+      : undefined;
     const locked = {
       ...scene,
       startFrame: visualStart,
       durationInFrames,
+      ...(motionCueFrames && Object.keys(motionCueFrames).length === scene.motionBeats?.length ? { motionCueFrames } : {}),
       audio: measured ? { src: measured.audioPath, duration: measured.duration } : undefined,
     };
 
     // Caption cues for this scene are anchored at the scene's SPEECH start in the
     // assembled audio track (audioCursor), not the visual sequence start.
     if (measured) {
-      captions.push(
-        ...buildSceneCaptionCues({
-          sceneId: scene.id,
-          narration: scene.narration,
-          srt: measured.srt,
-          audioStartFrame: audioCursor,
-          speechFrames: s,
-          fps,
-          totalFrames: Number.MAX_SAFE_INTEGER, // clamped to the real total below
-        }),
-      );
+      captions.push(...sceneCues);
     }
 
     // Advance cursors: the next sequence overlaps this one by T; the next speech

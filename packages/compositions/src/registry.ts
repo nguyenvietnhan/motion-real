@@ -20,6 +20,8 @@ export type SceneComponentProps<P = Record<string, unknown>> = {
    * clamped scene progress.
    */
   durationInFrames: number;
+  /** Narration-aligned scene-local cue frames keyed by canonical motion beat id. */
+  motionCueFrames?: Readonly<Record<string, number>>;
   props: P;
   /**
    * The scene's single optional LOCAL image (≤1 per scene; see
