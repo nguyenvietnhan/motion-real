@@ -15,7 +15,7 @@ export async function assertHarnessReviewArtifacts(input: {
   const overviewCounts = new Map(input.request.reviewSceneIds.map((id) => [id, 0]));
 
   for (const artifact of input.artifacts) {
-    const actual = await realpath(artifact.path).catch(() => undefined);
+    const actual = await realpath(artifact.path).catch((_error: unknown) => undefined);
     if (!actual) throw new Error(`Không tìm thấy evidence PNG: ${artifact.path}`);
     const rel = relative(evidenceRoot, actual);
     if (!rel || rel.startsWith("..") || isAbsolute(rel) || dirname(actual) !== evidenceRoot || !actual.toLowerCase().endsWith(".png")) {

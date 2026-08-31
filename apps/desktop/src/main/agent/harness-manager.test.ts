@@ -1263,7 +1263,7 @@ describe("HarnessManager draft lifecycle", () => {
     }, { timeout: 3_000 });
     const repairRequest = JSON.parse(await readFile(join(draftRoot, "handoff", "authoring-request.json"), "utf8"));
     expect(repairRequest.review_after_seq).toBe(firstReviewRequest.review_after_seq);
-    expect(repairRequest.instructions.join(" ")).toMatch(/PNG còn thiếu/);
+    expect(repairRequest.instructions.join(" ")).toMatch(/evidence artifact còn thiếu/);
 
     for (const path of evidencePaths.slice(1)) {
       const callId = `read-${history.length}`;
