@@ -436,7 +436,7 @@ export class HarnessManager {
       assetRequestRevision: 1,
       selectedAssetIds: undefined,
     };
-    await this.writeAssetRequest(next, "Tìm và tải các hình ảnh phù hợp nhất với video đã trao đổi.");
+    await this.writeAssetRequest(next, "Dùng chủ đề nội dung cụ thể gần nhất người dùng bàn trước khi bấm Thu thập asset.");
     await this.writeRecord(next);
     try {
       await this.promptSession(next, "MotionReal đã bắt đầu bước chuẩn bị asset. Hãy đọc handoff/assets-request.json, hoàn thành yêu cầu và gọi motionreal_submit_assets; không tự ghi handoff/assets.json.");
@@ -1392,6 +1392,9 @@ export class HarnessManager {
         items: [{ id: "asset-01", path: "assets/example.png", source_url: "https://example.com/image", label: "Mô tả ngắn", role: "support" }],
       },
       instructions: [
+        "Phạm vi nội dung: nếu note nêu một chủ đề hoặc yêu cầu asset cụ thể thì note là authoritative. Nếu note chỉ là yêu cầu chung, dùng chủ đề nội dung cụ thể gần nhất trong hội thoại trước thông báo vận hành hiện tại của MotionReal.",
+        "Khi hội thoại từng bàn nhiều chủ đề, ưu tiên lượt người dùng gần nhất có nội dung thực chất và các URL/paper mới nhất; không trộn hoặc quay lại chủ đề cũ chỉ vì chủ đề cũ đầy đủ hơn.",
+        "Bỏ qua các lượt chỉ xác nhận hoặc điều khiển như ok, tiếp tục, thu thập asset. Nếu lượt thực chất gần nhất vẫn chứa nhiều chủ đề ngang nhau hoặc tham chiếu không rõ, dùng ask_user_question để hỏi trước khi tải bất kỳ asset nào.",
         "Tải ảnh raster PNG/JPEG/WebP tĩnh vào assets/. Logo nên là PNG nền trong suốt; SVG hoặc GIF ngoài phải rasterize an toàn sang PNG hoặc bỏ qua.",
         "Gắn role cho từng asset: hero, support, logo hoặc icon. Role mô tả cách hiển thị, không phải kích thước file.",
         "Chỉ giữ asset có đóng góp nội dung/hình ảnh cụ thể cho video. Không tải hàng loạt ảnh tương tự; logo/icon chỉ bổ trợ và không thay thế ảnh minh họa hoặc motion.",

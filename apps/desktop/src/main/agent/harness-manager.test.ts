@@ -238,6 +238,11 @@ describe("HarnessManager draft lifecycle", () => {
     await manager.activate(draft.id, "internal-key");
     const collecting = await manager.prepareAssets(draft.id, draft.workflowRevision);
     const draftRoot = join(root, draft.id);
+    const assetRequest = JSON.parse(await readFile(join(draftRoot, "handoff", "assets-request.json"), "utf8"));
+    expect(assetRequest.note).toContain("chủ đề nội dung cụ thể gần nhất");
+    expect(assetRequest.instructions.join(" ")).toMatch(/URL\/paper mới nhất/);
+    expect(assetRequest.instructions.join(" ")).toMatch(/không trộn hoặc quay lại chủ đề cũ/);
+    expect(assetRequest.instructions.join(" ")).toMatch(/ask_user_question/);
     await writeFile(join(draftRoot, "assets", "one.png"), ONE_PIXEL_PNG);
     await writeFile(join(draftRoot, "handoff", "assets.json"), JSON.stringify({
       version: 1,
