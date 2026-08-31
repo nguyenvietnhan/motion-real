@@ -1,7 +1,7 @@
 import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it } from "vitest";
-import type { AgentBriefVM, AgentDraftVM, AgentSettingsVM } from "../../shared/types.js";
+import type { AgentBriefVM, AgentDraftVM, AgentSettingsVM, BgmTrackVM } from "../../shared/types.js";
 import "../theme.css";
 import { AgentLibrary, AgentNameDialog, AgentSettingsDialog, AgentWorkspace } from "./agent.js";
 
@@ -133,6 +133,13 @@ describe("Video Agent browser smoke", () => {
       selectedAssetIds: [],
       prompt: ["# Tổng quan", ...Array.from({ length: 90 }, (_, index) => `- Ý chính ${index + 1}`)].join("\n"),
     };
+    const bgm: BgmTrackVM[] = [{
+      name: "motionreal-default.mp3",
+      label: "MotionReal mặc định",
+      sizeLabel: "2 MB",
+      previewUrl: "media://bgm/default",
+      builtIn: true,
+    }];
     await mount(
       <AgentWorkspace
         draft={{ ...draft, productionState: "brief_review", briefReview: brief }}
@@ -142,6 +149,10 @@ describe("Video Agent browser smoke", () => {
         onBack={() => undefined}
         onDraftChange={() => undefined}
         run={async (work) => work()}
+        bgm={bgm}
+        defaultBgm="motionreal-default.mp3"
+        onAddBgm={() => undefined}
+        onRemoveBgm={async () => undefined}
       />,
     );
 
@@ -150,6 +161,8 @@ describe("Video Agent browser smoke", () => {
     expect(review?.textContent).toContain("Tổng quan");
     expect(getComputedStyle(review!).overflowY).toBe("auto");
     expect(review!.scrollHeight).toBeGreaterThan(review!.clientHeight);
+    expect(document.querySelector<HTMLButtonElement>('[title="Nhạc nền"]')?.textContent)
+      .toContain("MotionReal mặc định");
     const valueSetter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")?.set;
     valueSetter?.call(feedback, "Thêm ví dụ thực tế");
     await act(async () => {

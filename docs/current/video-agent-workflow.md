@@ -339,18 +339,21 @@ structured brief:
 }
 ```
 
-The review card lets the user edit the title/brief, request a regenerated brief
-with specific feedback, return to asset review, continue the conversation, or
-approve creation. The generated brief never fixes duration, scene count, target
-seconds, or voice. Those are user choices made at approval; the selected
+The review card lets the user edit the title/brief, choose duration, language,
+voice and background music, request a regenerated brief with specific feedback,
+return to asset review, continue the conversation, or approve creation. The
+generated brief never fixes duration, scene count, target seconds, voice, or
+background music. Those are user choices made at approval; the selected
 duration defaults to the most recently used application choice (a fresh install
 starts at tier 2 / about 90 seconds).
 
 MotionReal writes the exact request/schema to `handoff/brief-request.json` and
 accepts generated output only in `handoff/brief.generated.json`. On approval it
 writes the sole creation source, `handoff/brief.json`, with the chosen duration,
-target seconds, language, voice and the snapshot workflow policy. Invalid or
-stale files remain pending rather than surfacing as a false error.
+target seconds, language, voice, background music and the snapshot workflow
+policy. Invalid or stale files remain pending rather than surfacing as a false
+error. Legacy accepted briefs without a background-music field remain valid and
+are interpreted as `Không nhạc`.
 
 ### 5. Project scaffold and Harness authoring
 

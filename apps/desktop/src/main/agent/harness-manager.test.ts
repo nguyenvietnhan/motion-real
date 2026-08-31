@@ -171,6 +171,7 @@ async function prepareLinkedAuthoringDraft(
     title: "Agent content plan", prompt: "Giải thích chủ đề bằng một mạch kể rõ ràng và có điểm kết luận hữu ích.",
     format: "tiktok", duration_tier: 2, target_seconds: 90, video_language: "vi", voice_provider: "vivibe", selected_asset_ids: [],
   }));
+  await writeFile(join(draftRoot, "handoff", "assets.json"), JSON.stringify({ items: [] }));
   await manager.linkProject(draft.id, projectId);
   const projectRoot = join(root, "projects", projectId);
   await mkdir(join(projectRoot, "authored"), { recursive: true });
@@ -1009,16 +1010,23 @@ describe("HarnessManager draft lifecycle", () => {
       durationTier: 2,
       videoLanguage: "vi",
       voiceProvider: "vivibe",
+      bgm: "motionreal-default.mp3",
     });
     expect(queued).toMatchObject({ productionState: "queued_create", workflowRevision: 7, createReady: true });
     await expect(manager.readCreateRequest(draft.id)).resolves.toMatchObject({
       prompt: expect.stringContaining("Gemini AI"),
       title: "Gemini AI là gì?",
       assets: [{ id: "asset-01", path: join(draftRoot, "assets", "one.png") }],
-      choices: { durationTier: 2, videoLanguage: "vi", voiceProvider: "vivibe" },
+      choices: { durationTier: 2, videoLanguage: "vi", voiceProvider: "vivibe", bgm: "motionreal-default.mp3" },
     });
     const frozen = JSON.parse(await readFile(join(draftRoot, "handoff", "brief.json"), "utf8"));
-    expect(frozen).toMatchObject({ brief_revision: 2, accepted: true, duration_tier: 2, target_seconds: 90 });
+    expect(frozen).toMatchObject({
+      brief_revision: 2,
+      accepted: true,
+      duration_tier: 2,
+      target_seconds: 90,
+      bgm: "motionreal-default.mp3",
+    });
     await expect(readFile(join(draftRoot, "motionreal.create.json"), "utf8")).rejects.toMatchObject({ code: "ENOENT" });
     await manager.linkProject(draft.id, "project-gemini");
     await expect(manager.status(draft.id)).resolves.toMatchObject({
@@ -1028,7 +1036,7 @@ describe("HarnessManager draft lifecycle", () => {
     });
     await expect(manager.readCreateRequest(draft.id)).resolves.toMatchObject({
       title: "Gemini AI là gì?",
-      choices: { durationTier: 2, videoLanguage: "vi", voiceProvider: "vivibe" },
+      choices: { durationTier: 2, videoLanguage: "vi", voiceProvider: "vivibe", bgm: "motionreal-default.mp3" },
     });
     await manager.linkProject(draft.id, "project-gemini");
     await expect(manager.linkProject(draft.id, "project-other")).rejects.toThrow(/project khác/);
@@ -1156,6 +1164,7 @@ describe("HarnessManager draft lifecycle", () => {
     const planAuthoringContent = vi.fn(testPlanAuthoringContent);
     const { manager, root } = await activeManagerForTest({ planAuthoringContent });
     const prepared = await prepareLinkedAuthoringDraft(manager, root, "job-plan-once", "project-plan-once");
+    await expect(manager.readCreateRequest(prepared.draftId)).resolves.toMatchObject({ choices: { bgm: null } });
 
     await manager.startAuthoring(prepared.draftId, "project-plan-once", prepared.projectRoot, []);
     await manager.startAuthoring(prepared.draftId, "project-plan-once", prepared.projectRoot, []);

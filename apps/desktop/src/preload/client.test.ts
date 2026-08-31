@@ -79,6 +79,7 @@ describe("createDashboardClient — invoke channel mapping", () => {
       durationTier: 1,
       videoLanguage: "vi",
       voiceProvider: "vivibe",
+      bgm: null,
     });
     await api.agent.createVideo("agent-00000000-0000-0000-0000-000000000000");
     await api.agent.deleteDraft("agent-00000000-0000-0000-0000-000000000000");

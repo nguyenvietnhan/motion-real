@@ -111,12 +111,14 @@ export type AgentCreateRequest = {
     durationTier: DurationTierChoice;
     videoLanguage: VideoLanguageChoice;
     voiceProvider: VoiceProviderChoice;
+    bgm: string | null;
   };
 };
 
 type AgentAcceptedBrief = AgentBriefVM & {
   durationTier: DurationTierChoice;
   voiceProvider: VoiceProviderChoice;
+  bgm: string | null;
 };
 
 type HarnessRpcResponse = {
@@ -632,6 +634,7 @@ export class HarnessManager {
       target_seconds: targetSeconds,
       video_language: accepted.videoLanguage,
       voice_provider: accepted.voiceProvider,
+      bgm: accepted.bgm,
       selected_asset_ids: generated.selectedAssetIds,
       accepted: true,
     });
@@ -757,6 +760,7 @@ export class HarnessManager {
           durationTier: accepted.durationTier,
           videoLanguage: accepted.videoLanguage,
           voiceProvider: accepted.voiceProvider,
+          bgm: accepted.bgm,
         },
       };
     }
@@ -783,6 +787,7 @@ export class HarnessManager {
         durationTier: fields.durationTier,
         videoLanguage: fields.videoLanguage,
         voiceProvider: fields.voiceProvider,
+        bgm: fields.bgm,
       },
     };
   }
@@ -2450,16 +2455,27 @@ function validateVideoLanguage(value: unknown): VideoLanguageChoice {
   return value;
 }
 
-function validateAcceptedBriefFields(value: Record<string, unknown>): Pick<AgentAcceptedBrief, "durationTier" | "videoLanguage" | "voiceProvider"> {
+function validateAcceptedBriefFields(value: Record<string, unknown>): Pick<AgentAcceptedBrief, "durationTier" | "videoLanguage" | "voiceProvider" | "bgm"> {
   const durationTier = value.duration_tier;
   const videoLanguage = validateVideoLanguage(value.video_language);
   const voiceProvider = value.voice_provider;
+  const bgm = validateBgmChoice(value.bgm);
   if (durationTier !== 1 && durationTier !== 2 && durationTier !== 3 && durationTier !== 4) {
     throw new Error("Brief có thời lượng không được hỗ trợ.");
   }
   if (voiceProvider !== "vivibe" && voiceProvider !== "elevenlabs" && voiceProvider !== "vieneu") throw new Error("Brief có giọng đọc không hợp lệ.");
   if (videoLanguage === "en" && voiceProvider !== "elevenlabs") throw new Error("Brief tiếng Anh phải dùng ElevenLabs.");
-  return { durationTier, videoLanguage, voiceProvider };
+  return { durationTier, videoLanguage, voiceProvider, bgm };
+}
+
+function validateBgmChoice(value: unknown): string | null {
+  if (value === undefined || value === null) return null;
+  if (typeof value !== "string") throw new Error("Brief có nhạc nền không hợp lệ.");
+  const name = value.trim();
+  if (!name || name.length > 255 || name === "." || name === ".." || /[\\/\0]/.test(name)) {
+    throw new Error("Brief có nhạc nền không hợp lệ.");
+  }
+  return name;
 }
 
 function validateBriefInput(input: AgentBriefInput): AgentBriefInput {
@@ -2468,6 +2484,7 @@ function validateBriefInput(input: AgentBriefInput): AgentBriefInput {
     duration_tier: input.durationTier,
     video_language: input.videoLanguage,
     voice_provider: input.voiceProvider,
+    bgm: input.bgm,
   });
   return {
     title: validBriefText(input.title, "tiêu đề", 1, 160),

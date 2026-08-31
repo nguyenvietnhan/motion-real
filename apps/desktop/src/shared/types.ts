@@ -154,6 +154,8 @@ export type AgentBriefInput = {
   durationTier: DurationTierChoice;
   videoLanguage: VideoLanguageChoice;
   voiceProvider: VoiceProviderChoice;
+  /** Library filename, or null for an intentionally silent background. */
+  bgm: string | null;
 };
 
 // --- create --------------------------------------------------------

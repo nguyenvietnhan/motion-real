@@ -7,6 +7,7 @@ import type {
   AgentProductionState,
   AgentSearchProvider,
   AgentSettingsVM,
+  BgmTrackVM,
   DurationTierChoice,
   ProjectStage,
   ReviewMode,
@@ -18,6 +19,7 @@ import { useDismissable } from "../use-dismissable.js";
 import { useModalFocus } from "../use-modal-focus.js";
 import { ImageReviewView } from "./image-review.js";
 import { ProjectWorkspaceView } from "./workspace.js";
+import { BgmPicker } from "./bgm-picker.js";
 import {
   reconcileAgentBriefInput,
   requiresBriefDiscardConfirmation,
@@ -53,6 +55,7 @@ function briefInputFor(
   brief: AgentDraftVM["briefReview"],
   durationTier: DurationTierChoice,
   voiceProvider: VoiceProviderChoice,
+  bgm: string | null,
 ): AgentBriefInput | null {
   if (!brief) return null;
   return {
@@ -61,6 +64,7 @@ function briefInputFor(
     durationTier,
     videoLanguage: brief.videoLanguage,
     voiceProvider,
+    bgm,
   };
 }
 
@@ -68,12 +72,20 @@ export const AgentView: React.FC<{
   reviewMode: ReviewMode;
   defaultDurationTier: DurationTierChoice;
   defaultVoiceProvider: VoiceProviderChoice;
+  bgm: BgmTrackVM[];
+  defaultBgm: string | null;
+  onAddBgm: () => void;
+  onRemoveBgm: (name: string) => Promise<void>;
   incomingDraft?: AgentDraftVM | null;
   onIncomingDraftHandled?: () => void;
 }> = ({
   reviewMode,
   defaultDurationTier,
   defaultVoiceProvider,
+  bgm,
+  defaultBgm,
+  onAddBgm,
+  onRemoveBgm,
   incomingDraft = null,
   onIncomingDraftHandled,
 }) => {
@@ -186,6 +198,10 @@ export const AgentView: React.FC<{
       reviewMode={reviewMode}
       defaultDurationTier={defaultDurationTier}
       defaultVoiceProvider={defaultVoiceProvider}
+      bgm={bgm}
+      defaultBgm={defaultBgm}
+      onAddBgm={onAddBgm}
+      onRemoveBgm={onRemoveBgm}
       busy={busy}
       notice={notice}
       onBack={() => {
@@ -451,6 +467,10 @@ type AgentWorkspaceProps = {
   /** Defaults preserve the standalone visual-audit fixture; App always supplies Settings values. */
   defaultDurationTier?: DurationTierChoice;
   defaultVoiceProvider?: VoiceProviderChoice;
+  bgm?: BgmTrackVM[];
+  defaultBgm?: string | null;
+  onAddBgm?: () => void;
+  onRemoveBgm?: (name: string) => Promise<void>;
   busy: boolean;
   notice: string | null;
   onBack: () => void;
@@ -463,6 +483,10 @@ export const AgentWorkspace: React.FC<AgentWorkspaceProps> = ({
   reviewMode: _reviewMode,
   defaultDurationTier = 2,
   defaultVoiceProvider = "vivibe",
+  bgm = [],
+  defaultBgm = null,
+  onAddBgm = () => undefined,
+  onRemoveBgm = async () => undefined,
   busy,
   notice,
   onBack,
@@ -471,7 +495,7 @@ export const AgentWorkspace: React.FC<AgentWorkspaceProps> = ({
 }) => {
   const briefBaselineRef = useRef<AgentBriefBaseline | null>(null);
   const [briefInput, setBriefInput] = useState<AgentBriefInput | null>(() =>
-    briefInputFor(draft.briefReview, defaultDurationTier, defaultVoiceProvider),
+    briefInputFor(draft.briefReview, defaultDurationTier, defaultVoiceProvider, defaultBgm),
   );
   const [showBriefReview, setShowBriefReview] = useState(true);
   const [pendingBriefDiscard, setPendingBriefDiscard] = useState<BriefDiscardRequest | null>(null);
@@ -508,7 +532,7 @@ export const AgentWorkspace: React.FC<AgentWorkspaceProps> = ({
       setBriefInput(null);
       return;
     }
-    const input = briefInputFor(draft.briefReview, defaultDurationTier, defaultVoiceProvider);
+    const input = briefInputFor(draft.briefReview, defaultDurationTier, defaultVoiceProvider, defaultBgm);
     if (!input) return;
     const next = reconcileAgentBriefInput(
       briefBaselineRef.current,
@@ -804,6 +828,9 @@ export const AgentWorkspace: React.FC<AgentWorkspaceProps> = ({
           draft={draft}
           input={briefInput}
           busy={busy}
+          bgm={bgm}
+          onAddBgm={onAddBgm}
+          onRemoveBgm={onRemoveBgm}
           onInput={setBriefInput}
           onContinue={() => setShowBriefReview(false)}
           onReturn={() => {
@@ -1044,12 +1071,15 @@ const BriefReview: React.FC<{
   draft: AgentDraftVM;
   input: AgentBriefInput;
   busy: boolean;
+  bgm: BgmTrackVM[];
+  onAddBgm: () => void;
+  onRemoveBgm: (name: string) => Promise<void>;
   onInput: (value: AgentBriefInput) => void;
   onContinue: () => void;
   onReturn: () => void;
   onApprove: () => void;
   onRequestChanges: (feedback: string) => void;
-}> = ({ draft, input, busy, onInput, onContinue, onReturn, onApprove, onRequestChanges }) => {
+}> = ({ draft, input, busy, bgm, onAddBgm, onRemoveBgm, onInput, onContinue, onReturn, onApprove, onRequestChanges }) => {
   const [openKnob, setOpenKnob] = useState<null | "duration" | "language" | "voice">(null);
   const [editPromptOpen, setEditPromptOpen] = useState(false);
   const [feedback, setFeedback] = useState("");
@@ -1143,6 +1173,17 @@ const BriefReview: React.FC<{
                 { value: "elevenlabs", label: "ElevenLabs" },
                 { value: "vieneu", label: "VieNeu Local" },
               ]}
+            />
+            <BgmPicker
+              bgm={bgm}
+              selected={input.bgm}
+              busy={busy}
+              onAdd={onAddBgm}
+              onRemove={async (name) => {
+                await onRemoveBgm(name);
+                if (input.bgm === name) onInput({ ...input, bgm: null });
+              }}
+              onSelect={(name) => onInput({ ...input, bgm: name })}
             />
           </div>
         </div>

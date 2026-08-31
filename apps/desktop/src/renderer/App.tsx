@@ -291,7 +291,7 @@ const AppShell: React.FC = () => {
     setScreen("workspace");
   };
 
-  // Load the BGM library for Home create knobs only.
+  // Load the shared BGM library used by Home, Queue, and Agent brief approval.
   // A failure leaves an empty library rather than crashing the UI.
   const refreshBgm = useCallback(async () => {
     if (!dash) return;
@@ -408,6 +408,14 @@ const AppShell: React.FC = () => {
       clearInterval(iv);
     };
   }, [dash, screen]);
+
+  const addBgm = useCallback((): void => {
+    if (!dash) return;
+    void dash.bgm.add().then(setBgm).catch((error: unknown) => {
+      const details = errorDetails(error);
+      notify.error({ title: "Không thêm được nhạc", message: compactNotificationMessage(details, "Thử lại."), details });
+    });
+  }, [dash, notify]);
 
   const removeBgm = useCallback(async (name: string): Promise<void> => {
     if (!dash) return;
@@ -566,13 +574,7 @@ const AppShell: React.FC = () => {
             }}
             bgm={bgm}
             bgmSelected={createBgmSelected}
-            onBgmAdd={() => {
-              if (!dash) return;
-              void dash.bgm.add().then(setBgm).catch((error: unknown) => {
-                const details = errorDetails(error);
-                notify.error({ title: "Không thêm được nhạc", message: compactNotificationMessage(details, "Thử lại."), details });
-              });
-            }}
+            onBgmAdd={addBgm}
             onBgmRemove={removeBgm}
             onBgmSelect={(name) => setCreateBgmSelected(name)}
             onUnstageImage={(ref) => {
@@ -614,17 +616,7 @@ const AppShell: React.FC = () => {
             smokeRenderEnabled={settings.smokeRenderEnabled}
             bgm={bgm}
             bgmSelected={createBgmSelected}
-            onBgmAdd={() => {
-              if (!dash) return;
-              void dash.bgm.add().then(setBgm).catch((error: unknown) => {
-                const details = errorDetails(error);
-                notify.error({
-                  title: "Không thêm được nhạc",
-                  message: compactNotificationMessage(details, "Thử lại."),
-                  details,
-                });
-              });
-            }}
+            onBgmAdd={addBgm}
             onBgmRemove={removeBgm}
             onBgmSelect={(name) => setCreateBgmSelected(name)}
             onPickImages={() => dash?.projects.pickImages() ?? Promise.resolve({ staged: [], rejected: [] })}
@@ -742,6 +734,10 @@ const AppShell: React.FC = () => {
             reviewMode={settings.reviewMode}
             defaultDurationTier={settings.lastDurationTier}
             defaultVoiceProvider={settings.voiceProvider}
+            bgm={bgm}
+            defaultBgm={createBgmSelected}
+            onAddBgm={addBgm}
+            onRemoveBgm={removeBgm}
             incomingDraft={agentEntryDraft}
             onIncomingDraftHandled={() => setAgentEntryDraft(null)}
           />

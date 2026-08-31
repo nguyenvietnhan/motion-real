@@ -284,9 +284,10 @@ The Agent tab displays this effective mode next to project progress. Therefore
 “no draft MP4” under `stills_edit` or `skip_edit` is a selected workflow, not a
 render failure.
 
-BGM is chosen only on **Home create knobs** (written to the project manifest
-before authoring) so `skip_edit` auto-full and storyboard approve both use that
-selection. The storyboard review UI does not re-offer a BGM picker.
+BGM is chosen on **Home create knobs** for Classic/Queue and on **Agent brief
+approval** for Harness-owned projects. The accepted choice is written to the
+project manifest before authoring so `skip_edit` auto-full and storyboard
+approve both use it. The storyboard review UI does not re-offer a BGM picker.
 
 Silent refine (`refinePasses`) is independent of `reviewMode` and still runs for
 `stills_edit` / `skip_edit` before the stills (or full) handoff. Desktop publish

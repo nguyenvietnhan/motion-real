@@ -7,7 +7,12 @@ function request() {
     title: "Gemini",
     prompt: "Tạo video Gemini",
     assets: [{ id: "gemini", path: "V:/agent/assets/gemini.png", role: "logo" as const }],
-    choices: { durationTier: 1 as const, videoLanguage: "vi" as const, voiceProvider: "vieneu" as const },
+    choices: {
+      durationTier: 1 as const,
+      videoLanguage: "vi" as const,
+      voiceProvider: "vieneu" as const,
+      bgm: "motionreal-default.mp3",
+    },
   };
 }
 
@@ -44,6 +49,11 @@ describe("createAgentProject", () => {
     const { base, calls } = deps();
     await expect(createAgentProject("agent-1", base)).resolves.toEqual({ projectId: "project-1" });
     expect(calls).toEqual(["stage", "scaffold:harness", "owner", "link", "rename", "author"]);
+    expect(base.create).toHaveBeenCalledWith(
+      "Tạo video Gemini",
+      [{ ref: "staging/hash.png", width: 1, height: 1 }],
+      expect.objectContaining({ bgm: "motionreal-default.mp3", creationMode: "harness" }),
+    );
   });
 
   it("resumes Harness authoring for a linked project without creating another one", async () => {

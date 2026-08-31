@@ -10,8 +10,9 @@ const BGM_MENU_WIDTH_PX = 268;
 /**
  * Background-music picker: compact dropdown of the per-machine BGM library +
  * add/remove. Used on Home create knobs (skip_edit needs a choice before
- * auto-full) and on the storyboard toolbar (change before explicit full).
- * "Không nhạc" clears the selection. Preview uses a local media:// URL only.
+ * auto-full), Agent brief approval, and the storyboard toolbar (change before
+ * explicit full). "Không nhạc" clears the selection. Preview uses a local
+ * media:// URL only.
  */
 export const BgmPicker: React.FC<{
   bgm: BgmTrackVM[];
