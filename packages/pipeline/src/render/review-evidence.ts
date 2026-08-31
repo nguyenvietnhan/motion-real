@@ -11,10 +11,6 @@ export type SceneReviewProfile = {
   sceneId: string;
   temporalMode: SceneTemporalMode;
   detailMode: SceneDetailMode;
-  overview: true;
-  motionArtifact: "none" | "cue-filmstrip" | "dense-filmstrip";
-  detailArtifact: boolean;
-  reasons: readonly string[];
 };
 
 export type AuthoringReviewSceneRequest = {
@@ -298,15 +294,7 @@ export async function buildReviewEvidence(input: BuildReviewEvidenceInput): Prom
     for (const sceneId of reviewIds) {
       const located = sceneById.get(sceneId)!;
       const requested = profileById.get(sceneId)!;
-      const profile: SceneReviewProfile = {
-        ...requested,
-        overview: true,
-        motionArtifact: requested.temporalMode === "static"
-          ? "none"
-          : requested.temporalMode === "stepped" ? "cue-filmstrip" : "dense-filmstrip",
-        detailArtifact: requested.detailMode === "fine",
-        reasons: [requested.temporalMode, ...(requested.detailMode === "fine" ? ["fine-detail"] : [])],
-      };
+      const profile: SceneReviewProfile = requested;
       const samples = reviewFrameSamples(input.spec, located.index, profile);
       if (samples.length > 0) {
         const framePaths = await renderSamples(samples, frameDir, sceneId, input.renderFrame);
@@ -314,12 +302,12 @@ export async function buildReviewEvidence(input: BuildReviewEvidenceInput): Prom
         await composeReviewPng(framePaths, join(temp, name), { columns: 3, cellWidth: 320, gutter: 12 });
         artifacts.push({
           path: join(evidenceDir, name),
-          kind: profile.motionArtifact === "dense-filmstrip" ? "dense-filmstrip" : "cue-filmstrip",
+          kind: profile.temporalMode === "continuous" ? "dense-filmstrip" : "cue-filmstrip",
           sceneIds: [sceneId],
           panels: samples.map((sample, index) => ({ index, ...sample.panel })),
         });
       }
-      if (profile.detailArtifact) {
+      if (profile.detailMode === "fine") {
         const name = `${sceneId}.detail.png`;
         if (samples.length > 0) {
           await input.renderFrame(samples.at(-1)!.frame, join(temp, name));

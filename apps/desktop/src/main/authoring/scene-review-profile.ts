@@ -1,4 +1,5 @@
 import type { SceneDetailMode, SceneTemporalMode } from "./content-plan-schema.js";
+import type { SceneReviewProfile } from "@motionreal/pipeline";
 
 type ReviewIntentScene = {
   sceneId: string;
@@ -8,15 +9,7 @@ type ReviewIntentScene = {
   motionBeats?: readonly unknown[];
 };
 
-export type SceneReviewProfile = {
-  sceneId: string;
-  temporalMode: SceneTemporalMode;
-  detailMode: SceneDetailMode;
-  overview: true;
-  motionArtifact: "none" | "cue-filmstrip" | "dense-filmstrip";
-  detailArtifact: boolean;
-  reasons: readonly string[];
-};
+export type { SceneReviewProfile } from "@motionreal/pipeline";
 
 export function sceneReviewProfiles(scenes: readonly ReviewIntentScene[]): SceneReviewProfile[] {
   return scenes.map((scene) => {
@@ -30,12 +23,6 @@ export function sceneReviewProfiles(scenes: readonly ReviewIntentScene[]): Scene
       sceneId: scene.sceneId,
       temporalMode,
       detailMode,
-      overview: true,
-      motionArtifact: temporalMode === "static"
-        ? "none"
-        : temporalMode === "stepped" ? "cue-filmstrip" : "dense-filmstrip",
-      detailArtifact: detailMode === "fine",
-      reasons: [temporalMode, ...(detailMode === "fine" ? ["fine-detail"] : [])],
     };
   });
 }

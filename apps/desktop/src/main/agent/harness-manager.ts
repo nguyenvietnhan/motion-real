@@ -123,6 +123,17 @@ type HarnessRpcResponse = {
   result?: { ok?: boolean; value?: unknown; error?: { message?: unknown } };
 };
 
+/** Runtime protocol probe: source presence alone does not prove a compatible Harness build. */
+export function isCompatibleHarnessDescription(value: unknown): boolean {
+  if (!value || typeof value !== "object") return false;
+  const description = value as Record<string, unknown>;
+  return typeof description.version === "string" && description.version.length > 0
+    && typeof description.cwd === "string"
+    && Number.isInteger(description.attachedSessions) && Number(description.attachedSessions) >= 0
+    && typeof description.home === "string"
+    && typeof description.canOpenPath === "boolean";
+}
+
 export type HarnessManagerDeps = {
   draftsRoot: string;
   harnessHome: string;
@@ -2695,15 +2706,23 @@ async function waitForHarness(url: string, fetchImpl: typeof fetch, childFailure
       });
       if (response.ok) {
         const body = (await response.json()) as HarnessRpcResponse;
-        if (body.result?.ok) return;
+        if (body.result?.ok) {
+          if (!isCompatibleHarnessDescription(body.result.value)) {
+            throw new HarnessCompatibilityError("DeepSeek Harness đang chạy nhưng protocol host.describe không tương thích với MotionReal.");
+          }
+          return;
+        }
       }
-    } catch (_error) {
+    } catch (error) {
+      if (error instanceof HarnessCompatibilityError) throw error;
       // Child has not opened its loopback server yet.
     }
     await new Promise((resolveDelay) => setTimeout(resolveDelay, 150));
   }
   throw new Error("DeepSeek Harness khởi động quá lâu.");
 }
+
+class HarnessCompatibilityError extends Error {}
 
 function harnessExitError(code: number | null, signal: NodeJS.Signals | null, stderrTail: string): Error {
   const diagnostic = stderrTail.trim();

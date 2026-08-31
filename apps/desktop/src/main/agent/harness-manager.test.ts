@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   AuthoringValidationError,
   HarnessManager,
+  isCompatibleHarnessDescription,
   isRepairableAuthoringError,
   sameIds,
   type HarnessManagerDeps,
@@ -37,12 +38,24 @@ const TEST_CONTENT_PLAN = {
   }],
 };
 const REVIEW_EVIDENCE_PNG = encodePngRGBA(1, 1, new Uint8Array([255, 255, 255, 255]));
+const HARNESS_DESCRIPTION = {
+  version: "0.1.0",
+  cwd: "V:/Projects",
+  attachedSessions: 0,
+  home: "C:/Users/test/.dsh",
+  canOpenPath: false,
+};
 
 describe("authoring error and exact-ID classification", () => {
   it("does not treat infrastructure messages mentioning authored files as AI-repairable", () => {
     expect(isRepairableAuthoringError(new Error("ENOENT: no such file, open project/manifest.json"))).toBe(false);
     expect(isRepairableAuthoringError(new Error("read_image RPC timed out while opening scene-01.tsx"))).toBe(false);
     expect(isRepairableAuthoringError(new AuthoringValidationError("scene-01 thiếu narration"))).toBe(true);
+  });
+
+  it("requires the pinned Harness host.describe response shape", () => {
+    expect(isCompatibleHarnessDescription({})).toBe(false);
+    expect(isCompatibleHarnessDescription(HARNESS_DESCRIPTION)).toBe(true);
   });
 
   it("rejects duplicate IDs that hide a missing reviewed scene or still", () => {
@@ -112,7 +125,9 @@ async function activeManagerForTest(over: Partial<HarnessManagerDeps> = {}): Pro
       const body = JSON.parse(String(init?.body)) as { method: string; payload: unknown; rpcId?: string };
       calls.push(body);
       if (body.method === "credentials.set") searchConfigured = true;
-      const value = body.method === "workspace.create"
+      const value = body.method === "host.describe"
+        ? HARNESS_DESCRIPTION
+        : body.method === "workspace.create"
         ? { workspace: { workspaceId: "workspace-assets" } }
         : body.method === "credentials.describe"
           ? { credentials: { DEEPSEEK_API_KEY: { configured: searchConfigured, writable: true } } }
@@ -178,6 +193,35 @@ describe("HarnessManager draft lifecycle", () => {
     const draft = await manager.createDraft("Missing tools");
 
     await expect(manager.activate(draft.id, "internal-key")).rejects.toThrow(/Chưa build tool submission/);
+  });
+
+  it("stops an incompatible Harness runtime before creating a workspace", async () => {
+    const root = await mkdtemp(join(tmpdir(), "motionreal-agent-incompatible-"));
+    roots.push(root);
+    const cli = join(root, "dsh.js");
+    const plugin = join(root, "motionreal-tools.mjs");
+    await writeFile(cli, "// test placeholder\n");
+    await writeFile(plugin, "// test tool plugin\n");
+    const child = Object.assign(new EventEmitter(), { kill: vi.fn(() => true) });
+    const fetch = vi.fn(async () => Response.json({
+      type: "server-response",
+      result: { ok: true, value: { version: "unknown" } },
+    })) as unknown as typeof globalThis.fetch;
+    const manager = new HarnessManager({
+      draftsRoot: root,
+      harnessHome: join(root, "harness"),
+      harnessCliPath: cli,
+      submissionPluginPath: plugin,
+      planAuthoringContent: testPlanAuthoringContent,
+      findPort: async () => 39870,
+      spawn: vi.fn(() => child) as unknown as typeof import("node:child_process").spawn,
+      fetch,
+    });
+    const draft = await manager.createDraft("Incompatible runtime");
+
+    await expect(manager.activate(draft.id, "internal-key")).rejects.toThrow(/protocol.*không tương thích/i);
+    expect(child.kill).toHaveBeenCalledTimes(1);
+    expect(fetch).toHaveBeenCalledTimes(1);
   });
 
   it("creates a video workspace with Harness instructions", async () => {
@@ -546,7 +590,9 @@ describe("HarnessManager draft lifecycle", () => {
       fetch: vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
         const body = JSON.parse(String(init?.body)) as { method: string; payload: unknown };
         if (blockCancel && body.method === "session.cancel") return new Promise<Response>(() => {});
-        const value = body.method === "workspace.create"
+        const value = body.method === "host.describe"
+          ? HARNESS_DESCRIPTION
+          : body.method === "workspace.create"
           ? { workspace: { workspaceId: "workspace-assets" } }
           : body.method === "credentials.describe"
             ? { credentials: { DEEPSEEK_API_KEY: { configured: false, writable: true } } }
@@ -1339,6 +1385,9 @@ describe("HarnessManager draft lifecycle", () => {
     let rejectNextPrompt = true;
     const fetch = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
       const body = JSON.parse(String(init?.body)) as { method: string };
+      if (body.method === "host.describe") {
+        return Response.json({ type: "server-response", result: { ok: true, value: HARNESS_DESCRIPTION } });
+      }
       if (body.method === "workspace.create") {
         return Response.json({ type: "server-response", result: { ok: true, value: { workspace: { workspaceId: "workspace-retry" } } } });
       }
@@ -1520,7 +1569,9 @@ describe("HarnessManager draft lifecycle", () => {
       calls.push({ url, init });
       if (!init?.method) return new Response("ok", { status: 200 });
       const method = JSON.parse(String(init.body)).method;
-      const value = method === "workspace.create"
+      const value = method === "host.describe"
+        ? HARNESS_DESCRIPTION
+        : method === "workspace.create"
         ? { workspace: { workspaceId: "workspace-1" } }
         : {};
       return Response.json({ type: "server-response", result: { ok: true, value } });
@@ -1583,7 +1634,9 @@ describe("HarnessManager draft lifecycle", () => {
         if (!init?.method) return new Response("ok", { status: 200 });
         const method = JSON.parse(String(init.body)).method as string;
         methods.push(method);
-        const value = method === "workspace.create"
+        const value = method === "host.describe"
+          ? HARNESS_DESCRIPTION
+          : method === "workspace.create"
           ? { workspace: { workspaceId: "workspace-1", sessionIds: ["old-session"] } }
           : {};
         return Response.json({ type: "server-response", result: { ok: true, value } });
@@ -1623,7 +1676,9 @@ describe("HarnessManager draft lifecycle", () => {
       fetch: vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
         if (!init?.method) return new Response("ok");
         const method = JSON.parse(String(init.body)).method as string;
-        const value = method === "workspace.create"
+        const value = method === "host.describe"
+          ? HARNESS_DESCRIPTION
+          : method === "workspace.create"
           ? { workspace: { workspaceId: "workspace-1", sessionIds: ["old-session"] } }
           : {};
         return Response.json({ type: "server-response", result: { ok: true, value } });

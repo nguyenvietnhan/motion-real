@@ -40,10 +40,6 @@ function profile(temporalMode: SceneReviewProfile["temporalMode"]): SceneReviewP
     sceneId: "scene-02",
     temporalMode,
     detailMode: "normal",
-    overview: true,
-    motionArtifact: temporalMode === "continuous" ? "dense-filmstrip" : "cue-filmstrip",
-    detailArtifact: false,
-    reasons: [temporalMode],
   };
 }
 
