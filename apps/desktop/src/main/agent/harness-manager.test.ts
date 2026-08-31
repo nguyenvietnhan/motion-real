@@ -11,7 +11,7 @@ import {
   sameIds,
   type HarnessManagerDeps,
 } from "./harness-manager.js";
-import { encodePngRGBA, type AuthoringReviewRequest, type ReviewArtifact } from "@motionreal/pipeline";
+import { encodePngRGBA, writeJson, type AuthoringReviewRequest, type ReviewArtifact } from "@motionreal/pipeline";
 
 const roots: string[] = [];
 const activeManagers: HarnessManager[] = [];
@@ -1306,9 +1306,9 @@ describe("HarnessManager draft lifecycle", () => {
       })),
     }));
     await Promise.all(sceneIds.map((id) => writeFile(join(projectRoot, "authored", `${id}.tsx`), registeredSceneSource(id, "final"))));
-    await writeFile(join(draftRoot, "handoff", "authoring.json"), JSON.stringify({
+    await writeJson(join(draftRoot, "handoff", "authoring.json"), {
       version: 1, job_id: "job-final", request_revision: 1, scene_ids: sceneIds, used_asset_ids: [],
-    }));
+    });
     await vi.waitFor(async () => {
       const request = JSON.parse(await readFile(join(draftRoot, "handoff", "authoring-request.json"), "utf8"));
       expect(request).toMatchObject({ request_revision: 2, phase: "visual_refine", visual_refine_pass: 1 });
@@ -1335,10 +1335,10 @@ describe("HarnessManager draft lifecycle", () => {
       }] } } } });
     }
     history.push({ event: { seq: history.length, type: "assistant/message", data: { message: { content: [{ type: "text", text: "Ảnh sạch, giữ nguyên source." }] } } } });
-    await writeFile(join(draftRoot, "handoff", "authoring.json"), JSON.stringify({
+    await writeJson(join(draftRoot, "handoff", "authoring.json"), {
       version: 1, job_id: "job-final", request_revision: 2, scene_ids: sceneIds, used_asset_ids: [],
       reviewed_scene_ids: sceneIds, review_notes: "Đã xem đủ still; hierarchy rõ và không có lỗi trực quan cần sửa.",
-    }));
+    });
     const firstReviewRequest = JSON.parse(await readFile(join(draftRoot, "handoff", "authoring-request.json"), "utf8"));
     await vi.waitFor(async () => {
       await expect(readFile(join(draftRoot, "handoff", "authoring-request.json"), "utf8"))
@@ -1357,10 +1357,10 @@ describe("HarnessManager draft lifecycle", () => {
       }] } } } });
     }
     history.push({ event: { seq: history.length, type: "assistant/message", data: { message: { content: [{ type: "text", text: "Đã mở nốt các ảnh còn thiếu." }] } } } });
-    await writeFile(join(draftRoot, "handoff", "authoring.json"), JSON.stringify({
+    await writeJson(join(draftRoot, "handoff", "authoring.json"), {
       version: 1, job_id: "job-final", request_revision: 3, scene_ids: sceneIds, used_asset_ids: [],
       reviewed_scene_ids: sceneIds, review_notes: "Đã xem đủ still; hierarchy rõ và không có lỗi trực quan cần sửa.",
-    }));
+    });
     await vi.waitFor(() => expect(acceptAuthoringStills).toHaveBeenCalledWith("project-final"), { timeout: 3_000 });
     expect(renderAuthoringStills).toHaveBeenCalledTimes(1);
     await vi.waitFor(async () => {
@@ -1369,10 +1369,10 @@ describe("HarnessManager draft lifecycle", () => {
 
     await manager.requestSceneEdits(draft.id, "project-final", [{ sceneId: "scene-01", text: "Sửa điểm nhấn cảnh đầu." }], "");
     await writeFile(join(projectRoot, "authored", "scene-01.tsx"), registeredSceneSource("scene-01", "edited"));
-    await writeFile(join(draftRoot, "handoff", "authoring.json"), JSON.stringify({
+    await writeJson(join(draftRoot, "handoff", "authoring.json"), {
       version: 1, job_id: "job-final", request_revision: 4,
       scene_ids: sceneIds, used_asset_ids: [],
-    }));
+    });
     await vi.waitFor(() => expect(renderAuthoringStills).toHaveBeenLastCalledWith("project-final", ["scene-01"], expect.objectContaining({
       reviewSceneIds: ["scene-01"], contextSceneIds: ["scene-02"],
     })), { timeout: 3_000 });
@@ -1487,9 +1487,9 @@ describe("HarnessManager draft lifecycle", () => {
       })),
     }));
     await Promise.all(sceneIds.map((id) => writeFile(join(projectRoot, "authored", `${id}.tsx`), registeredSceneSource(id, "runtime"))));
-    await writeFile(join(draftRoot, "handoff", "authoring.json"), JSON.stringify({
+    await writeJson(join(draftRoot, "handoff", "authoring.json"), {
       version: 1, job_id: "job-runtime", request_revision: 1, scene_ids: sceneIds, used_asset_ids: [],
-    }));
+    });
 
     await manager.status(draft.id);
     await vi.waitFor(async () => {
