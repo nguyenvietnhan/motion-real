@@ -391,25 +391,36 @@ transition. The authoring request requires a distinct visual anchor, purposeful
 motion and a non-repetitive layout for each scene; an approved logo or icon is a
 supporting asset, not a full-screen background by default.
 
-MotionReal renders stills through the shared Workspace FIFO. It then runs at
-most the persisted `refinePasses` visual-refine turns. A refine turn must open
-the actual PNGs with `read_image`, cite concrete observations, and change only
-scenes with a visual problem. A clean pass leaves source unchanged. With early
-stop enabled, two consecutive clean passes end the loop; otherwise it stops at
-the configured pass budget. `refinePasses: 0` sends no still to the model and
-opens human scene review directly.
+MotionReal renders human-review midpoint stills through the shared Workspace
+FIFO. If visual refine is enabled, it separately builds deterministic evidence:
+overview sheets cover every scoped scene, `stepped` scenes receive cue-aware
+filmstrips, `continuous` scenes receive denser filmstrips, and `fine` scenes add
+one full-resolution detail frame. Only wipe, clock-wipe and zoom boundaries next
+to the review scope receive transition sheets. The model reads each composite
+artifact once with `read_image`; it does not read every raw midpoint/cue PNG.
 
-Semantic scenes retain the existing early/middle/late still set. Review compares
-those images with planned beats for early future-state reveal, simultaneous
-steps, glow-only changes, or an excessively long final hold. This is not a
-per-cue renderer or frame-by-frame motion oracle.
+`temporalMode` describes whether a scene is `static`, `stepped`, or
+`continuous`; `detailMode` independently selects normal or fine-resolution
+inspection. Both come from the validated content plan. Legacy semantic plans
+without structured cues retain the f18/mid/f82 fallback. Filmstrip panels follow
+cue order and expose early future-state reveal, simultaneous steps, glow-only
+changes, or an excessively long final hold without adding a frame-by-frame
+motion oracle.
+
+MotionReal then runs at most the persisted `refinePasses` visual-refine turns. A
+turn must cite concrete observations and change only scenes with a visual
+problem. A clean pass leaves source unchanged. With early stop enabled, two
+consecutive clean passes end the loop; otherwise it stops at the configured pass
+budget. `refinePasses: 0` sends no image to the model and opens human scene
+review directly.
 
 Still, source and approved-asset fingerprints protect against stale review. A
 visual edit re-renders only the changed scene scope; a global manifest change
 falls back safely to all scenes. The request records a native history sequence,
 and MotionReal accepts the refine result only after successful direct
-`read_image` tool evidence for every scoped PNG. Raw history, image content and
-provider errors never leave Harness.
+`read_image` tool evidence for every scoped composite artifact. A missing-read
+retry reuses the same evidence and asks only for the missing paths. Raw history,
+image content and provider errors never leave Harness.
 
 Failure repair is phase-local and bounded by the project policy. Schema,
 admission, pacing and TSX problems may request another Agent submission only up

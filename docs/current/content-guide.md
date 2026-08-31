@@ -112,6 +112,15 @@ their cue frames from TTS/SRT timing (or deterministic estimated word timing for
 preview); the TSX author cannot replace them. Single statements, logo reveals,
 simple hooks, and final payoffs may deliberately omit beats.
 
+Every newly generated scene also declares review intent. `temporalMode` is
+`static` for one-state scenes, `stepped` for discrete lists/processes/comparisons,
+and `continuous` only when intermediate state matters (typing, chart growth,
+path drawing, pan/crop, or morph). Ambient particles, glow, and a normal entrance
+do not make a scene continuous. `detailMode: fine` is reserved for code, terminal
+text, tables, small chart labels, or evidence crops; it changes inspection
+resolution, not the story or motion classification. These fields select visual
+QA evidence deterministically and never require an extra classifier call.
+
 Use three motion types:
 
 - Quick entrance/reveal/pop: titles, labels, cards, markers, icons, or callouts

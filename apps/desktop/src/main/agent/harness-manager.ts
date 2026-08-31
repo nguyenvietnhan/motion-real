@@ -1897,7 +1897,7 @@ export class HarnessManager {
         visualRefine
           ? "Đọc render_error và hoàn tất visual refine. Không sửa code nếu lỗi chỉ là thiếu reviewed_scene_ids/review_notes; source hoặc ảnh đổi sẽ được render lại theo pass còn lại."
           : "MotionReal không validate/render được scene hiện tại. Đọc render_error, kiểm tra manifest và mọi module TSX rồi sửa tận gốc.",
-        ...(visualRefine ? ["Dùng read_image mở các PNG còn thiếu được liệt kê trong render_error. Bằng chứng đọc ảnh thành công từ cùng lượt review vẫn được giữ; chỉ submit đủ reviewed_scene_ids cùng review_notes sau khi xem ảnh."] : []),
+        ...(visualRefine ? ["Dùng read_image mở các evidence artifact còn thiếu được liệt kê trong render_error. Bằng chứng đọc ảnh thành công từ cùng lượt review vẫn được giữ; chỉ submit đủ reviewed_scene_ids cùng review_notes sau khi xem ảnh."] : []),
         "Gọi lại motionreal_submit_authoring bằng request_revision mới sau khi sửa.",
       ],
     }, visualRefine

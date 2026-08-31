@@ -1,4 +1,4 @@
-import { copyFile, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { basename, join } from "node:path";
 import {
   createTools,
@@ -6,6 +6,8 @@ import {
   projectPaths,
   scaffoldVideoProject,
   videoToolHome,
+  type AuthoringReviewRequest,
+  type ReviewArtifact,
 } from "../packages/pipeline/src/index.js";
 import type { AuthorInput } from "../apps/desktop/src/main/agent/agent-worker.js";
 import { NineRouterAuthoringBackend } from "../apps/desktop/src/main/authoring/ninerouter-backend.js";
@@ -25,7 +27,7 @@ type EvalCase = {
   category: string;
   input: AuthorInput;
   withImages?: "hero" | "logo" | "pool";
-  motionFocused?: true;
+  expectedReview?: { temporalMode: "static" | "stepped" | "continuous"; detailMode: "normal" | "fine" };
 };
 
 const CASES: readonly EvalCase[] = [
@@ -35,18 +37,25 @@ const CASES: readonly EvalCase[] = [
   { id: "tradeoff", category: "comparison/tradeoff", input: { text: "So sánh chạy AI local và cloud theo quyền riêng tư, chi phí và độ trễ.", urls: [], format: "tiktok", durationTier: 2, videoLanguage: "vi" } },
   { id: "technical-process", category: "technical process", input: { text: "Giải thích pipeline từ prompt đến video Remotion bằng một luồng trực quan.", urls: [], format: "tiktok", durationTier: 2, videoLanguage: "vi" } },
   { id: "abstract-metaphor", category: "abstract metaphor", input: { text: "Biến ý tưởng nợ kỹ thuật tích lũy thành một câu chuyện hình ảnh dễ hiểu.", urls: [], format: "tiktok", durationTier: 1, videoLanguage: "vi" } },
-  { id: "plain-statement", category: "statement without numbers", input: { text: "Một video ngắn về việc công cụ tốt không thay thế tư duy tốt.", urls: [], format: "tiktok", durationTier: 1, videoLanguage: "vi" } },
+  { id: "plain-statement", category: "statement without numbers", input: { text: "Một video ngắn về việc công cụ tốt không thay thế tư duy tốt.", urls: [], format: "tiktok", durationTier: 1, videoLanguage: "vi" }, expectedReview: { temporalMode: "static", detailMode: "normal" } },
   { id: "hero-image", category: "approved hero image", input: { text: "Giải thích cách một trung tâm dữ liệu vận hành, dùng ảnh thật làm bằng chứng hình ảnh.", urls: [], format: "tiktok", durationTier: 2, videoLanguage: "vi" }, withImages: "hero" },
   { id: "brand-logo", category: "relevant logo", input: { text: "Giải thích vai trò của một thương hiệu công nghệ; logo chỉ là điểm nhấn.", urls: [], format: "tiktok", durationTier: 1, videoLanguage: "vi" }, withImages: "logo" },
   { id: "asset-pool", category: "curated asset subset", input: { text: "Kể câu chuyện về tự động hóa, chỉ dùng ảnh thực sự hỗ trợ từng ý.", urls: [], format: "tiktok", durationTier: 2, videoLanguage: "vi" }, withImages: "pool" },
   { id: "long-vietnamese", category: "long Vietnamese", input: { text: "Phân tích tác động của AI agent tới quy trình làm việc, gồm cơ hội, giới hạn và cách áp dụng có trách nhiệm.", urls: [], format: "tiktok", durationTier: 4, videoLanguage: "vi" } },
   { id: "english", category: "English", input: { text: "Explain how small language models trade capability for speed and local control.", urls: [], format: "tiktok", durationTier: 2, videoLanguage: "en" } },
-  { id: "motion-process", category: "semantic motion/process", input: { text: "Giải thích quy trình ba bước: nhận yêu cầu, xử lý dữ liệu rồi trả kết quả; từng bước phải xuất hiện theo lời đọc.", urls: [], format: "tiktok", durationTier: 1, videoLanguage: "vi" }, motionFocused: true },
-  { id: "motion-terminal", category: "semantic motion/terminal", input: { text: "Minh hoạ một lệnh terminal được gõ, kết quả trả về, rồi trạng thái hệ thống thay đổi.", urls: [], format: "tiktok", durationTier: 1, videoLanguage: "vi" }, motionFocused: true },
-  { id: "motion-list", category: "semantic motion/sequential list", input: { text: "Trình bày ba nguyên tắc bảo mật theo thứ tự; ý tiếp theo chỉ hiện khi lời đọc chuyển sang ý đó.", urls: [], format: "tiktok", durationTier: 1, videoLanguage: "vi" }, motionFocused: true },
-  { id: "motion-before-after", category: "semantic motion/before-after", input: { text: "So sánh quy trình thủ công trước đây với quy trình tự động sau cải tiến theo diễn tiến lời đọc.", urls: [], format: "tiktok", durationTier: 1, videoLanguage: "vi" }, motionFocused: true },
-  { id: "motion-counter-chart", category: "semantic motion/counter-chart", input: { text: "Giải thích một chỉ số tăng qua ba mốc và ý nghĩa của thay đổi cuối cùng, không hiện kết quả trước lời đọc.", urls: [], format: "tiktok", durationTier: 1, videoLanguage: "vi" }, motionFocused: true },
-  { id: "motion-evidence-image", category: "semantic motion/evidence image", input: { text: "Dùng ảnh bằng chứng để lần lượt chỉ ra tổng thể, vùng chi tiết và kết luận quan trọng.", urls: [], format: "tiktok", durationTier: 1, videoLanguage: "vi" }, withImages: "hero", motionFocused: true },
+  { id: "motion-process", category: "semantic motion/process", input: { text: "Giải thích quy trình ba bước: nhận yêu cầu, xử lý dữ liệu rồi trả kết quả; từng bước phải xuất hiện theo lời đọc.", urls: [], format: "tiktok", durationTier: 1, videoLanguage: "vi" }, expectedReview: { temporalMode: "stepped", detailMode: "normal" } },
+  { id: "motion-terminal", category: "semantic motion/terminal", input: { text: "Minh hoạ một lệnh terminal được gõ, kết quả trả về, rồi trạng thái hệ thống thay đổi.", urls: [], format: "tiktok", durationTier: 1, videoLanguage: "vi" }, expectedReview: { temporalMode: "continuous", detailMode: "fine" } },
+  { id: "motion-list", category: "semantic motion/sequential list", input: { text: "Trình bày ba nguyên tắc bảo mật theo thứ tự; ý tiếp theo chỉ hiện khi lời đọc chuyển sang ý đó.", urls: [], format: "tiktok", durationTier: 1, videoLanguage: "vi" }, expectedReview: { temporalMode: "stepped", detailMode: "normal" } },
+  { id: "motion-before-after", category: "semantic motion/before-after", input: { text: "So sánh quy trình thủ công trước đây với quy trình tự động sau cải tiến theo diễn tiến lời đọc.", urls: [], format: "tiktok", durationTier: 1, videoLanguage: "vi" }, expectedReview: { temporalMode: "stepped", detailMode: "normal" } },
+  { id: "motion-counter-chart", category: "semantic motion/counter-chart", input: { text: "Giải thích một chỉ số tăng qua ba mốc và ý nghĩa của thay đổi cuối cùng, không hiện kết quả trước lời đọc.", urls: [], format: "tiktok", durationTier: 1, videoLanguage: "vi" }, expectedReview: { temporalMode: "continuous", detailMode: "fine" } },
+  { id: "motion-evidence-image", category: "semantic motion/evidence image", input: { text: "Dùng ảnh bằng chứng để lần lượt chỉ ra tổng thể, vùng chi tiết và kết luận quan trọng.", urls: [], format: "tiktok", durationTier: 1, videoLanguage: "vi" }, withImages: "hero", expectedReview: { temporalMode: "continuous", detailMode: "fine" } },
+  { id: "review-logo-reveal", category: "review/static logo reveal", input: { text: "Giới thiệu ngắn một thương hiệu bằng logo rồi giữ trạng thái kết rõ ràng.", urls: [], format: "tiktok", durationTier: 1, videoLanguage: "vi" }, withImages: "logo", expectedReview: { temporalMode: "static", detailMode: "normal" } },
+  { id: "review-two-step", category: "review/two-step comparison", input: { text: "So sánh hai lựa chọn theo hai bước rõ ràng và chỉ mở kết luận sau khi đã trình bày cả hai.", urls: [], format: "tiktok", durationTier: 1, videoLanguage: "vi" }, expectedReview: { temporalMode: "stepped", detailMode: "normal" } },
+  { id: "review-five-item-list", category: "review/five-item list", input: { text: "Trình bày năm dấu hiệu rủi ro theo lời đọc, giữ ngữ cảnh của các ý đã xuất hiện.", urls: [], format: "tiktok", durationTier: 2, videoLanguage: "vi" }, expectedReview: { temporalMode: "stepped", detailMode: "normal" } },
+  { id: "review-fine-table", category: "review/fine detail table", input: { text: "Giải thích một bảng so sánh nhỏ, lần lượt làm rõ cột chi phí, độ trễ và quyền riêng tư.", urls: [], format: "tiktok", durationTier: 1, videoLanguage: "vi" }, expectedReview: { temporalMode: "stepped", detailMode: "fine" } },
+  { id: "review-critical-transition", category: "review/critical zoom transition", input: { text: "Chuyển từ toàn cảnh hệ thống vào một chi tiết quan trọng bằng zoom có chủ đích.", urls: [], format: "tiktok", durationTier: 1, videoLanguage: "vi" }, expectedReview: { temporalMode: "continuous", detailMode: "normal" } },
+  { id: "review-user-edit", category: "review/single-scene user edit", input: { text: "Chỉnh một cảnh danh sách để ý thứ hai dễ đọc hơn mà không thiết kế lại các cảnh khác.", urls: [], format: "tiktok", durationTier: 1, videoLanguage: "vi" }, expectedReview: { temporalMode: "stepped", detailMode: "normal" } },
+  { id: "review-legacy-semantic", category: "review/legacy semantic fallback", input: { text: "Mô phỏng project cũ có semantic progression nhưng chưa có cue có cấu trúc.", urls: [], format: "tiktok", durationTier: 1, videoLanguage: "vi" }, expectedReview: { temporalMode: "stepped", detailMode: "normal" } },
 ] as const;
 
 const ONE_PIXEL_PNG = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
@@ -103,6 +112,7 @@ async function main(): Promise<void> {
       language: entry.input.videoLanguage ?? "vi",
       durationTier: entry.input.durationTier ?? 1,
       imageCount: images?.length ?? 0,
+      ...(entry.expectedReview ? { expectedReview: entry.expectedReview } : {}),
       planner: promptStats(planner),
       author: promptStats(author),
     };
@@ -153,6 +163,11 @@ type LiveCaseResult = {
   sceneCount: number;
   semanticSceneCount: number;
   stillCount: number;
+  reviewArtifactCount: number;
+  reviewArtifactBytes: number;
+  reviewArtifactKinds: Record<ReviewArtifact["kind"], number>;
+  overviewSceneCount: number;
+  cuePanelCount: number;
   admission: "passed" | "failed" | "not-run";
   renderStills: "passed" | "failed" | "not-run";
   stills: string[];
@@ -228,6 +243,8 @@ async function runLiveEval(
     let sceneCount = 0;
     let semanticSceneCount = 0;
     let copiedStills: string[] = [];
+    let reviewArtifacts: ReviewArtifact[] = [];
+    let reviewArtifactBytes = 0;
     let error: string | undefined;
     try {
       const scaffold = await scaffoldVideoProject({
@@ -258,11 +275,12 @@ async function runLiveEval(
       const manifest = await loadManifest(projectId);
       semanticSceneCount = manifest.scenes.filter((scene) => Array.isArray((scene as { motionBeats?: unknown }).motionBeats)
         || /semantic\s*:/iu.test(String((scene as { motionProgression?: unknown }).motionProgression ?? ""))).length;
+      const reviewRequest = reviewRequestForEval(entry, manifest.scenes);
       const rendered = await backend.renderStills(
         projectId,
         undefined,
         undefined,
-        entry.motionFocused ? { multiFrameSceneIds: manifest.scenes.map((scene) => scene.id) } : undefined,
+        { reviewRequest },
       );
       if (rendered.error || rendered.stills.length === 0) {
         throw new Error(rendered.error?.cause ?? "render still không tạo được ảnh");
@@ -270,11 +288,15 @@ async function runLiveEval(
       renderStills = "passed";
       const caseDir = join(outputDir, entry.id);
       await mkdir(caseDir, { recursive: true });
-      copiedStills = await Promise.all(rendered.stills.map(async (still) => {
-        const destination = join(caseDir, basename(still));
-        await copyFile(still, destination);
+      reviewArtifacts = rendered.reviewArtifacts ?? [];
+      const modelFacing = reviewArtifacts.length > 0 ? reviewArtifacts.map((artifact) => artifact.path) : rendered.stills;
+      copiedStills = await Promise.all(modelFacing.map(async (source) => {
+        const destination = join(caseDir, basename(source));
+        await copyFile(source, destination);
         return destination;
       }));
+      reviewArtifactBytes = (await Promise.all(modelFacing.map(async (path) => (await stat(path)).size)))
+        .reduce((sum, size) => sum + size, 0);
     } catch (caught) {
       error = caught instanceof Error ? caught.message : String(caught);
       if (admission === "not-run" && sceneCount === 0) admission = "failed";
@@ -294,6 +316,14 @@ async function runLiveEval(
       sceneCount,
       semanticSceneCount,
       stillCount: copiedStills.length,
+      reviewArtifactCount: reviewArtifacts.length,
+      reviewArtifactBytes,
+      reviewArtifactKinds: countArtifactKinds(reviewArtifacts),
+      overviewSceneCount: new Set(reviewArtifacts
+        .filter((artifact) => artifact.kind === "overview")
+        .flatMap((artifact) => artifact.panels.map((panel) => panel.sceneId))).size,
+      cuePanelCount: reviewArtifacts.flatMap((artifact) => artifact.panels)
+        .filter((panel) => panel.cueId !== undefined).length,
       admission,
       renderStills,
       stills: copiedStills,
@@ -302,6 +332,36 @@ async function runLiveEval(
     });
   }
   return { ok: results.every((result) => result.ok), results };
+}
+
+function reviewRequestForEval(
+  entry: EvalCase,
+  scenes: readonly { id: string; motionBeats?: readonly unknown[]; motionProgression?: string }[],
+): AuthoringReviewRequest {
+  return {
+    reviewSceneIds: scenes.map((scene) => scene.id),
+    contextSceneIds: [],
+    scenes: scenes.map((scene) => {
+      const legacySemantic = (scene.motionBeats?.length ?? 0) >= 2 || /\bsemantic\s*:/iu.test(scene.motionProgression ?? "");
+      return {
+        sceneId: scene.id,
+        temporalMode: legacySemantic ? (entry.expectedReview?.temporalMode ?? "stepped") : "static",
+        detailMode: entry.expectedReview?.detailMode ?? "normal",
+      };
+    }),
+  };
+}
+
+function countArtifactKinds(artifacts: readonly ReviewArtifact[]): Record<ReviewArtifact["kind"], number> {
+  const counts: Record<ReviewArtifact["kind"], number> = {
+    overview: 0,
+    "cue-filmstrip": 0,
+    "dense-filmstrip": 0,
+    detail: 0,
+    transition: 0,
+  };
+  for (const artifact of artifacts) counts[artifact.kind]++;
+  return counts;
 }
 
 async function selectedModel(client: NineRouterClient): Promise<string> {

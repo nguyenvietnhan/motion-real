@@ -189,8 +189,12 @@ the configured visual-refine passes. Rendered stills reach the model only for
 visual refine or a user-requested visual edit, never as a mandatory first-pass
 rewrite. Structured content-plan motion beats are carried canonically into the
 manifest and resolved by `lockSpec()` into scene-local cue frames from existing
-caption/TTS timing. Semantic refine uses early/middle/late snapshots; this is a
-bounded temporal sample, not complete frame-by-frame motion QA. Human edit
+caption/TTS timing. Visual refine derives deterministic evidence from
+`temporalMode` and `detailMode`: overview sheets cover every scoped scene,
+cue-aware filmstrips cover stepped/continuous scenes, and a full-resolution
+detail frame is added only for fine-detail scenes. Critical wipe, clock-wipe,
+and zoom boundaries get a three-panel transition sheet. This remains bounded
+temporal sampling, not complete frame-by-frame motion QA. Human edit
 requests return to that same Session; Classic projects continue through the existing
 `WorkspaceController.submitEdits` path.
 
@@ -347,8 +351,13 @@ example `apps/desktop/assets/bgm/default.mp3`; the default BGM is exposed as a
 virtual built-in track that resolves directly to this asset, not as a copied
 runtime-library file. Root-level media assets should not be added.
 
-Stills are the cheap visual pass: admit + separate no-TTS still lock + PNG midpoints
-(refine loop). They share the same composition/admission stack as production
+Stills are the cheap visual pass: admit + separate no-TTS still lock + PNG
+midpoints for human review. When model visual refine is enabled, the same render
+preparation also creates model-facing composites under `review/evidence/`:
+overview sheets (up to six scenes), cue/dense filmstrips, optional fine-detail
+frames, and only critical transition sheets required by the review scope.
+Intermediate cue frames are temporary and are not accumulated by revision.
+These paths share the same composition/admission stack as production
 stills but do **not** use the TTS-locked draft/full timeline, and are not
 pixel-identical to H.264 frames. Draft MP4s are lower-quality previews that
 follow the same TTS lock timing path as full renders (draft also uses lower

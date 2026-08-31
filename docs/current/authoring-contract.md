@@ -152,6 +152,14 @@ readable hold. Admission rejects a semantic scene that omits a beat lookup or
 its `??` fallback. If narration edits make anchors stale, MotionReal omits cues
 for that scene and these relative fallbacks keep old projects renderable.
 
+The content plan classifies review intent independently from authored styling:
+`static` scenes receive overview coverage, `stepped` scenes receive a cue
+filmstrip, and `continuous` scenes receive a denser cue filmstrip. `detailMode:
+fine` adds one full-resolution frame for code, tables, small labels, or evidence
+regions. Human scene review continues to use the per-scene midpoint files. These
+classifications choose evidence only; they are not a motion DSL and do not give
+the author permission to alter canonical motion beats.
+
 - Quick entrance/reveal/pop: for titles, labels, cards, markers, or icons
   appearing. These should usually settle in about 0.2-0.8 seconds, or a small
   early part of the scene, using `frame`, `spring`, or clamped `interpolate`.
