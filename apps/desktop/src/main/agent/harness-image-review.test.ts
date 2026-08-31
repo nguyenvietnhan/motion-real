@@ -22,13 +22,13 @@ const result = (seq: number, callId: string, isError = false, content: unknown[]
 const assistant = (seq: number) => event(seq, "assistant/message", { message: { content: [{ type: "text", text: "Reviewed" }] } });
 const page = (events: unknown[], hasMore = false) => ({ events: events.map((event) => ({ event })), hasMore });
 
-async function fixture() {
+async function fixture(count = 2) {
   const root = await mkdtemp(join(tmpdir(), "motionreal-image-evidence-"));
   roots.push(root);
   const project = join(root, "actual-project");
   await mkdir(join(project, "review"), { recursive: true });
   await symlink(project, join(root, "project"), "junction");
-  const stills = ["project/review/one.png", "project/review/two.png"];
+  const stills = Array.from({ length: count }, (_, index) => `project/review/scene-${String(index + 1).padStart(2, "0")}.png`);
   await Promise.all(stills.map((path) => writeFile(join(root, path), "fixture")));
   return { root, project, stills };
 }
@@ -36,8 +36,18 @@ async function fixture() {
 describe("Harness image-read evidence", () => {
   it("accepts successful native attachments through relative, absolute and junction paths", async () => {
     const { root, project, stills } = await fixture();
-    const events = [call(11, stills[0]!), result(12, "call-11"), call(13, join(project, "review/two.png")), result(14, "call-13"), assistant(15)];
-    await expect(assertHarnessImageReads({ root, stills, afterSeq: 10, events })).resolves.toBeUndefined();
+    const events = [call(11, stills[0]!), result(12, "call-11"), call(13, join(project, "review", "scene-02.png")), result(14, "call-13"), assistant(15)];
+    await expect(assertHarnessImageReads({ root, stills, maxStills: 6, afterSeq: 10, events })).resolves.toBeUndefined();
+  });
+
+  it("accepts 45 stills for a 15-scene multi-frame review", async () => {
+    const { root, stills } = await fixture(45);
+    const events = stills.flatMap((path, index) => {
+      const seq = 11 + index * 2;
+      return [call(seq, path), result(seq + 1, `call-${seq}`)];
+    });
+    events.push(assistant(11 + stills.length * 2));
+    await expect(assertHarnessImageReads({ root, stills, maxStills: 45, afterSeq: 10, events })).resolves.toBeUndefined();
   });
 
   it.each(["no-reads", "old-request", "failed", "text-only", "wrong-tool", "wrong-file", "partial", "same-step", "interrupted", "missing-marker"])("rejects %s even when the model claims it reviewed every scene", async (failure) => {
@@ -54,12 +64,12 @@ describe("Harness image-read evidence", () => {
     if (failure === "same-step") events = [assistant(10), ...events.slice(0, -1)];
     if (failure === "interrupted") events[4] = event(15, "assistant/message", { interrupted: true });
     if (failure === "missing-marker") afterSeq = undefined;
-    await expect(assertHarnessImageReads({ root, stills, afterSeq, events })).rejects.toThrow(/read_image|mốc đọc ảnh/);
+    await expect(assertHarnessImageReads({ root, stills, maxStills: 6, afterSeq, events })).rejects.toThrow(/read_image|mốc đọc ảnh/);
   });
 
   it("does not count a call started before the request even if it completes afterwards", async () => {
     const { root, stills } = await fixture();
-    await expect(assertHarnessImageReads({ root, stills: [stills[0]], afterSeq: 11,
+    await expect(assertHarnessImageReads({ root, stills: [stills[0]], maxStills: 3, afterSeq: 11,
       events: [call(11, stills[0]!), result(12, "call-11"), assistant(15)],
     })).rejects.toThrow(/read_image/);
   });
@@ -67,8 +77,13 @@ describe("Harness image-read evidence", () => {
   it("rejects missing, duplicate or out-of-scope still paths", async () => {
     const { root, stills } = await fixture();
     for (const paths of [[], [stills[0], stills[0]], ["../outside.png"]]) {
-      await expect(assertHarnessImageReads({ root, stills: paths, afterSeq: 10, events: [] })).rejects.toThrow(/still/);
+      await expect(assertHarnessImageReads({ root, stills: paths, maxStills: 6, afterSeq: 10, events: [] })).rejects.toThrow(/still/);
     }
+  });
+
+  it("rejects a still list larger than the review scope allows", async () => {
+    const { root, stills } = await fixture(2);
+    await expect(assertHarnessImageReads({ root, stills, maxStills: 1, afterSeq: 10, events: [] })).rejects.toThrow(/still/);
   });
 });
 

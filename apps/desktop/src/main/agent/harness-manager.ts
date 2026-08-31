@@ -1691,7 +1691,7 @@ export class HarnessManager {
     const stills = this.requestStillPaths(request, reviewSceneIds, projectRoot);
     const expectedFingerprint = typeof request.review_fingerprint === "string" ? request.review_fingerprint : "";
     if (!expectedFingerprint) throw new Error("Visual refine thiếu fingerprint của still hiện tại.");
-    await this.verifyImageReads(record, request);
+    await this.verifyImageReads(record, request, reviewSceneIds.length * 3);
     const sourceFingerprint = await harnessReviewFingerprint(projectRoot, stills);
     const currentSceneFingerprints = await harnessSceneFingerprints(projectRoot);
     const pass = validVisualRefinePass(request.visual_refine_pass);
@@ -1990,7 +1990,7 @@ export class HarnessManager {
     });
   }
 
-  private async verifyImageReads(record: DraftRecord, request: Record<string, unknown>): Promise<void> {
+  private async verifyImageReads(record: DraftRecord, request: Record<string, unknown>, maxStills: number): Promise<void> {
     if (!Number.isSafeInteger(request.review_after_seq) || Number(request.review_after_seq) < -1) {
       throw new Error("Lượt review cũ thiếu mốc đọc ảnh; cần request review mới.");
     }
@@ -1998,7 +1998,8 @@ export class HarnessManager {
       (beforeSeq) => this.reviewHistoryPage(record, beforeSeq), Number(request.review_after_seq),
     );
     await assertHarnessImageReads({
-      root: this.rootOf(record.id), stills: request.stills, afterSeq: request.review_after_seq, events: history.events,
+      root: this.rootOf(record.id), stills: request.stills, maxStills,
+      afterSeq: request.review_after_seq, events: history.events,
     });
   }
 

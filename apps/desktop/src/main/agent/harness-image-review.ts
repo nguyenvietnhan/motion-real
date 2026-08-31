@@ -41,14 +41,20 @@ export async function readHarnessReviewHistory(readPage: ReadPage, afterSeq?: nu
 
 /** Execution/attachment evidence, not proof of visual comprehension or motion quality. */
 export async function assertHarnessImageReads(input: {
-  root: string; stills: unknown; afterSeq: unknown; events: readonly ReviewEvent[];
+  root: string; stills: unknown; maxStills: number; afterSeq: unknown; events: readonly ReviewEvent[];
 }): Promise<void> {
   if (!Number.isSafeInteger(input.afterSeq) || Number(input.afterSeq) < -1) {
     throw new Error("Lượt review cũ thiếu mốc đọc ảnh; cần request review mới.");
   }
-  if (!Array.isArray(input.stills) || input.stills.length === 0 || input.stills.length > 30
+  if (!Number.isSafeInteger(input.maxStills) || input.maxStills < 1) {
+    throw new Error("Giới hạn still của lượt review không hợp lệ.");
+  }
+  if (!Array.isArray(input.stills) || input.stills.length === 0
     || input.stills.some((path) => typeof path !== "string") || new Set(input.stills).size !== input.stills.length) {
     throw new Error("Lượt review thiếu danh sách still riêng cho mọi cảnh.");
+  }
+  if (input.stills.length > input.maxStills) {
+    throw new Error(`Lượt review có ${input.stills.length} still, vượt phạm vi tối đa ${input.maxStills}.`);
   }
   const expected = await Promise.all((input.stills as string[]).map(async (path) => {
     const rel = relative(input.root, resolve(input.root, path));
