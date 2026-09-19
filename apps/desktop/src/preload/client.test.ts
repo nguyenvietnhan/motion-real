@@ -61,7 +61,6 @@ describe("createDashboardClient — invoke channel mapping", () => {
     await api.agent.renameDraft("agent-00000000-0000-0000-0000-000000000000", "Tên mới");
     await api.agent.settings("agent-00000000-0000-0000-0000-000000000000");
     await api.agent.selectModel("agent-00000000-0000-0000-0000-000000000000", "model-option");
-    await api.agent.setAccess("agent-00000000-0000-0000-0000-000000000000", "danger-full-access");
     await api.agent.setSearchApiKey("agent-00000000-0000-0000-0000-000000000000", "search-secret");
     await api.agent.setSearchProvider("agent-00000000-0000-0000-0000-000000000000", "exa");
     await api.agent.prepareAssets("agent-00000000-0000-0000-0000-000000000000", 0);
@@ -73,6 +72,7 @@ describe("createDashboardClient — invoke channel mapping", () => {
     await api.agent.resumeWorkflow("agent-00000000-0000-0000-0000-000000000000", 4);
     await api.agent.retryWorkflow("agent-00000000-0000-0000-0000-000000000000", 5);
     await api.agent.returnToAssets("agent-00000000-0000-0000-0000-000000000000", 3);
+    await api.agent.returnToDiscovery("agent-00000000-0000-0000-0000-000000000000", 4);
     await api.agent.approveBrief("agent-00000000-0000-0000-0000-000000000000", 3, {
       title: "Video",
       prompt: "Brief đầy đủ để tạo một video thử nghiệm.",

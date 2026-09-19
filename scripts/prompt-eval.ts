@@ -19,43 +19,54 @@ import {
   type AuthorImageInput,
   type VisionMessage,
 } from "../apps/desktop/src/main/authoring/prompt.js";
-import { buildContentPlanMessages } from "../apps/desktop/src/main/authoring/content-plan.js";
-import { buildEvalReviewRequest, prunePromptEvalRuns } from "./prompt-eval-support.js";
+import {
+  buildContentPlanMessages,
+  PRESENTATION_PROFILE_VALUES,
+  type ContentPlan,
+  type PresentationProfile,
+} from "../apps/desktop/src/main/authoring/content-plan.js";
+import {
+  buildEvalReviewRequest,
+  contentPlanForReplay,
+  forceContentPlanProfile,
+  prunePromptEvalRuns,
+} from "./prompt-eval-support.js";
 
 type EvalCase = {
   id: string;
   category: string;
   input: AuthorInput;
   withImages?: "hero" | "logo" | "pool";
+  expectedProfile: PresentationProfile;
   expectedReview?: { temporalMode: "static" | "stepped" | "continuous"; detailMode: "normal" | "fine" };
 };
 
 const CASES: readonly EvalCase[] = [
-  { id: "factual-explainer", category: "factual explainer", input: { text: "Giải thích vì sao chip AI cần băng thông bộ nhớ cao, không bịa số liệu.", urls: [], format: "tiktok", durationTier: 2, videoLanguage: "vi" } },
-  { id: "history-timeline", category: "timeline/history", input: { text: "Kể mạch phát triển của máy tính cá nhân qua các bước ngoặt quan trọng.", urls: [], format: "tiktok", durationTier: 2, videoLanguage: "vi" } },
-  { id: "product-news", category: "news/product facts", input: { text: "Tóm tắt một thương vụ công nghệ, nêu rõ điều gì đã biết và điều gì chưa chắc chắn.", urls: [], format: "tiktok", durationTier: 1, videoLanguage: "vi" } },
-  { id: "tradeoff", category: "comparison/tradeoff", input: { text: "So sánh chạy AI local và cloud theo quyền riêng tư, chi phí và độ trễ.", urls: [], format: "tiktok", durationTier: 2, videoLanguage: "vi" } },
-  { id: "technical-process", category: "technical process", input: { text: "Giải thích pipeline từ prompt đến video Remotion bằng một luồng trực quan.", urls: [], format: "tiktok", durationTier: 2, videoLanguage: "vi" } },
-  { id: "abstract-metaphor", category: "abstract metaphor", input: { text: "Biến ý tưởng nợ kỹ thuật tích lũy thành một câu chuyện hình ảnh dễ hiểu.", urls: [], format: "tiktok", durationTier: 1, videoLanguage: "vi" } },
-  { id: "plain-statement", category: "statement without numbers", input: { text: "Một video ngắn về việc công cụ tốt không thay thế tư duy tốt.", urls: [], format: "tiktok", durationTier: 1, videoLanguage: "vi" }, expectedReview: { temporalMode: "static", detailMode: "normal" } },
-  { id: "hero-image", category: "approved hero image", input: { text: "Giải thích cách một trung tâm dữ liệu vận hành, dùng ảnh thật làm bằng chứng hình ảnh.", urls: [], format: "tiktok", durationTier: 2, videoLanguage: "vi" }, withImages: "hero" },
-  { id: "brand-logo", category: "relevant logo", input: { text: "Giải thích vai trò của một thương hiệu công nghệ; logo chỉ là điểm nhấn.", urls: [], format: "tiktok", durationTier: 1, videoLanguage: "vi" }, withImages: "logo" },
-  { id: "asset-pool", category: "curated asset subset", input: { text: "Kể câu chuyện về tự động hóa, chỉ dùng ảnh thực sự hỗ trợ từng ý.", urls: [], format: "tiktok", durationTier: 2, videoLanguage: "vi" }, withImages: "pool" },
-  { id: "long-vietnamese", category: "long Vietnamese", input: { text: "Phân tích tác động của AI agent tới quy trình làm việc, gồm cơ hội, giới hạn và cách áp dụng có trách nhiệm.", urls: [], format: "tiktok", durationTier: 4, videoLanguage: "vi" } },
-  { id: "english", category: "English", input: { text: "Explain how small language models trade capability for speed and local control.", urls: [], format: "tiktok", durationTier: 2, videoLanguage: "en" } },
-  { id: "motion-process", category: "semantic motion/process", input: { text: "Giải thích quy trình ba bước: nhận yêu cầu, xử lý dữ liệu rồi trả kết quả; từng bước phải xuất hiện theo lời đọc.", urls: [], format: "tiktok", durationTier: 1, videoLanguage: "vi" }, expectedReview: { temporalMode: "stepped", detailMode: "normal" } },
-  { id: "motion-terminal", category: "semantic motion/terminal", input: { text: "Minh hoạ một lệnh terminal được gõ, kết quả trả về, rồi trạng thái hệ thống thay đổi.", urls: [], format: "tiktok", durationTier: 1, videoLanguage: "vi" }, expectedReview: { temporalMode: "continuous", detailMode: "fine" } },
-  { id: "motion-list", category: "semantic motion/sequential list", input: { text: "Trình bày ba nguyên tắc bảo mật theo thứ tự; ý tiếp theo chỉ hiện khi lời đọc chuyển sang ý đó.", urls: [], format: "tiktok", durationTier: 1, videoLanguage: "vi" }, expectedReview: { temporalMode: "stepped", detailMode: "normal" } },
-  { id: "motion-before-after", category: "semantic motion/before-after", input: { text: "So sánh quy trình thủ công trước đây với quy trình tự động sau cải tiến theo diễn tiến lời đọc.", urls: [], format: "tiktok", durationTier: 1, videoLanguage: "vi" }, expectedReview: { temporalMode: "stepped", detailMode: "normal" } },
-  { id: "motion-counter-chart", category: "semantic motion/counter-chart", input: { text: "Giải thích một chỉ số tăng qua ba mốc và ý nghĩa của thay đổi cuối cùng, không hiện kết quả trước lời đọc.", urls: [], format: "tiktok", durationTier: 1, videoLanguage: "vi" }, expectedReview: { temporalMode: "continuous", detailMode: "fine" } },
-  { id: "motion-evidence-image", category: "semantic motion/evidence image", input: { text: "Dùng ảnh bằng chứng để lần lượt chỉ ra tổng thể, vùng chi tiết và kết luận quan trọng.", urls: [], format: "tiktok", durationTier: 1, videoLanguage: "vi" }, withImages: "hero", expectedReview: { temporalMode: "continuous", detailMode: "fine" } },
-  { id: "review-logo-reveal", category: "review/static logo reveal", input: { text: "Giới thiệu ngắn một thương hiệu bằng logo rồi giữ trạng thái kết rõ ràng.", urls: [], format: "tiktok", durationTier: 1, videoLanguage: "vi" }, withImages: "logo", expectedReview: { temporalMode: "static", detailMode: "normal" } },
-  { id: "review-two-step", category: "review/two-step comparison", input: { text: "So sánh hai lựa chọn theo hai bước rõ ràng và chỉ mở kết luận sau khi đã trình bày cả hai.", urls: [], format: "tiktok", durationTier: 1, videoLanguage: "vi" }, expectedReview: { temporalMode: "stepped", detailMode: "normal" } },
-  { id: "review-five-item-list", category: "review/five-item list", input: { text: "Trình bày năm dấu hiệu rủi ro theo lời đọc, giữ ngữ cảnh của các ý đã xuất hiện.", urls: [], format: "tiktok", durationTier: 2, videoLanguage: "vi" }, expectedReview: { temporalMode: "stepped", detailMode: "normal" } },
-  { id: "review-fine-table", category: "review/fine detail table", input: { text: "Giải thích một bảng so sánh nhỏ, lần lượt làm rõ cột chi phí, độ trễ và quyền riêng tư.", urls: [], format: "tiktok", durationTier: 1, videoLanguage: "vi" }, expectedReview: { temporalMode: "stepped", detailMode: "fine" } },
-  { id: "review-critical-transition", category: "review/critical zoom transition", input: { text: "Chuyển từ toàn cảnh hệ thống vào một chi tiết quan trọng bằng zoom có chủ đích.", urls: [], format: "tiktok", durationTier: 1, videoLanguage: "vi" }, expectedReview: { temporalMode: "continuous", detailMode: "normal" } },
-  { id: "review-user-edit", category: "review/single-scene user edit", input: { text: "Chỉnh một cảnh danh sách để ý thứ hai dễ đọc hơn mà không thiết kế lại các cảnh khác.", urls: [], format: "tiktok", durationTier: 1, videoLanguage: "vi" }, expectedReview: { temporalMode: "stepped", detailMode: "normal" } },
-  { id: "review-legacy-semantic", category: "review/legacy semantic fallback", input: { text: "Mô phỏng project cũ có semantic progression nhưng chưa có cue có cấu trúc.", urls: [], format: "tiktok", durationTier: 1, videoLanguage: "vi" }, expectedReview: { temporalMode: "stepped", detailMode: "normal" } },
+  { id: "factual-explainer", category: "factual explainer", expectedProfile: "mechanism-explainer", input: { text: "Giải thích vì sao chip AI cần băng thông bộ nhớ cao, tập trung vào cách dữ liệu di chuyển trong hệ thống và không bịa số liệu.", urls: [], format: "tiktok", durationTier: 2, videoLanguage: "vi" } },
+  { id: "history-timeline", category: "timeline/history", expectedProfile: "narrative-conceptual", input: { text: "Kể mạch phát triển của máy tính cá nhân như một câu chuyện về cách ý nghĩa của máy tính trong đời sống thay đổi qua các bước ngoặt.", urls: [], format: "tiktok", durationTier: 2, videoLanguage: "vi" } },
+  { id: "product-news", category: "news/product facts", expectedProfile: "editorial-story", input: { text: "Kể lại một thương vụ công nghệ đã xảy ra theo diễn biến, bối cảnh và vì sao sự kiện đó đáng quan tâm.", urls: [], format: "tiktok", durationTier: 1, videoLanguage: "vi" } },
+  { id: "tradeoff", category: "comparison/tradeoff", expectedProfile: "comparison-decision", input: { text: "So sánh chạy AI local và cloud theo quyền riêng tư, chi phí và độ trễ.", urls: [], format: "tiktok", durationTier: 2, videoLanguage: "vi" } },
+  { id: "technical-process", category: "technical process", expectedProfile: "mechanism-explainer", input: { text: "Giải thích pipeline từ prompt đến video Remotion bằng một luồng trực quan.", urls: [], format: "tiktok", durationTier: 2, videoLanguage: "vi" } },
+  { id: "abstract-metaphor", category: "abstract metaphor", expectedProfile: "narrative-conceptual", input: { text: "Biến ý tưởng nợ kỹ thuật tích lũy thành một câu chuyện hình ảnh về ý nghĩa và hệ quả của nó, không giải thích nội tạng một hệ thống cụ thể.", urls: [], format: "tiktok", durationTier: 1, videoLanguage: "vi" } },
+  { id: "plain-statement", category: "statement without numbers", expectedProfile: "narrative-conceptual", input: { text: "Kể một câu chuyện ý niệm ngắn về việc công cụ tốt khuếch đại nhưng không thay thế tư duy tốt.", urls: [], format: "tiktok", durationTier: 1, videoLanguage: "vi" }, expectedReview: { temporalMode: "static", detailMode: "normal" } },
+  { id: "hero-image", category: "approved hero image", expectedProfile: "mechanism-explainer", input: { text: "Giải thích cách một trung tâm dữ liệu vận hành, dùng ảnh thật làm điểm neo hình ảnh cho các thành phần và luồng dữ liệu.", urls: [], format: "tiktok", durationTier: 2, videoLanguage: "vi" }, withImages: "hero" },
+  { id: "brand-logo", category: "relevant logo", expectedProfile: "product-showcase", input: { text: "Cho người xem thấy một sản phẩm công nghệ thực sự làm được gì trong workflow, dùng UI hoặc demo media thật; logo chỉ là điểm nhận diện.", urls: [], format: "tiktok", durationTier: 1, videoLanguage: "vi" }, withImages: "logo" },
+  { id: "asset-pool", category: "curated asset subset", expectedProfile: "narrative-conceptual", input: { text: "Kể một câu chuyện ý niệm về cách tự động hóa thay đổi vai trò con người, chỉ dùng ảnh thực sự hỗ trợ từng ý.", urls: [], format: "tiktok", durationTier: 2, videoLanguage: "vi" }, withImages: "pool" },
+  { id: "long-vietnamese", category: "long Vietnamese", expectedProfile: "comparison-decision", input: { text: "Phân tích tác động của AI agent tới quy trình làm việc, gồm cơ hội, giới hạn và cách áp dụng có trách nhiệm.", urls: [], format: "tiktok", durationTier: 4, videoLanguage: "vi" } },
+  { id: "english", category: "English", expectedProfile: "comparison-decision", input: { text: "Help viewers choose between small and large language models using capability, speed, and local control as common criteria.", urls: [], format: "tiktok", durationTier: 2, videoLanguage: "en" } },
+  { id: "motion-process", category: "semantic motion/process", expectedProfile: "mechanism-explainer", input: { text: "Giải thích quy trình ba bước: nhận yêu cầu, xử lý dữ liệu rồi trả kết quả; từng bước phải xuất hiện theo lời đọc.", urls: [], format: "tiktok", durationTier: 1, videoLanguage: "vi" }, expectedReview: { temporalMode: "stepped", detailMode: "normal" } },
+  { id: "motion-terminal", category: "semantic motion/terminal", expectedProfile: "procedural-guide", input: { text: "Minh hoạ một lệnh terminal được gõ, kết quả trả về, rồi trạng thái hệ thống thay đổi.", urls: [], format: "tiktok", durationTier: 1, videoLanguage: "vi" }, expectedReview: { temporalMode: "continuous", detailMode: "fine" } },
+  { id: "motion-list", category: "semantic motion/sequential list", expectedProfile: "procedural-guide", input: { text: "Trình bày ba nguyên tắc bảo mật theo thứ tự; ý tiếp theo chỉ hiện khi lời đọc chuyển sang ý đó.", urls: [], format: "tiktok", durationTier: 1, videoLanguage: "vi" }, expectedReview: { temporalMode: "stepped", detailMode: "normal" } },
+  { id: "motion-before-after", category: "semantic motion/before-after", expectedProfile: "comparison-decision", input: { text: "So sánh quy trình thủ công trước đây với quy trình tự động sau cải tiến theo diễn tiến lời đọc.", urls: [], format: "tiktok", durationTier: 1, videoLanguage: "vi" }, expectedReview: { temporalMode: "stepped", detailMode: "normal" } },
+  { id: "motion-counter-chart", category: "semantic motion/counter-chart", expectedProfile: "evidence-explainer", input: { text: "Đánh giá liệu một biểu đồ tăng qua ba mốc có thực sự hỗ trợ kết luận hay không, nêu giới hạn rồi mới đưa implication; không hiện kết quả trước lời đọc.", urls: [], format: "tiktok", durationTier: 1, videoLanguage: "vi" }, expectedReview: { temporalMode: "continuous", detailMode: "fine" } },
+  { id: "motion-evidence-image", category: "semantic motion/evidence image", expectedProfile: "evidence-explainer", input: { text: "Giúp người xem đánh giá một ảnh bằng chứng: quan sát tổng thể, kiểm tra vùng chi tiết, nêu giới hạn rồi mới kết luận ảnh hỗ trợ claim đến đâu.", urls: [], format: "tiktok", durationTier: 1, videoLanguage: "vi" }, withImages: "hero", expectedReview: { temporalMode: "continuous", detailMode: "fine" } },
+  { id: "review-logo-reveal", category: "review/static logo reveal", expectedProfile: "narrative-conceptual", input: { text: "Giới thiệu ý nghĩa của một thương hiệu bằng một logo reveal ngắn rồi giữ trạng thái kết rõ ràng; không demo sản phẩm.", urls: [], format: "tiktok", durationTier: 1, videoLanguage: "vi" }, withImages: "logo", expectedReview: { temporalMode: "static", detailMode: "normal" } },
+  { id: "review-two-step", category: "review/two-step comparison", expectedProfile: "comparison-decision", input: { text: "So sánh hai lựa chọn theo hai bước rõ ràng và chỉ mở kết luận sau khi đã trình bày cả hai.", urls: [], format: "tiktok", durationTier: 1, videoLanguage: "vi" }, expectedReview: { temporalMode: "stepped", detailMode: "normal" } },
+  { id: "review-five-item-list", category: "review/five-item list", expectedProfile: "procedural-guide", input: { text: "Hướng dẫn người xem thực hiện checklist năm bước để kiểm tra rủi ro và xác nhận kết quả sau mỗi bước, theo đúng lời đọc.", urls: [], format: "tiktok", durationTier: 2, videoLanguage: "vi" }, expectedReview: { temporalMode: "stepped", detailMode: "normal" } },
+  { id: "review-fine-table", category: "review/fine detail table", expectedProfile: "comparison-decision", input: { text: "Giải thích một bảng so sánh nhỏ, lần lượt làm rõ cột chi phí, độ trễ và quyền riêng tư.", urls: [], format: "tiktok", durationTier: 1, videoLanguage: "vi" }, expectedReview: { temporalMode: "stepped", detailMode: "fine" } },
+  { id: "review-critical-transition", category: "review/critical zoom transition", expectedProfile: "mechanism-explainer", input: { text: "Chuyển từ toàn cảnh hệ thống vào một chi tiết quan trọng bằng zoom có chủ đích.", urls: [], format: "tiktok", durationTier: 1, videoLanguage: "vi" }, expectedReview: { temporalMode: "continuous", detailMode: "normal" } },
+  { id: "review-user-edit", category: "review/single-scene user edit", expectedProfile: "procedural-guide", input: { text: "Chỉnh một cảnh danh sách để ý thứ hai dễ đọc hơn mà không thiết kế lại các cảnh khác.", urls: [], format: "tiktok", durationTier: 1, videoLanguage: "vi" }, expectedReview: { temporalMode: "stepped", detailMode: "normal" } },
+  { id: "review-legacy-semantic", category: "review/legacy semantic fallback", expectedProfile: "mechanism-explainer", input: { text: "Mô phỏng project cũ có semantic progression nhưng chưa có cue có cấu trúc.", urls: [], format: "tiktok", durationTier: 1, videoLanguage: "vi" }, expectedReview: { temporalMode: "stepped", detailMode: "normal" } },
 ] as const;
 
 const ONE_PIXEL_PNG = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
@@ -87,10 +98,48 @@ function promptStats(messages: VisionMessage[]) {
   };
 }
 
-function args(): { mode: "offline" | "live"; label: string; retain: number; caseId?: string } {
+function offlineEvalPlan(profile: PresentationProfile): ContentPlan {
+  return {
+    title: "Prompt profile plumbing fixture",
+    presentationProfile: profile,
+    viewerPromise: "Verify that the author receives one selected presentation profile.",
+    hookType: "question",
+    first3SecondsLine: "Which visual approach serves this viewer task?",
+    openLoop: "The selected profile should answer without loading its alternatives.",
+    payoff: "Only one creative direction reaches authoring.",
+    claims: [],
+    scenes: [{
+      sceneId: "scene-01",
+      purpose: "hook",
+      beat: "Establish the selected viewer task.",
+      narration: "The selected direction should guide one clear visual outcome.",
+      onScreenText: "One profile",
+      visualMetaphor: "One highlighted route among muted alternatives.",
+      motionProgression: "Quick reveal followed by a readable hold.",
+      temporalMode: "static",
+      detailMode: "normal",
+      layoutFamily: "signature-visual",
+      evidenceClaimIds: [],
+    }],
+  };
+}
+
+type EvalStage = "route" | "visual";
+
+function args(): {
+  mode: "offline" | "live";
+  stage: EvalStage;
+  label: string;
+  retain: number;
+  caseId?: string;
+  forcedProfile?: PresentationProfile;
+  planLabel?: string;
+} {
   const raw = process.argv.slice(2);
   const modeValue = raw.find((value) => value.startsWith("--mode="))?.slice(7) ?? "offline";
   if (modeValue !== "offline" && modeValue !== "live") throw new Error("--mode phải là offline hoặc live");
+  const stageValue = raw.find((value) => value.startsWith("--stage="))?.slice(8) ?? "visual";
+  if (stageValue !== "route" && stageValue !== "visual") throw new Error("--stage phải là route hoặc visual");
   const label = raw.find((value) => value.startsWith("--label="))?.slice(8)?.trim()
     || `${modeValue}-${new Date().toISOString().replace(/[:.]/g, "-")}`;
   if (!/^[A-Za-z0-9._-]+$/.test(label)) throw new Error("--label chỉ được chứa chữ, số, dấu chấm, gạch ngang hoặc gạch dưới");
@@ -99,7 +148,28 @@ function args(): { mode: "offline" | "live"; label: string; retain: number; case
   const retainRaw = raw.find((value) => value.startsWith("--retain="))?.slice(9) ?? "20";
   const retain = Number(retainRaw);
   if (!Number.isInteger(retain) || retain < 1 || retain > 200) throw new Error("--retain phải là số nguyên từ 1 đến 200");
-  return { mode: modeValue, label, retain, ...(caseId ? { caseId } : {}) };
+  const profileValue = raw.find((value) => value.startsWith("--profile="))?.slice(10)?.trim();
+  const forcedProfile = PRESENTATION_PROFILE_VALUES.find((profile) => profile === profileValue);
+  if (profileValue && !forcedProfile) throw new Error(`Không có presentation profile "${profileValue}"`);
+  if (forcedProfile && (modeValue !== "live" || stageValue !== "visual")) {
+    throw new Error("--profile chỉ dùng với --mode=live --stage=visual");
+  }
+  const planLabel = raw.find((value) => value.startsWith("--plan-label="))?.slice(13)?.trim();
+  if (planLabel && !/^[A-Za-z0-9._-]+$/.test(planLabel)) {
+    throw new Error("--plan-label chỉ được chứa chữ, số, dấu chấm, gạch ngang hoặc gạch dưới");
+  }
+  if (planLabel && (modeValue !== "live" || stageValue !== "visual" || !caseId)) {
+    throw new Error("--plan-label cần --mode=live --stage=visual và đúng một --case");
+  }
+  return {
+    mode: modeValue,
+    stage: stageValue,
+    label,
+    retain,
+    ...(caseId ? { caseId } : {}),
+    ...(forcedProfile ? { forcedProfile } : {}),
+    ...(planLabel ? { planLabel } : {}),
+  };
 }
 
 async function main(): Promise<void> {
@@ -108,13 +178,20 @@ async function main(): Promise<void> {
   const cases = selectedCases.map((entry) => {
     const images = imagesFor(entry.withImages);
     const planner = buildContentPlanMessages(entry.input, undefined, images);
-    const author = buildAuthorMessages(entry.input, undefined, images);
+    const author = buildAuthorMessages(
+      entry.input,
+      undefined,
+      images,
+      undefined,
+      offlineEvalPlan(entry.expectedProfile),
+    );
     return {
       id: entry.id,
       category: entry.category,
       language: entry.input.videoLanguage ?? "vi",
       durationTier: entry.input.durationTier ?? 1,
       imageCount: images?.length ?? 0,
+      expectedProfile: entry.expectedProfile,
       ...(entry.expectedReview ? { expectedReview: entry.expectedReview } : {}),
       planner: promptStats(planner),
       author: promptStats(author),
@@ -131,7 +208,10 @@ async function main(): Promise<void> {
   const report = {
     version: 1,
     mode: options.mode,
+    stage: options.stage,
     label: options.label,
+    ...(options.forcedProfile ? { forcedProfile: options.forcedProfile } : {}),
+    ...(options.planLabel ? { planLabel: options.planLabel } : {}),
     createdAt: new Date().toISOString(),
     runtimeAcceptance: "not-run",
     cases,
@@ -141,12 +221,23 @@ async function main(): Promise<void> {
   await mkdir(root, { recursive: true });
   const output = join(root, `${options.label}.json`);
   if (options.mode === "live") {
-    const live = await runLiveEval(root, options.label, selectedCases);
+    const replayPlan = options.planLabel && options.caseId
+      ? await loadReplayPlan(root, options.planLabel, options.caseId)
+      : undefined;
+    const live = await runLiveEval(root, options.label, selectedCases, {
+      stage: options.stage,
+      ...(options.forcedProfile ? { forcedProfile: options.forcedProfile } : {}),
+      ...(replayPlan ? { replayPlan } : {}),
+    });
     await writeFile(output, `${JSON.stringify({ ...report, runtimeAcceptance: live.ok ? "completed" : "failed", live: live.results }, null, 2)}\n`, "utf8");
-    await writeContactSheet(root, options.label, live.results);
+    if (options.stage === "visual") await writeContactSheet(root, options.label, live.results);
     await prunePromptEvalRuns(root, options.retain);
     console.log(`[prompt-eval] live report: ${output}`);
-    console.log(`[prompt-eval] ${live.results.filter((result) => result.ok).length}/${selectedCases.length} cases authored and rendered to stills`);
+    const verb = options.stage === "route" ? "routed" : "authored and rendered to stills";
+    console.log(`[prompt-eval] ${live.results.filter((result) => result.ok).length}/${selectedCases.length} cases ${verb}`);
+    if (options.stage === "route") {
+      console.log(`[prompt-eval] ${live.results.filter((result) => result.profileMatchesExpectation).length}/${selectedCases.length} profile selections matched the corpus expectation`);
+    }
     if (!live.ok) process.exitCode = 1;
     return;
   }
@@ -173,6 +264,11 @@ type LiveCaseResult = {
   reviewArtifactKinds: Record<ReviewArtifact["kind"], number>;
   overviewSceneCount: number;
   cuePanelCount: number;
+  expectedProfile: PresentationProfile;
+  selectedProfile?: PresentationProfile;
+  contentPlan?: ContentPlan;
+  forcedProfile?: PresentationProfile;
+  profileMatchesExpectation: boolean;
   admission: "passed" | "failed" | "not-run";
   renderStills: "passed" | "failed" | "not-run";
   stills: string[];
@@ -184,6 +280,7 @@ async function runLiveEval(
   root: string,
   label: string,
   selectedCases: readonly EvalCase[],
+  options: { stage: EvalStage; forcedProfile?: PresentationProfile; replayPlan?: ContentPlan },
 ): Promise<{ ok: boolean; results: LiveCaseResult[] }> {
   const rawClient = new NineRouterClient();
   if (!(await rawClient.isReachable())) throw new Error("9router không phản hồi tại http://127.0.0.1:20128");
@@ -218,18 +315,43 @@ async function runLiveEval(
         format: Parameters<NineRouterClient["chatStructured"]>[2],
         opts?: { apiKey?: string; signal?: AbortSignal },
       ) => {
+        if (options.replayPlan && format.name === "motionreal_content_plan") {
+          const reply = JSON.stringify(options.replayPlan);
+          return options.forcedProfile
+            ? forceContentPlanProfile(reply, options.forcedProfile)
+            : reply;
+        }
         modelCalls++;
         const callStarted = performance.now();
         try {
-          return await rawClient.chatStructured(model, messages, format, opts);
+          const reply = await rawClient.chatStructured(model, messages, format, opts);
+          return options.forcedProfile && format.name === "motionreal_content_plan"
+            ? forceContentPlanProfile(reply, options.forcedProfile)
+            : reply;
         } finally {
           modelCallMs += performance.now() - callStarted;
         }
       },
     } as unknown as NineRouterClient;
     const captureAdmissionDiagnostics = (meta: unknown, message: string): void => {
-      if (!/admission failed/i.test(message) || !meta || typeof meta !== "object") return;
-      const violations = (meta as { violations?: unknown }).violations;
+      if (!meta || typeof meta !== "object") return;
+      const details = meta as {
+        class?: unknown;
+        reason?: unknown;
+        detail?: unknown;
+        qualityIssues?: unknown;
+        violations?: unknown;
+      };
+      if (/content-plan/i.test(message)) {
+        diagnostics.push(JSON.stringify({
+          class: details.class,
+          reason: details.reason,
+          detail: details.detail,
+          qualityIssues: details.qualityIssues,
+        }));
+      }
+      if (!/admission failed/i.test(message)) return;
+      const violations = details.violations;
       if (Array.isArray(violations)) diagnostics.push(...violations.filter((value): value is string => typeof value === "string"));
     };
     const logger = {
@@ -250,18 +372,10 @@ async function runLiveEval(
     let copiedStills: string[] = [];
     let reviewArtifacts: ReviewArtifact[] = [];
     let reviewArtifactBytes = 0;
+    let selectedProfile: PresentationProfile | undefined;
+    let contentPlan: ContentPlan | undefined;
     let error: string | undefined;
     try {
-      const scaffold = await scaffoldVideoProject({
-        prompt: `[prompt-eval:${entry.id}] ${entry.input.text}`,
-        format: entry.input.format,
-        durationTier: entry.input.durationTier,
-        language: entry.input.videoLanguage,
-        creationMode: "classic",
-        tts: { provider: "none" },
-      });
-      projectId = scaffold.projectId;
-      const images = await stageEvalImages(projectId, entry.withImages);
       const backend = new NineRouterAuthoringBackend({
         client: measuredClient,
         tools: createTools(),
@@ -269,39 +383,58 @@ async function runLiveEval(
         apiKey: () => apiKey,
         logger,
       });
-      const authored = await backend.authorScenes({
-        projectId,
-        input: { ...entry.input, ...(images ? { images } : {}) },
-        scriptGate: false,
-      });
-      sceneCount = authored.scenes.length;
-      if (sceneCount === 0) throw new Error(authored.message ?? "authoring không tạo được scene");
-      admission = "passed";
-      const manifest = await loadManifest(projectId);
-      semanticSceneCount = manifest.scenes.filter((scene) => Array.isArray((scene as { motionBeats?: unknown }).motionBeats)
-        || /semantic\s*:/iu.test(String((scene as { motionProgression?: unknown }).motionProgression ?? ""))).length;
-      const reviewRequest = buildEvalReviewRequest(authored.contentPlan?.scenes, manifest.scenes);
-      const rendered = await backend.renderStills(
-        projectId,
-        undefined,
-        undefined,
-        { reviewRequest },
-      );
-      if (rendered.error || rendered.stills.length === 0) {
-        throw new Error(rendered.error?.cause ?? "render still không tạo được ảnh");
+      if (options.stage === "route") {
+        const planned = await backend.planContent(`prompt-eval-route-${entry.id}`, entry.input);
+        contentPlan = planned.contentPlan;
+        selectedProfile = planned.contentPlan.presentationProfile;
+        sceneCount = planned.contentPlan.scenes.length;
+      } else {
+        const scaffold = await scaffoldVideoProject({
+          prompt: `[prompt-eval:${entry.id}] ${entry.input.text}`,
+          format: entry.input.format,
+          durationTier: entry.input.durationTier,
+          language: entry.input.videoLanguage,
+          creationMode: "classic",
+          tts: { provider: "none" },
+        });
+        projectId = scaffold.projectId;
+        const images = await stageEvalImages(projectId, entry.withImages);
+        const authored = await backend.authorScenes({
+          projectId,
+          input: { ...entry.input, ...(images ? { images } : {}) },
+          scriptGate: false,
+        });
+        selectedProfile = authored.contentPlan?.presentationProfile;
+        contentPlan = authored.contentPlan;
+        sceneCount = authored.scenes.length;
+        if (sceneCount === 0) throw new Error(authored.message ?? "authoring không tạo được scene");
+        admission = "passed";
+        const manifest = await loadManifest(projectId);
+        semanticSceneCount = manifest.scenes.filter((scene) => Array.isArray((scene as { motionBeats?: unknown }).motionBeats)
+          || /semantic\s*:/iu.test(String((scene as { motionProgression?: unknown }).motionProgression ?? ""))).length;
+        const reviewRequest = buildEvalReviewRequest(authored.contentPlan?.scenes, manifest.scenes);
+        const rendered = await backend.renderStills(
+          projectId,
+          undefined,
+          undefined,
+          { reviewRequest },
+        );
+        if (rendered.error || rendered.stills.length === 0) {
+          throw new Error(rendered.error?.cause ?? "render still không tạo được ảnh");
+        }
+        renderStills = "passed";
+        const caseDir = join(outputDir, entry.id);
+        await mkdir(caseDir, { recursive: true });
+        reviewArtifacts = rendered.reviewArtifacts ?? [];
+        const modelFacing = reviewArtifacts.length > 0 ? reviewArtifacts.map((artifact) => artifact.path) : rendered.stills;
+        copiedStills = await Promise.all(modelFacing.map(async (source) => {
+          const destination = join(caseDir, basename(source));
+          await copyFile(source, destination);
+          return destination;
+        }));
+        reviewArtifactBytes = (await Promise.all(modelFacing.map(async (path) => (await stat(path)).size)))
+          .reduce((sum, size) => sum + size, 0);
       }
-      renderStills = "passed";
-      const caseDir = join(outputDir, entry.id);
-      await mkdir(caseDir, { recursive: true });
-      reviewArtifacts = rendered.reviewArtifacts ?? [];
-      const modelFacing = reviewArtifacts.length > 0 ? reviewArtifacts.map((artifact) => artifact.path) : rendered.stills;
-      copiedStills = await Promise.all(modelFacing.map(async (source) => {
-        const destination = join(caseDir, basename(source));
-        await copyFile(source, destination);
-        return destination;
-      }));
-      reviewArtifactBytes = (await Promise.all(modelFacing.map(async (path) => (await stat(path)).size)))
-        .reduce((sum, size) => sum + size, 0);
     } catch (caught) {
       error = caught instanceof Error ? caught.message : String(caught);
       if (admission === "not-run" && sceneCount === 0) admission = "failed";
@@ -309,7 +442,7 @@ async function runLiveEval(
     } finally {
       if (projectId) await rm(projectPaths(projectId).root, { recursive: true, force: true });
     }
-    results.push({
+    const result: LiveCaseResult = {
       id: entry.id,
       ok: !error,
       modelId,
@@ -329,12 +462,20 @@ async function runLiveEval(
         .flatMap((artifact) => artifact.panels.map((panel) => panel.sceneId))).size,
       cuePanelCount: reviewArtifacts.flatMap((artifact) => artifact.panels)
         .filter((panel) => panel.cueId !== undefined).length,
+      expectedProfile: entry.expectedProfile,
+      ...(selectedProfile ? { selectedProfile } : {}),
+      ...(contentPlan ? { contentPlan } : {}),
+      ...(options.forcedProfile ? { forcedProfile: options.forcedProfile } : {}),
+      profileMatchesExpectation: selectedProfile === entry.expectedProfile,
       admission,
       renderStills,
       stills: copiedStills,
       ...(error ? { error } : {}),
       ...(diagnostics.length > 0 ? { diagnostics } : {}),
-    });
+    };
+    results.push(result);
+    const route = result.selectedProfile ?? "invalid";
+    console.log(`[prompt-eval] ${result.id}: ${result.ok ? "ok" : "failed"} · profile=${route} · calls=${result.modelCalls}`);
   }
   return { ok: results.every((result) => result.ok), results };
 }
@@ -364,6 +505,15 @@ async function selectedModel(client: NineRouterClient): Promise<string> {
   const first = models[0]?.id;
   if (!first) throw new Error("9router không trả model nào cho prompt eval");
   return first;
+}
+
+async function loadReplayPlan(root: string, label: string, caseId: string): Promise<ContentPlan> {
+  const report = JSON.parse(await readFile(join(root, `${label}.json`), "utf8")) as unknown;
+  const plan = contentPlanForReplay(report, caseId);
+  if (!plan) {
+    throw new Error(`Eval report "${label}" không có content plan hợp lệ cho case "${caseId}"`);
+  }
+  return plan;
 }
 
 async function stageEvalImages(projectId: string, kind: EvalCase["withImages"]): Promise<AuthorInput["images"] | undefined> {

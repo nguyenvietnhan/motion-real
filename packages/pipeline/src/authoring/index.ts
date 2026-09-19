@@ -41,3 +41,7 @@ export {
   isCssStyleObjectLiteral,
   REACT_NATIVE_STYLE_KEYS,
 } from "./normalize-authored-source.js";
+export {
+  missingSceneMentions,
+  normalizeMentionText,
+} from "./scene-mentions.js";

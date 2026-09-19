@@ -517,6 +517,7 @@ const VOICE_FAILURE_CODES = new Set([
   "rate_limited",
   "voice_not_found",
   "invalid_request",
+  "endpoint_not_allowed",
   "provider_unavailable",
   "unknown",
 ]);

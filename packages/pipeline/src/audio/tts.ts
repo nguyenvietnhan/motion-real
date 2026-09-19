@@ -10,7 +10,6 @@ import {
   VoiceProviderError,
   asVoiceProviderError,
   concatAudioWithGaps,
-  createTtsClient,
   defaultVivibeVoiceId,
   defaultElevenLabsVoiceId,
   elevenLabsApiKey,
@@ -21,6 +20,7 @@ import {
   vivibeApiKey,
   type TtsClient,
 } from "@motionreal/tts";
+import { createTtsClient } from "./safe-tts-client.js";
 import { BREATH_GAP_SECONDS, DEFAULT_TTS_SPEED, type VideoSpec } from "@motionreal/schema";
 import type { TtsManifest, TtsManifestScene, TtsProvider } from "../types.js";
 import { projectPaths, ttsCacheDir } from "../store/store.js";

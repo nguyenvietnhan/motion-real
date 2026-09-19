@@ -3,6 +3,9 @@ import {
   AUTHORING_CONTRACT,
   CREATIVE_AUTHORING_DIRECTION,
   TECHNICAL_AUTHORING_CONTRACT,
+  authoringContract,
+  getDesignTokens,
+  technicalAuthoringContract,
 } from "./contract-text.js";
 
 /**
@@ -52,6 +55,8 @@ describe("AUTHORING_CONTRACT — no-block / raw-JSX invariants", () => {
     expect(AUTHORING_CONTRACT).toMatch(/JSX/);
     // The design line: hardcode all visuals, there is no theme/token to read.
     expect(AUTHORING_CONTRACT).toMatch(/HARDCODE|hardcode/);
+    expect(AUTHORING_CONTRACT).toMatch(/Chỉ dùng card khi nội dung thật sự là card/);
+    expect(AUTHORING_CONTRACT).not.toContain("card/khung/số-lớn/danh-sách/nhãn");
   });
 
   it("requires parseable TSX and valid object-literal style syntax", () => {
@@ -121,12 +126,15 @@ describe("AUTHORING_CONTRACT — no-block / raw-JSX invariants", () => {
     expect(AUTHORING_CONTRACT).toMatch(/Không có đường kẻ nào do hệ thống vẽ/);
   });
 
-  it("places the primary visual mass slightly above the old low composition without a hard layout gate", () => {
-    expect(AUTHORING_CONTRACT).toMatch(/content-zone ~18–62%/);
-    expect(AUTHORING_CONTRACT).toMatch(/~42–46%/);
-    expect(AUTHORING_CONTRACT).toMatch(/62% là GIỚI HẠN DƯỚI/);
-    expect(AUTHORING_CONTRACT).toMatch(/cao hơn nhẹ khoảng 2%/);
-    expect(AUTHORING_CONTRACT).toMatch(/Top reserve áp dụng cả eyebrow\/headline/);
+  it("places the primary visual mass in active zone with bimodal layout zones without a hard layout gate", () => {
+    expect(AUTHORING_CONTRACT).toMatch(/TOP RESERVE \(0%–12%/);
+    expect(AUTHORING_CONTRACT).toMatch(/ACTIVE TYPOGRAPHY & EDITORIAL ZONE \(12%–62%/);
+    expect(AUTHORING_CONTRACT).toMatch(/STRUCTURAL GROUNDING EXTENSION \(62%–70%/);
+    expect(AUTHORING_CONTRACT).toMatch(/CAPTION BAND \(71%–86%/);
+    expect(AUTHORING_CONTRACT).toMatch(/BOTTOM RESERVE \(86%–100%/);
+    expect(AUTHORING_CONTRACT).toMatch(/~38%–46%/);
+    expect(AUTHORING_CONTRACT).toMatch(/<= 62%–64%/);
+    expect(AUTHORING_CONTRACT).toMatch(/68%–70%/);
     expect(AUTHORING_CONTRACT).toMatch(/top-aligned \(bên trong content-zone\)/);
     expect(CREATIVE_AUTHORING_DIRECTION).toMatch(/Mọi số, giá, ngày hoặc phần trăm literal/);
     expect(CREATIVE_AUTHORING_DIRECTION).toMatch(/CẤM bịa số trang trí/);
@@ -157,4 +165,58 @@ describe("AUTHORING_CONTRACT — no-block / raw-JSX invariants", () => {
     expect(AUTHORING_CONTRACT).toMatch(/Math\.max\(1, durationInFrames - N\)/);
     expect(AUTHORING_CONTRACT).toMatch(/\[340, 360, 60\]/);
   });
+
+  it("binds dominant color into authoritative Palette Token Contract and forbids arbitrary hex codes", () => {
+    // Default tokens
+    const defaultTokens = getDesignTokens();
+    expect(defaultTokens.ACCENT_PRIMARY).toBe("#38BDF8");
+    expect(defaultTokens.BG).toBe("#0B0F17");
+    expect(defaultTokens.TEXT_PRIMARY).toBe("#FFFFFF");
+    expect(defaultTokens.TEXT_MUTED).toBe("#94A3B8");
+    expect(defaultTokens.STATUS_ERR).toBe("#EF4444");
+    expect(defaultTokens.STATUS_OK).toBe("#10B981");
+
+    // Custom dominant color
+    const customTokens = getDesignTokens("#10B981");
+    expect(customTokens.ACCENT_PRIMARY).toBe("#10B981");
+    expect(customTokens.SPOTLIGHT).toContain("16, 185, 129");
+
+    // 3-character hex code expansion
+    const shortTokens = getDesignTokens("#38B");
+    expect(shortTokens.ACCENT_PRIMARY).toBe("#3388BB");
+    const whiteTokens = getDesignTokens("#fff");
+    expect(whiteTokens.ACCENT_PRIMARY).toBe("#FFFFFF");
+
+    // Whitespace trimming and case insensitivity
+    const trimmedTokens = getDesignTokens("  #10b981  ");
+    expect(trimmedTokens.ACCENT_PRIMARY).toBe("#10B981");
+
+    // Contract text assertions
+    const contract = technicalAuthoringContract("#10B981");
+    expect(contract).toContain('ACCENT_PRIMARY: "#10B981"');
+    expect(contract).toMatch(/PALETTE TOKEN CONTRACT/);
+    expect(contract).toMatch(/NGHIÊM CẤM: Không dùng mã hex ngoài bảng này/);
+    expect(contract).toMatch(/video đồng nhất 100%/);
+    // Backdrop radial gradient must use interpolated SPOTLIGHT and BG
+    expect(contract).toContain("rgba(16, 185, 129, 0.15)");
+    expect(contract).not.toContain("rgba(56, 189, 248, 0.15)");
+    // N18 contrast principle must be present in technical contract
+    expect(contract).toMatch(/NGUYÊN TẮC TƯƠNG PHẢN \(TRÁNH N18\)/);
+  });
+
+  it("replaces frosted glass card traps with 4 positive geometric archetypes with dynamic accent color", () => {
+    expect(CREATIVE_AUTHORING_DIRECTION).toMatch(/THAY THẾ TOÀN BỘ CARD BẰNG 4 GEOMETRIC ARCHETYPES/);
+    expect(CREATIVE_AUTHORING_DIRECTION).toMatch(/Pipeline Dataflow/);
+    expect(CREATIVE_AUTHORING_DIRECTION).toMatch(/Dual Split-Core/);
+    expect(CREATIVE_AUTHORING_DIRECTION).toMatch(/Metric Gauge/);
+    expect(CREATIVE_AUTHORING_DIRECTION).toMatch(/Architecture Stack/);
+    expect(CREATIVE_AUTHORING_DIRECTION).toMatch(/frosted card trap/);
+    expect(CREATIVE_AUTHORING_DIRECTION).toMatch(/Toàn video tối đa 1 cảnh dạng card/);
+
+    // Dynamic dominant color in archetypes
+    const greenCreative = authoringContract("#10B981");
+    expect(greenCreative).toContain('stroke="#10B981"');
+    expect(greenCreative).not.toContain('stroke="#38BDF8"');
+  });
 });
+

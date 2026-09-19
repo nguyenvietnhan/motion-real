@@ -7,8 +7,9 @@ AI-driven **short-form** video generator on Remotion. Give a Vietnamese or
 English prompt (optional URLs and local images); the app plans content, writes
 fresh scene modules, speaks narration, and renders a publishable MP4.
 
-**Product path:** TikTok / Reels / Shorts **9:16** only. Create can pick a
-short-form duration tier (~45s / ~90s / ~150s / ~210s). No YouTube / landscape format.
+**Product path:** TikTok / Reels / Shorts **9:16** only. Create starts at
+duration tier 2 (~90s) and can pick ~45s / ~90s / ~150s / ~210s. No YouTube /
+landscape format.
 
 ## How it works
 
@@ -31,8 +32,8 @@ Typical desktop path:
 
 ```text
 Create (prompt / URLs / images)
-  → content plan (+ optional claim repair / demote-soften on URL runs)
-  → author TSX + manifest
+  → content plan + one presentation profile (+ optional claim repair / demote-soften on URL runs)
+  → author TSX + manifest using only the selected profile direction
   → hidden stills / refine (desktop)
   → draft MP4 or stills-only preview (Settings review mode)
   → review → full MP4
@@ -44,7 +45,7 @@ Create (prompt / URLs / images)
 | --- | --- |
 | **Node.js** `>= 24`, **npm** `>= 11` | See root `package.json` `engines` |
 | **9router** (desktop AI) | External binary on `PATH`. Not vendored in this repo. App expects OpenAI-compatible chat at `http://localhost:20128/v1`. Launcher tries `9router -n -t --skip-update` if nothing is already listening. |
-| **DeepSeek Harness** (Video Agent preview) | Use the sibling checkout at pinned commit `466404c927e2209ba7f242038b6922f10c0405cd` (compatibility rechecked: 2026-09-01) and run `pnpm run build` there so `apps/cli/lib/bin.js` exists. Alternatively set `MOTIONREAL_DSH_CLI` to that built file. The app starts it with the Node executable supplied by the dev launcher; `MOTIONREAL_NODE_BIN` can override that executable. Startup validates the `host.describe` protocol shape, while exact revision remains mandatory before deleting persisted Harness history. These checks do not replace native Harness/9router acceptance. |
+| **DeepSeek Harness** (Video Agent preview) | Use the sibling checkout at pinned commit `d74a18cbd21c0fac2b63f51ae5f46556b4694d14` and run `pnpm run build` there so `apps/cli/lib/bin.js` exists. Alternatively set `MOTIONREAL_DSH_CLI` to that built file. The app starts it with the Node executable supplied by the dev launcher; `MOTIONREAL_NODE_BIN` can override that executable. Startup validates the `host.describe` protocol shape, while exact revision remains mandatory before deleting persisted Harness history. These checks do not replace native Harness/9router acceptance. |
 | **TTS** | VieNeu Local (Vietnamese developer preview), Vivibe (Vietnamese), or ElevenLabs — see [`docs/current/tts-providers.md`](docs/current/tts-providers.md). Missing local runtime/credentials **block** production render; never silently fall back to `mock` / `none`. |
 | **Chromium / Remotion browser** | Needed for real video stills/MP4 (`npm run smoke`, desktop/CLI render). **Not** required for `npm run typecheck`, `npm test`, or `npm run build`; build bundles Remotion and the Electron main/preload/renderer but does not encode a video. |
 
@@ -62,7 +63,7 @@ Fill `.env` (or configure later in the desktop **Settings** UI):
 | Area | Notes |
 | --- | --- |
 | **TTS** | VieNeu Local (Vietnamese developer preview), Vivibe, or ElevenLabs — see [`docs/current/tts-providers.md`](docs/current/tts-providers.md). |
-| **AI planner** | Desktop uses a **local 9router-compatible gateway** for model chat (not an in-repo binary). CLI / env-based OpenAI-compatible vars also appear in `.env.example` for non-desktop tooling. |
+| **AI chat** | Desktop uses a **local 9router-compatible gateway** for model chat (not an in-repo binary). |
 | **Storage** | `VIDEO_TOOL_HOME` (default `.video-tool`) holds projects, cache, BGM library under `.video-tool/`. |
 
 Optional machine-only tool config: copy `.mcp.example.json` → `.mcp.json` (gitignored). Do not commit absolute paths.
@@ -116,8 +117,12 @@ approval, MotionReal creates the normal project and content plan; the owning
 Harness Session writes scene TSX, while the shared Workspace engine still owns
 stills, review, TTS, and final render. Deleting the video removes its Agent
 workspace and removes its exact Harness session data through a recoverable
-deletion journal. This remains a developer preview with
-broad built-in Harness tool access.
+deletion journal. This remains a developer preview with broad built-in Harness
+tool access. New sessions start in Full access for unattended personal
+workflows. The embedded native **Access** chip remains available per session
+(including Harness's own Full access confirmation); the model selector stays
+hidden. If Harness asks a question or approval, MotionReal automatically opens
+the native chat and leaves it open for the user to resolve.
 The agreed target workflow and implementation boundary are recorded in
 [`docs/current/video-agent-workflow.md`](docs/current/video-agent-workflow.md).
 
@@ -129,7 +134,8 @@ npm test
 npm run build
 ```
 
-Optional real Chromium stills smoke (downloads browser if needed; no TTS):
+Real Chromium smoke (downloads Remotion's pinned browser if needed; uses local
+synthetic audio and renders an MP4). It runs in CI for every PR and main push:
 
 ```bash
 npm run smoke
@@ -165,7 +171,7 @@ Other useful scripts (repo root unless noted):
 | `npm.cmd run typecheck` | Workspace TypeScript check |
 | `npm.cmd test` | Vitest suite |
 | `npm.cmd run build` | Remotion **webpack bundle only** (no browser download, no video render) |
-| `npm.cmd run smoke` | Real stills / determinism smoke (Chromium) |
+| `npm.cmd run smoke` | Real MP4 + audio/video stream, stills, and determinism smoke (Chromium) |
 | `npm.cmd run smoke:vieneu` | VieNeu Local TTS WAV synthesis and duration check |
 | `npm.cmd run calibrate:voice -- --provider=vieneu` | Calibrate voice narration rate (words/sec) |
 | `npm.cmd run studio` | Remotion Studio (`apps/remotion`) |
@@ -189,6 +195,9 @@ Other useful scripts (repo root unless noted):
 | `.env.example` | Env template |
 
 Runtime artifacts: `VIDEO_TOOL_HOME/.video-tool/` (projects, renders, cache, BGM).
+At startup MotionReal removes only stale retired Agent roots (30 days) and
+interrupted `voice-tests/voice-test-*` folders (24 hours); it never sweeps
+projects, active cache, BGM, Harness data, or settings.
 Do not commit generated project trees or secrets.
 
 ## Documentation

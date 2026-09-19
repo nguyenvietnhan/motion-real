@@ -328,6 +328,7 @@ describe("buildAuthorModuleBatchMessages", () => {
     };
     const plan: ContentPlan = {
       title: "Video batch",
+      presentationProfile: "comparison-decision",
       viewerPromise: "Promise",
       hookType: "surprise",
       first3SecondsLine: "Hook",
@@ -390,10 +391,13 @@ describe("buildAuthorModuleBatchMessages", () => {
     expectContainsInOrder(text, [
       "Bạn là tác giả video ngắn",
       "HỢP ĐỒNG VIẾT CẢNH",
+      "PRESENTATION PROFILE: comparison-decision",
       "ĐỊNH DẠNG TRẢ VỀ CHO TSX BATCH",
       "QUY TẮC NỘI DUNG",
       "TÁO BẠO NGAY TỪ BẢN ĐẦU",
     ]);
+    expect(text).not.toContain("PRESENTATION PROFILE: mechanism-explainer");
+    expect(text).not.toContain("Bản đồ nội dung → hình thức");
     expect(text).toContain("KHÔNG trả manifest JSON");
     expect(text).not.toContain(JSON.stringify(manifest, null, 2));
     expect(text).toContain(JSON.stringify(manifest.scenes.slice(1), null, 2));
@@ -489,6 +493,7 @@ describe("buildAuthorMessages", () => {
   it("can receive a filtered content plan and excludes omitted claims from code-authoring input", () => {
     const plan: ContentPlan = {
       title: "Vì sao chip AI đắt",
+      presentationProfile: "mechanism-explainer",
       viewerPromise: "Người xem hiểu nút thắt sản xuất phía sau giá chip.",
       hookType: "contradiction",
       first3SecondsLine: "Con chip không đắt vì nó nhỏ. Nó đắt vì gần như không ai làm nổi.",
@@ -523,18 +528,35 @@ describe("buildAuthorMessages", () => {
             { id: "show-chip", anchor: "Con chip không đắt", action: "Reveal the chip" },
             { id: "close-gate", anchor: "gần như không ai", action: "Close the gate" },
           ],
+          visualPlan: {
+            focalObject: "A persistent chip and factory gate",
+            supportingObjects: ["production queue"],
+            composition: "Chip below a gate that remains spatially stable",
+            initialState: "Chip waits outside the open gate",
+            beatStates: [
+              { beatId: "show-chip", visibleState: "Chip becomes the focal object", change: "Reveal the chip" },
+              { beatId: "close-gate", visibleState: "Gate closes around the chip", change: "Close the gate" },
+            ],
+            finalState: "Closed gate and chip remain readable",
+            avoid: ["feature cards"],
+          },
           layoutFamily: "signature-visual",
           evidenceClaimIds: ["claim-01"],
         },
       ],
     };
-    const [, user] = buildAuthorMessages(
+    const [system, user] = buildAuthorMessages(
       { text: "Làm video về chip AI", urls: [] },
       undefined,
       undefined,
       undefined,
       contentPlanForAuthoring(plan),
     );
+    expect(system!.content).toContain("PRESENTATION PROFILE: mechanism-explainer");
+    expect(system!.content).not.toContain("PRESENTATION PROFILE: editorial-story");
+    expect(system!.content).not.toContain("Bản đồ nội dung → hình thức");
+    expect(system!.content).not.toContain("<div>{headline}</div>");
+    expect(system!.content).toContain("presentation profile + content plan quyết định");
     const text = user!.content as string;
     expect(text).toContain("CONTENT PLAN ĐÃ DUYỆT");
     expect(text).toContain("viewerPromise");
@@ -546,6 +568,12 @@ describe("buildAuthorMessages", () => {
     expect(text).toContain("quick entrance/reveal/pop");
     expect(text).toContain("0.2–0.8 giây");
     expect(text).toContain("motionBeats");
+    expect(text).not.toContain("visualPlan");
+    expect(text).not.toContain("A persistent chip and factory gate");
+    expect(text).toContain("presentation profile đã chọn");
+    expect(text).toContain("visualMetaphor và layoutFamily chỉ là gợi ý khởi đầu");
+    expect(text).toContain("PHẢI thay chúng khi xung đột với presentation profile");
+    expect(text).toContain("Giữ object identity");
     expect(text).toContain('motionCueFrames?.["beat-id"] ?? fallback-frame');
     expect(text).toContain("mọi beat id có literal lookup");
     expect(text).toContain("continuous living motion");
@@ -774,11 +802,12 @@ describe("buildAuthorMessages", () => {
     // The system prompt gains the image rule (use only provided refs via <SceneImage>).
     expect(sys.content).toContain("SceneImage");
     expect(sys.content).toMatch(/KHÔNG bịa đường dẫn/);
-    // Approved images are a curated pool, not a checklist. Prefer at least one
-    // suitable attachment, but never distort the story to consume an irrelevant image.
+    // Approved images are a curated pool, not a checklist. The default path
+    // chooses evidence or code visuals by what explains the scene clearly.
     expect(sys.content).toMatch(/chỉ dùng subset thực sự đóng góp nội dung/);
-    expect(sys.content).toMatch(/Ưu tiên dùng ít nhất một ảnh phù hợp/);
-    expect(sys.content).toMatch(/KHÔNG bẻ nội dung/);
+    expect(sys.content).toMatch(/Asset là pool, không phải checklist/);
+    expect(sys.content).toMatch(/CÂN BẰNG CODE VÀ ASSET/);
+    expect(sys.content).toMatch(/không bẻ nội dung/i);
     expect(sys.content).not.toMatch(/BẮT BUỘC DÙNG ẢNH/);
     // One image_url per image, each preceded by a text line naming its ref + size.
     const imageParts = parts.filter((p) => p.type === "image_url");
@@ -787,6 +816,34 @@ describe("buildAuthorMessages", () => {
     const text = parts.filter((p): p is { type: "text"; text: string } => p.type === "text").map((p) => p.text).join(" ");
     expect(text).toContain("assets/aaa.png");
     expect(text).toContain("800×600");
+  });
+
+  it("uses a user-selected visualize-first asset strategy without forcing approved images into a mechanism", () => {
+    const [system] = buildAuthorMessages(
+      { text: "Giải thích cách cây quyết định phân nhánh", urls: [], assetStrategy: "visualize-first" },
+      undefined,
+      [{ ref: "assets/tree-logo.png", width: 512, height: 512, dataUrl: "data:image/png;base64,AAA" }],
+    );
+    expect(system!.content).toMatch(/ƯU TIÊN TỰ MINH HOẠ BẰNG CODE/);
+    expect(system!.content).toMatch(/không thay phần giải thích bằng ảnh web có sẵn/);
+  });
+
+  it("transmits an explicit asset strategy in text-only authoring without any image", () => {
+    const [system] = buildAuthorMessages(
+      { text: "Giải thích cách cây quyết định phân nhánh", urls: [], assetStrategy: "visualize-first" },
+    );
+    expect(system!.content).toMatch(/ƯU TIÊN TỰ MINH HOẠ BẰNG CODE/);
+    // No image rule without images — only the strategy direction is added.
+    expect(system!.content).not.toMatch(/ẢNH NGƯỜI DÙNG ĐÍNH KÈM/);
+  });
+
+  it("keeps text-only authoring byte-identical when no asset strategy is chosen", () => {
+    const [system] = buildAuthorMessages({ text: "Chủ đề bất kỳ", urls: [] });
+    const text = system!.content as string;
+    expect(text).not.toMatch(/ƯU TIÊN TỰ MINH HOẠ BẰNG CODE/);
+    expect(text).not.toMatch(/CÂN BẰNG CODE VÀ ASSET/);
+    expect(text).not.toMatch(/ƯU TIÊN BẰNG CHỨNG THẬT/);
+    expect(text).not.toMatch(/ẢNH NGƯỜI DÙNG ĐÍNH KÈM/);
   });
 
   // --- format / tier / video-language are prompt-driven ---
@@ -994,3 +1051,124 @@ describe("buildVisualQaMessages", () => {
     expect(text).toMatch(/severity = "high" chỉ khi lỗi rõ ràng cần sửa/);
   });
 });
+
+describe("design token palette and geometric archetypes injection", () => {
+  it("defaults dominant color to #38BDF8 and injects Palette Token Contract into author prompt", () => {
+    const [system] = buildAuthorMessages({ text: "Chủ đề thử palette", urls: [] });
+    const text = system!.content as string;
+
+    expect(text).toContain('ACCENT_PRIMARY: "#38BDF8"');
+    expect(text).toContain('BG: "#0B0F17"');
+    expect(text).toContain('TEXT_PRIMARY: "#FFFFFF"');
+    expect(text).toContain('"theme": { "dominant": "#38BDF8" }');
+    expect(text).toMatch(/PALETTE TOKEN CONTRACT/);
+    expect(text).toMatch(/NGHIÊM CẤM: Không dùng mã hex ngoài bảng này/);
+    expect(text).toMatch(/THAY THẾ TOÀN BỘ CARD BẰNG 4 GEOMETRIC ARCHETYPES/);
+    expect(text).toMatch(/Pipeline Dataflow/);
+    expect(text).toMatch(/Dual Split-Core/);
+    expect(text).toMatch(/Metric Gauge/);
+    expect(text).toMatch(/Architecture Stack/);
+  });
+
+  it("injects custom dominant color from AuthorInput into author prompt and manifest skeleton", () => {
+    const [system] = buildAuthorMessages({
+      text: "Chủ đề thử custom color",
+      urls: [],
+      dominantColor: "#10B981",
+    });
+    const text = system!.content as string;
+
+    expect(text).toContain('ACCENT_PRIMARY: "#10B981"');
+    expect(text).toContain('"theme": { "dominant": "#10B981" }');
+  });
+
+  it("injects dominant color from manifest in batch author prompt", () => {
+    const messages = buildAuthorModuleBatchMessages({
+      input: { text: "Batch topic", urls: [] },
+      manifest: {
+        title: "Batch Title",
+        theme: { dominant: "#F59E0B" },
+        scenes: [{ component: "scene-01", eyebrow: "E", headline: "H", narration: "N", props: {} }],
+      },
+      componentIds: ["scene-01"],
+      batchIndex: 1,
+      batchCount: 1,
+      contentPlan: {
+        title: "Plan",
+        viewerPromise: "Promise",
+        hookType: "surprise",
+        first3SecondsLine: "Hook",
+        openLoop: "Loop",
+        payoff: "Payoff",
+        claims: [],
+        scenes: [{
+          sceneId: "scene-01",
+          purpose: "hook",
+          beat: "Beat",
+          narration: "N",
+          onScreenText: "H",
+          visualMetaphor: "VM",
+          motionProgression: "Quick entrance",
+          layoutFamily: "statement",
+          evidenceClaimIds: [],
+        }],
+      },
+    });
+    const text = messages[0]!.content as string;
+    expect(text).toContain('ACCENT_PRIMARY: "#F59E0B"');
+  });
+
+  it("injects custom dominant color into reauthor system prompt", () => {
+    const messages = buildReauthorMessages({
+      sceneId: "scene-01",
+      componentId: "scene-01",
+      currentCode: "// component: scene-01\nexport default 1;",
+      dominantColor: "#EC4899",
+    });
+    const system = messages[0]!.content as string;
+    expect(system).toContain('ACCENT_PRIMARY: "#EC4899"');
+    expect(system).toMatch(/PALETTE TOKEN CONTRACT/);
+  });
+
+  it("injects geometric archetypes into author prompt even when a content plan with presentation profile is provided", () => {
+    const plan: ContentPlan = {
+      title: "Plan with profile",
+      presentationProfile: "editorial-story",
+      viewerPromise: "Promise",
+      hookType: "surprise",
+      first3SecondsLine: "Hook",
+      openLoop: "Loop",
+      payoff: "Payoff",
+      claims: [],
+      scenes: [],
+    };
+    const [system] = buildAuthorMessages(
+      { text: "Chủ đề", urls: [], dominantColor: "#10B981" },
+      undefined,
+      undefined,
+      undefined,
+      plan,
+    );
+    const text = system!.content as string;
+    expect(text).toContain("Pipeline Dataflow");
+    expect(text).toContain("Dual Split-Core");
+    expect(text).toContain("Metric Gauge");
+    expect(text).toContain("Architecture Stack");
+    expect(text).toContain('ACCENT_PRIMARY: "#10B981"');
+    expect(text).toContain('stroke="#10B981"');
+    expect(text).not.toContain('stroke="#38BDF8"');
+    expect(text).toMatch(/LUẬT CHỐNG LẶP & CHỐNG CARD TRAP/);
+  });
+
+  it("expands 3-character hex colors in author prompt", () => {
+    const [system] = buildAuthorMessages({
+      text: "Chủ đề short hex",
+      urls: [],
+      dominantColor: "#38B",
+    });
+    const text = system!.content as string;
+    expect(text).toContain('ACCENT_PRIMARY: "#3388BB"');
+    expect(text).toContain('"theme": { "dominant": "#3388BB" }');
+  });
+});
+

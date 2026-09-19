@@ -88,6 +88,7 @@ function partialReply(): string {
 function validContentPlanReply(): string {
   const plan = {
     title: "Vì sao chip AI đắt",
+    presentationProfile: "mechanism-explainer",
     viewerPromise: "Người xem hiểu nút thắt khiến phần cứng AI trở nên đắt đỏ.",
     hookType: "contradiction",
     first3SecondsLine: "Con chip không đắt vì nó nhỏ. Nó đắt vì gần như không ai làm nổi.",
@@ -194,6 +195,7 @@ function longContentPlanReply(count: number, overrides: { unsupportedFirstScene?
   });
   return JSON.stringify({
     title: `Long plan ${count}`,
+    presentationProfile: "mechanism-explainer",
     viewerPromise: "The viewer follows the bottleneck without a giant monolithic code reply.",
     hookType: "surprise",
     first3SecondsLine: "The bottleneck shows up before the specs.",
@@ -249,8 +251,11 @@ function claimLedgerContentPlanReply(): string {
 
 function repairedClaimLedgerContentPlanReply(): string {
   const plan = JSON.parse(validContentPlanReply()) as {
+    presentationProfile: string;
     scenes: Array<{ narration: string; onScreenText: string; evidenceClaimIds: string[] }>;
   };
+  // Claim repair is not allowed to reroute the already chosen visual profile.
+  plan.presentationProfile = "editorial-story";
   plan.scenes[0] = {
     ...plan.scenes[0]!,
     narration:
@@ -301,7 +306,11 @@ function fakeLogger() {
 }
 
 function mockClient(chat: NineRouterClient["chat"]): NineRouterClient {
-  return { chat, chatStructured: chat } as unknown as NineRouterClient;
+  return {
+    chat,
+    chatStructured: async (model: string, messages: ChatMessage[], _format: { name: string }, options?: { apiKey?: string; signal?: AbortSignal }) =>
+      chat(model, messages, options),
+  } as unknown as NineRouterClient;
 }
 
 function makeBackend(
@@ -334,7 +343,25 @@ function authoredDir(projectId: string): string {
 describe("planContent", () => {
   it("uses the existing production planner without starting TSX authoring", async () => {
     const { backend, chat } = makeBackend();
-    const plan = await backend.planContent("agent-plan", {
+    const { contentPlan: plan, advisories } = await backend.planContent("agent-plan", {
+      text: "Giải thích vì sao chip AI đắt",
+      urls: [],
+      format: "tiktok",
+      durationTier: 1,
+      targetSeconds: 45,
+      videoLanguage: "vi",
+    }, new AbortController().signal);
+    expect(Array.isArray(advisories)).toBe(true);
+
+    expect(plan.scenes.map((scene) => scene.sceneId)).toEqual(["scene-01", "scene-02", "scene-03"]);
+    expect(chat).toHaveBeenCalledTimes(1);
+    expect(messageText(chat.mock.calls[0]![1])).toMatch(/CONTENT PLAN|kế hoạch/i);
+  });
+
+  it("returns planner advisories alongside the content plan as soft warnings", async () => {
+    const { backend } = makeBackend(validReply(), undefined, advisoryContentPlanReply());
+
+    const result = await backend.planContent("agent-plan-advisory", {
       text: "Giải thích vì sao chip AI đắt",
       urls: [],
       format: "tiktok",
@@ -343,10 +370,97 @@ describe("planContent", () => {
       videoLanguage: "vi",
     }, new AbortController().signal);
 
-    expect(plan.scenes.map((scene) => scene.sceneId)).toEqual(["scene-01", "scene-02", "scene-03"]);
-    expect(chat).toHaveBeenCalledTimes(1);
-    expect(messageText(chat.mock.calls[0]![1])).toMatch(/CONTENT PLAN|kế hoạch/i);
+    expect(result.contentPlan.scenes.length).toBeGreaterThan(0);
+    expect(result.advisories.length).toBeGreaterThan(0);
+    expect(result.advisories.every((issue) => issue.severity === "advisory")).toBe(true);
   });
+
+  function sourcedContentPlanReply(): string {
+    const plan = JSON.parse(validContentPlanReply()) as {
+      claims: unknown[];
+      scenes: Array<{ evidenceClaimIds: string[] }>;
+    };
+    plan.claims = [{
+      id: "claim-01",
+      text: "The lab measured 500 cycles in 2026.",
+      support: "source_material",
+      confidence: "supported",
+      action: "use",
+      sourceRef: { sourceId: "source-01", excerpt: "lab measured 500 cycles in 2026" },
+    }];
+    plan.scenes = plan.scenes.map((scene) => ({ ...scene, evidenceClaimIds: ["claim-01"] }));
+    return JSON.stringify(plan);
+  }
+
+  function unsourcedContentPlanReply(): string {
+    const plan = JSON.parse(validContentPlanReply()) as {
+      claims: unknown[];
+      scenes: Array<{ evidenceClaimIds: string[] }>;
+    };
+    plan.claims = [{
+      id: "claim-01",
+      text: "The lab measured 500 cycles in 2026.",
+      support: "source_material",
+      confidence: "supported",
+      action: "use",
+    }];
+    plan.scenes = plan.scenes.map((scene) => ({ ...scene, evidenceClaimIds: ["claim-01"] }));
+    return JSON.stringify(plan);
+  }
+
+  it("grounds factual Harness planning in labeled readable sources", async () => {
+    const body = "Báo cáo độc lập cho biết phòng lab measured 500 cycles in 2026 trong đợt thử nghiệm vừa qua với đầy đủ chứng cứ đi kèm.";
+    const { backend, chat } = makeBackend(validReply(), undefined, sourcedContentPlanReply());
+    const extractUrl = vi.fn(async (url: string) => ({
+      metadata: { sourceUrl: url, title: "Lab report", fetchedAt: "2026-01-01T00:00:00.000Z" },
+      body,
+      wordCount: 24,
+    }));
+    (backend as unknown as { deps: NineRouterBackendDeps }).deps.extractUrl = extractUrl;
+
+    const result = await backend.planContent("agent-plan-sourced", {
+      text: "Chip AI đắt vì khan hiếm",
+      urls: ["https://lab.example.com/report"],
+    }, new AbortController().signal);
+
+    expect(extractUrl).toHaveBeenCalledWith("https://lab.example.com/report", expect.anything());
+    expect(result.contentPlan.claims).toContainEqual(expect.objectContaining({ id: "claim-01", action: "use" }));
+    expect(messageText(chat.mock.calls[0]![1])).toContain("source-01");
+  });
+
+  it("enforces provenance when supplied sources are unreadable instead of silently skipping it", async () => {
+    const { backend } = makeBackend(validReply(), undefined, unsourcedContentPlanReply());
+    const extractUrl = vi.fn(async () => { throw new Error("HTTP 403"); });
+    (backend as unknown as { deps: NineRouterBackendDeps }).deps.extractUrl = extractUrl;
+
+    const result = await backend.planContent("agent-plan-unreadable", {
+      text: "Chip AI đắt vì khan hiếm",
+      urls: ["https://lab.example.com/report"],
+    }, new AbortController().signal);
+
+    expect(extractUrl).toHaveBeenCalledTimes(1);
+    // Provenance ran against an empty source set: the unusable
+    // source_material claim was demoted instead of passed through as usable.
+    expect(result.contentPlan.claims.filter((claim) => claim.support === "source_material" && claim.action === "use")).toEqual([]);
+  });
+
+  it("shows approved project image refs to the content planner", async () => {
+    const projectId = "pa-plan-images";
+    const assetsDir = join(home, ".video-tool", "projects", projectId, "assets");
+    mkdirSync(assetsDir, { recursive: true });
+    writeFileSync(join(assetsDir, "abc123.png"), Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
+    const { backend, chat } = makeBackend();
+
+    const result = await backend.planContent(projectId, {
+      text: "Chip AI đắt vì khan hiếm",
+      urls: [],
+      images: [{ ref: "assets/abc123.png", width: 800, height: 600 }],
+    }, new AbortController().signal);
+
+    expect(result.contentPlan.scenes.length).toBeGreaterThan(0);
+    expect(messageText(chat.mock.calls[0]![1])).toContain("assets/abc123.png");
+  });
+
 });
 
 describe("authorScenes (pure-author)", () => {
@@ -890,6 +1004,7 @@ describe("authorScenes (pure-author)", () => {
 
     expect(out.scenes).toEqual([]);
     expect(out.message).toMatch(/kế hoạch nội dung/i);
+    expect(out.message).not.toMatch(/mô tả rõ nguồn|mô tả rõ.*ý chính/i);
     expect(chat).toHaveBeenCalledTimes(1);
     const parseLog = logger.error.mock.calls.find((call) => call[1] === "content-plan parse invalid; content-plan parse failed");
     expect(parseLog?.[0]).toMatchObject({ projectId, reason: "no-json" });
@@ -932,6 +1047,9 @@ describe("authorScenes (pure-author)", () => {
     expect(repairText).toContain("CONTENT PLAN REPAIR");
     expect(repairText).toContain("claim-ledger @scene-01");
     expect(repairText).toContain("Do not make uncertain/omit claims supported");
+    const authorText = messageText(chat.mock.calls[2]![1] as ChatMessage[]);
+    expect(authorText).toContain("PRESENTATION PROFILE: mechanism-explainer");
+    expect(authorText).not.toContain("PRESENTATION PROFILE: editorial-story");
     expect(admitFiles).toHaveBeenCalledTimes(1);
   });
 

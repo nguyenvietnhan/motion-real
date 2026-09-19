@@ -4,6 +4,7 @@ import { mkdir, rename, rm, writeFile } from "node:fs/promises";
 import { dirname, extname } from "node:path";
 import { Readable, Transform } from "node:stream";
 import { pipeline } from "node:stream/promises";
+import { isVoiceProviderError } from "./provider-error.js";
 
 export type NormalizedAudio =
   | { kind: "url"; url: string }
@@ -111,10 +112,9 @@ export async function fetchWithRetry(
       }
     } catch (error) {
       if (options.signal?.aborted) throw abortError();
+      if (isVoiceProviderError(error) && !error.failure.retryable) throw error;
       if (attempt === attempts) {
-        throw new Error(
-          `${options.label} failed after ${attempts} attempt${attempts === 1 ? "" : "s"}: ${errorMessage(error)}`,
-        );
+        throw error;
       }
     }
     await sleep(backoffDelayMs(baseDelayMs, attempt), options.signal);
@@ -162,10 +162,6 @@ export function integerEnv(names: string[], fallback: number, range: { min: numb
     }
   }
   return fallback;
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }
 
 export function extensionFromUrl(url: string): string {

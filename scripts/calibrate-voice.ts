@@ -5,7 +5,6 @@ import {
   ELEVENLABS_DEFAULT_MODEL_ID,
   VIENEU_DEFAULT_VOICE_ID,
   VIENEU_RUNTIME_ID,
-  createTtsClient,
   defaultElevenLabsVoiceId,
   defaultVivibeVoiceId,
   elevenLabsApiKey,
@@ -14,7 +13,7 @@ import {
   type VoiceProvider,
   type TtsClient,
 } from "../packages/tts/src/index.js";
-import { videoToolHome } from "../packages/pipeline/src/index.js";
+import { createTtsClient, videoToolHome } from "../packages/pipeline/src/index.js";
 import {
   computeWordsPerSecond,
   voiceCalibrationKey,

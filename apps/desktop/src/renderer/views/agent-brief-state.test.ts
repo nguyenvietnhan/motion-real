@@ -14,6 +14,7 @@ const baseline: AgentBriefInput = {
   videoLanguage: "vi",
   voiceProvider: "vieneu",
   bgm: "motionreal-default.mp3",
+  assetStrategy: "balanced",
 };
 
 describe("Agent brief edit state", () => {
@@ -29,6 +30,7 @@ describe("Agent brief edit state", () => {
     expect(isAgentBriefInputDirty(baseline, { ...baseline, videoLanguage: "en" })).toBe(true);
     expect(isAgentBriefInputDirty(baseline, { ...baseline, voiceProvider: "vivibe" })).toBe(true);
     expect(isAgentBriefInputDirty(baseline, { ...baseline, bgm: "other.mp3" })).toBe(true);
+    expect(isAgentBriefInputDirty(baseline, { ...baseline, assetStrategy: "visualize-first" })).toBe(true);
     expect(isAgentBriefInputDirty(baseline, { ...baseline })).toBe(false);
   });
 

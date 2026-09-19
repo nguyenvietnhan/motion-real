@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { agentProjectProgress, shouldPollAgentActivities, shouldPollProjectStage } from "../../shared/agent-project-progress.js";
 import { reviewModeAllowsSceneEdit } from "../../shared/settings-model.js";
 import type {
+  AgentAssetStrategy,
   AgentBriefInput,
   AgentDraftVM,
   AgentProductionState,
@@ -13,6 +14,7 @@ import type {
   ReviewMode,
   VoiceProviderChoice,
 } from "../../shared/types.js";
+import { DEFAULT_AGENT_ASSET_STRATEGY } from "../../shared/types.js";
 import { Icon } from "../icons.js";
 import { ConfirmDialog, CustomSelect, EmptyState, LoadingLine, PageHeader, Spinner, StableButtonLabel } from "../primitives.js";
 import { useDismissable } from "../use-dismissable.js";
@@ -47,6 +49,81 @@ const PRODUCTION_LABELS: Record<AgentProductionState, string> = {
   error: "Cần xử lý lỗi",
 };
 
+export const REVIEW_MODE_LABELS: Record<ReviewMode, string> = {
+  full: "Bản nháp & duyệt cảnh",
+  stills_edit: "Duyệt ảnh tĩnh",
+  skip_edit: "Tự động xuất video",
+};
+
+export function safeScaffoldErrorMessage(error: unknown): string {
+  const fallback = "Không thể khởi tạo dự án MotionReal. Vui lòng thử lại.";
+  if (!error) return fallback;
+  const message = error instanceof Error ? error.message : typeof error === "string" ? error : "";
+  if (!message || typeof message !== "string") return fallback;
+  const trimmed = message.trim();
+  if (
+    /[\\/]/.test(trimmed) ||
+    /[a-zA-Z]:/.test(trimmed) ||
+    /https?:\/\//i.test(trimmed) ||
+    /at\s+[^\n]+:\d+/i.test(trimmed) ||
+    /\b(key|secret|token|credential|bearer|password)\b/i.test(trimmed) ||
+    trimmed.length > 180
+  ) {
+    return fallback;
+  }
+  return trimmed;
+}
+
+export class AgentErrorBoundary extends React.Component<
+  { onReset?: () => void; fallback?: (error: Error, reset: () => void) => React.ReactNode; children: React.ReactNode },
+  { error: Error | null }
+> {
+  private isMountedComponent = false;
+
+  constructor(props: { onReset?: () => void; fallback?: (error: Error, reset: () => void) => React.ReactNode; children: React.ReactNode }) {
+    super(props);
+    this.state = { error: null };
+  }
+  static getDerivedStateFromError(error: Error): { error: Error } {
+    return { error };
+  }
+  componentDidMount(): void {
+    this.isMountedComponent = true;
+  }
+  componentWillUnmount(): void {
+    this.isMountedComponent = false;
+  }
+  reset = (): void => {
+    this.props.onReset?.();
+    this.state = { error: null };
+    if (this.isMountedComponent) {
+      this.setState({ error: null });
+    }
+  };
+  render(): React.ReactNode {
+    if (this.state.error) {
+      if (this.props.fallback) {
+        return this.props.fallback(this.state.error, this.reset);
+      }
+      return (
+        <div className="ns-content">
+          <EmptyState
+            icon={Icon.warn({ size: 34 })}
+            title="Đã xảy ra sự cố giao diện"
+            hint={this.state.error.message || "Giao diện Video Agent gặp sự cố không mong muốn."}
+            action={
+              <button type="button" className="ns-btn" onClick={this.reset}>
+                {Icon.refresh({ size: 15 })} Thử lại giao diện
+              </button>
+            }
+          />
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 const ASSET_ROLE_LABEL = { hero: "Ảnh chính", support: "Bổ trợ", logo: "Logo", icon: "Icon" } as const;
 type Run = (work: () => Promise<void>) => Promise<void>;
 type BriefDiscardRequest = { action: BriefDiscardAction; feedback?: string };
@@ -65,6 +142,7 @@ function briefInputFor(
     videoLanguage: brief.videoLanguage,
     voiceProvider,
     bgm,
+    assetStrategy: DEFAULT_AGENT_ASSET_STRATEGY,
   };
 }
 
@@ -103,7 +181,7 @@ export const AgentView: React.FC<{
       const progress = await Promise.all(listed.map(async (draft) => {
         if (!draft.projectId) return null;
         try {
-          return [draft.id, agentProjectProgress(await window.dashboard.projects.stage(draft.projectId))] as const;
+          return [draft.id, agentProjectProgress(await window.dashboard.projects.stage(draft.projectId), draft.productionState)] as const;
         } catch (_error) {
           return null;
         }
@@ -210,7 +288,7 @@ export const AgentView: React.FC<{
         void refresh();
       }}
       onDraftChange={(next) => {
-        setActive(next);
+        setActive((current) => (current?.id === next.id ? next : current));
         setDrafts((current) => current.map((item) => (item.id === next.id ? next : item)));
       }}
       run={run}
@@ -480,7 +558,7 @@ type AgentWorkspaceProps = {
 
 export const AgentWorkspace: React.FC<AgentWorkspaceProps> = ({
   draft,
-  reviewMode: _reviewMode,
+  reviewMode,
   defaultDurationTier = 2,
   defaultVoiceProvider = "vivibe",
   bgm = [],
@@ -504,15 +582,33 @@ export const AgentWorkspace: React.FC<AgentWorkspaceProps> = ({
   const [settings, setSettings] = useState<AgentSettingsVM | null>(null);
   const [settingsError, setSettingsError] = useState<string | null>(null);
   const [searchApiKey, setSearchApiKey] = useState("");
-  const [pendingFullAccess, setPendingFullAccess] = useState(false);
   const [frameKey, setFrameKey] = useState(0);
   const [frameFailed, setFrameFailed] = useState(false);
   const [showNativeChat, setShowNativeChat] = useState(false);
   const [createStartFailed, setCreateStartFailed] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
+
+  const activeDraftIdRef = useRef(draft.id);
+  useEffect(() => {
+    activeDraftIdRef.current = draft.id;
+  }, [draft.id]);
 
   useEffect(() => {
     setCreateStartFailed(false);
-  }, [draft.id, draft.workflowRevision]);
+    setCreateError(null);
+    setProjectStage(null);
+  }, [draft.id]);
+
+  useEffect(() => {
+    if (draft.productionState !== "queued_create") {
+      setCreateStartFailed(false);
+      setCreateError(null);
+    }
+  }, [draft.productionState]);
+
+  useEffect(() => {
+    if (draft.needsAttention) setShowNativeChat(true);
+  }, [draft.id, draft.needsAttention]);
 
   useEffect(() => {
     if (!shouldPollAgentActivities(draft.productionState, showNativeChat)) return;
@@ -549,10 +645,16 @@ export const AgentWorkspace: React.FC<AgentWorkspaceProps> = ({
   }, [draft.id, draft.briefReview?.revision]);
 
   useEffect(() => {
-    if (!draft.projectId) {
+    const currentDraftId = draft.id;
+    const isProjectLinkedActive = Boolean(
+      draft.projectId &&
+      ["authoring", "visual_refine", "scene_review", "paused"].includes(draft.productionState),
+    );
+    if (!isProjectLinkedActive) {
       setProjectStage(null);
       return;
     }
+    setProjectStage(null);
     let alive = true;
     let refreshInFlight = false;
     let fallbackTimer: number | undefined;
@@ -572,9 +674,9 @@ export const AgentWorkspace: React.FC<AgentWorkspaceProps> = ({
       refreshInFlight = true;
       try {
         const next = await window.dashboard.projects.stage(draft.projectId!);
-        if (alive) {
+        if (alive && activeDraftIdRef.current === currentDraftId) {
           setProjectStage(next);
-          if (shouldPollProjectStage(agentProjectProgress(next))) scheduleFallback();
+          if (shouldPollProjectStage(agentProjectProgress(next, draft.productionState))) scheduleFallback();
           else clearFallback();
         }
       } catch (_error) {
@@ -585,7 +687,7 @@ export const AgentWorkspace: React.FC<AgentWorkspaceProps> = ({
     };
     void refreshStage();
     const refreshForProject = (event: { projectId?: string }) => {
-      if (event.projectId === draft.projectId) {
+      if (event.projectId === draft.projectId && activeDraftIdRef.current === currentDraftId) {
         clearFallback();
         void refreshStage();
       }
@@ -599,22 +701,50 @@ export const AgentWorkspace: React.FC<AgentWorkspaceProps> = ({
       clearFallback();
       unsubscribe.forEach((stop) => stop());
     };
-  }, [draft.projectId]);
+  }, [draft.id, draft.projectId, draft.productionState]);
 
-  const updateDraft = async (work: () => Promise<AgentDraftVM>): Promise<void> => {
-    await run(async () => onDraftChange(await work()));
-  };
+  const updateDraft = useCallback(async (work: () => Promise<AgentDraftVM>): Promise<void> => {
+    const currentDraftId = draft.id;
+    await run(async () => {
+      const next = await work();
+      if (activeDraftIdRef.current === currentDraftId) {
+        onDraftChange(next);
+      }
+    });
+  }, [draft.id, onDraftChange, run]);
 
-  const startProject = async (): Promise<void> => {
+  const startProject = useCallback(async (): Promise<void> => {
+    const currentDraftId = draft.id;
     try {
-      await window.dashboard.agent.createVideo(draft.id);
-      onDraftChange(await window.dashboard.agent.status(draft.id));
-      setCreateStartFailed(false);
+      setCreateError(null);
+      await window.dashboard.agent.createVideo(currentDraftId);
+      const next = await window.dashboard.agent.status(currentDraftId);
+      if (activeDraftIdRef.current === currentDraftId) {
+        onDraftChange(next);
+        setCreateStartFailed(false);
+      }
     } catch (error) {
-      setCreateStartFailed(true);
+      if (activeDraftIdRef.current === currentDraftId) {
+        setCreateError(safeScaffoldErrorMessage(error));
+        setCreateStartFailed(true);
+      }
+      try {
+        const next = await window.dashboard.agent.status(currentDraftId);
+        if (activeDraftIdRef.current === currentDraftId) {
+          onDraftChange(next);
+        }
+      } catch (_statusError) {
+        /* Keep the original create failure; the next normal refresh can recover status. */
+      }
       throw error;
     }
-  };
+  }, [draft.id, onDraftChange]);
+
+  const returnToDiscovery = useCallback(async (): Promise<void> => {
+    const currentDraftId = draft.id;
+    const currentRevision = draft.workflowRevision;
+    await updateDraft(async () => window.dashboard.agent.returnToDiscovery(currentDraftId, currentRevision));
+  }, [draft.id, draft.workflowRevision, updateDraft]);
 
   const completeBriefDiscard = (request: BriefDiscardRequest): void => {
     if (request.action === "back") {
@@ -642,7 +772,9 @@ export const AgentWorkspace: React.FC<AgentWorkspaceProps> = ({
     completeBriefDiscard(request);
   };
 
-  const liveProgress = projectStage ? agentProjectProgress(projectStage) : null;
+  const liveProgress = draft.projectId && projectStage
+    ? agentProjectProgress(projectStage, draft.productionState)
+    : null;
   const displayedState = liveProgress?.state ?? draft.productionState;
   const progressLabel = liveProgress?.label ?? PRODUCTION_LABELS[draft.productionState];
   const reviewObscuresChat = Boolean(
@@ -652,10 +784,13 @@ export const AgentWorkspace: React.FC<AgentWorkspaceProps> = ({
   const showProjectSurface = Boolean(
     draft.projectId
       && projectStage
+      && draft.productionState === "scene_review"
       && (liveProgress?.state === "scene_review" || liveProgress?.state === "published" || liveProgress?.state === "error"),
   );
+  const agentErrorObscuresChat = draft.productionState === "error" && !showProjectSurface;
+  const isCreateFailed = draft.productionState === "queued_create" && createStartFailed;
   const workflowObscuresChat =
-    !showNativeChat && !reviewObscuresChat && !showProjectSurface &&
+    !showNativeChat && !reviewObscuresChat && !showProjectSurface && !agentErrorObscuresChat && !isCreateFailed &&
     ([
       "collecting_assets",
       "preparing_brief",
@@ -720,14 +855,14 @@ export const AgentWorkspace: React.FC<AgentWorkspaceProps> = ({
         icon: Icon.refresh({ size: 15 }),
         run: () => updateDraft(() => window.dashboard.agent.prepareBrief(draft.id, draft.workflowRevision)),
       };
-    if (draft.createReady)
+    if (draft.createReady && !isCreateFailed)
       return {
-        label: createStartFailed ? "Thử bắt đầu dựng" : "Bắt đầu dựng",
+        label: "Bắt đầu dựng",
         icon: Icon.spark({ size: 15 }),
         run: () => run(startProject),
       };
     return null;
-  }, [createStartFailed, draft, liveProgress?.canCancel, liveProgress?.state, startProject]);
+  }, [draft, isCreateFailed, liveProgress?.canCancel, liveProgress?.state, run, startProject, updateDraft]);
 
   return (
     <section className="ns-agent-view ns-agent-workspace" aria-label={`Video Agent ${draft.title}`}>
@@ -744,7 +879,8 @@ export const AgentWorkspace: React.FC<AgentWorkspaceProps> = ({
         </button>
         <div className="ns-agent-workspace-title">
           <strong>{draft.title}</strong>
-          <span>{progressLabel}</span>
+          <span className="ns-agent-workspace-progress">{progressLabel}</span>
+          <span className="ns-agent-review-mode-chip">{REVIEW_MODE_LABELS[reviewMode] ?? reviewMode}</span>
         </div>
         <div className="ns-agent-workspace-actions">
           {contextualAction && (
@@ -773,14 +909,10 @@ export const AgentWorkspace: React.FC<AgentWorkspaceProps> = ({
         </div>
       </header>
 
-      {notice && (
+      <AgentErrorBoundary>
+        {notice && (
         <p className="ns-agent-notice" role="status">
           {notice}
-        </p>
-      )}
-      {draft.sessionAccess === "legacy-approval" && (
-        <p className="ns-agent-notice is-warning" role="status">
-          Phiên cũ có thể yêu cầu duyệt quyền ngay trong chat.
         </p>
       )}
       {draft.assetCollectionError && (
@@ -804,11 +936,13 @@ export const AgentWorkspace: React.FC<AgentWorkspaceProps> = ({
               width: asset.width,
               height: asset.height,
               sourceUrl: asset.sourceUrl,
-              label: `${asset.label} · ${ASSET_ROLE_LABEL[asset.role]}`,
+              label: asset.label,
+              badge: `${ASSET_ROLE_LABEL[asset.role]} · Agent đề xuất`,
               suggested: draft.selectedAssetIds === undefined || draft.selectedAssetIds.includes(asset.id),
             }))}
             initialSelectedRefs={draft.selectedAssetIds ?? draft.assetReview.map((asset) => asset.id)}
             approveLabel="Chấp nhận"
+            helpText="Chọn asset Agent được phép dùng. Nhãn trên ảnh là vai trò Agent đề xuất; bạn vẫn quyết định giữ hoặc bỏ từng asset."
             onRequestMore={(ids, note) => {
               void updateDraft(() =>
                 window.dashboard.agent.requestMoreAssets(draft.id, draft.workflowRevision, ids, note),
@@ -863,7 +997,7 @@ export const AgentWorkspace: React.FC<AgentWorkspaceProps> = ({
           stage={projectStage}
           projectId={draft.projectId}
           hideHeader
-          allowSceneEdit={reviewModeAllowsSceneEdit(_reviewMode)}
+          allowSceneEdit={reviewModeAllowsSceneEdit(reviewMode)}
           loadDiagnostics={(id) => window.dashboard.projects.diagnostics(id)}
           onBack={onBack}
           onRetry={() => {
@@ -893,6 +1027,52 @@ export const AgentWorkspace: React.FC<AgentWorkspaceProps> = ({
         />
       )}
 
+      {agentErrorObscuresChat && (
+        <div className="ns-content">
+          <EmptyState
+            icon={Icon.film({ size: 34 })}
+            title="Chưa hoàn tất bước này"
+            hint={draft.lastError ?? "Agent gặp lỗi trong quy trình hiện tại."}
+            action={
+              !draft.projectId ? (
+                <button
+                  type="button"
+                  className="ns-btn"
+                  onClick={() => {
+                    void returnToDiscovery().catch((_error) => undefined);
+                  }}
+                  disabled={busy}
+                >
+                  {Icon.chevronLeft({ size: 15 })} Quay lại trao đổi
+                </button>
+              ) : undefined
+            }
+          />
+        </div>
+      )}
+
+      {isCreateFailed && (
+        <div className="ns-content">
+          <EmptyState
+            icon={Icon.warn({ size: 34 })}
+            title="Chưa thể tạo dự án"
+            hint={createError ?? "Không thể khởi tạo dự án MotionReal."}
+            action={
+              <button
+                type="button"
+                className="ns-btn ns-btn-primary"
+                onClick={() => {
+                  void run(startProject).catch((_error) => undefined);
+                }}
+                disabled={busy}
+              >
+                {Icon.spark({ size: 15 })} Thử bắt đầu dựng
+              </button>
+            }
+          />
+        </div>
+      )}
+
       {workflowObscuresChat && (
         <AgentWorkflowProgress
           label={progressLabel}
@@ -910,7 +1090,7 @@ export const AgentWorkspace: React.FC<AgentWorkspaceProps> = ({
         </div>
       )}
 
-      {!reviewObscuresChat && !showProjectSurface && !workflowObscuresChat && draft.harnessUrl && !frameFailed && (
+      {!reviewObscuresChat && !showProjectSurface && !workflowObscuresChat && !agentErrorObscuresChat && !isCreateFailed && draft.harnessUrl && !frameFailed && (
         <iframe
           key={`${draft.harnessUrl}-${frameKey}`}
           className="ns-agent-frame"
@@ -923,7 +1103,7 @@ export const AgentWorkspace: React.FC<AgentWorkspaceProps> = ({
         />
       )}
 
-      {!reviewObscuresChat && !showProjectSurface && !workflowObscuresChat && (!draft.harnessUrl || frameFailed) && (
+      {!reviewObscuresChat && !showProjectSurface && !workflowObscuresChat && !agentErrorObscuresChat && !isCreateFailed && (!draft.harnessUrl || frameFailed) && (
         <div className="ns-agent-placeholder">
           <Spinner />
           <p>{frameFailed ? "Không mở được cuộc trò chuyện Agent." : "Đang khởi động Agent…"}</p>
@@ -941,6 +1121,7 @@ export const AgentWorkspace: React.FC<AgentWorkspaceProps> = ({
           )}
         </div>
       )}
+      </AgentErrorBoundary>
 
       <AgentSettingsDialog
         open={settingsOpen}
@@ -975,15 +1156,6 @@ export const AgentWorkspace: React.FC<AgentWorkspaceProps> = ({
             (error) => setSettingsError(error instanceof Error ? error.message : "Không đổi được model."),
           )
         }
-        onAccess={(presetId, confirmation) => {
-          if (confirmation) {
-            setPendingFullAccess(true);
-            return;
-          }
-          void run(async () => setSettings(await window.dashboard.agent.setAccess(draft.id, presetId))).catch(
-            (error) => setSettingsError(error instanceof Error ? error.message : "Không đổi được quyền truy cập."),
-          );
-        }}
       />
       <ConfirmDialog
         open={Boolean(pendingBriefDiscard)}
@@ -996,21 +1168,6 @@ export const AgentWorkspace: React.FC<AgentWorkspaceProps> = ({
           const request = pendingBriefDiscard;
           setPendingBriefDiscard(null);
           if (request) completeBriefDiscard(request);
-        }}
-      />
-      <ConfirmDialog
-        open={pendingFullAccess}
-        title="Cho phép toàn quyền?"
-        message="Agent có thể dùng terminal và thay đổi mọi file mà Harness truy cập được. Chỉ bật khi bạn tin tưởng yêu cầu hiện tại."
-        confirmLabel="Bật toàn quyền"
-        cancelLabel="Huỷ"
-        danger
-        onCancel={() => setPendingFullAccess(false)}
-        onConfirm={() => {
-          setPendingFullAccess(false);
-          void run(async () =>
-            setSettings(await window.dashboard.agent.setAccess(draft.id, "danger-full-access")),
-          ).catch((error) => setSettingsError(error instanceof Error ? error.message : "Không đổi được quyền truy cập."));
         }}
       />
     </section>
@@ -1080,7 +1237,7 @@ const BriefReview: React.FC<{
   onApprove: () => void;
   onRequestChanges: (feedback: string) => void;
 }> = ({ draft, input, busy, bgm, onAddBgm, onRemoveBgm, onInput, onContinue, onReturn, onApprove, onRequestChanges }) => {
-  const [openKnob, setOpenKnob] = useState<null | "duration" | "language" | "voice">(null);
+  const [openKnob, setOpenKnob] = useState<null | "duration" | "language" | "voice" | "asset-strategy">(null);
   const [editPromptOpen, setEditPromptOpen] = useState(false);
   const [feedback, setFeedback] = useState("");
   const [copiedPrompt, setCopiedPrompt] = useState(false);
@@ -1184,6 +1341,20 @@ const BriefReview: React.FC<{
                 if (input.bgm === name) onInput({ ...input, bgm: null });
               }}
               onSelect={(name) => onInput({ ...input, bgm: name })}
+            />
+            <KnobButton
+              icon={Icon.image({ size: 14 })}
+              title="Ưu tiên hình ảnh"
+              value={input.assetStrategy ?? DEFAULT_AGENT_ASSET_STRATEGY}
+              open={openKnob === "asset-strategy"}
+              onToggle={() => setOpenKnob((k) => (k === "asset-strategy" ? null : "asset-strategy"))}
+              onClose={() => setOpenKnob(null)}
+              onChange={(assetStrategy: AgentAssetStrategy) => onInput({ ...input, assetStrategy })}
+              options={[
+                { value: "visualize-first", label: "Tự minh hoạ" },
+                { value: "balanced", label: "Cân bằng" },
+                { value: "evidence-first", label: "Ảnh thật" },
+              ]}
             />
           </div>
         </div>
@@ -1364,7 +1535,6 @@ export const AgentSettingsDialog: React.FC<{
   onSearchProvider: (provider: AgentSearchProvider) => void;
   onSaveSearchKey: () => void;
   onModel: (modelId: string) => void;
-  onAccess: (presetId: string, requiresConfirmation: boolean) => void;
 }> = ({
   open,
   busy,
@@ -1376,7 +1546,6 @@ export const AgentSettingsDialog: React.FC<{
   onSearchProvider,
   onSaveSearchKey,
   onModel,
-  onAccess,
 }) => {
   const [showKey, setShowKey] = useState(false);
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -1398,7 +1567,7 @@ export const AgentSettingsDialog: React.FC<{
             <h2 id="agent-settings-title" className="ns-modal-title">
               Cài đặt Agent
             </h2>
-            <p>Cấu hình công cụ tìm kiếm, model và quyền hạn cho workspace này.</p>
+            <p>Cấu hình công cụ tìm kiếm và model cho workspace này.</p>
           </div>
           <button
             type="button"
@@ -1518,42 +1687,6 @@ export const AgentSettingsDialog: React.FC<{
 
             </div>
 
-            {/* Access Permissions */}
-            <div className="ns-agent-settings-card">
-              <div className="ns-agent-settings-card-head">
-                <span className="ns-agent-settings-card-title">Quyền hạn phiên làm việc</span>
-                <span className="ns-agent-settings-card-desc">Kiểm soát mức độ truy cập tệp và terminal của Agent.</span>
-              </div>
-              <div className="ns-agent-settings-fields">
-                {settings.accessOptions.length === 0 ? (
-                  <small className="ns-agent-settings-hint">Runtime không cung cấp preset quyền.</small>
-                ) : (
-                  <div className="ns-agent-access-options">
-                    {settings.accessOptions.map((option) => {
-                      const isSelected = settings.currentAccessId === option.id;
-                      return (
-                        <label
-                          key={option.id}
-                          className={`ns-agent-access-card${isSelected ? " is-selected" : ""}`}
-                        >
-                          <input
-                            type="radio"
-                            name="agent-access"
-                            checked={isSelected}
-                            disabled={busy}
-                            onChange={() => onAccess(option.id, option.requiresConfirmation)}
-                          />
-                          <div className="ns-agent-access-copy">
-                            <strong>{option.label}</strong>
-                            {option.description && <small>{option.description}</small>}
-                          </div>
-                        </label>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            </div>
           </div>
         )}
       </section>

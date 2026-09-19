@@ -1,8 +1,5 @@
 import { z } from "zod";
-import {
-  resolveSceneMotionBeatAnchors,
-  SceneMotionBeatSchema,
-} from "@motionreal/schema";
+import { SceneMotionBeatSchema } from "@motionreal/schema";
 
 const HookTypeSchema = z.enum(["surprise", "number", "contradiction", "question", "visual-shock", "stakes"]);
 const ClaimSupportSchema = z.enum(["user_brief", "source_material", "common_knowledge"]);
@@ -13,6 +10,36 @@ export const ScenePurposeSchema = z.enum(SCENE_PURPOSE_VALUES);
 const LayoutFamilySchema = z.enum(["big-number", "two-column", "timeline", "diagram", "list", "signature-visual", "statement"]);
 export const SceneTemporalModeSchema = z.enum(["static", "stepped", "continuous"]);
 export const SceneDetailModeSchema = z.enum(["normal", "fine"]);
+export const PRESENTATION_PROFILE_VALUES = [
+  "editorial-story",
+  "mechanism-explainer",
+  "evidence-explainer",
+  "procedural-guide",
+  "comparison-decision",
+  "narrative-conceptual",
+  "product-showcase",
+] as const;
+export const PresentationProfileSchema = z.enum(PRESENTATION_PROFILE_VALUES);
+
+const LegacySceneVisualBeatStateSchema = z
+  .object({
+    beatId: z.string().min(1).max(32).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
+    visibleState: z.string().min(1).max(320),
+    change: z.string().min(1).max(320),
+  })
+  .strict();
+
+const LegacySceneVisualPlanSchema = z
+  .object({
+    focalObject: z.string().min(1).max(320),
+    supportingObjects: z.array(z.string().min(1).max(200)).max(8),
+    composition: z.string().min(1).max(400),
+    initialState: z.string().min(1).max(400),
+    beatStates: z.array(LegacySceneVisualBeatStateSchema).max(4),
+    finalState: z.string().min(1).max(400),
+    avoid: z.array(z.string().min(1).max(200)).max(8),
+  })
+  .strict();
 
 export const SourceRefSchema = z
   .object({
@@ -47,16 +74,10 @@ export const ContentPlanSceneSchema = z
     detailMode: SceneDetailModeSchema.optional(),
     layoutFamily: LayoutFamilySchema,
     evidenceClaimIds: z.array(z.string()),
+    /** Read-only compatibility for plans created by the removed visual-planning pass. */
+    visualPlan: LegacySceneVisualPlanSchema.optional(),
   })
-  .strict()
-  .superRefine((scene, ctx) => {
-    if (!scene.motionBeats) return;
-    const resolved = resolveSceneMotionBeatAnchors(scene.narration, scene.motionBeats);
-    if (resolved.ok) return;
-    for (const message of resolved.errors) {
-      ctx.addIssue({ code: "custom", path: ["motionBeats"], message });
-    }
-  });
+  .strict();
 
 export const ContentPlanSchema = z
   .object({
@@ -66,6 +87,8 @@ export const ContentPlanSchema = z
     first3SecondsLine: z.string().min(1),
     openLoop: z.string().min(1),
     payoff: z.string().min(1),
+    /** Optional only so content-plan artifacts created before profile routing remain readable. */
+    presentationProfile: PresentationProfileSchema.optional(),
     claims: z.array(ContentPlanClaimSchema),
     scenes: z.array(ContentPlanSceneSchema).min(1),
   })
@@ -113,6 +136,7 @@ export type ContentPlan = z.infer<typeof ContentPlanSchema>;
 export type ScenePurpose = z.infer<typeof ScenePurposeSchema>;
 export type SceneTemporalMode = z.infer<typeof SceneTemporalModeSchema>;
 export type SceneDetailMode = z.infer<typeof SceneDetailModeSchema>;
+export type PresentationProfile = z.infer<typeof PresentationProfileSchema>;
 
 /** Scenes whose approved motion intent explicitly requires ordered visual change. */
 export function semanticMotionSceneIds(plan: ContentPlan, scope?: readonly string[]): string[] {
@@ -136,7 +160,7 @@ export function contentPlanForAuthoring(plan: ContentPlan): ContentPlan {
   return {
     ...plan,
     claims: usableClaims(plan),
-    scenes: plan.scenes.map((scene) => ({
+    scenes: plan.scenes.map(({ visualPlan: _legacyVisualPlan, ...scene }) => ({
       ...scene,
       evidenceClaimIds: scene.evidenceClaimIds.filter((claimId) => usableIds.has(claimId)),
     })),

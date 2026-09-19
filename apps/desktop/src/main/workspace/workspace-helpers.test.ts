@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { combineIntent, linkWarningOf, stageToFriendlyStatus } from "./workspace-helpers.js";
+import { combineIntent, isMissingFileError, linkWarningOf, stageToFriendlyStatus } from "./workspace-helpers.js";
 
 describe("workspace helpers", () => {
   it("maps workspace stages to friendly gallery statuses", () => {
@@ -26,5 +26,11 @@ describe("workspace helpers", () => {
     expect(linkWarningOf(2, ["https://a.example", "https://b.example"])).toBe(
       "Không đọc được 2/2 đường dẫn. Nội dung liên quan dựa trên hiểu biết của AI.",
     );
+  });
+
+  it("distinguishes an expected missing artifact from a corrupt timeline read", () => {
+    expect(isMissingFileError(Object.assign(new Error("missing"), { code: "ENOENT" }))).toBe(true);
+    expect(isMissingFileError(Object.assign(new Error("denied"), { code: "EACCES" }))).toBe(false);
+    expect(isMissingFileError(new Error("invalid JSON"))).toBe(false);
   });
 });

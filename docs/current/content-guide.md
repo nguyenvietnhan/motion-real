@@ -106,11 +106,18 @@ scene. Missing or generic motion intent is treated as authoring guidance debt,
 not as a reason to fail an otherwise safe story plan.
 
 For a scene with at least two viewer-visible states, the planner also supplies
-2–4 `motionBeats`. Each beat has a unique id, an exact 2–8 word narration
-anchor, and a meaningful visual action. MotionReal owns these beats and resolves
+2–4 `motionBeats`. Each beat has a unique id, an exact 1–8 word narration
+anchor, and an action naming the persistent object, its visible before-state,
+the transformation or decision, and its visible after-state. Generic actions
+such as "show", "reveal", or "highlight" alone are insufficient. MotionReal owns these beats and resolves
 their cue frames from TTS/SRT timing (or deterministic estimated word timing for
 preview); the TSX author cannot replace them. Single statements, logo reveals,
 simple hooks, and final payoffs may deliberately omit beats.
+
+Motion beats are best-effort presentation metadata, not a pipeline gate. MotionReal
+does not guess or repair invalid beats. If their shape, anchors, uniqueness, or
+order is invalid, it drops only that scene's cue metadata, logs a warning, and
+keeps the scene on relative authored timing.
 
 Every newly generated scene also declares review intent. `temporalMode` is
 `static` for one-state scenes, `stepped` for discrete lists/processes/comparisons,

@@ -19,7 +19,8 @@ export const ImageReviewView: React.FC<{
   initialSelectedRefs?: string[];
   onRequestMore?: (selectedRefs: string[], note: string) => void;
   approveLabel?: string;
-}> = ({ images, onSubmit, initialSelectedRefs, onRequestMore, approveLabel }) => {
+  helpText?: string;
+}> = ({ images, onSubmit, initialSelectedRefs, onRequestMore, approveLabel, helpText }) => {
   // Pre-tick the AI-suggested images (when the AI-filter ran); otherwise nothing
   // is checked and the user opts images in.
   const [checked, setChecked] = useState<Record<string, boolean>>(
@@ -48,7 +49,7 @@ export const ImageReviewView: React.FC<{
     <div className="ns-image-review">
       <div className="ns-card ns-image-review-bar">
         <p className="ns-image-review-help">
-          Chọn ảnh đưa vào video. AI tự xếp cảnh. Ảnh đề xuất đã tick sẵn.
+          {helpText ?? "Chọn ảnh đưa vào video. AI tự xếp cảnh. Ảnh đề xuất đã tick sẵn."}
         </p>
         <div className="ns-image-review-actions">
           <button type="button" className="ns-btn" onClick={() => submit([])} disabled={submitting}>
@@ -112,7 +113,9 @@ export const ImageReviewView: React.FC<{
               <span className={`ns-image-tile-check${on ? " is-on" : ""}`} aria-hidden="true">
                 {on ? "✓" : ""}
               </span>
-              {img.suggested && <span className="ns-image-tile-badge">AI đề xuất</span>}
+              {(img.badge ?? (img.suggested ? "AI đề xuất" : undefined)) && (
+                <span className="ns-image-tile-badge">{img.badge ?? "AI đề xuất"}</span>
+              )}
               <span className="ns-image-tile-caption">
                 {img.label ? `${img.label} · ` : ""}{host(img.sourceUrl)} · {img.width}×{img.height}
               </span>

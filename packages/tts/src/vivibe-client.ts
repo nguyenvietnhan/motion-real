@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
 import { mkdir, readFile, rm } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { dirname } from "node:path";
 import { measureAudioDuration, type ProcessOptions } from "./audio-ops.js";
 import {
   downloadAudio,
@@ -26,6 +26,9 @@ export type VivibeClientOptions = {
   pollTimeoutMs?: number;
   retryAttempts?: number;
   retryBaseDelayMs?: number;
+  apiFetch?: typeof fetch;
+  audioFetch?: typeof fetch;
+  textFetch?: typeof fetch;
   fetch?: typeof fetch;
   measureDuration?: (audioPath: string, options?: ProcessOptions) => Promise<number>;
 };
@@ -43,7 +46,9 @@ export class VivibeClient implements TtsClient {
   private pollTimeoutMs: number;
   private retryAttempts: number;
   private retryBaseDelayMs: number;
-  private fetchImpl: typeof fetch;
+  private apiFetch: typeof fetch;
+  private audioFetch: typeof fetch;
+  private textFetch: typeof fetch;
   private measureDuration: (audioPath: string, options?: ProcessOptions) => Promise<number>;
 
   constructor(options: VivibeClientOptions = {}) {
@@ -53,7 +58,10 @@ export class VivibeClient implements TtsClient {
     this.pollTimeoutMs = options.pollTimeoutMs ?? Number(process.env.LUCYLAB_POLL_TIMEOUT_MS ?? 300000);
     this.retryAttempts = options.retryAttempts ?? vivibeRetryAttempts();
     this.retryBaseDelayMs = options.retryBaseDelayMs ?? vivibeRetryBaseDelayMs();
-    this.fetchImpl = options.fetch ?? fetch;
+    const fallbackFetch = options.fetch ?? fetch;
+    this.apiFetch = options.apiFetch ?? fallbackFetch;
+    this.audioFetch = options.audioFetch ?? fallbackFetch;
+    this.textFetch = options.textFetch ?? fallbackFetch;
     this.measureDuration = options.measureDuration ?? measureAudioDuration;
   }
 
@@ -124,7 +132,7 @@ export class VivibeClient implements TtsClient {
       await downloadAudio(resolved.url, finalPath, {
         attempts: this.retryAttempts,
         baseDelayMs: this.retryBaseDelayMs,
-        fetchImpl: this.fetchImpl,
+        fetchImpl: this.audioFetch,
         signal: options.signal,
       });
     } else {
@@ -139,7 +147,7 @@ export class VivibeClient implements TtsClient {
         await downloadText(srtUrl, candidate, {
           attempts: this.retryAttempts,
           baseDelayMs: this.retryBaseDelayMs,
-          fetchImpl: this.fetchImpl,
+          fetchImpl: this.textFetch,
           signal: options.signal,
         });
         srtPath = candidate;
@@ -170,22 +178,6 @@ export class VivibeClient implements TtsClient {
     };
   }
 
-  async probe(voiceId?: string): Promise<{ voices: TTSVoice[]; sample?: TTSResult }> {
-    const voices = await this.listVoices(10, 1);
-    const selectedVoiceId = voiceId ?? voices.find((voice) => voice.isActive)?.id ?? voices[0]?.id;
-    if (!selectedVoiceId) {
-      return { voices };
-    }
-    const samplePath = join(process.cwd(), ".vivibe-probe", `sample-${Date.now()}.mp3`);
-    const sample = await this.synthesize({
-      text: "Xin chào, đây là kiểm tra giọng nói AI.",
-      voiceId: selectedVoiceId,
-      speed: 1.0,
-      outputPath: samplePath,
-    });
-    return { voices, sample };
-  }
-
   private async call<T>(
     method: string,
     input: unknown,
@@ -197,7 +189,7 @@ export class VivibeClient implements TtsClient {
 
     const res = await fetchWithRetry(
       () =>
-        this.fetchImpl(this.baseUrl, {
+        this.apiFetch(this.baseUrl, {
           method: "POST",
           headers: {
             Authorization: `Bearer ${this.apiKey}`,

@@ -2,7 +2,7 @@ import { renderingPhaseLabel, workspaceStageTitle, writingPhaseCopy } from "./st
 import type { AgentProductionState, ProjectStage } from "./types.js";
 
 export type AgentProjectProgress = {
-  state: "authoring" | "rendering" | "scene_review" | "published" | "error";
+  state: "authoring" | "rendering" | "scene_review" | "published" | "error" | "paused";
   label: string;
   percent?: number;
   canCancel: boolean;
@@ -24,7 +24,52 @@ export function shouldPollProjectStage(progress: AgentProjectProgress | null): b
 }
 
 /** Project stage is authoritative after Agent has linked a MotionReal project. */
-export function agentProjectProgress(stage: ProjectStage): AgentProjectProgress {
+export function agentProjectProgress(
+  stage: ProjectStage,
+  agentState?: AgentProductionState,
+): AgentProjectProgress {
+  if (agentState === "paused") {
+    return { state: "paused", label: "Đã tạm dừng", canCancel: false, reviewReady: false };
+  }
+
+  if (agentState === "error") {
+    return { state: "error", label: stage.kind === "error" ? stage.message : "Cần xử lý lỗi", canCancel: false, reviewReady: false };
+  }
+
+  if (agentState === "authoring" || agentState === "visual_refine") {
+    switch (stage.kind) {
+      case "writing":
+        return { state: "authoring", label: writingPhaseCopy(stage.phase), canCancel: true, reviewReady: false };
+      case "rendering": {
+        const label = stage.phase === "prepare"
+          ? (agentState === "visual_refine" ? "Đang chuẩn bị ảnh soát lỗi…" : "Đang chuẩn bị ảnh xem trước…")
+          : renderingPhaseLabel(stage.phase, { qaPass: stage.qaPass, qaTotal: stage.qaTotal });
+        return {
+          state: "authoring",
+          label,
+          percent: Math.max(0, Math.min(100, stage.percent)),
+          canCancel: true,
+          reviewReady: false,
+        };
+      }
+      case "error":
+        return { state: "error", label: stage.message, canCancel: false, reviewReady: false };
+      case "ready":
+      case "published":
+      case "draft-recovery":
+      case "image-review":
+      case "script":
+      default:
+        // Do not surface an old ready/published artifact from an earlier iteration while authoring/refine is active.
+        return {
+          state: "authoring",
+          label: agentState === "visual_refine" ? "Đang soát lỗi hình ảnh (Harness)" : "Đang viết scene (Harness)",
+          canCancel: true,
+          reviewReady: false,
+        };
+    }
+  }
+
   switch (stage.kind) {
     case "writing":
       return { state: "authoring", label: writingPhaseCopy(stage.phase), canCancel: true, reviewReady: false };

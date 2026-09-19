@@ -103,6 +103,40 @@ function pacingScene(index: number, total: number, narrationWords: number): Cont
 }
 
 describe("ContentPlanSchema", () => {
+  it("keeps legacy scenes readable and accepts strict visual execution data", () => {
+    expect(ContentPlanSchema.safeParse(validPlan()).success).toBe(true);
+    const enriched = validPlan();
+    enriched.scenes[0] = {
+      ...enriched.scenes[0]!,
+      visualPlan: {
+        focalObject: "A persistent decision node",
+        supportingObjects: ["sample dot", "branch edges"],
+        composition: "Node centered above the sample",
+        initialState: "Sample waits below the root",
+        beatStates: [],
+        finalState: "Root remains visible",
+        avoid: ["card grid"],
+      },
+    };
+    expect(ContentPlanSchema.safeParse(enriched).success).toBe(true);
+  });
+
+  it("accepts legacy plans without a presentation profile and accepts every supported profile", () => {
+    expect(ContentPlanSchema.safeParse(validPlan()).success).toBe(true);
+    for (const presentationProfile of [
+      "editorial-story",
+      "mechanism-explainer",
+      "evidence-explainer",
+      "procedural-guide",
+      "comparison-decision",
+      "narrative-conceptual",
+      "product-showcase",
+    ]) {
+      expect(ContentPlanSchema.safeParse({ ...validPlan(), presentationProfile }).success).toBe(true);
+    }
+    expect(ContentPlanSchema.safeParse({ ...validPlan(), presentationProfile: "general" }).success).toBe(false);
+  });
+
   it("accepts legacy plans without review modes and parses generated review intent", () => {
     expect(ContentPlanSchema.safeParse(validPlan()).success).toBe(true);
     const generated = validPlan({
@@ -129,12 +163,46 @@ describe("ContentPlanSchema", () => {
     expect(parsed.success).toBe(true);
   });
 
+  it("accepts a unique one-word anchor because uniqueness already makes the cue deterministic", () => {
+    const parsed = ContentPlanSchema.safeParse(validPlan({
+      scenes: [{
+        ...validPlan().scenes[0]!,
+        narration: "Nút gốc chia dữ liệu, sau đó lá kết luận kết quả.",
+        motionBeats: [
+          { id: "root", anchor: "gốc", action: "Highlight the root node" },
+          { id: "leaf", anchor: "lá", action: "Reveal the leaf result" },
+        ],
+      }],
+    }));
+    expect(parsed.success).toBe(true);
+  });
+
+  it("drops ambiguous motion anchors without rejecting the content plan", () => {
+    const parsed = parseContentPlan(JSON.stringify(validPlan({
+      scenes: [{
+        ...validPlan().scenes[0]!,
+        temporalMode: "stepped",
+        detailMode: "normal",
+        narration: "Nút đầu chia dữ liệu rồi nút sau trả kết quả.",
+        motionBeats: [
+          { id: "node", anchor: "nút", action: "Highlight a node" },
+          { id: "result", anchor: "trả kết quả", action: "Reveal the result" },
+        ],
+      }],
+    })));
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    expect(parsed.plan.scenes[0]!.motionBeats).toBeUndefined();
+    expect(parsed.plan.scenes[0]!.temporalMode).toBe("static");
+    expect(parsed.diagnostics).toContainEqual(expect.objectContaining({ kind: "motion-beats-dropped", sceneId: "scene-01" }));
+  });
+
   it.each([
     ["missing", "không có trong lời đọc", "xuất hiện đúng một lần"],
     ["ambiguous", "lặp lại hai từ", "xuất hiện đúng một lần"],
-  ])("rejects %s motion anchors", (_label, anchor, expected) => {
+  ])("treats %s motion anchors as advisory metadata", (_label, anchor, expected) => {
     const narration = "Cụm lặp lại hai từ rồi cụm lặp lại hai từ xuất hiện lần nữa.";
-    const parsed = ContentPlanSchema.safeParse(validPlan({
+    const parsed = parseContentPlan(JSON.stringify(validPlan({
       scenes: [{
         ...validPlan().scenes[0]!,
         narration,
@@ -143,24 +211,41 @@ describe("ContentPlanSchema", () => {
           { id: "second", anchor: "xuất hiện lần nữa", action: "Reveal second state" },
         ],
       }],
-    }));
-    expect(parsed.success).toBe(false);
-    expect(parsed.error?.issues.map((issue) => issue.message).join(" ")).toContain(expected);
+    })));
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    expect(parsed.plan.scenes[0]!.motionBeats).toBeUndefined();
+    expect(parsed.diagnostics).toContainEqual(expect.objectContaining({ kind: "motion-beats-dropped", errors: expect.arrayContaining([expect.stringContaining(expected)]) }));
   });
 
-  it("rejects duplicate ids and out-of-order anchors", () => {
-    const parsed = ContentPlanSchema.safeParse(validPlan({
+  it("drops out-of-order motion anchors instead of repairing or rejecting the plan", () => {
+    const parsed = parseContentPlan(JSON.stringify(validPlan({
       scenes: [{
         ...validPlan().scenes[0]!,
         narration: "Bước đầu nhận dữ liệu rồi bước sau trả kết quả.",
         motionBeats: [
-          { id: "same-id", anchor: "bước sau trả kết quả", action: "Show result" },
-          { id: "same-id", anchor: "Bước đầu nhận dữ liệu", action: "Show input" },
+          { id: "show-result", anchor: "bước sau trả kết quả", action: "Show result" },
+          { id: "show-input", anchor: "Bước đầu nhận dữ liệu", action: "Show input" },
         ],
       }],
-    }));
-    expect(parsed.success).toBe(false);
-    expect(parsed.error?.issues.map((issue) => issue.message).join(" ")).toMatch(/id trùng.*theo thứ tự narration/s);
+    })));
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    expect(parsed.plan.scenes[0]!.motionBeats).toBeUndefined();
+    expect(parsed.diagnostics).toContainEqual(expect.objectContaining({ kind: "motion-beats-dropped", sceneId: "scene-01" }));
+  });
+
+  it("drops malformed optional motion metadata without hiding core plan errors", () => {
+    const candidate = validPlan({
+      scenes: [{ ...validPlan().scenes[0]!, motionBeats: [{ id: "BAD ID", anchor: "chip", action: "Show" }] }],
+    });
+    const parsed = parseContentPlan(JSON.stringify(candidate));
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    expect(parsed.plan.scenes[0]!.motionBeats).toBeUndefined();
+    expect(parsed.diagnostics).toContainEqual(expect.objectContaining({ kind: "motion-beats-dropped" }));
+
+    expect(parseContentPlan(JSON.stringify({ ...candidate, scenes: [{ ...candidate.scenes[0], narration: "" }] })).ok).toBe(false);
   });
 
   it("selects only explicitly semantic motion scenes within the requested scope", () => {
@@ -428,17 +513,47 @@ describe("content-plan helpers", () => {
           action: "omit",
         },
       ],
+      scenes: validPlan().scenes.map((scene) => ({
+        ...scene,
+        visualPlan: {
+          focalObject: "Legacy focal object",
+          supportingObjects: [],
+          composition: "Legacy composition",
+          initialState: "Legacy initial state",
+          beatStates: [],
+          finalState: "Legacy final state",
+          avoid: [],
+        },
+      })),
     });
     expect(usableClaims(plan).map((claim) => claim.id)).toEqual(["claim-01"]);
     const filtered = contentPlanForAuthoring(plan);
     expect(filtered.claims.map((claim) => claim.id)).toEqual(["claim-01"]);
     expect(filtered.scenes[0]!.motionProgression).toContain("factory gate closes");
+    expect(filtered.scenes[0]).not.toHaveProperty("visualPlan");
     expect(JSON.stringify(filtered)).not.toContain("claim-02");
     expect(JSON.stringify(filtered)).not.toContain("500-cycle");
   });
 });
 
 describe("content quality eval fixtures", () => {
+  it("requires one presentation profile for fresh plans but keeps legacy artifacts readable", () => {
+    expect(evaluateContentPlanQuality(validPlan()).blockingIssues)
+      .not.toContainEqual(expect.objectContaining({ check: "presentation-profile" }));
+    expect(evaluateContentPlanQuality(
+      validPlan(),
+      undefined,
+      undefined,
+      { requirePresentationProfile: true },
+    ).blockingIssues).toContainEqual(expect.objectContaining({ check: "presentation-profile" }));
+    expect(evaluateContentPlanQuality(
+      { ...validPlan(), presentationProfile: "mechanism-explainer" } as ContentPlan,
+      undefined,
+      undefined,
+      { requirePresentationProfile: true },
+    ).blockingIssues).not.toContainEqual(expect.objectContaining({ check: "presentation-profile" }));
+  });
+
   it("blocks an all-missing review contract for fresh model output but keeps legacy artifacts readable", () => {
     const legacy = validPlan({
       scenes: validPlan().scenes.map((scene) => ({ ...scene, temporalMode: undefined, detailMode: undefined })),
@@ -658,7 +773,7 @@ describe("content quality eval fixtures", () => {
     );
   });
 
-  it("blocks fresh semantic plans that omit structured motion beats", () => {
+  it("warns when semantic plans omit structured motion beats", () => {
     const plan = validPlan({
       scenes: [{
         ...validPlan().scenes[0]!,
@@ -667,8 +782,8 @@ describe("content quality eval fixtures", () => {
       }],
     });
     expect(ContentPlanSchema.safeParse(plan).success).toBe(true);
-    expect(evaluateContentPlanQuality(plan).blockingIssues).toContainEqual(
-      expect.objectContaining({ check: "motion-beats", severity: "blocking", sceneId: "scene-01" }),
+    expect(evaluateContentPlanQuality(plan).advisoryIssues).toContainEqual(
+      expect.objectContaining({ check: "motion-beats", severity: "advisory", sceneId: "scene-01" }),
     );
   });
 
@@ -706,6 +821,33 @@ describe("content quality eval fixtures", () => {
 });
 
 describe("buildContentPlanMessages", () => {
+  it("routes by the dominant viewer task using a closed presentation-profile enum", () => {
+    const [system] = buildContentPlanMessages({ text: "Giải thích một paper về kiến trúc model", urls: [] });
+    const text = system!.content as string;
+    for (const profile of [
+      "editorial-story",
+      "mechanism-explainer",
+      "evidence-explainer",
+      "procedural-guide",
+      "comparison-decision",
+      "narrative-conceptual",
+      "product-showcase",
+    ]) {
+      expect(text).toContain(profile);
+    }
+    expect(text).toMatch(/viewer(?:'s)? (?:communication )?task|viewer promise/i);
+    expect(text).toMatch(/source type|topic type/i);
+    expect(text).toMatch(/decision order/i);
+    expect(text).toMatch(/mechanism-explainer only when/i);
+    expect(text).toMatch(/one-word anchor.*exactly once/i);
+    expect(text).toMatch(/persistent object.*before-state.*after-state/i);
+    expect(text).toMatch(/"Show".*"reveal".*alone is not a state transition/i);
+    expect(text).toMatch(/presentationProfile remains authoritative/i);
+    expect(text).not.toMatch(/presentationProfile.*general|presentationProfile.*mixed/i);
+    expect(text).not.toContain("PRESENTATION PROFILE: mechanism-explainer");
+    expect(text).not.toContain("HƯỚNG TRÌNH BÀY ĐÃ CHỌN");
+  });
+
   it("builds a TikTok Vietnamese no-source planning prompt", () => {
     const messages = buildContentPlanMessages({ text: "Giải thích vì sao cà phê làm tôi tập trung", urls: [] });
     expect(messages).toHaveLength(2);

@@ -46,7 +46,7 @@ import {
 import { VisionChatSession } from "./authoring-vision-chat.js";
 import { type AuthorImageInput } from "./prompt.js";
 import { runContentPlan } from "./content-plan-runner.js";
-import type { ContentPlan } from "./content-plan.js";
+import type { ContentPlan, PlannedAuthoringContent } from "./content-plan.js";
 import { ContentPlanSchema } from "./content-plan-schema.js";
 import { buildProjectEvidence } from "./content-evidence.js";
 import { runBatchedAuthorReply, runSingleAuthorReply, type SuccessfulAuthorReply } from "./author-reply-runner.js";
@@ -204,15 +204,34 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
   }
 
   /** Reuse the production planner for Agent-owned authoring before Harness writes TSX. */
-  async planContent(projectId: string, input: AuthorInput, signal?: AbortSignal): Promise<ContentPlan> {
+  async planContent(projectId: string, input: AuthorInput, signal?: AbortSignal): Promise<PlannedAuthoringContent> {
     const model = this.deps.model();
     if (!model) throw new Error("Chưa chọn model AI.");
     signal?.throwIfAborted();
     const wordsPerSecond = await this.deps.wordsPerSecond?.(projectId);
+    // Bounded, concurrent URL grounding shared with fresh authoring: the planner
+    // sees labeled readable sources, and a URL list with zero readable results
+    // still enforces provenance (sources: []) instead of skipping it.
+    const researchReport = await collectResearchContext({
+      urls: input.urls,
+      ...(signal ? { signal } : {}),
+      extract: this.deps.extractUrl ?? ((url, options) => extractUrlContent(url, options)),
+    });
+    signal?.throwIfAborted();
+    const researchSources = toResearchSources(researchReport.readableSources);
+    const research = researchReport.readableSources.length > 0
+      ? formatUntrustedResearchBlock(researchReport.readableSources)
+      : undefined;
+    const offeredImages = input.images?.length ? this.buildAuthorImages(projectId, input.images) : undefined;
     const result = await runContentPlan({
       model,
       projectId,
       input,
+      ...(research ? { research } : {}),
+      // Enforce claim-provenance whenever URLs were supplied, even when none
+      // were readable — matching fresh authoring, never silently text-only.
+      ...(input.urls.length > 0 ? { researchSources } : {}),
+      ...(offeredImages ? { offeredImages } : {}),
       wordsPerSecond,
       chat: (selectedModel, messages) =>
         this.vision.chatWithVisionFallback(selectedModel, messages, signal, CONTENT_PLAN_OUTPUT),
@@ -221,7 +240,7 @@ export class NineRouterAuthoringBackend implements AuthoringBackend {
     });
     signal?.throwIfAborted();
     if (!result.ok) throw new Error(result.message);
-    return result.contentPlan;
+    return { contentPlan: result.contentPlan, advisories: result.advisories };
   }
 
   async authorScenes(

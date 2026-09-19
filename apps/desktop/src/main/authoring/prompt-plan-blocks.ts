@@ -10,7 +10,9 @@ ${JSON.stringify(plan, null, 2)}
 
 LUẬT DÙNG CONTENT PLAN:
 - Giữ đúng title, viewerPromise, hook/openLoop/payoff và thứ tự sceneId/purpose/beat trừ khi cần sửa rất nhỏ để hợp TSX.
-- Mỗi cảnh phải hiện thực hóa đúng beat/narration/onScreenText/visualMetaphor/layoutFamily đã được lập kế hoạch.
+- Narration, claims, thứ tự cảnh và motionBeats là authoritative. visualMetaphor và layoutFamily chỉ là gợi ý khởi đầu; PHẢI thay chúng khi xung đột với presentation profile hoặc làm cảnh rơi về card/list/dashboard chung chung.
+- Dùng đúng presentation profile đã chọn để tự thiết kế focal object, composition và trạng thái nhìn thấy; không thay cơ chế/evidence/workflow bằng card, list hoặc dashboard chung chung.
+- Giữ object identity và quan hệ không gian xuyên suốt các motionBeats; dựng trạng thái theo đúng beatId rồi giữ final state đủ lâu để đọc.
 - Đọc motionProgression như motion intent, nhưng motionBeats (nếu có) là contract semantic có thẩm quyền:
   quick entrance/reveal/pop vào nhanh tự nhiên (thường settle 0.2–0.8 giây bằng frame/spring);
   với mỗi motionBeat (cả beat đầu), PHẢI đọc literal motionCueFrames?.["beat-id"] ?? fallback-frame và đổi trạng thái: list lần lượt, terminal command→result, path/chart tiến dần, ảnh crop/highlight. Trước khi trả lời, kiểm mọi beat id có literal lookup; không hiện beat mặc định/tương lai, dùng một entrance chung hoặc chỉ đổi glow;

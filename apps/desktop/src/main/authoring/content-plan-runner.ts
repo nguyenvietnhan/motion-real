@@ -17,7 +17,7 @@ import type { AuthorImageInput } from "./prompt.js";
 import type { ResearchSource } from "./content-evidence.js";
 
 export const CONTENT_PLAN_PARSE_FAILURE =
-  "AI chưa lập được kế hoạch nội dung hợp lệ. Hãy thử lại hoặc mô tả rõ nguồn/ý chính hơn.";
+  "AI trả kế hoạch nội dung sai cấu trúc. Hãy thử lại bước này.";
 
 export const CONTENT_PLAN_QUALITY_FAILURE =
   "AI lập kế hoạch nội dung chưa đủ hook/căn cứ/nhịp cảnh. Hãy thử lại hoặc mô tả rõ nguồn/ý chính hơn.";
@@ -86,7 +86,7 @@ export async function runContentPlan(args: RunContentPlanInput): Promise<RunCont
 
     let planned = parsedPlan.plan;
     const sources = args.researchSources;
-    const qualityOptions = { requireReviewIntent: true } as const;
+    const qualityOptions = { requireReviewIntent: true, requirePresentationProfile: true } as const;
     let quality = evaluateContentPlanQuality(planned, pacing, sources, qualityOptions);
 
     /**
@@ -211,7 +211,12 @@ async function attemptClaimRepairChat(args: {
     return null;
   }
   logContentPlanNormalizations(args.logger, args.projectId, parsed.diagnostics);
-  return parsed.plan;
+  // This pass repairs claim grounding only. Keep the already-routed visual
+  // profile authoritative even if the model rewrites that unrelated field.
+  return {
+    ...parsed.plan,
+    presentationProfile: args.plan.presentationProfile,
+  };
 }
 
 function logContentPlanNormalizations(

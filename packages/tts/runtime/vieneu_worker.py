@@ -12,6 +12,15 @@ EXPECTED_VERSION = "3.3.0"
 SAMPLE_RATE = 48_000
 
 
+def prefer_complete_local_cache() -> None:
+    """Avoid remote metadata probes once both pinned model caches are usable."""
+    cache = Path(os.environ.get("HF_HOME", "")) / "hub"
+    vieneu = cache / "models--pnnbao-ump--VieNeu-TTS-v3-Turbo" / "snapshots"
+    tokenizer = cache / "models--OpenMOSS-Team--MOSS-Audio-Tokenizer-Nano-ONNX" / "snapshots"
+    if any(vieneu.glob("*/denoiser.onnx")) and any(tokenizer.glob("*/moss_audio_tokenizer_encode.onnx")):
+        os.environ.setdefault("HF_HUB_OFFLINE", "1")
+
+
 def emit(payload: dict) -> None:
     print(json.dumps(payload, ensure_ascii=False, separators=(",", ":")), flush=True)
 
@@ -20,6 +29,7 @@ def main() -> int:
     if importlib.metadata.version("vieneu") != EXPECTED_VERSION:
         raise RuntimeError(f"vieneu {EXPECTED_VERSION} is required")
 
+    prefer_complete_local_cache()
     import numpy as np
     import soundfile as sf
     from vieneu import Vieneu

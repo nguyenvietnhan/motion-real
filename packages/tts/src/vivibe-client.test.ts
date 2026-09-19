@@ -81,6 +81,19 @@ describe("VivibeClient", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
+  it("does not retry a blocked cloud endpoint", async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockRejectedValue(new VoiceProviderError({
+      provider: "vivibe",
+      code: "endpoint_not_allowed",
+      retryable: false,
+    }));
+    const client = new VivibeClient({ apiKey: "secret", fetch: fetchMock, retryAttempts: 3, retryBaseDelayMs: 0 });
+
+    await expect(client.synthesize({ text: "x", voiceId: "v", speed: 1, outputPath: "unused" }))
+      .rejects.toMatchObject({ failure: { code: "endpoint_not_allowed" } });
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
   it("does not start a provider request after cancellation", async () => {
     const controller = new AbortController();
     controller.abort();

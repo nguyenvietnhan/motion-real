@@ -8,6 +8,7 @@ export type VoiceProviderFailureCode =
   | "rate_limited"
   | "voice_not_found"
   | "invalid_request"
+  | "endpoint_not_allowed"
   | "provider_unavailable"
   | "unknown";
 

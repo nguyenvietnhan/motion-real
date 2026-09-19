@@ -3,6 +3,7 @@ import { mkdir, readFile, readdir, realpath, rename, rm, stat, writeFile } from 
 import { isAbsolute, join, relative, resolve } from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import { MAX_IMAGE_BYTES, MAX_IMAGE_DIM, sniffImage } from "../../../../packages/pipeline/src/assets/import-image.js";
+import { missingSceneMentions } from "../../../../packages/pipeline/src/authoring/scene-mentions.js";
 import { enableExaSearch, type HarnessSearchContext } from "./harness-search.js";
 
 type JsonRecord = Record<string, unknown>;
@@ -154,7 +155,21 @@ function authoringTool(): ToolDefinition {
         scene_ids: { type: "array", minItems: 1, maxItems: 30, items: { type: "string" } },
         used_asset_ids: { type: "array", items: { type: "string" }, description: "Asset ids actually referenced by scene.image.ref" },
         reviewed_scene_ids: { type: "array", items: { type: "string" }, description: "Required during visual_refine: every scene whose current PNG was opened with read_image" },
-        review_notes: { type: "string", description: "Required during review: observations of the current PNGs, changes and remaining issues" },
+        review_notes: { type: "string", description: "Required during review: per-scene verdicts for every reviewed scene id (name each id, e.g. scene-01: clean — observation). Open every still with read_image in an earlier step before submitting." },
+        scene_verdicts: {
+          type: "array",
+          description: "Optional structured alternative to naming every scene in review_notes: one verdict per reviewed scene.",
+          items: {
+            type: "object",
+            additionalProperties: false,
+            required: ["scene_id", "verdict"],
+            properties: {
+              scene_id: { type: "string" },
+              verdict: { type: "string", enum: ["clean", "fixed"] },
+              observation: { type: "string" },
+            },
+          },
+        },
       },
     },
     output: submissionOutput("authoring"),
@@ -177,14 +192,35 @@ function authoringTool(): ToolDefinition {
       if (visualRefine && (requestedReviewIds.some((id) => !sceneIds.includes(id)) || !sameIds(reviewedSceneIds, requestedReviewIds))) {
         throw new Error("Visual refine phải mở đủ still trong phạm vi được yêu cầu.");
       }
-      const reviewNotes = visualRefine ? requiredText(input.review_notes, "review_notes", 4_000, 10) : undefined;
+      // In-turn coverage gate (synchronous: no revision burned): notes must name
+      // every reviewed scene, or structured verdicts must cover the scope.
+      // True read-proof stays a Main-side backstop; this only rejects generic praise.
+      // Coverage is checked before length so the error names what's missing.
+      const sceneVerdicts = visualRefine ? validateSceneVerdicts(input.scene_verdicts, reviewedSceneIds) : undefined;
+      const verdictCovered = new Set((sceneVerdicts ?? []).map((verdict) => verdict.scene_id));
+      if (visualRefine && typeof input.review_notes !== "string") throw new Error("review_notes không hợp lệ.");
+      if (visualRefine) {
+        const uncovered = missingSceneMentions(input.review_notes as string, requestedReviewIds.filter((id) => !verdictCovered.has(id)));
+        if (uncovered.length > 0) {
+          throw new Error(`review_notes phải đánh giá từng cảnh trong phạm vi (thiếu: ${uncovered.join(", ")}). Nêu mỗi scene id kèm nhận xét, hoặc gửi scene_verdicts đủ phạm vi.`);
+        }
+      }
+      const reviewNotes = visualRefine
+        ? requiredText(input.review_notes, "review_notes", 4_000, Math.max(10, requestedReviewIds.length * 25))
+        : undefined;
       const payload = {
         version: 1,
         job_id: jobId,
         request_revision: requestRevision,
         scene_ids: sceneIds,
         used_asset_ids: usedAssetIds,
-        ...(visualRefine ? { reviewed_scene_ids: reviewedSceneIds, review_notes: reviewNotes } : {}),
+        ...(visualRefine
+          ? {
+            reviewed_scene_ids: reviewedSceneIds,
+            review_notes: reviewNotes,
+            ...(sceneVerdicts ? { scene_verdicts: sceneVerdicts } : {}),
+          }
+          : {}),
       };
       const status = await writeOnce(root, "authoring.json", payload, execution.signal);
       return { kind: "authoring", status, request_revision: requestRevision };
@@ -408,6 +444,32 @@ function uniqueIds(value: unknown, label: string): string[] {
 
 function sameIds(left: string[], right: string[]): boolean {
   return left.length === right.length && left.every((id) => right.includes(id));
+}
+
+/** Optional structured review coverage: one clean/fixed verdict per reviewed scene. */
+function validateSceneVerdicts(value: unknown, reviewedSceneIds: string[]): Array<{ scene_id: string; verdict: "clean" | "fixed"; observation?: string }> | undefined {
+  if (value === undefined) return undefined;
+  if (!Array.isArray(value)) throw new Error("scene_verdicts không hợp lệ.");
+  const seen = new Set<string>();
+  const verdicts: Array<{ scene_id: string; verdict: "clean" | "fixed"; observation?: string }> = [];
+  for (const item of value) {
+    if (!item || typeof item !== "object" || Array.isArray(item)) throw new Error("scene_verdicts không hợp lệ.");
+    const entry = item as Record<string, unknown>;
+    if (typeof entry.scene_id !== "string" || !reviewedSceneIds.includes(entry.scene_id) || seen.has(entry.scene_id)) {
+      throw new Error("scene_verdicts phải khớp đúng từng scene trong reviewed_scene_ids, không trùng.");
+    }
+    if (entry.verdict !== "clean" && entry.verdict !== "fixed") throw new Error("scene_verdicts chỉ nhận verdict clean hoặc fixed.");
+    if (entry.observation !== undefined && (typeof entry.observation !== "string" || entry.observation.length > 2_000)) {
+      throw new Error("scene_verdicts có observation không hợp lệ.");
+    }
+    seen.add(entry.scene_id);
+    verdicts.push({
+      scene_id: entry.scene_id,
+      verdict: entry.verdict,
+      ...(typeof entry.observation === "string" ? { observation: entry.observation } : {}),
+    });
+  }
+  return verdicts;
 }
 
 function enumValue<const T extends readonly string[]>(value: unknown, label: string, allowed: T): T[number] {

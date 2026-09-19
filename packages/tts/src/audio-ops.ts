@@ -1,6 +1,6 @@
 import { createRequire } from "node:module";
-import { mkdir, writeFile } from "node:fs/promises";
-import { basename, dirname, join } from "node:path";
+import { mkdir, rm, writeFile } from "node:fs/promises";
+import { basename, dirname } from "node:path";
 import { spawn } from "node:child_process";
 import type { TTSResult } from "./types.js";
 
@@ -140,9 +140,13 @@ export async function concatAudio(inputs: string[], outputPath: string, options:
     throw new Error("Cannot concatenate zero audio files.");
   }
   await mkdir(dirname(outputPath), { recursive: true });
-  const listPath = join(dirname(outputPath), "concat-list.txt");
-  await writeFile(listPath, inputs.map((input) => `file '${input.replace(/'/g, "'\\''")}'`).join("\n"));
-  await runProcess(ffmpegStatic ?? "ffmpeg", ["-y", "-f", "concat", "-safe", "0", "-i", listPath, "-c", "copy", outputPath], options);
+  const listPath = `${outputPath}.concat-list.txt`;
+  try {
+    await writeFile(listPath, inputs.map((input) => `file '${input.replace(/'/g, "'\\''")}'`).join("\n"));
+    await runProcess(ffmpegStatic ?? "ffmpeg", ["-y", "-f", "concat", "-safe", "0", "-i", listPath, "-c", "copy", outputPath], options);
+  } finally {
+    await rm(listPath, { force: true }).catch(() => undefined);
+  }
 }
 
 function runProcess(command: string, args: string[], options: ProcessOptions = {}): Promise<string> {

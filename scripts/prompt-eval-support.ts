@@ -1,6 +1,12 @@
 import { readFile, readdir, rm, stat } from "node:fs/promises";
 import { join } from "node:path";
 import type { AuthoringReviewRequest } from "@motionreal/pipeline";
+import {
+  ContentPlanSchema,
+  parseContentPlan,
+  type ContentPlan,
+  type PresentationProfile,
+} from "../apps/desktop/src/main/authoring/content-plan.js";
 
 type PlannedReviewScene = {
   sceneId: string;
@@ -14,6 +20,23 @@ type ManifestReviewScene = {
   motionBeats?: readonly unknown[];
   motionProgression?: string;
 };
+
+/** Eval-only override: keep the planner result intact and vary one creative profile. */
+export function forceContentPlanProfile(reply: string, profile: PresentationProfile): string {
+  const parsed = parseContentPlan(reply);
+  if (!parsed.ok) return reply;
+  return JSON.stringify({ ...parsed.plan, presentationProfile: profile });
+}
+
+export function contentPlanForReplay(report: unknown, caseId: string): ContentPlan | undefined {
+  if (!report || typeof report !== "object") return undefined;
+  const live = (report as { live?: unknown }).live;
+  if (!Array.isArray(live)) return undefined;
+  const candidate = live.find((entry) => entry && typeof entry === "object"
+    && (entry as { id?: unknown }).id === caseId) as { contentPlan?: unknown } | undefined;
+  const parsed = ContentPlanSchema.safeParse(candidate?.contentPlan);
+  return parsed.success ? parsed.data : undefined;
+}
 
 export function buildEvalReviewRequest(
   plannedScenes: readonly PlannedReviewScene[] | undefined,

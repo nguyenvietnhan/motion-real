@@ -105,7 +105,7 @@ export function motionAnchorTokens(value: string): string[] {
 
 export type ResolvedMotionBeatAnchor = { id: string; wordIndex: number; wordCount: number };
 
-/** Resolve each 2-8 word anchor exactly once and in narration order. */
+/** Resolve each 1-8 word anchor exactly once and in narration order. */
 export function resolveSceneMotionBeatAnchors(
   narration: string,
   beats: readonly SceneMotionBeat[],
@@ -120,8 +120,8 @@ export function resolveSceneMotionBeatAnchors(
     if (seenIds.has(beat.id)) errors.push(`motion beat id trùng: ${beat.id}`);
     seenIds.add(beat.id);
     const anchorWords = motionAnchorTokens(beat.anchor);
-    if (anchorWords.length < 2 || anchorWords.length > 8) {
-      errors.push(`${beat.id} anchor phải có 2-8 từ`);
+    if (anchorWords.length < 1 || anchorWords.length > 8) {
+      errors.push(`${beat.id} anchor phải có 1-8 từ`);
       continue;
     }
     const indexes: number[] = [];

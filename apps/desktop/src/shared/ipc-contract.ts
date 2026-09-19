@@ -94,7 +94,6 @@ export interface DashboardApi {
     renameDraft(draftId: string, title: string): Promise<AgentDraftVM>;
     settings(draftId: string): Promise<import("./types.js").AgentSettingsVM>;
     selectModel(draftId: string, modelId: string): Promise<import("./types.js").AgentSettingsVM>;
-    setAccess(draftId: string, presetId: string): Promise<import("./types.js").AgentSettingsVM>;
     /** Store the dedicated DeepSeek search credential in Harness's credential store. */
     setSearchApiKey(draftId: string, apiKey: string): Promise<AgentDraftVM>;
     /** Select search for the next Harness start; current chats are not interrupted. */
@@ -117,6 +116,8 @@ export interface DashboardApi {
     retryWorkflow(draftId: string, expectedRevision: number): Promise<AgentDraftVM>;
     /** Return to the approved asset review without starting creation. */
     returnToAssets(draftId: string, expectedRevision: number): Promise<AgentDraftVM>;
+    /** Return a failed pre-project draft to discovery, preserving session/files/approved artifacts. */
+    returnToDiscovery(draftId: string, expectedRevision: number): Promise<AgentDraftVM>;
     /** Freeze the edited brief and advance to queued creation. */
     approveBrief(draftId: string, expectedRevision: number, input: import("./types.js").AgentBriefInput): Promise<AgentDraftVM>;
     /** Explicitly hand the Agent-written brief into the existing Create Flow. */

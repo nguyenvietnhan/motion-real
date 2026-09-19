@@ -15,7 +15,8 @@ export type ContentPlanQualityCheck =
   | "layout-diversity"
   | "motion-progression"
   | "motion-beats"
-  | "review-intent";
+  | "review-intent"
+  | "presentation-profile";
 export type ContentPlanQualitySeverity = "blocking" | "advisory";
 export type ContentPlanQualityIssue = {
   check: ContentPlanQualityCheck;
@@ -28,10 +29,13 @@ export type ContentPlanQualityResult = {
   blockingIssues: ContentPlanQualityIssue[];
   advisoryIssues: ContentPlanQualityIssue[];
 };
-export type ContentPlanQualityOptions = { requireReviewIntent?: boolean };
+export type ContentPlanQualityOptions = {
+  requireReviewIntent?: boolean;
+  requirePresentationProfile?: boolean;
+};
 
 function contentPlanQualitySeverity(check: ContentPlanQualityCheck): ContentPlanQualitySeverity {
-  return check === "layout-diversity" || check === "motion-progression" ? "advisory" : "blocking";
+  return check === "layout-diversity" || check === "motion-progression" || check === "motion-beats" ? "advisory" : "blocking";
 }
 
 /**
@@ -58,6 +62,9 @@ export function evaluateContentPlanQuality(
   }
   if (plan.payoff.trim().length === 0) {
     addIssue({ check: "payoff", message: "payoff is required" });
+  }
+  if (options?.requirePresentationProfile === true && !plan.presentationProfile) {
+    addIssue({ check: "presentation-profile", message: "fresh content plans must choose one presentationProfile" });
   }
 
   if (sources !== undefined) {

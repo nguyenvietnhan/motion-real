@@ -1,14 +1,22 @@
 import type { AuthorInput } from "../agent/agent-worker.js";
-import { AUTHORING_CONTRACT, TECHNICAL_AUTHORING_CONTRACT } from "./contract-text.js";
+import { technicalAuthoringContract } from "./contract-text.js";
 import type { ContentPlan, ContentPlanQualityIssue } from "./content-plan.js";
 import type { AuthorManifest } from "./manifest-schema.js";
 import { resolvedWordsPerSecond } from "./pacing-policy.js";
 import { contentRules, formatBlock, languageBlock, tierBudgetBlock } from "./prompt-content-rules.js";
 import type { VisionMessage } from "./prompt-message-types.js";
-import { TSX_BATCH_OUTPUT_FORMAT } from "./prompt-output-format.js";
+import { tsxBatchOutputFormat } from "./prompt-output-format.js";
 import { batchBriefBlock, contentPlanAdvisoryBlock } from "./prompt-plan-blocks.js";
+import { authoringContractForProfile } from "./presentation-profiles.js";
 
-function authorModuleBatchSystem(format: NonNullable<AuthorInput["format"]>, tier: NonNullable<AuthorInput["durationTier"]>, videoLanguage: NonNullable<AuthorInput["videoLanguage"]>, wps: number): string {
+function authorModuleBatchSystem(
+  format: NonNullable<AuthorInput["format"]>,
+  tier: NonNullable<AuthorInput["durationTier"]>,
+  videoLanguage: NonNullable<AuthorInput["videoLanguage"]>,
+  wps: number,
+  presentationProfile?: ContentPlan["presentationProfile"],
+  dominantColor?: string,
+): string {
   return `Bạn là tác giả video ngắn 9:16 kiêm lập trình viên Remotion. Hệ thống đã chốt manifest; bạn chỉ viết một batch module .tsx mới cho các component id được chỉ định. Ưu tiên đầu tiên: trả lời đúng hợp đồng, parse được, build được, render được.
 
 ${formatBlock()}
@@ -17,9 +25,9 @@ ${tierBudgetBlock(format, tier, videoLanguage, wps)}
 
 ${languageBlock(videoLanguage)}
 
-${AUTHORING_CONTRACT}
+${authoringContractForProfile(presentationProfile, dominantColor)}
 
-${TSX_BATCH_OUTPUT_FORMAT}
+${tsxBatchOutputFormat(dominantColor)}
 
 ${contentRules(wps, videoLanguage)}`;
 }
@@ -34,12 +42,26 @@ export type AuthorModuleBatchMessagesInput = {
   contentPlanAdvisories?: readonly ContentPlanQualityIssue[];
   research?: string;
   wordsPerSecond?: number;
+  dominantColor?: string;
 };
 
 export function buildAuthorModuleBatchMessages(batch: AuthorModuleBatchMessagesInput): VisionMessage[] {
   const videoLanguage = batch.input.videoLanguage ?? "vi";
   const effectiveWordsPerSecond = resolvedWordsPerSecond(videoLanguage, batch.wordsPerSecond);
-  const system = authorModuleBatchSystem(batch.input.format ?? "tiktok", batch.input.durationTier ?? 1, videoLanguage, effectiveWordsPerSecond);
+  const dominant =
+    batch.dominantColor ??
+    batch.manifest.theme?.dominant ??
+    batch.input.dominantColor ??
+    batch.input.theme?.dominant ??
+    "#38BDF8";
+  const system = authorModuleBatchSystem(
+    batch.input.format ?? "tiktok",
+    batch.input.durationTier ?? 1,
+    videoLanguage,
+    effectiveWordsPerSecond,
+    batch.contentPlan.presentationProfile,
+    dominant,
+  );
   const wanted = new Set(batch.componentIds);
   const selectedScenes = batch.manifest.scenes.filter((scene) => wanted.has(scene.component));
   const selectedPlanScenes = batch.contentPlan.scenes.filter((scene) => wanted.has(scene.sceneId));
@@ -97,10 +119,10 @@ export type MissingTsxRecoveryInput = {
   existingComponentIds?: string[];
 };
 
-function missingTsxRecoverySystem(): string {
+function missingTsxRecoverySystem(dominantColor = "#38BDF8"): string {
   return `Bạn đang sửa một reply authoring bị thiếu module .tsx. Manifest đã hợp lệ và KHÔNG được thay đổi.
 
-${TECHNICAL_AUTHORING_CONTRACT}
+${technicalAuthoringContract(dominantColor)}
 
 TRẢ VỀ: chỉ các khối \`\`\`tsx còn thiếu, mỗi khối có dòng đầu "// component: <id>" và registerComponent id khớp. KHÔNG trả lại manifest JSON, KHÔNG thêm văn bản ngoài code fences.`;
 }
@@ -118,8 +140,9 @@ Component ids còn thiếu code .tsx, CHỈ viết các id này:
 ${input.missingComponentIds.join("\n")}${existing}
 
 Trả về đúng ${input.missingComponentIds.length} khối \`\`\`tsx cho các component id còn thiếu.`;
+  const dominant = (input.manifest as any)?.theme?.dominant ?? "#38BDF8";
   return [
-    { role: "system", content: missingTsxRecoverySystem() },
+    { role: "system", content: missingTsxRecoverySystem(dominant) },
     { role: "user", content: text },
   ];
 }

@@ -8,6 +8,7 @@
 
 import type { AuthoringReviewRequest, ReviewArtifact, SerializedPipelineError, CrawledImage } from "@motionreal/pipeline";
 import type { VideoFormat, DurationTier, VideoLanguage } from "@motionreal/schema";
+import type { AgentAssetStrategy } from "../../shared/types.js";
 
 /**
  * A local image the user attached at create time (create-time image staging). Carries only
@@ -40,6 +41,12 @@ export type AuthorInput = {
    */
   targetSeconds?: number;
   videoLanguage?: VideoLanguage;
+  /** How an author should balance bespoke visuals against an approved image pool. */
+  assetStrategy?: AgentAssetStrategy;
+  /** Optional theme configuration from project or manifest. */
+  theme?: { dominant?: string };
+  /** Dominant color token injected into authoring palette (defaults to #38BDF8). */
+  dominantColor?: string;
 };
 
 /** Author scenes for a brand-new project: ingest → author → (script gate) → draft. */

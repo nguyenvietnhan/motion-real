@@ -20,6 +20,7 @@ const VOICE_FAILURE_MESSAGE: Record<NonNullable<SerializedPipelineError["voiceFa
   rate_limited: "Nhà cung cấp giọng đang giới hạn lượt gọi. Hãy chờ một lúc rồi thử lại.",
   voice_not_found: "Không tìm thấy Voice ID đã chọn. Hãy cập nhật Voice ID trong Cài đặt rồi kiểm tra lại giọng.",
   invalid_request: "Thiết lập giọng đọc chưa được nhà cung cấp chấp nhận. Hãy kiểm tra Voice ID và model.",
+  endpoint_not_allowed: "Địa chỉ dịch vụ giọng đọc phải là HTTPS công khai; không dùng localhost hoặc mạng nội bộ.",
   provider_unavailable: "Dịch vụ giọng đọc đang tạm thời không khả dụng. Hãy thử lại sau.",
   unknown: "Nhà cung cấp giọng đọc gặp sự cố chưa xác định. Hãy kiểm tra giọng trong Cài đặt rồi thử lại.",
 };

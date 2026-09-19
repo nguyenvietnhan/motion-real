@@ -216,9 +216,80 @@ export function rewriteFontStack(value: string): string {
   return BRAND_FONT_STACK;
 }
 
+/** Kebab-case SVG attributes emitted by LLMs -> React camelCase equivalents. */
+export const SVG_KEBAB_TO_CAMEL: Record<string, string> = {
+  "stroke-width": "strokeWidth",
+  "stroke-dasharray": "strokeDasharray",
+  "stroke-dashoffset": "strokeDashoffset",
+  "stroke-linecap": "strokeLinecap",
+  "stroke-linejoin": "strokeLinejoin",
+  "stroke-miterlimit": "strokeMiterlimit",
+  "stroke-opacity": "strokeOpacity",
+  "stop-color": "stopColor",
+  "stop-opacity": "stopOpacity",
+  "fill-opacity": "fillOpacity",
+  "fill-rule": "fillRule",
+  "clip-path": "clipPath",
+  "clip-rule": "clipRule",
+  "font-size": "fontSize",
+  "font-family": "fontFamily",
+  "font-weight": "fontWeight",
+  "text-anchor": "textAnchor",
+  "dominant-baseline": "dominantBaseline",
+  "alignment-baseline": "alignmentBaseline",
+  "marker-start": "markerStart",
+  "marker-mid": "markerMid",
+  "marker-end": "markerEnd",
+  "pointer-events": "pointerEvents",
+};
+
+/**
+ * Normalize kebab-case SVG attributes on JSX elements to React camelCase.
+ * Idempotent. Prevents N10/N11 build/typecheck failures from raw SVG authoring.
+ */
+export function normalizeSvgJsxAttributes(source: string): string {
+  const sf = ts.createSourceFile(
+    "authored.tsx",
+    source,
+    ts.ScriptTarget.Latest,
+    /*setParentNodes*/ true,
+    ts.ScriptKind.TSX,
+  );
+
+  type Edit = { start: number; end: number; text: string };
+  const edits: Edit[] = [];
+
+  const visit = (node: ts.Node): void => {
+    if (ts.isJsxAttribute(node)) {
+      const attrName = ts.isIdentifier(node.name) ? node.name.text : node.name.getText(sf);
+      const camel = SVG_KEBAB_TO_CAMEL[attrName];
+      if (camel) {
+        edits.push({
+          start: node.name.getStart(sf),
+          end: node.name.getEnd(),
+          text: camel,
+        });
+      }
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(sf);
+
+  if (edits.length === 0) return source;
+  edits.sort((a, b) => b.start - a.start);
+  let out = source;
+  for (const e of edits) {
+    out = out.slice(0, e.start) + e.text + out.slice(e.end);
+  }
+  return out;
+}
+
 /** Apply all authored-source normalizers before persist / typecheck. */
 export function normalizeAuthoredSource(source: string): string {
-  return normalizeAuthoredFonts(stripReactNativeStyleKeys(source));
+  let cur = stripReactNativeStyleKeys(source);
+  cur = normalizeAuthoredFonts(cur);
+  cur = normalizeSvgJsxAttributes(cur);
+  return cur;
 }
 
 function simpleStyleValueText(expr: ts.Expression, sf: ts.SourceFile): string | null {

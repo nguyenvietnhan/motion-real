@@ -1,7 +1,6 @@
 /**
- * Real-render smoke test (NOT part of CI — needs a headless Chromium, so it is a
- * manual `npm run smoke`). The offline test suite mocks `@remotion/renderer`, so
- * NO test ever exercises the real Chromium render path; a Remotion/Chromium
+ * Real-render smoke test. The offline test suite mocks `@remotion/renderer`, so
+ * no ordinary unit test exercises the real Chromium render path; a Remotion/Chromium
  * upgrade or a regression in the shipped `@motionreal/blocks` / neutral theme would slip
  * through green CI and only surface when a user renders. This script closes that
  * gap with a fast, portable, no-voice render of the bundled sample fixture.
@@ -16,25 +15,36 @@
  *   2. The real N14 safe-area oracles pass on those real stills (0 hard errors) —
  *      catching a layout regression in blocks/theme runtime that the in-memory
  *      oracle self-tests can't (they use synthetic frames, not a real render).
- *   3. Determinism (N16) holds end-to-end: the SAME frame rendered twice is
+ *   3. A draft MP4 has the expected duration, usable size, and both audio/video
+ *      streams, proving the actual export path works.
+ *   4. Determinism (N16) holds end-to-end: the SAME frame rendered twice is
  *      byte-identical (the one "golden" comparison that IS portable — it compares
  *      a render against itself on this machine, not against a committed baseline).
  *
  * Exits non-zero on the first failure so it can gate a manual pre-release check.
  */
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { execFile } from "node:child_process";
+import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
+import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { promisify } from "node:util";
 import type { LockedVideoSpec } from "@motionreal/schema";
 import { sampleSpec } from "../apps/remotion/src/fixtures/sample-spec.js";
 import {
   renderSceneStills,
+  renderVideo,
   checkDeterminism,
+  clipLockedSpecToSeconds,
   runRenderGrid,
   decodePng,
 } from "../packages/pipeline/src/index.js";
+import { synthesizeMockAudio } from "../packages/tts/src/audio-ops.js";
 
 const SMOKE_SCENARIO = "neutral";
+const require = createRequire(import.meta.url);
+const ffprobePath = (require("ffprobe-static") as { path: string }).path;
+const execFileAsync = promisify(execFile);
 
 /** Apply a stable dominant color without mutating the shared fixture. */
 function smokeSpec(): LockedVideoSpec {
@@ -58,8 +68,12 @@ function hasContent(data: Uint8Array): boolean {
 type Failure = { scenario: string; message: string };
 
 async function smokeSample(failures: Failure[]): Promise<void> {
-  const spec = smokeSpec();
-  const dir = await mkdtemp(join(tmpdir(), `news-smoke-${SMOKE_SCENARIO}-`));
+  const spec = clipLockedSpecToSeconds(smokeSpec(), 10);
+  const artifactRoot = process.env.MOTIONREAL_SMOKE_ARTIFACT_DIR;
+  const dir = artifactRoot
+    ? join(artifactRoot, SMOKE_SCENARIO)
+    : await mkdtemp(join(tmpdir(), `motionreal-smoke-${SMOKE_SCENARIO}-`));
+  if (artifactRoot) await rm(dir, { recursive: true, force: true });
   const fail = (message: string) => failures.push({ scenario: SMOKE_SCENARIO, message });
   try {
     // (1) Render one still per scene through the REAL Chromium path.
@@ -84,18 +98,52 @@ async function smokeSample(failures: Failure[]): Promise<void> {
       fail(`${hardErrors.length} hard render-grid error(s):\n      - ${n14.join("\n      - ")}`);
     }
 
-    // (3) Determinism (N16): the sampled frame rendered twice is byte-identical.
+    // (3) Produce a real short-form MP4 with a local WAV. It exercises the
+    // actual encode/mux path without a paid TTS dependency.
+    const audioPath = join(dir, "audio", "smoke.wav");
+    await synthesizeMockAudio("MotionReal render smoke audio.", audioPath);
+    const videoPath = join(dir, "smoke.mp4");
+    const rendered = await renderVideo({
+      spec: { ...spec, audio: { ...spec.audio, narrationSrc: "audio/smoke.wav" } },
+      projectRoot: dir,
+      outPath: videoPath,
+      quality: "draft",
+      concurrency: 1,
+      logLevel: "error",
+    });
+    await assertPlayableVideo(videoPath, rendered.durationInFrames / rendered.fps, fail);
+
+    // (4) Determinism (N16): the sampled frame rendered twice is byte-identical.
     const det = await checkDeterminism(spec, { logLevel: "error" });
     if (!det.ok) fail(`determinism (N16) failed: ${det.issues.map((i) => i.message).join("; ")}`);
   } catch (error) {
     fail(`render threw: ${error instanceof Error ? error.message : String(error)}`);
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    if (!artifactRoot) await rm(dir, { recursive: true, force: true });
   }
 }
 
+async function assertPlayableVideo(videoPath: string, expectedSeconds: number, fail: (message: string) => void): Promise<void> {
+  const size = (await stat(videoPath)).size;
+  if (size < 8 * 1024) fail(`video ${videoPath} is unexpectedly small (${size} bytes)`);
+  const { stdout } = await execFileAsync(ffprobePath, [
+    "-v", "error",
+    "-show_entries", "format=duration:stream=codec_type",
+    "-of", "json",
+    videoPath,
+  ]);
+  const probe = JSON.parse(stdout) as { format?: { duration?: string }; streams?: Array<{ codec_type?: string }> };
+  const duration = Number(probe.format?.duration);
+  if (!Number.isFinite(duration) || Math.abs(duration - expectedSeconds) > 1) {
+    fail(`video duration ${probe.format?.duration ?? "missing"}s does not match ${expectedSeconds.toFixed(2)}s`);
+  }
+  const streams = new Set(probe.streams?.map((stream) => stream.codec_type));
+  if (!streams.has("video")) fail("video artifact has no video stream");
+  if (!streams.has("audio")) fail("video artifact has no audio stream");
+}
+
 async function main(): Promise<void> {
-  console.log("[smoke] real-render smoke test — sample fixture, neutral theme (needs Chromium)…");
+  console.log("[smoke] real-render smoke test — sample fixture, MP4 mux, neutral theme (needs Chromium)…");
   const failures: Failure[] = [];
   console.log(`[smoke]   rendering scenario "${SMOKE_SCENARIO}"…`);
   await smokeSample(failures);

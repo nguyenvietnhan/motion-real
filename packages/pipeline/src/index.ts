@@ -26,7 +26,6 @@ export {
   VieneuClient,
   VivibeClient,
   ElevenLabsClient,
-  createTtsClient,
   asVoiceProviderError,
   isVoiceProviderError,
   VoiceProviderError,
@@ -38,6 +37,7 @@ export {
   type VoiceProviderFailureCode,
   type TtsClient,
 } from "@motionreal/tts";
+export { createTtsClient } from "./audio/safe-tts-client.js";
 export * from "./safety/index.js";
 export * from "./audio/captions.js";
 export * from "./audio/lock.js";

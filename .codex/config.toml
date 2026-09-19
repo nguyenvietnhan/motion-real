@@ -1,35 +1,44 @@
-[mcp_servers.context7]
-command = "npx"
-args = [
-    "-y",
-    "@upstash/context7-mcp@latest",
-]
+# Các MCP server được tắt để tránh lỗi khởi động và timeout trong Codex / Orca.
+# Để kích hoạt lại server nào, chỉ cần bỏ dấu comment (#).
 
-[mcp_servers.filesystem]
-command = "npx"
-args = [
-    "-y",
-    "@modelcontextprotocol/server-filesystem@latest",
-    "V:/video_tool",
-]
+# [mcp_servers.context7]
+# command = "npx"
+# args = [
+#     "-y",
+#     "@upstash/context7-mcp",
+# ]
+# startup_timeout_sec = 120
 
-[mcp_servers.memory]
-command = "npx"
-args = [
-    "-y",
-    "@modelcontextprotocol/server-memory@latest",
-]
+# [mcp_servers.filesystem]
+# command = "npx"
+# args = [
+#     "-y",
+#     "@modelcontextprotocol/server-filesystem",
+#     "V:/Projects/motion-real",
+# ]
+# startup_timeout_sec = 120
 
-[mcp_servers.playwright]
-command = "npx"
-args = [
-    "-y",
-    "@playwright/mcp@latest",
-]
+# [mcp_servers.memory]
+# command = "npx"
+# args = [
+#     "-y",
+#     "@modelcontextprotocol/server-memory",
+# ]
+# startup_timeout_sec = 120
 
-[mcp_servers.sequential-thinking]
-command = "npx"
-args = [
-    "-y",
-    "@modelcontextprotocol/server-sequential-thinking@latest",
-]
+# [mcp_servers.playwright]
+# command = "npx"
+# args = [
+#     "-y",
+#     "@playwright/mcp",
+# ]
+# startup_timeout_sec = 120
+
+# [mcp_servers.sequential-thinking]
+# command = "npx"
+# args = [
+#     "-y",
+#     "@modelcontextprotocol/server-sequential-thinking",
+# ]
+# startup_timeout_sec = 120
+

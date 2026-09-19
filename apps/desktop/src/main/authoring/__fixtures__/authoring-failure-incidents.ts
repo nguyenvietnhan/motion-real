@@ -40,6 +40,7 @@ export const JSON_ONLY_AUTHOR_REPLY = [
 
 export const CLAIM_LEDGER_MISSING_EVIDENCE_PLAN: ContentPlan = {
   title: "Why the incident needs a ledger",
+  presentationProfile: "evidence-explainer",
   viewerPromise: "The viewer sees why concrete measurements need evidence before authoring.",
   hookType: "number",
   first3SecondsLine: "A single unsupported number can make a script unsafe.",
@@ -116,6 +117,7 @@ export const AUTHORING_RELIABILITY_REGRESSION_FIXTURE = {
 
 export const INVALID_PURPOSE_CONTENT_PLAN_REPLY = JSON.stringify({
   title: "Random Forest không phải một cây",
+  presentationProfile: "mechanism-explainer",
   viewerPromise: "Người xem hiểu vì sao nhiều cây bỏ phiếu ổn định hơn một cây.",
   hookType: "contradiction",
   first3SecondsLine: "Một cây quyết định dễ học vẹt. Cả rừng thì khó lệch hơn.",

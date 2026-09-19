@@ -112,7 +112,7 @@ export async function runSingleAuthorReply(
 export async function runBatchedAuthorReply(
   args: AuthorReplyRunnerBase & { batches: string[][]; batchSize: number },
 ): Promise<AuthorReplyRunResult> {
-  const manifest = authorManifestFromContentPlan(args.contentPlan);
+  const manifest = authorManifestFromContentPlan(args.contentPlan, args.input);
   const modules: AuthoredModule[] = [];
   args.logger.info(
     {
@@ -329,11 +329,12 @@ function clipNonEmpty(value: string, max: number, fallback: string): string {
   return safe.length > max ? safe.slice(0, max) : safe;
 }
 
-function authorManifestFromContentPlan(plan: ContentPlan): AuthorManifest {
+function authorManifestFromContentPlan(plan: ContentPlan, input?: AuthorInput): AuthorManifest {
+  const dominant = input?.dominantColor ?? input?.theme?.dominant ?? (plan as any)?.theme?.dominant ?? "#38BDF8";
   return {
     title: clipNonEmpty(plan.title, 160, "MotionReal draft"),
     theme: {
-      dominant: "#1E9CB0",
+      dominant,
     },
     scenes: plan.scenes.map((scene) => ({
       component: scene.sceneId,

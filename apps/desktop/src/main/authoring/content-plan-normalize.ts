@@ -1,3 +1,7 @@
+import {
+  resolveSceneMotionBeatAnchors,
+  SceneMotionBeatSchema,
+} from "@motionreal/schema";
 import { SCENE_PURPOSE_VALUES, type ScenePurpose } from "./content-plan-schema.js";
 
 const DEFAULT_MOTION_PROGRESSION = "Quick entrance, then readable hold.";
@@ -37,6 +41,11 @@ export type ContentPlanNormalizationDiagnostic =
     kind: "evidence-claim-ids-defaulted";
     sceneId?: string;
     reason: "missing" | "null" | "non-array";
+  }
+  | {
+    kind: "motion-beats-dropped";
+    sceneId?: string;
+    errors: string[];
   };
 
 export function hasConcreteFact(value: string): boolean {
@@ -212,6 +221,24 @@ export function normalizeContentPlanCandidate(raw: unknown): { value: unknown; d
     } else {
       // Keep only string claim ids; drop garbage elements models sometimes emit.
       next.evidenceClaimIds = next.evidenceClaimIds.filter((id): id is string => typeof id === "string");
+    }
+
+    if ("motionBeats" in next) {
+      const parsedBeats = SceneMotionBeatSchema.array().min(2).max(4).safeParse(next.motionBeats);
+      let errors = parsedBeats.success ? [] : parsedBeats.error.issues.map((issue) => issue.message);
+      if (parsedBeats.success && typeof next.narration === "string") {
+        const resolved = resolveSceneMotionBeatAnchors(next.narration, parsedBeats.data);
+        if (!resolved.ok) errors = resolved.errors;
+      }
+      if (errors.length > 0) {
+        delete next.motionBeats;
+        if (next.temporalMode === "stepped" || next.temporalMode === "continuous") next.temporalMode = "static";
+        diagnostics.push({
+          kind: "motion-beats-dropped",
+          ...(sceneId ? { sceneId } : {}),
+          errors,
+        });
+      }
     }
     return next;
   });

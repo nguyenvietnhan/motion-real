@@ -77,8 +77,6 @@ export type AgentDraftVM = {
   workflowVersion: 2;
   workflowRevision: number;
   productionState: AgentProductionState;
-  /** Old sessions can still carry Harness's workspace-write + ask policy. */
-  sessionAccess: "full" | "legacy-approval";
   activeJobId?: string;
   /** Stage that will be resumed after a user-stopped workflow is continued. */
   pausedFrom?: Exclude<AgentProductionState, "paused" | "discovery" | "asset_review" | "brief_review" | "scene_review" | "error">;
@@ -114,13 +112,6 @@ export type AgentSettingsVM = {
   webSearchConfigured: boolean;
   currentModelId?: string;
   modelOptions: Array<{ id: string; label: string }>;
-  currentAccessId?: string;
-  accessOptions: Array<{
-    id: string;
-    label: string;
-    description?: string;
-    requiresConfirmation: boolean;
-  }>;
 };
 
 /** One validated image in an Agent workspace. */
@@ -145,6 +136,14 @@ export type AgentBriefVM = {
 };
 
 /**
+ * A single, user-approved priority for using the approved asset pool. It is
+ * deliberately video-level: scene-level asset roles remain the Agent's job.
+ */
+export const AGENT_ASSET_STRATEGY_VALUES = ["visualize-first", "balanced", "evidence-first"] as const;
+export type AgentAssetStrategy = (typeof AGENT_ASSET_STRATEGY_VALUES)[number];
+export const DEFAULT_AGENT_ASSET_STRATEGY: AgentAssetStrategy = "balanced";
+
+/**
  * Choices made by the user when accepting an Agent-generated brief.  The model
  * proposes content and language only; duration and voice are application policy.
  */
@@ -156,6 +155,8 @@ export type AgentBriefInput = {
   voiceProvider: VoiceProviderChoice;
   /** Library filename, or null for an intentionally silent background. */
   bgm: string | null;
+  /** Optional only for callers created before this choice existed. */
+  assetStrategy?: AgentAssetStrategy;
 };
 
 // --- create --------------------------------------------------------
@@ -307,7 +308,17 @@ export type ScriptEvidenceModel = {
  * `previewUrl` is a `media://` URL to the already-imported local asset;
  * `suggested` = the AI-filter pre-tick (true ⇒ checkbox starts checked).
  */
-export type CrawledImageVM = { ref: string; previewUrl: string; width: number; height: number; sourceUrl: string; suggested: boolean; label?: string };
+export type CrawledImageVM = {
+  ref: string;
+  previewUrl: string;
+  width: number;
+  height: number;
+  sourceUrl: string;
+  suggested: boolean;
+  label?: string;
+  /** A read-only proposal shown during review, e.g. an Agent asset role. */
+  badge?: string;
+};
 
 /** The live stage of a project's workspace, driving the staged UI. */
 export type ProjectStage =

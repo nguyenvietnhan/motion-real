@@ -9,7 +9,7 @@ export {
   synthesizeMockAudio,
 } from "./audio-ops.js";
 export { alignmentToSrt, type ElevenLabsAlignment } from "./caption-timing.js";
-export { createTtsClient } from "./client-factory.js";
+export { createTtsClient, type CloudTtsTransport } from "./client-factory.js";
 export {
   VoiceProviderError,
   asVoiceProviderError,

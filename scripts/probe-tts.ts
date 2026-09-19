@@ -3,8 +3,6 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   ELEVENLABS_DEFAULT_MODEL_ID,
-  ElevenLabsClient,
-  VivibeClient,
   defaultElevenLabsVoiceId,
   defaultVivibeVoiceId,
   elevenLabsApiKey,
@@ -12,6 +10,7 @@ import {
   type CloudTtsProvider,
   type TtsClient,
 } from "../packages/tts/src/index.js";
+import { createTtsClient } from "../packages/pipeline/src/index.js";
 
 async function main(): Promise<void> {
   const raw = process.argv.find((arg) => arg.startsWith("--provider="))?.split("=")[1]
@@ -20,7 +19,7 @@ async function main(): Promise<void> {
   const apiKey = provider === "vivibe" ? vivibeApiKey() : elevenLabsApiKey();
   const configuredVoice = provider === "vivibe" ? defaultVivibeVoiceId() : defaultElevenLabsVoiceId();
   if (!apiKey) throw new Error(`Missing ${provider === "vivibe" ? "VIVIBE_API_KEY" : "ELEVENLABS_API_KEY"}.`);
-  const client: TtsClient = provider === "vivibe" ? new VivibeClient({ apiKey }) : new ElevenLabsClient({ apiKey });
+  const client: TtsClient = createTtsClient(provider, apiKey);
   const voices = await client.listVoices();
   const voiceId = configuredVoice ?? voices[0]?.id;
   if (!voiceId) throw new Error(`No ${provider} voice is available.`);

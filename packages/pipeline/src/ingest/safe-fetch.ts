@@ -54,13 +54,14 @@ const BROWSER_HEADERS: Record<string, string> = {
 /** The minimal result shape the ingest path consumes (matches `FetchLike`). */
 export type SafeFetchResult = { ok: boolean; status: number; text: () => Promise<string> };
 
-export type FetchImpl = (url: string, init?: { signal?: AbortSignal }) => Promise<Response>;
+export type FetchImpl = typeof fetch;
 
 /** Production/test seam: request a already-resolved public target (DNS-pinned). */
 export type PinnedRequestImpl = (
   target: ResolvedPublicTarget,
   signal?: AbortSignal,
   maxBodyBytes?: number,
+  init?: RequestInit,
 ) => Promise<Response>;
 
 export type SafeFetchOptions = {
@@ -79,6 +80,10 @@ export type SafeFetchOptions = {
   maxBodyBytes?: number;
   /** Caller cancel (e.g. workspace job abort). */
   signal?: AbortSignal;
+  /** Protocol allowlist. TTS passes HTTPS only; ingest keeps http(s). */
+  allowedProtocols?: readonly string[];
+  /** Refuse any 3xx response instead of following it. */
+  rejectRedirects?: boolean;
   /**
    * Hard deadline in ms. When set (including defaults at call sites), hung
    * network cannot block forever. `0` / negative disables timeout.
@@ -251,6 +256,7 @@ export async function requestPinnedWithUndici(
   target: ResolvedPublicTarget,
   signal?: AbortSignal,
   maxBodyBytes = MAX_BODY_BYTES,
+  init?: RequestInit,
 ): Promise<Response> {
   const dialAddresses = addressesForPinnedConnect(target.addresses);
   const dispatcher = new Agent({
@@ -259,10 +265,14 @@ export async function requestPinnedWithUndici(
     },
   });
   try {
+    const headers = new Headers(BROWSER_HEADERS);
+    new Headers(init?.headers).forEach((value, key) => headers.set(key, value));
     const nativeResponse = await undiciFetch(target.url.toString(), {
       dispatcher,
       redirect: "manual",
-      headers: BROWSER_HEADERS,
+      headers: [...headers],
+      ...(init?.method ? { method: init.method } : {}),
+      ...(init?.body ? { body: init.body as never } : {}),
       ...(signal ? { signal } : {}),
     });
     const res = toStandardResponse(nativeResponse);
@@ -274,16 +284,16 @@ export async function requestPinnedWithUndici(
     await assertContentLength(res, maxBodyBytes);
     // Buffer a capped stream before close so callers can still read it after we return.
     const body = await readCappedBytes(res, maxBodyBytes);
-    const headers = new Headers();
+    const responseHeaders = new Headers();
     res.headers.forEach((value, key) => {
-      headers.set(key, value);
+      responseHeaders.set(key, value);
     });
     const exactBody = new Uint8Array(body.byteLength);
     exactBody.set(body);
     return new Response(exactBody.buffer, {
       status: res.status,
       statusText: res.statusText,
-      headers,
+      headers: responseHeaders,
     });
   } finally {
     // Close/destroy even on abort or throw so sockets do not leak.
@@ -315,7 +325,10 @@ function resolveRequestPinned(opts: SafeFetchOptions): PinnedRequestImpl {
   if (opts.requestPinned) return opts.requestPinned;
   if (opts.fetchImpl) {
     const fetchImpl = opts.fetchImpl;
-    return async (target, signal) => fetchImpl(target.url.toString(), signal ? { signal } : undefined);
+    return async (target, signal, _maxBodyBytes, init) => fetchImpl(target.url.toString(), {
+      ...init,
+      ...(signal ? { signal } : {}),
+    });
   }
   return requestPinnedWithUndici;
 }
@@ -353,9 +366,13 @@ export async function followPublicRedirects<T>(
     lookupImpl: (host: string) => Promise<string[]>;
     maxRedirects: number;
     maxBodyBytes: number;
+    allowedProtocols?: readonly string[];
+    rejectRedirects?: boolean;
+    requestInit?: RequestInit;
   },
 ): Promise<{ ok: boolean; status: number; body: T }> {
   let current = url;
+  let requestInit = opts.requestInit;
   for (let hop = 0; hop <= opts.maxRedirects; hop++) {
     if (signal?.aborted) {
       throw new PipelineError({
@@ -364,12 +381,22 @@ export async function followPublicRedirects<T>(
         remediation: "The request was cancelled.",
       });
     }
-    const target = await resolvePublicTarget(current, opts.lookupImpl);
-    const res = await requestPinned(target, signal, opts.maxBodyBytes);
+    const target = await resolvePublicTarget(current, opts.lookupImpl, opts.allowedProtocols);
+    const res = await requestPinned(target, signal, opts.maxBodyBytes, requestInit);
     const location = res.status >= 300 && res.status < 400 ? res.headers.get("location") : null;
+    if (res.status >= 300 && res.status < 400 && opts.rejectRedirects) {
+      await discardBody(res);
+      throw new PipelineError({
+        stage: "ingest",
+        cause: `redirect response ${res.status} is not allowed for ${current}`,
+        remediation: "Use the provider's final public HTTPS endpoint.",
+      });
+    }
     if (location) {
       await discardBody(res);
-      current = new URL(location, current).toString();
+      const next = new URL(location, current);
+      requestInit = stripCrossOriginCredentials(requestInit, new URL(current), next);
+      current = next.toString();
       continue;
     }
     await assertContentLength(res, opts.maxBodyBytes);
@@ -381,6 +408,17 @@ export async function followPublicRedirects<T>(
     cause: `too many redirects (>${opts.maxRedirects}) starting at ${url}`,
     remediation: "The URL redirects too many times; try the final article URL directly.",
   });
+}
+
+function stripCrossOriginCredentials(init: RequestInit | undefined, current: URL, next: URL): RequestInit | undefined {
+  if (!init || current.origin === next.origin) return init;
+  const headers = new Headers(init.headers);
+  for (const name of [...headers.keys()]) {
+    if (/^(?:authorization|proxy-authorization|cookie2?|(?:x-)?api-key|xi-api-key|x-(?:auth|access)-token|x-amz-security-token)$/i.test(name)) {
+      headers.delete(name);
+    }
+  }
+  return { ...init, headers };
 }
 
 /**
@@ -401,10 +439,44 @@ export function makeSafeFetch(opts: SafeFetchOptions = {}): (url: string) => Pro
         lookupImpl,
         maxRedirects,
         maxBodyBytes,
+        ...(opts.allowedProtocols ? { allowedProtocols: opts.allowedProtocols } : {}),
+        ...(opts.rejectRedirects ? { rejectRedirects: true } : {}),
       });
       return { ok: out.ok, status: out.status, text: async () => out.body };
     } catch (error) {
       rethrowFetchFailure(error, url, signal, timeoutMs);
+    }
+  };
+}
+
+/**
+ * Fetch-compatible safe transport for provider clients. The production path
+ * resolves and pins each public hop, bounds the response before returning it,
+ * and applies a caller-selected redirect policy.
+ */
+export function makeSafeResponseFetch(opts: SafeFetchOptions = {}): typeof fetch {
+  const lookupImpl = opts.lookupImpl ?? defaultLookup;
+  const maxRedirects = opts.maxRedirects ?? MAX_REDIRECTS;
+  const maxBodyBytes = opts.maxBodyBytes ?? MAX_BODY_BYTES;
+  const requestPinned = resolveRequestPinned(opts);
+  return async (input, init) => {
+    const url = input instanceof Request ? input.url : String(input);
+    const requestInit: RequestInit = input instanceof Request
+      ? { method: input.method, headers: input.headers, body: input.body ?? undefined, ...init }
+      : init ?? {};
+    const signal = mergeFetchSignals(requestInit.signal ?? opts.signal, opts.timeoutMs);
+    try {
+      const out = await followPublicRedirects(url, signal, requestPinned, async (response) => response, {
+        lookupImpl,
+        maxRedirects,
+        maxBodyBytes,
+        ...(opts.allowedProtocols ? { allowedProtocols: opts.allowedProtocols } : {}),
+        ...(opts.rejectRedirects ? { rejectRedirects: true } : {}),
+        requestInit,
+      });
+      return out.body;
+    } catch (error) {
+      rethrowFetchFailure(error, url, signal, opts.timeoutMs);
     }
   };
 }
@@ -437,6 +509,8 @@ export function makeSafeFetchBytes(
         lookupImpl,
         maxRedirects,
         maxBodyBytes,
+        ...(opts.allowedProtocols ? { allowedProtocols: opts.allowedProtocols } : {}),
+        ...(opts.rejectRedirects ? { rejectRedirects: true } : {}),
       });
       return { ok: out.ok, status: out.status, bytes: out.body };
     } catch (error) {

@@ -175,12 +175,16 @@ running, failed, or cancelled jobs and releases them after completion/deletion.
 Classic Home/Create/Queue AI does not read repository docs directly. For fresh
 Classic authoring, the desktop backend first asks the selected 9router-compatible
 model for a structured content plan with a claim ledger, validates that plan,
-then feeds only usable facts and scene-plan data into the scene-code authoring
-prompt built from the current authoring contract. Classic edit/refine flows use
+and then sends it to scene-code authoring. Fresh plans choose one dominant
+presentation profile by viewer task. The code author sees the approved plan and
+only that selected full direction—not the routing menu or six alternatives—and
+owns concrete focal objects, composition and visible states. Legacy plans
+without the field keep the aggregate contract.
+Classic edit/refine flows use
 scoped repair prompts instead of rerunning the full fresh-authoring chain.
 
 Agent-created projects persist `creationMode: "harness"`. They reuse the same
-project scaffold, authoring contract, admission/render tools, Workspace stages,
+project scaffold, profile-selected authoring contract, admission/render tools, Workspace stages,
 human review, TTS, captions, and full export, but their linked DeepSeek Harness
 Session writes `manifest.json` and `authored/*.tsx` directly through a project
 junction. Initial Harness authoring is final-quality: it reads the approved
@@ -235,6 +239,9 @@ Focused modules own bounded workflows:
 - `authoring-render-tools.ts` owns draft/stills/full/safety-report adapters.
 - `authoring-failure.ts` is the shared `failureClass` emitter for structured
   authoring fail logs (preserves legacy message strings for continuity).
+- `scene-mentions.ts` (in `packages/pipeline/src/authoring`) is the pure shared helper
+  for diacritic- and case-tolerant Vietnamese scene-id mention matching, used by both
+  the Harness submission tool (in-turn validation) and Main-process review notes backstop.
 
 The public `content-plan.ts` module stays as the import facade for content-plan
 types and helpers. Internals are split into schema/types, normalization,
@@ -397,6 +404,11 @@ IPv6 routes do not hang image crawls. Redirects are followed manually and
 re-pinned. Body size, timeout, and abort signals apply to both text and binary
 paths. Responses are buffered before the per-request dispatcher closes.
 
+Cloud TTS uses the same primitive with HTTPS-only policy. Authenticated API
+requests reject every redirect; anonymous audio/SRT downloads can follow up to
+five re-pinned redirects and discard credentials whenever origin changes. The
+local VieNeu worker does not use this public-network transport.
+
 ## Delivery format (short-form only)
 
 The product ships **TikTok/Reels/Shorts 9:16** only. Specs use `format: "tiktok"`
@@ -405,6 +417,8 @@ duration knobs pick `durationTier` **1 / 2 / 3 / 4** (~45s / ~90s / ~150s /
 ~210s pacing; fresh install defaults to **2** (~90s) and the most recently
 accepted duration tier becomes the next UI default. There is no landscape /
 YouTube format option.
+Generic pipeline/API callers without an explicit duration tier or prompt length
+fall back to tier **1** (~45s); desktop passes its tier-2 default explicitly.
 Geometry, captions, and thumbnail cover are vertical short-form only.
 
 **Duration resolution:** desktop **Settings/knobs always win**. An explicit

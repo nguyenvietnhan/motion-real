@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import ts from "typescript";
 import {
   normalizeAuthoredSource,
+  normalizeSvgJsxAttributes,
   stripReactNativeStyleKeys,
 } from "./normalize-authored-source.js";
 // stripReactNativeStyleKeys used for layout expand tests; full normalize covers fonts.
@@ -136,4 +137,46 @@ describe("normalizeAuthoredSource", () => {
     expect(out).toContain("elevation: 8");
     expect(out).toContain('title: "Card"');
   });
+
+  it("integrates normalizeSvgJsxAttributes in normalizeAuthoredSource", () => {
+    const src = `<svg><path stroke-width="4" stroke-dasharray="6 6" stop-color="#fff" stop-opacity="0.5" /></svg>`;
+    const out = normalizeAuthoredSource(src);
+    expect(out).toContain('strokeWidth="4"');
+    expect(out).toContain('strokeDasharray="6 6"');
+    expect(out).toContain('stopColor="#fff"');
+    expect(out).toContain('stopOpacity="0.5"');
+    expect(out).not.toContain("stroke-width");
+  });
 });
+
+describe("normalizeSvgJsxAttributes", () => {
+  it("rewrites kebab-case SVG attributes to React camelCase", () => {
+    const input = `<svg><path stroke-width="4" stroke-dasharray="600" stop-color="#fff" stop-opacity="0.5" stroke-linecap="round" fill-opacity="0.8" clip-path="url(#c)" /></svg>`;
+    const output = normalizeSvgJsxAttributes(input);
+    expect(output).toContain('strokeWidth="4"');
+    expect(output).toContain('strokeDasharray="600"');
+    expect(output).toContain('stopColor="#fff"');
+    expect(output).toContain('stopOpacity="0.5"');
+    expect(output).toContain('strokeLinecap="round"');
+    expect(output).toContain('fillOpacity="0.8"');
+    expect(output).toContain('clipPath="url(#c)"');
+    expect(output).not.toContain("stroke-width");
+    expect(output).not.toContain("stop-color");
+    expect(parseErrors(output)).toBe(0);
+  });
+
+  it("is idempotent on already camelCase attributes", () => {
+    const input = `<path strokeWidth={4} strokeDashoffset={20} />`;
+    expect(normalizeSvgJsxAttributes(input)).toBe(input);
+  });
+
+  it("handles JSX expressions as attribute values", () => {
+    const input = `<path stroke-width={strokeWidth} stroke-dashoffset={600 * (1 - progress)} />`;
+    const output = normalizeSvgJsxAttributes(input);
+    expect(output).toContain("strokeWidth={strokeWidth}");
+    expect(output).toContain("strokeDashoffset={600 * (1 - progress)}");
+    expect(output).not.toContain("stroke-width");
+    expect(output).not.toContain("stroke-dashoffset");
+  });
+});
+

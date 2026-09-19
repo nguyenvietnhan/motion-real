@@ -435,8 +435,9 @@ MotionReal projection of its protocol.
 
 - The Harness fork supports `?session=<id>&embedded=motionreal`.
 - Embedded mode mounts only the native conversation surface: it removes sidebar,
-  session chrome, hero, workspace picker, and composer model/access controls
-  while preserving every native conversation plugin and MotionReal theme tokens.
+  session chrome, hero, workspace picker, and the composer model selector while
+  preserving the native Access chip, every conversation plugin, and MotionReal
+  theme tokens.
 - MotionReal places that native page below its existing workflow bar and review
   surfaces.
 - The renderer opens chat only through `AgentDraftVM.harnessUrl`; there is no

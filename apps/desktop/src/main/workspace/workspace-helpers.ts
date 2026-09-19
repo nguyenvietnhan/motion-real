@@ -1,5 +1,10 @@
 import type { FriendlyStatus, ProjectStage } from "../../shared/types.js";
 
+/** Missing generated artifacts are a normal pre-render state, not corruption. */
+export function isMissingFileError(error: unknown): boolean {
+  return (error as NodeJS.ErrnoException | null)?.code === "ENOENT";
+}
+
 /** Map a live workspace stage to the gallery's friendly status. */
 export function stageToFriendlyStatus(kind: ProjectStage["kind"]): FriendlyStatus {
   switch (kind) {

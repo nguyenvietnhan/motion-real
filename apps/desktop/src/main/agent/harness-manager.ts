@@ -1,13 +1,13 @@
 import { randomUUID } from "node:crypto";
 import { spawn, type ChildProcess } from "node:child_process";
-import { mkdir, readFile, readdir, realpath, rm, stat, symlink, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, realpath, rename, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { createServer } from "node:net";
 import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
-import { createLogger, MAX_IMAGE_BYTES, MAX_IMAGE_DIM, resolveEffectiveDuration, sniffImage, writeJson, type AuthoringReviewRequest, type ReviewArtifact } from "@motionreal/pipeline";
+import { createLogger, MAX_IMAGE_BYTES, MAX_IMAGE_DIM, missingSceneMentions, normalizeMentionText, resolveEffectiveDuration, sniffImage, writeJson, type AuthoringReviewRequest, type ReviewArtifact } from "@motionreal/pipeline";
 import type { SceneImageRole } from "@motionreal/schema";
-import type { AgentActivityVM, AgentAssetVM, AgentBriefInput, AgentBriefVM, AgentDraftVM, AgentProductionState, AgentSearchProvider, AgentSettingsVM, DurationTierChoice, VideoLanguageChoice, VoiceProviderChoice } from "../../shared/types.js";
+import { DEFAULT_AGENT_ASSET_STRATEGY, type AgentActivityVM, type AgentAssetStrategy, type AgentAssetVM, type AgentBriefInput, type AgentBriefVM, type AgentDraftVM, type AgentProductionState, type AgentSearchProvider, type AgentSettingsVM, type DurationTierChoice, type VideoLanguageChoice, type VoiceProviderChoice } from "../../shared/types.js";
 import { sanitizedChildEnvironment } from "../security/runtime-security.js";
 import {
   AGENT_WORKFLOW_VERSION,
@@ -22,9 +22,13 @@ import {
 } from "./agent-workflow.js";
 import { assertHarnessImageReads, HarnessImageReadEvidenceError, readHarnessReviewHistory } from "./harness-image-review.js";
 import { assertHarnessReviewArtifacts } from "./harness-review-artifacts.js";
-import { AUTHORING_CONTRACT } from "../authoring/contract-text.js";
-import type { AuthorInput } from "./agent-worker.js";
-import { ContentPlanSchema, sceneReviewProfiles, type ContentPlan } from "../authoring/content-plan.js";
+import { TECHNICAL_AUTHORING_CONTRACT } from "../authoring/contract-text.js";
+import type { AuthorImageRef, AuthorInput } from "./agent-worker.js";
+import { ContentPlanSchema, contentPlanForAuthoring, sceneReviewProfiles, type ContentPlan, type ContentPlanQualityIssue, type PlannedAuthoringContent } from "../authoring/content-plan.js";
+import { contentPlanAdvisoryBlock } from "../authoring/prompt-plan-blocks.js";
+import { extractUrls } from "../../shared/create-validation.js";
+import { authoringContractForProfile } from "../authoring/presentation-profiles.js";
+import { assetStrategyDirection } from "../authoring/asset-strategy.js";
 import {
   buildHarnessAuthoringPacing,
   validateHarnessManifestPacing,
@@ -52,34 +56,36 @@ const HARNESS_PATCH_FILE = "motionreal-tools.patch.yml";
 const SEARCH_CONFIG_FILE = "motionreal-search.json";
 const AGENTS_FILE = "AGENTS.md";
 const AI_CONTRACT_FILE = "AI_CONTRACT.md";
-// A brand-new DSH_HOME initializes the web profile on its first launch. The
-// checked-in Harness build needs roughly 30s on this Windows machine, so 20s
-// was a false failure even though the child was about to become healthy.
-const START_TIMEOUT_MS = 60_000;
+// A brand-new DSH_HOME initializes the web profile on its first launch. Cold
+// Windows starts can exceed 60s under disk/antivirus contention, but remain bounded.
+const START_TIMEOUT_MS = 120_000;
 const RPC_TIMEOUT_MS = 15_000;
 const CANCEL_RPC_TIMEOUT_MS = 2_000;
 const PROCESS_OUTPUT_LIMIT = 4_096;
 const AUTHORING_POLL_MS = 500;
-const SESSION_POLICY_REVISION = 1;
+const MAX_AUTOMATIC_CONTINUATIONS = 2;
 /** Session persistence is intentionally coupled to this reviewed Harness checkout. */
-const HARNESS_SESSION_LAYOUT_COMMIT = "466404c927e2209ba7f242038b6922f10c0405cd";
+const HARNESS_SESSION_LAYOUT_COMMIT = "d74a18cbd21c0fac2b63f51ae5f46556b4694d14";
 const log = createLogger("harness");
 
 export type { AgentDraftVM } from "../../shared/types.js";
 
-type DraftRecord = Omit<AgentDraftVM, "updatedAt" | "harnessUrl" | "webSearchConfigured" | "searchProvider" | "createReady" | "activities" | "needsAttention" | "assetReview" | "assetCollectionError" | "briefReview" | "briefReviewError" | "sessionAccess"> & AgentWorkflowRecord & {
+type DraftRecord = Omit<AgentDraftVM, "updatedAt" | "harnessUrl" | "webSearchConfigured" | "searchProvider" | "createReady" | "activities" | "needsAttention" | "assetReview" | "assetCollectionError" | "briefReview" | "briefReviewError"> & AgentWorkflowRecord & {
   workspaceId?: string;
   sessionId?: string;
   assetRequestRevision?: number;
   briefRequestRevision?: number;
   authoringRequestRevision?: number;
-  sessionPolicyRevision?: number;
   repairPhase?: "authoring" | "visual_refine";
   repairAttempts?: number;
   failedPhase?: "collecting_assets" | "preparing_brief" | "authoring" | "visual_refine";
   /** RPC id of the native turn that must submit the next workflow artifact. */
   awaitingArtifactPromptId?: string;
+  /** Budget for the current artifact prompt chain, independent of code repair. */
+  automaticContinuationAttempts?: number;
 };
+
+type ArtifactTurnEnd = { kind: string; errorCode?: string };
 
 class AuthoringStillRenderError extends Error {
   constructor(message: string, readonly repairable: boolean) {
@@ -119,6 +125,7 @@ type AgentAcceptedBrief = AgentBriefVM & {
   durationTier: DurationTierChoice;
   voiceProvider: VoiceProviderChoice;
   bgm: string | null;
+  assetStrategy: AgentAssetStrategy;
 };
 
 type HarnessRpcResponse = {
@@ -153,7 +160,7 @@ export type HarnessManagerDeps = {
     projectId: string,
     input: AuthorInput,
     signal: AbortSignal,
-  ) => Promise<ContentPlan>;
+  ) => Promise<PlannedAuthoringContent>;
   renderAuthoringStills?: (
     projectId: string,
     sceneIds: string[],
@@ -171,6 +178,8 @@ export type HarnessManagerDeps = {
   rpcTimeoutMs?: number;
   /** Test seam; a cancel must never hold the UI beyond this short deadline. */
   cancelRpcTimeoutMs?: number;
+  /** Test seam; production allows a bounded cold start on slower Windows hosts. */
+  startTimeoutMs?: number;
   /** Test seam for the pinned Harness session-layout guard. */
   harnessRevision?: () => Promise<string>;
 };
@@ -206,10 +215,12 @@ export class HarnessManager {
   private readonly nodeExecutable: string;
   private readonly rpcTimeoutMs: number;
   private readonly cancelRpcTimeoutMs: number;
+  private readonly startTimeoutMs: number;
   private readonly authoringInFlight = new Set<string>();
   private readonly authoringWrites = new Set<Promise<void>>();
   private readonly authoringPolls = new Map<string, ReturnType<typeof setTimeout>>();
-  private readonly authoringPlans = new Map<string, { controller: AbortController; promise: Promise<ContentPlan> }>();
+  private readonly authoringPlans = new Map<string, { controller: AbortController; promise: Promise<PlannedAuthoringContent> }>();
+  private readonly continuations = new Map<string, Promise<DraftRecord>>();
 
   constructor(private readonly deps: HarnessManagerDeps) {
     this.spawnChild = deps.spawn ?? spawn;
@@ -218,6 +229,7 @@ export class HarnessManager {
     this.now = deps.now ?? (() => new Date());
     this.rpcTimeoutMs = positiveTimeout(deps.rpcTimeoutMs, RPC_TIMEOUT_MS);
     this.cancelRpcTimeoutMs = positiveTimeout(deps.cancelRpcTimeoutMs, CANCEL_RPC_TIMEOUT_MS);
+    this.startTimeoutMs = positiveTimeout(deps.startTimeoutMs, START_TIMEOUT_MS);
     // DeepSeek Harness is a Node CLI. process.execPath inside Electron points to
     // MotionReal.exe, whose embedded Node does not resolve this source checkout's
     // linked workspace packages correctly on Windows.
@@ -247,7 +259,6 @@ export class HarnessManager {
       title: normalized,
       createdAt: this.now().toISOString(),
       sessionId: `session-${randomUUID()}`,
-      sessionPolicyRevision: SESSION_POLICY_REVISION,
       ...initialAgentWorkflow(),
     };
     await mkdir(join(root, "assets"), { recursive: true });
@@ -313,6 +324,7 @@ export class HarnessManager {
     this.activeDraftId = id;
     if (!sessionWasLive
       && isPausableAgentProductionState(record.productionState)
+      && !record.awaitingArtifactPromptId
       && existsSync(join(this.rootOf(record.id), AUTHORING_REQUEST_FILE))) {
       try {
         await this.promptSession(record, resumePromptFor(record.productionState));
@@ -326,6 +338,7 @@ export class HarnessManager {
   }
 
   private async startRuntime(apiKey: string): Promise<string> {
+    const startedAt = Date.now();
     if (!existsSync(this.deps.harnessCliPath)) {
       throw new Error("Chưa tìm thấy DeepSeek Harness. Cài/built Harness hoặc đặt MOTIONREAL_DSH_CLI.");
     }
@@ -335,7 +348,7 @@ export class HarnessManager {
     await mkdir(this.deps.draftsRoot, { recursive: true });
     await mkdir(this.deps.harnessHome, { recursive: true });
     const searchProvider = await this.readSearchProvider();
-    await writeFile(join(this.deps.harnessHome, "settings.yaml"), harnessSettings(), "utf8");
+    await migrateLegacyHarnessSettings(join(this.deps.harnessHome, "settings.yaml"));
     const patchPath = join(this.deps.harnessHome, HARNESS_PATCH_FILE);
     await writeFile(patchPath, harnessToolsPatch(this.deps.submissionPluginPath, searchProvider, this.deps.harnessCliPath), "utf8");
     const port = await this.findPort();
@@ -381,7 +394,7 @@ export class HarnessManager {
       if (this.startingChild === child) this.startingChild = null;
     });
     try {
-      await waitForHarness(url, this.fetchImpl, () => startupFailure);
+      await waitForHarness(url, this.fetchImpl, () => startupFailure, this.startTimeoutMs);
       this.startingChild = null;
       this.active = { child, url, searchProvider };
       started = true;
@@ -389,6 +402,11 @@ export class HarnessManager {
     } catch (error) {
       if (this.startingChild === child) this.startingChild = null;
       stopping = true;
+      log.warn({
+        err: error,
+        elapsedMs: Date.now() - startedAt,
+        stderr: stderrTail.replaceAll(apiKey, "[redacted]").trim(),
+      }, "DeepSeek Harness did not become ready");
       await stopChild(child);
       throw error;
     }
@@ -433,20 +451,16 @@ export class HarnessManager {
       }
     }
     if (isAutomatedAuthoringState(record.productionState)) this.maybeProcessAuthoring(record);
-    const activityState = options?.includeActivities === true
+    const activityState = options?.includeActivities === true || isArtifactAwaitingState(record.productionState)
       ? await this.readSafeActivities(record).catch((error) => {
         log.debug({ err: error, draftId: record.id }, "Harness activity unavailable");
         return undefined;
       })
       : undefined;
-    if (activityState?.artifactPromptEnded && isArtifactAwaitingState(record.productionState)
+    if (activityState?.artifactTurnEnd && !activityState.needsAttention && isArtifactAwaitingState(record.productionState)
       && !(isAutomatedAuthoringState(record.productionState)
         && existsSync(join(this.rootOf(record.id), "handoff", "authoring.json")))) {
-      const artifact = record.productionState === "collecting_assets"
-        ? "manifest asset"
-        : record.productionState === "preparing_brief" ? "brief" : "authoring";
-      await this.recordWorkflowError(record, `Agent đã kết thúc lượt nhưng chưa gửi ${artifact} hợp lệ. Dữ liệu đã tải vẫn được giữ; hãy thử lại bước này.`);
-      record = await this.mustReadRecord(record.id);
+      record = await this.recoverEndedArtifactTurn(record, activityState.artifactTurnEnd, assetCollectionError ?? briefReviewError);
     }
     return this.toVm(record, assetReview, assetCollectionError, briefReview, briefReviewError, activityState?.activities, activityState?.needsAttention);
   }
@@ -543,7 +557,8 @@ export class HarnessManager {
     try {
       await this.promptSession(next, "MotionReal đã chốt asset. Hãy đọc handoff/brief-request.json, tạo brief và gọi motionreal_submit_brief; không tự ghi handoff/brief.generated.json.");
     } catch (error) {
-      return this.toVm(next, assets, undefined, undefined, safeBriefError(error));
+      await this.recordErrorIfCurrent(next, safeBriefError(error));
+      return this.status(id);
     }
     return this.toVm(next, assets);
   }
@@ -561,7 +576,8 @@ export class HarnessManager {
     try {
       await this.promptSession(next, "MotionReal yêu cầu tạo lại brief. Hãy đọc phiên bản mới của handoff/brief-request.json, hoàn thành brief và gọi motionreal_submit_brief; không tự ghi handoff/brief.generated.json.");
     } catch (error) {
-      return this.toVm(next, undefined, undefined, undefined, safeBriefError(error));
+      await this.recordErrorIfCurrent(next, safeBriefError(error));
+      return this.status(id);
     }
     return this.toVm(next);
   }
@@ -591,7 +607,8 @@ export class HarnessManager {
     try {
       await this.promptSession(next, "MotionReal yêu cầu chỉnh brief theo phản hồi mới. Hãy đọc handoff/brief-request.json, dùng base_brief và feedback, rồi gọi motionreal_submit_brief; không tự ghi handoff/brief.generated.json.");
     } catch (error) {
-      return this.toVm(next, undefined, undefined, undefined, safeBriefError(error));
+      await this.recordErrorIfCurrent(next, safeBriefError(error));
+      return this.status(id);
     }
     return this.toVm(next);
   }
@@ -610,6 +627,45 @@ export class HarnessManager {
     };
     await this.writeRecord(next);
     return this.toVm(next, assets);
+  }
+
+  /**
+   * Return a failed pre-project draft to discovery ("Quay lại trao đổi").
+   * Allowed only for an Agent error before a project is linked. Preserves the
+   * session, files, and approved asset/brief artifacts; the failed attempt is
+   * invalidated by clearing the job and bumping the revision, so late native
+   * submissions and stale local callbacks fail closed on job/revision mismatch.
+   */
+  async returnToDiscovery(id: string, expectedRevision: number): Promise<AgentDraftVM> {
+    const current = await this.mustReadRecord(id);
+    if (current.workflowRevision !== expectedRevision) {
+      throw new Error("Trạng thái Video Agent đã thay đổi; hãy tải lại trước khi tiếp tục.");
+    }
+    if (current.productionState !== "error") {
+      throw new Error("Chỉ có thể quay lại trao đổi khi video Agent đang báo lỗi.");
+    }
+    if (current.projectId) {
+      throw new Error("Video đã liên kết project; hãy thử lại bước này thay vì quay lại trao đổi.");
+    }
+    const next: DraftRecord = {
+      ...current,
+      ...transitionAgentWorkflow(current, {
+        expectedRevision,
+        to: "discovery",
+        jobId: current.activeJobId,
+      }),
+    };
+    delete next.activeJobId;
+    delete next.lastError;
+    delete next.failedPhase;
+    delete next.retryAction;
+    delete next.repairPhase;
+    delete next.repairAttempts;
+    delete next.awaitingArtifactPromptId;
+    this.stopAuthoringPoll(id);
+    this.abortAuthoringPlan(id);
+    await this.writeRecord(next);
+    return this.toVm(next);
   }
 
   async approveBrief(id: string, expectedRevision: number, input: AgentBriefInput): Promise<AgentDraftVM> {
@@ -635,6 +691,7 @@ export class HarnessManager {
       video_language: accepted.videoLanguage,
       voice_provider: accepted.voiceProvider,
       bgm: accepted.bgm,
+      asset_strategy: accepted.assetStrategy,
       selected_asset_ids: generated.selectedAssetIds,
       accepted: true,
     });
@@ -682,10 +739,14 @@ export class HarnessManager {
     const next = { ...resumable, ...resumeAgentWorkflow(current, { expectedRevision, jobId: current.activeJobId }) };
     await this.writeRecord(next);
     try {
-      await this.promptSession(next, resumePromptFor(next.productionState));
+      if (isAutomatedAuthoringState(next.productionState)) {
+        await this.continueAuthoringAfterPlanning(next);
+      } else {
+        await this.promptSession(next, resumePromptFor(next.productionState));
+      }
     } catch (error) {
-      await this.recordWorkflowError(next, error);
-      throw error;
+      if (await this.recordErrorIfCurrent(next, error)) throw error;
+      return this.status(id);
     }
     if (isAutomatedAuthoringState(next.productionState)) this.scheduleAuthoringPoll(next.id);
     return this.toVm(next);
@@ -724,19 +785,13 @@ export class HarnessManager {
         && existsSync(join(this.rootOf(next.id), "handoff", "authoring.json"))) {
         await this.requestAuthoringRepair(next, "Người dùng yêu cầu thử lại bước này.");
       } else if (phase === "authoring" && existsSync(join(this.rootOf(next.id), AUTHORING_REQUEST_FILE))) {
-        const request = parseJson(await readFile(join(this.rootOf(next.id), AUTHORING_REQUEST_FILE), "utf8")) as Record<string, unknown>;
-        if (request.phase === "initial" && request.planning === true) {
-          await this.completeInitialContentPlan(next, request);
-        }
-        if (await this.isCurrentAuthoringRecord(next)) {
-          await this.promptSession(next, resumePromptFor(phase));
-        }
+        await this.continueAuthoringAfterPlanning(next);
       } else {
         await this.promptSession(next, resumePromptFor(phase));
       }
     } catch (error) {
-      await this.recordWorkflowError(next, error);
-      throw error;
+      if (await this.recordErrorIfCurrent(next, error)) throw error;
+      return this.status(id);
     }
     if (isAutomatedAuthoringState(phase)) this.scheduleAuthoringPoll(next.id);
     return this.status(id);
@@ -842,10 +897,13 @@ export class HarnessManager {
       if (!info?.isFile()) continue;
       usableAssets.push({ id: asset.id, ref: asset.ref.replaceAll("\\", "/"), path: `${PROJECT_LINK}/${asset.ref.replaceAll("\\", "/")}`, role: asset.role });
     }
+    const acceptedBrief = await this.readRequiredBrief(current);
     const next = { ...current, authoringRequestRevision: (current.authoringRequestRevision ?? 0) + 1 };
     const pacing = await this.authoringPacing(current);
     await mkdir(join(root, "handoff"), { recursive: true });
-    await writeFile(join(root, AUTHORING_CONTRACT_FILE), `${AUTHORING_CONTRACT}\n`, "utf8");
+    // The creative profile is not known until planning completes. Keep only
+    // invariant rules here so Harness can never pre-read all creative profiles.
+    await writeFile(join(root, AUTHORING_CONTRACT_FILE), `${TECHNICAL_AUTHORING_CONTRACT}\n`, "utf8");
     await writeJson(join(root, AUTHORING_REQUEST_FILE), {
       version: 1,
       job_id: current.activeJobId,
@@ -859,6 +917,7 @@ export class HarnessManager {
       manifest: `${PROJECT_LINK}/manifest.json`,
       authored_dir: `${PROJECT_LINK}/authored`,
       pacing,
+      asset_strategy: acceptedBrief.assetStrategy,
       assets: usableAssets,
       instructions: [
         "Đọc brief, contract; dùng read_image với file_path của từng asset để xem ảnh thật trước khi author (read chỉ đọc văn bản).",
@@ -867,6 +926,7 @@ export class HarnessManager {
         "Asset là pool tư liệu, không phải số lượng storyboard. Số cảnh và lượng narration phải theo pacing.",
         "Viết mới manifest.json và các module authored/*.tsx cho toàn video; không gọi API authoring cũ.",
         "Asset là pool đã duyệt, không phải checklist. Không bắt buộc dùng mọi asset: chỉ dùng asset thực sự giúp kể nội dung của cảnh; logo/icon chỉ là điểm nhấn bổ trợ và không được phóng thành ảnh nền/cảnh chính nếu không có lý do nội dung rõ ràng.",
+        assetStrategyDirection(acceptedBrief.assetStrategy),
         "Mọi asset được dùng phải giữ đúng scene.image.role đã duyệt; không dùng asset ngoài pool đã duyệt.",
         "Mỗi cảnh phải có một focal subject và hành động hình ảnh riêng; cấm dùng một shell/panel/HUD cố định cho toàn video.",
         "Nếu scene trong content_plan có motionBeats, mọi beat id (cả beat đầu) phải xuất hiện literal trong motionCueFrames?.[\"beat-id\"] ?? fallback-frame và đổi trạng thái theo lời đọc; không hiện beat mặc định/tương lai, không chỉ entrance hoặc glow. MotionReal tự cấp cue, không tự bịa timestamp.",
@@ -1059,7 +1119,6 @@ export class HarnessManager {
       ...(this.active && this.activeDraftId === record.id && this.webSearchConfigured !== undefined
         ? { webSearchConfigured: this.webSearchConfigured }
         : {}),
-      sessionAccess: record.sessionPolicyRevision === SESSION_POLICY_REVISION ? "full" : "legacy-approval",
       createReady,
       ...(activities?.length ? { activities } : {}),
       ...(needsAttention ? { needsAttention: true } : {}),
@@ -1119,9 +1178,6 @@ export class HarnessManager {
         ...(Number.isSafeInteger(raw.authoringRequestRevision) && Number(raw.authoringRequestRevision) > 0
           ? { authoringRequestRevision: Number(raw.authoringRequestRevision) }
           : {}),
-        ...(raw.sessionPolicyRevision === SESSION_POLICY_REVISION
-          ? { sessionPolicyRevision: SESSION_POLICY_REVISION }
-          : {}),
         ...((raw.repairPhase === "authoring" || raw.repairPhase === "visual_refine")
           && Number.isSafeInteger(raw.repairAttempts) && Number(raw.repairAttempts) > 0
           ? { repairPhase: raw.repairPhase, repairAttempts: Number(raw.repairAttempts) }
@@ -1129,6 +1185,9 @@ export class HarnessManager {
         ...(isRetryableFailurePhase(raw.failedPhase) ? { failedPhase: raw.failedPhase } : {}),
         ...(typeof raw.awaitingArtifactPromptId === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(raw.awaitingArtifactPromptId)
           ? { awaitingArtifactPromptId: raw.awaitingArtifactPromptId }
+          : {}),
+        ...(Number.isSafeInteger(raw.automaticContinuationAttempts) && Number(raw.automaticContinuationAttempts) >= 0
+          ? { automaticContinuationAttempts: Math.min(MAX_AUTOMATIC_CONTINUATIONS, Number(raw.automaticContinuationAttempts)) }
           : {}),
         ...(raw.productionState === "error" && raw.retryAction === "rerender_stills" ? { retryAction: "rerender_stills" as const } : {}),
         ...(Array.isArray(raw.selectedAssetIds)
@@ -1196,11 +1255,11 @@ export class HarnessManager {
     }
   }
 
-  private async promptSession(record: DraftRecord, text: string): Promise<string> {
+  private async promptSession(record: DraftRecord, text: string, automaticContinuationAttempts = 0): Promise<string> {
     this.requireActiveSession(record);
     const rpcId = randomUUID();
     if (isArtifactAwaitingState(record.productionState)) {
-      await this.writeRecord({ ...record, awaitingArtifactPromptId: rpcId });
+      await this.writeRecord({ ...record, awaitingArtifactPromptId: rpcId, automaticContinuationAttempts });
     }
     await this.rpc(this.active!.url, "session.prompt", {
       sessionId: record.sessionId,
@@ -1210,7 +1269,66 @@ export class HarnessManager {
     return rpcId;
   }
 
-  private async readSafeActivities(record: DraftRecord): Promise<{ activities: AgentActivityVM[]; needsAttention: boolean; artifactPromptEnded: boolean } | undefined> {
+  /** Serialize recovery per draft and reject stale history before spending its durable budget. */
+  private recoverEndedArtifactTurn(record: DraftRecord, end: ArtifactTurnEnd, validationError?: string): Promise<DraftRecord> {
+    const pending = this.continuations.get(record.id);
+    if (pending) return pending;
+    const work = this.continueEndedArtifactTurn(record, end, validationError)
+      .finally(() => this.continuations.delete(record.id));
+    this.continuations.set(record.id, work);
+    return work;
+  }
+
+  private async continueEndedArtifactTurn(record: DraftRecord, end: ArtifactTurnEnd, validationError?: string): Promise<DraftRecord> {
+    const current = await this.mustReadRecord(record.id);
+    if (!this.active || current.workflowRevision !== record.workflowRevision
+      || current.activeJobId !== record.activeJobId || current.productionState !== record.productionState
+      || current.awaitingArtifactPromptId !== record.awaitingArtifactPromptId
+      || current.authoringRequestRevision !== record.authoringRequestRevision) return current;
+    // A submission arriving while history was read belongs to validation/rendering, never this loop.
+    const artifactPath = current.productionState === "collecting_assets" ? ASSET_MANIFEST_FILE
+      : current.productionState === "preparing_brief" ? BRIEF_GENERATED_FILE : join("handoff", "authoring.json");
+    if (!validationError && existsSync(join(this.rootOf(current.id), artifactPath))) return current;
+    if (end.kind === "aborted" || end.kind === "interrupted") {
+      const paused = { ...current, ...pauseAgentWorkflow(current, { expectedRevision: current.workflowRevision, jobId: current.activeJobId }) };
+      this.stopAuthoringPoll(current.id);
+      await this.writeRecord(paused);
+      return paused;
+    }
+    if (end.kind === "error" || (end.kind !== "completed" && end.kind !== "max-tokens")) {
+      const transport = ["TRANSPORT", "TIMEOUT", "SERVER", "RATE_LIMIT", "STREAM_CLOSED"].includes(end.errorCode ?? "");
+      await this.recordWorkflowError(current, transport
+        ? "Kết nối tới dịch vụ AI bị lỗi. Dữ liệu đã lưu vẫn được giữ; hãy thử lại bước này khi kết nối ổn định."
+        : "Harness không hoàn tất lượt do lỗi dịch vụ AI. Hãy kiểm tra lỗi trong hội thoại rồi thử lại bước này.");
+      return this.mustReadRecord(current.id);
+    }
+    const attempts = current.automaticContinuationAttempts ?? 0;
+    if (validationError || attempts >= MAX_AUTOMATIC_CONTINUATIONS) {
+      const artifact = current.productionState === "collecting_assets" ? "manifest asset"
+        : current.productionState === "preparing_brief" ? "brief" : "authoring";
+      await this.recordWorkflowError(current, validationError
+        ? `Artifact chưa hợp lệ: ${validationError}`
+        : `Agent đã tự tiếp tục ${attempts} lần nhưng chưa gửi ${artifact} hợp lệ. Dữ liệu đã lưu vẫn được giữ; hãy thử lại bước này.`);
+      return this.mustReadRecord(current.id);
+    }
+    const prompt = isAutomatedAuthoringState(current.productionState)
+      ? await this.resumeAuthoringPrompt(current) : resumePromptFor(current.productionState);
+    const latest = await this.mustReadRecord(current.id);
+    if (latest.workflowRevision !== current.workflowRevision || latest.awaitingArtifactPromptId !== current.awaitingArtifactPromptId) return latest;
+    try {
+      await this.promptSession(current, `${prompt}\nTự tiếp tục ${attempts + 1}/${MAX_AUTOMATIC_CONTINUATIONS}: lượt trước dừng khi chưa nộp kết quả. Kiểm tra request và các file đã lưu trước; giữ lại asset, brief, content plan và scene code đang có, chỉ hoàn tất phần còn thiếu rồi gọi tool submission của bước hiện tại. Không bắt đầu lại toàn video, không tự duyệt hay chuyển bước. Nếu cần người dùng trả lời hoặc cấp quyền, hãy chờ.`, attempts + 1);
+      log.info({ draftId: current.id, phase: current.productionState, attempt: attempts + 1, reason: end.kind }, "Harness incomplete artifact turn automatically continued");
+    } catch (_error) {
+      // RPC delivery may be ambiguous. Never resend automatically or spend a code-repair attempt.
+      const failed = await this.mustReadRecord(current.id);
+      if (failed.workflowRevision === current.workflowRevision && failed.productionState === current.productionState) {
+        await this.recordWorkflowError(failed, "Không xác nhận được kết nối tới Harness khi tự tiếp tục. Dữ liệu đã lưu vẫn được giữ; hãy kiểm tra hội thoại rồi thử lại bước này.");
+      }
+    }
+    return this.mustReadRecord(current.id);
+  }
+
+  private async readSafeActivities(record: DraftRecord): Promise<{ activities: AgentActivityVM[]; needsAttention: boolean; artifactTurnEnd?: ArtifactTurnEnd } | undefined> {
     if (!this.active || !record.sessionId) return undefined;
     const raw = await this.rpc(this.active.url, "session.history", {
       sessionId: record.sessionId,
@@ -1223,17 +1341,21 @@ export class HarnessManager {
     const pendingInteractions = new Set<string>();
     let currentTurn: number | undefined;
     let awaitedTurn: number | undefined;
-    let artifactPromptEnded = false;
+    let artifactTurnEnd: ArtifactTurnEnd | undefined;
     for (const entryValue of arrayOf(objectOf(raw).events)) {
       const event = objectOf(objectOf(entryValue).event);
       const seq = Number.isSafeInteger(event.seq) ? Number(event.seq) : undefined;
       const data = objectOf(event.data);
-      if (event.type === "turn/start" && Number.isSafeInteger(data.turn)) currentTurn = Number(data.turn);
+      if (event.type === "turn/start" && Number.isSafeInteger(data.turn)) {
+        currentTurn = Number(data.turn);
+        artifactTurnEnd = undefined;
+      }
       if (event.type === "user/message" && isAwaitedArtifactPrompt(data, record)) {
         awaitedTurn = currentTurn;
       }
       if (event.type === "turn/end" && awaitedTurn !== undefined && data.turn === awaitedTurn) {
-        artifactPromptEnded = true;
+        const reason = objectOf(data.reason);
+        artifactTurnEnd = { kind: stringOf(reason.kind) ?? "unknown", errorCode: stringOf(objectOf(reason.error).code) };
       }
       if (event.type === "tool/call" && seq !== undefined) {
         const label = safeActivityLabel(data.name);
@@ -1258,7 +1380,7 @@ export class HarnessManager {
       if (event.type === "approval/asked" && approvalId) pendingInteractions.add(`approval:${approvalId}`);
       if (event.type === "approval/decided" && approvalId) pendingInteractions.delete(`approval:${approvalId}`);
     }
-    return { activities: activities.slice(-8), needsAttention: pendingInteractions.size > 0, artifactPromptEnded };
+    return { activities: activities.slice(-8), needsAttention: pendingInteractions.size > 0 || artifactTurnEnd?.kind === "blocked", artifactTurnEnd };
   }
 
   /** Persist only the choice. Never restart a live model turn to apply it. */
@@ -1300,17 +1422,12 @@ export class HarnessManager {
   async settings(id: string): Promise<AgentSettingsVM> {
     const record = await this.mustReadRecord(id);
     this.requireActiveSession(record);
-    const [models, access] = await Promise.all([
-      this.readModelSettings(record),
-      this.readAccessSettings(record),
-    ]);
+    const models = await this.readModelSettings(record);
     return {
       searchProvider: await this.readSearchProvider(),
       webSearchConfigured: this.webSearchConfigured === true,
       currentModelId: models.currentModelId,
       modelOptions: models.options.map(({ id: optionId, label }) => ({ id: optionId, label })),
-      currentAccessId: access.currentAccessId,
-      accessOptions: access.options,
     };
   }
 
@@ -1324,19 +1441,6 @@ export class HarnessManager {
       sessionId: record.sessionId,
       provider: selected.provider,
       model: selected.model,
-    });
-    return this.settings(id);
-  }
-
-  async setAccess(id: string, presetId: string): Promise<AgentSettingsVM> {
-    const record = await this.mustReadRecord(id);
-    this.requireActiveSession(record);
-    const access = await this.readAccessSettings(record);
-    if (!access.options.some((option) => option.id === presetId)) {
-      throw new Error("Mức quyền không tồn tại trong catalog của phiên Agent.");
-    }
-    await this.rpc(this.active!.url, "commands/execute", {
-      args: { agentId: record.sessionId, line: `/permission ${presetId}`, images: [] },
     });
     return this.settings(id);
   }
@@ -1369,30 +1473,6 @@ export class HarnessManager {
     const currentModel = stringOf(current.model);
     return {
       ...(currentProvider && currentModel ? { currentModelId: modelOptionId(currentProvider, currentModel) } : {}),
-      options,
-    };
-  }
-
-  private async readAccessSettings(record: DraftRecord): Promise<{
-    currentAccessId?: string;
-    options: AgentSettingsVM["accessOptions"];
-  }> {
-    const raw = await this.rpc(this.active!.url, "session.history", { sessionId: record.sessionId, maxMessages: 1 });
-    const projections = objectOf(objectOf(raw).projections);
-    const permissions = objectOf(objectOf(projections.values).permissions);
-    const options = arrayOf(permissions.options).flatMap((value) => {
-      const option = objectOf(value);
-      const optionId = stringOf(option.value);
-      if (!optionId) return [];
-      return [{
-        id: optionId,
-        label: accessLabel(optionId, stringOf(option.name)),
-        ...(stringOf(option.description) ? { description: stringOf(option.description)! } : {}),
-        requiresConfirmation: optionId === "danger-full-access",
-      }];
-    });
-    return {
-      ...(stringOf(permissions.currentValue) ? { currentAccessId: stringOf(permissions.currentValue)! } : {}),
       options,
     };
   }
@@ -1645,7 +1725,10 @@ export class HarnessManager {
       throw new AuthoringStillRenderError("Source/asset đã đổi trong lúc render still; cần render lại trước khi review.", false);
     }
     if (!await this.isCurrentAuthoringRecord(record)) return;
-    await this.beginVisualRefineOrSceneReview(record, sceneIds, projectRoot, rendered.stills, rendered.reviewArtifacts, renderSceneIds);
+    await this.beginVisualRefineOrSceneReview(record, sceneIds, projectRoot, rendered.stills, rendered.reviewArtifacts, renderSceneIds, {
+      advisories: readPlanAdvisories(request.content_plan_advisories),
+      ...(parsedPlan.success && parsedPlan.data.presentationProfile ? { profile: parsedPlan.data.presentationProfile } : {}),
+    });
   }
 
   private async authoringRefinePolicy(projectId: string): Promise<{ refinePasses: number; refineEarlyStop: boolean }> {
@@ -1663,6 +1746,7 @@ export class HarnessManager {
     stills: string[],
     reviewArtifacts: ReviewArtifact[],
     reviewSceneIds: string[] = sceneIds,
+    options?: { advisories?: readonly ContentPlanQualityIssue[]; profile?: string },
   ): Promise<void> {
     const policy = await this.authoringRefinePolicy(record.projectId!);
     if (policy.refinePasses === 0) {
@@ -1675,7 +1759,26 @@ export class HarnessManager {
       jobId: record.activeJobId,
     }) };
     await this.writeRecord(refining);
-    await this.enqueueVisualRefine(refining, sceneIds, projectRoot, stills, reviewArtifacts, 1, 0, reviewSceneIds);
+    // Chunk fields are written whenever evidence artifacts exist (even for a
+    // single chunk) so downstream completion treats every sweep uniformly.
+    // The legacy plain-stills path keeps exact current behavior. Sweep stills
+    // mirror the artifact paths (the same invariant request.stills upholds),
+    // never the raw per-scene stills.
+    const sweep = reviewArtifacts.length > 0
+      ? { stills: reviewArtifacts.map((artifact) => artifact.path), artifacts: reviewArtifacts }
+      : undefined;
+    const chunks = sweep
+      ? planReviewChunks({
+        sceneIds: reviewSceneIds,
+        advisorySceneIds: (options?.advisories ?? []).flatMap((issue) => issue.sceneId ? [issue.sceneId] : []),
+      })
+      : [];
+    await this.enqueueVisualRefine(refining, sceneIds, projectRoot, stills, reviewArtifacts, 1, 0,
+      chunks[0] ?? reviewSceneIds,
+      {
+        ...(sweep ? { sweep, chunk: { chunks, index: 0 } } : {}),
+        ...(options?.profile ? { profile: options.profile } : {}),
+      });
   }
 
   private async enqueueVisualRefine(
@@ -1687,31 +1790,69 @@ export class HarnessManager {
     pass: number,
     cleanStreak: number,
     reviewSceneIds: string[] = sceneIds,
+    options?: {
+      chunk?: { chunks: string[][]; index: number };
+      profile?: string;
+      /** Full sweep file sets; written once per sweep so later chunks need no re-render. */
+      sweep?: { stills: string[]; artifacts: ReviewArtifact[] };
+      /** Defect round: drop sweep tracking, remember scenes still awaiting review. */
+      clearSweep?: boolean;
+      pending?: string[];
+    },
   ): Promise<void> {
-    const modelStills = reviewArtifacts?.map((artifact) => artifact.path) ?? stills;
+    // Chunked sweep: the model request carries only the current chunk's files
+    // (boundary transitions owned by the later chunk). Legacy single-scope
+    // requests pass no chunk and keep today's full-scope behavior.
+    const scopedArtifacts = reviewArtifacts && options?.chunk
+      ? artifactsForReviewChunk(reviewArtifacts, reviewSceneIds, sceneIds)
+      : reviewArtifacts;
+    const modelStills = scopedArtifacts?.map((artifact) => artifact.path) ?? stills;
     const stillRefs = this.projectStillRefs(projectRoot, modelStills);
-    const serializedArtifacts = reviewArtifacts?.map((artifact) => ({
+    const serializedArtifacts = scopedArtifacts?.map((artifact) => ({
       ...artifact,
       path: this.projectStillRefs(projectRoot, [artifact.path])[0]!,
     }));
+    const sweepStills = options?.sweep ? this.projectStillRefs(projectRoot, options.sweep.stills) : undefined;
+    const sweepArtifacts = options?.sweep?.artifacts.map((artifact) => ({
+      ...artifact,
+      path: this.projectStillRefs(projectRoot, [artifact.path])[0]!,
+    }));
+    const chunk = options?.chunk;
+    const chunkLabel = chunk ? ` (chunk ${chunk.index + 1}/${chunk.chunks.length}: ${reviewSceneIds.join(", ")})` : "";
+    const profile = options?.profile;
     await this.advanceAuthoringRequest(record, {
       phase: "visual_refine",
       stills: stillRefs,
       ...(serializedArtifacts ? { review_artifacts: serializedArtifacts } : {}),
       review_scene_ids: reviewSceneIds,
+      ...(chunk ? { review_chunks: chunk.chunks, review_chunk_index: chunk.index } : {}),
+      ...(options?.clearSweep
+        ? {
+          review_chunks: undefined,
+          review_chunk_index: undefined,
+          review_sweep_stills: undefined,
+          review_sweep_artifacts: undefined,
+          review_pending: options.pending ?? [],
+        }
+        : {}),
+      ...(sweepStills && sweepArtifacts
+        ? { review_sweep_stills: sweepStills, review_sweep_artifacts: sweepArtifacts, review_pending: [] as string[] }
+        : {}),
       review_fingerprint: await harnessReviewFingerprint(projectRoot, modelStills),
       scene_fingerprints: await harnessSceneFingerprints(projectRoot),
       visual_refine_pass: pass,
       visual_refine_clean_streak: cleanStreak,
       render_error: undefined,
       instructions: [
-        "Dùng read_image mở từng evidence artifact trong stills trước khi nhận xét. Không kết luận chỉ từ code.",
+        "Dùng read_image mở TỪNG evidence artifact trong stills, mỗi file trong một lượt model RIÊNG trước lượt submit (read cùng lượt submit không được tính). Không kết luận chỉ từ code.",
         "Đọc overview theo panels row-major; filmstrip theo thứ tự thời gian; detail để kiểm tra chữ/ảnh nhỏ; transition để kiểm tra continuity. Đối chiếu motion artifact với motionBeats và báo lỗi khi trạng thái tương lai lộ sớm, nhiều bước xuất hiện cùng lúc, cue chỉ đổi glow, hoặc final hold chiếm gần như toàn cảnh.",
         "Chỉ sửa các cảnh có lỗi trực quan cụ thể. Giữ nguyên cảnh đã sạch; không viết lại toàn video vì đây không phải V2 bắt buộc.",
         "Nếu sửa source/asset, gọi motionreal_submit_authoring sau khi sửa. Nếu ảnh đã sạch, không sửa code và submit review_notes nêu rõ quan sát.",
-        "review_notes phải nêu lỗi cụ thể đã sửa hoặc lý do ảnh sạch. reviewed_scene_ids phải chứa đúng review_scene_ids.",
+        "review_notes phải đánh giá TỪNG cảnh trong reviewed_scene_ids theo mẫu `scene-01: [clean|fixed] — object nhìn thấy, motion khớp beats, khớp profile`; nêu đúng scene id, không nhận xét chung chung.",
+        "Báo lỗi khi cảnh chỉ là khung chữ rỗng, icon emoji thay đồ hoạ tự vẽ, nhãn placeholder, font sai contract, hoặc thiếu edges/quan hệ mà beats yêu cầu.",
+        ...(profile ? [`Đánh giá theo đúng PRESENTATION PROFILE trong contract (${profile}): mỗi cảnh phải thể hiện đúng visual grammar của profile, không thay bằng card/list chung chung.`] : []),
       ],
-    }, `MotionReal đã render still cho visual refine lượt ${pass}. Hãy đọc handoff/authoring-request.json, dùng read_image xem ảnh thật, chỉ sửa lỗi trực quan cụ thể rồi submit lại.`);
+    }, `MotionReal đã render still cho visual refine lượt ${pass}${chunkLabel}. Hãy đọc handoff/authoring-request.json, dùng read_image xem ảnh thật, chỉ sửa lỗi trực quan cụ thể rồi submit lại.`);
   }
 
   private async processVisualRefine(
@@ -1731,36 +1872,67 @@ export class HarnessManager {
     const reviewArtifacts = this.requestReviewArtifacts(request, projectRoot);
     const stills = reviewArtifacts?.map((artifact) => artifact.path)
       ?? this.requestStillPaths(request, reviewSceneIds, projectRoot);
+    const chunks = readReviewChunks(request, sceneIds);
     if (reviewArtifacts) {
       const parsedPlan = ContentPlanSchema.safeParse(request.content_plan);
       if (!parsedPlan.success) throw new Error("Visual refine thiếu content plan để kiểm tra evidence.");
       await assertHarnessReviewArtifacts({
         projectRoot,
-        request: buildAuthoringReviewRequest(parsedPlan.data, sceneIds, reviewSceneIds, reviewSceneIds.length < sceneIds.length),
+        request: chunks
+          ? buildChunkReviewRequest(parsedPlan.data, sceneIds, reviewSceneIds, reviewArtifacts)
+          : buildAuthoringReviewRequest(parsedPlan.data, sceneIds, reviewSceneIds, reviewSceneIds.length < sceneIds.length),
         artifacts: reviewArtifacts,
       });
     }
     const expectedFingerprint = typeof request.review_fingerprint === "string" ? request.review_fingerprint : "";
     if (!expectedFingerprint) throw new Error("Visual refine thiếu fingerprint của still hiện tại.");
     await this.verifyImageReads(record, request, reviewArtifacts ? stills.length : reviewSceneIds.length * 3);
+    // Review-notes rubric (repairable): per-scene verdicts naming every reviewed
+    // id plus the profile criterion. The submission tool enforces the same
+    // in-turn; this is the backstop for direct or raced submissions.
+    const notesText = typeof submission.review_notes === "string" ? submission.review_notes : "";
+    const sceneVerdicts = Array.isArray(submission.scene_verdicts)
+      ? submission.scene_verdicts as Array<{ scene_id: string; verdict: "clean" | "fixed" }>
+      : undefined;
+    const noteIssues = reviewNotesIssues(notesText, reviewSceneIds, profileOfRequestContentPlan(request), sceneVerdicts);
+    if (noteIssues.length > 0) {
+      throw new AuthoringValidationError(`review_notes chưa đạt rubric visual refine: ${noteIssues.join(" ")}`);
+    }
     const sourceFingerprint = await harnessReviewFingerprint(projectRoot, stills);
     const currentSceneFingerprints = await harnessSceneFingerprints(projectRoot);
     const pass = validVisualRefinePass(request.visual_refine_pass);
     const cleanStreak = validCleanStreak(request.visual_refine_clean_streak);
     const policy = await this.authoringRefinePolicy(record.projectId!);
+    const profile = profileOfRequestContentPlan(request);
 
     if (sourceFingerprint === expectedFingerprint) {
+      if (chunks) {
+        return await this.advanceReviewSweep(record, sceneIds, projectRoot, request, chunks, reviewSceneIds, {
+          pass, cleanStreak, policy, profile,
+        });
+      }
+      const pending = readReviewPending(request, sceneIds);
+      if (pending.length > 0) {
+        return await this.startPendingSweep(record, sceneIds, projectRoot, pending, {
+          pass: pass + 1, policy, profile,
+        });
+      }
       const nextClean = cleanStreak + 1;
       if (pass >= policy.refinePasses || (policy.refineEarlyStop && nextClean >= 2)) {
         await this.finishHarnessSceneReview(record);
         return;
       }
-      await this.enqueueVisualRefine(record, sceneIds, projectRoot, stills, reviewArtifacts, pass + 1, nextClean, reviewSceneIds);
+      await this.enqueueVisualRefine(record, sceneIds, projectRoot, stills, reviewArtifacts, pass + 1, nextClean, reviewSceneIds,
+        { ...(profile ? { profile } : {}) });
       return;
     }
 
     const changedSceneIds = changedVisualSceneIds(this.requestSceneFingerprints(request, sceneIds), currentSceneFingerprints, sceneIds);
     const renderScope = changedSceneIds.length > 0 ? changedSceneIds : sceneIds;
+    // A mid-sweep defect abandons chunk positions: the fix is reviewed as one
+    // scope, and scenes still awaiting review are remembered for a fresh sweep
+    // (the re-render below replaces the evidence directory).
+    const sweepPending = chunks ? chunks.chunks.slice(chunks.index + 1).flat() : readReviewPending(request, sceneIds);
     const beforeRender = await harnessReviewFingerprint(projectRoot);
     const parsedPlan = ContentPlanSchema.safeParse(request.content_plan);
     const nextReviewRequest = parsedPlan.success
@@ -1783,7 +1955,146 @@ export class HarnessManager {
       await this.finishHarnessSceneReview(record);
       return;
     }
-    await this.enqueueVisualRefine(record, sceneIds, projectRoot, rendered.stills, rendered.reviewArtifacts, pass + 1, 0, renderScope);
+    await this.enqueueVisualRefine(record, sceneIds, projectRoot, rendered.stills, rendered.reviewArtifacts, pass + 1, 0, renderScope,
+      {
+        ...(profile ? { profile } : {}),
+        ...((chunks || sweepPending.length > 0) ? { clearSweep: true, pending: sweepPending } : {}),
+      });
+  }
+
+  /**
+   * Advance a chunk sweep after a clean chunk. Same pass and streak while
+   * chunks remain (a sweep is one render generation, not N passes); the
+   * pass/streak rule applies once the last chunk is clean.
+   */
+  private async advanceReviewSweep(
+    record: DraftRecord,
+    sceneIds: string[],
+    projectRoot: string,
+    request: Record<string, unknown>,
+    chunks: { chunks: string[][]; index: number },
+    reviewSceneIds: string[],
+    options: {
+      pass: number;
+      cleanStreak: number;
+      policy: { refinePasses: number; refineEarlyStop: boolean };
+      profile: string | undefined;
+    },
+  ): Promise<void> {
+    const { pass, cleanStreak, policy, profile } = options;
+    const sweep = this.sweepSetsFromRequest(request, projectRoot);
+    const currentChunk = chunks.chunks[chunks.index] ?? [];
+    if (sweep && sameIds(reviewSceneIds, currentChunk) && chunks.index < chunks.chunks.length - 1) {
+      const next = chunks.index + 1;
+      await this.enqueueVisualRefine(record, sceneIds, projectRoot, sweep.stills, sweep.artifacts,
+        pass, cleanStreak, chunks.chunks[next]!,
+        {
+          chunk: { chunks: chunks.chunks, index: next },
+          sweep,
+          ...(profile ? { profile } : {}),
+        });
+      return;
+    }
+    if (sweep && !sameIds(reviewSceneIds, currentChunk)) {
+      // Re-review scope finished clean: resume the sweep where it paused.
+      await this.enqueueVisualRefine(record, sceneIds, projectRoot, sweep.stills, sweep.artifacts,
+        pass, cleanStreak, currentChunk,
+        {
+          chunk: { chunks: chunks.chunks, index: chunks.index },
+          sweep,
+          ...(profile ? { profile } : {}),
+        });
+      return;
+    }
+    // Last chunk clean (or sweep sets unreadable): fall back to the legacy
+    // pass/streak rule; a further required pass restarts the sweep from chunk 0.
+    const nextClean = cleanStreak + 1;
+    if (pass >= policy.refinePasses || (policy.refineEarlyStop && nextClean >= 2)) {
+      await this.finishHarnessSceneReview(record);
+      return;
+    }
+    if (sweep) {
+      await this.enqueueVisualRefine(record, sceneIds, projectRoot, sweep.stills, sweep.artifacts,
+        pass + 1, nextClean, chunks.chunks[0]!,
+        {
+          chunk: { chunks: chunks.chunks, index: 0 },
+          sweep,
+          ...(profile ? { profile } : {}),
+        });
+      return;
+    }
+    await this.finishHarnessSceneReview(record);
+  }
+
+  /**
+   * Start a fresh sweep over scenes still pending after a defect round. The
+   * prior evidence was replaced by the fix render, so this scope is rendered
+   * anew — one scoped render per defect round, never a full re-render. Without
+   * a parsable plan it degrades to the legacy single-scope stills review
+   * rather than stranding the draft.
+   */
+  private async startPendingSweep(
+    record: DraftRecord,
+    sceneIds: string[],
+    projectRoot: string,
+    pending: string[],
+    options: {
+      pass: number;
+      policy: { refinePasses: number; refineEarlyStop: boolean };
+      profile: string | undefined;
+    },
+  ): Promise<void> {
+    const { pass, policy, profile } = options;
+    if (pass > policy.refinePasses && policy.refinePasses > 0) {
+      await this.finishHarnessSceneReview(record);
+      return;
+    }
+    const request = parseJson(await readFile(join(this.rootOf(record.id), AUTHORING_REQUEST_FILE), "utf8")) as Record<string, unknown>;
+    const parsedPlan = ContentPlanSchema.safeParse(request.content_plan);
+    const pendingReview = parsedPlan.success
+      ? buildAuthoringReviewRequest(parsedPlan.data, sceneIds, pending, true)
+      : undefined;
+    const rendered = await this.deps.renderAuthoringStills!(record.projectId!, pending, pendingReview);
+    if (!rendered.ok) throw new AuthoringStillRenderError(rendered.error, rendered.repairable);
+    if (!validRenderedStillSet(rendered.stills, pending, [])) {
+      throw new AuthoringStillRenderError("MotionReal chưa render đủ still riêng cho các cảnh còn chờ review.", false);
+    }
+    if (pendingReview && rendered.reviewArtifacts.length === 0) {
+      throw new AuthoringStillRenderError("MotionReal chưa tạo evidence artifact cho các cảnh còn chờ review.", false);
+    }
+    if (pendingReview) await assertHarnessReviewArtifacts({ projectRoot, request: pendingReview, artifacts: rendered.reviewArtifacts });
+    if (!await this.isCurrentAuthoringRecord(record)) return;
+    if (!pendingReview) {
+      await this.enqueueVisualRefine(record, sceneIds, projectRoot, rendered.stills, undefined,
+        pass, 0, pending, { ...(profile ? { profile } : {}) });
+      return;
+    }
+    const chunks = planReviewChunks({ sceneIds: pending });
+    const sweepArtifacts = rendered.reviewArtifacts;
+    await this.enqueueVisualRefine(record, sceneIds, projectRoot, rendered.stills, sweepArtifacts,
+      pass, 0, chunks[0] ?? pending,
+      {
+        chunk: { chunks, index: 0 },
+        sweep: { stills: sweepArtifacts.map((artifact) => artifact.path), artifacts: sweepArtifacts },
+        ...(profile ? { profile } : {}),
+      });
+  }
+
+  /** Stored sweep file sets (absolute paths); malformed ⇒ undefined (legacy fallback). */
+  private sweepSetsFromRequest(request: Record<string, unknown>, projectRoot: string): { stills: string[]; artifacts: ReviewArtifact[] } | undefined {
+    try {
+      if (request.review_sweep_artifacts === undefined) return undefined;
+      const view = {
+        ...request,
+        stills: request.review_sweep_stills,
+        review_artifacts: request.review_sweep_artifacts,
+      };
+      const artifacts = this.requestReviewArtifacts(view, projectRoot);
+      if (!artifacts) return undefined;
+      return { stills: artifacts.map((artifact) => artifact.path), artifacts };
+    } catch (_error) {
+      return undefined;
+    }
   }
 
   private projectStillRefs(projectRoot: string, stills: string[]): string[] {
@@ -1969,15 +2280,38 @@ export class HarnessManager {
       || request.request_revision !== record.authoringRequestRevision) {
       throw new Error("Authoring request không khớp job hoặc revision hiện tại.");
     }
-    const plan = await this.authoringContentPlan(record);
+    const { contentPlan: plan, advisories } = await this.authoringContentPlan(record);
     if (!await this.isCurrentAuthoringRecord(record)) return;
     const expectedSceneIds = plan.scenes.map((scene) => scene.sceneId);
-    const requestPath = join(this.rootOf(record.id), AUTHORING_REQUEST_FILE);
+    const root = this.rootOf(record.id);
+    const requestPath = join(root, AUTHORING_REQUEST_FILE);
+    // Publish exactly one selected creative direction before the request becomes
+    // ready. Retried/restarted jobs deterministically rewrite the same contract.
+    const dominantColor =
+      (request.dominantColor as string | undefined)
+      ?? ((request.theme as any)?.dominant as string | undefined)
+      ?? ((plan as any)?.theme?.dominant as string | undefined)
+      ?? "#38BDF8";
+    await writeFile(
+      join(root, AUTHORING_CONTRACT_FILE),
+      `${authoringContractForProfile(plan.presentationProfile, dominantColor)}\n`,
+      "utf8",
+    );
+    if (!await this.isCurrentAuthoringRecord(record)) return;
+    // Advisories stay soft: they travel as data plus one formatted instruction
+    // entry through the existing advisory formatter — never a planning gate.
+    const advisoryBlock = advisories.length > 0 && !request.content_plan_advisories
+      ? contentPlanAdvisoryBlock(advisories)
+      : "";
     await writeJson(requestPath, {
       ...request,
       planning: false,
       content_plan: plan,
       expected_scene_ids: expectedSceneIds,
+      content_plan_advisories: advisories,
+      ...(advisoryBlock
+        ? { instructions: [...(Array.isArray(request.instructions) ? request.instructions as string[] : []), advisoryBlock] }
+        : {}),
     });
     if (!await this.isCurrentAuthoringRecord(record)) {
       const written = parseJson(await readFile(requestPath, "utf8")) as Record<string, unknown>;
@@ -1987,10 +2321,12 @@ export class HarnessManager {
     }
   }
 
-  private async authoringContentPlan(record: DraftRecord): Promise<ContentPlan> {
+  private async authoringContentPlan(record: DraftRecord): Promise<PlannedAuthoringContent> {
     const artifactPath = join(this.rootOf(record.id), CONTENT_PLAN_FILE);
     const persisted = await readContentPlanArtifact(artifactPath, record);
-    if (persisted) return persisted;
+    if (persisted) {
+      return { contentPlan: contentPlanForAuthoring(persisted.contentPlan), advisories: persisted.advisories };
+    }
 
     const existing = this.authoringPlans.get(record.id);
     if (existing) return existing.promise;
@@ -2001,31 +2337,66 @@ export class HarnessManager {
       const targetSeconds = resolveEffectiveDuration({ prompt: "", durationTier: brief.durationTier }).targetSeconds;
       const input: AuthorInput = {
         text: brief.prompt,
-        urls: [],
+        // Links pasted into the brief go through the safe research collector
+        // inside planning; on their own they are never claim evidence.
+        urls: extractUrls(brief.prompt),
         format: "tiktok",
         durationTier: brief.durationTier,
         targetSeconds,
         videoLanguage: brief.videoLanguage,
+        assetStrategy: brief.assetStrategy,
+        images: await this.planningImageRefs(record, brief.selectedAssetIds),
       };
-      const plan = await this.deps.planAuthoringContent(record.projectId!, input, controller.signal);
+      const { contentPlan: plan, advisories } = await this.deps.planAuthoringContent(record.projectId!, input, controller.signal);
       controller.signal.throwIfAborted();
       if (!await this.isCurrentAuthoringRecord(record)) throw new Error("Lượt lập content plan đã cũ.");
-      await writeJson(artifactPath, {
-        version: 1,
-        job_id: record.activeJobId,
-        request_revision: record.authoringRequestRevision,
-        content_plan: plan,
-      });
+      await writeContentPlanArtifact(artifactPath, record, plan, advisories);
       if (!await this.isCurrentAuthoringRecord(record)) {
         await removeMatchingContentPlanArtifact(artifactPath, record);
         throw new Error("Lượt lập content plan đã cũ.");
       }
-      return plan;
+
+      return { contentPlan: contentPlanForAuthoring(plan), advisories };
     })().finally(() => {
       if (this.authoringPlans.get(record.id)?.controller === controller) this.authoringPlans.delete(record.id);
     });
     this.authoringPlans.set(record.id, { controller, promise });
     return promise;
+  }
+
+  /**
+   * Approved planner image pool: project refs from the current authoring
+   * request joined with validated dims, restricted to the accepted brief's
+   * selected assets. Unapproved assets never enter the pool. Best-effort —
+   * planning proceeds without images when refs or dims are unavailable.
+   */
+  private async planningImageRefs(record: DraftRecord, selectedAssetIds: string[]): Promise<AuthorImageRef[] | undefined> {
+    try {
+      if (selectedAssetIds.length === 0) return undefined;
+      const requestPath = join(this.rootOf(record.id), AUTHORING_REQUEST_FILE);
+      if (!existsSync(requestPath)) return undefined;
+      const request = parseJson(await readFile(requestPath, "utf8")) as { assets?: unknown };
+      const refs = new Map<string, string>();
+      if (Array.isArray(request.assets)) {
+        for (const item of request.assets) {
+          if (item && typeof item === "object"
+            && typeof (item as { id?: unknown }).id === "string"
+            && typeof (item as { ref?: unknown }).ref === "string") {
+            refs.set((item as { id: string }).id, (item as { ref: string }).ref);
+          }
+        }
+      }
+      const dims = new Map((await this.readAssetManifest(record) ?? []).map((asset) => [asset.id, asset] as const));
+      const images: AuthorImageRef[] = [];
+      for (const id of selectedAssetIds) {
+        const ref = refs.get(id);
+        const asset = dims.get(id);
+        if (ref && asset) images.push({ ref, width: asset.width, height: asset.height });
+      }
+      return images.length > 0 ? images : undefined;
+    } catch (_error) {
+      return undefined;
+    }
   }
 
   private abortAuthoringPlan(id: string): void {
@@ -2069,6 +2440,87 @@ export class HarnessManager {
     })();
     this.authoringWrites.add(commit);
     try { await commit; } finally { this.authoringWrites.delete(commit); }
+  }
+
+  /**
+   * Shared resume/retry continuation for an authoring record: finish initial
+   * content planning first, then send the authoring prompt only when this
+   * record is still the current authoring work. Stale pause/resume/retry
+   * callbacks and superseded plans therefore never send an authoring prompt.
+   */
+  private async continueAuthoringAfterPlanning(next: DraftRecord): Promise<void> {
+    const requestPath = join(this.rootOf(next.id), AUTHORING_REQUEST_FILE);
+    if (existsSync(requestPath)) {
+      const request = parseJson(await readFile(requestPath, "utf8")) as Record<string, unknown>;
+      if (request.phase === "initial" && request.planning === true) {
+        await this.completeInitialContentPlan(next, request);
+      }
+    }
+    if (await this.isCurrentAuthoringRecord(next)) {
+      await this.promptSession(next, await this.resumeAuthoringPrompt(next));
+    }
+  }
+
+  /**
+   * Resume prompt, chunk-aware for visual_refine: chunk position lives in the
+   * durable request file, so a paused or restarted sweep resumes at the stored
+   * chunk instead of restarting or skipping. Falls back to the generic prompt
+   * when the request is missing or unchunked.
+   */
+  private async resumeAuthoringPrompt(next: DraftRecord): Promise<string> {
+    const base = resumePromptFor(next.productionState);
+    if (next.productionState !== "visual_refine") return base;
+    try {
+      const request = parseJson(
+        await readFile(join(this.rootOf(next.id), AUTHORING_REQUEST_FILE), "utf8"),
+      ) as Record<string, unknown>;
+      const chunks = readReviewChunks(request, this.sceneIdsOfRequest(request));
+      if (!chunks || chunks.chunks.length < 2) return base;
+      const scope = Array.isArray(request.review_scene_ids)
+        ? (request.review_scene_ids as unknown[]).filter((id): id is string => typeof id === "string")
+        : [];
+      return `${base} Hiện tại đang ở chunk ${chunks.index + 1}/${chunks.chunks.length}`
+        + `${scope.length > 0 ? ` (phạm vi: ${scope.join(", ")})` : ""}; chỉ review đúng phạm vi của chunk hiện tại rồi submit.`;
+    } catch (_error) {
+      return base;
+    }
+  }
+
+  /** Scene ids named by the current request, for chunk-position display only. */
+  private sceneIdsOfRequest(request: Record<string, unknown>): string[] {
+    const fromPlan = (request.content_plan as { scenes?: unknown } | undefined)?.scenes;
+    if (Array.isArray(fromPlan)) {
+      const ids = fromPlan.flatMap((scene) =>
+        scene && typeof scene === "object" && typeof (scene as { sceneId?: unknown }).sceneId === "string"
+          ? [(scene as { sceneId: string }).sceneId]
+          : []);
+      if (ids.length > 0) return ids;
+    }
+    // Fallback: union of the current scope and stored chunk ids (chunk ids may
+    // name scenes outside the current scope by design).
+    const scope = Array.isArray(request.review_scene_ids)
+      ? (request.review_scene_ids as unknown[]).filter((id): id is string => typeof id === "string")
+      : [];
+    const chunked = Array.isArray(request.review_chunks)
+      ? (request.review_chunks as unknown[]).flatMap((group) =>
+        Array.isArray(group) ? group.filter((id): id is string => typeof id === "string") : [])
+      : [];
+    return [...new Set([...scope, ...chunked])];
+  }
+
+  /**
+   * Persist a dispatch failure only when the record has not moved on underneath
+   * the in-flight call, so a stale pause/resume/retry callback neither
+   * overwrites newer state nor throws a misleading revision error. Returns the
+   * fresh record when the error was recorded, or null when stale.
+   */
+  private async recordErrorIfCurrent(record: DraftRecord, error: unknown): Promise<DraftRecord | null> {
+    const latest = await this.readRecord(record.id).catch((_readError) => null);
+    if (!latest || latest.workflowRevision !== record.workflowRevision || latest.activeJobId !== record.activeJobId) {
+      return null;
+    }
+    await this.recordWorkflowError(latest, error);
+    return this.mustReadRecord(record.id);
   }
 
   private async currentAuthoringRecord(record: DraftRecord): Promise<DraftRecord | null> {
@@ -2362,6 +2814,120 @@ export function sameIds(left: string[], right: string[]): boolean {
     && leftSet.size === rightSet.size && [...leftSet].every((id) => rightSet.has(id));
 }
 
+/** Maximum scenes reviewed in one visual-refine turn; larger scopes split into chunks. */
+export const REVIEW_CHUNK_SCENES = 5;
+
+/**
+ * Split a review scope into sequential narrative-ordered chunks of at most
+ * `maxScenes` scenes, with advisory-flagged scenes first (also in narrative
+ * order). Pure and deterministic: the same inputs always yield the same sweep.
+ */
+export function planReviewChunks(input: {
+  sceneIds: readonly string[];
+  advisorySceneIds?: readonly string[];
+  maxScenes?: number;
+}): string[][] {
+  const rawMax = input.maxScenes;
+  const max = typeof rawMax === "number" && Number.isFinite(rawMax)
+    ? Math.min(30, Math.max(1, Math.floor(rawMax)))
+    : REVIEW_CHUNK_SCENES;
+  const known = new Set(input.sceneIds);
+  const advisory = [...new Set((input.advisorySceneIds ?? []).filter((id) => known.has(id)))];
+  advisory.sort((a, b) => input.sceneIds.indexOf(a) - input.sceneIds.indexOf(b));
+  const flagged = new Set(advisory);
+  const rest = input.sceneIds.filter((id) => !flagged.has(id));
+  // Advisory-flagged scenes sweep first in their own leading chunk(s) so one
+  // turn judges exactly the scenes the planner flagged — never diluted by
+  // unrelated scenes. The remainder follows in narrative order.
+  const chunks: string[][] = [];
+  for (let offset = 0; offset < advisory.length; offset += max) {
+    chunks.push(advisory.slice(offset, offset + max));
+  }
+  for (let offset = 0; offset < rest.length; offset += max) {
+    chunks.push(rest.slice(offset, offset + max));
+  }
+  return chunks;
+}
+
+/**
+ * Evidence subset for one chunk. Overviews spanning the boundary stay visible
+ * to both chunks (harmless over-read); a boundary transition belongs to
+ * exactly one chunk — the one holding its later scene in narrative order —
+ * so no transition is double-required and none is skipped.
+ */
+export function artifactsForReviewChunk(
+  artifacts: readonly ReviewArtifact[],
+  chunkSceneIds: readonly string[],
+  allSceneIds: readonly string[],
+): ReviewArtifact[] {
+  const chunk = new Set(chunkSceneIds);
+  const order = new Map(allSceneIds.map((id, index) => [id, index] as const));
+  const lastIndex = Math.max(-1, ...chunkSceneIds.map((id) => order.get(id) ?? -1));
+  return artifacts.filter((artifact) => {
+    if (!artifact.sceneIds.some((id) => chunk.has(id))) return false;
+    if (artifact.kind === "transition"
+      && artifact.sceneIds.some((id) => (order.get(id) ?? -1) > lastIndex)) return false;
+    return true;
+  });
+}
+
+/** Chunk sweep state carried by the authoring request; malformed ⇒ legacy single-scope. */
+function readReviewChunks(request: Record<string, unknown>, sceneIds: string[]): { chunks: string[][]; index: number } | undefined {
+  const raw = request.review_chunks;
+  if (raw === undefined) return undefined;
+  if (!Array.isArray(raw) || raw.length === 0) return undefined;
+  const chunks: string[][] = [];
+  const seen = new Set<string>();
+  for (const group of raw) {
+    if (!Array.isArray(group) || group.length === 0
+      || group.some((id) => typeof id !== "string" || !sceneIds.includes(id) || seen.has(id))) {
+      log.debug({ raw }, "Malformed review_chunks in authoring request; falling back to single scope");
+      return undefined;
+    }
+    for (const id of group as string[]) seen.add(id);
+    chunks.push([...group] as string[]);
+  }
+  const index = request.review_chunk_index;
+  if (!Number.isSafeInteger(index) || (index as number) < 0 || (index as number) >= chunks.length) {
+    log.debug({ index, chunkCount: chunks.length }, "Malformed review_chunk_index in authoring request; falling back to single scope");
+    return undefined;
+  }
+  return { chunks, index: index as number };
+}
+
+/** Scenes still awaiting review after a defect round; malformed ⇒ none. */
+function readReviewPending(request: Record<string, unknown>, sceneIds: string[]): string[] {
+  const raw = request.review_pending;
+  if (raw === undefined) return [];
+  if (!Array.isArray(raw) || raw.some((id) => typeof id !== "string" || !sceneIds.includes(id))) return [];
+  return [...new Set(raw as string[])];
+}
+
+/**
+ * Review request for one chunk of a sweep. Shared overview files may depict
+ * scenes outside the chunk, so the context is extended with every scene the
+ * chunk's artifacts actually show (transitions stay covered by neighbor
+ * context: their earlier endpoint is always adjacent to an in-chunk scene).
+ * Per-scene completeness (overview/motion/detail) is still enforced exactly
+ * for the chunk's own scenes.
+ */
+function buildChunkReviewRequest(
+  plan: ContentPlan,
+  allSceneIds: readonly string[],
+  chunkSceneIds: readonly string[],
+  artifacts: readonly ReviewArtifact[],
+): AuthoringReviewRequest {
+  const base = buildAuthoringReviewRequest(plan, allSceneIds, chunkSceneIds, true);
+  const review = new Set(chunkSceneIds);
+  const context = new Set(base.contextSceneIds);
+  for (const artifact of artifacts) {
+    for (const id of artifact.sceneIds) {
+      if (!review.has(id) && allSceneIds.includes(id)) context.add(id);
+    }
+  }
+  return { ...base, contextSceneIds: [...context] };
+}
+
 function buildAuthoringReviewRequest(
   plan: ContentPlan,
   allSceneIds: readonly string[],
@@ -2455,17 +3021,24 @@ function validateVideoLanguage(value: unknown): VideoLanguageChoice {
   return value;
 }
 
-function validateAcceptedBriefFields(value: Record<string, unknown>): Pick<AgentAcceptedBrief, "durationTier" | "videoLanguage" | "voiceProvider" | "bgm"> {
+function validateAcceptedBriefFields(value: Record<string, unknown>): Pick<AgentAcceptedBrief, "durationTier" | "videoLanguage" | "voiceProvider" | "bgm" | "assetStrategy"> {
   const durationTier = value.duration_tier;
   const videoLanguage = validateVideoLanguage(value.video_language);
   const voiceProvider = value.voice_provider;
   const bgm = validateBgmChoice(value.bgm);
+  const assetStrategy = validateAssetStrategy(value.asset_strategy);
   if (durationTier !== 1 && durationTier !== 2 && durationTier !== 3 && durationTier !== 4) {
     throw new Error("Brief có thời lượng không được hỗ trợ.");
   }
   if (voiceProvider !== "vivibe" && voiceProvider !== "elevenlabs" && voiceProvider !== "vieneu") throw new Error("Brief có giọng đọc không hợp lệ.");
   if (videoLanguage === "en" && voiceProvider !== "elevenlabs") throw new Error("Brief tiếng Anh phải dùng ElevenLabs.");
-  return { durationTier, videoLanguage, voiceProvider, bgm };
+  return { durationTier, videoLanguage, voiceProvider, bgm, assetStrategy };
+}
+
+function validateAssetStrategy(value: unknown): AgentAssetStrategy {
+  if (value === undefined) return DEFAULT_AGENT_ASSET_STRATEGY;
+  if (value === "visualize-first" || value === "balanced" || value === "evidence-first") return value;
+  throw new Error("Brief có chiến lược dùng asset không hợp lệ.");
 }
 
 function validateBgmChoice(value: unknown): string | null {
@@ -2478,13 +3051,14 @@ function validateBgmChoice(value: unknown): string | null {
   return name;
 }
 
-function validateBriefInput(input: AgentBriefInput): AgentBriefInput {
+function validateBriefInput(input: AgentBriefInput): AgentBriefInput & { assetStrategy: AgentAssetStrategy } {
   if (!input || typeof input !== "object") throw new Error("Nội dung chỉnh sửa brief không hợp lệ.");
   const fields = validateAcceptedBriefFields({
     duration_tier: input.durationTier,
     video_language: input.videoLanguage,
     voice_provider: input.voiceProvider,
     bgm: input.bgm,
+    asset_strategy: input.assetStrategy,
   });
   return {
     title: validBriefText(input.title, "tiêu đề", 1, 160),
@@ -2540,13 +3114,6 @@ function modelOptionId(provider: string, model: string): string {
   return JSON.stringify([provider, model]);
 }
 
-function accessLabel(id: string, fallback?: string): string {
-  if (id === "read-only") return "Chỉ đọc";
-  if (id === "workspace-write") return "Ghi trong workspace";
-  if (id === "danger-full-access") return "Toàn quyền";
-  return fallback ?? id;
-}
-
 function safeActivityLabel(name: unknown): string | undefined {
   switch (name) {
     case "web_search": return "Tìm kiếm web";
@@ -2577,7 +3144,7 @@ function resumePromptFor(state: AgentProductionState): string {
   throw new Error(`Không thể tiếp tục workflow Video Agent ở bước ${state}.`);
 }
 
-async function readContentPlanArtifact(path: string, record: DraftRecord): Promise<ContentPlan | null> {
+async function readContentPlanArtifact(path: string, record: DraftRecord): Promise<PlannedAuthoringContent | null> {
   if (!existsSync(path)) return null;
   let raw: unknown;
   try { raw = parseJson(await readFile(path, "utf8")); }
@@ -2588,7 +3155,70 @@ async function readContentPlanArtifact(path: string, record: DraftRecord): Promi
     || artifact.job_id !== record.activeJobId
     || artifact.request_revision !== record.authoringRequestRevision) return null;
   const parsed = ContentPlanSchema.safeParse(artifact.content_plan);
-  return parsed.success ? parsed.data : null;
+  if (!parsed.success) return null;
+  // Legacy artifacts predate advisories; absent or malformed entries read as empty.
+  return { contentPlan: parsed.data, advisories: readPlanAdvisories(artifact.advisories) };
+}
+
+/** Presentation profile id carried by the request plan, if any. */
+function profileOfRequestContentPlan(request: Record<string, unknown>): string | undefined {
+  const plan = request.content_plan;
+  if (!plan || typeof plan !== "object" || Array.isArray(plan)) return undefined;
+  const profile = (plan as Record<string, unknown>).presentationProfile;
+  return typeof profile === "string" && profile.length > 0 ? profile : undefined;
+}
+
+/**
+ * Machine-checkable review-notes rubric (advisory content, hard format):
+ * every reviewed id must be named (diacritic/case-tolerant, same rule as the
+ * submission tool) and clean claims must name the profile criterion.
+ * Returns human-readable problems; empty means the notes pass.
+ */
+export function reviewNotesIssues(
+  notes: string,
+  scope: string[],
+  profile: string | undefined,
+  sceneVerdicts?: Array<{ scene_id: string; verdict: "clean" | "fixed" }> | undefined,
+): string[] {
+  const issues: string[] = [];
+  const verdictCovered = new Set((sceneVerdicts ?? []).map((v) => v.scene_id));
+  const remainingScope = scope.filter((id) => !verdictCovered.has(id));
+  const uncovered = missingSceneMentions(notes, remainingScope);
+  if (uncovered.length > 0) {
+    issues.push(`thiếu đánh giá cho: ${uncovered.join(", ")}.`);
+  }
+  if (profile && !normalizeMentionText(notes).includes(profile.toLowerCase())) {
+    issues.push(`phải nêu rõ đánh giá theo presentationProfile ${profile}.`);
+  }
+  return issues;
+}
+
+function readPlanAdvisories(value: unknown): ContentPlanQualityIssue[] {
+  if (!Array.isArray(value)) return [];
+  const advisories: ContentPlanQualityIssue[] = [];
+  for (const item of value) {
+    if (!item || typeof item !== "object" || Array.isArray(item)) continue;
+    const issue = item as Record<string, unknown>;
+    if (typeof issue.check !== "string" || typeof issue.message !== "string") continue;
+    if (issue.severity !== "blocking" && issue.severity !== "advisory") continue;
+    advisories.push({
+      check: issue.check as ContentPlanQualityIssue["check"],
+      severity: issue.severity,
+      message: issue.message,
+      ...(typeof issue.sceneId === "string" ? { sceneId: issue.sceneId } : {}),
+    });
+  }
+  return advisories;
+}
+
+async function writeContentPlanArtifact(path: string, record: DraftRecord, plan: ContentPlan, advisories: readonly ContentPlanQualityIssue[]): Promise<void> {
+  await writeJson(path, {
+    version: 1,
+    job_id: record.activeJobId,
+    request_revision: record.authoringRequestRevision,
+    content_plan: plan,
+    advisories: [...advisories],
+  });
 }
 
 async function removeMatchingContentPlanArtifact(path: string, record: DraftRecord): Promise<void> {
@@ -2681,7 +3311,7 @@ function agentInstructions(title: string): string {
 }
 
 function harnessToolsPatch(pluginPath: string, searchProvider: AgentSearchProvider, harnessCliPath: string): string {
-  const submission = `- insert:\n    - id: motionreal-submission-tools\n      name: ${JSON.stringify(pathToFileURL(resolve(pluginPath)).href)}\n`;
+  const submission = `- id: system-prompt\n  config:\n    includeHarnessIdentity: false\n    persona: >-\n      You are MotionReal Agent. Follow the current workspace instructions\n      and MotionReal handoff files for video research and authoring.\n- id: llm-pi-ai\n  config:\n    providers:\n      ninerouter:\n        apiKeyEnv: NINEROUTER_API_KEY\n        api: openai-completions\n        baseURL: http://127.0.0.1:20128/v1\n        compat:\n          supportsDeveloperRole: false\n          maxTokensField: max_tokens\n        models:\n          - id: ag/gemini-3.7-flash-high\n            input: [text, image]\n- id: agent-default-model\n  config:\n    provider: ninerouter\n    model: ag/gemini-3.7-flash-high\n- id: web-search-deepseek\n  config:\n    apiKeyEnv: DEEPSEEK_API_KEY\n- insert:\n    - id: motionreal-submission-tools\n      name: ${JSON.stringify(pathToFileURL(resolve(pluginPath)).href)}\n`;
   if (searchProvider !== "exa") return submission;
   return `${submission}      config:\n        exa:\n          harnessCliPath: ${JSON.stringify(resolve(harnessCliPath))}\n`;
 }
@@ -2690,8 +3320,59 @@ function agentContract(): string {
   return `# MotionReal Agent Workspace\n\nThis directory is an isolated workspace for one video.\n\n- Follow the local AGENTS.md.\n- Work only inside this directory, including the project/ junction created by MotionReal.\n- Edit project/ only while following the current handoff/authoring-request.json.\n- MotionReal owns validation, still capture, human review, and MP4 rendering.\n`;
 }
 
-function harnessSettings(): string {
-  return `system-prompt:\n  includeHarnessIdentity: false\n  persona: >-\n    You are MotionReal Agent. Follow the current workspace instructions\n    and MotionReal handoff files for video research and authoring.\nllm-pi-ai:\n  providers:\n    ninerouter:\n      apiKeyEnv: NINEROUTER_API_KEY\n      api: openai-completions\n      baseURL: http://127.0.0.1:20128/v1\n      compat:\n        supportsDeveloperRole: false\n        maxTokensField: max_tokens\n      models:\n        - id: ag/gemini-3.7-flash-high\n          input: [text, image]\nagent-default-model:\n  provider: ninerouter\n  model: ag/gemini-3.7-flash-high\nweb-search-deepseek:\n  apiKeyEnv: DEEPSEEK_API_KEY\n`;
+const LEGACY_MOTIONREAL_SETTINGS = new Set([
+  "system-prompt",
+  "llm-pi-ai",
+  "agent-default-model",
+  "web-search-deepseek",
+]);
+
+async function migrateLegacyHarnessSettings(settingsPath: string): Promise<void> {
+  let source: string;
+  try {
+    source = await readFile(settingsPath, "utf8");
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return;
+    log.warn({ err: error, settingsPath }, "could not read Harness settings for MotionReal migration");
+    return;
+  }
+  if (![...LEGACY_MOTIONREAL_SETTINGS].some((key) => new RegExp(`^${key}:`, "m").test(source))) return;
+  const migrated = removeLegacyMotionRealSettings(source);
+  if (migrated === undefined) {
+    log.warn({ settingsPath }, "left unrecognized Harness settings untouched during MotionReal migration");
+    return;
+  }
+  const tempPath = `${settingsPath}.motionreal-migrate-${randomUUID()}`;
+  try {
+    if (migrated.trim().length === 0) {
+      await rm(settingsPath, { force: true });
+      return;
+    }
+    await writeFile(tempPath, migrated, "utf8");
+    await rename(tempPath, settingsPath);
+  } catch (error) {
+    await rm(tempPath, { force: true }).catch((cleanupError) => {
+      log.warn({ err: cleanupError, tempPath }, "could not remove failed Harness settings migration temp file");
+    });
+    log.warn({ err: error, settingsPath }, "could not migrate legacy MotionReal Harness settings");
+  }
+}
+
+function removeLegacyMotionRealSettings(source: string): string | undefined {
+  const lines = source.split(/(?<=\n)/);
+  const kept: string[] = [];
+  let skip = false;
+  let removed = false;
+  for (const line of lines) {
+    if (/^\S/.test(line)) {
+      const match = /^([A-Za-z][A-Za-z0-9_-]*):\s*(?:#.*)?(?:\r?\n)?$/.exec(line);
+      if (!match) return undefined;
+      skip = LEGACY_MOTIONREAL_SETTINGS.has(match[1]!);
+      removed ||= skip;
+    }
+    if (!skip) kept.push(line);
+  }
+  return removed ? kept.join("") : source;
 }
 
 async function findLoopbackPort(): Promise<number> {
@@ -2709,8 +3390,14 @@ async function findLoopbackPort(): Promise<number> {
   });
 }
 
-async function waitForHarness(url: string, fetchImpl: typeof fetch, childFailure: () => Error | null): Promise<void> {
-  const deadline = Date.now() + START_TIMEOUT_MS;
+async function waitForHarness(
+  url: string,
+  fetchImpl: typeof fetch,
+  childFailure: () => Error | null,
+  timeoutMs: number,
+): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  let lastDiagnostic = "chưa mở cổng loopback";
   while (Date.now() < deadline) {
     const failure = childFailure();
     if (failure) throw failure;
@@ -2729,14 +3416,21 @@ async function waitForHarness(url: string, fetchImpl: typeof fetch, childFailure
           }
           return;
         }
+        lastDiagnostic = typeof body.result?.error?.message === "string"
+          ? body.result.error.message.slice(0, 300)
+          : "host.describe chưa trả kết quả hợp lệ";
+      } else {
+        lastDiagnostic = `host.describe trả HTTP ${response.status}`;
       }
     } catch (error) {
       if (error instanceof HarnessCompatibilityError) throw error;
-      // Child has not opened its loopback server yet.
+      lastDiagnostic = error instanceof Error && error.name !== "TimeoutError"
+        ? error.message.slice(0, 300)
+        : "host.describe chưa phản hồi";
     }
     await new Promise((resolveDelay) => setTimeout(resolveDelay, 150));
   }
-  throw new Error("DeepSeek Harness khởi động quá lâu.");
+  throw new Error(`DeepSeek Harness khởi động quá lâu (${lastDiagnostic}).`);
 }
 
 class HarnessCompatibilityError extends Error {}

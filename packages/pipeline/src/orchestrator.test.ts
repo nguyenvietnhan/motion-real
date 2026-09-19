@@ -266,13 +266,13 @@ describe("scaffoldVideoProject — R8/R10", () => {
     });
     expect(promptOnly.brief.duration).toBe(90);
 
-    // No length stated, no tier → fresh-install short-form default ~90s (tier 2).
+    // Generic API caller with no length intent → conservative fallback tier 1.
     const fallback = await scaffoldVideoProject({
       projectId: "duration-default",
       prompt: "Make a video about bottlenecks",
       format: "tiktok",
     });
-    expect(fallback.brief.duration).toBe(90);
+    expect(fallback.brief.duration).toBe(45);
   });
 });
 

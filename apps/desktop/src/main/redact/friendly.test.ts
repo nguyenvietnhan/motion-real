@@ -120,6 +120,7 @@ describe("Property 6: no engine internals leak", () => {
     ["insufficient_credits", /hết credit/i],
     ["rate_limited", /giới hạn/i],
     ["voice_not_found", /Voice ID/i],
+    ["endpoint_not_allowed", /HTTPS công khai/i],
   ] as const)("maps voice failure %s to actionable safe copy", (code, expected) => {
     const friendly = toFriendlyError({
       message: "RAW {secret} at fn (a.ts:1:2)",

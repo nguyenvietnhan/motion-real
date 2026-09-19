@@ -221,7 +221,136 @@ describe("MotionReal Harness submission tools", () => {
       request_revision: 2,
       reviewed_scene_ids: ["scene-01"],
       review_notes: "Đã mở still thật và kiểm tra asset, hierarchy cùng khoảng trống caption.",
+    }, execution(workspace))).rejects.toThrow(/scene-01/);
+    await expect(tool.execute({
+      ...args,
+      request_revision: 2,
+      reviewed_scene_ids: ["scene-01"],
+      review_notes: "scene-01: clean — đã mở still thật, hierarchy rõ, caption không bị che.",
     }, execution(workspace))).resolves.toMatchObject({ kind: "authoring", status: "submitted", request_revision: 2 });
+  });
+
+  it("rejects visual-refine notes that skip scoped scenes or stay generic", async () => {
+    const { workspace, tools } = await fixture();
+    await mkdir(join(workspace, "project", "authored"), { recursive: true });
+    await writeFile(join(workspace, "project", "authored", "scene-01.tsx"), "export default {};\n");
+    await writeFile(join(workspace, "project", "authored", "scene-02.tsx"), "export default {};\n");
+    await writeFile(join(workspace, "project", "manifest.json"), JSON.stringify({
+      scenes: [
+        { id: "scene-01", component: "scene-01" },
+        { id: "scene-02", component: "scene-02" },
+      ],
+    }));
+    await writeFile(join(workspace, "handoff", "authoring-request.json"), JSON.stringify({
+      version: 1,
+      job_id: "job-author",
+      request_revision: 1,
+      phase: "visual_refine",
+      manifest: "project/manifest.json",
+      authored_dir: "project/authored",
+      review_scene_ids: ["scene-01", "scene-02"],
+    }));
+    const tool = tools.get("motionreal_submit_authoring")!;
+    const base = {
+      job_id: "job-author",
+      request_revision: 1,
+      scene_ids: ["scene-01", "scene-02"],
+      used_asset_ids: [],
+      reviewed_scene_ids: ["scene-01", "scene-02"],
+    };
+    await expect(tool.execute({ ...base, review_notes: "Ảnh sạch." }, execution(workspace)))
+      .rejects.toThrow(/scene-01.*scene-02|scene-02.*scene-01/);
+    await expect(tool.execute({
+      ...base,
+      review_notes: "scene-01 sạch sẽ, hierarchy rõ ràng, không thấy thêm vấn đề gì khác.",
+    }, execution(workspace))).rejects.toThrow(/scene-02/);
+  });
+
+  it("accepts Vietnamese scene mentions and structured verdicts as review coverage", async () => {
+    const { workspace, tools } = await fixture();
+    await mkdir(join(workspace, "project", "authored"), { recursive: true });
+    await writeFile(join(workspace, "project", "authored", "scene-01.tsx"), "export default {};\n");
+    await writeFile(join(workspace, "project", "authored", "scene-02.tsx"), "export default {};\n");
+    await writeFile(join(workspace, "project", "manifest.json"), JSON.stringify({
+      scenes: [
+        { id: "scene-01", component: "scene-01" },
+        { id: "scene-02", component: "scene-02" },
+      ],
+    }));
+    await writeFile(join(workspace, "handoff", "authoring-request.json"), JSON.stringify({
+      version: 1,
+      job_id: "job-author",
+      request_revision: 1,
+      phase: "visual_refine",
+      manifest: "project/manifest.json",
+      authored_dir: "project/authored",
+      review_scene_ids: ["scene-01", "scene-02"],
+    }));
+    const tool = tools.get("motionreal_submit_authoring")!;
+    const base = {
+      job_id: "job-author",
+      request_revision: 1,
+      scene_ids: ["scene-01", "scene-02"],
+      used_asset_ids: [],
+      reviewed_scene_ids: ["scene-01", "scene-02"],
+    };
+    await expect(tool.execute({
+      ...base,
+      review_notes: "Cảnh 01 sạch sẽ. Còn CẢNH THỨ 2 cần tăng contrast cho tiêu đề chính nhé.",
+    }, execution(workspace))).resolves.toMatchObject({ status: "submitted" });
+    await rm(join(workspace, "handoff", "authoring.json"), { force: true });
+    await expect(tool.execute({
+      ...base,
+      review_notes: "Đã xem cả hai still và không thấy lỗi trực quan nghiêm trọng nào cả.",
+      scene_verdicts: [
+        { scene_id: "scene-01", verdict: "clean", observation: "Hierarchy rõ." },
+        { scene_id: "scene-02", verdict: "fixed", observation: "Đã tăng contrast." },
+      ],
+    }, execution(workspace))).resolves.toMatchObject({ status: "submitted" });
+    const saved = JSON.parse(await readFile(join(workspace, "handoff", "authoring.json"), "utf8"));
+    expect(saved.scene_verdicts).toHaveLength(2);
+  });
+
+  it("rejects malformed structured verdicts without writing the handoff", async () => {
+    const { workspace, tools } = await fixture();
+    await mkdir(join(workspace, "project", "authored"), { recursive: true });
+    await writeFile(join(workspace, "project", "authored", "scene-01.tsx"), "export default {};\n");
+    await writeFile(join(workspace, "project", "manifest.json"), JSON.stringify({
+      scenes: [{ id: "scene-01", component: "scene-01" }],
+    }));
+    await writeFile(join(workspace, "handoff", "authoring-request.json"), JSON.stringify({
+      version: 1,
+      job_id: "job-author",
+      request_revision: 1,
+      phase: "visual_refine",
+      manifest: "project/manifest.json",
+      authored_dir: "project/authored",
+      review_scene_ids: ["scene-01"],
+    }));
+    const tool = tools.get("motionreal_submit_authoring")!;
+    const base = {
+      job_id: "job-author",
+      request_revision: 1,
+      scene_ids: ["scene-01"],
+      used_asset_ids: [],
+      reviewed_scene_ids: ["scene-01"],
+      review_notes: "scene-01: clean — hierarchy rõ, caption không bị che khuất.",
+    };
+    await expect(tool.execute({
+      ...base,
+      scene_verdicts: [{ scene_id: "scene-02", verdict: "clean", observation: "Lạ." }],
+    }, execution(workspace))).rejects.toThrow(/scene_verdicts/);
+    await expect(tool.execute({
+      ...base,
+      scene_verdicts: [{ scene_id: "scene-01", verdict: "maybe", observation: "Lạ." }],
+    }, execution(workspace))).rejects.toThrow(/scene_verdicts/);
+    await expect(tool.execute({
+      ...base,
+      scene_verdicts: [
+        { scene_id: "scene-01", verdict: "clean", observation: "Ổn." },
+        { scene_id: "scene-01", verdict: "fixed", observation: "Trùng." },
+      ],
+    }, execution(workspace))).rejects.toThrow(/scene_verdicts/);
   });
 
   it("allows an author to use a purposeful subset of the approved asset pool", async () => {

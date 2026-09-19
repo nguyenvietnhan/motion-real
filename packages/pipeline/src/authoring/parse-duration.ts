@@ -106,7 +106,7 @@ export function resolveEffectiveDuration(input: {
     };
   }
 
-  // Keep CLI/tools aligned with the desktop's fresh-install setting. Callers
-  // that intentionally want ~45 seconds pass tier 1 explicitly.
-  return { targetSeconds: 90, durationTier: 2, source: "default" };
+  // Desktop supplies its fresh-install tier explicitly. Generic API callers
+  // retain the short conservative fallback when they supply no duration intent.
+  return { targetSeconds: 45, durationTier: 1, source: "default" };
 }

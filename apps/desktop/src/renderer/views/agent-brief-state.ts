@@ -27,7 +27,8 @@ export function isAgentBriefInputDirty(baseline: AgentBriefInput | null, current
     || baseline.durationTier !== current.durationTier
     || baseline.videoLanguage !== current.videoLanguage
     || baseline.voiceProvider !== current.voiceProvider
-    || baseline.bgm !== current.bgm;
+    || baseline.bgm !== current.bgm
+    || baseline.assetStrategy !== current.assetStrategy;
 }
 
 export function requiresBriefDiscardConfirmation(

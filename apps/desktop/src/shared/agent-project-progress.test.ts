@@ -46,4 +46,84 @@ describe("agentProjectProgress", () => {
     expect(shouldPollProjectStage(agentProjectProgress({ kind: "ready", scenes: [] }))).toBe(false);
     expect(shouldPollProjectStage(agentProjectProgress({ kind: "published", outputPath: "media://video.mp4" }))).toBe(false);
   });
+
+  it("projects real workspace subphases during active authoring without claiming draft rendering", () => {
+    const prepareStill = agentProjectProgress({ kind: "rendering", percent: 45, phase: "prepare" }, "authoring");
+    expect(prepareStill).toMatchObject({
+      state: "authoring",
+      label: "Đang chuẩn bị ảnh xem trước…",
+      percent: 45,
+      canCancel: true,
+      reviewReady: false,
+    });
+
+    const refineStill = agentProjectProgress({ kind: "rendering", percent: 60, phase: "prepare" }, "visual_refine");
+    expect(refineStill).toMatchObject({
+      state: "authoring",
+      label: "Đang chuẩn bị ảnh soát lỗi…",
+      percent: 60,
+      canCancel: true,
+      reviewReady: false,
+    });
+  });
+
+  it("suppresses stale ready and published stages while new authoring is active", () => {
+    const staleReady = agentProjectProgress({ kind: "ready", scenes: [], draftPath: "media://old.mp4" }, "authoring");
+    expect(staleReady).toMatchObject({
+      state: "authoring",
+      label: "Đang viết scene (Harness)",
+      canCancel: true,
+      reviewReady: false,
+    });
+
+    const stalePublished = agentProjectProgress({ kind: "published", outputPath: "media://old.mp4" }, "visual_refine");
+    expect(stalePublished).toMatchObject({
+      state: "authoring",
+      label: "Đang soát lỗi hình ảnh (Harness)",
+      canCancel: true,
+      reviewReady: false,
+    });
+  });
+
+  it("ensures Agent paused and error states win over stale Workspace ready, published, or rendering", () => {
+    const pausedOverPublished = agentProjectProgress({ kind: "published", outputPath: "media://old.mp4" }, "paused");
+    expect(pausedOverPublished).toEqual({
+      state: "paused",
+      label: "Đã tạm dừng",
+      canCancel: false,
+      reviewReady: false,
+    });
+
+    const pausedOverReady = agentProjectProgress({ kind: "ready", scenes: [] }, "paused");
+    expect(pausedOverReady).toEqual({
+      state: "paused",
+      label: "Đã tạm dừng",
+      canCancel: false,
+      reviewReady: false,
+    });
+
+    const pausedOverRendering = agentProjectProgress({ kind: "rendering", percent: 80, phase: "draft" }, "paused");
+    expect(pausedOverRendering).toEqual({
+      state: "paused",
+      label: "Đã tạm dừng",
+      canCancel: false,
+      reviewReady: false,
+    });
+
+    const errorOverReady = agentProjectProgress({ kind: "ready", scenes: [] }, "error");
+    expect(errorOverReady).toEqual({
+      state: "error",
+      label: "Cần xử lý lỗi",
+      canCancel: false,
+      reviewReady: false,
+    });
+
+    const errorOverStageError = agentProjectProgress({ kind: "error", message: "Render thất bại.", fixable: false, retry: "draft" }, "error");
+    expect(errorOverStageError).toEqual({
+      state: "error",
+      label: "Render thất bại.",
+      canCancel: false,
+      reviewReady: false,
+    });
+  });
 });

@@ -9,6 +9,7 @@ import { createSmokeProject } from "./create/smoke-create.js";
 import type { QueueJobInput } from "../shared/queue-types.js";
 import { LockedVideoSpecSchema } from "@motionreal/schema";
 import { projectSceneTimelines } from "./workspace/workspace-view-model.js";
+import { isMissingFileError } from "./workspace/workspace-helpers.js";
 import { setAuthoringDiagnosticObserver } from "./authoring/authoring-failure.js";
 import { registerIpcRouter, type InvokeHandlers } from "./ipc-router.js";
 import { ModelGatewayManager } from "./gateway/model-gateway-manager.js";
@@ -43,6 +44,7 @@ import {
   unstageImage,
   type ImageStagingDeps,
 } from "./create/image-staging.js";
+import { sweepRuntimeArtifacts } from "./runtime-cleanup.js";
 import { createControllerArgsFromIpc, normalizeStagedImages, parseVoiceProvider } from "./create/create-ipc.js";
 import { createBgmHandlers } from "./bgm/bgm-handlers.js";
 import {
@@ -291,6 +293,7 @@ const workspace = new WorkspaceController({
         })),
       });
     } catch (error) {
+      if (isMissingFileError(error)) return {};
       log.debug({ err: error, projectId: id }, "locked timeline unreadable; storyboard seeks disabled");
       return {};
     }
@@ -524,11 +527,16 @@ async function resumePendingAgentDeletions(): Promise<void> {
 }
 
 async function activateHarnessDraft(draftId: string) {
+  const key = await readyHarnessApiKey();
+  return harness.activate(draftId, key);
+}
+
+async function readyHarnessApiKey(): Promise<string> {
   const state = await gateway.refreshHealth();
   if (state.kind !== "ready") throw new Error("9router chưa sẵn sàng. Hãy mở 9router rồi thử lại.");
   const key = gateway.localApiKey();
   if (!key) throw new Error("Chưa lấy được khóa nội bộ từ 9router. Hãy thử lại sau ít giây.");
-  return harness.activate(draftId, key);
+  return key;
 }
 
 async function submitProjectSceneEdits(id: string, edits: unknown, notes: unknown) {
@@ -846,8 +854,10 @@ const handlers: InvokeHandlers = {
 
   "agent:list": () => harness.list(),
   "agent:createDraft": async (title) => {
+    const key = await readyHarnessApiKey();
+    await harness.start(key);
     const draft = await harness.createDraft(String(title ?? ""));
-    return activateHarnessDraft(draft.id);
+    return harness.activate(draft.id, key);
   },
   "agent:openDraft": (draftId) => activateHarnessDraft(String(draftId)),
   "agent:openProject": async (projectId) => {
@@ -871,10 +881,6 @@ const handlers: InvokeHandlers = {
   "agent:selectModel": async (draftId, modelId) => {
     const opened = await activateHarnessDraft(String(draftId));
     return harness.selectModel(opened.id, String(modelId));
-  },
-  "agent:setAccess": async (draftId, presetId) => {
-    const opened = await activateHarnessDraft(String(draftId));
-    return harness.setAccess(opened.id, String(presetId));
   },
   "agent:setSearchProvider": (draftId, provider) => harness.setSearchProvider(String(draftId), provider),
   "agent:setSearchApiKey": (draftId, apiKey) => harness.setSearchApiKey(
@@ -917,6 +923,10 @@ const handlers: InvokeHandlers = {
     return harness.retryWorkflow(opened.id, Number(expectedRevision));
   },
   "agent:returnToAssets": (draftId, expectedRevision) => harness.returnToAssets(
+    String(draftId),
+    Number(expectedRevision),
+  ),
+  "agent:returnToDiscovery": (draftId, expectedRevision) => harness.returnToDiscovery(
     String(draftId),
     Number(expectedRevision),
   ),
@@ -1334,6 +1344,11 @@ app
       // eslint-disable-next-line no-console
       console.error("[desktop] staging sweep failed:", error);
     });
+    // Retired Agent runtime roots and interrupted voice previews are outside
+    // project data. This fixed-scope sweep is asynchronous and best-effort.
+    void sweepRuntimeArtifacts(videoToolHome(), {
+      warn: (details, message) => log.warn(details, message),
+    }).catch((error) => log.warn({ err: error }, "runtime artifact cleanup failed"));
     // Cap the shared render + TTS caches so they don't grow without bound. These
     // caches live OUTSIDE project folders (so a re-render of the same spec is
     // free) and are NOT cleared on project delete; pruning by size here is what

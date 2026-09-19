@@ -4,6 +4,12 @@ MotionReal supports three narration options: **VieNeu Local** (Vietnamese offlin
 
 Missing local runtime or cloud credentials **block** production render; the pipeline preserves configured choices and never silently falls back to `mock`, `none`, or an unconfigured provider.
 
+Cloud TTS endpoints and media/subtitle URLs must be public **HTTPS**. The shared
+transport resolves and pins every public redirect hop, caps responses and
+timeouts, rejects redirects for authenticated API calls, and strips credential
+headers when an anonymous media redirect crosses origin. VieNeu Local is a
+separate local worker path and is unaffected by this cloud-only policy.
+
 ## Comparison & Selection Matrix
 
 | Provider | Language | Hosting | Cost / API Key | Output Format | Alignment / Timing | Best For |
@@ -28,6 +34,9 @@ VieNeu Local runs in a dedicated, persistent Python worker per narration job and
 ### Environment & Cache
 - The dev launcher checks `../motion-china/.venv/Scripts/python.exe` or `MOTIONREAL_VIENEU_PYTHON`.
 - Model weights (~285 MB) are cached under `VIDEO_TOOL_HOME/.video-tool/vieneu/huggingface`.
+- Once both pinned model snapshots are complete, the worker uses that cache in
+  offline mode so an unavailable Hugging Face metadata endpoint cannot delay or
+  break local synthesis. An incomplete first-run cache still permits download.
 - Worker implementation is at `packages/tts/runtime/vieneu_worker.py` (override via `MOTIONREAL_VIENEU_WORKER` if needed).
 
 ### Verification & Calibration

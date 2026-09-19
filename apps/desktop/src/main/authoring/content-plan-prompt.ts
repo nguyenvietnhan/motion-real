@@ -27,6 +27,7 @@ function outputShape(): string {
   "first3SecondsLine": "...",
   "openLoop": "...",
   "payoff": "...",
+  "presentationProfile": "editorial-story|mechanism-explainer|evidence-explainer|procedural-guide|comparison-decision|narrative-conceptual|product-showcase",
   "claims": [
     {
       "id": "claim-01",
@@ -52,7 +53,7 @@ function outputShape(): string {
       "temporalMode": "static|stepped|continuous",
       "detailMode": "normal|fine",
       "motionBeats": [
-        { "id": "lower-kebab-id", "anchor": "2-8 exact narration words", "action": "meaningful visual state change" }
+        { "id": "lower-kebab-id", "anchor": "1-8 exact narration words", "action": "meaningful visual state change" }
       ],
       "layoutFamily": "big-number|two-column|timeline|diagram|list|signature-visual|statement",
       "evidenceClaimIds": ["claim-01"]
@@ -93,7 +94,7 @@ Sequential beat:
   narration: "Đầu tiên hệ thống nhận yêu cầu. Sau đó dữ liệu được xử lý. Cuối cùng kết quả được trả về."
   visualMetaphor: "A three-node path that activates in narration order."
   motionProgression: "Quick entrance: the path frame lands; semantic: phase 1 reveals the first node, phase 2 moves focus to the second, phase 3 completes the third and connection; final hold on the completed path."
-  motionBeats: [{"id":"receive-request","anchor":"hệ thống nhận yêu cầu","action":"Reveal and activate node one"},{"id":"process-data","anchor":"dữ liệu được xử lý","action":"Connect and activate node two"},{"id":"return-result","anchor":"kết quả được trả về","action":"Complete node three and hold the full path"}]
+  motionBeats: [{"id":"receive-request","anchor":"hệ thống nhận yêu cầu","action":"The request payload enters the empty input node and changes it to active"},{"id":"process-data","anchor":"dữ liệu được xử lý","action":"The same payload travels into the processor, whose state changes from waiting to transforming"},{"id":"return-result","anchor":"kết quả được trả về","action":"The transformed payload exits into the output node, which changes from empty to complete"}]
 
 Terminal/process beat:
   temporalMode: "continuous"
@@ -102,7 +103,7 @@ Terminal/process beat:
   narration: "Chạy lệnh kiểm tra cấu hình. Terminal trả về kết quả hợp lệ. Trạng thái hệ thống chuyển sang sẵn sàng."
   visualMetaphor: "A terminal where commands and results build line by line."
   motionProgression: "Quick entrance: terminal opens; semantic: phase 1 types the command, phase 2 reveals its result, phase 3 highlights the changed state; final hold on the outcome."
-  motionBeats: [{"id":"type-command","anchor":"lệnh kiểm tra cấu hình","action":"Type the command"},{"id":"show-result","anchor":"trả về kết quả hợp lệ","action":"Reveal the terminal result"},{"id":"ready-state","anchor":"chuyển sang sẵn sàng","action":"Highlight the changed system state"}]
+  motionBeats: [{"id":"type-command","anchor":"lệnh kiểm tra cấu hình","action":"The terminal changes from an empty prompt to the completed command"},{"id":"show-result","anchor":"trả về kết quả hợp lệ","action":"The command produces a new success output line beneath the unchanged prompt"},{"id":"ready-state","anchor":"chuyển sang sẵn sàng","action":"The status indicator changes from checking to ready while the command and result remain visible"}]
 
 Non-semantic statement beat:
   temporalMode: "static"
@@ -116,6 +117,26 @@ Continuous terminal/chart:
 
 Fine-detail evidence:
   detailMode: "fine" for code, terminal text, tables, small chart labels, or an evidence image whose crop/highlight must remain readable; otherwise use "normal".`;
+
+const PRESENTATION_PROFILE_ROUTING = `PRESENTATION PROFILE ROUTING — choose exactly one dominant profile from the viewer promise, not from the topic type or source type.
+Decision order (take the first outcome that truly describes the promise):
+- procedural-guide when the viewer must perform ordered actions and verify a result, including terminal or UI walkthroughs.
+- comparison-decision when the viewer must choose between alternatives using common criteria.
+- evidence-explainer when the viewer must judge whether evidence supports a claim, including method, limits, or uncertainty; facts or charts alone do not qualify.
+- product-showcase when real UI, screenshots, or demo media must prove what a product does in use.
+- editorial-story when the viewer must understand what happened, its context, and why it matters.
+- mechanism-explainer only when the viewer must understand how internal parts, states, or causal transformations produce an output.
+- narrative-conceptual for the remaining idea, history, meaning, or metaphor-led arc.
+
+Profile meanings:
+- editorial-story: the viewer should understand what happened and why it matters.
+- mechanism-explainer: the viewer should understand how an internal system, structure, or causal process works.
+- evidence-explainer: the viewer should assess what evidence supports a claim, including limits and uncertainty.
+- procedural-guide: the viewer should be able to perform an ordered task and verify the result.
+- comparison-decision: the viewer should choose between alternatives using common criteria.
+- narrative-conceptual: the viewer should understand how an idea evolved or what it means through a coherent narrative arc.
+- product-showcase: the viewer should see what a product actually does through real UI, screenshots, or demo media.
+A paper is not automatically evidence-explainer, and a product is not automatically product-showcase. An ordered task is procedural-guide, not mechanism-explainer; a chart is evidence-explainer only when the promise is to assess evidence. Route by the promised viewer outcome. Do not invent general, mixed, hybrid, or secondary profiles.`;
 
 function claimLedgerRules(hasLabeledSources: boolean): string {
   const provenance = hasLabeledSources
@@ -168,12 +189,14 @@ Plan a short-form video before any TSX is written. Return only valid JSON. Do no
 
 TASK:
 - Choose a clear story angle, hook, viewer promise, open loop, payoff, and scene-by-scene progression.
+- Choose exactly one presentationProfile using the routing contract below.
+- Do not output the legacy visualPlan field. The code author receives only the selected profile and this approved narrative plan, then owns concrete objects, composition, and visual states.
 - Make Scene 1 deliver a concrete content proposition in the first 3 seconds.
 - Keep the opening aligned with the title and the payoff.
-- Use specific visual metaphors and layout families so later code authoring does not collapse into generic title cards.
+- Use specific visual metaphors and layout families as starting suggestions so later code authoring does not collapse into generic title cards; the selected presentationProfile remains authoritative when a layout label conflicts with its visual grammar.
 - For each scene, write a short motionProgression as non-code motion intent. Use the exact label "semantic:" only when narration contains at least two viewer-visible states (steps, list items, comparison, timeline, terminal/code, data flow, transformation, or cause/effect). Such a scene MUST include 2-4 motionBeats in narration order. A single entrance, glow, ambient loop, or highlight is not semantic. Omit motionBeats for a statement, logo reveal, single hook, or final payoff with only one state.
 - Classify every scene with temporalMode and detailMode. Use temporalMode:"static" for one-state scenes with no motionBeats; "stepped" for 2-4 discrete narration-led states; "continuous" only when intermediate states are visually important. Use detailMode:"fine" only for code, terminal, tables, small chart labels, or evidence crop/highlight; otherwise "normal".
-- Each motionBeat has a unique lower-kebab id (max 32 chars), an anchor copied exactly from one unique contiguous 2-8 word phrase in narration, and a non-code action describing a meaningful visual state change. Anchors must be ordered as spoken. Do not write timestamps.
+- Each motionBeat has a unique lower-kebab id (max 32 chars), an anchor copied exactly from one unique contiguous 1-8 word phrase in narration, and a non-code action that names the persistent object, its visible before-state, the transformation/decision, and its visible after-state. A one-word anchor is valid only when that word occurs exactly once in narration. Anchors must be ordered as spoken. Do not write timestamps. "Show", "reveal", "highlight", or "emphasize" alone is not a state transition.
 - Every scene advances exactly one viewer-facing idea.
 
 DELIVERY LOCKS (already chosen by the app; do not change them):
@@ -185,6 +208,8 @@ DELIVERY LOCKS (already chosen by the app; do not change them):
 - Publish title cap: under ${titleCap} characters.
 
 ${claimLedgerRules(hasLabeledSources)}
+
+${PRESENTATION_PROFILE_ROUTING}
 
 STORY RUBRIC:
 - Prefer a sharp hook, concrete viewer promise, and resolved payoff over a flat topic summary.
@@ -202,6 +227,7 @@ QUALITY SELF-CHECK BEFORE FINAL JSON:
 - For schema-critical enum fields, copy exactly one literal value from the output shape. Do not invent synonyms for hookType, purpose, support, confidence, action, or layoutFamily.
 - For "purpose", use exactly one literal value: hook, context, turn, proof, contrast, payoff, cta. If unsure after scene-01, use "context" or "turn".
 - viewerPromise and payoff are mandatory; payoff must answer or resolve the openLoop.
+- presentationProfile must be exactly one literal from the routing contract and must match the dominant viewer promise.
 - The plan must satisfy the pacing line above; do not collapse a long target into a few long narration blocks.
 - For 3+ scenes, prefer at least 2 distinct layoutFamily values unless the whole video is intentionally one formal statement.
 - Any scene with a statistical number/date/price/benchmark/source-like factual detail must include evidenceClaimIds pointing only to supported/use claims.

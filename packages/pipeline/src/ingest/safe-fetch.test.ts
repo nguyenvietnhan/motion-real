@@ -6,6 +6,7 @@ import {
   isPrivateAddress,
   makeSafeFetch,
   makeSafeFetchBytes,
+  makeSafeResponseFetch,
   requestPinnedWithUndici,
   type ResolvedPublicTarget,
 } from "./safe-fetch.js";
@@ -78,6 +79,12 @@ describe("assertPublicUrl", () => {
     );
   });
 
+  it("rejects a hostname with mixed public and private DNS answers", async () => {
+    await expect(
+      assertPublicUrl("https://mixed.example.com/", async () => ["93.184.216.34", "10.1.2.3"]),
+    ).rejects.toSatisfy(isPipelineError);
+  });
+
   it("allows a public hostname that resolves to a public address", async () => {
     await expect(
       assertPublicUrl("https://example.com/article", lookup("93.184.216.34")),
@@ -100,8 +107,9 @@ describe("makeSafeFetch", () => {
     const requested: string[] = [];
     const fetcher = makeSafeFetch({
       fetchImpl: async (u) => {
-        requested.push(u);
-        return u.includes("start")
+        const url = String(u);
+        requested.push(url);
+        return url.includes("start")
           ? res({ status: 302, location: "http://127.0.0.1/secret" })
           : res({ body: "leak" });
       },
@@ -268,6 +276,71 @@ describe("makeSafeFetch", () => {
   });
 });
 
+describe("makeSafeResponseFetch", () => {
+  it("restricts cloud transports to HTTPS", async () => {
+    const fetcher = makeSafeResponseFetch({
+      fetchImpl: async () => res({ body: "unexpected" }),
+      lookupImpl: async () => ["93.184.216.34"],
+      allowedProtocols: ["https:"],
+    });
+    await expect(fetcher("http://public.example.com/tts")).rejects.toSatisfy(isPipelineError);
+  });
+
+  it("rejects an authenticated API redirect before sending a second request", async () => {
+    const requested: string[] = [];
+    const fetcher = makeSafeResponseFetch({
+      requestPinned: async (target) => {
+        requested.push(target.url.toString());
+        return res({ status: 307, location: "https://cdn.example.com/replayed" });
+      },
+      lookupImpl: async () => ["93.184.216.34"],
+      allowedProtocols: ["https:"],
+      maxRedirects: 0,
+      rejectRedirects: true,
+    });
+
+    await expect(fetcher("https://api.example.com/tts", {
+      method: "POST",
+      headers: { Authorization: "Bearer secret" },
+      body: "billable request",
+    })).rejects.toSatisfy(isPipelineError);
+    expect(requested).toEqual(["https://api.example.com/tts"]);
+  });
+
+  it("drops credential headers on a cross-origin media redirect", async () => {
+    const calls: Array<{ url: string; headers: Headers }> = [];
+    const fetcher = makeSafeResponseFetch({
+      requestPinned: async (target, _signal, _maxBodyBytes, init) => {
+        calls.push({ url: target.url.toString(), headers: new Headers(init?.headers) });
+        return target.url.hostname === "api.example.com"
+          ? res({ status: 302, location: "https://cdn.example.com/audio.mp3" })
+          : res({ body: "audio" });
+      },
+      lookupImpl: async () => ["93.184.216.34"],
+      allowedProtocols: ["https:"],
+    });
+
+    const response = await fetcher("https://api.example.com/audio", {
+      headers: {
+        Authorization: "Bearer secret",
+        "Proxy-Authorization": "Basic proxy-secret",
+        Cookie: "session=secret",
+        "xi-api-key": "eleven-secret",
+        "x-api-key": "generic-secret",
+        "x-request-id": "keep-me",
+      },
+    });
+
+    expect(await response.text()).toBe("audio");
+    expect(calls).toHaveLength(2);
+    expect(calls[1]!.url).toBe("https://cdn.example.com/audio.mp3");
+    for (const name of ["authorization", "proxy-authorization", "cookie", "xi-api-key", "x-api-key"]) {
+      expect(calls[1]!.headers.get(name)).toBeNull();
+    }
+    expect(calls[1]!.headers.get("x-request-id")).toBe("keep-me");
+  });
+});
+
 describe("makeSafeFetchBytes", () => {
   /** A Response carrying binary bytes (so a utf8 decode would corrupt them). */
   const binRes = (bytes: Uint8Array, opts: { status?: number; location?: string } = {}): Response => {
@@ -302,7 +375,7 @@ describe("makeSafeFetchBytes", () => {
   it("re-validates a redirect hop into a private target (parity with text path)", async () => {
     const fetcher = makeSafeFetchBytes({
       fetchImpl: async (u) =>
-        u.includes("start")
+        String(u).includes("start")
           ? binRes(new Uint8Array(), { status: 302, location: "http://127.0.0.1/secret.png" })
           : binRes(new Uint8Array([9])),
       lookupImpl: async () => ["93.184.216.34"],

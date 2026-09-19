@@ -174,5 +174,6 @@ describe("lockSpec — narration motion cues", () => {
     const locked = lockSpec(spec, null);
     expect(locked.scenes[0]!.motionCueFrames).toBeDefined();
     expect(locked.scenes[1]!.motionCueFrames).toBeUndefined();
+    expect(locked.scenes[1]!.motionBeats).toBeUndefined();
   });
 });

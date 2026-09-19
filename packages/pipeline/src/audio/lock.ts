@@ -81,8 +81,11 @@ export function lockSpec(spec: VideoSpec, tts: TtsManifest | null, opts: LockOpt
         Math.min(durationInFrames - 1, Math.max(0, timedWords[match.wordIndex]!.startFrame - visualStart)),
       ]))
       : undefined;
+    const { motionBeats: _motionBeats, ...sceneWithoutMotionBeats } = scene;
+    const validMotionBeats = resolvedAnchors?.ok ? scene.motionBeats : undefined;
     const locked = {
-      ...scene,
+      ...sceneWithoutMotionBeats,
+      ...(validMotionBeats ? { motionBeats: validMotionBeats } : {}),
       startFrame: visualStart,
       durationInFrames,
       ...(motionCueFrames && Object.keys(motionCueFrames).length === scene.motionBeats?.length ? { motionCueFrames } : {}),

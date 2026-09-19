@@ -148,6 +148,7 @@ function deny(cause: string, remediation: string): never {
 export async function resolvePublicTarget(
   rawUrl: string,
   lookup: (hostname: string) => Promise<string[]>,
+  allowedProtocols: readonly string[] = ["http:", "https:"],
 ): Promise<ResolvedPublicTarget> {
   let url: URL;
   try {
@@ -155,7 +156,7 @@ export async function resolvePublicTarget(
   } catch {
     deny(`invalid URL: ${rawUrl}`, "Provide a full http(s) URL to a public article.");
   }
-  if (url.protocol !== "http:" && url.protocol !== "https:") {
+  if (!allowedProtocols.includes(url.protocol)) {
     deny(
       `unsupported URL scheme "${url.protocol}" for ${rawUrl}`,
       "Only http(s) article URLs are allowed.",

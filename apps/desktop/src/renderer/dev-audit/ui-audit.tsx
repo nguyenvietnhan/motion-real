@@ -41,7 +41,6 @@ const mockDraft: import("../../shared/types.js").AgentDraftVM = {
   workflowVersion: 2,
   productionState: "brief_review",
   workflowRevision: 1,
-  sessionAccess: "full",
   webSearchConfigured: true,
   searchProvider: "deepseek",
   createReady: true,
@@ -85,11 +84,6 @@ const auditSettings = {
     { id: "deepseek-chat", label: "DeepSeek V3 (Khuyên dùng)" },
     { id: "deepseek-reasoner", label: "DeepSeek R1 (Lý luận sâu)" },
   ],
-  currentAccessId: "danger-full-access",
-  accessOptions: [
-    { id: "danger-full-access", label: "Toàn quyền (Terminal & Tệp)", description: "Agent có thể chạy lệnh terminal và tạo sửa tệp tự do.", requiresConfirmation: true },
-    { id: "workspace-write", label: "Chỉ ghi tệp trong workspace", description: "Agent chỉ được sửa tệp trong thư mục dự án.", requiresConfirmation: false },
-  ],
 };
 
 const auditDashboard = {
@@ -111,7 +105,6 @@ const auditDashboard = {
     renameDraft: async () => mockDraft,
     settings: async () => auditSettings,
     selectModel: async () => auditSettings,
-    setAccess: async () => auditSettings,
     setSearchApiKey: async () => mockDraft,
     setSearchProvider: async () => {},
     prepareAssets: async () => mockDraft,
@@ -123,6 +116,7 @@ const auditDashboard = {
     resumeWorkflow: async () => mockDraft,
     retryWorkflow: async () => mockDraft,
     returnToAssets: async () => mockDraft,
+    returnToDiscovery: async () => mockDraft,
     approveBrief: async () => mockDraft,
     createVideo: async () => ({ projectId: "project-audit" }),
     deleteDraft: async () => {},
@@ -282,7 +276,6 @@ const content = screen === "projects" ? (
       onSearchProvider={() => {}}
       onSaveSearchKey={() => {}}
       onModel={() => {}}
-      onAccess={() => {}}
       settings={{
         searchProvider: "deepseek",
         webSearchConfigured: true,
@@ -290,11 +283,6 @@ const content = screen === "projects" ? (
         modelOptions: [
           { id: "deepseek-chat", label: "DeepSeek V3 (Khuyên dùng)" },
           { id: "deepseek-reasoner", label: "DeepSeek R1 (Lý luận sâu)" },
-        ],
-        currentAccessId: "danger-full-access",
-        accessOptions: [
-          { id: "danger-full-access", label: "Toàn quyền (Terminal & Tệp)", description: "Agent có thể chạy lệnh terminal và tạo sửa tệp tự do.", requiresConfirmation: true },
-          { id: "workspace-write", label: "Chỉ ghi tệp trong workspace", description: "Agent chỉ được sửa tệp trong thư mục dự án.", requiresConfirmation: false },
         ],
       }}
     />
