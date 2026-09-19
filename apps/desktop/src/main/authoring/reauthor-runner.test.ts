@@ -26,7 +26,7 @@ export default registerComponent({ id: "scene-01", displayName: "Repaired", sche
     const args: ReauthorRunnerArgs = {
       model: "mock-model",
       projectId: "proj-1",
-      targets: [{ sceneId: "scene-01", componentId: "scene-01", issues: [] }],
+      targets: [{ sceneId: "scene-01", issues: [] }],
       reviewDir: "review",
       loadManifest: async () => ({
         theme: { dominant: "#10B981" },
@@ -48,7 +48,7 @@ export default registerComponent({ id: "scene-01", displayName: "Repaired", sche
 
     const result = await runReauthor(args);
     expect(result.scenes).toHaveLength(1);
-    expect(result.scenes[0].sceneId).toBe("scene-01");
+    expect(result.scenes[0]?.sceneId).toBe("scene-01");
     // System prompt must contain the custom dominant color from manifest
     expect(capturedSystemPrompt).toContain("#10B981");
     expect(capturedSystemPrompt).toContain('ACCENT_PRIMARY: "#10B981"');
@@ -74,7 +74,7 @@ export default registerComponent({ id: "scene-01", displayName: "Repaired", sche
     const args: ReauthorRunnerArgs = {
       model: "mock-model",
       projectId: "proj-1",
-      targets: [{ sceneId: "scene-01", componentId: "scene-01", issues: [] }],
+      targets: [{ sceneId: "scene-01", issues: [] }],
       reviewDir: "review",
       loadManifest: async () => {
         throw new Error("Disk error");
