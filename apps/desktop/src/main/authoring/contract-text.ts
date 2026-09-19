@@ -78,11 +78,11 @@ EXPORT BẮT BUỘC (mọi module):
 - import React from "react"; import { z } from "zod";
 - import { registerComponent, type SceneComponentProps } from "@motionreal/compositions";
 - export const schema = z.object({...})  // CHỈ props BESPOKE của cảnh
-  → TUYỆT ĐỐI KHÔNG khai báo headline/eyebrow/body/image/durationInFrames/motionCueFrames trong schema — đó là field TOP-LEVEL hệ thống tự truyền (xem SceneComponentProps). Đặt vào schema là lỗi N3 chặn render. Cảnh không props riêng thì để z.object({}).
+  → CẤM khai báo headline/eyebrow/body/image/durationInFrames/motionCueFrames trong schema — là field TOP-LEVEL (xem SceneComponentProps), đưa vào là lỗi N3 chặn render. Cảnh không props riêng: z.object({}).
 - type Props = z.infer<typeof schema>
 - const Scene: React.FC<SceneComponentProps<Props>> = ({ headline, body, eyebrow, durationInFrames, motionCueFrames, props }) => (... )
-  → headline/body/eyebrow/image/durationInFrames/motionCueFrames lấy từ top-level; bespoke props lấy từ props.*.
-- export const example: Props = {...}      // CỰC KỲ QUAN TRỌNG: PHẢI HOÀN TOÀN HỢP LỆ VỚI schema (thiếu hoặc lệch là lỗi "missing required export" chặn render!).
+  → Props bespoke lấy từ props.*.
+- export const example: Props = {...}      // PHẢI hợp lệ với schema (thiếu/lệch là lỗi "missing required export" chặn render!).
 - export default registerComponent<Props>({ id: "ten-canh", displayName, promptGuide, schema, Component: Scene, example });
   → id là CHUỖI LITERAL (chữ thường/số/gạch-ngang), khớp manifest.scenes[].component. Riêng manifest.scenes[].id PHẢI là scene-01, scene-02… theo thứ tự, không thêm hậu tố.
 
@@ -95,12 +95,11 @@ CÚ PHÁP TSX BẮT BUỘC (tự kiểm như chạy TypeScript parser trước k
 
 IMPORT WHITELIST (N4) — CHỈ được import: react, remotion, @motionreal/compositions, zod.
 KHÔNG CÒN thư viện block/theme: TUYỆT ĐỐI KHÔNG import "@motionreal/blocks" hay "@motionreal/theme" (đã ngắt — import vào là lỗi N4 chặn render). Không có useTheme, không có Frame/Story/TitleBlock… nào để gọi.
-NGOẠI LỆ DUY NHẤT cho ảnh: nếu cảnh có ảnh (field image), import { SceneImage } from "@motionreal/compositions" và render <SceneImage imageRef={image.ref} alt={image.alt} role={image.role} /> — đây là cách DUY NHẤT được phép hiện ảnh (cấm tự dùng <img>/Img/staticFile). role="logo"/"icon" phải giữ asset nhỏ gọn; không phóng thành ảnh hero.
+NGOẠI LỆ DUY NHẤT cho ảnh: nếu cảnh có ảnh (field image), import { SceneImage } from "@motionreal/compositions" và render <SceneImage imageRef={image.ref} alt={image.alt} role={image.role} /> (cấm tự dùng <img>/Img/staticFile). role="logo"/"icon" phải giữ asset nhỏ gọn; không phóng thành hero.
 KHÔNG: node:*, gói bên thứ ba, import tương đối ra ngoài file.
 
 API CẤM (N5) — cảnh là HÀM THUẦN của frame:
-KHÔNG Math.random, Date/Date.now, fetch/XMLHttpRequest, eval/Function, require/import() động, fs/child_process/process, window.location/document.cookie, dangerouslySetInnerHTML.
-Ngẫu nhiên → random(seed) của remotion; hoạt hoạ → useCurrentFrame()+interpolate/spring.
+CẤM Math.random, Date/Date.now, fetch, eval/Function, require/import() động, fs/child_process, window.location/document.cookie, dangerouslySetInnerHTML. Ngẫu nhiên → random(seed) của remotion; hoạt hoạ → useCurrentFrame()+interpolate/spring.
 
 ${palette}
 
@@ -118,7 +117,9 @@ LAYOUT ZONES (CANVAS 1080×1920 — MÔ HÌNH PHÂN TẦNG LƯỠNG PHÂN / BIMO
 5) BOTTOM RESERVE (86%–100% / 1650–1920px): Vùng platform UI (avatar, sound, action rail). Giữ sạch.
 - Hướng dẫn bố cục mềm: không phải lệnh ép mọi cảnh vào đúng giữa; bố cục top-aligned (bên trong content-zone) hoặc bất đối xứng vẫn hợp lệ khi có ý đồ thị giác rõ ràng.
 - Tràn chữ xuống dải phụ đề là cảnh báo N14 (advisory — KHÔNG chặn render), nhưng nên tránh để phụ đề đọc rõ. Không có đường kẻ nào do hệ thống vẽ.
-- Tránh dồn toàn bộ nội dung thành một dải hẹp giữa màn hình tạo cảm giác "hút chân không" ở nửa dưới. Cho beat thưa một mỏ neo (số lớn/đồ hoạ nhỏ).`;
+- Tránh dồn toàn bộ nội dung thành một dải hẹp giữa màn hình tạo cảm giác "hút chân không" ở nửa dưới. Cho beat thưa một mỏ neo (số lớn/đồ hoạ nhỏ).
+
+ĐIỀU KHOẢN MỞ RỘNG BỐ CỤC: Profile cung cấp ngôn ngữ thị giác chủ đạo của toàn video. Tác giả hoàn toàn được phép tự do vẽ các bố cục phụ trợ (hai cột đối chiếu, đồng hồ đo số liệu, đường nối SVG) bằng JSX/SVG trần khi tình tiết của cảnh yêu cầu.`;
 }
 
 const CREATIVE_COMPOSITION = `ART DIRECTION CẢ VIDEO — trước khi viết code, TỰ CHỌN NGẦM ngôn ngữ thị giác đúng chủ đề: nền sâu nhưng lùi, palette hẹp (theo Palette Token Contract), motif mảnh, typography/khoảng thở. Giữ nó xuyên video; KHÔNG đổi style vô cớ hay sao chép palette/diện mạo của thương hiệu/video có sẵn.

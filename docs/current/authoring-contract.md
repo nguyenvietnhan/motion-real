@@ -133,19 +133,51 @@ Authored scenes must strictly adhere to the authoritative Palette Token Contract
 - `STATUS_ERR`: `"#EF4444"` (Errors, risks, warnings — borders and badges only)
 - `STATUS_OK`: `"#10B981"` (Success, optimal — borders and badges only)
 
-## Geometric Archetypes
+## Geometric Archetypes & Domain Mixins
 
-To eliminate repetitive frosted glass card layouts ("toàn card thay vì visualize"), scenes must apply 4 positive geometric archetypes:
+To eliminate repetitive frosted glass card layouts ("toàn card thay vì visualize"), scenes must apply positive geometric archetypes tailored to the video's presentation profile. MotionReal uses a dynamic **Domain Archetype Mixins** architecture: code authoring assembles the Static Core Prefix, the profile's specific Domain Archetype recipes (using raw JSX/SVG and Design Tokens), and the high-level Profile Direction.
 
-1. **Pipeline Dataflow:** 3 sequential processing stations connected via SVG `<path>` (`stroke=ACCENT_PRIMARY`, `strokeWidth=3`, `strokeDasharray="6 6"`), with payloads animating along the path. Path extends down to `y: 1250–1350px` for structural grounding.
-2. **Dual Split-Core:** Symmetrical two-column comparison (`left: 100 & 570`, `width: 410`, `y: 340–1100px`), central SVG divider axis (`x1=540, y1=360, x2=540, y2=1200`), comparison badge ("VS" or criteria) at `x: 540, y: 700`, and pedestal grounding at `y: 1200–1320px`.
-3. **Metric Gauge:** Circular or semi-circular SVG dial (`cx: 540, cy: 620, r: 200`) with muted track and animated progress arc (`stroke=ACCENT_PRIMARY`, `strokeDashoffset`), giant metric number (80–160px, white) at center, and radar sweep extending to `y: 1200–1300px`.
-4. **Architecture Stack:** 3 minimalist architectural tiers (Input `y: 320px`, Logic `y: 620px`, Data `y: 920px`) with 1px borders, SVG bus connectors, and wide structural shelf at `y: 1200–1340px`.
+Each of the 7 presentation profiles injects concrete, high-contrast visual recipes:
 
-Anti-repetition rule:
+1. **`mechanism-explainer`:**
+   - *Pipeline Dataflow:* Sequential processing nodes connected via dashed curved SVG connectors, payloads advancing across cues, with base pedestal grounding at `y: 1250–1350px`.
+   - *State Machine Transition:* State circles (`r: 70–90px`, stroke or background) with curved SVG transition arrows (`markerEnd="url(#arrow)"`) and spotlight highlights on active states.
+   - *Architecture Stack:* 3 minimalist architectural tiers (Input `y: 320px`, Logic `y: 620px`, Data `y: 920px`) with 1px borders, vertical SVG bus connectors, and wide pedestal shelf at `y: 1250–1350px`.
+
+2. **`comparison-decision`:**
+   - *Dual Split-Core:* 2 symmetric columns (`left: 100 & 570`, `width: 410`, `y: 340–1100px`), central vertical SVG divider axis at `x: 540`, comparison badge ("VS" or criteria) at `x: 540, y: 700`, and pedestal grounding at `y: 1200–1320px`.
+   - *Comparison Matrix Shelf:* 3 distinct horizontal criteria rows (`y: 460px`, `y: 680px`, `y: 900px`) with clear side-by-side indicators, subtle divider strokes, and status color highlights.
+
+3. **`evidence-explainer`:**
+   - *Metric Gauge:* Semi-circular SVG dial (`center: 540, 620`, `r: 200–240px`) with muted track, animated progress arc (`stroke=ACCENT_PRIMARY`, `strokeDashoffset`), giant metric text (80–160px, white), and grounding radar sweep at `y: 1200–1300px`.
+   - *Data Trend Arc / Bar Delta:* Precise SVG coordinate axes with delta bars or trend curves, baseline reference strokes, and prominent percentage callouts.
+   - *Sourced Document Excerpt:* Framed technical document excerpt (`width: 840px`, `y: 380–1080px`), structured typography, focused spotlight highlight (`SPOTLIGHT` background with `borderLeft: 4px solid ACCENT_PRIMARY`), and source attribution badge.
+
+4. **`editorial-story`:**
+   - *Timeline Spine:* Vertical SVG axis at `x: 540` (or `x: 200`) with animated milestone nodes revealing sequentially along chronological narrative cues.
+   - *Photo/Map Focal Anchor:* Evidence photo/map container (`width: 880px`, `y: 380–1040px`, 1.5px accent border) with cinematic crop/pan/scale motion and coordinate grounding at `y: 1200–1320px`.
+   - *Event Headline Banner:* Bespoke editorial newspaper/headline graphic block (`y: 360–560px`) with high-contrast breaking banner and custom SVG divider lines.
+
+5. **`procedural-guide`:**
+   - *Terminal Command Flow:* Developer terminal window (`width: 880px`, `y: 360–1080px`, dark background) with 3 window chrome dots, Cascadia Mono command line with blinking cursor, and immediate output block.
+   - *Step-by-Step Action Shelf:* Numbered sequential progress steps with circular numbered badges (`44×44px`), clear action verbs, vertical connecting rails, and pedestal base at `y: 1200–1320px`.
+
+6. **`product-showcase`:**
+   - *Spotlight App Window Frame:* Centered application window (`width: 900px`, `y: 360–1100px`) with deep drop shadow, vibrant radial spotlight glow, and authentic UI/workflow demo content.
+   - *Feature Callout Magnifier:* Focal detail magnifier with SVG curved pointer path linking UI features to high-contrast floating badges.
+
+7. **`narrative-conceptual`:**
+   - *Metaphor Metamorphosis:* Geometric abstract metaphor shapes (polygons, helical rings, crystal lattices) morphing over frames/cues to symbolize concept evolution.
+   - *Concept Tension Balance:* Trade-off balance scale SVG at `x: 540, y: 580` with shifting beam and dual pans visually weighing opposing ideas or philosophical tensions.
+
+### Extensibility Clause
+The presentation profile establishes the dominant visual grammar for the video. Authors are explicitly free to draw auxiliary layouts (such as split comparison columns, metric dials, or SVG connector paths) in raw JSX/SVG whenever an individual scene's narrative demands it.
+
+Anti-repetition rules:
 - No more than 2 consecutive scenes sharing the same layout structure.
 - In 9–12 scenes, use at least 3 distinct layout archetypes, with at least 1–2 scenes featuring bespoke self-drawn SVG graphics.
 - At most 1 card scene in the entire video; all other scenes must use Geometric Archetypes.
+- Fallback: Legacy plans without `presentationProfile` retain the generic 4 Geometric Archetypes (`Pipeline Dataflow`, `Dual Split-Core`, `Metric Gauge`, `Architecture Stack`).
 
 ## Presentation profiles
 
@@ -156,12 +188,13 @@ Fresh content plans choose exactly one dominant `presentationProfile` from:
 topic label or source type. It receives only the profile names and short routing
 descriptions.
 
-Code authoring receives the shared technical contract, only the selected full
-profile direction, and the approved narrative plan. It owns concrete objects,
-composition and visible states while preserving narration, claims, scene order
-and motion anchors. `visualMetaphor` and `layoutFamily` are starting suggestions,
-not authorities: authoring must replace them when they conflict with the selected
-profile. It never receives the six unselected creative profiles.
+Code authoring receives the shared technical contract (Static Core Prefix), the
+selected profile's Domain Archetype Mixin, the high-level profile direction, and
+the approved narrative plan. It owns concrete objects, composition and visible
+states while preserving narration, claims, scene order and motion anchors.
+`visualMetaphor` and `layoutFamily` are starting suggestions, not authorities:
+authoring must replace them when they conflict with the selected profile. It never
+receives the six unselected creative profiles.
 There is no `general`, `mixed`, secondary profile, or per-scene profile switch.
 The profile is the dominant visual grammar rather than a single layout imposed
 on every scene. Scene-level `visualMetaphor`, `layoutFamily`, `temporalMode`,

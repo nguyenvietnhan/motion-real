@@ -1,9 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { PRESENTATION_PROFILE_VALUES, type PresentationProfile } from "./content-plan.js";
-import { AUTHORING_CONTRACT, TECHNICAL_AUTHORING_CONTRACT } from "./contract-text.js";
 import {
+  AUTHORING_CONTRACT,
+  TECHNICAL_AUTHORING_CONTRACT,
+  authoringContract,
+} from "./contract-text.js";
+import {
+  PROFILE_ARCHETYPES,
   authoringContractForProfile,
   presentationProfileDirection,
+  profileArchetypeDirection,
 } from "./presentation-profiles.js";
 
 describe("presentation profile directions", () => {
@@ -70,12 +76,84 @@ describe("presentation profile directions", () => {
   it("includes geometric archetypes and palette tokens in contract for profile", () => {
     const contract = authoringContractForProfile("mechanism-explainer", "#10B981");
     expect(contract).toContain("Pipeline Dataflow");
-    expect(contract).toContain("Dual Split-Core");
-    expect(contract).toContain("Metric Gauge");
+    expect(contract).toContain("State Machine Transition");
     expect(contract).toContain("Architecture Stack");
     expect(contract).toContain('ACCENT_PRIMARY: "#10B981"');
     expect(contract).toContain('stroke="#10B981"');
     expect(contract).not.toContain('stroke="#38BDF8"');
     expect(contract).toMatch(/LUẬT CHỐNG LẶP & CHỐNG CARD TRAP/);
   });
+
+  it("includes extensibility clause in technical contract for any profile", () => {
+    const contract = authoringContractForProfile("editorial-story", "#38BDF8");
+    expect(contract).toMatch(/ĐIỀU KHOẢN MỞ RỘNG BỐ CỤC/);
+    expect(contract).toMatch(/hai cột đối chiếu, đồng hồ đo số liệu, đường nối SVG/);
+  });
+
+  it("returns fallback contract with generic 4 archetypes when profile is undefined", () => {
+    const fallback = authoringContractForProfile(undefined, "#10B981");
+    expect(fallback).toContain("Pipeline Dataflow");
+    expect(fallback).toContain("Dual Split-Core");
+    expect(fallback).toContain("Metric Gauge");
+    expect(fallback).toContain("Architecture Stack");
+    expect(fallback).toContain('ACCENT_PRIMARY: "#10B981"');
+  });
+
+  it("returns fallback contract when profile is an unknown or invalid string", () => {
+    const fallback = authoringContractForProfile("non-existent-profile" as any, "#10B981");
+    expect(fallback).toBe(authoringContract("#10B981"));
+    expect(fallback).toContain("Pipeline Dataflow");
+    expect(fallback).toContain("Dual Split-Core");
+    expect(fallback).toContain("Metric Gauge");
+    expect(fallback).toContain("Architecture Stack");
+  });
+
+  it("defaults dominantColor to #38BDF8 when omitted in profileArchetypeDirection", () => {
+    const mixin = profileArchetypeDirection("editorial-story");
+    expect(mixin).toContain("#38BDF8");
+    expect(mixin).toContain("Timeline Spine");
+  });
+
+  const DOMAIN_ARCHETYPE_MAP: Record<PresentationProfile, string[]> = {
+    "mechanism-explainer": ["Pipeline Dataflow", "State Machine Transition", "Architecture Stack"],
+    "comparison-decision": ["Dual Split-Core", "Comparison Matrix Shelf"],
+    "evidence-explainer": ["Metric Gauge", "Data Trend Arc / Bar Delta", "Sourced Document Excerpt"],
+    "editorial-story": ["Timeline Spine", "Photo/Map Focal Anchor", "Event Headline Banner"],
+    "procedural-guide": ["Terminal Command Flow", "Step-by-Step Action Shelf"],
+    "product-showcase": ["Spotlight App Window Frame", "Feature Callout Magnifier"],
+    "narrative-conceptual": ["Metaphor Metamorphosis", "Concept Tension Balance"],
+  };
+
+  it.each(PRESENTATION_PROFILE_VALUES)(
+    "verifies profile %s outputs its designated domain archetypes and interpolates dominantColor",
+    (profile) => {
+      const customDominant = "#EC4899";
+      const expectedArchetypes = DOMAIN_ARCHETYPE_MAP[profile];
+
+      // Check profileArchetypeDirection directly
+      const mixin = profileArchetypeDirection(profile, customDominant);
+      for (const archetype of expectedArchetypes) {
+        expect(mixin).toContain(archetype);
+      }
+      expect(mixin).toContain(customDominant);
+      expect(mixin).not.toContain("#38BDF8");
+      expect(mixin).toMatch(/LUẬT CHỐNG LẶP & CHỐNG CARD TRAP/);
+
+      // Check assembled authoringContractForProfile
+      const contract = authoringContractForProfile(profile, customDominant);
+      for (const archetype of expectedArchetypes) {
+        expect(contract).toContain(archetype);
+      }
+      expect(contract).toContain(`ACCENT_PRIMARY: "${customDominant}"`);
+      expect(contract).toContain(presentationProfileDirection(profile));
+      expect(contract).toContain("ĐIỀU KHOẢN MỞ RỘNG BỐ CỤC");
+
+      // Check PROFILE_ARCHETYPES map directly
+      const rawRecipe = PROFILE_ARCHETYPES[profile](customDominant);
+      for (const archetype of expectedArchetypes) {
+        expect(rawRecipe).toContain(archetype);
+      }
+      expect(rawRecipe).toContain(customDominant);
+    },
+  );
 });

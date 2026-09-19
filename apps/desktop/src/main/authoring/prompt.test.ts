@@ -1150,14 +1150,66 @@ describe("design token palette and geometric archetypes injection", () => {
       plan,
     );
     const text = system!.content as string;
-    expect(text).toContain("Pipeline Dataflow");
-    expect(text).toContain("Dual Split-Core");
-    expect(text).toContain("Metric Gauge");
-    expect(text).toContain("Architecture Stack");
+    expect(text).toContain("Timeline Spine");
+    expect(text).toContain("Photo/Map Focal Anchor");
+    expect(text).toContain("Event Headline Banner");
     expect(text).toContain('ACCENT_PRIMARY: "#10B981"');
     expect(text).toContain('stroke="#10B981"');
     expect(text).not.toContain('stroke="#38BDF8"');
     expect(text).toMatch(/LUẬT CHỐNG LẶP & CHỐNG CARD TRAP/);
+  });
+
+  it("injects mechanism-explainer specific domain archetypes into author prompt", () => {
+    const plan: ContentPlan = {
+      title: "Mechanism plan",
+      presentationProfile: "mechanism-explainer",
+      viewerPromise: "Promise",
+      hookType: "surprise",
+      first3SecondsLine: "Hook",
+      openLoop: "Loop",
+      payoff: "Payoff",
+      claims: [],
+      scenes: [],
+    };
+    const [system] = buildAuthorMessages(
+      { text: "Chủ đề cơ chế", urls: [], dominantColor: "#10B981" },
+      undefined,
+      undefined,
+      undefined,
+      plan,
+    );
+    const text = system!.content as string;
+    expect(text).toContain("Pipeline Dataflow");
+    expect(text).toContain("State Machine Transition");
+    expect(text).toContain("Architecture Stack");
+    expect(text).toContain('ACCENT_PRIMARY: "#10B981"');
+    expect(text).toContain('stroke="#10B981"');
+  });
+
+  it("injects comparison-decision specific domain archetypes into author prompt", () => {
+    const plan: ContentPlan = {
+      title: "Comparison plan",
+      presentationProfile: "comparison-decision",
+      viewerPromise: "Promise",
+      hookType: "surprise",
+      first3SecondsLine: "Hook",
+      openLoop: "Loop",
+      payoff: "Payoff",
+      claims: [],
+      scenes: [],
+    };
+    const [system] = buildAuthorMessages(
+      { text: "Chủ đề so sánh", urls: [], dominantColor: "#6366F1" },
+      undefined,
+      undefined,
+      undefined,
+      plan,
+    );
+    const text = system!.content as string;
+    expect(text).toContain("Dual Split-Core");
+    expect(text).toContain("Comparison Matrix Shelf");
+    expect(text).toContain('ACCENT_PRIMARY: "#6366F1"');
+    expect(text).toContain('stroke="#6366F1"');
   });
 
   it("expands 3-character hex colors in author prompt", () => {
