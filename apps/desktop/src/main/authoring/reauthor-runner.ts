@@ -22,6 +22,7 @@ type ReauthorLogger = {
 };
 
 type ReauthorManifest = {
+  theme?: { dominant?: string };
   scenes: { id: string; component: string; image?: { ref?: string } }[];
 };
 
@@ -53,7 +54,16 @@ export type ReauthorRunnerArgs = {
  */
 export async function runReauthor(args: ReauthorRunnerArgs): Promise<{ scenes: AuthoredScene[] }> {
   const done: AuthoredScene[] = [];
-  const imageSceneIds = await imageSceneIdsForReauthor(args);
+  const manifest = await args.loadManifest(args.projectId).catch((error) => {
+    args.logger.warn({ err: error, projectId: args.projectId }, "reauthor manifest unreadable; hints unavailable");
+    return undefined;
+  });
+  const imageSceneIds = new Set(
+    (manifest?.scenes ?? [])
+      .filter((scene) => !!scene.image?.ref)
+      .map((scene) => scene.id),
+  );
+  const dominantColor = manifest?.theme?.dominant;
 
   for (const target of args.targets) {
     if (args.signal?.aborted) break;
@@ -68,7 +78,7 @@ export async function runReauthor(args: ReauthorRunnerArgs): Promise<{ scenes: A
       continue;
     }
 
-    const applied = await reauthorOneScene({ ...args, target, resolved, imageSceneIds });
+    const applied = await reauthorOneScene({ ...args, target, resolved, imageSceneIds, dominantColor });
     if (applied) {
       done.push({ sceneId: target.sceneId, stillPath: join(args.reviewDir, `${target.sceneId}.png`) });
     }
@@ -77,23 +87,12 @@ export async function runReauthor(args: ReauthorRunnerArgs): Promise<{ scenes: A
   return { scenes: done };
 }
 
-async function imageSceneIdsForReauthor(args: ReauthorRunnerArgs): Promise<Set<string>> {
-  const manifest = await args.loadManifest(args.projectId).catch((error) => {
-    args.logger.warn({ err: error, projectId: args.projectId }, "reauthor manifest unreadable; image-preservation hints unavailable");
-    return undefined;
-  });
-  return new Set(
-    (manifest?.scenes ?? [])
-      .filter((scene) => !!scene.image?.ref)
-      .map((scene) => scene.id),
-  );
-}
-
 async function reauthorOneScene(
   args: ReauthorRunnerArgs & {
     target: ReauthorTarget;
     resolved: ResolvedScene;
     imageSceneIds: Set<string>;
+    dominantColor?: string;
   },
 ): Promise<boolean> {
   const { componentId, path } = args.resolved;
@@ -121,6 +120,7 @@ async function reauthorOneScene(
       ...(intent ? { intent } : {}),
       ...(stillDataUrl ? { stillDataUrl } : {}),
       ...(args.imageSceneIds.has(args.target.sceneId) ? { hasImage: true } : {}),
+      ...(args.dominantColor ? { dominantColor: args.dominantColor } : {}),
     });
 
     let reply: string;
