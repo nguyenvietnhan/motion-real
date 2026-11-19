@@ -4,6 +4,30 @@ MotionReal is an Electron and Remotion desktop application for generating 9:16 s
 
 Instead of filling a fixed set of visual templates, the app asks a language model to write fresh Remotion React scene modules for each video, validates those modules against a strict import and runtime boundary, locks timing to real TTS audio, runs automated visual and safety checks, and renders a draft before final MP4 export.
 
+## Sample output
+
+<table>
+  <tr>
+    <td width="260" valign="top">
+      <a href="docs/assets/sample-output.mp4">
+        <img src="docs/assets/sample-preview.gif" width="240" alt="MotionReal 9:16 sample output preview" />
+      </a>
+    </td>
+    <td valign="top">
+      <p><strong>95-second Vietnamese tech explainer (9:16, ~90s tier)</strong></p>
+      <p>Generated end to end by MotionReal from a brief about AI compute futures (Silicon Data and CME Group). Every scene is freshly authored Remotion TSX/SVG rather than a prebuilt template:</p>
+      <ul>
+        <li>Custom React/SVG diagrams, animated charts, and kinetic typography</li>
+        <li>Grounded image framing via <code>SceneImage</code></li>
+        <li>Word-highlighted Vietnamese captions locked to TTS narration timing</li>
+      </ul>
+      <p>The preview on the left loops four excerpts from the render (silent GIF, 1.1 MB).</p>
+      <p><strong>Full video with narration audio (95s, 576x1024, 30 fps, 3.6 MB):</strong><br />
+      <a href="docs/assets/sample-output.mp4"><code>docs/assets/sample-output.mp4</code></a></p>
+    </td>
+  </tr>
+</table>
+
 ## Project status
 
 This repository is under active development. The core single-video pipeline works end to end on `main`, while two larger automation tracks are still in progress and kept clearly separated from the stable path:
