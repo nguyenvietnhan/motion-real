@@ -1,201 +1,122 @@
 # MotionReal
 
-[![CI](https://github.com/nguyenvietnhan/news_remotion_tool/actions/workflows/ci.yml/badge.svg)](https://github.com/nguyenvietnhan/news_remotion_tool/actions/workflows/ci.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+MotionReal is an Electron and Remotion desktop application for generating 9:16 short-form videos (Vietnamese or English) from a text brief, optional reference URLs, and local images.
 
-AI-driven **short-form** video generator on Remotion. Give a Vietnamese or
-English prompt (optional URLs and local images); the app plans content, writes
-fresh scene modules, speaks narration, and renders a publishable MP4.
+Instead of filling a fixed set of visual templates, the app asks a language model to write fresh Remotion React scene modules for each video, validates those modules against a strict import and runtime boundary, locks timing to real TTS audio, runs automated visual and safety checks, and renders a draft before final MP4 export.
 
-**Product path:** TikTok / Reels / Shorts **9:16** only. Create can pick a
-short-form duration tier (~45s / ~90s / ~150s / ~210s). No YouTube / landscape format.
+## Project status
 
-## How it works
+This repository is under active development. The core single-video pipeline works end to end on `main`, while two larger automation tracks are still in progress and kept clearly separated from the stable path:
 
-- **Pure AUTHOR:** for every video the runtime AI writes new Remotion React
-  scenes (raw JSX/SVG/CSS). No template catalog, no authored layout-block kit,
-  no authored theme tokens.
-- **Authored imports only:** `react`, `remotion`, `@motionreal/compositions`
-  (including `SceneImage`), and `zod`. Admission rejects everything else.
-- **Pipeline owns** captions, TTS, timing lock, safety grid, cache, and render.
-  Authored scenes never draw subtitles or call the network/filesystem.
-- **Draft before full** by default. Desktop can use stills-only review modes;
-  full export is always an explicit approval step.
-- **URL-grounded create** (desktop): up to 5 links, concurrent extract, bounded
-  text budgets. Planner sees labeled untrusted sources; code authoring only
-  sees the approved plan/claims (no raw article paste into TSX prompts).
-- **Fresh author apply** is transactional (stage → admit staged files → backup →
-  promote). Cancel mid-create is not treated as a hard project failure.
+| Area | Status | Notes |
+| --- | --- | --- |
+| Core 9:16 authoring & render pipeline (`packages/*`, `apps/remotion`, `apps/desktop`) | Working on `main` | End-to-end flow: content planning, optional URL extraction and claim checks, isolated TSX scene authoring, admission checks, TTS + timing lock, captions, bounded self-repair, draft preview, and explicit full MP4 export. Includes offline `typecheck`, 120+ Vitest test files, and webpack build checks. |
+| Batch queue (`apps/desktop/src/main/queue`, `views/queue.tsx`) | In progress on `main` | Serial container-based queue (`QueueStore`, `QueueRunner`, Home-to-queue spillover) is implemented with unit tests. Unattended end-to-end hardening, restart/retry ergonomics, and preset guardrails are still being refined. |
+| AI Video Agent via DeepSeek Harness (`codex/video-agent-harness`) | In progress (feature branch) | Conversational agent workflow embedding a managed DeepSeek Harness runtime with isolated per-video workspaces and narrow handoff tools (`motionreal_submit_assets`, `motionreal_submit_brief`, `motionreal_submit_authoring`). Kept off `main` while runtime lifecycle, session cleanup, and acceptance checks are still stabilizing. |
+| Authoring & motion experiments (`skill-test/`) | Experimental | Standalone scratchpad for testing motion-choreography heuristics, caption timing, and Hyperframes/Remotion authoring patterns outside the main desktop runtime. |
 
-Typical desktop path:
+## Architecture overview
+
+The core design rule is that authoring, admission, and rendering share a single process and a single `@motionreal/compositions` registry instance. A few deliberate constraints follow from that:
+
+- **Code-generated scenes, strict sandbox boundary:** Every video gets newly authored Remotion TSX modules rather than prebuilt layout blocks. Admission rejects any import outside `react`, `remotion`, `@motionreal/compositions` (including `SceneImage`), and `zod`. Authored scenes never draw subtitles or touch the network/filesystem.
+- **Pipeline owns timing, audio, and safety:** Narration (Vivibe or ElevenLabs), word-level timing locks, captions, BGM mixing, caching, and render safety grids live in `packages/pipeline`. Missing TTS credentials fail explicitly rather than falling back to silent or mock audio.
+- **Untrusted URL isolation:** When a brief includes reference links (up to 5 URLs), source extraction runs with bounded text budgets and explicit untrusted-source framing during planning. Scene code authoring only sees the approved plan and claims, never raw scraped article dumps.
+- **Transactional apply and bounded repair:** Newly generated scenes are staged, checked by admission, backed up, and promoted atomically so cancelling mid-run does not corrupt project state. Validation and layout issues go through a bounded generate-validate-repair loop (`CustomLoopAgentWorker`).
+- **Serial execution by design:** Because Remotion's webpack bundle and composition registry live in one process, batch queue execution is strictly serialized (one active render chain at a time) rather than parallelized.
+
+Typical desktop workflow:
 
 ```text
-Create (prompt / URLs / images)
-  → content plan (+ optional claim repair / demote-soften on URL runs)
-  → author TSX + manifest
-  → hidden stills / refine (desktop)
-  → draft MP4 or stills-only preview (Settings review mode)
-  → review → full MP4
+brief (prompt / URLs / local images)
+  -> content plan (+ URL extraction & claim checks)
+  -> scene TSX + manifest generation (admission-gated)
+  -> hidden stills + bounded refine / repair loop
+  -> draft MP4 or stills-only preview
+  -> review -> full 9:16 MP4 export
 ```
+
+Scope is intentionally limited to vertical 9:16 short-form output (~45s / ~90s / ~150s / ~210s duration tiers). Landscape/YouTube formats and manual timeline editing are out of scope.
+
+## Repository layout
+
+| Path | Responsibility |
+| --- | --- |
+| `apps/desktop` | Electron desktop app (React 19 + Vite): create flow, workspace stages, settings, local gateway integration, refine loop, BGM, diagnostics, export, and WIP batch queue |
+| `apps/remotion` | Remotion root and sample fixtures |
+| `packages/pipeline` | Authoring admission, URL ingest, TTS orchestration, timing lock, renderer, safety grid, project store, CLI, and internal tool facade |
+| `packages/schema` | Renderer-agnostic specs, lock model, 9:16 geometry, caption helpers |
+| `packages/compositions` | Composition registry, master video/thumbnail compositions, and `SceneImage` |
+| `packages/blocks` | Internal render-runtime components (not exposed to authored scenes) |
+| `packages/theme` | Internal neutral runtime theme (not exposed to authored scenes) |
+| `packages/tts` | Vivibe and ElevenLabs TTS clients and audio utilities |
+| `docs/current/` | Architecture, authoring contract, content guidelines, and maintenance notes |
+| `docs/providers/` | Vivibe and ElevenLabs setup notes |
+| `docs/working/` | Temporary design notes for in-progress tracks (batch queue, automation) |
+| `skill-test/` | Experimental motion/authoring sandbox (separate from the main app) |
 
 ## Requirements
 
-| Need | Notes |
-| --- | --- |
-| **Node.js** `>= 24`, **npm** `>= 11` | See root `package.json` `engines` |
-| **9router** (desktop AI) | External binary on `PATH`. Not vendored in this repo. App expects OpenAI-compatible chat at `http://localhost:20128/v1`. Launcher tries `9router -n -t --skip-update` if nothing is already listening. |
-| **TTS credentials** | Vivibe (Vietnamese) and/or ElevenLabs for real narration — see `docs/providers/`. Missing credentials **block** production render; never silent fall back to `mock` / `none`. |
-| **Chromium / Remotion browser** | Needed for real video stills/MP4 (`npm run smoke`, desktop/CLI render). **Not** required for `npm run typecheck`, `npm test`, or `npm run build` (webpack-only). |
+- **Node.js** `>= 24` and **npm** `>= 11` (see root `package.json`).
+- **Local AI gateway (`9router`)** for running the full desktop generation flow. Not vendored in this repo; the desktop app expects an OpenAI-compatible endpoint at `http://localhost:20128/v1` and tries to launch `9router -n -t --skip-update` if available on `PATH`.
+- **TTS credentials** (Vivibe for Vietnamese and/or ElevenLabs) for real narration. See `docs/providers/`.
+- **Chromium / Remotion browser** only when rendering actual stills or MP4s (`npm run smoke`, CLI render, or desktop render). Not required for `typecheck`, `test`, or `build`.
 
-Windows-friendly commands below may use `npm.cmd` under PowerShell execution policy.
+## Verification without API keys
 
-## Setup
+You can run the offline check suite locally without AI or TTS credentials (this is the same suite run in GitHub Actions CI):
 
 ```bash
 npm install
-copy .env.example .env
+npm run typecheck   # workspace TypeScript check
+npm test            # Vitest suite (renderer is mocked, no browser download)
+npm run build       # Remotion webpack bundle check (no video encode)
 ```
 
-Fill `.env` (or configure later in the desktop **Settings** UI):
+On Windows PowerShell with restricted execution policies, use `npm.cmd` in place of `npm`.
 
-| Area | Notes |
-| --- | --- |
-| **TTS** | Vivibe (Vietnamese) or ElevenLabs — see `docs/providers/`. |
-| **AI planner** | Desktop uses a **local 9router-compatible gateway** for model chat (not an in-repo binary). CLI / env-based OpenAI-compatible vars also appear in `.env.example` for non-desktop tooling. |
-| **Storage** | `VIDEO_TOOL_HOME` (default `.video-tool`) holds projects, cache, BGM library under `.video-tool/`. |
-
-Optional machine-only tool config: copy `.mcp.example.json` → `.mcp.json` (gitignored). Do not commit absolute paths.
-
-## First video
-
-### A. Desktop (full product path)
-
-1. Install deps and create `.env` (above).
-2. Install **9router** and ensure it is on `PATH`. Start it if needed:
-   `9router -n -t --skip-update` (port **20128**).
-3. Launch the app:
+Optional rendering checks (requires Chromium / Remotion browser, no TTS keys):
 
 ```bash
-npm --prefix apps/desktop run app
-```
-
-4. In **Settings**, connect an AI account via the gateway UI and pick a model.
-5. Configure voice (Vivibe / ElevenLabs) with a real API key + voice id.
-6. On **Home**, enter a prompt (optional URLs/images), create, wait for draft,
-   review, then approve full export.
-
-### B. Offline-friendly checks (no paid APIs)
-
-```bash
-npm run typecheck
-npm test
-npm run build
-```
-
-Optional real Chromium stills smoke (downloads browser if needed; no TTS):
-
-```bash
-npm run smoke
-```
-
-Pipeline CLI (no-voice sample draft MP4 — needs Remotion browser; no Vivibe):
-
-```bash
+npm run smoke                                      # real stills & determinism smoke
+npx tsx packages/pipeline/src/cli/cli.ts doctor    # environment check
 npx tsx packages/pipeline/src/cli/cli.ts render --sample
 ```
 
-Environment doctor:
+## Running the desktop app
+
+1. Install dependencies and create a local `.env` file:
 
 ```bash
-npx tsx packages/pipeline/src/cli/cli.ts doctor
+npm install
+cp .env.example .env   # Windows: copy .env.example .env
 ```
 
-## Run the desktop app
+2. Add TTS credentials in `.env` (or configure them later in desktop Settings) and make sure `9router` is on `PATH` (port `20128`).
+3. Launch the Electron app:
 
 ```bash
 npm --prefix apps/desktop run app
 ```
 
-That launcher builds Electron main/preload, starts the Vite renderer, tries to
-ensure the **external** 9router gateway is up when possible, and opens the UI.
-Project data shares the repo `VIDEO_TOOL_HOME` / `.video-tool` tree with
-CLI/scripts.
+This builds the Electron main/preload bundles, starts the Vite renderer, checks the local `9router` gateway, and opens the UI. Runtime project data, caches, and BGM files live under `VIDEO_TOOL_HOME` (default `.video-tool/`, gitignored).
 
-Other useful scripts (repo root unless noted):
+Other useful scripts:
 
-| Command | Purpose |
-| --- | --- |
-| `npm.cmd run typecheck` | Workspace TypeScript check |
-| `npm.cmd test` | Vitest suite |
-| `npm.cmd run build` | Remotion **webpack bundle only** (no browser download, no video render) |
-| `npm.cmd run smoke` | Real stills / determinism smoke (Chromium) |
-| `npm.cmd run studio` | Remotion Studio (`apps/remotion`) |
-| `npm --prefix apps/desktop run smoke:gateway` | Gateway smoke (live 9router) |
-
-## Repository map
-
-| Path | Role |
-| --- | --- |
-| `apps/desktop` | Electron product: create, workspace stages, settings, gateway, refine, BGM, diagnostics, export |
-| `apps/remotion` | Remotion root / composition entry |
-| `packages/pipeline` | Authoring admission, ingest, TTS orchestration, lock, render, safety, store, CLI, tools facade |
-| `packages/schema` | Specs, lock model, geometry, captions helpers |
-| `packages/compositions` | Registry, master video + thumbnail, authored-facing `SceneImage` |
-| `packages/blocks` | Render-runtime internals only — **not** for authored scene imports |
-| `packages/theme` | Neutral runtime theme for internals — **not** authored-facing |
-| `packages/tts` | Vivibe + ElevenLabs clients and audio helpers |
-| `docs/current/` | Durable product/architecture docs |
-| `docs/providers/` | TTS provider setup |
-| `docs/third-party.md` | Third-party and bundled-asset attribution |
-| `AI_CONTRACT.md` | Canonical rules for AI agents (entry: `AGENTS.md`) |
-| `.env.example` | Env template |
-
-Runtime artifacts: `VIDEO_TOOL_HOME/.video-tool/` (projects, renders, cache, BGM).
-Do not commit generated project trees or secrets.
+- `npm run studio` -- launch Remotion Studio (`apps/remotion`)
+- `npm --prefix apps/desktop run smoke:gateway` -- live gateway check against `9router`
 
 ## Documentation
 
-| Doc | Use when |
-| --- | --- |
-| `AI_CONTRACT.md` | Agent/human contract: invariants, safety, workflow |
-| `CONTRIBUTING.md` | Setup, checks, PR expectations, sensitive files |
-| `SECURITY.md` | Private vulnerability reporting |
-| `CODE_OF_CONDUCT.md` | Community standards |
-| `docs/current/architecture.md` | Packages, data flow, media protocol, research, recovery |
-| `docs/current/authoring-contract.md` | Rules for generated scene modules |
-| `docs/current/content-guide.md` | Story, evidence, language, motion guidance |
-| `docs/current/maintenance.md` | Refactor guardrails, residual risks, log reading |
-| `docs/providers/vivibe.md` / `elevenlabs.md` | TTS credentials and API notes |
-| `docs/third-party.md` | Fonts, BGM, dependency attribution |
-
-Prefer `docs/current/` over ad-hoc notes. Do not leave long-lived plans under
-`docs/working-notes/` — sync outcomes into durable docs, then delete the note.
-
-## Development notes
-
-- Sensitive areas: `packages/pipeline` orchestrator / render-grid, desktop
-  workspace controller — change only with focused tests and clear scope.
-- Authored-scene bugs that repeat should become schema, normalizer, admission,
-  or render-oracle checks — not only prompt text.
-- Layout/visual taste checks stay **advisory** unless live code marks a hard
-  integrity failure.
-- After authoring or provider-facing changes, run:
-
-```bash
-npm.cmd run typecheck
-npm.cmd test
-npm.cmd run build
-```
-
-## Support
-
-This project is provided as-is under MIT. Help is **best effort** via GitHub
-Issues only — no SLA, no guaranteed response time. Please redact secrets from
-logs. Security issues: see [`SECURITY.md`](SECURITY.md).
+- [`docs/current/architecture.md`](docs/current/architecture.md) -- workspace boundaries, data flow, and desktop main internals
+- [`docs/current/authoring-contract.md`](docs/current/authoring-contract.md) -- contract and admission rules for generated scenes
+- [`docs/current/content-guide.md`](docs/current/content-guide.md) -- narration, evidence, and motion guidelines
+- [`docs/current/maintenance.md`](docs/current/maintenance.md) -- refactor guardrails and known constraints
+- [`AI_CONTRACT.md`](AI_CONTRACT.md) -- canonical invariants for contributors and coding agents (entry point: [`AGENTS.md`](AGENTS.md))
+- [`CONTRIBUTING.md`](CONTRIBUTING.md) -- local workflow, checks, and PR guidelines
+- [`SECURITY.md`](SECURITY.md) -- reporting security issues
+- [`docs/third-party.md`](docs/third-party.md) -- third-party and bundled asset attribution
 
 ## License
 
 Copyright (c) 2026 Nguyen Viet Nhan. Released under the [MIT License](LICENSE).
-
-Third-party packages and some bundled assets have their own terms — see
-[`docs/third-party.md`](docs/third-party.md).

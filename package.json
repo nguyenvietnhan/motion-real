@@ -8,12 +8,12 @@
   "author": "Nguyen Viet Nhan",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/nguyenvietnhan/news_remotion_tool.git"
+    "url": "git+https://github.com/nguyenvietnhan/motion-real.git"
   },
   "bugs": {
-    "url": "https://github.com/nguyenvietnhan/news_remotion_tool/issues"
+    "url": "https://github.com/nguyenvietnhan/motion-real/issues"
   },
-  "homepage": "https://github.com/nguyenvietnhan/news_remotion_tool#readme",
+  "homepage": "https://github.com/nguyenvietnhan/motion-real#readme",
   "workspaces": [
     "packages/*",
     "apps/*"

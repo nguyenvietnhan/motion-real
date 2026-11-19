@@ -97,9 +97,8 @@ rules, or render oracles with regression tests — not only prompt text.
 
 ## Repository name
 
-The product is **MotionReal**. The current GitHub remote may still use a legacy
-name (`news_remotion_tool`). Prefer linking issues/PRs against the live remote
-URL in root `package.json` `repository` field.
+The product is **MotionReal** (`nguyenvietnhan/motion-real`). Prefer linking
+issues/PRs against the remote URL in the root `package.json` `repository` field.
 
 ## License
 

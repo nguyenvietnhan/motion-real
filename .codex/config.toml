@@ -10,7 +10,7 @@ command = "npx"
 args = [
     "-y",
     "@modelcontextprotocol/server-filesystem@latest",
-    "V:/video_tool",
+    ".",
 ]
 
 [mcp_servers.memory]

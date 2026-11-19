@@ -1,5 +1,5 @@
 blank_issues_enabled: true
 contact_links:
   - name: Security vulnerability
-    url: https://github.com/nguyenvietnhan/news_remotion_tool/blob/main/SECURITY.md
+    url: https://github.com/nguyenvietnhan/motion-real/blob/main/SECURITY.md
     about: Report security issues privately (see SECURITY.md) — do not file a public issue for RCE/SSRF/secret leaks.
