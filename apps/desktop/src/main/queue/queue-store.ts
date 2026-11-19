@@ -301,7 +301,7 @@ export class QueueStore {
       const parsed = JSON.parse(readFileSync(this.deps.filePath, "utf8")) as StoreFile;
       if (parsed?.version !== 1 || !Array.isArray(parsed.queues)) return { version: 1, queues: [] };
       return { version: 1, queues: parsed.queues.map(normalizeQueue) };
-    } catch {
+    } catch (_error) {
       return { version: 1, queues: [] };
     }
   }

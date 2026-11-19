@@ -49,7 +49,7 @@ export async function createSmokeProject(
   if (!res.ok) {
     return { ok: false, error: toFriendlyError(res.error).message };
   }
-  await deps.rename(projectId, "test").catch(() => null);
+  await deps.rename(projectId, "test").catch((_error) => null);
   deps.beginCreate(projectId, {
     text: validated.brief.text,
     urls: validated.brief.urls,

@@ -496,7 +496,7 @@ const queueRunner = new QueueRunner({
       // Ignore placeholders; keep the user prompt on the card until a real clip title exists.
       if (!t || /^project-\d+$/i.test(t) || t === "Untitled" || t === "Smoke test") return undefined;
       return t;
-    } catch {
+    } catch (_error) {
       return undefined;
     }
   },
@@ -786,14 +786,14 @@ function writeBrandShortcut(lnk: string, iconPath: string): boolean {
   const op = existsSync(lnk) ? "replace" : "create";
   try {
     if (shell.writeShortcutLink(lnk, op, { ...details })) return true;
-  } catch {
+  } catch (_error) {
     /* try opposite op / PowerShell */
   }
   // Retry opposite op once
   try {
     const op2 = op === "create" ? "replace" : "create";
     if (shell.writeShortcutLink(lnk, op2, { ...details })) return true;
-  } catch {
+  } catch (_error) {
     /* fall through */
   }
 
@@ -811,7 +811,7 @@ $S.Save()
 `;
     execFileSync("powershell.exe", ["-NoProfile", "-Command", ps], { stdio: "ignore" });
     return existsSync(lnk);
-  } catch {
+  } catch (_error) {
     return false;
   }
 }
@@ -829,7 +829,7 @@ function ensureWindowsBrandShellIdentity(): void {
     const lnk = join(programs, "Motion Real.lnk");
     try {
       if (existsSync(lnk)) unlinkSync(lnk);
-    } catch {
+    } catch (_error) {
       /* ignore */
     }
     writeBrandShortcut(lnk, iconPath);
@@ -870,7 +870,7 @@ async function createWindow(): Promise<void> {
     } else if (brandImg) {
       win.setIcon(brandImg);
     }
-  } catch {
+  } catch (_error) {
     /* title bar may fall back to PE icon */
   }
   win.removeMenu();

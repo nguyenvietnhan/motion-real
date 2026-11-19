@@ -38,7 +38,14 @@ export type BgmTrack = {
 
 /** Strip a candidate library filename to the safe shape: a bare name, known ext, no traversal. */
 function safeBgmPath(name: string): string {
-  if (typeof name !== "string" || name.length === 0 || name !== basename(name) || name.includes("..")) {
+  if (
+    typeof name !== "string" ||
+    name.length === 0 ||
+    name !== basename(name) ||
+    name.includes("/") ||
+    name.includes("\\") ||
+    name.includes("..")
+  ) {
     throw new Error(`Invalid BGM track name: ${JSON.stringify(name)}`);
   }
   if (!BGM_EXTENSIONS.has(extname(name).toLowerCase())) {

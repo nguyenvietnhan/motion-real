@@ -123,7 +123,7 @@ export class QueueRunner {
     if (this.currentProjectId) {
       try {
         this.deps.cancelProject(this.currentProjectId);
-      } catch {
+      } catch (_error) {
         /* cancel is best-effort */
       }
     }
@@ -256,7 +256,7 @@ export class QueueRunner {
           job.displayTitle?.trim() ||
           (job.smoke ? "Smoke test" : job.raw.trim().replace(/\s+/g, " ").slice(0, 140) || "Untitled");
         if (this.deps.renameProject) {
-          await this.deps.renameProject(projectId, label).catch(() => undefined);
+          await this.deps.renameProject(projectId, label).catch((_error) => undefined);
         }
         this.deps.store.updateJob(queueId, job.id, { projectId, displayTitle: label });
 
@@ -274,11 +274,11 @@ export class QueueRunner {
           let displayTitle: string | undefined;
           try {
             displayTitle = await this.deps.projectTitle?.(projectId);
-          } catch {
+          } catch (_error) {
             /* title is best-effort */
           }
           if (displayTitle && this.deps.renameProject) {
-            await this.deps.renameProject(projectId, displayTitle).catch(() => undefined);
+            await this.deps.renameProject(projectId, displayTitle).catch((_error) => undefined);
           }
           this.deps.store.updateJob(queueId, job.id, {
             status: "done",
